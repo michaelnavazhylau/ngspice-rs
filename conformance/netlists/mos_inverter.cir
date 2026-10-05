@@ -1,0 +1,8 @@
+MOS inverter, operating point
+vdd vdd 0 dc 5
+vin gate 0 dc 2
+rd vdd drain 10k
+m1 drain gate 0 0 nmos w=10u l=1u
+.model nmos nmos level=1 vto=1 kp=1e-4
+.op
+.end

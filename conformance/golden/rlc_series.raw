@@ -1,0 +1,20 @@
+Title: series rlc at dc
+Date: Mon Oct  5 18:07:26  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 5
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	i(l1)	current
+	2	v(mid)	voltage
+	3	v(out)	voltage
+	4	i(v1)	current
+Values:
+ 0	1.000000000000000e+00
+	0.000000000000000e+00
+	1.000000000000000e+00
+	1.000000000000000e+00
+	0.000000000000000e+00
+

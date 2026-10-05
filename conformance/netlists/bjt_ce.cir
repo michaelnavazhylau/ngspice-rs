@@ -1,0 +1,8 @@
+BJT common-emitter bias
+vcc vcc 0 dc 5
+vin base 0 dc 0.65
+rc vcc coll 1k
+q1 coll base 0 qmod
+.model qmod npn(is=1e-14 bf=100)
+.op
+.end

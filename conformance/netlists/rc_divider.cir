@@ -1,0 +1,7 @@
+RC divider, operating point
+* Two equal resistors across a 5 V source: v(out) = 2.5 V, i(v1) = -2.5 mA.
+v1 in 0 dc 5
+r1 in out 1k
+r2 out 0 1k
+.op
+.end

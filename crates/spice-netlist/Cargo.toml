@@ -1,0 +1,14 @@
+[package]
+name = "spice-netlist"
+description = "Deck loading, tokenizer, card classification and parser for the Rust ngspice port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+spice-core.workspace = true

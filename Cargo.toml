@@ -1,0 +1,49 @@
+# Cargo workspace for the Rust port of ngspice.
+#
+# This workspace sits at the root of an ngspice source tree (a git worktree
+# checked out on the `rust-port` branch).  The C sources are deliberately left
+# untouched: they are the reference implementation that the port is verified
+# against.  See RUST_PORT.md and docs/port/ for the design.
+#
+# The scaffold is dependency-free on purpose so that it builds offline with
+# nothing but a stable Rust toolchain.  Third-party crates are added per-crate,
+# with a justification, as the port progresses.
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/spice-core",
+    "crates/spice-netlist",
+    "crates/spice-maths",
+    "crates/spice-devices",
+    "crates/spice-analysis",
+    "crates/spice-cli",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+license = "BSD-3-Clause"
+repository = "https://sourceforge.net/p/ngspice/ngspice/"
+
+[workspace.dependencies]
+# No external crates yet.  Workspace-internal crates are declared here so that
+# every member agrees on one set of paths.
+spice-core = { path = "crates/spice-core" }
+spice-netlist = { path = "crates/spice-netlist" }
+spice-maths = { path = "crates/spice-maths" }
+spice-devices = { path = "crates/spice-devices" }
+spice-analysis = { path = "crates/spice-analysis" }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"

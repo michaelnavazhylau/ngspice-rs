@@ -1,0 +1,9 @@
+Subcircuit divider
+.subckt div a b
+r1 a b 1k
+.ends div
+v1 in 0 dc 10
+x1 in out div
+r2 out 0 1k
+.op
+.end

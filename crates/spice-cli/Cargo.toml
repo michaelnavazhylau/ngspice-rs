@@ -1,0 +1,21 @@
+[package]
+name = "spice-cli"
+description = "Command-line front end for the Rust ngspice port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "spice-rs"
+path = "src/main.rs"
+
+[dependencies]
+spice-analysis.workspace = true
+spice-core.workspace = true
+spice-devices.workspace = true
+spice-netlist.workspace = true

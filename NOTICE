@@ -1,0 +1,30 @@
+ngspice-rs — NOTICE
+
+This repository is a from-scratch Rust implementation ("the port") of ngspice,
+the SPICE circuit simulator.
+
+Upstream project:   ngspice
+  https://ngspice.sourceforge.io/
+  git://git.code.sf.net/p/ngspice/ngspice
+Reference revision:  pre-master-48 @ 059066b53
+
+The port is a derivative work of ngspice: it reimplements behaviour that
+ngspice's C sources define, and the doc comments throughout `crates/` name the
+upstream file and function each piece has to match. Paths such as
+`src/spicelib/parser/inpeval.c` and `src/frontend/rawfile.c` are paths **in the
+upstream ngspice tree**; they are not paths in this repository, which does not
+vendor the C sources.
+
+ngspice is distributed under a Modified BSD license. The license text, and the
+list of contributions that carry different terms, is in COPYING; attribution is
+in AUTHORS. Both files are reproduced here verbatim from upstream. Where the
+port translates rather than reimplements, the upstream terms are the ones that
+apply: `src/maths/sparse` (SPARSE 1.3) is MIT, and `src/maths/KLU` is LGPLv2 —
+which is why the port's sparse module is written from the algorithm's definition
+rather than translated from either, and why the licensing question is recorded
+as open in `docs/port/MAPPING.md`.
+
+The captured comparison data in `conformance/golden/` is rawfile output produced
+by running the upstream `ngspice` binary on the decks in `conformance/netlists/`.
+It is committed so that the test suite can run without a C toolchain, and it is
+regenerated — never edited — by `cargo xtask golden capture`.

@@ -1,0 +1,6 @@
+RC charging transient
+v1 in 0 pulse(0 5 0 1n 1n 10u 20u)
+r1 in out 1k
+c1 out 0 1n
+.tran 0.5u 5u
+.end

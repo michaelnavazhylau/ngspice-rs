@@ -1,0 +1,17 @@
+[package]
+name = "spice-analysis"
+description = "Analysis drivers, result plots and rawfile I/O for the Rust ngspice port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+spice-core.workspace = true
+spice-maths.workspace = true
+spice-netlist.workspace = true
+spice-devices.workspace = true

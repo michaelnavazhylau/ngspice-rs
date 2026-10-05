@@ -1,0 +1,7 @@
+Diode DC sweep
+v1 in 0 dc 0
+r1 in out 1k
+d1 out 0 dmod
+.model dmod d(is=1e-14 n=1.0)
+.dc v1 0 1 0.25
+.end
