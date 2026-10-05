@@ -1,7 +1,8 @@
 # RUST_PORT.md — a Rust port of ngspice
 
 A Cargo workspace for a from-scratch Rust implementation of ngspice. Development
-happens in an ngspice worktree (`rust-port`); the public standalone repository
+happens in an ngspice worktree (`new-parsing`, branched from `rust-port`);
+the public standalone repository
 contains only the Rust port and its conformance data.
 
 **Nothing in the C sources is modified or replaced.** ngspice is the reference
@@ -30,7 +31,7 @@ What already works for real:
 | Node table, ground aliasing | `spice-core` | `inp_fix_gnd_name()` from `src/frontend/inpcom.c` |
 | Deck loading: title, continuation, comments | `spice-netlist` | `inp_stripcomments_line()`, `inp_readall()` |
 | Card tokenizer and `.command` classification | `spice-netlist` | `inppas2.c` / `inp2dot.c` dispatch |
-| Semantic linear-device parser | `spice-netlist` | scalar R/C/L, DC/AC V/I, opaque analysis requests; three fixture decks parse |
+| Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, opaque analysis requests; three fixture decks parse |
 | Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters with C instance queries |
 | MNA matrix / triplet storage (no solver) | `spice-maths` | solver itself is stubbed |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` format, byte-for-byte layout |
@@ -48,7 +49,9 @@ cargo xtask golden check             # re-run C ngspice, diff against the golden
 cargo xtask ci                       # fmt --check + clippy -D warnings + test
 ```
 
-`cargo test` needs nothing but Rust: the goldens are committed data.
+`cargo test` needs Rust and the locked winnow dependency; the goldens are
+committed data, so no C toolchain is required. Run `cargo fetch --locked` once
+before `cargo test --workspace --locked --offline` for offline use.
 `cargo xtask golden capture` needs a built C `ngspice` binary. Point at one with
 `--ngspice <path>` or `NGSPICE_BIN=<path>`; otherwise it looks for
 `build/src/ngspice` — which only exists if you are working inside an ngspice
@@ -78,11 +81,14 @@ cargo run -p spice-cli -- analyses                              # analysis cover
 ## Development setup
 
 The port is developed inside a git worktree of an ngspice checkout (`ngspice-rs`,
-branch `rust-port`), so that the C reference tree sits next to the Rust code for
+branch `new-parsing`, based on `rust-port`), so the C reference tree sits next
+to the Rust code for
 reading and for capturing comparison data. That worktree is the source of truth;
 the standalone public repository is generated from it by
 `scripts/publish-rust-only.sh` and holds the port alone, with no C sources and no
-ngspice commit history.
+ngspice commit history. The publisher maps `rust-port` to public `main` and
+preserves feature-branch names (`new-parsing` → `new-parsing`). The target must
+be clean and checked out on the matching public branch before publishing.
 
 Nothing in the port depends on that setup: `cargo test` and `cargo xtask ci` run
 in any checkout, and only `cargo xtask golden capture` needs an upstream

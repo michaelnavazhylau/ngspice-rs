@@ -1,13 +1,13 @@
 # Cargo workspace for the Rust port of ngspice.
 #
 # This workspace sits at the root of an ngspice source tree (a git worktree
-# checked out on the `rust-port` branch).  The C sources are deliberately left
+# on `new-parsing`, branched from `rust-port`). The C sources are deliberately left
 # untouched: they are the reference implementation that the port is verified
 # against.  See RUST_PORT.md and docs/port/ for the design.
 #
-# The scaffold is dependency-free on purpose so that it builds offline with
-# nothing but a stable Rust toolchain.  Third-party crates are added per-crate,
-# with a justification, as the port progresses.
+# M0/M1a started dependency-free. On `new-parsing`, spice-netlist uses winnow
+# for semantic parser combinators; only the std and parser features are enabled.
+# Cargo.lock records the dependency. Offline builds require it to be cached.
 
 [workspace]
 resolver = "3"
@@ -29,8 +29,11 @@ license = "BSD-3-Clause"
 repository = "https://sourceforge.net/p/ngspice/ngspice/"
 
 [workspace.dependencies]
-# No external crates yet.  Workspace-internal crates are declared here so that
-# every member agrees on one set of paths.
+# Token-stream combinators replace the manual semantic-parser cursor. No FFI,
+# no regex dependency, and no optional ASCII/binary/SIMD/debug features.
+winnow = { version = "1.0.4", default-features = false, features = ["std", "parser"] }
+
+# Workspace-internal crates agree on one set of paths.
 spice-core = { path = "crates/spice-core" }
 spice-netlist = { path = "crates/spice-netlist" }
 spice-maths = { path = "crates/spice-maths" }

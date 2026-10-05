@@ -23,6 +23,23 @@ cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
 cargo xtask golden list                 # what the captured comparison data holds
 ```
 
+## Parsing backend (`new-parsing`)
+
+Semantic parsing uses **winnow 1.0.4** over borrowed, positioned tokens. Card
+alternatives, terminals, scalar assignments and DC/AC source forms use parser
+combinators; the existing deck loader and tokenizer are unchanged. This branch
+preserves M1a's syntax subset, AST and CLI exit contract—it does not add models,
+waveforms, subcircuits or a simulation engine.
+
+Winnow is the first external dependency, used only by `spice-netlist`, with its
+`std` and `parser` features. A fresh checkout needs a registry download; cache
+the locked dependencies once for subsequent offline builds:
+
+```sh
+cargo fetch --locked
+cargo test --workspace --locked --offline
+```
+
 ## Layout
 
 ```

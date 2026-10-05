@@ -12,6 +12,9 @@ syntax item does **not** mean its device or analysis can simulate yet.
 - [x] M1a: three existing decks parse; all other fixtures fail at explicit gaps.
 - [x] M1a: parser regressions, CLI process-exit tests and opt-in live C scalar oracle.
 - [x] Correct guide references: expression grammar vs deck dispatch; numparam vs input passes.
+- [x] `new-parsing`: replace the manual semantic cursor with winnow token-stream grammars.
+- [x] `new-parsing`: add committed-error/lookahead/full-consumption regressions; preserve M1a behaviour.
+- [x] Make publication branch-aware: feature branches cannot overwrite public main.
 
 ## Next: M1b — Models and remaining fixture syntax
 
@@ -62,4 +65,7 @@ syntax item does **not** mean its device or analysis can simulate yet.
 Implement and test in `ngspice-rs` (the C-reference worktree). After review and
 commit, regenerate the Rust-only public tree with
 `scripts/publish-rust-only.sh`; use `--push` only when publication is requested.
-Do not maintain two independent copies of the Rust files.
+`rust-port` publishes to `main`; feature branches keep their name. The standalone
+target must be clean and checked out on that public branch. Branch-routing
+checks run locally with `bash scripts/tests/publish-rust-only.sh` and do not
+contact GitHub. Do not maintain two independent copies of the Rust files.

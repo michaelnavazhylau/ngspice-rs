@@ -155,6 +155,25 @@ It was run successfully against the local ngspice-47+ binary for M1a.
 `.raw` files there or confuse these instance-query checks with engine parity.
 Token/AST snapshots and normalized-deck round trips are still M1d work.
 
+## Winnow backend regressions
+
+The existing M1a fixture, CLI and live C-oracle tests are retained unchanged.
+`crates/spice-netlist/tests/winnow_parser.rs` adds checks that cuts preserve
+terminal and missing-value diagnostics, optional slots cannot swallow overflow,
+repetition cannot hide unported expressions, AC lookahead leaves following
+keywords untouched, and trailing device tokens are never silently ignored.
+Unicode-node diagnostics remain byte-column-based and separate parser calls
+cannot leak backtracking state.
+
+Cache the locked dependencies with `cargo fetch --locked` before an offline
+check (`cargo test --workspace --locked --offline`). The zero-external-dependency
+claim applies to the historical M0/M1a backend, not the `new-parsing` rewrite.
+
+Worktree-only publication checks run via
+`bash scripts/tests/publish-rust-only.sh`. They use disposable local repos and a
+local bare remote to verify branch routing and dirty/mismatched-target refusal;
+they never contact GitHub and are not part of `cargo xtask ci`.
+
 ## Not yet verified
 
 Nothing about the port's own simulation arithmetic: there is no engine to compare yet.

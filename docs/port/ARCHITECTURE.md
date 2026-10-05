@@ -47,6 +47,30 @@ dependencies at all; nothing depends on `spice-cli`.
    `float`; the port uses `Real = f64` and records any place where the C code
    loses precision in `float` as a documented divergence risk.
 
+## Winnow semantic parsing (`new-parsing`)
+
+The semantic parser is implemented with winnow 1.0.4 (MIT), replacing M1a's
+manual token cursor. Only `spice-netlist` directly depends on it; default
+features are disabled and only `std`/`parser` enabled. Its declared MSRV is 1.65,
+below this workspace's 1.85 requirement. `Cargo.lock` pins the resolved graph;
+offline builds require the registry dependencies to have been cached first.
+
+- `parser/grammar.rs`: `Stateful<TokenSlice<Token>, Context>` over borrowed
+  tokens. Read-only context carries the card and ground-alias configuration;
+  `alt` dispatches end, analysis, device and explicit error branches.
+- `parser/linear.rs`: tuples compose terminal/parameter grammars; `opt`, `peek`
+  and `repeat` express optional scalars and repeated assignments. AST creation
+  happens only after a complete card succeeds.
+- `cut_err` commits after a recognised device or parameter prefix. A required
+  missing value, numeric overflow or an unported expression must never be
+  mistaken for a missing optional/repeated element.
+- A custom winnow error adapter preserves `SpiceError::Parse` source locations
+  and `NotYetPorted` C references. `Parser::parse` enforces complete token
+  consumption; `.end` deliberately consumes its tail to match C termination.
+
+The physical-line loader, tokenizer, public `Parser` API and AST contracts are
+unchanged. This is a backend rewrite, not completion of the remaining M1 syntax.
+
 ## Two data models for a netlist
 
 `spice-netlist` distinguishes:
