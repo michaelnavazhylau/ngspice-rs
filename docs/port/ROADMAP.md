@@ -14,15 +14,16 @@ Exit criteria met:
 - `cargo build`, `cargo test`, `cargo clippy -D warnings`, `cargo fmt --check` all pass
 - `cargo xtask golden capture` drives the C `ngspice` binary and writes ASCII rawfiles
 - every unimplemented entry point returns `SpiceError::NotYetPorted` with the C file it will be ported from
-- no external crate dependencies
+- no external crate dependencies at M0 completion (the later `new-parsing`
+  branch adds winnow deliberately)
 
 ## M1 — Netlist front end (current, in progress)
 
 Parse a deck into `spice-netlist::Netlist`: title, device instances, `.model`,
 `.subckt`/`.ends`, `.include`/`.lib`, `.param`/`.option`, analysis cards.
 
-- hand-written card parsers over the existing tokenizer; recursive descent for
-  expressions when parameter evaluation lands
+- winnow card-parser combinators over the existing tokenizer on `new-parsing`;
+  expression combinators when parameter evaluation lands
 - `.param` evaluator behaviour from `src/frontend/numparam/spicenum.c` and
   `xpressn.c`, with preprocessing in `src/frontend/inpcom.c`
 - `gnd` → `0` aliasing applied at parse time, controlled by `no_auto_gnd`
@@ -50,6 +51,15 @@ M1a checks: parser fixture/unit regressions, CLI exit-contract tests, and an
 opt-in C oracle comparing scalar AST parameters with live C instance queries.
 See `VERIFICATION.md`. Token/AST golden dumps and serialization are **not yet
 implemented** and remain part of the full M1 exit gate.
+
+### `new-parsing` — Winnow backend ✅
+
+Reimplemented the M1a semantic parser with winnow 1.0.4, using borrowed token
+streams, card alternatives, optional/repeated parameters and committed errors.
+The deck loader and tokenizer are unchanged; all M1a behaviour is retained.
+Combinator regressions cover backtracking, required values, overflow, trailing
+tokens and byte-based source positions. No remaining M1 syntax is unlocked by
+this rewrite. See `ARCHITECTURE.md` for the dependency justification.
 
 ### Remaining slices
 

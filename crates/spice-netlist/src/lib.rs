@@ -8,7 +8,7 @@
 //! | [`token`] | logical card → token stream | **ported** |
 //! | [`card`] | first token → [`card::CardKind`] classification | **ported** |
 //! | [`ast`] | the semantic netlist model | linear subset constructed |
-//! | [`parser`] | tokens → [`ast::Netlist`] | **M1a: scalar R/C/L, DC/AC V/I, analyses** |
+//! | [`parser`] | winnow token stream → [`ast::Netlist`] | **M1a: scalar R/C/L, DC/AC V/I, analyses** |
 //!
 //! The C equivalent is spread over `src/frontend/inp.c`,
 //! `src/frontend/inpcom.c` and `src/spicelib/parser/`. Deck dispatch is in

@@ -1,4 +1,4 @@
-//! Incremental semantic deck parser.
+//! Incremental semantic deck parser built with winnow token-stream combinators.
 //!
 //! Dispatch follows `src/spicelib/parser/inppas2.c`, `INPpas2()`;
 //! device grammars follow `inp2r.c`, `inp2c.c`, `inp2l.c`, `inp2v.c`, and
@@ -12,13 +12,16 @@
 
 use std::path::Path;
 
-use spice_core::{SpiceError, SpiceResult};
+use spice_core::SpiceResult;
 
-use crate::ast::{AnalysisCard, Netlist};
-use crate::card::{CardKind, DotCommand, RawCard};
+use crate::ast::Netlist;
+use crate::card::RawCard;
 use crate::source::{Deck, load};
 
+mod grammar;
 mod linear;
+
+use grammar::ParsedCard;
 
 /// Turns decks into [`Netlist`]s for the currently supported syntax subset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,8 +68,8 @@ impl Parser {
     ///
     /// # Errors
     ///
-    /// Returns [`SpiceError::Parse`] for malformed supported syntax and
-    /// [`SpiceError::NotYetPorted`] for constructs outside the current subset.
+    /// Returns [`spice_core::SpiceError::Parse`] for malformed supported syntax and
+    /// [`spice_core::SpiceError::NotYetPorted`] for constructs outside the current subset.
     /// No partially parsed netlist is returned on failure.
     pub fn parse_deck(&self, deck: &Deck) -> SpiceResult<Netlist> {
         let mut netlist = Netlist {
@@ -84,39 +87,10 @@ impl Parser {
         };
         for line in &deck.lines {
             let card = RawCard::parse(line)?;
-            match &card.kind {
-                CardKind::Device { designator } => {
-                    let device = linear::parse(&card, *designator, self.auto_gnd)?;
-                    netlist.devices.push(device);
-                }
-                CardKind::DotCommand(DotCommand::End) => break,
-                CardKind::DotCommand(DotCommand::Analysis(kind)) => {
-                    netlist.analyses.push(AnalysisCard {
-                        kind: *kind,
-                        arguments: card.arguments().iter().map(|t| t.text.clone()).collect(),
-                        location: card.location.clone(),
-                    });
-                }
-                CardKind::DotCommand(command) => {
-                    let reference = match command {
-                        DotCommand::Model => "src/spicelib/parser/inpdomod.c",
-                        DotCommand::Subckt | DotCommand::Ends => "src/frontend/subckt.c",
-                        DotCommand::Include | DotCommand::Lib => "src/frontend/inpcom.c",
-                        DotCommand::Param => "src/frontend/numparam/spicenum.c",
-                        DotCommand::Control | DotCommand::Endc => "src/frontend/inp.c",
-                        _ => "src/spicelib/parser/inp2dot.c",
-                    };
-                    return Err(SpiceError::not_yet_ported(
-                        format!("{}: {} directive", card.location, command.card_name()),
-                        reference,
-                    ));
-                }
-                CardKind::Unknown => {
-                    return Err(SpiceError::parse(
-                        card.location,
-                        format!("unrecognised card: {}", card.raw),
-                    ));
-                }
+            match grammar::parse_card(&card, self.auto_gnd)? {
+                ParsedCard::Device(device) => netlist.devices.push(device),
+                ParsedCard::Analysis(analysis) => netlist.analyses.push(analysis),
+                ParsedCard::End => break,
             }
         }
         Ok(netlist)
