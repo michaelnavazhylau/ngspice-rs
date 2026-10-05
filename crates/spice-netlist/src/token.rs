@@ -1,8 +1,8 @@
 //! Tokenizing a logical card.
 //!
 //! The C front end has no separate tokenizer: `src/spicelib/parser/inp2*.c`
-//! functions walk the card text with `nexttok()` / `gettok()` from
-//! `src/spicelib/parser/inpcom.c` as they parse. The port separates the two
+//! functions walk the card text with `INPgetTok()` / `INPgetNetTok()` from
+//! `src/spicelib/parser/inpgtok.c` as they parse. The port separates the two
 //! steps so that the parser can be written against a positioned token stream.
 //!
 //! Delimiters are whitespace, `(`, `)`, `,`, `=` and the quote characters. That

@@ -17,12 +17,13 @@ therefore the central risk of this port — see
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
 | `src/spicelib/parser/inpeval.c` | 1,139 | `spice-core::value` | numeric literals and scale factors ported |
-| `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, future parser | ground aliasing, comment stripping, card classification ported |
+| `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, card classification ported; include/lib/numparam preprocessing still missing |
 | `src/frontend/inp.c` | 2,967 | `spice-netlist::source` | title line, continuation folding ported |
-| `src/frontend/parse-bison.y` | 180 | `spice-netlist::parser` | **not ported**; the grammar is small because most card parsing lives in `inp2*.c`. A hand-written recursive-descent parser is planned rather than a generator. |
-| `src/spicelib/parser/inp2*.c` (one file per device letter) | 3,828 | `spice-netlist::parser`, per-device `from_tokens` | **not ported** |
-| `src/spicelib/parser/inppas*.c` (`.param`, expressions) | 667 | `spice-netlist::parser` | **not ported** |
-| `src/spicelib/parser/ifeval.c` | 190 | `spice-netlist::expr` (planned) | **not ported** |
+| `src/frontend/parse-bison.y` | 180 | future front-end expression parser | **not ported**; this is an expression grammar, not the netlist deck grammar |
+| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | **M1a:** scalar R/C/L and DC/AC V/I syntax; analysis arguments retained without validation; remaining grammars unported |
+| `src/spicelib/parser/inppas*.c` (input passes: models, devices, IC/nodeset, shunts) | 667 | `spice-netlist::parser`, later circuit elaboration | card dispatch partially ported; model/IC/shunt passes unported; these are **not** `.param` evaluators |
+| `src/frontend/numparam/{spicenum,xpressn}.c`, preprocessing in `inpcom.c` | — | `spice-netlist::expr` (planned) | `.param` expression/scoping behaviour; **not ported** |
+| `src/spicelib/parser/ifeval.c` | 190 | future behavioural-device evaluator | **not ported**; evaluates IF parse trees, not numparam `.param` expressions |
 | `src/spicelib/parser/inpsymt.c` | 305 | `spice-netlist::symbols` (planned) | **not ported** |
 | `src/frontend/circuits.c`, `define.c` | 483 | `spice-devices::registry`, `spice-core::node` | registry skeleton only |
 | `src/frontend/` (whole directory) | 88,452 | — | includes the command interpreter, plots and measurement; mostly deferred |
@@ -70,7 +71,8 @@ translate all of it; the roadmap targets a small, useful subset first.
 (DFSG-compatible). A from-scratch Rust port distributed under Modified BSD must
 not absorb LGPL code:
 
-- **KLU** is listed as a licensing question to resolve *before* any work starts.
+- **KLU** is listed as a licensing question to resolve *before solver work starts*.
+  Netlist parsing does not depend on it; the gate belongs before M2, not M1.
   The scaffold's `spice-maths::sparse` module is written from the description of
   sparse LU, not translated from KLU or SPARSE 1.3, and cites them only as the
   behaviour to match via golden data.

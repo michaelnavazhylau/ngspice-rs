@@ -1,12 +1,11 @@
-//! The semantic netlist model — what the parser will produce.
+//! The semantic netlist model produced by the incremental parser.
 //!
-//! These types are defined now so that the parser, the device registry and the
-//! analyses can agree on a shape; nothing constructs a [`Netlist`] yet. The
-//! parser is expected to be the only producer, and to be the place where
-//! ngspice's parsing quirks are encoded:
+//! The parser, device registry and analyses share these types. The parser
+//! currently constructs linear-device netlists; models and subcircuits remain
+//! future work. ngspice's parsing quirks are encoded at that boundary:
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
-//!   with `INPevaluate()`/`ifeval` and lets them depend on `.param` values and
+//!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
@@ -18,10 +17,16 @@ use std::path::PathBuf;
 
 use spice_core::{AnalysisKind, Real, SourceLoc};
 
-/// A node name exactly as written in the deck.
+/// A canonical node name: ASCII-lowercased, with optional `gnd` → `0` aliasing.
 pub type NodeName = String;
 
-/// One `name=value` assignment on a card.
+/// One device parameter, including positional values mapped to canonical names.
+///
+/// R/C/L leading values become `resistance`/`capacitance`/`inductance`; source
+/// values become `dc`, `acmag`, and `acphase`. AC defaults are made explicit.
+/// Parameters are in application order: C applies a source's leading DC value
+/// after named assignments. Duplicate assignments remain visible; consumers
+/// must apply them in order rather than treating this vector as a map.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterAssignment {
     /// Parameter name, lowercased; ngspice matches parameter names

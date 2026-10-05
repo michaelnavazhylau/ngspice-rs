@@ -126,9 +126,38 @@ pinned by a test so that it cannot be lost.
    has to skip; a blank line is therefore not a reliable plot separator inside
    the values section.
 
+## M1a parser verification
+
+`crates/spice-netlist/tests/linear_parser.rs` checks AST fields against the
+committed divider, AC low-pass and RLC decks: terminal order, values, source
+locations, request arguments, case folding and ground aliasing. It also checks
+that all five remaining fixture decks fail at an explicit unported construct,
+not with a partially successful AST. `crates/spice-cli/tests/parse.rs` checks
+process exits: supported parse = 0, missing file = 2, unported syntax = 3.
+
+A separate opt-in oracle uses `conformance/parser/linear_sources.cir` to compare
+parsed scalar parameters with C's `print @instance[parameter]` after an `.op`
+setup. It runs out of process in a unique temporary directory and uses no FFI:
+
+```sh
+NGSPICE_BIN=/path/to/ngspice cargo test -p spice-netlist --test c_reference -- --ignored
+```
+
+This pins bare-AC defaults (magnitude 1, phase 0), implicit DC zero, source
+leading-DC precedence, and R/C/L values and initial conditions. The last-set
+parameter map from Rust is compared numerically with C instance queries. The
+probe uses simple values; its tolerance is `1e-12` relative, with a `1e-12` scale
+floor for zero, because C's `print` format is shorter than rawfile decimals.
+The test is ignored by default so ordinary tests remain C-toolchain-independent.
+It was run successfully against the local ngspice-47+ binary for M1a.
+
+`conformance/parser/` is **not** part of the rawfile fixture corpus; do not add
+`.raw` files there or confuse these instance-query checks with engine parity.
+Token/AST snapshots and normalized-deck round trips are still M1d work.
+
 ## Not yet verified
 
-Nothing about the port's own arithmetic: there is no engine to compare yet.
+Nothing about the port's own simulation arithmetic: there is no engine to compare yet.
 `cargo xtask golden verify` — running the Rust engine over the same fixtures and
 diffing against the goldens — is milestone work, not scaffold work. When it
 lands, the comparison should be numeric with an explicit tolerance, and the

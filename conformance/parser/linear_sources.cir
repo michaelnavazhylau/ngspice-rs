@@ -1,0 +1,11 @@
+M1a scalar parser reference
+* Leading DC wins over named DC, and bare AC defaults to magnitude 1/phase 0.
+v1 a 0 5 dc 2 ac 2 90
+r1 a gnd 1k
+c1 a 0 1u ic=2
+l1 b 0 1m ic=3m
+r2 b 0 1k
+i1 a 0 ac
+i2 b 0
+.op
+.end

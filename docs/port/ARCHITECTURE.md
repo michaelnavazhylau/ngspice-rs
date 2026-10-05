@@ -20,7 +20,7 @@ dependencies at all; nothing depends on `spice-cli`.
 | Crate | Responsibility | Mirrors |
 | --- | --- | --- |
 | `spice-core` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
-| `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, target AST, parser | `src/frontend/inp.c`, `src/frontend/parse-bison.y`, `src/spicelib/parser/inp*.c` |
+| `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
 | `spice-maths` | Dense and sparse matrix storage, LU factorisation, numerical integration (trapezoidal / Gear) | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
 | `spice-devices` | `Device` trait, MNA stamping contract, device registry, `Circuit` container, built-in models | `src/spicelib/devices/` |
 | `spice-analysis` | Analysis drivers, result plots, ASCII rawfile reading and writing | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
@@ -55,13 +55,23 @@ dependencies at all; nothing depends on `spice-cli`.
   classification (`Device { designator }`, `DotCommand(..)`). Produced by the
   tokenizer; already implemented.
 - **`Netlist`** — the semantic model (device instances with typed parameters,
-  `.model` cards, `.subckt` bodies, analyses, includes). Produced by the parser;
-  **not implemented**.
+  `.model` cards, `.subckt` bodies, analyses, includes). The incremental parser
+  now constructs a **linear subset**: scalar R/C/L instances, DC/AC V/I sources
+  and opaque analysis requests. Model/subcircuit/include/parameter syntax is
+  still unported and never silently dropped.
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
 before any parser exists), and the semantic model can evolve without breaking
 the tokenizer's contract.
+
+Parameter values retain their original numeric spelling. Positional values map
+onto canonical instance parameters (`resistance`, `capacitance`, `inductance`,
+`dc`); AC specifications become `acmag`/`acphase` with C's defaults. The parameter
+vector records **application order**, not a dictionary: `INP2V()`/`INP2I()` apply
+a leading DC value after named parameters. This order must survive future
+serialization and elaboration. Analysis arguments remain unvalidated until their
+consumer interprets them; AST success is not a promise of simulation support.
 
 ## Deliberate divergences from the C code
 
@@ -71,4 +81,9 @@ comment at the divergence site.
 | Divergence | Reason |
 | --- | --- |
 | `parse_spice_number_prefix()` consumes `MEG`/`MIL` in full, while `INPevaluate()` leaves those letters unconsumed | `INPevaluate()` returns a value and a rest pointer; consumers (`inpcom.c` scale scanning, `INPevaluateRKM_*`) do the skipping themselves. The Rust API reports bytes consumed, so it consumes the whole recognised suffix. The numeric result is identical. |
-| RKM-style literals (`4k7` meaning `4.7k`, `inp2r.c`/`inp2c.c`/`inp2l.c`) are **not** accepted | Not ported yet; `parse_spice_number("4k7")` returns `None`. A unit test pins this so the change is deliberate. |
+| RKM-style literals (`4k7` meaning `4.7k`, `inp2r.c`/`inp2c.c`/`inp2l.c`) are **not** accepted | Not ported yet; `parse_spice_number("4k7")` returns `None` and the semantic parser returns `NotYetPorted`. Tests pin this so the change is deliberate. |
+| M1a rejects non-finite scalar literals instead of passing them to a device | Input validation prevents overflow/NaN from entering a future solver; errors retain token locations. |
+
+The current syntax subset requires an explicit scalar value on a model-less
+R/C/L instance. Geometry-only/model-backed instances and expression-valued
+parameters are not supported yet; this is not a claim about their legality in C.

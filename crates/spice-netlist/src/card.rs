@@ -1,9 +1,9 @@
 //! Card classification: what kind of thing is this logical line?
 //!
 //! The C front end dispatches on the first character of the card: `.` selects a
-//! `.` command (`inpcom.c`), and a letter selects a device parser
-//! (`inp2<letter>.c`). This module does the same, so the CLI and the future
-//! parser can report what a deck contains before any of it is understood.
+//! `.` command (`inp2dot.c`), and a letter selects a device parser
+//! (`inp2<letter>.c`), dispatched by `inppas2.c`. Classification is separate
+//! from semantic parsing, so the CLI can report even unported syntax.
 
 use spice_core::{AnalysisKind, SourceLoc, SpiceResult};
 

@@ -34,7 +34,7 @@ pub enum Command {
     Cards,
     /// Dump the token stream of every card.
     Tokens,
-    /// Attempt a full parse. Reports the gap in the port.
+    /// Build a semantic netlist for supported syntax; report any unported gaps.
     Parse,
     /// List the device designators the registry knows.
     Devices,
@@ -204,8 +204,8 @@ EXIT STATUS:
 /// # Errors
 ///
 /// [`SpiceError::Io`] when the deck cannot be read, [`SpiceError::Parse`] when it
-/// cannot be tokenized, and [`SpiceError::NotYetPorted`] for `parse` — which the
-/// caller should map to [`exit_code::NOT_YET_PORTED`].
+/// cannot be understood, and [`SpiceError::NotYetPorted`] for syntax outside the
+/// parser's current subset, mapped to [`exit_code::NOT_YET_PORTED`].
 pub fn run(args: &Args) -> SpiceResult<()> {
     match args.command {
         Command::Help => {
@@ -240,11 +240,12 @@ pub fn run(args: &Args) -> SpiceResult<()> {
             let parser = spice_netlist::Parser::with_auto_gnd(args.auto_gnd);
             let netlist = parser.parse_deck(&deck)?;
             println!(
-                "{}: {} device instance(s), {} model(s), {} subcircuit(s)",
+                "{}: {} device instance(s), {} model(s), {} subcircuit(s), {} analysis request(s)",
                 netlist.title,
                 netlist.top_level_device_count(),
                 netlist.models.len(),
-                netlist.subcircuits.len()
+                netlist.subcircuits.len(),
+                netlist.analyses.len()
             );
             Ok(())
         }

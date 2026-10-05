@@ -1,6 +1,6 @@
 Series RLC at DC
-* The inductor is a short and the capacitor an open, so v(out) = 0 V and
-* i(v1) = 10 mA. Exercises the branch current of an inductor.
+* The inductor is a short and the capacitor an open, so all nodes are at 1 V
+* and i(v1) = i(l1) = 0 A. Exercises the branch current of an inductor.
 v1 in 0 dc 1
 r1 in mid 100
 l1 mid out 1m

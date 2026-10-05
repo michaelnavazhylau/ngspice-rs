@@ -3,15 +3,15 @@
 A from-scratch Rust implementation of [ngspice](https://ngspice.sourceforge.io/),
 the SPICE circuit simulator.
 
-> **Status: scaffold.** The workspace compiles, the test suite passes, and the
-> conformance harness can capture comparison data from the reference C binary —
-> but the netlist parser, the device models and the analyses are **not
-> implemented**. Every gap returns `SpiceError::NotYetPorted`, naming the
-> upstream C file it has to be ported from, and `spice-rs parse` exits with
-> status 3 rather than pretending to succeed.
+> **Status: M1 in progress.** The parser now builds semantic netlists for scalar
+> R/C/L devices and DC/AC V/I sources. Three fixture decks parse successfully;
+> models, waveforms, subcircuits and parameter expressions remain unported.
+> **There is no simulation engine yet.** Gaps return `SpiceError::NotYetPorted`
+> naming the upstream C file, with CLI exit status 3 rather than partial success.
 
 See [RUST_PORT.md](RUST_PORT.md#status) for the per-area status table,
-[docs/port/ROADMAP.md](docs/port/ROADMAP.md) for the milestones, and
+[docs/port/ROADMAP.md](docs/port/ROADMAP.md) for the milestones,
+[docs/port/TODO.md](docs/port/TODO.md) for the next tasks, and
 [docs/port/ARCHITECTURE.md](docs/port/ARCHITECTURE.md) for the crate layout.
 
 ## Quick start
@@ -19,7 +19,7 @@ See [RUST_PORT.md](RUST_PORT.md#status) for the per-area status table,
 ```sh
 cargo test                              # the whole suite, no C toolchain needed
 cargo xtask ci                          # fmt --check, clippy -D warnings, test
-cargo run -p spice-cli -- conformance/netlists/rc_divider.cir
+cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
 cargo xtask golden list                 # what the captured comparison data holds
 ```
 

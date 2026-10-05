@@ -1,30 +1,26 @@
-//! The parser — **not ported**.
+//! Incremental semantic deck parser.
 //!
-//! What exists here is the part of the front end that is implemented: a deck can
-//! be loaded and every card classified. Turning those cards into an
-//! [`ast::Netlist`] is the M1 milestone; see `docs/port/ROADMAP.md`.
+//! Dispatch follows `src/spicelib/parser/inppas2.c`, `INPpas2()`;
+//! device grammars follow `inp2r.c`, `inp2c.c`, `inp2l.c`, `inp2v.c`, and
+//! `inp2i.c`. Dot-card dispatch follows `inp2dot.c`, not the front-end
+//! `parse-bison.y` expression grammar.
 //!
-//! The C code to port is `src/spicelib/parser/inp2*.c` (one file per device
-//! designator), `src/spicelib/parser/inppas*.c` and `ifeval.c` (`.param`
-//! evaluation), and `inpcom.c` (the `.` command dispatch). The Bison grammar in
-//! `src/frontend/parse-bison.y` is only 180 lines; the port uses a hand-written
-//! recursive-descent parser instead, which is easier to keep in step with the
-//! C behaviour and gives better error messages.
+//! M1a supports scalar R/C/L instances, independent DC/AC sources, and analysis
+//! cards. Everything else fails explicitly rather than constructing an
+//! incomplete netlist. Values stay textual; evaluation and circuit elaboration
+//! are separate passes. See `docs/port/ROADMAP.md` for the remaining M1 work.
 
 use std::path::Path;
 
 use spice_core::{SpiceError, SpiceResult};
 
-use crate::C_REFERENCE;
-use crate::ast::Netlist;
-use crate::card::RawCard;
+use crate::ast::{AnalysisCard, Netlist};
+use crate::card::{CardKind, DotCommand, RawCard};
 use crate::source::{Deck, load};
 
-/// Turns decks into [`Netlist`]s.
-///
-/// The configuration it carries — currently only the `gnd` aliasing rule — is
-/// needed by the parser, not by the loader, because the rule is applied to node
-/// names as they are parsed.
+mod linear;
+
+/// Turns decks into [`Netlist`]s for the currently supported syntax subset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Parser {
     auto_gnd: bool,
@@ -52,7 +48,7 @@ impl Parser {
         self.auto_gnd
     }
 
-    /// Classifies every card in a deck. Implemented.
+    /// Classifies every card in a deck, independently of semantic parsing.
     ///
     /// # Errors
     ///
@@ -61,37 +57,77 @@ impl Parser {
         classify_deck(deck)
     }
 
-    /// Builds a [`Netlist`] from a deck.
+    /// Builds a semantic netlist, stopping at `.end` as `INP2dot()` does.
+    ///
+    /// Analysis arguments are preserved without validation, per the AST
+    /// contract; parsing a request does not imply its driver is implemented.
+    /// Deck fragments without `.end` are accepted, as by `INPpas2()`.
     ///
     /// # Errors
     ///
-    /// Always returns [`SpiceError::NotYetPorted`], after reporting how much of
-    /// the deck was successfully tokenized and classified.
+    /// Returns [`SpiceError::Parse`] for malformed supported syntax and
+    /// [`SpiceError::NotYetPorted`] for constructs outside the current subset.
+    /// No partially parsed netlist is returned on failure.
     pub fn parse_deck(&self, deck: &Deck) -> SpiceResult<Netlist> {
-        let cards = classify_deck(deck)?;
-        let devices = cards.iter().filter(|card| card.kind.is_device()).count();
-        let commands = cards
-            .iter()
-            .filter(|card| card.kind.is_dot_command())
-            .count();
-        Err(SpiceError::not_yet_ported(
-            format!(
-                "netlist parser: {} classified card(s) in {} ({devices} device instance(s), \
-                 {commands} dot command(s)); loading, tokenizing and classification work, \
-                 building the semantic netlist does not",
-                cards.len(),
-                deck.path.display()
-            ),
-            C_REFERENCE,
-        ))
+        let mut netlist = Netlist {
+            title: deck.title.clone(),
+            path: deck.path.clone(),
+            devices: Vec::new(),
+            models: Vec::new(),
+            subcircuits: Vec::new(),
+            analyses: Vec::new(),
+            includes: Vec::new(),
+            params: Vec::new(),
+            options: Vec::new(),
+            globals: Vec::new(),
+            location: deck.title_location.clone(),
+        };
+        for line in &deck.lines {
+            let card = RawCard::parse(line)?;
+            match &card.kind {
+                CardKind::Device { designator } => {
+                    let device = linear::parse(&card, *designator, self.auto_gnd)?;
+                    netlist.devices.push(device);
+                }
+                CardKind::DotCommand(DotCommand::End) => break,
+                CardKind::DotCommand(DotCommand::Analysis(kind)) => {
+                    netlist.analyses.push(AnalysisCard {
+                        kind: *kind,
+                        arguments: card.arguments().iter().map(|t| t.text.clone()).collect(),
+                        location: card.location.clone(),
+                    });
+                }
+                CardKind::DotCommand(command) => {
+                    let reference = match command {
+                        DotCommand::Model => "src/spicelib/parser/inpdomod.c",
+                        DotCommand::Subckt | DotCommand::Ends => "src/frontend/subckt.c",
+                        DotCommand::Include | DotCommand::Lib => "src/frontend/inpcom.c",
+                        DotCommand::Param => "src/frontend/numparam/spicenum.c",
+                        DotCommand::Control | DotCommand::Endc => "src/frontend/inp.c",
+                        _ => "src/spicelib/parser/inp2dot.c",
+                    };
+                    return Err(SpiceError::not_yet_ported(
+                        format!("{}: {} directive", card.location, command.card_name()),
+                        reference,
+                    ));
+                }
+                CardKind::Unknown => {
+                    return Err(SpiceError::parse(
+                        card.location,
+                        format!("unrecognised card: {}", card.raw),
+                    ));
+                }
+            }
+        }
+        Ok(netlist)
     }
 
     /// Loads `path` and parses it.
     ///
     /// # Errors
     ///
-    /// Fails if the file cannot be read, or with
-    /// [`SpiceError::NotYetPorted`] — see [`Parser::parse_deck`].
+    /// Fails if the file cannot be read, or for the syntax errors and unported
+    /// constructs described by [`Parser::parse_deck`].
     pub fn parse_file(&self, path: impl AsRef<Path>) -> SpiceResult<Netlist> {
         let deck = load(path)?;
         self.parse_deck(&deck)
@@ -144,34 +180,28 @@ r1 a b 10k
 ";
 
     #[test]
-    fn classification_counts_the_cards() {
+    fn classification_still_works_on_unported_syntax() {
         let deck = parse_deck_text(Path::new("rc.cir"), DECK);
         let cards = Parser::new().classify_deck(&deck).expect("classifies");
         assert_eq!(cards.len(), 9);
-
-        let devices = cards.iter().filter(|card| card.kind.is_device()).count();
-        let commands = cards
-            .iter()
-            .filter(|card| card.kind.is_dot_command())
-            .count();
-        assert_eq!(devices, 4, "v1, r1, r2 and the r1 inside the subcircuit");
-        assert_eq!(
-            commands, 5,
-            ".model, .subckt, .ends, .tran and .end — classification is context-free, so the \
-             subcircuit body is not folded away"
-        );
+        assert_eq!(cards.iter().filter(|c| c.kind.is_device()).count(), 4);
+        assert_eq!(cards.iter().filter(|c| c.kind.is_dot_command()).count(), 5);
     }
 
     #[test]
-    fn parsing_reports_what_is_missing_without_guessing() {
+    fn parsing_reports_the_first_specific_gap() {
         let deck = parse_deck_text(Path::new("rc.cir"), DECK);
-        let error = Parser::new().parse_deck(&deck).expect_err("not ported");
+        let error = Parser::new()
+            .parse_deck(&deck)
+            .expect_err("model not ported");
         assert!(error.is_not_yet_ported());
         let message = error.to_string();
-        assert!(message.contains("9 classified card(s)"), "{message}");
-        assert!(message.contains("4 device instance(s)"), "{message}");
-        assert!(message.contains("5 dot command(s)"), "{message}");
-        assert!(message.contains("src/spicelib/parser"), "{message}");
+        assert!(message.contains("rc.cir:5:1"), "{message}");
+        assert!(message.contains(".model directive"), "{message}");
+        assert!(
+            message.contains("src/spicelib/parser/inpdomod.c"),
+            "{message}"
+        );
     }
 
     #[test]

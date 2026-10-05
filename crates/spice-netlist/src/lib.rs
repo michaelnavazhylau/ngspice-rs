@@ -7,14 +7,14 @@
 //! | [`source`] | physical lines → logical cards: title, `+` continuations, comments | **ported** |
 //! | [`token`] | logical card → token stream | **ported** |
 //! | [`card`] | first token → [`card::CardKind`] classification | **ported** |
-//! | [`ast`] | the semantic netlist model | types only |
-//! | [`parser`] | tokens → [`ast::Netlist`] | **not ported** |
+//! | [`ast`] | the semantic netlist model | linear subset constructed |
+//! | [`parser`] | tokens → [`ast::Netlist`] | **M1a: scalar R/C/L, DC/AC V/I, analyses** |
 //!
 //! The C equivalent is spread over `src/frontend/inp.c`,
-//! `src/frontend/inpcom.c` and `src/spicelib/parser/`. The Bison grammar in
-//! `src/frontend/parse-bison.y` is only 180 lines because most of the work
-//! happens in per-device C functions (`inp2r.c`, `inp2c.c`, …); the port plans a
-//! hand-written recursive-descent parser instead.
+//! `src/frontend/inpcom.c` and `src/spicelib/parser/`. Deck dispatch is in
+//! `inppas2.c`/`inp2dot.c` and per-device functions (`inp2r.c`, `inp2c.c`, …).
+//! `src/frontend/parse-bison.y` is a separate expression grammar, not a deck
+//! grammar; `.param` evaluation lives in `src/frontend/numparam/`.
 
 #![warn(missing_docs)]
 
