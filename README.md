@@ -4,8 +4,9 @@ A from-scratch Rust implementation of [ngspice](https://ngspice.sourceforge.io/)
 the SPICE circuit simulator.
 
 > **Status: M1 in progress.** The parser now builds semantic netlists for scalar
-> R/C/L devices and DC/AC V/I sources. Three fixture decks parse successfully;
-> models, waveforms, subcircuits and parameter expressions remain unported.
+> R/C/L devices, DC/AC V/I sources, scalar model cards and bounded D/Q/M
+> instances. Six fixture decks parse successfully. Model-backed passives,
+> waveforms, subcircuits and parameter expressions remain unported.
 > **There is no simulation engine yet.** Gaps return `SpiceError::NotYetPorted`
 > naming the upstream C file, with CLI exit status 3 rather than partial success.
 
@@ -28,8 +29,11 @@ cargo xtask golden list                 # what the captured comparison data hold
 Semantic parsing uses **winnow 1.0.4** over borrowed, positioned tokens. Card
 alternatives, terminals, scalar assignments and DC/AC source forms use parser
 combinators; the existing deck loader and tokenizer are unchanged. This branch
-preserves M1a's syntax subset, AST and CLI exit contract—it does not add models,
-waveforms, subcircuits or a simulation engine.
+preserves M1a's AST and CLI exit contract. M1b adds scalar D/BJT/MOS/R/C/L
+model cards, two-terminal diodes, three/four-terminal BJTs and four-terminal MOS
+instances. Q/M require in-deck model declarations (forward references work)
+for terminal disambiguation. Model type/backend and parameter validity remain
+elaboration work; parsing is not simulation.
 
 Winnow is the first external dependency, used only by `spice-netlist`, with its
 `std` and `parser` features. A fresh checkout needs a registry download; cache

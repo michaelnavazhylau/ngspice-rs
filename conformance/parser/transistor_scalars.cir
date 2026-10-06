@@ -1,0 +1,23 @@
+M1b BJT and MOS parser reference
+* All terminal names are introduced by sources before transistor setup.
+vcc c 0 dc 2
+vbb b 0 dc 0.1
+vsub sub 0 dc 0
+vd d 0 dc 2
+vg g 0 dc 2
+vbulk bulk 0 dc 0
+* Three ports imply a grounded substrate; four preserve the explicit one.
+qthree c b gnd qm 2 area=7 areab=3 areac=4 m=5 icvbe=.1 icvce=2
+qfour c b 0 sub qm area=3 temp=30 dtemp=2
+* Model names can resemble parameter keywords or contain digits.
+qkeyword c b 0 area 2
+qdigits c b 0 qm123 3
+* Duplicate geometry setters are applied in order, not converted to a map early.
+m1 d g 0 bulk nm l=1u w=10u w=20u ad=2p as=3p pd=4u ps=5u nrd=2 nrs=3 m=4
++ icvds=2 icvgs=2 icvbs=0 temp=30 dtemp=2
+.model qm npn(is=1e-14 bf=100)
+.model nm nmos(vto=1 kp=1e-4)
+.model area npn(is=1e-14 bf=50)
+.model qm123 npn(is=1e-14 bf=75)
+.op
+.end

@@ -1,0 +1,11 @@
+M1b scalar model and diode parser reference
+* Leading area wins over named area; perim is an alias for pj.
+v1 a 0 dc 0.1
+dlead a gnd dm 2 area=7 perim=3 m=4 ic=.05
+dnamed a 0 dm area=3 temp=30 dtemp=2
+dgeom a 0 dm w=10u l=20u
+dimplicit a 0 dm
+* Model references may precede their definitions. Duplicate setters stay ordered.
+.model dm d(level=1 is=1e-14 is=2e-14 n=1 rs=2 cjo=3p tt=4n bv=50 ibv=2u tnom=27)
+.op
+.end

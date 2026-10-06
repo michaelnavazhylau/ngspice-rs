@@ -4,6 +4,8 @@
 //! source locations, ground-alias configuration and C references; backtracking
 //! never mutates the AST or parser configuration.
 
+use std::collections::BTreeSet;
+
 use spice_core::{SourceLoc, SpiceError, SpiceResult};
 use winnow::Parser as _;
 use winnow::combinator::{alt, peek};
@@ -11,14 +13,15 @@ use winnow::error::{AddContext, ErrMode, ModalResult, ParserError};
 use winnow::stream::{Stateful, Stream, TokenSlice};
 use winnow::token::{any, rest};
 
-use crate::ast::{AnalysisCard, DeviceInstance};
+use crate::ast::{AnalysisCard, DeviceInstance, ModelCard};
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::linear;
+use super::{diode, linear, model, transistor};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
+    Model(ModelCard),
     Analysis(AnalysisCard),
     End,
 }
@@ -27,6 +30,7 @@ pub(super) enum ParsedCard {
 pub(super) struct Context<'a> {
     pub card: &'a RawCard,
     pub auto_gnd: bool,
+    pub declared_models: &'a BTreeSet<String>,
 }
 
 pub(super) type Input<'a> = Stateful<TokenSlice<'a, Token>, Context<'a>>;
@@ -67,17 +71,28 @@ impl AddContext<Input<'_>, &'static str> for Failure {
     }
 }
 
-pub(super) fn parse_card(card: &RawCard, auto_gnd: bool) -> SpiceResult<ParsedCard> {
+pub(super) fn parse_card(
+    card: &RawCard,
+    auto_gnd: bool,
+    declared_models: &BTreeSet<String>,
+) -> SpiceResult<ParsedCard> {
     let input = Input {
         input: TokenSlice::new(&card.tokens),
-        state: Context { card, auto_gnd },
+        state: Context {
+            card,
+            auto_gnd,
+            declared_models,
+        },
     };
     // `parse` requires full token consumption. The .end branch intentionally
     // consumes its tail: INP2dot ignores additional input after .end.
     alt((
         end_card,
         analysis_card,
+        model::model_card,
         linear::device_card,
+        diode::diode_card,
+        transistor::transistor_card,
         unported_card,
         unknown_card,
     ))

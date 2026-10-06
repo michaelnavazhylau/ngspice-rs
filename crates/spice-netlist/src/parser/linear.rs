@@ -14,6 +14,7 @@ use crate::ast::{DeviceInstance, ParameterAssignment};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Failure, Input, ParsedCard, Result, gap, keyword, location};
+use super::syntax::{assignment, canonical_node, equals, leading_literal, literal, name as node};
 
 pub(super) fn device_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     let name = any
@@ -52,21 +53,6 @@ fn designator(token: &Token) -> char {
         .next()
         .unwrap_or('\0')
         .to_ascii_lowercase()
-}
-
-fn node<'a>(expected: &'static str) -> impl winnow::Parser<Input<'a>, &'a Token, ErrMode<Failure>> {
-    any.verify(|token: &Token| token.is_name_like())
-        .context(expected)
-}
-
-fn canonical_node(token: &Token, auto_gnd: bool) -> String {
-    // inpcom.c: inp_fix_gnd_name(); never rewrite values or instance names.
-    let name = token.text.to_ascii_lowercase();
-    if auto_gnd && name == "gnd" {
-        "0".to_owned()
-    } else {
-        name
-    }
 }
 
 fn primary_name(designator: char) -> &'static str {
@@ -208,41 +194,4 @@ fn invalid_source(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
         input,
         "source waveforms, expressions or additional source parameters",
     ))
-}
-
-fn equals<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
-    any.verify(|token: &Token| token.kind == TokenKind::Equals)
-        .parse_next(input)
-}
-
-/// Only a numeric prefix claims the optional positional slot. Once claimed,
-/// numeric overflow is a committed syntax error, not a missing optional value.
-fn leading_literal<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
-    peek(any.verify(|token: &Token| token.number().is_some())).parse_next(input)?;
-    cut_err(literal).parse_next(input)
-}
-
-fn literal<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
-    if input.input.first().is_some_and(|token| {
-        matches!(
-            token.kind,
-            TokenKind::Word | TokenKind::Expression(_) | TokenKind::Quoted(_)
-        )
-    }) {
-        return Err(gap(
-            input,
-            "parameter expressions, model references or extended numeric syntax",
-        ));
-    }
-    any.verify(|token: &Token| token.number().is_some_and(f64::is_finite))
-        .context("a finite numeric literal")
-        .parse_next(input)
-}
-
-fn assignment(name: &str, value: &Token) -> ParameterAssignment {
-    ParameterAssignment {
-        name: name.to_owned(),
-        value: value.text.clone(),
-        location: value.location.clone(),
-    }
 }

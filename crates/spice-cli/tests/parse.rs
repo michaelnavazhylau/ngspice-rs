@@ -16,7 +16,14 @@ fn run(name: &str) -> std::process::Output {
 
 #[test]
 fn supported_fixtures_parse_successfully() {
-    for (name, devices) in [("rc_divider", 3), ("rc_lowpass_ac", 3), ("rlc_series", 4)] {
+    for (name, devices, models) in [
+        ("rc_divider", 3, 0),
+        ("rc_lowpass_ac", 3, 0),
+        ("rlc_series", 4, 0),
+        ("diode_dc", 3, 1),
+        ("bjt_ce", 4, 1),
+        ("mos_inverter", 4, 1),
+    ] {
         let output = run(name);
         assert_eq!(
             output.status.code(),
@@ -29,19 +36,14 @@ fn supported_fixtures_parse_successfully() {
             stdout.contains(&format!("{devices} device instance(s)")),
             "{stdout}"
         );
+        assert!(stdout.contains(&format!("{models} model(s)")), "{stdout}");
         assert!(stdout.contains("1 analysis request(s)"), "{stdout}");
     }
 }
 
 #[test]
 fn unported_fixtures_keep_exit_status_three() {
-    for name in [
-        "rc_transient",
-        "diode_dc",
-        "bjt_ce",
-        "mos_inverter",
-        "subckt_divider",
-    ] {
+    for name in ["rc_transient", "subckt_divider"] {
         let output = run(name);
         assert_eq!(output.status.code(), Some(3), "{name}");
         assert!(

@@ -131,7 +131,8 @@ pinned by a test so that it cannot be lost.
 `crates/spice-netlist/tests/linear_parser.rs` checks AST fields against the
 committed divider, AC low-pass and RLC decks: terminal order, values, source
 locations, request arguments, case folding and ground aliasing. It also checks
-that all five remaining fixture decks fail at an explicit unported construct,
+that `rc_transient` and `subckt_divider` still fail at explicit gaps
+(the three nonlinear-device fixtures are now checked by M1b tests),
 not with a partially successful AST. `crates/spice-cli/tests/parse.rs` checks
 process exits: supported parse = 0, missing file = 2, unported syntax = 3.
 
@@ -147,8 +148,8 @@ This pins bare-AC defaults (magnitude 1, phase 0), implicit DC zero, source
 leading-DC precedence, and R/C/L values and initial conditions. The last-set
 parameter map from Rust is compared numerically with C instance queries. The
 probe uses simple values; its tolerance is `1e-12` relative, with a `1e-12` scale
-floor for zero, because C's `print` format is shorter than rawfile decimals.
-The test is ignored by default so ordinary tests remain C-toolchain-independent.
+floor for zero. The shared oracle sets `numdgt=17` for scalar-query precision.
+The tests are ignored by default so ordinary tests remain C-toolchain-independent.
 It was run successfully against the local ngspice-47+ binary for M1a.
 
 `conformance/parser/` is **not** part of the rawfile fixture corpus; do not add
@@ -157,7 +158,8 @@ Token/AST snapshots and normalized-deck round trips are still M1d work.
 
 ## Winnow backend regressions
 
-The existing M1a fixture, CLI and live C-oracle tests are retained unchanged.
+The existing M1a contracts are retained; fixture/CLI expectations now also
+include the M1b diode/BJT/MOS decks, and the live oracle shares its runner across probes.
 `crates/spice-netlist/tests/winnow_parser.rs` adds checks that cuts preserve
 terminal and missing-value diagnostics, optional slots cannot swallow overflow,
 repetition cannot hide unported expressions, AC lookahead leaves following
@@ -173,6 +175,45 @@ Worktree-only publication checks run via
 `bash scripts/tests/publish-rust-only.sh`. They use disposable local repos and a
 local bare remote to verify branch routing and dirty/mismatched-target refusal;
 they never contact GitHub and are not part of `cargo xtask ci`.
+
+## M1b model/diode slice verification
+
+`crates/spice-netlist/tests/model_diode_parser.rs` covers the `diode_dc` AST,
+model families/forms, raw first level, ordered duplicates, numeric model names,
+forward/unresolved references, scalar geometry, ground aliasing, continuation
+provenance, committed malformed/overflow errors and specific unsupported gaps.
+CLI tests now require six fixture parses with accurate device/model counts;
+`rc_transient` and `subckt_divider` still exit 3 without partial success output.
+
+The second ignored test in `c_reference.rs` instruments
+`conformance/parser/model_diodes.cir`. Live C instance/model queries check
+leading-area precedence, `perim`→`pj`, scalar geometry/IC/temperatures, implicit
+area, duplicate model setter order and basic scalar model parameters. Both
+probes pass against ngspice-47+. Neither probe proves selector rounding,
+model resolution, backend availability, arbitrary keyword validity, derived
+geometry/defaults or Rust simulation arithmetic. Those boundaries remain
+explicit in the AST and architecture docs.
+
+## M1b BJT/MOS slice verification
+
+`crates/spice-netlist/tests/transistor_parser.rs` adds 18 regressions for Q/M
+fixture ASTs, optional substrate vs earliest declared model, alpha model names
+with digits and numeric node names, forward declarations, raw ordered scalars,
+leading BJT area, MOS bulk/model collisions, omitted ports, overflow, unsupported
+flags/IC vectors/extra ports/binning, and byte-column provenance. Declaration
+indexing stops at `.end`, excludes unsupported scope bodies, preserves error
+order, and has no state shared across parser calls.
+
+The third ignored oracle instruments `conformance/parser/transistor_scalars.cir`.
+It compares scalar setters and external terminal IDs after C setup with the
+parsed port order (including C's grounded omitted Q substrate), and covers
+keyword-like model names and ordinary model names containing digits. The fourth
+ignored test pins ngspice-47+'s rejection of Q model names `123` and `123n`:
+Rust emits Parse for the former and an explicit numeric-model gap for the latter.
+All four live tests pass; these remain syntax/setup checks, not Rust simulation.
+Selector defaults/rounding, family compatibility, scoped model resolution,
+node/model `gnd`/`0` collisions, model defaults and advanced device arithmetic
+are not proven by these probes.
 
 ## Not yet verified
 
