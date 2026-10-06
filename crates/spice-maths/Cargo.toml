@@ -12,3 +12,9 @@ workspace = true
 
 [dependencies]
 spice-core.workspace = true
+
+# Numeric backends: `faer` for the sparse LU behind `sparse::SparseMatrix`, and
+# `diffsol` for the implicit ODE/DAE integration that `.tran` needs. See the
+# feature notes in the workspace manifest.
+diffsol.workspace = true
+faer.workspace = true
