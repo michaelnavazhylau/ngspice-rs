@@ -186,13 +186,13 @@ fn assert_reference(label: &str, text: &str, expected: BTreeMap<String, f64>) {
     assert!(output.status.success(), "{stdout}\n{stderr}");
     let mut actual = BTreeMap::new();
     for line in stdout.lines() {
-        if let Some((query, value)) = line.split_once(" = ") {
-            if query.starts_with('@') {
-                actual.insert(
-                    query.to_owned(),
-                    value.trim().parse::<f64>().expect("C scalar"),
-                );
-            }
+        if let Some((query, value)) = line.split_once(" = ")
+            && query.starts_with('@')
+        {
+            actual.insert(
+                query.to_owned(),
+                value.trim().parse::<f64>().expect("C scalar"),
+            );
         }
     }
     assert_eq!(

@@ -5,11 +5,11 @@
 //! [`crate::sparse`] — and lands here only after being densified for those
 //! analyses.
 //!
-//! Storage is ported; [`Matrix::solve`] and [`Matrix::lu_decompose`] are not.
+//! Factorization returns an owned pivoted LU; public storage stays row-major.
 
 use spice_core::{Real, SpiceError, SpiceResult};
 
-use crate::C_REFERENCE_DENSE;
+use crate::linear::DenseLu;
 
 fn index_error(rows: usize, cols: usize, row: usize, col: usize) -> SpiceError {
     SpiceError::Numerical {
@@ -171,28 +171,22 @@ impl Matrix {
         Ok(result)
     }
 
-    /// Factors the matrix in place, so that [`Matrix::solve`] can be called.
+    /// Factors a snapshot without changing row-major storage.
     ///
     /// # Errors
     ///
-    /// Always [`SpiceError::NotYetPorted`].
-    pub fn lu_decompose(&mut self) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            "dense LU decomposition",
-            C_REFERENCE_DENSE,
-        ))
+    /// Invalid dimensions/coefficients or singular pivots. Empty systems are rejected.
+    pub fn lu_decompose(&self) -> SpiceResult<DenseLu> {
+        DenseLu::new(self)
     }
 
-    /// Solves `A x = rhs` for a pre-factored matrix.
+    /// Convenience solve, factoring the current storage. No prior LU is required.
     ///
     /// # Errors
     ///
-    /// Always [`SpiceError::NotYetPorted`].
+    /// Invalid matrix/RHS or failed backward residual.
     pub fn solve(&self, rhs: &Vector) -> SpiceResult<Vector> {
-        if rhs.len() != self.rows {
-            return Err(length_error(self.rows, rhs.len()));
-        }
-        Err(SpiceError::not_yet_ported("dense solve", C_REFERENCE_DENSE))
+        self.lu_decompose()?.solve(rhs)
     }
 }
 
@@ -396,12 +390,15 @@ mod tests {
     }
 
     #[test]
-    fn the_solver_reports_that_it_is_missing() {
+    fn solve_without_prior_factorization() {
         let mut matrix = Matrix::zeros(1, 1);
-        matrix.set(0, 0, 1.0).unwrap();
-        let error = matrix.solve(&Vector::from_slice(&[1.0])).unwrap_err();
-        assert!(error.is_not_yet_ported());
-        assert!(error.to_string().contains("src/maths/dense"));
-        assert!(matrix.lu_decompose().unwrap_err().is_not_yet_ported());
+        matrix.set(0, 0, 2.0).unwrap();
+        assert_eq!(
+            matrix
+                .solve(&Vector::from_slice(&[4.0]))
+                .unwrap()
+                .as_slice(),
+            &[2.0]
+        );
     }
 }

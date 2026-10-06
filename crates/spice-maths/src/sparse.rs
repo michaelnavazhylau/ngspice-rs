@@ -7,16 +7,15 @@
 //! those contributions; a coordinate list is the format both can be fed from,
 //! and the format the port uses to accumulate a stamp before assembling.
 //!
-//! Storage and duplicate folding are ported. The factorisation and solve are
-//! **not**.
+//! Factorization returns owned faer factors, independent of stamping storage.
 
 use std::borrow::Cow;
 
 use petgraph::graphmap::UnGraphMap;
 use spice_core::{Real, SpiceError, SpiceResult};
 
-use crate::C_REFERENCE_SPARSE;
 use crate::dense::Vector;
+use crate::linear::SparseLu;
 
 /// One `(row, column, value)` entry.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -219,28 +218,25 @@ impl SparseMatrix {
         Ok(result)
     }
 
-    /// Factors the matrix in place so that [`SparseMatrix::solve`] can be called.
+    /// Factors a snapshot. Empty systems are explicitly rejected.
     ///
     /// # Errors
     ///
-    /// Always [`SpiceError::NotYetPorted`].
-    pub fn factorize(&mut self) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            "sparse LU factorisation",
-            C_REFERENCE_SPARSE,
-        ))
+    /// Invalid assembly or a structurally/numerically singular matrix.
+    pub fn factorize(&self) -> SpiceResult<SparseLu> {
+        SparseLu::new(self, None)
     }
 
-    /// Solves `A x = rhs`.
+    /// Convenience solve, factoring the current storage each time.
+    ///
+    /// For repeated RHS solves, retain the owned result of `factorize`.
+    /// No factorization is required beforehand and there is no backend cache.
     ///
     /// # Errors
     ///
-    /// Always [`SpiceError::NotYetPorted`].
-    pub fn solve(&self, _rhs: &Vector) -> SpiceResult<Vector> {
-        Err(SpiceError::not_yet_ported(
-            "sparse solve",
-            C_REFERENCE_SPARSE,
-        ))
+    /// Invalid assembly/RHS, singular matrix, or failed residual.
+    pub fn solve(&self, rhs: &Vector) -> SpiceResult<Vector> {
+        self.factorize()?.solve(rhs)
     }
 }
 
@@ -300,11 +296,9 @@ mod tests {
     }
 
     #[test]
-    fn the_solver_reports_that_it_is_missing() {
-        let mut matrix = SparseMatrix::new(1, 1);
-        let error = matrix.solve(&Vector::from_slice(&[1.0])).unwrap_err();
-        assert!(error.is_not_yet_ported());
-        assert!(error.to_string().contains("src/maths/sparse"));
-        assert!(matrix.factorize().unwrap_err().is_not_yet_ported());
+    fn singular_system_is_rejected() {
+        let matrix = SparseMatrix::new(1, 1);
+        assert!(matrix.solve(&Vector::zeros(1)).is_err());
+        assert!(!matrix.factorize().unwrap_err().is_not_yet_ported());
     }
 }

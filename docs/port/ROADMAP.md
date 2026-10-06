@@ -101,6 +101,11 @@ fixtures for tokens and AST dumps. Track concrete work in [`TODO.md`](TODO.md).
 
 ## M2 — Linear DC operating point
 
+The diffsol/faer worktree now implements the scalar linear core, including
+`.op` and independent-source `.dc`, with production solves checked against C
+DC goldens at 1e-12 relative plus 1e-15 absolute near zero. See
+[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md).
+
 Resistors, independent V/I sources, and a real linear solver.
 
 - `spice-maths::sparse` LU factorisation and `dense` Gaussian elimination
@@ -111,6 +116,10 @@ Exit criteria: `.op` on resistive networks matches the C binary to 1e-12
 relative; the RC-divider golden already in the tree is the first check.
 
 ## M3 — Reactive elements and transient analysis
+
+The diffsol/faer worktree adds complex AC and a separately selected, bounded
+adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal:
+companions, `.ic`/`.nodeset`, waveform parsing and general MNA DAEs remain pending.
 
 C, L, and the numerical integration machinery.
 

@@ -93,7 +93,9 @@ remains dependency-free and SPICE node IDs/ground aliasing remain unchanged.
 The semantic parser is implemented with winnow 1.0.4 (MIT), replacing M1a's
 manual token cursor. Only `spice-netlist` directly depends on it; default
 features are disabled and only `std`/`parser` enabled. Its declared MSRV is 1.65,
-below this workspace's 1.85 requirement. `Cargo.lock` pins the resolved graph;
+below this workspace's original 1.85 requirement. The diffsol/faer integration
+raises the workspace MSRV to 1.89 because the locked diffsol-la/nalgebra graph
+requires it; minimum-version CI tests that graph. `Cargo.lock` pins the resolved graph;
 offline builds require the registry dependencies to have been cached first.
 
 - `parser/grammar.rs`: `Stateful<TokenSlice<Token>, Context>` over borrowed

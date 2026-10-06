@@ -24,7 +24,7 @@ members = [
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 license = "BSD-3-Clause"
 repository = "https://sourceforge.net/p/ngspice/ngspice/"
 
@@ -38,15 +38,15 @@ winnow = { version = "1.0.4", default-features = false, features = ["std", "pars
 # the LGPL KLU or from SPARSE 1.3.
 #
 # `diffsol` integrates `M y' = f(t, y)` implicitly: the BDF/TR-BDF2/ESDIRK34
-# solvers are candidate replacements for the stubbed `src/maths/ni` integrator
-# and the `NotYetPorted` `.tran` driver. Only the `faer` backend is requested
+# BDF backend is explicitly selected for bounded linear DAEs; it is not an
+# implementation of ngspice trap/fixed Gear-2. Only the `faer` backend is requested
 # here. Note that diffsol 0.17.1 always enables **both** `faer` and `nalgebra`
 # on its `diffsol-la`/`diffsol-nl` dependencies, so `nalgebra` is in the
 # dependency graph regardless of this feature list. The `suitesparse` and
 # `sundials` features stay off: they need an external KLU/SUNDIALS build.
 #
-# `faer` supplies the sparse LU (`SparseColMat::sp_lu`) that `spice-maths`
-# currently stubs. Its defaults (`std`, `rayon`, `sparse-linalg`) match what the
+# `faer` supplies the production sparse/complex and dense pivoted LU in
+# `spice-maths`. Its defaults (`std`, `rayon`, `sparse-linalg`) match what the
 # diffsol `faer` backend already turns on, so the two agree on one feature set.
 diffsol = { version = "0.17.1", default-features = false, features = ["faer"] }
 faer = "0.24.4"

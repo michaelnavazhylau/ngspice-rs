@@ -1,0 +1,306 @@
+//! Linear production analyses against analytic MNA results.
+use spice_analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
+use spice_core::AnalysisKind;
+use spice_devices::Circuit;
+use spice_netlist::{Parser, source::parse_deck_text};
+use std::path::Path;
+
+fn circuit(body: &str) -> Circuit {
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(
+            Path::new("test.cir"),
+            &format!("test\n{body}\n.end\n"),
+        ))
+        .unwrap();
+    Circuit::from_netlist(&netlist).unwrap()
+}
+fn run(c: &mut Circuit, kind: AnalysisKind, args: &[&str]) -> spice_core::SpiceResult<Plot> {
+    runner(kind)?.run(
+        c,
+        &AnalysisRequest::with_arguments(kind, args.iter().copied()),
+        &AnalysisContext::default(),
+    )
+}
+fn close(got: f64, want: f64) {
+    assert!(
+        (got - want).abs() <= 1e-12 * want.abs() + 1e-15,
+        "{got} != {want}"
+    );
+}
+
+#[test]
+fn divider_branch_sign_and_ground_elimination() {
+    let mut c = circuit("v1 in 0 5\nr1 in out 1k\nr2 out 0 1k");
+    let p = run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
+    close(p.value("v(in)", 0).unwrap().re, 5.);
+    close(p.value("v(out)", 0).unwrap().re, 2.5);
+    close(p.value("i(v1)", 0).unwrap().re, -0.0025);
+    assert!(p.variable_index("v(0)").is_none());
+    assert_eq!(c.branch_rows(0), Some(2..3));
+    // Rebinding after a new node shifts branch rows, without stale device state.
+    let n = c.add_node("later");
+    c.add_device(Box::new(
+        spice_devices::Resistor::new("r3", [n, spice_core::NodeId::GROUND], 1.).unwrap(),
+    ))
+    .unwrap();
+    let p = run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
+    close(p.value("v(out)", 0).unwrap().re, 2.5);
+    assert_eq!(c.branch_rows(0), Some(3..4));
+}
+#[test]
+fn source_orientation_inductor_dc_and_independent_blocks() {
+    let mut c = circuit("i1 0 a 1m\nr1 a 0 2k\nv1 b 0 3\nr2 b c 1k\nl1 c 0 1m\nc1 a 0 1u");
+    let p = run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
+    close(p.value("v(a)", 0).unwrap().re, 2.);
+    close(p.value("v(c)", 0).unwrap().re, 0.);
+    close(p.value("i(l1)", 0).unwrap().re, 0.003);
+    close(p.value("i(v1)", 0).unwrap().re, -0.003);
+}
+#[test]
+fn ideal_source_loops_and_floating_dc_are_errors() {
+    for body in [
+        "v1 a 0 1\nv2 a 0 1",
+        "v1 a 0 0\nv2 a 0 0",
+        "r1 a b 1k",
+        "c1 a 0 1u",
+    ] {
+        assert!(
+            run(&mut circuit(body), AnalysisKind::OperatingPoint, &[]).is_err(),
+            "{body}"
+        );
+    }
+}
+#[test]
+fn dc_sweep_reuses_factors_without_mutating_sources() {
+    let mut c = circuit("v1 a 0 5\nr1 a 0 1k");
+    let p = run(&mut c, AnalysisKind::DcSweep, &["v1", "2", "0", "-1"]).unwrap();
+    assert_eq!(p.point_count(), 3);
+    close(p.value("i(v1)", 1).unwrap().re, -0.001);
+    close(
+        run(&mut c, AnalysisKind::OperatingPoint, &[])
+            .unwrap()
+            .value("v(a)", 0)
+            .unwrap()
+            .re,
+        5.,
+    );
+    for args in [
+        ["v1", "0", "1", "0"],
+        ["r1", "0", "1", "1"],
+        ["v1", "0", "1", "-1"],
+        ["v1", "0", "1", "1p"],
+    ] {
+        assert!(run(&mut c, AnalysisKind::DcSweep, &args).is_err());
+    }
+}
+fn waveform(c: &mut Circuit, w: spice_devices::Waveform) {
+    let t = c.devices()[0].terminals();
+    let t = [t[0], t[1]];
+    c.devices_mut()[0] = Box::new(
+        spice_devices::IndependentSource::new("v1", t, true, 0., spice_core::Complex::real(1.), w)
+            .unwrap(),
+    );
+}
+fn transient(c: &mut Circuit) -> spice_core::SpiceResult<Plot> {
+    run(
+        c,
+        AnalysisKind::Transient,
+        &[
+            "0.0001",
+            "0.006",
+            "0",
+            "0.00005",
+            "backend=diffsol",
+            "method=bdf",
+        ],
+    )
+}
+
+#[test]
+fn rc_step_singular_mass_source_equation_and_right_continuous_samples() {
+    let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
+    waveform(
+        &mut c,
+        spice_devices::Waveform::Step {
+            before: 0.,
+            after: 1.,
+            time: 0.001,
+        },
+    );
+    let p = transient(&mut c).unwrap();
+    for i in 0..p.point_count() {
+        let t = p.value("time", i).unwrap().re;
+        let want = if t <= 0.001 {
+            0.
+        } else {
+            1. - (-(t - 0.001) / 0.001).exp()
+        };
+        assert!(
+            (p.value("v(out)", i).unwrap().re - want).abs() < 2e-5,
+            "t={t}"
+        );
+        close(
+            p.value("v(in)", i).unwrap().re,
+            if t < 0.001 { 0. } else { 1. },
+        );
+    }
+    close(p.value("time", p.point_count() - 1).unwrap().re, 0.006);
+}
+
+#[test]
+fn rl_branch_dynamics_have_the_correct_sign() {
+    let mut c = circuit("v1 in 0 0\nr1 in out 10\nl1 out 0 0.01");
+    waveform(
+        &mut c,
+        spice_devices::Waveform::Step {
+            before: 0.,
+            after: 1.,
+            time: 0.001,
+        },
+    );
+    let p = transient(&mut c).unwrap();
+    for i in 0..p.point_count() {
+        let t = p.value("time", i).unwrap().re;
+        let want = if t <= 0.001 {
+            0.
+        } else {
+            0.1 * (1. - (-(t - 0.001) / 0.001).exp())
+        };
+        assert!((p.value("i(l1)", i).unwrap().re - want).abs() < 2e-6);
+        assert!((p.value("i(v1)", i).unwrap().re + want).abs() < 2e-6);
+    }
+}
+
+#[test]
+fn rlc_underdamped_reference_and_pwl_breakpoints() {
+    // Series R/L, shunt C: damping=500/s, natural frequency=1000/s.
+    let mut c = circuit("v1 in 0 0\nr1 in mid 1000\nl1 mid out 1\nc1 out 0 1u");
+    waveform(
+        &mut c,
+        spice_devices::Waveform::Step {
+            before: 0.,
+            after: 1.,
+            time: 0.001,
+        },
+    );
+    let p = transient(&mut c).unwrap();
+    for i in 0..p.point_count() {
+        let t = (p.value("time", i).unwrap().re - 0.001).max(0.);
+        let w = 750_000_f64.sqrt();
+        let want = 1. - (-500. * t).exp() * ((w * t).cos() + 500. / w * (w * t).sin());
+        assert!((p.value("v(out)", i).unwrap().re - want).abs() < 2e-5);
+    }
+    let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
+    waveform(
+        &mut c,
+        spice_devices::Waveform::Pwl(vec![(0., 0.), (0.001, 1.), (0.002, 1.)]),
+    );
+    let p = transient(&mut c).unwrap();
+    for i in 0..p.point_count() {
+        let t = p.value("time", i).unwrap().re;
+        let want = if t <= 0.001 {
+            t / 0.001 - 1. + (-t / 0.001).exp()
+        } else {
+            1. - (1. - (-1_f64).exp()) * (-(t - 0.001) / 0.001).exp()
+        };
+        assert!((p.value("v(out)", i).unwrap().re - want).abs() < 2e-5);
+    }
+}
+
+#[test]
+fn transient_rejects_unsupported_structures_methods_and_limits() {
+    for body in [
+        "v1 a 0 0\nc1 a 0 1u",
+        "v1 in 0 0\nr1 in a 1k\nr2 b 0 1k\nc1 a b 1u",
+        "v1 in 0 0\nr1 in out 1k\nc1 out 0 1u ic=1",
+    ] {
+        assert!(transient(&mut circuit(body)).is_err(), "{body}");
+    }
+    let body = "v1 in 0 0\nr1 in out 1k\nc1 out 0 1u";
+    for option in [
+        "method=trap",
+        "method=gear",
+        "maxord=6",
+        "uic",
+        "rtol=0",
+        "vntol=-1",
+        "maxsteps=1",
+    ] {
+        let mut c = circuit(body);
+        waveform(
+            &mut c,
+            spice_devices::Waveform::Step {
+                before: 0.,
+                after: 1.,
+                time: 0.001,
+            },
+        );
+        assert!(
+            run(
+                &mut c,
+                AnalysisKind::Transient,
+                &["1m", "6m", "backend=diffsol", "method=bdf", option]
+            )
+            .is_err(),
+            "{option}"
+        );
+    }
+    assert!(run(&mut circuit(body), AnalysisKind::Transient, &["1u", "1m"]).is_err());
+}
+
+#[test]
+fn complex_ac_divider_rc_and_rlc_gain_phase() {
+    for body in [
+        "v1 in 0 dc 0 ac 1\nr1 in out 1k\nr2 out 0 1k",
+        "v1 in 0 dc 0 ac 1\nr1 in out 1k\nc1 out 0 1u",
+        "v1 in 0 dc 0 ac 1\nr1 in mid 1000\nl1 mid out 1\nc1 out 0 1u",
+    ] {
+        let p = run(
+            &mut circuit(body),
+            AnalysisKind::Ac,
+            &["dec", "3", "1", "1k"],
+        )
+        .unwrap();
+        for i in 0..p.point_count() {
+            let w = 2. * std::f64::consts::PI * p.value("frequency", i).unwrap().re;
+            let want = if body.contains("r2") {
+                spice_core::Complex::real(0.5)
+            } else if body.contains("l1") {
+                spice_core::Complex::real(1.)
+                    / spice_core::Complex::new(1. - w * w * 1e-6, w * 0.001)
+            } else {
+                spice_core::Complex::real(1.) / spice_core::Complex::new(1., w * 0.001)
+            };
+            let got = p.value("v(out)", i).unwrap();
+            assert!((got - want).magnitude() < 1e-10 * want.magnitude() + 1e-12);
+        }
+    }
+}
+
+#[test]
+fn elaboration_rejects_unimplemented_parameters() {
+    let deck = parse_deck_text(
+        Path::new("test.cir"),
+        "test\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u\n.tran 0.1m 1m backend=diffsol method = bdf\n.end\n",
+    );
+    let netlist = Parser::new().parse_deck(&deck).unwrap();
+    let request = AnalysisRequest::from(&netlist.analyses[0]);
+    assert_eq!(request.named("backend"), Some("diffsol"));
+    let mut c = Circuit::from_netlist(&netlist).unwrap();
+    assert!(
+        runner(request.kind)
+            .unwrap()
+            .run(&mut c, &request, &AnalysisContext::default())
+            .is_ok()
+    );
+    let deck = parse_deck_text(Path::new("test.cir"), "test\nr1 a 0 1k tc1=1\n.end\n");
+    assert!(Circuit::from_netlist(&Parser::new().parse_deck(&deck).unwrap()).is_err());
+    let mut nodes = spice_core::NodeTable::new();
+    let card = spice_netlist::RawCard::parse(&deck.lines[0]).unwrap();
+    assert!(
+        spice_devices::Registry::with_builtins()
+            .instantiate(&card, &mut nodes)
+            .is_err()
+    );
+    assert!(nodes.is_empty());
+}

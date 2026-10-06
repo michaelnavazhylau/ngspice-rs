@@ -401,7 +401,7 @@ pub fn analyses_text() -> String {
             kind.as_str(),
             kind_name(kind),
             if has_driver(kind) {
-                "driver present (stub)"
+                "linear driver (bounded subset)"
             } else {
                 "no driver"
             }
@@ -409,7 +409,7 @@ pub fn analyses_text() -> String {
     }
     let _ = writeln!(
         out,
-        "\nNo analysis driver is implemented yet; see docs/port/ROADMAP.md."
+        "\nLinear R/C/L/V/I only; transient requires backend=diffsol method=bdf. See docs/port/DIFFSOL_FAER_IMPLEMENTATION.md."
     );
     out
 }
@@ -509,7 +509,7 @@ r2 out 0 1k
         assert!(text.contains("dot commands:     3"), "{text}");
         assert!(text.contains("by designator:    r(2) v(1)"), "{text}");
         assert!(text.contains("analyses: .tran"), "{text}");
-        assert!(text.contains("port:     0 of"), "{text}");
+        assert!(text.contains("port:     5 of"), "{text}");
     }
 
     #[test]
@@ -533,7 +533,7 @@ r2 out 0 1k
         let text = devices_text(&Registry::with_builtins());
         assert!(text.contains("pending"), "{text}");
         assert!(text.contains("inp2r.c"), "{text}");
-        assert!(!text.contains("ported\n"), "nothing is ported yet:\n{text}");
+        assert!(text.contains("ported"), "{text}");
     }
 
     #[test]
@@ -542,7 +542,7 @@ r2 out 0 1k
         for kind in spice_core::AnalysisKind::ALL {
             assert!(text.contains(kind.as_str()), "missing {kind:?}\n{text}");
         }
-        assert!(text.contains("driver present (stub)"), "{text}");
+        assert!(text.contains("linear driver (bounded subset)"), "{text}");
         assert!(text.contains("no driver"), "{text}");
     }
 }

@@ -2,10 +2,12 @@
 //!
 //! | Module | Job | State |
 //! | --- | --- | --- |
-//! | [`traits`] | the [`Device`] trait, [`StampContext`] and the unknown map | contract ported, stamping stubbed |
+//! | [`traits`] | the [`Device`] trait, [`StampContext`] and the unknown map | real stamping and immutable equation-assembly contracts |
 //! | [`circuit`] | node/device container, petgraph incidence topology and unknown numbering | ported |
-//! | [`registry`] | designator letter → device factory | ported |
-//! | [`rlc`] | resistor, capacitor, inductor | types only; the first porting targets |
+//! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I factories |
+//! | [`sources`] | independent DC/AC/transient sources | bounded waveform API |
+//! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
+//! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; companions still pending |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework
 //! (`CKTcrte`, `CKTbindNode`, the `CKTdevice` vtable) and one directory per
@@ -16,7 +18,12 @@
 #![warn(missing_docs)]
 
 pub mod circuit;
+mod factory;
+pub mod linear;
 pub mod registry;
+pub mod sources;
+pub use linear::{LinearContext, LinearSource, LinearSystem, Waveform};
+pub use sources::IndependentSource;
 pub mod rlc;
 pub mod traits;
 

@@ -2,8 +2,10 @@
 //!
 //! | Module | Job | State |
 //! | --- | --- | --- |
-//! | [`dense`] | dense row-major matrix and vector storage | storage and multiply ported, solve stubbed |
-//! | [`sparse`] | sparse triplet storage and petgraph coupling topology | storage/topology ported, factor/solve stubbed |
+//! | [`dense`] | dense row-major matrix and vector storage | owned faer pivoted LU and checked solves |
+//! | [`sparse`] | sparse triplet storage and petgraph coupling topology | owned faer sparse LU, symbolic reuse and checked solves |
+//! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF, explicit selection |
+//! | [`complex`] | complex sparse operators for AC | owned faer LU |
 //! | [`integrator`] | trapezoidal and Gear integration of charge-storage elements | types only |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`
@@ -12,8 +14,12 @@
 
 #![warn(missing_docs)]
 
+pub mod complex;
 pub mod dense;
+pub mod diffsol;
 pub mod integrator;
+pub mod linear;
+pub use linear::{DenseLu, SparseLu, SparseSymbolic};
 pub mod sparse;
 
 pub use dense::{Matrix, Vector};

@@ -181,6 +181,8 @@ pub struct StampContext<'a> {
     pub temperature: Real,
     /// Which analysis is loading the matrix.
     pub mode: AnalysisMode,
+    /// First branch row allocated to this device, if any.
+    pub branch: Option<usize>,
 }
 
 impl StampContext<'_> {
@@ -266,6 +268,17 @@ pub trait Device: fmt::Debug {
     /// Device-specific failures, and [`spice_core::SpiceError::NotYetPorted`] for
     /// devices that have not been ported.
     fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()>;
+
+    /// Assembles immutable, state-independent linear equations.
+    ///
+    /// # Errors
+    /// Unsupported devices must not silently contribute zero.
+    fn assemble_linear(&self, _context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
+        Err(spice_core::SpiceError::Unsupported {
+            feature: format!("linear equation assembly for {}", self.name()),
+            location: None,
+        })
+    }
 
     /// Updates internal state after the analysis accepts a solution point.
     ///
