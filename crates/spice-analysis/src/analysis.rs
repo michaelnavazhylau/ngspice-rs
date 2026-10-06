@@ -130,8 +130,9 @@ pub trait Analysis: fmt::Debug {
     ///
     /// # Errors
     ///
-    /// Driver-specific failures, and [`SpiceError::NotYetPorted`] while the
-    /// driver is a stub.
+    /// Invalid/unsupported requests, device/elaboration failures or numerical
+    /// failures. Pending device functionality can return
+    /// [`SpiceError::NotYetPorted`]; driver presence is not universal support.
     fn run(
         &self,
         circuit: &mut Circuit,
@@ -166,7 +167,8 @@ impl Analysis for OperatingPoint {
     }
 }
 
-/// `.dc` — a DC sweep of a source, a resistor or the temperature.
+/// `.dc` — a linear DC sweep of one independent V/I source.
+/// Resistor/temperature targets and nested sweeps remain unsupported.
 ///
 /// C: the DC transfer curve path in `dctran.c`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -217,7 +219,8 @@ impl Analysis for AcSmallSignal {
     }
 }
 
-/// `.tran` — transient analysis.
+/// `.tran` — explicitly selected bounded diffsol adaptive BDF.
+/// Not ngspice trap/fixed Gear-2; IC/uic and general DAEs remain unsupported.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.
@@ -243,7 +246,7 @@ impl Analysis for Transient {
     }
 }
 
-/// The analyses that have a driver, even if the driver is still a stub.
+/// Analyses with production drivers for the documented bounded linear subset.
 pub const DRIVERS: [AnalysisKind; 4] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,

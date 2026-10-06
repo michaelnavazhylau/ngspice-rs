@@ -19,6 +19,6 @@ spice-core.workspace = true
 diffsol.workspace = true
 faer.workspace = true
 
-# Graph structure of the MNA matrix: block decomposition and ground-path checks
-# (see `tests/mna_topology.rs`).
+# Assembled matrix-row coupling topology (see `tests/mna_topology.rs`).
+# This projection is neither a conductive ground-path check nor a rank test.
 petgraph.workspace = true

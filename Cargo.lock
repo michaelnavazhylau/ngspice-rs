@@ -1608,6 +1608,9 @@ name = "xtask"
 version = "0.0.0"
 dependencies = [
  "spice-analysis",
+ "spice-core",
+ "spice-devices",
+ "spice-netlist",
 ]
 
 [[package]]

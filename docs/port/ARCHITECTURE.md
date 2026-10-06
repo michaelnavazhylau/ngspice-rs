@@ -1,31 +1,40 @@
 # Architecture of the Rust port
 
+Current capabilities and numerical limits are recorded in
+[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md); the central
+[TODO.md](../../TODO.md) tracks remaining work. Rust edition 2024 / MSRV **1.89**
+applies to the locked workspace, not the historical dependency-free scaffold.
+
 ## Layering
 
 Crates may only depend on crates **below** them. `spice-core` has no
 dependencies at all; nothing depends on `spice-cli`.
 
+Internal production dependencies (arrows mean “depends on”; external backends
+are omitted):
+
+```text
+spice-cli      -> spice-analysis, spice-devices, spice-netlist, spice-core
+spice-analysis -> spice-devices, spice-maths, spice-netlist, spice-core
+spice-devices  -> spice-maths, spice-netlist, spice-core
+spice-netlist  -> spice-core
+spice-maths    -> spice-core
 ```
-                 spice-cli          (binary: netlist in, results out)
-                     |
-              spice-analysis         (op / dc / ac / tran, rawfile I/O)
-                  /       \
-        spice-devices     spice-maths   (MNA stamping | matrices, integrators)
-                  \       /
-               spice-netlist             (deck loading, tokenizer, AST, parser)
-                     |
-                spice-core               (numbers, units, nodes, errors)
-```
+
+`spice-maths` does not depend on the netlist or device layers. `xtask` is a
+separate development consumer of the analysis/device/netlist/core APIs. The CLI
+currently inspects/parses decks; results are produced through library APIs and
+examples, not a CLI simulation command.
 
 | Crate | Responsibility | Mirrors |
 | --- | --- | --- |
 | `spice-core` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
 | `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
-| `spice-maths` | Matrix storage, petgraph row-coupling topology, LU factorisation, numerical integration (trapezoidal / Gear) | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
-| `spice-devices` | `Device` trait, MNA stamping, registry, `Circuit` and petgraph incidence topology, built-in models | `src/spicelib/devices/` |
-| `spice-analysis` | Analysis drivers, result plots, ASCII rawfile reading and writing | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
+| `spice-maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF; trap/Gear coefficient/history APIs pending | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
+| `spice-devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch binding, immutable linear operators, `Circuit` and petgraph incidence topology; nonlinear models pending | `src/spicelib/devices/` |
+| `spice-analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
 | `spice-cli` | Command-line entry point: `spice-rs <netlist>` | `src/frontend/main.c`, `src/ngspice.c` |
-| `xtask` | Automation: golden-data capture from the C binary, drift checks, CI | — |
+| `xtask` | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
 
 ## Design rules
 
@@ -78,8 +87,9 @@ are snapshot-local handles, not domain IDs or matrix numbering. A structural
 path through a capacitor or multiport device does not prove a conductive DC
 path. Disconnected matrix blocks may all be nonsingular, and connected matrices
 may be singular. Do not reject circuits/blocks based on generic connectivity;
-analysis-specific topology checks and numerical rank diagnostics remain engine
-work. Graph construction does not validate finite matrix values.
+analysis-specific topology rules remain bounded; production LU performs
+numerical rank/residual diagnostics. Graph construction does not validate
+finite matrix values.
 
 Snapshots rebuild on demand so mutations through `devices_mut()`, late nodes,
 new stamps or matrix clearing cannot leave a stale internal adjacency cache.
@@ -93,7 +103,7 @@ remains dependency-free and SPICE node IDs/ground aliasing remain unchanged.
 The semantic parser is implemented with winnow 1.0.4 (MIT), replacing M1a's
 manual token cursor. Only `spice-netlist` directly depends on it; default
 features are disabled and only `std`/`parser` enabled. Its declared MSRV is 1.65,
-below this workspace's original 1.85 requirement. The diffsol/faer integration
+below this workspace's historical 1.85 requirement. The diffsol/faer integration
 raises the workspace MSRV to 1.89 because the locked diffsol-la/nalgebra graph
 requires it; minimum-version CI tests that graph. `Cargo.lock` pins the resolved graph;
 offline builds require the registry dependencies to have been cached first.
@@ -141,8 +151,8 @@ this is still not completion of the remaining M1 syntax.
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
-before any parser exists), and the semantic model can evolve without breaking
-the tokenizer's contract.
+without needing semantic parsing), and the semantic model can evolve without
+breaking the tokenizer's contract.
 
 Parameter values retain their original numeric spelling. Positional values map
 onto canonical instance parameters (`resistance`, `capacitance`, `inductance`,
@@ -179,7 +189,7 @@ comment at the divergence site.
 | --- | --- |
 | `parse_spice_number_prefix()` consumes `MEG`/`MIL` in full, while `INPevaluate()` leaves those letters unconsumed | `INPevaluate()` returns a value and a rest pointer; consumers (`inpcom.c` scale scanning, `INPevaluateRKM_*`) do the skipping themselves. The Rust API reports bytes consumed, so it consumes the whole recognised suffix. The numeric result is identical. |
 | RKM-style literals (`4k7` meaning `4.7k`, `inp2r.c`/`inp2c.c`/`inp2l.c`) are **not** accepted | Not ported yet; `parse_spice_number("4k7")` returns `None` and the semantic parser returns `NotYetPorted`. Tests pin this so the change is deliberate. |
-| Scalar grammars reject non-finite numeric literals instead of passing them to a device | Input validation prevents overflow/NaN from entering a future solver; errors retain token locations. |
+| Scalar grammars reject non-finite numeric literals instead of passing them to a device | Input validation prevents overflow/NaN from entering the solver; errors retain token locations. |
 | `gnd` aliasing is restricted to port positions, after model-name disambiguation | C's `inp_fix_gnd_name()` does a broader delimiter-based replacement in card text, including model identifiers. The AST deliberately preserves model/parameter spelling. Reserved-name collisions between `gnd` and `0` are not C-parity-proven. |
 | Model parameter parentheses must form one optional balanced outer pair | The C tokenizer gobbles parentheses as delimiters. Diagnosing unmatched/nested pairs avoids accepting malformed scalar cards; comma delimiters are still accepted. |
 

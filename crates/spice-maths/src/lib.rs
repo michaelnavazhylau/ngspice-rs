@@ -4,13 +4,17 @@
 //! | --- | --- | --- |
 //! | [`dense`] | dense row-major matrix and vector storage | owned faer pivoted LU and checked solves |
 //! | [`sparse`] | sparse triplet storage and petgraph coupling topology | owned faer sparse LU, symbolic reuse and checked solves |
-//! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF, explicit selection |
+//! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; diagonal mass and nonsingular algebraic block only |
 //! | [`complex`] | complex sparse operators for AC | owned faer LU |
 //! | [`integrator`] | trapezoidal and Gear integration of charge-storage elements | types only |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`
 //! (SPARSE 1.3, MIT licensed), `src/maths/KLU/` (LGPLv2 — see the licensing note
-//! in `docs/port/MAPPING.md`) and `src/maths/ni/`.
+//! in `docs/port/MAPPING.md`) and `src/maths/ni/`. These are behavioral
+//! references, not copied KLU algorithms: production LU/BDF uses MIT-licensed
+//! faer/diffsol without native SuiteSparse/SUNDIALS. The locked graph requires
+//! Rust 1.89. BDF is not ngspice trapezoidal or fixed Gear-2; see
+//! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 
 #![warn(missing_docs)]
 

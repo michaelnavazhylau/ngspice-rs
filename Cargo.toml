@@ -1,13 +1,12 @@
 # Cargo workspace for the Rust port of ngspice.
 #
-# This workspace sits at the root of an ngspice source tree (a git worktree
-# on `new-parsing`, branched from `rust-port`). The C sources are deliberately left
-# untouched: they are the reference implementation that the port is verified
-# against.  See RUST_PORT.md and docs/port/ for the design.
+# This standalone workspace does not require the optional upstream C checkout.
+# C is a read-only behavioral reference, queried out of process. See RUST_PORT.md
+# and docs/port/ for current production limits and historical design records.
 #
-# M0/M1a started dependency-free. On `new-parsing`, spice-netlist uses winnow
-# for semantic parser combinators; only the std and parser features are enabled.
-# Cargo.lock records the dependency. Offline builds require it to be cached.
+# M0/M1a started dependency-free. Semantic parsing now uses winnow; production
+# linear algebra/BDF use faer/diffsol, and topology uses petgraph. Cargo.lock
+# pins the graph, whose MSRV is 1.89. Offline builds require cached dependencies.
 
 [workspace]
 resolver = "3"
@@ -33,13 +32,13 @@ repository = "https://sourceforge.net/p/ngspice/ngspice/"
 # no regex dependency, and no optional ASCII/binary/SIMD/debug features.
 winnow = { version = "1.0.4", default-features = false, features = ["std", "parser"] }
 
-# Solver backends (branch `diffsol-faer`). Both are MIT licensed, so they can be
+# Production solver backends. Both are MIT licensed, so they can be
 # linked from this BSD-3-Clause derivatives work; nothing here is translated from
 # the LGPL KLU or from SPARSE 1.3.
 #
-# `diffsol` integrates `M y' = f(t, y)` implicitly: the BDF/TR-BDF2/ESDIRK34
-# BDF backend is explicitly selected for bounded linear DAEs; it is not an
-# implementation of ngspice trap/fixed Gear-2. Only the `faer` backend is requested
+# `diffsol` offers BDF/TR-BDF2/ESDIRK34 for implicit `M y' = f(t, y)`.
+# Only its BDF backend is exposed and explicitly selected for bounded linear
+# DAEs; it is not an implementation of ngspice trap/fixed Gear-2. Only the `faer` backend is requested
 # here. Note that diffsol 0.17.1 always enables **both** `faer` and `nalgebra`
 # on its `diffsol-la`/`diffsol-nl` dependencies, so `nalgebra` is in the
 # dependency graph regardless of this feature list. The `suitesparse` and

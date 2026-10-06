@@ -1,8 +1,12 @@
 # Roadmap
 
-Milestones are cumulative. Each one must end with `cargo xtask ci` green and,
-where the milestone is observable from a deck, with at least one golden fixture
-proving parity with the C binary.
+Milestones group bounded deliverables; issue-level dependencies, not an entire
+previous milestone, determine what can start in parallel. The historical M0/M1
+completion notes below describe those stages, not current solver availability.
+[TODO.md](../../TODO.md) is the only detailed implementation checklist;
+[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) records current
+production limits. Each deliverable must retain green workspace validation and,
+where observable from a deck, production comparisons against C data.
 
 ## M0 — Scaffold ✅
 
@@ -101,21 +105,24 @@ Exit criteria (not met yet): round-trip every deck in
 fixtures for tokens and AST dumps. Track concrete work in the central
 [`TODO.md`](../../TODO.md).
 
-## M2 — Linear DC operating point
+## M2 follow-up — Linear-core verification and documentation
 
-Main now implements the scalar linear core from the diffsol/faer integration, including
-`.op` and independent-source `.dc`, with production solves checked against C
-DC goldens at 1e-12 relative plus 1e-15 absolute near zero. See
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md).
+The original linear-core goal is implemented: scalar R/C/L/V/I elaboration,
+faer dense/sparse real/complex LU, `.op`, independent-source `.dc` and complex
+`.ac`. Production DC comparisons retain **1e-12 relative + 1e-15 absolute**;
+AC retains **1e-10 + 1e-12**. M2 is follow-up, not a solver reimplementation.
 
-Resistors, independent V/I sources, and a real linear solver.
+The GitHub milestone groups Rust-engine golden verification (#7), bounded
+model-backed passive elaboration (#19) and historical documentation correction
+(#49). `cargo xtask golden verify` covers three committed linear fixtures and
+explicitly reports the five excluded fixtures; see
+[VERIFICATION.md](VERIFICATION.md#rust-engine-golden-verification).
+Model-backed passives remain blocked by passive syntax (#11) and typed model
+infrastructure (#17). No M2 completion is implied by the unblocked slices.
 
-- `spice-maths::sparse` LU factorisation and `dense` Gaussian elimination
-- MNA stamping for R, V, I, and shorted L
-- `.op` driver: assemble, factor, solve, build a `Plot`
-
-Exit criteria: `.op` on resistive networks matches the C binary to 1e-12
-relative; the RC-divider golden already in the tree is the first check.
+Exit gate: all three issue slices merged with production/failure-path tests,
+justified relative and near-zero absolute bounds and accurate capability docs.
+Preserve finite/rank/residual checks and explicit unsupported cases.
 
 ## M3 — Reactive elements and transient analysis
 

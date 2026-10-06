@@ -2,8 +2,8 @@
 //!
 //! Mirrors `src/maths/dense/` (`smat.c`), which ngspice uses for the small
 //! systems in `.sens`, `.tf` and `.pz`. The MNA matrix itself is sparse — see
-//! [`crate::sparse`] — and lands here only after being densified for those
-//! analyses.
+//! [`crate::sparse`]. This is a general storage/LU API, not an implementation
+//! of `.sens`, `.tf` or `.pz`; those analysis drivers remain unavailable.
 //!
 //! Factorization returns an owned pivoted LU; public storage stays row-major.
 

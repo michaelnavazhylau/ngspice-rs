@@ -40,8 +40,8 @@ waveform netlist syntax still needs implementation.
 
 Remaining work is tracked only in [TODO.md](TODO.md):
 
-1. **Verification:** extend production conformance coverage and add Rust-engine
-   `golden verify` tooling; preserve the implemented solver's correctness gates.
+1. **Verification:** extend the bounded Rust-engine `golden verify` registry
+   as support lands; preserve the implemented solver's correctness gates.
 2. **Front end (M1):** waveform syntax, flags/vector ICs, model-backed passives,
    subcircuits/includes, parameters/options/globals, serialization and snapshots.
 3. **Model elaboration:** resolution, family compatibility, typed defaults,
@@ -65,6 +65,7 @@ cargo test                              # the whole suite, no C toolchain needed
 cargo xtask ci                          # fmt --check, clippy -D warnings, test
 cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
 cargo xtask golden list                 # what the captured comparison data holds
+cargo xtask golden verify               # Rust vs C data: 3 verified, 5 unsupported
 cargo run -p spice-analysis --example rc_diffsol --locked # production simulation API
 ```
 
@@ -93,6 +94,8 @@ elaboration work; parsing is not simulation.
 Winnow was the first external dependency and is used only by `spice-netlist`,
 with its `std` and `parser` features. Petgraph is also used in production topology
 APIs; faer supplies real/complex LU and diffsol supplies the bounded BDF backend.
+Both solver backends are MIT-licensed; no LGPL KLU algorithms are copied.
+Rust edition 2024 / MSRV **1.89** is required by the locked dependency graph.
 SuiteSparse/SUNDIALS features remain disabled. A fresh checkout needs registry
 downloads; cache the locked dependencies once for subsequent offline builds:
 
@@ -110,7 +113,7 @@ crates/spice-maths      dense/sparse/complex storage, LU, bounded BDF integratio
 crates/spice-devices    Device trait, MNA stamping, device registry
 crates/spice-analysis   analysis dispatch, plots, ASCII rawfile read and write
 crates/spice-cli        the `spice-rs` binary
-xtask                   golden capture and drift checks, CI
+xtask                   C capture/drift checks, Rust numerical verification, CI
 conformance/            fixture decks and the rawfiles captured from ngspice
 TODO.md                 central branch-aware implementation checklist
 docs/port/              architecture, C-to-Rust mapping, roadmap, verification
@@ -134,7 +137,10 @@ cargo xtask golden check --ngspice /path/to/ngspice   # equivalent
 
 [docs/port/VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness and
 its limits. `golden check` checks reproducibility of C output; it does not run
-the Rust simulation engine. Production DC/AC golden comparisons and analytic/
+the Rust simulation engine. `cargo xtask golden verify` runs the Rust library
+APIs against three committed linear fixtures with name/metadata/axis/value
+checks and explicit exclusions; no C binary is needed. Production DC/AC golden
+comparisons and analytic/
 live-C transient tests are documented in
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md), including
 recorded validation and justified tolerances. No new test run is implied by this

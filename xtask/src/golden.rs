@@ -23,7 +23,8 @@ pub(crate) const GOLDEN_DIR: &str = "conformance/golden";
 pub(crate) const SCRATCH_DIR: &str = "target/xtask/golden";
 
 const USAGE: &str = "\
-usage: cargo xtask golden <capture|check|list> [OPTIONS]
+usage: cargo xtask golden <capture|check|list|verify> [OPTIONS]
+       cargo xtask golden verify [--netlist <NAME>] (Rust only; no C invocation)
 
 OPTIONS:
     --ngspice <PATH>   the C ngspice binary to drive
@@ -74,6 +75,7 @@ pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
         Some("capture") => capture(&Options::parse(&arguments[1..])?),
         Some("check") => check(&Options::parse(&arguments[1..])?),
         Some("list") => list(),
+        Some("verify") => crate::verify::main(&arguments[1..]),
         _ => Err(format!("usage: unknown 'golden' subcommand\n\n{USAGE}")),
     }
 }
@@ -83,7 +85,11 @@ fn scratch_directory() -> PathBuf {
 }
 
 fn netlist_paths(only: Option<&str>) -> Result<Vec<PathBuf>, String> {
-    let directory = workspace_root().join(NETLIST_DIR);
+    netlist_paths_at(&workspace_root(), only)
+}
+
+pub(crate) fn netlist_paths_at(root: &Path, only: Option<&str>) -> Result<Vec<PathBuf>, String> {
+    let directory = root.join(NETLIST_DIR);
     let mut paths: Vec<PathBuf> = fs::read_dir(&directory)
         .map_err(|error| format!("reading {}: {error}", directory.display()))?
         .filter_map(Result::ok)

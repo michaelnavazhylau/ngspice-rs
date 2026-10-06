@@ -14,6 +14,11 @@
 //! device, each with `<dev>load.c` doing the stamping. `src/spicelib/devices/`
 //! is 464k lines of the C tree's 723k, so the registry is designed to be the
 //! extension point that keeps the core small — see `docs/port/ROADMAP.md`.
+//!
+//! `Circuit::from_netlist` accepts literal scalar R/C/L/V/I only. Model-backed
+//! passives and nonlinear D/Q/M backends are not enabled by their parsed syntax.
+//! Constant/Step/Pwl forcing is a device API, not waveform deck parsing. See
+//! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 
 #![warn(missing_docs)]
 

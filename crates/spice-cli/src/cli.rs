@@ -203,8 +203,9 @@ EXIT STATUS:
 ///
 /// # Errors
 ///
-/// [`SpiceError::Io`] when the deck cannot be read, [`SpiceError::Parse`] when it
-/// cannot be understood, and [`SpiceError::NotYetPorted`] for syntax outside the
+/// [`spice_core::SpiceError::Io`] when the deck cannot be read,
+/// [`spice_core::SpiceError::Parse`] when it cannot be understood, and
+/// [`spice_core::SpiceError::NotYetPorted`] for syntax outside the
 /// parser's current subset, mapped to [`exit_code::NOT_YET_PORTED`].
 pub fn run(args: &Args) -> SpiceResult<()> {
     match args.command {

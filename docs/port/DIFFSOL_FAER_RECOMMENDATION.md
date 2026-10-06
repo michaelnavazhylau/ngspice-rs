@@ -1,7 +1,15 @@
 # diffsol/faer solver integration recommendation
 
-Implementation status and supported limits: [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md).
-The inspection baseline below is retained as a historical record.
+> **Historical design record, not current capability documentation.** The
+> baseline below predates the implemented linear engine. Production faer
+> real/complex LU, scalar R/C/L/V/I `.op`/`.dc`/`.ac` and restricted explicitly
+> selected diffsol BDF now exist. Rust **1.89** is declared and validated; the
+> old 1.85 toolchain concern below is resolved. See
+> [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) for current
+> APIs/limits and the central [TODO.md](../../TODO.md) for remaining work.
+>
+> Sections below describe findings/recommendations **at the inspection
+> baseline**, not outstanding implementation tasks or a fresh test run.
 
 ## Scope and inspection baseline
 
@@ -32,9 +40,9 @@ Keep circuit semantics in `spice-devices` and analysis orchestration in
 Do not translate the C SPARSE/KLU implementations or rewrite their algorithms
 when faer already supplies the required factorization.
 
-### Existing integration points
+### Historical integration points (before implementation)
 
-| Location | Current behavior | Recommended action |
+| Location | Behavior at inspection baseline | Recommended action at that time |
 | --- | --- | --- |
 | `spice-maths/src/sparse.rs`: `factorize`, `solve` | Both return `NotYetPorted` | Implement real sparse LU with faer CSC storage and owned factors |
 | `spice-maths/src/dense.rs`: `lu_decompose`, `solve` | Both return `NotYetPorted` | Implement pivoted dense LU through faer; preserve row-major public storage |
@@ -44,8 +52,10 @@ when faer already supplies the required factorization.
 | `spice-devices/src/circuit.rs`: `rebuild_unknowns` | Reserves branch rows but discards returned starts | Record per-device branch-row ranges so V sources and inductors can stamp their equations |
 | `spice-analysis/src/analysis.rs` | `.op`, `.dc`, `.ac`, `.tran` are all stubs | Implement drivers incrementally; preserve explicit errors for unsupported cases |
 
-There is no completed Rust Newton loop or transient driver to replace. The
-C analysis/device/integration routines remain behavioral references.
+At that baseline there was no completed Rust Newton loop or transient driver
+to replace. Today the bounded BDF driver exists, but a SPICE nonlinear DC Newton
+loop and trap/Gear companions remain pending. The C analysis/device/integration
+routines remain behavioral references.
 
 ## Phase 1: production faer linear solves
 
@@ -157,13 +167,14 @@ an explicitly designed adapter error channel.
 ## Phase 3: AC and broader validation
 
 AC needs complex `A + j*omega*E` assembly and faer complex sparse LU, not diffsol
-integration. The current stamping interface is real-only; add a complex
-assembly representation and explicit scalar conversions at the backend
+integration. The inspection-baseline stamping interface was real-only; the recommendation
+was to add a complex assembly representation and explicit scalar conversions at the backend
 boundary. Do not force an AC implementation through `SparseMatrix<f64>`.
 
-## Toolchain/dependency issue to resolve before implementation
+## Historical toolchain issue (resolved by the integration)
 
-The workspace declares Rust **1.85**, but `cargo metadata --locked` reports:
+At inspection the workspace declared Rust **1.85**, but `cargo metadata --locked`
+reported:
 
 | Resolved dependency | Declared minimum Rust |
 | --- | --- |
@@ -177,7 +188,9 @@ both faer and nalgebra on its la/nl dependencies. Recommend raising the declared
 workspace MSRV to at least 1.89 and testing it in CI, subject to the project's
 support policy. If 1.85 is mandatory, investigate an upstream feature fix or
 an older compatible stack; do not assume disabling top-level defaults fixes it.
-This inspection did not install or test Rust 1.85/1.89. Preserve the lockfile
+The original inspection did not install or test Rust 1.85/1.89. The subsequent
+implementation raised the MSRV to 1.89 and validated tests/Clippy on it; see the
+implementation guide's historical validation report. Preserve the lockfile
 and keep suitesparse/sundials external backends disabled.
 
 ## Acceptance tests for the implementation

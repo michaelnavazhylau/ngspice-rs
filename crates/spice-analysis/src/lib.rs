@@ -9,10 +9,14 @@
 //! The C equivalent is `src/spicelib/analysis/` (21,993 lines: the `CKT*`
 //! job-control, loading and iteration machinery) and `src/frontend/rawfile.c`.
 //!
-//! The rawfile layer is deliberately complete, because it is what makes the port
-//! verifiable: `xtask` captures ASCII rawfiles from the C binary and the test
-//! suite parses them, so the format the port must reproduce is pinned by data
-//! rather than by prose. See `docs/port/VERIFICATION.md`.
+//! ASCII rawfile I/O makes the port verifiable (binary I/O remains pending):
+//! `xtask` captures ASCII rawfiles from C and the test suite parses them, so
+//! the format the port must reproduce is pinned by data
+//! rather than by prose. `cargo xtask golden verify` runs supported Rust fixtures
+//! against that data without C. See `docs/port/VERIFICATION.md` and
+//! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` for current limits. Nonlinear
+//! D/Q/M physics, SPICE trap/Gear companions, waveform deck syntax, IC/uic and
+//! general DAEs remain unsupported; the CLI still inspects/parses only.
 
 #![warn(missing_docs)]
 

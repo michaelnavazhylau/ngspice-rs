@@ -3,14 +3,17 @@
 //! Run it as `cargo xtask <command>` (the alias is defined in
 //! `.cargo/config.toml`).
 //!
-//! The important command is `golden`, which drives the C `ngspice` binary to
-//! produce the comparison data the port is verified against. Nothing in the
+//! `golden capture/check` drive C to capture/reproduce comparison data;
+//! `golden verify` runs the supported Rust analyses against committed data
+//! without invoking C. Nothing in the
 //! simulator depends on this crate; it is a development tool. See
 //! `docs/port/VERIFICATION.md`.
 
 mod ci;
+mod compare;
 mod golden;
 mod ngspice;
+mod verify;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -23,6 +26,9 @@ USAGE:
                                            and write conformance/golden/*.raw
     cargo xtask golden check [OPTIONS]     re-capture and report drift, without writing
     cargo xtask golden list                describe the committed fixtures
+    cargo xtask golden verify [--netlist <NAME>]
+                                           compare supported Rust results with C goldens
+                                           (no C binary needed; never writes goldens)
     cargo xtask ci                         fmt --check, clippy -D warnings, test
     cargo xtask help
 
