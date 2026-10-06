@@ -51,6 +51,14 @@ winnow = { version = "1.0.4", default-features = false, features = ["std", "pars
 diffsol = { version = "0.17.1", default-features = false, features = ["faer"] }
 faer = "0.24.4"
 
+# `petgraph` describes the structure of the MNA matrix: one node per unknown,
+# one edge per off-diagonal coupling. The port uses it to find electrically
+# isolated blocks and to reject a block with no path to ground before the
+# factorisation sees a singular matrix. It already reaches this graph through
+# diffsol (0.8.3, default features), so declaring it here only promotes the same
+# version to a direct dependency of a workspace crate.
+petgraph = "0.8.3"
+
 # Workspace-internal crates agree on one set of paths.
 spice-core = { path = "crates/spice-core" }
 spice-netlist = { path = "crates/spice-netlist" }
