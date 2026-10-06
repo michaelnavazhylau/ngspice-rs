@@ -64,7 +64,8 @@ tests and documented limits as the remaining functionality is added.
 - [x] Integrate the linear solver work into GitHub main, including its implementation guide, dependency/license rationale, Rust 1.89 requirement, CI matrix and production-interface tests.
 - [x] Add production `.op` comparisons against the RC-divider/RLC C goldens at justified relative and near-zero absolute tolerances.
 - [ ] Keep formatting, all-target Clippy and workspace tests green on stable and Rust 1.89; rerun opt-in C checks deliberately when functionality changes.
-- [ ] Keep capability documents aligned with production support; do not claim full M1/M3 completion from the bounded linear engine.
+- [x] Reconcile historical architecture/mapping/recommendation and public API docs with the bounded linear engine and Rust 1.89 MSRV (GitHub #49); no full M1/M3 completion claim.
+- [ ] Complete bounded model-backed passive elaboration (GitHub #19), blocked by passive syntax #11 and model schema/resolution #17; neither prerequisite is merged yet.
 
 ## 2. Complete the netlist front end — M1
 
@@ -133,7 +134,7 @@ BDF does not close the following trap/Gear and general-transient requirements.
 
 ## 7. Verification, numerical follow-up and documentation
 
-- [ ] Add `cargo xtask golden verify` to run the Rust engine and compare vectors by name with justified relative and near-zero absolute tolerances.
+- [x] Add `cargo xtask golden verify` for the three supported `.op`/`.ac` fixtures, comparing metadata and named real/complex components with the existing DC/AC bounds; explicit exclusions, failure diagnostics and process tests (GitHub #7).
 - [ ] Expand production C comparisons as parser/device/analysis support lands; keep ordinary tests independent of a C toolchain.
 - [ ] Preserve singular homogeneous/source-loop, disconnected valid block, mutation, pattern-change, finite/overflow and residual regression coverage.
 - [ ] Investigate equilibration for ill-scaled MNA and reduce the n-extra-solves sparse rank-diagnostic cost without weakening uniqueness checks.

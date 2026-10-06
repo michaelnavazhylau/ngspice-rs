@@ -7,7 +7,8 @@
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
-//!   on `temp`, so evaluation is a separate pass.
+//!   on `temp`, so evaluation is a separate pass. Current parser values are
+//!   finite scalar literals; expression/parameter-reference syntax is pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -34,8 +35,8 @@ pub struct ParameterAssignment {
     /// Parameter name, lowercased; ngspice matches parameter names
     /// case-insensitively.
     pub name: String,
-    /// The value as written, possibly a `{ … }` expression or a `.param`
-    /// reference.
+    /// The value as written. The type can hold expressions/references for
+    /// future elaboration, but the parser currently accepts scalar literals only.
     pub value: String,
     /// Where the assignment was found.
     pub location: SourceLoc,
@@ -137,7 +138,10 @@ pub struct OptionCard {
     pub location: SourceLoc,
 }
 
-/// A complete deck.
+/// A semantic deck container. The parser currently fills only its bounded
+/// scalar device/model/analysis subset; scope/include/parameter/option/global
+/// fields do not imply implemented parsing or elaboration. See
+/// `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Netlist {
     /// The deck's title line.

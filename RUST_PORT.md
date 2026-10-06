@@ -50,9 +50,10 @@ What already works for real:
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, explicit diffsol BDF; not trap/Gear parity |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
-| ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` format, byte-for-byte layout |
+| ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` layout; known decimal round-trip limitation documented in verification |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
+| Rust-engine numerical verify | `xtask` | three supported linear fixtures; five explicit exclusions, no C invocation |
 
 ## Quick start
 
@@ -61,11 +62,14 @@ cargo build                          # build the workspace
 cargo test                           # run the test suite, including conformance tests
 cargo xtask help                     # automation commands
 cargo xtask golden list              # what the captured goldens contain
+cargo xtask golden verify            # Rust vs committed C data; bounded coverage
 cargo xtask golden check             # re-run C ngspice, diff against the goldens
 cargo xtask ci                       # fmt --check + clippy -D warnings + test
 ```
 
-`cargo test` needs Rust and the locked registry dependencies; the goldens are
+The workspace uses Rust edition 2024 and MSRV **1.89**. faer and diffsol are
+MIT-licensed backends, not translations of LGPL KLU; SuiteSparse/SUNDIALS are
+disabled. `cargo test` needs Rust and the locked registry dependencies; the goldens are
 committed data, so no C toolchain is required. Run `cargo fetch --locked` once
 before `cargo test --workspace --locked --offline` for offline use.
 `cargo xtask golden capture` needs a built C `ngspice` binary. Point at one with
@@ -111,5 +115,5 @@ already contains the solver merge. Focused documentation publication must
 preserve that implementation and keep the distinct histories separate.
 
 Nothing in the port depends on that setup: `cargo test` and `cargo xtask ci` run
-in any checkout, and only `cargo xtask golden capture` needs an upstream
+in any checkout. C capture/check and opt-in live oracles need an upstream
 `ngspice` binary, supplied through `NGSPICE_BIN` or `--ngspice`.

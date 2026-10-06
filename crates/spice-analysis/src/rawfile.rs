@@ -31,7 +31,7 @@
 //! tab; every point is followed by a blank line; and complex values are written
 //! as `re,im`. Because every value is written with `%-.15e`, a leading run of
 //! digits followed by whitespace can only be a point index — never a value —
-//! which is how [`split_index_and_value`] tells them apart.
+//! which is how the internal `split_index_and_value` helper tells them apart.
 //!
 //! **Binary rawfiles are not supported** and are reported as
 //! [`SpiceError::Unsupported`].

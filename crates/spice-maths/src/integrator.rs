@@ -13,7 +13,9 @@
 //! `src/maths/ni/nipred.c`, and handles the timestep changes that force a
 //! coefficient recomputation.
 //!
-//! Only the types are ported here; [`Integrator::update`] is **not**.
+//! Only the types are ported here; [`Integrator::set_timestep`], integration
+//! and prediction remain pending. The separately selected [`crate::diffsol`]
+//! BDF adapter does not implement this SPICE companion-model contract.
 
 use spice_core::{Real, SpiceError, SpiceResult};
 
@@ -36,7 +38,8 @@ impl IntegrationMethod {
     /// The highest Gear order ngspice supports.
     pub const MAX_GEAR_ORDER: u8 = 6;
 
-    /// True when this method and order are supported.
+    /// True when this method/order is representable, not proof that its
+    /// coefficient/history operations are implemented.
     #[must_use]
     pub const fn is_valid(self) -> bool {
         match self {
@@ -138,8 +141,9 @@ impl Integrator {
     ///
     /// # Errors
     ///
-    /// Always [`SpiceError::NotYetPorted`]. The C code is `niinteg.c` together
-    /// with the coefficient tables in `nicomcof.c`.
+    /// [`SpiceError::Numerical`] for a nonpositive/nonfinite step, otherwise
+    /// [`SpiceError::NotYetPorted`]. The C code is `niinteg.c` together with
+    /// the coefficient tables in `nicomcof.c`.
     pub fn set_timestep(&mut self, timestep: Timestep) -> SpiceResult<()> {
         if !(timestep.dt.is_finite() && timestep.dt > 0.0) {
             return Err(SpiceError::Numerical {

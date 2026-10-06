@@ -63,9 +63,10 @@ drift rather than silently absorbed.
 | `cargo xtask golden capture` | capture every fixture, write `conformance/golden/*.raw`, report new/changed/unchanged |
 | `cargo xtask golden check` | capture into the scratch directory and report drift; writes nothing, exits non-zero on drift |
 | `cargo xtask golden list` | describe each committed golden: plot name, variable count, point count, finiteness |
+| `cargo xtask golden verify [--netlist <NAME>]` | run the supported Rust analyses against committed C data; no C binary, no writes, non-zero on failure |
 | `cargo xtask ci` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` |
 
-Locate the reference binary with `--ngspice <PATH>` or `NGSPICE_BIN`; otherwise
+For **capture/check only**, locate the reference binary with `--ngspice <PATH>` or `NGSPICE_BIN`; otherwise
 `build/src/ngspice` under the workspace root is tried (a convenience that only
 exists inside a built ngspice checkout), then `ngspice` on `PATH`.
 A relative `--ngspice` is resolved against the workspace root, not the caller's
@@ -251,12 +252,52 @@ These tests exercise Rust production interfaces, unlike `golden check`, which
 only checks reproducibility of captured C output. Topology and rawfile regression
 tests remain necessary but do not alone establish simulation correctness.
 
-## Not yet verified
+## Rust-engine golden verification
 
-`cargo xtask golden verify` — running the Rust engine over the fixture corpus and
-diffing against the goldens — remains planned automation. Existing production
-comparison tests are not that command. Comparisons must use justified relative
-and near-zero absolute tolerances, since solver ordering differs from ngspice.
+```sh
+cargo xtask golden verify
+cargo xtask golden verify --netlist rc_lowpass_ac
+```
+
+The default verifies **three fixtures** through `Parser::parse_file`,
+`Circuit::from_netlist` and the production analysis runner: `rc_divider` and
+`rlc_series` (`.op`), and `rc_lowpass_ac` (complex `.ac`). It reports **five
+unsupported fixtures** with reasons: `diode_dc`, `bjt_ce`, `mos_inverter`
+(non-linear backends), `rc_transient` (waveform syntax/SPICE transient parity),
+and `subckt_divider` (subcircuit parsing/elaboration). A requested unsupported
+fixture fails, never silently skips. Names are case-insensitive and an optional
+`.cir` suffix is accepted. Unknown fixtures/options, missing input/goldens,
+unregistered new fixtures and missing default supported decks fail explicitly.
+Verify accepts only `--netlist`; it neither locates/executes C nor writes fixtures,
+goldens or scratch output. Capture/check/list retain their existing behavior.
+
+The extension registry is `xtask/src/verify.rs` (`SUPPORTED`/`EXCLUDED`). Add an
+analysis kind, axis identity and comparison policy only after demonstrating
+production support, not merely parser support. Exactly one deck analysis and
+one C plot are required. `xtask/src/compare.rs` centralizes metadata, shape,
+finite-value and numerical checks: plot name/flags, point count, unique variable
+names, units and real-vector flags must match. Internal plot IDs and rawfile
+Title/Date/Command headers are intentionally not numerical comparisons.
+Columns match case-insensitively **by name**, independent of C/Rust ordering.
+The frequency axis must be real, positive, strictly increasing and numerically
+match at every sample; no interpolation or transient resampling occurs.
+
+Each real/imaginary component satisfies
+`|Rust - C| <= relative * |C| + absolute`: DC retains **1e-12 + 1e-15**, and AC
+**1e-10 + 1e-12**. The absolute term bounds near-zero currents/cancellation;
+relative terms retain the existing production test bounds, not a new looser
+policy. Failures report first and worst component mismatches (point, variable,
+values, error and bound). Counts explicitly describe bounded coverage, not full
+corpus parity.
+
+Ordinary xtask tests cover reordered/renamed/dropped/duplicate columns,
+real/imaginary and zero perturbations, metadata/axis/shape/nonfinite errors,
+corrupt/missing/multiple goldens, parser/elaboration/numerical failures, missing
+registry coverage and process exit statuses. Temporary copies are used for
+corruption tests; committed fixtures are never rewritten. Process tests select
+an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
+
+## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity,
 general DAEs, source-waveform deck syntax and subcircuit/parameter elaboration
