@@ -4,7 +4,8 @@
 //! | --- | --- | --- |
 //! | [`results`] | [`Plot`], [`Variable`] and the flags that describe them | ported |
 //! | [`rawfile`] | ngspice ASCII rawfile reading **and** writing | ported for ASCII; binary not ported |
-//! | [`analysis`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | dispatch ported, drivers stubbed |//!
+//! | [`analysis`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | linear DC/AC and explicitly selected bounded diffsol transient |
+//!
 //! The C equivalent is `src/spicelib/analysis/` (21,993 lines: the `CKT*`
 //! job-control, loading and iteration machinery) and `src/frontend/rawfile.c`.
 //!
@@ -15,9 +16,12 @@
 
 #![warn(missing_docs)]
 
+mod ac;
 pub mod analysis;
+mod linear;
 pub mod rawfile;
 pub mod results;
+mod transient;
 
 pub use analysis::{Analysis, AnalysisContext, AnalysisRequest, DRIVERS, has_driver, runner};
 pub use rawfile::{RawFile, RawPlot};

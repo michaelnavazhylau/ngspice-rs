@@ -387,12 +387,12 @@ fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
         let column = flat_index % variable_count.max(1);
         let (declared_point, value_text) = split_index_and_value(line);
         if column == 0 {
-            if let Some(declared_point) = declared_point {
-                if declared_point != expected_point {
-                    return Err(unsupported(format!(
-                        "rawfile point index {declared_point} out of order, expected {expected_point}"
-                    )));
-                }
+            if let Some(declared_point) = declared_point
+                && declared_point != expected_point
+            {
+                return Err(unsupported(format!(
+                    "rawfile point index {declared_point} out of order, expected {expected_point}"
+                )));
             }
             if !row.is_empty() {
                 points.push(std::mem::take(&mut row));
@@ -401,10 +401,11 @@ fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
         let parsed = parse_value(value_text)?;
         // A real plot carries no commas at all, so the flag is only meaningful
         // for a complex plot.
-        if flags.is_complex() && !parsed.real_short_form {
-            if let Some(is_real) = column_is_real.get_mut(column) {
-                *is_real = false;
-            }
+        if flags.is_complex()
+            && !parsed.real_short_form
+            && let Some(is_real) = column_is_real.get_mut(column)
+        {
+            *is_real = false;
         }
         row.push(parsed.value);
     }
@@ -437,10 +438,12 @@ fn split_index_and_value(line: &str) -> (Option<usize>, &str) {
     if let Some(position) = trimmed.find(|character: char| character.is_ascii_whitespace()) {
         let head = &trimmed[..position];
         let rest = trimmed[position..].trim_start();
-        if !head.is_empty() && !rest.is_empty() && head.bytes().all(|byte| byte.is_ascii_digit()) {
-            if let Ok(index) = head.parse::<usize>() {
-                return (Some(index), rest);
-            }
+        if !head.is_empty()
+            && !rest.is_empty()
+            && head.bytes().all(|byte| byte.is_ascii_digit())
+            && let Ok(index) = head.parse::<usize>()
+        {
+            return (Some(index), rest);
         }
     }
     (None, line.trim())

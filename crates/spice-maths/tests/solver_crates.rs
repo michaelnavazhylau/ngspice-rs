@@ -1,7 +1,7 @@
 //! Proves the two solver crates chosen for M2/M3 are wired up and usable.
 //!
-//! `spice-maths` still stubs its own factorisation, solve and integration, so
-//! these tests exercise the crates directly instead of a ported code path:
+//! These dependency smoke tests complement the production-interface tests in
+//! `linear_solvers.rs` and `dae.rs`:
 //!
 //! - `faer` factorises a matrix that was stamped through
 //!   [`spice_maths::SparseMatrix`], the way MNA assembly will feed it.

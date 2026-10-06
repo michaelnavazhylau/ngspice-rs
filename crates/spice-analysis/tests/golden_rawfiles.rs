@@ -52,6 +52,49 @@ fn netlist_text(name: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|error| panic!("reading {}: {error}", path.display()))
 }
 
+/// Compare actual production solves, not just rawfile round-tripping.
+#[test]
+fn production_linear_drivers_match_c_goldens() {
+    for name in ["rc_divider", "rlc_series", "rc_lowpass_ac"] {
+        let deck = spice_netlist::source::parse_deck_text(Path::new(name), &netlist_text(name));
+        let netlist = spice_netlist::Parser::new().parse_deck(&deck).unwrap();
+        let mut circuit = spice_devices::Circuit::from_netlist(&netlist).unwrap();
+        let request = spice_analysis::AnalysisRequest::from(&netlist.analyses[0]);
+        let got = spice_analysis::runner(request.kind)
+            .unwrap()
+            .run(
+                &mut circuit,
+                &request,
+                &spice_analysis::AnalysisContext::default(),
+            )
+            .unwrap();
+        let golden = RawFile::parse(&golden_text(name)).unwrap();
+        let want = &golden.plots[0].plot;
+        assert_eq!(got.variable_count(), want.variable_count(), "{name}");
+        assert_eq!(got.point_count(), want.point_count());
+        for variable in &want.variables {
+            let index = got.variable_index(&variable.name).unwrap();
+            assert_eq!(&got.variables[index], variable);
+            for (a, b) in got
+                .column(&variable.name)
+                .unwrap()
+                .iter()
+                .zip(want.column(&variable.name).unwrap())
+            {
+                let (rtol, atol) = if got.flags.is_complex() {
+                    (1e-10, 1e-12)
+                } else {
+                    (1e-12, 1e-15)
+                };
+                assert!(
+                    (*a - b).magnitude() <= rtol * b.magnitude() + atol,
+                    "{name}: {a} != {b}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn every_fixture_has_a_golden_and_no_golden_is_orphaned() {
     let fixtures = fixture_names();

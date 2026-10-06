@@ -1,8 +1,8 @@
 //! Resistor, capacitor and inductor — the first porting targets.
 //!
-//! These are the device types the port will build first (milestone M2 in
-//! `docs/port/ROADMAP.md`), so their shape is fixed even though the stamping is
-//! not implemented. Each one follows the same pattern as its C counterpart:
+//! Static and state-independent dynamic operators are implemented. The separate
+//! trap/Gear companion-model contract remains pending (roadmap M3).
+//! Each type follows its C counterpart:
 //!
 //! | Rust | C parser | C stamping |
 //! | --- | --- | --- |
@@ -13,10 +13,9 @@
 //! The value fields are the *parsed* values. ngspice additionally supports
 //! temperature coefficients (`tc1`, `tc2`), behavioural values (`R={expr}`) and
 //! instance parameters (`m`, `ac`, `temp`); those are not modelled yet and their
-//! absence is the reason the factories in [`crate::registry`] are still stubs.
+//! factories reject unsupported parameters rather than ignoring them.
 
 use spice_core::{NodeId, Real, SpiceError, SpiceResult};
-use spice_maths::Vector;
 
 use crate::traits::{Device, StampContext};
 
@@ -35,16 +34,16 @@ impl Resistor {
     ///
     /// # Errors
     ///
-    /// [`SpiceError::Circuit`] when the resistance is not finite.
+    /// [`SpiceError::Circuit`] for non-finite or zero resistance/conductance overflow.
     pub fn new(
         name: impl Into<String>,
         terminals: [NodeId; 2],
         resistance: Real,
     ) -> SpiceResult<Self> {
         let name = name.into();
-        if !resistance.is_finite() {
+        if !resistance.is_finite() || resistance == 0.0 || !(1.0 / resistance).is_finite() {
             return Err(SpiceError::circuit(format!(
-                "resistor {name}: resistance is not finite"
+                "resistor {name}: resistance must be finite and nonzero with finite conductance"
             )));
         }
         Ok(Self {
@@ -81,11 +80,19 @@ impl Device for Resistor {
         &self.terminals
     }
 
-    fn stamp(&mut self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            "resistor stamping",
-            "src/spicelib/devices/res/resload.c",
-        ))
+    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        if context.mode.is_ac() {
+            return Err(SpiceError::circuit("use complex equation assembly for AC"));
+        }
+        crate::linear::nodal_stamp(
+            context.matrix,
+            context.unknowns,
+            self.terminals,
+            self.conductance(),
+        )
+    }
+    fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
+        context.nodal(self.terminals, self.conductance(), false)
     }
 }
 
@@ -105,7 +112,7 @@ impl Capacitor {
     ///
     /// # Errors
     ///
-    /// [`SpiceError::Circuit`] when the capacitance is not finite.
+    /// [`SpiceError::Circuit`] for nonpositive/non-finite capacitance or non-finite IC.
     pub fn new(
         name: impl Into<String>,
         terminals: [NodeId; 2],
@@ -113,9 +120,12 @@ impl Capacitor {
         initial_voltage: Option<Real>,
     ) -> SpiceResult<Self> {
         let name = name.into();
-        if !capacitance.is_finite() {
+        if !capacitance.is_finite()
+            || capacitance <= 0.0
+            || initial_voltage.is_some_and(|v| !v.is_finite())
+        {
             return Err(SpiceError::circuit(format!(
-                "capacitor {name}: capacitance is not finite"
+                "capacitor {name}: capacitance must be positive and finite; initial voltage must be finite"
             )));
         }
         Ok(Self {
@@ -157,18 +167,18 @@ impl Device for Capacitor {
         0
     }
 
-    fn stamp(&mut self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        if context.mode.is_dc() {
+            return Ok(());
+        }
         Err(SpiceError::not_yet_ported(
-            "capacitor stamping (companion model)",
+            "capacitor companion model",
             "src/spicelib/devices/cap/capload.c, src/maths/ni/niinteg.c",
         ))
     }
-
-    fn accept(&mut self, _solution: &Vector) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            "capacitor charge history",
-            "src/spicelib/devices/cap/capaccept.c",
-        ))
+    fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
+        context.system.has_initial_conditions |= self.initial_voltage.is_some();
+        context.nodal(self.terminals, self.capacitance, true)
     }
 }
 
@@ -191,7 +201,7 @@ impl Inductor {
     ///
     /// # Errors
     ///
-    /// [`SpiceError::Circuit`] when the inductance is not finite.
+    /// [`SpiceError::Circuit`] for nonpositive/non-finite inductance or non-finite IC.
     pub fn new(
         name: impl Into<String>,
         terminals: [NodeId; 2],
@@ -199,9 +209,12 @@ impl Inductor {
         initial_current: Option<Real>,
     ) -> SpiceResult<Self> {
         let name = name.into();
-        if !inductance.is_finite() {
+        if !inductance.is_finite()
+            || inductance <= 0.0
+            || initial_current.is_some_and(|v| !v.is_finite())
+        {
             return Err(SpiceError::circuit(format!(
-                "inductor {name}: inductance is not finite"
+                "inductor {name}: inductance must be positive and finite; initial current must be finite"
             )));
         }
         Ok(Self {
@@ -242,18 +255,24 @@ impl Device for Inductor {
         1
     }
 
-    fn stamp(&mut self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            "inductor stamping (companion model)",
-            "src/spicelib/devices/ind/indload.c",
-        ))
+    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        if !context.mode.is_dc() {
+            return Err(SpiceError::not_yet_ported(
+                "inductor companion model",
+                "src/spicelib/devices/ind/indload.c",
+            ));
+        }
+        let row = context
+            .branch
+            .ok_or_else(|| SpiceError::circuit("missing inductor branch row"))?;
+        crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, row)
     }
-
-    fn accept(&mut self, _solution: &Vector) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            "inductor flux history",
-            "src/spicelib/devices/ind/indaccept.c",
-        ))
+    fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
+        let branch = context.branch(self.terminals)?;
+        // v+ - v- - L di/dt = 0, i positive from + to -.
+        context.system.e.add(branch, branch, -self.inductance)?;
+        context.system.has_initial_conditions |= self.initial_current.is_some();
+        Ok(())
     }
 }
 
@@ -310,10 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn stamping_reports_that_it_is_missing() {
-        let mut resistor = Resistor::new("r1", nodes(), 1000.0).unwrap();
-        // The specific C file matters: it is what the next contributor needs.
-        assert!(stamp_error(&mut resistor).contains("res/resload.c"));
+    fn companion_stamping_remains_explicitly_unimplemented() {
         let mut capacitor = Capacitor::new("c1", nodes(), 1e-6, None).unwrap();
         assert!(stamp_error(&mut capacitor).contains("cap/capload.c"));
         let mut inductor = Inductor::new("l1", nodes(), 1e-3, None).unwrap();
@@ -335,7 +351,8 @@ mod tests {
             nodes: &nodes,
             solution: &solution,
             temperature: 27.0,
-            mode: crate::traits::AnalysisMode::OperatingPoint,
+            mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
+            branch: None,
         };
         device.stamp(&mut context).unwrap_err().to_string()
     }

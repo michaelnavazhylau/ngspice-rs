@@ -46,6 +46,7 @@ pub struct Circuit {
     nodes: NodeTable,
     unknowns: MnaUnknowns,
     devices: Vec<Box<dyn Device>>,
+    branch_rows: Vec<std::ops::Range<usize>>,
 }
 
 impl fmt::Debug for Circuit {
@@ -119,8 +120,12 @@ impl Circuit {
     /// per branch current, in device order.
     pub fn rebuild_unknowns(&mut self) {
         self.unknowns.rebuild(&self.nodes);
+        self.branch_rows.clear();
         for device in &self.devices {
-            self.unknowns.add_rows(device.branch_currents());
+            let count = device.branch_currents();
+            let start = self.unknowns.len();
+            self.unknowns.add_rows(count);
+            self.branch_rows.push(start..start + count);
         }
     }
 
@@ -208,6 +213,57 @@ impl Circuit {
         }
         self.devices.push(device);
         Ok(())
+    }
+
+    /// Branch rows by device ordinal, after finalization.
+    pub fn branch_rows(&self, index: usize) -> Option<std::ops::Range<usize>> {
+        self.branch_rows.get(index).cloned()
+    }
+
+    /// Assembles supported linear devices without mutating trial device state.
+    /// # Errors
+    /// Invalid topology or unsupported equations.
+    pub fn linear_system(&mut self) -> SpiceResult<crate::linear::LinearSystem> {
+        self.finalize()?;
+        let mut system = crate::linear::LinearSystem::new(self.unknown_count());
+        for (index, device) in self.devices.iter().enumerate() {
+            let range = &self.branch_rows[index];
+            device.assemble_linear(&mut crate::linear::LinearContext {
+                system: &mut system,
+                unknowns: &self.unknowns,
+                branch: (!range.is_empty()).then_some(range.start),
+            })?;
+        }
+        system.a.fold_duplicates();
+        system.e.fold_duplicates();
+        Ok(system)
+    }
+
+    /// Builds supported scalar devices from a semantic netlist.
+    /// # Errors
+    /// Unsupported elaboration constructs or device parameters.
+    pub fn from_netlist(netlist: &spice_netlist::ast::Netlist) -> SpiceResult<Self> {
+        if !netlist.models.is_empty()
+            || !netlist.subcircuits.is_empty()
+            || !netlist.includes.is_empty()
+            || !netlist.params.is_empty()
+            || !netlist.options.is_empty()
+            || !netlist.globals.is_empty()
+        {
+            return Err(SpiceError::Unsupported {
+                feature:
+                    "models/subcircuits/includes/parameters/options/globals in linear elaboration"
+                        .into(),
+                location: None,
+            });
+        }
+        let mut circuit = Self::new();
+        for instance in &netlist.devices {
+            let device = crate::factory::instantiate(instance, &mut circuit.nodes)?;
+            circuit.add_device(device)?;
+        }
+        circuit.finalize()?;
+        Ok(circuit)
     }
 
     /// Looks up a device by instance name, case-insensitively.

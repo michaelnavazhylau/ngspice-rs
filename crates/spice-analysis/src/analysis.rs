@@ -6,7 +6,8 @@
 //! `acan.c` the AC and noise analyses. Around them sit the loading
 //! (`CKTload`), iteration (`CKTiter`) and convergence machinery.
 //!
-//! Here the *dispatch* is implemented and the drivers are stubs. The split
+//! Drivers support linear R/C/L/V/I equations. Nonlinear analyses remain
+//! unsupported; transient requires an explicit diffsol BDF selection. The split
 //! between [`AnalysisRequest`] and the netlist AST is deliberate: the driver
 //! layer does not need to know where a request came from, and the AST does not
 //! need to know which analyses exist.
@@ -75,9 +76,23 @@ impl AnalysisRequest {
 
 impl From<&AnalysisCard> for AnalysisRequest {
     fn from(card: &AnalysisCard) -> Self {
+        // The tokenizer separates '=' even without surrounding whitespace.
+        // Keep positional arguments unchanged and normalize named triples for
+        // the driver API. Malformed assignments remain visible for rejection.
+        let mut arguments = Vec::new();
+        let mut i = 0;
+        while i < card.arguments.len() {
+            if i + 2 < card.arguments.len() && card.arguments[i + 1] == "=" {
+                arguments.push(format!("{}={}", card.arguments[i], card.arguments[i + 2]));
+                i += 3;
+            } else {
+                arguments.push(card.arguments[i].clone());
+                i += 1;
+            }
+        }
         Self {
             kind: card.kind,
-            arguments: card.arguments.clone(),
+            arguments,
         }
     }
 }
@@ -143,14 +158,11 @@ impl Analysis for OperatingPoint {
 
     fn run(
         &self,
-        _circuit: &mut Circuit,
-        _request: &AnalysisRequest,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
         _context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        Err(SpiceError::not_yet_ported(
-            "operating point analysis",
-            "src/spicelib/analysis/dcop.c, src/spicelib/analysis/cktdojob.c",
-        ))
+        crate::linear::op(circuit, request)
     }
 }
 
@@ -171,14 +183,11 @@ impl Analysis for DcSweep {
 
     fn run(
         &self,
-        _circuit: &mut Circuit,
-        _request: &AnalysisRequest,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
         _context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        Err(SpiceError::not_yet_ported(
-            "DC sweep",
-            "src/spicelib/analysis/dctran.c",
-        ))
+        crate::linear::dc(circuit, request)
     }
 }
 
@@ -200,14 +209,11 @@ impl Analysis for AcSmallSignal {
 
     fn run(
         &self,
-        _circuit: &mut Circuit,
-        _request: &AnalysisRequest,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
         _context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        Err(SpiceError::not_yet_ported(
-            "AC small-signal analysis",
-            "src/spicelib/analysis/acan.c",
-        ))
+        crate::ac::run(circuit, request)
     }
 }
 
@@ -229,14 +235,11 @@ impl Analysis for Transient {
 
     fn run(
         &self,
-        _circuit: &mut Circuit,
-        _request: &AnalysisRequest,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
         _context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        Err(SpiceError::not_yet_ported(
-            "transient analysis",
-            "src/spicelib/analysis/dctran.c, src/maths/ni/niinteg.c",
-        ))
+        crate::transient::run(circuit, request)
     }
 }
 
@@ -318,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn drivers_report_the_c_file_to_port() {
+    fn invalid_analysis_inputs_are_reported() {
         let mut circuit = Circuit::new();
         let context = AnalysisContext::default();
         let error = super::OperatingPoint
@@ -328,7 +331,7 @@ mod tests {
                 &context,
             )
             .expect_err("stub");
-        assert!(error.to_string().contains("dcop.c"), "{error}");
+        assert!(error.to_string().contains("nonempty square"), "{error}");
 
         let error = DcSweep
             .run(
@@ -337,7 +340,7 @@ mod tests {
                 &context,
             )
             .expect_err("stub");
-        assert!(error.to_string().contains("dctran.c"), "{error}");
+        assert!(error.to_string().contains(".dc requires"), "{error}");
     }
 
     #[test]

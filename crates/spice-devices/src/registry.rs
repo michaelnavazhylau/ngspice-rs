@@ -6,10 +6,9 @@
 //! explicit, so that the port's coverage can be reported programmatically
 //! instead of inferred from the presence of C files.
 //!
-//! Every built-in entry currently reports `ported: false` and its factory
-//! returns [`spice_core::SpiceError::NotYetPorted`] naming the entry's C
-//! reference. Resistor, capacitor and inductor are the first to be replaced —
-//! see [`crate::rlc`] for the target types.
+//! Scalar R/C/L/V/I factories are implemented. Other built-in entries report
+//! `ported: false` and return explicit `NotYetPorted` errors with C references.
+//! Unsupported scalar-device parameters are rejected, never silently ignored.
 
 use std::collections::BTreeMap;
 
@@ -204,7 +203,7 @@ impl Registry {
         Self::default()
     }
 
-    /// A registry holding every device the port has heard of, all unported.
+    /// Built-in registry with bounded scalar R/C/L/V/I factories.
     #[must_use]
     pub fn with_builtins() -> Self {
         let mut registry = Self::new();
@@ -213,8 +212,12 @@ impl Registry {
                 designator: *designator,
                 description,
                 c_reference,
-                ported: false,
-                factory: stub_factory,
+                ported: matches!(designator, 'r' | 'c' | 'l' | 'v' | 'i'),
+                factory: if matches!(designator, 'r' | 'c' | 'l' | 'v' | 'i') {
+                    crate::factory::from_card
+                } else {
+                    stub_factory
+                },
             });
         }
         registry
@@ -323,12 +326,33 @@ mod tests {
         for (designator, _, _) in super::BUILTINS {
             assert!(registry.contains(*designator), "missing {designator}");
         }
-        assert_eq!(registry.ported_count(), 0, "nothing is ported yet");
+        assert_eq!(registry.ported_count(), 5);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
             assert!(!entry.c_reference.is_empty(), "{entry:?}");
         }
+    }
+
+    #[test]
+    fn builtin_factories_construct_supported_scalar_devices() {
+        let registry = Registry::with_builtins();
+        let mut nodes = spice_core::NodeTable::new();
+        for text in [
+            "r1 a 0 1k",
+            "c1 a 0 1u",
+            "l1 a 0 1m",
+            "v1 a 0 dc 1 ac 2 90",
+            "i1 0 a 1m",
+        ] {
+            let device = registry.instantiate(&card(text), &mut nodes).unwrap();
+            assert_eq!(device.terminals().len(), 2);
+            assert_eq!(
+                device.branch_currents(),
+                usize::from(matches!(device.designator(), 'v' | 'l'))
+            );
+        }
+        assert_eq!(nodes.len(), 2);
     }
 
     #[test]
@@ -353,17 +377,17 @@ mod tests {
     }
 
     #[test]
-    fn instantiation_reports_the_entry_c_reference() {
+    fn unsupported_instantiation_reports_the_entry_c_reference() {
         let registry = Registry::with_builtins();
         let mut nodes = spice_core::NodeTable::new();
         let error = registry
-            .instantiate(&card("r1 in out 1k"), &mut nodes)
+            .instantiate(&card("d1 in out dm"), &mut nodes)
             .expect_err("not ported");
         assert!(error.is_not_yet_ported());
         let message = error.to_string();
-        assert!(message.contains("device instance 'r1'"), "{message}");
-        assert!(message.contains("inp2r.c"), "{message}");
-        assert!(message.contains("res.c"), "{message}");
+        assert!(message.contains("device instance 'd1'"), "{message}");
+        assert!(message.contains("inp2d.c"), "{message}");
+        assert!(message.contains("dio.c"), "{message}");
         assert!(nodes.is_empty(), "a stub factory must not intern nodes");
     }
 
@@ -431,8 +455,8 @@ mod tests {
             ported: true,
             factory,
         });
-        assert!(replaced.is_some_and(|entry| !entry.ported));
-        assert_eq!(registry.ported_count(), 1);
+        assert!(replaced.is_some_and(|entry| entry.ported));
+        assert_eq!(registry.ported_count(), 5);
         let mut nodes = spice_core::NodeTable::new();
         assert_eq!(
             registry
