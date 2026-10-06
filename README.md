@@ -24,6 +24,16 @@ cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
 cargo xtask golden list                 # what the captured comparison data holds
 ```
 
+## Continuous integration
+
+Separate GitHub Actions workflows run on every push and pull request, and can
+also be started manually. Both use stable Rust on Ubuntu with dependency caching:
+
+- **Build**: `cargo build --workspace --locked --release`.
+- **Tests**: `cargo test --workspace --locked`, including doctests and committed
+  conformance fixtures. Opt-in live C oracle tests remain ignored; no ngspice
+  binary or C toolchain is required.
+
 ## Parsing backend (`new-parsing`)
 
 Semantic parsing uses **winnow 1.0.4** over borrowed, positioned tokens. Card
