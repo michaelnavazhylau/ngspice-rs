@@ -45,7 +45,8 @@ behavioural-device expression trees; it is not the specification for `.param`.
 At M1a completion, `rc_divider`, `rc_lowpass_ac`, and `rlc_series` parsed into
 real ASTs and five fixtures returned specific `NotYetPorted` errors. M1b's
 model/diode slice below additionally unlocks `diode_dc`. Parsing does not imply
-simulation: all device implementations and analysis drivers remain stubbed.
+simulation: device implementations and analysis drivers were stubbed at that
+stage. Main now includes the bounded linear engine described below.
 
 M1a checks: parser fixture/unit regressions, CLI exit-contract tests, and an
 opt-in C oracle comparing scalar AST parameters with live C instance queries.
@@ -97,11 +98,12 @@ model-backed passives and waveforms remain pending.
 
 Exit criteria (not met yet): round-trip every deck in
 `conformance/netlists/` into the AST and back to a normalised deck text; golden
-fixtures for tokens and AST dumps. Track concrete work in [`TODO.md`](TODO.md).
+fixtures for tokens and AST dumps. Track concrete work in the central
+[`TODO.md`](../../TODO.md).
 
 ## M2 — Linear DC operating point
 
-The diffsol/faer worktree now implements the scalar linear core, including
+Main now implements the scalar linear core from the diffsol/faer integration, including
 `.op` and independent-source `.dc`, with production solves checked against C
 DC goldens at 1e-12 relative plus 1e-15 absolute near zero. See
 [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md).
@@ -117,7 +119,7 @@ relative; the RC-divider golden already in the tree is the first check.
 
 ## M3 — Reactive elements and transient analysis
 
-The diffsol/faer worktree adds complex AC and a separately selected, bounded
+Main includes complex AC and a separately selected, bounded
 adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal:
 companions, `.ic`/`.nodeset`, waveform parsing and general MNA DAEs remain pending.
 

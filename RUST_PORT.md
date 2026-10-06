@@ -1,9 +1,9 @@
 # RUST_PORT.md — a Rust port of ngspice
 
-A Cargo workspace for a from-scratch Rust implementation of ngspice. Development
-happens in an ngspice worktree (`new-parsing`, branched from `rust-port`);
-the public standalone repository
-contains only the Rust port and its conformance data.
+A Cargo workspace for a from-scratch Rust implementation of ngspice. The optional development
+setup includes C-reference and solver-integration worktrees; the public standalone
+repository contains only the Rust port and its conformance data. These Git
+histories differ, and the local development mainline may lag public main.
 
 **Nothing in the C sources is modified or replaced.** ngspice is the reference
 implementation, inspected during porting and queried out of process. Verification
@@ -26,9 +26,15 @@ work); the declaration index disambiguates ports, not model backends.
 Model-backed passives, waveforms, subcircuits and expressions remain unported.
 Model types, keyword validity and defaults/selector rules remain elaboration
 work; AST success does not imply backend availability.
-Device implementations, solvers and analysis drivers are still stubbed — every
-unimplemented entry point returns
-[`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming its C reference.
+Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
+LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
+bounded diffsol BDF transient analysis. D/Q/M equations, trap/Gear companions,
+general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
+fail explicitly; pending ports use
+[`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
+See [TODO.md](TODO.md) for the central checklist and
+[DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) for
+production APIs, numerical policies, recorded validation and limits.
 
 What already works for real:
 
@@ -40,7 +46,9 @@ What already works for real:
 | Card tokenizer and `.command` classification | `spice-netlist` | `inppas2.c` / `inp2dot.c` dispatch |
 | Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, scalar models, bounded D/Q/M, opaque analyses; six fixture decks parse |
 | Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
-| MNA matrix / triplet storage (no solver) | `spice-maths` | solver itself is stubbed |
+| Real/complex MNA storage and LU | `spice-maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
+| Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
+| Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, explicit diffsol BDF; not trap/Gear parity |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` format, byte-for-byte layout |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |
@@ -69,7 +77,8 @@ The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
 `mos_inverter`; `rc_transient` and `subckt_divider` still exit with status 3 at
-an unported construct. **It does not simulate yet.**
+an unported construct. **The CLI does not simulate yet; production simulation
+is available through APIs and `cargo run -p spice-analysis --example rc_diffsol`.**
 
 ```sh
 cargo run -p spice-cli -- conformance/netlists/rc_divider.cir    # deck summary
@@ -84,20 +93,22 @@ cargo run -p spice-cli -- analyses                              # analysis cover
 - [`docs/port/ARCHITECTURE.md`](docs/port/ARCHITECTURE.md) — crate layout, dependency direction, design rules
 - [`docs/port/MAPPING.md`](docs/port/MAPPING.md) — C source tree → Rust crate mapping
 - [`docs/port/ROADMAP.md`](docs/port/ROADMAP.md) — milestones and current position
-- [`docs/port/TODO.md`](docs/port/TODO.md) — concrete next tasks and completion gates
+- [`TODO.md`](TODO.md) — central branch-aware checklist, next tasks and completion gates
 - [`docs/port/VERIFICATION.md`](docs/port/VERIFICATION.md) — how parity with C is proven
 
 ## Development setup
 
-The port is developed inside a git worktree of an ngspice checkout (`ngspice-rs`,
-branch `new-parsing`, based on `rust-port`), so the C reference tree sits next
-to the Rust code for
-reading and for capturing comparison data. That worktree is the source of truth;
-the standalone public repository is generated from it by
-`scripts/publish-rust-only.sh` and holds the port alone, with no C sources and no
-ngspice commit history. The publisher maps `rust-port` to public `main` and
-preserves feature-branch names (`new-parsing` → `new-parsing`). The target must
-be clean and checked out on the matching public branch before publishing.
+The optional local setup includes `ngspice-rs` (development main with C
+references), `ngspice-rs-diffsol-faer` (solver integration), `ngspice-rs-dist`
+(Rust-only publication) and `ngspice_test` (C oracle). Inspect the chosen branch
+and status; do not assume these checkouts are synchronized.
+
+The development checkout provides `scripts/publish-rust-only.sh`, exporting
+tracked Rust files without C sources/history. Its publisher maps `rust-port` to
+public `main` and retains other named branches. Before a whole-tree export,
+ensure the source includes all newer public-side changes; current GitHub main
+already contains the solver merge. Focused documentation publication must
+preserve that implementation and keep the distinct histories separate.
 
 Nothing in the port depends on that setup: `cargo test` and `cargo xtask ci` run
 in any checkout, and only `cargo xtask golden capture` needs an upstream

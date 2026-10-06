@@ -236,16 +236,29 @@ validity, model/analysis-specific topology rules or numerical nonsingularity.
 Graph extraction has no finite-value validation and does not implement a solver.
 The parser/C-oracle and golden checks remain unchanged.
 
+## Production linear-engine verification
+
+Main now contains a bounded linear engine. Production `.op` and complex `.ac`
+results are compared with committed C goldens by variable name, not vector order:
+DC uses `1e-12` relative plus `1e-15` absolute near zero; AC uses `1e-10` relative
+plus `1e-12` absolute. Analytic RC/RL/RLC transient tests and an opt-in live C Pwl
+RC comparison use common physical output grids rather than identical adaptive
+internal timesteps. See
+[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) for test coverage,
+recorded stable/MSRV validation, error bounds and numerical restrictions.
+
+These tests exercise Rust production interfaces, unlike `golden check`, which
+only checks reproducibility of captured C output. Topology and rawfile regression
+tests remain necessary but do not alone establish simulation correctness.
+
 ## Not yet verified
 
-Nothing about the port's own simulation arithmetic: there is no engine to compare yet.
-`cargo xtask golden verify` — running the Rust engine over the same fixtures and
-diffing against the goldens — is milestone work, not scaffold work. When it
-lands, the comparison should be numeric with an explicit tolerance, and the
-tolerance itself should be justified rather than guessed, because the solver's
-iteration order will not match ngspice's.
+`cargo xtask golden verify` — running the Rust engine over the fixture corpus and
+diffing against the goldens — remains planned automation. Existing production
+comparison tests are not that command. Comparisons must use justified relative
+and near-zero absolute tolerances, since solver ordering differs from ngspice.
 
-The verification surface that does exist is honest about its limits: it proves
-that the fixtures are real ngspice output, that they are reproducible on this
-machine, and that the rawfile layer round-trips them. It proves nothing about
-whether the port can simulate them.
+Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity,
+general DAEs, source-waveform deck syntax and subcircuit/parameter elaboration
+are not established by the bounded linear implementation. Track those remaining
+gates in the central [TODO.md](../../TODO.md); do not claim full SPICE parity.
