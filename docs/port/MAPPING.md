@@ -34,7 +34,7 @@ therefore the central risk of this port — see
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
 | `src/maths/dense/` | 1,742 | `spice-maths::dense` | storage ported, solver stubbed |
-| `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `spice-maths::sparse` | triplet storage ported, factor/solve stubbed |
+| `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `spice-maths::sparse` | triplet storage and petgraph assembled row-coupling projection ported; factor/solve stubbed |
 | `src/maths/KLU/` (LGPLv2) | 18,353 | `spice-maths::sparse` | **not ported**; see licensing below |
 | `src/maths/ni/` | 1,961 | `spice-maths::integrator` | types ported, stepping stubbed |
 | `src/maths/cmaths/` | 4,054 | `spice-core::value::Complex` | arithmetic ported, transcendental helpers stubbed |
@@ -47,7 +47,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, registry and `Circuit` skeleton only |
+| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, registry and `Circuit` scaffold with petgraph incidence projection; device arithmetic unported |
 | `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::rlc` | types only; first porting targets |
 | `dio/` | 5,598 | `spice-devices::diode` (planned) | **not ported** |
 | `bjt/` | 9,482 | `spice-devices::bjt` (planned) | **not ported** |

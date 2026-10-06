@@ -1257,6 +1257,7 @@ version = "0.0.0"
 name = "spice-devices"
 version = "0.0.0"
 dependencies = [
+ "petgraph",
  "spice-core",
  "spice-maths",
  "spice-netlist",

@@ -51,12 +51,13 @@ winnow = { version = "1.0.4", default-features = false, features = ["std", "pars
 diffsol = { version = "0.17.1", default-features = false, features = ["faer"] }
 faer = "0.24.4"
 
-# `petgraph` describes the structure of the MNA matrix: one node per unknown,
-# one edge per off-diagonal coupling. The port uses it to find electrically
-# isolated blocks and to reject a block with no path to ground before the
-# factorisation sees a singular matrix. It already reaches this graph through
-# diffsol (0.8.3, default features), so declaring it here only promotes the same
-# version to a direct dependency of a workspace crate.
+# Prefer `petgraph` for graph representations/traversals instead of custom
+# adjacency lists, DFS, SCC or topological-sort implementations. `spice-maths`
+# exposes matrix-row coupling graphs; `spice-devices` exposes circuit incidence
+# graphs. These are different domains: MNA row 0 is not ground, structural
+# circuit connectivity need not be a DC path, and graph connectivity alone
+# does not establish solvability. Analysis-specific validation remains future
+# work. diffsol already brings in this same version and feature set.
 petgraph = "0.8.3"
 
 # Workspace-internal crates agree on one set of paths.

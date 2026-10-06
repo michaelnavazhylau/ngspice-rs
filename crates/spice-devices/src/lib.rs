@@ -3,7 +3,7 @@
 //! | Module | Job | State |
 //! | --- | --- | --- |
 //! | [`traits`] | the [`Device`] trait, [`StampContext`] and the unknown map | contract ported, stamping stubbed |
-//! | [`circuit`] | the node/device container and unknown numbering | ported |
+//! | [`circuit`] | node/device container, petgraph incidence topology and unknown numbering | ported |
 //! | [`registry`] | designator letter → device factory | ported |
 //! | [`rlc`] | resistor, capacitor, inductor | types only; the first porting targets |
 //!
@@ -20,7 +20,7 @@ pub mod registry;
 pub mod rlc;
 pub mod traits;
 
-pub use circuit::Circuit;
+pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use traits::{AnalysisMode, Device, MnaUnknowns, StampContext};

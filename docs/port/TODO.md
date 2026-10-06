@@ -16,6 +16,14 @@ syntax item does **not** mean its device or analysis can simulate yet.
 - [x] `new-parsing`: add committed-error/lookahead/full-consumption regressions; preserve M1a behaviour.
 - [x] Make publication branch-aware: feature branches cannot overwrite public main.
 
+## Graph infrastructure and implementation preference
+
+- [x] Prefer petgraph for graph representations and traversal/decomposition algorithms; keep symbol tables and numerical matrix storage separate.
+- [x] Add production circuit incidence graphs with per-port parallel edges, isolated nodes and snapshot mutation safety.
+- [x] Replace test-local matrix graph construction with production assembled row-coupling graphs; retain isolated rows and remove cancelled stamps.
+- [x] Pin the circuit-node vs matrix-row distinction: ground is absent from MNA, and connectivity alone is not a solvability test.
+- [ ] Use directed petgraph dependency graphs/SCC/toposort when include/subcircuit and parameter semantics land; no custom graph engine.
+
 ## Current: M1b — Models and remaining fixture syntax (partial)
 
 - [x] Parse scalar `.model` name/type/level/assignments for D/BJT/MOS/R/C/L (`inpdomod.c`, `inpgmod.c`); retain the first raw level, defer selector/schema validation.

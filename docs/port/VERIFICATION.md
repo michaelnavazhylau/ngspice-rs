@@ -215,6 +215,27 @@ Selector defaults/rounding, family compatibility, scoped model resolution,
 node/model `gnd`/`0` collisions, model defaults and advanced device arithmetic
 are not proven by these probes.
 
+## Petgraph topology verification
+
+`spice-devices::Circuit::topology()` is exercised by nine additional circuit
+regressions: ground/unused nodes, separate node/device/row namespaces, port
+order and repeated multiport edges, disconnected structural components,
+zero-port devices, snapshot rebuilding after mutation, duplicate/dangling
+mutations with unchanged numbering on failure, and deterministic deck order.
+Existing device/container regressions remain in place.
+
+`crates/spice-maths/tests/mna_topology.rs` now calls the production
+`SparseMatrix::coupling_graph()` instead of a hardcoded test-only graph builder.
+Eight checks cover structural blocks, diagonal-only/empty rows, one ordinary
+row-0 unknown, the empty matrix, duplicate cancellations and input immutability,
+asymmetric/opposite-sign entries, fresh graphs after stamps/clear, and invalid
+rectangular shapes. Connectivity uses petgraph algorithms, not custom traversal.
+
+These tests prove structural projection correctness, **not** DC ground-path
+validity, model/analysis-specific topology rules or numerical nonsingularity.
+Graph extraction has no finite-value validation and does not implement a solver.
+The parser/C-oracle and golden checks remain unchanged.
+
 ## Not yet verified
 
 Nothing about the port's own simulation arithmetic: there is no engine to compare yet.

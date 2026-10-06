@@ -13,11 +13,32 @@
 //! [`Circuit::finalize`], which validates the graph and rebuilds the numbering
 //! in one go.
 
+use std::collections::BTreeSet;
 use std::fmt;
 
+use petgraph::graph::UnGraph;
 use spice_core::{NodeId, NodeTable, SpiceError, SpiceResult};
 
 use crate::traits::{Device, MnaUnknowns};
+
+/// A vertex in the circuit's bipartite incidence graph.
+///
+/// Node IDs and device ordinals are separate namespaces. Neither is an MNA row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CircuitVertex {
+    /// A node in the circuit's node table, including ground.
+    Node(NodeId),
+    /// A device's position in [`Circuit::devices`], in insertion order.
+    Device(usize),
+}
+
+/// Petgraph circuit incidence graph: node/device vertices and one edge per port.
+///
+/// Each edge's weight is the zero-based terminal ordinal. Parallel edges retain
+/// repeated terminals (e.g. a device whose two ports both connect to ground).
+/// Graph indices are snapshot-local handles, not SPICE node IDs or MNA rows.
+/// Connectivity is structural, not proof of a conductive DC path or solvability.
+pub type CircuitGraph = UnGraph<CircuitVertex, usize, usize>;
 
 /// A circuit under construction, or ready to be simulated.
 #[derive(Default)]
@@ -111,27 +132,57 @@ impl Circuit {
     /// table, or if two devices share an instance name — ngspice rejects the
     /// latter too, in `INP2dot`/`CKTcrtElt`.
     pub fn finalize(&mut self) -> SpiceResult<()> {
-        let mut seen: Vec<String> = Vec::with_capacity(self.devices.len());
-        for device in &self.devices {
-            for terminal in device.terminals() {
-                if self.nodes.node(*terminal).is_none() {
+        self.topology()?;
+        self.rebuild_unknowns();
+        Ok(())
+    }
+
+    /// Builds a validated petgraph incidence snapshot of the current circuit.
+    ///
+    /// Includes every node (even unused ones), every device, and one edge for
+    /// each terminal in `Device::terminals()` order. This follows the binding in
+    /// `src/spicelib/devices/cktbindnode.c::CKTbindNode`; C numbers ports from 1,
+    /// while edge weights here are zero-based. Device order remains deck order.
+    /// Use petgraph's connectivity/traversal algorithms on the returned graph.
+    ///
+    /// The snapshot is rebuilt on demand: `devices_mut()` can change topology,
+    /// so a cached graph could silently become stale. A structural path through
+    /// a capacitor or multiport device need not be a DC conductive path. This
+    /// method never rejects a circuit for disconnectedness or claims a matrix
+    /// is nonsingular; analysis-specific checks belong to the eventual engine.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Circuit`] for dangling terminals or duplicate names, as in
+    /// [`Circuit::finalize`]. No circuit state is changed on failure.
+    pub fn topology(&self) -> SpiceResult<CircuitGraph> {
+        let mut graph = CircuitGraph::default();
+        let node_vertices: Vec<_> = self
+            .nodes
+            .nodes()
+            .iter()
+            .map(|node| graph.add_node(CircuitVertex::Node(node.id)))
+            .collect();
+        let mut seen = BTreeSet::new();
+        for (index, device) in self.devices.iter().enumerate() {
+            let vertex = graph.add_node(CircuitVertex::Device(index));
+            for (port, terminal) in device.terminals().iter().enumerate() {
+                let Some(node_vertex) = node_vertices.get(terminal.index()) else {
                     return Err(SpiceError::circuit(format!(
                         "device {} refers to {terminal}, which is not in the node table",
                         device.name()
                     )));
-                }
+                };
+                graph.add_edge(vertex, *node_vertex, port);
             }
-            let name = device.name().to_lowercase();
-            if seen.contains(&name) {
+            if !seen.insert(device.name().to_lowercase()) {
                 return Err(SpiceError::circuit(format!(
                     "duplicate instance name '{}'",
                     device.name()
                 )));
             }
-            seen.push(name);
         }
-        self.rebuild_unknowns();
-        Ok(())
+        Ok(graph)
     }
 
     /// Adds a device, checking that its terminals are already in the node table
@@ -171,16 +222,19 @@ impl Circuit {
 
 #[cfg(test)]
 mod tests {
-    use super::Circuit;
+    use super::{Circuit, CircuitGraph, CircuitVertex};
     use crate::traits::Device;
+    use petgraph::algo::{connected_components, has_path_connecting};
+    use petgraph::graph::NodeIndex;
+    use petgraph::visit::EdgeRef;
     use spice_core::{NodeId, SpiceError, SpiceResult};
     use spice_maths::Vector;
 
-    /// A test double: a two-terminal device that never stamps.
+    /// A test double with arbitrary terminals that never stamps.
     #[derive(Debug)]
     struct Stub {
         name: String,
-        terminals: [NodeId; 2],
+        terminals: Vec<NodeId>,
         branch_currents: usize,
     }
 
@@ -215,7 +269,7 @@ mod tests {
         let second = circuit.add_node(b);
         Stub {
             name: name.to_owned(),
-            terminals: [first, second],
+            terminals: vec![first, second],
             branch_currents,
         }
     }
@@ -252,7 +306,7 @@ mod tests {
         let dangling = NodeId::new(99);
         let device = Stub {
             name: "r1".to_owned(),
-            terminals: [known, dangling],
+            terminals: vec![known, dangling],
             branch_currents: 0,
         };
         let error = circuit.add_device(Box::new(device)).unwrap_err();
@@ -281,5 +335,270 @@ mod tests {
         let text = format!("{circuit:?}");
         assert!(text.contains("r1"), "{text}");
         assert!(text.contains("nodes: 3"), "{text}");
+    }
+
+    fn vertex(graph: &CircuitGraph, weight: CircuitVertex) -> NodeIndex<usize> {
+        graph
+            .node_indices()
+            .find(|index| graph[*index] == weight)
+            .unwrap()
+    }
+
+    fn ports(graph: &CircuitGraph, device: usize) -> Vec<(usize, CircuitVertex)> {
+        let index = vertex(graph, CircuitVertex::Device(device));
+        let mut ports: Vec<_> = graph
+            .edges(index)
+            .map(|edge| (*edge.weight(), graph[edge.target()]))
+            .collect();
+        ports.sort_by_key(|(port, _)| *port);
+        ports
+    }
+
+    #[test]
+    fn topology_keeps_ground_and_unused_nodes() {
+        let mut circuit = Circuit::new();
+        let empty = circuit.topology().unwrap();
+        assert_eq!(empty.node_count(), 1);
+        assert_eq!(empty.edge_count(), 0);
+        assert_eq!(
+            empty.node_weights().copied().collect::<Vec<_>>(),
+            vec![CircuitVertex::Node(NodeId::GROUND)]
+        );
+        let unused = circuit.add_node("unused");
+        let graph = circuit.topology().unwrap();
+        assert_eq!(graph.node_count(), 2);
+        assert_eq!(connected_components(&graph), 2);
+        assert_eq!(
+            graph[vertex(&graph, CircuitVertex::Node(unused))],
+            CircuitVertex::Node(unused)
+        );
+        // Connectivity alone is not grounds for rejecting a circuit here.
+        circuit.finalize().unwrap();
+        assert_eq!(circuit.unknown_count(), 1);
+    }
+
+    #[test]
+    fn topology_distinguishes_node_ids_device_ordinals_and_mna_rows() {
+        let mut circuit = Circuit::new();
+        let resistor = stub(&mut circuit, "r1", "in", "out", 0);
+        let [input, output] = [resistor.terminals[0], resistor.terminals[1]];
+        circuit.add_device(Box::new(resistor)).unwrap();
+        let source = stub(&mut circuit, "v1", "in", "GND", 1);
+        circuit.add_device(Box::new(source)).unwrap();
+        circuit.finalize().unwrap();
+        let graph = circuit.topology().unwrap();
+        assert_eq!(graph.node_count(), 5);
+        assert_eq!(graph.edge_count(), 4);
+        assert_eq!(connected_components(&graph), 1);
+        assert_eq!(
+            ports(&graph, 0),
+            vec![
+                (0, CircuitVertex::Node(input)),
+                (1, CircuitVertex::Node(output))
+            ]
+        );
+        assert_eq!(
+            ports(&graph, 1),
+            vec![
+                (0, CircuitVertex::Node(input)),
+                (1, CircuitVertex::Node(NodeId::GROUND))
+            ]
+        );
+        assert_ne!(
+            vertex(&graph, CircuitVertex::Device(0)),
+            vertex(&graph, CircuitVertex::Node(NodeId::GROUND))
+        );
+        assert_eq!(circuit.unknowns().node_row(input), Some(0));
+        assert_eq!(circuit.unknowns().node_row(NodeId::GROUND), None);
+        assert_eq!(circuit.unknown_count(), 3);
+    }
+
+    #[test]
+    fn multiport_and_repeated_terminals_keep_parallel_edges_and_ordinals() {
+        let mut circuit = Circuit::new();
+        let output = circuit.add_node("out");
+        let ground = circuit.add_node("gnd");
+        circuit
+            .add_device(Box::new(Stub {
+                name: "m1".to_owned(),
+                terminals: vec![ground, output, output, ground],
+                branch_currents: 0,
+            }))
+            .unwrap();
+        let graph = circuit.topology().unwrap();
+        assert_eq!(graph.node_count(), 3);
+        assert_eq!(graph.edge_count(), 4);
+        assert_eq!(
+            ports(&graph, 0),
+            vec![
+                (0, CircuitVertex::Node(ground)),
+                (1, CircuitVertex::Node(output)),
+                (2, CircuitVertex::Node(output)),
+                (3, CircuitVertex::Node(ground)),
+            ]
+        );
+    }
+
+    #[test]
+    fn petgraph_finds_structurally_separate_circuit_blocks() {
+        let mut circuit = Circuit::new();
+        let grounded = stub(&mut circuit, "c1", "out", "0", 0);
+        let output = grounded.terminals[0];
+        circuit.add_device(Box::new(grounded)).unwrap();
+        let isolated = stub(&mut circuit, "r2", "a", "b", 0);
+        let island = isolated.terminals[0];
+        circuit.add_device(Box::new(isolated)).unwrap();
+        let graph = circuit.topology().unwrap();
+        let ground = vertex(&graph, CircuitVertex::Node(NodeId::GROUND));
+        assert_eq!(connected_components(&graph), 2);
+        assert!(has_path_connecting(
+            &graph,
+            ground,
+            vertex(&graph, CircuitVertex::Node(output)),
+            None
+        ));
+        assert!(!has_path_connecting(
+            &graph,
+            ground,
+            vertex(&graph, CircuitVertex::Node(island)),
+            None
+        ));
+        circuit.finalize().unwrap(); // structural islands are not numerical diagnostics
+    }
+
+    #[test]
+    fn zero_port_devices_are_kept_without_inventing_matrix_row_vertices() {
+        let mut circuit = Circuit::new();
+        circuit
+            .add_device(Box::new(Stub {
+                name: "internal".to_owned(),
+                terminals: vec![],
+                branch_currents: 2,
+            }))
+            .unwrap();
+        circuit.finalize().unwrap();
+        let graph = circuit.topology().unwrap();
+        assert_eq!(graph.node_count(), 2); // ground and the device, not its rows
+        assert_eq!(graph.edge_count(), 0);
+        assert_eq!(connected_components(&graph), 2);
+        assert_eq!(circuit.unknown_count(), 2);
+        assert_eq!(
+            graph[vertex(&graph, CircuitVertex::Device(0))],
+            CircuitVertex::Device(0)
+        );
+    }
+
+    #[test]
+    fn topology_is_rebuilt_after_node_and_device_mutation() {
+        let mut circuit = Circuit::new();
+        let device = stub(&mut circuit, "r1", "a", "0", 0);
+        let a = device.terminals[0];
+        circuit.add_device(Box::new(device)).unwrap();
+        let before = circuit.topology().unwrap();
+        circuit.add_node("late");
+        circuit.devices_mut()[0] = Box::new(Stub {
+            name: "r1".to_owned(),
+            terminals: vec![a, a],
+            branch_currents: 0,
+        });
+        let after = circuit.topology().unwrap();
+        assert_eq!(connected_components(&before), 1);
+        assert_eq!(connected_components(&after), 3);
+        assert_eq!(before.node_count(), 3);
+        assert_eq!(after.node_count(), 4);
+        assert_ne!(
+            vertex(&before, CircuitVertex::Device(0)),
+            vertex(&after, CircuitVertex::Device(0))
+        );
+        assert_eq!(
+            ports(&after, 0),
+            vec![(0, CircuitVertex::Node(a)), (1, CircuitVertex::Node(a))]
+        );
+    }
+
+    #[test]
+    fn mutated_duplicate_names_fail_without_changing_numbering() {
+        let mut circuit = Circuit::new();
+        let first = stub(&mut circuit, "r1", "a", "0", 1);
+        circuit.add_device(Box::new(first)).unwrap();
+        let second = stub(&mut circuit, "r2", "b", "0", 1);
+        let b = second.terminals[0];
+        circuit.add_device(Box::new(second)).unwrap();
+        circuit.finalize().unwrap();
+        let original = circuit.unknowns().clone();
+        circuit.add_node("late");
+        circuit.devices_mut()[1] = Box::new(Stub {
+            name: "R1".to_owned(),
+            terminals: vec![b, NodeId::GROUND],
+            branch_currents: 5,
+        });
+        assert!(
+            circuit
+                .topology()
+                .unwrap_err()
+                .to_string()
+                .contains("duplicate instance name")
+        );
+        assert!(
+            circuit
+                .finalize()
+                .unwrap_err()
+                .to_string()
+                .contains("duplicate instance name")
+        );
+        assert_eq!(circuit.unknowns(), &original);
+    }
+
+    #[test]
+    fn mutated_dangling_terminals_fail_without_changing_numbering() {
+        let mut circuit = Circuit::new();
+        let device = stub(&mut circuit, "r1", "a", "0", 0);
+        let a = device.terminals[0];
+        circuit.add_device(Box::new(device)).unwrap();
+        circuit.finalize().unwrap();
+        let original = circuit.unknowns().clone();
+        circuit.devices_mut()[0] = Box::new(Stub {
+            name: "bad".to_owned(),
+            terminals: vec![a, NodeId::new(99)],
+            branch_currents: 5,
+        });
+        let error = circuit.topology().unwrap_err();
+        assert!(matches!(error, SpiceError::Circuit { .. }));
+        assert!(error.to_string().contains("node 99"));
+        assert!(
+            circuit
+                .finalize()
+                .unwrap_err()
+                .to_string()
+                .contains("not in the node table")
+        );
+        assert_eq!(circuit.unknowns(), &original);
+    }
+
+    #[test]
+    fn topology_preserves_deck_order_and_is_deterministic() {
+        let mut circuit = Circuit::new();
+        for name in ["z1", "a1"] {
+            let device = stub(&mut circuit, name, "a", "b", 0);
+            circuit.add_device(Box::new(device)).unwrap();
+        }
+        let a = circuit.nodes().get("a").unwrap();
+        let b = circuit.nodes().get("b").unwrap();
+        let first = circuit.topology().unwrap();
+        let second = circuit.topology().unwrap();
+        let expected = vec![
+            CircuitVertex::Node(NodeId::GROUND),
+            CircuitVertex::Node(a),
+            CircuitVertex::Node(b),
+            CircuitVertex::Device(0),
+            CircuitVertex::Device(1),
+        ];
+        assert_eq!(first.node_weights().copied().collect::<Vec<_>>(), expected);
+        assert_eq!(second.node_weights().copied().collect::<Vec<_>>(), expected);
+        for device in 0..2 {
+            assert_eq!(ports(&first, device), ports(&second, device));
+        }
+        assert_eq!(circuit.devices()[0].name(), "z1");
+        assert_eq!(circuit.devices()[1].name(), "a1");
     }
 }

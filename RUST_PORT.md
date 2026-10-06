@@ -41,6 +41,7 @@ What already works for real:
 | Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, scalar models, bounded D/Q/M, opaque analyses; six fixture decks parse |
 | Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
 | MNA matrix / triplet storage (no solver) | `spice-maths` | solver itself is stubbed |
+| Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` format, byte-for-byte layout |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
@@ -56,7 +57,7 @@ cargo xtask golden check             # re-run C ngspice, diff against the golden
 cargo xtask ci                       # fmt --check + clippy -D warnings + test
 ```
 
-`cargo test` needs Rust and the locked winnow dependency; the goldens are
+`cargo test` needs Rust and the locked registry dependencies; the goldens are
 committed data, so no C toolchain is required. Run `cargo fetch --locked` once
 before `cargo test --workspace --locked --offline` for offline use.
 `cargo xtask golden capture` needs a built C `ngspice` binary. Point at one with

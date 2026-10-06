@@ -3,7 +3,7 @@
 //! | Module | Job | State |
 //! | --- | --- | --- |
 //! | [`dense`] | dense row-major matrix and vector storage | storage and multiply ported, solve stubbed |
-//! | [`sparse`] | triplet storage for the sparse MNA matrix | storage ported, factor/solve stubbed |
+//! | [`sparse`] | sparse triplet storage and petgraph coupling topology | storage/topology ported, factor/solve stubbed |
 //! | [`integrator`] | trapezoidal and Gear integration of charge-storage elements | types only |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`

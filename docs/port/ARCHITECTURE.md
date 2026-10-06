@@ -21,8 +21,8 @@ dependencies at all; nothing depends on `spice-cli`.
 | --- | --- | --- |
 | `spice-core` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
 | `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
-| `spice-maths` | Dense and sparse matrix storage, LU factorisation, numerical integration (trapezoidal / Gear) | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
-| `spice-devices` | `Device` trait, MNA stamping contract, device registry, `Circuit` container, built-in models | `src/spicelib/devices/` |
+| `spice-maths` | Matrix storage, petgraph row-coupling topology, LU factorisation, numerical integration (trapezoidal / Gear) | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
+| `spice-devices` | `Device` trait, MNA stamping, registry, `Circuit` and petgraph incidence topology, built-in models | `src/spicelib/devices/` |
 | `spice-analysis` | Analysis drivers, result plots, ASCII rawfile reading and writing | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
 | `spice-cli` | Command-line entry point: `spice-rs <netlist>` | `src/frontend/main.c`, `src/ngspice.c` |
 | `xtask` | Automation: golden-data capture from the C binary, drift checks, CI | — |
@@ -46,6 +46,47 @@ dependencies at all; nothing depends on `spice-cli`.
 5. **Numbers are `f64` until proven otherwise.** ngspice mixes `double` and
    `float`; the port uses `Real = f64` and records any place where the C code
    loses precision in `float` as a documented divergence risk.
+
+## Graph representations: prefer petgraph
+
+Use petgraph 0.8.3 for graph storage and algorithms rather than maintaining
+custom adjacency lists, DFS/BFS, union-find, SCC or topological-sort code. It is
+already in the locked dependency graph; `spice-maths` and `spice-devices` now
+use it directly in production APIs, not just dependency smoke tests.
+
+- `Circuit::topology()` returns a petgraph `UnGraph` incidence snapshot. Each
+  circuit node (including ground and unused nodes) and each device is a vertex;
+  edges carry zero-based terminal ordinals. Parallel edges preserve repeated
+  terminals and multiport devices without replacing them with terminal cliques.
+  Device vertices retain insertion ordinals, preserving deck/branch-current
+  order. `finalize()` validates this projection before rebuilding unknowns.
+- `SparseMatrix::coupling_graph()` returns an `UnGraphMap` whose vertices are
+  **matrix rows** and edges are assembled nonzero off-diagonal positions in
+  either direction. Duplicate stamps are folded before extracting edges, so
+  exact cancellation does not invent a coupling. Empty/diagonal-only rows stay
+  present. Extraction leaves numeric storage untouched; rectangular matrices
+  are rejected because rows/columns must describe the same unknown set.
+- Use petgraph algorithms such as `connected_components`, `has_path_connecting`
+  and its traversal types on these graphs. In M1c/M1d, use directed petgraph
+  graphs and `toposort`/SCC algorithms for include/subcircuit and parameter
+  dependencies when those features are implemented, rather than another custom
+  graph implementation. Those front-end features remain unported today.
+
+These graphs have different semantics. `NodeId::GROUND` is a **circuit** node;
+MNA eliminates ground, so matrix row 0 is an ordinary unknown. Petgraph indices
+are snapshot-local handles, not domain IDs or matrix numbering. A structural
+path through a capacitor or multiport device does not prove a conductive DC
+path. Disconnected matrix blocks may all be nonsingular, and connected matrices
+may be singular. Do not reject circuits/blocks based on generic connectivity;
+analysis-specific topology checks and numerical rank diagnostics remain engine
+work. Graph construction does not validate finite matrix values.
+
+Snapshots rebuild on demand so mutations through `devices_mut()`, late nodes,
+new stamps or matrix clearing cannot leave a stale internal adjacency cache.
+Node-name interning, model-name sets, device-name lookup, ordered parameter
+vectors and numeric matrix entries are **not graph algorithms**: keep their
+purpose-built tables/order instead of forcing them into petgraph. `spice-core`
+remains dependency-free and SPICE node IDs/ground aliasing remain unchanged.
 
 ## Winnow semantic parsing (`new-parsing`)
 

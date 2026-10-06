@@ -14,3 +14,4 @@ workspace = true
 spice-core.workspace = true
 spice-maths.workspace = true
 spice-netlist.workspace = true
+petgraph.workspace = true

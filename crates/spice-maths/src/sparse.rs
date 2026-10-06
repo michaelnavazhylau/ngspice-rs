@@ -10,6 +10,9 @@
 //! Storage and duplicate folding are ported. The factorisation and solve are
 //! **not**.
 
+use std::borrow::Cow;
+
+use petgraph::graphmap::UnGraphMap;
 use spice_core::{Real, SpiceError, SpiceResult};
 
 use crate::C_REFERENCE_SPARSE;
@@ -148,6 +151,47 @@ impl SparseMatrix {
     #[must_use]
     pub fn triplets(&self) -> &[Triplet] {
         &self.triplets
+    }
+
+    /// Builds a petgraph graph of the assembled matrix's structural couplings.
+    ///
+    /// Vertices are matrix row indices, including diagonal-only/empty rows.
+    /// An undirected edge exists when either off-diagonal entry is nonzero
+    /// after summing duplicate stamps (as in `cktload.c` assembly). Exact zero
+    /// cancellations disappear; asymmetric entries are not summed together.
+    /// The input matrix is left unchanged. Use petgraph algorithms for block
+    /// decomposition instead of maintaining a separate adjacency structure.
+    ///
+    /// MNA eliminates ground, so row 0 is an ordinary unknown, **not** ground.
+    /// This graph has no physical ground-path information. Disconnected blocks
+    /// can all be nonsingular; even a connected matrix can be singular. No
+    /// solvability or finite-value checks are performed by this structural API.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] if the matrix is not square: rows and columns
+    /// must refer to the same unknown set for this coupling interpretation.
+    pub fn coupling_graph(&self) -> SpiceResult<UnGraphMap<usize, ()>> {
+        if self.rows != self.cols {
+            return Err(SpiceError::Numerical {
+                context: "matrix coupling graph".to_owned(),
+                message: format!("expected a square matrix, got {}x{}", self.rows, self.cols),
+            });
+        }
+        let mut graph = UnGraphMap::new();
+        for row in 0..self.rows {
+            graph.add_node(row);
+        }
+        let mut assembled = Cow::Borrowed(self);
+        if !self.is_folded() {
+            assembled.to_mut().fold_duplicates();
+        }
+        for triplet in assembled.triplets() {
+            if triplet.row != triplet.col {
+                graph.add_edge(triplet.row, triplet.col, ());
+            }
+        }
+        Ok(graph)
     }
 
     /// Multiplies by a dense vector, for testing the assembled system.
