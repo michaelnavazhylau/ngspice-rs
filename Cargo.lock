@@ -1268,6 +1268,7 @@ version = "0.0.0"
 dependencies = [
  "diffsol",
  "faer",
+ "petgraph",
  "spice-core",
 ]
 

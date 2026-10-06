@@ -18,3 +18,7 @@ spice-core.workspace = true
 # feature notes in the workspace manifest.
 diffsol.workspace = true
 faer.workspace = true
+
+# Graph structure of the MNA matrix: block decomposition and ground-path checks
+# (see `tests/mna_topology.rs`).
+petgraph.workspace = true
