@@ -20,8 +20,9 @@ therefore the central risk of this port — see
 | `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, card classification ported; include/lib/numparam preprocessing still missing |
 | `src/frontend/inp.c` | 2,967 | `spice-netlist::source` | title line, continuation folding ported |
 | `src/frontend/parse-bison.y` | 180 | future front-end expression parser | **not ported**; this is an expression grammar, not the netlist deck grammar |
-| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | **M1a:** scalar R/C/L and DC/AC V/I syntax; analysis arguments retained without validation; remaining grammars unported |
-| `src/spicelib/parser/inppas*.c` (input passes: models, devices, IC/nodeset, shunts) | 667 | `spice-netlist::parser`, later circuit elaboration | card dispatch partially ported; model/IC/shunt passes unported; these are **not** `.param` evaluators |
+| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | scalar R/C/L, DC/AC V/I and bounded D/Q/M syntax; analysis arguments retained without validation; remaining grammars unported |
+| `src/spicelib/parser/{inpdomod,inpgmod,inpfindl}.c` | — | `spice-netlist::parser::model` | scalar D/BJT/MOS/R/C/L cards and first raw level retained; schema, model defaults and backend selection deferred |
+| `src/spicelib/parser/inppas*.c` (input passes: models, devices, IC/nodeset, shunts) | 667 | `spice-netlist::parser`, later circuit elaboration | card dispatch and model-name indexing partially ported; model elaboration/IC/shunt passes unported; these are **not** `.param` evaluators |
 | `src/frontend/numparam/{spicenum,xpressn}.c`, preprocessing in `inpcom.c` | — | `spice-netlist::expr` (planned) | `.param` expression/scoping behaviour; **not ported** |
 | `src/spicelib/parser/ifeval.c` | 190 | future behavioural-device evaluator | **not ported**; evaluates IF parse trees, not numparam `.param` expressions |
 | `src/spicelib/parser/inpsymt.c` | 305 | `spice-netlist::symbols` (planned) | **not ported** |

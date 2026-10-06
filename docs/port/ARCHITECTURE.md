@@ -56,12 +56,22 @@ below this workspace's 1.85 requirement. `Cargo.lock` pins the resolved graph;
 offline builds require the registry dependencies to have been cached first.
 
 - `parser/grammar.rs`: `Stateful<TokenSlice<Token>, Context>` over borrowed
-  tokens. Read-only context carries the card and ground-alias configuration;
-  `alt` dispatches end, analysis, device and explicit error branches.
+  tokens. Read-only context carries the card, ground-alias configuration and
+  model-declaration name index;
+  `alt` dispatches end, analysis, model, device and explicit error branches.
 - `parser/linear.rs`: tuples compose terminal/parameter grammars; `opt`, `peek`
   and `repeat` express optional scalars and repeated assignments. AST creation
   happens only after a complete card succeeds.
-- `cut_err` commits after a recognised device or parameter prefix. A required
+- `parser/syntax.rs`: shared positioned-name and finite-scalar primitives.
+- `parser/model.rs` and `parser/diode.rs`: scalar model cards with an optional
+  outer parenthesis pair, and two-terminal diodes with named scalar geometry.
+- `parser/transistor.rs`: three/four-terminal Q and four-terminal M forms;
+  declared-model lookahead chooses port count and scalar parameter grammars.
+- `parser.rs::prepare_cards`: cache tokenization results up to `.end`, collect
+  top-level model names (not model semantics) and replay errors in card order.
+  Names inside unsupported subcircuit/control bodies are excluded. This keeps
+  forward references without letting a later lexical error mask an earlier gap.
+- `cut_err` commits after a recognised card, device or parameter prefix. A required
   missing value, numeric overflow or an unported expression must never be
   mistaken for a missing optional/repeated element.
 - A custom winnow error adapter preserves `SpiceError::Parse` source locations
@@ -69,7 +79,8 @@ offline builds require the registry dependencies to have been cached first.
   consumption; `.end` deliberately consumes its tail to match C termination.
 
 The physical-line loader, tokenizer, public `Parser` API and AST contracts are
-unchanged. This is a backend rewrite, not completion of the remaining M1 syntax.
+unchanged. The initial backend rewrite is followed by M1b's model/D/Q/M slices;
+this is still not completion of the remaining M1 syntax.
 
 ## Two data models for a netlist
 
@@ -78,11 +89,12 @@ unchanged. This is a backend rewrite, not completion of the remaining M1 syntax.
 - **`RawCard`** — a logical line plus its token stream and a coarse `CardKind`
   classification (`Device { designator }`, `DotCommand(..)`). Produced by the
   tokenizer; already implemented.
-- **`Netlist`** — the semantic model (device instances with typed parameters,
+- **`Netlist`** — the semantic model (device instances with textual parameters,
   `.model` cards, `.subckt` bodies, analyses, includes). The incremental parser
-  now constructs a **linear subset**: scalar R/C/L instances, DC/AC V/I sources
-  and opaque analysis requests. Model/subcircuit/include/parameter syntax is
-  still unported and never silently dropped.
+  now constructs a **bounded subset**: scalar R/C/L instances, DC/AC V/I sources,
+  D/BJT/MOS/R/C/L scalar model cards, bounded D/Q/M instances and opaque analyses.
+  Subcircuit/include/parameter-expression syntax is still unported and never
+  silently dropped.
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
@@ -93,9 +105,27 @@ Parameter values retain their original numeric spelling. Positional values map
 onto canonical instance parameters (`resistance`, `capacitance`, `inductance`,
 `dc`); AC specifications become `acmag`/`acphase` with C's defaults. The parameter
 vector records **application order**, not a dictionary: `INP2V()`/`INP2I()` apply
-a leading DC value after named parameters. This order must survive future
+a leading DC value after named parameters; `INP2D()`/`INP2Q()` do the same for
+a leading diode/BJT `area`. MOS accepts no unlabeled scalar. This order must
+survive future
 serialization and elaboration. Analysis arguments remain unvalidated until their
 consumer interprets them; AST success is not a promise of simulation support.
+
+Model cards retain lowercased parameter names and original numeric text, without
+checking the device-specific keyword schema or applying model defaults. Their
+`level` field is the first explicit raw scalar; C's selector rounding, default
+levels and backend/range checks are deferred. D references can remain unresolved;
+Q/M require an in-deck declaration before `.end` so port/model roles are not
+inferred from numbers or parameter keywords. Forward references work. The
+first declared name wins over an optional substrate interpretation, as in
+INP2Q. Q retains the three/four supplied ports; an omitted substrate's implicit
+ground belongs to elaboration. M requires four ports and refuses a declared
+model in the bulk slot. Model names are never ground-aliased. Flags, IC vectors,
+extra/thermal terminals, model binning, CIDER and numeric-looking Q/M model
+names remain outside this grammar. Purely numeric Q model names produce Parse
+errors: C's front end requires an alphabetic character; ngspice-47+ also rejects
+the scaled-numeric `123n` probe. Ordinary alpha-named models containing digits
+are covered by the live oracle.
 
 ## Deliberate divergences from the C code
 
@@ -106,7 +136,9 @@ comment at the divergence site.
 | --- | --- |
 | `parse_spice_number_prefix()` consumes `MEG`/`MIL` in full, while `INPevaluate()` leaves those letters unconsumed | `INPevaluate()` returns a value and a rest pointer; consumers (`inpcom.c` scale scanning, `INPevaluateRKM_*`) do the skipping themselves. The Rust API reports bytes consumed, so it consumes the whole recognised suffix. The numeric result is identical. |
 | RKM-style literals (`4k7` meaning `4.7k`, `inp2r.c`/`inp2c.c`/`inp2l.c`) are **not** accepted | Not ported yet; `parse_spice_number("4k7")` returns `None` and the semantic parser returns `NotYetPorted`. Tests pin this so the change is deliberate. |
-| M1a rejects non-finite scalar literals instead of passing them to a device | Input validation prevents overflow/NaN from entering a future solver; errors retain token locations. |
+| Scalar grammars reject non-finite numeric literals instead of passing them to a device | Input validation prevents overflow/NaN from entering a future solver; errors retain token locations. |
+| `gnd` aliasing is restricted to port positions, after model-name disambiguation | C's `inp_fix_gnd_name()` does a broader delimiter-based replacement in card text, including model identifiers. The AST deliberately preserves model/parameter spelling. Reserved-name collisions between `gnd` and `0` are not C-parity-proven. |
+| Model parameter parentheses must form one optional balanced outer pair | The C tokenizer gobbles parentheses as delimiters. Diagnosing unmatched/nested pairs avoids accepting malformed scalar cards; comma delimiters are still accepted. |
 
 The current syntax subset requires an explicit scalar value on a model-less
 R/C/L instance. Geometry-only/model-backed instances and expression-valued

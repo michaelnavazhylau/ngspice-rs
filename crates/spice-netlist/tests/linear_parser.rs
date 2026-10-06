@@ -93,13 +93,7 @@ fn rlc_fixture_preserves_terminal_order_and_inductance() {
 
 #[test]
 fn remaining_fixtures_fail_at_specific_gaps() {
-    for (name, reference) in [
-        ("rc_transient", "inp2v.c"),
-        ("diode_dc", "inp2d.c"),
-        ("bjt_ce", "inp2q.c"),
-        ("mos_inverter", "inp2m.c"),
-        ("subckt_divider", "subckt.c"),
-    ] {
+    for (name, reference) in [("rc_transient", "inp2v.c"), ("subckt_divider", "subckt.c")] {
         let error = Parser::new()
             .parse_file(fixture(name))
             .expect_err("not ported");
@@ -270,7 +264,7 @@ fn unsupported_semantics_never_get_silently_dropped() {
         (".param rval=1k", "numparam/spicenum.c"),
         (".control\nquit\n.endc", "frontend/inp.c"),
         (".save v(a)", "inp2dot.c"),
-        (".model rm r(rsh=1)", "inpdomod.c"),
+        (".model rm r(rsh={sheet})", "inpdomod.c"),
     ] {
         let error = parse(body).expect_err("not ported");
         assert!(error.is_not_yet_ported(), "{body}: {error}");

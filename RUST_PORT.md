@@ -15,10 +15,17 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
 
-**M1 in progress; M1a linear syntax is implemented.** The workspace compiles,
+**M1 in progress; M1a and basic model/D/Q/M syntax are implemented.**
+The workspace compiles,
 the test suite passes, and the verification harness captures golden data from
-the C binary. The parser builds real ASTs for scalar R/C/L and DC/AC V/I decks;
-models, waveforms, subcircuits and parameter expressions remain unported.
+the C binary. The parser builds ASTs for scalar R/C/L, DC/AC V/I, scalar
+D/BJT/MOS/R/C/L model cards and bounded D/Q/M instances. Q accepts three ports
+plus optional substrate; M accepts drain/gate/source/bulk and scalar geometry.
+Q/M require a declaration in the same deck before `.end` (forward definitions
+work); the declaration index disambiguates ports, not model backends.
+Model-backed passives, waveforms, subcircuits and expressions remain unported.
+Model types, keyword validity and defaults/selector rules remain elaboration
+work; AST success does not imply backend availability.
 Device implementations, solvers and analysis drivers are still stubbed — every
 unimplemented entry point returns
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming its C reference.
@@ -31,8 +38,8 @@ What already works for real:
 | Node table, ground aliasing | `spice-core` | `inp_fix_gnd_name()` from `src/frontend/inpcom.c` |
 | Deck loading: title, continuation, comments | `spice-netlist` | `inp_stripcomments_line()`, `inp_readall()` |
 | Card tokenizer and `.command` classification | `spice-netlist` | `inppas2.c` / `inp2dot.c` dispatch |
-| Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, opaque analysis requests; three fixture decks parse |
-| Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters with C instance queries |
+| Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, scalar models, bounded D/Q/M, opaque analyses; six fixture decks parse |
+| Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
 | MNA matrix / triplet storage (no solver) | `spice-maths` | solver itself is stubbed |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` format, byte-for-byte layout |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |
@@ -59,8 +66,9 @@ checkout that has been built — and then for `ngspice` on `PATH`.
 
 The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
-`rc_divider`, `rc_lowpass_ac` and `rlc_series`; it still exits with status 3 at
-an unported construct in the other fixtures. **It does not simulate yet.**
+`rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
+`mos_inverter`; `rc_transient` and `subckt_divider` still exit with status 3 at
+an unported construct. **It does not simulate yet.**
 
 ```sh
 cargo run -p spice-cli -- conformance/netlists/rc_divider.cir    # deck summary

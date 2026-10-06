@@ -1,8 +1,9 @@
 //! The semantic netlist model produced by the incremental parser.
 //!
 //! The parser, device registry and analyses share these types. The parser
-//! currently constructs linear-device netlists; models and subcircuits remain
-//! future work. ngspice's parsing quirks are encoded at that boundary:
+//! currently constructs linear-device netlists plus scalar model cards and
+//! D/Q/M instances; subcircuits remain future work. ngspice's parsing quirks
+//! are encoded at that boundary:
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
@@ -23,10 +24,11 @@ pub type NodeName = String;
 /// One device parameter, including positional values mapped to canonical names.
 ///
 /// R/C/L leading values become `resistance`/`capacitance`/`inductance`; source
-/// values become `dc`, `acmag`, and `acphase`. AC defaults are made explicit.
-/// Parameters are in application order: C applies a source's leading DC value
-/// after named assignments. Duplicate assignments remain visible; consumers
-/// must apply them in order rather than treating this vector as a map.
+/// values become `dc`, `acmag`, and `acphase`; a diode/BJT's leading value
+/// becomes `area`. AC defaults are made explicit. Parameters are in application
+/// order: C applies leading source DC and D/Q area after named assignments.
+/// Duplicate assignments remain visible; consumers must apply them in order
+/// rather than treating this vector as a map.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterAssignment {
     /// Parameter name, lowercased; ngspice matches parameter names
@@ -46,11 +48,13 @@ pub struct DeviceInstance {
     pub name: String,
     /// Designator letter, lowercased.
     pub designator: char,
-    /// Connection nodes, in terminal order.
+    /// Connection nodes, in terminal order, as supplied. Q instances retain
+    /// three or four ports; an omitted substrate is not injected here. Circuit
+    /// elaboration must ground it as INP2Q does.
     pub nodes: Vec<NodeName>,
     /// The model this instance refers to, if the device takes one.
     pub model: Option<String>,
-    /// Remaining `name=value` assignments.
+    /// Parameter assignments, including positional values, in application order.
     pub parameters: Vec<ParameterAssignment>,
     /// Where the instance was written.
     pub location: SourceLoc,
@@ -63,8 +67,10 @@ pub struct ModelCard {
     pub name: String,
     /// The model type, e.g. `d` in `.model d d(is=1e-14)`.
     pub base: String,
-    /// The `level` parameter, which selects the implementation for the model
-    /// families that have several (MOS, BJT).
+    /// The first explicit scalar `level` value, as scanned by `INPfindLev` for
+    /// model families with selectors. No default or selector rounding is applied
+    /// here. All level assignments also remain in `parameters`; interpreting
+    /// them and validating device/backend availability belongs to elaboration.
     pub level: Option<Real>,
     /// Every model parameter.
     pub parameters: Vec<ParameterAssignment>,

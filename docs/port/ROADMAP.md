@@ -42,10 +42,10 @@ behavioural-device expression trees; it is not the specification for `.param`.
 - analysis cards retained as requests with **unvalidated** arguments
 - `.end` stops parsing; other directives and device grammars fail explicitly
 
-`rc_divider`, `rc_lowpass_ac`, and `rlc_series` now parse into real ASTs.
-`rc_transient`, `diode_dc`, `bjt_ce`, `mos_inverter`, and `subckt_divider`
-still return specific `NotYetPorted` errors. Parsing does not imply simulation:
-all device implementations and analysis drivers remain stubbed.
+At M1a completion, `rc_divider`, `rc_lowpass_ac`, and `rlc_series` parsed into
+real ASTs and five fixtures returned specific `NotYetPorted` errors. M1b's
+model/diode slice below additionally unlocks `diode_dc`. Parsing does not imply
+simulation: all device implementations and analysis drivers remain stubbed.
 
 M1a checks: parser fixture/unit regressions, CLI exit-contract tests, and an
 opt-in C oracle comparing scalar AST parameters with live C instance queries.
@@ -61,10 +61,35 @@ Combinator regressions cover backtracking, required values, overflow, trailing
 tokens and byte-based source positions. No remaining M1 syntax is unlocked by
 this rewrite. See `ARCHITECTURE.md` for the dependency justification.
 
+### M1b — Models and nonlinear instance syntax (partial)
+
+Implemented bounded model/D/Q/M slices:
+
+- scalar `.model` cards for D/BJT/MOS/R/C/L families, with lowercased identifiers,
+  ordered textual assignments and the first explicit raw `level` value
+- optional outer parentheses and C-style comma/whitespace assignment delimiters
+- two-terminal D instances, model references, leading area and named scalar
+  geometry/IC/temperature parameters; `perim` maps to `pj`
+- C's leading-area precedence after named assignments, with opt-in model/diode
+  scalar queries and fixture/CLI regressions
+
+- three/four-terminal Q instances, first-declared-model disambiguation and
+  leading area applied after scalar assignments; omitted substrate stays omitted
+- four-terminal M instances with ordered scalar geometry and IC components;
+  no unlabeled MOS values, binning, vector ICs or extra/thermal ports
+- read-only top-level declaration indexing before `.end` for Q/M forward
+  references, without leaking names across scopes or parser calls
+
+`diode_dc`, `bjt_ce` and `mos_inverter` now parse, bringing supported fixture decks
+to six. Q/M need declared names for arity; model type/schema validation, backend
+selection/defaults and full resolution remain elaboration work. No nonlinear
+device arithmetic is implemented. Flags, IC vectors, thermal/CIDER forms,
+model-backed passives and waveforms remain pending.
+
 ### Remaining slices
 
-1. **M1b:** `.model`, D/Q/M instance syntax, model-backed passives, source
-   waveform syntax. No device arithmetic yet.
+1. **M1b:** required remaining model/device forms (flags, IC vectors),
+   model-backed passives and source waveform syntax. No device arithmetic yet.
 2. **M1c:** `.subckt`/`.ends`, X instances, `.include`/`.lib` structure and
    resolution, with explicit scope and recursion/error rules.
 3. **M1d:** `.param` expressions, `.option`, `.global`, normalized-deck writer

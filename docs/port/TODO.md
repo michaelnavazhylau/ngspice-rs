@@ -16,15 +16,21 @@ syntax item does **not** mean its device or analysis can simulate yet.
 - [x] `new-parsing`: add committed-error/lookahead/full-consumption regressions; preserve M1a behaviour.
 - [x] Make publication branch-aware: feature branches cannot overwrite public main.
 
-## Next: M1b — Models and remaining fixture syntax
+## Current: M1b — Models and remaining fixture syntax (partial)
 
-- [ ] Parse `.model` name/type/level and scalar parameter assignments (`inpdomod.c`).
-- [ ] Parse D instances: two terminals and model (`inp2d.c`).
-- [ ] Parse Q instances: collector/base/emitter, optional substrate, model (`inp2q.c`).
-- [ ] Parse M instances: drain/gate/source/bulk, model and geometry (`inp2m.c`).
+- [x] Parse scalar `.model` name/type/level/assignments for D/BJT/MOS/R/C/L (`inpdomod.c`, `inpgmod.c`); retain the first raw level, defer selector/schema validation.
+- [x] Parse two-terminal D instances/model/scalar geometry (`inp2d.c`); preserve leading-area precedence and `perim` alias.
+- [x] Enable `diode_dc` AST/CLI tests; add model/diode regressions and an opt-in live C scalar oracle.
+- [ ] Add required remaining model/diode forms (flags; explicit thermal/CIDER gaps remain outside initial engine scope).
+- [ ] Resolve models and apply typed defaults/selector/range validation during elaboration before simulation.
+- [x] Parse Q collector/base/emitter/optional substrate, declared model and scalar assignments; leading area applies last (`inp2q.c`).
+- [x] Parse four-port M, declared model and scalar geometry/IC components; reject unlabeled values (`inp2m.c`).
+- [x] Enable BJT/MOS AST and CLI fixture tests; pin forward/ambiguous model roles, error replay order and scope boundaries.
+- [x] Add live Q/M scalar/terminal-binding oracle and numeric BJT model rejection checks.
+- [ ] Support required instance flags and vector IC forms; keep extra terminals/binning/advanced backend scope explicit.
 - [ ] Parse model-backed R/C/L without mistaking models for parameter references.
 - [ ] Represent source waveforms, starting with `PULSE`, without implementing time evaluation.
-- [ ] Pin malformed syntax and unsupported variants; enable diode/BJT/MOS/transient fixture AST tests.
+- [ ] Pin remaining malformed syntax/unsupported variants; enable the transient fixture AST test.
 
 ## M1c — Subcircuit and file structure
 
