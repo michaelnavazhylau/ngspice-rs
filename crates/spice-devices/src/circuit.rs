@@ -602,19 +602,51 @@ impl Circuit {
         models: &crate::models::ModelResolver<'_>,
         context: &crate::models::ModelContext,
     ) -> SpiceResult<()> {
-        if self.device(&instance.name).is_some() {
-            return Err(SpiceError::circuit(format!(
-                "duplicate instance name '{}'",
-                instance.name
-            )));
-        }
+        self.add_instances(std::slice::from_ref(instance), models, context)
+    }
+
+    /// Elaborate several AST instances atomically, in order.
+    ///
+    /// Every device is built against one staged copy of the node table, and the
+    /// nodes and devices are committed together only once the whole batch has
+    /// succeeded. A failure at any point — a duplicate name, an unavailable
+    /// factory, an invalid parameter — therefore leaves the caller's node table,
+    /// devices and branch rows untouched, which is what subcircuit expansion
+    /// (#18) needs when it hands over a flattened deck. As with
+    /// [`Circuit::add_instance`], finalize after successful additions.
+    ///
+    /// # Errors
+    /// [`SpiceError::Circuit`] on a duplicate instance name (against the
+    /// existing devices and within the batch), or whatever
+    /// [`crate::factory::instantiate_with_models`] reports.
+    pub fn add_instances(
+        &mut self,
+        instances: &[spice_netlist::ast::DeviceInstance],
+        models: &crate::models::ModelResolver<'_>,
+        context: &crate::models::ModelContext,
+    ) -> SpiceResult<()> {
+        let mut seen: BTreeSet<String> = self
+            .devices
+            .iter()
+            .map(|device| device.name().to_lowercase())
+            .collect();
         let mut nodes = self.nodes.clone();
-        let device =
-            crate::factory::instantiate_with_models(instance, &mut nodes, models, context)?;
-        // Builtin factories bind terminals in this staged table. Nothing
-        // fallible remains after committing the two containers together.
+        let mut staged: Vec<Box<dyn Device>> = Vec::with_capacity(instances.len());
+        for instance in instances {
+            if !seen.insert(instance.name.to_lowercase()) {
+                return Err(SpiceError::circuit(format!(
+                    "duplicate instance name '{}'",
+                    instance.name
+                )));
+            }
+            // Builtin factories bind terminals in this staged table. Nothing
+            // fallible remains after committing the two containers together.
+            staged.push(crate::factory::instantiate_with_models(
+                instance, &mut nodes, models, context,
+            )?);
+        }
         self.nodes = nodes;
-        self.devices.push(device);
+        self.devices.extend(staged);
         Ok(())
     }
 
@@ -644,18 +676,20 @@ impl Circuit {
     /// is retained and later assemblies use their own explicit context.
     /// `.option` cards are the caller's responsibility: the supplied context must
     /// come from resolving them (`spice_analysis::RunConfig`). Top-level
-    /// `.global` cards only name top-level nodes, which are already global in a
-    /// flat circuit, so they need no elaboration.
+    /// `.global` cards name nodes that stay global through subcircuit expansion
+    /// (see [`crate::subckt`]); everything else keeps the deck's names.
     /// # Errors
-    /// Invalid context, unsupported constructs/models or invalid parameters.
+    /// Invalid context, unsupported constructs/models, invalid parameters or a
+    /// failing subcircuit expansion ([`crate::subckt::expand_subcircuits`]).
+    /// Nothing is added to the returned circuit; a failed deck yields `Err`.
     pub fn from_netlist_with_context(
         netlist: &spice_netlist::ast::Netlist,
         context: &crate::models::ModelContext,
     ) -> SpiceResult<Self> {
         context.validate(&netlist.location)?;
-        if !netlist.subcircuits.is_empty() || !netlist.includes.is_empty() {
+        if !netlist.includes.is_empty() {
             return Err(SpiceError::Unsupported {
-                feature: "subcircuits/includes in linear elaboration".into(),
+                feature: "includes in linear elaboration".into(),
                 location: None,
             });
         }
@@ -663,9 +697,18 @@ impl Circuit {
         // literal copy before any factory sees them (#15).
         let elaborated = spice_netlist::elaborate::literalize(netlist)?;
         let netlist = &elaborated.netlist;
-        let models = crate::models::ModelResolver::new(&netlist.models)?;
+        // `X` instances are expanded into a fresh device/model list before any
+        // device is built, so a deck that fails to elaborate never leaves a
+        // partial circuit behind (#18).
+        let expanded = crate::subckt::expand_subcircuits(
+            netlist,
+            &elaborated.scope,
+            crate::subckt::SubcircuitLimits::default(),
+        )?;
+        let models = crate::models::ModelResolver::new(&expanded.models)?;
         let mut circuit = Self::new();
-        let referenced: BTreeSet<_> = netlist
+        circuit.add_instances(&expanded.devices, &models, context)?;
+        let referenced: BTreeSet<_> = expanded
             .devices
             .iter()
             .filter_map(|instance| {
@@ -675,16 +718,15 @@ impl Circuit {
                     .map(|name| name.to_ascii_lowercase())
             })
             .collect();
-        for instance in &netlist.devices {
-            circuit.add_instance(instance, &models, context)?;
-        }
         if let Some(model) = netlist
             .models
             .iter()
             .find(|model| !referenced.contains(&model.name.to_ascii_lowercase()))
         {
             // First-declaration duplicate policy remains explicit; unused
-            // declarations cannot silently discard unsupported physics.
+            // declarations cannot silently discard unsupported physics. A root
+            // model shadowed only inside a subcircuit body is unused by this
+            // rule and is reported, not dropped silently.
             return Err(SpiceError::Unsupported {
                 feature: "unused model declarations in scalar linear elaboration".into(),
                 location: Some(model.location.clone()),

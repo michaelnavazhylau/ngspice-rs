@@ -156,6 +156,18 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // Subcircuit elaboration (#18): one `X` instance is flattened through the
+    // production `.op` path. The deck is a purely resistive divider, so it keeps
+    // the same 1e-12 relative bound as the other linear operating points.
+    Supported {
+        name: "subckt_divider",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     // M3 exit-gate fixtures (#48). All use `compare::TRAN`; the physical bound is
     // the simulator's own default accuracy (see `compare.rs`), no fixture-specific
     // tolerance exists. The companion driver (trap, or Gear-2 via
@@ -197,10 +209,11 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
 ];
-const EXCLUDED: &[(&str, &str)] = &[(
-    "subckt_divider",
-    "subcircuit flattening/elaboration unavailable",
-)];
+/// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
+/// every committed deck, including `subckt_divider`, is verified through its
+/// own production path. A requested excluded fixture still fails the run, so a
+/// future entry cannot be reported as a success by accident.
+const EXCLUDED: &[(&str, &str)] = &[];
 
 pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
     let only = match arguments {
@@ -556,6 +569,9 @@ mod tests {
 
     #[test]
     fn requested_unsupported_unknown_and_bad_options_fail() {
+        // `EXCLUDED` is empty now that every committed deck is verified; the
+        // loop stays as the guard that keeps a future entry from being reported
+        // as a success when it is requested explicitly.
         for (name, _) in EXCLUDED {
             assert!(
                 run(&workspace_root(), Some(name))
