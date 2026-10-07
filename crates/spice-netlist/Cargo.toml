@@ -13,3 +13,4 @@ workspace = true
 [dependencies]
 spice-core.workspace = true
 winnow.workspace = true
+petgraph.workspace = true

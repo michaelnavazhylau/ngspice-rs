@@ -1,0 +1,6 @@
+.lib fast
+.model sheet r rsh=500
+.endl fast
+.lib typical
+.include '../shared/sheet.inc'
+.endl typical

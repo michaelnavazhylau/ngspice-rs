@@ -21,8 +21,9 @@ therefore the central risk of this port — see
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
 | `src/spicelib/parser/inpeval.c` | 1,139 | `spice-core::value` | numeric literals and scale factors ported |
-| `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, card classification ported; include/lib/numparam preprocessing still missing |
+| `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, classification and bounded source-relative include/lib resolution ported; numparam preprocessing still missing |
 | `src/frontend/inp.c` | 2,967 | `spice-netlist::source` | title line, continuation folding ported |
+| `src/frontend/subckt.c`, `inpcom.c` subcircuit preprocessing | — | `spice-netlist::parser::{structure,scopes,resolution}` | ordered nested definitions/X syntax, textual formals and source provenance; no flattening/evaluation |
 | `src/frontend/parse-bison.y` | 180 | future front-end expression parser | **not ported**; this is an expression grammar, not the netlist deck grammar |
 | `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | scalar/declared-model R/C/L, DC/AC/PULSE/PWL V/I and bounded D/Q/M flags/IC syntax; analysis arguments retained without validation; remaining grammars unported |
 | `src/spicelib/parser/{inpmkmod,inpdomod,inpgmod,inpfindl,inpgval}.c` | — | `spice-netlist::parser::model`, `spice-devices::{models,schema}` | raw scalar cards retained; top-level first-wins resolution, family/level checks and bounded diode input schemas; advanced backends/scopes pending |

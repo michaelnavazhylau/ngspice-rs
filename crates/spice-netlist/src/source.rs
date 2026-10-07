@@ -285,6 +285,21 @@ pub fn parse_deck_text(file: &Path, text: &str) -> Deck {
     fold_logical_lines(file, &split_physical_lines(text))
 }
 
+/// Folds an included source fragment without treating its first line as a
+/// title. Physical line numbers and continuation/comment rules are unchanged.
+#[must_use]
+pub fn parse_fragment_text(file: &Path, text: &str) -> Deck {
+    let mut lines = split_physical_lines(text);
+    lines.insert(
+        0,
+        PhysicalLine {
+            number: 0,
+            text: String::new(),
+        },
+    );
+    fold_logical_lines(file, &lines)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{is_comment_line, is_continuation, parse_deck_text, strip_comment};

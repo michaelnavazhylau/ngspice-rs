@@ -3,13 +3,13 @@
 PR #51 merged these prerequisites (#11/#17). The initial infrastructure did
 not itself implement model-backed passive arithmetic or D/Q/M simulation.
 This checkout now adds #19's bounded passive arithmetic, pending merge; see
-[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation remains unavailable. The parser now accepts seven of the eight rawfile fixture decks (#8/#10);
+[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation remains unavailable. The parser now accepts all eight rawfile fixture decks (#12/#13 scoped/source syntax);
 `golden verify` still verifies three linear fixtures and excludes five.
 
 ## Bounded passive syntax
 
-`parser/linear.rs` uses the existing deck-local declaration index, including
-forward references before `.end`, excluding unsupported nested/control scopes.
+`parser/linear.rs` uses a scope-local declaration index, including ancestor and
+forward declarations before `.end`, excluding child/sibling/control scopes.
 It does not check model family or evaluate geometry/defaults. Examples:
 
 ```spice

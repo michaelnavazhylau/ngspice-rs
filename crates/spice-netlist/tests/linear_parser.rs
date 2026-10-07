@@ -92,12 +92,12 @@ fn rlc_fixture_preserves_terminal_order_and_inductance() {
 }
 
 #[test]
-fn remaining_subcircuit_fixture_fails_at_specific_gap() {
-    let error = Parser::new()
-        .parse_file(fixture("subckt_divider"))
-        .expect_err("not ported");
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("subckt.c"), "{error}");
+fn subcircuit_fixture_parses_without_flattening() {
+    let n = Parser::new().parse_file(fixture("subckt_divider")).unwrap();
+    assert_eq!(n.devices.len(), 3);
+    assert_eq!(n.subcircuit("DIV").unwrap().devices.len(), 1);
+    assert_eq!(n.device("x1").unwrap().designator, 'x');
+    assert_eq!(n.device("x1").unwrap().model.as_deref(), Some("div"));
 }
 
 #[test]
@@ -258,7 +258,6 @@ fn unsupported_semantics_never_get_silently_dropped() {
         ("V1 a 0 sin(0 5 1k)", "inp2v.c"),
         ("I1 a 0 dc {ival}", "inp2i.c"),
         ("V1 a 0 ac {gain}", "inp2v.c"),
-        (".include 'other.cir'", "inpcom.c"),
         (".param rval=1k", "numparam/spicenum.c"),
         (".control\nquit\n.endc", "frontend/inp.c"),
         (".save v(a)", "inp2dot.c"),

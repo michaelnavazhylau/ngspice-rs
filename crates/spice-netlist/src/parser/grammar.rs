@@ -13,16 +13,21 @@ use winnow::error::{AddContext, ErrMode, ModalResult, ParserError};
 use winnow::stream::{Stateful, Stream, TokenSlice};
 use winnow::token::{any, rest};
 
-use crate::ast::{AnalysisCard, DeviceInstance, ModelCard};
+use crate::ast::{AnalysisCard, DeviceInstance, IncludeDirective, ModelCard, Subcircuit};
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::{diode, linear, model, transistor};
+use super::{diode, linear, model, structure, transistor};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
     Model(ModelCard),
     Analysis(AnalysisCard),
+    Subckt(Subcircuit),
+    Ends(Option<String>),
+    Include(IncludeDirective),
+    LibStart(String),
+    LibEnd(Option<String>),
     End,
 }
 
@@ -90,6 +95,7 @@ pub(super) fn parse_card(
         end_card,
         analysis_card,
         model::model_card,
+        structure::structural_card,
         linear::device_card,
         diode::diode_card,
         transistor::transistor_card,

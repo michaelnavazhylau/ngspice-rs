@@ -24,6 +24,7 @@ fn supported_fixtures_parse_successfully() {
         ("diode_dc", 3, 1),
         ("bjt_ce", 4, 1),
         ("mos_inverter", 4, 1),
+        ("subckt_divider", 3, 0),
     ] {
         let output = run(name);
         assert_eq!(
@@ -43,14 +44,65 @@ fn supported_fixtures_parse_successfully() {
 }
 
 #[test]
-fn unported_subcircuit_fixture_keeps_exit_status_three() {
+fn subcircuit_parse_success_is_not_flattening() {
     let output = run("subckt_divider");
-    assert_eq!(output.status.code(), Some(3));
-    assert!(
-        output.stdout.is_empty(),
-        "no success output for incomplete decks"
+    assert_eq!(output.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("1 subcircuit(s)"));
+}
+
+#[test]
+fn parse_command_resolves_source_relative_fragments_and_library_sections() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/parser/sources/main.cir");
+    let output = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+        .arg("parse")
+        .arg(path)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stderr).contains("not yet ported"));
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        text.contains("3 device instance(s), 1 model(s), 1 subcircuit(s), 1 analysis request(s)"),
+        "{text}"
+    );
+}
+
+#[test]
+fn remaining_syntax_gaps_and_source_failures_keep_distinct_exits() {
+    let dir = std::env::temp_dir().join(format!(
+        "spice-cli-sources-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir(&dir).unwrap();
+    let path = dir.join("deck.cir");
+    for (text, status) in [
+        ("title\n.param x=1\n.include missing.inc\n", 3),
+        ("title\n.include missing.inc\n", 2),
+    ] {
+        std::fs::write(&path, text).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+            .arg("parse")
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(status),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stdout.is_empty());
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]

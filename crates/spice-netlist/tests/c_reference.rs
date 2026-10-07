@@ -208,7 +208,7 @@ fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
                         );
                     }
                 }
-                ParameterKind::Waveform(_) => panic!("not a waveform probe"),
+                ParameterKind::Waveform(_) | ParameterKind::Textual => panic!("not a scalar probe"),
             }
         }
     }
@@ -285,7 +285,62 @@ fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
     assert_reference_commands("waveforms", WAVEFORMS, expected, &commands);
 }
 
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_source_structure_matches_live_c_setup() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/parser/sources/main.cir");
+    let n = Parser::new().parse_file(path).unwrap();
+    assert_eq!(n.subcircuits[0].name, "div");
+    assert_eq!(n.device("x1").unwrap().model.as_deref(), Some("div"));
+    let rsh = parse_spice_number(&n.model("sheet").unwrap().parameters[0].value).unwrap();
+    let text = include_str!("../../../conformance/parser/sources/main.cir").replace(
+        ".end\n",
+        ".control\nset numdgt=17\nop\nprint @sheet[rsh]\nquit\n.endc\n.end\n",
+    );
+    let output = reference_output_sources(
+        "structure",
+        &text,
+        &[
+            (
+                "parts/divider.inc",
+                include_str!("../../../conformance/parser/sources/parts/divider.inc"),
+            ),
+            (
+                "parts/passives.lib",
+                include_str!("../../../conformance/parser/sources/parts/passives.lib"),
+            ),
+            (
+                "shared/sheet.inc",
+                include_str!("../../../conformance/parser/sources/shared/sheet.inc"),
+            ),
+        ],
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    let actual = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("@sheet[rsh] = "))
+        .expect("C model query")
+        .trim()
+        .parse::<f64>()
+        .unwrap();
+    assert!(
+        (actual - rsh).abs() <= 1e-12 * rsh.abs(),
+        "{stdout}\n{stderr}"
+    );
+}
+
 fn reference_output(label: &str, text: &str) -> std::process::Output {
+    reference_output_sources(label, text, &[])
+}
+
+fn reference_output_sources(
+    label: &str,
+    text: &str,
+    sources: &[(&str, &str)],
+) -> std::process::Output {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
     let binary = if binary.is_absolute() {
@@ -304,6 +359,11 @@ fn reference_output(label: &str, text: &str) -> std::process::Output {
     )));
     fs::create_dir(&scratch.0).unwrap();
     fs::write(scratch.0.join("probe.cir"), text).unwrap();
+    for (path, content) in sources {
+        let path = scratch.0.join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
     Command::new(binary)
         .args(["-b", "probe.cir"])
         .current_dir(&scratch.0)

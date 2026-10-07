@@ -2,14 +2,15 @@
 //!
 //! The parser, device registry and analyses share these types. The parser
 //! constructs linear-device netlists, model cards, bounded D/Q/M flags/ICs and
-//! numeric PULSE/PWL syntax; subcircuits remain future work. ngspice's parsing quirks
+//! numeric PULSE/PWL syntax, scoped subcircuits and resolved sources. ngspice's parsing quirks
 //! are encoded at that boundary:
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass. Current parser values are
 //!   finite scalar literals or positioned waveform/IC/flag setters;
-//!   expression/parameter-reference syntax is pending.
+//!   formal/X parameter expressions are retained unevaluated as single tokens;
+//!   other expression syntax and evaluation remain pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -39,8 +40,9 @@ pub struct ParameterAssignment {
     /// Parameter name, lowercased; ngspice matches parameter names
     /// case-insensitively.
     pub name: String,
-    /// The value as written: scalar spelling or the original vector argument
-    /// text (including parentheses when supplied). A bare flag has empty text.
+    /// The value as written: scalar or unevaluated formal/X token spelling,
+    /// or original vector argument text (including parentheses when supplied).
+    /// A bare flag has empty text.
     pub value: String,
     /// The setter's syntax/shape. Scalar consumers must reject other kinds,
     /// not interpret a flag or the first vector component as a scalar.
@@ -54,6 +56,9 @@ pub struct ParameterAssignment {
 pub enum ParameterKind {
     /// One finite numeric literal, retained in [`ParameterAssignment::value`].
     Scalar,
+    /// Unevaluated single-token formal/X parameter text (identifier, braced
+    /// expression or quoted value). Expression semantics are separate M1 work.
+    Textual,
     /// A bare IF_FLAG keyword: C's INPgetValue supplies integer 1 without
     /// consuming a value. Explicit `flag=0`/`flag=1` forms are not accepted.
     Flag,
@@ -163,25 +168,52 @@ pub struct Subcircuit {
     pub name: String,
     /// External terminals, in order.
     pub terminals: Vec<NodeName>,
-    /// Formal parameters declared after `params:`.
+    /// Ordered unevaluated formal assignments, with optional `params:` marker.
     pub parameters: Vec<ParameterAssignment>,
     /// Devices in the body.
     pub devices: Vec<DeviceInstance>,
     /// Models declared in the body.
     pub models: Vec<ModelCard>,
+    /// Nested definitions; names are local to this body.
+    pub subcircuits: Vec<Subcircuit>,
+    /// Analysis requests retained in this body, not promoted to the root.
+    pub analyses: Vec<AnalysisCard>,
+    /// Source directives retained in this body.
+    pub includes: Vec<IncludeDirective>,
+    /// Ordered body cards, including the closing `.ends`.
+    pub cards: Vec<ScopedCard>,
+    /// Where the closing `.ends` was written.
+    pub end_location: SourceLoc,
     /// Where the `.subckt` card was written.
     pub location: SourceLoc,
 }
 
 /// An `.include` or `.lib` directive.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IncludeDirective {
     /// The file to read.
     pub path: String,
+    /// Exact path token spelling, including quotes and escapes when supplied.
+    pub path_spelling: String,
+    /// Canonical path after file resolution; absent in syntax-only parsing.
+    pub resolved_path: Option<PathBuf>,
     /// For `.lib`, the section to take from the file.
     pub section: Option<String>,
+    /// Selected library boundaries, populated only by file resolution.
+    pub selected_section: Option<LibrarySection>,
     /// Where the directive was written.
     pub location: SourceLoc,
+}
+
+/// Source boundaries of a selected `.lib name` … `.endl [name]` block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LibrarySection {
+    /// Canonical section name.
+    pub name: String,
+    /// Positioned opening card, including its original spelling.
+    pub opening: crate::card::RawCard,
+    /// Positioned closing card.
+    pub closing: crate::card::RawCard,
 }
 
 /// A `.param` card.
@@ -215,9 +247,41 @@ pub struct OptionCard {
     pub location: SourceLoc,
 }
 
-/// A semantic deck container. The parser currently fills only its bounded
-/// scalar device/model/analysis subset; scope/include/parameter/option/global
-/// fields do not imply implemented parsing or elaboration. See
+/// One ordered card in its owning scope. Indexes address that scope's typed
+/// vectors, so semantic values are not duplicated. Source cards remain intact
+/// for future serializers/snapshots; neither is implemented by this storage.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopedCard {
+    /// Semantic kind and scope-local index, where applicable.
+    pub kind: ScopedCardKind,
+    /// Positioned source spelling/tokens of this card.
+    pub source: crate::card::RawCard,
+    /// Include directives traversed, outermost first; empty for root cards.
+    pub include_chain: Vec<SourceLoc>,
+}
+
+/// Scope-local semantic card references, including structural terminators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopedCardKind {
+    /// Index into devices (X instances use designator `x` and `model` as target).
+    Device(usize),
+    /// Index into models.
+    Model(usize),
+    /// Index into nested subcircuit definitions.
+    Subcircuit(usize),
+    /// Index into analyses.
+    Analysis(usize),
+    /// Index into source directives; resolved content follows this entry.
+    Include(usize),
+    /// End of a subcircuit body.
+    Ends,
+    /// End of a deck.
+    End,
+}
+
+/// A semantic deck container. Scoped syntax and file resolution do not imply
+/// flattening, parameter evaluation or simulation. Parameter/option/global
+/// fields remain pending. See
 /// `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Netlist {
@@ -241,6 +305,8 @@ pub struct Netlist {
     pub options: Vec<OptionCard>,
     /// `.global` node names.
     pub globals: Vec<NodeName>,
+    /// All cards in source/expansion order, with scope-local typed indexes.
+    pub cards: Vec<ScopedCard>,
     /// Where the deck started.
     pub location: SourceLoc,
 }

@@ -42,6 +42,8 @@ pub enum DotCommand {
     Include,
     /// `.lib` — include a section of another file.
     Lib,
+    /// `.endl` — end of a library section.
+    Endl,
     /// `.options` / `.option`.
     Options,
     /// `.param` — a parameter assignment.
@@ -109,6 +111,7 @@ impl DotCommand {
             "end" => Self::End,
             "include" | "inc" => Self::Include,
             "lib" => Self::Lib,
+            "endl" => Self::Endl,
             "options" | "option" | "opt" => Self::Options,
             "param" | "params" => Self::Param,
             "global" => Self::Global,
@@ -173,6 +176,7 @@ impl DotCommand {
             Self::End => "end",
             Self::Include => "include",
             Self::Lib => "lib",
+            Self::Endl => "endl",
             Self::Options => "options",
             Self::Param => "param",
             Self::Global => "global",

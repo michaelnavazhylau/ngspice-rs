@@ -1,0 +1,8 @@
+Source-relative subcircuit and library syntax
+.include 'parts/divider.inc'
+.lib 'parts/passives.lib' TYPICAL
+v1 in 0 dc 10
+x1 in out div
+r2 out 0 1k
+.op
+.end
