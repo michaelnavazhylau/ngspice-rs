@@ -14,6 +14,7 @@ mod compare;
 mod golden;
 mod ngspice;
 mod snapshots;
+mod tran;
 mod verify;
 
 use std::path::PathBuf;

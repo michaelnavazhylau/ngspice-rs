@@ -476,6 +476,40 @@ registry coverage and process exit statuses. Temporary copies are used for
 corruption tests; committed fixtures are never rewritten. Process tests select
 an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 
+## Transient comparison tooling (#48 item 1)
+
+`xtask/src/tran.rs` is the event-aware comparator for the future M3 transient
+exit gate. It is **not yet registered** in `golden verify`: the only Rust
+transient engine is explicit diffsol BDF (`backend=diffsol method=bdf`), C
+rejects those tokens on `.tran` ("Cannot compute substitute"), `rc_transient`
+uses a PULSE source (#9) and an ordinary companion `.tran` (#26), and no
+shared deck has a meaningful `.ic`-free time-varying source yet. Registry wiring
+and a captured C golden are left to the M3 gate.
+
+* Timestep sequences are never compared. Both plots are evaluated on a shared
+  grid `0, step, ..., stop` (`tran::Grid`); linear interpolation is used only
+  between two neighbouring samples of one plot with no breakpoint between them,
+  otherwise the comparison fails (it never passes by smoothing over an event).
+* Breakpoints come from the deck AST (`tran::breakpoints`): PWL knot times and
+  PULSE `TD + n*PER + {0, TR, TR+PW, TR+PW+TF}` with the C `VSRCaccept`
+  defaults, never from the data. At a breakpoint the left and right limits are
+  compared separately: two samples at one instant are (left, right); one sample
+  serves as both limits; no sample at a breakpoint is an error (ngspice lands a
+  step on every breakpoint; the Rust driver must emit one too, which today's
+  requested-grid-only output does not do for off-grid events).
+* End time (and a nonzero start) must match `grid.stop`; missing/extra
+  variables, unit/metadata mismatch, non-real data, nonfinite values, decreasing
+  time and repeated times away from declared breakpoints are errors.
+* `compare::TRAN`: relative 1e-3 (ngspice `reltol`) plus 1e-6 V / 1e-12 A
+  (`vntol` / `abstol`) by signal unit. These are the simulator's default accuracy
+  floors, not values fitted to a fixture.
+
+Tests use only synthetic and committed data (no C): grid alignment on unrelated
+timesteps, in-segment interpolation, refusal across breakpoints, jump left/right
+limits, end-time mismatch, missing signals, nonfinite data, AST breakpoints, and
+an end-to-end diffsol BDF RC PWL ramp against its analytic response (worst
+error 4e-5 of the bound).
+
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity,

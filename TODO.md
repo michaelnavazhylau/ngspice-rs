@@ -133,6 +133,7 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [x] Define explicit trial-versus-accepted device state: `&self` trial loads into a disposable `TrialState`, rotating `StateHistory`, per-device branch/state ranges and integration context, atomic accept hooks before commit (#24).
 - [ ] Retain accepted-state/trial-state separation in every transient/Newton driver, event left/right limits, voltage/current tolerances, output-grid separation and progress/work budgets.
 - [ ] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps.
+  - Tooling delivered (#48 item 1): `xtask/src/tran.rs` event-aware common-grid comparator and `compare::TRAN`; not yet registered in `golden verify` (needs #26 companion driver, #9 PULSE/PWL decks, #27 IC, and a deliberately captured C golden).
 
 ## 5. Nonlinear devices and convergence — M4
 
