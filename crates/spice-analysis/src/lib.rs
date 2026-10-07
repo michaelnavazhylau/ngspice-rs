@@ -3,6 +3,7 @@
 //! | Module | Job | State |
 //! | --- | --- | --- |
 //! | [`results`] | [`Plot`], [`Variable`] and the flags that describe them | ported |
+//! | [`selection`] | `.save`/`.print` output selection and its text rendering | ported for the bounded request subset in `docs/port/OUTPUT_SELECTION.md` |
 //! | [`rawfile`] | ngspice rawfile reading **and** writing, ASCII and binary | ported for the bounded layouts in `docs/port/RAWFILES.md` |
 //! | [`analysis`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
 //!
@@ -33,6 +34,7 @@ mod linear;
 pub mod newton;
 pub mod rawfile;
 pub mod results;
+pub mod selection;
 pub mod sweep;
 mod transient;
 
@@ -43,6 +45,7 @@ pub use companion::{TransientStats, companion_transient};
 pub use config::{AppliedOption, DcOptions, RunConfig, RunOverrides, TransientSettings};
 pub use rawfile::{BinaryByteOrder, RawFile, RawFileReader, RawFormat, RawPlot};
 pub use results::{Plot, PlotFlags, Variable};
+pub use selection::{Selection, print_requests, write_requests};
 
 /// The C reference for the analysis drivers, used in `NotYetPorted` errors.
 pub const C_REFERENCE_ANALYSIS: &str = "src/spicelib/analysis/cktdojob.c, dctran.c, dcop.c, acan.c";

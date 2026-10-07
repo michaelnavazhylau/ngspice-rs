@@ -19,7 +19,7 @@ use std::path::Path;
 
 use spice_core::SpiceResult;
 
-use crate::ast::Netlist;
+use crate::ast::{Netlist, OutputCards};
 use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, load};
 
@@ -36,6 +36,7 @@ mod model;
 mod options;
 mod param;
 mod resolution;
+mod save;
 mod scopes;
 mod structure;
 mod syntax;
@@ -47,6 +48,21 @@ mod waveform;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Parser {
     auto_gnd: bool,
+}
+
+/// A parsed deck: the semantic netlist and the `.save`/`.print` cards.
+///
+/// The output cards are returned beside the netlist rather than inside it. They
+/// describe what an analysis should write, not how the circuit is built, so
+/// they never reach device elaboration; separating them also keeps the netlist
+/// unchanged for every consumer that only simulates the circuit. See
+/// [`Parser::parse_file_with_output`] and `docs/port/OUTPUT_SELECTION.md`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParsedDeck {
+    /// The semantic netlist.
+    pub netlist: Netlist,
+    /// The `.save`/`.print` cards the deck contains, typed and positioned.
+    pub output: OutputCards,
 }
 
 impl Parser {
@@ -93,13 +109,27 @@ impl Parser {
     /// D references may remain unresolved. None of these are simulation inputs
     /// until the later elaboration pass validates them.
     ///
+    /// `.save`/`.print` cards are validated here (a malformed request is an
+    /// error, never a dropped card) and returned by
+    /// [`Parser::parse_deck_with_output`].
+    ///
     /// # Errors
     ///
     /// Returns [`spice_core::SpiceError::Parse`] for malformed supported syntax and
     /// [`spice_core::SpiceError::NotYetPorted`] for constructs outside the current subset.
     /// No partially parsed netlist is returned on failure.
     pub fn parse_deck(&self, deck: &Deck) -> SpiceResult<Netlist> {
-        scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)
+        Ok(self.parse_deck_with_output(deck)?.netlist)
+    }
+
+    /// Builds a semantic netlist and reports the deck's `.save`/`.print` cards.
+    ///
+    /// # Errors
+    ///
+    /// The same failures as [`Parser::parse_deck`].
+    pub fn parse_deck_with_output(&self, deck: &Deck) -> SpiceResult<ParsedDeck> {
+        let (netlist, output) = scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)?;
+        Ok(ParsedDeck { netlist, output })
     }
 
     /// Parses one unevaluated parameter expression, for instance the text of a
@@ -129,7 +159,16 @@ impl Parser {
     /// Fails if the file cannot be read, or for the syntax errors and unported
     /// constructs described by [`Parser::parse_deck`].
     pub fn parse_file(&self, path: impl AsRef<Path>) -> SpiceResult<Netlist> {
-        self.parse_file_with_limits(path, SourceLimits::default())
+        Ok(self.parse_file_with_output(path)?.netlist)
+    }
+
+    /// Loads `path` and reports the deck's `.save`/`.print` cards as well.
+    ///
+    /// # Errors
+    ///
+    /// The same failures as [`Parser::parse_file`].
+    pub fn parse_file_with_output(&self, path: impl AsRef<Path>) -> SpiceResult<ParsedDeck> {
+        self.parse_file_with_limits_and_output(path, SourceLimits::default())
     }
 
     /// Resolves and parses a file with explicit source work limits.
@@ -145,8 +184,25 @@ impl Parser {
         path: impl AsRef<Path>,
         limits: SourceLimits,
     ) -> SpiceResult<Netlist> {
+        Ok(self
+            .parse_file_with_limits_and_output(path, limits)?
+            .netlist)
+    }
+
+    /// Resolves and parses a file with explicit limits and reports its output
+    /// cards as well.
+    ///
+    /// # Errors
+    ///
+    /// The same failures as [`Parser::parse_file_with_limits`].
+    pub fn parse_file_with_limits_and_output(
+        &self,
+        path: impl AsRef<Path>,
+        limits: SourceLimits,
+    ) -> SpiceResult<ParsedDeck> {
         let (deck, cards) = resolution::resolve(path.as_ref(), limits)?;
-        scopes::assemble(&deck, cards, self.auto_gnd)
+        let (netlist, output) = scopes::assemble(&deck, cards, self.auto_gnd)?;
+        Ok(ParsedDeck { netlist, output })
     }
 }
 

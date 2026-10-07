@@ -527,3 +527,363 @@ fn the_help_text_documents_simulate_and_the_exit_codes() {
     );
     assert!(text.contains("3 not ported yet"), "{text}");
 }
+
+/// The rawfile text without the `Date:` header, which is the write time.
+fn without_date(text: &str) -> String {
+    text.lines()
+        .filter(|line| !line.starts_with("Date:"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// One value spelled the way the ASCII rawfile spells it.
+fn spelled(value: spice_core::Complex, complex: bool) -> String {
+    let real = spice_core::format_spice_number(value.re);
+    if complex {
+        format!("{real},{}", spice_core::format_spice_number(value.im))
+    } else {
+        real
+    }
+}
+
+#[test]
+fn save_narrows_an_operating_point_to_the_requested_vectors_in_request_order() {
+    let dir = scratch("save-op");
+    let deck = write_deck(
+        &dir,
+        "rc divider, selected\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n\
+         .save v(out) i(v1) v(in,out) v(0,out) v(out)\n.end\n",
+    );
+    let output = dir.join("op.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    // Request order, the duplicate collapsed, and no invented vectors.
+    assert!(
+        report.contains("variables: v(out) i(v1) v(in,out) v(0,out)"),
+        "{report}"
+    );
+    assert!(
+        !report.contains("print:"),
+        "a deck without .print has no table: {report}"
+    );
+
+    let written = RawFile::load(&output).expect("parses");
+    let plot = written.single_plot().unwrap();
+    let names: Vec<&str> = plot.variables.iter().map(|v| v.name.as_str()).collect();
+    assert_eq!(names, ["v(out)", "i(v1)", "v(in,out)", "v(0,out)"]);
+    let want = golden("rc_divider").single_plot().unwrap().clone();
+    // Values still come from the driver, addressed by name.
+    assert_eq!(plot.value("v(out)", 0), want.value("v(out)", 0));
+    assert_eq!(plot.value("v(in)", 0), None, "v(in) was not requested");
+    // A voltage difference, and ground as a terminal.
+    assert_eq!(
+        plot.value("v(in,out)", 0),
+        Some(spice_core::Complex::real(2.5))
+    );
+    assert_eq!(
+        plot.value("v(0,out)", 0),
+        Some(spice_core::Complex::real(-2.5))
+    );
+    // The golden's sign convention survives selection: i(v1) is the current
+    // into the positive terminal, so 5 V across 2 k is -2.5 mA.
+    assert_eq!(
+        plot.value("i(v1)", 0),
+        Some(spice_core::Complex::real(-2.5e-3))
+    );
+    assert_eq!(entries(&dir), ["deck.cir", "op.raw"]);
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn save_all_writes_exactly_the_default_rawfile() {
+    let dir = scratch("save-all");
+    let plain = write_deck(
+        &dir,
+        "rc divider, operating point\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n.end\n",
+    );
+    let with_all = dir.join("all.cir");
+    fs::write(
+        &with_all,
+        "rc divider, operating point\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n.save all v(out)\n.end\n",
+    )
+    .unwrap();
+    let default = dir.join("default.raw");
+    let selected = dir.join("all.raw");
+    let run = simulate(&default, &plain);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let run = simulate(&selected, &with_all);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    // `.save all` keeps the driver's whole set, so only the date may differ.
+    assert_eq!(
+        without_date(&fs::read_to_string(&default).unwrap()),
+        without_date(&fs::read_to_string(&selected).unwrap()),
+        "'.save all' must not reorder, rename or drop a vector"
+    );
+    assert_eq!(
+        entries(&dir),
+        ["all.cir", "all.raw", "deck.cir", "default.raw"]
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_dc_print_card_selects_and_prints_the_requested_vectors() {
+    let dir = scratch("print-dc");
+    let deck = write_deck(
+        &dir,
+        "rc divider dc sweep\nv1 in 0 dc 0\nr1 in out 1k\nr2 out 0 1k\n.dc v1 0 5 1\n\
+         .print dc v(out) i(v1)\n.end\n",
+    );
+    let output = dir.join("dc.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("variables: sweep v(out) i(v1)"),
+        "a sweep keeps its scale column first: {report}"
+    );
+    assert!(
+        report.contains("print: 3 vector(s): sweep v(out) i(v1)"),
+        "{report}"
+    );
+    assert!(
+        report.contains("values: real with 15 fractional digits"),
+        "{report}"
+    );
+    assert!(report.contains("  point  sweep  v(out)  i(v1)"), "{report}");
+
+    let written = RawFile::load(&output).expect("parses");
+    let plot = written.single_plot().unwrap();
+    assert_eq!(plot.variable_count(), 3);
+    assert_eq!(plot.point_count(), 6);
+    for point in 0..plot.point_count() {
+        let volts = plot.value("sweep", point).unwrap().re;
+        // The table spells the values exactly as the rawfile does.
+        for (name, value) in [
+            ("sweep", plot.value("sweep", point).unwrap()),
+            ("v(out)", plot.value("v(out)", point).unwrap()),
+            ("i(v1)", plot.value("i(v1)", point).unwrap()),
+        ] {
+            let row = format!("{point:>7}  ");
+            let column = report
+                .lines()
+                .find(|line| line.starts_with(&row))
+                .unwrap_or_else(|| panic!("row {point} in {report}"));
+            assert!(
+                column.contains(&spelled(value, false)),
+                "{name} at point {point}: {column}"
+            );
+        }
+        assert!((plot.value("v(out)", point).unwrap().re - volts / 2.0).abs() < 1e-12);
+        assert!((plot.value("i(v1)", point).unwrap().re + volts / 2000.0).abs() < 1e-15);
+    }
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn an_ac_print_card_prints_the_complex_components() {
+    let dir = scratch("print-ac");
+    // The same circuit and sweep as the committed `rc_lowpass_ac` golden, with
+    // the AC components the C reference prints spelled out.
+    let deck = write_deck(
+        &dir,
+        "RC low-pass, AC sweep\nv1 in 0 dc 0 ac 1\nr1 in out 1k\nc1 out 0 1u\n\
+         .ac lin 3 100 1k\n.print ac v(out) vm(out) vp(out) vdb(out) i(v1)\n.end\n",
+    );
+    let output = dir.join("ac.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("print: 6 vector(s): frequency v(out) vm(out) vp(out) vdb(out) i(v1)"),
+        "{report}"
+    );
+    assert!(
+        report.contains("complex as `re,im` with 15 fractional digits"),
+        "the table states the convention it prints: {report}"
+    );
+
+    let written = RawFile::load(&output).expect("parses");
+    let plot = written.single_plot().unwrap();
+    assert_eq!(plot.flags, PlotFlags::Complex);
+    let names: Vec<&str> = plot.variables.iter().map(|v| v.name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "frequency",
+            "v(out)",
+            "vm(out)",
+            "vp(out)",
+            "vdb(out)",
+            "i(v1)"
+        ]
+    );
+    // The computed components are real vectors inside a complex plot, so the
+    // rawfile writes them as `re,0.0` and the text table spells them `re`.
+    assert!(plot.variables[2].is_real);
+    assert_eq!(plot.variables[3].unit, "phase");
+    assert_eq!(plot.variables[4].unit, "db");
+    for point in 0..plot.point_count() {
+        let out = plot.value("v(out)", point).unwrap();
+        let magnitude = out.magnitude();
+        assert!((plot.value("vm(out)", point).unwrap().re - magnitude).abs() < 1e-15);
+        assert!(plot.value("vr(out)", point).is_none());
+        let phase = plot.value("vp(out)", point).unwrap().re;
+        assert!((phase - out.im.atan2(out.re)).abs() < 1e-15);
+        assert!(
+            (plot.value("vdb(out)", point).unwrap().re - 20.0 * magnitude.log10()).abs() < 1e-12
+        );
+    }
+    // The selected columns still reproduce the committed C golden's data.
+    let want = golden("rc_lowpass_ac").single_plot().unwrap().clone();
+    for name in ["frequency", "v(out)", "i(v1)"] {
+        let got = plot.column(name).expect("selected");
+        let expected = want.column(name).expect("the golden has it");
+        for (point, (a, b)) in got.iter().zip(&expected).enumerate() {
+            assert!(
+                (*a - *b).magnitude() <= 1e-10 * b.magnitude() + 1e-12,
+                "{name} at point {point}: {a} != {b}"
+            );
+        }
+    }
+    // The C golden pins the physical values (C: vm(out) = 8.467330e-01 and
+    // vp(out) = -5.60982e-01 rad at 100 Hz).
+    assert!((plot.value("vm(out)", 0).unwrap().re - 0.8467330).abs() < 1e-6);
+    assert!((plot.value("vp(out)", 0).unwrap().re + 0.5609821).abs() < 1e-6);
+    assert!((plot.value("vdb(out)", 0).unwrap().re + 1.4450701).abs() < 1e-6);
+    // And the table prints the computed components: a component that is real at
+    // every point is one number (the rawfile spells that column `re,0.0`).
+    assert!(
+        report.contains(&spelled(plot.value("vm(out)", 0).unwrap(), false)),
+        "{report}"
+    );
+    assert!(
+        report.contains(&spelled(plot.value("v(out)", 0).unwrap(), true)),
+        "{report}"
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_save_card_and_a_print_card_combine_and_the_analysis_must_match() {
+    let dir = scratch("save-print");
+    let deck = write_deck(
+        &dir,
+        "rc divider, op and print\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n\
+         .save v(in)\n.print op v(out)\n.end\n",
+    );
+    let output = dir.join("out.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    // The written set is the union in C's `dbs` order; the table is what
+    // `.print` asked for.
+    assert!(report.contains("variables: v(in) v(out)"), "{report}");
+    assert!(report.contains("print: 1 vector(s): v(out)"), "{report}");
+    assert!(
+        !report.contains("print: 2 vector(s)"),
+        "the table is the .print set, not the whole selection: {report}"
+    );
+
+    // A `.print` card for an analysis this run is not can never be honoured.
+    let wrong = write_deck(
+        &dir,
+        "rc divider, wrong print\nv1 in 0 dc 5\nr1 out 0 1k\n.op\n.print dc v(out)\n.end\n",
+    );
+    let run = simulate(&output, &wrong);
+    assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+    assert!(
+        stderr(&run).contains("names a different analysis"),
+        "{}",
+        stderr(&run)
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_print_card_with_all_prints_every_vector_the_run_produced() {
+    // `all` on a `.print` card is C's "print everything": the table must list
+    // the run's vectors and print their values, not claim zero vectors.
+    let dir = scratch("print-all");
+    let deck = write_deck(
+        &dir,
+        "rc divider, print all\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n\
+         .print op all\n.end\n",
+    );
+    let output = dir.join("out.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("print: 3 vector(s): v(in) v(out) i(v1)"),
+        "{report}"
+    );
+    assert!(!report.contains("<none>"), "{report}");
+    // The values are the ones the rawfile got, with the current's C sign.
+    assert!(report.contains("2.500000000000000e+00"), "{report}");
+    assert!(report.contains("-2.500000000000000e-03"), "{report}");
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn an_unresolvable_save_card_fails_before_anything_is_published() {
+    let dir = scratch("save-missing");
+    let deck = write_deck(
+        &dir,
+        "rc divider, missing vector\nv1 in 0 dc 5\nr1 out 0 1k\n.op\n.save v(nosuch)\n.end\n",
+    );
+    let output = dir.join("keep.raw");
+    fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+    assert!(run.stdout.is_empty(), "{}", stdout(&run));
+    let stderr = stderr(&run);
+    assert!(stderr.contains("v(nosuch)"), "{stderr}");
+    assert!(stderr.contains("deck.cir:5:7"), "{stderr}");
+    assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
+    assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn unsupported_and_malformed_selections_fail_explicitly() {
+    // `.save i(r1)`: a resistor current is not observable in this port.
+    let dir = scratch("save-unsupported");
+    let cases = [
+        (
+            "i(r1)",
+            3,
+            "only a voltage source or inductor branch current",
+        ),
+        (
+            "@r1[resistance]",
+            3,
+            "instance parameters are not observable",
+        ),
+        ("vm(out)", 2, "needs a complex plot"),
+        ("v(a,a)", 2, "identically zero"),
+        ("power(v1)", 2, "unknown vector request"),
+    ];
+    for (card, status, message) in cases {
+        let deck = write_deck(
+            &dir,
+            &format!(
+                "rc divider, unsupported\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n.save {card}\n.end\n"
+            ),
+        );
+        let output = dir.join("keep.raw");
+        fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+        let run = simulate(&output, &deck);
+        assert_eq!(run.status.code(), Some(status), "{card}: {}", stderr(&run));
+        assert!(run.stdout.is_empty(), "{card}: {}", stdout(&run));
+        assert!(stderr(&run).contains(message), "{card}: {}", stderr(&run));
+        assert_eq!(
+            fs::read_to_string(&output).unwrap(),
+            "PREVIOUS CONTENT\n",
+            "{card}: the destination survives"
+        );
+    }
+    assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
+    fs::remove_dir_all(&dir).unwrap();
+}

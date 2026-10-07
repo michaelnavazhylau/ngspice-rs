@@ -1,9 +1,10 @@
 //! Ordered scope assembly; parsing X references is deliberately not elaboration.
 
 use super::grammar::{self, ParsedCard};
+use super::save::OutputCard;
 use crate::ast::{
     AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
-    OptionCard, ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
+    OptionCard, OutputCards, ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
 };
 use crate::card::{DotCommand, RawCard};
 use crate::source::Deck;
@@ -41,6 +42,7 @@ struct Scope {
     initial_conditions: Vec<NodeHintCard>,
     nodesets: Vec<NodeHintCard>,
     params: Vec<ParamCard>,
+    output: OutputCards,
     cards: Vec<ScopedCard>,
 }
 
@@ -48,25 +50,28 @@ pub(super) fn assemble(
     deck: &Deck,
     cards: Vec<SpiceResult<InputCard>>,
     auto_gnd: bool,
-) -> SpiceResult<Netlist> {
+) -> SpiceResult<(Netlist, OutputCards)> {
     let mut cursor = 0;
     let scope = scope(&cards, &mut cursor, auto_gnd, &BTreeSet::new(), None, 0)?;
-    Ok(Netlist {
-        title: deck.title.clone(),
-        path: deck.path.clone(),
-        location: deck.title_location.clone(),
-        devices: scope.devices,
-        models: scope.models,
-        subcircuits: scope.subcircuits,
-        analyses: scope.analyses,
-        includes: scope.includes,
-        cards: scope.cards,
-        params: scope.params,
-        options: scope.options,
-        globals: scope.globals,
-        initial_conditions: scope.initial_conditions,
-        nodesets: scope.nodesets,
-    })
+    Ok((
+        Netlist {
+            title: deck.title.clone(),
+            path: deck.path.clone(),
+            location: deck.title_location.clone(),
+            devices: scope.devices,
+            models: scope.models,
+            subcircuits: scope.subcircuits,
+            analyses: scope.analyses,
+            includes: scope.includes,
+            cards: scope.cards,
+            params: scope.params,
+            options: scope.options,
+            globals: scope.globals,
+            initial_conditions: scope.initial_conditions,
+            nodesets: scope.nodesets,
+        },
+        scope.output,
+    ))
 }
 
 // Read-only forward-name scan, bounded to this body and excluding children and
@@ -132,28 +137,74 @@ fn scope(
                 ScopedCardKind::Analysis(result.analyses.len() - 1)
             }
             ParsedCard::Options(o) => {
-                reject_in_body(card, opening, ".option")?;
+                reject_in_body(
+                    card,
+                    opening,
+                    ".option",
+                    "src/frontend/inpcom.c (INPdoOpts)",
+                )?;
                 result.options.push(o);
                 ScopedCardKind::Options(result.options.len() - 1)
             }
             ParsedCard::Global(g) => {
-                reject_in_body(card, opening, ".global")?;
+                reject_in_body(
+                    card,
+                    opening,
+                    ".global",
+                    "src/frontend/subckt.c (collect_global_nodes)",
+                )?;
                 result.globals.push(g);
                 ScopedCardKind::Global(result.globals.len() - 1)
             }
             ParsedCard::InitialCondition(c) => {
-                reject_in_body(card, opening, ".ic")?;
+                reject_in_body(
+                    card,
+                    opening,
+                    ".ic",
+                    "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)",
+                )?;
                 result.initial_conditions.push(c);
                 ScopedCardKind::InitialCondition(result.initial_conditions.len() - 1)
             }
             ParsedCard::Nodeset(c) => {
-                reject_in_body(card, opening, ".nodeset")?;
+                reject_in_body(
+                    card,
+                    opening,
+                    ".nodeset",
+                    "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)",
+                )?;
                 result.nodesets.push(c);
                 ScopedCardKind::Nodeset(result.nodesets.len() - 1)
             }
             ParsedCard::Param(p) => {
                 result.params.push(p);
                 ScopedCardKind::Param(result.params.len() - 1)
+            }
+            ParsedCard::Output(output) => {
+                // `.save`/`.print` describe the analysis output, not the
+                // circuit: their typed requests travel beside the netlist
+                // (`OutputCards`), so the card carries no scope-local index.
+                match output {
+                    OutputCard::Save(save) => {
+                        reject_in_body(
+                            card,
+                            opening,
+                            ".save",
+                            "src/frontend/dotcards.c (ft_dotsaves/com_save)",
+                        )?;
+                        result.output.saves.push(save);
+                    }
+                    OutputCard::Print(print) => {
+                        reject_in_body(
+                            card,
+                            opening,
+                            ".print",
+                            "src/frontend/dotcards.c (ft_savedotargs/com_save2)",
+                        )?;
+                        result.output.prints.push(print);
+                    }
+                }
+                ScopedCardKind::Output
             }
             ParsedCard::Include(mut i) => {
                 i.resolved_path = entry.resolved_path.clone();
@@ -248,17 +299,19 @@ fn ordered(entry: &InputCard, kind: ScopedCardKind) -> ScopedCard {
     }
 }
 
-// Body-local options/globals need per-subcircuit storage and flattening rules
-// (inpcom.c/subckt.c); until then they must not be dropped or hoisted silently.
+// Body-local options/globals/output cards need per-subcircuit storage and
+// flattening rules (inpcom.c/subckt.c); until then they must not be dropped or
+// hoisted silently.
 fn reject_in_body(
     card: &RawCard,
     opening: Option<(&str, &SourceLoc)>,
     what: &str,
+    c_reference: &'static str,
 ) -> SpiceResult<()> {
     if opening.is_some() {
         return Err(SpiceError::not_yet_ported(
             format!("{}: {what} inside a .subckt body", card.location),
-            "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)",
+            c_reference,
         ));
     }
     Ok(())

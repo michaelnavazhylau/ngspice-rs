@@ -394,6 +394,182 @@ impl NodeHint {
     }
 }
 
+/// A `.save` card: deck-wide output-vector requests, in source order.
+///
+/// C: `ft_dotsaves()` in `src/frontend/dotcards.c` selects the deck's `.save`
+/// lines and hands them to `com_save()` (`src/frontend/breakp2.c`), which stores
+/// them in the `dbs` save list. A `.save` set applies to **every** analysis of
+/// the deck; `.print` is analysis-specific ([`PrintCard`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SaveCard {
+    /// Requests in source order. Duplicates stay visible here; the consumer
+    /// collapses them (see `spice_analysis::selection`).
+    pub requests: Vec<VectorRequest>,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// A `.print` card: output-vector requests for **one** analysis, in source order.
+///
+/// C: `ft_savedotargs()` in `src/frontend/dotcards.c` reads the analysis name
+/// after `.print` and registers the rest of the line for that analysis through
+/// `com_save2()`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrintCard {
+    /// The analysis the card names, e.g. `.print ac v(out)`.
+    pub analysis: AnalysisKind,
+    /// Where the analysis name was written.
+    pub analysis_location: SourceLoc,
+    /// Requests in source order. Duplicates stay visible here.
+    pub requests: Vec<VectorRequest>,
+    /// Where the `.print` card was written.
+    pub location: SourceLoc,
+}
+
+/// One vector requested by a `.save` or `.print` card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VectorRequest {
+    /// What to write.
+    pub vector: RequestedVector,
+    /// Where the request starts: the function word of `v(out)`/`i(v1)`, or the
+    /// `all` keyword.
+    pub location: SourceLoc,
+}
+
+/// The bounded request grammar of `.save`/`.print`.
+///
+/// C: `com_save()`/`settrace()` in `src/frontend/breakp2.c` (`copynode()`
+/// normalises `v(2)` to node `2` and `i(vds)` to the `vds#branch` vector) and
+/// `fixem()` in `src/frontend/dotcards.c` (the `vm`/`vp`/`vr`/`vi`/`vdb` AC
+/// component spellings). Device instance currents other than a source or
+/// inductor branch current are **not** representable: see
+/// `docs/port/OUTPUT_SELECTION.md`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestedVector {
+    /// `all`: keep the driver's whole vector set. C: `.save all`.
+    All,
+    /// `v(node)` or `v(first,second)`: a node voltage or a voltage difference.
+    Voltage {
+        /// The positive node.
+        positive: NodeName,
+        /// The negative node of a difference; `None` for a single node.
+        negative: Option<NodeName>,
+    },
+    /// `i(device)`: the branch current of a voltage source or an inductor.
+    Current {
+        /// The instance name, lowercased.
+        device: String,
+    },
+    /// `vm`/`vp`/`vr`/`vi`/`vdb` of `v(node)` or `v(first,second)`.
+    Component {
+        /// Which component.
+        component: VectorComponent,
+        /// The positive node.
+        positive: NodeName,
+        /// The negative node of a difference; `None` for a single node.
+        negative: Option<NodeName>,
+    },
+}
+
+/// An AC component spelling. C: `fixem()` in `src/frontend/dotcards.c`
+/// (`vm(a,b)` becomes `mag(v(a)-v(b))`, `vp` `ph()`, `vr` `real()`, `vi`
+/// `imag()`, `vdb` `db()`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VectorComponent {
+    /// `vm`: the magnitude. C's `mag()`.
+    Magnitude,
+    /// `vp`: the phase in radians in `(-pi, pi]`. C's `ph()`.
+    Phase,
+    /// `vr`: the real part. C's `real()`.
+    Real,
+    /// `vi`: the imaginary part. C's `imag()`.
+    Imaginary,
+    /// `vdb`: `20 log10` of the magnitude. C's `db()`.
+    Decibels,
+}
+
+impl VectorComponent {
+    /// The spelling as written on the card.
+    #[must_use]
+    pub const fn function(self) -> &'static str {
+        match self {
+            Self::Magnitude => "vm",
+            Self::Phase => "vp",
+            Self::Real => "vr",
+            Self::Imaginary => "vi",
+            Self::Decibels => "vdb",
+        }
+    }
+}
+
+impl RequestedVector {
+    /// The canonical spelling of the request, for diagnostics and for the name
+    /// of a computed column: `all`, `v(out)`, `v(in,out)`, `i(v1)`, `vm(out)`.
+    #[must_use]
+    pub fn name(&self) -> String {
+        fn terminals(positive: &str, negative: Option<&str>) -> String {
+            match negative {
+                Some(negative) => format!("{positive},{negative}"),
+                None => positive.to_owned(),
+            }
+        }
+        match self {
+            Self::All => "all".to_owned(),
+            Self::Voltage { positive, negative } => {
+                format!("v({})", terminals(positive, negative.as_deref()))
+            }
+            Self::Current { device } => format!("i({device})"),
+            Self::Component {
+                component,
+                positive,
+                negative,
+            } => format!(
+                "{}({})",
+                component.function(),
+                terminals(positive, negative.as_deref())
+            ),
+        }
+    }
+
+    /// True when the request is a node voltage difference. The single-node form
+    /// has `negative == None`.
+    #[must_use]
+    pub const fn is_difference(&self) -> bool {
+        match self {
+            Self::Voltage { negative, .. } | Self::Component { negative, .. } => negative.is_some(),
+            Self::All | Self::Current { .. } => false,
+        }
+    }
+}
+
+/// The `.save` and `.print` cards a deck contains, in deck order.
+///
+/// The parser returns these beside the [`Netlist`] rather than inside it: they
+/// describe the *output* of an analysis and never reach the device elaboration,
+/// so the netlist stays a description of the circuit. See
+/// [`crate::Parser::parse_file_with_output`] and `docs/port/OUTPUT_SELECTION.md`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct OutputCards {
+    /// `.save` cards in deck order; they apply to every analysis.
+    pub saves: Vec<SaveCard>,
+    /// `.print` cards in deck order; each names one analysis.
+    pub prints: Vec<PrintCard>,
+}
+
+impl OutputCards {
+    /// True when the deck has no `.save` and no `.print` card.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.saves.is_empty() && self.prints.is_empty()
+    }
+
+    /// Number of output cards.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.saves.len() + self.prints.len()
+    }
+}
+
 /// One ordered card in its owning scope. Indexes address that scope's typed
 /// vectors, so semantic values are not duplicated. Source cards remain intact
 /// for future serializers/snapshots; neither is implemented by this storage.
@@ -431,6 +607,11 @@ pub enum ScopedCardKind {
     InitialCondition(usize),
     /// Index into [`Netlist::nodesets`] (root scope only).
     Nodeset(usize),
+    /// A `.save` or `.print` card (root scope only). The typed requests live in
+    /// the [`OutputCards`] the parser returns beside the [`Netlist`]
+    /// ([`crate::Parser::parse_file_with_output`]), so this card carries no
+    /// scope-local index.
+    Output,
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.
