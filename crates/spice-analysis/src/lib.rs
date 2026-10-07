@@ -15,20 +15,23 @@
 //! rather than by prose. `cargo xtask golden verify` runs supported Rust fixtures
 //! against that data without C. See `docs/port/VERIFICATION.md` and
 //! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and `docs/port/TRANSIENT.md` for
-//! current limits. Nonlinear D/Q/M physics and general DAEs remain
-//! unsupported; `.ic`/`.nodeset`/instance `ic=`/`uic` are implemented by the companion
+//! current limits. Bounded nonlinear D/Q/M DC/AC and charge-companion support is
+//! documented in `docs/port/M4_NONLINEAR.md`; general physics/DAEs remain rejected; `.ic`/`.nodeset`/instance `ic=`/`uic` are implemented by the companion
 //! transient driver only (`docs/port/TRANSIENT.md`); the CLI still inspects/parses only.
 
 #![warn(missing_docs)]
 
 mod ac;
 pub mod analysis;
+pub mod bias;
 mod companion;
 pub mod config;
 mod initial;
 mod linear;
+pub mod newton;
 pub mod rawfile;
 pub mod results;
+pub mod sweep;
 mod transient;
 
 pub use analysis::{

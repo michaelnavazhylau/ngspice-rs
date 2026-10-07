@@ -187,7 +187,16 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // The M3 exit-gate decks (#48) are separate fixtures with their own gate
     // (`xtask golden verify`, `spice-analysis/tests/m3_gate.rs`); the M1 front-end
     // gate stays pinned to the original eight and must list any other deck here.
-    on_disk.retain(|name| !M3_GATE_DECKS.contains(&name.as_str()));
+    // M4 nonlinear charge decks have a production/parser gate of their own.
+    let m4 = [
+        "m4_bjt_ac",
+        "m4_bjt_tran",
+        "m4_diode_ac",
+        "m4_diode_tran",
+        "m4_mos1_ac",
+        "m4_mos1_tran",
+    ];
+    on_disk.retain(|name| !M3_GATE_DECKS.contains(&name.as_str()) && !m4.contains(&name.as_str()));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

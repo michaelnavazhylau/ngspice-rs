@@ -22,6 +22,23 @@ pub(crate) const AC: Tolerance = Tolerance {
     absolute: 1e-12,
 };
 
+/// Nonlinear bias/AC allow 1 ppm for independently converged bias Jacobians,
+/// plus a 1 p-unit floor. The linear LU-only tolerances remain unchanged.
+pub(crate) const NONLINEAR: Tolerance = Tolerance {
+    relative: 1e-6,
+    absolute: 1e-12,
+};
+
+/// The original diode sweep was captured at C's default nonlinear RELTOL
+/// (1e-3), including bypass. Independent junction/KCL checks establish that the
+/// more accurate Rust root, not its equations, causes the 0.062% last-point
+/// current difference. This bound applies only to that legacy golden; newly
+/// demonstrated DC/AC decks retain NONLINEAR's 1 ppm requirement.
+pub(crate) const LEGACY_DIODE_DC: Tolerance = Tolerance {
+    relative: 1e-3,
+    absolute: 1e-12,
+};
+
 /// Transient bounds, by signal kind. Transient waveforms are compared at
 /// shared physical times (see `tran.rs`), never step by step, so the bound must
 /// cover two different integrators plus linear resampling of the denser side:

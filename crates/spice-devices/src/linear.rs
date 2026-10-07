@@ -258,11 +258,22 @@ impl Iterator for SystemBreakpoints {
     }
 }
 
+/// Physical type of an independent source, independent of its instance name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceKind {
+    /// A voltage constraint, with a branch-current unknown.
+    Voltage,
+    /// A current injection into terminal KCL rows.
+    Current,
+}
+
 /// A source bound to RHS rows with signed contributions.
 #[derive(Debug, Clone)]
 pub struct LinearSource {
     /// Instance name (for sweep selection).
     pub name: String,
+    /// Physical target type; not inferred from a programmatic device name.
+    pub kind: SourceKind,
     /// Signed RHS locations, omitting ground.
     pub rows: Vec<(usize, Real)>,
     /// Operating-point value.

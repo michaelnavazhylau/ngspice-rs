@@ -1,5 +1,10 @@
 # Implemented diffsol/faer integration
 
+**Branch-local M4 update:** [M4_NONLINEAR.md](M4_NONLINEAR.md) adds bounded
+nonlinear DC/AC and charge-companion transient. This report remains the historical
+linear/BDF delivery; diffsol still rejects nonlinear devices and never consumes
+companion stamps. M4 uses faer-backed disposable Newton systems separately.
+
 Implements the bounded rollout in [DIFFSOL_FAER_RECOMMENDATION.md](DIFFSOL_FAER_RECOMMENDATION.md),
 without replacing ngspice's trap/Gear semantics or claiming the full M3 milestone.
 The companion trap/Gear transient driver is documented separately in

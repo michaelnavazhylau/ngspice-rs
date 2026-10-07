@@ -443,6 +443,44 @@ impl Circuit {
         Ok(system)
     }
 
+    /// Assemble `G(bias)` and `dQ/dx(bias)` for nonlinear small-signal analysis.
+    /// This is deliberately separate from immutable linear/BDF assembly.
+    /// # Errors
+    /// Invalid bias/context, stale numbering, or unsupported device physics.
+    pub fn small_signal_system(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+    ) -> SpiceResult<crate::linear::LinearSystem> {
+        self.check_numbering()?;
+        context.validate(&spice_core::SourceLoc::new(
+            std::path::PathBuf::from("<model-context>"),
+            1,
+            1,
+        ))?;
+        if bias.len() != self.unknown_count() || !bias.is_finite() {
+            return Err(SpiceError::circuit(
+                "invalid small-signal bias dimensions/values",
+            ));
+        }
+        let mut system = crate::linear::LinearSystem::new(self.unknown_count());
+        for (index, device) in self.devices.iter().enumerate() {
+            let range = &self.branch_rows[index];
+            device.assemble_small_signal(
+                &mut crate::linear::LinearContext {
+                    model_context: context,
+                    system: &mut system,
+                    unknowns: &self.unknowns,
+                    branch: (!range.is_empty()).then_some(range.start),
+                },
+                bias,
+            )?;
+        }
+        system.a.fold_duplicates();
+        system.e.fold_duplicates();
+        Ok(system)
+    }
+
     /// Elaborate one AST instance atomically with explicit model context.
     /// Model lookup/schema validation happens before a factory; unavailable
     /// model-backed/nonlinear factories remain explicit errors. As with

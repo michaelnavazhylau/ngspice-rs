@@ -73,9 +73,13 @@ fn overrides_beat_deck_and_request_arguments_beat_deck() {
     assert_eq!(merged.named("rtol"), Some("5e-5"));
     assert_eq!(merged.named("vntol"), Some("2e-6"));
     assert_eq!(merged.named("abstol"), Some("3e-12"));
-    // Non-transient requests are untouched.
-    let op = AnalysisRequest::new(AnalysisKind::OperatingPoint);
-    assert_eq!(c.request(op.clone()).unwrap(), op);
+    // M4 forwards the same physical tolerances to the reusable DC Newton solve.
+    let op = c
+        .request(AnalysisRequest::new(AnalysisKind::OperatingPoint))
+        .unwrap();
+    assert_eq!(op.named("rtol"), Some("1e-3"));
+    assert_eq!(op.named("vntol"), Some("2e-6"));
+    assert_eq!(op.named("abstol"), Some("3e-12"));
 }
 
 #[test]

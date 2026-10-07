@@ -66,14 +66,30 @@ pub(crate) fn op(
     request: &AnalysisRequest,
     context: &crate::AnalysisContext,
 ) -> SpiceResult<Plot> {
-    if !request.arguments.is_empty() {
+    if request
+        .arguments
+        .iter()
+        .any(|argument| !argument.contains('='))
+    {
         return Err(unsupported(".op arguments"));
     }
     // .ic is a transient-only constraint in C (cktload.c, MODETRANOP) and a
     // .nodeset cannot change a linear operating point; both are validated.
-    crate::initial::resolve(circuit, request)?;
-    let system = circuit.linear_system_with_context(&context.model_context())?;
-    let x = system.a.solve(&system.dc_rhs(None)?)?;
+    circuit.finalize()?;
+    let hints = crate::initial::resolve(circuit, request)?;
+    let mut seed = spice_maths::Vector::zeros(circuit.unknown_count());
+    for hint in hints.nodesets {
+        seed.as_mut_slice()[hint.row] = hint.value;
+    }
+    let x = crate::bias::solve_dc(
+        circuit,
+        &context.model_context(),
+        &crate::newton::NewtonOptions::from_request(request)?,
+        &[],
+        Some(&seed),
+        None,
+    )?
+    .values;
     let mut plot = plot(circuit, "op1", "Operating Point", None, false)?;
     circuit.accept_solution(&x, None)?;
     plot.push_point(x.as_slice().iter().map(|v| Complex::real(*v)).collect())?;
@@ -85,52 +101,5 @@ pub(crate) fn dc(
     request: &AnalysisRequest,
     context: &crate::AnalysisContext,
 ) -> SpiceResult<Plot> {
-    if request.arguments.len() != 4 {
-        return Err(unsupported(
-            ".dc requires one independent source, start, stop, step",
-        ));
-    }
-    crate::initial::resolve(circuit, request)?;
-    let name = request.argument(0).unwrap();
-    let start = number(request.argument(1), "sweep start")?;
-    let stop = number(request.argument(2), "sweep stop")?;
-    let step = number(request.argument(3), "sweep step")?;
-    if step == 0. || (stop - start) * step < 0. {
-        return Err(unsupported("invalid sweep direction/step"));
-    }
-    let count = ((stop - start) / step).floor() + 1.;
-    if !count.is_finite() || !(1. ..=100_000.).contains(&count) {
-        return Err(unsupported("DC sweep point limit exceeded"));
-    }
-    let system = circuit.linear_system_with_context(&context.model_context())?;
-    let source = system
-        .sources
-        .iter()
-        .find(|s| s.name.eq_ignore_ascii_case(name))
-        .ok_or_else(|| unsupported("DC sweep supports independent V/I sources only"))?;
-    let unit = if name.to_ascii_lowercase().starts_with('v') {
-        "voltage"
-    } else {
-        "current"
-    };
-    let mut plot = plot(
-        circuit,
-        "dc1",
-        "DC transfer characteristic",
-        Some(("sweep", unit)),
-        false,
-    )?;
-    let lu = system.a.factorize()?;
-    for i in 0..count as usize {
-        let value = start + (i as f64) * step;
-        if !value.is_finite() || (i > 0 && value == start + ((i - 1) as f64) * step) {
-            return Err(unsupported("DC sweep makes no progress"));
-        }
-        let x = lu.solve(&system.dc_rhs(Some((&source.name, value)))?)?;
-        circuit.accept_solution(&x, None)?;
-        let mut point = vec![Complex::real(value)];
-        point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
-        plot.push_point(point)?;
-    }
-    Ok(plot)
+    crate::sweep::run(circuit, request, context)
 }

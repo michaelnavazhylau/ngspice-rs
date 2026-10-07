@@ -65,3 +65,14 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `bjt_ce` | `.op` | BJT with a `.model` card |
 | `mos_inverter` | `.op` | MOSFET with instance parameters (`w=`, `l=`) |
 | `subckt_divider` | `.op` | `.subckt` / `.ends` and an `X` instance |
+| `m4_diode_ac` | `.ac` | bias-linearized diode RS/CJO/TT and internal anode |
+| `m4_diode_tran` | `.tran` | junction depletion/diffusion charge, PULSE and KCL |
+| `m4_bjt_ac` | `.ac` | level-1 NPN forward/reverse transport, CJE/CJC/TF |
+| `m4_bjt_tran` | `.tran` | independent BE/BC charge companions |
+| `m4_mos1_ac` | `.ac` | MOS1 square law, body junction and overlap charges, zero TOX |
+| `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
+
+The six M4 decks were individually captured with the existing ngspice-47+ build;
+previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
+for the demonstrated local #41 gate, physics allowlists and justified tolerances.
+Only the subcircuit fixture remains excluded by Rust-engine verification.

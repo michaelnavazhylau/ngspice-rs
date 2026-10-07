@@ -417,8 +417,8 @@ impl RunConfig {
     }
 
     /// Add deck settings to a request. Explicit request arguments win; the
-    /// integration and tolerance options apply only to `.tran`, the only consumer
-    /// today.
+    /// integration options apply only to `.tran`; physical tolerances also reach
+    /// the M4 DC/AC Newton solve.
     ///
     /// # Errors
     /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord`
@@ -438,6 +438,20 @@ impl RunConfig {
             request.nodesets.clone_from(&self.nodesets);
         }
         if request.kind != AnalysisKind::Transient {
+            if matches!(
+                request.kind,
+                AnalysisKind::OperatingPoint | AnalysisKind::DcSweep | AnalysisKind::Ac
+            ) {
+                for (key, value) in [
+                    ("rtol", self.transient.rtol),
+                    ("vntol", self.transient.vntol),
+                    ("abstol", self.transient.abstol),
+                ] {
+                    if let (Some(value), None) = (value, request.named(key)) {
+                        request.arguments.push(format!("{key}={value:e}"));
+                    }
+                }
+            }
             return Ok(request);
         }
         let diffsol = request

@@ -23,8 +23,8 @@ pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Bo
     instantiate(&netlist.devices[0], nodes)
 }
 
-/// Resolve and validate before any node interning. Bounded R/C/L models use
-/// existing scalar stamps; D/Q/M schemas still do not enable their factories.
+/// Resolve and validate before any node interning. Bounded R/C/L and M4 D/Q/M
+/// factories reject all unsupported physics before committing staged nodes.
 pub(crate) fn instantiate_with_models(
     instance: &DeviceInstance,
     nodes: &mut NodeTable,
@@ -42,8 +42,16 @@ pub(crate) fn instantiate_with_models(
             return crate::passive::instantiate(instance, nodes, &model, context);
         }
         if model.family() == crate::models::ModelFamily::Diode {
-            model.diode_parameters(context)?;
-            model.diode_instance_parameters(instance, context)?;
+            return crate::nonlinear::Diode::instantiate(instance, nodes, &model, context);
+        }
+        match model.family() {
+            crate::models::ModelFamily::Npn | crate::models::ModelFamily::Pnp => {
+                return crate::transistors::Bjt::instantiate(instance, nodes, &model, context);
+            }
+            crate::models::ModelFamily::Nmos | crate::models::ModelFamily::Pmos => {
+                return crate::transistors::Mos1::instantiate(instance, nodes, &model, context);
+            }
+            _ => {}
         }
         let reference = match model.family().designator() {
             'r' => "src/spicelib/devices/res/restemp.c, ressetup.c",

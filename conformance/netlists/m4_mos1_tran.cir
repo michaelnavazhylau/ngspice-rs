@@ -1,0 +1,8 @@
+MOS1 body and overlap charge companion transient (no TOX)
+vdd vdd 0 5
+vin gate 0 pulse(1.5 2.5 100n 100n 100n 300n 800n)
+rd vdd drain 10k
+m1 drain gate 0 0 mm w=10u l=1u
+.model mm nmos(level=1 vto=1 kp=1e-4 cbd=10p cbs=5p cgso=4e-7 cgdo=2e-7)
+.tran 10n 1u 0 1n
+.end

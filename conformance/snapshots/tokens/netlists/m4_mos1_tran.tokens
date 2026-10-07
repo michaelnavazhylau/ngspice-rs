@@ -1,0 +1,89 @@
+# ngspice-rs token-dump v1
+file: netlists/m4_mos1_tran.cir
+title: "MOS1 body and overlap charge companion transient (no TOX)" @netlists/m4_mos1_tran.cir:1:1
+card 1 @netlists/m4_mos1_tran.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd vdd 0 5"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 word "vdd"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 number "5" value=5e0
+card 2 @netlists/m4_mos1_tran.cir:3:1 lines=3-3 continuations=0
+  raw: "vin gate 0 pulse(1.5 2.5 100n 100n 100n 300n 800n)"
+  kind: device(v)
+  token 1 3:1 word "vin"
+  token 2 3:5 word "gate"
+  token 3 3:10 number "0" value=0e0
+  token 4 3:12 word "pulse"
+  token 5 3:17 lparen "("
+  token 6 3:18 number "1.5" value=1.5e0
+  token 7 3:22 number "2.5" value=2.5e0
+  token 8 3:26 number "100n" value=1.0000000000000001e-7
+  token 9 3:31 number "100n" value=1.0000000000000001e-7
+  token 10 3:36 number "100n" value=1.0000000000000001e-7
+  token 11 3:41 number "300n" value=3.0000000000000004e-7
+  token 12 3:46 number "800n" value=8.000000000000001e-7
+  token 13 3:50 rparen ")"
+card 3 @netlists/m4_mos1_tran.cir:4:1 lines=4-4 continuations=0
+  raw: "rd vdd drain 10k"
+  kind: device(r)
+  token 1 4:1 word "rd"
+  token 2 4:4 word "vdd"
+  token 3 4:8 word "drain"
+  token 4 4:14 number "10k" value=1e4
+card 4 @netlists/m4_mos1_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "m1 drain gate 0 0 mm w=10u l=1u"
+  kind: device(m)
+  token 1 5:1 word "m1"
+  token 2 5:4 word "drain"
+  token 3 5:10 word "gate"
+  token 4 5:15 number "0" value=0e0
+  token 5 5:17 number "0" value=0e0
+  token 6 5:19 word "mm"
+  token 7 5:22 word "w"
+  token 8 5:23 equals "="
+  token 9 5:24 number "10u" value=9.999999999999999e-6
+  token 10 5:28 word "l"
+  token 11 5:29 equals "="
+  token 12 5:30 number "1u" value=1e-6
+card 5 @netlists/m4_mos1_tran.cir:6:1 lines=6-6 continuations=0
+  raw: ".model mm nmos(level=1 vto=1 kp=1e-4 cbd=10p cbs=5p cgso=4e-7 cgdo=2e-7)"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "mm"
+  token 3 6:11 word "nmos"
+  token 4 6:15 lparen "("
+  token 5 6:16 word "level"
+  token 6 6:21 equals "="
+  token 7 6:22 number "1" value=1e0
+  token 8 6:24 word "vto"
+  token 9 6:27 equals "="
+  token 10 6:28 number "1" value=1e0
+  token 11 6:30 word "kp"
+  token 12 6:32 equals "="
+  token 13 6:33 number "1e-4" value=1e-4
+  token 14 6:38 word "cbd"
+  token 15 6:41 equals "="
+  token 16 6:42 number "10p" value=1e-11
+  token 17 6:46 word "cbs"
+  token 18 6:49 equals "="
+  token 19 6:50 number "5p" value=5e-12
+  token 20 6:53 word "cgso"
+  token 21 6:57 equals "="
+  token 22 6:58 number "4e-7" value=4e-7
+  token 23 6:63 word "cgdo"
+  token 24 6:67 equals "="
+  token 25 6:68 number "2e-7" value=2e-7
+  token 26 6:72 rparen ")"
+card 6 @netlists/m4_mos1_tran.cir:7:1 lines=7-7 continuations=0
+  raw: ".tran 10n 1u 0 1n"
+  kind: dot(.tran)
+  token 1 7:1 word ".tran"
+  token 2 7:7 number "10n" value=1e-8
+  token 3 7:11 number "1u" value=1e-6
+  token 4 7:14 number "0" value=0e0
+  token 5 7:16 number "1n" value=1e-9
+card 7 @netlists/m4_mos1_tran.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

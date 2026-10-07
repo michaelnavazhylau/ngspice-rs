@@ -58,6 +58,18 @@ fn families_and_forward_resolution_are_not_backend_availability() {
             .unwrap();
         assert_eq!(resolved.family(), family);
         assert_eq!(resolved.levels().selector, 1);
+        if matches!(
+            family,
+            ModelFamily::Diode
+                | ModelFamily::Npn
+                | ModelFamily::Pnp
+                | ModelFamily::Nmos
+                | ModelFamily::Pmos
+        ) {
+            let circuit = Circuit::from_netlist(&n).unwrap();
+            assert!(circuit.devices()[0].is_nonlinear());
+            continue;
+        }
         let error = Circuit::from_netlist(&n).unwrap_err();
         if matches!(
             family,
@@ -268,7 +280,13 @@ fn diode_fixture_and_context_defaults_are_typed_without_simulation() {
             .temperature_kelvin,
         323.15
     );
-    assert!(Circuit::from_netlist(&n).unwrap_err().is_not_yet_ported());
+    assert!(
+        Circuit::from_netlist(&n)
+            .unwrap()
+            .devices()
+            .iter()
+            .any(|device| device.is_nonlinear())
+    );
 }
 
 #[test]
@@ -329,7 +347,13 @@ fn diode_schema_rejects_unknown_and_invalid_setters_even_if_overwritten() {
             model.diode_parameters(&ModelContext::default()).is_err(),
             "{setter}"
         );
-        assert!(Circuit::from_netlist(&n).is_err());
+        // The legacy IS/N/RS input projection stays deliberately narrow;
+        // the M4 factory additionally implements CJO charge.
+        if setter == "cjo=1p" {
+            assert!(Circuit::from_netlist(&n).is_ok());
+        } else {
+            assert!(Circuit::from_netlist(&n).is_err());
+        }
     }
     for setter in [
         "area=0",
@@ -520,9 +544,9 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
         "d1 new 0 mdl\n.model mdl r",
         "d1 new 0 mdl\n.model mdl d(is=-1)",
         "d1 new 0 mdl temp=-300\n.model mdl d",
-        "d1 new 0 mdl\n.model mdl d",
-        "q1 new base emitter mdl\n.model mdl npn",
-        "m1 new gate source bulk mdl\n.model mdl nmos",
+        "d1 new 0 mdl\n.model mdl d(bv=20)",
+        "q1 new base emitter mdl\n.model mdl npn(vaf=100)",
+        "m1 new gate source bulk mdl\n.model mdl nmos(tox=10n)",
         "m1 new gate source bulk mdl\n.model mdl nmos(level=49)",
         "q1 new base emitter mdl\n.model mdl npn(level=3)",
         "d1 new 0 mdl\n.model mdl d(level=2)",
@@ -589,7 +613,7 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
                 .is_not_yet_ported()
         );
         assert!(table.is_empty());
-        assert!(Circuit::from_netlist(&n).is_err());
+        assert!(Circuit::from_netlist(&n).is_ok());
     }
     let n = deck("v2 new 0 2");
     circuit

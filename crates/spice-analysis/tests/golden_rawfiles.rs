@@ -147,6 +147,14 @@ fn the_writer_agrees_with_ngspice_apart_from_non_round_trippable_decimals() {
             if rendered_line == golden_line {
                 continue;
             }
+            // C logarithmic sweeps carry display-only grid=3 metadata, which
+            // the documented rawfile projection does not retain. Numeric values
+            // and all other variable metadata remain compared unchanged.
+            if golden_line.strip_suffix(" grid=3") == Some(rendered_line)
+                && golden_line.contains("\tfrequency\tfrequency")
+            {
+                continue;
+            }
             match (numeric_parts(rendered_line), numeric_parts(golden_line)) {
                 (Some(ours), Some(theirs)) if ours == theirs => {}
                 _ => panic!(
@@ -159,11 +167,11 @@ fn the_writer_agrees_with_ngspice_apart_from_non_round_trippable_decimals() {
     }
 }
 
-/// Exactly one token in the whole corpus cannot be re-derived from its own
+/// Pin every known token in the corpus that cannot be re-derived from its own
 /// spelling. Pinning it keeps the tolerance above bounded: if a re-capture
 /// introduces more of them, this test fails and somebody looks.
 #[test]
-fn exactly_one_golden_token_is_not_round_trippable() {
+fn known_golden_tokens_are_not_round_trippable() {
     let mut offenders: Vec<String> = Vec::new();
     for name in fixture_names() {
         for (index, line) in golden_text(&name).lines().enumerate() {
@@ -179,10 +187,13 @@ fn exactly_one_golden_token_is_not_round_trippable() {
             }
         }
     }
-    assert_eq!(offenders.len(), 1, "{offenders:#?}");
-    assert!(
-        offenders[0].starts_with("rc_transient:19 "),
-        "{offenders:#?}"
+    assert_eq!(
+        offenders,
+        [
+            "m4_bjt_tran:25 1.000000000000000e-11 -> 9.999999999999999e-12",
+            "m4_diode_tran:19 1.000000000000000e-11 -> 9.999999999999999e-12",
+            "rc_transient:19 1.000000000000000e-11 -> 9.999999999999999e-12",
+        ]
     );
 }
 
@@ -372,6 +383,88 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(in)", 816, 1.000000000000000e+00, 0.0),
             ("v(a)", 816, 9.845175521824301e-01, 0.0),
             ("v(b)", 816, 1.548244781757727e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m4_bjt_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 31,
+        variables: &[
+            "frequency",
+            "v(base)",
+            "v(coll)",
+            "v(in)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(coll)", 0, -4.207884901514965, 1.324201254836868e-3),
+        ],
+    },
+    Expectation {
+        fixture: "m4_bjt_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1020,
+        variables: &[
+            "time", "v(base)", "v(coll)", "v(in)", "v(vcc)", "i(vcc)", "i(vin)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(base)", 0, 5.498293510058270e-1, 0.),
+            ("v(coll)", 0, 4.982934701819048, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m4_diode_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 31,
+        variables: &["frequency", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(out)", 0, 2.898859268332467e-1, -2.023191324596308e-5),
+        ],
+    },
+    Expectation {
+        fixture: "m4_diode_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1020,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        values: &[("time", 0, 0., 0.), ("v(out)", 0, 4.977256113494994e-1, 0.)],
+    },
+    Expectation {
+        fixture: "m4_mos1_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 31,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(drain)", 0, -1.400396755029898, 2.088523065460837e-4),
+        ],
+    },
+    Expectation {
+        fixture: "m4_mos1_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1020,
+        variables: &["time", "v(drain)", "v(gate)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(drain)", 0, 3.749999962400001, 0.),
+            ("v(gate)", 0, 1.5, 0.),
         ],
     },
     Expectation {

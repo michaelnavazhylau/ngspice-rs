@@ -1,7 +1,8 @@
 //! Adaptive trapezoidal / Gear-2 companion-model transient driver.
 //!
 //! This is the SPICE-compatible `.tran` backend: capacitors and inductors are
-//! stamped as companion models from accepted charge/flux history
+//! and M4's bounded nonlinear device charges are stamped as companion models
+//! from accepted charge/flux history
 //! ([`spice_devices::Circuit::load`]), each timestep is a trial that is either
 //! rejected (nothing advances) or accepted atomically
 //! ([`spice_devices::Circuit::accept_point`]). It is a separate implementation
@@ -11,7 +12,8 @@
 //! The control flow follows the transient loop of `dctran.c` and its helpers
 //! (`ckttrunc.c`, `cktterr.c`, `niinteg.c`, `nicomcof.c`). In short:
 //!
-//! * **Initial point**: the DC bias with the sources at their `t = 0` left
+//! * **Initial point**: the DC bias (shared M4 Newton/continuation for nonlinear
+//!   circuits) with the sources at their `t = 0` left
 //!   limit and the `.ic` node voltages imposed, or, with `uic`, the charges and
 //!   fluxes of the capacitor/inductor initial conditions without any solve
 //!   (see [`crate::initial`] and `docs/port/TRANSIENT.md`). The charge/flux
@@ -390,7 +392,18 @@ pub fn companion_transient(
     // Unknown/ground nodes in .ic/.nodeset fail before anything is assembled.
     let hints = initial::resolve(circuit, request)?;
     let model_context = context.model_context();
-    let mut system = circuit.linear_system_with_context(&model_context)?;
+    circuit.finalize()?;
+    let nonlinear = circuit.devices().iter().any(|d| d.is_nonlinear());
+    if nonlinear && (request.uic || !hints.initial.is_empty()) {
+        return Err(unsupported(
+            "nonlinear companion .ic/uic initialization is not implemented",
+        ));
+    }
+    let mut system = if nonlinear {
+        circuit.small_signal_system(&model_context, &Vector::zeros(circuit.unknown_count()))?
+    } else {
+        circuit.linear_system_with_context(&model_context)?
+    };
     let timing = TransientTiming::new(settings.step, settings.stop)?;
     system.bind_transient_timing(&timing)?;
     let circuit: &Circuit = circuit;
@@ -613,7 +626,26 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                 },
             )?;
-            let x = if constraints.is_empty() {
+            let x = if self.nonlinear {
+                let mut seed = Vector::zeros(self.circuit.unknown_count());
+                for hint in &self.hints.nodesets {
+                    seed.as_mut_slice()[hint.row] = hint.value;
+                }
+                crate::bias::solve_dc(
+                    self.circuit,
+                    &self.model_context,
+                    &crate::newton::NewtonOptions {
+                        reltol: tolerances.reltol,
+                        vntol: tolerances.vntol,
+                        abstol: tolerances.abstol,
+                        ..crate::newton::NewtonOptions::default()
+                    },
+                    &[],
+                    Some(&seed),
+                    Some(&rhs),
+                )?
+                .values
+            } else if constraints.is_empty() {
                 self.system.a.solve(&rhs)?
             } else {
                 initial::constrained_bias(&self.system.a, &rhs, &constraints)?
@@ -694,43 +726,43 @@ impl Driver<'_> {
             )?;
             Ok::<_, SpiceError>(state)
         };
-        let mut guess = previous.clone();
-        for iteration in 1..=TRAN_MAX_ITER {
-            let mut matrix = SparseMatrix::new(n, n);
-            let mut rhs = Vector::zeros(n);
-            load(&guess, &mut matrix, &mut rhs)?;
-            matrix.fold_duplicates();
-            let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
-            let x = matrix.solve(&rhs)?;
-            if !x.is_finite() {
-                return Err(failure(format!("nonfinite solution at t = {time:e}")));
-            }
-            // C needs a second iteration before it can declare convergence;
-            // a linear circuit is exact after the first solve.
-            if !self.nonlinear || (iteration > 1 && self.converged(&x, &guess)) {
-                let state = load(&x, &mut SparseMatrix::new(n, n), &mut Vector::zeros(n))?;
-                return Ok(Trial::Converged { x, state });
-            }
-            guess = x;
+        if self.nonlinear {
+            let tolerance = &self.settings.tolerances;
+            let options = crate::newton::NewtonOptions {
+                max_iterations: TRAN_MAX_ITER,
+                reltol: tolerance.reltol,
+                vntol: tolerance.vntol,
+                abstol: tolerance.abstol,
+                ..crate::newton::NewtonOptions::default()
+            };
+            return match crate::newton::solve(previous, &self.branch_row, &options, |x| {
+                let mut matrix = SparseMatrix::new(n, n);
+                let mut rhs = Vector::zeros(n);
+                let state = load(x, &mut matrix, &mut rhs)?;
+                Ok((matrix, rhs, state))
+            }) {
+                Ok(solved) => Ok(Trial::Converged {
+                    x: solved.values,
+                    state: solved.trial,
+                }),
+                Err(SpiceError::Numerical { message, .. })
+                    if message.contains("Newton iteration limit") =>
+                {
+                    Ok(Trial::NotConverged)
+                }
+                Err(error) => Err(error),
+            };
         }
-        Ok(Trial::NotConverged)
-    }
-
-    /// C `NIconvTest`: `vntol` on node voltages, `abstol` on branch currents.
-    fn converged(&self, new: &Vector, old: &Vector) -> bool {
-        let tolerances = &self.settings.tolerances;
-        new.as_slice()
-            .iter()
-            .zip(old.as_slice())
-            .zip(&self.branch_row)
-            .all(|((new, old), branch)| {
-                let absolute = if *branch {
-                    tolerances.abstol
-                } else {
-                    tolerances.vntol
-                };
-                (new - old).abs() <= tolerances.reltol * new.abs().max(old.abs()) + absolute
-            })
+        // Linear circuits are exact after one solve; reload only to record
+        // charge/flux at the solved point, with no Newton iteration loop.
+        let mut matrix = SparseMatrix::new(n, n);
+        let mut rhs = Vector::zeros(n);
+        load(previous, &mut matrix, &mut rhs)?;
+        matrix.fold_duplicates();
+        let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
+        let x = matrix.solve(&rhs)?;
+        let state = load(&x, &mut SparseMatrix::new(n, n), &mut Vector::zeros(n))?;
+        Ok(Trial::Converged { x, state })
     }
 
     /// C `CKTtrunc`: the smallest step bound over every charge-storage element,
@@ -750,29 +782,31 @@ impl Driver<'_> {
         let order = usize::from(coefficients.order());
         let mut limit = Real::INFINITY;
         for (index, device) in self.circuit.devices().iter().enumerate() {
-            let Some(slot) = device.truncation_slot() else {
-                continue;
-            };
-            let base = self
-                .circuit
-                .state_rows(index)
-                .ok_or_else(|| failure("missing state range"))?
-                .start
-                + slot;
-            let accepted = |age: usize, offset: usize| {
-                self.history
-                    .accepted(age)
-                    .and_then(|vector| vector.get(base + offset))
-                    .copied()
-                    .ok_or_else(|| failure("accepted state history is too short"))
-            };
-            let mut charge = vec![trial.values()[base]];
-            for age in 1..=order + 1 {
-                charge.push(accepted(age, 0)?);
+            for slot in device.truncation_slots() {
+                let base = self
+                    .circuit
+                    .state_rows(index)
+                    .ok_or_else(|| failure("missing state range"))?
+                    .start
+                    + slot;
+                let accepted = |age: usize, offset: usize| {
+                    self.history
+                        .accepted(age)
+                        .and_then(|vector| vector.get(base + offset))
+                        .copied()
+                        .ok_or_else(|| failure("accepted state history is too short"))
+                };
+                let mut charge = vec![trial.values()[base]];
+                for age in 1..=order + 1 {
+                    charge.push(accepted(age, 0)?);
+                }
+                let derivative = [trial.values()[base + 1], accepted(1, 1)?];
+                limit = limit.min(coefficients.truncation_timestep(
+                    &charge,
+                    derivative,
+                    &tolerances,
+                )?);
             }
-            let derivative = [trial.values()[base + 1], accepted(1, 1)?];
-            limit =
-                limit.min(coefficients.truncation_timestep(&charge, derivative, &tolerances)?);
         }
         Ok(limit)
     }
