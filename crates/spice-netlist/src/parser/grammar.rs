@@ -20,7 +20,7 @@ use crate::ast::{
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::{diode, expression, hints, linear, model, options, param, structure, transistor};
+use super::{diode, expression, hints, linear, model, options, param, save, structure, transistor};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
@@ -34,6 +34,8 @@ pub(super) enum ParsedCard {
     Ends(Option<String>),
     Include(IncludeDirective),
     Param(ParamCard),
+    /// A `.save` or `.print` output card; see [`crate::ast::OutputCards`].
+    Output(save::OutputCard),
     LibStart(String),
     LibEnd(Option<String>),
     End,
@@ -102,7 +104,12 @@ pub(super) fn parse_card(
     alt((
         end_card,
         alt((analysis_card, options::options_or_global)),
-        alt((model::model_card, param::param_card, hints::hint_card)),
+        alt((
+            model::model_card,
+            param::param_card,
+            hints::hint_card,
+            save::output_card,
+        )),
         structure::structural_card,
         linear::device_card,
         diode::diode_card,

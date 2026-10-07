@@ -712,6 +712,7 @@ fn write_card(ctx: &Ctx<'_>, out: &mut Out, indent: usize, n: usize, card: &Scop
         ScopedCardKind::Param(i) => format!("param[{i}]"),
         ScopedCardKind::InitialCondition(i) => format!("ic[{i}]"),
         ScopedCardKind::Nodeset(i) => format!("nodeset[{i}]"),
+        ScopedCardKind::Output => "output".to_owned(),
         ScopedCardKind::Ends => "ends".to_owned(),
         ScopedCardKind::End => "end".to_owned(),
     };

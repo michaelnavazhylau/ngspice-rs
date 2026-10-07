@@ -105,10 +105,15 @@ title, analysis, plot, variable names and output path on stdout.
 
 * waveform parsing and any other post-processing of results;
 * binary rawfile output (ASCII only);
-* output selection / save-set control (every result vector the driver produces
-  is written);
 * an interactive interpreter;
 * more than one analysis per invocation.
+
+Output selection is implemented for the bounded `.save`/`.print` subset: a deck's
+`.save` (deck-wide) and `.print <analysis> …` (analysis-specific) cards narrow
+which vectors `simulate` writes, and `.print` also renders a text table on
+stdout. A deck without those cards writes exactly the driver's plot, unchanged.
+See [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md) for the grammar, the ordering and
+duplicate rules and the failure modes.
 
 ## Covered by tests
 
@@ -117,6 +122,7 @@ contract, the exactly-one-analysis rule and the write/rename guarantee; it reads
 the written rawfiles back with the production reader and compares them vector by
 vector, by name, with the committed C goldens in `conformance/golden/`
 (`.op`, both `.dc` sweep directions, complex `.ac`, plain `.tran` and a
-`uic`/`ic=` `.tran`). `crates/spice-cli/tests/parse.rs` keeps the older
-inspection commands green. Nothing in these tests invokes C or re-captures a
-golden.
+`uic`/`ic=` `.tran`). It also covers `.save`/`.print` selection and its failures
+(see [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md)). `crates/spice-cli/tests/parse.rs`
+keeps the older inspection commands green. Nothing in these tests invokes C or
+re-captures a golden.

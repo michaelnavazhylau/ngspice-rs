@@ -8,6 +8,11 @@
 //!   by the ordinary production runner, so no device or solver logic is
 //!   duplicated here;
 //! * **exactly one** analysis card is required (see [`run`]);
+//! * a deck's `.save`/`.print` cards select which vectors are written, through
+//!   [`spice_analysis::selection`]; the selection is resolved against the full
+//!   plot the driver produced, so an unresolvable request fails before anything
+//!   is written or printed, and the full plot stays available for the
+//!   measurement work that follows ([`Report`] carries only what was written);
 //! * the rawfile is written through a temporary file in the destination's
 //!   directory and renamed into place, so a failed run never truncates,
 //!   replaces or removes an existing destination, and never leaves a partial
@@ -21,6 +26,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use spice_analysis::selection::{self, Selection};
 use spice_analysis::{Plot, RawFile, RawPlot, RunConfig, runner};
 use spice_core::{AnalysisKind, SpiceError, SpiceResult};
 use spice_netlist::Parser;
@@ -42,12 +48,16 @@ pub struct Report {
     pub analysis: AnalysisKind,
     /// The rawfile's `Plotname:` header, e.g. `Transient Analysis`.
     pub plotname: String,
-    /// The rawfile's variable names, in column order.
+    /// The rawfile's variable names, in column order (after `.save`/`.print`
+    /// selection, when the deck has any).
     pub variables: Vec<String>,
     /// How many points the plot has.
     pub points: usize,
     /// The rawfile that was written.
     pub output: PathBuf,
+    /// The `.print` table, when the deck asked for one. `None` for a deck
+    /// without an applicable `.print` card, which keeps the report unchanged.
+    pub printed: Option<String>,
 }
 
 /// Simulates the deck's single analysis and writes it as an ASCII rawfile.
@@ -60,22 +70,42 @@ pub struct Report {
 ///   analysis at all;
 /// * [`SpiceError::NotYetPorted`] when the deck requests more than one analysis,
 ///   because this command runs one analysis per invocation;
+/// * [`SpiceError::Unsupported`] when a `.save`/`.print` request cannot be
+///   resolved against the run's result (an unknown vector, a `.print` card for
+///   another analysis, an AC component of a real plot), and
+///   [`SpiceError::Numerical`] when a computed vector is not finite;
 /// * whatever the production runner reports for unsupported devices, analyses,
 ///   options or numerically failed runs ([`SpiceError::Unsupported`],
 ///   [`SpiceError::NotYetPorted`], [`SpiceError::Numerical`], …).
 ///
-/// The destination is written only after the runner returned a plot.
+/// The destination is written only after the runner returned a plot and the
+/// selection resolved, and the `.print` table is only returned with the report,
+/// so a failure publishes nothing at all.
 pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
-    let netlist = Parser::with_auto_gnd(auto_gnd).parse_file(deck)?;
-    let card = only_analysis(&netlist)?;
+    let parsed = Parser::with_auto_gnd(auto_gnd).parse_file_with_output(deck)?;
+    let netlist = &parsed.netlist;
+    let card = only_analysis(netlist)?;
     // Options are validated before anything runs, exactly as `parse` does:
     // unknown or unsupported settings are errors, never ignored.
-    let config = RunConfig::from_netlist(&netlist)?;
+    let config = RunConfig::from_netlist(netlist)?;
     let request = config.request_for(card)?;
-    let mut circuit = config.circuit(&netlist)?;
+    let mut circuit = config.circuit(netlist)?;
     let plot = runner(request.kind)?.run(&mut circuit, &request, &config.context())?;
 
-    let rawfile = rawfile_for(&netlist, plot, &now_header());
+    // The selection is resolved against the **full** plot and before anything is
+    // written or printed: an unresolvable request leaves stdout empty and an
+    // existing destination untouched.
+    let requests = selection::write_requests(&parsed.output, card.kind)?;
+    let selection = Selection::resolve(&plot, card.kind, &requests)?;
+    let print_requests = selection::print_requests(&parsed.output, card.kind)?;
+    let printed = if print_requests.is_empty() {
+        None
+    } else {
+        Some(Selection::resolve(&plot, card.kind, &print_requests)?.to_text(&plot)?)
+    };
+    let written = selection.apply(&plot)?;
+
+    let rawfile = rawfile_for(netlist, written, &now_header());
     let raw_plot = &rawfile.plots[0];
     let report = Report {
         deck: netlist.path.clone(),
@@ -90,6 +120,7 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
             .collect(),
         points: raw_plot.plot.point_count(),
         output: output.to_path_buf(),
+        printed,
     };
     write_rawfile(&rawfile, output)?;
     Ok(report)
@@ -301,6 +332,11 @@ pub fn report_text(report: &Report) -> String {
         "output:    {} (ngspice ASCII rawfile, no binary support)",
         report.output.display()
     );
+    // Only a deck with an applicable `.print` card has a table; a deck without
+    // one keeps today's report unchanged.
+    if let Some(printed) = &report.printed {
+        out.push_str(printed);
+    }
     out
 }
 
@@ -344,6 +380,7 @@ mod tests {
             variables: vec!["v(in)".to_owned(), "v(out)".to_owned()],
             points: 1,
             output: PathBuf::from("out.raw"),
+            printed: None,
         };
         let text = report_text(&report);
         assert!(text.contains("deck:      rc.cir"), "{text}");
@@ -358,6 +395,28 @@ mod tests {
         );
         assert!(text.contains("variables: v(in) v(out)"), "{text}");
         assert!(text.contains("output:    out.raw"), "{text}");
+        assert!(
+            !text.contains("print:"),
+            "a deck without .print has no table: {text}"
+        );
+    }
+
+    #[test]
+    fn a_print_table_is_appended_after_the_report() {
+        let report = Report {
+            deck: PathBuf::from("rc.cir"),
+            title: "RC divider".to_owned(),
+            analysis: AnalysisKind::OperatingPoint,
+            plotname: "Operating Point".to_owned(),
+            variables: vec!["v(out)".to_owned()],
+            points: 1,
+            output: PathBuf::from("out.raw"),
+            printed: Some("print: 1 vector(s): v(out)\nvalues: real\n".to_owned()),
+        };
+        let text = report_text(&report);
+        let report_end = text.find("output:    out.raw").expect("the report");
+        let table = text.find("print: 1 vector(s): v(out)").expect("the table");
+        assert!(report_end < table, "the table follows the report: {text}");
     }
 
     #[test]
@@ -370,6 +429,7 @@ mod tests {
             variables: Vec::new(),
             points: 0,
             output: PathBuf::from("out.raw"),
+            printed: None,
         };
         assert!(report_text(&report).contains("title:     <empty title line>"));
     }
