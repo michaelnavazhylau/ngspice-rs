@@ -132,9 +132,9 @@ pinned by a test so that it cannot be lost.
 `crates/spice-netlist/tests/linear_parser.rs` checks AST fields against the
 committed divider, AC low-pass and RLC decks: terminal order, values, source
 locations, request arguments, case folding and ground aliasing. It also checks
-that `subckt_divider` still fails at an explicit gap. `rc_transient` now has a
-positioned waveform AST test; the three nonlinear fixtures have M1b tests,
-not with a partially successful AST. `crates/spice-cli/tests/parse.rs` checks
+the unflattened `subckt_divider` AST (#12). `rc_transient` has a positioned
+waveform AST test; the three nonlinear fixtures have M1b tests. All eight
+fixtures parse without implying simulation or the M1 round-trip gate. `crates/spice-cli/tests/parse.rs` checks
 process exits: supported parse = 0, missing file = 2, unported syntax = 3.
 
 A separate opt-in oracle uses `conformance/parser/linear_sources.cir` to compare
@@ -184,8 +184,8 @@ model families/forms, raw first level, ordered duplicates, numeric model names,
 forward/unresolved references, scalar geometry, ground aliasing, continuation
 provenance, committed malformed/overflow errors and specific unsupported gaps.
 At that slice's completion, CLI tests required six fixture parses; #8 now adds
-`rc_transient`, bringing the count to seven. `subckt_divider` still exits 3
-without partial success output.
+`rc_transient`, bringing the count to seven at that stage. #12 adds
+`subckt_divider`: all eight now exit 0 for parsing, not simulation.
 
 The second ignored test in `c_reference.rs` instruments
 `conformance/parser/model_diodes.cir`. Live C instance/model queries check
@@ -320,7 +320,7 @@ arithmetic, IC/uic and SPICE trap/Gear parity remain unimplemented.
 `waveform_parser.rs` adds eight production-parser regressions for PULSE omissions,
 PWL pairing, mixed/duplicate DC/AC/waveform setters, leading DC precedence,
 byte-column continuation positions, finite/shape/delimiter errors and bounded
-work. `rc_transient` now parses; CLI success expectations cover seven fixtures.
+work. `rc_transient` unlocked the seventh fixture; #12 now enables all eight.
 `flags_ic_parser.rs` adds nine regressions covering the exhaustive bare-flag
 inventory, base tokens versus model tail flags, Q 1–2/M 1–3 IC arities,
 component names/positions, scalar/vector duplicate order and leading area,
@@ -350,8 +350,33 @@ warning-free rustdoc and `git diff --check` pass. `cargo xtask golden verify`
 remains three verified/five explicitly unsupported fixtures; no goldens changed.
 
 These are syntax/setup comparisons, not Rust waveform evaluation or nonlinear
-simulation. Full M1 still requires subcircuits/includes, params/options/globals,
-serialization/snapshots and its eight-fixture round-trip gate.
+simulation. Scoped/source syntax is now implemented below. Full M1 still
+requires expressions/evaluation/options/globals, serialization/snapshots and
+its eight-fixture round-trip gate.
+
+## Scoped/source syntax (#12 / #13)
+
+`subcircuits.rs` and `sources.rs` test ordered nested scope storage, forward
+model names, X/formal textual parameters, structural diagnostics, source-relative
+includes/library selections, include-chain/section-boundary provenance,
+canonical cycles/symlink aliases, repeated/diamond includes, depth/file/byte/card
+limits and ordered failures/termination. `spice-rs parse` resolves the committed
+multi-file `conformance/parser/sources/main.cir` probe and all eight rawfile
+fixtures; `spice-devices/tests/structure_parser.rs` explicitly rejects simulation
+and checks atomic X factory failures. The new textual parameter kind is also
+rejected by scalar consumers. See [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md).
+
+An eighth opt-in parser oracle copies that multi-file source probe into a scratch
+directory and queries C's selected model RSH after setup. It checks accepted
+source/subcircuit syntax and library selection, **not Rust flattening or
+simulation**. No committed rawfile goldens or solver tolerances changed.
+
+Local validation for this slice: **342 passed, 0 failed, 12 opt-in tests ignored**
+on stable and Rust 1.89.0; both all-target Clippy checks and formatting pass.
+All **12 opt-in C tests** pass separately on stable, including all **8 parser
+probes** and the new source probe. Warning-free rustdoc and `git diff --check` pass. `golden verify` still
+reports three verified/five unsupported fixtures, now correctly naming
+subcircuit **flattening/elaboration**, not parsing, as unavailable.
 
 ## Petgraph topology verification
 
@@ -403,7 +428,7 @@ The default verifies **three fixtures** through `Parser::parse_file`,
 `rlc_series` (`.op`), and `rc_lowpass_ac` (complex `.ac`). It reports **five
 unsupported fixtures** with reasons: `diode_dc`, `bjt_ce`, `mos_inverter`
 (non-linear backends), `rc_transient` (waveform deck evaluation/SPICE transient parity),
-and `subckt_divider` (subcircuit parsing/elaboration). A requested unsupported
+and `subckt_divider` (subcircuit flattening/elaboration). A requested unsupported
 fixture fails, never silently skips. Names are case-insensitive and an optional
 `.cir` suffix is accepted. Unknown fixtures/options, missing input/goldens,
 unregistered new fixtures and missing default supported decks fail explicitly.

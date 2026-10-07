@@ -33,6 +33,7 @@ table, formulas, temperatures and deliberately rejected forms.
 | Capability | Current checkout |
 | --- | --- |
 | Scalar/model/D/Q/M/passive-model parsing and petgraph topology | Implemented, bounded syntax |
+| Scoped subcircuits/X and source-relative includes/libraries | Ordered scoped cards, bounded resolution/provenance; 8/8 fixture parses, no flattening |
 | Model resolver and diode input schemas | Top-level families/levels/defaults; no nonlinear factory |
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
@@ -52,8 +53,9 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** extended passive forms, subcircuits/includes,
-   parameters/options/globals, serialization and snapshots.
+2. **Front end (M1):** expressions/parameter evaluation/options/globals (#14–16),
+   then serialization/snapshots/full round-trip gate (#20–22); extended passive forms.
+   Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
 4. **Transient (M3):** adaptive trap/Gear-2 companion driver (integrator, state
@@ -61,7 +63,7 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    evaluation, broader DAEs and C parity.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
    nonlinear DC/AC/transient and conformance fixtures.
-6. **Usability (M5):** CLI simulation, subcircuit instantiation/scoping,
+6. **Usability (M5):** CLI simulation, subcircuit flattening/instantiation (#18),
    measurements/output selection and binary rawfiles.
 
 Advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, Tcl, full numparam

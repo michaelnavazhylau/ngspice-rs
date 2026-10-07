@@ -7,8 +7,8 @@
 //! | [`source`] | physical lines → logical cards: title, `+` continuations, comments | **ported** |
 //! | [`token`] | logical card → token stream | **ported** |
 //! | [`card`] | first token → [`card::CardKind`] classification | **ported** |
-//! | [`ast`] | the semantic netlist model | linear/model/D/Q/M subset constructed |
-//! | [`parser`] | winnow token stream → [`ast::Netlist`] | **M1a + models, bounded D/Q/M flags/ICs and numeric PULSE/PWL syntax** |
+//! | [`ast`] | the semantic netlist model | bounded devices/models, ordered subcircuit scopes and source provenance |
+//! | [`parser`] | winnow token stream → [`ast::Netlist`] | **M1a/M1b + scoped subcircuits/X and bounded source resolution; no flattening** |
 //!
 //! The C equivalent is spread over `src/frontend/inp.c`,
 //! `src/frontend/inpcom.c` and `src/spicelib/parser/`. Deck dispatch is in
@@ -25,7 +25,7 @@ pub mod source;
 pub mod token;
 
 pub use card::{CardKind, DEVICE_DESIGNATORS, DotCommand, RawCard};
-pub use parser::{Parser, classify_deck, load_classified};
+pub use parser::{Parser, SourceLimits, classify_deck, load_classified};
 pub use source::{Deck, LogicalLine, PhysicalLine, load};
 pub use token::{Token, TokenKind, tokenize};
 

@@ -20,7 +20,7 @@ checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
-| Parser | Scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL; seven of eight fixture decks |
+| Parser | Scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses, not round trips or simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
@@ -89,21 +89,22 @@ tests and documented limits as the remaining functionality is added.
 
 ### M1c: subcircuit and file structure
 
-- [ ] Parse `.subckt`/`.ends` ports, formal parameters, scope and X instances.
-- [ ] Diagnose unmatched/mismatched terminators and duplicate definitions; decide nested-scope representation before accepting nested subcircuits.
-- [ ] Parse `.include`/`.lib` paths and sections, preserving quoted paths.
-- [ ] Implement source-relative resolution, recursion/cycle limits and source-location provenance.
-- [ ] Use directed petgraph dependency graphs/SCC/toposort for file/subcircuit and parameter dependencies, not a custom graph engine.
-- [ ] Enable `subckt_divider` AST tests; parsing is not flattening.
+- [x] Parse `.subckt`/`.ends` ports, unevaluated ordered formal parameters, nested scope storage and X instances (#12).
+- [x] Diagnose unmatched/mismatched/missing terminators and scope-local duplicate definitions; preserve ordered cards and bounded nested bodies.
+- [x] Parse `.include`/`.inc`/`.lib` paths and sections, preserving quoted spelling and selected library boundaries (#13).
+- [x] Implement source-relative resolution, canonical file/section cycle checks, depth/file/byte/card limits and include-chain/source provenance.
+- [x] Use a directed petgraph file/section dependency graph with incremental reachability checks; no custom graph engine.
+- [ ] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5) and parameter evaluation (#15), when those semantics land.
+- [x] Enable `subckt_divider` AST/CLI tests: 8/8 fixture parsing, not flattening or the full M1 gate. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 
 ### M1d: parameter semantics and full front-end gate
 
-- [ ] Implement a bounded `.param` expression grammar/evaluator from numparam behaviour.
+- [ ] Implement a bounded expression grammar (#14) and `.param` evaluator (#15) from numparam behaviour.
 - [ ] Define evaluation order, scope, units and undefined/cyclic-reference diagnostics.
-- [ ] Parse `.option` and `.global`; implement required ground scope rules.
-- [ ] Add normalized-deck serialization preserving source parameter application order.
-- [ ] Commit deterministic token/AST snapshots and document regeneration.
-- [ ] Round-trip all eight rawfile fixture decks through AST and normalized text.
+- [ ] Parse `.option` and `.global`; implement required ground scope rules (#16).
+- [ ] Add normalized-deck serialization preserving source parameter application order (#20).
+- [ ] Commit deterministic token/AST snapshots and document regeneration (#21).
+- [ ] Round-trip all eight rawfile fixture decks through AST and normalized text (#22).
 - [ ] Keep `cargo xtask ci` green and mark M1 complete only after every exit gate passes.
 
 ## 3. Model elaboration and validation
@@ -157,7 +158,9 @@ BDF does not close the following trap/Gear and general-transient requirements.
 
 ## Suggested sequence
 
-CLI simulation and remaining M1 syntax → finish M1 and model elaboration →
+#12/#13 scoped/source syntax → #14–16 expressions/evaluation/options/globals →
+#20–22 serialization/snapshots/full M1 round-trip gate. Keep #18 flattening in M5.
+CLI simulation and model elaboration →
 SPICE-compatible transient → nonlinear devices → remaining M5 usability. Numerical optimization is follow-up,
 not grounds to weaken correctness gates.
 

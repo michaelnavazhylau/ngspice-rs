@@ -47,7 +47,7 @@ const EXCLUDED: &[(&str, &str)] = &[
     ),
     (
         "subckt_divider",
-        "subcircuit parsing/elaboration unavailable",
+        "subcircuit flattening/elaboration unavailable",
     ),
 ];
 

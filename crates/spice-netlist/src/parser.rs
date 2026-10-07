@@ -10,11 +10,11 @@
 //! The implemented subset is M1a (scalar R/C/L, DC/AC sources, analysis cards)
 //! plus M1b model cards, two-terminal D, three/four-terminal Q and
 //! four-terminal M instances, bounded flags/IC vectors and numeric PULSE/PWL. Q/M use declared names for terminal disambiguation;
-//! model types/backend availability and parameter validity are not checked yet.
+//! scoped subcircuits/X and source-relative include/library resolution. Model
+//! types/backend availability and parameter validity are not checked yet.
 //! Other constructs fail explicitly, never silently dropping cards. Values stay
 //! textual; evaluation and circuit elaboration are separate passes. See `docs/port/ROADMAP.md` for the remaining M1 work.
 
-use std::collections::BTreeSet;
 use std::path::Path;
 
 use spice_core::SpiceResult;
@@ -23,18 +23,21 @@ use crate::ast::Netlist;
 use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, load};
 
+pub use resolution::SourceLimits;
+
 mod diode;
 mod flags;
 mod grammar;
 mod ic;
 mod linear;
 mod model;
+mod resolution;
+mod scopes;
+mod structure;
 mod syntax;
 mod transistor;
 mod vector;
 mod waveform;
-
-use grammar::ParsedCard;
 
 /// Turns decks into [`Netlist`]s for the currently supported syntax subset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,8 +81,10 @@ impl Parser {
     /// Analysis arguments are preserved without validation, per the AST
     /// contract; parsing a request does not imply its driver is implemented.
     /// Deck fragments without `.end` are accepted, as by `INPpas2()`.
-    /// Q/M require a model declaration in this deck before `.end`; forward
-    /// declarations work. A read-only name index disambiguates optional ports,
+    /// Includes are retained without I/O; use [`Parser::parse_file`] for source
+    /// resolution. Nested subcircuits own ordered cards and local declarations.
+    /// Q/M require a model declaration in their scope or an ancestor before
+    /// `.end`; forward declarations work. A read-only name index disambiguates optional ports,
     /// without validating model type/backend or applying selector/default rules.
     /// D references may remain unresolved. None of these are simulation inputs
     /// until the later elaboration pass validates them.
@@ -90,81 +95,54 @@ impl Parser {
     /// [`spice_core::SpiceError::NotYetPorted`] for constructs outside the current subset.
     /// No partially parsed netlist is returned on failure.
     pub fn parse_deck(&self, deck: &Deck) -> SpiceResult<Netlist> {
-        let mut netlist = Netlist {
-            title: deck.title.clone(),
-            path: deck.path.clone(),
-            devices: Vec::new(),
-            models: Vec::new(),
-            subcircuits: Vec::new(),
-            analyses: Vec::new(),
-            includes: Vec::new(),
-            params: Vec::new(),
-            options: Vec::new(),
-            globals: Vec::new(),
-            location: deck.title_location.clone(),
-        };
-        let (cards, declared_models) = prepare_cards(deck);
-        for card in cards {
-            let card = card?;
-            match grammar::parse_card(&card, self.auto_gnd, &declared_models)? {
-                ParsedCard::Device(device) => netlist.devices.push(device),
-                ParsedCard::Model(model) => netlist.models.push(model),
-                ParsedCard::Analysis(analysis) => netlist.analyses.push(analysis),
-                ParsedCard::End => break,
-            }
-        }
-        Ok(netlist)
+        scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)
     }
 
-    /// Loads `path` and parses it.
+    /// Loads `path`, resolves source-relative `.include`/`.lib` directives and
+    /// parses ordered scoped cards with default [`SourceLimits`]. Included files
+    /// are fragments (no title); the root's first physical line is its title.
     ///
     /// # Errors
     ///
     /// Fails if the file cannot be read, or for the syntax errors and unported
     /// constructs described by [`Parser::parse_deck`].
     pub fn parse_file(&self, path: impl AsRef<Path>) -> SpiceResult<Netlist> {
-        let deck = load(path)?;
-        self.parse_deck(&deck)
+        self.parse_file_with_limits(path, SourceLimits::default())
+    }
+
+    /// Resolves and parses a file with explicit source work limits.
+    ///
+    /// Paths are relative to the file containing each directive, not the process
+    /// working directory. Canonical file/section dependency cycles are rejected.
+    /// No home/environment/search-path substitution is performed.
+    ///
+    /// # Errors
+    /// I/O, malformed structure, unavailable syntax, cycles or exhausted limits.
+    pub fn parse_file_with_limits(
+        &self,
+        path: impl AsRef<Path>,
+        limits: SourceLimits,
+    ) -> SpiceResult<Netlist> {
+        let (deck, cards) = resolution::resolve(path.as_ref(), limits)?;
+        scopes::assemble(&deck, cards, self.auto_gnd)
     }
 }
 
-/// Cache tokenization results without raising later lexical errors before an
-/// earlier semantic error. INPpas1 indexes model declarations before INPpas2's
-/// terminal scan; only their names are needed here, not model elaboration.
-/// Scoped decks remain unsupported; do not borrow names from their bodies.
-fn prepare_cards(deck: &Deck) -> (Vec<SpiceResult<RawCard>>, BTreeSet<String>) {
+/// Cache lexical results for ordered replay; later errors do not mask earlier
+/// semantic failures. Forward declaration lookup belongs to each scope.
+fn prepare_cards(deck: &Deck) -> Vec<SpiceResult<scopes::InputCard>> {
     let mut cards = Vec::new();
-    let mut declared_models = BTreeSet::new();
-    let mut subckt_depth = 0usize;
-    let mut in_control = false;
     for line in &deck.lines {
         let card = RawCard::parse(line);
-        let mut end = false;
-        if let Ok(card) = &card {
-            match card.dot_command() {
-                Some(DotCommand::Control) => in_control = true,
-                Some(DotCommand::Endc) => in_control = false,
-                Some(DotCommand::Subckt) if !in_control => subckt_depth += 1,
-                Some(DotCommand::Ends) if !in_control => {
-                    subckt_depth = subckt_depth.saturating_sub(1);
-                }
-                Some(DotCommand::Model) if !in_control && subckt_depth == 0 => {
-                    if let Some(name) = card.tokens.get(1).filter(|token| token.is_name_like()) {
-                        declared_models.insert(name.text.to_ascii_lowercase());
-                    }
-                }
-                // Semantic parsing stops at .end even in an unsupported scope;
-                // that scope's earlier error will still win during replay.
-                Some(DotCommand::End) => end = true,
-                _ => {}
-            }
-        }
-        cards.push(card);
+        let end = card
+            .as_ref()
+            .is_ok_and(|c| c.dot_command() == Some(&DotCommand::End));
+        cards.push(card.map(Into::into));
         if end {
             break;
         }
     }
-    (cards, declared_models)
+    cards
 }
 
 impl Default for Parser {
@@ -222,16 +200,12 @@ r1 a b 10k
     }
 
     #[test]
-    fn parsing_reports_the_first_specific_gap() {
+    fn parsing_retains_scoped_devices() {
         let deck = parse_deck_text(Path::new("rc.cir"), DECK);
-        let error = Parser::new()
-            .parse_deck(&deck)
-            .expect_err("subcircuit not ported");
-        assert!(error.is_not_yet_ported());
-        let message = error.to_string();
-        assert!(message.contains("rc.cir:6:1"), "{message}");
-        assert!(message.contains(".subckt directive"), "{message}");
-        assert!(message.contains("src/frontend/subckt.c"), "{message}");
+        let netlist = Parser::new().parse_deck(&deck).unwrap();
+        assert_eq!(netlist.devices.len(), 3);
+        assert_eq!(netlist.subcircuits[0].devices.len(), 1);
+        assert_eq!(netlist.subcircuits[0].location.line, 6);
     }
 
     #[test]

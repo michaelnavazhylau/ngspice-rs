@@ -237,9 +237,12 @@ pub fn run(args: &Args) -> SpiceResult<()> {
             Ok(())
         }
         Command::Parse => {
-            let deck = load_deck(args)?;
+            let path = args
+                .netlist
+                .as_ref()
+                .expect("Args::parse guarantees a netlist");
             let parser = spice_netlist::Parser::with_auto_gnd(args.auto_gnd);
-            let netlist = parser.parse_deck(&deck)?;
+            let netlist = parser.parse_file(path)?;
             println!(
                 "{}: {} device instance(s), {} model(s), {} subcircuit(s), {} analysis request(s)",
                 netlist.title,

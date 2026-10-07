@@ -77,9 +77,9 @@ use it directly in production APIs, not just dependency smoke tests.
   are rejected because rows/columns must describe the same unknown set.
 - Use petgraph algorithms such as `connected_components`, `has_path_connecting`
   and its traversal types on these graphs. In M1c/M1d, use directed petgraph
-  graphs and `toposort`/SCC algorithms for include/subcircuit and parameter
-  dependencies when those features are implemented, rather than another custom
-  graph implementation. Those front-end features remain unported today.
+  graphs for dependencies rather than a custom graph implementation. M1c now
+  checks canonical file/section include cycles with `has_path_connecting` on a
+  `DiGraph`; subcircuit elaboration and parameter evaluation graphs remain pending.
 
 These graphs have different semantics. `NodeId::GROUND` is a **circuit** node;
 MNA eliminates ground, so matrix row 0 is an ordinary unknown. Petgraph indices
@@ -123,10 +123,13 @@ offline builds require the registry dependencies to have been cached first.
   declared-model lookahead chooses port count. `flags.rs`, `ic.rs`, `waveform.rs`
   and `vector.rs` add positioned bare flags, bounded IC vectors and numeric
   PULSE/PWL in the same ordered assignment storage, not runtime semantics.
-- `parser.rs::prepare_cards`: cache tokenization results up to `.end`, collect
-  top-level model names (not model semantics) and replay errors in card order.
-  Names inside unsupported subcircuit/control bodies are excluded. This keeps
-  forward references without letting a later lexical error mask an earlier gap.
+- `parser/structure.rs`: winnow subcircuit/X and source-directive grammars;
+  formal/X values remain ordered and unevaluated.
+- `parser/scopes.rs`: ordered body assembly and scope-local forward model-name
+  indexing, including ancestors but excluding siblings/children/control scripts.
+- `parser.rs::prepare_cards` and `parser/resolution.rs`: cache positioned cards
+  and replay failures in order; resolved sources use bounded readers and a
+  petgraph dependency graph. See [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md).
 - `cut_err` commits after a recognised card, device or parameter prefix. A required
   missing value, numeric overflow or an unported expression must never be
   mistaken for a missing optional/repeated element.
@@ -134,9 +137,10 @@ offline builds require the registry dependencies to have been cached first.
   and `NotYetPorted` C references. `Parser::parse` enforces complete token
   consumption; `.end` deliberately consumes its tail to match C termination.
 
-The physical-line loader, tokenizer, public `Parser` API and AST contracts are
-unchanged. The initial backend rewrite is followed by M1b's model/D/Q/M slices;
-this is still not completion of the remaining M1 syntax.
+The initial backend rewrite preserved loader/tokenizer contracts. M1b's
+model/D/Q/M slices and M1c's ordered scoped/source storage extend that AST;
+`parse_deck` is syntax-only and `parse_file` now resolves sources. This is still
+not completion of the remaining M1 syntax/round-trip gate.
 
 ## Two data models for a netlist
 
@@ -149,9 +153,10 @@ this is still not completion of the remaining M1 syntax.
   `.model` cards, `.subckt` bodies, analyses, includes). The incremental parser
   constructs a **bounded subset**: scalar and declared-model R/C/L instances,
   DC/AC/PULSE/PWL V/I sources, D/BJT/MOS/R/C/L model cards, bounded D/Q/M
-  flags/IC instances and opaque analyses.
-  Subcircuit/include/parameter-expression syntax is still unported and never
-  silently dropped.
+  flags/IC instances, opaque analyses, nested subcircuits/X instances and
+  source-relative includes/library selections. Ordered `ScopedCard` entries
+  refer to typed vectors in the owning scope and retain raw source/provenance.
+  Parameter evaluation, flattening and serialization are still unported.
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
@@ -174,7 +179,7 @@ bare family flags, without checking the scalar keyword schema or applying defaul
 `level` field is the first explicit raw scalar; selector/default/range rules
 belong to the `spice-devices` model resolver, not this syntax layer.
 D references can remain unresolved;
-Q/M require an in-deck declaration before `.end` so port/model roles are not
+Q/M require a declaration in their body or an ancestor before `.end` so port/model roles are not
 inferred from numbers or parameter keywords. Forward references work. The
 first declared name wins over an optional substrate interpretation, as in
 INP2Q. Q retains the three/four supplied ports; an omitted substrate's implicit

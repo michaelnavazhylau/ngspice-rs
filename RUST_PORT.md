@@ -21,14 +21,16 @@ the test suite passes, and the verification harness captures golden data from
 the C binary. The parser builds ASTs for scalar R/C/L, DC/AC V/I, scalar
 D/BJT/MOS/R/C/L model cards and bounded D/Q/M instances. Q accepts three ports
 plus optional substrate; M accepts drain/gate/source/bulk and scalar geometry.
-Q/M require a declaration in the same deck before `.end` (forward definitions
+Q/M require a declaration in their scope or an ancestor before `.end` (forward definitions
 work); the declaration index disambiguates ports, not model backends.
 PR #51 merged declared-model passive syntax and initial model infrastructure
 (#11/#17). This checkout additionally implements bounded model-backed R/C/L
 geometry/temperature/scale/multiplicity (#19, pending merge); see
 [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md). Numeric PULSE/PWL and bounded
 flags/Q/M IC vectors now parse (#8/#10); see [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
-Waveform deck evaluation, subcircuits, expressions and advanced passive forms remain unported. D/Q/M AST/schema
+Scoped subcircuits/X and source-relative includes/libraries now parse (#12/#13);
+see [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
+Waveform deck evaluation, subcircuit flattening, expressions and advanced passive forms remain unported. D/Q/M AST/schema
 success does not imply a nonlinear backend is available.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
@@ -49,7 +51,7 @@ What already works for real:
 | Node table, ground aliasing | `spice-core` | `inp_fix_gnd_name()` from `src/frontend/inpcom.c` |
 | Deck loading: title, continuation, comments | `spice-netlist` | `inp_stripcomments_line()`, `inp_readall()` |
 | Card tokenizer and `.command` classification | `spice-netlist` | `inppas2.c` / `inp2dot.c` dispatch |
-| Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, opaque analyses; seven fixture decks parse |
+| Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, opaque analyses, scoped subcircuits/X, resolved includes/libraries; 8/8 fixture parses, not simulation |
 | Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
 | Real/complex MNA storage and LU | `spice-maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
 | Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode IS/N/RS/AREA/TEMP/TNOM; no nonlinear factory |
@@ -87,8 +89,8 @@ checkout that has been built — and then for `ngspice` on `PATH`.
 The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
-`mos_inverter` and `rc_transient`; `subckt_divider` still exits with status 3 at
-an unported construct. **The CLI does not simulate yet; production simulation
+`mos_inverter`, `rc_transient` and `subckt_divider` (all eight fixtures).
+This is parsing, not subcircuit flattening or the full M1 round-trip gate. **The CLI does not simulate yet; production simulation
 is available through APIs and `cargo run -p spice-analysis --example rc_diffsol`.**
 
 ```sh

@@ -122,6 +122,7 @@ fn scalar_consumers_reject_forged_non_scalar_kinds_even_with_numeric_text() {
     for kind in [
         ParameterKind::Flag,
         ParameterKind::InitialConditions(Vec::new()),
+        ParameterKind::Textual,
     ] {
         let mut netlist = Parser::new().parse_deck(&deck).unwrap();
         netlist.devices[0].parameters[0].kind = kind.clone();

@@ -101,14 +101,23 @@ Factories reject the new unimplemented runtime semantics. See
 [FRONTEND_VALUES.md](FRONTEND_VALUES.md) for arities, limits and C references.
 Thermal/sensitivity/CIDER forms and extended passive forms remain pending.
 
+### M1c — Ordered scoped cards and source resolution (#12 / #13)
+
+This checkout retains nested `.subckt`/`.ends` bodies, X instances and
+unevaluated formal/instance parameters, with structural and scope-local
+model-name diagnostics. `.include`/`.lib` resolution is source-relative and
+bounded, with petgraph canonical file/section cycle checks and preserved source
+provenance. `subckt_divider` now parses: **8/8 fixture parses, not simulation or
+round trips**. See [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md).
+Subcircuit flattening (#18) remains M5 work.
+
 ### Remaining slices
 
 1. **M1b:** further model/device/passive forms beyond the documented bounded
    subset. No nonlinear arithmetic or waveform deck evaluation yet.
-2. **M1c:** `.subckt`/`.ends`, X instances, `.include`/`.lib` structure and
-   resolution, with explicit scope and recursion/error rules.
-3. **M1d:** `.param` expressions, `.option`, `.global`, normalized-deck writer
-   and token/AST goldens. Full subcircuit circuit elaboration is still M5.
+2. **M1d, #14–16:** expressions, parameter evaluation, `.option` and `.global`.
+3. **M1d, #20–22:** normalized-deck writer, token/AST snapshots and full
+   eight-fixture round-trip gate. Subcircuit circuit elaboration (#18) is M5.
 
 Exit criteria (not met yet): round-trip every deck in
 `conformance/netlists/` into the AST and back to a normalised deck text; golden
