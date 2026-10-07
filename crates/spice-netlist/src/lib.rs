@@ -8,6 +8,8 @@
 //! | [`token`] | logical card → token stream | **ported** |
 //! | [`card`] | first token → [`card::CardKind`] classification | **ported** |
 //! | [`expr`] | unevaluated parameter-expression syntax tree (bounded numparam subset) | **#14** |
+//! | [`eval`] | bounded `.param` scope resolution and expression evaluation | **#15** |
+//! | [`elaborate`] | literalized netlist copy with evaluated numeric sites | **#15** |
 //! | [`ast`] | the semantic netlist model | bounded devices/models, ordered subcircuit scopes and source provenance |
 //! | [`parser`] | winnow token stream → [`ast::Netlist`] | **M1a/M1b + scoped subcircuits/X and bounded source resolution; no flattening** |
 //!
@@ -21,6 +23,8 @@
 
 pub mod ast;
 pub mod card;
+pub mod elaborate;
+pub mod eval;
 pub mod expr;
 pub mod parser;
 pub mod source;

@@ -149,6 +149,7 @@ pub struct RunConfig {
     method: Option<(String, SourceLoc)>,
     maxord: Option<(u8, SourceLoc)>,
     applied: Vec<AppliedOption>,
+    params: Option<std::sync::Arc<spice_netlist::eval::ParamScope>>,
 }
 
 impl RunConfig {
@@ -157,7 +158,18 @@ impl RunConfig {
     /// # Errors
     /// Unknown, unimplemented, malformed, out-of-range or conflicting options.
     pub fn from_netlist(netlist: &Netlist) -> SpiceResult<Self> {
-        Self::from_options(&netlist.options, &RunOverrides::default())
+        let mut config = Self::from_options(&netlist.options, &RunOverrides::default())?;
+        config.params = Some(std::sync::Arc::new(spice_netlist::eval::ParamScope::root(
+            &netlist.params,
+        )?));
+        Ok(config)
+    }
+
+    /// The deck's resolved top-level `.param` scope (only for configs built by
+    /// [`Self::from_netlist`]).
+    #[must_use]
+    pub fn params(&self) -> Option<&spice_netlist::eval::ParamScope> {
+        self.params.as_deref()
     }
 
     /// Resolve option cards in order, then apply `overrides`.
@@ -335,13 +347,30 @@ impl RunConfig {
         Circuit::from_netlist_with_context(netlist, &self.context.model_context())
     }
 
-    /// Build the request for an analysis card, filling deck-level settings the
-    /// card did not state itself.
+    /// Build the request for an analysis card, evaluating braced `{expr}`
+    /// arguments against the deck's `.param` scope and filling deck-level
+    /// settings the card did not state itself.
     ///
     /// # Errors
     /// As [`Self::request`].
     pub fn request_for(&self, card: &AnalysisCard) -> SpiceResult<AnalysisRequest> {
-        self.request(AnalysisRequest::from(card))
+        if card.expressions.is_empty() {
+            return self.request(AnalysisRequest::from(card));
+        }
+        let Some(scope) = &self.params else {
+            return Err(SpiceError::Unsupported {
+                feature: "braced analysis arguments need a RunConfig built with \
+                          RunConfig::from_netlist (no parameter scope here)"
+                    .into(),
+                location: Some(card.location.clone()),
+            });
+        };
+        let literal = spice_netlist::elaborate::literalize_analysis(
+            card,
+            scope,
+            &mut spice_netlist::eval::EvalBudget::default(),
+        )?;
+        self.request(AnalysisRequest::from(&literal))
     }
 
     /// Add deck settings to a request. Explicit request arguments win; tolerance

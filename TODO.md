@@ -20,7 +20,7 @@ checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
-| Parser | Unevaluated `.param`/`{expr}` syntax (#14), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses, not round trips or simulation |
+| Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses, not round trips or simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
@@ -94,14 +94,15 @@ tests and documented limits as the remaining functionality is added.
 - [x] Parse `.include`/`.inc`/`.lib` paths and sections, preserving quoted spelling and selected library boundaries (#13).
 - [x] Implement source-relative resolution, canonical file/section cycle checks, depth/file/byte/card limits and include-chain/source provenance.
 - [x] Use a directed petgraph file/section dependency graph with incremental reachability checks; no custom graph engine.
-- [ ] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5) and parameter evaluation (#15), when those semantics land.
+- [x] Parameter evaluation (#15) uses a directed petgraph dependency graph (cycles via SCC, order via toposort levels).
+- [ ] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5).
 - [x] Enable `subckt_divider` AST/CLI tests: 8/8 fixture parsing, not flattening or the full M1 gate. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 
 ### M1d: parameter semantics and full front-end gate
 
 - [x] Parse `.param` cards and a bounded numparam expression grammar (#14): winnow precedence, C-pinned `^`/sign rules, function allowlist, braced values at device/model/analysis/X sites, positioned unevaluated AST. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md); no evaluation.
-- [ ] Implement the `.param` evaluator (#15) over that AST from numparam behaviour.
-- [ ] Define evaluation order, scope, units and undefined/cyclic-reference diagnostics.
+- [x] Evaluate top-level `.param` values (#15): C-backed order/redefinition/forward-reference rules, petgraph cycle and undefined-name chains, bounded work, finite-or-error arithmetic (`spice_netlist::eval`), and a literalized netlist copy consumed by `Circuit` elaboration and `RunConfig::request_for` (`spice_netlist::elaborate`). Opt-in C probes: `c_param_eval`. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md).
+- [ ] Subcircuit formal defaults/overrides and scoped evaluation (scope API is ready; subcircuits still rejected), `{expr}` option values, quoted/`'expr'` values, `.func`.
 - [x] Parse `.option` and `.global` (#16): ordered positioned settings, `spice_analysis::RunConfig` for temp/tnom/reltol/vntol/abstol (method/maxord retained, rejected for `.tran`; all other options error). Top-level `.global` contract for a future flattener; body-local `.option`/`.global` and flattening remain pending. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 - [ ] Add normalized-deck serialization preserving source parameter application order (#20).
 - [ ] Commit deterministic token/AST snapshots and document regeneration (#21).

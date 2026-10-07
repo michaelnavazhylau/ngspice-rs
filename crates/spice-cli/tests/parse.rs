@@ -44,7 +44,7 @@ fn supported_fixtures_parse_successfully() {
 }
 
 #[test]
-fn param_fixture_parses_but_is_not_evaluated() {
+fn param_fixture_parses_and_evaluates_top_level_values() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../conformance/parser/param_expressions.cir");
     let output = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
@@ -62,6 +62,27 @@ fn param_fixture_parses_but_is_not_evaluated() {
     assert!(
         text.contains("6 device instance(s), 2 model(s), 1 subcircuit(s)"),
         "{text}"
+    );
+    assert!(text.contains("parameters: 8 definition(s)"), "{text}");
+}
+
+#[test]
+fn param_failures_exit_with_a_located_error() {
+    let dir = std::env::temp_dir().join(format!("spice-param-cli-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("bad.cir");
+    std::fs::write(&path, "t\n.param a={1/0}\nr1 1 0 {a}\n.end\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+        .arg("parse")
+        .arg(&path)
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("division by zero") && stderr.contains("bad.cir:2:"),
+        "{stderr}"
     );
 }
 

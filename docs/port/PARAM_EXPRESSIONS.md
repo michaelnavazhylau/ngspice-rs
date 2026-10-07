@@ -1,11 +1,11 @@
 # Bounded `.param` and parameter-expression syntax (#14)
 
-**Syntax only.** `.param` cards and `{...}` expressions are parsed into an
-unevaluated AST with original text and byte spans. Nothing is evaluated,
-ordered by dependency, scoped or checked for undefined/cyclic references; that
-is GitHub #15. Parsing a value does not make a device usable: elaboration still
-rejects any `ParameterKind::Expression` or `.param` card, and the CLI `parse`
-exit status 0 does not mean parameters were resolved.
+**Syntax (#14) plus top-level evaluation (#15).** `.param` cards and `{...}`
+expressions are parsed into an AST with original text and byte spans; the
+evaluator in `spice_netlist::eval` and the literalizer in
+`spice_netlist::elaborate` resolve **top-level** values (see "Evaluation"
+below). Subcircuit `.param` cards and formals stay unevaluated, and `Circuit`
+elaboration still rejects subcircuits.
 
 C references (read-only): `src/frontend/numparam/xpressn.c` (`formula()`,
 `fetchoperator()`, `fetchnumber()`, `fetchid()`, `fmathS`, `operate()`,
@@ -37,7 +37,7 @@ Implemented in `crates/spice-netlist/src/parser/expression.rs` with winnow
 `tests/c_param_reference.rs` (opt-in, `NGSPICE_BIN`) folds the parsed trees with
 a test-local evaluator and compares 28 expressions with the C binary's
 `.param`/`{...}` evaluation; it also checks C rejects the sign forms above.
-C's default `^` evaluates `pow(fabs(x), y)`; #15 must not use plain `powf`.
+C's default `^` evaluates `pow(fabs(x), y)`; the evaluator implements exactly that.
 
 ### Literals and names
 
@@ -104,7 +104,7 @@ offending text. Valid numparam outside the subset is `SpiceError::NotYetPorted`
 
 ## Explicit exclusions
 
-Not accepted: evaluation, ordering, scopes, cycles and undefined names (#15);
+Not accepted: subcircuit-scope evaluation;
 comparison/logical/ternary operators (`< > <= >= == != <> && || ! ? :`), `%`
 and `\`; `ternary_fcn`, randomised `agauss gauss unif aunif limit`, string
 `vec`/`var`, user `.func` functions; quoted `'...'` expressions and string
@@ -114,7 +114,62 @@ gaps); nested braces; behavioural/time-dependent device equations
 (`B`, `E`/`G` expression sources); and full numparam compatibility. Subcircuit
 parameter passing semantics and flattening are not implemented.
 
-## Public API for an evaluator (#15)
+## Evaluation (#15)
+
+### C-backed rules (probed against the C binary; `c_param_eval.rs`)
+
+C: `inpcom.c` `inp_reorder_params()`/`inp_sort_params()` run before `xpressn.c`
+`nupa_assignment()`/`formula()`.
+
+| Case | C result | Port |
+| --- | --- | --- |
+| `.param` cards anywhere | hoisted before all devices: a device card may use a parameter defined later | same: all top-level `.param` cards form one scope |
+| `.param a=1` then `.param a=2` | the **last** definition wins; earlier ones are dropped, never evaluated | same; kept in `ParamScope::entries()` as `ParamState::Superseded` |
+| `.param a=1`, `.param b={a*2}`, `.param a=10` | `b` is 20 (sees the surviving `a`) | same |
+| `.param b={a}` before `.param a=2` | 2 (sorted by dependency level, then deck order) | same |
+| `.param a=1` then `.param a={a+1}` / `.param a={a+1}` | `Undefined parameter [a]` (self references do not see a dropped definition) | undefined-name error; a self reference resolves only through a parent scope |
+| `.param a={b} .param b={a}` | fatal abort ("level depth greater 1000") | error printing the cycle `'a' (loc) -> 'b' (loc) -> 'a' (loc)` |
+| undefined name, even in an unused definition | `Undefined parameter` error | error with the identifier location and a "required by parameter ..." chain |
+| names | case-insensitive | same |
+| `1/0`, `sqrt(-1)`, `ln(0)`, overflow | silently `inf`/`nan` (an unused `1/0` parameter is harmless) | **deliberate divergence**: explicit error with source location; every definition is evaluated eagerly even if unused |
+
+Function semantics follow `mathfunction()`/`operate()`: `^`/`**` and `pwr` are
+`pow(fabs(x), y)`; `pow` is plain `pow`; `int` truncates; `nint` rounds half to
+even; `sgn` is -1/0/1; `log` and `ln` are natural logarithms; `max`/`min` use
+the C `MAX`/`MIN` macros. There is no implicit `temp`/`time`; unknown names are
+undefined.
+
+### API
+
+- `eval::ParamScope::{root, resolve}` resolves ordered definitions into an
+  immutable scope (`entries()`, `get()`, `evaluate()`), with an optional
+  `Arc` parent and `ParamBinding`s (reserved for subcircuit formal
+  defaults/overrides; redefining a binding in a body is an explicit error until
+  precedence is ported). Dependencies use a petgraph `DiGraph` (SCC for cycles,
+  toposort levels for order).
+- `eval::{EvalLimits, EvalBudget}` bound definitions (100 000), evaluated
+  nodes (4 000 000) and tree depth (1 024); exceeding them is an error.
+- `elaborate::literalize(&Netlist) -> ElaboratedNetlist { netlist, scope,
+  sites }` returns a copy where each top-level device/model `Expression`
+  parameter and braced analysis argument is replaced by its finite value
+  (`ParameterKind::Scalar`; integral values as plain integers, otherwise
+  `{:e}`), keeping `.param` cards and locations; `sites` records each site's
+  original text, location and value. Subcircuit bodies are not touched, and bare
+  names, terminals and model names are never substituted.
+- Consumers: `Circuit::from_netlist[_with_context]` literalizes first;
+  `RunConfig::from_netlist` resolves and keeps the scope, and
+  `RunConfig::request_for` evaluates `AnalysisCard::expressions`
+  (`AnalysisRequest::from(&card)` alone does not, and the drivers reject raw
+  braced text). `spice-rs parse` evaluates all sites and prints a
+  `parameters:` line.
+- Diagnostics are `SpiceError::Parse` with the failing sub-expression's
+  location and text, plus the enclosing parameter/site.
+
+Remaining limits: no subcircuit scoping/flattening, `{expr}` option values still
+`NotYetPorted`, no quoted `'expr'`, `.func`, comparison/ternary operators or
+random functions.
+
+## Public API for an evaluator
 
 `spice_netlist::expr`: `ParameterExpression { text, braced, span, root }`
 (`references()` lists names in source order), `Expr { kind, span }`,

@@ -140,6 +140,6 @@ variable) and invalid values are errors; every other `cktsopt.c` option is
 `NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
 `spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
 
-Next: **#15** parameter evaluation over the #14 expression AST; then
+Done: **#15** top-level parameter evaluation over the #14 expression AST (`eval`, `elaborate`); then
 **#20–22** normalized serialization, deterministic snapshots and the complete
 M1 eight-fixture round-trip gate. None of those gates is closed by 8/8 parsing.

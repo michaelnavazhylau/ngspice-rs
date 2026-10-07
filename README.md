@@ -53,7 +53,7 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** `.param`/expression *syntax* exists (#14, [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md), unevaluated) and `.option`/`.global` parsing with a bounded `RunConfig` is done (#16); parameter evaluation (#15) remains,
+2. **Front end (M1):** `.param`/expression *syntax* exists (#14, [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md), unevaluated) and `.option`/`.global` parsing with a bounded `RunConfig` is done (#16); top-level `.param` evaluation (#15, `spice_netlist::eval`/`elaborate`, wired into `Circuit` elaboration and `RunConfig::request_for`) is done; subcircuit parameters remain,
    then serialization/snapshots/full round-trip gate (#20–22); extended passive forms.
    Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas

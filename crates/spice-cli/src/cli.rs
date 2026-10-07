@@ -254,6 +254,16 @@ pub fn run(args: &Args) -> SpiceResult<()> {
                 netlist.subcircuits.len(),
                 netlist.analyses.len()
             );
+            // Top-level parameters and `{expr}` sites must evaluate; the CLI
+            // parse status never hides an unresolved value.
+            let elaborated = spice_netlist::elaborate::literalize(&netlist)?;
+            if !netlist.params.is_empty() || !elaborated.sites.is_empty() {
+                println!(
+                    "parameters: {} definition(s), {} value site(s) evaluated",
+                    elaborated.scope.entries().len(),
+                    elaborated.sites.len()
+                );
+            }
             let context = config.context();
             println!(
                 "options: {} setting(s); TEMP = {} C, TNOM = {} C; {} global node card(s)",

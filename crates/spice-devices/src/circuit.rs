@@ -469,7 +469,8 @@ impl Circuit {
         Ok(())
     }
 
-    /// Elaborate literal R/C/L/V/I and bounded model-backed R/C/L at 27 Celsius.
+    /// Elaborate literal (or top-level `.param`/`{expr}`-literalized) R/C/L/V/I and
+    /// bounded model-backed R/C/L at 27 Celsius.
     ///
     /// A deck with `.option` cards is rejected here: this entry point would
     /// silently apply default temperatures. Resolve the options with
@@ -503,15 +504,16 @@ impl Circuit {
         context: &crate::models::ModelContext,
     ) -> SpiceResult<Self> {
         context.validate(&netlist.location)?;
-        if !netlist.subcircuits.is_empty()
-            || !netlist.includes.is_empty()
-            || !netlist.params.is_empty()
-        {
+        if !netlist.subcircuits.is_empty() || !netlist.includes.is_empty() {
             return Err(SpiceError::Unsupported {
-                feature: "subcircuits/includes/parameters in linear elaboration".into(),
+                feature: "subcircuits/includes in linear elaboration".into(),
                 location: None,
             });
         }
+        // Top-level `.param` values and `{expr}` sites are evaluated into a
+        // literal copy before any factory sees them (#15).
+        let elaborated = spice_netlist::elaborate::literalize(netlist)?;
+        let netlist = &elaborated.netlist;
         let models = crate::models::ModelResolver::new(&netlist.models)?;
         let mut circuit = Self::new();
         let referenced: BTreeSet<_> = netlist
