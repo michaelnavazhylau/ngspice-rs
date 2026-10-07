@@ -29,6 +29,7 @@ mod diode;
 mod expression;
 mod flags;
 mod grammar;
+mod hints;
 mod ic;
 mod linear;
 mod model;

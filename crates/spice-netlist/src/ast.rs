@@ -259,6 +259,13 @@ pub struct AnalysisCard {
     /// Parsed `{...}` arguments (unevaluated), by position in `arguments`.
     /// Other arguments stay opaque text.
     pub expressions: Vec<ArgumentExpression>,
+    /// Whether a `.tran` card carried the bare `uic` flag (C: `dot_tran()` in
+    /// `inp2dot.c`, last token after `Tstep Tstop [Tstart [Tmax]]`). The word
+    /// is **removed** from [`Self::arguments`], so it never appears as a stray
+    /// positional argument. Always `false` for other analyses.
+    pub uic: bool,
+    /// Where the `uic` word was written, when [`Self::uic`] is set.
+    pub uic_location: Option<SourceLoc>,
     /// Where the card was written.
     pub location: SourceLoc,
 }
@@ -320,6 +327,73 @@ pub struct GlobalNode {
     pub location: SourceLoc,
 }
 
+/// An `.ic` or `.nodeset` card: `V(node)=value ...` entries in written order.
+///
+/// C: `INPpas3()` in `inppas3.c` walks these cards after the circuit exists
+/// (`inp2dot.c` ignores them in pass 2). Entries are never deduplicated here:
+/// a repeated node stays visible in order, and the consumer decides precedence
+/// (in C each entry overwrites the node's `ic`/`nodeset` field in turn, so the
+/// last one wins). This is syntax only; nothing is applied to a circuit, and
+/// whether a node exists is decided when the circuit is built (C warns and
+/// ignores unknown nodes; the analysis half must decide explicitly).
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeHintCard {
+    /// Entries in source order; never empty for a parsed card.
+    pub entries: Vec<NodeHint>,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// One `V(node)=value` entry of an `.ic`/`.nodeset` card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeHint {
+    /// Canonical node name (lowercased; `gnd` is `0` only with auto-gnd, and
+    /// ground itself is rejected by the parser).
+    pub node: NodeName,
+    /// Where the node name was written.
+    pub node_location: SourceLoc,
+    /// The value, a finite literal or an unevaluated `{expression}`.
+    pub value: NodeHintValue,
+    /// Where the value was written.
+    pub value_location: SourceLoc,
+    /// Where the entry started (the `V` of `V(node)`).
+    pub location: SourceLoc,
+}
+
+/// The value of a [`NodeHint`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum NodeHintValue {
+    /// A finite numeric literal, original spelling kept.
+    Literal {
+        /// Original spelling, e.g. `2.5m`.
+        text: String,
+        /// Parsed finite value (volts).
+        value: Real,
+    },
+    /// A `{...}` expression, parsed but unevaluated until
+    /// [`crate::elaborate::literalize`] resolves it against `.param` cards.
+    Expression(Box<crate::expr::ParameterExpression>),
+}
+
+impl NodeHintValue {
+    /// The finite value, if this is (or was literalized to) a literal.
+    #[must_use]
+    pub fn literal(&self) -> Option<Real> {
+        match self {
+            Self::Literal { value, .. } => Some(*value),
+            Self::Expression(_) => None,
+        }
+    }
+}
+
+impl NodeHint {
+    /// The finite value, unless the entry still holds an unevaluated expression.
+    #[must_use]
+    pub fn literal(&self) -> Option<Real> {
+        self.value.literal()
+    }
+}
+
 /// One ordered card in its owning scope. Indexes address that scope's typed
 /// vectors, so semantic values are not duplicated. Source cards remain intact
 /// for future serializers/snapshots; neither is implemented by this storage.
@@ -353,6 +427,10 @@ pub enum ScopedCardKind {
     /// Index into this scope's `.param` cards (`Netlist::params` at the root,
     /// `Subcircuit::params` in a body).
     Param(usize),
+    /// Index into [`Netlist::initial_conditions`] (root scope only).
+    InitialCondition(usize),
+    /// Index into [`Netlist::nodesets`] (root scope only).
+    Nodeset(usize),
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.
@@ -387,6 +465,11 @@ pub struct Netlist {
     pub options: Vec<OptionCard>,
     /// `.global` cards in deck order (root scope only).
     pub globals: Vec<GlobalCard>,
+    /// `.ic` cards in deck order (root scope only; inside `.subckt` bodies
+    /// they are rejected as not yet ported). Syntax only: not applied.
+    pub initial_conditions: Vec<NodeHintCard>,
+    /// `.nodeset` cards in deck order (root scope only). Syntax only.
+    pub nodesets: Vec<NodeHintCard>,
     /// All cards in source/expansion order, with scope-local typed indexes.
     pub cards: Vec<ScopedCard>,
     /// Where the deck started.
@@ -431,6 +514,34 @@ impl Netlist {
             }
         }
         names
+    }
+
+    /// Every `.ic` entry in deck order (card order, then entry order),
+    /// duplicates preserved: `(node, value, location)` are `entry.node`,
+    /// `entry.value` and `entry.location`. Later entries for a node follow
+    /// earlier ones; precedence is the consumer's decision. Values may still
+    /// be unevaluated expressions; see
+    /// [`crate::elaborate::ElaboratedNetlist::initial_conditions`] for finite
+    /// values.
+    pub fn initial_conditions(&self) -> impl Iterator<Item = &NodeHint> + '_ {
+        self.initial_conditions
+            .iter()
+            .flat_map(|card| card.entries.iter())
+    }
+
+    /// Every `.nodeset` entry in deck order, duplicates preserved. A nodeset
+    /// is a convergence hint, not a persistent constraint (C: `inppas3.c`
+    /// stores it as the node's `nodeset`). See [`Self::initial_conditions`].
+    pub fn nodesets(&self) -> impl Iterator<Item = &NodeHint> + '_ {
+        self.nodesets.iter().flat_map(|card| card.entries.iter())
+    }
+
+    /// The first transient card that requested `uic`, if any.
+    #[must_use]
+    pub fn transient_uic(&self) -> Option<&AnalysisCard> {
+        self.analyses
+            .iter()
+            .find(|card| card.kind == AnalysisKind::Transient && card.uic)
     }
 
     /// Looks up a top-level device by instance name, case-insensitively.

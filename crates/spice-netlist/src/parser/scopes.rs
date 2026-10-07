@@ -2,8 +2,8 @@
 
 use super::grammar::{self, ParsedCard};
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, OptionCard,
-    ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
+    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
+    OptionCard, ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
 };
 use crate::card::{DotCommand, RawCard};
 use crate::source::Deck;
@@ -38,6 +38,8 @@ struct Scope {
     includes: Vec<IncludeDirective>,
     options: Vec<OptionCard>,
     globals: Vec<GlobalCard>,
+    initial_conditions: Vec<NodeHintCard>,
+    nodesets: Vec<NodeHintCard>,
     params: Vec<ParamCard>,
     cards: Vec<ScopedCard>,
 }
@@ -62,6 +64,8 @@ pub(super) fn assemble(
         params: scope.params,
         options: scope.options,
         globals: scope.globals,
+        initial_conditions: scope.initial_conditions,
+        nodesets: scope.nodesets,
     })
 }
 
@@ -136,6 +140,16 @@ fn scope(
                 reject_in_body(card, opening, ".global")?;
                 result.globals.push(g);
                 ScopedCardKind::Global(result.globals.len() - 1)
+            }
+            ParsedCard::InitialCondition(c) => {
+                reject_in_body(card, opening, ".ic")?;
+                result.initial_conditions.push(c);
+                ScopedCardKind::InitialCondition(result.initial_conditions.len() - 1)
+            }
+            ParsedCard::Nodeset(c) => {
+                reject_in_body(card, opening, ".nodeset")?;
+                result.nodesets.push(c);
+                ScopedCardKind::Nodeset(result.nodesets.len() - 1)
             }
             ParsedCard::Param(p) => {
                 result.params.push(p);
@@ -244,7 +258,7 @@ fn reject_in_body(
     if opening.is_some() {
         return Err(SpiceError::not_yet_ported(
             format!("{}: {what} inside a .subckt body", card.location),
-            "src/frontend/inpcom.c, src/frontend/subckt.c",
+            "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)",
         ));
     }
     Ok(())

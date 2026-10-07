@@ -223,3 +223,37 @@ fn top_level_globals_are_accepted_by_flat_elaboration() {
     assert!(RunConfig::from_netlist(&n).is_ok());
     assert!(spice_devices::Circuit::from_netlist(&n).is_ok());
 }
+
+#[test]
+fn parsed_ic_and_nodeset_cards_are_rejected_not_ignored() {
+    // GitHub #27 frontend half: the cards parse, but until the analysis half
+    // lands no analysis may silently drop them.
+    for card in [".ic v(a)=1", ".nodeset v(a)=1"] {
+        let netlist = deck(&format!("r1 a 0 1k\n{card}\n.op\n.tran 1u 1m"));
+        let config = RunConfig::from_netlist(&netlist).unwrap();
+        for analysis in &netlist.analyses {
+            let error = config.request_for(analysis).unwrap_err();
+            assert!(
+                matches!(error, SpiceError::Unsupported { .. })
+                    && error.to_string().contains("#27"),
+                "{card}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn tran_uic_is_a_request_flag_the_driver_rejects() {
+    let netlist =
+        deck("v1 a 0 0\nr1 a b 1k\nc1 b 0 1u\n.tran 1u 10u uic backend=diffsol method=bdf");
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    assert!(request.uic);
+    assert!(!request.arguments.iter().any(|a| a == "uic"));
+    let mut circuit = config.circuit(&netlist).unwrap();
+    let error = runner(AnalysisKind::Transient)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap_err();
+    assert!(error.to_string().contains("uic"), "{error}");
+}

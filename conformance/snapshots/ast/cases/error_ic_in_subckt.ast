@@ -1,0 +1,5 @@
+# ngspice-rs ast-dump v1
+file: cases/error_ic_in_subckt.cir
+error not-yet-ported
+  what: "cases/error_ic_in_subckt.cir:4:1: .ic inside a .subckt body"
+  c_reference: "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)"

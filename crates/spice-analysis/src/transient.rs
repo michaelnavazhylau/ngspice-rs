@@ -15,6 +15,12 @@ pub(crate) fn run(
             "transient requires explicit backend=diffsol method=bdf; ngspice trap/Gear companion methods are not implemented",
         ));
     }
+    if request.uic {
+        return Err(unsupported(
+            ".tran uic requires .ic/instance-IC initialization semantics (GitHub #27 analysis half); \
+             the flag is parsed but not applied",
+        ));
+    }
     let mut positional = vec![];
     let mut seen = std::collections::BTreeSet::new();
     for a in &request.arguments {

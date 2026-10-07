@@ -7,7 +7,7 @@
 //! netlists through it and [`semantic_diff`] explains the first difference.
 //!
 //! What is **kept** (it is semantics): titles, device/model/subcircuit/
-//! analysis/directive/`.param`/`.option`/`.global` content, ordered parameter
+//! analysis (including the `.tran` `uic` flag)/directive/`.param`/`.option`/`.global`/`.ic`/`.nodeset` content, ordered parameter
 //! assignments with their kinds and value spelling, parsed expression trees and
 //! their original text, the card order with typed indexes, include-chain depth
 //! and resolved include paths.
@@ -25,9 +25,9 @@ use spice_core::SourceLoc;
 
 use crate::ast::{
     AnalysisCard, ArgumentExpression, DeviceInstance, GlobalCard, GlobalNode, IncludeDirective,
-    InitialCondition, LibrarySection, ModelCard, Netlist, OptionCard, OptionSetting,
-    ParamAssignment, ParamCard, ParameterAssignment, ParameterKind, PositionedValue, PulseWaveform,
-    PwlPoint, ScopedCard, SourceWaveform, Subcircuit,
+    InitialCondition, LibrarySection, ModelCard, Netlist, NodeHint, NodeHintCard, NodeHintValue,
+    OptionCard, OptionSetting, ParamAssignment, ParamCard, ParameterAssignment, ParameterKind,
+    PositionedValue, PulseWaveform, PwlPoint, ScopedCard, SourceWaveform, Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
@@ -194,6 +194,8 @@ fn analysis(card: &AnalysisCard) -> AnalysisCard {
                 expression: expression_form(&argument.expression),
             })
             .collect(),
+        uic: card.uic,
+        uic_location: card.uic_location.as_ref().map(|_| blank()),
         location: blank(),
     }
 }
@@ -260,6 +262,31 @@ fn global(card: &GlobalCard) -> GlobalCard {
     }
 }
 
+fn hints(card: &NodeHintCard) -> NodeHintCard {
+    NodeHintCard {
+        entries: card
+            .entries
+            .iter()
+            .map(|entry| NodeHint {
+                node: entry.node.clone(),
+                node_location: blank(),
+                value: match &entry.value {
+                    NodeHintValue::Literal { text, value } => NodeHintValue::Literal {
+                        text: text.clone(),
+                        value: *value,
+                    },
+                    NodeHintValue::Expression(expression) => {
+                        NodeHintValue::Expression(Box::new(expression_form(expression)))
+                    }
+                },
+                value_location: blank(),
+                location: blank(),
+            })
+            .collect(),
+        location: blank(),
+    }
+}
+
 fn cards(cards: &[ScopedCard]) -> Vec<ScopedCard> {
     cards
         .iter()
@@ -303,6 +330,8 @@ pub fn semantic_form(netlist: &Netlist) -> Netlist {
         params: netlist.params.iter().map(param).collect(),
         options: netlist.options.iter().map(option).collect(),
         globals: netlist.globals.iter().map(global).collect(),
+        initial_conditions: netlist.initial_conditions.iter().map(hints).collect(),
+        nodesets: netlist.nodesets.iter().map(hints).collect(),
         cards: cards(&netlist.cards),
         location: blank(),
     }
@@ -350,4 +379,12 @@ pub fn semantic_diff(left: &Netlist, right: &Netlist) -> Option<String> {
         .or_else(|| compare("params", &l.params, &r.params))
         .or_else(|| compare("options", &l.options, &r.options))
         .or_else(|| compare("globals", &l.globals, &r.globals))
+        .or_else(|| {
+            compare(
+                "initial conditions",
+                &l.initial_conditions,
+                &r.initial_conditions,
+            )
+        })
+        .or_else(|| compare("nodesets", &l.nodesets, &r.nodesets))
 }

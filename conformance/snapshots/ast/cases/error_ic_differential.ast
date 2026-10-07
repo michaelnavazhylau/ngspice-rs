@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_ic_differential.cir
+error parse @cases/error_ic_differential.cir:3:8
+  message: "differential V(a,b) is not accepted; give a single node"

@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use spice_core::{SourceLoc, SpiceError, SpiceResult};
+use spice_core::{AnalysisKind, SourceLoc, SpiceError, SpiceResult};
 use winnow::Parser as _;
 use winnow::combinator::{alt, peek};
 use winnow::error::{AddContext, ErrMode, ModalResult, ParserError};
@@ -15,12 +15,12 @@ use winnow::token::{any, rest};
 
 use crate::ast::{
     AnalysisCard, ArgumentExpression, DeviceInstance, GlobalCard, IncludeDirective, ModelCard,
-    OptionCard, ParamCard, Subcircuit,
+    NodeHintCard, OptionCard, ParamCard, Subcircuit,
 };
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::{diode, expression, linear, model, options, param, structure, transistor};
+use super::{diode, expression, hints, linear, model, options, param, structure, transistor};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
@@ -28,6 +28,8 @@ pub(super) enum ParsedCard {
     Analysis(AnalysisCard),
     Options(OptionCard),
     Global(GlobalCard),
+    InitialCondition(NodeHintCard),
+    Nodeset(NodeHintCard),
     Subckt(Subcircuit),
     Ends(Option<String>),
     Include(IncludeDirective),
@@ -100,7 +102,7 @@ pub(super) fn parse_card(
     alt((
         end_card,
         alt((analysis_card, options::options_or_global)),
-        alt((model::model_card, param::param_card)),
+        alt((model::model_card, param::param_card, hints::hint_card)),
         structure::structural_card,
         linear::device_card,
         diode::diode_card,
@@ -129,6 +131,11 @@ fn analysis_card(input: &mut Input<'_>) -> Result<ParsedCard> {
         rest,
     )
         .parse_next(input)?;
+    let (arguments, uic) = if kind == AnalysisKind::Transient {
+        split_uic(arguments)?
+    } else {
+        (arguments.iter().collect(), None)
+    };
     // Braced arguments are validated and parsed (never evaluated here); the
     // remaining arguments stay opaque text for the analysis drivers.
     let mut expressions = Vec::new();
@@ -143,8 +150,60 @@ fn analysis_card(input: &mut Input<'_>) -> Result<ParsedCard> {
         kind,
         arguments: arguments.iter().map(|token| token.text.clone()).collect(),
         expressions,
+        uic: uic.is_some(),
+        uic_location: uic,
         location: input.state.card.location.clone(),
     }))
+}
+
+/// C: `dot_tran()` in `inp2dot.c` reads `Tstep Tstop [Tstart [Tmax]]` and then
+/// one trailing word, `uic`; any other trailing word is ignored with a litmsg.
+/// The port removes a standalone `uic` word from the positional arguments and
+/// records it as a flag. It may be followed only by the port's `name=value`
+/// driver options, must appear once, and is a bare flag (`uic=1` is rejected).
+fn split_uic(tokens: &[Token]) -> Result<(Vec<&Token>, Option<SourceLoc>)> {
+    let cut = |at: &Token, message: &str| {
+        ErrMode::Cut(Failure(SpiceError::parse(at.location.clone(), message)))
+    };
+    let mut kept: Vec<&Token> = tokens.iter().collect();
+    let mut flag: Option<(usize, SourceLoc)> = None;
+    let mut i = 0;
+    while i < kept.len() {
+        let token = kept[i];
+        let is_value = i > 0 && kept[i - 1].kind == crate::token::TokenKind::Equals;
+        if token.kind == crate::token::TokenKind::Word && token.is_keyword("uic") && !is_value {
+            if kept
+                .get(i + 1)
+                .is_some_and(|next| next.kind == crate::token::TokenKind::Equals)
+            {
+                return Err(cut(token, "uic is a bare flag; write 'uic' without '='"));
+            }
+            if flag.is_some() {
+                return Err(cut(token, "duplicate uic flag on .tran"));
+            }
+            flag = Some((i, token.location.clone()));
+            kept.remove(i);
+            continue;
+        }
+        i += 1;
+    }
+    if let Some((index, _)) = &flag {
+        let mut j = *index;
+        while j < kept.len() {
+            if kept
+                .get(j + 1)
+                .is_some_and(|next| next.kind == crate::token::TokenKind::Equals)
+            {
+                j += 3;
+            } else {
+                return Err(cut(
+                    kept[j],
+                    "uic must follow the .tran time arguments (Tstep Tstop [Tstart [Tmax]] uic)",
+                ));
+            }
+        }
+    }
+    Ok((kept, flag.map(|(_, location)| location)))
 }
 
 fn unported_card(input: &mut Input<'_>) -> Result<ParsedCard> {

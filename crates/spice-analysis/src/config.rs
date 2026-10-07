@@ -149,6 +149,8 @@ pub struct RunConfig {
     method: Option<(String, SourceLoc)>,
     maxord: Option<(u8, SourceLoc)>,
     applied: Vec<AppliedOption>,
+    /// First `.ic` / `.nodeset` entry: parsed, but no analysis applies them yet.
+    pending_hint: Option<(&'static str, SourceLoc)>,
     params: Option<std::sync::Arc<spice_netlist::eval::ParamScope>>,
 }
 
@@ -159,6 +161,16 @@ impl RunConfig {
     /// Unknown, unimplemented, malformed, out-of-range or conflicting options.
     pub fn from_netlist(netlist: &Netlist) -> SpiceResult<Self> {
         let mut config = Self::from_options(&netlist.options, &RunOverrides::default())?;
+        config.pending_hint = netlist
+            .initial_conditions()
+            .next()
+            .map(|hint| (".ic", hint.location.clone()))
+            .or_else(|| {
+                netlist
+                    .nodesets()
+                    .next()
+                    .map(|hint| (".nodeset", hint.location.clone()))
+            });
         config.params = Some(std::sync::Arc::new(spice_netlist::eval::ParamScope::root(
             &netlist.params,
         )?));
@@ -382,6 +394,17 @@ impl RunConfig {
     /// implement trap/Gear companion integration, so the selection cannot be
     /// honoured and is not silently ignored.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
+        // Parsed but unapplied: running would silently ignore the deck's
+        // initial conditions / convergence hints (GitHub #27 analysis half).
+        if let Some((card, location)) = &self.pending_hint {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "{card} entries are parsed but no analysis applies them yet \
+                     (initialization semantics are pending, GitHub #27)"
+                ),
+                location: Some(location.clone()),
+            });
+        }
         if request.kind != AnalysisKind::Transient {
             return Ok(request);
         }

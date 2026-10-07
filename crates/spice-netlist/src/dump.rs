@@ -40,7 +40,10 @@
 //! The root and every `.subckt` body are *scopes*. Each scope lists its ordered
 //! `cards` (with scope-local typed indexes and `via=[...]` include chains) and
 //! then its typed vectors (`devices`, `models`, `subcircuits`, `analyses`,
-//! `includes`, `params`, and at the root `options`, `globals`). Parameter
+//! `includes`, `params`, and at the root `options`, `globals`, plus
+//! `initial-conditions` and `nodesets` only when the deck has such cards, so
+//! decks without them keep the earlier v1 shape; `.tran` `uic` is an extra
+//! `uic @loc` line under the analysis, only when set). Parameter
 //! assignments keep application order and duplicates. Expressions are printed as
 //! trees with byte spans. A parse failure yields a single `error` block with the
 //! positioned diagnostic; no partial AST is dumped.
@@ -51,9 +54,9 @@ use std::path::Path;
 use spice_core::{SourceLoc, SpiceError, SpiceResult};
 
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, OptionCard,
-    ParamCard, ParameterAssignment, ParameterKind, PositionedValue, ScopedCard, ScopedCardKind,
-    SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
+    NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind, PositionedValue,
+    ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{BinaryOp, Expr, ExprKind, ParameterExpression, SourceSpan, UnaryOp};
@@ -443,6 +446,8 @@ struct Scope<'a> {
     params: &'a [ParamCard],
     options: &'a [OptionCard],
     globals: &'a [GlobalCard],
+    initial_conditions: &'a [NodeHintCard],
+    nodesets: &'a [NodeHintCard],
     cards: &'a [ScopedCard],
 }
 
@@ -470,6 +475,8 @@ pub fn dump_ast(netlist: &Netlist, paths: &PathMapper) -> String {
         params: &netlist.params,
         options: &netlist.options,
         globals: &netlist.globals,
+        initial_conditions: &netlist.initial_conditions,
+        nodesets: &netlist.nodesets,
         cards: &netlist.cards,
     };
     write_scope(&ctx, &mut out, 1, &scope);
@@ -527,6 +534,8 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
             params: &sub.params,
             options: &[],
             globals: &[],
+            initial_conditions: &[],
+            nodesets: &[],
             cards: &sub.cards,
         };
         write_scope(ctx, out, indent + 3, &inner);
@@ -543,6 +552,9 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
         );
         let arguments: Vec<String> = analysis.arguments.iter().map(|a| quote(a)).collect();
         out.line(indent + 2, format!("arguments: {}", arguments.join(" ")));
+        if let Some(location) = &analysis.uic_location {
+            out.line(indent + 2, format!("uic @{}", ctx.loc(location)));
+        }
         for argument in &analysis.expressions {
             out.line(
                 indent + 2,
@@ -640,6 +652,52 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
             );
         }
     }
+    for (name, label, cards) in [
+        ("initial-conditions", "ic-card", scope.initial_conditions),
+        ("nodesets", "nodeset-card", scope.nodesets),
+    ] {
+        // Emitted only when present, so decks without these cards keep the
+        // exact v1 shape.
+        if cards.is_empty() {
+            continue;
+        }
+        section(out, indent, name, cards.len());
+        for (n, card) in cards.iter().enumerate() {
+            out.line(
+                indent + 1,
+                format!("{label} [{n}] @{}", ctx.loc(&card.location)),
+            );
+            for (m, hint) in card.entries.iter().enumerate() {
+                out.line(
+                    indent + 2,
+                    format!(
+                        "entry [{m}] node={} node_at={} @{}",
+                        quote(&hint.node),
+                        ctx.loc(&hint.node_location),
+                        ctx.loc(&hint.location)
+                    ),
+                );
+                match &hint.value {
+                    NodeHintValue::Literal { text, value } => out.line(
+                        indent + 3,
+                        format!(
+                            "value literal {} value={} @{}",
+                            quote(text),
+                            real(*value),
+                            ctx.loc(&hint.value_location)
+                        ),
+                    ),
+                    NodeHintValue::Expression(expression) => {
+                        out.line(
+                            indent + 3,
+                            format!("value expression @{}", ctx.loc(&hint.value_location)),
+                        );
+                        write_expression(ctx, out, indent + 4, expression);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn write_card(ctx: &Ctx<'_>, out: &mut Out, indent: usize, n: usize, card: &ScopedCard) {
@@ -652,6 +710,8 @@ fn write_card(ctx: &Ctx<'_>, out: &mut Out, indent: usize, n: usize, card: &Scop
         ScopedCardKind::Options(i) => format!("options[{i}]"),
         ScopedCardKind::Global(i) => format!("global[{i}]"),
         ScopedCardKind::Param(i) => format!("param[{i}]"),
+        ScopedCardKind::InitialCondition(i) => format!("ic[{i}]"),
+        ScopedCardKind::Nodeset(i) => format!("nodeset[{i}]"),
         ScopedCardKind::Ends => "ends".to_owned(),
         ScopedCardKind::End => "end".to_owned(),
     };

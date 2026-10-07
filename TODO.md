@@ -126,7 +126,7 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [x] Implement trapezoidal and Gear orders 1–2 coefficients, companion integration, prediction and per-element truncation estimates (`src/maths/ni/`, `cktterr.c`) with trial coefficients separate from accepted step history (#23); Gear orders 3–6 are rejected.
 - [ ] Implement adaptive timestep scheduling and truncation-error control in a companion transient driver (#26).
 - [x] Implement C/L trap/Gear-2 companion stamps from accepted charge/flux state without double-discretizing diffsol equation stamps (#25); sources still stamp only at DC, mutual inductance and companion `ic=`/`uic` are pending.
-- [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives.
+- [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives (#27). Frontend half done: `.ic`/`.nodeset` cards and the `.tran` `uic` flag parse into ordered, positioned AST entries (`Netlist::initial_conditions()`/`nodesets()`, `AnalysisCard::uic`) and are rejected by `RunConfig`/the transient driver until the analysis half lands.
 - [ ] Connect parsed source waveforms to time evaluation and breakpoint handling, including `PULSE`.
 - [x] Demonstrate an index-one formulation for floating/coupled capacitor networks in the BDF backend: block-SVD `ker E`/`ker Eᵀ`, rank-certified `Wᵀ A N`, charge-preserving event projection and consistent derivatives, with analytic and opt-in C tests (#28).
 - [ ] Design and validate bounded higher-index source-constraint support (#29); such pencils remain rejected.

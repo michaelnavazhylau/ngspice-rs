@@ -30,8 +30,13 @@ use crate::results::Plot;
 pub struct AnalysisRequest {
     /// Which analysis to run.
     pub kind: AnalysisKind,
-    /// The card's arguments, as written.
+    /// The card's arguments, as written. A `.tran` `uic` flag is **not** among
+    /// them; see [`Self::uic`].
     pub arguments: Vec<String>,
+    /// The `.tran` `uic` flag (use initial conditions), kept apart from the
+    /// positional time arguments. No driver implements it yet: the transient
+    /// driver rejects it explicitly until GitHub #27's analysis half lands.
+    pub uic: bool,
 }
 
 impl AnalysisRequest {
@@ -41,6 +46,7 @@ impl AnalysisRequest {
         Self {
             kind,
             arguments: Vec::new(),
+            uic: false,
         }
     }
 
@@ -53,6 +59,7 @@ impl AnalysisRequest {
         Self {
             kind,
             arguments: arguments.into_iter().map(Into::into).collect(),
+            uic: false,
         }
     }
 
@@ -93,6 +100,7 @@ impl From<&AnalysisCard> for AnalysisRequest {
         Self {
             kind: card.kind,
             arguments,
+            uic: card.uic,
         }
     }
 }
@@ -390,6 +398,8 @@ mod tests {
                 "1meg".to_owned(),
             ],
             expressions: Vec::new(),
+            uic: false,
+            uic_location: None,
             location: SourceLoc::new(PathBuf::from("deck.cir"), 7, 1),
         };
         let request = AnalysisRequest::from(&card);

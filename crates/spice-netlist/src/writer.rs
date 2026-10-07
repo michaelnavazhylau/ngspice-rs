@@ -55,7 +55,10 @@
 //!   assignments, instead of re-printing from the tree. Parentheses are
 //!   therefore exactly those of the source, which are always sufficient.
 //! - Analysis cards: `.name` plus the stored argument tokens joined with single
-//!   spaces (no space around `(`, `)`, `=` or before `,`).
+//!   spaces (no space around `(`, `)`, `=` or before `,`). A `.tran` `uic` flag
+//!   is written after the positional arguments, before any `name=value` options.
+//! - `.ic`/`.nodeset`: one card per stored card, `v(node)=value` entries in
+//!   order (values keep their literal spelling or braced expression text).
 //!
 //! # Includes
 //!
@@ -91,13 +94,13 @@
 
 use std::fmt::Write as _;
 
-use spice_core::{SourceLoc, SpiceError, SpiceResult, parse_spice_number};
+use spice_core::{AnalysisKind, SourceLoc, SpiceError, SpiceResult, parse_spice_number};
 
 use crate::Parser;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, OptionCard,
-    ParamCard, ParameterAssignment, ParameterKind, PositionedValue, ScopedCard, ScopedCardKind,
-    SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
+    NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind, PositionedValue,
+    ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::expr::ParameterExpression;
 use crate::semantic::expr_form;
@@ -131,6 +134,8 @@ pub fn write_netlist(netlist: &Netlist) -> SpiceResult<String> {
             params: &netlist.params,
             options: &netlist.options,
             globals: &netlist.globals,
+            initial_conditions: &netlist.initial_conditions,
+            nodesets: &netlist.nodesets,
             cards: &netlist.cards,
         },
         0,
@@ -156,6 +161,8 @@ struct Scope<'a> {
     params: &'a [ParamCard],
     options: &'a [OptionCard],
     globals: &'a [GlobalCard],
+    initial_conditions: &'a [NodeHintCard],
+    nodesets: &'a [NodeHintCard],
     cards: &'a [ScopedCard],
 }
 
@@ -189,7 +196,7 @@ impl Writer {
     }
 
     fn scope(&mut self, scope: &Scope<'_>, depth: usize, body: bool) -> SpiceResult<()> {
-        let mut used = [0usize; 8];
+        let mut used = [0usize; 10];
         for card in scope.cards {
             // Cards read from an include/lib file are represented by their
             // directive; they are counted but not written.
@@ -253,6 +260,20 @@ impl Writer {
                         self.global(globals, depth)?;
                     }
                 }
+                ScopedCardKind::InitialCondition(i) => {
+                    used[8] += 1;
+                    let card_ = entry(scope.initial_conditions, i, "initial conditions")?;
+                    if !skip {
+                        self.hints(".ic", card_, depth)?;
+                    }
+                }
+                ScopedCardKind::Nodeset(i) => {
+                    used[9] += 1;
+                    let card_ = entry(scope.nodesets, i, "nodesets")?;
+                    if !skip {
+                        self.hints(".nodeset", card_, depth)?;
+                    }
+                }
                 // The closing `.ends` is written by `subcircuit`; it was
                 // verified there to be the final card.
                 ScopedCardKind::Ends => {
@@ -279,6 +300,8 @@ impl Writer {
             scope.params.len(),
             scope.options.len(),
             scope.globals.len(),
+            scope.initial_conditions.len(),
+            scope.nodesets.len(),
         ];
         if used != lengths {
             return Err(refuse(
@@ -312,6 +335,8 @@ impl Writer {
                 params: &sub.params,
                 options: &[],
                 globals: &[],
+                initial_conditions: &[],
+                nodesets: &[],
                 cards: &sub.cards,
             },
             depth + 1,
@@ -322,10 +347,23 @@ impl Writer {
 
     fn analysis(&mut self, card: &AnalysisCard, depth: usize) -> SpiceResult<()> {
         let mut text = format!(".{}", card.kind.as_str());
+        let mut arguments: Vec<&str> = card.arguments.iter().map(String::as_str).collect();
+        if card.uic {
+            if card.kind != AnalysisKind::Transient {
+                return Err(refuse("uic is only valid on .tran", Some(&card.location)));
+            }
+            // The flag follows the positional arguments and precedes any
+            // `name=value` driver options, where the parser accepts it.
+            let mut at = 0;
+            while at < arguments.len() && arguments.get(at + 1) != Some(&"=") {
+                at += 1;
+            }
+            arguments.insert(at, "uic");
+        }
         let mut previous: Option<&str> = None;
-        for argument in &card.arguments {
-            let glued = matches!(argument.as_str(), "(" | ")" | "," | "=")
-                || matches!(previous, Some("(" | "="));
+        for argument in &arguments {
+            let glued =
+                matches!(*argument, "(" | ")" | "," | "=") || matches!(previous, Some("(" | "="));
             if !glued {
                 text.push(' ');
             }
@@ -334,8 +372,12 @@ impl Writer {
         }
         // The arguments must re-tokenize to exactly the stored tokens.
         let tokens = lex(&text, &card.location)?;
-        let expected = card.arguments.iter().map(String::as_str);
-        if tokens.iter().skip(1).map(|t| t.text.as_str()).ne(expected) {
+        if tokens
+            .iter()
+            .skip(1)
+            .map(|t| t.text.as_str())
+            .ne(arguments.iter().copied())
+        {
             return Err(refuse(
                 "analysis arguments do not re-tokenize to the stored tokens",
                 Some(&card.location),
@@ -454,6 +496,37 @@ impl Writer {
             }
         }
         self.line(depth, &text, location)
+    }
+
+    fn hints(&mut self, name: &str, card: &NodeHintCard, depth: usize) -> SpiceResult<()> {
+        if card.entries.is_empty() {
+            return Err(refuse(format!("empty {name} card"), Some(&card.location)));
+        }
+        let mut text = name.to_owned();
+        for hint in &card.entries {
+            let (kind, value) = match &hint.value {
+                NodeHintValue::Literal { text, .. } => (ParameterKind::Scalar, text.clone()),
+                NodeHintValue::Expression(expression) => {
+                    let spelled = if expression.braced {
+                        format!("{{{}}}", expression.text)
+                    } else {
+                        expression.text.clone()
+                    };
+                    (ParameterKind::Expression(expression.clone()), spelled)
+                }
+            };
+            let value = value_text(
+                &ParameterAssignment {
+                    name: format!("v({})", hint.node),
+                    value,
+                    kind,
+                    location: hint.value_location.clone(),
+                },
+                false,
+            )?;
+            let _ = write!(text, " v({})={value}", node(&hint.node, &hint.location)?);
+        }
+        self.line(depth, &text, &card.location)
     }
 
     fn global(&mut self, card: &GlobalCard, depth: usize) -> SpiceResult<()> {
