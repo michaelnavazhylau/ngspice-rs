@@ -189,9 +189,10 @@ issue closure or a claim about unsupported physical regimes.
 Final local run: **587 passed / 29 opt-in tests ignored**, independently on stable
 and Rust 1.89.0; all-target Clippy with warnings denied passes on both. All twelve
 M4 physical/continuation/ownership tests pass. Formatting and diff whitespace
-checks pass; 110 snapshots are unchanged; Rust verifies 25/26 goldens (only
-subcircuit flattening excluded), and the external C drift check reproduces all
-26 golden files. The six newly captured M4 goldens are included with the
+checks pass; 110 snapshots are unchanged; Rust verified 25/26 goldens at this
+M4 gate (only subcircuit flattening was excluded; #18 has since closed that gap
+and the current gate verifies all 26), and the external C drift check
+reproduces all 26 golden files. The six newly captured M4 goldens are included with the
 implementation for review. Remote #41 remains open pending review; unsupported
 physics remains outside this local gate.
 

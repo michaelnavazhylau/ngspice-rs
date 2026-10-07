@@ -107,9 +107,10 @@ This checkout retains nested `.subckt`/`.ends` bodies, X instances and
 unevaluated formal/instance parameters, with structural and scope-local
 model-name diagnostics. `.include`/`.lib` resolution is source-relative and
 bounded, with petgraph canonical file/section cycle checks and preserved source
-provenance. `subckt_divider` now parses: **8/8 fixture parses, not simulation or
-round trips**. See [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md).
-Subcircuit flattening (#18) remains M5 work.
+provenance. All eight fixture decks parse (the M1 round-trip gate is #22); with
+#18, `subckt_divider` also simulates through the production `.op` path and
+verifies against its C golden. See [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md)
+and [SUBCIRCUITS.md](SUBCIRCUITS.md).
 
 ### Remaining slices
 
@@ -117,15 +118,17 @@ Subcircuit flattening (#18) remains M5 work.
    subset. No nonlinear arithmetic or waveform deck evaluation yet.
 2. **M1d, #14–16:** expressions, parameter evaluation, `.option` and `.global`.
 3. **M1d, #20–22 (done):** normalized-deck writer, token/AST snapshots and full
-   eight-fixture round-trip gate. Subcircuit circuit elaboration (#18) is M5.
+   eight-fixture round-trip gate. Subcircuit circuit elaboration (#18) landed in
+   M5 wave 1.
 
 Exit criteria (met by #22, `crates/spice-netlist/tests/m1_gate.rs`): every deck in
 `conformance/netlists/` round-trips AST -> normalised deck text -> AST with
 semantic equality and a writer fixed point, with committed token/AST snapshots,
 combined include/subcircuit/param/option fixtures and explicit negative cases.
-Still outstanding and not claimed: subcircuit flattening (#18, M5),
-subcircuit-scoped parameter evaluation, and any nonlinear simulation (a D/Q/M
-parse is syntax only). C parser oracles stay opt-in. Track concrete work in the central
+Still outstanding and not claimed: any nonlinear simulation (a D/Q/M
+parse is syntax only), `{expr}` option values, quoted `'expr'`, `.func` and
+directives inside a body. Subcircuit flattening/scoping (#18) is implemented
+([SUBCIRCUITS.md](SUBCIRCUITS.md)). C parser oracles stay opt-in. Track concrete work in the central
 [`TODO.md`](../../TODO.md).
 
 ## M2 follow-up — Linear-core verification and documentation
@@ -137,8 +140,9 @@ AC retains **1e-10 + 1e-12**. M2 is follow-up, not a solver reimplementation.
 
 The GitHub milestone groups Rust-engine golden verification (#7), bounded
 model-backed passive elaboration (#19) and historical documentation correction
-(#49). `cargo xtask golden verify` covers three committed linear fixtures and
-explicitly reports the five excluded fixtures; see
+(#49). `cargo xtask golden verify` now covers 26 committed fixtures with no
+exclusions; at M2 delivery it covered three linear fixtures and reported five
+excluded ones. See
 [VERIFICATION.md](VERIFICATION.md#rust-engine-golden-verification).
 PR #51 merged #11/#17, and their acceptance suite passes. This checkout
 implements #19's bounded passive arithmetic and C/production checks, pending
@@ -159,7 +163,7 @@ driver for linear circuits (#26, [TRANSIENT.md](TRANSIENT.md)) exist. The
 (`.ic`/`uic`/`ic=`) exit gates against C goldens are closed** (#48; `cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`,
 [VERIFICATION.md](VERIFICATION.md)). Still open and blocking M3 completion:
 higher-index source constraints
-(#29), nonlinear charge (M4) and subcircuits (M5). General MNA DAEs are not
+(#29) and nonlinear charge (M4). General MNA DAEs are not
 supported: only the demonstrated index-one structures are.
 
 C, L, and the numerical integration machinery.
@@ -171,7 +175,7 @@ C, L, and the numerical integration machinery.
 
 Exit criteria: RC and RLC golden fixtures for `.tran` and `.ac` (met for the
 linear decks, including the initialized-state `.ic`/`uic`/`ic=` fixtures of #27;
-higher-index constraints, nonlinear charge and subcircuits remain open).
+higher-index constraints and nonlinear charge remain open).
 
 ## M4 — Nonlinear devices
 
@@ -185,9 +189,22 @@ Exit criteria: diode rectifier, MOS inverter and BJT bias fixtures match C.
 
 ## M5 — Usability
 
-- `.measure` (or a deliberate substitute), `.print`/`.save`/`.four`
-- binary rawfile support, so unmodified C goldens can be consumed
-- subcircuit instantiation semantics: `.global`, parameter passing, scoping
+Wave 1 merged on `main`:
+
+- ✅ subcircuit instantiation semantics (#18): `.global`, hierarchical naming,
+  parameter passing/scoping and per-instance models
+  ([SUBCIRCUITS.md](SUBCIRCUITS.md))
+- ✅ the `spice-rs simulate` command (#6): one analysis through the production
+  runner, ASCII rawfile output ([CLI.md](CLI.md))
+- ✅ binary rawfile read/write (#45), so binary C rawfiles can be consumed
+  ([RAWFILES.md](RAWFILES.md))
+
+`cargo xtask golden verify` now reports **26 verified fixtures with no
+exclusions**, so `subckt_divider` no longer blocks the milestone. Still open:
+
+- `.save`/`.print` output selection (#42, in progress on a parallel lane)
+- `.measure` (#43)
+- `.four` (#44)
 
 ## Deliberately out of scope (initially)
 

@@ -4,8 +4,9 @@
 expressions are parsed into an AST with original text and byte spans; the
 evaluator in `spice_netlist::eval` and the literalizer in
 `spice_netlist::elaborate` resolve **top-level** values (see "Evaluation"
-below). Subcircuit `.param` cards and formals stay unevaluated, and `Circuit`
-elaboration still rejects subcircuits.
+below). Subcircuit `.param` cards and formals are evaluated per instance when
+`X` instantiates a definition; `Circuit` elaboration now expands subcircuits
+(#18, [SUBCIRCUITS.md](SUBCIRCUITS.md)) instead of rejecting them.
 
 C references (read-only): `src/frontend/numparam/xpressn.c` (`formula()`,
 `fetchoperator()`, `fetchnumber()`, `fetchid()`, `fmathS`, `operate()`,
@@ -104,15 +105,15 @@ offending text. Valid numparam outside the subset is `SpiceError::NotYetPorted`
 
 ## Explicit exclusions
 
-Not accepted: subcircuit-scope evaluation;
-comparison/logical/ternary operators (`< > <= >= == != <> && || ! ? :`), `%`
+Not accepted: comparison/logical/ternary operators (`< > <= >= == != <> && || ! ? :`), `%`
 and `\`; `ternary_fcn`, randomised `agauss gauss unif aunif limit`, string
 `vec`/`var`, user `.func` functions; quoted `'...'` expressions and string
 parameters; `.param` with `&`, `.if` blocks; expressions inside waveform
 (`PULSE`/`PWL`), `ic=` vector, flag and `level=` model-selector sites (explicit
 gaps); nested braces; behavioural/time-dependent device equations
 (`B`, `E`/`G` expression sources); and full numparam compatibility. Subcircuit
-parameter passing semantics and flattening are not implemented.
+parameter passing semantics and flattening are implemented separately (#18,
+[SUBCIRCUITS.md](SUBCIRCUITS.md)).
 
 ## Evaluation (#15)
 
@@ -143,10 +144,12 @@ undefined.
 
 - `eval::ParamScope::{root, resolve}` resolves ordered definitions into an
   immutable scope (`entries()`, `get()`, `evaluate()`), with an optional
-  `Arc` parent and `ParamBinding`s (reserved for subcircuit formal
-  defaults/overrides; redefining a binding in a body is an explicit error until
-  precedence is ported). Dependencies use a petgraph `DiGraph` (SCC for cycles,
-  toposort levels for order).
+  `Arc` parent and `ParamBinding`s (subcircuit formal defaults and instance
+  overrides). `resolve_instance` is the subcircuit rule (#18): caller overrides
+  win, a body `.param` redefining a bound name is kept as `ParamState::Superseded`
+  and never evaluated, and precedence is instance override > body `.param` >
+  formal default. Dependencies use a petgraph `DiGraph` (SCC for cycles,
+  toposort levels for order). See [SUBCIRCUITS.md](SUBCIRCUITS.md).
 - `eval::{EvalLimits, EvalBudget}` bound definitions (100 000), evaluated
   nodes (4 000 000) and tree depth (1 024); exceeding them is an error.
 - `elaborate::literalize(&Netlist) -> ElaboratedNetlist { netlist, scope,
@@ -154,7 +157,8 @@ undefined.
   parameter and braced analysis argument is replaced by its finite value
   (`ParameterKind::Scalar`; integral values as plain integers, otherwise
   `{:e}`), keeping `.param` cards and locations; `sites` records each site's
-  original text, location and value. Subcircuit bodies are not touched, and bare
+  original text, location and value. Subcircuit bodies are not touched here —
+  the #18 expansion resolves body values separately; bare
   names, terminals and model names are never substituted.
 - Consumers: `Circuit::from_netlist[_with_context]` literalizes first;
   `RunConfig::from_netlist` resolves and keeps the scope, and
@@ -165,7 +169,7 @@ undefined.
 - Diagnostics are `SpiceError::Parse` with the failing sub-expression's
   location and text, plus the enclosing parameter/site.
 
-Remaining limits: no subcircuit scoping/flattening, `{expr}` option values still
+Remaining limits: `{expr}` option values still
 `NotYetPorted`, no quoted `'expr'`, `.func`, comparison/ternary operators or
 random functions.
 

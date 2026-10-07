@@ -1,10 +1,13 @@
 # Scoped cards and source resolution (#12 / #13)
 
 This checkout parses all **8/8 rawfile fixture decks**, including
-`subckt_divider`. This is syntax coverage, **not simulation**; the M1 round-trip
-gate is closed separately by #22 (see the end of this document). Subcircuit flattening (#18) remains M5 work. The current
-linear circuit builder explicitly rejects decks containing definitions/source
-directives, and X factories remain unavailable.
+`subckt_divider`; the M1 round-trip gate is closed separately by #22 (see the
+end of this document). This document describes the parser's scoped AST and
+source resolution, which is syntax coverage. The `X` instance factory is no
+longer unavailable: since #18 the production entry points expand subcircuits
+with hierarchical naming, scoped parameters/models and `.global`
+([SUBCIRCUITS.md](SUBCIRCUITS.md)). The linear circuit builder still rejects
+decks with unresolved `.include`/`.lib` directives.
 
 C references: `src/frontend/subckt.c` (`doit`, X extraction/translation),
 `src/frontend/inpcom.c` (`inp_readall`, library-section preprocessing and
@@ -225,5 +228,6 @@ negative cases). Scoped-name enforcement is structural: declarations stay in
 their scope, and Q-family lookup sees only the local scope and ancestors (a
 model from a sibling/child/other scope is a parse error). Unresolved `X` targets
 and D/M model names parse unresolved; resolution belongs to elaboration
-(#17/#18). Subcircuit flattening (#18, M5) and subcircuit-scoped parameter
-evaluation remain outstanding; a D/Q/M or subcircuit parse is not simulation.
+(#17/#18). Subcircuit flattening and subcircuit-scoped parameter evaluation are
+implemented (#18, [SUBCIRCUITS.md](SUBCIRCUITS.md)); a D/Q/M parse is still
+syntax, not simulation.

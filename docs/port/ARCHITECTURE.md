@@ -139,8 +139,10 @@ offline builds require the registry dependencies to have been cached first.
 
 The initial backend rewrite preserved loader/tokenizer contracts. M1b's
 model/D/Q/M slices and M1c's ordered scoped/source storage extend that AST;
-`parse_deck` is syntax-only and `parse_file` now resolves sources. This is still
-not subcircuit flattening (#18, M5); the M1 round-trip gate is closed by #22.
+`parse_deck` is syntax-only and `parse_file` now resolves sources. Subcircuit
+expansion is deliberately not part of this parser layer: it lives in
+`spice_devices::subckt` ([SUBCIRCUITS.md](SUBCIRCUITS.md), #18). The M1
+round-trip gate is closed by #22.
 
 ## Two data models for a netlist
 
