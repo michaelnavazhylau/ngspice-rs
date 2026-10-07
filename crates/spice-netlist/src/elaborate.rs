@@ -14,8 +14,9 @@
 //! ordered entries are available from [`ElaboratedNetlist::initial_conditions`]
 //! and [`ElaboratedNetlist::nodesets`]).
 //!
-//! Subcircuit bodies are left untouched (their expressions need formal
-//! binding, which is not ported; elaboration keeps rejecting subcircuits).
+//! Subcircuit bodies are left untouched here (their expressions need formal
+//! binding, which happens during expansion in `spice_devices::subckt`; this
+//! pass does not reject subcircuit decks).
 //! Bare names in device cards are not references (see
 //! `docs/port/PARAM_EXPRESSIONS.md`), so terminals and model names are never
 //! substituted.

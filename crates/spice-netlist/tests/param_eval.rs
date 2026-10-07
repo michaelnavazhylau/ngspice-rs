@@ -176,6 +176,43 @@ fn child_scopes_see_parents_and_bindings_without_flattening() {
 }
 
 #[test]
+fn an_instance_scope_lets_an_override_outrank_a_body_param() {
+    // C: numparam.spicenum.c — the instance value wins, so `resolve`'s strict
+    // "bound value redefined" error would reject this legitimate deck.
+    let root = Arc::new(scope(".param base=5k").unwrap());
+    let overrides = [ParamBinding {
+        name: "rval".into(),
+        value: 3.0,
+        location: deck(".param rval=3").params[0].location.clone(),
+    }];
+    let body = deck(".param base={base*2}\n.param rval=9");
+    let child = ParamScope::resolve_instance(
+        Some(Arc::clone(&root)),
+        &overrides,
+        &body.params,
+        &mut EvalBudget::default(),
+    )
+    .unwrap();
+    assert_eq!(child.get("rval"), Some(3.0), "the override wins");
+    assert_eq!(
+        child.get("base"),
+        Some(10_000.0),
+        "the body still sees the parent"
+    );
+    let dropped = child
+        .entries()
+        .iter()
+        .find(|entry| entry.source.as_deref() == Some("9"))
+        .expect("the redefining card is kept visible");
+    assert!(matches!(dropped.state, ParamState::Superseded { .. }));
+    // Without an override, the same card resolves normally.
+    let plain =
+        ParamScope::resolve_instance(Some(root), &[], &body.params, &mut EvalBudget::default())
+            .unwrap();
+    assert_eq!(plain.get("rval"), Some(9.0));
+}
+
+#[test]
 fn literalize_replaces_sites_but_keeps_original_text_and_terminals() {
     let n = deck(
         ".param r=2k half={r/2}\nr1 1 2 {r}\nc1 2 0 cm {half/1meg}\n.model cm c cap=1p\n.tran {half/1meg} 1m\n.dc r1 1 {r} 1",
