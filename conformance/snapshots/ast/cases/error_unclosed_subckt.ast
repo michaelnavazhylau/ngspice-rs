@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_unclosed_subckt.cir
+error parse @cases/error_unclosed_subckt.cir:5:1
+  message: ".end before .ends for 'a'"

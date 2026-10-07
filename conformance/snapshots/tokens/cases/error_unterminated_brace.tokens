@@ -1,0 +1,22 @@
+# ngspice-rs token-dump v1
+file: cases/error_unterminated_brace.cir
+title: "Unterminated brace expression" @cases/error_unterminated_brace.cir:1:1
+card 1 @cases/error_unterminated_brace.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 in 0 {5*"
+  error parse @cases/error_unterminated_brace.cir:2:9
+    message: "unterminated '{' expression on this card"
+card 2 @cases/error_unterminated_brace.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 in 0 1k"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 number "1k" value=1e3
+card 3 @cases/error_unterminated_brace.cir:4:1 lines=4-4 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 4:1 word ".op"
+card 4 @cases/error_unterminated_brace.cir:5:1 lines=5-5 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 5:1 word ".end"

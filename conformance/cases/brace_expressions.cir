@@ -1,0 +1,8 @@
+Brace expressions in params, values and analysis arguments
+.param rload = 2k  vdd = {5*(1+0.1)}
+.param ratio = {rload/(rload+1k)}  scale = -2^2
+v1 in 0 {vdd}
+r1 in out {rload * 2}
+r2 out 0 {max(rload, 1k) + sin(0)}
+.tran 1u {10*1u}
+.end

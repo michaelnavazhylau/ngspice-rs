@@ -1,0 +1,25 @@
+# ngspice-rs token-dump v1
+file: cases/error_unclosed_subckt.cir
+title: "Subcircuit without .ends" @cases/error_unclosed_subckt.cir:1:1
+card 1 @cases/error_unclosed_subckt.cir:2:1 lines=2-2 continuations=0
+  raw: ".subckt a p q"
+  kind: dot(.subckt)
+  token 1 2:1 word ".subckt"
+  token 2 2:9 word "a"
+  token 3 2:11 word "p"
+  token 4 2:13 word "q"
+card 2 @cases/error_unclosed_subckt.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 p q 1k"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "p"
+  token 3 3:6 word "q"
+  token 4 3:8 number "1k" value=1e3
+card 3 @cases/error_unclosed_subckt.cir:4:1 lines=4-4 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 4:1 word ".op"
+card 4 @cases/error_unclosed_subckt.cir:5:1 lines=5-5 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 5:1 word ".end"

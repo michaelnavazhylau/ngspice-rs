@@ -1,0 +1,68 @@
+# ngspice-rs ast-dump v1
+file: cases/waveforms_ic.cir
+title: "Waveform and initial-condition setters" @cases/waveforms_ic.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @cases/waveforms_ic.cir:2:1 "v1 in 0 pulse(0 5 1u 1n 1n 5u 10u)"
+    [1] device[1] @cases/waveforms_ic.cir:3:1 "v2 b 0 pwl(0 0 1u 1 2u 0)"
+    [2] device[2] @cases/waveforms_ic.cir:4:1 "q1 c b e npn ic=0.1,0.2"
+    [3] device[3] @cases/waveforms_ic.cir:5:1 "m1 d g s s nmos w=1u l=1u ic=1,2,3"
+    [4] model[0] @cases/waveforms_ic.cir:6:1 ".model npn npn(bf=100)"
+    [5] model[1] @cases/waveforms_ic.cir:7:1 ".model nmos nmos(level=1)"
+    [6] analysis[0] @cases/waveforms_ic.cir:8:1 ".tran 1u 20u"
+    [7] end @cases/waveforms_ic.cir:9:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @cases/waveforms_ic.cir:2:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 5 1u 1n 1n 5u 10u)" @cases/waveforms_ic.cir:2:9
+          pulse
+            initial: "0"@cases/waveforms_ic.cir:2:15
+            pulsed: "5"@cases/waveforms_ic.cir:2:17
+            delay: "1u"@cases/waveforms_ic.cir:2:19
+            rise: "1n"@cases/waveforms_ic.cir:2:22
+            fall: "1n"@cases/waveforms_ic.cir:2:25
+            width: "5u"@cases/waveforms_ic.cir:2:28
+            period: "10u"@cases/waveforms_ic.cir:2:31
+    device [1] name="v2" designator=v @cases/waveforms_ic.cir:3:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="pwl" kind=waveform value="(0 0 1u 1 2u 0)" @cases/waveforms_ic.cir:3:8
+          pwl
+            point [0] time="0"@cases/waveforms_ic.cir:3:12 value="0"@cases/waveforms_ic.cir:3:14
+            point [1] time="1u"@cases/waveforms_ic.cir:3:16 value="1"@cases/waveforms_ic.cir:3:19
+            point [2] time="2u"@cases/waveforms_ic.cir:3:21 value="0"@cases/waveforms_ic.cir:3:24
+    device [2] name="q1" designator=q @cases/waveforms_ic.cir:4:1
+      nodes: "c" "b" "e"
+      model: "npn"
+      parameters (1):
+        [0] name="ic" kind=initial-conditions value="0.1,0.2" @cases/waveforms_ic.cir:4:14
+          component "icvbe" = "0.1"@cases/waveforms_ic.cir:4:17
+          component "icvce" = "0.2"@cases/waveforms_ic.cir:4:21
+    device [3] name="m1" designator=m @cases/waveforms_ic.cir:5:1
+      nodes: "d" "g" "s" "s"
+      model: "nmos"
+      parameters (3):
+        [0] name="w" kind=scalar value="1u" @cases/waveforms_ic.cir:5:17
+        [1] name="l" kind=scalar value="1u" @cases/waveforms_ic.cir:5:22
+        [2] name="ic" kind=initial-conditions value="1,2,3" @cases/waveforms_ic.cir:5:27
+          component "icvds" = "1"@cases/waveforms_ic.cir:5:30
+          component "icvgs" = "2"@cases/waveforms_ic.cir:5:32
+          component "icvbs" = "3"@cases/waveforms_ic.cir:5:34
+  models (2):
+    model [0] name="npn" base="npn" level=none @cases/waveforms_ic.cir:6:1
+      parameters (1):
+        [0] name="bf" kind=scalar value="100" @cases/waveforms_ic.cir:6:16
+    model [1] name="nmos" base="nmos" level=1e0 @cases/waveforms_ic.cir:7:1
+      parameters (1):
+        [0] name="level" kind=scalar value="1" @cases/waveforms_ic.cir:7:18
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @cases/waveforms_ic.cir:8:1
+      arguments: "1u" "20u"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

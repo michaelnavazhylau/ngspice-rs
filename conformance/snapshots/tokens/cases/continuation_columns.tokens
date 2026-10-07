@@ -1,0 +1,39 @@
+# ngspice-rs token-dump v1
+file: cases/continuation_columns.cir
+title: "Continuation lines and comments: columns are relative to the joined card" @cases/continuation_columns.cir:1:1
+card 1 @cases/continuation_columns.cir:3:1 lines=3-4 continuations=1
+  raw: "v1 in 0 dc 5"
+  kind: device(v)
+  token 1 3:1 word "v1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 word "dc"
+  token 5 3:12 number "5" value=5e0
+card 2 @cases/continuation_columns.cir:5:1 lines=5-7 continuations=2
+  raw: "r1 in out 1k tc1=0.01"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "out"
+  token 4 5:11 number "1k" value=1e3
+  token 5 5:14 word "tc1"
+  token 6 5:17 equals "="
+  token 7 5:18 number "0.01" value=1e-2
+card 3 @cases/continuation_columns.cir:8:1 lines=8-8 continuations=0
+  raw: "c1 out 0 1u ic=0"
+  kind: device(c)
+  token 1 8:1 word "c1"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "1u" value=1e-6
+  token 5 8:13 word "ic"
+  token 6 8:15 equals "="
+  token 7 8:16 number "0" value=0e0
+card 4 @cases/continuation_columns.cir:9:1 lines=9-9 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 9:1 word ".op"
+card 5 @cases/continuation_columns.cir:10:1 lines=10-10 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 10:1 word ".end"

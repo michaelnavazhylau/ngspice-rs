@@ -1,0 +1,51 @@
+# ngspice-rs token-dump v1
+file: cases/name_number_ambiguity.cir
+title: "Numeric node names, number-like model names and ground aliases" @cases/name_number_ambiguity.cir:1:1
+card 1 @cases/name_number_ambiguity.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 1 0 dc 5"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 number "1" value=1e0
+  token 3 2:6 number "0" value=0e0
+  token 4 2:8 word "dc"
+  token 5 2:11 number "5" value=5e0
+card 2 @cases/name_number_ambiguity.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 1 2 1k"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 number "1" value=1e0
+  token 3 3:6 number "2" value=2e0
+  token 4 3:8 number "1k" value=1e3
+card 3 @cases/name_number_ambiguity.cir:4:1 lines=4-4 continuations=0
+  raw: "r2 2 gnd 4.7k"
+  kind: device(r)
+  token 1 4:1 word "r2"
+  token 2 4:4 number "2" value=2e0
+  token 3 4:6 word "gnd"
+  token 4 4:10 number "4.7k" value=4.7e3
+card 4 @cases/name_number_ambiguity.cir:5:1 lines=5-5 continuations=0
+  raw: "d1 2 0 1n4148"
+  kind: device(d)
+  token 1 5:1 word "d1"
+  token 2 5:4 number "2" value=2e0
+  token 3 5:6 number "0" value=0e0
+  token 4 5:8 word "1n4148"
+card 5 @cases/name_number_ambiguity.cir:6:1 lines=6-6 continuations=0
+  raw: ".model 1n4148 d(is=1e-14)"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "1n4148"
+  token 3 6:15 word "d"
+  token 4 6:16 lparen "("
+  token 5 6:17 word "is"
+  token 6 6:19 equals "="
+  token 7 6:20 number "1e-14" value=1e-14
+  token 8 6:25 rparen ")"
+card 6 @cases/name_number_ambiguity.cir:7:1 lines=7-7 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 7:1 word ".op"
+card 7 @cases/name_number_ambiguity.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

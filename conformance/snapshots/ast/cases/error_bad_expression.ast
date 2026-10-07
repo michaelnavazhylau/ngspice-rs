@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_bad_expression.cir
+error parse @cases/error_bad_expression.cir:2:16
+  message: "unexpected '*' where an operand is required"

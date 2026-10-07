@@ -1,0 +1,40 @@
+# ngspice-rs token-dump v1
+file: netlists/rlc_series.cir
+title: "Series RLC at DC" @netlists/rlc_series.cir:1:1
+card 1 @netlists/rlc_series.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 1"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "1" value=1e0
+card 2 @netlists/rlc_series.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in mid 100"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "mid"
+  token 4 5:11 number "100" value=1e2
+card 3 @netlists/rlc_series.cir:6:1 lines=6-6 continuations=0
+  raw: "l1 mid out 1m"
+  kind: device(l)
+  token 1 6:1 word "l1"
+  token 2 6:4 word "mid"
+  token 3 6:8 word "out"
+  token 4 6:12 number "1m" value=1e-3
+card 4 @netlists/rlc_series.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 out 0 1u"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "1u" value=1e-6
+card 5 @netlists/rlc_series.cir:8:1 lines=8-8 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 8:1 word ".op"
+card 6 @netlists/rlc_series.cir:9:1 lines=9-9 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 9:1 word ".end"

@@ -5,7 +5,7 @@
 //!
 //! `golden capture/check` drive C to capture/reproduce comparison data;
 //! `golden verify` runs the supported Rust analyses against committed data
-//! without invoking C. Nothing in the
+//! without invoking C. `snapshots` checks/blesses token/AST dumps. Nothing in the
 //! simulator depends on this crate; it is a development tool. See
 //! `docs/port/VERIFICATION.md`.
 
@@ -13,6 +13,7 @@ mod ci;
 mod compare;
 mod golden;
 mod ngspice;
+mod snapshots;
 mod verify;
 
 use std::path::PathBuf;
@@ -29,6 +30,8 @@ USAGE:
     cargo xtask golden verify [--netlist <NAME>]
                                            compare supported Rust results with C goldens
                                            (no C binary needed; never writes goldens)
+    cargo xtask snapshots [--bless]        check (or with --bless, regenerate) the committed
+                                           token/AST snapshots; Rust only, no C needed
     cargo xtask ci                         fmt --check, clippy -D warnings, test
     cargo xtask help
 
@@ -56,6 +59,7 @@ fn main() -> ExitCode {
             Ok(())
         }
         Some("golden") => golden::main(&arguments[1..]),
+        Some("snapshots") => snapshots::main(&arguments[1..]),
         Some("ci") => ci::main(),
         Some(other) => Err(format!("unknown command '{other}'")),
     };

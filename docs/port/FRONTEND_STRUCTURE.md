@@ -180,9 +180,10 @@ source reproduction. The full contract is the module documentation of
   Re-parse with the same `Parser` configuration (`auto_gnd`). Tests:
   `crates/spice-netlist/tests/deck_writer.rs` (all `conformance/netlists/*.cir`,
   `conformance/parser/*.cir` and the source-resolution fixture round-trip and
-  reach a writer fixed point). The scoped #22 gate and #21 snapshots remain.
+  reach a writer fixed point). The scoped #22 gate remains.
 
 Done: **#15** top-level parameter evaluation over the #14 expression AST
-(`eval`, `elaborate`). Next: **#21–22** deterministic snapshots and the
+(`eval`, `elaborate`). **#21** adds `dump`/`snapshot` (versioned token/AST dumps, snapshots in
+`conformance/snapshots/`, `cargo xtask snapshots --bless`). Next: **#22**, the
 complete M1 eight-fixture round-trip gate. None of those gates is closed by
 8/8 parsing.

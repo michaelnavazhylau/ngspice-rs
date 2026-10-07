@@ -1,0 +1,108 @@
+# ngspice-rs ast-dump v1
+file: parser/model_schemas.cir
+title: "Model resolver selector and diode defaults/setup probe" @parser/model_schemas.cir:1:1
+scope root
+  cards (18):
+    [0] device[0] @parser/model_schemas.cir:2:1 "v1 a 0 dc 0"
+    [1] device[1] @parser/model_schemas.cir:3:1 "ddefault a 0 default"
+    [2] device[2] @parser/model_schemas.cir:4:1 "dexplicit a 0 explicit area=2 temp=50 temp=40"
+    [3] device[3] @parser/model_schemas.cir:5:1 "dduplicate a 0 duplicate"
+    [4] model[0] @parser/model_schemas.cir:6:1 ".model default d"
+    [5] model[1] @parser/model_schemas.cir:7:1 ".model explicit d(is=1e-14 is=2e-14 n=2 rs=3 tnom=30 level=3 level=1.49)"
+    [6] model[2] @parser/model_schemas.cir:8:1 ".model duplicate d(is=4e-14)"
+    [7] model[3] @parser/model_schemas.cir:9:1 ".model duplicate d(is=9e-14)"
+    [8] device[4] @parser/model_schemas.cir:10:1 "vqc qc 0 dc 0"
+    [9] device[5] @parser/model_schemas.cir:11:1 "vqb qb 0 dc 0"
+    [10] device[6] @parser/model_schemas.cir:12:1 "q1 qc qb 0 qmod"
+    [11] model[4] @parser/model_schemas.cir:13:1 ".model qmod npn(level=1.5 level=9)"
+    [12] device[7] @parser/model_schemas.cir:14:1 "vmd md 0 dc 0"
+    [13] device[8] @parser/model_schemas.cir:15:1 "vmg mg 0 dc 0"
+    [14] device[9] @parser/model_schemas.cir:16:1 "m1 md mg 0 0 mmod"
+    [15] model[5] @parser/model_schemas.cir:17:1 ".model mmod nmos(level=1.49 level=49 vto=1 kp=1m)"
+    [16] analysis[0] @parser/model_schemas.cir:18:1 ".op"
+    [17] end @parser/model_schemas.cir:19:1 ".end"
+  devices (10):
+    device [0] name="v1" designator=v @parser/model_schemas.cir:2:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/model_schemas.cir:2:8
+    device [1] name="ddefault" designator=d @parser/model_schemas.cir:3:1
+      nodes: "a" "0"
+      model: "default"
+      parameters (0):
+    device [2] name="dexplicit" designator=d @parser/model_schemas.cir:4:1
+      nodes: "a" "0"
+      model: "explicit"
+      parameters (3):
+        [0] name="area" kind=scalar value="2" @parser/model_schemas.cir:4:24
+        [1] name="temp" kind=scalar value="50" @parser/model_schemas.cir:4:31
+        [2] name="temp" kind=scalar value="40" @parser/model_schemas.cir:4:39
+    device [3] name="dduplicate" designator=d @parser/model_schemas.cir:5:1
+      nodes: "a" "0"
+      model: "duplicate"
+      parameters (0):
+    device [4] name="vqc" designator=v @parser/model_schemas.cir:10:1
+      nodes: "qc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/model_schemas.cir:10:10
+    device [5] name="vqb" designator=v @parser/model_schemas.cir:11:1
+      nodes: "qb" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/model_schemas.cir:11:10
+    device [6] name="q1" designator=q @parser/model_schemas.cir:12:1
+      nodes: "qc" "qb" "0"
+      model: "qmod"
+      parameters (0):
+    device [7] name="vmd" designator=v @parser/model_schemas.cir:14:1
+      nodes: "md" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/model_schemas.cir:14:10
+    device [8] name="vmg" designator=v @parser/model_schemas.cir:15:1
+      nodes: "mg" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/model_schemas.cir:15:10
+    device [9] name="m1" designator=m @parser/model_schemas.cir:16:1
+      nodes: "md" "mg" "0" "0"
+      model: "mmod"
+      parameters (0):
+  models (6):
+    model [0] name="default" base="d" level=none @parser/model_schemas.cir:6:1
+      parameters (0):
+    model [1] name="explicit" base="d" level=3e0 @parser/model_schemas.cir:7:1
+      parameters (7):
+        [0] name="is" kind=scalar value="1e-14" @parser/model_schemas.cir:7:19
+        [1] name="is" kind=scalar value="2e-14" @parser/model_schemas.cir:7:28
+        [2] name="n" kind=scalar value="2" @parser/model_schemas.cir:7:37
+        [3] name="rs" kind=scalar value="3" @parser/model_schemas.cir:7:41
+        [4] name="tnom" kind=scalar value="30" @parser/model_schemas.cir:7:46
+        [5] name="level" kind=scalar value="3" @parser/model_schemas.cir:7:54
+        [6] name="level" kind=scalar value="1.49" @parser/model_schemas.cir:7:62
+    model [2] name="duplicate" base="d" level=none @parser/model_schemas.cir:8:1
+      parameters (1):
+        [0] name="is" kind=scalar value="4e-14" @parser/model_schemas.cir:8:20
+    model [3] name="duplicate" base="d" level=none @parser/model_schemas.cir:9:1
+      parameters (1):
+        [0] name="is" kind=scalar value="9e-14" @parser/model_schemas.cir:9:20
+    model [4] name="qmod" base="npn" level=1.5e0 @parser/model_schemas.cir:13:1
+      parameters (2):
+        [0] name="level" kind=scalar value="1.5" @parser/model_schemas.cir:13:17
+        [1] name="level" kind=scalar value="9" @parser/model_schemas.cir:13:27
+    model [5] name="mmod" base="nmos" level=1.49e0 @parser/model_schemas.cir:17:1
+      parameters (4):
+        [0] name="level" kind=scalar value="1.49" @parser/model_schemas.cir:17:18
+        [1] name="level" kind=scalar value="49" @parser/model_schemas.cir:17:29
+        [2] name="vto" kind=scalar value="1" @parser/model_schemas.cir:17:38
+        [3] name="kp" kind=scalar value="1m" @parser/model_schemas.cir:17:44
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/model_schemas.cir:18:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

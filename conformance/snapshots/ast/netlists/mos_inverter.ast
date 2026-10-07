@@ -1,0 +1,48 @@
+# ngspice-rs ast-dump v1
+file: netlists/mos_inverter.cir
+title: "MOS inverter, operating point" @netlists/mos_inverter.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/mos_inverter.cir:2:1 "vdd vdd 0 dc 5"
+    [1] device[1] @netlists/mos_inverter.cir:3:1 "vin gate 0 dc 2"
+    [2] device[2] @netlists/mos_inverter.cir:4:1 "rd vdd drain 10k"
+    [3] device[3] @netlists/mos_inverter.cir:5:1 "m1 drain gate 0 0 nmos w=10u l=1u"
+    [4] model[0] @netlists/mos_inverter.cir:6:1 ".model nmos nmos level=1 vto=1 kp=1e-4"
+    [5] analysis[0] @netlists/mos_inverter.cir:7:1 ".op"
+    [6] end @netlists/mos_inverter.cir:8:1 ".end"
+  devices (4):
+    device [0] name="vdd" designator=v @netlists/mos_inverter.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/mos_inverter.cir:2:11
+    device [1] name="vin" designator=v @netlists/mos_inverter.cir:3:1
+      nodes: "gate" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/mos_inverter.cir:3:12
+    device [2] name="rd" designator=r @netlists/mos_inverter.cir:4:1
+      nodes: "vdd" "drain"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/mos_inverter.cir:4:14
+    device [3] name="m1" designator=m @netlists/mos_inverter.cir:5:1
+      nodes: "drain" "gate" "0" "0"
+      model: "nmos"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/mos_inverter.cir:5:24
+        [1] name="l" kind=scalar value="1u" @netlists/mos_inverter.cir:5:30
+  models (1):
+    model [0] name="nmos" base="nmos" level=1e0 @netlists/mos_inverter.cir:6:1
+      parameters (3):
+        [0] name="level" kind=scalar value="1" @netlists/mos_inverter.cir:6:18
+        [1] name="vto" kind=scalar value="1" @netlists/mos_inverter.cir:6:26
+        [2] name="kp" kind=scalar value="1e-4" @netlists/mos_inverter.cir:6:32
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/mos_inverter.cir:7:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

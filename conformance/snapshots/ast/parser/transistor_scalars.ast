@@ -1,0 +1,125 @@
+# ngspice-rs ast-dump v1
+file: parser/transistor_scalars.cir
+title: "M1b BJT and MOS parser reference" @parser/transistor_scalars.cir:1:1
+scope root
+  cards (17):
+    [0] device[0] @parser/transistor_scalars.cir:3:1 "vcc c 0 dc 2"
+    [1] device[1] @parser/transistor_scalars.cir:4:1 "vbb b 0 dc 0.1"
+    [2] device[2] @parser/transistor_scalars.cir:5:1 "vsub sub 0 dc 0"
+    [3] device[3] @parser/transistor_scalars.cir:6:1 "vd d 0 dc 2"
+    [4] device[4] @parser/transistor_scalars.cir:7:1 "vg g 0 dc 2"
+    [5] device[5] @parser/transistor_scalars.cir:8:1 "vbulk bulk 0 dc 0"
+    [6] device[6] @parser/transistor_scalars.cir:10:1 "qthree c b gnd qm 2 area=7 areab=3 areac=4 m=5 icvbe=.1 icvce=2"
+    [7] device[7] @parser/transistor_scalars.cir:11:1 "qfour c b 0 sub qm area=3 temp=30 dtemp=2"
+    [8] device[8] @parser/transistor_scalars.cir:13:1 "qkeyword c b 0 area 2"
+    [9] device[9] @parser/transistor_scalars.cir:14:1 "qdigits c b 0 qm123 3"
+    [10] device[10] @parser/transistor_scalars.cir:16:1 "m1 d g 0 bulk nm l=1u w=10u w=20u ad=2p as=3p pd=4u ps=5u nrd=2 nrs=3 m=4 icvds=2 icvgs=2 icvbs=0 temp=30 dtemp=2"
+    [11] model[0] @parser/transistor_scalars.cir:18:1 ".model qm npn(is=1e-14 bf=100)"
+    [12] model[1] @parser/transistor_scalars.cir:19:1 ".model nm nmos(vto=1 kp=1e-4)"
+    [13] model[2] @parser/transistor_scalars.cir:20:1 ".model area npn(is=1e-14 bf=50)"
+    [14] model[3] @parser/transistor_scalars.cir:21:1 ".model qm123 npn(is=1e-14 bf=75)"
+    [15] analysis[0] @parser/transistor_scalars.cir:22:1 ".op"
+    [16] end @parser/transistor_scalars.cir:23:1 ".end"
+  devices (11):
+    device [0] name="vcc" designator=v @parser/transistor_scalars.cir:3:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @parser/transistor_scalars.cir:3:9
+    device [1] name="vbb" designator=v @parser/transistor_scalars.cir:4:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.1" @parser/transistor_scalars.cir:4:9
+    device [2] name="vsub" designator=v @parser/transistor_scalars.cir:5:1
+      nodes: "sub" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/transistor_scalars.cir:5:12
+    device [3] name="vd" designator=v @parser/transistor_scalars.cir:6:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @parser/transistor_scalars.cir:6:8
+    device [4] name="vg" designator=v @parser/transistor_scalars.cir:7:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @parser/transistor_scalars.cir:7:8
+    device [5] name="vbulk" designator=v @parser/transistor_scalars.cir:8:1
+      nodes: "bulk" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @parser/transistor_scalars.cir:8:14
+    device [6] name="qthree" designator=q @parser/transistor_scalars.cir:10:1
+      nodes: "c" "b" "0"
+      model: "qm"
+      parameters (7):
+        [0] name="area" kind=scalar value="7" @parser/transistor_scalars.cir:10:21
+        [1] name="areab" kind=scalar value="3" @parser/transistor_scalars.cir:10:28
+        [2] name="areac" kind=scalar value="4" @parser/transistor_scalars.cir:10:36
+        [3] name="m" kind=scalar value="5" @parser/transistor_scalars.cir:10:44
+        [4] name="icvbe" kind=scalar value=".1" @parser/transistor_scalars.cir:10:48
+        [5] name="icvce" kind=scalar value="2" @parser/transistor_scalars.cir:10:57
+        [6] name="area" kind=scalar value="2" @parser/transistor_scalars.cir:10:19
+    device [7] name="qfour" designator=q @parser/transistor_scalars.cir:11:1
+      nodes: "c" "b" "0" "sub"
+      model: "qm"
+      parameters (3):
+        [0] name="area" kind=scalar value="3" @parser/transistor_scalars.cir:11:20
+        [1] name="temp" kind=scalar value="30" @parser/transistor_scalars.cir:11:27
+        [2] name="dtemp" kind=scalar value="2" @parser/transistor_scalars.cir:11:35
+    device [8] name="qkeyword" designator=q @parser/transistor_scalars.cir:13:1
+      nodes: "c" "b" "0"
+      model: "area"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @parser/transistor_scalars.cir:13:21
+    device [9] name="qdigits" designator=q @parser/transistor_scalars.cir:14:1
+      nodes: "c" "b" "0"
+      model: "qm123"
+      parameters (1):
+        [0] name="area" kind=scalar value="3" @parser/transistor_scalars.cir:14:21
+    device [10] name="m1" designator=m @parser/transistor_scalars.cir:16:1
+      nodes: "d" "g" "0" "bulk"
+      model: "nm"
+      parameters (15):
+        [0] name="l" kind=scalar value="1u" @parser/transistor_scalars.cir:16:18
+        [1] name="w" kind=scalar value="10u" @parser/transistor_scalars.cir:16:23
+        [2] name="w" kind=scalar value="20u" @parser/transistor_scalars.cir:16:29
+        [3] name="ad" kind=scalar value="2p" @parser/transistor_scalars.cir:16:35
+        [4] name="as" kind=scalar value="3p" @parser/transistor_scalars.cir:16:41
+        [5] name="pd" kind=scalar value="4u" @parser/transistor_scalars.cir:16:47
+        [6] name="ps" kind=scalar value="5u" @parser/transistor_scalars.cir:16:53
+        [7] name="nrd" kind=scalar value="2" @parser/transistor_scalars.cir:16:59
+        [8] name="nrs" kind=scalar value="3" @parser/transistor_scalars.cir:16:65
+        [9] name="m" kind=scalar value="4" @parser/transistor_scalars.cir:16:71
+        [10] name="icvds" kind=scalar value="2" @parser/transistor_scalars.cir:16:75
+        [11] name="icvgs" kind=scalar value="2" @parser/transistor_scalars.cir:16:83
+        [12] name="icvbs" kind=scalar value="0" @parser/transistor_scalars.cir:16:91
+        [13] name="temp" kind=scalar value="30" @parser/transistor_scalars.cir:16:99
+        [14] name="dtemp" kind=scalar value="2" @parser/transistor_scalars.cir:16:107
+  models (4):
+    model [0] name="qm" base="npn" level=none @parser/transistor_scalars.cir:18:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @parser/transistor_scalars.cir:18:15
+        [1] name="bf" kind=scalar value="100" @parser/transistor_scalars.cir:18:24
+    model [1] name="nm" base="nmos" level=none @parser/transistor_scalars.cir:19:1
+      parameters (2):
+        [0] name="vto" kind=scalar value="1" @parser/transistor_scalars.cir:19:16
+        [1] name="kp" kind=scalar value="1e-4" @parser/transistor_scalars.cir:19:22
+    model [2] name="area" base="npn" level=none @parser/transistor_scalars.cir:20:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @parser/transistor_scalars.cir:20:17
+        [1] name="bf" kind=scalar value="50" @parser/transistor_scalars.cir:20:26
+    model [3] name="qm123" base="npn" level=none @parser/transistor_scalars.cir:21:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @parser/transistor_scalars.cir:21:18
+        [1] name="bf" kind=scalar value="75" @parser/transistor_scalars.cir:21:27
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/transistor_scalars.cir:22:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

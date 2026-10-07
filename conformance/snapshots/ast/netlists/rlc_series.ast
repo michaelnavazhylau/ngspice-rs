@@ -1,0 +1,41 @@
+# ngspice-rs ast-dump v1
+file: netlists/rlc_series.cir
+title: "Series RLC at DC" @netlists/rlc_series.cir:1:1
+scope root
+  cards (6):
+    [0] device[0] @netlists/rlc_series.cir:4:1 "v1 in 0 dc 1"
+    [1] device[1] @netlists/rlc_series.cir:5:1 "r1 in mid 100"
+    [2] device[2] @netlists/rlc_series.cir:6:1 "l1 mid out 1m"
+    [3] device[3] @netlists/rlc_series.cir:7:1 "c1 out 0 1u"
+    [4] analysis[0] @netlists/rlc_series.cir:8:1 ".op"
+    [5] end @netlists/rlc_series.cir:9:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/rlc_series.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/rlc_series.cir:4:9
+    device [1] name="r1" designator=r @netlists/rlc_series.cir:5:1
+      nodes: "in" "mid"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/rlc_series.cir:5:11
+    device [2] name="l1" designator=l @netlists/rlc_series.cir:6:1
+      nodes: "mid" "out"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/rlc_series.cir:6:12
+    device [3] name="c1" designator=c @netlists/rlc_series.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/rlc_series.cir:7:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/rlc_series.cir:8:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

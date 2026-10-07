@@ -1,0 +1,178 @@
+# ngspice-rs ast-dump v1
+file: parser/passive_elaboration.cir
+title: "Bounded passive geometry, temperature, scale and multiplicity" @parser/passive_elaboration.cir:1:1
+scope root
+  cards (23):
+    [0] device[0] @parser/passive_elaboration.cir:2:1 "v1 a 0 dc 1 ac 1"
+    [1] device[1] @parser/passive_elaboration.cir:3:1 "rmodel a 0 rm"
+    [2] device[2] @parser/passive_elaboration.cir:4:1 "rgeom a 0 rg l=8u w=4u temp=40 tc1=0.002 scale=1.5 m=2"
+    [3] device[3] @parser/passive_elaboration.cir:5:1 "rdefaults a 0 rg"
+    [4] device[4] @parser/passive_elaboration.cir:6:1 "rpre a 0 1k rm resistance=3k"
+    [5] device[5] @parser/passive_elaboration.cir:7:1 "rpost a 0 rm 4k resistance=5k"
+    [6] device[6] @parser/passive_elaboration.cir:8:1 "rboth a 0 7k rm 8k resistance=9k"
+    [7] device[7] @parser/passive_elaboration.cir:9:1 "rinstance a 0 2k rm tc1=0.001 tc2=0.00001 temp=60 m=3 scale=0.5"
+    [8] device[8] @parser/passive_elaboration.cir:10:1 "cmodel a 0 cm m=2 scale=3 temp=40"
+    [9] device[9] @parser/passive_elaboration.cir:11:1 "cgeom a 0 cg l=10u w=6u"
+    [10] device[10] @parser/passive_elaboration.cir:12:1 "cdefaults a 0 cg l=12u"
+    [11] device[11] @parser/passive_elaboration.cir:13:1 "coverrides a 0 2u cm tc1=0.002"
+    [12] device[12] @parser/passive_elaboration.cir:14:1 "lmodel a b lm m=2 scale=3 temp=40"
+    [13] device[13] @parser/passive_elaboration.cir:15:1 "rload b 0 1k"
+    [14] device[14] @parser/passive_elaboration.cir:16:1 "lexplicit a c 4m lm inductance=5m tc1=0.002 m=3"
+    [15] device[15] @parser/passive_elaboration.cir:17:1 "rload2 c 0 2k"
+    [16] model[0] @parser/passive_elaboration.cir:18:1 ".model rm r(r=1k r=2k tc1=0.001 tc2=0.00001 tnom=20)"
+    [17] model[1] @parser/passive_elaboration.cir:19:1 ".model rg r(r=9k rsh=100 defw=6u l=12u narrow=0.5u short=1u tc1=0.001 tnom=20)"
+    [18] model[2] @parser/passive_elaboration.cir:20:1 ".model cm c(cap=1u tc1=0.001 tc2=0.00001 tnom=20)"
+    [19] model[3] @parser/passive_elaboration.cir:21:1 ".model cg c(cj=2m cjsw=3n defw=8u narrow=1u short=2u tc1=0.001)"
+    [20] model[4] @parser/passive_elaboration.cir:22:1 ".model lm l(ind=6m tc1=0.001 tc2=0.00001 tnom=20)"
+    [21] analysis[0] @parser/passive_elaboration.cir:23:1 ".op"
+    [22] end @parser/passive_elaboration.cir:24:1 ".end"
+  devices (16):
+    device [0] name="v1" designator=v @parser/passive_elaboration.cir:2:1
+      nodes: "a" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="1" @parser/passive_elaboration.cir:2:8
+        [1] name="acmag" kind=scalar value="1" @parser/passive_elaboration.cir:2:16
+        [2] name="acphase" kind=scalar value="0" @parser/passive_elaboration.cir:2:13
+    device [1] name="rmodel" designator=r @parser/passive_elaboration.cir:3:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (0):
+    device [2] name="rgeom" designator=r @parser/passive_elaboration.cir:4:1
+      nodes: "a" "0"
+      model: "rg"
+      parameters (6):
+        [0] name="l" kind=scalar value="8u" @parser/passive_elaboration.cir:4:14
+        [1] name="w" kind=scalar value="4u" @parser/passive_elaboration.cir:4:19
+        [2] name="temp" kind=scalar value="40" @parser/passive_elaboration.cir:4:24
+        [3] name="tc1" kind=scalar value="0.002" @parser/passive_elaboration.cir:4:32
+        [4] name="scale" kind=scalar value="1.5" @parser/passive_elaboration.cir:4:42
+        [5] name="m" kind=scalar value="2" @parser/passive_elaboration.cir:4:52
+    device [3] name="rdefaults" designator=r @parser/passive_elaboration.cir:5:1
+      nodes: "a" "0"
+      model: "rg"
+      parameters (0):
+    device [4] name="rpre" designator=r @parser/passive_elaboration.cir:6:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (2):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_elaboration.cir:6:10
+        [1] name="resistance" kind=scalar value="3k" @parser/passive_elaboration.cir:6:16
+    device [5] name="rpost" designator=r @parser/passive_elaboration.cir:7:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (2):
+        [0] name="resistance" kind=scalar value="5k" @parser/passive_elaboration.cir:7:17
+        [1] name="resistance" kind=scalar value="4k" @parser/passive_elaboration.cir:7:14
+    device [6] name="rboth" designator=r @parser/passive_elaboration.cir:8:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (3):
+        [0] name="resistance" kind=scalar value="7k" @parser/passive_elaboration.cir:8:11
+        [1] name="resistance" kind=scalar value="9k" @parser/passive_elaboration.cir:8:20
+        [2] name="resistance" kind=scalar value="8k" @parser/passive_elaboration.cir:8:17
+    device [7] name="rinstance" designator=r @parser/passive_elaboration.cir:9:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (6):
+        [0] name="resistance" kind=scalar value="2k" @parser/passive_elaboration.cir:9:15
+        [1] name="tc1" kind=scalar value="0.001" @parser/passive_elaboration.cir:9:21
+        [2] name="tc2" kind=scalar value="0.00001" @parser/passive_elaboration.cir:9:31
+        [3] name="temp" kind=scalar value="60" @parser/passive_elaboration.cir:9:43
+        [4] name="m" kind=scalar value="3" @parser/passive_elaboration.cir:9:51
+        [5] name="scale" kind=scalar value="0.5" @parser/passive_elaboration.cir:9:55
+    device [8] name="cmodel" designator=c @parser/passive_elaboration.cir:10:1
+      nodes: "a" "0"
+      model: "cm"
+      parameters (3):
+        [0] name="m" kind=scalar value="2" @parser/passive_elaboration.cir:10:15
+        [1] name="scale" kind=scalar value="3" @parser/passive_elaboration.cir:10:19
+        [2] name="temp" kind=scalar value="40" @parser/passive_elaboration.cir:10:27
+    device [9] name="cgeom" designator=c @parser/passive_elaboration.cir:11:1
+      nodes: "a" "0"
+      model: "cg"
+      parameters (2):
+        [0] name="l" kind=scalar value="10u" @parser/passive_elaboration.cir:11:14
+        [1] name="w" kind=scalar value="6u" @parser/passive_elaboration.cir:11:20
+    device [10] name="cdefaults" designator=c @parser/passive_elaboration.cir:12:1
+      nodes: "a" "0"
+      model: "cg"
+      parameters (1):
+        [0] name="l" kind=scalar value="12u" @parser/passive_elaboration.cir:12:18
+    device [11] name="coverrides" designator=c @parser/passive_elaboration.cir:13:1
+      nodes: "a" "0"
+      model: "cm"
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="2u" @parser/passive_elaboration.cir:13:16
+        [1] name="tc1" kind=scalar value="0.002" @parser/passive_elaboration.cir:13:22
+    device [12] name="lmodel" designator=l @parser/passive_elaboration.cir:14:1
+      nodes: "a" "b"
+      model: "lm"
+      parameters (3):
+        [0] name="m" kind=scalar value="2" @parser/passive_elaboration.cir:14:15
+        [1] name="scale" kind=scalar value="3" @parser/passive_elaboration.cir:14:19
+        [2] name="temp" kind=scalar value="40" @parser/passive_elaboration.cir:14:27
+    device [13] name="rload" designator=r @parser/passive_elaboration.cir:15:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_elaboration.cir:15:11
+    device [14] name="lexplicit" designator=l @parser/passive_elaboration.cir:16:1
+      nodes: "a" "c"
+      model: "lm"
+      parameters (4):
+        [0] name="inductance" kind=scalar value="4m" @parser/passive_elaboration.cir:16:15
+        [1] name="inductance" kind=scalar value="5m" @parser/passive_elaboration.cir:16:21
+        [2] name="tc1" kind=scalar value="0.002" @parser/passive_elaboration.cir:16:35
+        [3] name="m" kind=scalar value="3" @parser/passive_elaboration.cir:16:45
+    device [15] name="rload2" designator=r @parser/passive_elaboration.cir:17:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @parser/passive_elaboration.cir:17:12
+  models (5):
+    model [0] name="rm" base="r" level=none @parser/passive_elaboration.cir:18:1
+      parameters (5):
+        [0] name="r" kind=scalar value="1k" @parser/passive_elaboration.cir:18:13
+        [1] name="r" kind=scalar value="2k" @parser/passive_elaboration.cir:18:18
+        [2] name="tc1" kind=scalar value="0.001" @parser/passive_elaboration.cir:18:23
+        [3] name="tc2" kind=scalar value="0.00001" @parser/passive_elaboration.cir:18:33
+        [4] name="tnom" kind=scalar value="20" @parser/passive_elaboration.cir:18:45
+    model [1] name="rg" base="r" level=none @parser/passive_elaboration.cir:19:1
+      parameters (8):
+        [0] name="r" kind=scalar value="9k" @parser/passive_elaboration.cir:19:13
+        [1] name="rsh" kind=scalar value="100" @parser/passive_elaboration.cir:19:18
+        [2] name="defw" kind=scalar value="6u" @parser/passive_elaboration.cir:19:26
+        [3] name="l" kind=scalar value="12u" @parser/passive_elaboration.cir:19:34
+        [4] name="narrow" kind=scalar value="0.5u" @parser/passive_elaboration.cir:19:40
+        [5] name="short" kind=scalar value="1u" @parser/passive_elaboration.cir:19:52
+        [6] name="tc1" kind=scalar value="0.001" @parser/passive_elaboration.cir:19:61
+        [7] name="tnom" kind=scalar value="20" @parser/passive_elaboration.cir:19:71
+    model [2] name="cm" base="c" level=none @parser/passive_elaboration.cir:20:1
+      parameters (4):
+        [0] name="cap" kind=scalar value="1u" @parser/passive_elaboration.cir:20:13
+        [1] name="tc1" kind=scalar value="0.001" @parser/passive_elaboration.cir:20:20
+        [2] name="tc2" kind=scalar value="0.00001" @parser/passive_elaboration.cir:20:30
+        [3] name="tnom" kind=scalar value="20" @parser/passive_elaboration.cir:20:42
+    model [3] name="cg" base="c" level=none @parser/passive_elaboration.cir:21:1
+      parameters (6):
+        [0] name="cj" kind=scalar value="2m" @parser/passive_elaboration.cir:21:13
+        [1] name="cjsw" kind=scalar value="3n" @parser/passive_elaboration.cir:21:19
+        [2] name="defw" kind=scalar value="8u" @parser/passive_elaboration.cir:21:27
+        [3] name="narrow" kind=scalar value="1u" @parser/passive_elaboration.cir:21:35
+        [4] name="short" kind=scalar value="2u" @parser/passive_elaboration.cir:21:45
+        [5] name="tc1" kind=scalar value="0.001" @parser/passive_elaboration.cir:21:54
+    model [4] name="lm" base="l" level=none @parser/passive_elaboration.cir:22:1
+      parameters (4):
+        [0] name="ind" kind=scalar value="6m" @parser/passive_elaboration.cir:22:13
+        [1] name="tc1" kind=scalar value="0.001" @parser/passive_elaboration.cir:22:20
+        [2] name="tc2" kind=scalar value="0.00001" @parser/passive_elaboration.cir:22:30
+        [3] name="tnom" kind=scalar value="20" @parser/passive_elaboration.cir:22:42
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/passive_elaboration.cir:23:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,0 +1,189 @@
+# ngspice-rs token-dump v1
+file: parser/model_schemas.cir
+title: "Model resolver selector and diode defaults/setup probe" @parser/model_schemas.cir:1:1
+card 1 @parser/model_schemas.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 a 0 dc 0"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "a"
+  token 3 2:6 number "0" value=0e0
+  token 4 2:8 word "dc"
+  token 5 2:11 number "0" value=0e0
+card 2 @parser/model_schemas.cir:3:1 lines=3-3 continuations=0
+  raw: "ddefault a 0 default"
+  kind: device(d)
+  token 1 3:1 word "ddefault"
+  token 2 3:10 word "a"
+  token 3 3:12 number "0" value=0e0
+  token 4 3:14 word "default"
+card 3 @parser/model_schemas.cir:4:1 lines=4-4 continuations=0
+  raw: "dexplicit a 0 explicit area=2 temp=50 temp=40"
+  kind: device(d)
+  token 1 4:1 word "dexplicit"
+  token 2 4:11 word "a"
+  token 3 4:13 number "0" value=0e0
+  token 4 4:15 word "explicit"
+  token 5 4:24 word "area"
+  token 6 4:28 equals "="
+  token 7 4:29 number "2" value=2e0
+  token 8 4:31 word "temp"
+  token 9 4:35 equals "="
+  token 10 4:36 number "50" value=5e1
+  token 11 4:39 word "temp"
+  token 12 4:43 equals "="
+  token 13 4:44 number "40" value=4e1
+card 4 @parser/model_schemas.cir:5:1 lines=5-5 continuations=0
+  raw: "dduplicate a 0 duplicate"
+  kind: device(d)
+  token 1 5:1 word "dduplicate"
+  token 2 5:12 word "a"
+  token 3 5:14 number "0" value=0e0
+  token 4 5:16 word "duplicate"
+card 5 @parser/model_schemas.cir:6:1 lines=6-6 continuations=0
+  raw: ".model default d"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "default"
+  token 3 6:16 word "d"
+card 6 @parser/model_schemas.cir:7:1 lines=7-7 continuations=0
+  raw: ".model explicit d(is=1e-14 is=2e-14 n=2 rs=3 tnom=30 level=3 level=1.49)"
+  kind: dot(.model)
+  token 1 7:1 word ".model"
+  token 2 7:8 word "explicit"
+  token 3 7:17 word "d"
+  token 4 7:18 lparen "("
+  token 5 7:19 word "is"
+  token 6 7:21 equals "="
+  token 7 7:22 number "1e-14" value=1e-14
+  token 8 7:28 word "is"
+  token 9 7:30 equals "="
+  token 10 7:31 number "2e-14" value=2e-14
+  token 11 7:37 word "n"
+  token 12 7:38 equals "="
+  token 13 7:39 number "2" value=2e0
+  token 14 7:41 word "rs"
+  token 15 7:43 equals "="
+  token 16 7:44 number "3" value=3e0
+  token 17 7:46 word "tnom"
+  token 18 7:50 equals "="
+  token 19 7:51 number "30" value=3e1
+  token 20 7:54 word "level"
+  token 21 7:59 equals "="
+  token 22 7:60 number "3" value=3e0
+  token 23 7:62 word "level"
+  token 24 7:67 equals "="
+  token 25 7:68 number "1.49" value=1.49e0
+  token 26 7:72 rparen ")"
+card 7 @parser/model_schemas.cir:8:1 lines=8-8 continuations=0
+  raw: ".model duplicate d(is=4e-14)"
+  kind: dot(.model)
+  token 1 8:1 word ".model"
+  token 2 8:8 word "duplicate"
+  token 3 8:18 word "d"
+  token 4 8:19 lparen "("
+  token 5 8:20 word "is"
+  token 6 8:22 equals "="
+  token 7 8:23 number "4e-14" value=4e-14
+  token 8 8:28 rparen ")"
+card 8 @parser/model_schemas.cir:9:1 lines=9-9 continuations=0
+  raw: ".model duplicate d(is=9e-14)"
+  kind: dot(.model)
+  token 1 9:1 word ".model"
+  token 2 9:8 word "duplicate"
+  token 3 9:18 word "d"
+  token 4 9:19 lparen "("
+  token 5 9:20 word "is"
+  token 6 9:22 equals "="
+  token 7 9:23 number "9e-14" value=9e-14
+  token 8 9:28 rparen ")"
+card 9 @parser/model_schemas.cir:10:1 lines=10-10 continuations=0
+  raw: "vqc qc 0 dc 0"
+  kind: device(v)
+  token 1 10:1 word "vqc"
+  token 2 10:5 word "qc"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 word "dc"
+  token 5 10:13 number "0" value=0e0
+card 10 @parser/model_schemas.cir:11:1 lines=11-11 continuations=0
+  raw: "vqb qb 0 dc 0"
+  kind: device(v)
+  token 1 11:1 word "vqb"
+  token 2 11:5 word "qb"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 word "dc"
+  token 5 11:13 number "0" value=0e0
+card 11 @parser/model_schemas.cir:12:1 lines=12-12 continuations=0
+  raw: "q1 qc qb 0 qmod"
+  kind: device(q)
+  token 1 12:1 word "q1"
+  token 2 12:4 word "qc"
+  token 3 12:7 word "qb"
+  token 4 12:10 number "0" value=0e0
+  token 5 12:12 word "qmod"
+card 12 @parser/model_schemas.cir:13:1 lines=13-13 continuations=0
+  raw: ".model qmod npn(level=1.5 level=9)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "qmod"
+  token 3 13:13 word "npn"
+  token 4 13:16 lparen "("
+  token 5 13:17 word "level"
+  token 6 13:22 equals "="
+  token 7 13:23 number "1.5" value=1.5e0
+  token 8 13:27 word "level"
+  token 9 13:32 equals "="
+  token 10 13:33 number "9" value=9e0
+  token 11 13:34 rparen ")"
+card 13 @parser/model_schemas.cir:14:1 lines=14-14 continuations=0
+  raw: "vmd md 0 dc 0"
+  kind: device(v)
+  token 1 14:1 word "vmd"
+  token 2 14:5 word "md"
+  token 3 14:8 number "0" value=0e0
+  token 4 14:10 word "dc"
+  token 5 14:13 number "0" value=0e0
+card 14 @parser/model_schemas.cir:15:1 lines=15-15 continuations=0
+  raw: "vmg mg 0 dc 0"
+  kind: device(v)
+  token 1 15:1 word "vmg"
+  token 2 15:5 word "mg"
+  token 3 15:8 number "0" value=0e0
+  token 4 15:10 word "dc"
+  token 5 15:13 number "0" value=0e0
+card 15 @parser/model_schemas.cir:16:1 lines=16-16 continuations=0
+  raw: "m1 md mg 0 0 mmod"
+  kind: device(m)
+  token 1 16:1 word "m1"
+  token 2 16:4 word "md"
+  token 3 16:7 word "mg"
+  token 4 16:10 number "0" value=0e0
+  token 5 16:12 number "0" value=0e0
+  token 6 16:14 word "mmod"
+card 16 @parser/model_schemas.cir:17:1 lines=17-17 continuations=0
+  raw: ".model mmod nmos(level=1.49 level=49 vto=1 kp=1m)"
+  kind: dot(.model)
+  token 1 17:1 word ".model"
+  token 2 17:8 word "mmod"
+  token 3 17:13 word "nmos"
+  token 4 17:17 lparen "("
+  token 5 17:18 word "level"
+  token 6 17:23 equals "="
+  token 7 17:24 number "1.49" value=1.49e0
+  token 8 17:29 word "level"
+  token 9 17:34 equals "="
+  token 10 17:35 number "49" value=4.9e1
+  token 11 17:38 word "vto"
+  token 12 17:41 equals "="
+  token 13 17:42 number "1" value=1e0
+  token 14 17:44 word "kp"
+  token 15 17:46 equals "="
+  token 16 17:47 number "1m" value=1e-3
+  token 17 17:49 rparen ")"
+card 17 @parser/model_schemas.cir:18:1 lines=18-18 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 18:1 word ".op"
+card 18 @parser/model_schemas.cir:19:1 lines=19-19 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 19:1 word ".end"

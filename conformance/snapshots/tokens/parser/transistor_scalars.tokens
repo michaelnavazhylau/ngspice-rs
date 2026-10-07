@@ -1,0 +1,232 @@
+# ngspice-rs token-dump v1
+file: parser/transistor_scalars.cir
+title: "M1b BJT and MOS parser reference" @parser/transistor_scalars.cir:1:1
+card 1 @parser/transistor_scalars.cir:3:1 lines=3-3 continuations=0
+  raw: "vcc c 0 dc 2"
+  kind: device(v)
+  token 1 3:1 word "vcc"
+  token 2 3:5 word "c"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 word "dc"
+  token 5 3:12 number "2" value=2e0
+card 2 @parser/transistor_scalars.cir:4:1 lines=4-4 continuations=0
+  raw: "vbb b 0 dc 0.1"
+  kind: device(v)
+  token 1 4:1 word "vbb"
+  token 2 4:5 word "b"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "0.1" value=1e-1
+card 3 @parser/transistor_scalars.cir:5:1 lines=5-5 continuations=0
+  raw: "vsub sub 0 dc 0"
+  kind: device(v)
+  token 1 5:1 word "vsub"
+  token 2 5:6 word "sub"
+  token 3 5:10 number "0" value=0e0
+  token 4 5:12 word "dc"
+  token 5 5:15 number "0" value=0e0
+card 4 @parser/transistor_scalars.cir:6:1 lines=6-6 continuations=0
+  raw: "vd d 0 dc 2"
+  kind: device(v)
+  token 1 6:1 word "vd"
+  token 2 6:4 word "d"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 word "dc"
+  token 5 6:11 number "2" value=2e0
+card 5 @parser/transistor_scalars.cir:7:1 lines=7-7 continuations=0
+  raw: "vg g 0 dc 2"
+  kind: device(v)
+  token 1 7:1 word "vg"
+  token 2 7:4 word "g"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 word "dc"
+  token 5 7:11 number "2" value=2e0
+card 6 @parser/transistor_scalars.cir:8:1 lines=8-8 continuations=0
+  raw: "vbulk bulk 0 dc 0"
+  kind: device(v)
+  token 1 8:1 word "vbulk"
+  token 2 8:7 word "bulk"
+  token 3 8:12 number "0" value=0e0
+  token 4 8:14 word "dc"
+  token 5 8:17 number "0" value=0e0
+card 7 @parser/transistor_scalars.cir:10:1 lines=10-10 continuations=0
+  raw: "qthree c b gnd qm 2 area=7 areab=3 areac=4 m=5 icvbe=.1 icvce=2"
+  kind: device(q)
+  token 1 10:1 word "qthree"
+  token 2 10:8 word "c"
+  token 3 10:10 word "b"
+  token 4 10:12 word "gnd"
+  token 5 10:16 word "qm"
+  token 6 10:19 number "2" value=2e0
+  token 7 10:21 word "area"
+  token 8 10:25 equals "="
+  token 9 10:26 number "7" value=7e0
+  token 10 10:28 word "areab"
+  token 11 10:33 equals "="
+  token 12 10:34 number "3" value=3e0
+  token 13 10:36 word "areac"
+  token 14 10:41 equals "="
+  token 15 10:42 number "4" value=4e0
+  token 16 10:44 word "m"
+  token 17 10:45 equals "="
+  token 18 10:46 number "5" value=5e0
+  token 19 10:48 word "icvbe"
+  token 20 10:53 equals "="
+  token 21 10:54 number ".1" value=1e-1
+  token 22 10:57 word "icvce"
+  token 23 10:62 equals "="
+  token 24 10:63 number "2" value=2e0
+card 8 @parser/transistor_scalars.cir:11:1 lines=11-11 continuations=0
+  raw: "qfour c b 0 sub qm area=3 temp=30 dtemp=2"
+  kind: device(q)
+  token 1 11:1 word "qfour"
+  token 2 11:7 word "c"
+  token 3 11:9 word "b"
+  token 4 11:11 number "0" value=0e0
+  token 5 11:13 word "sub"
+  token 6 11:17 word "qm"
+  token 7 11:20 word "area"
+  token 8 11:24 equals "="
+  token 9 11:25 number "3" value=3e0
+  token 10 11:27 word "temp"
+  token 11 11:31 equals "="
+  token 12 11:32 number "30" value=3e1
+  token 13 11:35 word "dtemp"
+  token 14 11:40 equals "="
+  token 15 11:41 number "2" value=2e0
+card 9 @parser/transistor_scalars.cir:13:1 lines=13-13 continuations=0
+  raw: "qkeyword c b 0 area 2"
+  kind: device(q)
+  token 1 13:1 word "qkeyword"
+  token 2 13:10 word "c"
+  token 3 13:12 word "b"
+  token 4 13:14 number "0" value=0e0
+  token 5 13:16 word "area"
+  token 6 13:21 number "2" value=2e0
+card 10 @parser/transistor_scalars.cir:14:1 lines=14-14 continuations=0
+  raw: "qdigits c b 0 qm123 3"
+  kind: device(q)
+  token 1 14:1 word "qdigits"
+  token 2 14:9 word "c"
+  token 3 14:11 word "b"
+  token 4 14:13 number "0" value=0e0
+  token 5 14:15 word "qm123"
+  token 6 14:21 number "3" value=3e0
+card 11 @parser/transistor_scalars.cir:16:1 lines=16-17 continuations=1
+  raw: "m1 d g 0 bulk nm l=1u w=10u w=20u ad=2p as=3p pd=4u ps=5u nrd=2 nrs=3 m=4 icvds=2 icvgs=2 icvbs=0 temp=30 dtemp=2"
+  kind: device(m)
+  token 1 16:1 word "m1"
+  token 2 16:4 word "d"
+  token 3 16:6 word "g"
+  token 4 16:8 number "0" value=0e0
+  token 5 16:10 word "bulk"
+  token 6 16:15 word "nm"
+  token 7 16:18 word "l"
+  token 8 16:19 equals "="
+  token 9 16:20 number "1u" value=1e-6
+  token 10 16:23 word "w"
+  token 11 16:24 equals "="
+  token 12 16:25 number "10u" value=9.999999999999999e-6
+  token 13 16:29 word "w"
+  token 14 16:30 equals "="
+  token 15 16:31 number "20u" value=1.9999999999999998e-5
+  token 16 16:35 word "ad"
+  token 17 16:37 equals "="
+  token 18 16:38 number "2p" value=2e-12
+  token 19 16:41 word "as"
+  token 20 16:43 equals "="
+  token 21 16:44 number "3p" value=3e-12
+  token 22 16:47 word "pd"
+  token 23 16:49 equals "="
+  token 24 16:50 number "4u" value=4e-6
+  token 25 16:53 word "ps"
+  token 26 16:55 equals "="
+  token 27 16:56 number "5u" value=4.9999999999999996e-6
+  token 28 16:59 word "nrd"
+  token 29 16:62 equals "="
+  token 30 16:63 number "2" value=2e0
+  token 31 16:65 word "nrs"
+  token 32 16:68 equals "="
+  token 33 16:69 number "3" value=3e0
+  token 34 16:71 word "m"
+  token 35 16:72 equals "="
+  token 36 16:73 number "4" value=4e0
+  token 37 16:75 word "icvds"
+  token 38 16:80 equals "="
+  token 39 16:81 number "2" value=2e0
+  token 40 16:83 word "icvgs"
+  token 41 16:88 equals "="
+  token 42 16:89 number "2" value=2e0
+  token 43 16:91 word "icvbs"
+  token 44 16:96 equals "="
+  token 45 16:97 number "0" value=0e0
+  token 46 16:99 word "temp"
+  token 47 16:103 equals "="
+  token 48 16:104 number "30" value=3e1
+  token 49 16:107 word "dtemp"
+  token 50 16:112 equals "="
+  token 51 16:113 number "2" value=2e0
+card 12 @parser/transistor_scalars.cir:18:1 lines=18-18 continuations=0
+  raw: ".model qm npn(is=1e-14 bf=100)"
+  kind: dot(.model)
+  token 1 18:1 word ".model"
+  token 2 18:8 word "qm"
+  token 3 18:11 word "npn"
+  token 4 18:14 lparen "("
+  token 5 18:15 word "is"
+  token 6 18:17 equals "="
+  token 7 18:18 number "1e-14" value=1e-14
+  token 8 18:24 word "bf"
+  token 9 18:26 equals "="
+  token 10 18:27 number "100" value=1e2
+  token 11 18:30 rparen ")"
+card 13 @parser/transistor_scalars.cir:19:1 lines=19-19 continuations=0
+  raw: ".model nm nmos(vto=1 kp=1e-4)"
+  kind: dot(.model)
+  token 1 19:1 word ".model"
+  token 2 19:8 word "nm"
+  token 3 19:11 word "nmos"
+  token 4 19:15 lparen "("
+  token 5 19:16 word "vto"
+  token 6 19:19 equals "="
+  token 7 19:20 number "1" value=1e0
+  token 8 19:22 word "kp"
+  token 9 19:24 equals "="
+  token 10 19:25 number "1e-4" value=1e-4
+  token 11 19:29 rparen ")"
+card 14 @parser/transistor_scalars.cir:20:1 lines=20-20 continuations=0
+  raw: ".model area npn(is=1e-14 bf=50)"
+  kind: dot(.model)
+  token 1 20:1 word ".model"
+  token 2 20:8 word "area"
+  token 3 20:13 word "npn"
+  token 4 20:16 lparen "("
+  token 5 20:17 word "is"
+  token 6 20:19 equals "="
+  token 7 20:20 number "1e-14" value=1e-14
+  token 8 20:26 word "bf"
+  token 9 20:28 equals "="
+  token 10 20:29 number "50" value=5e1
+  token 11 20:31 rparen ")"
+card 15 @parser/transistor_scalars.cir:21:1 lines=21-21 continuations=0
+  raw: ".model qm123 npn(is=1e-14 bf=75)"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "qm123"
+  token 3 21:14 word "npn"
+  token 4 21:17 lparen "("
+  token 5 21:18 word "is"
+  token 6 21:20 equals "="
+  token 7 21:21 number "1e-14" value=1e-14
+  token 8 21:27 word "bf"
+  token 9 21:29 equals "="
+  token 10 21:30 number "75" value=7.5e1
+  token 11 21:32 rparen ")"
+card 16 @parser/transistor_scalars.cir:22:1 lines=22-22 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 22:1 word ".op"
+card 17 @parser/transistor_scalars.cir:23:1 lines=23-23 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 23:1 word ".end"

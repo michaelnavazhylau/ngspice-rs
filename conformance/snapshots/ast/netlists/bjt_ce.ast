@@ -1,0 +1,45 @@
+# ngspice-rs ast-dump v1
+file: netlists/bjt_ce.cir
+title: "BJT common-emitter bias" @netlists/bjt_ce.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/bjt_ce.cir:2:1 "vcc vcc 0 dc 5"
+    [1] device[1] @netlists/bjt_ce.cir:3:1 "vin base 0 dc 0.65"
+    [2] device[2] @netlists/bjt_ce.cir:4:1 "rc vcc coll 1k"
+    [3] device[3] @netlists/bjt_ce.cir:5:1 "q1 coll base 0 qmod"
+    [4] model[0] @netlists/bjt_ce.cir:6:1 ".model qmod npn(is=1e-14 bf=100)"
+    [5] analysis[0] @netlists/bjt_ce.cir:7:1 ".op"
+    [6] end @netlists/bjt_ce.cir:8:1 ".end"
+  devices (4):
+    device [0] name="vcc" designator=v @netlists/bjt_ce.cir:2:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/bjt_ce.cir:2:11
+    device [1] name="vin" designator=v @netlists/bjt_ce.cir:3:1
+      nodes: "base" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.65" @netlists/bjt_ce.cir:3:12
+    device [2] name="rc" designator=r @netlists/bjt_ce.cir:4:1
+      nodes: "vcc" "coll"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bjt_ce.cir:4:13
+    device [3] name="q1" designator=q @netlists/bjt_ce.cir:5:1
+      nodes: "coll" "base" "0"
+      model: "qmod"
+      parameters (0):
+  models (1):
+    model [0] name="qmod" base="npn" level=none @netlists/bjt_ce.cir:6:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @netlists/bjt_ce.cir:6:17
+        [1] name="bf" kind=scalar value="100" @netlists/bjt_ce.cir:6:26
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/bjt_ce.cir:7:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,0 +1,54 @@
+# ngspice-rs token-dump v1
+file: cases/brace_expressions.cir
+title: "Brace expressions in params, values and analysis arguments" @cases/brace_expressions.cir:1:1
+card 1 @cases/brace_expressions.cir:2:1 lines=2-2 continuations=0
+  raw: ".param rload = 2k  vdd = {5*(1+0.1)}"
+  kind: dot(.param)
+  token 1 2:1 word ".param"
+  token 2 2:8 word "rload"
+  token 3 2:14 equals "="
+  token 4 2:16 number "2k" value=2e3
+  token 5 2:20 word "vdd"
+  token 6 2:24 equals "="
+  token 7 2:26 expression "{5*(1+0.1)}" inner="5*(1+0.1)"
+card 2 @cases/brace_expressions.cir:3:1 lines=3-3 continuations=0
+  raw: ".param ratio = {rload/(rload+1k)}  scale = -2^2"
+  kind: dot(.param)
+  token 1 3:1 word ".param"
+  token 2 3:8 word "ratio"
+  token 3 3:14 equals "="
+  token 4 3:16 expression "{rload/(rload+1k)}" inner="rload/(rload+1k)"
+  token 5 3:36 word "scale"
+  token 6 3:42 equals "="
+  token 7 3:44 word "-2^2"
+card 3 @cases/brace_expressions.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 {vdd}"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 expression "{vdd}" inner="vdd"
+card 4 @cases/brace_expressions.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in out {rload * 2}"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "out"
+  token 4 5:11 expression "{rload * 2}" inner="rload * 2"
+card 5 @cases/brace_expressions.cir:6:1 lines=6-6 continuations=0
+  raw: "r2 out 0 {max(rload, 1k) + sin(0)}"
+  kind: device(r)
+  token 1 6:1 word "r2"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 expression "{max(rload, 1k) + sin(0)}" inner="max(rload, 1k) + sin(0)"
+card 6 @cases/brace_expressions.cir:7:1 lines=7-7 continuations=0
+  raw: ".tran 1u {10*1u}"
+  kind: dot(.tran)
+  token 1 7:1 word ".tran"
+  token 2 7:7 number "1u" value=1e-6
+  token 3 7:10 expression "{10*1u}" inner="10*1u"
+card 7 @cases/brace_expressions.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

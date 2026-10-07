@@ -1,0 +1,168 @@
+# ngspice-rs ast-dump v1
+file: parser/param_expressions.cir
+title: "Bounded .param assignments and expression-valued parameters" @parser/param_expressions.cir:1:1
+scope root
+  cards (14):
+    [0] param[0] @parser/param_expressions.cir:2:1 ".param vdd=5 rload=2k, scale=1meg"
+    [1] param[1] @parser/param_expressions.cir:3:1 ".param half={vdd/2} tau={rload*1u} ratio=(vdd+1)*2^2"
+    [2] param[2] @parser/param_expressions.cir:4:1 ".param vdd=3.3 decay=-2^2"
+    [3] device[0] @parser/param_expressions.cir:5:1 "v1 in 0 dc {vdd} ac {half}"
+    [4] device[1] @parser/param_expressions.cir:6:1 "r1 in out {rload}"
+    [5] device[2] @parser/param_expressions.cir:7:1 "c1 out 0 {tau}"
+    [6] device[3] @parser/param_expressions.cir:8:1 "rm out 0 rmod {rload*2}"
+    [7] device[4] @parser/param_expressions.cir:9:1 "d1 out 0 dm area={ratio}"
+    [8] model[0] @parser/param_expressions.cir:10:1 ".model rmod r rsh=100"
+    [9] model[1] @parser/param_expressions.cir:11:1 ".model dm d is=1e-14"
+    [10] subcircuit[0] @parser/param_expressions.cir:12:1 ".subckt cell a b params: w={scale/1k}"
+    [11] device[5] @parser/param_expressions.cir:16:1 "x1 out 0 cell w={half}"
+    [12] analysis[0] @parser/param_expressions.cir:17:1 ".tran {tau/10} {tau*5}"
+    [13] end @parser/param_expressions.cir:18:1 ".end"
+  devices (6):
+    device [0] name="v1" designator=v @parser/param_expressions.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=expression value="{vdd}" @parser/param_expressions.cir:5:9
+          expression braced=true text="vdd" span=5:13..16
+            identifier "vdd" span=5:13..16
+        [1] name="acmag" kind=expression value="{half}" @parser/param_expressions.cir:5:21
+          expression braced=true text="half" span=5:22..26
+            identifier "half" span=5:22..26
+        [2] name="acphase" kind=scalar value="0" @parser/param_expressions.cir:5:18
+    device [1] name="r1" designator=r @parser/param_expressions.cir:6:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rload}" @parser/param_expressions.cir:6:11
+          expression braced=true text="rload" span=6:12..17
+            identifier "rload" span=6:12..17
+    device [2] name="c1" designator=c @parser/param_expressions.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=expression value="{tau}" @parser/param_expressions.cir:7:10
+          expression braced=true text="tau" span=7:11..14
+            identifier "tau" span=7:11..14
+    device [3] name="rm" designator=r @parser/param_expressions.cir:8:1
+      nodes: "out" "0"
+      model: "rmod"
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rload*2}" @parser/param_expressions.cir:8:15
+          expression braced=true text="rload*2" span=8:16..23
+            binary mul span=8:16..23
+              identifier "rload" span=8:16..21
+              number "2" value=2e0 span=8:22..23
+    device [4] name="d1" designator=d @parser/param_expressions.cir:9:1
+      nodes: "out" "0"
+      model: "dm"
+      parameters (1):
+        [0] name="area" kind=expression value="{ratio}" @parser/param_expressions.cir:9:13
+          expression braced=true text="ratio" span=9:19..24
+            identifier "ratio" span=9:19..24
+    device [5] name="x1" designator=x @parser/param_expressions.cir:16:1
+      nodes: "out" "0"
+      model: "cell"
+      parameters (1):
+        [0] name="w" kind=expression value="{half}" @parser/param_expressions.cir:16:15
+          expression braced=true text="half" span=16:18..22
+            identifier "half" span=16:18..22
+  models (2):
+    model [0] name="rmod" base="r" level=none @parser/param_expressions.cir:10:1
+      parameters (1):
+        [0] name="rsh" kind=scalar value="100" @parser/param_expressions.cir:10:15
+    model [1] name="dm" base="d" level=none @parser/param_expressions.cir:11:1
+      parameters (1):
+        [0] name="is" kind=scalar value="1e-14" @parser/param_expressions.cir:11:13
+  subcircuits (1):
+    subcircuit [0] name="cell" @parser/param_expressions.cir:12:1 end=@parser/param_expressions.cir:15:1
+      terminals: "a" "b"
+      parameters (1):
+        [0] name="w" kind=expression value="{scale/1k}" @parser/param_expressions.cir:12:26
+          expression braced=true text="scale/1k" span=12:29..37
+            binary div span=12:29..37
+              identifier "scale" span=12:29..34
+              number "1k" value=1e3 span=12:35..37
+      scope body
+        cards (3):
+          [0] param[0] @parser/param_expressions.cir:13:1 ".param local={w*2}"
+          [1] device[0] @parser/param_expressions.cir:14:1 "r1 a b {local}"
+          [2] ends @parser/param_expressions.cir:15:1 ".ends cell"
+        devices (1):
+          device [0] name="r1" designator=r @parser/param_expressions.cir:14:1
+            nodes: "a" "b"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=expression value="{local}" @parser/param_expressions.cir:14:8
+                expression braced=true text="local" span=14:9..14
+                  identifier "local" span=14:9..14
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (1):
+          param-card [0] @parser/param_expressions.cir:13:1
+            assignment [0] name="local" name_span=13:8..13
+              expression braced=true text="w*2" span=13:15..18
+                binary mul span=13:15..18
+                  identifier "w" span=13:15..16
+                  number "2" value=2e0 span=13:17..18
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=tran @parser/param_expressions.cir:17:1
+      arguments: "{tau/10}" "{tau*5}"
+      argument-expression index=0
+        expression braced=true text="tau/10" span=17:8..14
+          binary div span=17:8..14
+            identifier "tau" span=17:8..11
+            number "10" value=1e1 span=17:12..14
+      argument-expression index=1
+        expression braced=true text="tau*5" span=17:17..22
+          binary mul span=17:17..22
+            identifier "tau" span=17:17..20
+            number "5" value=5e0 span=17:21..22
+  includes (0):
+  params (3):
+    param-card [0] @parser/param_expressions.cir:2:1
+      assignment [0] name="vdd" name_span=2:8..11
+        expression braced=false text="5" span=2:12..13
+          number "5" value=5e0 span=2:12..13
+      assignment [1] name="rload" name_span=2:14..19
+        expression braced=false text="2k" span=2:20..22
+          number "2k" value=2e3 span=2:20..22
+      assignment [2] name="scale" name_span=2:24..29
+        expression braced=false text="1meg" span=2:30..34
+          number "1meg" value=1e6 span=2:30..34
+    param-card [1] @parser/param_expressions.cir:3:1
+      assignment [0] name="half" name_span=3:8..12
+        expression braced=true text="vdd/2" span=3:14..19
+          binary div span=3:14..19
+            identifier "vdd" span=3:14..17
+            number "2" value=2e0 span=3:18..19
+      assignment [1] name="tau" name_span=3:21..24
+        expression braced=true text="rload*1u" span=3:26..34
+          binary mul span=3:26..34
+            identifier "rload" span=3:26..31
+            number "1u" value=1e-6 span=3:32..34
+      assignment [2] name="ratio" name_span=3:36..41
+        expression braced=false text="(vdd+1)*2^2" span=3:42..53
+          binary mul span=3:42..53
+            group span=3:42..49
+              binary add span=3:43..48
+                identifier "vdd" span=3:43..46
+                number "1" value=1e0 span=3:47..48
+            binary pow span=3:50..53
+              number "2" value=2e0 span=3:50..51
+              number "2" value=2e0 span=3:52..53
+    param-card [2] @parser/param_expressions.cir:4:1
+      assignment [0] name="vdd" name_span=4:8..11
+        expression braced=false text="3.3" span=4:12..15
+          number "3.3" value=3.3e0 span=4:12..15
+      assignment [1] name="decay" name_span=4:16..21
+        expression braced=false text="-2^2" span=4:22..26
+          unary minus span=4:22..26
+            binary pow span=4:23..26
+              number "2" value=2e0 span=4:23..24
+              number "2" value=2e0 span=4:25..26
+  options (0):
+  globals (0):

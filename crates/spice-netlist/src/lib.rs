@@ -12,6 +12,7 @@
 //! | [`elaborate`] | literalized netlist copy with evaluated numeric sites | **#15** |
 //! | [`ast`] | the semantic netlist model | bounded devices/models, ordered subcircuit scopes and source provenance |
 //! | [`writer`], [`semantic`] | normalized deck serialization and location-free comparison | **#20** |
+//! | [`dump`], [`snapshot`] | versioned token/AST text dumps and snapshot generation | **#21** |
 //! | [`parser`] | winnow token stream → [`ast::Netlist`] | **M1a/M1b + scoped subcircuits/X and bounded source resolution; no flattening** |
 //!
 //! The C equivalent is spread over `src/frontend/inp.c`,
@@ -24,11 +25,13 @@
 
 pub mod ast;
 pub mod card;
+pub mod dump;
 pub mod elaborate;
 pub mod eval;
 pub mod expr;
 pub mod parser;
 pub mod semantic;
+pub mod snapshot;
 pub mod source;
 pub mod token;
 pub mod writer;

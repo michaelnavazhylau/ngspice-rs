@@ -1,0 +1,82 @@
+# ngspice-rs ast-dump v1
+file: cases/brace_expressions.cir
+title: "Brace expressions in params, values and analysis arguments" @cases/brace_expressions.cir:1:1
+scope root
+  cards (7):
+    [0] param[0] @cases/brace_expressions.cir:2:1 ".param rload = 2k  vdd = {5*(1+0.1)}"
+    [1] param[1] @cases/brace_expressions.cir:3:1 ".param ratio = {rload/(rload+1k)}  scale = -2^2"
+    [2] device[0] @cases/brace_expressions.cir:4:1 "v1 in 0 {vdd}"
+    [3] device[1] @cases/brace_expressions.cir:5:1 "r1 in out {rload * 2}"
+    [4] device[2] @cases/brace_expressions.cir:6:1 "r2 out 0 {max(rload, 1k) + sin(0)}"
+    [5] analysis[0] @cases/brace_expressions.cir:7:1 ".tran 1u {10*1u}"
+    [6] end @cases/brace_expressions.cir:8:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @cases/brace_expressions.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=expression value="{vdd}" @cases/brace_expressions.cir:4:9
+          expression braced=true text="vdd" span=4:10..13
+            identifier "vdd" span=4:10..13
+    device [1] name="r1" designator=r @cases/brace_expressions.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rload * 2}" @cases/brace_expressions.cir:5:11
+          expression braced=true text="rload * 2" span=5:12..21
+            binary mul span=5:12..21
+              identifier "rload" span=5:12..17
+              number "2" value=2e0 span=5:20..21
+    device [2] name="r2" designator=r @cases/brace_expressions.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{max(rload, 1k) + sin(0)}" @cases/brace_expressions.cir:6:10
+          expression braced=true text="max(rload, 1k) + sin(0)" span=6:11..34
+            binary add span=6:11..34
+              call max span=6:11..25
+                identifier "rload" span=6:15..20
+                number "1k" value=1e3 span=6:22..24
+              call sin span=6:28..34
+                number "0" value=0e0 span=6:32..33
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @cases/brace_expressions.cir:7:1
+      arguments: "1u" "{10*1u}"
+      argument-expression index=1
+        expression braced=true text="10*1u" span=7:11..16
+          binary mul span=7:11..16
+            number "10" value=1e1 span=7:11..13
+            number "1u" value=1e-6 span=7:14..16
+  includes (0):
+  params (2):
+    param-card [0] @cases/brace_expressions.cir:2:1
+      assignment [0] name="rload" name_span=2:8..13
+        expression braced=false text="2k" span=2:16..18
+          number "2k" value=2e3 span=2:16..18
+      assignment [1] name="vdd" name_span=2:20..23
+        expression braced=true text="5*(1+0.1)" span=2:27..36
+          binary mul span=2:27..36
+            number "5" value=5e0 span=2:27..28
+            group span=2:29..36
+              binary add span=2:30..35
+                number "1" value=1e0 span=2:30..31
+                number "0.1" value=1e-1 span=2:32..35
+    param-card [1] @cases/brace_expressions.cir:3:1
+      assignment [0] name="ratio" name_span=3:8..13
+        expression braced=true text="rload/(rload+1k)" span=3:17..33
+          binary div span=3:17..33
+            identifier "rload" span=3:17..22
+            group span=3:23..33
+              binary add span=3:24..32
+                identifier "rload" span=3:24..29
+                number "1k" value=1e3 span=3:30..32
+      assignment [1] name="scale" name_span=3:36..41
+        expression braced=false text="-2^2" span=3:44..48
+          unary minus span=3:44..48
+            binary pow span=3:45..48
+              number "2" value=2e0 span=3:45..46
+              number "2" value=2e0 span=3:47..48
+  options (0):
+  globals (0):

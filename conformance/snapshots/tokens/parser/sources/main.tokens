@@ -1,0 +1,44 @@
+# ngspice-rs token-dump v1
+file: parser/sources/main.cir
+title: "Source-relative subcircuit and library syntax" @parser/sources/main.cir:1:1
+card 1 @parser/sources/main.cir:2:1 lines=2-2 continuations=0
+  raw: ".include 'parts/divider.inc'"
+  kind: dot(.include)
+  token 1 2:1 word ".include"
+  token 2 2:10 quoted "'parts/divider.inc'" unquoted="parts/divider.inc"
+card 2 @parser/sources/main.cir:3:1 lines=3-3 continuations=0
+  raw: ".lib 'parts/passives.lib' TYPICAL"
+  kind: dot(.lib)
+  token 1 3:1 word ".lib"
+  token 2 3:6 quoted "'parts/passives.lib'" unquoted="parts/passives.lib"
+  token 3 3:27 word "TYPICAL"
+card 3 @parser/sources/main.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 10"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "10" value=1e1
+card 4 @parser/sources/main.cir:5:1 lines=5-5 continuations=0
+  raw: "x1 in out div"
+  kind: device(x)
+  token 1 5:1 word "x1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "out"
+  token 4 5:11 word "div"
+card 5 @parser/sources/main.cir:6:1 lines=6-6 continuations=0
+  raw: "r2 out 0 1k"
+  kind: device(r)
+  token 1 6:1 word "r2"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "1k" value=1e3
+card 6 @parser/sources/main.cir:7:1 lines=7-7 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 7:1 word ".op"
+card 7 @parser/sources/main.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

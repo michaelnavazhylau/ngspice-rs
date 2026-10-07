@@ -1,0 +1,134 @@
+# ngspice-rs token-dump v1
+file: cases/scoped_names.cir
+title: "Scoped names: same names in sibling and nested subcircuits" @cases/scoped_names.cir:1:1
+card 1 @cases/scoped_names.cir:2:1 lines=2-2 continuations=0
+  raw: ".param top = 1k"
+  kind: dot(.param)
+  token 1 2:1 word ".param"
+  token 2 2:8 word "top"
+  token 3 2:12 equals "="
+  token 4 2:14 number "1k" value=1e3
+card 2 @cases/scoped_names.cir:3:1 lines=3-3 continuations=0
+  raw: ".subckt outer a b w=1u"
+  kind: dot(.subckt)
+  token 1 3:1 word ".subckt"
+  token 2 3:9 word "outer"
+  token 3 3:15 word "a"
+  token 4 3:17 word "b"
+  token 5 3:19 word "w"
+  token 6 3:20 equals "="
+  token 7 3:21 number "1u" value=1e-6
+card 3 @cases/scoped_names.cir:4:1 lines=4-4 continuations=0
+  raw: ".param local = {w * 2}"
+  kind: dot(.param)
+  token 1 4:1 word ".param"
+  token 2 4:8 word "local"
+  token 3 4:14 equals "="
+  token 4 4:16 expression "{w * 2}" inner="w * 2"
+card 4 @cases/scoped_names.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 a mid {local}"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "a"
+  token 3 5:6 word "mid"
+  token 4 5:10 expression "{local}" inner="local"
+card 5 @cases/scoped_names.cir:6:1 lines=6-6 continuations=0
+  raw: ".model dm d(is=1e-14)"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "dm"
+  token 3 6:11 word "d"
+  token 4 6:12 lparen "("
+  token 5 6:13 word "is"
+  token 6 6:15 equals "="
+  token 7 6:16 number "1e-14" value=1e-14
+  token 8 6:21 rparen ")"
+card 6 @cases/scoped_names.cir:7:1 lines=7-7 continuations=0
+  raw: "d1 mid b dm"
+  kind: device(d)
+  token 1 7:1 word "d1"
+  token 2 7:4 word "mid"
+  token 3 7:8 word "b"
+  token 4 7:10 word "dm"
+card 7 @cases/scoped_names.cir:8:1 lines=8-8 continuations=0
+  raw: ".subckt inner p q"
+  kind: dot(.subckt)
+  token 1 8:1 word ".subckt"
+  token 2 8:9 word "inner"
+  token 3 8:15 word "p"
+  token 4 8:17 word "q"
+card 8 @cases/scoped_names.cir:9:1 lines=9-9 continuations=0
+  raw: "r1 p q 10k"
+  kind: device(r)
+  token 1 9:1 word "r1"
+  token 2 9:4 word "p"
+  token 3 9:6 word "q"
+  token 4 9:8 number "10k" value=1e4
+card 9 @cases/scoped_names.cir:10:1 lines=10-10 continuations=0
+  raw: ".ends inner"
+  kind: dot(.ends)
+  token 1 10:1 word ".ends"
+  token 2 10:7 word "inner"
+card 10 @cases/scoped_names.cir:11:1 lines=11-11 continuations=0
+  raw: "x1 a b inner"
+  kind: device(x)
+  token 1 11:1 word "x1"
+  token 2 11:4 word "a"
+  token 3 11:6 word "b"
+  token 4 11:8 word "inner"
+card 11 @cases/scoped_names.cir:12:1 lines=12-12 continuations=0
+  raw: ".ends outer"
+  kind: dot(.ends)
+  token 1 12:1 word ".ends"
+  token 2 12:7 word "outer"
+card 12 @cases/scoped_names.cir:13:1 lines=13-13 continuations=0
+  raw: ".subckt inner p q"
+  kind: dot(.subckt)
+  token 1 13:1 word ".subckt"
+  token 2 13:9 word "inner"
+  token 3 13:15 word "p"
+  token 4 13:17 word "q"
+card 13 @cases/scoped_names.cir:14:1 lines=14-14 continuations=0
+  raw: "r1 p q 20k"
+  kind: device(r)
+  token 1 14:1 word "r1"
+  token 2 14:4 word "p"
+  token 3 14:6 word "q"
+  token 4 14:8 number "20k" value=2e4
+card 14 @cases/scoped_names.cir:15:1 lines=15-15 continuations=0
+  raw: ".ends inner"
+  kind: dot(.ends)
+  token 1 15:1 word ".ends"
+  token 2 15:7 word "inner"
+card 15 @cases/scoped_names.cir:16:1 lines=16-16 continuations=0
+  raw: "x1 in out outer w=2u"
+  kind: device(x)
+  token 1 16:1 word "x1"
+  token 2 16:4 word "in"
+  token 3 16:7 word "out"
+  token 4 16:11 word "outer"
+  token 5 16:17 word "w"
+  token 6 16:18 equals "="
+  token 7 16:19 number "2u" value=2e-6
+card 16 @cases/scoped_names.cir:17:1 lines=17-17 continuations=0
+  raw: "x2 out 0 inner"
+  kind: device(x)
+  token 1 17:1 word "x2"
+  token 2 17:4 word "out"
+  token 3 17:8 number "0" value=0e0
+  token 4 17:10 word "inner"
+card 17 @cases/scoped_names.cir:18:1 lines=18-18 continuations=0
+  raw: "r1 in 0 {top}"
+  kind: device(r)
+  token 1 18:1 word "r1"
+  token 2 18:4 word "in"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 expression "{top}" inner="top"
+card 18 @cases/scoped_names.cir:19:1 lines=19-19 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 19:1 word ".op"
+card 19 @cases/scoped_names.cir:20:1 lines=20-20 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 20:1 word ".end"

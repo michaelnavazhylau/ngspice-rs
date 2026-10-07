@@ -1,0 +1,8 @@
+Numeric node names, number-like model names and ground aliases
+v1 1 0 dc 5
+r1 1 2 1k
+r2 2 gnd 4.7k
+d1 2 0 1n4148
+.model 1n4148 d(is=1e-14)
+.op
+.end

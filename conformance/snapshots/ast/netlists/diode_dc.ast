@@ -1,0 +1,39 @@
+# ngspice-rs ast-dump v1
+file: netlists/diode_dc.cir
+title: "Diode DC sweep" @netlists/diode_dc.cir:1:1
+scope root
+  cards (6):
+    [0] device[0] @netlists/diode_dc.cir:2:1 "v1 in 0 dc 0"
+    [1] device[1] @netlists/diode_dc.cir:3:1 "r1 in out 1k"
+    [2] device[2] @netlists/diode_dc.cir:4:1 "d1 out 0 dmod"
+    [3] model[0] @netlists/diode_dc.cir:5:1 ".model dmod d(is=1e-14 n=1.0)"
+    [4] analysis[0] @netlists/diode_dc.cir:6:1 ".dc v1 0 1 0.25"
+    [5] end @netlists/diode_dc.cir:7:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/diode_dc.cir:2:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/diode_dc.cir:2:9
+    device [1] name="r1" designator=r @netlists/diode_dc.cir:3:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/diode_dc.cir:3:11
+    device [2] name="d1" designator=d @netlists/diode_dc.cir:4:1
+      nodes: "out" "0"
+      model: "dmod"
+      parameters (0):
+  models (1):
+    model [0] name="dmod" base="d" level=none @netlists/diode_dc.cir:5:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @netlists/diode_dc.cir:5:15
+        [1] name="n" kind=scalar value="1.0" @netlists/diode_dc.cir:5:24
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/diode_dc.cir:6:1
+      arguments: "v1" "0" "1" "0.25"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

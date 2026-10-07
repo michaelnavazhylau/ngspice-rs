@@ -64,6 +64,7 @@ drift rather than silently absorbed.
 | `cargo xtask golden check` | capture into the scratch directory and report drift; writes nothing, exits non-zero on drift |
 | `cargo xtask golden list` | describe each committed golden: plot name, variable count, point count, finiteness |
 | `cargo xtask golden verify [--netlist <NAME>]` | run the supported Rust analyses against committed C data; no C binary, no writes, non-zero on failure |
+| `cargo xtask snapshots [--bless]` | check/regenerate token and AST snapshots; Rust only; non-zero on drift without `--bless` |
 | `cargo xtask ci` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` |
 
 For **capture/check only**, locate the reference binary with `--ngspice <PATH>` or `NGSPICE_BIN`; otherwise
@@ -155,7 +156,12 @@ It was run successfully against the local ngspice-47+ binary for M1a.
 
 `conformance/parser/` is **not** part of the rawfile fixture corpus; do not add
 `.raw` files there or confuse these instance-query checks with engine parity.
-Token/AST snapshots and normalized-deck round trips are still M1d work.
+Token/AST snapshots (#21) are committed under `conformance/snapshots/` and
+checked byte for byte by `crates/spice-netlist/tests/snapshots.rs`;
+`cargo xtask snapshots` reports drift and `--bless` regenerates (Rust only, no C,
+fixed point, never touches goldens). Schema, layout, path/Windows rules and the
+schema-change procedure: `conformance/snapshots/README.md`. The eight-fixture
+round-trip gate (#22) is still M1d work.
 
 `crates/spice-netlist/tests/c_param_reference.rs` is a further ignored oracle for
 the `.param`/expression grammar (#14): it folds parsed trees with a test-local

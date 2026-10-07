@@ -1,0 +1,67 @@
+# ngspice-rs ast-dump v1
+file: parser/sources/main.cir
+title: "Source-relative subcircuit and library syntax" @parser/sources/main.cir:1:1
+scope root
+  cards (10):
+    [0] include[0] @parser/sources/main.cir:2:1 ".include 'parts/divider.inc'"
+    [1] subcircuit[0] @parser/sources/parts/divider.inc:2:1 ".subckt div a b" via=[parser/sources/main.cir:2:1]
+    [2] include[1] @parser/sources/main.cir:3:1 ".lib 'parts/passives.lib' TYPICAL"
+    [3] include[2] @parser/sources/parts/passives.lib:5:1 ".include '../shared/sheet.inc'" via=[parser/sources/main.cir:3:1]
+    [4] model[0] @parser/sources/shared/sheet.inc:1:1 ".model sheet r rsh=1K" via=[parser/sources/main.cir:3:1, parser/sources/parts/passives.lib:5:1]
+    [5] device[0] @parser/sources/main.cir:4:1 "v1 in 0 dc 10"
+    [6] device[1] @parser/sources/main.cir:5:1 "x1 in out div"
+    [7] device[2] @parser/sources/main.cir:6:1 "r2 out 0 1k"
+    [8] analysis[0] @parser/sources/main.cir:7:1 ".op"
+    [9] end @parser/sources/main.cir:8:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @parser/sources/main.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="10" @parser/sources/main.cir:4:9
+    device [1] name="x1" designator=x @parser/sources/main.cir:5:1
+      nodes: "in" "out"
+      model: "div"
+      parameters (0):
+    device [2] name="r2" designator=r @parser/sources/main.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/sources/main.cir:6:10
+  models (1):
+    model [0] name="sheet" base="r" level=none @parser/sources/shared/sheet.inc:1:1
+      parameters (1):
+        [0] name="rsh" kind=scalar value="1K" @parser/sources/shared/sheet.inc:1:16
+  subcircuits (1):
+    subcircuit [0] name="div" @parser/sources/parts/divider.inc:2:1 end=@parser/sources/parts/divider.inc:4:1
+      terminals: "a" "b"
+      parameters (0):
+      scope body
+        cards (2):
+          [0] device[0] @parser/sources/parts/divider.inc:3:1 "r1 a b sheet l=1u w=1u" via=[parser/sources/main.cir:2:1]
+          [1] ends @parser/sources/parts/divider.inc:4:1 ".ends div" via=[parser/sources/main.cir:2:1]
+        devices (1):
+          device [0] name="r1" designator=r @parser/sources/parts/divider.inc:3:1
+            nodes: "a" "b"
+            model: "sheet"
+            parameters (2):
+              [0] name="l" kind=scalar value="1u" @parser/sources/parts/divider.inc:3:14
+              [1] name="w" kind=scalar value="1u" @parser/sources/parts/divider.inc:3:19
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @parser/sources/main.cir:7:1
+      arguments: 
+  includes (3):
+    include [0] path="parts/divider.inc" spelling="'parts/divider.inc'" resolved="parser/sources/parts/divider.inc" section=none @parser/sources/main.cir:2:1
+    include [1] path="parts/passives.lib" spelling="'parts/passives.lib'" resolved="parser/sources/parts/passives.lib" section="typical" @parser/sources/main.cir:3:1
+      selected "typical" opening=@parser/sources/parts/passives.lib:4:1 ".lib typical" closing=@parser/sources/parts/passives.lib:6:1 ".endl typical"
+    include [2] path="../shared/sheet.inc" spelling="'../shared/sheet.inc'" resolved="parser/sources/shared/sheet.inc" section=none @parser/sources/parts/passives.lib:5:1
+  params (0):
+  options (0):
+  globals (0):

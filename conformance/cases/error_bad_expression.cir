@@ -1,0 +1,4 @@
+Malformed expression
+.param x = {1 +* 2}
+.op
+.end

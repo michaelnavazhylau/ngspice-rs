@@ -1,0 +1,120 @@
+# ngspice-rs ast-dump v1
+file: parser/flags_ic.cir
+title: "Bare OFF, model family flags and partial/full IC setter order" @parser/flags_ic.cir:1:1
+scope root
+  cards (13):
+    [0] device[0] @parser/flags_ic.cir:2:1 "v1 c 0 dc .1"
+    [1] device[1] @parser/flags_ic.cir:3:1 "v2 b 0 dc .1"
+    [2] device[2] @parser/flags_ic.cir:4:1 "dlead c 0 dm 2 OFF ic=.4 area=7 off"
+    [3] device[3] @parser/flags_ic.cir:5:1 "dflag c 0 dm OFF ic=.5"
+    [4] device[4] @parser/flags_ic.cir:6:1 "qfull c b 0 qm 2 off ic=.6,2 icvce=3 ic=.7,4 area=7"
+    [5] device[5] @parser/flags_ic.cir:7:1 "qpartial c b 0 qm off icvce=5 ic=.8"
+    [6] device[6] @parser/flags_ic.cir:8:1 "mfull c b 0 0 nm off w=10u l=1u ic=.1,2,-.1 icvgs=3 ic=.2,4,-.2"
+    [7] device[7] @parser/flags_ic.cir:9:1 "mpartial c b 0 0 nm off w=10u l=1u icvgs=5 icvbs=-.3 ic=.3,6 ic=.4"
+    [8] model[0] @parser/flags_ic.cir:10:1 ".model dm d(d is=1e-14)"
+    [9] model[1] @parser/flags_ic.cir:11:1 ".model qm npn(npn is=1e-16 bf=100)"
+    [10] model[2] @parser/flags_ic.cir:12:1 ".model nm nmos(nmos level=1 vto=1 kp=100u)"
+    [11] analysis[0] @parser/flags_ic.cir:13:1 ".op"
+    [12] end @parser/flags_ic.cir:14:1 ".end"
+  devices (8):
+    device [0] name="v1" designator=v @parser/flags_ic.cir:2:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value=".1" @parser/flags_ic.cir:2:8
+    device [1] name="v2" designator=v @parser/flags_ic.cir:3:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value=".1" @parser/flags_ic.cir:3:8
+    device [2] name="dlead" designator=d @parser/flags_ic.cir:4:1
+      nodes: "c" "0"
+      model: "dm"
+      parameters (5):
+        [0] name="off" kind=flag value="" @parser/flags_ic.cir:4:16
+        [1] name="ic" kind=scalar value=".4" @parser/flags_ic.cir:4:20
+        [2] name="area" kind=scalar value="7" @parser/flags_ic.cir:4:26
+        [3] name="off" kind=flag value="" @parser/flags_ic.cir:4:33
+        [4] name="area" kind=scalar value="2" @parser/flags_ic.cir:4:14
+    device [3] name="dflag" designator=d @parser/flags_ic.cir:5:1
+      nodes: "c" "0"
+      model: "dm"
+      parameters (2):
+        [0] name="off" kind=flag value="" @parser/flags_ic.cir:5:14
+        [1] name="ic" kind=scalar value=".5" @parser/flags_ic.cir:5:18
+    device [4] name="qfull" designator=q @parser/flags_ic.cir:6:1
+      nodes: "c" "b" "0"
+      model: "qm"
+      parameters (6):
+        [0] name="off" kind=flag value="" @parser/flags_ic.cir:6:18
+        [1] name="ic" kind=initial-conditions value=".6,2" @parser/flags_ic.cir:6:22
+          component "icvbe" = ".6"@parser/flags_ic.cir:6:25
+          component "icvce" = "2"@parser/flags_ic.cir:6:28
+        [2] name="icvce" kind=scalar value="3" @parser/flags_ic.cir:6:30
+        [3] name="ic" kind=initial-conditions value=".7,4" @parser/flags_ic.cir:6:38
+          component "icvbe" = ".7"@parser/flags_ic.cir:6:41
+          component "icvce" = "4"@parser/flags_ic.cir:6:44
+        [4] name="area" kind=scalar value="7" @parser/flags_ic.cir:6:46
+        [5] name="area" kind=scalar value="2" @parser/flags_ic.cir:6:16
+    device [5] name="qpartial" designator=q @parser/flags_ic.cir:7:1
+      nodes: "c" "b" "0"
+      model: "qm"
+      parameters (3):
+        [0] name="off" kind=flag value="" @parser/flags_ic.cir:7:19
+        [1] name="icvce" kind=scalar value="5" @parser/flags_ic.cir:7:23
+        [2] name="ic" kind=initial-conditions value=".8" @parser/flags_ic.cir:7:31
+          component "icvbe" = ".8"@parser/flags_ic.cir:7:34
+    device [6] name="mfull" designator=m @parser/flags_ic.cir:8:1
+      nodes: "c" "b" "0" "0"
+      model: "nm"
+      parameters (6):
+        [0] name="off" kind=flag value="" @parser/flags_ic.cir:8:18
+        [1] name="w" kind=scalar value="10u" @parser/flags_ic.cir:8:22
+        [2] name="l" kind=scalar value="1u" @parser/flags_ic.cir:8:28
+        [3] name="ic" kind=initial-conditions value=".1,2,-.1" @parser/flags_ic.cir:8:33
+          component "icvds" = ".1"@parser/flags_ic.cir:8:36
+          component "icvgs" = "2"@parser/flags_ic.cir:8:39
+          component "icvbs" = "-.1"@parser/flags_ic.cir:8:41
+        [4] name="icvgs" kind=scalar value="3" @parser/flags_ic.cir:8:45
+        [5] name="ic" kind=initial-conditions value=".2,4,-.2" @parser/flags_ic.cir:8:53
+          component "icvds" = ".2"@parser/flags_ic.cir:8:56
+          component "icvgs" = "4"@parser/flags_ic.cir:8:59
+          component "icvbs" = "-.2"@parser/flags_ic.cir:8:61
+    device [7] name="mpartial" designator=m @parser/flags_ic.cir:9:1
+      nodes: "c" "b" "0" "0"
+      model: "nm"
+      parameters (7):
+        [0] name="off" kind=flag value="" @parser/flags_ic.cir:9:21
+        [1] name="w" kind=scalar value="10u" @parser/flags_ic.cir:9:25
+        [2] name="l" kind=scalar value="1u" @parser/flags_ic.cir:9:31
+        [3] name="icvgs" kind=scalar value="5" @parser/flags_ic.cir:9:36
+        [4] name="icvbs" kind=scalar value="-.3" @parser/flags_ic.cir:9:44
+        [5] name="ic" kind=initial-conditions value=".3,6" @parser/flags_ic.cir:9:54
+          component "icvds" = ".3"@parser/flags_ic.cir:9:57
+          component "icvgs" = "6"@parser/flags_ic.cir:9:60
+        [6] name="ic" kind=initial-conditions value=".4" @parser/flags_ic.cir:9:62
+          component "icvds" = ".4"@parser/flags_ic.cir:9:65
+  models (3):
+    model [0] name="dm" base="d" level=none @parser/flags_ic.cir:10:1
+      parameters (2):
+        [0] name="d" kind=flag value="" @parser/flags_ic.cir:10:13
+        [1] name="is" kind=scalar value="1e-14" @parser/flags_ic.cir:10:15
+    model [1] name="qm" base="npn" level=none @parser/flags_ic.cir:11:1
+      parameters (3):
+        [0] name="npn" kind=flag value="" @parser/flags_ic.cir:11:15
+        [1] name="is" kind=scalar value="1e-16" @parser/flags_ic.cir:11:19
+        [2] name="bf" kind=scalar value="100" @parser/flags_ic.cir:11:28
+    model [2] name="nm" base="nmos" level=1e0 @parser/flags_ic.cir:12:1
+      parameters (4):
+        [0] name="nmos" kind=flag value="" @parser/flags_ic.cir:12:16
+        [1] name="level" kind=scalar value="1" @parser/flags_ic.cir:12:21
+        [2] name="vto" kind=scalar value="1" @parser/flags_ic.cir:12:29
+        [3] name="kp" kind=scalar value="100u" @parser/flags_ic.cir:12:35
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/flags_ic.cir:13:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

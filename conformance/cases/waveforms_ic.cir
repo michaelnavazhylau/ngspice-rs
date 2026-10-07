@@ -1,0 +1,9 @@
+Waveform and initial-condition setters
+v1 in 0 pulse(0 5 1u 1n 1n 5u 10u)
+v2 b 0 pwl(0 0 1u 1 2u 0)
+q1 c b e npn ic=0.1,0.2
+m1 d g s s nmos w=1u l=1u ic=1,2,3
+.model npn npn(bf=100)
+.model nmos nmos(level=1)
+.tran 1u 20u
+.end

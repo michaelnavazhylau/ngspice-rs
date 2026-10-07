@@ -1,0 +1,37 @@
+# ngspice-rs ast-dump v1
+file: cases/continuation_columns.cir
+title: "Continuation lines and comments: columns are relative to the joined card" @cases/continuation_columns.cir:1:1
+scope root
+  cards (5):
+    [0] device[0] @cases/continuation_columns.cir:3:1 "v1 in 0 dc 5"
+    [1] device[1] @cases/continuation_columns.cir:5:1 "r1 in out 1k tc1=0.01"
+    [2] device[2] @cases/continuation_columns.cir:8:1 "c1 out 0 1u ic=0"
+    [3] analysis[0] @cases/continuation_columns.cir:9:1 ".op"
+    [4] end @cases/continuation_columns.cir:10:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @cases/continuation_columns.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @cases/continuation_columns.cir:3:9
+    device [1] name="r1" designator=r @cases/continuation_columns.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (2):
+        [0] name="resistance" kind=scalar value="1k" @cases/continuation_columns.cir:5:11
+        [1] name="tc1" kind=scalar value="0.01" @cases/continuation_columns.cir:5:14
+    device [2] name="c1" designator=c @cases/continuation_columns.cir:8:1
+      nodes: "out" "0"
+      model: none
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="1u" @cases/continuation_columns.cir:8:10
+        [1] name="ic" kind=scalar value="0" @cases/continuation_columns.cir:8:13
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @cases/continuation_columns.cir:9:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,0 +1,160 @@
+# ngspice-rs ast-dump v1
+file: parser/passive_models.cir
+title: "Model-backed passive syntax and setter precedence" @parser/passive_models.cir:1:1
+scope root
+  cards (26):
+    [0] device[0] @parser/passive_models.cir:2:1 "v1 a 0 dc 1"
+    [1] device[1] @parser/passive_models.cir:3:1 "rpre a 0 1k rm r=2k r=3k"
+    [2] device[2] @parser/passive_models.cir:4:1 "rpost a 0 rm 4k r=5k"
+    [3] device[3] @parser/passive_models.cir:5:1 "rboth a 0 7k rm 8k r=9k"
+    [4] device[4] @parser/passive_models.cir:6:1 "rgeom a 0 rm l=4u w=2u"
+    [5] device[5] @parser/passive_models.cir:7:1 "cpre a 0 1u cm c=2u c=3u"
+    [6] device[6] @parser/passive_models.cir:8:1 "cpost a 0 cm 4u c=5u"
+    [7] device[7] @parser/passive_models.cir:9:1 "cgeom a 0 cm l=4u w=2u"
+    [8] device[8] @parser/passive_models.cir:10:1 "lpre a b 1m lm inductance=2m inductance=3m"
+    [9] device[9] @parser/passive_models.cir:11:1 "rload b 0 1k"
+    [10] device[10] @parser/passive_models.cir:12:1 "lpost a c lm 4m inductance=5m"
+    [11] device[11] @parser/passive_models.cir:13:1 "rload2 c 0 1k"
+    [12] device[12] @parser/passive_models.cir:14:1 "lmodel a e lm nt=2"
+    [13] device[13] @parser/passive_models.cir:15:1 "rload3 e 0 1k"
+    [14] device[14] @parser/passive_models.cir:16:1 "rnumeric a 0 123"
+    [15] device[15] @parser/passive_models.cir:17:1 "rnumref a 0 1k rm123"
+    [16] device[16] @parser/passive_models.cir:18:1 "rkeyword a 0 tc1 2k"
+    [17] device[17] @parser/passive_models.cir:19:1 "rassigned a 0 r=1k tc1=2"
+    [18] model[0] @parser/passive_models.cir:20:1 ".model rm r(rsh=100)"
+    [19] model[1] @parser/passive_models.cir:21:1 ".model cm c(cj=1m)"
+    [20] model[2] @parser/passive_models.cir:22:1 ".model lm l(ind=6m)"
+    [21] model[3] @parser/passive_models.cir:23:1 ".model 123 r"
+    [22] model[4] @parser/passive_models.cir:24:1 ".model rm123 r"
+    [23] model[5] @parser/passive_models.cir:25:1 ".model tc1 r"
+    [24] analysis[0] @parser/passive_models.cir:26:1 ".op"
+    [25] end @parser/passive_models.cir:27:1 ".end"
+  devices (18):
+    device [0] name="v1" designator=v @parser/passive_models.cir:2:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @parser/passive_models.cir:2:8
+    device [1] name="rpre" designator=r @parser/passive_models.cir:3:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (3):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_models.cir:3:10
+        [1] name="resistance" kind=scalar value="2k" @parser/passive_models.cir:3:16
+        [2] name="resistance" kind=scalar value="3k" @parser/passive_models.cir:3:21
+    device [2] name="rpost" designator=r @parser/passive_models.cir:4:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (2):
+        [0] name="resistance" kind=scalar value="5k" @parser/passive_models.cir:4:17
+        [1] name="resistance" kind=scalar value="4k" @parser/passive_models.cir:4:14
+    device [3] name="rboth" designator=r @parser/passive_models.cir:5:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (3):
+        [0] name="resistance" kind=scalar value="7k" @parser/passive_models.cir:5:11
+        [1] name="resistance" kind=scalar value="9k" @parser/passive_models.cir:5:20
+        [2] name="resistance" kind=scalar value="8k" @parser/passive_models.cir:5:17
+    device [4] name="rgeom" designator=r @parser/passive_models.cir:6:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (2):
+        [0] name="l" kind=scalar value="4u" @parser/passive_models.cir:6:14
+        [1] name="w" kind=scalar value="2u" @parser/passive_models.cir:6:19
+    device [5] name="cpre" designator=c @parser/passive_models.cir:7:1
+      nodes: "a" "0"
+      model: "cm"
+      parameters (3):
+        [0] name="capacitance" kind=scalar value="1u" @parser/passive_models.cir:7:10
+        [1] name="capacitance" kind=scalar value="2u" @parser/passive_models.cir:7:16
+        [2] name="capacitance" kind=scalar value="3u" @parser/passive_models.cir:7:21
+    device [6] name="cpost" designator=c @parser/passive_models.cir:8:1
+      nodes: "a" "0"
+      model: "cm"
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="5u" @parser/passive_models.cir:8:17
+        [1] name="capacitance" kind=scalar value="4u" @parser/passive_models.cir:8:14
+    device [7] name="cgeom" designator=c @parser/passive_models.cir:9:1
+      nodes: "a" "0"
+      model: "cm"
+      parameters (2):
+        [0] name="l" kind=scalar value="4u" @parser/passive_models.cir:9:14
+        [1] name="w" kind=scalar value="2u" @parser/passive_models.cir:9:19
+    device [8] name="lpre" designator=l @parser/passive_models.cir:10:1
+      nodes: "a" "b"
+      model: "lm"
+      parameters (3):
+        [0] name="inductance" kind=scalar value="1m" @parser/passive_models.cir:10:10
+        [1] name="inductance" kind=scalar value="2m" @parser/passive_models.cir:10:16
+        [2] name="inductance" kind=scalar value="3m" @parser/passive_models.cir:10:30
+    device [9] name="rload" designator=r @parser/passive_models.cir:11:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_models.cir:11:11
+    device [10] name="lpost" designator=l @parser/passive_models.cir:12:1
+      nodes: "a" "c"
+      model: "lm"
+      parameters (2):
+        [0] name="inductance" kind=scalar value="5m" @parser/passive_models.cir:12:17
+        [1] name="inductance" kind=scalar value="4m" @parser/passive_models.cir:12:14
+    device [11] name="rload2" designator=r @parser/passive_models.cir:13:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_models.cir:13:12
+    device [12] name="lmodel" designator=l @parser/passive_models.cir:14:1
+      nodes: "a" "e"
+      model: "lm"
+      parameters (1):
+        [0] name="nt" kind=scalar value="2" @parser/passive_models.cir:14:15
+    device [13] name="rload3" designator=r @parser/passive_models.cir:15:1
+      nodes: "e" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_models.cir:15:12
+    device [14] name="rnumeric" designator=r @parser/passive_models.cir:16:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="123" @parser/passive_models.cir:16:14
+    device [15] name="rnumref" designator=r @parser/passive_models.cir:17:1
+      nodes: "a" "0"
+      model: "rm123"
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_models.cir:17:13
+    device [16] name="rkeyword" designator=r @parser/passive_models.cir:18:1
+      nodes: "a" "0"
+      model: "tc1"
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @parser/passive_models.cir:18:18
+    device [17] name="rassigned" designator=r @parser/passive_models.cir:19:1
+      nodes: "a" "0"
+      model: none
+      parameters (2):
+        [0] name="resistance" kind=scalar value="1k" @parser/passive_models.cir:19:15
+        [1] name="tc1" kind=scalar value="2" @parser/passive_models.cir:19:20
+  models (6):
+    model [0] name="rm" base="r" level=none @parser/passive_models.cir:20:1
+      parameters (1):
+        [0] name="rsh" kind=scalar value="100" @parser/passive_models.cir:20:13
+    model [1] name="cm" base="c" level=none @parser/passive_models.cir:21:1
+      parameters (1):
+        [0] name="cj" kind=scalar value="1m" @parser/passive_models.cir:21:13
+    model [2] name="lm" base="l" level=none @parser/passive_models.cir:22:1
+      parameters (1):
+        [0] name="ind" kind=scalar value="6m" @parser/passive_models.cir:22:13
+    model [3] name="123" base="r" level=none @parser/passive_models.cir:23:1
+      parameters (0):
+    model [4] name="rm123" base="r" level=none @parser/passive_models.cir:24:1
+      parameters (0):
+    model [5] name="tc1" base="r" level=none @parser/passive_models.cir:25:1
+      parameters (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/passive_models.cir:26:1
+      arguments: 
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
