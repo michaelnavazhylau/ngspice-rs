@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #eef0f4;
+  --panel: #ffffff;
+  --line: #d3d8e0;
+  --fg: #171b22;
+  --muted: #5d6676;
+  --accent: #2563eb;
+  --canvas: #fbfbfd;
+  --grid: #c9ced8;
+  --ink: #1f2937;
+  --wire: #0f766e;
+  --plot: #ffffff;
+  --hover: #e8ecf3;
+  --annot: #fff6cf;
+  --danger: #c0262d;
+  --warn: #a15c07;
+  --ok: #17803d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218;
+    --panel: #171b23;
+    --line: #2b323e;
+    --fg: #e4e8ef;
+    --muted: #8f99aa;
+    --accent: #60a5fa;
+    --canvas: #11151c;
+    --grid: #2f3744;
+    --ink: #d5dbe6;
+    --wire: #34d399;
+    --plot: #12161d;
+    --hover: #222a36;
+    --annot: #3a3312;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --ok: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-canvas: var(--canvas);
+  --color-grid: var(--grid);
+  --color-ink: var(--ink);
+  --color-wire: var(--wire);
+  --color-plot: var(--plot);
+  --color-hover: var(--hover);
+  --color-annot: var(--annot);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.35 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1 rounded border border-line bg-panel px-2.5 py-1 text-xs whitespace-nowrap text-fg hover:bg-hover disabled:opacity-40 disabled:hover:bg-panel;
+  }
+  .btn-on {
+    @apply border-accent text-accent;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-white hover:bg-accent hover:brightness-110;
+  }
+  .field {
+    @apply w-full rounded border border-line bg-canvas px-1.5 py-1 font-mono text-xs text-fg outline-none focus:border-accent;
+  }
+  .label {
+    @apply mb-0.5 block text-[11px] text-muted;
+  }
+}
+
+/* schematic styling */
+.sym {
+  stroke: var(--ink);
+  color: var(--ink);
+}
+.comp .hit-box {
+  fill: transparent;
+  stroke: none;
+}
+.comp:hover .sym {
+  stroke: var(--accent);
+}
+.comp.sel .sym {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+/* filled parts of a symbol (diode triangle, transistor arrows) follow the stroke colour */
+.sym .sym-fill {
+  fill: var(--ink);
+}
+.comp:hover .sym .sym-fill,
+.comp.sel .sym .sym-fill {
+  fill: var(--accent);
+}
+.comp.sel .hit-box {
+  stroke: var(--accent);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+}
+.pin {
+  fill: var(--canvas);
+  stroke: var(--accent);
+  stroke-width: 1.3;
+  cursor: crosshair;
+  transition: r 80ms;
+}
+.pin:hover {
+  r: 6px;
+  fill: var(--accent);
+}
+.wire .hit {
+  stroke: transparent;
+  stroke-width: 10;
+  cursor: pointer;
+}
+.wire .vis {
+  stroke: var(--wire);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.wire:hover .vis {
+  stroke-width: 3;
+}
+.wire.sel .vis {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.fill-wire {
+  fill: var(--wire);
+}
+svg text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+textarea,
+input,
+select {
+  font-family: inherit;
+}
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 5px;
+}
