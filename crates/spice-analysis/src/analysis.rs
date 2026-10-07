@@ -109,6 +109,18 @@ pub struct AnalysisContext {
     pub nominal_temperature: Real,
 }
 
+impl AnalysisContext {
+    /// Copy temperature settings into the lower-level device context. Validation
+    /// occurs at circuit elaboration/equation assembly; no global state is used.
+    #[must_use]
+    pub const fn model_context(&self) -> spice_devices::ModelContext {
+        spice_devices::ModelContext {
+            temperature: self.temperature,
+            nominal_temperature: self.nominal_temperature,
+        }
+    }
+}
+
 impl Default for AnalysisContext {
     fn default() -> Self {
         Self {
@@ -161,9 +173,9 @@ impl Analysis for OperatingPoint {
         &self,
         circuit: &mut Circuit,
         request: &AnalysisRequest,
-        _context: &AnalysisContext,
+        context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        crate::linear::op(circuit, request)
+        crate::linear::op(circuit, request, context)
     }
 }
 
@@ -187,9 +199,9 @@ impl Analysis for DcSweep {
         &self,
         circuit: &mut Circuit,
         request: &AnalysisRequest,
-        _context: &AnalysisContext,
+        context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        crate::linear::dc(circuit, request)
+        crate::linear::dc(circuit, request, context)
     }
 }
 
@@ -213,9 +225,9 @@ impl Analysis for AcSmallSignal {
         &self,
         circuit: &mut Circuit,
         request: &AnalysisRequest,
-        _context: &AnalysisContext,
+        context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        crate::ac::run(circuit, request)
+        crate::ac::run(circuit, request, context)
     }
 }
 
@@ -240,9 +252,9 @@ impl Analysis for Transient {
         &self,
         circuit: &mut Circuit,
         request: &AnalysisRequest,
-        _context: &AnalysisContext,
+        context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
-        crate::transient::run(circuit, request)
+        crate::transient::run(circuit, request, context)
     }
 }
 

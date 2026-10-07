@@ -67,11 +67,15 @@ pub(crate) fn accept(circuit: &mut Circuit, x: &spice_maths::Vector) -> SpiceRes
     Ok(())
 }
 
-pub(crate) fn op(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResult<Plot> {
+pub(crate) fn op(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &crate::AnalysisContext,
+) -> SpiceResult<Plot> {
     if !request.arguments.is_empty() {
         return Err(unsupported(".op arguments"));
     }
-    let system = circuit.linear_system()?;
+    let system = circuit.linear_system_with_context(&context.model_context())?;
     let x = system.a.solve(&system.dc_rhs(None)?)?;
     let mut plot = plot(circuit, "op1", "Operating Point", None, false)?;
     accept(circuit, &x)?;
@@ -79,7 +83,11 @@ pub(crate) fn op(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResul
     Ok(plot)
 }
 
-pub(crate) fn dc(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResult<Plot> {
+pub(crate) fn dc(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &crate::AnalysisContext,
+) -> SpiceResult<Plot> {
     if request.arguments.len() != 4 {
         return Err(unsupported(
             ".dc requires one independent source, start, stop, step",
@@ -96,7 +104,7 @@ pub(crate) fn dc(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResul
     if !count.is_finite() || !(1. ..=100_000.).contains(&count) {
         return Err(unsupported("DC sweep point limit exceeded"));
     }
-    let system = circuit.linear_system()?;
+    let system = circuit.linear_system_with_context(&context.model_context())?;
     let source = system
         .sources
         .iter()

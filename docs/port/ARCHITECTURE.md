@@ -31,7 +31,7 @@ examples, not a CLI simulation command.
 | `spice-core` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
 | `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
 | `spice-maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF; trap/Gear coefficient/history APIs pending | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
-| `spice-devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch binding, immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver and bounded diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
+| `spice-devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch binding, immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver, bounded passive geometry/temperature recipes and diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
 | `spice-analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
 | `spice-cli` | Command-line entry point: `spice-rs <netlist>` | `src/frontend/main.c`, `src/ngspice.c` |
 | `xtask` | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
@@ -213,8 +213,19 @@ Celsius temperatures explicitly, without depending on `spice-analysis`.
 
 `Circuit::add_instance` stages node/device changes and rejects missing models,
 bad schema inputs and unavailable factories without changing existing numbering.
-D/Q/M and model-backed passive equations are still unavailable. Unused model
-cards also cannot silently disappear from a successful scalar simulation.
+D/Q/M equations are still unavailable. Bounded model-backed R/C/L now delegate
+effective values to existing scalar stamps; unsupported or unused model cards
+cannot silently disappear from a successful simulation.
 [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md) records API examples, selector policy, C
-references and deliberate bounded divergences. These APIs are input validation,
-not completed nonlinear setup, scoped expansion or simulation.
+references and deliberate bounded divergences. Diode APIs remain input validation,
+not completed nonlinear setup or scoped expansion.
+
+`passive::PassiveParameters` retains immutable validated recipes, not progressively
+adjusted values. `AnalysisContext::model_context` copies Celsius TEMP/TNOM into the
+device layer; all four drivers use `Circuit::linear_system_with_context`.
+`LinearContext` carries that explicit context; `StampContext` carries circuit
+and nominal temperatures too. `Circuit::from_netlist_with_context` validates at
+nondefault temperatures without locking later runs to them. The model wrapper
+computes effective R/C/L and delegates to existing stamps, preserving node/branch
+namespaces, factor guards, DAE restrictions and accepted-state semantics.
+[PASSIVE_MODELS.md](PASSIVE_MODELS.md) records formulas, units and supported forms.

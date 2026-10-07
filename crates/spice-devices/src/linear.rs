@@ -172,6 +172,8 @@ impl LinearSystem {
 
 /// Per-device immutable equation assembly context.
 pub struct LinearContext<'a> {
+    /// Explicit circuit/nominal temperatures for immutable model evaluation.
+    pub model_context: &'a crate::models::ModelContext,
     /// Operators and forcing being assembled.
     pub system: &'a mut LinearSystem,
     /// Node numbering, with ground eliminated.

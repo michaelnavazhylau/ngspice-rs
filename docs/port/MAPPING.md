@@ -51,8 +51,8 @@ translate all of it; the roadmap targets a small, useful subset first.
 
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution; model-backed factories pending |
-| `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::rlc` | scalar resistor conductance, capacitor mass operator and inductor branch/mass equations; DC/complex AC/bounded BDF work; model-backed geometry/temperature and trap/Gear companions pending |
+| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution and bounded passive factories; nonlinear factories pending |
+| `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::{rlc,passive}` | scalar equations plus bounded model values, R sheet/C area-perimeter geometry, contextual TC1/TC2, scale/multiplicity; coil geometry, advanced setters and trap/Gear companions pending |
 | `vsrc/`, `isrc/` | — | `spice-devices::sources` | DC/AC V/I stamps, device-API Constant/Step/Pwl forcing; waveform deck syntax pending |
 | `dio/` | 5,598 | `spice-devices::diode` (planned) | **not ported** |
 | `bjt/` | 9,482 | `spice-devices::bjt` (planned) | **not ported** |

@@ -13,15 +13,16 @@ that history and the Rust-only history are distinct. The solver development
 revision is `05f9eb8a9` on `inspect/diffsol-faer`. These are reference revisions,
 not build dependencies. Do not replace newer public code with an older export.
 
-This checkout implements #11 passive syntax and #17 initial model infrastructure;
-those changes are pending merge. Completed entries below describe the checkout.
-#19's prerequisites are not satisfied on main until their changes are merged and
-acceptance tests pass.
+PR #51 (`cdc078c`) merged #11 passive syntax and #17 initial model infrastructure;
+their acceptance suite passes on this main-based branch. This checkout implements
+bounded passive elaboration (#19), pending merge. Completed entries describe the
+checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
 | Parser | Scalar R/C/L/V/I, declared-model passives, scalar models, bounded D/Q/M; six of eight fixture decks |
-| Model inputs | Top-level first-wins resolver, family/level checks and bounded diode schemas; no model-backed factory |
+| Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
+| Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps |
 | DC / AC | Linear `.op`, one-source `.dc`, complex RLC `.ac` |
@@ -72,7 +73,7 @@ tests and documented limits as the remaining functionality is added.
 - [x] Add production `.op` comparisons against the RC-divider/RLC C goldens at justified relative and near-zero absolute tolerances.
 - [ ] Keep formatting, all-target Clippy and workspace tests green on stable and Rust 1.89; rerun opt-in C checks deliberately when functionality changes.
 - [x] Reconcile historical architecture/mapping/recommendation and public API docs with the bounded linear engine and Rust 1.89 MSRV (GitHub #49); no full M1/M3 completion claim.
-- [ ] Complete bounded model-backed passive elaboration (GitHub #19), blocked by passive syntax #11 and model schema/resolution #17; neither prerequisite is merged yet.
+- [x] Implement bounded model-backed passive elaboration (GitHub #19) on merged #11/#17: typed support table, R sheet/C area-perimeter geometry, scalar model L, contextual temperature, scale/multiplicity, atomic failures and production DC/AC/C checks; pending merge. See [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md).
 
 ## 2. Complete the netlist front end — M1
 
@@ -109,7 +110,8 @@ tests and documented limits as the remaining functionality is added.
 - [x] Device-owned scalar schema extension API and bounded diode IS/N/RS/AREA/TEMP/TNOM defaults/ranges (#17); raw AST preserved; D/Q/M factories still unavailable.
 - [ ] Add scoped model resolution, binning and further device-owned schemas/defaults; expand only with production tests.
 - [ ] Preserve omitted BJT substrate semantics and explicitly diagnose unavailable device backends.
-- [ ] Define required model-backed passive and geometry semantics; scalar model parsing alone is not validation.
+- [x] Define and implement the bounded passive value/geometry/temperature surface (#19); explicit errors for unsupported setters, missing/invalid geometry and nonfinite derivations.
+- [ ] Expand passive aliases, coil geometry, DTEMP/TCE/AC-only values and other advanced forms only with documented formulas and conformance tests.
 
 ## 4. Complete SPICE-compatible transient analysis — M3
 

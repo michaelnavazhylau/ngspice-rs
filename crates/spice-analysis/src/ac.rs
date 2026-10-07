@@ -5,7 +5,11 @@ use spice_core::{Complex, SpiceResult};
 use spice_devices::Circuit;
 use spice_maths::complex::ComplexMatrix;
 
-pub(crate) fn run(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResult<Plot> {
+pub(crate) fn run(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &crate::AnalysisContext,
+) -> SpiceResult<Plot> {
     if request.arguments.len() != 4 {
         return Err(unsupported(".ac lin|dec|oct points start stop"));
     }
@@ -34,7 +38,18 @@ pub(crate) fn run(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResu
         "dec" | "oct" => {
             let base: f64 = if mode == "dec" { 10. } else { 2. };
             let span = (end.ln() - start.ln()) / base.ln();
-            let count = (span * (points as f64)).floor() + 1.;
+            let steps = span * (points as f64);
+            // Logarithms can put an exact integer span just below that integer
+            // (3 points/decade, 1..1000 gives 8.999999999999998). Snap only
+            // within a small floating-arithmetic bound, preserving the endpoint.
+            // This does not relax any golden/value comparison tolerance.
+            let rounded = steps.round();
+            let steps = if (steps - rounded).abs() <= 32. * f64::EPSILON * steps.abs().max(1.) {
+                rounded
+            } else {
+                steps
+            };
+            let count = steps.floor() + 1.;
             if !count.is_finite() || count > 100_000. {
                 return Err(unsupported("AC sample limit exceeded"));
             }
@@ -51,7 +66,7 @@ pub(crate) fn run(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResu
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("AC frequency grid makes no progress"));
     }
-    let system = circuit.linear_system()?;
+    let system = circuit.linear_system_with_context(&context.model_context())?;
     // Require a valid bias point even for linear AC; don't accept isolated
     // capacitor networks as an implicit substitute for DC initialization.
     system.a.solve(&system.dc_rhs(None)?)?;

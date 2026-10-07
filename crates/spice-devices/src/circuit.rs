@@ -220,15 +220,32 @@ impl Circuit {
         self.branch_rows.get(index).cloned()
     }
 
-    /// Assembles supported linear devices without mutating trial device state.
+    /// Assemble at the default circuit/nominal temperature (27 Celsius).
     /// # Errors
-    /// Invalid topology or unsupported equations.
+    /// Invalid topology, model derivation or unsupported equations.
     pub fn linear_system(&mut self) -> SpiceResult<crate::linear::LinearSystem> {
+        self.linear_system_with_context(&crate::models::ModelContext::default())
+    }
+
+    /// Assembles immutable equations at explicit circuit/nominal temperatures.
+    /// Model recipes are reevaluated without cumulative value/state changes.
+    /// # Errors
+    /// Invalid context/topology, model arithmetic or unsupported equations.
+    pub fn linear_system_with_context(
+        &mut self,
+        context: &crate::models::ModelContext,
+    ) -> SpiceResult<crate::linear::LinearSystem> {
+        context.validate(&spice_core::SourceLoc::new(
+            std::path::PathBuf::from("<model-context>"),
+            1,
+            1,
+        ))?;
         self.finalize()?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
             let range = &self.branch_rows[index];
             device.assemble_linear(&mut crate::linear::LinearContext {
+                model_context: context,
                 system: &mut system,
                 unknowns: &self.unknowns,
                 branch: (!range.is_empty()).then_some(range.start),
@@ -270,11 +287,22 @@ impl Circuit {
         Ok(())
     }
 
-    /// Builds supported scalar devices from a semantic netlist. Model-backed
-    /// inputs use the resolver before returning an unavailable factory error.
+    /// Elaborate literal R/C/L/V/I and bounded model-backed R/C/L at 27 Celsius.
     /// # Errors
-    /// Unsupported elaboration constructs, models or device parameters.
+    /// Unsupported elaboration constructs, models or invalid parameters.
     pub fn from_netlist(netlist: &spice_netlist::ast::Netlist) -> SpiceResult<Self> {
+        Self::from_netlist_with_context(netlist, &crate::models::ModelContext::default())
+    }
+
+    /// Elaborate with explicit validation temperatures; the immutable model recipe
+    /// is retained and later assemblies use their own explicit context.
+    /// # Errors
+    /// Invalid context, unsupported constructs/models or invalid parameters.
+    pub fn from_netlist_with_context(
+        netlist: &spice_netlist::ast::Netlist,
+        context: &crate::models::ModelContext,
+    ) -> SpiceResult<Self> {
+        context.validate(&netlist.location)?;
         if !netlist.subcircuits.is_empty()
             || !netlist.includes.is_empty()
             || !netlist.params.is_empty()
@@ -288,17 +316,30 @@ impl Circuit {
             });
         }
         let models = crate::models::ModelResolver::new(&netlist.models)?;
-        let context = crate::models::ModelContext::default();
         let mut circuit = Self::new();
+        let referenced: BTreeSet<_> = netlist
+            .devices
+            .iter()
+            .filter_map(|instance| {
+                instance
+                    .model
+                    .as_ref()
+                    .map(|name| name.to_ascii_lowercase())
+            })
+            .collect();
         for instance in &netlist.devices {
-            circuit.add_instance(instance, &models, &context)?;
+            circuit.add_instance(instance, &models, context)?;
         }
-        if !netlist.models.is_empty() {
-            // No model-backed factory is enabled yet. Don't silently discard
-            // unused model cards merely because all literal devices succeed.
+        if let Some(model) = netlist
+            .models
+            .iter()
+            .find(|model| !referenced.contains(&model.name.to_ascii_lowercase()))
+        {
+            // First-declaration duplicate policy remains explicit; unused
+            // declarations cannot silently discard unsupported physics.
             return Err(SpiceError::Unsupported {
                 feature: "unused model declarations in scalar linear elaboration".into(),
-                location: netlist.models.first().map(|model| model.location.clone()),
+                location: Some(model.location.clone()),
             });
         }
         circuit.finalize()?;

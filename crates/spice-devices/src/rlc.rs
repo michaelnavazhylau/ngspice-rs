@@ -10,10 +10,11 @@
 //! | [`Capacitor`] | `src/spicelib/parser/inp2c.c` | `src/spicelib/devices/cap/capload.c` |
 //! | [`Inductor`] | `src/spicelib/parser/inp2l.c` | `src/spicelib/devices/ind/indload.c` |
 //!
-//! The value fields are the *parsed* values. ngspice additionally supports
-//! temperature coefficients (`tc1`, `tc2`), behavioural values (`R={expr}`) and
-//! instance parameters (`m`, `ac`, `temp`); those are not modelled yet and their
-//! factories reject unsupported parameters rather than ignoring them.
+//! Fields hold the supplied scalar values. [`crate::passive`] projects bounded
+//! model geometry, TC1/TC2, TEMP/TNOM, scale and multiplicity into effective
+//! scalars before delegating here. Literal factory support is unchanged;
+//! behavioural values, AC-only resistance and other advanced setters error
+//! explicitly rather than silently modifying or omitting physics.
 
 use spice_core::{NodeId, Real, SpiceError, SpiceResult};
 
@@ -351,6 +352,7 @@ mod tests {
             nodes: &nodes,
             solution: &solution,
             temperature: 27.0,
+            nominal_temperature: 27.0,
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
             branch: None,
         };

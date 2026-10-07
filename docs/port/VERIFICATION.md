@@ -218,7 +218,8 @@ are not proven by these probes.
 
 ## Passive syntax and model-schema verification
 
-The current checkout implements #11/#17; these prerequisites are pending merge.
+PR #51 merged #11/#17. This section records their initial validation; the
+bounded passive elaboration section below records #19's additional checks.
 `passive_models.rs` adds 11 syntax regressions, and `spice-devices/tests/models.rs`
 adds 13 production-interface checks for top-level first-wins lookup, raw AST
 immutability, missing/wrong families, model/node namespace collisions, first raw
@@ -254,10 +255,63 @@ cargo xtask golden verify
 cargo xtask golden verify --netlist rc_lowpass_ac
 ```
 
-Schemas do **not** enable model-backed passive or D/Q/M factories, and successful
+These initial schemas did **not** enable passive or D/Q/M factories, and
 parsing/validation is not nonlinear simulation parity. See
 [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md) for API contracts, bounded level policy and C
-references. #19 geometry/temperature arithmetic remains a separate task.
+references; #19 now adds the explicitly bounded passive support below.
+
+## Bounded passive elaboration verification
+
+The current checkout implements #19 on merged PR #51 (#11/#17), pending merge.
+`spice-devices/tests/passive_models.rs` adds **12** checks for model/instance
+precedence, raw AST immutability, R sheet/C area-perimeter formulas, missing or
+invalid geometry, coefficient overrides, positive multiplicity/scale, sign and
+finite/range/overflow errors, explicit unsupported setters, real stamping,
+initial-condition retention and atomic failure across every circuit namespace.
+`spice-analysis/tests/passive_models.rs` adds **7** checks comparing model/literal
+DC, source sweeps and complex AC; repeated default/nondefault TEMP/TNOM runs;
+explicit TEMP/TNOM overrides; runtime errors; contextual RC BDF against its
+analytic step; and logarithmic-AC endpoint arithmetic. A new module doctest
+exercises contextual passive assembly.
+
+Two opt-in tests in `spice-analysis/tests/c_passive_models.rs` compare effective
+values and production DC/complex AC against live C at both 27/27 and 77/22
+Celsius. `conformance/parser/passive_elaboration.cir` exercises R/C geometry,
+model/default/instance precedence, repeated setters, TC1/TC2, scale and
+multiplicity. Query comparisons use **1e-12 relative + 1e-24 absolute**. Production
+DC retains **1e-12 + 1e-15** and AC **1e-10 + 1e-12**; analytic BDF retains
+**2e-5 V**. No comparison bounds or committed goldens were changed.
+
+Live C exposed that capacitor DEFL is not applied to instances; it is now an
+explicit gap and geometry requires instance L. It also exposed an existing AC
+logarithmic integer-span roundoff bug that omitted the endpoint. A bounded
+floating-arithmetic snap repairs the grid count; integer/noninteger regressions
+and C AC checks pass without relaxing value tolerances.
+
+Local validation: **302 passed, 0 failed, 9 opt-in C tests ignored** on stable
+Rust 1.99.0 and MSRV 1.89.0. All **9** opt-in C tests also passed separately against
+the read-only local ngspice-47+ binary. Both toolchains' all-target Clippy,
+formatting, warning-free rustdoc, the RC example and `git diff --check` pass.
+Default golden verification still verifies three linear fixtures with five
+explicit exclusions; selected AC verification reports one verified fixture.
+Neither is full corpus parity.
+
+```sh
+cargo fmt --all -- --check
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo +1.89.0 test --workspace --locked
+cargo +1.89.0 clippy --workspace --all-targets --locked -- -D warnings
+RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test --workspace --locked -- --ignored
+cargo xtask golden verify
+cargo xtask golden verify --netlist rc_lowpass_ac
+cargo run -p spice-analysis --example rc_diffsol --locked
+```
+
+[PASSIVE_MODELS.md](PASSIVE_MODELS.md) lists the exhaustive setter/units/default/
+formula table and deliberate gaps. Coil geometry, advanced passive forms, D/Q/M
+arithmetic, IC/uic and SPICE trap/Gear parity remain unimplemented.
 
 ## Petgraph topology verification
 
