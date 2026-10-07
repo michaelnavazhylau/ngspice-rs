@@ -140,6 +140,49 @@ variable) and invalid values are errors; every other `cktsopt.c` option is
 `NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
 `spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
 
-Done: **#15** top-level parameter evaluation over the #14 expression AST (`eval`, `elaborate`); then
-**#20–22** normalized serialization, deterministic snapshots and the complete
-M1 eight-fixture round-trip gate. None of those gates is closed by 8/8 parsing.
+## Normalized deck writer (#20)
+
+`spice_netlist::write_netlist(&Netlist) -> SpiceResult<String>` serializes the
+**raw, unevaluated, unflattened** AST. It is separate from debug dumps
+(`spice-rs parse`), from evaluated/expanded decks (#15 `elaborate::literalize`, #18 flattening) and from byte-exact
+source reproduction. The full contract is the module documentation of
+`crates/spice-netlist/src/writer.rs`; in short:
+
+- One card per line (no continuations/comments/blank lines), title first, 2-space
+  indentation per `.subckt` level. `Netlist::cards`/`Subcircuit::cards` fix the
+  card order, so forward model references, directive order and scope structure
+  are unchanged; nothing is reordered or hoisted. `.end` is written only if the
+  deck had one.
+- Parameter lists keep application order and duplicates. Positional values are
+  written by name where order matters (`rpost a 0 rm resistance=5k
+  resistance=4k`; V/I leading DC becomes a trailing `dc`; D/Q leading area a
+  trailing `area=`), an omitted Q substrate stays omitted, PULSE/PWL omissions
+  stay omitted, `ic` vectors are `ic=(a,b)`. Numeric spellings are never
+  re-formatted. Expression text is preserved, so grouping is exactly the
+  source's; the writer verifies that each expression text re-parses to the
+  stored tree and each `.param` card re-parses to the same assignments.
+- **Includes:** the writer emits `.include`/`.lib` directives and skips every
+  card with a non-empty `include_chain` (resolved content). Inlining would
+  flatten source structure, invalidate source-relative paths and duplicate
+  library files; there is no inline mode. The directive path keeps its original
+  spelling when it still decodes to `path` (so quoted paths with spaces survive),
+  else it is bare or double-quoted with `\\`/`\"` escapes; paths are never rewritten, so
+  the written deck must live where its relative includes resolve.
+- **Errors:** `SpiceError::Unsupported` for anything that would not re-parse to
+  the same semantics (unknown designators/parameter names or kinds, gaps in
+  PULSE fields, expression text/tree mismatch, inconsistent card indexes, names
+  that are not single tokens or would be read as comments, scopes opened and
+  closed in different files).
+- **Reparse:** SourceLocs, joined card text and spans always differ. Use
+  `semantic_eq`/`semantic_diff`/`semantic_form` (module `semantic`), which
+  neutralise locations, `Netlist::path`, raw card text, `path_spelling` and the
+  original text of waveform/`ic` vectors (their structured values are compared).
+  Re-parse with the same `Parser` configuration (`auto_gnd`). Tests:
+  `crates/spice-netlist/tests/deck_writer.rs` (all `conformance/netlists/*.cir`,
+  `conformance/parser/*.cir` and the source-resolution fixture round-trip and
+  reach a writer fixed point). The scoped #22 gate and #21 snapshots remain.
+
+Done: **#15** top-level parameter evaluation over the #14 expression AST
+(`eval`, `elaborate`). Next: **#21–22** deterministic snapshots and the
+complete M1 eight-fixture round-trip gate. None of those gates is closed by
+8/8 parsing.

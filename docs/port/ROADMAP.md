@@ -54,8 +54,8 @@ stage. Main now includes the bounded linear engine described below.
 
 M1a checks: parser fixture/unit regressions, CLI exit-contract tests, and an
 opt-in C oracle comparing scalar AST parameters with live C instance queries.
-See `VERIFICATION.md`. Token/AST golden dumps and serialization are **not yet
-implemented** and remain part of the full M1 exit gate.
+See `VERIFICATION.md`. Token/AST golden dumps are **not yet
+implemented** (a raw-AST deck writer exists, #20) and remain part of the full M1 exit gate.
 
 ### `new-parsing` — Winnow backend ✅
 

@@ -156,7 +156,8 @@ not completion of the remaining M1 syntax/round-trip gate.
   flags/IC instances, opaque analyses, nested subcircuits/X instances and
   source-relative includes/library selections. Ordered `ScopedCard` entries
   refer to typed vectors in the owning scope and retain raw source/provenance.
-  Parameter evaluation, flattening and serialization are still unported.
+  Parameter evaluation and flattening are still unported; a normalized raw-AST
+  deck writer exists (`spice_netlist::writer`, #20).
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
