@@ -1,18 +1,46 @@
-//! Bounded diffsol adaptive BDF adapter for diagonal-mass, index-one linear DAEs.
+//! Bounded diffsol adaptive BDF adapter for index-one linear DAEs
+//! `E x' + A x = b(t)`, including floating and coupled capacitor networks.
 //!
 //! This is NOT ngspice trap or fixed Gear-2. Operators and sparsity are assembled
 //! explicitly; no NaN probing, mutable devices, or fallible callbacks are hidden
 //! inside diffsol equations. Each source segment is affine and integration is
 //! restarted at breakpoints by the analysis layer.
+//!
+//! # Index-one formulation
+//!
+//! Integration runs in the physical MNA coordinates, so per-unknown voltage and
+//! current tolerances keep their meaning; diffsol receives the sparse `E`
+//! unchanged (BDF is invariant under constant linear coordinate changes). Only
+//! the structural analysis and initialization use a transformation:
+//!
+//! 1. `E` is split into the connected components of its petgraph coupling
+//!    graph. Rows without mass are 1×1 zero blocks; a diagonal entry is a 1×1
+//!    block; floating/coupled capacitors form larger blocks, each rank-revealed
+//!    by a dense SVD with tolerance `64 m ε σ_max` (blocks above
+//!    [`MAX_MASS_BLOCK`] rows are rejected).
+//! 2. The null vectors give bases `N` of `ker E` and `W` of `ker Eᵀ`. The pencil
+//!    is index one exactly when `Wᵀ A N` is nonsingular; this is factored with
+//!    the rank-certified sparse LU, so higher-index source/capacitor loops and
+//!    nonunique nullspaces are rejected rather than accepted on a zero residual.
+//! 3. Consistent states satisfy `Wᵀ (b - A x) = 0`. [`LinearDae::project`] moves
+//!    only along `N`, so `E x` — capacitor charges, inductor fluxes — is exactly
+//!    preserved across source events. Consistent derivatives use the block
+//!    pseudo-inverse of `E` plus the differentiated constraint.
+//!
+//! For diagonal `E` this reduces to the earlier algebraic-block formulation.
 use crate::linear::{numerical, square};
 use crate::{SparseLu, SparseMatrix, Vector};
 use diffsol::matrix::sparsity::MatrixSparsityRef;
 use diffsol::{
-    ConstantOp, FaerContext, FaerSparseLU, FaerSparseMat, FaerVec, LinearOp, Matrix as DiffMatrix,
-    NonLinearOp, NonLinearOpJacobian, OdeBuilder, OdeEquations, OdeEquationsRef, OdeSolverMethod,
-    OdeSolverState, OdeSolverStopReason, Op, Vector as DiffVector,
+    BdfState, ConstantOp, FaerContext, FaerSparseLU, FaerSparseMat, FaerVec, LinearOp,
+    Matrix as DiffMatrix, NonLinearOp, NonLinearOpJacobian, OdeBuilder, OdeEquations,
+    OdeEquationsRef, OdeSolverMethod, OdeSolverState, OdeSolverStopReason, Op,
+    Vector as DiffVector,
 };
 use spice_core::SpiceResult;
+
+/// Largest coupled mass block (rows) analysed with a dense SVD.
+pub const MAX_MASS_BLOCK: usize = 512;
 
 type M = FaerSparseMat<f64>;
 type V = FaerVec<f64>;
@@ -122,23 +150,187 @@ fn vector(v: &V) -> Vector {
     Vector::from_slice(&(0..v.len()).map(|i| v.get_index(i)).collect::<Vec<_>>())
 }
 
-/// Prepared numeric DAE. Only diagonal E with invertible algebraic A block is
-/// supported: floating capacitor networks/higher-index source constraints fail
-/// explicitly, before automatic diffsol initialization can mispartition them.
+/// A connected block of the mass matrix and its pseudo-inverse.
+#[derive(Debug, Clone)]
+struct MassBlock {
+    rows: Vec<usize>,
+    /// Row-major `m x m` pseudo-inverse of the block.
+    pseudo_inverse: Vec<f64>,
+}
+
+/// Rank-revealed structure of `E` (see the module documentation).
+#[derive(Debug, Clone, Default)]
+struct MassStructure {
+    blocks: Vec<MassBlock>,
+    /// Sparse rows of `N`: `(null coordinate, weight)` per physical unknown.
+    right_null: Vec<Vec<(usize, f64)>>,
+    /// Sparse rows of `W`.
+    left_null: Vec<Vec<(usize, f64)>>,
+    null_dim: usize,
+}
+
+fn dae_error(message: impl Into<String>) -> spice_core::SpiceError {
+    numerical("linear DAE", message.into())
+}
+
+impl MassStructure {
+    fn new(e: &SparseMatrix) -> SpiceResult<Self> {
+        let n = e.rows();
+        let graph = e.coupling_graph()?;
+        let mut components = petgraph::algo::kosaraju_scc(&graph);
+        for component in &mut components {
+            component.sort_unstable();
+        }
+        components.sort_unstable_by_key(|component| component[0]);
+        let mut local = vec![(0, 0); n];
+        for (block, rows) in components.iter().enumerate() {
+            for (index, row) in rows.iter().enumerate() {
+                local[*row] = (block, index);
+            }
+        }
+        let mut dense: Vec<Vec<f64>> = components
+            .iter()
+            .map(|r| vec![0.; r.len().pow(2)])
+            .collect();
+        for t in e.triplets() {
+            let (block, row) = local[t.row];
+            let (other, col) = local[t.col];
+            debug_assert_eq!(block, other);
+            let m = components[block].len();
+            dense[block][row * m + col] += t.value;
+        }
+        let mut structure = Self {
+            right_null: vec![vec![]; n],
+            left_null: vec![vec![]; n],
+            ..Self::default()
+        };
+        for (rows, values) in components.into_iter().zip(dense) {
+            structure.push_block(rows, &values)?;
+        }
+        Ok(structure)
+    }
+
+    fn push_null(
+        &mut self,
+        rows: &[usize],
+        right: impl Fn(usize) -> f64,
+        left: impl Fn(usize) -> f64,
+    ) {
+        let coordinate = self.null_dim;
+        self.null_dim += 1;
+        for (i, row) in rows.iter().enumerate() {
+            self.right_null[*row].push((coordinate, right(i)));
+            self.left_null[*row].push((coordinate, left(i)));
+        }
+    }
+
+    fn push_block(&mut self, rows: Vec<usize>, values: &[f64]) -> SpiceResult<()> {
+        let m = rows.len();
+        if m == 1 {
+            let value = values[0];
+            let pseudo_inverse = if value == 0. {
+                self.push_null(&rows, |_| 1., |_| 1.);
+                0.
+            } else {
+                1. / value
+            };
+            if !pseudo_inverse.is_finite() {
+                return Err(dae_error("mass entry has no finite inverse"));
+            }
+            self.blocks.push(MassBlock {
+                rows,
+                pseudo_inverse: vec![pseudo_inverse],
+            });
+            return Ok(());
+        }
+        if m > MAX_MASS_BLOCK {
+            return Err(dae_error(format!(
+                "coupled mass block of {m} unknowns exceeds the dense analysis limit {MAX_MASS_BLOCK}"
+            )));
+        }
+        let matrix = faer::Mat::<f64>::from_fn(m, m, |i, j| values[i * m + j]);
+        let svd = matrix
+            .svd()
+            .map_err(|e| dae_error(format!("mass block SVD failed: {e:?}")))?;
+        let (u, sigma, v) = (svd.U(), svd.S().column_vector(), svd.V());
+        let largest = (0..m).map(|i| sigma[i]).fold(0., f64::max);
+        if !largest.is_finite() {
+            return Err(dae_error("nonfinite mass block singular values"));
+        }
+        let tolerance = 64. * (m as f64) * f64::EPSILON * largest;
+        let mut pseudo_inverse = vec![0.; m * m];
+        for k in 0..m {
+            if sigma[k] > tolerance {
+                for i in 0..m {
+                    for j in 0..m {
+                        pseudo_inverse[i * m + j] += v[(i, k)] * u[(j, k)] / sigma[k];
+                    }
+                }
+            } else {
+                self.push_null(&rows, |i| v[(i, k)], |i| u[(i, k)]);
+            }
+        }
+        if pseudo_inverse.iter().any(|value| !value.is_finite()) {
+            return Err(dae_error("nonfinite mass pseudo-inverse"));
+        }
+        self.blocks.push(MassBlock {
+            rows,
+            pseudo_inverse,
+        });
+        Ok(())
+    }
+
+    /// `Wᵀ A N`, the constraint Jacobian on the algebraic subspace.
+    fn constraint_matrix(&self, a: &SparseMatrix) -> SpiceResult<SparseMatrix> {
+        let mut matrix = SparseMatrix::new(self.null_dim, self.null_dim);
+        for t in a.triplets() {
+            for (row, w) in &self.left_null[t.row] {
+                for (col, v) in &self.right_null[t.col] {
+                    matrix.add(*row, *col, w * t.value * v)?;
+                }
+            }
+        }
+        matrix.fold_duplicates();
+        if matrix.triplets().iter().any(|t| !t.value.is_finite()) {
+            return Err(dae_error("constraint assembly overflow"));
+        }
+        Ok(matrix)
+    }
+
+    /// Minimum-norm `p` with `E p = r` on the range of `E`.
+    fn mass_solve(&self, r: &[f64]) -> Vector {
+        let mut p = Vector::zeros(r.len());
+        for block in &self.blocks {
+            let m = block.rows.len();
+            for (i, row) in block.rows.iter().enumerate() {
+                p.as_mut_slice()[*row] = block
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .map(|(j, col)| block.pseudo_inverse[i * m + j] * r[*col])
+                    .sum();
+            }
+        }
+        p
+    }
+}
+
+/// Prepared numeric DAE for the index-one subset described in the module
+/// documentation. Higher-index constraints, singular pencils and oversized
+/// coupled mass blocks fail explicitly, before diffsol integration starts.
 pub struct LinearDae {
     a: SparseMatrix,
     jac: M,
     mass: M,
-    algebraic: Vec<usize>,
-    algebraic_map: Vec<Option<usize>>,
-    mass_diagonal: Vec<f64>,
-    algebraic_lu: Option<SparseLu>,
+    structure: MassStructure,
+    constraint_lu: Option<SparseLu>,
 }
 impl LinearDae {
-    /// Validates mass structure, numeric coefficients and index-one solvability.
+    /// Validates operators, the mass structure and index-one solvability.
     /// # Errors
-    /// Empty/mismatched/nonfinite operators, off-diagonal E, no dynamic rows,
-    /// or a singular algebraic block.
+    /// Empty/mismatched/nonfinite operators, no dynamic unknowns, oversized
+    /// coupled mass blocks, or a singular constraint block `Wᵀ A N`
+    /// (higher-index or nonunique).
     pub fn new(a: &SparseMatrix, e: &SparseMatrix) -> SpiceResult<Self> {
         square(a.rows(), a.cols())?;
         if a.rows() != e.rows() || a.cols() != e.cols() {
@@ -162,33 +354,17 @@ impl LinearDae {
         {
             return Err(numerical("linear DAE", "assembly overflow"));
         }
-        if e.triplets().iter().any(|t| t.row != t.col) {
-            return Err(numerical(
-                "linear DAE",
-                "floating/coupled capacitor mass is not supported by this bounded backend",
-            ));
-        }
-        let algebraic: Vec<_> = (0..a.rows()).filter(|r| e.get(*r, *r) == 0.).collect();
-        if algebraic.len() == a.rows() {
+        let structure = MassStructure::new(&e)?;
+        if structure.null_dim == a.rows() {
             return Err(numerical(
                 "linear DAE",
                 "at least one dynamic row is required",
             ));
         }
-        let mut map = vec![None; a.rows()];
-        for (i, r) in algebraic.iter().enumerate() {
-            map[*r] = Some(i);
-        }
-        let algebraic_lu = if algebraic.is_empty() {
+        let constraint_lu = if structure.null_dim == 0 {
             None
         } else {
-            let mut aa = SparseMatrix::new(algebraic.len(), algebraic.len());
-            for t in a.triplets() {
-                if let (Some(r), Some(c)) = (map[t.row], map[t.col]) {
-                    aa.add(r, c, t.value)?;
-                }
-            }
-            Some(aa.factorize().map_err(|e| {
+            Some(structure.constraint_matrix(&a)?.factorize().map_err(|e| {
                 numerical(
                     "linear DAE",
                     "unsupported higher-index/singular algebraic constraints: ".to_owned()
@@ -199,43 +375,58 @@ impl LinearDae {
         Ok(Self {
             jac: backend(&a, -1.)?,
             mass: backend(&e, 1.)?,
-            mass_diagonal: (0..a.rows()).map(|i| e.get(i, i)).collect(),
             a,
-            algebraic,
-            algebraic_map: map,
-            algebraic_lu,
+            structure,
+            constraint_lu,
         })
     }
 
-    /// Projects only algebraic unknowns; dynamic states are preserved at jumps.
+    /// Rank of `E`: the number of differential degrees of freedom.
+    #[must_use]
+    pub fn differential_dimension(&self) -> usize {
+        self.a.rows() - self.structure.null_dim
+    }
+
+    /// Projects onto the constraints `Wᵀ (b - A x) = 0` along `ker E`, so `E x`
+    /// (charges and fluxes) is unchanged; for diagonal `E` only algebraic
+    /// unknowns move.
     /// # Errors
-    /// Invalid vectors or failure of algebraic solve.
+    /// Invalid vectors or failure of the constraint solve.
     pub fn project(&self, x: &Vector, b: &Vector) -> SpiceResult<Vector> {
         self.check_vector(x)?;
         self.check_vector(b)?;
         let mut x = x.clone();
-        if let Some(lu) = &self.algebraic_lu {
-            let mut rhs = Vector::from_slice(
-                &self
-                    .algebraic
-                    .iter()
-                    .map(|r| b.as_slice()[*r])
-                    .collect::<Vec<_>>(),
-            );
-            for t in self.a.triplets() {
-                if let Some(i) = self.algebraic_map[t.row]
-                    && self.algebraic_map[t.col].is_none()
-                {
-                    rhs.as_mut_slice()[i] -= t.value * x.as_slice()[t.col];
+        if let Some(lu) = &self.constraint_lu {
+            let ax = self.a.mul_vector(&x)?;
+            let mut rhs = Vector::zeros(self.structure.null_dim);
+            for (row, weights) in self.structure.left_null.iter().enumerate() {
+                let residual = b.as_slice()[row] - ax.as_slice()[row];
+                for (coordinate, w) in weights {
+                    rhs.as_mut_slice()[*coordinate] += w * residual;
                 }
             }
-            let solved = lu.solve(&rhs)?;
-            for (i, r) in self.algebraic.iter().enumerate() {
-                x.as_mut_slice()[*r] = solved.as_slice()[i];
+            let delta = lu.solve(&rhs)?;
+            for (row, weights) in self.structure.right_null.iter().enumerate() {
+                for (coordinate, v) in weights {
+                    x.as_mut_slice()[row] += v * delta.as_slice()[*coordinate];
+                }
             }
         }
         self.check_vector(&x)?;
         Ok(x)
+    }
+
+    /// A consistent derivative at consistent `x` with forcing `b` and forcing
+    /// slope `db`: `E x' = b - A x` and `Wᵀ (db - A x') = 0`.
+    fn derivative(&self, x: &Vector, b: &Vector, db: &Vector) -> SpiceResult<Vector> {
+        let ax = self.a.mul_vector(x)?;
+        let residual: Vec<f64> = b
+            .as_slice()
+            .iter()
+            .zip(ax.as_slice())
+            .map(|(b, ax)| b - ax)
+            .collect();
+        self.project(&self.structure.mass_solve(&residual), db)
     }
     fn check_vector(&self, x: &Vector) -> SpiceResult<()> {
         if x.len() != self.a.rows() || !x.is_finite() {
@@ -311,23 +502,18 @@ impl LinearDae {
             .atol(options.atol.clone())
             .build_from_eqn(eqn)
             .map_err(err)?;
-        let mut state = problem.bdf_state::<FaerSparseLU<f64>>().map_err(err)?;
-        // diffsol's consistent initializer sets algebraic derivatives to zero.
-        // In MNA a source branch current can have nonzero derivative at restart
-        // (e.g. RL). Compute dynamic derivatives and differentiate the algebraic
-        // constraints; otherwise tight current tolerances force h below h_min.
-        let ax = self.a.mul_vector(&segment.initial)?;
-        let mut dy = Vector::zeros(n);
+        // Bypass diffsol's zero-diagonal consistent initializer: it cannot
+        // partition coupled mass matrices, and it sets algebraic derivatives
+        // to zero, while in MNA a source branch current can have a nonzero
+        // derivative at restart (e.g. RL), which forces h below h_min under
+        // tight current tolerances. Use the structural derivative instead.
+        let mut state = BdfState::new_without_initialise(&problem).map_err(err)?;
         let mut db = Vector::zeros(n);
         for i in 0..n {
-            if self.mass_diagonal[i] != 0. {
-                dy.as_mut_slice()[i] =
-                    (segment.b_start.as_slice()[i] - ax.as_slice()[i]) / self.mass_diagonal[i];
-            }
             db.as_mut_slice()[i] = (segment.b_end.as_slice()[i] - segment.b_start.as_slice()[i])
                 / (segment.end - segment.start);
         }
-        let dy = self.project(&dy, &db)?;
+        let dy = self.derivative(&segment.initial, &segment.b_start, &db)?;
         {
             let s = state.as_mut();
             s.y.copy_from(&V::from_vec(

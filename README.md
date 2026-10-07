@@ -42,9 +42,8 @@ table, formulas, temperatures and deliberately rejected forms.
 
 Transient requires explicit `backend=diffsol method=bdf`; it is
 **not ngspice trapezoidal or fixed Gear-2 and does not complete M3**. It currently
-requires diagonal mass structure with a nonsingular algebraic block. Floating/
-coupled capacitor DAEs, higher-index constraints, nonlinear charge and `.ic`/`uic`
-remain unsupported. Step/Pwl waveforms exist through the device API only;
+accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
+constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Step/Pwl waveforms exist through the device API only;
 waveform netlist syntax still needs implementation.
 
 Remaining work is tracked only in [TODO.md](TODO.md):

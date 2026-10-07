@@ -209,12 +209,17 @@ fn rlc_underdamped_reference_and_pwl_breakpoints() {
 
 #[test]
 fn transient_rejects_unsupported_structures_methods_and_limits() {
-    for body in [
-        "v1 a 0 0\nc1 a 0 1u",
-        "v1 in 0 0\nr1 in a 1k\nr2 b 0 1k\nc1 a b 1u",
-        "v1 in 0 0\nr1 in out 1k\nc1 out 0 1u ic=1",
+    for (body, reason) in [
+        // Index two: a voltage source fixes a capacitor voltage.
+        ("v1 a 0 0\nc1 a 0 1u", "higher-index"),
+        // Index two: a source across a floating capacitor.
+        ("v1 a b 0\nc1 a b 1u\nr1 a 0 1k\nr2 b 0 1k", "higher-index"),
+        // Singular pencil: a voltage-source loop.
+        ("v1 a 0 0\nv2 a 0 0\nr1 a b 1k\nc1 b 0 1u", "higher-index"),
+        ("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u ic=1", "ic"),
     ] {
-        assert!(transient(&mut circuit(body)).is_err(), "{body}");
+        let error = transient(&mut circuit(body)).unwrap_err().to_string();
+        assert!(error.contains(reason), "{body}: {error}");
     }
     let body = "v1 in 0 0\nr1 in out 1k\nc1 out 0 1u";
     for option in [
@@ -377,4 +382,71 @@ fn bdf_accepts_initial_steps_and_event_states_but_not_samples() {
     });
     run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
     assert_eq!(*times.borrow(), vec![None]);
+}
+
+fn step(c: &mut Circuit) {
+    waveform(
+        c,
+        spice_devices::Waveform::Step {
+            before: 0.,
+            after: 1.,
+            time: 0.001,
+        },
+    );
+}
+
+/// Series R-C-R with a floating capacitor: index one, rank-deficient mass.
+#[test]
+fn floating_capacitor_preserves_charge_across_events() {
+    let mut c = circuit("v1 in 0 0\nr1 in a 1k\nc1 a b 1u\nr2 b 0 1k");
+    step(&mut c);
+    let p = transient(&mut c).unwrap();
+    let tau = 2e-3;
+    for i in 0..p.point_count() {
+        let t = p.value("time", i).unwrap().re;
+        // Right-continuous samples: the jump time already sees the source.
+        let current = if t < 0.001 {
+            0.
+        } else {
+            (-(t - 0.001) / tau).exp() / 2e3
+        };
+        let (a, b) = (
+            p.value("v(a)", i).unwrap().re,
+            p.value("v(b)", i).unwrap().re,
+        );
+        let want_a = if t < 0.001 { 0. } else { 1. - 1e3 * current };
+        assert!((a - want_a).abs() < 2e-5, "t={t} v(a)={a} want {want_a}");
+        assert!((b - 1e3 * current).abs() < 2e-5, "t={t} v(b)={b}");
+        assert!((p.value("i(v1)", i).unwrap().re + current).abs() < 2e-8);
+        if t == 0.001 {
+            // The event projection keeps the capacitor charge: both plates
+            // jump together to the divider value.
+            assert!(
+                (a - 0.5).abs() < 1e-12 && (b - 0.5).abs() < 1e-12,
+                "{a} {b}"
+            );
+        }
+    }
+}
+
+/// Coupled capacitances with a nondiagonal, nonsingular mass block.
+#[test]
+fn coupled_capacitance_network_matches_its_modal_solution() {
+    let mut c = circuit("v1 in 0 0\nr1 in a 1k\nc1 a 0 1u\nc12 a b 2u\nc2 b 0 1u\nr2 b 0 1k");
+    step(&mut c);
+    let p = transient(&mut c).unwrap();
+    // E^-1 G has modes (1,1) at 1000/s and (1,-1) at 200/s.
+    for i in 0..p.point_count() {
+        let t = p.value("time", i).unwrap().re;
+        let (want_a, want_b) = if t < 0.001 {
+            (0., 0.)
+        } else {
+            let (fast, slow) = ((-1e3 * (t - 0.001)).exp(), (-200. * (t - 0.001)).exp());
+            (1. - 0.5 * (fast + slow), 0.5 * (slow - fast))
+        };
+        let a = p.value("v(a)", i).unwrap().re;
+        let b = p.value("v(b)", i).unwrap().re;
+        assert!((a - want_a).abs() < 2e-5, "t={t} v(a)={a} want {want_a}");
+        assert!((b - want_b).abs() < 2e-5, "t={t} v(b)={b} want {want_b}");
+    }
 }

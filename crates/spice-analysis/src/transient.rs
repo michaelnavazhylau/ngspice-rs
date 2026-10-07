@@ -142,8 +142,9 @@ pub(crate) fn run(
         for (t, sample) in result.samples {
             push(&mut plot, t, &sample)?;
         }
-        // Restart all BDF history and project algebraic states from the RIGHT.
-        // Capacitor voltages and inductor currents never jump in this subset.
+        // Restart all BDF history and project onto the constraints from the
+        // RIGHT. The projection moves only along ker E, so capacitor charges
+        // (including floating/coupled ones) and inductor fluxes never jump.
         x = dae.project(
             &result.final_state,
             &system.transient_rhs(segment_end, false),

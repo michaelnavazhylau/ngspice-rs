@@ -4,7 +4,7 @@
 //! | --- | --- | --- |
 //! | [`dense`] | dense row-major matrix and vector storage | owned faer pivoted LU and checked solves |
 //! | [`sparse`] | sparse triplet storage and petgraph coupling topology | owned faer sparse LU, symbolic reuse and checked solves |
-//! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; diagonal mass and nonsingular algebraic block only |
+//! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; floating/coupled mass blocks via block-SVD nullspaces; higher-index pencils rejected |
 //! | [`complex`] | complex sparse operators for AC | owned faer LU |
 //! | [`integrator`] | trapezoidal and Gear companion coefficients, integration, prediction and truncation estimates | orders 1–2; trial coefficients separate from accepted step history |
 //!
