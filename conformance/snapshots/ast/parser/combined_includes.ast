@@ -106,7 +106,7 @@ scope root
         globals (0):
   analyses (1):
     analysis [0] kind=op @parser/combined_includes.cir:19:1
-      arguments: 
+      arguments:
   includes (2):
     include [0] path="sources/combined/models.inc" spelling="'sources/combined/models.inc'" resolved="parser/sources/combined/models.inc" section=none @parser/combined_includes.cir:4:1
     include [1] path="sources/combined/lib.inc" spelling="'sources/combined/lib.inc'" resolved="parser/sources/combined/lib.inc" section="typical" @parser/combined_includes.cir:12:1

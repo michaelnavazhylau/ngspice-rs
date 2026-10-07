@@ -41,7 +41,7 @@ scope root
   subcircuits (0):
   analyses (1):
     analysis [0] kind=op @parser/combined_params_options.cir:12:1
-      arguments: 
+      arguments:
   includes (0):
   params (3):
     param-card [0] @parser/combined_params_options.cir:4:1

@@ -38,7 +38,7 @@ scope root
   subcircuits (0):
   analyses (1):
     analysis [0] kind=op @netlists/bjt_ce.cir:7:1
-      arguments: 
+      arguments:
   includes (0):
   params (0):
   options (0):

@@ -243,7 +243,9 @@ impl Out {
         for _ in 0..indent {
             self.text.push_str("  ");
         }
-        self.text.push_str(content.as_ref());
+        // Values are quoted, so trimming only drops separators before an
+        // empty list and keeps snapshots free of trailing whitespace.
+        self.text.push_str(content.as_ref().trim_end());
         self.text.push('\n');
     }
 }

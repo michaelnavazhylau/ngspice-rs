@@ -113,7 +113,7 @@ scope root
   subcircuits (0):
   analyses (1):
     analysis [0] kind=op @parser/flags_ic.cir:13:1
-      arguments: 
+      arguments:
   includes (0):
   params (0):
   options (0):

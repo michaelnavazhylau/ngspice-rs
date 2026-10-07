@@ -75,6 +75,11 @@ fn generation_is_deterministic_and_headers_are_versioned() {
             file.path
         );
         assert!(file.contents.ends_with('\n') && !file.contents.contains('\r'));
+        assert!(
+            file.contents.lines().all(|line| line == line.trim_end()),
+            "trailing whitespace in {}",
+            file.path
+        );
     }
 }
 

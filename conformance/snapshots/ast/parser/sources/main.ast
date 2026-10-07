@@ -56,7 +56,7 @@ scope root
         globals (0):
   analyses (1):
     analysis [0] kind=op @parser/sources/main.cir:7:1
-      arguments: 
+      arguments:
   includes (3):
     include [0] path="parts/divider.inc" spelling="'parts/divider.inc'" resolved="parser/sources/parts/divider.inc" section=none @parser/sources/main.cir:2:1
     include [1] path="parts/passives.lib" spelling="'parts/passives.lib'" resolved="parser/sources/parts/passives.lib" section="typical" @parser/sources/main.cir:3:1
