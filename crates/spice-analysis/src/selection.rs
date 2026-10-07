@@ -130,16 +130,18 @@ impl Selection {
         kind: AnalysisKind,
         requests: &[VectorRequest],
     ) -> SpiceResult<Self> {
-        if requests.is_empty()
-            || requests
-                .iter()
-                .any(|request| request.vector == RequestedVector::All)
-        {
+        if requests.is_empty() {
             return Ok(Self {
                 full: true,
-                columns: Vec::new(),
+                columns: driver_columns(plot),
             });
         }
+        // `all` widens the written plot to the driver's whole set, but every
+        // other request is still resolved, so an unresolvable vector is an error
+        // rather than being dropped because an `all` happened to be present.
+        let full = requests
+            .iter()
+            .any(|request| request.vector == RequestedVector::All);
         let mut columns: Vec<Column> = Vec::new();
         // C's `beginPlot()` pass 0: the reference vector is always written first.
         if kind != AnalysisKind::OperatingPoint
@@ -154,6 +156,9 @@ impl Selection {
             });
         }
         for request in requests {
+            if request.vector == RequestedVector::All {
+                continue;
+            }
             let column = resolve_request(plot, request)?;
             // The written vector is the plan (the signed sum and the component),
             // not the spelling: `v(out)` and `v(out,0)` are one vector, and the
@@ -161,6 +166,15 @@ impl Selection {
             if !columns.iter().any(|existing| existing.same_vector(&column)) {
                 columns.push(column);
             }
+        }
+        if full {
+            // The whole plot is written in the driver's order, so the resolved
+            // columns describe the driver's variables; the report and the text
+            // table would otherwise claim a successful run wrote nothing.
+            return Ok(Self {
+                full: true,
+                columns: driver_columns(plot),
+            });
         }
         Ok(Self {
             full: false,
@@ -239,10 +253,12 @@ impl Selection {
         );
         let _ = writeln!(
             out,
-            "values: {}; written exactly as the ASCII rawfile spells them",
+            "values: {}; computed from the plot, not the rawfile's own spelling",
             if plot.flags.is_complex() {
-                "complex as `re,im` with 15 fractional digits; vm is |v|, vp is the phase in \
-                 radians in (-pi, pi], vr/vi are the real and imaginary parts, vdb is 20*log10|v|"
+                "complex as `re,im` with 15 fractional digits, except that a component which is \
+                 real for every point prints as one number (C's print behaviour; the rawfile \
+                 spells that column `re,0.0`); vm is |v|, vp is the phase in radians in \
+                 (-pi, pi], vr/vi are the real and imaginary parts, vdb is 20*log10|v|"
             } else {
                 "real with 15 fractional digits"
             }
@@ -317,6 +333,24 @@ fn component_value(component: VectorComponent, value: Complex) -> Complex {
         VectorComponent::Imaginary => Complex::real(value.im),
         VectorComponent::Decibels => Complex::real(20.0 * value.magnitude().log10()),
     }
+}
+
+/// Every variable of the driver's plot, as an identity selection.
+///
+/// A full selection writes the plot unchanged, but its columns still describe
+/// what is written so reports and text tables are not empty.
+fn driver_columns(plot: &Plot) -> Vec<Column> {
+    plot.variables
+        .iter()
+        .enumerate()
+        .map(|(index, variable)| Column {
+            name: variable.name.clone(),
+            unit: variable.unit.clone(),
+            is_real: variable.is_real,
+            terms: vec![(index, 1.0)],
+            component: None,
+        })
+        .collect()
 }
 
 /// The column one request resolves to.
@@ -477,6 +511,10 @@ mod tests {
         })
     }
 
+    fn all() -> VectorRequest {
+        request(RequestedVector::All)
+    }
+
     fn component(function: VectorComponent, positive: &str) -> VectorRequest {
         request(RequestedVector::Component {
             component: function,
@@ -607,7 +645,9 @@ mod tests {
             let plot = op_plot();
             let selection = resolve(&plot, AnalysisKind::OperatingPoint, &requests);
             assert!(selection.is_full());
-            assert_eq!(selection.variable_names(), Vec::<&str>::new());
+            // The written plot is the driver's, and the resolved columns describe
+            // it: a full selection is not "no vectors" for the report or the table.
+            assert_eq!(selection.variable_names(), ["v(in)", "v(out)", "i(v1)"]);
             assert_eq!(selection.apply(&plot).unwrap(), plot);
         }
         let cards = OutputCards {
@@ -785,13 +825,13 @@ mod tests {
     }
 
     #[test]
-    fn the_text_table_states_its_convention_and_spells_values_like_the_rawfile() {
+    fn the_text_table_states_its_convention_and_prints_computed_components() {
         let real = op_plot();
         let selection = resolve(&real, AnalysisKind::OperatingPoint, &[current("v1")]);
         let text = selection.to_text(&real).unwrap();
         let expected = concat!(
             "print: 1 vector(s): i(v1)\n",
-            "values: real with 15 fractional digits; written exactly as the ASCII rawfile spells them\n",
+            "values: real with 15 fractional digits; computed from the plot, not the rawfile's own spelling\n",
             "  point  i(v1)\n",
             "      0  -2.500000000000000e-03\n",
         );
@@ -828,5 +868,39 @@ mod tests {
             text.contains("1.000000000000000e+02,0.000000000000000e+00"),
             "{text}"
         );
+        // `vm` is real at every point, so the table prints one number while the
+        // rawfile would spell the column `re,0.0`; the convention line says so.
+        assert!(
+            text.contains("real for every point prints as one number"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_full_selection_resolves_the_drivers_columns_and_still_validates_requests() {
+        // `all` widens the written plot, but the resolved columns must describe
+        // it: an empty column list made a successful run report "0 vector(s)".
+        let plot = op_plot();
+        let full = resolve(&plot, AnalysisKind::OperatingPoint, &[all()]);
+        assert!(full.is_full());
+        assert_eq!(names(&full), ["v(in)", "v(out)", "i(v1)"]);
+        let written = full.apply(&plot).unwrap();
+        assert_eq!(written.points, plot.points);
+        assert_eq!(
+            full.to_text(&plot).unwrap().lines().next().unwrap(),
+            "print: 3 vector(s): v(in) v(out) i(v1)"
+        );
+        // A sweep keeps its scale in the resolved columns too.
+        let sweep = ac_plot();
+        let full = resolve(&sweep, AnalysisKind::Ac, &[all()]);
+        assert_eq!(names(&full)[0], "frequency");
+        // An unresolvable request is an error even next to `all`.
+        let error = Selection::resolve(
+            &plot,
+            AnalysisKind::OperatingPoint,
+            &[all(), voltage("nope", None)],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("v(nope)"), "{error}");
     }
 }

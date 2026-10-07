@@ -236,3 +236,29 @@ fn the_netlist_keeps_the_card_and_the_writer_round_trips_it() {
         parsed.output
     );
 }
+
+#[test]
+fn output_cards_are_part_of_semantic_equality_and_survive_a_semantic_form() {
+    // The typed requests live in `OutputCards`, so the card's spelling is the
+    // netlist's only record of what was asked for: two decks that differ only in
+    // their `.save` requests must not compare equal, and the writer must still
+    // reproduce the card from a semantic form (the round-trip gate's contract).
+    let left = parse_deck_text(Path::new("save.cir"), "Title\n.save v(a)\n.op\n");
+    let right = parse_deck_text(Path::new("save.cir"), "Title\n.save v(b)\n.op\n");
+    let left = Parser::new().parse_deck(&left).unwrap();
+    let right = Parser::new().parse_deck(&right).unwrap();
+    assert!(
+        !semantic_eq(&left, &right),
+        "different .save requests are not semantically equal"
+    );
+    assert!(semantic_eq(&left, &left.clone()));
+
+    let semantic = spice_netlist::semantic::semantic_form(&left);
+    let written = write_netlist(&semantic).expect("the writer reproduces the card");
+    assert!(written.contains(".save v(a)"), "{written}");
+    let reparsed = parse_deck_text(Path::new("save.cir"), &written);
+    assert!(semantic_eq(
+        &left,
+        &Parser::new().parse_deck(&reparsed).unwrap()
+    ));
+}

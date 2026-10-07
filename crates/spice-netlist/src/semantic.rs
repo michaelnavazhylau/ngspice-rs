@@ -27,7 +27,8 @@ use crate::ast::{
     AnalysisCard, ArgumentExpression, DeviceInstance, GlobalCard, GlobalNode, IncludeDirective,
     InitialCondition, LibrarySection, ModelCard, Netlist, NodeHint, NodeHintCard, NodeHintValue,
     OptionCard, OptionSetting, ParamAssignment, ParamCard, ParameterAssignment, ParameterKind,
-    PositionedValue, PulseWaveform, PwlPoint, ScopedCard, SourceWaveform, Subcircuit,
+    PositionedValue, PulseWaveform, PwlPoint, ScopedCard, ScopedCardKind, SourceWaveform,
+    Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
@@ -292,7 +293,19 @@ fn cards(cards: &[ScopedCard]) -> Vec<ScopedCard> {
         .iter()
         .map(|card| ScopedCard {
             kind: card.kind,
-            source: raw(),
+            // `.save`/`.print` carry no scope-local index in the netlist and
+            // their typed requests live in `OutputCards`, so the card's own
+            // spelling is the netlist's only record of which vectors were
+            // requested. Keeping it is what lets `semantic_eq` tell two output
+            // cards apart and lets the writer reproduce them from a semantic
+            // form; every other card is compared through its typed payload.
+            source: match card.kind {
+                ScopedCardKind::Output => RawCard {
+                    raw: card.source.raw.clone(),
+                    ..raw()
+                },
+                _ => raw(),
+            },
             include_chain: card.include_chain.iter().map(|_| blank()).collect(),
         })
         .collect()

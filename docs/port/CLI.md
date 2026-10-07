@@ -64,7 +64,8 @@ The file is ngspice's ASCII form (`set filetype=ascii`), written by
   `spice-rs <version> (Rust port), Build`, `Date:` is the write time in UTC in
   standard `ctime` spelling. It is not byte-identical to ngspice's
   `datestring()`, which writes local time and leaves an extra pre-year space;
-  no committed comparator reads `Date:`;
+  no committed comparator reads `Date:`. `Title:` keeps the deck's own casing
+  where C lowercases it; no committed comparator reads `Title:` either;
 * a `.dc` plot's scale column is named `sweep` (C spells it `v(v-sweep)` or
   `i(i-sweep)`; `cargo xtask golden verify` maps the name when it compares
   against the committed C goldens);

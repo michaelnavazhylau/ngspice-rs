@@ -752,7 +752,8 @@ fn an_ac_print_card_prints_the_complex_components() {
     assert!((plot.value("vm(out)", 0).unwrap().re - 0.8467330).abs() < 1e-6);
     assert!((plot.value("vp(out)", 0).unwrap().re + 0.5609821).abs() < 1e-6);
     assert!((plot.value("vdb(out)", 0).unwrap().re + 1.4450701).abs() < 1e-6);
-    // And the table repeats the rawfile's spelling of those values.
+    // And the table prints the computed components: a component that is real at
+    // every point is one number (the rawfile spells that column `re,0.0`).
     assert!(
         report.contains(&spelled(plot.value("vm(out)", 0).unwrap(), false)),
         "{report}"
@@ -797,6 +798,31 @@ fn a_save_card_and_a_print_card_combine_and_the_analysis_must_match() {
         "{}",
         stderr(&run)
     );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_print_card_with_all_prints_every_vector_the_run_produced() {
+    // `all` on a `.print` card is C's "print everything": the table must list
+    // the run's vectors and print their values, not claim zero vectors.
+    let dir = scratch("print-all");
+    let deck = write_deck(
+        &dir,
+        "rc divider, print all\nv1 in 0 dc 5\nr1 in out 1k\nr2 out 0 1k\n.op\n\
+         .print op all\n.end\n",
+    );
+    let output = dir.join("out.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("print: 3 vector(s): v(in) v(out) i(v1)"),
+        "{report}"
+    );
+    assert!(!report.contains("<none>"), "{report}");
+    // The values are the ones the rawfile got, with the current's C sign.
+    assert!(report.contains("2.500000000000000e+00"), "{report}");
+    assert!(report.contains("-2.500000000000000e-03"), "{report}");
     fs::remove_dir_all(&dir).unwrap();
 }
 

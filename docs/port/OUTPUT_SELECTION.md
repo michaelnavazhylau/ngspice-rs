@@ -119,8 +119,9 @@ convention is unchanged: C prints `i(v1)` as the current *into* the positive
 terminal, and the committed goldens pin it (5 V across a 2 k divider gives
 `i(v1) = -2.5 mA`). Selection never flips or recomputes a branch current.
 
-**Missing, ambiguous, unsupported.** All three fail *before* anything is
-published:
+**Missing, ambiguous, unsupported.** All of them fail *before* anything is
+published, and an `all` request does not excuse the others: `.save all v(nosuch)`
+is still an error, because a request the user wrote is never silently dropped.
 
 * a request the full plot cannot satisfy (`.save v(nosuch)`, `.save i(l9)`, a
   `.print op …` where the deck runs `.ac`) is `SpiceError::Unsupported` (exit 2).
@@ -140,16 +141,18 @@ In every case nothing is printed on stdout and an existing `--output`
 destination is left untouched, because the selection is resolved before the
 report and before the rawfile write.
 
-**Complex format.** The text table spells each value exactly as the ASCII
-rawfile spells it: `%.15e`, and in a complex plot `re,im` for a complex column
-and `re,0.0` for a column flagged real. The AC components (`vm`, `vp`, `vr`,
-`vi`, `vdb`) are real-valued columns inside a complex plot, so they are written
-`re,0.0` — the same rule the rawfile writer already applies to `frequency`. The
-table states this convention on its second line, e.g.
+**Complex format.** The text table prints computed components, not the rawfile's
+bytes: `%.15e`, and in a complex plot `re,im` for a column with a non-zero
+imaginary part and a single real number for a column that is real at every point
+— which is C's `print` behaviour, and what the AC components (`vm`, `vp`, `vr`,
+`vi`, `vdb`) produce. The rawfile spells such a column `re,0.0` instead (the same
+rule the writer already applies to `frequency`), so the table and the file agree
+on values but not on that spelling. The table states the convention on its second
+line, e.g.
 
 ```
 print: 6 vector(s): frequency v(out) vm(out) vp(out) vdb(out) i(v1)
-values: complex as `re,im` with 15 fractional digits; vm is |v|, vp is the phase in radians in (-pi, pi], vr/vi are the real and imaginary parts, vdb is 20*log10|v|; written exactly as the ASCII rawfile spells them
+values: complex as `re,im` with 15 fractional digits, except that a component which is real for every point prints as one number (C's print behaviour; the rawfile spells that column `re,0.0`); vm is |v|, vp is the phase in radians in (-pi, pi], vr/vi are the real and imaginary parts, vdb is 20*log10|v|; computed from the plot, not the rawfile's own spelling
   point  frequency  v(out)  vm(out)  vp(out)  vdb(out)  i(v1)
       0  1.000000000000000e+02,0.000000000000000e+00  7.169568003248978e-01,-4.504772433683886e-01  …
 ```
@@ -165,6 +168,13 @@ until after the rawfile is written).
   entirely and narrows the rawfile by `.save` alone. The port keeps the `.print`
   selection because it is the only way `simulate` can honour the card at all: it
   narrows what is written (never widens it) and additionally prints the table.
+* **A request that cannot be resolved is an error, even next to `all`.** C warns
+  and skips a `.save` name the analysis has no data for (`outitf.c:391-517`),
+  including when `all` is also present; this port rejects it, because issue #42
+  requires unknown expressions not to be ignored.
+* **`v(a,a)` and `v(0,0)` are errors.** C's `fixem` rewrites `v(0,0)` to `v(0)`
+  and silently ignores `v(a,a)` (`dotcards.c:524-554`); the port reports both as
+  identically-zero requests instead of writing a column that can only be zero.
 * **A `.print` card for another analysis is an error.** C silently does nothing
   for an analysis that never runs; this port rejects the card, because a
   dropped request is exactly the failure mode issue #42 is about.
