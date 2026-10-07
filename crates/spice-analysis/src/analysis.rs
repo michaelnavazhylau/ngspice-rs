@@ -151,10 +151,7 @@ impl AnalysisContext {
     /// occurs at circuit elaboration/equation assembly; no global state is used.
     #[must_use]
     pub const fn model_context(&self) -> spice_devices::ModelContext {
-        spice_devices::ModelContext {
-            temperature: self.temperature,
-            nominal_temperature: self.nominal_temperature,
-        }
+        spice_devices::ModelContext::new(self.temperature, self.nominal_temperature)
     }
 }
 
@@ -216,8 +213,9 @@ impl Analysis for OperatingPoint {
     }
 }
 
-/// `.dc` — a linear DC sweep of one independent V/I source.
-/// Resistor/temperature targets and nested sweeps remain unsupported.
+/// `.dc` — a bounded typed DC sweep of independent V/I sources, resistors
+/// (literal or model-backed) and circuit temperature, with one optional nested
+/// axis. See `docs/port/DC_SWEEPS.md`.
 ///
 /// C: the DC transfer curve path in `dctran.c`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -22,7 +22,9 @@ use spice_maths::{Coefficients, SparseMatrix, Vector};
 
 use crate::linear::Forcing;
 use crate::models::ModelContext;
+use crate::rlc::Resistor;
 use crate::state::{StateHistory, TrialState};
+use crate::sweep::{ResistorMetadata, ResistorOverride};
 use crate::traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
 
 /// A vertex in the circuit's bipartite incidence graph.
@@ -280,16 +282,105 @@ impl Circuit {
         Ok(())
     }
 
+    /// The resistor named `name` (case-insensitive) and its device ordinal,
+    /// identified by [`Device::resistor_metadata`], never by the name's first
+    /// letter.
+    #[must_use]
+    pub fn resistor(&self, name: &str) -> Option<(usize, ResistorMetadata)> {
+        self.devices.iter().enumerate().find_map(|(index, device)| {
+            if !device.name().eq_ignore_ascii_case(name) {
+                return None;
+            }
+            device.resistor_metadata().map(|metadata| (index, metadata))
+        })
+    }
+
+    /// An immutable per-point override of resistor `name`'s supplied scalar.
+    /// Carry it in a [`ModelContext`] ([`ModelContext::with_resistor_override`]);
+    /// no device changes. See [`crate::sweep`] for supplied-versus-effective
+    /// semantics.
+    ///
+    /// # Errors
+    /// [`SpiceError::Circuit`] if `name` is not a resistor, or `supplied` is
+    /// nonfinite, zero, or has a nonfinite conductance.
+    pub fn resistor_override(&self, name: &str, supplied: Real) -> SpiceResult<ResistorOverride> {
+        let (index, _) = self
+            .resistor(name)
+            .ok_or_else(|| SpiceError::circuit(format!("{name} is not a resistor")))?;
+        if !supplied.is_finite() || supplied == 0.0 || !(1.0 / supplied).is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "resistor {name}: supplied resistance must be finite and nonzero with finite conductance"
+            )));
+        }
+        Ok(ResistorOverride::new(index, supplied))
+    }
+
+    /// The effective resistance (ohms) `target` stamps under `context`'s
+    /// temperatures: the supplied scalar with the device's own temperature, TC,
+    /// scale and multiplicity laws applied. Nothing is mutated.
+    ///
+    /// # Errors
+    /// A stale override, an invalid context, or an invalid derived value.
+    pub fn effective_resistance(
+        &self,
+        target: &ResistorOverride,
+        context: &ModelContext,
+    ) -> SpiceResult<Real> {
+        let device = self
+            .devices
+            .get(target.device())
+            .ok_or_else(|| SpiceError::circuit("stale resistor override"))?;
+        context.validate(&spice_core::SourceLoc::new(
+            std::path::PathBuf::from("<model-context>"),
+            1,
+            1,
+        ))?;
+        device.resistor_effective(target.supplied(), context)
+    }
+
+    /// Disposable resistors carrying the context's overrides' effective values,
+    /// as `(device ordinal, resistor)`. The circuit's own devices are untouched;
+    /// callers stamp the replacement instead of the original for that ordinal.
+    fn resistor_replacements(&self, context: &ModelContext) -> SpiceResult<Vec<(usize, Resistor)>> {
+        let mut replacements: Vec<(usize, Resistor)> = Vec::new();
+        for target in context.resistor_overrides.iter().flatten() {
+            let device = self
+                .devices
+                .get(target.device())
+                .ok_or_else(|| SpiceError::circuit("stale resistor override"))?;
+            let terminals = match device.terminals() {
+                [a, b] if device.resistor_metadata().is_some() => [*a, *b],
+                _ => {
+                    return Err(SpiceError::circuit(format!(
+                        "resistor override targets {}, which is not a two-terminal resistor",
+                        device.name()
+                    )));
+                }
+            };
+            if replacements.iter().any(|(i, _)| *i == target.device()) {
+                return Err(SpiceError::circuit("duplicate resistor override"));
+            }
+            let effective = device.resistor_effective(target.supplied(), context)?;
+            replacements.push((
+                target.device(),
+                Resistor::new(device.name(), terminals, effective)?,
+            ));
+        }
+        Ok(replacements)
+    }
+
     /// Loads every device for one trial into `matrix`, `rhs` and `trial`.
     ///
-    /// The accepted history is read-only here. On error, `matrix`, `rhs` and
+    /// The accepted history is read-only here. Resistors named by the model
+    /// context's overrides stamp their per-point effective value; no device is
+    /// modified. On error, `matrix`, `rhs` and
     /// `trial` hold a partial load and must be discarded; nothing the circuit
     /// or history owns has changed.
     ///
     /// # Errors
     ///
-    /// Stale numbering, mismatched dimensions/nonfinite solution, or device
-    /// failures.
+    /// Stale numbering, mismatched dimensions/nonfinite solution, device
+    /// failures, or an invalid resistor override.
     pub fn load(
         &self,
         request: &LoadRequest<'_>,
@@ -316,7 +407,12 @@ impl Circuit {
             1,
             1,
         ))?;
+        let replacements = self.resistor_replacements(request.model_context)?;
         for (index, device) in self.devices.iter().enumerate() {
+            let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
+                Some((_, resistor)) => resistor,
+                None => &**device,
+            };
             let states = request
                 .history
                 .device(trial, self.state_rows[index].clone())?;
@@ -428,8 +524,13 @@ impl Circuit {
             1,
         ))?;
         self.finalize()?;
+        let replacements = self.resistor_replacements(context)?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
+            let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
+                Some((_, resistor)) => resistor,
+                None => &**device,
+            };
             let range = &self.branch_rows[index];
             device.assemble_linear(&mut crate::linear::LinearContext {
                 model_context: context,
@@ -463,8 +564,13 @@ impl Circuit {
                 "invalid small-signal bias dimensions/values",
             ));
         }
+        let replacements = self.resistor_replacements(context)?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
+            let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
+                Some((_, resistor)) => resistor,
+                None => &**device,
+            };
             let range = &self.branch_rows[index];
             device.assemble_small_signal(
                 &mut crate::linear::LinearContext {

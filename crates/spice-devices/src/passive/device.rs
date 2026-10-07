@@ -1,8 +1,11 @@
 //! Contextual input wrapper delegates effective values to existing R/C/L stamps.
 use super::PassiveParameters;
 use crate::models::{ModelContext, ModelFamily, ResolvedModel};
-use crate::{Capacitor, Device, Inductor, LinearContext, Resistor, StampContext};
-use spice_core::{NodeId, NodeTable, SpiceResult};
+use crate::{
+    Capacitor, Device, Inductor, LinearContext, Resistor, ResistorMetadata, ResistorOrigin,
+    StampContext,
+};
+use spice_core::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 use spice_netlist::ast::DeviceInstance;
 
 #[derive(Debug)]
@@ -44,14 +47,32 @@ impl Device for ModelPassive {
         }
     }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
-        self.scalar(&ModelContext {
-            temperature: context.temperature,
-            nominal_temperature: context.nominal_temperature,
-        })?
+        self.scalar(&ModelContext::new(
+            context.temperature,
+            context.nominal_temperature,
+        ))?
         .stamp(context)
     }
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
         self.scalar(context.model_context)?.assemble_linear(context)
+    }
+    fn resistor_metadata(&self) -> Option<ResistorMetadata> {
+        (self.parameters.family() == ModelFamily::Resistor).then(|| ResistorMetadata {
+            origin: ResistorOrigin::ModelBacked,
+            supplied: self.parameters.nominal_value(),
+            multiplicity: self.parameters.multiplicity(),
+        })
+    }
+    fn resistor_effective(&self, supplied: Real, context: &ModelContext) -> SpiceResult<Real> {
+        if self.parameters.family() != ModelFamily::Resistor {
+            return Err(SpiceError::circuit(format!(
+                "{} is not a resistor",
+                self.name
+            )));
+        }
+        self.parameters
+            .with_nominal_value(supplied)?
+            .effective_value(context)
     }
 }
 

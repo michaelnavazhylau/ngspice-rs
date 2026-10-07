@@ -15,12 +15,20 @@
 //! | `abstol` | transient branch-current absolute tolerance (companion truncation/Newton test; diffsol BDF) |
 //! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
 //! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
+//! | `itl1` | DC Newton iteration limit per stage (`maxiter`, 1..=10000) for `.op`/`.dc`/`.ac`; **rejected for `.tran`** |
+//! | `srcsteps` | DC source-stepping increments (`0` disables, else 1..=1000 equal steps); **rejected for `.tran`** |
+//! | `gminsteps`, `gminfactor` | DC gmin-stepping stage count (`0` disables, else 1..=100) and ratio (1 < factor <= 1e6, default 10) from 1e-3 S; **rejected for `.tran`** |
 //!
 //! `.ic` and `.nodeset` cards are not options: [`RunConfig::from_netlist`]
 //! evaluates them against `.param` and [`RunConfig::request`] attaches them to
 //! every analysis request (`AnalysisRequest::initial_conditions`/`nodesets`).
 //!
-//! Every other name from `cktsopt.c` (`itl*`, `gmin`, flags,
+//! The DC options are *not* C's `itl1`/`srcsteps`/`gminsteps` semantics verbatim
+//! (this port's schedules are fixed and deterministic, and the default `itl1`
+//! is 200, not 100); see `docs/port/DC_CONTINUATION.md`. `gmin` (the fixed
+//! junction gmin) stays unimplemented: it is not an artificial continuation gmin.
+//!
+//! Every other name from `cktsopt.c` (`itl2`-`itl6`, `gmin`, flags,
 //! ...) is reported as [`SpiceError::NotYetPorted`]; names absent from that
 //! table are parse errors. `no_auto_gnd` is a front-end variable in C, not an
 //! `.option`: use `Parser::with_auto_gnd`.
@@ -29,7 +37,10 @@
 //!
 //! Highest first: explicit [`RunOverrides`] (temperatures) or explicit analysis
 //! request arguments (`rtol=`, `vntol=`, `abstol=`, `chgtol=`, `trtol=`, `method=`,
-//! `maxord=`, `maxsteps=`), then the deck's options, then driver defaults (27 C).
+//! `maxord=`, `maxsteps=`, and for DC/AC `maxiter=`, `srcsteps=`, `gminsteps=`,
+//! `gminfactor=`), then the deck's options, then driver defaults (27 C). Each
+//! name is resolved independently, so a request `gminsteps=` combines with a
+//! deck `gminfactor`.
 //! Defaults are the backend's: the companion driver uses ngspice's (reltol 1e-3,
 //! vntol 1e-6, abstol 1e-12, chgtol 1e-14, trtol 7); diffsol BDF keeps rtol 1e-7,
 //! vntol 1e-9, abstol 1e-12.
@@ -55,15 +66,11 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "gshunt",
     "pivtol",
     "pivrel",
-    "itl1",
     "itl2",
     "itl3",
     "itl4",
     "itl5",
     "itl6",
-    "srcsteps",
-    "gminsteps",
-    "gminfactor",
     "acct",
     "list",
     "nomod",
@@ -140,6 +147,33 @@ pub struct TransientSettings {
     pub trtol: Option<Real>,
 }
 
+/// Option names that configure DC Newton/continuation, in no particular order.
+const DC_OPTIONS: [&str; 4] = ["itl1", "srcsteps", "gminsteps", "gminfactor"];
+
+/// Deck-supplied DC settings (last occurrence wins). `None` leaves the default;
+/// `Some(0)` disables source/gmin stepping.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct DcOptions {
+    /// `itl1` → Newton iteration limit per DC stage.
+    pub itl1: Option<usize>,
+    /// `srcsteps` → equal source-stepping increments.
+    pub srcsteps: Option<usize>,
+    /// `gminsteps` → gmin-stepping stages.
+    pub gminsteps: Option<usize>,
+    /// `gminfactor` → ratio between consecutive gmin stages.
+    pub gminfactor: Option<Real>,
+}
+
+impl DcOptions {
+    /// The continuation policy these options resolve to over the defaults.
+    ///
+    /// # Errors
+    /// An invalid combination, e.g. a factor whose schedule underflows.
+    pub fn policy(&self) -> SpiceResult<crate::bias::ContinuationPolicy> {
+        crate::bias::ContinuationPolicy::from_steps(self.srcsteps, self.gminsteps, self.gminfactor)
+    }
+}
+
 /// One accepted option occurrence, kept in deck order for diagnostics.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AppliedOption {
@@ -156,6 +190,7 @@ pub struct AppliedOption {
 pub struct RunConfig {
     context: AnalysisContext,
     transient: TransientSettings,
+    dc: DcOptions,
     method: Option<(String, SourceLoc)>,
     maxord: Option<(u8, SourceLoc)>,
     applied: Vec<AppliedOption>,
@@ -231,6 +266,17 @@ impl RunConfig {
             }
             config.apply(setting)?;
         }
+        // The last-set counts and factor must form one valid schedule together.
+        if let Err(error) = config.dc.policy() {
+            let location = config
+                .applied
+                .iter()
+                .rev()
+                .find(|option| DC_OPTIONS.contains(&option.name.as_str()))
+                .map(|option| option.location.clone())
+                .unwrap_or_else(|| SourceLoc::new(std::path::PathBuf::from("<options>"), 0, 0));
+            return Err(SpiceError::parse(location, error.to_string()));
+        }
         let unknown = SourceLoc::new(std::path::PathBuf::from("<run overrides>"), 0, 0);
         if let Some(t) = overrides.temperature {
             config.context.temperature = temperature(t, &unknown, "temperature override")?;
@@ -255,6 +301,10 @@ impl RunConfig {
                 | "trtol"
                 | "method"
                 | "maxord"
+                | "itl1"
+                | "srcsteps"
+                | "gminsteps"
+                | "gminfactor"
         );
         if !supported {
             if KNOWN_UNIMPLEMENTED.contains(&name) {
@@ -308,6 +358,45 @@ impl RunConfig {
                         )
                     })?;
                 self.maxord = Some((order, location.clone()));
+            }
+            "itl1" | "srcsteps" | "gminsteps" => {
+                let (lowest, highest) = match name {
+                    "itl1" => (1, crate::newton::MAX_ITERATIONS),
+                    "srcsteps" => (0, crate::bias::MAX_SOURCE_STEPS),
+                    _ => (0, crate::bias::MAX_GMIN_STAGES),
+                };
+                let count = integer(&value.text)
+                    .map(|n| n as usize)
+                    .filter(|n| (lowest..=highest).contains(n))
+                    .ok_or_else(|| {
+                        SpiceError::parse(
+                            value.location.clone(),
+                            format!(
+                                "option '{name}' must be an integer in {lowest}..={highest}, \
+                                 not '{}'",
+                                value.text
+                            ),
+                        )
+                    })?;
+                match name {
+                    "itl1" => self.dc.itl1 = Some(count),
+                    "srcsteps" => self.dc.srcsteps = Some(count),
+                    _ => self.dc.gminsteps = Some(count),
+                }
+            }
+            "gminfactor" => {
+                let factor = parse_spice_number(&value.text)
+                    .filter(|v| v.is_finite())
+                    .ok_or_else(|| {
+                        SpiceError::parse(
+                            value.location.clone(),
+                            format!(
+                                "option '{name}' needs a finite number, not '{}'",
+                                value.text
+                            ),
+                        )
+                    })?;
+                self.dc.gminfactor = Some(factor);
             }
             _ => {
                 let number = parse_spice_number(&value.text)
@@ -364,6 +453,13 @@ impl RunConfig {
         &self.transient
     }
 
+    /// Deck-supplied DC Newton/continuation settings (unset fields keep the
+    /// defaults of [`crate::bias::DcSettings`]).
+    #[must_use]
+    pub const fn dc(&self) -> &DcOptions {
+        &self.dc
+    }
+
     /// Retained `method=` selection, lowercased, if the deck gave one.
     #[must_use]
     pub fn method(&self) -> Option<&str> {
@@ -418,14 +514,17 @@ impl RunConfig {
 
     /// Add deck settings to a request. Explicit request arguments win; the
     /// integration options apply only to `.tran`; physical tolerances also reach
-    /// the M4 DC/AC Newton solve.
+    /// the M4 DC/AC Newton solve, as do `itl1` (as `maxiter`), `srcsteps`,
+    /// `gminsteps` and `gminfactor`, which only DC/AC consume.
     ///
     /// # Errors
     /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord`
     /// (or `chgtol`/`trtol`) and the transient request names `backend=diffsol`,
     /// which implements neither trap/Gear nor truncation control, so the
     /// selection cannot be honoured and is not silently ignored; also Gear
-    /// orders above 2.
+    /// orders above 2, and any deck DC option (`itl1`, `srcsteps`, `gminsteps`,
+    /// `gminfactor`) for a transient request, whose initial bias does not read
+    /// them.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
         // Deck-level hints travel with every request (explicit request entries
         // win); each driver validates them against its circuit.
@@ -451,8 +550,35 @@ impl RunConfig {
                         request.arguments.push(format!("{key}={value:e}"));
                     }
                 }
+                for (key, value) in [
+                    ("maxiter", self.dc.itl1),
+                    ("srcsteps", self.dc.srcsteps),
+                    ("gminsteps", self.dc.gminsteps),
+                ] {
+                    if let (Some(value), None) = (value, request.named(key)) {
+                        request.arguments.push(format!("{key}={value}"));
+                    }
+                }
+                if let (Some(factor), None) = (self.dc.gminfactor, request.named("gminfactor")) {
+                    request.arguments.push(format!("gminfactor={factor:e}"));
+                }
             }
             return Ok(request);
+        }
+        if let Some(option) = self
+            .applied
+            .iter()
+            .find(|option| DC_OPTIONS.contains(&option.name.as_str()))
+        {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    ".option {}: DC Newton/continuation settings apply to .op/.dc/.ac; the \
+                     transient initial bias does not read them (omit the option, or run the \
+                     deck's DC analyses separately)",
+                    option.name
+                ),
+                location: Some(option.location.clone()),
+            });
         }
         let diffsol = request
             .named("backend")

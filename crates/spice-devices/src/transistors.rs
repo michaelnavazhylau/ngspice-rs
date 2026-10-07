@@ -274,10 +274,7 @@ impl Device for Bjt {
         let [(ibe, gbe, qbe), (ibc, gbc, qbc)] = self.points(
             vbe,
             vbc,
-            &ModelContext {
-                temperature: context.temperature,
-                nominal_temperature: context.nominal_temperature,
-            },
+            &ModelContext::new(context.temperature, context.nominal_temperature),
         )?;
         stamp_current(
             context,
@@ -538,10 +535,7 @@ impl Device for Mos1 {
         let (ports, i, partials) = self.channel(v)?;
         stamp_current(context, ports, i, &partials)?;
         let vt = nominal(
-            &ModelContext {
-                temperature: context.temperature,
-                nominal_temperature: context.nominal_temperature,
-            },
+            &ModelContext::new(context.temperature, context.nominal_temperature),
             self.temp,
             self.tnom,
         )?;

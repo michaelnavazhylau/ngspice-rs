@@ -179,6 +179,24 @@ impl Device for Resistor {
     fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
         context.nodal(self.terminals, self.conductance(), false)
     }
+
+    fn resistor_metadata(&self) -> Option<crate::sweep::ResistorMetadata> {
+        Some(crate::sweep::ResistorMetadata {
+            origin: crate::sweep::ResistorOrigin::Literal,
+            supplied: self.resistance,
+            multiplicity: 1.0,
+        })
+    }
+
+    /// A literal resistor has no temperature or multiplicity law: the supplied
+    /// scalar is the effective resistance, checked by the constructor's rules.
+    fn resistor_effective(
+        &self,
+        supplied: Real,
+        _context: &crate::models::ModelContext,
+    ) -> SpiceResult<Real> {
+        Resistor::new(&self.name, self.terminals, supplied).map(|resistor| resistor.resistance())
+    }
 }
 
 /// A capacitor, `c1 n1 n2 <value> [ic=…]`.

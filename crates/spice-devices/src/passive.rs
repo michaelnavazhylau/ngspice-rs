@@ -14,7 +14,7 @@
 //!     "model resistor\nr1 a 0 rm\n.model rm r(r=1k tc1=0.01)\n.end\n");
 //! let netlist = Parser::new().parse_deck(&deck)?;
 //! let mut circuit = Circuit::from_netlist(&netlist)?;
-//! let hot = ModelContext { temperature: 77.0, nominal_temperature: 27.0 };
+//! let hot = ModelContext::new(77.0, 27.0);
 //! let system = circuit.linear_system_with_context(&hot)?;
 //! assert_eq!(system.a.get(0, 0), 1.0 / 1500.0);
 //! assert_eq!(circuit.linear_system()?.a.get(0, 0), 1.0 / 1000.0);
@@ -65,6 +65,20 @@ impl PassiveParameters {
     #[must_use]
     pub const fn multiplicity(&self) -> Real {
         self.multiplicity
+    }
+    /// A copy whose supplied scalar is `value`, with the same TC, TEMP/TNOM,
+    /// scale and multiplicity. This is the immutable form of an explicit instance
+    /// value, which outranks model/geometry bases; the original is unchanged.
+    ///
+    /// # Errors
+    /// `value` is nonfinite, or violates the family's value domain (resistance
+    /// must be nonzero with finite conductance; C/L must be positive).
+    pub fn with_nominal_value(&self, value: Real) -> SpiceResult<Self> {
+        valid_value(self.family, value, &self.location)?;
+        Ok(Self {
+            nominal_value: value,
+            ..self.clone()
+        })
     }
     /// Capacitor initial volts or inductor initial amperes, if given.
     /// Retained for the existing explicit transient IC rejection, not applied.

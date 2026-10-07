@@ -11,6 +11,7 @@
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
+//! | [`sweep`] | physical resistor metadata and immutable per-point resistor overrides | typed `.dc` resistor targets |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework
 //! (`CKTcrte`, `CKTbindNode`, the `CKTdevice` vtable) and one directory per
@@ -42,6 +43,7 @@ pub use models::{
 };
 pub mod registry;
 pub mod sources;
+pub mod sweep;
 pub use linear::{
     Forcing, Limit, LinearContext, LinearSource, LinearSystem, SourceKind, SystemBreakpoints,
     Waveform, WaveformBreakpoints,
@@ -58,6 +60,7 @@ pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, StateHistory, TrialState};
+pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};
 pub use traits::{
     AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext, StorageElement, StorageKind,
 };

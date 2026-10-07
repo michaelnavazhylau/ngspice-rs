@@ -81,14 +81,15 @@ pub(crate) fn op(
     for hint in hints.nodesets {
         seed.as_mut_slice()[hint.row] = hint.value;
     }
-    let x = crate::bias::solve_dc(
+    let x = crate::bias::solve_dc_with(
         circuit,
         &context.model_context(),
-        &crate::newton::NewtonOptions::from_request(request)?,
+        &crate::bias::DcSettings::from_request(request)?,
         &[],
         Some(&seed),
         None,
     )?
+    .solution
     .values;
     let mut plot = plot(circuit, "op1", "Operating Point", None, false)?;
     circuit.accept_solution(&x, None)?;

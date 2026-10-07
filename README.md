@@ -6,7 +6,7 @@ the SPICE circuit simulator.
 > **Status: M1 front-end gate closed; bounded linear and M4 nonlinear subsets are implemented.**
 > The branch-local nonlinear support/gate and deliberate physics limits are in
 > [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md); no full SPICE parity is claimed.
-> Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
+> Scalar R/C/L/V/I devices support `.op`, typed one/two-axis `.dc`, complex `.ac`
 > and transient analysis (adaptive trap/Gear-2 companion driver; explicitly selected diffsol BDF). Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
 > and bounded diode input schemas exist. This checkout also simulates bounded
@@ -39,10 +39,15 @@ table, formulas, temperatures and deliberately rejected forms.
 | Model resolver and scalar schemas | Top-level families/levels/defaults; bounded passive and D/Q/M model-aware factories |
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
-| `.op`, typed/nested source/temperature `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices |
+| `.op`, typed/nested V/I/R/TEMP `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices; configurable bounded DC bias continuation |
 | Transient | Ordinary `.tran`: adaptive trap/Gear-2 with bounded nonlinear charge; explicit diffsol BDF remains linear-only |
 | Nonlinear D/Q/M equations | Bounded diode / Ebers-Moll BJT / MOS1; see M4 support table and explicit exclusions |
 | CLI simulation command | Not implemented; APIs/examples only |
+
+Local #34/#35 follow-ups add [DC continuation controls/reports](docs/port/DC_CONTINUATION.md)
+and [scalar resistor/nested sweeps](docs/port/DC_SWEEPS.md), including model-backed
+resistor temperature/multiplicity semantics. These changes are not yet published;
+full C dynamic continuation and arbitrary model-parameter sweeps remain unsupported.
 
 An ordinary `.tran` runs the adaptive trapezoidal / Gear-2 companion driver
 ([TRANSIENT.md](docs/port/TRANSIENT.md)); explicit `backend=diffsol method=bdf`

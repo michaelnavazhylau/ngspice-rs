@@ -23,7 +23,7 @@ files: symlinking editable files between branches would violate isolation.
 - `spice-analysis::newton`: disposable load/solve/reload, physical iterate and
   equation-residual convergence, row equilibration and bounded voltage damping.
 - `spice-analysis::bias`: direct DC solve, nodal-gmin and source continuation.
-- `spice-analysis::sweep`: typed source/temperature axes and bounded nested DC.
+- `spice-analysis::sweep`: typed V/I/R/TEMP axes and bounded nested DC.
 - Companion transient consumes all `Device::truncation_slots` charge/derivative
   pairs. State remains owned by the existing M3 history, not the model object.
 
@@ -103,24 +103,32 @@ abstol=1e-12 A, maximum global nodal voltage change 0.2 V per iteration.
 Global damping is a bounded policy, **not** full ngspice PN/FET limiting parity.
 Unknown/duplicate/nonfinite named convergence arguments fail.
 
-DC/AC request options: `rtol`, `vntol`, `abstol`, `maxiter` (1..=10000).
-`RunConfig` forwards deck `.option reltol/vntol/abstol` to OP/DC/AC as well as
-transient, with request > deck > defaults. `.nodeset` seeds nonlinear bias and
-is released; `.ic` is ignored in DC/AC after name validation, as in C.
-Ngspice `itl*`, configurable junction `gmin` and continuation-control options
-are still explicit unimplemented options, not claimed parity.
+DC/AC request options include `rtol`, `vntol`, `abstol`, `maxiter`/`itl1`
+(1..=10000), `gminsteps`, `srcsteps`, and `gminfactor`. Local #34 follow-ups add
+`DcSettings`/`ContinuationPolicy` schedules/budgets and `solve_dc_with` success/failure reports;
+OP/DC/AC bias use the same configured settings, with request > deck > defaults.
+`RunConfig` still forwards physical tolerances to transient, but explicit continuation
+controls reject there. See [DC_CONTINUATION.md](DC_CONTINUATION.md) for exact semantics
+and differences from C's dynamic continuation. `.nodeset` seeds nonlinear bias and
+is released; `.ic` is ignored in DC/AC after name validation, as in C. Configurable
+junction `gmin`, other `itl*` options and full C limiting parity remain unsupported.
 
-On direct Numerical failure, DC tries nodal gmin 1e-3 down through 1e-12 S,
-then twenty source increments with a temporary 1e-8 S nodal gmin. Every success
+By default, on direct Numerical failure, DC tries nodal gmin 1e-3 down through
+1e-12 S, then twenty source increments with temporary 1e-8 S nodal gmin.
+Typed policies can disable or replace these schedules and bound total work. Every success
 ends with **full source values and zero artificial nodal gmin**. A regularized
 nonunique physical circuit still fails. Temporary stages never call accept hooks.
 Linear circuits retain exact solving and source-only sweeps reuse LU factors.
 
-Typed targets: independent V/I sources and circuit temperature. One optional
-outer axis, inner axis varying fastest; <=100000 Cartesian points, finite signed
-steps, explicit no-progress/duplicate-target errors. Nested plots append an
-explicit `sweep(outer-name)` column. Source values and model recipes never mutate.
-Resistor/model-parameter sweeps and >2 axes are not implemented.
+Typed targets: independent V/I sources, circuit temperature and scalar resistance
+(including supported model-backed resistors). One optional outer axis, inner axis
+varying fastest; <=100000 Cartesian points, inclusive reachable endpoints, finite
+signed steps, explicit no-progress/duplicate-target errors. Nested plots append an
+explicit `sweep(outer-name)` column. Immutable point overrides preserve originals
+on success/failure; R/TEMP axes rebuild numerical operators while source-only linear
+axes retain LU reuse. See [DC_SWEEPS.md](DC_SWEEPS.md) for supplied/effective semantics,
+analytic tests and eight opt-in live C comparisons. Arbitrary model-setter sweeps
+and >2 axes remain unsupported. Local #34/#35 follow-ups are not yet published.
 
 AC solves G(bias)+j*w*dQ/dx(bias) after a valid nonlinear DC point.
 Companion transient uses the same Newton kernel, M3 breakpoint/order/work policy,

@@ -362,10 +362,7 @@ impl Device for Diode {
         let v = context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]);
         let p = self.parameters.evaluate(
             v,
-            &ModelContext {
-                temperature: context.temperature,
-                nominal_temperature: context.nominal_temperature,
-            },
+            &ModelContext::new(context.temperature, context.nominal_temperature),
         )?;
         if self.parameters.rs > 0. {
             crate::linear::nodal_stamp(

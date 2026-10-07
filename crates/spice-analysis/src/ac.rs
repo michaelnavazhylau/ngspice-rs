@@ -10,7 +10,7 @@ pub(crate) fn run(
     request: &AnalysisRequest,
     context: &crate::AnalysisContext,
 ) -> SpiceResult<Plot> {
-    let options = crate::newton::NewtonOptions::from_request(request)?;
+    let settings = crate::bias::DcSettings::from_request(request)?;
     let positional = AnalysisRequest::with_arguments(
         request.kind,
         request
@@ -82,14 +82,15 @@ pub(crate) fn run(
         seed.as_mut_slice()[hint.row] = hint.value;
     }
     // AC is linearized only after a valid physical DC solution, never at zero.
-    let bias = crate::bias::solve_dc(
+    let bias = crate::bias::solve_dc_with(
         circuit,
         &context.model_context(),
-        &options,
+        &settings,
         &[],
         Some(&seed),
         None,
     )?
+    .solution
     .values;
     let system = circuit.small_signal_system(&context.model_context(), &bias)?;
     let mut plot = plot(

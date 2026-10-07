@@ -103,10 +103,7 @@ fn capacitor_area_sidewall_geometry_and_scalar_precedence() {
 
 #[test]
 fn temperature_coefficients_scale_and_parallel_multiplicity() {
-    let context = ModelContext {
-        temperature: 77.0,
-        nominal_temperature: 22.0,
-    };
+    let context = ModelContext::new(77.0, 22.0);
     for (d, keyword, primary, want) in [
         ('r', "r", "resistance", 180.0),
         ('c', "cap", "capacitance", 720.0),
@@ -314,10 +311,7 @@ fn repeated_contextual_assembly_is_immutable_and_numbering_stays_bound() {
     let rows = circuit.branch_rows(2).unwrap();
     let cold = circuit.linear_system().unwrap();
     let hot = circuit
-        .linear_system_with_context(&ModelContext {
-            temperature: 77.0,
-            nominal_temperature: 27.0,
-        })
+        .linear_system_with_context(&ModelContext::new(77.0, 27.0))
         .unwrap();
     let restored = circuit.linear_system().unwrap();
     assert_eq!(cold.a, restored.a);
@@ -326,10 +320,7 @@ fn repeated_contextual_assembly_is_immutable_and_numbering_stays_bound() {
     assert_ne!(cold.e, hot.e);
     assert_eq!(rows, circuit.branch_rows(2).unwrap());
     assert_eq!(circuit.nodes().nodes(), nodes);
-    let error = circuit.linear_system_with_context(&ModelContext {
-        temperature: f64::NAN,
-        nominal_temperature: 27.0,
-    });
+    let error = circuit.linear_system_with_context(&ModelContext::new(f64::NAN, 27.0));
     assert!(error.is_err());
     assert_eq!(circuit.nodes().nodes(), nodes);
 }
