@@ -11,7 +11,8 @@
 //! * the rawfile is written through a temporary file in the destination's
 //!   directory and renamed into place, so a failed run never truncates,
 //!   replaces or removes an existing destination, and never leaves a partial
-//!   rawfile behind;
+//!   rawfile behind (the temporary file is removed on every failure path that
+//!   can run; only process death or a failing cleanup leaves one);
 //! * an unadorned `.tran` runs the companion trap/Gear driver the engine
 //!   defaults to; this command never injects `backend=diffsol`.
 
@@ -210,8 +211,12 @@ fn temporary_path(output: &Path) -> SpiceResult<(PathBuf, PathBuf)> {
     Ok((directory, temporary))
 }
 
-/// The `Date:` header for a rawfile written now, in ngspice's `ctime` spelling
-/// (`Mon Oct  5 18:07:26 2026`), in **UTC**.
+/// The `Date:` header for a rawfile written now: standard `ctime` spelling
+/// (`Mon Oct  5 18:07:26 2026`) in **UTC**.
+///
+/// This is not byte-identical to ngspice's `datestring()`, which writes local
+/// time and leaves an extra pre-year space (`Mon Oct  5 18:06:31  2026`); the
+/// committed comparators ignore `Date:` entirely.
 ///
 /// The port has no clock or timezone crate (and none may be added for this), so
 /// the calendar fields are derived from the Unix epoch directly; a clock before

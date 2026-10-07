@@ -104,6 +104,17 @@ fn assert_matches_golden(name: &str, written: &RawFile, relative: f64, absolute:
         "{name}: columns"
     );
     assert_eq!(got.point_count(), want.point_count(), "{name}: points");
+    assert_eq!(
+        got.variables
+            .iter()
+            .map(|variable| variable.name.as_str())
+            .collect::<Vec<_>>(),
+        want.variables
+            .iter()
+            .map(|variable| variable.name.as_str())
+            .collect::<Vec<_>>(),
+        "{name}: column order must match the golden, not just the names"
+    );
     for variable in &want.variables {
         let Some(index) = got.variable_index(&variable.name) else {
             panic!("{name}: the rawfile has no variable '{}'", variable.name);
@@ -478,6 +489,8 @@ fn usage_errors_exit_one_and_print_the_usage() {
     for arguments in [
         vec!["simulate", "deck.cir"],
         vec!["simulate", "--output"],
+        vec!["simulate", "--output", "", "deck.cir"],
+        vec!["simulate", "--output=", "deck.cir"],
         vec![
             "simulate", "--output", "a.raw", "--output", "b.raw", "deck.cir",
         ],
@@ -509,7 +522,8 @@ fn the_help_text_documents_simulate_and_the_exit_codes() {
     assert!(text.contains("--output <path>"), "{text}");
     assert!(text.contains("also --output=<path>"), "{text}");
     assert!(
-        text.contains("0 success, 1 bad command line, 2 deck could not be read, 3 not ported yet"),
+        text.contains("2 deck could not be read, simulation,"),
         "{text}"
     );
+    assert!(text.contains("3 not ported yet"), "{text}");
 }

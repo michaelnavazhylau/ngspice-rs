@@ -154,6 +154,9 @@ impl Args {
                     let path = arguments
                         .next()
                         .ok_or("--output needs a path: --output <path>")?;
+                    if path.is_empty() {
+                        return Err("--output needs a path: --output <path>".to_owned());
+                    }
                     args.set_output(PathBuf::from(path))?;
                 }
                 other if other.starts_with("--output=") => {
@@ -240,12 +243,15 @@ OPTIONS:
     --output <path>  where 'simulate' writes the rawfile; also --output=<path>.
                      An existing destination is replaced only after a successful
                      run; a failed run leaves it untouched
-    --no-auto-gnd    treat 'gnd' as an ordinary node, like ngspice's no_auto_gnd
+    --no-auto-gnd    treat 'gnd' as an ordinary node in the parser, like
+                     ngspice's no_auto_gnd (the device node table still folds
+                     'gnd'; see docs/port/CLI.md)
     -h, --help       print this text
     -V, --version    print the version
 
 EXIT STATUS:
-    0 success, 1 bad command line, 2 deck could not be read, 3 not ported yet"
+    0 success, 1 bad command line, 2 deck could not be read, simulation,
+    numerical or output failure, 3 not ported yet"
 }
 
 /// Runs the parsed command, printing to stdout.
