@@ -1,14 +1,14 @@
 //! Two-terminal D-instance grammar from `inp2d.c` and `dio/dio.c`.
 //!
 //! C applies an optional leading area after named assignments. Third/thermal
-//! terminals, flags, CIDER variants and parameter expressions remain explicit
-//! gaps. Model references are retained, not resolved, at this syntax boundary.
+//! terminals, thermal/sensitivity flags, CIDER variants and parameter expressions
+//! remain explicit gaps; bare OFF and scalar IC are syntax only. Model references are retained, not resolved, at this syntax boundary.
 
 use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::token::any;
 
-use crate::ast::{DeviceInstance, ParameterAssignment};
+use crate::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap};
@@ -49,8 +49,11 @@ pub(super) fn diode_card(input: &mut Input<'_>) -> Result<ParsedCard> {
 
 fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
     let leading = opt(leading_literal).parse_next(input)?;
-    let mut parameters: Vec<ParameterAssignment> =
-        repeat(0.., alt((scalar_assignment, invalid_parameter))).parse_next(input)?;
+    let mut parameters: Vec<ParameterAssignment> = repeat(
+        0..,
+        alt((super::flags::instance, scalar_assignment, invalid_parameter)),
+    )
+    .parse_next(input)?;
     if let Some(area) = leading {
         parameters.push(assignment("area", area));
     }
@@ -74,6 +77,7 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     Ok(ParameterAssignment {
         name,
         value: value.text.clone(),
+        kind: ParameterKind::Scalar,
         location: token.location.clone(),
     })
 }
@@ -88,6 +92,6 @@ fn invalid_parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     }
     Err(gap(
         input,
-        "diode flags, extra terminals or non-scalar parameters",
+        "unsupported diode flags, extra terminals or non-scalar parameters",
     ))
 }

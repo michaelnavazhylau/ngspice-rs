@@ -1,0 +1,9 @@
+Numeric waveform setter order and omissions (syntax/setup only)
+vpulse a 0 7 DC=2 AC 2 90 PULSE(0 5 1n 2n 3n 4u 5u) dc 3
+ipulse a 0 PULSE(0 2m) AC
+vpwl b 0 DC 2 PULSE(0 3) PWL(0,1,1u,2) AC 3 45
+ipwl b 0 DC 3 PWL(0 1m 1u 2m) PULSE(0 4m)
+r1 a 0 1k
+r2 b 0 1k
+.op
+.end

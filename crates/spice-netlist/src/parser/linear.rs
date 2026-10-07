@@ -10,7 +10,7 @@ use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
-use crate::ast::{DeviceInstance, ParameterAssignment};
+use crate::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Failure, Input, ParsedCard, Result, gap, keyword, location};
@@ -150,6 +150,7 @@ fn passive_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     Ok(ParameterAssignment {
         name,
         value: value.text.clone(),
+        kind: ParameterKind::Scalar,
         location: token.location.clone(),
     })
 }
@@ -182,12 +183,20 @@ fn invalid_passive(input: &mut Input<'_>) -> Result<ParameterAssignment> {
 /// VSRCtemp/ISRCtemp default bare AC to magnitude 1 and phase 0.
 fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
     let leading = opt(leading_literal).parse_next(input)?;
-    let mut parameters = repeat(0.., alt((dc_parameters, ac_parameters, invalid_source)))
-        .fold(Vec::new, |mut parameters, chunk| {
-            parameters.extend(chunk);
-            parameters
-        })
-        .parse_next(input)?;
+    let mut parameters = repeat(
+        0..,
+        alt((
+            dc_parameters,
+            ac_parameters,
+            super::waveform::parameters,
+            invalid_source,
+        )),
+    )
+    .fold(Vec::new, |mut parameters, chunk| {
+        parameters.extend(chunk);
+        parameters
+    })
+    .parse_next(input)?;
     if let Some(value) = leading {
         parameters.push(assignment("dc", value));
     }
@@ -200,6 +209,7 @@ fn dc_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
     Ok(vec![ParameterAssignment {
         name: "dc".to_owned(),
         value: value.text.clone(),
+        kind: ParameterKind::Scalar,
         location: token.location.clone(),
     }])
 }
@@ -233,6 +243,7 @@ fn ac_value<'a>(
                     || ParameterAssignment {
                         name: name.to_owned(),
                         value: default.to_owned(),
+                        kind: ParameterKind::Scalar,
                         location: default_location.clone(),
                     },
                     |token| assignment(name, token),
@@ -243,9 +254,15 @@ fn ac_value<'a>(
 }
 
 fn invalid_source(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
-    peek(any).parse_next(input)?;
+    let token = peek(any).parse_next(input)?;
+    if matches!(
+        token.kind,
+        TokenKind::Equals | TokenKind::LParen | TokenKind::RParen | TokenKind::Comma
+    ) {
+        return Err(malformed(input, "expected a named source parameter"));
+    }
     Err(gap(
         input,
-        "source waveforms, expressions or additional source parameters",
+        "unsupported source waveforms, expressions or additional source parameters",
     ))
 }

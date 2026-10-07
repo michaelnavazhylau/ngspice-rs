@@ -20,7 +20,7 @@ checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
-| Parser | Scalar R/C/L/V/I, declared-model passives, scalar models, bounded D/Q/M; six of eight fixture decks |
+| Parser | Scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL; seven of eight fixture decks |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
@@ -32,7 +32,8 @@ checkout, not a claim that all M2 slices have already merged.
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
 is not ngspice trapezoidal or fixed Gear-2. Its Step/Pwl source waveforms are
-available through the device API, not netlist syntax; floating/coupled capacitor
+available through the device API. Numeric PULSE/PWL deck syntax now parses (#8),
+but waveform deck elaboration/evaluation is still unavailable; floating/coupled capacitor
 DAEs, higher-index constraints, nonlinear charge, `.ic` and `uic` remain unsupported.
 
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) records
@@ -79,11 +80,11 @@ tests and documented limits as the remaining functionality is added.
 
 ### M1b: remaining model/device and waveform syntax
 
-- [ ] Add required remaining model/diode and instance flags; keep thermal/CIDER, extra ports, binning and advanced-backend gaps explicit.
-- [ ] Support required vector IC forms while preserving ordered setter precedence.
+- [x] Parse bounded D/Q/M bare OFF and model-family tail flags (#10); thermal/sensitivity/CIDER, extra ports, binning and advanced forms remain gaps. See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
+- [x] Parse Q 1–2/M 1–3 value IC vectors (#10), with positioned components and ordered duplicates/scalar setters; no initialization support.
 - [x] Parse declared-model R/C/L without mistaking models for parameter references (#11); forward references, omitted values and bounded geometry-only forms, not arithmetic.
-- [ ] Represent source waveforms, starting with `PULSE`; keep syntax separate from time evaluation.
-- [ ] Pin malformed/unsupported variants and enable the transient fixture AST test.
+- [x] Represent numeric PULSE (2–7 fields) and bounded paired PWL (#8), retaining timing omissions and DC/AC application order; factories reject unimplemented runtime semantics.
+- [x] Pin malformed/unsupported variants, byte positions, atomic factory errors and live C setter/coefficients probes; enable transient fixture AST/CLI parse tests (seven fixture parses, not full M1).
 
 ### M1c: subcircuit and file structure
 
@@ -152,7 +153,7 @@ BDF does not close the following trap/Gear and general-transient requirements.
 
 ## Suggested sequence
 
-Waveform parsing and CLI simulation → finish M1 and model elaboration →
+CLI simulation and remaining M1 syntax → finish M1 and model elaboration →
 SPICE-compatible transient → nonlinear devices → remaining M5 usability. Numerical optimization is follow-up,
 not grounds to weaken correctness gates.
 

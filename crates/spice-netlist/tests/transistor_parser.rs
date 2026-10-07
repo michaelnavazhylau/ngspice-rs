@@ -261,15 +261,15 @@ fn overflow_cannot_be_swallowed_by_optional_or_repeated_parameters() {
 #[test]
 fn unsupported_variants_keep_device_specific_c_references() {
     for (body, reference) in [
-        ("Q1 C B E QM OFF\n.model QM NPN", "inp2q.c"),
+        ("Q1 C B E QM SENS_AREA\n.model QM NPN", "inp2q.c"),
         ("Q1 C B E 123n 3\n.model 123n NPN", "inp2q.c"),
         ("M1 D G S B 456\n.model 456 NMOS", "inp2m.c"),
-        ("Q1 C B E QM IC=.6,2\n.model QM NPN", "inp2q.c"),
+        ("Q1 C B E QM IC={vbe},2\n.model QM NPN", "inp2q.c"),
         ("Q1 C B E SUB HEAT QM\n.model QM NPN LEVEL=2", "inp2q.c"),
         ("Q1 C B E QM AREA={size}\n.model QM NPN", "inp2q.c"),
         ("Q1 C B E QM UNKNOWN=2\n.model QM NPN", "inp2q.c"),
-        ("M1 D G S B NM OFF\n.model NM NMOS", "inp2m.c"),
-        ("M1 D G S B NM IC=1,2,3\n.model NM NMOS", "inp2m.c"),
+        ("M1 D G S B NM SENS_L\n.model NM NMOS", "inp2m.c"),
+        ("M1 D G S B NM IC=1,{vgs},3\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B HEAT NM\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B NM W={width}\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B NM NF=2\n.model NM NMOS", "inp2m.c"),

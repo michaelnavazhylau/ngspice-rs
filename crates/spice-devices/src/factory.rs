@@ -90,6 +90,19 @@ pub(crate) fn instantiate(
     let mut mag = 0.;
     let mut phase: f64 = 0.;
     for p in &instance.parameters {
+        if p.kind != spice_netlist::ast::ParameterKind::Scalar {
+            return Err(SpiceError::not_yet_ported(
+                format!(
+                    "{}: {} setter '{}' runtime semantics",
+                    p.location, instance.name, p.name
+                ),
+                match instance.designator {
+                    'v' => "src/spicelib/devices/vsrc/vsrcload.c",
+                    'i' => "src/spicelib/devices/isrc/isrcload.c",
+                    _ => "src/spicelib/parser/inpdpar.c",
+                },
+            ));
+        }
         let allowed = p.name == primary
             || (matches!(instance.designator, 'c' | 'l') && p.name == "ic")
             || (matches!(instance.designator, 'v' | 'i')

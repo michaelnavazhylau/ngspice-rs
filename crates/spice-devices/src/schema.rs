@@ -176,6 +176,12 @@ impl ScalarSchema<'_> {
 }
 
 pub(crate) fn finite_literal(parameter: &ParameterAssignment) -> SpiceResult<Real> {
+    if parameter.kind != spice_netlist::ast::ParameterKind::Scalar {
+        return Err(SpiceError::Unsupported {
+            feature: format!("non-scalar setter '{}'", parameter.name),
+            location: Some(parameter.location.clone()),
+        });
+    }
     parse_spice_number(&parameter.value)
         .filter(|value| value.is_finite())
         .ok_or_else(|| {

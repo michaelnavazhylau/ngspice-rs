@@ -19,6 +19,7 @@ fn supported_fixtures_parse_successfully() {
     for (name, devices, models) in [
         ("rc_divider", 3, 0),
         ("rc_lowpass_ac", 3, 0),
+        ("rc_transient", 3, 0),
         ("rlc_series", 4, 0),
         ("diode_dc", 3, 1),
         ("bjt_ce", 4, 1),
@@ -42,16 +43,14 @@ fn supported_fixtures_parse_successfully() {
 }
 
 #[test]
-fn unported_fixtures_keep_exit_status_three() {
-    for name in ["rc_transient", "subckt_divider"] {
-        let output = run(name);
-        assert_eq!(output.status.code(), Some(3), "{name}");
-        assert!(
-            output.stdout.is_empty(),
-            "no success output for incomplete decks"
-        );
-        assert!(String::from_utf8_lossy(&output.stderr).contains("not yet ported"));
-    }
+fn unported_subcircuit_fixture_keeps_exit_status_three() {
+    let output = run("subckt_divider");
+    assert_eq!(output.status.code(), Some(3));
+    assert!(
+        output.stdout.is_empty(),
+        "no success output for incomplete decks"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("not yet ported"));
 }
 
 #[test]

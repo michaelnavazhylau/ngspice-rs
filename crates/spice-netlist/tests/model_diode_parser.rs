@@ -270,7 +270,7 @@ fn unsupported_model_shapes_preserve_specific_gaps() {
 #[test]
 fn unsupported_diode_shapes_preserve_specific_gaps() {
     for body in [
-        "D1 a 0 dm off",
+        "D1 a 0 dm sens_area",
         "D1 a 0 dm thermal",
         "D1 a 0 dm area={size}",
         "D1 a 0 dm area='2'",

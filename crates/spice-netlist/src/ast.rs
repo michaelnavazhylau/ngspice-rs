@@ -1,14 +1,15 @@
 //! The semantic netlist model produced by the incremental parser.
 //!
 //! The parser, device registry and analyses share these types. The parser
-//! currently constructs linear-device netlists plus scalar model cards and
-//! D/Q/M instances; subcircuits remain future work. ngspice's parsing quirks
+//! constructs linear-device netlists, model cards, bounded D/Q/M flags/ICs and
+//! numeric PULSE/PWL syntax; subcircuits remain future work. ngspice's parsing quirks
 //! are encoded at that boundary:
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass. Current parser values are
-//!   finite scalar literals; expression/parameter-reference syntax is pending.
+//!   finite scalar literals or positioned waveform/IC/flag setters;
+//!   expression/parameter-reference syntax is pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -30,17 +31,92 @@ pub type NodeName = String;
 /// order: a passive scalar before its model precedes named setters; one after
 /// the model follows them. C applies leading source DC and D/Q area last.
 /// Duplicate assignments remain visible; consumers must apply them in order
-/// rather than treating this vector as a map.
+/// rather than treating this vector as a map. Waveform, flag and vector IC
+/// setters share this ordered storage with scalars; inspect `kind` before
+/// interpreting `value`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterAssignment {
     /// Parameter name, lowercased; ngspice matches parameter names
     /// case-insensitively.
     pub name: String,
-    /// The value as written. The type can hold expressions/references for
-    /// future elaboration, but the parser currently accepts scalar literals only.
+    /// The value as written: scalar spelling or the original vector argument
+    /// text (including parentheses when supplied). A bare flag has empty text.
     pub value: String,
+    /// The setter's syntax/shape. Scalar consumers must reject other kinds,
+    /// not interpret a flag or the first vector component as a scalar.
+    pub kind: ParameterKind,
     /// Where the assignment was found.
     pub location: SourceLoc,
+}
+
+/// Syntax of an ordered parameter setter. No runtime defaults are applied.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParameterKind {
+    /// One finite numeric literal, retained in [`ParameterAssignment::value`].
+    Scalar,
+    /// A bare IF_FLAG keyword: C's INPgetValue supplies integer 1 without
+    /// consuming a value. Explicit `flag=0`/`flag=1` forms are not accepted.
+    Flag,
+    /// Q/M IC values in C setter order, with omitted components left omitted.
+    InitialConditions(Vec<InitialCondition>),
+    /// A source waveform, not yet evaluated or enabled by device factories.
+    Waveform(SourceWaveform),
+}
+
+/// One finite textual waveform/IC value and its byte-column position.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PositionedValue {
+    /// Original numeric spelling, including scale/unit suffixes.
+    pub text: String,
+    /// Position in the joined logical card (the tokenizer's location contract).
+    pub location: SourceLoc,
+}
+
+/// One component of a Q/M `ic` vector.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InitialCondition {
+    /// Canonical scalar setter: icvbe/icvce or icvds/icvgs/icvbs.
+    pub name: String,
+    /// Value as supplied, not an initialization state.
+    pub value: PositionedValue,
+}
+
+/// Numeric source syntax from VSRCparam/ISRCparam. Runtime validation and
+/// analysis-dependent defaults belong to elaboration, not this AST.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SourceWaveform {
+    /// Two required levels and up to five optional timing fields.
+    Pulse(Box<PulseWaveform>),
+    /// Strictly paired time/value arguments. No sorting or time repair occurs.
+    Pwl(Vec<PwlPoint>),
+}
+
+/// `PULSE(V1 V2 [TD [TR [TF [PW [PER]]]]])`; omissions stay explicit.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PulseWaveform {
+    /// Initial level (volts for V, amperes for I).
+    pub initial: PositionedValue,
+    /// Pulsed level.
+    pub pulsed: PositionedValue,
+    /// Delay in seconds.
+    pub delay: Option<PositionedValue>,
+    /// Rise time in seconds.
+    pub rise: Option<PositionedValue>,
+    /// Fall time in seconds.
+    pub fall: Option<PositionedValue>,
+    /// Pulse width in seconds.
+    pub width: Option<PositionedValue>,
+    /// Period in seconds.
+    pub period: Option<PositionedValue>,
+}
+
+/// One PWL knot, retained in supplied order (syntax is not runtime validation).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PwlPoint {
+    /// Time in seconds.
+    pub time: PositionedValue,
+    /// Level in volts for V, amperes for I.
+    pub value: PositionedValue,
 }
 
 /// A device instance, e.g. `r1 in out 1k tc1=0.01`.

@@ -111,9 +111,10 @@ rejects them. The numeric adapter also rejects inconsistent supplied algebraic
 initial conditions instead of silently changing them.
 
 `IndependentSource` exposes validated Constant, right-continuous Step and continuous
-Pwl waveforms through the **device API**. Waveform netlist syntax remains a parser
-milestone and still errors explicitly. Knot times must be finite, nonnegative and
-strictly increasing. DC and AC source excitations remain distinct from the waveform.
+Pwl waveforms through the **device API**. Numeric PULSE/PWL syntax now parses,
+but deck factories still explicitly reject it: runtime elaboration/evaluation is
+not implemented. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md). Device-API knot
+times must be finite, nonnegative and strictly increasing. DC and AC source excitations remain distinct from the waveform.
 
 For each interval between knots, forcing is preassembled at both endpoints and
 is affine; fallible assembly happens outside diffsol callbacks. Custom

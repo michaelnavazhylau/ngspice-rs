@@ -1,0 +1,14 @@
+Bare OFF, model family flags and partial/full IC setter order
+v1 c 0 dc .1
+v2 b 0 dc .1
+dlead c 0 dm 2 OFF ic=.4 area=7 off
+dflag c 0 dm OFF ic=.5
+qfull c b 0 qm 2 off ic=.6,2 icvce=3 ic=.7,4 area=7
+qpartial c b 0 qm off icvce=5 ic=.8
+mfull c b 0 0 nm off w=10u l=1u ic=.1,2,-.1 icvgs=3 ic=.2,4,-.2
+mpartial c b 0 0 nm off w=10u l=1u icvgs=5 icvbs=-.3 ic=.3,6 ic=.4
+.model dm d(d is=1e-14)
+.model qm npn(npn is=1e-16 bf=100)
+.model nm nmos(nmos level=1 vto=1 kp=100u)
+.op
+.end

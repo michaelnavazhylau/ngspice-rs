@@ -81,7 +81,7 @@ Implemented bounded model/D/Q/M slices:
 - three/four-terminal Q instances, first-declared-model disambiguation and
   leading area applied after scalar assignments; omitted substrate stays omitted
 - four-terminal M instances with ordered scalar geometry and IC components;
-  no unlabeled MOS values, binning, vector ICs or extra/thermal ports
+  no unlabeled MOS values, binning or extra/thermal ports; vector ICs added below
 - read-only top-level declaration indexing before `.end` for Q/M forward
   references, without leaking names across scopes or parser calls
 
@@ -92,13 +92,19 @@ references and pre-/post-model scalar precedence. Device-owned top-level
 resolution, family/level checks and bounded diode inputs are implemented (#17);
 see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md). PR #51 merged these prerequisites.
 This checkout adds bounded model-backed passive arithmetic (#19, pending merge);
-see [PASSIVE_MODELS.md](PASSIVE_MODELS.md). No nonlinear arithmetic is implemented. Flags, IC vectors,
-thermal/CIDER forms, extended passive forms and waveforms remain pending.
+see [PASSIVE_MODELS.md](PASSIVE_MODELS.md). No nonlinear arithmetic is implemented.
+
+This checkout additionally implements #8/#10: positioned numeric PULSE/PWL,
+bare OFF and model-family tail flags, and Q/M partial/full IC vectors in ordered
+setter storage. `rc_transient` now parses (seven of eight fixture decks).
+Factories reject the new unimplemented runtime semantics. See
+[FRONTEND_VALUES.md](FRONTEND_VALUES.md) for arities, limits and C references.
+Thermal/sensitivity/CIDER forms and extended passive forms remain pending.
 
 ### Remaining slices
 
-1. **M1b:** required remaining model/device forms (flags, IC vectors),
-   extended passive forms and source waveform syntax. No nonlinear arithmetic yet.
+1. **M1b:** further model/device/passive forms beyond the documented bounded
+   subset. No nonlinear arithmetic or waveform deck evaluation yet.
 2. **M1c:** `.subckt`/`.ends`, X instances, `.include`/`.lib` structure and
    resolution, with explicit scope and recursion/error rules.
 3. **M1d:** `.param` expressions, `.option`, `.global`, normalized-deck writer
@@ -133,7 +139,7 @@ Preserve finite/rank/residual checks and explicit unsupported cases.
 
 Main includes complex AC and a separately selected, bounded
 adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal:
-companions, `.ic`/`.nodeset`, waveform parsing and general MNA DAEs remain pending.
+companions, `.ic`/`.nodeset`, waveform deck evaluation and general MNA DAEs remain pending.
 
 C, L, and the numerical integration machinery.
 
