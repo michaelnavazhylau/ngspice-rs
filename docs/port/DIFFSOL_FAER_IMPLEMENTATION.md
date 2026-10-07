@@ -97,16 +97,26 @@ cargo run -p spice-analysis --example rc_diffsol --locked
 
 ## Bounded transient support
 
-The initial supported mass structure is **diagonal E**, with at least one dynamic
-row and a nonsingular algebraic A block. This accepts grounded capacitors and
-index-one RL/RLC/source equations, including singular mass matrices. Floating or
-coupled capacitor operators and higher-index ideal-source constraints are rejected
-before diffsol's zero-diagonal initialization partition is used. AC has no such
-mass restriction, although it still needs a valid DC point.
+The supported structure is the **index-one** linear pencil `E x' + A x = b(t)`
+with at least one dynamic degree of freedom (GitHub #28). `E` is split into the
+connected components of its petgraph coupling graph; each block is rank-revealed
+(1×1 blocks exactly, larger floating/coupled capacitor blocks by dense SVD with
+tolerance `64 m ε σ_max`, at most `MAX_MASS_BLOCK` = 512 unknowns). The null
+vectors give `N = ker E` and `W = ker Eᵀ`, and the pencil is accepted only when
+`Wᵀ A N` passes the rank-certified sparse LU. Grounded, floating and coupled
+capacitors and index-one RL/RLC/source equations are accepted; higher-index
+ideal-source constraints (a source across a capacitor or a floating capacitor),
+singular pencils and nonunique nullspaces are rejected. For diagonal `E` this is
+exactly the earlier algebraic-block formulation. Integration stays in physical
+coordinates, so voltage/current tolerances keep their meaning; diffsol's
+zero-diagonal consistent initializer is bypassed (`new_without_initialise`). AC
+has no such mass restriction, although it still needs a valid DC point.
 
-The initial state starts from the DC operating point. Algebraic variables are
-projected for the source's right-hand value at time zero; differential states are
-preserved. Explicit `ic=`/`.ic`/`uic` semantics are not implemented and transient
+The initial state starts from the DC operating point. It is projected onto the
+constraints `Wᵀ (b - A x) = 0` for the source's right-hand value at time zero,
+moving only along `ker E`, so `E x` (capacitor charges, inductor fluxes) is
+preserved. Consistent derivatives use the block pseudo-inverse of `E` plus the
+differentiated constraints. Explicit `ic=`/`.ic`/`uic` semantics are not implemented and transient
 rejects them. The numeric adapter also rejects inconsistent supplied algebraic
 initial conditions instead of silently changing them.
 
@@ -123,8 +133,9 @@ sparsity; there is no NaN-based discovery or mutable device trial state. The mas
 operator implements `out = E*v + beta*out`, including zero-mass algebraic rows.
 
 Integration stops at every source knot. A jump is evaluated from the left for the
-old segment, then algebraic states are projected from the right and BDF history is
-restarted. Dynamic states stay continuous. Requested endpoint samples use the
+old segment, then the state is projected from the right along `ker E` and BDF
+history is restarted. Charges and fluxes (`E x`) stay continuous; for a floating
+capacitor both plate voltages jump together. Requested endpoint samples use the
 right-hand state; interpolation never crosses a source discontinuity. Full initial
 derivatives include differentiated algebraic equations (important for RL source
 branch currents); diffsol's default zero algebraic derivatives are insufficient
@@ -132,7 +143,9 @@ at those restarts with tight branch-current tolerances.
 
 `Device::accept` is called at the accepted initial state, accepted adaptive steps,
 and changed algebraic event states, never during Newton trials/rejected steps or
-for interpolated plot samples. Acceptance errors propagate.
+for interpolated plot samples. Acceptance errors propagate. This backend tracks
+no companion state: it calls `Circuit::accept_solution`, whose hooks see the
+accepted time and `states: None`.
 
 Requested plot samples and adaptive steps are distinct. The requested maximum
 step is enforced by stop times and no-progress/final-time checks. Default options:
@@ -149,7 +162,8 @@ step is enforced by stop times and no-progress/final-time checks. Default option
 Diffsol's own bounded Newton/rejection controls and minimum timestep (1e-13 s)
 remain in force; backend failures propagate as `SpiceError::Numerical`. Nonlinear
 charge/flux, limiting, DC convergence policies and general DAEs remain deferred.
-The existing trap/Gear companion integrator APIs remain explicit stubs.
+The separate trap/Gear companion integrator (`spice_maths::integrator`) now
+provides order-1/2 coefficients and history operations; BDF never consumes them.
 
 ## Validation and dependencies
 

@@ -26,15 +26,16 @@ checkout, not a claim that all M2 slices have already merged.
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps |
 | DC / AC | Linear `.op`, one-source `.dc`, complex RLC `.ac` |
-| Transient | Explicit diffsol adaptive BDF; restricted diagonal mass structure and nonsingular algebraic block |
+| Transient | Explicit diffsol adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
 | Nonlinear devices | D/Q/M syntax and initial diode input validation; no equations |
 | CLI | Inspection/parsing; simulation through APIs/examples only |
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
 is not ngspice trapezoidal or fixed Gear-2. Its Step/Pwl source waveforms are
 available through the device API. Numeric PULSE/PWL deck syntax now parses (#8),
-but waveform deck elaboration/evaluation is still unavailable; floating/coupled capacitor
-DAEs, higher-index constraints, nonlinear charge, `.ic` and `uic` remain unsupported.
+but waveform deck elaboration/evaluation is still unavailable; higher-index constraints,
+nonlinear charge, `.ic` and `uic` remain unsupported. Floating/coupled capacitor
+index-one DAEs are supported by the BDF backend (#28).
 
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) records
 245 passing tests and five separately passing opt-in C checks for the integrated
@@ -119,12 +120,15 @@ tests and documented limits as the remaining functionality is added.
 Complex linear AC is already implemented on main. Bounded adaptive
 BDF does not close the following trap/Gear and general-transient requirements.
 
-- [ ] Implement trapezoidal and Gear-2 integration (`src/maths/ni/`) and timestep/truncation-error control.
-- [ ] Implement C/L companion models without double-discretizing diffsol equation stamps.
+- [x] Implement trapezoidal and Gear orders 1–2 coefficients, companion integration, prediction and per-element truncation estimates (`src/maths/ni/`, `cktterr.c`) with trial coefficients separate from accepted step history (#23); Gear orders 3–6 are rejected.
+- [ ] Implement adaptive timestep scheduling and truncation-error control in a companion transient driver (#26).
+- [x] Implement C/L trap/Gear-2 companion stamps from accepted charge/flux state without double-discretizing diffsol equation stamps (#25); sources still stamp only at DC, mutual inductance and companion `ic=`/`uic` are pending.
 - [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives.
 - [ ] Connect parsed source waveforms to time evaluation and breakpoint handling, including `PULSE`.
-- [ ] Demonstrate formulations/tests for floating/coupled capacitor networks and higher-index source constraints before enabling general DAEs.
-- [ ] Retain accepted-state/trial-state separation, event left/right limits, voltage/current tolerances, output-grid separation and progress/work budgets.
+- [x] Demonstrate an index-one formulation for floating/coupled capacitor networks in the BDF backend: block-SVD `ker E`/`ker Eᵀ`, rank-certified `Wᵀ A N`, charge-preserving event projection and consistent derivatives, with analytic and opt-in C tests (#28).
+- [ ] Design and validate bounded higher-index source-constraint support (#29); such pencils remain rejected.
+- [x] Define explicit trial-versus-accepted device state: `&self` trial loads into a disposable `TrialState`, rotating `StateHistory`, per-device branch/state ranges and integration context, atomic accept hooks before commit (#24).
+- [ ] Retain accepted-state/trial-state separation in every transient/Newton driver, event left/right limits, voltage/current tolerances, output-grid separation and progress/work budgets.
 - [ ] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps.
 
 ## 5. Nonlinear devices and convergence — M4

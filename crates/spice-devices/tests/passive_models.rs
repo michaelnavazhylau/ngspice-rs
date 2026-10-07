@@ -352,7 +352,9 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         temperature: 77.0,
         nominal_temperature: 27.0,
         mode: AnalysisMode::OperatingPoint,
-        branch: None,
+        branches: 0..0,
+        integration: None,
+        states: spice_devices::DeviceState::none(),
     };
     circuit.devices_mut()[0].stamp(&mut context).unwrap();
     close(matrix.get(0, 0), 1.0 / 1500.0);
@@ -392,4 +394,77 @@ fn unused_models_and_unknown_setters_cannot_disappear_behind_supported_instances
             .resolve(&n.devices[0])
             .is_err()
     );
+}
+
+#[test]
+fn model_backed_capacitors_and_inductors_own_companion_state() {
+    use spice_devices::LoadRequest;
+    use spice_maths::{IntegrationMethod, StepHistory, integrator::DEFAULT_XMU};
+    let n = deck("c1 a 0 cmod l=2 w=1\nl1 a 0 lmod\n.model cmod c(cj=1u)\n.model lmod l(ind=1m)");
+    let circuit = Circuit::from_netlist(&n).unwrap();
+    assert_eq!(circuit.state_rows(0), Some(0..2));
+    assert_eq!(circuit.state_rows(1), Some(2..4));
+    let mut history = circuit.state_history();
+    let solution = Vector::from_slice(&[1.0, 0.5]);
+    let context = ModelContext::default();
+    fn request<'a>(
+        mode: AnalysisMode,
+        integration: Option<&'a spice_maths::Coefficients>,
+        history: &'a spice_devices::StateHistory,
+        solution: &'a Vector,
+        model_context: &'a ModelContext,
+    ) -> LoadRequest<'a> {
+        LoadRequest {
+            mode,
+            solution,
+            model_context,
+            integration,
+            history,
+        }
+    }
+    let mut trial = history.trial();
+    circuit
+        .load(
+            &request(
+                AnalysisMode::OperatingPoint,
+                None,
+                &history,
+                &solution,
+                &context,
+            ),
+            &mut SparseMatrix::new(2, 2),
+            &mut Vector::zeros(2),
+            &mut trial,
+        )
+        .unwrap();
+    // Effective C = cj * l * w = 2 uF; flux = 1 mH * 0.5 A.
+    close(trial.values()[0], 2e-6);
+    close(trial.values()[2], 5e-4);
+    circuit
+        .accept_point(&solution, None, &mut history, trial)
+        .unwrap();
+    let c = StepHistory::new()
+        .trial(IntegrationMethod::Trapezoidal, 1, 1e-6, DEFAULT_XMU)
+        .unwrap();
+    let mut matrix = SparseMatrix::new(2, 2);
+    circuit
+        .load(
+            &request(
+                AnalysisMode::Transient {
+                    time: 1e-6,
+                    dt: 1e-6,
+                },
+                Some(&c),
+                &history,
+                &solution,
+                &context,
+            ),
+            &mut matrix,
+            &mut Vector::zeros(2),
+            &mut history.trial(),
+        )
+        .unwrap();
+    matrix.fold_duplicates();
+    close(matrix.get(0, 0), 2.0);
+    close(matrix.get(1, 1), -1e-3 / 1e-6);
 }

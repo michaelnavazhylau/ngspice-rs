@@ -40,7 +40,7 @@ therefore the central risk of this port — see
 | `src/maths/dense/` | 1,742 | `spice-maths::dense` | row-major storage and owned faer pivoted LU with checked solves |
 | `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `spice-maths::sparse` | triplet storage, petgraph row-coupling projection and owned faer sparse LU; finite/rank/residual checks and exact-pattern symbolic reuse |
 | `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; faer supplies real/complex LU, see licensing below |
-| `src/maths/ni/` | 1,961 | `spice-maths::integrator`, separate `spice-maths::diffsol` | trap/Gear types only, coefficient/history operations pending; explicit adaptive BDF supports restricted diagonal-mass index-one DAEs, not ngspice trap/Gear parity |
+| `src/maths/ni/` | 1,961 | `spice-maths::integrator`, separate `spice-maths::diffsol` | trap and Gear orders 1–2 coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history; orders 3–6 rejected; explicit adaptive BDF supports index-one DAEs including floating/coupled capacitor mass blocks (higher-index rejected), not ngspice trap/Gear parity |
 | `src/maths/cmaths/` | 4,054 | `spice-core::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
 | `src/maths/poly/`, `deriv/`, `fft/`, `misc/` | 6,358 | `spice-maths` (planned modules) | **not ported** |
 
@@ -52,7 +52,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
 | `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution and bounded passive factories; nonlinear factories pending |
-| `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::{rlc,passive}` | scalar equations plus bounded model values, R sheet/C area-perimeter geometry, contextual TC1/TC2, scale/multiplicity; coil geometry, advanced setters and trap/Gear companions pending |
+| `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::{rlc,passive}` | scalar equations plus bounded model values, R sheet/C area-perimeter geometry, contextual TC1/TC2, scale/multiplicity; trap/Gear orders 1–2 C/L companion stamps from accepted charge/flux state (`capload.c`/`indload.c`); coil geometry, advanced setters, mutual inductance and companion `ic=`/`uic` pending |
 | `vsrc/`, `isrc/` | — | `spice-devices::sources` | DC/AC V/I stamps, device-API Constant/Step/Pwl forcing; PULSE/PWL deck syntax parses, runtime deck elaboration pending |
 | `dio/` | 5,598 | `spice-devices::diode` (planned) | **not ported** |
 | `bjt/` | 9,482 | `spice-devices::bjt` (planned) | **not ported** |

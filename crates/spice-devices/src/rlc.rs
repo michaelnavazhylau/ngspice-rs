@@ -1,7 +1,9 @@
 //! Resistor, capacitor and inductor — the first porting targets.
 //!
-//! Static and state-independent dynamic operators are implemented. The separate
-//! trap/Gear companion-model contract remains pending (roadmap M3).
+//! Static and state-independent dynamic operators feed DC/AC and the explicit
+//! diffsol BDF backend through [`Device::assemble_linear`]. Separately,
+//! [`Device::stamp`] implements the SPICE trap/Gear companion models for C and
+//! L from accepted charge/flux history (roadmap M3); the two paths never mix.
 //! Each type follows its C counterpart:
 //!
 //! | Rust | C parser | C stamping |
@@ -17,8 +19,90 @@
 //! explicitly rather than silently modifying or omitting physics.
 
 use spice_core::{NodeId, Real, SpiceError, SpiceResult};
+use spice_maths::{Coefficients, Companion};
 
-use crate::traits::{Device, StampContext};
+use crate::traits::{AnalysisMode, Device, StampContext};
+
+/// State slots of a capacitor (`CAPqcap`, `CAPccap`) or inductor
+/// (`INDflux`, `INDvolt`): the integrated quantity and its derivative.
+const QUANTITY: usize = 0;
+const DERIVATIVE: usize = 1;
+
+/// The coefficients of a companion transient load, checked against the mode.
+fn companion_coefficients<'a>(
+    context: &StampContext<'a>,
+    name: &str,
+) -> SpiceResult<&'a Coefficients> {
+    let AnalysisMode::Transient { dt, .. } = context.mode else {
+        return Err(SpiceError::circuit(format!(
+            "{name}: companion stamping needs a transient load"
+        )));
+    };
+    let coefficients = context.integration.ok_or_else(|| {
+        SpiceError::circuit(format!(
+            "{name}: companion transient load without integration coefficients"
+        ))
+    })?;
+    if coefficients.dt() != dt {
+        return Err(SpiceError::circuit(format!(
+            "{name}: load timestep {dt} differs from integration timestep {}",
+            coefficients.dt()
+        )));
+    }
+    Ok(coefficients)
+}
+
+/// Integrates one element as `NIintegrate` does: `quantity` is the trial
+/// charge/flux and `capacitance` the C or L it was derived with. Reads only
+/// accepted history and touches nothing.
+fn integrate(
+    context: &StampContext<'_>,
+    coefficients: &Coefficients,
+    quantity: Real,
+    capacitance: Real,
+    name: &str,
+) -> SpiceResult<Companion> {
+    if context.states.len() != 2 {
+        return Err(SpiceError::circuit(format!(
+            "{name}: companion load without its two state slots"
+        )));
+    }
+    let needed = coefficients.charge_history_len();
+    let mut history = vec![quantity];
+    for age in 1..=needed {
+        history.push(context.states.accepted(age, QUANTITY).ok_or_else(|| {
+            SpiceError::circuit(format!(
+                "{name}: order {} needs {needed} accepted point(s), have {}",
+                coefficients.order(),
+                context.states.depth()
+            ))
+        })?);
+    }
+    let previous = if coefficients.needs_previous_derivative() {
+        Some(
+            context
+                .states
+                .accepted(1, DERIVATIVE)
+                .ok_or_else(|| SpiceError::circuit(format!("{name}: no accepted derivative")))?,
+        )
+    } else {
+        None
+    };
+    coefficients.integrate(&history, previous, capacitance)
+}
+
+/// Records a DC point's charge/flux with zero derivative, when the load
+/// tracks state (the transient operating point, C `MODETRANOP`).
+fn record_dc_state(context: &mut StampContext<'_>, quantity: Real) -> SpiceResult<()> {
+    if context.states.is_empty() {
+        return Ok(());
+    }
+    if !quantity.is_finite() {
+        return Err(SpiceError::circuit("nonfinite charge/flux at DC"));
+    }
+    context.states.set(QUANTITY, quantity)?;
+    context.states.set(DERIVATIVE, 0.0)
+}
 
 /// A resistor, `r1 n1 n2 <value> [tc1=… tc2=…]`.
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +165,7 @@ impl Device for Resistor {
         &self.terminals
     }
 
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("use complex equation assembly for AC"));
         }
@@ -168,14 +252,37 @@ impl Device for Capacitor {
         0
     }
 
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    /// Charge `q = C v` and current `dq/dt` (C `CAPqcap`/`CAPccap`).
+    fn state_count(&self) -> usize {
+        2
+    }
+
+    /// `capload.c`: an open circuit at DC (recording `q = C v` when state
+    /// is tracked); in transient, the Norton companion `i = geq v + ceq`
+    /// from current from the first terminal to the second. `ic=` is not
+    /// applied here; initial-condition policy belongs to the analysis.
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        let [positive, negative] = self.terminals;
+        let v = context.node_voltage(positive) - context.node_voltage(negative);
+        let charge = self.capacitance * v;
         if context.mode.is_dc() {
-            return Ok(());
+            return record_dc_state(context, charge);
         }
-        Err(SpiceError::not_yet_ported(
-            "capacitor companion model",
-            "src/spicelib/devices/cap/capload.c, src/maths/ni/niinteg.c",
-        ))
+        if context.mode.is_ac() {
+            return Err(SpiceError::circuit("use complex equation assembly for AC"));
+        }
+        let coefficients = companion_coefficients(context, &self.name)?;
+        let companion = integrate(context, coefficients, charge, self.capacitance, &self.name)?;
+        context.states.set(QUANTITY, charge)?;
+        context.states.set(DERIVATIVE, companion.derivative)?;
+        crate::linear::nodal_stamp(
+            context.matrix,
+            context.unknowns,
+            self.terminals,
+            companion.conductance,
+        )?;
+        context.stamp_rhs(positive, -companion.current)?;
+        context.stamp_rhs(negative, companion.current)
     }
     fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
         context.system.has_initial_conditions |= self.initial_voltage.is_some();
@@ -256,17 +363,37 @@ impl Device for Inductor {
         1
     }
 
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
-        if !context.mode.is_dc() {
-            return Err(SpiceError::not_yet_ported(
-                "inductor companion model",
-                "src/spicelib/devices/ind/indload.c",
-            ));
+    /// Flux `L i` and voltage `dflux/dt` (C `INDflux`/`INDvolt`).
+    fn state_count(&self) -> usize {
+        2
+    }
+
+    /// `indload.c`: a short at DC (recording `flux = L i` when state is
+    /// tracked); in transient, the branch row `v+ - v- - req i = veq` with
+    /// `i` positive from the first terminal to the second. `ic=` is not
+    /// applied here; initial-condition policy belongs to the analysis.
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        let row = context.branch(0)?;
+        let flux = self.inductance * context.row_value(row)?;
+        if context.mode.is_dc() {
+            record_dc_state(context, flux)?;
+            return crate::linear::branch_stamp(
+                context.matrix,
+                context.unknowns,
+                self.terminals,
+                row,
+            );
         }
-        let row = context
-            .branch
-            .ok_or_else(|| SpiceError::circuit("missing inductor branch row"))?;
-        crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, row)
+        if context.mode.is_ac() {
+            return Err(SpiceError::circuit("use complex equation assembly for AC"));
+        }
+        let coefficients = companion_coefficients(context, &self.name)?;
+        let companion = integrate(context, coefficients, flux, self.inductance, &self.name)?;
+        context.states.set(QUANTITY, flux)?;
+        context.states.set(DERIVATIVE, companion.derivative)?;
+        crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, row)?;
+        context.matrix.add(row, row, -companion.conductance)?;
+        context.rhs.add_to(row, companion.current)
     }
     fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
         let branch = context.branch(self.terminals)?;
@@ -330,14 +457,16 @@ mod tests {
     }
 
     #[test]
-    fn companion_stamping_remains_explicitly_unimplemented() {
-        let mut capacitor = Capacitor::new("c1", nodes(), 1e-6, None).unwrap();
-        assert!(stamp_error(&mut capacitor).contains("cap/capload.c"));
-        let mut inductor = Inductor::new("l1", nodes(), 1e-3, None).unwrap();
-        assert!(stamp_error(&mut inductor).contains("ind/indload.c"));
+    fn companion_stamping_requires_a_companion_transient_load() {
+        let capacitor = Capacitor::new("c1", nodes(), 1e-6, None).unwrap();
+        assert!(stamp_error(&capacitor).contains("without integration coefficients"));
+        let inductor = Inductor::new("l1", nodes(), 1e-3, None).unwrap();
+        assert!(stamp_error(&inductor).contains("missing branch-row binding"));
+        assert_eq!(capacitor.state_count(), 2);
+        assert_eq!(inductor.state_count(), 2);
     }
 
-    fn stamp_error(device: &mut dyn Device) -> String {
+    fn stamp_error(device: &dyn Device) -> String {
         use spice_core::NodeTable;
         use spice_maths::{SparseMatrix, Vector};
         let nodes = NodeTable::new();
@@ -354,7 +483,9 @@ mod tests {
             temperature: 27.0,
             nominal_temperature: 27.0,
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
-            branch: None,
+            branches: 0..0,
+            integration: None,
+            states: crate::state::DeviceState::none(),
         };
         device.stamp(&mut context).unwrap_err().to_string()
     }

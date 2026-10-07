@@ -3,11 +3,12 @@
 //! | Module | Job | State |
 //! | --- | --- | --- |
 //! | [`traits`] | the [`Device`] trait, [`StampContext`] and the unknown map | real stamping and immutable equation-assembly contracts |
+//! | [`state`] | trial versus accepted device state ([`StateHistory`], [`TrialState`]) | rotating accepted history, atomic commits |
 //! | [`circuit`] | node/device container, petgraph incidence topology and unknown numbering | ported |
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I factories |
 //! | [`sources`] | independent DC/AC/transient sources | bounded waveform API |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
-//! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; companions still pending |
+//! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework
@@ -39,12 +40,15 @@ pub mod sources;
 pub use linear::{LinearContext, LinearSource, LinearSystem, Waveform};
 pub use sources::IndependentSource;
 pub mod rlc;
+pub mod state;
 pub mod traits;
 
+pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
-pub use traits::{AnalysisMode, Device, MnaUnknowns, StampContext};
+pub use state::{ACCEPTED_DEPTH, DeviceState, StateHistory, TrialState};
+pub use traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.
 pub const C_REFERENCE_FRAMEWORK: &str = "src/spicelib/devices/ (ckt*.c)";

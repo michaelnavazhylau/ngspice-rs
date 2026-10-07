@@ -43,9 +43,8 @@ table, formulas, temperatures and deliberately rejected forms.
 
 Transient requires explicit `backend=diffsol method=bdf`; it is
 **not ngspice trapezoidal or fixed Gear-2 and does not complete M3**. It currently
-requires diagonal mass structure with a nonsingular algebraic block. Floating/
-coupled capacitor DAEs, higher-index constraints, nonlinear charge and `.ic`/`uic`
-remain unsupported. Step/Pwl waveforms exist through the device API only;
+accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
+constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Step/Pwl waveforms exist through the device API only;
 numeric PULSE/PWL netlist syntax parses, but factories reject it until runtime
 elaboration/evaluation is implemented. See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
 
@@ -57,7 +56,8 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    parameters/options/globals, serialization and snapshots.
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
-4. **Transient (M3):** trap/Gear-2 companions, initialization, parsed waveform
+4. **Transient (M3):** adaptive trap/Gear-2 companion driver (integrator, state
+   ownership and C/L companion stamps exist), initialization, parsed waveform
    evaluation, broader DAEs and C parity.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
    nonlinear DC/AC/transient and conformance fixtures.

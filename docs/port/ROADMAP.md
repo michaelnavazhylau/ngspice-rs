@@ -138,8 +138,10 @@ Preserve finite/rank/residual checks and explicit unsupported cases.
 ## M3 — Reactive elements and transient analysis
 
 Main includes complex AC and a separately selected, bounded
-adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal:
-companions, `.ic`/`.nodeset`, waveform deck evaluation and general MNA DAEs remain pending.
+adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal.
+Trap/Gear order-1/2 integration (#23), trial-versus-accepted device state (#24)
+and C/L companion stamps (#25) exist as APIs; the adaptive companion driver,
+`.ic`/`.nodeset`, waveform deck evaluation and general MNA DAEs remain pending.
 
 C, L, and the numerical integration machinery.
 

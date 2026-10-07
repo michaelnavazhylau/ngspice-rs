@@ -37,7 +37,13 @@ impl Device for ModelPassive {
     fn branch_currents(&self) -> usize {
         usize::from(self.parameters.family() == ModelFamily::Inductor)
     }
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn state_count(&self) -> usize {
+        match self.parameters.family() {
+            ModelFamily::Capacitor | ModelFamily::Inductor => 2,
+            _ => 0,
+        }
+    }
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         self.scalar(&ModelContext {
             temperature: context.temperature,
             nominal_temperature: context.nominal_temperature,

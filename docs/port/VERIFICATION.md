@@ -379,9 +379,11 @@ The parser/C-oracle and golden checks remain unchanged.
 Main now contains a bounded linear engine. Production `.op` and complex `.ac`
 results are compared with committed C goldens by variable name, not vector order:
 DC uses `1e-12` relative plus `1e-15` absolute near zero; AC uses `1e-10` relative
-plus `1e-12` absolute. Analytic RC/RL/RLC transient tests and an opt-in live C Pwl
-RC comparison use common physical output grids rather than identical adaptive
-internal timesteps. See
+plus `1e-12` absolute. Analytic RC/RL/RLC, floating-capacitor and coupled-
+capacitance transient tests, and opt-in live C Pwl comparisons for the RC,
+floating-capacitor and coupled-capacitance decks (`c_linear_reference.rs`, `2e-5` V
+on the requested 100 µs grid through the 1 ms/1.01 ms knots), use common physical
+output grids rather than identical adaptive internal timesteps. See
 [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) for test coverage,
 recorded stable/MSRV validation, error bounds and numerical restrictions.
 

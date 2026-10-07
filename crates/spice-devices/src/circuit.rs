@@ -17,9 +17,12 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use petgraph::graph::UnGraph;
-use spice_core::{NodeId, NodeTable, SpiceError, SpiceResult};
+use spice_core::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
+use spice_maths::{Coefficients, SparseMatrix, Vector};
 
-use crate::traits::{Device, MnaUnknowns};
+use crate::models::ModelContext;
+use crate::state::{StateHistory, TrialState};
+use crate::traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
 
 /// A vertex in the circuit's bipartite incidence graph.
 ///
@@ -47,6 +50,23 @@ pub struct Circuit {
     unknowns: MnaUnknowns,
     devices: Vec<Box<dyn Device>>,
     branch_rows: Vec<std::ops::Range<usize>>,
+    state_rows: Vec<std::ops::Range<usize>>,
+    state_len: usize,
+}
+
+/// One trial load of every device (C `CKTload`).
+#[derive(Debug, Clone, Copy)]
+pub struct LoadRequest<'a> {
+    /// Which analysis is loading.
+    pub mode: AnalysisMode,
+    /// The present solution the trial linearizes around.
+    pub solution: &'a Vector,
+    /// Circuit and nominal temperatures.
+    pub model_context: &'a ModelContext,
+    /// Companion integration coefficients, for companion transient loads.
+    pub integration: Option<&'a Coefficients>,
+    /// The accepted state history this trial reads.
+    pub history: &'a StateHistory,
 }
 
 impl fmt::Debug for Circuit {
@@ -117,15 +137,22 @@ impl Circuit {
     }
 
     /// Rebuilds the unknown numbering: one row per non-ground node, then one row
-    /// per branch current, in device order.
+    /// per branch current, in device order. State slots are numbered the same
+    /// way, in a separate namespace.
     pub fn rebuild_unknowns(&mut self) {
         self.unknowns.rebuild(&self.nodes);
         self.branch_rows.clear();
+        self.state_rows.clear();
+        self.state_len = 0;
         for device in &self.devices {
             let count = device.branch_currents();
             let start = self.unknowns.len();
             self.unknowns.add_rows(count);
             self.branch_rows.push(start..start + count);
+            let states = device.state_count();
+            self.state_rows
+                .push(self.state_len..self.state_len + states);
+            self.state_len += states;
         }
     }
 
@@ -218,6 +245,161 @@ impl Circuit {
     /// Branch rows by device ordinal, after finalization.
     pub fn branch_rows(&self, index: usize) -> Option<std::ops::Range<usize>> {
         self.branch_rows.get(index).cloned()
+    }
+
+    /// State slots by device ordinal, after finalization. Slots are not
+    /// matrix rows.
+    pub fn state_rows(&self, index: usize) -> Option<std::ops::Range<usize>> {
+        self.state_rows.get(index).cloned()
+    }
+
+    /// Total number of state slots, after finalization.
+    #[must_use]
+    pub const fn state_len(&self) -> usize {
+        self.state_len
+    }
+
+    /// An empty accepted-state history sized for this circuit.
+    #[must_use]
+    pub fn state_history(&self) -> StateHistory {
+        StateHistory::new(self.state_len)
+    }
+
+    fn check_numbering(&self) -> SpiceResult<()> {
+        if self.branch_rows.len() != self.devices.len()
+            || self.state_rows.len() != self.devices.len()
+        {
+            return Err(SpiceError::circuit(
+                "circuit numbering is stale; finalize after adding devices",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Loads every device for one trial into `matrix`, `rhs` and `trial`.
+    ///
+    /// The accepted history is read-only here. On error, `matrix`, `rhs` and
+    /// `trial` hold a partial load and must be discarded; nothing the circuit
+    /// or history owns has changed.
+    ///
+    /// # Errors
+    ///
+    /// Stale numbering, mismatched dimensions/nonfinite solution, or device
+    /// failures.
+    pub fn load(
+        &self,
+        request: &LoadRequest<'_>,
+        matrix: &mut SparseMatrix,
+        rhs: &mut Vector,
+        trial: &mut TrialState,
+    ) -> SpiceResult<()> {
+        self.check_numbering()?;
+        let n = self.unknown_count();
+        if matrix.rows() != n
+            || matrix.cols() != n
+            || rhs.len() != n
+            || request.solution.len() != n
+            || !request.solution.is_finite()
+            || request.history.len() != self.state_len
+            || trial.values().len() != self.state_len
+        {
+            return Err(SpiceError::circuit(
+                "load dimensions do not match the circuit numbering",
+            ));
+        }
+        request.model_context.validate(&spice_core::SourceLoc::new(
+            std::path::PathBuf::from("<model-context>"),
+            1,
+            1,
+        ))?;
+        for (index, device) in self.devices.iter().enumerate() {
+            let states = request
+                .history
+                .device(trial, self.state_rows[index].clone())?;
+            device.stamp(&mut StampContext {
+                matrix: &mut *matrix,
+                rhs: &mut *rhs,
+                unknowns: &self.unknowns,
+                nodes: &self.nodes,
+                solution: request.solution,
+                temperature: request.model_context.temperature,
+                nominal_temperature: request.model_context.nominal_temperature,
+                mode: request.mode,
+                branches: self.branch_rows[index].clone(),
+                integration: request.integration,
+                states,
+            })?;
+        }
+        Ok(())
+    }
+
+    fn run_accept_hooks(
+        &self,
+        solution: &Vector,
+        time: Option<Real>,
+        trial: Option<&TrialState>,
+    ) -> SpiceResult<()> {
+        self.check_numbering()?;
+        if solution.len() != self.unknown_count() || !solution.is_finite() {
+            return Err(SpiceError::circuit(
+                "accepted solution does not match the circuit numbering or is nonfinite",
+            ));
+        }
+        if time.is_some_and(|t| !t.is_finite()) {
+            return Err(SpiceError::circuit("accepted time is nonfinite"));
+        }
+        for (index, device) in self.devices.iter().enumerate() {
+            let states = match trial {
+                Some(trial) => Some(
+                    trial
+                        .slice(self.state_rows[index].clone())
+                        .ok_or_else(|| SpiceError::circuit("trial state is too short"))?,
+                ),
+                None => None,
+            };
+            device.accept(&AcceptContext {
+                solution,
+                time,
+                branches: &self.branch_rows[index],
+                states,
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Accepts a point whose trial state is committed into `history`.
+    ///
+    /// Validation and every [`Device::accept`] hook run first; the history
+    /// changes only if all of them succeed, so a failure is atomic.
+    ///
+    /// # Errors
+    ///
+    /// Invalid solution/time, an uncommittable trial, or a hook failure.
+    pub fn accept_point(
+        &self,
+        solution: &Vector,
+        time: Option<Real>,
+        history: &mut StateHistory,
+        trial: TrialState,
+    ) -> SpiceResult<()> {
+        if history.len() != self.state_len {
+            return Err(SpiceError::circuit(
+                "state history does not match the circuit numbering",
+            ));
+        }
+        history.check(&trial)?;
+        self.run_accept_hooks(solution, time, Some(&trial))?;
+        history.commit(trial)
+    }
+
+    /// Accepts a point of an analysis that tracks no device state (linear
+    /// DC/AC and the explicit diffsol BDF backend). Hooks see `states: None`.
+    ///
+    /// # Errors
+    ///
+    /// Invalid solution/time or a hook failure.
+    pub fn accept_solution(&self, solution: &Vector, time: Option<Real>) -> SpiceResult<()> {
+        self.run_accept_hooks(solution, time, None)
     }
 
     /// Assemble at the default circuit/nominal temperature (27 Celsius).
@@ -364,7 +546,6 @@ mod tests {
     use petgraph::graph::NodeIndex;
     use petgraph::visit::EdgeRef;
     use spice_core::{NodeId, SpiceError, SpiceResult};
-    use spice_maths::Vector;
 
     /// A test double with arbitrary terminals that never stamps.
     #[derive(Debug)]
@@ -391,12 +572,8 @@ mod tests {
             self.branch_currents
         }
 
-        fn stamp(&mut self, _context: &mut crate::traits::StampContext<'_>) -> SpiceResult<()> {
+        fn stamp(&self, _context: &mut crate::traits::StampContext<'_>) -> SpiceResult<()> {
             Err(SpiceError::not_yet_ported("test stub", "tests"))
-        }
-
-        fn accept(&mut self, _solution: &Vector) -> SpiceResult<()> {
-            Ok(())
         }
     }
 

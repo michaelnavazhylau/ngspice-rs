@@ -60,12 +60,6 @@ pub(crate) fn plot(
     }
     Ok(plot)
 }
-pub(crate) fn accept(circuit: &mut Circuit, x: &spice_maths::Vector) -> SpiceResult<()> {
-    for device in circuit.devices_mut() {
-        device.accept(x)?;
-    }
-    Ok(())
-}
 
 pub(crate) fn op(
     circuit: &mut Circuit,
@@ -78,7 +72,7 @@ pub(crate) fn op(
     let system = circuit.linear_system_with_context(&context.model_context())?;
     let x = system.a.solve(&system.dc_rhs(None)?)?;
     let mut plot = plot(circuit, "op1", "Operating Point", None, false)?;
-    accept(circuit, &x)?;
+    circuit.accept_solution(&x, None)?;
     plot.push_point(x.as_slice().iter().map(|v| Complex::real(*v)).collect())?;
     Ok(plot)
 }
@@ -129,7 +123,7 @@ pub(crate) fn dc(
             return Err(unsupported("DC sweep makes no progress"));
         }
         let x = lu.solve(&system.dc_rhs(Some((&source.name, value)))?)?;
-        accept(circuit, &x)?;
+        circuit.accept_solution(&x, None)?;
         let mut point = vec![Complex::real(value)];
         point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
         plot.push_point(point)?;

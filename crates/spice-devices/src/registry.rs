@@ -434,7 +434,7 @@ mod tests {
                 &[]
             }
             fn stamp(
-                &mut self,
+                &self,
                 _context: &mut crate::traits::StampContext<'_>,
             ) -> spice_core::SpiceResult<()> {
                 Ok(())

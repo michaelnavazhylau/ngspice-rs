@@ -51,16 +51,14 @@ impl Device for IndependentSource {
     fn branch_currents(&self) -> usize {
         usize::from(self.voltage)
     }
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if !context.mode.is_dc() {
             return Err(SpiceError::circuit(
                 "use linear equation assembly for dynamic sources",
             ));
         }
         if self.voltage {
-            let branch = context
-                .branch
-                .ok_or_else(|| SpiceError::circuit("missing source branch row"))?;
+            let branch = context.branch(0)?;
             crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, branch)?;
             context.rhs.add_to(branch, self.dc)
         } else {
