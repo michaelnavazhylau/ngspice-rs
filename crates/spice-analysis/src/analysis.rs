@@ -15,19 +15,33 @@
 
 use std::fmt;
 
-use spice_core::{AnalysisKind, Real, SpiceError, SpiceResult};
+use spice_core::{AnalysisKind, Real, SourceLoc, SpiceError, SpiceResult};
 use spice_devices::Circuit;
 use spice_netlist::ast::AnalysisCard;
 
 use crate::C_REFERENCE_ANALYSIS;
 use crate::results::Plot;
 
+/// One evaluated `.ic` or `.nodeset` entry, `V(node)=value`, as the analyses
+/// receive it: the canonical node name, the finite value in volts and where the
+/// entry was written. Duplicates are kept in deck order; the last entry for a
+/// node wins (C: `INPpas3()` overwrites the node's `ic`/`nodeset` in turn).
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeCondition {
+    /// Canonical (lowercased) node name.
+    pub node: String,
+    /// Value in volts.
+    pub value: Real,
+    /// Where the `V(node)=value` entry started.
+    pub location: SourceLoc,
+}
+
 /// A request to run an analysis.
 ///
 /// Arguments are kept as written. Their grammar differs per analysis — `.tran 1u
 /// 10u 0 0.1u`, `.ac dec 10 1 1meg`, `.dc v1 0 5 0.1` — so each driver
 /// interprets them, exactly as the per-analysis C code does.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AnalysisRequest {
     /// Which analysis to run.
     pub kind: AnalysisKind,
@@ -35,9 +49,17 @@ pub struct AnalysisRequest {
     /// them; see [`Self::uic`].
     pub arguments: Vec<String>,
     /// The `.tran` `uic` flag (use initial conditions), kept apart from the
-    /// positional time arguments. No driver implements it yet: the transient
-    /// driver rejects it explicitly until GitHub #27's analysis half lands.
+    /// positional time arguments. The companion transient driver implements it
+    /// (`dctran.c` `MODEUIC`); `backend=diffsol` rejects it explicitly.
     pub uic: bool,
+    /// The deck's `.ic` entries in deck order (see [`NodeCondition`]). Enforced
+    /// by the companion transient initial operating point unless `uic`; ignored
+    /// by `.op`/`.dc`/`.ac`, exactly as C (`cktload.c`), but always validated.
+    pub initial_conditions: Vec<NodeCondition>,
+    /// The deck's `.nodeset` entries in deck order: convergence hints for the
+    /// DC operating points. They cannot change the unique solution of a linear
+    /// circuit; under transient `uic` C reuses them as initial node voltages.
+    pub nodesets: Vec<NodeCondition>,
 }
 
 impl AnalysisRequest {
@@ -48,6 +70,8 @@ impl AnalysisRequest {
             kind,
             arguments: Vec::new(),
             uic: false,
+            initial_conditions: Vec::new(),
+            nodesets: Vec::new(),
         }
     }
 
@@ -61,6 +85,8 @@ impl AnalysisRequest {
             kind,
             arguments: arguments.into_iter().map(Into::into).collect(),
             uic: false,
+            initial_conditions: Vec::new(),
+            nodesets: Vec::new(),
         }
     }
 
@@ -102,6 +128,8 @@ impl From<&AnalysisCard> for AnalysisRequest {
             kind: card.kind,
             arguments,
             uic: card.uic,
+            initial_conditions: Vec::new(),
+            nodesets: Vec::new(),
         }
     }
 }
@@ -243,7 +271,7 @@ impl Analysis for AcSmallSignal {
 /// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
 /// ([`crate::companion_transient`]), or the explicitly selected bounded diffsol
 /// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
-/// IC/uic and general DAEs remain unsupported.
+/// `.ic`/`uic` are implemented by the companion driver only; general DAEs remain unsupported.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.

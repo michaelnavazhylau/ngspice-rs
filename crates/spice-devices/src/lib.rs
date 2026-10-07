@@ -55,7 +55,9 @@ pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, StateHistory, TrialState};
-pub use traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
+pub use traits::{
+    AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext, StorageElement, StorageKind,
+};
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.
 pub const C_REFERENCE_FRAMEWORK: &str = "src/spicelib/devices/ (ckt*.c)";

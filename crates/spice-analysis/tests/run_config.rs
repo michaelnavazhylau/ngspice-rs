@@ -259,25 +259,32 @@ fn top_level_globals_are_accepted_by_flat_elaboration() {
 }
 
 #[test]
-fn parsed_ic_and_nodeset_cards_are_rejected_not_ignored() {
-    // GitHub #27 frontend half: the cards parse, but until the analysis half
-    // lands no analysis may silently drop them.
-    for card in [".ic v(a)=1", ".nodeset v(a)=1"] {
-        let netlist = deck(&format!("r1 a 0 1k\n{card}\n.op\n.tran 1u 1m"));
-        let config = RunConfig::from_netlist(&netlist).unwrap();
-        for analysis in &netlist.analyses {
-            let error = config.request_for(analysis).unwrap_err();
-            assert!(
-                matches!(error, SpiceError::Unsupported { .. })
-                    && error.to_string().contains("#27"),
-                "{card}: {error}"
-            );
-        }
+fn parsed_ic_and_nodeset_cards_travel_with_every_request() {
+    // #27: the evaluated cards (braced expressions against .param, duplicates
+    // in deck order) are attached to each analysis request instead of rejected.
+    let netlist = deck(
+        "r1 a 0 1k\n.param half=0.5\n.ic v(a)=1 v(a)={half*3}\n.nodeset v(a)=2\n.op\n.tran 1u 1m",
+    );
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    for analysis in &netlist.analyses {
+        let request = config.request_for(analysis).unwrap();
+        let ic: Vec<_> = request
+            .initial_conditions
+            .iter()
+            .map(|c| (c.node.as_str(), c.value))
+            .collect();
+        assert_eq!(ic, [("a", 1.), ("a", 1.5)]);
+        assert_eq!(request.nodesets.len(), 1);
+        assert_eq!(request.nodesets[0].value, 2.);
+        assert_eq!(request.nodesets[0].location.line, 5);
     }
+    // An undefined parameter is an error, not a silently dropped entry.
+    let netlist = deck("r1 a 0 1k\n.ic v(a)={nope}\n.tran 1u 1m");
+    assert!(RunConfig::from_netlist(&netlist).is_err());
 }
 
 #[test]
-fn tran_uic_is_a_request_flag_the_driver_rejects() {
+fn tran_uic_is_a_request_flag_the_diffsol_backend_rejects() {
     let netlist =
         deck("v1 a 0 0\nr1 a b 1k\nc1 b 0 1u\n.tran 1u 10u uic backend=diffsol method=bdf");
     let config = RunConfig::from_netlist(&netlist).unwrap();

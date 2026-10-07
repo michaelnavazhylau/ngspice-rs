@@ -33,6 +33,29 @@ use spice_maths::{Coefficients, SparseMatrix, Vector};
 use crate::linear::Forcing;
 use crate::state::DeviceState;
 
+/// Which stored quantity a [`StorageElement`] integrates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageKind {
+    /// Capacitor: charge `q = C v`, `v` across the terminals (first minus second).
+    Capacitor,
+    /// Inductor: flux `phi = L i`, `i` positive from the first terminal to the second.
+    Inductor,
+}
+
+/// A charge/flux-storing element and its instance `ic=`, seen by analyses that
+/// apply initial conditions. The quantity lives in the state slot
+/// [`Device::truncation_slot`]; the derivative in the next slot.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StorageElement {
+    /// Capacitor or inductor.
+    pub kind: StorageKind,
+    /// Capacitance in farads or inductance in henries.
+    pub value: Real,
+    /// The instance `ic=` (volts for a capacitor, amperes for an inductor),
+    /// if given.
+    pub initial: Option<Real>,
+}
+
 /// Which analysis is currently loading the matrix.
 ///
 /// Devices branch on this the way the C `CKTmode` bitmask does: a capacitor
@@ -318,6 +341,14 @@ pub trait Device: fmt::Debug {
     /// `None` (the default) for devices without a `DEVtrunc` equivalent
     /// (`captrunc.c`, `indtrunc.c`, `CKTterr`).
     fn truncation_slot(&self) -> Option<usize> {
+        None
+    }
+
+    /// The charge/flux-storage description used to seed initial conditions
+    /// (`CAPgetic`/`INDgetic`-style `ic=` handling, see `capload.c`/`indload.c`).
+    /// `None` (the default) for devices that store no charge or flux in the
+    /// state slots named by [`Self::truncation_slot`].
+    fn storage_element(&self) -> Option<StorageElement> {
         None
     }
 

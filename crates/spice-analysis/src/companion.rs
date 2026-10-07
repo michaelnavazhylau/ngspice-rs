@@ -12,8 +12,11 @@
 //! (`ckttrunc.c`, `cktterr.c`, `niinteg.c`, `nicomcof.c`). In short:
 //!
 //! * **Initial point**: the DC bias with the sources at their `t = 0` left
-//!   limit; its charge/flux state fills the whole accepted history (C copies
-//!   `CKTstate0` into `CKTstate1..3`) with zero derivative.
+//!   limit and the `.ic` node voltages imposed, or, with `uic`, the charges and
+//!   fluxes of the capacitor/inductor initial conditions without any solve
+//!   (see [`crate::initial`] and `docs/port/TRANSIENT.md`). The charge/flux
+//!   state fills the whole accepted history (C copies `CKTstate0` into
+//!   `CKTstate1..3`) with zero derivative.
 //! * **Step size**: first step `min(stop/100, tstep)/10`, cut at the `t = 0`
 //!   breakpoint to `0.1 min(stop/50, gap to the next breakpoint)/10`; maximum
 //!   step `tmax`, or `min(tstep, (stop - start)/50)` (`traninit.c`); minimum
@@ -68,6 +71,7 @@ use spice_devices::{
 use spice_maths::integrator::{DEFAULT_XMU, TruncationTolerances};
 use spice_maths::{Coefficients, IntegrationMethod, SparseMatrix, StepHistory, Vector};
 
+use crate::initial::{self, Hints, VoltageTolerance};
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisContext, AnalysisRequest, Plot};
 
@@ -273,10 +277,13 @@ struct Breaks {
     pulled: usize,
     limit: usize,
     finished: bool,
+    /// An extra breakpoint (`uic`: `CKTsetBreak(step)` in `dctran.c`), merged
+    /// into the source breakpoints in time order.
+    extra: Option<Real>,
 }
 
 impl Breaks {
-    fn new(system: &LinearSystem, settings: &Settings) -> SpiceResult<Self> {
+    fn new(system: &LinearSystem, settings: &Settings, extra: Option<Real>) -> SpiceResult<Self> {
         Ok(Self {
             source: system.breakpoints_in(0., settings.stop)?.peekable(),
             queue: VecDeque::from([0.]),
@@ -285,22 +292,35 @@ impl Breaks {
             pulled: 0,
             limit: settings.max_steps,
             finished: false,
+            extra,
         })
     }
 
     fn fill(&mut self, wanted: usize) -> SpiceResult<()> {
         while self.queue.len() < wanted && !self.finished {
-            let Some(time) = self.source.next() else {
+            let take_extra = match (self.extra, self.source.peek()) {
+                (Some(extra), Some(source)) => extra <= *source,
+                (Some(_), None) => true,
+                (None, _) => false,
+            };
+            let time = if take_extra {
+                self.extra.take()
+            } else {
+                self.source.next()
+            };
+            let Some(time) = time else {
                 self.queue.push_back(self.stop);
                 self.finished = true;
                 break;
             };
-            self.pulled += 1;
-            if self.pulled > self.limit {
-                return Err(failure(format!(
-                    "source breakpoint limit ({}) exceeded before the stop time",
-                    self.limit
-                )));
+            if !take_extra {
+                self.pulled += 1;
+                if self.pulled > self.limit {
+                    return Err(failure(format!(
+                        "source breakpoint limit ({}) exceeded before the stop time",
+                        self.limit
+                    )));
+                }
             }
             let last = self.queue.back().copied().unwrap_or(0.);
             if time > last + self.min_break && time < self.stop - self.min_break {
@@ -338,6 +358,8 @@ struct Driver<'a> {
     model_context: spice_devices::ModelContext,
     history: spice_devices::StateHistory,
     steps: StepHistory,
+    hints: Hints,
+    uic: bool,
     nonlinear: bool,
     /// `true` for rows that carry branch currents (`abstol`), else `vntol`.
     branch_row: Vec<bool>,
@@ -353,30 +375,24 @@ struct Driver<'a> {
 ///
 /// # Errors
 ///
-/// Invalid or unsupported requests (`uic`, device/`.ic` initial conditions,
-/// `maxord > 2`, unknown options), structural or singular systems, a failing
-/// accept hook, an exceeded breakpoint/work limit, or "timestep too small".
+/// Invalid or unsupported requests (`maxord > 2`, unknown options), `.ic` or
+/// `.nodeset` entries naming unknown nodes, an `.ic` contradicting ideal
+/// sources, `uic` initial conditions that would need an impulse at `t = 0+`,
+/// structural or singular systems, a failing accept hook, an exceeded
+/// breakpoint/work limit, or "timestep too small". A failed initialization
+/// returns before any device accept hook ran or any plot row exists.
 pub fn companion_transient(
     circuit: &mut Circuit,
     request: &AnalysisRequest,
     context: &AnalysisContext,
 ) -> SpiceResult<(Plot, TransientStats)> {
     let settings = Settings::from_request(request)?;
-    if request.uic {
-        return Err(unsupported(
-            ".tran uic requires .ic/instance-IC initialization semantics (GitHub #27 analysis half); \
-             the flag is parsed but not applied",
-        ));
-    }
+    // Unknown/ground nodes in .ic/.nodeset fail before anything is assembled.
+    let hints = initial::resolve(circuit, request)?;
     let model_context = context.model_context();
     let mut system = circuit.linear_system_with_context(&model_context)?;
     let timing = TransientTiming::new(settings.step, settings.stop)?;
     system.bind_transient_timing(&timing)?;
-    if system.has_initial_conditions {
-        return Err(unsupported(
-            "device ic= requires .ic/uic semantics; this backend starts from the DC operating point",
-        ));
-    }
     let circuit: &Circuit = circuit;
     let mut branch_row = vec![false; circuit.unknown_count()];
     for index in 0..circuit.device_count() {
@@ -392,6 +408,8 @@ pub fn companion_transient(
         model_context,
         history: circuit.state_history(),
         steps: StepHistory::with_fill(settings.max_step),
+        hints,
+        uic: request.uic,
         nonlinear: circuit.devices().iter().any(|d| d.is_nonlinear()),
         branch_row,
         stats: TransientStats::default(),
@@ -419,17 +437,15 @@ impl Driver<'_> {
             Some(("time", "time")),
             false,
         )?;
-        // The bias point sees the sources just before t = 0 (left limit), as
-        // C's MODETRANOP evaluates the waveforms at time zero.
-        let mut x = self
-            .system
-            .a
-            .solve(&self.system.transient_rhs(0., spice_devices::Limit::Left)?)?;
-        self.accept_initial(&x)?;
-        if start <= 0. {
+        let mut x = self.initialize()?;
+        // C (dctran.c) writes no t = 0 row under uic: the first dump is the
+        // first accepted timepoint (`CKTtime > 0`).
+        if start <= 0. && !self.uic {
             push(&mut plot, 0., &x)?;
         }
-        let mut breaks = Breaks::new(self.system, &self.settings)?;
+        // dctran.c: under uic a breakpoint at the print step limits ringing of
+        // the first steps ("CKTsetBreak(ckt, ckt->CKTstep)").
+        let mut breaks = Breaks::new(self.system, &self.settings, self.uic.then_some(step))?;
         let mut t = 0.;
         let mut delta = (stop / 100.).min(step) / 10.;
         let mut save_delta = stop / 50.;
@@ -554,9 +570,70 @@ impl Driver<'_> {
         stats.breakpoints += usize::from(on_breakpoint);
     }
 
-    /// Records the DC bias as accepted state at `t = 0`. C copies it into
-    /// `CKTstate1..3`; the derivative of each charge/flux is zero.
-    fn accept_initial(&mut self, x: &Vector) -> SpiceResult<()> {
+    /// The initial point of the run: the solution `x` at `t = 0` and the
+    /// accepted charge/flux state filling the whole history.
+    ///
+    /// * Ordinary run (C `CKTop` with `MODETRANOP`): `A x = b(0-)` with the
+    ///   sources at their left limit; `.ic` node voltages are enforced as hard
+    ///   row constraints during this solve only ([`initial::constrained_bias`]),
+    ///   instance `ic=` is ignored and `.nodeset` cannot change a linear point.
+    /// * `uic` (C `NIiter` returns after one `CKTload`): no solve; charges and
+    ///   fluxes come from the capacitor/inductor initial values (see
+    ///   [`initial::uic_start`]) and [`initial::check_impulse_free`] rejects
+    ///   initial conditions that would need an impulse.
+    ///
+    /// Nothing is committed (no accept hook, no history) until every check has
+    /// passed, so a failed initialization leaves no partial state.
+    fn initialize(&mut self) -> SpiceResult<Vector> {
+        let rhs = self.system.transient_rhs(0., spice_devices::Limit::Left)?;
+        let (x, trial) = if self.uic {
+            let start = initial::uic_start(self.circuit, &self.hints)?;
+            let trial = self.initial_state(&start.x, &start.charges)?;
+            let tolerances = &self.settings.tolerances;
+            initial::check_impulse_free(
+                self.circuit,
+                &self.system.a,
+                &self.system.transient_rhs(0., spice_devices::Limit::Right)?,
+                &start.x,
+                initial::Tolerances {
+                    reltol: tolerances.reltol,
+                    vntol: tolerances.vntol,
+                    abstol: tolerances.abstol,
+                },
+            )?;
+            (start.x, trial)
+        } else {
+            let tolerances = &self.settings.tolerances;
+            let constraints = initial::irredundant_constraints(
+                self.circuit,
+                &rhs,
+                &self.hints.initial,
+                VoltageTolerance {
+                    reltol: tolerances.reltol,
+                    vntol: tolerances.vntol,
+                },
+            )?;
+            let x = if constraints.is_empty() {
+                self.system.a.solve(&rhs)?
+            } else {
+                initial::constrained_bias(&self.system.a, &rhs, &constraints)?
+            };
+            let trial = self.initial_state(&x, &[])?;
+            (x, trial)
+        };
+        // C copies CKTstate0 into CKTstate1..3; the derivative is zero.
+        self.circuit
+            .accept_point(&x, Some(0.), &mut self.history, trial.clone())?;
+        for _ in 1..spice_devices::ACCEPTED_DEPTH {
+            self.history.commit(trial.clone())?;
+        }
+        Ok(x)
+    }
+
+    /// The charge/flux state of the initial point: a DC-mode load at `x`
+    /// (`q = C v`, `flux = L i`, zero derivative) with the listed absolute
+    /// state slots overwritten.
+    fn initial_state(&self, x: &Vector, overrides: &[(usize, Real)]) -> SpiceResult<TrialState> {
         let n = self.circuit.unknown_count();
         let mut trial = self.history.trial();
         self.circuit.load(
@@ -572,12 +649,12 @@ impl Driver<'_> {
             &mut Vector::zeros(n),
             &mut trial,
         )?;
-        self.circuit
-            .accept_point(x, Some(0.), &mut self.history, trial.clone())?;
-        for _ in 1..spice_devices::ACCEPTED_DEPTH {
-            self.history.commit(trial.clone())?;
+        for (slot, value) in overrides {
+            self.history
+                .device(&mut trial, *slot..*slot + 1)?
+                .set(0, *value)?;
         }
-        Ok(())
+        Ok(trial)
     }
 
     /// One trial point: `load -> solve -> converged?` (C `NIiter`).
@@ -623,6 +700,7 @@ impl Driver<'_> {
             let mut rhs = Vector::zeros(n);
             load(&guess, &mut matrix, &mut rhs)?;
             matrix.fold_duplicates();
+            let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
             let x = matrix.solve(&rhs)?;
             if !x.is_finite() {
                 return Err(failure(format!("nonfinite solution at t = {time:e}")));
@@ -698,6 +776,38 @@ impl Driver<'_> {
         }
         Ok(limit)
     }
+}
+
+/// Row-equilibrated copy of `A x = b`: every row is divided by its largest
+/// entry, which leaves the solution unchanged.
+///
+/// A companion inductor row `v+ - v- - (L/h) i = veq` has a coefficient `L/h`
+/// (1e5 and more for small first steps) next to O(1) entries; elimination
+/// through it costs the digits the solver's backward-residual check demands
+/// as soon as the initial current is not zero. Dividing each row by its
+/// largest entry removes the disparity without touching any device stamp.
+fn equilibrated(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<(SparseMatrix, Vector)> {
+    let n = matrix.rows();
+    let mut largest = vec![0.; n];
+    for t in matrix.triplets() {
+        largest[t.row] = Real::max(largest[t.row], t.value.abs());
+    }
+    let scale = |row: usize| {
+        if largest[row] > 0. && largest[row].is_finite() {
+            1. / largest[row]
+        } else {
+            1.
+        }
+    };
+    let mut scaled = SparseMatrix::new(n, matrix.cols());
+    for t in matrix.triplets() {
+        scaled.add(t.row, t.col, t.value * scale(t.row))?;
+    }
+    let mut b = rhs.clone();
+    for (row, value) in b.as_mut_slice().iter_mut().enumerate() {
+        *value *= scale(row);
+    }
+    Ok((scaled, b))
 }
 
 fn push(plot: &mut Plot, time: Real, x: &Vector) -> SpiceResult<()> {

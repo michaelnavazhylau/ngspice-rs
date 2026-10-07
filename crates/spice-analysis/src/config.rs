@@ -16,6 +16,10 @@
 //! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
 //! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
 //!
+//! `.ic` and `.nodeset` cards are not options: [`RunConfig::from_netlist`]
+//! evaluates them against `.param` and [`RunConfig::request`] attaches them to
+//! every analysis request (`AnalysisRequest::initial_conditions`/`nodesets`).
+//!
 //! Every other name from `cktsopt.c` (`itl*`, `gmin`, flags,
 //! ...) is reported as [`SpiceError::NotYetPorted`]; names absent from that
 //! table are parse errors. `no_auto_gnd` is a front-end variable in C, not an
@@ -38,7 +42,7 @@ use spice_devices::Circuit;
 use spice_maths::integrator::IntegrationMethod;
 use spice_netlist::ast::{AnalysisCard, Netlist, OptionCard, OptionSetting};
 
-use crate::{AnalysisContext, AnalysisRequest};
+use crate::{AnalysisContext, AnalysisRequest, NodeCondition};
 
 const C_REFERENCE: &str = "src/spicelib/analysis/cktsopt.c, src/spicelib/parser/inpdoopt.c";
 
@@ -155,8 +159,10 @@ pub struct RunConfig {
     method: Option<(String, SourceLoc)>,
     maxord: Option<(u8, SourceLoc)>,
     applied: Vec<AppliedOption>,
-    /// First `.ic` / `.nodeset` entry: parsed, but no analysis applies them yet.
-    pending_hint: Option<(&'static str, SourceLoc)>,
+    /// Evaluated `.ic` entries in deck order, attached to every request.
+    initial_conditions: Vec<NodeCondition>,
+    /// Evaluated `.nodeset` entries in deck order, attached to every request.
+    nodesets: Vec<NodeCondition>,
     params: Option<std::sync::Arc<spice_netlist::eval::ParamScope>>,
 }
 
@@ -167,19 +173,28 @@ impl RunConfig {
     /// Unknown, unimplemented, malformed, out-of-range or conflicting options.
     pub fn from_netlist(netlist: &Netlist) -> SpiceResult<Self> {
         let mut config = Self::from_options(&netlist.options, &RunOverrides::default())?;
-        config.pending_hint = netlist
-            .initial_conditions()
-            .next()
-            .map(|hint| (".ic", hint.location.clone()))
-            .or_else(|| {
-                netlist
-                    .nodesets()
-                    .next()
-                    .map(|hint| (".nodeset", hint.location.clone()))
-            });
-        config.params = Some(std::sync::Arc::new(spice_netlist::eval::ParamScope::root(
-            &netlist.params,
-        )?));
+        let scope = spice_netlist::eval::ParamScope::root(&netlist.params)?;
+        let (initial, nodesets) = spice_netlist::elaborate::literalize_node_hints(
+            netlist,
+            &scope,
+            &mut spice_netlist::eval::EvalBudget::default(),
+        )?;
+        let conditions = |cards: &[spice_netlist::ast::NodeHintCard]| {
+            cards
+                .iter()
+                .flat_map(|card| &card.entries)
+                .filter_map(|entry| {
+                    Some(NodeCondition {
+                        node: entry.node.to_string(),
+                        value: entry.literal()?,
+                        location: entry.location.clone(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        };
+        config.initial_conditions = conditions(&initial);
+        config.nodesets = conditions(&nodesets);
+        config.params = Some(std::sync::Arc::new(scope));
         Ok(config)
     }
 
@@ -412,16 +427,15 @@ impl RunConfig {
     /// selection cannot be honoured and is not silently ignored; also Gear
     /// orders above 2.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
-        // Parsed but unapplied: running would silently ignore the deck's
-        // initial conditions / convergence hints (GitHub #27 analysis half).
-        if let Some((card, location)) = &self.pending_hint {
-            return Err(SpiceError::Unsupported {
-                feature: format!(
-                    "{card} entries are parsed but no analysis applies them yet \
-                     (initialization semantics are pending, GitHub #27)"
-                ),
-                location: Some(location.clone()),
-            });
+        // Deck-level hints travel with every request (explicit request entries
+        // win); each driver validates them against its circuit.
+        if request.initial_conditions.is_empty() {
+            request
+                .initial_conditions
+                .clone_from(&self.initial_conditions);
+        }
+        if request.nodesets.is_empty() {
+            request.nodesets.clone_from(&self.nodesets);
         }
         if request.kind != AnalysisKind::Transient {
             return Ok(request);

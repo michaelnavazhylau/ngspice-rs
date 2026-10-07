@@ -465,23 +465,14 @@ fn tstart_suppresses_earlier_output_only() {
 }
 
 #[test]
-fn initial_conditions_floating_nodes_and_bad_decks_are_explicit_errors() {
+fn floating_nodes_and_bad_decks_are_explicit_errors() {
+    // Instance ic= is now delivered by the companion driver (#27): without uic
+    // it is ignored exactly as C ignores it (see tests/initial_conditions.rs).
     let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u ic=1");
-    assert!(error_text(run(&mut c, &["1u", "1m"])).contains("ic"));
-    let mut c = circuit(RC);
-    let mut uic = request(&["1u", "1m"]);
-    uic.uic = true;
-    let error = companion_transient(&mut c, &uic, &AnalysisContext::default())
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("uic"), "{error}");
+    assert!(run(&mut c, &["1u", "1m"]).is_ok());
     // A floating capacitor has no DC operating point.
     let mut c = circuit("c1 a 0 1u");
     assert!(run(&mut c, &["1u", "1m"]).is_err());
-    // `.ic` cards stay rejected by the configuration layer.
-    let n = netlist("v1 a 0 0\nr1 a b 1k\nc1 b 0 1u\n.ic v(b)=1\n.tran 1u 1m");
-    let config = RunConfig::from_netlist(&n).unwrap();
-    assert!(config.request_for(&n.analyses[0]).is_err());
 }
 
 #[test]

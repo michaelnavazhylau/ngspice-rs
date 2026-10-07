@@ -69,6 +69,9 @@ pub(crate) fn op(
     if !request.arguments.is_empty() {
         return Err(unsupported(".op arguments"));
     }
+    // .ic is a transient-only constraint in C (cktload.c, MODETRANOP) and a
+    // .nodeset cannot change a linear operating point; both are validated.
+    crate::initial::resolve(circuit, request)?;
     let system = circuit.linear_system_with_context(&context.model_context())?;
     let x = system.a.solve(&system.dc_rhs(None)?)?;
     let mut plot = plot(circuit, "op1", "Operating Point", None, false)?;
@@ -87,6 +90,7 @@ pub(crate) fn dc(
             ".dc requires one independent source, start, stop, step",
         ));
     }
+    crate::initial::resolve(circuit, request)?;
     let name = request.argument(0).unwrap();
     let start = number(request.argument(1), "sweep start")?;
     let stop = number(request.argument(2), "sweep stop")?;

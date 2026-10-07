@@ -7,7 +7,7 @@
 //!   companion driver.
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisRequest, Plot};
-use spice_core::{Complex, SpiceResult};
+use spice_core::{Complex, SpiceError, SpiceResult};
 use spice_devices::{Circuit, Limit, TransientTiming};
 use spice_maths::diffsol::{BdfOptions, DaeSegment, LinearDae};
 
@@ -47,10 +47,21 @@ fn run_diffsol(
     }
     if request.uic {
         return Err(unsupported(
-            ".tran uic requires .ic/instance-IC initialization semantics (GitHub #27 analysis half); \
-             the flag is parsed but not applied",
+            ".tran uic is implemented only by the companion driver (omit backend=diffsol); \
+             the diffsol BDF backend has no initial-condition formulation",
         ));
     }
+    if let Some(entry) = request.initial_conditions.first() {
+        return Err(SpiceError::Unsupported {
+            feature: ".ic is implemented only by the companion driver (omit backend=diffsol); \
+                      the diffsol BDF backend would silently start from the DC operating point"
+                .into(),
+            location: Some(entry.location.clone()),
+        });
+    }
+    // .nodeset only steers DC convergence and cannot change a linear operating
+    // point; it is validated (unknown nodes) and otherwise has no effect.
+    crate::initial::resolve(circuit, request)?;
     let mut positional = vec![];
     let mut seen = std::collections::BTreeSet::new();
     for a in &request.arguments {
@@ -72,7 +83,7 @@ fn run_diffsol(
     }
     if !(2..=4).contains(&positional.len()) {
         return Err(unsupported(
-            ".tran step stop [start [maxstep]] backend=diffsol method=bdf; .ic/uic are unsupported",
+            ".tran step stop [start [maxstep]] backend=diffsol method=bdf; .ic/uic/instance ic= are unsupported",
         ));
     }
     let dt = number(positional.first().copied(), "sample step")?;
@@ -107,7 +118,8 @@ fn run_diffsol(
     system.bind_transient_timing(&TransientTiming::new(dt, end)?)?;
     if system.has_initial_conditions {
         return Err(unsupported(
-            "device ic= requires .ic/uic semantics; this backend starts from a linear operating point",
+            "device ic= is implemented only by the companion driver (omit backend=diffsol); \
+             the diffsol BDF backend starts from a linear operating point",
         ));
     }
     let dae = LinearDae::new(&system.a, &system.e)?;

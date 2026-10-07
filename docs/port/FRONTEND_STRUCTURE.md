@@ -140,7 +140,7 @@ variable) and invalid values are errors; every other `cktsopt.c` option is
 `NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
 `spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
 
-## `.ic`, `.nodeset` and `uic` (#27, frontend half)
+## `.ic`, `.nodeset` and `uic` (#27)
 
 `.ic`/`.nodeset` parse (winnow, `parser/hints.rs`) into
 `NodeHintCard { entries: Vec<NodeHint> }`; each `NodeHint` has the canonical node,
@@ -162,13 +162,16 @@ and ignores unknown nodes. The port rejects the silent cases explicitly (ground,
 missing node/value, empty card, non-finite, `V(a,b)`, `I(..)`) and reports
 `.nodeset all=value` and any `.ic`/`.nodeset` inside a `.subckt` body (C
 translates them in `subckt.c`) as `NotYetPorted`. Unknown nodes cannot be seen
-without a circuit; the analysis half must reject them. Bare parameter names are
-not references; use `{expr}`. `RunConfig` rejects decks with these cards and the
-transient driver rejects `uic` (`Unsupported`, #27) so nothing is silently
-ignored. AST dumps print `initial-conditions`/`nodesets` sections and the
-`uic @loc` line only when present, so existing snapshots are unchanged. Tests:
+without a circuit; the analysis layer rejects them with the entry's location (C only
+warns "IC on non-existent node ... ignored"). Bare parameter names are not
+references; use `{expr}`. The analysis half (landed): `RunConfig::from_netlist`
+evaluates the entries against `.param` (`elaborate::literalize_node_hints`) and
+attaches them, in deck order, to every `AnalysisRequest` as
+`initial_conditions`/`nodesets` (`NodeCondition { node, value, location }`); the
+last duplicate wins as in C. Semantics are in [TRANSIENT.md](TRANSIENT.md). AST dumps print
+`initial-conditions`/`nodesets` sections and the `uic @loc` line only when present, so existing snapshots are unchanged. Tests:
 `spice-netlist/tests/ic_nodeset_parser.rs`, opt-in `c_ic_nodeset.rs`,
-`spice-analysis/tests/run_config.rs`.
+`spice-analysis/tests/run_config.rs`, `initial_conditions.rs`.
 
 ## Normalized deck writer (#20)
 

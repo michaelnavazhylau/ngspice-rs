@@ -66,6 +66,7 @@ pub(crate) fn run(
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("AC frequency grid makes no progress"));
     }
+    crate::initial::resolve(circuit, request)?;
     let system = circuit.linear_system_with_context(&context.model_context())?;
     // Require a valid bias point even for linear AC; don't accept isolated
     // capacitor networks as an implicit substitute for DC initialization.

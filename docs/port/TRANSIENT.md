@@ -20,7 +20,8 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 | `maxord=3..6`, `0`, non-integer | explicit `Unsupported` error (orders above 2 are not implemented) |
 | `backend=diffsol method=bdf` | explicit diffsol BDF, unchanged |
 | `backend=diffsol` without `method=bdf`, `method=bdf` without the backend, unknown backend/method, unknown or duplicate options | explicit errors |
-| `uic`, device `ic=`, `.ic` / `.nodeset` cards | explicit errors (initial-condition semantics are GitHub #27) |
+| `uic`, `.ic`, instance `ic=` with `backend=diffsol` | explicit `Unsupported` errors (the BDF backend has no IC formulation; `.nodeset` is validated and otherwise a no-op) |
+| `uic`, `.ic`, `.nodeset`, instance `ic=` on the companion driver | implemented, see [Initial conditions](#initial-conditions-27) |
 
 `.option method=`, `maxord=`, `reltol=`, `vntol=`, `abstol=`, `chgtol=` and
 `trtol=` are forwarded by `RunConfig::request_for` as the request arguments
@@ -42,12 +43,13 @@ dropped; neither `StateHistory` nor `StepHistory` nor any device changes) or
 last, atomic) followed by `StepHistory::accept`. An accept-hook failure aborts
 the run with an error; no partial plot is returned.
 
-* **Initial point.** `A x = b(0-)`: the DC operating point with the sources at
-  their left limit at `t = 0` (C evaluates the waveform in `MODETRANOP`), the
-  same policy as the diffsol backend. Its charge/flux state, with zero
-  derivative, fills the whole accepted history (C copies `CKTstate0` into
-  `CKTstate1..3`). Floating capacitor nodes or ideal-source loops have no DC
-  point and fail.
+* **Initial point.** Without `uic`: `A x = b(0-)`, the DC operating point with
+  the sources at their left limit at `t = 0` (C evaluates the waveform in
+  `MODETRANOP`), the same policy as the diffsol backend, with `.ic` node
+  voltages imposed (below). With `uic`: no solve, see below. The charge/flux
+  state, with zero derivative, fills the whole accepted history (C copies
+  `CKTstate0` into `CKTstate1..3`). Floating capacitor nodes or ideal-source
+  loops have no DC point and fail unless an `.ic` fixes the floating node.
 * **Step sizes** (`traninit.c`, `dctran.c`). `maxstep = tmax` if given, else
   `min(tstep, (tstop - tstart)/50)`; `delmin = 1e-11 maxstep`; first step
   `min(tstop/100, tstep)/10`, cut at the `t = 0` breakpoint to
@@ -87,6 +89,74 @@ the run with an error; no partial plot is returned.
   with `reltol`, `vntol` on node rows and `abstol` on branch rows; nothing in the
   repository evaluates nonlinear physics yet (M4), the loop is exercised by test
   devices.
+
+## Initial conditions (#27)
+
+C references (all behaviour below was read from the sources and re-checked with
+the reference binary): `inppas3.c`/`cktsetnp.c` (storing `.ic`/`.nodeset`),
+`cktic.c` (`CKTic`), `cktload.c` (constraint stamping), `niiter.c`
+(`MODETRANOP`/`MODEUIC` shortcut), `dctran.c`, `capload.c`, `capgetic.c`,
+`indload.c`. Code: `crates/spice-analysis/src/initial.rs` and
+`Driver::initialize` in `companion.rs`. Tests: `tests/initial_conditions.rs`
+(analytic) and opt-in `tests/c_initial_conditions.rs` (live C).
+
+| Item | C behaviour | This port |
+| --- | --- | --- |
+| duplicate `.ic`/`.nodeset` for a node | each entry overwrites the node field: last wins | same (deck order, across cards) |
+| unknown node | warning "IC on non-existent node ... ignored" (any analysis) | **error** with the entry location, in every analysis and backend |
+| `.ic`, no `uic` | enforced in every iteration of the `.tran` initial bias only (`cktload.c`, `MODETRANOP`, not `MODEUIC`); row replaced by `v = ic`, or by a `1e10` conductance when the row holds a branch-current entry | node rows replaced by `x[row] = ic` **exactly** (the KCL residual is the current of the hidden constraint), for every row. Nodes on ideal sources/inductors (DC shorts) are resolved structurally, below |
+| `.ic` in `.op`, `.dc`, `.ac` | ignored (`MODETRANOP` only) | accepted, ignored, nodes validated |
+| `.nodeset`, no `uic` | stamped only in `MODEINITJCT`/`MODEINITFIX` iterations, then released; a convergence hint | linear circuits have one solution, so it is validated and has no effect (tested bit-identical); `.op`, `.dc`, `.ac`, both backends |
+| instance `ic=` (C, L), no `uic` | ignored (`capload.c`/`indload.c` use it only for `MODEUIC`) | ignored |
+| `uic` | `NIiter` returns after one `CKTload`, no solve; `CKTic` copies `.nodeset` then `.ic` into the node vector; `CAPgetic` takes an unset capacitor `ic` from those node values (instance `ic=` always wins); inductor current = `ic=` else 0; no `t = 0` row is written; a breakpoint at the `.tran` step is added (`CKTsetBreak(CKTstep)`) | same, including `.nodeset` acting as a node IC and the missing `t = 0` row and the step breakpoint; the first row is the first accepted time |
+
+**Without `uic`.** The `.ic` constraints replace the KCL rows of the constrained
+nodes in `A x = b(0-)`; the result is the `t = 0` row, and the charge/flux state
+is `C v`, `L i` of that point. Then the constraint is released: the run is an
+ordinary transient (verified against `1 - 0.75 exp(-t/tau)`, max error
+2.3e-6 V at 10 us steps, and against C at 1.6e-9 of the C tolerance bound).
+Nodes whose voltage is already fixed by ideal voltage sources and inductors (DC
+shorts) chained to ground, or to another constrained node, are solved
+structurally (petgraph spanning forest with `UnionFind` membership of the `v+ - v- = value` relations): an `.ic`
+that agrees within `reltol`/`vntol` is dropped (the source wins; C returns a
+wrong `i(v1)` of 0 at `t = 0` for this case because of its `1e10` hack, this port
+returns the exact branch current), one that disagrees, or two entries on rigidly
+tied nodes, is an explicit error instead of C's meaningless `1e10` compromise
+(`i(v1) = -1e10`). A node with only capacitors (no DC point) becomes solvable
+through its `.ic`.
+
+**With `uic`.** Capacitor charge is `C ic` (instance `ic=`, else the difference of
+the `.nodeset`/`.ic` node values, else 0), inductor flux is `L ic` (default 0
+current; positive from the first to the second terminal). `x` is only the Newton
+guess; the first timepoint is solved with backward Euler from that state and
+sources at their right limit at `t = 0`. C never checks consistency; this port
+does, **exactly**, before any accept hook or plot row exists
+(`initial::check_impulse_free`): it forms the instantaneous problem (capacitors
+become voltage constraints with free current, inductors fixed currents with free
+voltage, sources at the right limit) and requires a solution. Redundant but
+consistent relations (a capacitor whose `ic` equals the source across it, an
+inductor carrying the series current source's current) are accepted;
+contradictions (capacitor across an ideal source with another `ic`, a capacitor
+loop whose voltages break KVL, an inductor current against a series current
+source, a step source whose right limit at `t = 0` differs from the capacitor
+`ic`) are errors naming the element; anything else singular or non-square is
+reported as ill-posed. Failed initialization returns before any state exists
+(tested with an accept-hook probe: zero hooks called).
+
+Numerical consequences and divergences from C: no `1e10` scaling anywhere; `i(v1)`
+at `t = 0` is exact where C's artifact differs (compared after `t = 0` in the
+opt-in test); `.ic` entries contradicting a source and impulsive `uic` states are
+errors where C produces garbage or a first-step spike; unknown nodes are errors.
+Not covered: mutual inductors, nonlinear device initial conditions
+(`off`/`ic=` of diodes/transistors), `.ic` inside subcircuits and `.nodeset all=`
+(`NotYetPorted` in the parser), `.op`-only `.ic` use.
+
+Measured against analytic solutions (trap, `tstep` = max step): `uic` RC discharge
+from `ic=2`, 10 us step: 5.9e-6 V; `uic` RL (`ic=0.5 A`), 10 us: 1.2e-6 A; `uic`
+series RLC with inductor and capacitor `ic`, 0.5 us: 1.0e-4 V, 3.3e-6 A. Against C
+(same decks, common 1e-3 relative / 1 uV / 1 pA bound): all 11 opt-in cases agree
+to better than 3.1e-9 of the bound, with identical point counts (the step
+sequences coincide again, including the `uic` step breakpoint).
 
 ## Output policy
 
@@ -143,12 +213,12 @@ both limits of the single in-run breakpoint; worst error 0.000 of the bound).
 ## Limits
 
 * Linear R/C/L/V/I only; nonlinear charge and devices arrive with M4.
-* Orders above 2, `.ic`, `.nodeset`, `uic` and instance `ic=` are rejected.
+* Orders above 2 are rejected; `.ic`/`uic`/instance `ic=` exist only on this
+  driver (explicit errors with `backend=diffsol`).
 * No predictor (`PREDICTOR` is optional in C); the previous solution seeds Newton.
 * No `gmin`/source stepping: a floating or source-looped DC bias is an error.
 * General DAE structure is not analysed (no index check as in the diffsol
   backend); a singular trial matrix is an explicit numerical error.
-* Hooking IC initialization (#27): replace the left-limit bias solve in
-  `Driver::run` (`self.system.a.solve(...)`) and `Driver::accept_initial` with a
-  routine that produces the initial `x` and a consistent charge/flux trial state;
-  everything after that point (history fill, step control) needs no change.
+* Companion inductor rows are row-equilibrated before the solve
+  (`companion.rs::equilibrated`); without it a nonzero initial inductor current
+  with `L/dt` of 1e5 or more tripped the solver's backward-residual check.

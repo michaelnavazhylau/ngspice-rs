@@ -15,3 +15,4 @@ spice-core.workspace = true
 spice-maths.workspace = true
 spice-netlist.workspace = true
 spice-devices.workspace = true
+petgraph.workspace = true

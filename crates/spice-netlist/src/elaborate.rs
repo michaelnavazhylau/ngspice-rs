@@ -229,6 +229,29 @@ pub fn literalize_with(
     })
 }
 
+/// Evaluates only the `.ic` and `.nodeset` entries against `scope`, returning
+/// literalized copies of those cards (`.ic` first, `.nodeset` second) without
+/// elaborating the rest of the deck. Order and duplicates are preserved.
+///
+/// # Errors
+/// Any entry evaluation failure, located at the expression.
+pub fn literalize_node_hints(
+    netlist: &Netlist,
+    scope: &ParamScope,
+    budget: &mut EvalBudget,
+) -> SpiceResult<(Vec<NodeHintCard>, Vec<NodeHintCard>)> {
+    let mut sites = Vec::new();
+    let mut initial = netlist.initial_conditions.clone();
+    let mut nodesets = netlist.nodesets.clone();
+    literalize_hints(&mut initial, scope, budget, &mut sites, |c, e| {
+        SiteKind::InitialCondition { card: c, entry: e }
+    })?;
+    literalize_hints(&mut nodesets, scope, budget, &mut sites, |c, e| {
+        SiteKind::Nodeset { card: c, entry: e }
+    })?;
+    Ok((initial, nodesets))
+}
+
 fn literalize_hints(
     cards: &mut [NodeHintCard],
     scope: &ParamScope,
