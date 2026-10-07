@@ -1,10 +1,17 @@
-//! ngspice rawfile I/O — the ASCII variant, read and write.
+//! ngspice rawfile I/O — the ASCII and binary variants, read and write.
 //!
 //! Ported from `src/frontend/rawfile.c` (`ft_rawfile()`, `raw_read()`,
 //! `raw_write()`). ngspice writes rawfiles in **binary** by default; the ASCII
 //! form is selected with `set filetype=ascii`, which is what
 //! `cargo xtask golden capture` does so that the golden files are diffable and
 //! reviewable.
+//!
+//! Both forms share one header and differ only in the line that announces the
+//! values (`Values:` against `Binary:`) and in how those values are encoded.
+//! [`RawFile::parse_bytes`] detects the encoding and dispatches to
+//! [`RawFile::parse`] for text or to the binary codec for `double` payloads,
+//! so binary bytes are never decoded as text. [`RawFormat::detect`] reports the
+//! encoding of a file on its own.
 //!
 //! An ASCII rawfile is a sequence of plots, each looking like:
 //!
@@ -33,8 +40,13 @@
 //! digits followed by whitespace can only be a point index — never a value —
 //! which is how the internal `split_index_and_value` helper tells them apart.
 //!
-//! **Binary rawfiles are not supported** and are reported as
-//! [`SpiceError::Unsupported`].
+//! A binary rawfile is the same header followed by `Binary:` and then the raw
+//! `double`s `raw_write()` `fwrite()`s: point-major, one `double` per value for a
+//! `real` plot and `re, im` for a `complex` one. The complete layout, its
+//! provenance in `rawfile.c` and the variants the port rejects are documented in
+//! `docs/port/RAWFILES.md` and in the `binary` submodule. [`RawFile::parse`]
+//! still refuses binary input; use [`RawFile::parse_bytes`] or
+//! [`RawFileReader`].
 
 // The `Values:` section is tab-separated, so the doc example above uses tabs.
 // They are intentional: they show the exact byte layout ngspice writes.
@@ -47,6 +59,10 @@ use spice_core::{Complex, Real, SpiceError, SpiceResult};
 
 use crate::results::{Plot, PlotFlags, Variable};
 
+mod binary;
+
+pub use binary::{BinaryByteOrder, RawFileReader, RawFormat};
+
 fn unsupported(feature: impl Into<String>) -> SpiceError {
     SpiceError::Unsupported {
         feature: feature.into(),
@@ -58,8 +74,10 @@ fn missing_header(key: &str) -> SpiceError {
     unsupported(format!("rawfile plot without a '{key}:' header"))
 }
 
-const BINARY_UNSUPPORTED: &str =
-    "binary rawfile; only the ASCII form written by 'set filetype=ascii' is supported";
+const BINARY_UNSUPPORTED: &str = concat!(
+    "binary rawfile; read it with RawFile::parse_bytes or RawFileReader, ",
+    "or write the ASCII form with 'set filetype=ascii'"
+);
 
 /// A plot together with the headers ngspice writes around it.
 #[derive(Debug, Clone, PartialEq)]
@@ -125,6 +143,9 @@ impl RawFile {
 
     /// Parses ASCII rawfile text.
     ///
+    /// Use [`RawFile::parse_bytes`] for a file that may be binary: this method
+    /// only ever sees text.
+    ///
     /// # Errors
     ///
     /// [`SpiceError::Unsupported`] for a binary rawfile, a malformed header, a
@@ -138,16 +159,35 @@ impl RawFile {
         Ok(Self { plots })
     }
 
-    /// Reads and parses a rawfile.
+    /// Reads and parses a rawfile of either encoding.
+    ///
+    /// The file is read as bytes and handed to [`RawFile::parse_bytes`], so a
+    /// binary rawfile is decoded without being treated as text.
     ///
     /// # Errors
     ///
     /// [`SpiceError::Io`] when the file cannot be read, plus everything
-    /// [`RawFile::parse`] reports.
+    /// [`RawFile::parse_bytes`] reports.
     pub fn load(path: impl AsRef<Path>) -> SpiceResult<Self> {
         let path = path.as_ref();
-        let text = fs::read_to_string(path).map_err(|error| SpiceError::io(path, &error))?;
-        Self::parse(&text)
+        let bytes = fs::read(path).map_err(|error| SpiceError::io(path, &error))?;
+        Self::parse_bytes(&bytes)
+    }
+
+    /// Parses a rawfile from its bytes, detecting which encoding it uses.
+    ///
+    /// A `real` or `complex` binary payload is read as little-endian, the layout
+    /// `raw_write()` produces on the platforms the port supports. Because a
+    /// binary rawfile does not record its byte order, a file written on a
+    /// big-endian machine needs an explicit
+    /// [`RawFileReader::with_byte_order`].
+    ///
+    /// # Errors
+    ///
+    /// Everything [`RawFile::parse`] reports for the ASCII form, plus the
+    /// failures of the binary codec, which `docs/port/RAWFILES.md` lists.
+    pub fn parse_bytes(bytes: &[u8]) -> SpiceResult<Self> {
+        RawFileReader::new(bytes).read()
     }
 
     /// Checks that every plot is internally consistent.
@@ -189,20 +229,7 @@ impl RawFile {
         let mut out = String::new();
         for raw_plot in &self.plots {
             let plot = &raw_plot.plot;
-            out.push_str(&format!("Title: {}\n", raw_plot.title));
-            out.push_str(&format!("Date: {}\n", raw_plot.date));
-            out.push_str(&format!("Command: {}\n", raw_plot.command));
-            out.push_str(&format!("Plotname: {}\n", plot.plotname));
-            out.push_str(&format!("Flags: {}\n", plot.flags.as_rawfile()));
-            out.push_str(&format!("No. Variables: {}\n", plot.variables.len()));
-            out.push_str(&format!("No. Points: {}\n", plot.points.len()));
-            out.push_str("Variables:\n");
-            for (index, variable) in plot.variables.iter().enumerate() {
-                out.push_str(&format!(
-                    "\t{index}\t{}\t{}\n",
-                    variable.name, variable.unit
-                ));
-            }
+            render_header(&mut out, raw_plot);
             out.push_str("Values:\n");
             for (point_index, point) in plot.points.iter().enumerate() {
                 out.push_str(&format!(" {point_index}"));
@@ -232,6 +259,74 @@ impl RawFile {
         self.validate()?;
         let path = path.as_ref();
         fs::write(path, self.to_ascii()).map_err(|error| SpiceError::io(path, &error))
+    }
+
+    /// Renders the rawfile in ngspice's binary format, little-endian.
+    ///
+    /// The bytes are what `raw_write()` `fwrite()`s after it switches on
+    /// `set filetype=binary`: the same header as [`RawFile::to_ascii`], then
+    /// `Binary:`, then one `double` per value point-major. See
+    /// `docs/port/RAWFILES.md` for the full layout and its provenance.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] from [`RawFile::validate`].
+    pub fn to_binary(&self) -> SpiceResult<Vec<u8>> {
+        self.to_binary_with(BinaryByteOrder::LittleEndian)
+    }
+
+    /// Renders the rawfile in ngspice's binary format with an explicit byte
+    /// order.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] from [`RawFile::validate`].
+    pub fn to_binary_with(&self, byte_order: BinaryByteOrder) -> SpiceResult<Vec<u8>> {
+        binary::render(self, byte_order)
+    }
+
+    /// Writes the rawfile in the requested encoding.
+    ///
+    /// [`RawFormat::Ascii`] writes exactly [`RawFile::to_ascii`];
+    /// [`RawFormat::Binary`] writes exactly [`RawFile::to_binary`].
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] from [`RawFile::validate`], or
+    /// [`SpiceError::Io`] when the file cannot be written.
+    pub fn write_with_format(&self, path: impl AsRef<Path>, format: RawFormat) -> SpiceResult<()> {
+        match format {
+            RawFormat::Ascii => self.write(path),
+            RawFormat::Binary => {
+                let bytes = self.to_binary()?;
+                let path = path.as_ref();
+                fs::write(path, bytes).map_err(|error| SpiceError::io(path, &error))
+            }
+        }
+    }
+}
+
+/// Writes the header both encodings share, up to and including the `Variables:`
+/// lines, exactly as `raw_write()` lays it out.
+///
+/// The ASCII form appends `Values:` and text; the binary form appends `Binary:`
+/// and a `double` payload. Keeping one renderer makes the two headers identical
+/// by construction.
+fn render_header(out: &mut String, raw_plot: &RawPlot) {
+    let plot = &raw_plot.plot;
+    out.push_str(&format!("Title: {}\n", raw_plot.title));
+    out.push_str(&format!("Date: {}\n", raw_plot.date));
+    out.push_str(&format!("Command: {}\n", raw_plot.command));
+    out.push_str(&format!("Plotname: {}\n", plot.plotname));
+    out.push_str(&format!("Flags: {}\n", plot.flags.as_rawfile()));
+    out.push_str(&format!("No. Variables: {}\n", plot.variables.len()));
+    out.push_str(&format!("No. Points: {}\n", plot.points.len()));
+    out.push_str("Variables:\n");
+    for (index, variable) in plot.variables.iter().enumerate() {
+        out.push_str(&format!(
+            "\t{index}\t{}\t{}\n",
+            variable.name, variable.unit
+        ));
     }
 }
 
@@ -269,8 +364,53 @@ fn parse_count(key: &str, value: &str) -> SpiceResult<usize> {
         .map_err(|_| unsupported(format!("rawfile header '{key}: {value}' is not a count")))
 }
 
-/// Parses one plot, or returns `None` at the end of the file.
-fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
+/// Reads ngspice's `padded`/`unpadded` flag, in which the last word wins.
+///
+/// `raw_write()` appends ` unpadded` when the `nopadding` option is set
+/// (rawfile.c:120) and `raw_read()` treats `unpadded` as "the payload is not
+/// rectangular" (rawfile.c:411). A padded payload is the default, and the only
+/// one the binary codec accepts, because an unpadded payload's length cannot be
+/// derived from the header.
+fn parse_padding(flags: &str) -> bool {
+    let mut padded = true;
+    for token in flags.split_whitespace() {
+        if token.eq_ignore_ascii_case("unpadded") {
+            padded = false;
+        } else if token.eq_ignore_ascii_case("padded") {
+            padded = true;
+        }
+    }
+    padded
+}
+
+/// The data-section line that ends a plot header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Section {
+    /// `Values:`, the ASCII form.
+    Values,
+    /// `Binary:`, the native-`double` form.
+    Binary,
+}
+
+/// One plot's headers, up to but excluding its data section.
+struct Header {
+    title: String,
+    date: String,
+    command: String,
+    plotname: String,
+    flags: PlotFlags,
+    /// False when the `Flags:` line carries ngspice's `unpadded`.
+    padded: bool,
+    point_count: usize,
+    variables: Vec<Variable>,
+}
+
+/// Parses one plot header, up to and including its `Values:` or `Binary:` line.
+///
+/// Returns `None` at the end of the file. The returned [`Section`] is the line
+/// that ended the header: [`parse_plot`] accepts only the ASCII one, while
+/// the binary codec locates its payload from the same line.
+fn parse_header(cursor: &mut Cursor<'_>) -> SpiceResult<Option<(Header, Section)>> {
     while cursor.peek().is_some_and(|line| line.trim().is_empty()) {
         cursor.next();
     }
@@ -283,6 +423,7 @@ fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
     let mut command = String::new();
     let mut plotname = None;
     let mut flags = None;
+    let mut padded = true;
     let mut declared_variables = None;
     let mut declared_points = None;
 
@@ -306,7 +447,10 @@ fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
             "Date" => date = value.to_owned(),
             "Command" => command = value.to_owned(),
             "Plotname" => plotname = Some(value.to_owned()),
-            "Flags" => flags = Some(PlotFlags::parse(value)),
+            "Flags" => {
+                flags = Some(PlotFlags::parse(value));
+                padded = parse_padding(value);
+            }
             "No. Variables" => declared_variables = Some(parse_count(key, value.trim())?),
             "No. Points" => declared_points = Some(parse_count(key, value.trim())?),
             "Variables" => break,
@@ -322,7 +466,10 @@ fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
     let plotname = plotname.ok_or_else(|| missing_header("Plotname"))?;
     let flags = flags.ok_or_else(|| missing_header("Flags"))?;
 
-    let mut variables = Vec::with_capacity(variable_count);
+    // A declared count is a header claim, not a promise, so the list grows as
+    // the lines are read: a bogus `No. Variables:` cannot ask for a huge
+    // allocation before the file has been shown to hold that many lines.
+    let mut variables = Vec::new();
     for index in 0..variable_count {
         let Some(line) = cursor.next() else {
             return Err(unsupported(format!(
@@ -353,17 +500,52 @@ fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
     };
     let key = line
         .split_once(':')
-        .map_or(line.trim(), |(key, _)| key.trim())
-        .to_owned();
-    match key.as_str() {
-        "Values" => {}
-        "Binary" => return Err(unsupported(BINARY_UNSUPPORTED)),
+        .map_or(line.trim(), |(key, _)| key.trim());
+    let section = match key {
+        "Values" => Section::Values,
+        "Binary" => Section::Binary,
         other => {
             return Err(unsupported(format!(
                 "rawfile values section starts with '{other}', expected 'Values'"
             )));
         }
+    };
+
+    Ok(Some((
+        Header {
+            title,
+            date,
+            command,
+            plotname,
+            flags,
+            padded,
+            point_count,
+            variables,
+        },
+        section,
+    )))
+}
+
+/// Parses one ASCII plot, or returns `None` at the end of the file.
+fn parse_plot(cursor: &mut Cursor<'_>) -> SpiceResult<Option<RawPlot>> {
+    let Some((header, section)) = parse_header(cursor)? else {
+        return Ok(None);
+    };
+    if section == Section::Binary {
+        return Err(unsupported(BINARY_UNSUPPORTED));
     }
+
+    let Header {
+        title,
+        date,
+        command,
+        plotname,
+        flags,
+        mut variables,
+        point_count,
+        ..
+    } = header;
+    let variable_count = variables.len();
 
     let mut points: Vec<Vec<Complex>> = Vec::with_capacity(point_count);
     let mut row: Vec<Complex> = Vec::with_capacity(variable_count);
