@@ -207,21 +207,29 @@ fn truncated_payloads_name_the_missing_bytes() {
 
 #[test]
 fn declared_counts_are_validated_before_allocation() {
-    // Counts whose payload size cannot even be represented are rejected.
-    let header = OP_HEADER.replace("No. Points: 2", "No. Points: 18446744073709551615");
+    // Counts whose payload size cannot even be represented are rejected. The
+    // literals are width-independent so a 32-bit target takes the same branch.
+    let header = OP_HEADER.replace("No. Points: 2", &format!("No. Points: {}", usize::MAX));
     let error = RawFile::parse_bytes(&binary_rawfile(&header, &OP_VALUES)).expect_err("overflows");
     assert!(error.to_string().contains("overflows a usize"), "{error}");
 
     // A count that fits a usize but not the file is caught by the byte length,
-    // not by an allocation of 8 x 999999999999 bytes.
-    let header = OP_HEADER.replace("No. Points: 2", "No. Points: 999999999999");
+    // not by an allocation of that many bytes.
+    let huge = OP_VALUES.len() * 8 + 1000;
+    let header = OP_HEADER.replace("No. Points: 2", &format!("No. Points: {huge}"));
     let error = RawFile::parse_bytes(&binary_rawfile(&header, &OP_VALUES)).expect_err("huge");
     let message = error.to_string();
     assert!(message.contains("truncated binary rawfile"), "{message}");
-    assert!(message.contains("No. Points: 999999999999"), "{message}");
+    assert!(
+        message.contains(&format!("No. Points: {huge}")),
+        "{message}"
+    );
 
     // An absurd variable count is a claim the file has to back with lines.
-    let header = OP_HEADER.replace("No. Variables: 3", "No. Variables: 18446744073709551615");
+    let header = OP_HEADER.replace(
+        "No. Variables: 3",
+        &format!("No. Variables: {}", usize::MAX),
+    );
     let error =
         RawFile::parse_bytes(&binary_rawfile(&header, &OP_VALUES)).expect_err("no such lines");
     assert!(error.to_string().contains("variable line"), "{error}");
@@ -416,11 +424,28 @@ fn bytes_after_the_last_payload_are_rejected() {
         "{error}"
     );
 
-    // A second plot's header with no payload after it is a truncation.
+    // A second plot's header that stops before any section line is truncated.
     let mut bytes = binary_rawfile(OP_HEADER, &OP_VALUES);
     bytes.extend_from_slice(AC_HEADER.as_bytes());
-    let error = RawFile::parse_bytes(&bytes).expect_err("no payload");
-    assert!(error.to_string().contains("truncated rawfile"), "{error}");
+    let error = RawFile::parse_bytes(&bytes).expect_err("no section line");
+    assert!(
+        error
+            .to_string()
+            .contains("no 'Values:' or 'Binary:' section"),
+        "{error}"
+    );
+
+    // A complete second header whose declared payload is cut short is a
+    // truncation with a byte count, not a missing section.
+    let mut bytes = binary_rawfile(OP_HEADER, &OP_VALUES);
+    bytes.extend_from_slice(AC_HEADER.as_bytes());
+    bytes.extend_from_slice(b"Binary:\n");
+    bytes.extend_from_slice(&[0; 3]);
+    let error = RawFile::parse_bytes(&bytes).expect_err("short payload");
+    assert!(
+        error.to_string().contains("needs 64 byte(s) of data"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -492,4 +517,57 @@ fn files_round_trip_through_both_encodings() {
         .unwrap();
     assert_eq!(fs::read(&ascii_path).unwrap(), parsed.to_ascii().as_bytes());
     assert_eq!(RawFile::load(&ascii_path).unwrap(), parsed);
+}
+
+/// A `complex` plot whose first column C wrote in the `isreal(v)` short form.
+const REAL_SPELLING_RAWFILE: &str = "\
+Title: noise
+Date: Mon Oct  5 18:00:00 2026
+Command: ngspice-47+, Build
+Plotname: Noise Analysis
+Flags: complex
+No. Variables: 2
+No. Points: 1
+Variables:
+\t0\tfrequency\tfrequency
+\t1\tinoise_spectrum\tnoise-spectral-density
+Values:
+ 0\t1.000000000000000e+03,0.0
+\t1.000000000000000e-18,0.000000000000000e+00
+
+";
+
+#[test]
+fn a_binary_round_trip_loses_the_real_spelling_of_a_complex_column() {
+    // `isreal(v)` is written as `re,0.0` and cannot be recovered from the
+    // payload, so re-rendering ASCII after a binary round trip writes the long
+    // form. Values, names, units, flags and plot count survive; only the
+    // spelling of a real column inside a `complex` plot changes.
+    let parsed = RawFile::parse(REAL_SPELLING_RAWFILE).unwrap();
+    let before = parsed.single_plot().unwrap();
+    assert!(
+        before.variables[0].is_real,
+        "frequency was written `re,0.0`"
+    );
+    let round_tripped = RawFile::parse_bytes(&parsed.to_binary().unwrap()).unwrap();
+    let after = round_tripped.single_plot().unwrap();
+    assert!(!after.variables[0].is_real, "the flag is not in the bytes");
+    assert_eq!(after.flags, before.flags);
+    assert_eq!(after.variable_count(), before.variable_count());
+    assert_eq!(after.point_count(), before.point_count());
+    assert_eq!(
+        after.column("frequency").unwrap(),
+        before.column("frequency").unwrap()
+    );
+    // The documented consequence: the spelling changes, the values do not.
+    assert!(
+        parsed.to_ascii().contains("1.000000000000000e+03,0.0"),
+        "the parsed text keeps the short form"
+    );
+    assert!(
+        round_tripped
+            .to_ascii()
+            .contains("1.000000000000000e+03,0.000000000000000e+00"),
+        "the re-rendered text uses the long form"
+    );
 }

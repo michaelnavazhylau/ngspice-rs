@@ -454,7 +454,15 @@ fn parse_header(cursor: &mut Cursor<'_>) -> SpiceResult<Option<(Header, Section)
             "No. Variables" => declared_variables = Some(parse_count(key, value.trim())?),
             "No. Points" => declared_points = Some(parse_count(key, value.trim())?),
             "Variables" => break,
-            "Binary" => return Err(unsupported(BINARY_UNSUPPORTED)),
+            // A section line where a header key belongs means this plot carries
+            // no header at all. The caller is already reading bytes here, so
+            // the `parse_bytes` advice in `BINARY_UNSUPPORTED` would only send
+            // it back to the entry point it used.
+            "Binary" | "Values" => {
+                return Err(unsupported(format!(
+                    "rawfile plot has no header: '{key}:' before 'Variables:'"
+                )));
+            }
             other => {
                 return Err(unsupported(format!("rawfile header key '{other}'")));
             }

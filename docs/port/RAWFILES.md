@@ -121,8 +121,12 @@ same text the ASCII form carries. Detection is a byte scan for the first
 
 The header renderer is shared (`render_header`), so a binary file's header is
 byte-identical to the ASCII file's header for the same plot. `to_binary()` of a
-rawfile read from a C binary file reproduces that file byte for byte, as long as
-its variable lines carry no per-variable options (see below).
+rawfile read from a C binary file reproduces that file byte for byte only when
+that file was already in this canonical form: per-variable options are dropped
+(see below), and C's batch writer pads the `No. Points:` line and writes
+`Title:` from the run's name (`outitf.c:1014-1048`), which the reader trims, so
+a batch-written file parses correctly but re-renders canonically rather than
+byte for byte.
 
 ## Validation before allocation
 
@@ -151,18 +155,20 @@ Everything here fails with `SpiceError::Unsupported`, naming what was found:
 | `unpadded` with `Values:` | Not rejected: the ASCII reader has always ignored the flag (`rawfile.c:411-414`), and its behaviour is frozen. |
 | A file mixing `Values:` and `Binary:` plots | Detection picks the first plot's encoding (`rawfile.c:591-593` decides per plot); the other one is refused ("mixed rawfile encodings"). |
 | `Dimensions: …` header or `dims=` on a variable line | The port's `Plot` is flat; multi-dimensional shape data has nowhere to go. `Dimensions:` is rejected as an unknown header key. |
-| `Offset:` header | `raw_read()` also reports "Offset: is not supported" (`rawfile.c:373`). |
+| `Offset:` header | `raw_read()` also reports "Offset: is not supported" (`rawfile.c:374`). |
 | Header bytes that are not UTF-8 | The port's headers are `String`s; a non-UTF-8 title cannot be represented. |
 | Trailing bytes that do not start another plot | A truncated or appended file must not be silently ignored. |
 | Unknown flag words (`Flags: real spectra`) | Not rejected: `raw_read()` prints "Warning: unknown flag" and continues (`rawfile.c:416`), so the port reads the data and says nothing. |
 | Per-variable options (`min=`, `max=`, `color=`, `scale=`, `grid=`, `plot=`, `dims=`) | Accepted and dropped by the shared header parser (`rawfile.c:556-579`), name and unit kept. This is already the ASCII reader's behaviour for the committed goldens. For a `dec` AC sweep C writes `frequency grid=3`, so that file's variable line is not reproduced by `to_ascii()`/`to_binary()`; the payload still is. A padded payload's length does not depend on the options, so values are unaffected. |
 
 Upstream in this checkout has no `fastaccess` `filetype` and no code path by that
-name: `filetype` accepts `ascii` and `binary` only, and any other value makes C
-print "strange file type" and fall back to ASCII (`postcoms.c:595-600`). There is
-therefore no `fastaccess` variant to accept or reject; the port's rule is that an
-unknown header key, an unknown section line or an `unpadded` payload is an error,
-never a guess.
+name: `filetype` accepts `ascii` and `binary` only, and an unknown value is a
+warning rather than an error. The two commands disagree about what it leaves
+behind: `write` keeps its current default (`postcoms.c:592-599`, where `ascii`
+defaults to `0`/binary in `conf.c:32`), while `run` warns and forces ASCII
+(`runcoms.c:238-241`). There is therefore no `fastaccess` variant to accept or
+reject; the port's rule is that an unknown header key, an unknown section line or
+an `unpadded` payload is an error, never a guess.
 
 ## Known lossy point: `Variable::is_real`
 
@@ -174,6 +180,13 @@ to be zero. Reading a binary plot therefore sets `is_real` for every column of a
 `real` plot and for no column of a `complex` plot, matching the complex vectors
 `.ac` and `.noise` store. Values, names, units, `PlotFlags` and the plot count are
 preserved exactly; the per-vector flag is not recoverable from binary.
+
+The consequence for text output: re-rendering ASCII after a binary round trip
+writes the long `re,0.000000000000000e+00` form where C wrote `re,0.0`, so
+ASCII -> binary -> ASCII is not a fixed point for a `complex` plot with a real
+column. The values, names, units, flags and plot count are identical;
+`binary_rawfiles::a_binary_round_trip_loses_the_real_spelling_of_a_complex_column`
+pins the difference.
 
 ## Tests
 
