@@ -336,6 +336,27 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "floating_cap_ic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 817,
+        variables: &["time", "v(a)", "v(b)", "v(in)", "i(v1)"],
+        // `uic` with c1 ic=2: no t = 0 row, the first row is C's first step (0.1 us,
+        // 1 V on each plate against the 0 V source, i = 1 mA). The ramp at 1.0-1.1 ms
+        // then drives the loop; at 8 ms v(a) - v(b) = 1.0056 V.
+        values: &[
+            ("time", 0, 1.000000000000000e-07, 0.0),
+            ("v(a)", 0, 9.999500024996800e-01, 0.0),
+            ("v(b)", 0, -9.999500025000700e-01, 0.0),
+            ("v(in)", 0, 0.000000000000000e+00, 0.0),
+            ("i(v1)", 0, 9.999500024996800e-04, 0.0),
+            ("time", 816, 8.000000000000000e-03, 0.0),
+            ("v(in)", 816, 1.000000000000000e+00, 0.0),
+            ("v(a)", 816, 1.002833083651511e+00, 0.0),
+            ("v(b)", 816, -2.833083651534665e-03, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "floating_cap_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -401,6 +422,43 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rc_ic_node_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 508,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // `.ic v(out)=0.25` without uic: enforced in the initial bias only (the
+        // t = 0 row has v(out) = 0.25 and i(v1) = -(1 - 0.25)/1k), then released:
+        // v(out) = 1 - 0.75 e^(-t/1 ms), 0.99495 at 5 ms.
+        values: &[
+            ("time", 0, 0.000000000000000e+00, 0.0),
+            ("v(in)", 0, 1.000000000000000e+00, 0.0),
+            ("v(out)", 0, 2.500000000000000e-01, 0.0),
+            ("i(v1)", 0, -7.500000000000000e-04, 0.0),
+            ("time", 507, 5.000000000000000e-03, 0.0),
+            ("v(out)", 507, 9.949467496583029e-01, 0.0),
+            ("i(v1)", 507, -5.053250341697124e-06, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_ic_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 511,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // `uic` with c1 ic=2 and a 0 V source: no t = 0 row; v(out) = 2 e^(-t/1 ms),
+        // so 1.9998 V at the first step (0.1 us) and 2 e^-5 = 0.013476 V at 5 ms.
+        values: &[
+            ("time", 0, 1.000000000000000e-07, 0.0),
+            ("v(in)", 0, 0.000000000000000e+00, 0.0),
+            ("v(out)", 0, 1.999800019998000e+00, 0.0),
+            ("i(v1)", 0, 1.999800019998001e-03, 0.0),
+            ("time", 510, 5.000000000000000e-03, 0.0),
+            ("v(out)", 510, 1.347533818591319e-02, 0.0),
+            ("i(v1)", 510, 1.347533818591319e-05, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_lowpass_ac",
         plotname: "AC Analysis",
         flags: PlotFlags::Complex,
@@ -463,6 +521,27 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(l1)", 629, 5.681063666152677e-03, 0.0),
             ("v(out)", 629, 4.318936333847322e-01, 0.0),
             ("i(v1)", 629, -5.681063666152677e-03, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rlc_ic_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1011,
+        variables: &["time", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // Free decay of l1 ic=20m and c1 ic=1 (zeta = 0.158, damped period 200 us):
+        // no t = 0 row, the first step (10 ns) sits at 20 mA and 1 V; the envelope
+        // e^(-5000 t) leaves 5.6 mV at 1 ms.
+        values: &[
+            ("time", 0, 1.000000000000000e-08, 0.0),
+            ("v(a)", 0, -1.998799920127995e-01, 0.0),
+            ("v(in)", 0, 0.000000000000000e+00, 0.0),
+            ("i(l1)", 0, 1.998799920127995e-02, 0.0),
+            ("v(out)", 0, 1.000199879992013e+00, 0.0),
+            ("i(v1)", 0, -1.998799920127996e-02, 0.0),
+            ("time", 1010, 1.000000000000000e-03, 0.0),
+            ("i(l1)", 1010, 1.780552167603876e-04, 0.0),
+            ("v(out)", 1010, 5.583038600297606e-03, 0.0),
         ],
     },
     Expectation {

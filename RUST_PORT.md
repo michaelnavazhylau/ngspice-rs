@@ -36,7 +36,7 @@ Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
 an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
 linear circuits) and an explicitly selected bounded diffsol BDF transient. D/Q/M
-equations, `.ic`/`uic`, general DAEs and a CLI simulation command remain
+equations, `.ic`/`uic` on the diffsol backend, general DAEs and a CLI simulation command remain
 unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
@@ -61,9 +61,9 @@ What already works for real:
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` layout; known decimal round-trip limitation documented in verification |
-| Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |
+| Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
-| Rust-engine numerical verify | `xtask` | three supported linear fixtures; five explicit exclusions, no C invocation |
+| Rust-engine numerical verify | `xtask` | sixteen supported linear fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients); four explicit exclusions, no C invocation |
 
 ## Quick start
 

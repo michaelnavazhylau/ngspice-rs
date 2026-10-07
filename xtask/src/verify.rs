@@ -120,6 +120,16 @@ const SUPPORTED: &[Supported] = &[
     tran("rlc_series_gear_tran", &[]),
     tran("floating_cap_tran", &[DIFFSOL_BDF]),
     tran("coupled_cap_tran", &[DIFFSOL_BDF_RESTART]),
+    // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. No
+    // BDF variants: the diffsol backend deliberately rejects `.ic`, `uic` and
+    // instance `ic=` (asserted by a test below). With `uic` C writes no `t = 0`
+    // row and adds a breakpoint at the `.tran` step; the Rust driver reproduces
+    // both and the comparator (which only demands samples at source breakpoints)
+    // needs no special case.
+    tran("rc_ic_uic_tran", &[]),
+    tran("rlc_ic_uic_tran", &[]),
+    tran("rc_ic_node_tran", &[]),
+    tran("floating_cap_ic_tran", &[]),
     Supported {
         name: "rlc_series_ac",
         kind: AnalysisKind::Ac,
@@ -280,11 +290,25 @@ fn run_variant(
             };
             let (step, stop) = (time(0, "tstep")?, time(1, "tstop")?);
             let breakpoints = tran::breakpoints(&netlist, step, stop)?;
+            // With `uic` C writes no t = 0 row: its first row is the first
+            // accepted step. The comparison then starts at that time, which the
+            // Rust plot must reproduce (`tran::Series::new`); without `uic`
+            // both plots start at 0 as always.
+            let start = if request.uic {
+                want.plots[0]
+                    .plot
+                    .value("time", 0)
+                    .map(|t| t.re)
+                    .filter(|t| t.is_finite() && *t > 0.0)
+                    .ok_or("uic golden has no positive first time")?
+            } else {
+                0.0
+            };
             tran::transient(
                 &got,
                 &want.plots[0].plot,
                 tolerance,
-                &tran::Grid { stop, step },
+                &tran::Grid { start, stop, step },
                 &breakpoints,
             )
             .map(|summary| {
@@ -383,6 +407,33 @@ mod tests {
         let path = temp.0.join("conformance/netlists/rc_gear_tran.cir");
         let error = fixture_result(&temp.0, &path, &fixture).unwrap_err();
         assert!(error.contains("variant diffsol-bdf"), "{error}");
+    }
+
+    #[test]
+    fn bdf_variants_of_initialized_state_decks_are_rejected_explicitly() {
+        // The diffsol backend deliberately has no `.ic`/`uic`/`ic=` support, so
+        // the initialized-state fixtures register no BDF variant, and asking for
+        // one is an explicit error rather than a silent downgrade.
+        for name in [
+            "rc_ic_uic_tran",
+            "rlc_ic_uic_tran",
+            "rc_ic_node_tran",
+            "floating_cap_ic_tran",
+        ] {
+            let entry = SUPPORTED.iter().find(|f| f.name == name).unwrap();
+            assert!(entry.variants.is_empty(), "{name}");
+            let path = workspace_root().join(format!("conformance/netlists/{name}.cir"));
+            let fixture = Supported {
+                variants: &[DIFFSOL_BDF],
+                ..tran(name, &[])
+            };
+            let error = fixture_result(&workspace_root(), &path, &fixture).unwrap_err();
+            assert!(error.contains("variant diffsol-bdf"), "{name}: {error}");
+            assert!(
+                error.contains("unsupported") || error.contains("uic") || error.contains(".ic"),
+                "{name}: {error}"
+            );
+        }
     }
 
     #[test]

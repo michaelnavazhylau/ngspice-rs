@@ -1,0 +1,39 @@
+# ngspice-rs token-dump v1
+file: netlists/rc_ic_uic_tran.cir
+title: "RC discharge from an initial capacitor voltage, uic" @netlists/rc_ic_uic_tran.cir:1:1
+card 1 @netlists/rc_ic_uic_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc 0"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "0" value=0e0
+card 2 @netlists/rc_ic_uic_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "out"
+  token 4 6:11 number "1k" value=1e3
+card 3 @netlists/rc_ic_uic_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 out 0 1u ic=2"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "1u" value=1e-6
+  token 5 7:13 word "ic"
+  token 6 7:15 equals "="
+  token 7 7:16 number "2" value=2e0
+card 4 @netlists/rc_ic_uic_tran.cir:8:1 lines=8-8 continuations=0
+  raw: ".tran 10u 5m uic"
+  kind: dot(.tran)
+  token 1 8:1 word ".tran"
+  token 2 8:7 number "10u" value=9.999999999999999e-6
+  token 3 8:11 number "5m" value=5e-3
+  token 4 8:14 word "uic"
+card 5 @netlists/rc_ic_uic_tran.cir:9:1 lines=9-9 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 9:1 word ".end"

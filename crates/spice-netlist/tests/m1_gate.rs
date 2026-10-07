@@ -123,13 +123,18 @@ const DECKS: &[Expect] = &[
     },
 ];
 
-/// Decks added for the M3 transient/AC conformance gate (GitHub #48).
-const M3_GATE_DECKS: [&str; 8] = [
+/// Decks added for the M3 transient/AC and initialized-state conformance gates
+/// (GitHub #48, #27).
+const M3_GATE_DECKS: [&str; 12] = [
     "coupled_cap_tran",
+    "floating_cap_ic_tran",
     "floating_cap_tran",
     "rc_gear_tran",
+    "rc_ic_node_tran",
+    "rc_ic_uic_tran",
     "rc_pwl_tran",
     "rl_pulse_tran",
+    "rlc_ic_uic_tran",
     "rlc_series_ac",
     "rlc_series_gear_tran",
     "rlc_series_tran",

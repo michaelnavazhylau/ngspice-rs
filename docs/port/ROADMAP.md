@@ -155,10 +155,10 @@ adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal.
 Trap/Gear order-1/2 integration (#23), trial-versus-accepted device state (#24),
 C/L companion stamps (#25), PULSE/PWL evaluation (#9) and the adaptive companion
 driver for linear circuits (#26, [TRANSIENT.md](TRANSIENT.md)) exist. The
-**RC/RL/RLC/PWL, Gear-2, floating/coupled-capacitor and RLC AC exit gates against C
-goldens are closed** (#48; `cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`,
+**RC/RL/RLC/PWL, Gear-2, floating/coupled-capacitor, RLC AC and initialized-state
+(`.ic`/`uic`/`ic=`) exit gates against C goldens are closed** (#48; `cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`,
 [VERIFICATION.md](VERIFICATION.md)). Still open and blocking M3 completion:
-`.ic`/`.nodeset`/`uic` and their fixtures (#27), higher-index source constraints
+higher-index source constraints
 (#29), nonlinear charge (M4) and subcircuits (M5). General MNA DAEs are not
 supported: only the demonstrated index-one structures are.
 
@@ -170,7 +170,8 @@ C, L, and the numerical integration machinery.
 - `.ac` small-signal analysis over the complex MNA system
 
 Exit criteria: RC and RLC golden fixtures for `.tran` and `.ac` (met for the
-linear, uninitialized decks; initialized-state fixtures wait on #27).
+linear decks, including the initialized-state `.ic`/`uic`/`ic=` fixtures of #27;
+higher-index constraints, nonlinear charge and subcircuits remain open).
 
 ## M4 — Nonlinear devices
 

@@ -30,7 +30,7 @@ Why these rules:
 
 `cargo xtask golden list` prints what each committed golden contains.
 
-The eight M3 decks (`rl_pulse_tran` ... `rlc_series_ac`, GitHub #48) were captured
+The eight M3 gate decks (`rl_pulse_tran` ... `rlc_series_ac`, GitHub #48) were captured
 with `cargo xtask golden capture --netlist <name>` (one fixture at a time, so no
 existing golden is touched). Design rules they follow: sample spacing (`tstep`,
 which is also the default maximum step) is small against the circuit time
@@ -38,8 +38,10 @@ constants and source edges so that comparing resampled waveforms measures
 integration error, not interpolation error; source corners of the decks that also
 run on the explicit BDF backend lie on the `.tran` output grid and the stop time
 is an exact multiple of `tstep`; `.ac` uses `lin` because the Rust rawfile writer
-does not reproduce ngspice's `grid=` header attribute for `dec`/`oct`. Initialized
-(`.ic`/`uic`) fixtures will be added after GitHub #27's analysis half merges.
+does not reproduce ngspice's `grid=` header attribute for `dec`/`oct`. The four initialized-state decks (`rc_ic_uic_tran` ... `floating_cap_ic_tran`, GitHub
+#27/#48) were captured the same way; they have no BDF variants because the diffsol
+backend rejects `.ic`/`uic`/`ic=`. With `uic` C writes no `t = 0` row and adds a
+breakpoint at the `.tran` step; the comparator starts at the first common sample.
 
 | Fixture | Analysis | Exercises |
 | --- | --- | --- |
@@ -55,6 +57,10 @@ does not reproduce ngspice's `grid=` header attribute for `dec`/`oct`. Initializ
 | `floating_cap_tran` | `.tran` | floating capacitor between two resistive nodes (rank-deficient mass, index one) |
 | `coupled_cap_tran` | `.tran` | coupled capacitances (nondiagonal, nonsingular mass block) |
 | `rlc_series_ac` | `.ac` | complex RLC low-pass sweep through resonance (`lin`) |
+| `rc_ic_uic_tran` | `.tran ... uic` | RC discharge from capacitor `ic=2`, no `t = 0` row |
+| `rlc_ic_uic_tran` | `.tran ... uic` | series RLC free decay from inductor `ic=20m` and capacitor `ic=1` |
+| `rc_ic_node_tran` | `.tran` + `.ic v(out)=0.25` | `.ic` enforced in the initial bias only (no `uic`), then released |
+| `floating_cap_ic_tran` | `.tran ... uic` | floating capacitor with initial plate charge (`ic=2`), ramp drive |
 | `diode_dc` | `.dc` | nonlinear device, source sweep |
 | `bjt_ce` | `.op` | BJT with a `.model` card |
 | `mos_inverter` | `.op` | MOSFET with instance parameters (`w=`, `l=`) |

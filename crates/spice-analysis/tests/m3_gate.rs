@@ -17,16 +17,13 @@
 //! factor of at most 2. They are not tolerances against C (those live in
 //! `cargo xtask golden verify`); no C binary is needed here.
 //!
-//! Still out of scope until the dependencies land: initialized-state
-//! (`.ic`/`uic`) fixtures (GitHub #27), higher-index source constraints (#29),
-//! nonlinear charge (M4) and subcircuits (M5).
-//
-// TODO(#27): add the initialized-state transient fixtures (`.ic`, `uic`, and
-// device `ic=`) to this gate once the #27 analysis half is merged: an RC and an
-// RLC decay from a nonzero initial state (closed form), and the floating
-// capacitor with an initial plate charge (conserved charge), each with a C golden
-// captured with `cargo xtask golden capture --netlist <name>` and registered in
-// `xtask/src/verify.rs`.
+//! The initialized-state decks (`.ic`, `uic`, instance `ic=`; GitHub #27) join
+//! the gate in their own section below: closed-form decay from the nonzero
+//! state, conserved plate charge on the floating capacitor, and the release of an
+//! `.ic` constraint that is applied without `uic`.
+//!
+//! Still out of scope until the dependencies land: higher-index source
+//! constraints (#29), nonlinear charge (M4) and subcircuits (M5).
 use std::path::{Path, PathBuf};
 
 use spice_analysis::{
@@ -335,12 +332,20 @@ fn rc_pwl() -> Model {
 }
 
 fn rlc() -> Model {
+    rlc_driven(pulse_knots(
+        [0., 1.],
+        [50e-6, 20e-6, 20e-6, 400e-6, 1e-3],
+        1e-3,
+    ))
+}
+
+fn rlc_driven(knots: Vec<(f64, f64)>) -> Model {
     let (r, l, c) = (10., 1e-3, 1e-6);
     Model {
         lti: Lti {
             a: vec![vec![-r / l, -1. / l], vec![1. / c, 0.]],
             b: vec![1. / l, 0.],
-            knots: pulse_knots([0., 1.], [50e-6, 20e-6, 20e-6, 400e-6, 1e-3], 1e-3),
+            knots,
         },
         outputs: vec![
             ("i(l1)", Box::new(|x, _| x[0])),
@@ -416,9 +421,30 @@ fn closed_form_errors_with(
     model: &Model,
     drive_tolerance: f64,
 ) -> Vec<(&'static str, f64, f64)> {
+    closed_form_errors_from(plot, model, &vec![0.; model.lti.a.len()], drive_tolerance)
+}
+
+/// As [`closed_form_errors_with`] for a run that starts at `t = 0` from the
+/// state `x0`. A `uic` plot has no `t = 0` row (its first row is the first
+/// accepted step), so the exact state is propagated from `t = 0` and the
+/// initial instant is not part of the comparison.
+fn closed_form_errors_from(
+    plot: &Plot,
+    model: &Model,
+    x0: &[f64],
+    drive_tolerance: f64,
+) -> Vec<(&'static str, f64, f64)> {
     let times = column(plot, "time");
-    let n = model.lti.a.len();
-    let states = model.lti.states(vec![0.; n], &times);
+    let mut states = if times[0] > 0. {
+        let mut from_zero = vec![0.];
+        from_zero.extend(&times);
+        let mut all = model.lti.states(x0.to_vec(), &from_zero);
+        all.remove(0);
+        all
+    } else {
+        model.lti.states(x0.to_vec(), &times)
+    };
+    states.truncate(times.len());
     let vin = column(plot, "v(in)");
     // The drive itself (accepted left/right limit conventions aside) must be
     // the one this model assumes, or the comparison would be meaningless.
@@ -1057,5 +1083,276 @@ fn rlc_ac_sweep_matches_the_closed_form_and_the_c_data() {
             (resonance.1 - 3.205).abs() < 0.005,
             "{label}: {resonance:?}"
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Initialized-state decks (GitHub #27): `uic` with instance `ic=`, and `.ic`
+// without `uic`. Their C goldens were captured with the reference binary like
+// every other fixture; none of these decks has a diffsol BDF variant because the
+// BDF backend rejects initial conditions (asserted below).
+
+/// A deck's closed-form model, its exact initial state and the measured budget.
+struct InitialCase {
+    name: &'static str,
+    model: fn() -> Model,
+    /// State at `t = 0` (the `ic=` values, in the model's state order).
+    x0: &'static [f64],
+    /// `uic`: no `t = 0` row, the C step breakpoint at the `.tran` step.
+    uic: bool,
+    /// Largest output error relative to the device scale ([`Model::scales`]).
+    budget: f64,
+}
+
+fn zero_drive() -> Vec<(f64, f64)> {
+    vec![(0., 0.), (1., 0.)]
+}
+
+fn rc_discharge() -> Model {
+    rc(1e3, 1e-6, zero_drive())
+}
+
+fn rlc_decay() -> Model {
+    rlc_driven(zero_drive())
+}
+
+fn rc_released() -> Model {
+    rc(1e3, 1e-6, vec![(0., 1.), (1., 1.)])
+}
+
+const INITIAL_CASES: &[InitialCase] = &[
+    // v(out) = 2 exp(-t / 1 ms) from c1 ic=2; measured 5.9e-6 of the 1 V / 1 mA scale
+    InitialCase {
+        name: "rc_ic_uic_tran",
+        model: rc_discharge,
+        x0: &[2.],
+        uic: true,
+        budget: 1.2e-5,
+    },
+    // l1 ic=20m, c1 ic=1 free decay (alpha 5000 /s, zeta 0.158);
+    // measured 2.5e-4 of the 1 V / 31.6 mA scale
+    InitialCase {
+        name: "rlc_ic_uic_tran",
+        model: rlc_decay,
+        x0: &[20e-3, 1.],
+        uic: true,
+        budget: 4.9e-4,
+    },
+    // .ic v(out)=0.25 without uic: released after the initial bias;
+    // measured 2.3e-6
+    InitialCase {
+        name: "rc_ic_node_tran",
+        model: rc_released,
+        x0: &[0.25],
+        uic: false,
+        budget: 4.6e-6,
+    },
+    // c1 ic=2 across a floating capacitor, ramp drive; measured 1.5e-6
+    InitialCase {
+        name: "floating_cap_ic_tran",
+        model: floating,
+        x0: &[2.],
+        uic: true,
+        budget: 3e-6,
+    },
+];
+
+#[test]
+fn initialized_decks_match_the_closed_form_from_their_initial_state() {
+    for case in INITIAL_CASES {
+        let fixture = Fixture::load(case.name);
+        let model = (case.model)();
+        let (plot, _) = fixture.tran(&[]).unwrap();
+        for (label, data) in [("Rust", &plot), ("C golden", &Fixture::golden(case.name))] {
+            for (signal, error, relative) in closed_form_errors_from(data, &model, case.x0, 1e-9) {
+                assert!(
+                    relative <= case.budget,
+                    "{} {label} {signal}: {error:e} is {relative:e} of scale, budget {:e}",
+                    case.name,
+                    case.budget
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn uic_decks_have_no_initial_row_and_the_c_step_breakpoint() {
+    // C (`dctran.c`): with uic there is no t = 0 row (the first row is the first
+    // accepted step), and `CKTsetBreak(CKTstep)` adds a breakpoint at the .tran
+    // step. The port reproduces both; ordinary decks still start at t = 0.
+    for case in INITIAL_CASES {
+        let fixture = Fixture::load(case.name);
+        let (tstep, stop) = (fixture.number(0), fixture.number(1));
+        let (plot, stats) = fixture.tran(&[]).unwrap();
+        let golden = Fixture::golden(case.name);
+        for (label, data) in [("Rust", &plot), ("C golden", &golden)] {
+            let ts = column(data, "time");
+            assert_eq!(*ts.last().unwrap(), stop, "{} {label}", case.name);
+            assert!(ts.windows(2).all(|w| w[1] > w[0]), "{} {label}", case.name);
+            if case.uic {
+                assert!(
+                    ts[0] > 0. && ts[0] < tstep / 10.,
+                    "{} {label}: {}",
+                    case.name,
+                    ts[0]
+                );
+                assert!(
+                    ts.iter().any(|t| (t - tstep).abs() <= 1e-15),
+                    "{} {label}: no accepted point at the step breakpoint",
+                    case.name
+                );
+            } else {
+                assert_eq!(ts[0], 0., "{} {label}", case.name);
+            }
+        }
+        // Rust and C start identically (same first-step rule).
+        assert!(
+            (column(&plot, "time")[0] - column(&golden, "time")[0]).abs() <= 1e-15,
+            "{}",
+            case.name
+        );
+        // The driver counts the step breakpoint (uic only), the stop time and
+        // every source corner as breakpoint steps; the ramp drive has two.
+        let corners = if case.name == "floating_cap_ic_tran" {
+            2
+        } else {
+            0
+        };
+        assert_eq!(
+            stats.breakpoints,
+            1 + usize::from(case.uic) + corners,
+            "{}",
+            case.name
+        );
+    }
+}
+
+#[test]
+fn the_first_uic_row_is_the_declared_initial_state() {
+    // The state at the first accepted step (backward Euler from the `ic=`
+    // values) differs from the declared state only by the first step's decay.
+    let at_first = |name: &str, signal: &str| {
+        let plot = Fixture::load(name).tran(&[]).unwrap().0;
+        let golden = Fixture::golden(name);
+        (column(&plot, signal)[0], column(&golden, signal)[0])
+    };
+    for (rust, c) in [
+        at_first("rc_ic_uic_tran", "v(out)"),
+        at_first("rlc_ic_uic_tran", "v(out)"),
+    ] {
+        assert!((rust - c).abs() <= 1e-9);
+    }
+    let (v, _) = at_first("rc_ic_uic_tran", "v(out)");
+    assert!((v - 2.).abs() <= 2. * 1e-7 / 1e-3 * 1.01, "{v}");
+    let (il, _) = at_first("rlc_ic_uic_tran", "i(l1)");
+    assert!((il - 20e-3).abs() <= 20e-3 * 1e-3, "{il}");
+    let (vc, _) = at_first("rlc_ic_uic_tran", "v(out)");
+    assert!((vc - 1.).abs() <= 1e-3, "{vc}");
+    // Floating capacitor: the plate voltage v(a) - v(b) starts at ic = 2 V.
+    let plot = Fixture::load("floating_cap_ic_tran").tran(&[]).unwrap().0;
+    let (va, vb) = (column(&plot, "v(a)")[0], column(&plot, "v(b)")[0]);
+    assert!((va - vb - 2.).abs() <= 2e-3, "{}", va - vb);
+}
+
+#[test]
+fn plate_charge_of_the_floating_capacitor_changes_only_by_the_current_through_r1() {
+    // c1 floats between a and b, so the charge on its plates, C (va - vb), starts
+    // at C ic = 2 uC and changes only by the charge that flows through r1 (and
+    // equally through r2): q(t) = q(t1) + integral of -i(v1) dt. Rust and the C
+    // golden obey the same budget; the first row of a uic run is the first
+    // accepted step, so the charge is anchored there and, separately, checked
+    // against the declared C ic.
+    for (label, data) in [
+        (
+            "Rust",
+            Fixture::load("floating_cap_ic_tran").tran(&[]).unwrap().0,
+        ),
+        ("C golden", Fixture::golden("floating_cap_ic_tran")),
+    ] {
+        let t = column(&data, "time");
+        let (va, vb, iv) = (
+            column(&data, "v(a)"),
+            column(&data, "v(b)"),
+            column(&data, "i(v1)"),
+        );
+        let q: Vec<f64> = va.iter().zip(&vb).map(|(a, b)| 1e-6 * (a - b)).collect();
+        let delivered: Vec<f64> = iv.iter().map(|i| -i).collect();
+        let q0 = q[0];
+        let anchored: Vec<f64> = q.iter().map(|q| q - q0).collect();
+        let residual = charge_residual(&t, &anchored, &delivered, peak(&q));
+        let initial = (q[0] - 2e-6).abs() / 2e-6;
+        let kcl = (0..t.len())
+            .map(|k| (vb[k] / 1e3 + iv[k]).abs())
+            .fold(0., f64::max)
+            / peak(&iv);
+        // Measured 1.39e-6 of the peak plate charge (trapezoid quadrature on the
+        // 10 us grid, plus the first step's backward-Euler decay) for both; the
+        // first row's charge is 5.0e-5 below C ic (1e-7 s of the 2 ms decay);
+        // KCL holds to rounding (1.1e-12 of the peak current at worst).
+        assert!(residual <= 2.8e-6, "{label}: {residual:e}");
+        assert!(initial <= 1e-4, "{label}: {initial:e}");
+        assert!(kcl <= 1e-9, "{label}: {kcl:e}");
+    }
+}
+
+#[test]
+fn an_ic_without_uic_constrains_the_initial_bias_and_is_then_released() {
+    let fixture = Fixture::load("rc_ic_node_tran");
+    let (plot, _) = fixture.tran(&[]).unwrap();
+    let golden = Fixture::golden("rc_ic_node_tran");
+    for (label, data) in [("Rust", &plot), ("C golden", &golden)] {
+        let (t, vout, iv) = (
+            column(data, "time"),
+            column(data, "v(out)"),
+            column(data, "i(v1)"),
+        );
+        // The t = 0 row is the constrained bias point: v(out) is the .ic value
+        // and the 1 V source supplies (1 - 0.25) / 1 k through r1.
+        assert_eq!(t[0], 0., "{label}");
+        assert!((vout[0] - 0.25).abs() <= 1e-12, "{label}: {}", vout[0]);
+        assert!((iv[0] + 0.75e-3).abs() <= 1e-12, "{label}: {}", iv[0]);
+        // Released: v(out) charges toward the source (1 - 0.75 e^(-t/tau), tau =
+        // 1 ms), reaching 1 - 0.75 e^-5 at 5 ms instead of staying at 0.25 V.
+        let last = *vout.last().unwrap();
+        assert!(
+            (last - (1. - 0.75 * (-5.0_f64).exp())).abs() <= 1e-5,
+            "{label}: {last}"
+        );
+        assert!(vout.windows(2).all(|w| w[1] >= w[0] - 1e-12), "{label}");
+    }
+    // Without the .ic the very same deck starts at its DC operating point
+    // (v(out) = 1 V, no current) and stays there: the constraint, not the
+    // circuit, sets the initial state.
+    let text = std::fs::read_to_string(conformance().join("netlists/rc_ic_node_tran.cir"))
+        .unwrap()
+        .lines()
+        .filter(|line| !line.starts_with(".ic"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let deck = spice_netlist::source::parse_deck_text(Path::new("no_ic.cir"), &text);
+    let netlist = Parser::new().parse_deck(&deck).unwrap();
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut circuit = config.circuit(&netlist).unwrap();
+    let (plain, _) = companion_transient(&mut circuit, &request, &config.context()).unwrap();
+    assert!(
+        column(&plain, "v(out)")
+            .iter()
+            .all(|v| (v - 1.).abs() <= 1e-9)
+    );
+    assert!(column(&plain, "i(v1)").iter().all(|i| i.abs() <= 1e-12));
+}
+
+#[test]
+fn the_diffsol_bdf_backend_rejects_every_initialized_state_deck_explicitly() {
+    for case in INITIAL_CASES {
+        let error = Fixture::load(case.name)
+            .run(&BDF)
+            .expect_err(case.name)
+            .to_string();
+        let expected = if case.uic { "uic" } else { ".ic" };
+        assert!(error.contains(expected), "{}: {error}", case.name);
+        assert!(error.contains("companion driver"), "{}: {error}", case.name);
     }
 }

@@ -1,0 +1,11 @@
+Floating capacitor with an initial plate charge, uic
+* c1 couples a and b with no capacitor to ground and starts at 2 V (2 uC on the
+* plates, instance ic=). The 1 V ramp at 1 ms to 1.1 ms then drives the loop; the
+* plate charge changes only by the charge that flows through r1 (= through r2).
+* No t = 0 row with uic; C adds a breakpoint at the .tran step (10 us).
+v1 in 0 pwl(0 0 1m 0 1.1m 1 8m 1)
+r1 in a 1k
+c1 a b 1u ic=2
+r2 b 0 1k
+.tran 10u 8m uic
+.end

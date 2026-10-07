@@ -1,0 +1,10 @@
+Series RLC free decay from nonzero inductor current and capacitor voltage, uic
+* alpha = R/2L = 5000 /s, w0 = 31623 rad/s (zeta = 0.158): ringing. The
+* inductor starts at 20 mA (first to second terminal) and c1 at 1 V (instance
+* ic=); the source is 0 V, so the response is the free decay of the initial state.
+v1 in 0 dc 0
+r1 in a 10
+l1 a out 1m ic=20m
+c1 out 0 1u ic=1
+.tran 1u 1m uic
+.end

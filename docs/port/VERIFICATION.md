@@ -444,13 +444,15 @@ cargo xtask golden verify
 cargo xtask golden verify --netlist rc_lowpass_ac
 ```
 
-The default verifies **twelve fixtures** through `Parser::parse_file`,
+The default verifies **sixteen fixtures** through `Parser::parse_file`,
 `RunConfig::from_netlist` (so deck `.options`, for example `method=gear`, reach the
 driver exactly as in an ordinary run), `Circuit::from_netlist` and the production
 analysis runner: `rc_divider` and `rlc_series` (`.op`), `rc_lowpass_ac` and
 `rlc_series_ac` (complex `.ac`), and the transients `rc_transient`, `rl_pulse_tran`,
 `rc_gear_tran`, `rc_pwl_tran`, `rlc_series_tran`, `rlc_series_gear_tran`,
-`floating_cap_tran` and `coupled_cap_tran`. It reports **four unsupported fixtures**
+`floating_cap_tran` and `coupled_cap_tran`, plus the initialized-state transients
+`rc_ic_uic_tran`, `rlc_ic_uic_tran`, `rc_ic_node_tran` and `floating_cap_ic_tran`
+(next section but one). It reports **four unsupported fixtures**
 with reasons: `diode_dc`, `bjt_ce`, `mos_inverter` (non-linear backends) and
 `subckt_divider` (subcircuit flattening/elaboration). A requested unsupported
 fixture fails, never silently skips. Names are case-insensitive and an optional
@@ -493,9 +495,8 @@ an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 ## Transient comparison tooling (#48 item 1)
 
 `xtask/src/tran.rs` is the event-aware comparator for the M3 transient exit gate.
-All eight transient fixtures are registered in `golden verify` against their
-committed goldens (see above). Initialized-state (`.ic`/`uic`) fixtures have no C
-golden yet (GitHub #27 analysis half). The opt-in live comparisons in
+All twelve transient fixtures (`rc_transient`, seven gate decks, four initialized-state decks) are
+registered in `golden verify` against their committed goldens (see above). The opt-in live comparisons in
 `crates/spice-analysis/tests/c_companion_reference.rs` cover the PULSE/PWL RC and
 series RLC decks for trap and Gear. C rejects `backend=diffsol method=bdf` tokens on `.tran`
 ("Cannot compute substitute"), so the BDF backend is compared with the committed
@@ -513,7 +514,14 @@ BDF tokens) and otherwise with analytic solutions.
   serves as both limits; no sample at a breakpoint is an error (ngspice lands a
   step on every breakpoint; the companion driver emits one, the diffsol BDF
   requested-grid output only on-grid events).
-* End time (and a nonzero start) must match `grid.stop`; missing/extra
+* `uic` runs: C writes no `t = 0` row (the first row is the first accepted step) and
+  adds a breakpoint at the `.tran` step. `tran::Grid` has a `start` (0 normally);
+  for a `uic` deck `verify.rs` passes the golden's first time and **both** plots must
+  begin exactly there (the instant is compared as an ordinary sample; nothing before
+  it is interpolated or extrapolated). The step breakpoint needs no declaration:
+  it is not a source corner, both plots carry a sample there, and interpolation
+  across it is harmless (the data are smooth).
+* End time (and the start) must match `grid.stop`/`grid.start`; missing/extra
   variables, unit/metadata mismatch, non-real data, nonfinite values, decreasing
   time and repeated times away from declared breakpoints are errors.
 * `compare::TRAN`: relative 1e-3 (ngspice `reltol`) plus 1e-6 V / 1e-12 A
@@ -547,6 +555,46 @@ timesteps, in-segment interpolation, refusal across breakpoints, jump left/right
 limits, end-time mismatch, missing signals, nonfinite data, AST breakpoints, and
 an end-to-end diffsol BDF RC PWL ramp against its analytic response (worst
 error 4e-5 of the bound).
+
+## Initialized-state fixtures (#27, #48)
+
+Four decks with C goldens captured deliberately (one `cargo xtask golden capture
+--netlist <name>` each; no existing golden recaptured, ~50-150 KB each) and
+registered with `compare::TRAN` unchanged. Worst error against C is 0.000 of the
+bound for all four (the port reproduces C's step sequence, including the `uic`
+first step and step breakpoint).
+
+| Deck | Initial state | Exercises |
+| --- | --- | --- |
+| `rc_ic_uic_tran` | `uic`, `c1 ic=2`, 0 V source | RC discharge `2 exp(-t/1 ms)`, no `t = 0` row |
+| `rlc_ic_uic_tran` | `uic`, `l1 ic=20m`, `c1 ic=1`, 0 V source | underdamped free decay (zeta 0.158) |
+| `rc_ic_node_tran` | `.ic v(out)=0.25`, no `uic`, 1 V source | constrained bias row at `t = 0`, then release |
+| `floating_cap_ic_tran` | `uic`, `c1 ic=2` between floating a/b, ramp drive | plate charge changes only by the current through r1 |
+
+The diffsol BDF backend deliberately rejects `.ic`, `uic` and instance `ic=`, so these
+decks have **no BDF variants**; `bdf_variants_of_initialized_state_decks_are_rejected_explicitly`
+(xtask) and `the_diffsol_bdf_backend_rejects_every_initialized_state_deck_explicitly`
+(`m3_gate.rs`) assert the explicit error.
+
+Gate checks in `m3_gate.rs` (Rust and the C golden against the same exact solution
+from `t = 0`; budgets at most twice the measurement, relative to the device scale):
+
+| Deck | worst error / scale | budget |
+| --- | --- | --- |
+| `rc_ic_uic_tran` | 5.9e-6 | 1.2e-5 |
+| `rlc_ic_uic_tran` | 2.5e-4 | 4.9e-4 |
+| `rc_ic_node_tran` | 2.3e-6 | 4.6e-6 |
+| `floating_cap_ic_tran` | 1.5e-6 | 3e-6 |
+
+The floating capacitor's plate charge `C (va - vb)` moves only by the charge through
+r1: residual 1.39e-6 of the peak charge (budget 2.8e-6), the first row is within
+5.0e-5 of `C ic` (one 0.1 us backward-Euler step of decay; budget 1e-4) and KCL
+holds to 1.1e-12 (budget 1e-9). The `.ic` deck's `t = 0` row is `v(out) = 0.25`,
+`i(v1) = -0.75 mA`; the same deck without the `.ic` card stays at its 1 V operating
+point, so the constraint (not the circuit) set the state, and it is released
+afterwards (`v(out) = 1 - 0.75 e^(-t/tau)`). `uic` runs have a first row at
+0 < t < tstep/10 equal for Rust and C, a sample at the `.tran` step and the right
+breakpoint counts.
 
 ## M3 exit-gate analytic and conservation checks (#48)
 
@@ -591,15 +639,15 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 `tstep` (e.g. `.tran 50u 3m`); it now ends with exactly one `tstop` sample
 (`source_waveforms.rs`).
 
-**Still blocked, not claimed:** initialized-state (`.ic`/`.nodeset`/`uic`/`ic=`)
-fixtures (GitHub #27), higher-index source constraints (#29), nonlinear charge and
-devices (M4), subcircuits (M5), orders above 2, and general MNA DAEs: only the
-index-one structures demonstrated above are covered.
+**Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
+charge and devices (M4), subcircuits (M5), orders above 2, mutual inductors and
+nonlinear device initial conditions, and general MNA DAEs: only the index-one
+structures demonstrated above are covered.
 
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity
-beyond the linear RC/RLC decks above, general DAEs, `.ic`/`uic`, remaining source
+beyond the linear RC/RLC decks above, general DAEs, remaining source
 waveforms and subcircuit/parameter elaboration
 are not established by the bounded linear implementation. Track those remaining
 gates in the central [TODO.md](../../TODO.md); do not claim full SPICE parity.

@@ -38,11 +38,17 @@ const TIME_EPS_REL: f64 = 1e-9;
 /// Upper bound on comparison instants and generated breakpoints.
 const MAX_POINTS: usize = 2_000_000;
 
-/// The shared output grid: `0, step, 2*step, ... , stop` (each time is `i*step`,
-/// not an accumulated sum). Breakpoints inside `(0, stop)` are inserted by
-/// [`transient`] and compared as left/right limit pairs.
+/// The shared output grid: `start, step, 2*step, ... , stop` (each time is
+/// `i*step`, not an accumulated sum). Breakpoints inside `(start, stop)` are
+/// inserted by [`transient`] and compared as left/right limit pairs.
+///
+/// `start` is 0 for an ordinary run. With `uic` C writes no `t = 0` row (its
+/// first row is the first accepted step); the caller then passes that first
+/// time, and **both** plots must begin exactly there: the instant is compared as
+/// an ordinary sample, and nothing before it is interpolated or extrapolated.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Grid {
+    pub(crate) start: f64,
     pub(crate) stop: f64,
     pub(crate) step: f64,
 }
@@ -94,10 +100,10 @@ impl<'a> Series<'a> {
             return Err(format!("{label}: axis 'time' must have unit 'time'"));
         }
         let times: Vec<f64> = plot.points.iter().map(|row| row[time].re).collect();
-        if times[0].abs() > eps {
+        if (times[0] - grid.start).abs() > eps {
             return Err(format!(
-                "{label}: transient starts at {:e}, not 0",
-                times[0]
+                "{label}: transient starts at {:e}, not {:e}",
+                times[0], grid.start
             ));
         }
         let end = times[times.len() - 1];
@@ -216,23 +222,32 @@ fn comparison_instants(
     if !(grid.stop.is_finite() && grid.stop > 0.0 && grid.step.is_finite() && grid.step > 0.0) {
         return Err("grid stop and step must be finite and positive".into());
     }
+    if !(grid.start.is_finite() && grid.start >= 0.0 && grid.start < grid.stop - eps) {
+        return Err("grid start must be finite and lie in [0, stop)".into());
+    }
     let count = (grid.stop / grid.step + 1e-9).floor();
     if count >= MAX_POINTS as f64 {
         return Err(format!("grid needs more than {MAX_POINTS} points"));
     }
-    let mut previous = 0.0;
+    let mut previous = grid.start;
     for &b in breakpoints {
         if !(b.is_finite() && b > eps && b < grid.stop - eps && b > previous + eps) {
             return Err(format!(
-                "breakpoint {b:e} must be finite, strictly inside (0, stop) and strictly increasing"
+                "breakpoint {b:e} must be finite, strictly inside (start, stop) and strictly increasing"
             ));
         }
         previous = b;
     }
     let mut instants: Vec<(f64, Side)> = Vec::new();
+    // The first instant is `start` itself (0 for an ordinary run); grid times
+    // before it do not exist in either plot.
+    instants.push((grid.start, Side::Interior));
     for index in 0..=(count as usize) {
         let t = index as f64 * grid.step;
-        if t < grid.stop - eps && !breakpoints.iter().any(|b| (b - t).abs() <= eps) {
+        if t > grid.start + eps
+            && t < grid.stop - eps
+            && !breakpoints.iter().any(|b| (b - t).abs() <= eps)
+        {
             instants.push((t, Side::Interior));
         }
     }
@@ -457,6 +472,7 @@ mod tests {
     }
     fn grid() -> Grid {
         Grid {
+            start: 0.0,
             stop: STOP,
             step: 1.0,
         }
@@ -692,18 +708,22 @@ mod tests {
         let p = sampled(&times(1.0), |t| t);
         for g in [
             Grid {
+                start: 0.0,
                 stop: STOP,
                 step: 0.0,
             },
             Grid {
+                start: 0.0,
                 stop: STOP,
                 step: f64::NAN,
             },
             Grid {
+                start: 0.0,
                 stop: 0.0,
                 step: 1.0,
             },
             Grid {
+                start: 0.0,
                 stop: STOP,
                 step: 1e-12,
             },
@@ -859,9 +879,49 @@ mod tests {
                 ]
             })
             .collect();
-        let grid = Grid { stop, step: 1e-4 };
+        let grid = Grid {
+            start: 0.0,
+            stop,
+            step: 1e-4,
+        };
         let summary = transient(&got_v, &want, compare::TRAN, &grid, &bps).unwrap();
         assert_eq!(summary.limits, 4);
+    }
+
+    #[test]
+    fn a_uic_style_start_after_zero_is_compared_from_that_instant_only() {
+        // C with `uic` has no t = 0 row: both plots begin at the first accepted
+        // step (here 0.4). The grid starts there and nothing earlier exists.
+        let line = |t: f64| 2.0 * t + 1.0;
+        let times_from = |step: f64| -> Vec<f64> {
+            let mut times = vec![0.4];
+            times.extend(
+                (1..=(STOP / step).round() as usize)
+                    .map(|i| i as f64 * step)
+                    .filter(|&t| t > 0.4),
+            );
+            times
+        };
+        let grid = Grid {
+            start: 0.4,
+            ..grid()
+        };
+        let got = sampled(&times_from(0.25), line);
+        let want = sampled(&times_from(0.5), line);
+        let summary = transient(&got, &want, compare::TRAN, &grid, &[]).unwrap();
+        // 0.4, then 1..=9 on the unit grid, and the stop time.
+        assert_eq!(summary.instants, 11);
+        // A plot starting elsewhere (including the ordinary t = 0) is refused,
+        // as is a nonsensical start.
+        let from_zero = sampled(&times(0.5), line);
+        let error = transient(&from_zero, &want, compare::TRAN, &grid, &[]).unwrap_err();
+        assert!(error.contains("starts at"), "{error}");
+        for bad in [-1.0, f64::NAN, STOP] {
+            let grid = Grid { start: bad, ..grid };
+            assert!(transient(&got, &want, compare::TRAN, &grid, &[]).is_err());
+        }
+        // A breakpoint at or before the start is rejected.
+        assert!(transient(&got, &want, compare::TRAN, &grid, &[0.4]).is_err());
     }
 
     #[test]
