@@ -161,7 +161,8 @@ checked byte for byte by `crates/spice-netlist/tests/snapshots.rs`;
 `cargo xtask snapshots` reports drift and `--bless` regenerates (Rust only, no C,
 fixed point, never touches goldens). Schema, layout, path/Windows rules and the
 schema-change procedure: `conformance/snapshots/README.md`. The eight-fixture
-round-trip gate (#22) is still M1d work.
+round-trip gate is `crates/spice-netlist/tests/m1_gate.rs` (#22); ordinary tests
+never need C, and C parser oracles remain opt-in.
 
 `crates/spice-netlist/tests/c_param_reference.rs` is a further ignored oracle for
 the `.param`/expression grammar (#14): it folds parsed trees with a test-local
@@ -364,9 +365,9 @@ warning-free rustdoc and `git diff --check` pass. `cargo xtask golden verify`
 remains three verified/five explicitly unsupported fixtures; no goldens changed.
 
 These are syntax/setup comparisons, not Rust waveform evaluation or nonlinear
-simulation. Scoped/source syntax is now implemented below. Full M1 still
-requires expressions/evaluation/options/globals, serialization/snapshots and
-its eight-fixture round-trip gate.
+simulation. Scoped/source syntax is implemented below. (Historical note: the
+expressions, evaluation, options/globals, serialization, snapshots and the
+eight-fixture round-trip gate were completed later, #14-#16, #20-#22.)
 
 ## Scoped/source syntax (#12 / #13)
 

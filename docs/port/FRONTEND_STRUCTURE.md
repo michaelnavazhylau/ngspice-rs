@@ -1,8 +1,8 @@
 # Scoped cards and source resolution (#12 / #13)
 
 This checkout parses all **8/8 rawfile fixture decks**, including
-`subckt_divider`. This is syntax coverage, **not simulation or the full M1
-round-trip gate**. Subcircuit flattening (#18) remains M5 work. The current
+`subckt_divider`. This is syntax coverage, **not simulation**; the M1 round-trip
+gate is closed separately by #22 (see the end of this document). Subcircuit flattening (#18) remains M5 work. The current
 linear circuit builder explicitly rejects decks containing definitions/source
 directives, and X factories remain unavailable.
 
@@ -180,10 +180,17 @@ source reproduction. The full contract is the module documentation of
   Re-parse with the same `Parser` configuration (`auto_gnd`). Tests:
   `crates/spice-netlist/tests/deck_writer.rs` (all `conformance/netlists/*.cir`,
   `conformance/parser/*.cir` and the source-resolution fixture round-trip and
-  reach a writer fixed point). The scoped #22 gate remains.
+  reach a writer fixed point). The #22 gate (`m1_gate.rs`) builds on it.
 
 Done: **#15** top-level parameter evaluation over the #14 expression AST
 (`eval`, `elaborate`). **#21** adds `dump`/`snapshot` (versioned token/AST dumps, snapshots in
-`conformance/snapshots/`, `cargo xtask snapshots --bless`). Next: **#22**, the
-complete M1 eight-fixture round-trip gate. None of those gates is closed by
-8/8 parsing.
+`conformance/snapshots/`, `cargo xtask snapshots --bless`). **#22** closes the
+M1 eight-fixture round-trip gate in `crates/spice-netlist/tests/m1_gate.rs`
+(per-deck counts, terminal/model roles and analyses; semantic round trip and writer
+fixed point; snapshot match; combined fixtures `conformance/parser/combined_*.cir`;
+negative cases). Scoped-name enforcement is structural: declarations stay in
+their scope, and Q-family lookup sees only the local scope and ancestors (a
+model from a sibling/child/other scope is a parse error). Unresolved `X` targets
+and D/M model names parse unresolved; resolution belongs to elaboration
+(#17/#18). Subcircuit flattening (#18, M5) and subcircuit-scoped parameter
+evaluation remain outstanding; a D/Q/M or subcircuit parse is not simulation.

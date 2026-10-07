@@ -90,7 +90,7 @@ The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
 `mos_inverter`, `rc_transient` and `subckt_divider` (all eight fixtures).
-This is parsing, not subcircuit flattening or the full M1 round-trip gate. **The CLI does not simulate yet; production simulation
+This is parsing, not subcircuit flattening or simulation (the M1 round-trip gate is `crates/spice-netlist/tests/m1_gate.rs`, #22). **The CLI does not simulate yet; production simulation
 is available through APIs and `cargo run -p spice-analysis --example rc_diffsol`.**
 
 ```sh

@@ -1,0 +1,77 @@
+# ngspice-rs ast-dump v1
+file: parser/combined_params_options.cir
+title: "Combined params, options and globals, simulatable at top level" @parser/combined_params_options.cir:1:1
+scope root
+  cards (12):
+    [0] options[0] @parser/combined_params_options.cir:2:1 ".option reltol=1e-4 temp=30"
+    [1] global[0] @parser/combined_params_options.cir:3:1 ".global vdd"
+    [2] param[0] @parser/combined_params_options.cir:4:1 ".param vcc=5 rtop=2k ratio=3"
+    [3] param[1] @parser/combined_params_options.cir:5:1 ".param rbot={rtop*ratio}"
+    [4] options[1] @parser/combined_params_options.cir:6:1 ".option reltol=1e-5"
+    [5] device[0] @parser/combined_params_options.cir:7:1 "vdd vdd 0 dc {vcc}"
+    [6] device[1] @parser/combined_params_options.cir:8:1 "r1 vdd out {rtop}"
+    [7] device[2] @parser/combined_params_options.cir:9:1 "r2 out 0 {rbot}"
+    [8] param[2] @parser/combined_params_options.cir:10:1 ".param late=1"
+    [9] options[2] @parser/combined_params_options.cir:11:1 ".option temp=40"
+    [10] analysis[0] @parser/combined_params_options.cir:12:1 ".op"
+    [11] end @parser/combined_params_options.cir:13:1 ".end"
+  devices (3):
+    device [0] name="vdd" designator=v @parser/combined_params_options.cir:7:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=expression value="{vcc}" @parser/combined_params_options.cir:7:11
+          expression braced=true text="vcc" span=7:15..18
+            identifier "vcc" span=7:15..18
+    device [1] name="r1" designator=r @parser/combined_params_options.cir:8:1
+      nodes: "vdd" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rtop}" @parser/combined_params_options.cir:8:12
+          expression braced=true text="rtop" span=8:13..17
+            identifier "rtop" span=8:13..17
+    device [2] name="r2" designator=r @parser/combined_params_options.cir:9:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rbot}" @parser/combined_params_options.cir:9:10
+          expression braced=true text="rbot" span=9:11..15
+            identifier "rbot" span=9:11..15
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/combined_params_options.cir:12:1
+      arguments: 
+  includes (0):
+  params (3):
+    param-card [0] @parser/combined_params_options.cir:4:1
+      assignment [0] name="vcc" name_span=4:8..11
+        expression braced=false text="5" span=4:12..13
+          number "5" value=5e0 span=4:12..13
+      assignment [1] name="rtop" name_span=4:14..18
+        expression braced=false text="2k" span=4:19..21
+          number "2k" value=2e3 span=4:19..21
+      assignment [2] name="ratio" name_span=4:22..27
+        expression braced=false text="3" span=4:28..29
+          number "3" value=3e0 span=4:28..29
+    param-card [1] @parser/combined_params_options.cir:5:1
+      assignment [0] name="rbot" name_span=5:8..12
+        expression braced=true text="rtop*ratio" span=5:14..24
+          binary mul span=5:14..24
+            identifier "rtop" span=5:14..18
+            identifier "ratio" span=5:19..24
+    param-card [2] @parser/combined_params_options.cir:10:1
+      assignment [0] name="late" name_span=10:8..12
+        expression braced=false text="1" span=10:13..14
+          number "1" value=1e0 span=10:13..14
+  options (3):
+    option-card [0] @parser/combined_params_options.cir:2:1
+      setting [0] name="reltol" value="1e-4"@parser/combined_params_options.cir:2:16 @parser/combined_params_options.cir:2:9
+      setting [1] name="temp" value="30"@parser/combined_params_options.cir:2:26 @parser/combined_params_options.cir:2:21
+    option-card [1] @parser/combined_params_options.cir:6:1
+      setting [0] name="reltol" value="1e-5"@parser/combined_params_options.cir:6:16 @parser/combined_params_options.cir:6:9
+    option-card [2] @parser/combined_params_options.cir:11:1
+      setting [0] name="temp" value="40"@parser/combined_params_options.cir:11:14 @parser/combined_params_options.cir:11:9
+  globals (1):
+    global-card [0] @parser/combined_params_options.cir:3:1
+      node [0] "vdd" @parser/combined_params_options.cir:3:9

@@ -140,7 +140,7 @@ offline builds require the registry dependencies to have been cached first.
 The initial backend rewrite preserved loader/tokenizer contracts. M1b's
 model/D/Q/M slices and M1c's ordered scoped/source storage extend that AST;
 `parse_deck` is syntax-only and `parse_file` now resolves sources. This is still
-not completion of the remaining M1 syntax/round-trip gate.
+not subcircuit flattening (#18, M5); the M1 round-trip gate is closed by #22.
 
 ## Two data models for a netlist
 
