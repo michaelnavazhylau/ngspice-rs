@@ -17,6 +17,7 @@ members = [
     "crates/spice-devices",
     "crates/spice-analysis",
     "crates/spice-cli",
+    "crates/spice-wasm",
     "xtask",
 ]
 
@@ -45,10 +46,12 @@ winnow = { version = "1.0.4", default-features = false, features = ["std", "pars
 # `sundials` features stay off: they need an external KLU/SUNDIALS build.
 #
 # `faer` supplies the production sparse/complex and dense pivoted LU in
-# `spice-maths`. Its defaults (`std`, `rayon`, `sparse-linalg`) match what the
-# diffsol `faer` backend already turns on, so the two agree on one feature set.
+# `spice-maths`. Only `std` + `sparse-linalg` are requested, matching what the
+# diffsol `faer` backend turns on for every target. Native diffsol additionally
+# enables `rayon`; on wasm32 it does not (faer's `spindle` pool cannot build
+# there), so leaving it off here keeps the workspace buildable for wasm32.
 diffsol = { version = "0.17.1", default-features = false, features = ["faer"] }
-faer = "0.24.4"
+faer = { version = "0.24.4", default-features = false, features = ["std", "sparse-linalg"] }
 
 # Prefer `petgraph` for graph representations/traversals instead of custom
 # adjacency lists, DFS, SCC or topological-sort implementations. `spice-maths`

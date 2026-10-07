@@ -1,3 +1,8 @@
 # `cargo xtask <command>` runs the workspace automation crate (see xtask/).
 [alias]
 xtask = "run --package xtask --"
+
+# spice-wasm spike: faer pulls in getrandom 0.3, whose browser backend must be
+# opted into with this cfg as well as its `wasm_js` feature.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

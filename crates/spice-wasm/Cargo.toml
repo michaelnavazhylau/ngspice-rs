@@ -1,0 +1,30 @@
+[package]
+name = "spice-wasm"
+description = "WebAssembly front end: run a SPICE deck plus in-memory include files, return JSON plots"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# Not `lints.workspace = true`: `#[wasm_bindgen]` expands to `unsafe` glue,
+# which the workspace-wide `unsafe_code = "forbid"` would reject. This crate's
+# own code contains no `unsafe`.
+[lints.rust]
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+spice-analysis.workspace = true
+spice-netlist.workspace = true
+spice-core.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+# faer -> rand -> getrandom 0.3: the browser backend must be selected
+# explicitly (feature + `--cfg getrandom_backend="wasm_js"`, see .cargo/config.toml).
+getrandom = { version = "0.3", features = ["wasm_js"] }
