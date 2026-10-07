@@ -33,6 +33,7 @@ pub mod parser;
 pub mod semantic;
 pub mod snapshot;
 pub mod source;
+pub mod sources;
 pub mod token;
 pub mod writer;
 
@@ -41,6 +42,7 @@ pub use expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
 pub use parser::{Parser, SourceLimits, classify_deck, load_classified};
 pub use semantic::{semantic_diff, semantic_eq, semantic_form};
 pub use source::{Deck, LogicalLine, PhysicalLine, load};
+pub use sources::{FileSystem, MemorySources, SourceProvider};
 pub use token::{Token, TokenKind, tokenize};
 pub use writer::write_netlist;
 

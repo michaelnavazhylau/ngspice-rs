@@ -22,6 +22,7 @@ use spice_core::SpiceResult;
 use crate::ast::Netlist;
 use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, load};
+use crate::sources::{FileSystem, SourceProvider};
 
 pub use resolution::SourceLimits;
 
@@ -145,7 +146,23 @@ impl Parser {
         path: impl AsRef<Path>,
         limits: SourceLimits,
     ) -> SpiceResult<Netlist> {
-        let (deck, cards) = resolution::resolve(path.as_ref(), limits)?;
+        self.parse_file_with_sources(path, &FileSystem, limits)
+    }
+
+    /// Resolves and parses a deck whose text, and that of every `.include`/`.lib`
+    /// it reaches, comes from `sources` instead of the operating-system file
+    /// system (for example [`crate::sources::MemorySources`] in a browser).
+    /// Resolution rules and limits are those of [`Parser::parse_file_with_limits`].
+    ///
+    /// # Errors
+    /// As [`Parser::parse_file_with_limits`].
+    pub fn parse_file_with_sources(
+        &self,
+        path: impl AsRef<Path>,
+        sources: &dyn SourceProvider,
+        limits: SourceLimits,
+    ) -> SpiceResult<Netlist> {
+        let (deck, cards) = resolution::resolve(path.as_ref(), sources, limits)?;
         scopes::assemble(&deck, cards, self.auto_gnd)
     }
 }

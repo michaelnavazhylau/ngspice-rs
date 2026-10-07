@@ -2,8 +2,6 @@
 //! library section processing. Deliberately no sourcepath/env/home expansion.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{self, File};
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use petgraph::algo::has_path_connecting;
@@ -15,6 +13,7 @@ use super::scopes::InputCard;
 use crate::ast::LibrarySection;
 use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, LogicalLine, parse_deck_text, parse_fragment_text};
+use crate::sources::SourceProvider;
 
 /// Per-parse source work limits. Repeated includes consume budgets again;
 /// sharing a dependency never suppresses its ordered content.
@@ -43,7 +42,8 @@ impl Default for SourceLimits {
 
 type SourceKey = (PathBuf, Option<String>);
 
-struct Resolver {
+struct Resolver<'a> {
+    sources: &'a dyn SourceProvider,
     limits: SourceLimits,
     files: usize,
     bytes: usize,
@@ -54,6 +54,7 @@ struct Resolver {
 
 pub(super) fn resolve(
     path: &Path,
+    sources: &dyn SourceProvider,
     limits: SourceLimits,
 ) -> SpiceResult<(Deck, Vec<SpiceResult<InputCard>>)> {
     let location = SourceLoc::new(path.to_path_buf(), 1, 1);
@@ -64,6 +65,7 @@ pub(super) fn resolve(
         ));
     }
     let mut resolver = Resolver {
+        sources,
         limits,
         files: 0,
         bytes: 0,
@@ -71,7 +73,9 @@ pub(super) fn resolve(
         dependencies: DiGraph::new(),
         nodes: BTreeMap::new(),
     };
-    let canonical = fs::canonicalize(path).map_err(|e| SpiceError::io(path, &e))?;
+    let canonical = sources
+        .canonicalize(path)
+        .map_err(|e| SpiceError::io(path, &e))?;
     let text = resolver.read(&canonical, &location)?;
     // Keep the caller's root path/title API; fragments use canonical paths.
     let deck = parse_deck_text(path, &text);
@@ -85,7 +89,7 @@ pub(super) fn resolve(
     Ok((deck, output))
 }
 
-impl Resolver {
+impl Resolver<'_> {
     fn read(&mut self, path: &Path, location: &SourceLoc) -> SpiceResult<String> {
         if self.files >= self.limits.max_files {
             return Err(SpiceError::parse(
@@ -95,15 +99,10 @@ impl Resolver {
         }
         self.files += 1;
         let remaining = self.limits.max_bytes.saturating_sub(self.bytes);
-        let mut bytes = Vec::new();
-        let file = File::open(path).map_err(|e| SpiceError::io(path, &e))?;
-        file.take(
-            u64::try_from(remaining)
-                .unwrap_or(u64::MAX)
-                .saturating_add(1),
-        )
-        .read_to_end(&mut bytes)
-        .map_err(|e| SpiceError::io(path, &e))?;
+        let bytes = self
+            .sources
+            .read(path, u64::try_from(remaining).unwrap_or(u64::MAX))
+            .map_err(|e| SpiceError::io(path, &e))?;
         if bytes.len() > remaining {
             return Err(SpiceError::parse(
                 location.clone(),
@@ -170,7 +169,7 @@ impl Resolver {
                         .parent()
                         .unwrap_or_else(|| Path::new("."))
                         .join(&directive.path);
-                    let canonical = fs::canonicalize(&target).map_err(|e| {
+                    let canonical = self.sources.canonicalize(&target).map_err(|e| {
                         SpiceError::parse(
                             directive.location.clone(),
                             format!("cannot resolve source '{}': {e}", target.display()),

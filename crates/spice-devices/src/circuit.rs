@@ -547,10 +547,24 @@ impl Circuit {
         context: &crate::models::ModelContext,
     ) -> SpiceResult<Self> {
         context.validate(&netlist.location)?;
-        if !netlist.subcircuits.is_empty() || !netlist.includes.is_empty() {
+        if !netlist.subcircuits.is_empty() {
             return Err(SpiceError::Unsupported {
-                feature: "subcircuits/includes in linear elaboration".into(),
+                feature: "subcircuits in linear elaboration".into(),
                 location: None,
+            });
+        }
+        // Resolved `.include`/`.lib` content is already inlined, in order, in
+        // the cards and devices of its insertion scope (`Parser::parse_file*`);
+        // the retained directive is provenance only. A syntax-only parse
+        // (`Parser::parse_deck`) leaves the directive unresolved and its
+        // content missing, which must not be simulated as an empty file.
+        if let Some(include) = netlist.includes.iter().find(|i| i.resolved_path.is_none()) {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "unresolved source directive '{}' (parse the deck with file resolution)",
+                    include.path
+                ),
+                location: Some(include.location.clone()),
             });
         }
         // Top-level `.param` values and `{expr}` sites are evaluated into a

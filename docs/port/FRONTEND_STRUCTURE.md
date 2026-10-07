@@ -57,6 +57,10 @@ remain explicit errors.
   `resolved_path`/`selected_section` are absent.
 - `Parser::parse_file(path)` resolves sources before scoped assembly using
   default `SourceLimits`. `parse_file_with_limits` accepts explicit budgets.
+  `parse_file_with_sources` reads through a `SourceProvider`: `FileSystem`
+  (`std::fs`, the default) or `MemorySources` (an in-memory file map, used by
+  the WebAssembly front end). Resolution rules do not depend on the provider.
+  Elaboration accepts resolved includes and rejects unresolved ones.
   `spice-rs parse` uses this resolved API; summary/cards/tokens still inspect the
   original deck without source expansion.
 - Only the root file has a title. Included sources are **fragments**, including
