@@ -10,13 +10,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use spice_core::{NodeTable, parse_spice_number};
 use spice_netlist::{
     Parser,
-    ast::{Netlist, ParameterAssignment},
+    ast::{Netlist, ParameterAssignment, ParameterKind},
 };
 
 const LINEAR: &str = include_str!("../../../conformance/parser/linear_sources.cir");
 const DIODES: &str = include_str!("../../../conformance/parser/model_diodes.cir");
 const TRANSISTORS: &str = include_str!("../../../conformance/parser/transistor_scalars.cir");
 const PASSIVES: &str = include_str!("../../../conformance/parser/passive_models.cir");
+const FLAGS_IC: &str = include_str!("../../../conformance/parser/flags_ic.cir");
+const WAVEFORMS: &str = include_str!("../../../conformance/parser/source_waveforms.cir");
 
 struct Scratch(PathBuf);
 
@@ -179,6 +181,110 @@ fn numeric_bjt_model_names_are_not_silently_accepted() {
     }
 }
 
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
+    let netlist = parse(FLAGS_IC);
+    let mut expected = BTreeMap::new();
+    for device in &netlist.devices {
+        for parameter in &device.parameters {
+            match &parameter.kind {
+                ParameterKind::Scalar => {
+                    assignments(&mut expected, &device.name, std::slice::from_ref(parameter))
+                }
+                ParameterKind::Flag => {
+                    // MOS1 OFF is input-only (IP, not IOP) despite an ask
+                    // switch; the frontend cannot expose @m[off]. C setup
+                    // checks its syntax; D/Q OFF can be queried directly.
+                    if device.designator != 'm' {
+                        expected.insert(format!("@{}[{}]", device.name, parameter.name), 1.0);
+                    }
+                }
+                ParameterKind::InitialConditions(values) => {
+                    for component in values {
+                        expected.insert(
+                            format!("@{}[{}]", device.name, component.name),
+                            parse_spice_number(&component.value.text).unwrap(),
+                        );
+                    }
+                }
+                ParameterKind::Waveform(_) => panic!("not a waveform probe"),
+            }
+        }
+    }
+    // Independent expectations pin fallthrough/omission and precedence.
+    assert_eq!(expected["@dlead[area]"], 2.0);
+    assert_eq!(expected["@qfull[area]"], 2.0);
+    assert_eq!(expected["@qfull[icvbe]"], 0.7);
+    assert_eq!(expected["@qfull[icvce]"], 4.0);
+    assert_eq!(expected["@qpartial[icvce]"], 5.0);
+    assert_eq!(expected["@mfull[icvgs]"], 4.0);
+    assert_eq!(expected["@mpartial[icvds]"], 0.4);
+    assert_eq!(expected["@mpartial[icvgs]"], 6.0);
+    assert_eq!(expected["@mpartial[icvbs]"], -0.3);
+    // Model type flags are input-only; successful C setup checks their syntax,
+    // not a fictitious scalar query or Rust model polarity implementation.
+    assert_reference("flags-ic", FLAGS_IC, expected);
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
+    use spice_netlist::ast::SourceWaveform;
+    let netlist = parse(WAVEFORMS);
+    let mut expected = BTreeMap::new();
+    let mut commands = String::new();
+    for device in &netlist.devices {
+        for parameter in device
+            .parameters
+            .iter()
+            .filter(|p| p.kind == ParameterKind::Scalar)
+        {
+            assignments(&mut expected, &device.name, std::slice::from_ref(parameter));
+        }
+        let Some(waveform) = device.parameters.iter().rev().find_map(|p| match &p.kind {
+            ParameterKind::Waveform(w) => Some(w),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let (function, fields): (f64, Vec<&str>) = match waveform {
+            SourceWaveform::Pulse(p) => (
+                1.0,
+                std::iter::once(p.initial.text.as_str())
+                    .chain(std::iter::once(p.pulsed.text.as_str()))
+                    .chain(
+                        [&p.delay, &p.rise, &p.fall, &p.width, &p.period]
+                            .into_iter()
+                            .filter_map(|v| v.as_ref().map(|v| v.text.as_str())),
+                    )
+                    .collect(),
+            ),
+            SourceWaveform::Pwl(points) => (
+                5.0,
+                points
+                    .iter()
+                    .flat_map(|p| [p.time.text.as_str(), p.value.text.as_str()])
+                    .collect(),
+            ),
+        };
+        expected.insert(format!("@{}[function]", device.name), function);
+        let count = format!("oracle_{}_count", device.name);
+        commands.push_str(&format!("let {count} = length(@{}[coeffs])\n", device.name));
+        expected.insert(count, fields.len() as f64);
+        for (index, field) in fields.iter().enumerate() {
+            let name = format!("oracle_{}_{index}", device.name);
+            commands.push_str(&format!("let {name} = @{}[coeffs][{index}]\n", device.name));
+            expected.insert(name, parse_spice_number(field).unwrap());
+        }
+    }
+    assert_eq!(expected["@vpulse[dc]"], 7.0);
+    assert_eq!(expected["oracle_ipulse_count"], 2.0);
+    assert_eq!(expected["@vpwl[function]"], 5.0);
+    assert_eq!(expected["@ipwl[function]"], 1.0);
+    assert_reference_commands("waveforms", WAVEFORMS, expected, &commands);
+}
+
 fn reference_output(label: &str, text: &str) -> std::process::Output {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
@@ -206,10 +312,19 @@ fn reference_output(label: &str, text: &str) -> std::process::Output {
 }
 
 fn assert_reference(label: &str, text: &str, expected: BTreeMap<String, f64>) {
+    assert_reference_commands(label, text, expected, "");
+}
+
+fn assert_reference_commands(
+    label: &str,
+    text: &str,
+    expected: BTreeMap<String, f64>,
+    commands: &str,
+) {
     let queries = expected.keys().cloned().collect::<Vec<_>>().join(" ");
     let instrumented = text.replace(
         ".end\n",
-        &format!(".control\nset numdgt=17\nop\nprint {queries}\nquit\n.endc\n.end\n"),
+        &format!(".control\nset numdgt=17\nop\n{commands}print {queries}\nquit\n.endc\n.end\n"),
     );
     let output = reference_output(label, &instrumented);
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -218,7 +333,7 @@ fn assert_reference(label: &str, text: &str, expected: BTreeMap<String, f64>) {
     let mut actual = BTreeMap::new();
     for line in stdout.lines() {
         if let Some((query, value)) = line.split_once(" = ")
-            && query.starts_with('@')
+            && expected.contains_key(query)
         {
             actual.insert(
                 query.to_owned(),

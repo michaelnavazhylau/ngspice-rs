@@ -43,7 +43,7 @@ const EXCLUDED: &[(&str, &str)] = &[
     ("mos_inverter", "nonlinear MOS backend unavailable"),
     (
         "rc_transient",
-        "waveform deck syntax and SPICE transient parity unavailable",
+        "waveform deck evaluation and SPICE transient parity unavailable",
     ),
     (
         "subckt_divider",

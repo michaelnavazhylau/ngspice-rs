@@ -6,7 +6,7 @@ use winnow::combinator::{cut_err, peek};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
-use crate::ast::ParameterAssignment;
+use crate::ast::{ParameterAssignment, ParameterKind};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Failure, Input, Result, gap};
@@ -63,6 +63,7 @@ pub(super) fn assignment(name: &str, value: &Token) -> ParameterAssignment {
     ParameterAssignment {
         name: name.to_owned(),
         value: value.text.clone(),
+        kind: ParameterKind::Scalar,
         location: value.location.clone(),
     }
 }

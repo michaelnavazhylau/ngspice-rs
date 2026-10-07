@@ -3,7 +3,7 @@
 PR #51 merged these prerequisites (#11/#17). The initial infrastructure did
 not itself implement model-backed passive arithmetic or D/Q/M simulation.
 This checkout now adds #19's bounded passive arithmetic, pending merge; see
-[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation remains unavailable. The parser still accepts six of the eight rawfile fixture decks;
+[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation remains unavailable. The parser now accepts seven of the eight rawfile fixture decks (#8/#10);
 `golden verify` still verifies three linear fixtures and excludes five.
 
 ## Bounded passive syntax
@@ -26,7 +26,7 @@ be model references; `keyword=value` stays an assignment. An initial numeric
 literal stays a scalar even if a model has that name. Numeric-looking passive
 model references **after a scalar** remain explicit gaps: live C probing of
 `r1 a 0 1k 123` did not prove model semantics (C reported resistance 123).
-Unknown names, expressions, flags, malformed/trailing tokens and overflowing
+Unknown passive names, expressions/flags, malformed/trailing tokens and overflowing
 scalars never result in a partial successful AST. Model-less R/C/L still require
 an explicit scalar. No AST parameter/default is synthesized for omitted values.
 
@@ -54,7 +54,8 @@ Public interfaces live in `spice-devices`, not the parser or maths crates:
 - `ScalarSchema::validate(assignments, location)` is the schema extension point:
   canonical names, units, domains and optional defaults. It checks **every**
   ordered setter (invalid earlier values cannot be hidden by a later valid one),
-  rejects unknown names/nonliteral/nonfinite values and retains the last value
+  rejects non-scalar kinds (including parsed flags/IC vectors), unknown names,
+  nonliteral/nonfinite values and retains the last value
   plus its source location. Defaults have no setter location. `get` is
   case-insensitive. The original AST is never mutated.
 - `ResolvedModel::parameters(&schema)` validates a device-owned model schema,

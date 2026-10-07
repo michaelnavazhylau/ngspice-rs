@@ -7,7 +7,7 @@ use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::token::any;
 
-use crate::ast::{DeviceInstance, ParameterAssignment};
+use crate::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap};
@@ -165,8 +165,16 @@ fn parameters(input: &mut Input<'_>, designator: char) -> Result<Vec<ParameterAs
     } else {
         None
     };
-    let mut parameters: Vec<ParameterAssignment> =
-        repeat(0.., alt((scalar_assignment, invalid_parameter))).parse_next(input)?;
+    let mut parameters: Vec<ParameterAssignment> = repeat(
+        0..,
+        alt((
+            super::flags::instance,
+            super::ic::vector,
+            scalar_assignment,
+            invalid_parameter,
+        )),
+    )
+    .parse_next(input)?;
     if let Some(area) = leading {
         // INP2Q, like INP2D, applies the leading area after INPdevParse.
         parameters.push(assignment("area", area));
@@ -207,6 +215,7 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     Ok(ParameterAssignment {
         name: token.text.to_ascii_lowercase(),
         value: value.text.clone(),
+        kind: ParameterKind::Scalar,
         location: token.location.clone(),
     })
 }
@@ -230,6 +239,6 @@ fn invalid_parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     }
     Err(gap(
         input,
-        "transistor flags, IC vectors or additional/non-scalar parameters",
+        "unsupported transistor flags or additional/non-scalar parameters",
     ))
 }

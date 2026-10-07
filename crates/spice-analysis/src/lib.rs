@@ -15,7 +15,7 @@
 //! rather than by prose. `cargo xtask golden verify` runs supported Rust fixtures
 //! against that data without C. See `docs/port/VERIFICATION.md` and
 //! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` for current limits. Nonlinear
-//! D/Q/M physics, SPICE trap/Gear companions, waveform deck syntax, IC/uic and
+//! D/Q/M physics, SPICE trap/Gear companions, waveform deck evaluation, IC/uic and
 //! general DAEs remain unsupported; the CLI still inspects/parses only.
 
 #![warn(missing_docs)]

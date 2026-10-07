@@ -132,8 +132,8 @@ pinned by a test so that it cannot be lost.
 `crates/spice-netlist/tests/linear_parser.rs` checks AST fields against the
 committed divider, AC low-pass and RLC decks: terminal order, values, source
 locations, request arguments, case folding and ground aliasing. It also checks
-that `rc_transient` and `subckt_divider` still fail at explicit gaps
-(the three nonlinear-device fixtures are now checked by M1b tests),
+that `subckt_divider` still fails at an explicit gap. `rc_transient` now has a
+positioned waveform AST test; the three nonlinear fixtures have M1b tests,
 not with a partially successful AST. `crates/spice-cli/tests/parse.rs` checks
 process exits: supported parse = 0, missing file = 2, unported syntax = 3.
 
@@ -183,8 +183,9 @@ they never contact GitHub and are not part of `cargo xtask ci`.
 model families/forms, raw first level, ordered duplicates, numeric model names,
 forward/unresolved references, scalar geometry, ground aliasing, continuation
 provenance, committed malformed/overflow errors and specific unsupported gaps.
-CLI tests now require six fixture parses with accurate device/model counts;
-`rc_transient` and `subckt_divider` still exit 3 without partial success output.
+At that slice's completion, CLI tests required six fixture parses; #8 now adds
+`rc_transient`, bringing the count to seven. `subckt_divider` still exits 3
+without partial success output.
 
 The second ignored test in `c_reference.rs` instruments
 `conformance/parser/model_diodes.cir`. Live C instance/model queries check
@@ -201,7 +202,8 @@ explicit in the AST and architecture docs.
 fixture ASTs, optional substrate vs earliest declared model, alpha model names
 with digits and numeric node names, forward declarations, raw ordered scalars,
 leading BJT area, MOS bulk/model collisions, omitted ports, overflow, unsupported
-flags/IC vectors/extra ports/binning, and byte-column provenance. Declaration
+advanced flags/extra ports/binning, and byte-column provenance. #10 adds
+separate valid/malformed IC vector and bare-flag regressions below. Declaration
 indexing stops at `.end`, excludes unsupported scope bodies, preserves error
 order, and has no state shared across parser calls.
 
@@ -313,6 +315,44 @@ cargo run -p spice-analysis --example rc_diffsol --locked
 formula table and deliberate gaps. Coil geometry, advanced passive forms, D/Q/M
 arithmetic, IC/uic and SPICE trap/Gear parity remain unimplemented.
 
+## Bounded waveforms, flags and IC syntax (#8 / #10)
+
+`waveform_parser.rs` adds eight production-parser regressions for PULSE omissions,
+PWL pairing, mixed/duplicate DC/AC/waveform setters, leading DC precedence,
+byte-column continuation positions, finite/shape/delimiter errors and bounded
+work. `rc_transient` now parses; CLI success expectations cover seven fixtures.
+`flags_ic_parser.rs` adds nine regressions covering the exhaustive bare-flag
+inventory, base tokens versus model tail flags, Q 1–2/M 1–3 IC arities,
+component names/positions, scalar/vector duplicate order and leading area,
+malformed/overflow/advanced forms and first-error/.end behavior.
+
+`spice-devices/tests/parser_setters.rs` adds three tests proving waveform and
+nonlinear factory failures are atomic, that flags/IC vectors do not enable
+initialization, and that scalar factories/schemas reject non-scalar AST kinds
+even when forged with valid numeric text. Device API waveforms are unchanged.
+
+Two new ignored oracles in `c_reference.rs` use `source_waveforms.cir` and
+`flags_ic.cir`: C coefficient vectors, preserved PULSE field omissions, last
+waveform/DC/AC setters, D/Q OFF, scalar/vector IC overrides and partial IC
+fallthrough. Model family flags and MOS1 OFF are input-only in C; successful
+setup checks those forms, not nonexistent scalar queries. No rawfile goldens or
+solver tolerances changed. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md) for exact
+syntax, intentional stricter punctuation and observed C preprocessing limits.
+
+```sh
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p spice-netlist --test c_reference --locked -- --ignored
+```
+
+Local validation: **322 passed, 0 failed, 11 opt-in C tests ignored** on stable
+Rust 1.99.0 and MSRV 1.89.0. All **11** opt-in C tests passed separately, including
+all seven parser probes. Both toolchains' all-target Clippy, formatting,
+warning-free rustdoc and `git diff --check` pass. `cargo xtask golden verify`
+remains three verified/five explicitly unsupported fixtures; no goldens changed.
+
+These are syntax/setup comparisons, not Rust waveform evaluation or nonlinear
+simulation. Full M1 still requires subcircuits/includes, params/options/globals,
+serialization/snapshots and its eight-fixture round-trip gate.
+
 ## Petgraph topology verification
 
 `spice-devices::Circuit::topology()` is exercised by nine additional circuit
@@ -360,7 +400,7 @@ The default verifies **three fixtures** through `Parser::parse_file`,
 `Circuit::from_netlist` and the production analysis runner: `rc_divider` and
 `rlc_series` (`.op`), and `rc_lowpass_ac` (complex `.ac`). It reports **five
 unsupported fixtures** with reasons: `diode_dc`, `bjt_ce`, `mos_inverter`
-(non-linear backends), `rc_transient` (waveform syntax/SPICE transient parity),
+(non-linear backends), `rc_transient` (waveform deck evaluation/SPICE transient parity),
 and `subckt_divider` (subcircuit parsing/elaboration). A requested unsupported
 fixture fails, never silently skips. Names are case-insensitive and an optional
 `.cir` suffix is accepted. Unknown fixtures/options, missing input/goldens,
@@ -397,6 +437,6 @@ an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity,
-general DAEs, source-waveform deck syntax and subcircuit/parameter elaboration
+general DAEs, source-waveform deck evaluation and subcircuit/parameter elaboration
 are not established by the bounded linear implementation. Track those remaining
 gates in the central [TODO.md](../../TODO.md); do not claim full SPICE parity.

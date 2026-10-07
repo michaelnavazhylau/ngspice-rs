@@ -8,8 +8,8 @@
 //! `parse-bison.y` expression grammar.
 //!
 //! The implemented subset is M1a (scalar R/C/L, DC/AC sources, analysis cards)
-//! plus M1b scalar model cards, two-terminal D, three/four-terminal Q and
-//! four-terminal M instances. Q/M use declared names for terminal disambiguation;
+//! plus M1b model cards, two-terminal D, three/four-terminal Q and
+//! four-terminal M instances, bounded flags/IC vectors and numeric PULSE/PWL. Q/M use declared names for terminal disambiguation;
 //! model types/backend availability and parameter validity are not checked yet.
 //! Other constructs fail explicitly, never silently dropping cards. Values stay
 //! textual; evaluation and circuit elaboration are separate passes. See `docs/port/ROADMAP.md` for the remaining M1 work.
@@ -24,11 +24,15 @@ use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, load};
 
 mod diode;
+mod flags;
 mod grammar;
+mod ic;
 mod linear;
 mod model;
 mod syntax;
 mod transistor;
+mod vector;
+mod waveform;
 
 use grammar::ParsedCard;
 

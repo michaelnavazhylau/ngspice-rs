@@ -1,6 +1,7 @@
 //! Bounded `.model` grammar (`inpdomod.c`, `inpgmod.c`, `inpfindl.c`).
 //!
-//! Retains scalar assignments for ordinary D/BJT/MOS/R/C/L model families.
+//! Retains scalar assignments and bounded bare type flags for D/BJT/MOS/R/C/L.
+//! The base token remains distinct from ordered tail flag setters.
 //! Device parameter validity, default levels, selector rounding, model lookup
 //! and availability are elaboration concerns, not claims made by this grammar.
 
@@ -9,7 +10,7 @@ use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
-use crate::ast::{ModelCard, ParameterAssignment};
+use crate::ast::{ModelCard, ParameterAssignment, ParameterKind};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap, keyword};
@@ -28,12 +29,12 @@ fn model_body(input: &mut Input<'_>) -> Result<ParsedCard> {
         (
             punctuation(TokenKind::LParen),
             cut_err((
-                parameters,
+                |input: &mut Input<'_>| parameters(input, &base.text),
                 punctuation(TokenKind::RParen).context("')' after model parameters"),
             )),
         )
             .map(|(_, (parameters, _))| parameters),
-        parameters,
+        |input: &mut Input<'_>| parameters(input, &base.text),
     ))
     .parse_next(input)?;
     // INPfindLev scans the first level. Keep its literal value here, without
@@ -69,11 +70,12 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
     any.parse_next(input)
 }
 
-fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
+fn parameters(input: &mut Input<'_>, base: &str) -> Result<Vec<ParameterAssignment>> {
     repeat(
         0..,
         alt((
             punctuation(TokenKind::Comma).value(None),
+            (|input: &mut Input<'_>| super::flags::model(input, base)).map(Some),
             scalar_assignment.map(Some),
             invalid_parameter,
         )),
@@ -90,9 +92,22 @@ fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
 fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     // A flag is not a scalar assignment, even when it is spelled as a word.
     if input.input.first().is_some_and(|token| {
-        ["off", "nchan", "pchan", "thermal"]
-            .iter()
-            .any(|flag| token.is_keyword(flag))
+        [
+            "off",
+            "nchan",
+            "pchan",
+            "thermal",
+            "d",
+            "npn",
+            "pnp",
+            "nmos",
+            "pmos",
+            "sens_area",
+            "sens_l",
+            "sens_w",
+        ]
+        .iter()
+        .any(|flag| token.is_keyword(flag))
     }) {
         return Err(gap(input, "non-scalar model flags"));
     }
@@ -103,6 +118,7 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     Ok(ParameterAssignment {
         name: token.text.to_ascii_lowercase(),
         value: value.text.clone(),
+        kind: ParameterKind::Scalar,
         location: token.location.clone(),
     })
 }
