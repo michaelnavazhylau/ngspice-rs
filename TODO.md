@@ -138,17 +138,19 @@ BDF does not close the following trap/Gear and general-transient requirements.
 
 ## 5. Nonlinear devices and convergence — M4
 
-Branch-local bounded support on `work/m4-nonlinear`; no due date. Exact schemas,
-physics exclusions and local #41 evidence: [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md).
+Bounded M4 baseline merged in PR #58. Local `work/m4-followups` adds #34/#35
+acceptance work; it has not been published and those issues remain open.
+Exact schemas, physics exclusions and #41 evidence: [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md).
 
 - [x] Reuse typed first-declaration model resolution and device-owned ordered schemas/defaults; extend bounded diode/BJT/MOS1 factories atomically.
 - [x] Implement diode and Ebers-Moll BJT junction/charge equations and bounded MOS1 square-law/body/overlap charge with analytic Jacobian stamps.
 - [x] Add reusable Newton iteration with global voltage-step damping, physical residual checks, source/nodal-gmin stepping and request/deck physical tolerances. Full C PN/FET limiting/control-option parity is not claimed.
-- [x] Add typed independent-source/temperature DC targets and one nested outer axis; preserve source values and linear repeated-RHS LU reuse.
+- [x] Add typed independent-source/temperature/scalar-resistor DC targets and one nested outer axis; preserve originals, validate reachable grids, rebuild R/TEMP operators, retain source-only linear LU reuse (#35 local follow-up; [DC_SWEEPS.md](docs/port/DC_SWEEPS.md)).
+- [x] Add bounded configurable DC continuation schedules/budgets, success/failure stage reports, and request > deck > default controls shared by OP/DC/AC bias (#34 local follow-up; [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md)); explicit continuation controls reject for transient.
 - [x] Implement bias-linearized AC and actual nonlinear Q-based trap/Gear-2 companions, multi-charge LTE and disposable trial/atomic accepted history.
 - [x] Demonstrate diode DC, BJT bias and MOS1 operating point against existing C data; add six C AC/charge-transient decks, physical/Jacobian/conservation/continuation checks and explicit tolerances for local #41 subset.
 - [x] Reject unimplemented parsed physics; BSIM/CIDER/XSPICE and full SPICE parity remain outside scope.
-- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT/MOS temperatures, BJT Early/high-injection/substrate/series physics, MOS intrinsic channel charge (nonzero TOX), nonlinear .ic/uic, resistor/model sweeps and configurable full C convergence controls.
+- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT/MOS temperatures, BJT Early/high-injection/substrate/series physics, MOS intrinsic channel charge (nonzero TOX), nonlinear .ic/uic, arbitrary model-setter sweeps and full C dynamic convergence/limiting parity.
 
 ## 6. Usability and output — M5
 

@@ -262,10 +262,7 @@ fn diode_fixture_and_context_defaults_are_typed_without_simulation() {
     assert_eq!(model.nominal_temperature_kelvin, 300.15);
     assert_eq!(device.temperature_kelvin, 300.15);
     assert_eq!(device.area, 1.0);
-    let context = ModelContext {
-        temperature: 50.0,
-        nominal_temperature: 20.0,
-    };
+    let context = ModelContext::new(50.0, 20.0);
     assert_eq!(
         resolved
             .diode_parameters(&context)
@@ -300,10 +297,7 @@ fn diode_setters_use_ordered_precedence_and_independent_temperatures() {
         .resolve(&n.devices[0])
         .unwrap()
         .unwrap();
-    let context = ModelContext {
-        temperature: 75.0,
-        nominal_temperature: 10.0,
-    };
+    let context = ModelContext::new(75.0, 10.0);
     let model = resolved.diode_parameters(&context).unwrap();
     let device = resolved
         .diode_instance_parameters(&n.devices[0], &context)
@@ -402,16 +396,7 @@ fn context_and_typed_schema_misuse_fail_explicitly() {
         .unwrap()
         .unwrap();
     for bad in [f64::NAN, f64::INFINITY, -273.15] {
-        for context in [
-            ModelContext {
-                temperature: bad,
-                nominal_temperature: 27.0,
-            },
-            ModelContext {
-                temperature: 27.0,
-                nominal_temperature: bad,
-            },
-        ] {
+        for context in [ModelContext::new(bad, 27.0), ModelContext::new(27.0, bad)] {
             assert!(model.diode_parameters(&context).is_err());
             assert!(
                 model
@@ -443,10 +428,7 @@ fn context_and_typed_schema_misuse_fail_explicitly() {
     );
     let scalar = deck("r1 new 0 1k");
     let mut circuit = Circuit::new();
-    let context = ModelContext {
-        temperature: f64::NAN,
-        nominal_temperature: 27.0,
-    };
+    let context = ModelContext::new(f64::NAN, 27.0);
     assert!(
         circuit
             .add_instance(

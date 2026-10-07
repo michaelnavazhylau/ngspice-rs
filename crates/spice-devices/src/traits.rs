@@ -409,6 +409,31 @@ pub trait Device: fmt::Debug {
     fn accept(&self, _context: &AcceptContext<'_>) -> SpiceResult<()> {
         Ok(())
     }
+
+    /// Physical metadata when this device is a two-terminal resistor a typed
+    /// `.dc` sweep may target; `None` (the default) for everything else. This is
+    /// the only way a sweep identifies a resistor: never the instance-name prefix.
+    fn resistor_metadata(&self) -> Option<crate::sweep::ResistorMetadata> {
+        None
+    }
+
+    /// The effective resistance in ohms this resistor would stamp if its supplied
+    /// scalar were `supplied`, under `context`'s temperatures. Immutable: nothing
+    /// about the device changes. See [`crate::sweep`] for the semantics.
+    ///
+    /// # Errors
+    /// Not a resistor, or `supplied` / the derived value is invalid (nonfinite,
+    /// zero, nonfinite conductance, nonpositive temperature factor).
+    fn resistor_effective(
+        &self,
+        _supplied: Real,
+        _context: &crate::models::ModelContext,
+    ) -> SpiceResult<Real> {
+        Err(SpiceError::circuit(format!(
+            "{} is not a resistor",
+            self.name()
+        )))
+    }
 }
 
 /// What [`Device::accept`] sees for one accepted point.

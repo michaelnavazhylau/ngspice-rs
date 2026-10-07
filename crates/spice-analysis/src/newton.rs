@@ -6,6 +6,12 @@
 use spice_core::{Real, SpiceError, SpiceResult};
 use spice_maths::{SparseMatrix, Vector};
 
+/// Largest accepted per-solve Newton iteration limit (`maxiter`, deck `itl1`).
+pub const MAX_ITERATIONS: usize = 10_000;
+
+/// Request names owned by [`crate::bias::ContinuationPolicy`], not by Newton.
+pub(crate) const CONTINUATION_KEYS: [&str; 3] = ["srcsteps", "gminsteps", "gminfactor"];
+
 /// Finite work and physical voltage/current tolerances for Newton iteration.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NewtonOptions {
@@ -34,10 +40,14 @@ impl Default for NewtonOptions {
 impl NewtonOptions {
     /// Resolve named `rtol`, `vntol`, `abstol`, `maxiter` arguments for DC/AC.
     /// Unknown and duplicate names fail instead of silently selecting defaults.
+    /// Continuation names (`srcsteps`, `gminsteps`, `gminfactor`) also fail here:
+    /// a Newton-only caller would silently drop them, so use
+    /// [`crate::bias::DcSettings::from_request`], which resolves all of them.
     /// # Errors
     /// Invalid or unimplemented convergence arguments.
     pub fn from_request(request: &crate::AnalysisRequest) -> SpiceResult<Self> {
         let mut options = Self::default();
+        let largest = MAX_ITERATIONS as f64;
         let mut seen = std::collections::BTreeSet::new();
         for argument in &request.arguments {
             let Some((key, text)) = argument.split_once('=') else {
@@ -54,8 +64,17 @@ impl NewtonOptions {
                 "rtol" => options.reltol = value,
                 "vntol" => options.vntol = value,
                 "abstol" => options.abstol = value,
-                "maxiter" if value.fract() == 0. && (1. ..=10_000.).contains(&value) => {
+                "maxiter" if value.fract() == 0. && (1. ..=largest).contains(&value) => {
                     options.max_iterations = value as usize
+                }
+                name if CONTINUATION_KEYS.contains(&name) => {
+                    return Err(spice_core::SpiceError::Unsupported {
+                        feature: format!(
+                            "continuation option {name} needs DcSettings::from_request, \
+                             not NewtonOptions::from_request"
+                        ),
+                        location: None,
+                    });
                 }
                 _ => {
                     return Err(spice_core::SpiceError::Unsupported {
@@ -71,7 +90,7 @@ impl NewtonOptions {
 
     /// Validate tolerances and bounded work before the first load.
     pub fn validate(&self) -> SpiceResult<()> {
-        if !(1..=10_000).contains(&self.max_iterations)
+        if !(1..=MAX_ITERATIONS).contains(&self.max_iterations)
             || [self.reltol, self.vntol, self.abstol, self.voltage_step]
                 .iter()
                 .any(|v| !v.is_finite() || *v <= 0.)
@@ -110,7 +129,43 @@ pub fn solve<T>(
     initial: &Vector,
     branch_rows: &[bool],
     options: &NewtonOptions,
+    load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+) -> SpiceResult<NewtonSolution<T>> {
+    solve_counted(initial, branch_rows, options, load).map_err(|failure| failure.error)
+}
+
+/// A failed Newton solve and the number of iterations it consumed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewtonFailure {
+    /// Why the solve failed (unchanged from [`solve`]).
+    pub error: SpiceError,
+    /// Iterations started before the failure, at most
+    /// [`NewtonOptions::max_iterations`]; zero when settings were rejected.
+    pub iterations: usize,
+}
+
+/// [`solve`] that also reports the work a failed solve used, so a caller owning a
+/// total work budget (DC continuation) charges exactly what was spent.
+///
+/// # Errors
+/// As [`solve`], with the iteration count in [`NewtonFailure`].
+pub fn solve_counted<T>(
+    initial: &Vector,
+    branch_rows: &[bool],
+    options: &NewtonOptions,
+    load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+) -> Result<NewtonSolution<T>, NewtonFailure> {
+    let mut iterations = 0;
+    iterate(initial, branch_rows, options, load, &mut iterations)
+        .map_err(|error| NewtonFailure { error, iterations })
+}
+
+fn iterate<T>(
+    initial: &Vector,
+    branch_rows: &[bool],
+    options: &NewtonOptions,
     mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+    started: &mut usize,
 ) -> SpiceResult<NewtonSolution<T>> {
     options.validate()?;
     let n = initial.len();
@@ -121,6 +176,7 @@ pub fn solve<T>(
     }
     let mut guess = initial.clone();
     for iteration in 1..=options.max_iterations {
+        *started = iteration;
         let (mut matrix, rhs, _) = load(&guess)?;
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
@@ -279,6 +335,35 @@ mod tests {
         })
         .unwrap_err();
         assert!(error.to_string().contains("iteration limit"));
+    }
+    #[test]
+    fn counted_solve_reports_the_iterations_used_by_success_and_failure() {
+        let identity = |_: &Vector| -> SpiceResult<(SparseMatrix, Vector, ())> {
+            let mut a = SparseMatrix::new(1, 1);
+            a.add(0, 0, 1.)?;
+            Ok((a, Vector::zeros(1), ()))
+        };
+        let mut far = Vector::zeros(1);
+        far.add_to(0, 1e12).unwrap();
+        let options = NewtonOptions {
+            max_iterations: 3,
+            ..NewtonOptions::default()
+        };
+        let failure = solve_counted(&far, &[false], &options, identity).unwrap_err();
+        assert_eq!(failure.iterations, 3);
+        assert!(failure.error.to_string().contains("iteration limit"));
+        assert_eq!(
+            solve(&far, &[false], &options, identity).unwrap_err(),
+            failure.error
+        );
+        let solved = solve_counted(&Vector::zeros(1), &[false], &options, identity).unwrap();
+        assert_eq!(solved.iterations, 1);
+        let rejected = NewtonOptions {
+            max_iterations: 0,
+            ..options
+        };
+        let failure = solve_counted(&far, &[false], &rejected, identity).unwrap_err();
+        assert_eq!(failure.iterations, 0);
     }
     #[test]
     fn rejects_singular_homogeneous_system_and_invalid_settings() {

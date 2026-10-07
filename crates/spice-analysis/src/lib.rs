@@ -38,7 +38,7 @@ pub use analysis::{
     Analysis, AnalysisContext, AnalysisRequest, DRIVERS, NodeCondition, has_driver, runner,
 };
 pub use companion::{TransientStats, companion_transient};
-pub use config::{AppliedOption, RunConfig, RunOverrides, TransientSettings};
+pub use config::{AppliedOption, DcOptions, RunConfig, RunOverrides, TransientSettings};
 pub use rawfile::{RawFile, RawPlot};
 pub use results::{Plot, PlotFlags, Variable};
 

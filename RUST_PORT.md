@@ -17,7 +17,10 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 **Branch-local M4 update:** bounded diode/Ebers-Moll BJT/MOS1 DC, AC and
 charge-companion transient, reusable Newton/continuation and typed nested
-source/temperature sweeps are now implemented. See
+source/temperature sweeps are implemented. Local #34/#35 follow-ups add bounded
+configurable DC policies/reports and scalar-resistor sweeps (including supported
+model-backed resistance); see [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md) and
+[DC_SWEEPS.md](docs/port/DC_SWEEPS.md). The follow-ups are not yet published. See
 [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md) for exact allowlists, deliberate
 rejections and local #41 evidence. Historical scaffold notes below do not widen
 this demonstrated subset or imply full SPICE parity.
