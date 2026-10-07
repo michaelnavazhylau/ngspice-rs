@@ -20,8 +20,8 @@ pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Bo
     instantiate(&netlist.devices[0], nodes)
 }
 
-/// Resolve and validate before any node interning. Schemas do not enable a
-/// factory: D/Q/M and model-backed passive equations remain separate issues.
+/// Resolve and validate before any node interning. Bounded R/C/L models use
+/// existing scalar stamps; D/Q/M schemas still do not enable their factories.
 pub(crate) fn instantiate_with_models(
     instance: &DeviceInstance,
     nodes: &mut NodeTable,
@@ -30,6 +30,14 @@ pub(crate) fn instantiate_with_models(
 ) -> SpiceResult<Box<dyn Device>> {
     context.validate(&instance.location)?;
     if let Some(model) = models.resolve(instance)? {
+        if matches!(
+            model.family(),
+            crate::models::ModelFamily::Resistor
+                | crate::models::ModelFamily::Capacitor
+                | crate::models::ModelFamily::Inductor
+        ) {
+            return crate::passive::instantiate(instance, nodes, &model, context);
+        }
         if model.family() == crate::models::ModelFamily::Diode {
             model.diode_parameters(context)?;
             model.diode_instance_parameters(instance, context)?;

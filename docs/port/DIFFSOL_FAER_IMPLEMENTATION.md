@@ -34,12 +34,16 @@ without replacing ngspice's trap/Gear semantics or claiming the full M3 mileston
 
 ## Devices and analyses
 
-`Circuit::from_netlist` elaborates literal scalar R/C/L/V/I AST instances;
+`Circuit::from_netlist` elaborates literal R/C/L/V/I and bounded model-backed R/C/L;
 `Registry::with_builtins` now has working factories for those five designators.
-Unsupported parameters, expressions, model-backed factories and elaboration
+Unsupported parameters, expressions, nonlinear factories and elaboration
 constructs fail explicitly. Factories preserve the caller's node table on failure.
-The current checkout adds top-level model resolution and bounded diode input
-schemas, not new numerical support; see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md).
+Top-level resolution and diode input schemas are documented in
+[MODEL_SCHEMAS.md](MODEL_SCHEMAS.md). This checkout's bounded passive support
+adds recipes, not new solver backends; see [PASSIVE_MODELS.md](PASSIVE_MODELS.md).
+All four analysis drivers pass `AnalysisContext` temperatures to immutable
+assembly. Repeated runs at different temperatures do not cumulatively adjust
+stored values; explicit model TNOM and instance TEMP retain precedence.
 
 `Circuit::rebuild_unknowns` records per-device branch row ranges. Node voltages
 come first, then branch currents in device order; ground is omitted. Positive

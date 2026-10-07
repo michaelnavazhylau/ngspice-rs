@@ -58,7 +58,16 @@ fn families_and_forward_resolution_are_not_backend_availability() {
             .unwrap();
         assert_eq!(resolved.family(), family);
         assert_eq!(resolved.levels().selector, 1);
-        assert!(Circuit::from_netlist(&n).unwrap_err().is_not_yet_ported());
+        let error = Circuit::from_netlist(&n).unwrap_err();
+        if matches!(
+            family,
+            ModelFamily::Resistor | ModelFamily::Capacitor | ModelFamily::Inductor
+        ) {
+            // Recognition alone supplies neither a scalar nor sufficient geometry.
+            assert!(matches!(error, SpiceError::Parse { .. }), "{error}");
+        } else {
+            assert!(error.is_not_yet_ported());
+        }
     }
     let n = deck("r1 a 0 1k\nv1 a 0 1");
     let resolver = ModelResolver::new(&n.models).unwrap();
@@ -517,9 +526,9 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
         "m1 new gate source bulk mdl\n.model mdl nmos(level=49)",
         "q1 new base emitter mdl\n.model mdl npn(level=3)",
         "d1 new 0 mdl\n.model mdl d(level=2)",
-        "r2 new 0 mdl\n.model mdl r(rsh=100)",
-        "c2 new 0 mdl\n.model mdl c(cap=1u)",
-        "l2 new 0 mdl\n.model mdl l(ind=1m)",
+        "r2 new 0 mdl\n.model mdl r(rsh=100 narrow=10u)",
+        "c2 new 0 mdl\n.model mdl c(cap=0)",
+        "l2 new 0 mdl\n.model mdl l(ind=0)",
         "r1 new 0 1k",
         "r2 new 0 0",
         "r2 new 0 1k tc1=1",

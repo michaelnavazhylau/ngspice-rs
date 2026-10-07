@@ -90,8 +90,9 @@ to six. Q/M need declared names for arity. The current checkout additionally
 retains declared-model R/C/L forms and omitted values (#11), including forward
 references and pre-/post-model scalar precedence. Device-owned top-level
 resolution, family/level checks and bounded diode inputs are implemented (#17);
-see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md). These changes are pending merge.
-No nonlinear/model-backed passive arithmetic is implemented. Flags, IC vectors,
+see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md). PR #51 merged these prerequisites.
+This checkout adds bounded model-backed passive arithmetic (#19, pending merge);
+see [PASSIVE_MODELS.md](PASSIVE_MODELS.md). No nonlinear arithmetic is implemented. Flags, IC vectors,
 thermal/CIDER forms, extended passive forms and waveforms remain pending.
 
 ### Remaining slices
@@ -120,9 +121,9 @@ model-backed passive elaboration (#19) and historical documentation correction
 (#49). `cargo xtask golden verify` covers three committed linear fixtures and
 explicitly reports the five excluded fixtures; see
 [VERIFICATION.md](VERIFICATION.md#rust-engine-golden-verification).
-Model-backed passive arithmetic (#19) remains a separate task. Its #11/#17
-prerequisites are implemented in this checkout but still require merge and
-passing acceptance tests on main. No M2 completion is implied.
+PR #51 merged #11/#17, and their acceptance suite passes. This checkout
+implements #19's bounded passive arithmetic and C/production checks, pending
+merge. The M2 merge gate is not complete merely because this branch passes.
 
 Exit gate: all three issue slices merged with production/failure-path tests,
 justified relative and near-zero absolute bounds and accurate capability docs.

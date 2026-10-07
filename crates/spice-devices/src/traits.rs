@@ -177,8 +177,10 @@ pub struct StampContext<'a> {
     pub nodes: &'a NodeTable,
     /// The present solution, linearised around it for nonlinear devices.
     pub solution: &'a Vector,
-    /// Device temperature in degrees Celsius.
+    /// Circuit temperature in degrees Celsius; model instances may override it.
     pub temperature: Real,
+    /// Default model nominal temperature in degrees Celsius.
+    pub nominal_temperature: Real,
     /// Which analysis is loading the matrix.
     pub mode: AnalysisMode,
     /// First branch row allocated to this device, if any.

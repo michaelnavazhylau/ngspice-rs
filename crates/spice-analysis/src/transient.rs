@@ -5,7 +5,11 @@ use spice_core::{Complex, SpiceResult};
 use spice_devices::Circuit;
 use spice_maths::diffsol::{BdfOptions, DaeSegment, LinearDae};
 
-pub(crate) fn run(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResult<Plot> {
+pub(crate) fn run(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &crate::AnalysisContext,
+) -> SpiceResult<Plot> {
     if request.named("backend") != Some("diffsol") || request.named("method") != Some("bdf") {
         return Err(unsupported(
             "transient requires explicit backend=diffsol method=bdf; ngspice trap/Gear companion methods are not implemented",
@@ -62,7 +66,7 @@ pub(crate) fn run(circuit: &mut Circuit, request: &AnalysisRequest) -> SpiceResu
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("transient sample grid makes no progress"));
     }
-    let system = circuit.linear_system()?;
+    let system = circuit.linear_system_with_context(&context.model_context())?;
     if system.has_initial_conditions {
         return Err(unsupported(
             "device ic= requires .ic/uic semantics; this backend starts from a linear operating point",

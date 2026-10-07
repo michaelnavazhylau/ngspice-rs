@@ -7,7 +7,8 @@ the SPICE circuit simulator.
 > Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
 > and explicitly selected diffsol BDF transient analysis. Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
-> and bounded diode input schemas exist; nonlinear/model-backed simulation does not.
+> and bounded diode input schemas exist. This checkout also simulates bounded
+> model-backed R/C/L; nonlinear D/Q/M simulation remains unavailable.
 > Six of eight fixture decks parse; full SPICE parity is not claimed.
 
 [TODO.md](TODO.md) is the central implementation checklist, including branch-aware
@@ -23,14 +24,16 @@ The local C-reference development mainline at `d3c8cccf4` predates that work;
 its history differs from this Rust-only repository. Do not overwrite newer public
 code with a whole-tree export from an older development checkout.
 
-The current checkout additionally implements passive syntax (#11) and initial
-model infrastructure (#17); these prerequisites are pending merge, not yet a
-claim that #19 is unblocked on GitHub main.
+Passive syntax (#11) and initial model infrastructure (#17) are merged in
+PR #51 (`cdc078c`). This checkout implements bounded passive elaboration (#19),
+pending merge; see [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md) for its support
+table, formulas, temperatures and deliberately rejected forms.
 
 | Capability | Current checkout |
 | --- | --- |
 | Scalar/model/D/Q/M/passive-model parsing and petgraph topology | Implemented, bounded syntax |
 | Model resolver and diode input schemas | Top-level families/levels/defaults; no nonlinear factory |
+| Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
 | Linear `.op`, single-source `.dc`, complex `.ac` | Implemented |
 | Transient | Explicit diffsol adaptive BDF, restricted DAE structure |
@@ -50,8 +53,8 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    as support lands; preserve the implemented solver's correctness gates.
 2. **Front end (M1):** waveform syntax, flags/vector ICs, extended passive forms,
    subcircuits/includes, parameters/options/globals, serialization and snapshots.
-3. **Model elaboration:** passive geometry/temperature arithmetic, additional
-   device schemas and scoped resolution; top-level resolver/diode inputs exist.
+3. **Model elaboration:** extended passive forms, additional device schemas
+   and scoped resolution; bounded passive geometry/temperature arithmetic exists.
 4. **Transient (M3):** trap/Gear-2 companions, initialization, parsed waveform
    evaluation, broader DAEs and C parity.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,

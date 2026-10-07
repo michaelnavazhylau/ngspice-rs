@@ -21,6 +21,22 @@ pub enum ScalarUnit {
     Ohm,
     /// Input temperature in degrees Celsius (conversion is explicit).
     Celsius,
+    /// Length in metres.
+    Metre,
+    /// Capacitance in farads.
+    Farad,
+    /// Inductance in henries.
+    Henry,
+    /// Area capacitance density in farads per square metre.
+    FaradPerSquareMetre,
+    /// Perimeter capacitance density in farads per metre.
+    FaradPerMetre,
+    /// First-order temperature coefficient, per Kelvin.
+    InverseKelvin,
+    /// Second-order temperature coefficient, per Kelvin squared.
+    InverseKelvinSquared,
+    /// Initial capacitor voltage in volts.
+    Volt,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.
@@ -28,6 +44,8 @@ pub enum ScalarUnit {
 pub enum ScalarDomain {
     /// Any finite scalar.
     Finite,
+    /// Finite and nonzero; negative scalar resistances remain supported.
+    NonZero,
     /// Finite and greater than zero.
     Positive,
     /// Finite and at least zero.
@@ -41,6 +59,7 @@ impl ScalarDomain {
         value.is_finite()
             && match self {
                 Self::Finite => true,
+                Self::NonZero => value != 0.0,
                 Self::Positive => value > 0.0,
                 Self::NonNegative => value >= 0.0,
                 Self::Temperature => (value + 273.15).is_finite() && value + 273.15 > 0.0,

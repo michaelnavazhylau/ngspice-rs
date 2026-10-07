@@ -1,8 +1,9 @@
 # Passive syntax and initial model infrastructure (#11 / #17)
 
-These prerequisites are implemented in the current checkout and pending merge.
-They do **not** implement #19 model-backed passive arithmetic or D/Q/M
-simulation. The parser still accepts six of the eight rawfile fixture decks;
+PR #51 merged these prerequisites (#11/#17). The initial infrastructure did
+not itself implement model-backed passive arithmetic or D/Q/M simulation.
+This checkout now adds #19's bounded passive arithmetic, pending merge; see
+[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation remains unavailable. The parser still accepts six of the eight rawfile fixture decks;
 `golden verify` still verifies three linear fixtures and excludes five.
 
 ## Bounded passive syntax
@@ -58,7 +59,8 @@ Public interfaces live in `spice-devices`, not the parser or maths crates:
   case-insensitive. The original AST is never mutated.
 - `ResolvedModel::parameters(&schema)` validates a device-owned model schema,
   excluding `level` already consumed by the resolver. Future passive/BJT/MOS
-  owners add their own schemas/typed conversions; they must not claim physics
+  owners add their own schemas/typed conversions; #19 adds tested passive recipes
+  via `ResolvedModel::passive_parameters`. Owners must not claim physics
   from parser lookup or generic validation alone.
 
 Example (also covered by module rustdoc and production-interface tests):
@@ -132,8 +134,9 @@ remain device work, not hidden schema corrections.
 and stages changes. On any error, existing node IDs, device ordinals and branch
 rows remain unchanged. Successful scalar insertion still requires `finalize`
 to rebuild numbering. `Circuit::from_netlist` uses this path with default context.
-Model-backed passive and D/Q/M factories stay unavailable; valid diode inputs
-still end in `NotYetPorted`. Unused model declarations remain explicit unsupported
+D/Q/M factories stay unavailable; valid diode inputs still end in `NotYetPorted`.
+The bounded passive wrapper now computes contextual effective values and delegates
+to existing R/C/L stamps, as documented in [PASSIVE_MODELS.md](PASSIVE_MODELS.md). Unused model declarations remain explicit unsupported
 inputs instead of disappearing from a successful scalar simulation. Registry
 ported flags are unchanged.
 

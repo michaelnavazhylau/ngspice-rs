@@ -1,0 +1,24 @@
+Bounded passive geometry, temperature, scale and multiplicity
+v1 a 0 dc 1 ac 1
+rmodel a 0 rm
+rgeom a 0 rg l=8u w=4u temp=40 tc1=0.002 scale=1.5 m=2
+rdefaults a 0 rg
+rpre a 0 1k rm resistance=3k
+rpost a 0 rm 4k resistance=5k
+rboth a 0 7k rm 8k resistance=9k
+rinstance a 0 2k rm tc1=0.001 tc2=0.00001 temp=60 m=3 scale=0.5
+cmodel a 0 cm m=2 scale=3 temp=40
+cgeom a 0 cg l=10u w=6u
+cdefaults a 0 cg l=12u
+coverrides a 0 2u cm tc1=0.002
+lmodel a b lm m=2 scale=3 temp=40
+rload b 0 1k
+lexplicit a c 4m lm inductance=5m tc1=0.002 m=3
+rload2 c 0 2k
+.model rm r(r=1k r=2k tc1=0.001 tc2=0.00001 tnom=20)
+.model rg r(r=9k rsh=100 defw=6u l=12u narrow=0.5u short=1u tc1=0.001 tnom=20)
+.model cm c(cap=1u tc1=0.001 tc2=0.00001 tnom=20)
+.model cg c(cj=2m cjsw=3n defw=8u narrow=1u short=2u tc1=0.001)
+.model lm l(ind=6m tc1=0.001 tc2=0.00001 tnom=20)
+.op
+.end
