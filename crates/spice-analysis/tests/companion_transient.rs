@@ -647,7 +647,8 @@ impl Device for Cubic {
     }
 }
 
-/// Never converges: every load flips the sign of a 1 A injection.
+/// Valid zero-current DC bias, but never converges in transient: every trial
+/// load flips the sign of a 1 A injection. Nonlinear DC now also runs Newton.
 #[derive(Debug)]
 struct Oscillator {
     terminals: [NodeId; 2],
@@ -667,6 +668,9 @@ impl Device for Oscillator {
         true
     }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        if context.mode.is_dc() {
+            return Ok(());
+        }
         let sign = if self.flips.replace(!self.flips.get()) {
             1.
         } else {

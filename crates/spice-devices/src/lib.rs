@@ -19,7 +19,8 @@
 //! extension point that keeps the core small — see `docs/port/ROADMAP.md`.
 //!
 //! `Circuit::from_netlist` accepts literal R/C/L/V/I and bounded model-backed
-//! R/C/L. Nonlinear D/Q/M backends are not enabled by syntax or schema validation.
+//! R/C/L and the explicitly bounded M4 diode/Ebers-Moll BJT/MOS1 subset.
+//! Parsing alone never enables unsupported physics; model-aware schemas reject it.
 //! Constant/Step/Pwl/Pulse forcing is available both through the device API and
 //! from numeric `PULSE(...)`/`PWL(...)` source setters. See
 //! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
@@ -30,6 +31,7 @@ pub mod circuit;
 mod factory;
 pub mod linear;
 pub mod models;
+pub mod nonlinear;
 pub mod passive;
 pub mod pulse;
 pub use passive::PassiveParameters;
@@ -41,14 +43,15 @@ pub use models::{
 pub mod registry;
 pub mod sources;
 pub use linear::{
-    Forcing, Limit, LinearContext, LinearSource, LinearSystem, SystemBreakpoints, Waveform,
-    WaveformBreakpoints,
+    Forcing, Limit, LinearContext, LinearSource, LinearSystem, SourceKind, SystemBreakpoints,
+    Waveform, WaveformBreakpoints,
 };
 pub use pulse::{Pulse, PulseBreakpoints, PulseSpec, TransientTiming};
 pub use sources::IndependentSource;
 pub mod rlc;
 pub mod state;
 pub mod traits;
+pub mod transistors;
 
 pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};

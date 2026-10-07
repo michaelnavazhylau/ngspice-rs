@@ -1,0 +1,7 @@
+Diode small signal with series resistance and junction charge
+v1 in 0 dc 0.65 ac 1
+r1 in out 1k
+d1 out 0 dm
+.model dm d(is=1e-14 n=1 rs=10 cjo=20p vj=0.7 m=0.5 tt=1n)
+.ac dec 5 1k 1g
+.end

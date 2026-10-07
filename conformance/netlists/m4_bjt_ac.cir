@@ -1,0 +1,9 @@
+BJT Ebers Moll small signal with charge
+vcc vcc 0 5
+vin in 0 dc 0.6 ac 1
+rb in base 1k
+rc vcc coll 1k
+q1 coll base 0 qm
+.model qm npn(is=1e-14 bf=100 cje=20p cjc=5p tf=1n)
+.ac dec 5 1k 1g
+.end

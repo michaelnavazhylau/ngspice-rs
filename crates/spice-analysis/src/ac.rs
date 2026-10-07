@@ -10,17 +10,26 @@ pub(crate) fn run(
     request: &AnalysisRequest,
     context: &crate::AnalysisContext,
 ) -> SpiceResult<Plot> {
-    if request.arguments.len() != 4 {
+    let options = crate::newton::NewtonOptions::from_request(request)?;
+    let positional = AnalysisRequest::with_arguments(
+        request.kind,
+        request
+            .arguments
+            .iter()
+            .filter(|a| !a.contains('='))
+            .cloned(),
+    );
+    if positional.arguments.len() != 4 {
         return Err(unsupported(".ac lin|dec|oct points start stop"));
     }
-    let mode = request.argument(0).unwrap().to_ascii_lowercase();
-    let points: usize = request
+    let mode = positional.argument(0).unwrap().to_ascii_lowercase();
+    let points: usize = positional
         .argument(1)
         .and_then(|s| s.parse().ok())
         .filter(|n| *n > 0 && *n <= 100_000)
         .ok_or_else(|| unsupported("AC points must be in 1..=100000"))?;
-    let start = number(request.argument(2), "start frequency")?;
-    let end = number(request.argument(3), "stop frequency")?;
+    let start = number(positional.argument(2), "start frequency")?;
+    let end = number(positional.argument(3), "stop frequency")?;
     if start <= 0. || end < start {
         return Err(unsupported("invalid AC frequency bounds"));
     }
@@ -66,11 +75,23 @@ pub(crate) fn run(
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("AC frequency grid makes no progress"));
     }
-    crate::initial::resolve(circuit, request)?;
-    let system = circuit.linear_system_with_context(&context.model_context())?;
-    // Require a valid bias point even for linear AC; don't accept isolated
-    // capacitor networks as an implicit substitute for DC initialization.
-    system.a.solve(&system.dc_rhs(None)?)?;
+    circuit.finalize()?;
+    let hints = crate::initial::resolve(circuit, request)?;
+    let mut seed = spice_maths::Vector::zeros(circuit.unknown_count());
+    for hint in hints.nodesets {
+        seed.as_mut_slice()[hint.row] = hint.value;
+    }
+    // AC is linearized only after a valid physical DC solution, never at zero.
+    let bias = crate::bias::solve_dc(
+        circuit,
+        &context.model_context(),
+        &options,
+        &[],
+        Some(&seed),
+        None,
+    )?
+    .values;
+    let system = circuit.small_signal_system(&context.model_context(), &bias)?;
     let mut plot = plot(
         circuit,
         "ac1",

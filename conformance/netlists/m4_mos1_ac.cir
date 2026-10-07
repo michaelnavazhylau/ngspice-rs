@@ -1,0 +1,8 @@
+MOS1 small signal with body and overlap charge (no TOX)
+vdd vdd 0 5
+vin gate 0 dc 2 ac 1
+rd vdd drain 10k
+m1 drain gate 0 0 mm w=10u l=1u
+.model mm nmos(level=1 vto=1 kp=1e-4 cbd=10p cbs=5p cgso=4e-7 cgdo=2e-7)
+.ac dec 5 1k 1g
+.end

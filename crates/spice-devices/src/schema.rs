@@ -37,6 +37,14 @@ pub enum ScalarUnit {
     InverseKelvinSquared,
     /// Initial capacitor voltage in volts.
     Volt,
+    /// Time or transit time in seconds.
+    Second,
+    /// MOS transconductance parameter, amperes per volt squared.
+    AmperePerVoltSquared,
+    /// Channel-length modulation coefficient, inverse volts.
+    InverseVolt,
+    /// Body-effect coefficient, square root of volts.
+    SquareRootVolt,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.

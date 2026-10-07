@@ -15,6 +15,13 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
 
+**Branch-local M4 update:** bounded diode/Ebers-Moll BJT/MOS1 DC, AC and
+charge-companion transient, reusable Newton/continuation and typed nested
+source/temperature sweeps are now implemented. See
+[M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md) for exact allowlists, deliberate
+rejections and local #41 evidence. Historical scaffold notes below do not widen
+this demonstrated subset or imply full SPICE parity.
+
 **M1 in progress; M1a and basic model/D/Q/M syntax are implemented.**
 The workspace compiles,
 the test suite passes, and the verification harness captures golden data from
@@ -31,13 +38,15 @@ flags/Q/M IC vectors now parse (#8/#10); see [FRONTEND_VALUES.md](docs/port/FRON
 Scoped subcircuits/X and source-relative includes/libraries now parse (#12/#13);
 see [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 Waveform deck evaluation, subcircuit flattening, expressions and advanced passive forms remain unported. D/Q/M AST/schema
-success does not imply a nonlinear backend is available.
+success alone does not imply the requested physics is implemented: M4's bounded
+allowlists are validated by the model-aware factories.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
 an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
-linear circuits) and an explicitly selected bounded diffsol BDF transient. D/Q/M
-equations, `.ic`/`uic` on the diffsol backend, general DAEs and a CLI simulation command remain
-unimplemented. Unsupported cases
+linear circuits) and an explicitly selected bounded diffsol BDF transient.
+This worktree extends the companion/DC/AC paths with M4's bounded D/Q/M equations.
+`.ic`/`uic` on diffsol or nonlinear companion circuits, physics outside the M4
+allowlists, general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
@@ -55,7 +64,7 @@ What already works for real:
 | Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, opaque analyses, scoped subcircuits/X, resolved includes/libraries; 8/8 fixture parses, not simulation |
 | Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
 | Real/complex MNA storage and LU | `spice-maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
-| Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode IS/N/RS/AREA/TEMP/TNOM; no nonlinear factory |
+| Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode input projection plus bounded M4 model-aware D/Q/M factories |
 | Bounded model-backed passives | `spice-devices`, `spice-analysis` | R sheet/C area-perimeter geometry, model L, contextual TC1/TC2, scale/multiplicity; no coil geometry |
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |

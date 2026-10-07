@@ -93,6 +93,11 @@ impl Device for IndependentSource {
         };
         context.system.sources.push(LinearSource {
             name: self.name.clone(),
+            kind: if self.voltage {
+                crate::linear::SourceKind::Voltage
+            } else {
+                crate::linear::SourceKind::Current
+            },
             rows,
             dc: self.dc,
             ac: self.ac,

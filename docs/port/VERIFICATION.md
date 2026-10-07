@@ -1,5 +1,15 @@
 # Verification
 
+## Branch-local M4 gate (#41)
+
+The nonlinear support/gate is documented in [M4_NONLINEAR.md](M4_NONLINEAR.md).
+`cargo xtask golden verify` verifies 25 fixtures (nine nonlinear), leaving only
+subcircuit flattening excluded. Six new C AC/charge-transient goldens and twelve
+parser snapshots were added without changing previous data. Physical/Jacobian/
+charge/continuation/ownership checks live in `spice-analysis/tests/m4_gate.rs`.
+The historical linear sections below describe their original M2/M3 delivery;
+they do not supersede M4's explicit supported-physics and tolerance table.
+
 ## The principle
 
 The C tree is never linked. The port is compared against the reference

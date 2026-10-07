@@ -72,6 +72,63 @@ const fn tran(name: &'static str, variants: &'static [Variant]) -> Supported {
 
 const SUPPORTED: &[Supported] = &[
     Supported {
+        name: "bjt_ce",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "mos_inverter",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "diode_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::LEGACY_DIODE_DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m4_diode_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m4_bjt_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m4_mos1_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m4_diode_tran", &[]),
+    tran("m4_bjt_tran", &[]),
+    tran("m4_mos1_tran", &[]),
+    Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
         gate: Gate::Points {
@@ -140,15 +197,10 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
 ];
-const EXCLUDED: &[(&str, &str)] = &[
-    ("bjt_ce", "nonlinear BJT backend unavailable"),
-    ("diode_dc", "nonlinear diode backend unavailable"),
-    ("mos_inverter", "nonlinear MOS backend unavailable"),
-    (
-        "subckt_divider",
-        "subcircuit flattening/elaboration unavailable",
-    ),
-];
+const EXCLUDED: &[(&str, &str)] = &[(
+    "subckt_divider",
+    "subcircuit flattening/elaboration unavailable",
+)];
 
 pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
     let only = match arguments {
@@ -262,9 +314,39 @@ fn run_variant(
         ));
     }
     let mut circuit = config.circuit(&netlist).map_err(|e| e.to_string())?;
-    let got = runner(request.kind)
+    let mut got = runner(request.kind)
         .and_then(|driver| driver.run(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
+    // C's default save set omits simulator-created internal nodes (e.g. a
+    // diode's series-resistance anode). Project only those known internal rows;
+    // every externally visible variable still goes through exact set checks.
+    let internal: Vec<_> = circuit
+        .nodes()
+        .nodes()
+        .iter()
+        .filter(|node| node.kind == spice_core::NodeKind::Internal)
+        .map(|node| format!("v({})", node.name))
+        .collect();
+    for column in (0..got.variables.len()).rev() {
+        if internal.contains(&got.variables[column].name) {
+            got.variables.remove(column);
+            for row in &mut got.points {
+                row.remove(column);
+            }
+        }
+    }
+    if request.kind == AnalysisKind::DcSweep
+        && got.variables.first().is_some_and(|v| v.name == "sweep")
+    {
+        // Rust's public DC scale name predates the nonlinear gate; C wraps its
+        // independent-source scale in the voltage/current naming convention.
+        got.variables[0].name = if got.variables[0].unit == "voltage" {
+            "v(v-sweep)"
+        } else {
+            "i(i-sweep)"
+        }
+        .into();
+    }
     let target = root
         .join(golden::GOLDEN_DIR)
         .join(format!("{}.raw", fixture.name));

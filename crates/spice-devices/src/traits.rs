@@ -344,6 +344,13 @@ pub trait Device: fmt::Debug {
         None
     }
 
+    /// All charge/flux pairs participating in truncation control. Nonlinear
+    /// multi-junction devices override this; each listed slot is followed by
+    /// its time derivative. Existing single-storage devices retain their API.
+    fn truncation_slots(&self) -> Vec<usize> {
+        self.truncation_slot().into_iter().collect()
+    }
+
     /// The charge/flux-storage description used to seed initial conditions
     /// (`CAPgetic`/`INDgetic`-style `ic=` handling, see `capload.c`/`indload.c`).
     /// `None` (the default) for devices that store no charge or flux in the
@@ -373,6 +380,19 @@ pub trait Device: fmt::Debug {
             feature: format!("linear equation assembly for {}", self.name()),
             location: None,
         })
+    }
+
+    /// Assemble the bias-linearized conductance and charge Jacobians for AC.
+    /// Linear devices reuse their state-independent operators; nonlinear devices
+    /// must explicitly implement this and must not provide a DC equivalent RHS.
+    /// # Errors
+    /// Invalid bias or unsupported small-signal physics.
+    fn assemble_small_signal(
+        &self,
+        context: &mut crate::linear::LinearContext<'_>,
+        _bias: &Vector,
+    ) -> SpiceResult<()> {
+        self.assemble_linear(context)
     }
 
     /// Observes an accepted solution point before its state is committed.

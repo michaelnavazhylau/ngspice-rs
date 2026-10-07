@@ -1,0 +1,56 @@
+# ngspice-rs ast-dump v1
+file: netlists/m4_bjt_ac.cir
+title: "BJT Ebers Moll small signal with charge" @netlists/m4_bjt_ac.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/m4_bjt_ac.cir:2:1 "vcc vcc 0 5"
+    [1] device[1] @netlists/m4_bjt_ac.cir:3:1 "vin in 0 dc 0.6 ac 1"
+    [2] device[2] @netlists/m4_bjt_ac.cir:4:1 "rb in base 1k"
+    [3] device[3] @netlists/m4_bjt_ac.cir:5:1 "rc vcc coll 1k"
+    [4] device[4] @netlists/m4_bjt_ac.cir:6:1 "q1 coll base 0 qm"
+    [5] model[0] @netlists/m4_bjt_ac.cir:7:1 ".model qm npn(is=1e-14 bf=100 cje=20p cjc=5p tf=1n)"
+    [6] analysis[0] @netlists/m4_bjt_ac.cir:8:1 ".ac dec 5 1k 1g"
+    [7] end @netlists/m4_bjt_ac.cir:9:1 ".end"
+  devices (5):
+    device [0] name="vcc" designator=v @netlists/m4_bjt_ac.cir:2:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m4_bjt_ac.cir:2:11
+    device [1] name="vin" designator=v @netlists/m4_bjt_ac.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.6" @netlists/m4_bjt_ac.cir:3:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m4_bjt_ac.cir:3:20
+        [2] name="acphase" kind=scalar value="0" @netlists/m4_bjt_ac.cir:3:17
+    device [2] name="rb" designator=r @netlists/m4_bjt_ac.cir:4:1
+      nodes: "in" "base"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m4_bjt_ac.cir:4:12
+    device [3] name="rc" designator=r @netlists/m4_bjt_ac.cir:5:1
+      nodes: "vcc" "coll"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m4_bjt_ac.cir:5:13
+    device [4] name="q1" designator=q @netlists/m4_bjt_ac.cir:6:1
+      nodes: "coll" "base" "0"
+      model: "qm"
+      parameters (0):
+  models (1):
+    model [0] name="qm" base="npn" level=none @netlists/m4_bjt_ac.cir:7:1
+      parameters (5):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m4_bjt_ac.cir:7:15
+        [1] name="bf" kind=scalar value="100" @netlists/m4_bjt_ac.cir:7:24
+        [2] name="cje" kind=scalar value="20p" @netlists/m4_bjt_ac.cir:7:31
+        [3] name="cjc" kind=scalar value="5p" @netlists/m4_bjt_ac.cir:7:39
+        [4] name="tf" kind=scalar value="1n" @netlists/m4_bjt_ac.cir:7:46
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m4_bjt_ac.cir:8:1
+      arguments: "dec" "5" "1k" "1g"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

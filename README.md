@@ -3,14 +3,16 @@
 A from-scratch Rust implementation of [ngspice](https://ngspice.sourceforge.io/),
 the SPICE circuit simulator.
 
-> **Status: M1 front-end gate closed (outstanding M1d/M5 items listed in TODO.md); a bounded linear simulation engine is implemented.**
+> **Status: M1 front-end gate closed; bounded linear and M4 nonlinear subsets are implemented.**
+> The branch-local nonlinear support/gate and deliberate physics limits are in
+> [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md); no full SPICE parity is claimed.
 > Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
 > and transient analysis (adaptive trap/Gear-2 companion driver; explicitly selected diffsol BDF). Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
 > and bounded diode input schemas exist. This checkout also simulates bounded
-> model-backed R/C/L; nonlinear D/Q/M simulation remains unavailable.
+> model-backed R/C/L plus bounded diode, Ebers-Moll BJT and MOS1 DC/AC/charge-companion transient.
 > Numeric PULSE/PWL and bounded flags/IC vectors parse (syntax only).
-> Seven of eight fixture decks parse; full SPICE parity is not claimed.
+> All eight original fixture decks and the new M4 charge decks parse; unsupported physics is rejected.
 
 [TODO.md](TODO.md) is the central implementation checklist, including branch-aware
 status, remaining work and completion gates. See
@@ -34,12 +36,12 @@ table, formulas, temperatures and deliberately rejected forms.
 | --- | --- |
 | Scalar/model/D/Q/M/passive-model parsing and petgraph topology | Implemented, bounded syntax |
 | Scoped subcircuits/X and source-relative includes/libraries | Ordered scoped cards, bounded resolution/provenance; 8/8 fixture parses, no flattening |
-| Model resolver and diode input schemas | Top-level families/levels/defaults; no nonlinear factory |
+| Model resolver and scalar schemas | Top-level families/levels/defaults; bounded passive and D/Q/M model-aware factories |
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
-| Linear `.op`, single-source `.dc`, complex `.ac` | Implemented |
-| Transient | Ordinary `.tran`: adaptive trap/Gear-2 companion driver (linear circuits); explicit diffsol adaptive BDF, restricted DAE structure |
-| Nonlinear D/Q/M equations | Not implemented |
+| `.op`, typed/nested source/temperature `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices |
+| Transient | Ordinary `.tran`: adaptive trap/Gear-2 with bounded nonlinear charge; explicit diffsol BDF remains linear-only |
+| Nonlinear D/Q/M equations | Bounded diode / Ebers-Moll BJT / MOS1; see M4 support table and explicit exclusions |
 | CLI simulation command | Not implemented; APIs/examples only |
 
 An ordinary `.tran` runs the adaptive trapezoidal / Gear-2 companion driver
@@ -48,8 +50,8 @@ selects the adaptive BDF backend, which is
 **not ngspice trapezoidal or fixed Gear-2**. M3's RC/RL/RLC, PWL, floating/coupled
 capacitor and AC exit gates against C goldens are closed for the linear decks
 (`cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`); M3 is not
-complete: no higher-index constraints (#29), no nonlinear
-charge and no subcircuits, and general MNA DAEs are not supported. The BDF backend currently
+complete: higher-index constraints (#29) and subcircuits remain unsupported.
+M4 adds bounded nonlinear charge to the companion path, not general MNA DAE support. The BDF backend currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
 constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
 Pulse/Pwl forcing (#9), with C's PULSE defaults taken from the `.tran` step/stop
@@ -68,9 +70,11 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 4. **Transient (M3):** the adaptive trap/Gear-2 companion driver exists for linear
    circuits (#26) and its RC/RL/RLC/floating-capacitor/AC conformance gates pass
    (#48, including the `.ic`/`uic`/`ic=` fixtures of #27); more waveforms,
-   higher-index DAEs (#29) and nonlinear charge remain.
-5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
-   nonlinear DC/AC/transient and conformance fixtures.
+   higher-index DAEs (#29) and nonlinear initialization remain; bounded nonlinear
+   charge is now provided by M4.
+5. **Nonlinear devices (M4):** bounded equations, Newton/damping/continuation,
+   typed nested sweeps and nonlinear DC/AC/charge-companion gate implemented;
+   expansion beyond [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md) remains explicit work.
 6. **Usability (M5):** CLI simulation, subcircuit flattening/instantiation (#18),
    measurements/output selection and binary rawfiles.
 

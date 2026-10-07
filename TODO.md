@@ -25,9 +25,9 @@ checkout, not a claim that all M2 slices have already merged.
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps |
-| DC / AC | Linear `.op`, one-source `.dc`, complex RLC `.ac` |
+| DC / AC | Linear and bounded nonlinear `.op`, typed/nested source/temperature `.dc`, bias-linearized `.ac` |
 | Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear circuits, `.ic`/`uic` rejected; explicit `backend=diffsol method=bdf` adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
-| Nonlinear devices | D/Q/M syntax and initial diode input validation; no equations |
+| Nonlinear devices | Bounded diode/Ebers-Moll BJT/MOS1 DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
 | CLI | Inspection/parsing; simulation through APIs/examples only |
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
@@ -112,9 +112,9 @@ tests and documented limits as the remaining functionality is added.
 ## 3. Model elaboration and validation
 
 - [x] Top-level first-declaration model lookup, family compatibility and family-specific level selection/rounding (#17); failed elaboration leaves circuit state unchanged.
-- [x] Device-owned scalar schema extension API and bounded diode IS/N/RS/AREA/TEMP/TNOM defaults/ranges (#17); raw AST preserved; D/Q/M factories still unavailable.
+- [x] Device-owned scalar schema extension API and bounded diode IS/N/RS/AREA/TEMP/TNOM defaults/ranges (#17); raw AST preserved; M4 adds bounded model-aware D/Q/M factories (see its support table).
 - [ ] Add scoped model resolution, binning and further device-owned schemas/defaults; expand only with production tests.
-- [ ] Preserve omitted BJT substrate semantics and explicitly diagnose unavailable device backends.
+- [x] Preserve omitted versus explicit BJT substrate terminals; bounded M4 factories reject unavailable substrate physics/backends.
 - [x] Define and implement the bounded passive value/geometry/temperature surface (#19); explicit errors for unsupported setters, missing/invalid geometry and nonfinite derivations.
 - [ ] Expand passive aliases, coil geometry, DTEMP/TCE/AC-only values and other advanced forms only with documented formulas and conformance tests.
 
@@ -134,16 +134,21 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [x] Accepted-state/trial-state separation, event left/right limits, distinct voltage/current tolerances and progress/work budgets in the companion driver (#26); tests show rejected trials never advance histories and accept-hook failures abort the run. Every future Newton/nonlinear driver must keep this.
 - [x] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps (#48). `xtask/src/tran.rs` event-aware comparator with `compare::TRAN`; twelve fixtures registered in `golden verify` at that point, sixteen with the initialized-state fixtures below (8 new: RL/RC-Gear/RC-PWL/RLC trap+Gear/floating/coupled `.tran`, RLC `.ac`), with Rust-only explicit-BDF variants against the same goldens (`TRAN`, or the peak-scaled `TRAN_RESTART` where C's backward-Euler restart error exceeds the pointwise bound); analytic closed-form, KCL, charge, energy and production-API gate tests in `crates/spice-analysis/tests/m3_gate.rs` ([VERIFICATION.md](docs/port/VERIFICATION.md)).
 - [x] Initialized-state (`.ic`/`uic`/instance `ic=`) conformance fixtures (#48 remainder): `rc_ic_uic_tran` (RC discharge from `ic=2`), `rlc_ic_uic_tran` (series RLC from inductor `ic=20m` and capacitor `ic=1`), `rc_ic_node_tran` (`.ic v(out)=0.25` without `uic`: constrained initial bias, then released) and `floating_cap_ic_tran` (floating capacitor with a 2 uC plate charge). New C goldens captured one at a time with `cargo xtask golden capture --netlist <name>` (no existing golden touched), registered in `golden verify` with `compare::TRAN` unchanged (16 verified, worst error 0.000 of the bound); no BDF variants because the diffsol backend rejects `.ic`/`uic`/`ic=` (a test asserts the rejection). The comparator's `tran::Grid` gained a `start` for `uic` runs (C writes no `t = 0` row; both plots must begin at the same first accepted step). Closed-form decay, conserved plate charge, `uic` first-row/step-breakpoint and `.ic`-release checks in `crates/spice-analysis/tests/m3_gate.rs`.
-- Still blocked / unsupported by the gate (do not claim M3 or universal MNA DAE support): higher-index source constraints (#29), nonlinear charge/devices (M4), subcircuit decks (M5), orders above 2.
+- Still blocked / unsupported by the gate (do not claim M3 or universal MNA DAE support): higher-index source constraints (#29), nonlinear initialization and physics beyond the M4 support table, subcircuit decks (M5), orders above 2.
 
 ## 5. Nonlinear devices and convergence — M4
 
-- [ ] Implement diode, BJT and MOS level-1 physical equations and Jacobian stamps.
-- [ ] Add Newton iteration, device limiting, source stepping, gmin stepping and convergence options.
-- [ ] Extend DC sweeps beyond the delivered single-independent-source linear subset as required, with explicit supported sweep targets/combinations.
-- [ ] Implement nonlinear bias-linearized AC and transient charge/flux with designed trial-state ownership and accepted-state commits.
-- [ ] Validate diode rectifier/DC, MOS inverter and BJT bias results against C at justified tolerances.
-- [ ] Keep advanced MOS/BSIM-family scope explicit before nonlinear expansion.
+Branch-local bounded support on `work/m4-nonlinear`; no due date. Exact schemas,
+physics exclusions and local #41 evidence: [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md).
+
+- [x] Reuse typed first-declaration model resolution and device-owned ordered schemas/defaults; extend bounded diode/BJT/MOS1 factories atomically.
+- [x] Implement diode and Ebers-Moll BJT junction/charge equations and bounded MOS1 square-law/body/overlap charge with analytic Jacobian stamps.
+- [x] Add reusable Newton iteration with global voltage-step damping, physical residual checks, source/nodal-gmin stepping and request/deck physical tolerances. Full C PN/FET limiting/control-option parity is not claimed.
+- [x] Add typed independent-source/temperature DC targets and one nested outer axis; preserve source values and linear repeated-RHS LU reuse.
+- [x] Implement bias-linearized AC and actual nonlinear Q-based trap/Gear-2 companions, multi-charge LTE and disposable trial/atomic accepted history.
+- [x] Demonstrate diode DC, BJT bias and MOS1 operating point against existing C data; add six C AC/charge-transient decks, physical/Jacobian/conservation/continuation checks and explicit tolerances for local #41 subset.
+- [x] Reject unimplemented parsed physics; BSIM/CIDER/XSPICE and full SPICE parity remain outside scope.
+- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT/MOS temperatures, BJT Early/high-injection/substrate/series physics, MOS intrinsic channel charge (nonzero TOX), nonlinear .ic/uic, resistor/model sweeps and configurable full C convergence controls.
 
 ## 6. Usability and output — M5
 
