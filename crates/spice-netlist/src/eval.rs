@@ -35,10 +35,11 @@
 //!
 //! # Scopes
 //!
-//! [`ParamScope`] is an immutable resolved scope with an optional parent, so a
-//! later subcircuit pass can create a child scope seeded with
-//! [`ParamBinding`]s (formal defaults/overrides). Subcircuit evaluation itself
-//! is not implemented; nothing here flattens or substitutes into identifiers.
+//! [`ParamScope`] is an immutable resolved scope with an optional parent, so the
+//! subcircuit pass creates a child scope seeded with [`ParamBinding`]s (formal
+//! defaults and instance overrides) through [`ParamScope::resolve_instance`].
+//! Nothing here flattens or substitutes into identifiers; expansion lives in
+//! `spice_devices::subckt`.
 
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -489,3 +489,53 @@ fn a_flat_deck_is_unchanged_by_expansion() {
     assert_eq!(expanded.devices, netlist.devices);
     assert_eq!(expanded.models, netlist.models);
 }
+
+#[test]
+fn an_uninstantiated_cyclic_definition_is_dead_text_like_any_unused_definition() {
+    // Reachability scopes the recursion diagnostic: nothing instantiates
+    // `first`/`second`, so the deck elaborates exactly like an unused
+    // non-cyclic definition.
+    let circuit = circuit(
+        ".subckt first a b\nx1 a b second\n.ends first\n\
+         .subckt second a b\nx1 a b first\n.ends second\n\
+         v1 in 0 dc 10\nr1 in out 1k\nr2 out 0 1k\n.op",
+    )
+    .unwrap();
+    assert_eq!(node_voltage(&mut { circuit }, "out"), 5.0);
+}
+
+#[test]
+fn a_root_model_used_only_inside_a_body_survives_the_unused_model_policy() {
+    // The production path (`Circuit::from_netlist`), not `expand_subcircuits`:
+    // a root model referenced only from a subcircuit body must count as
+    // referenced when the unused-model policy runs.
+    let mut circuit = circuit(
+        ".model dm r(r=2k)\n\
+         .subckt div a b\nr1 a b dm\n.ends div\n\
+         v1 in 0 dc 10\nx1 in out div\nr2 out 0 1k\n.op",
+    )
+    .unwrap();
+    assert_eq!(supplied(&circuit, "r.x1.r1"), 2e3);
+    // 10 V across the body's 2k in series with the 1k load.
+    assert!((node_voltage(&mut circuit, "out") - 10.0 / 3.0).abs() < 1e-12);
+}
+
+#[test]
+fn a_renamed_local_model_may_not_collide_with_a_declared_dotted_model() {
+    // `.model x1.am` is a legal deck name and is exactly the name a body model
+    // inside instance `x1` is renamed to. The resolver keeps the first
+    // declaration, so accepting this silently would solve `r.x1.r1` against the
+    // wrong card.
+    let error = circuit(
+        ".model x1.am r(r=2k)\n\
+         .subckt div a b\n.model am r(r=1k)\nr1 a b am\n.ends div\n\
+         v1 in 0 dc 10\nx1 in out div\nr2 out 0 1k\n.op",
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("duplicate flattened model name 'x1.am'"),
+        "{error}"
+    );
+}

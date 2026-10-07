@@ -36,7 +36,7 @@
 //! Nested `.subckt` definitions inside a body, `.include`/`.lib` directives, and
 //! analysis cards inside a body are rejected explicitly rather than ignored.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use petgraph::Direction;
@@ -108,7 +108,7 @@ pub fn expand_subcircuits(
     limits: SubcircuitLimits,
 ) -> SpiceResult<ExpandedNetlist> {
     let definitions = definitions(netlist);
-    check_acyclic(&definitions)?;
+    check_acyclic(&definitions, &netlist.devices)?;
     let mut expander = Expander {
         netlist,
         definitions,
@@ -116,10 +116,12 @@ pub fn expand_subcircuits(
         budget: EvalBudget::default(),
         devices: Vec::new(),
         models: netlist.models.clone(),
+        emitted_locals: BTreeSet::new(),
     };
     let mut locals = vec![expander.root_models()];
     let devices = netlist.devices.clone();
     expander.expand_body(&devices, "", 0, &BTreeMap::new(), root, &mut locals)?;
+    check_flattened_model_names(&expander.models, &expander.emitted_locals)?;
     Ok(ExpandedNetlist {
         devices: expander.devices,
         models: expander.models,
@@ -142,6 +144,8 @@ struct Expander<'a> {
     budget: EvalBudget,
     devices: Vec<DeviceInstance>,
     models: Vec<ModelCard>,
+    /// Lowercased names of the body-local models that were renamed and emitted.
+    emitted_locals: BTreeSet<String>,
 }
 
 /// Definition lookup: first declaration wins, like `ModelResolver` and C's
@@ -155,13 +159,18 @@ fn definitions(netlist: &Netlist) -> BTreeMap<String, &Subcircuit> {
     map
 }
 
-/// Reject recursive definitions before any expansion.
+/// Reject recursion an instance can actually reach.
 ///
 /// The definition graph is directed: an edge `a -> b` means `a`'s body
 /// instantiates `b`. A strongly connected component of more than one node, or a
 /// self-edge, is a cycle. Unknown targets are not reported here: expansion sees
-/// the invoking card and reports the instance location.
-fn check_acyclic(definitions: &BTreeMap<String, &Subcircuit>) -> SpiceResult<()> {
+/// the invoking card and reports the instance location. Only definitions
+/// reachable from a top-level `X` are checked, so a cyclic definition that
+/// nothing instantiates is dead text exactly like any other unused definition.
+fn check_acyclic(
+    definitions: &BTreeMap<String, &Subcircuit>,
+    devices: &[DeviceInstance],
+) -> SpiceResult<()> {
     let mut graph: DiGraph<String, ()> = DiGraph::new();
     let mut index: BTreeMap<String, NodeIndex> = BTreeMap::new();
     for name in definitions.keys() {
@@ -182,12 +191,30 @@ fn check_acyclic(definitions: &BTreeMap<String, &Subcircuit>) -> SpiceResult<()>
             }
         }
     }
-    let mut cyclic: Vec<Vec<NodeIndex>> = tarjan_scc(&graph)
-        .into_iter()
-        .filter(|component| {
-            component.len() > 1 || graph.find_edge(component[0], component[0]).is_some()
-        })
-        .collect();
+    let mut cyclic: Vec<Vec<NodeIndex>> = {
+        // Breadth-first from every top-level `X` target; a strongly connected
+        // component is either wholly reachable or wholly unreachable.
+        let mut reachable: BTreeSet<NodeIndex> = BTreeSet::new();
+        let mut queue: std::collections::VecDeque<NodeIndex> = devices
+            .iter()
+            .filter(|device| device.designator == 'x')
+            .filter_map(|device| device.model.as_ref())
+            .filter_map(|name| index.get(&name.to_ascii_lowercase()).copied())
+            .collect();
+        while let Some(node) = queue.pop_front() {
+            if !reachable.insert(node) {
+                continue;
+            }
+            queue.extend(graph.neighbors_directed(node, Direction::Outgoing));
+        }
+        tarjan_scc(&graph)
+            .into_iter()
+            .filter(|component| component.iter().any(|node| reachable.contains(node)))
+            .filter(|component| {
+                component.len() > 1 || graph.find_edge(component[0], component[0]).is_some()
+            })
+            .collect()
+    };
     if cyclic.is_empty() {
         return Ok(());
     }
@@ -210,6 +237,35 @@ fn check_acyclic(definitions: &BTreeMap<String, &Subcircuit>) -> SpiceResult<()>
             chain.join(" -> ")
         ),
     ))
+}
+
+/// Reject a per-instance rename that collides with another flattened model.
+///
+/// A body-local model is renamed `<instance path>.<name>`, which is exactly the
+/// shape a root declaration may already use (`.model x1.am ...`). The resolver
+/// keeps the first declaration for a name, so a collision would silently solve
+/// the device against the wrong card. Root-to-root duplicates keep their
+/// pre-existing first-declaration behaviour; only a generated rename is
+/// reported, because the deck never wrote that name.
+fn check_flattened_model_names(
+    models: &[ModelCard],
+    renamed: &BTreeSet<String>,
+) -> SpiceResult<()> {
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for card in models {
+        *counts.entry(card.name.to_ascii_lowercase()).or_default() += 1;
+    }
+    if let Some(name) = counts
+        .iter()
+        .find(|(name, count)| **count > 1 && renamed.contains(*name))
+        .map(|(name, _)| name.clone())
+    {
+        return Err(SpiceError::circuit(format!(
+            "duplicate flattened model name '{name}': a per-instance subcircuit model \
+             collides with another model declaration; rename the top-level model"
+        )));
+    }
+    Ok(())
 }
 
 /// Shortest cycle through `start` inside `component`, as `start .. start`.
@@ -540,6 +596,7 @@ impl Expander<'_> {
             let card = local.card.clone();
             if !emitted {
                 self.models.push(card);
+                self.emitted_locals.insert(name.to_ascii_lowercase());
                 if let Some(slot) = locals[index].get_mut(&key) {
                     slot.emitted = true;
                 }

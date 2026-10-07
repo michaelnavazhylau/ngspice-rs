@@ -101,7 +101,19 @@ declaration is unaffected elsewhere. Each instance's local declarations are
 renamed to `<path>.<name>` (`x1.am`, `x1.xi.am`) and appear in the flattened
 model list in first-reference order, after the root cards. Unused local
 declarations are not emitted; an unresolved reference keeps its written name and
-is reported by `ModelResolver` with the instance location.
+is reported by `ModelResolver` with the instance location. This is deliberately
+asymmetric with the root scope, where an unused declaration is an explicit
+`Unsupported` error: an unused local declaration cannot reach any device, so no
+physics can be silently discarded, while a root declaration is visible to the
+whole deck.
+
+A rename may not collide with another flattened model. `<path>.<name>` is a
+legal deck spelling (`.model x1.am r(...)` is a usable name), and the resolver
+keeps the first declaration for a name, so a collision would silently solve the
+device against the wrong card; `expand_subcircuits` therefore reports
+`duplicate flattened model name '<name>'` instead. Root-to-root duplicates keep
+their pre-existing first-declaration behaviour, because only the generated
+rename is rejected.
 
 Resolved declarations go through the same device-owned schemas as a flat deck
 (`docs/port/MODEL_SCHEMAS.md`); expansion never picks a backend or validates a
@@ -110,13 +122,18 @@ factory.
 
 ## Bounds, recursion and atomicity
 
-- **Recursion** is rejected before expansion: `expand_subcircuits` builds the
-  directed definition graph (an edge for every `X` target inside a body) and
-  reports the first strongly connected component as
+- **Recursion** is rejected when an instance can reach it: `expand_subcircuits`
+  builds the directed definition graph (an edge for every `X` target inside a
+  body), takes the definitions reachable from a top-level `X`, and reports the
+  first strongly connected component among those as
   `circular subcircuit definition: 'first' -> 'second' -> 'first'`, located at
-  the definition's `.subckt` card.
+  the definition's `.subckt` card. A cyclic definition nothing instantiates is
+  dead text, exactly like an unused non-cyclic definition.
 - `SubcircuitLimits { max_depth: 32, max_devices: 250_000 }` is the backstop
-  against a legal but exploding deck.
+  against a legal but exploding deck, in addition to the parameter evaluator's
+  own ceiling on evaluated nodes (`EvalLimits::max_nodes`), which is shared by
+  the whole expansion because every instance scope is evaluated against one
+  `EvalBudget`.
 - Every failure — unknown subcircuit, arity mismatch, limit, unsupported body,
   parameter evaluation, model resolution, factory rejection — happens before the
   circuit is published. `expand_subcircuits` takes `&Netlist` and returns fresh
