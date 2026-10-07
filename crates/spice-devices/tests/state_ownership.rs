@@ -98,6 +98,7 @@ fn load(
             model_context: &ModelContext::default(),
             integration: None,
             history,
+            forcing: None,
         },
         &mut matrix,
         &mut rhs,

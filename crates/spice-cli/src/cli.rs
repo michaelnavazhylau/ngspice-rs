@@ -434,7 +434,7 @@ pub fn analyses_text() -> String {
     }
     let _ = writeln!(
         out,
-        "\nLinear R/C/L/V/I only; transient requires backend=diffsol method=bdf. See docs/port/DIFFSOL_FAER_IMPLEMENTATION.md."
+        "\nLinear R/C/L/V/I only; .tran runs the trap/Gear companion driver (backend=diffsol method=bdf selects BDF). See docs/port/TRANSIENT.md."
     );
     out
 }

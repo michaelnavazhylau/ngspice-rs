@@ -5,7 +5,7 @@ the SPICE circuit simulator.
 
 > **Status: M1 front-end gate closed (outstanding M1d/M5 items listed in TODO.md); a bounded linear simulation engine is implemented.**
 > Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
-> and explicitly selected diffsol BDF transient analysis. Scalar models and
+> and transient analysis (adaptive trap/Gear-2 companion driver; explicitly selected diffsol BDF). Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
 > and bounded diode input schemas exist. This checkout also simulates bounded
 > model-backed R/C/L; nonlinear D/Q/M simulation remains unavailable.
@@ -38,12 +38,15 @@ table, formulas, temperatures and deliberately rejected forms.
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
 | Linear `.op`, single-source `.dc`, complex `.ac` | Implemented |
-| Transient | Explicit diffsol adaptive BDF, restricted DAE structure |
+| Transient | Ordinary `.tran`: adaptive trap/Gear-2 companion driver (linear circuits); explicit diffsol adaptive BDF, restricted DAE structure |
 | Nonlinear D/Q/M equations | Not implemented |
 | CLI simulation command | Not implemented; APIs/examples only |
 
-Transient requires explicit `backend=diffsol method=bdf`; it is
-**not ngspice trapezoidal or fixed Gear-2 and does not complete M3**. It currently
+An ordinary `.tran` runs the adaptive trapezoidal / Gear-2 companion driver
+([TRANSIENT.md](docs/port/TRANSIENT.md)); explicit `backend=diffsol method=bdf`
+selects the adaptive BDF backend, which is
+**not ngspice trapezoidal or fixed Gear-2**. Neither completes M3 (no `.ic`/`uic`,
+nonlinear charge or general DAEs). The BDF backend currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
 constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
 Pulse/Pwl forcing (#9), with C's PULSE defaults taken from the `.tran` step/stop
@@ -59,9 +62,9 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
-4. **Transient (M3):** adaptive trap/Gear-2 companion driver (integrator, state
-   ownership and C/L companion stamps exist), initialization, parsed waveform
-   evaluation, broader DAEs and C parity.
+4. **Transient (M3):** the adaptive trap/Gear-2 companion driver exists for linear
+   circuits (#26); initialization (`.ic`/`uic`), more waveforms, broader DAEs and
+   nonlinear charge remain.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
    nonlinear DC/AC/transient and conformance fixtures.
 6. **Usability (M5):** CLI simulation, subcircuit flattening/instantiation (#18),

@@ -34,9 +34,10 @@ Waveform deck evaluation, subcircuit flattening, expressions and advanced passiv
 success does not imply a nonlinear backend is available.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
-bounded diffsol BDF transient analysis. Trap/Gear-2 C/L companion stamps exist
-as a device API without a transient driver. D/Q/M equations, companion `.tran`,
-general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
+an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
+linear circuits) and an explicitly selected bounded diffsol BDF transient. D/Q/M
+equations, `.ic`/`uic`, general DAEs and a CLI simulation command remain
+unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
@@ -57,7 +58,7 @@ What already works for real:
 | Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode IS/N/RS/AREA/TEMP/TNOM; no nonlinear factory |
 | Bounded model-backed passives | `spice-devices`, `spice-analysis` | R sheet/C area-perimeter geometry, model L, contextual TC1/TC2, scale/multiplicity; no coil geometry |
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
-| Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, explicit diffsol BDF; not trap/Gear parity |
+| Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` layout; known decimal round-trip limitation documented in verification |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |

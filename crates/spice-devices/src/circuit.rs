@@ -20,6 +20,7 @@ use petgraph::graph::UnGraph;
 use spice_core::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 use spice_maths::{Coefficients, SparseMatrix, Vector};
 
+use crate::linear::Forcing;
 use crate::models::ModelContext;
 use crate::state::{StateHistory, TrialState};
 use crate::traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
@@ -67,6 +68,9 @@ pub struct LoadRequest<'a> {
     pub integration: Option<&'a Coefficients>,
     /// The accepted state history this trial reads.
     pub history: &'a StateHistory,
+    /// Source-forcing context, required by companion transient loads (sources
+    /// evaluate their waveform at the mode's time) and `None` otherwise.
+    pub forcing: Option<Forcing>,
 }
 
 impl fmt::Debug for Circuit {
@@ -328,6 +332,7 @@ impl Circuit {
                 branches: self.branch_rows[index].clone(),
                 integration: request.integration,
                 states,
+                forcing: request.forcing,
             })?;
         }
         Ok(())

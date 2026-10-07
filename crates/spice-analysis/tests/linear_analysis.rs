@@ -250,7 +250,16 @@ fn transient_rejects_unsupported_structures_methods_and_limits() {
             "{option}"
         );
     }
-    assert!(run(&mut circuit(body), AnalysisKind::Transient, &["1u", "1m"]).is_err());
+    // Ordinary .tran runs the companion backend; diffsol needs method=bdf.
+    assert!(run(&mut circuit(body), AnalysisKind::Transient, &["1u", "1m"]).is_ok());
+    assert!(
+        run(
+            &mut circuit(body),
+            AnalysisKind::Transient,
+            &["1u", "1m", "backend=diffsol"]
+        )
+        .is_err()
+    );
 }
 
 #[test]

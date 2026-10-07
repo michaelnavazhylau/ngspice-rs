@@ -1,7 +1,7 @@
 //! Event-aware transient comparison on a shared physical time grid.
 //!
-//! C (adaptive trap/Gear) and Rust (diffsol BDF today, a companion driver
-//! later) choose different internal timepoints, so sample sequences are never
+//! C (adaptive trap/Gear) and Rust (the companion trap/Gear driver, or diffsol
+//! BDF) choose different internal timepoints, so sample sequences are never
 //! compared. Both plots are evaluated at common output times instead:
 //!
 //! * **Smooth interval**: a value at `t` is the linear interpolation of the two
@@ -22,10 +22,6 @@
 //! `O(h^2 v'')` error, so the comparison is only meaningful when the sample
 //! spacing is small against the circuit time constants; that is the caller's
 //! fixture design responsibility and is not hidden by a looser tolerance.
-
-// Consumed by the unit tests today; `golden verify` registry wiring lands with the
-// M3 companion-transient gate (#48 items 2-4), so non-test builds see it unused.
-#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 

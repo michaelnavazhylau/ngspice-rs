@@ -116,8 +116,8 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
         );
     }
     for options in [
-        ".options chgtol=1e-14",
-        ".options trtol=7",
+        ".options lteabstol=1e-6",
+        ".options srcsteps=3",
         ".options itl4=20",
         ".options gmin=1e-12",
         ".options list",
@@ -136,30 +136,64 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
 }
 
 #[test]
-fn method_and_maxord_are_retained_but_rejected_for_transient() {
+fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
     let c = config(".options method=Gear maxord=2").unwrap();
     assert_eq!((c.method(), c.maxord()), (Some("gear"), Some(2)));
-    let tran = AnalysisRequest::with_arguments(
+    let diffsol = AnalysisRequest::with_arguments(
         AnalysisKind::Transient,
         ["1u", "1m", "backend=diffsol", "method=bdf"],
     );
-    for options in [
-        ".options method=trap",
-        ".options method=trapezoidal",
-        ".options method=gear",
-        ".options method=gear maxord=4",
-        ".options maxord=2",
+    let ordinary = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m"]);
+    for (options, forwarded) in [
+        (".options method=trap", vec!["method=trap"]),
+        (".options method=trapezoidal", vec!["method=trapezoidal"]),
+        (".options method=gear", vec!["method=gear"]),
+        (".options maxord=2", vec!["maxord=2"]),
+        (
+            ".options method=gear maxord=1",
+            vec!["method=gear", "maxord=1"],
+        ),
     ] {
         let c = config(options).unwrap();
-        let error = c.request(tran.clone()).unwrap_err();
+        let error = c.request(diffsol.clone()).unwrap_err();
         assert!(
             matches!(error, SpiceError::Unsupported { .. }),
             "{options}: {error}"
         );
+        let mut want = ordinary.clone();
+        want.arguments
+            .extend(forwarded.into_iter().map(String::from));
+        assert_eq!(c.request(ordinary.clone()).unwrap(), want, "{options}");
         // Analyses that do not integrate are unaffected by the retained selection.
         let ac = AnalysisRequest::new(AnalysisKind::Ac);
         assert_eq!(c.request(ac.clone()).unwrap(), ac);
     }
+    // An explicit request selection beats the deck's.
+    let c = config(".options method=gear maxord=1").unwrap();
+    let explicit = AnalysisRequest::with_arguments(
+        AnalysisKind::Transient,
+        ["1u", "1m", "method=trap", "maxord=2"],
+    );
+    assert_eq!(c.request(explicit.clone()).unwrap(), explicit);
+    // Gear orders above the implemented 2 are rejected up front.
+    let error = config(".options method=gear maxord=4")
+        .unwrap()
+        .request(ordinary.clone())
+        .unwrap_err();
+    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+    // trtol/chgtol are companion truncation options.
+    let c = config(".options trtol=3 chgtol=1e-13").unwrap();
+    assert_eq!(
+        (c.transient().trtol, c.transient().chgtol),
+        (Some(3.), Some(1e-13))
+    );
+    let request = c.request(ordinary.clone()).unwrap();
+    assert_eq!(
+        (request.named("trtol"), request.named("chgtol")),
+        (Some("3e0"), Some("1e-13"))
+    );
+    assert!(c.request(diffsol).is_err());
+    assert!(config(".options trtol=0").is_err());
 }
 
 #[test]

@@ -1,4 +1,10 @@
-//! Explicitly selected diffsol BDF transient; companion-model trap/Gear stay separate.
+//! `.tran` backend dispatch.
+//!
+//! * no `backend=` (or `backend=companion`): the SPICE-compatible adaptive
+//!   trapezoidal / Gear-2 companion driver ([`crate::companion`]);
+//! * `backend=diffsol method=bdf`: the explicitly selected bounded diffsol BDF
+//!   backend below, which is not ngspice trap/Gear and shares no state with the
+//!   companion driver.
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisRequest, Plot};
 use spice_core::{Complex, SpiceResult};
@@ -13,9 +19,30 @@ pub(crate) fn run(
     request: &AnalysisRequest,
     context: &crate::AnalysisContext,
 ) -> SpiceResult<Plot> {
-    if request.named("backend") != Some("diffsol") || request.named("method") != Some("bdf") {
+    match request.named("backend") {
+        None => crate::companion::companion_transient(circuit, request, context)
+            .map(|(plot, _stats)| plot),
+        Some(name) if name.eq_ignore_ascii_case("companion") => {
+            crate::companion::companion_transient(circuit, request, context)
+                .map(|(plot, _stats)| plot)
+        }
+        Some(name) if name.eq_ignore_ascii_case("diffsol") => {
+            run_diffsol(circuit, request, context)
+        }
+        Some(name) => Err(unsupported(format!(
+            "unknown transient backend '{name}'; expected companion (default) or diffsol"
+        ))),
+    }
+}
+
+fn run_diffsol(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &crate::AnalysisContext,
+) -> SpiceResult<Plot> {
+    if request.named("method") != Some("bdf") {
         return Err(unsupported(
-            "transient requires explicit backend=diffsol method=bdf; ngspice trap/Gear companion methods are not implemented",
+            "backend=diffsol requires method=bdf (diffsol adaptive BDF is not ngspice trap/Gear;              omit backend= for the companion trap/gear driver)",
         ));
     }
     if request.uic {

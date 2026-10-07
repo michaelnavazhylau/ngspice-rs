@@ -17,6 +17,21 @@ pub enum Limit {
     Right,
 }
 
+/// How a companion transient load evaluates independent-source forcing.
+///
+/// A load at `AnalysisMode::Transient { time, .. }` evaluates every source at
+/// `time` with `limit`: [`Limit::Left`] for the step that *ends* at a source
+/// breakpoint, [`Limit::Right`] for a step that starts at or after one (the
+/// step's end time is then past the breakpoint, so either limit agrees with the
+/// strictly later value). `timing` supplies C's PULSE defaults.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Forcing {
+    /// Which one-sided limit to take at a jump.
+    pub limit: Limit,
+    /// The `.tran` quantities that resolve PULSE defaults.
+    pub timing: TransientTiming,
+}
+
 /// A bounded source waveform. Breakpoints are explicit and values finite.
 ///
 /// Time forcing is evaluated with [`Waveform::value_at`] and its corners and
@@ -134,6 +149,23 @@ impl Waveform {
                 ));
             }
         })
+    }
+
+    /// Like [`Self::value_at`], but resolves a [`Waveform::PulseDefaults`]
+    /// against `timing` first, so unbound source devices can be loaded.
+    ///
+    /// # Errors
+    /// As [`Self::value_at`], or the pulse is invalid after resolution.
+    pub fn value_at_timed(
+        &self,
+        t: Real,
+        limit: Limit,
+        timing: &TransientTiming,
+    ) -> SpiceResult<Real> {
+        match self {
+            Self::PulseDefaults(spec) => spec.resolve(timing)?.value_at(t, limit),
+            other => other.value_at(t, limit),
+        }
     }
 
     /// Value at time t; left limit is used at a segment's terminating jump.

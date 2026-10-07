@@ -41,7 +41,7 @@ pub use models::{
 pub mod registry;
 pub mod sources;
 pub use linear::{
-    Limit, LinearContext, LinearSource, LinearSystem, SystemBreakpoints, Waveform,
+    Forcing, Limit, LinearContext, LinearSource, LinearSystem, SystemBreakpoints, Waveform,
     WaveformBreakpoints,
 };
 pub use pulse::{Pulse, PulseBreakpoints, PulseSpec, TransientTiming};

@@ -7,7 +7,8 @@
 //! (`CKTload`), iteration (`CKTiter`) and convergence machinery.
 //!
 //! Drivers support linear R/C/L/V/I equations. Nonlinear analyses remain
-//! unsupported; transient requires an explicit diffsol BDF selection. The split
+//! unsupported; an ordinary `.tran` runs the trap/Gear companion driver and
+//! `backend=diffsol method=bdf` selects the BDF backend. The split
 //! between [`AnalysisRequest`] and the netlist AST is deliberate: the driver
 //! layer does not need to know where a request came from, and the AST does not
 //! need to know which analyses exist.
@@ -239,8 +240,10 @@ impl Analysis for AcSmallSignal {
     }
 }
 
-/// `.tran` — explicitly selected bounded diffsol adaptive BDF.
-/// Not ngspice trap/fixed Gear-2; IC/uic and general DAEs remain unsupported.
+/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
+/// ([`crate::companion_transient`]), or the explicitly selected bounded diffsol
+/// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
+/// IC/uic and general DAEs remain unsupported.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.

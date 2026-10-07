@@ -10,12 +10,13 @@
 //! | Option | Effect |
 //! | --- | --- |
 //! | `temp`, `tnom` | [`AnalysisContext`] circuit/nominal temperature (Celsius, finite, above absolute zero) |
-//! | `reltol` | transient BDF relative tolerance (`rtol`) |
-//! | `vntol` | transient BDF voltage absolute tolerance |
-//! | `abstol` | transient BDF branch-current absolute tolerance |
-//! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`]; **rejected for `.tran`** because the transient driver is diffsol BDF, not trap/Gear |
+//! | `reltol` | transient relative tolerance (`rtol`): companion truncation/convergence, or diffsol BDF |
+//! | `vntol` | transient voltage absolute tolerance (companion Newton test; diffsol BDF) |
+//! | `abstol` | transient branch-current absolute tolerance (companion truncation/Newton test; diffsol BDF) |
+//! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
+//! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
 //!
-//! Every other name from `cktsopt.c` (`chgtol`, `trtol`, `itl*`, `gmin`, flags,
+//! Every other name from `cktsopt.c` (`itl*`, `gmin`, flags,
 //! ...) is reported as [`SpiceError::NotYetPorted`]; names absent from that
 //! table are parse errors. `no_auto_gnd` is a front-end variable in C, not an
 //! `.option`: use `Parser::with_auto_gnd`.
@@ -23,8 +24,11 @@
 //! # Precedence
 //!
 //! Highest first: explicit [`RunOverrides`] (temperatures) or explicit analysis
-//! request arguments (`rtol=`, `vntol=`, `abstol=`, `maxsteps=`), then the deck's
-//! options, then driver defaults (27 C; rtol 1e-7, vntol 1e-9, abstol 1e-12).
+//! request arguments (`rtol=`, `vntol=`, `abstol=`, `chgtol=`, `trtol=`, `method=`,
+//! `maxord=`, `maxsteps=`), then the deck's options, then driver defaults (27 C).
+//! Defaults are the backend's: the companion driver uses ngspice's (reltol 1e-3,
+//! vntol 1e-6, abstol 1e-12, chgtol 1e-14, trtol 7); diffsol BDF keeps rtol 1e-7,
+//! vntol 1e-9, abstol 1e-12.
 //! Repeated options override in deck order, last wins; giving one name both as a
 //! flag and with a value is a conflict error. A [`RunConfig`] is a plain value
 //! computed per deck, so nothing leaks between decks.
@@ -45,8 +49,6 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "noopiter",
     "gmin",
     "gshunt",
-    "trtol",
-    "chgtol",
     "pivtol",
     "pivrel",
     "itl1",
@@ -128,6 +130,10 @@ pub struct TransientSettings {
     pub vntol: Option<Real>,
     /// `abstol` → branch-current absolute tolerance.
     pub abstol: Option<Real>,
+    /// `chgtol` → companion charge/flux floor in truncation control.
+    pub chgtol: Option<Real>,
+    /// `trtol` → companion truncation-error overestimation factor.
+    pub trtol: Option<Real>,
 }
 
 /// One accepted option occurrence, kept in deck order for diagnostics.
@@ -225,7 +231,15 @@ impl RunConfig {
         let name = setting.name.as_str();
         let supported = matches!(
             name,
-            "temp" | "tnom" | "reltol" | "vntol" | "abstol" | "method" | "maxord"
+            "temp"
+                | "tnom"
+                | "reltol"
+                | "vntol"
+                | "abstol"
+                | "chgtol"
+                | "trtol"
+                | "method"
+                | "maxord"
         );
         if !supported {
             if KNOWN_UNIMPLEMENTED.contains(&name) {
@@ -307,7 +321,9 @@ impl RunConfig {
                         match name {
                             "reltol" => self.transient.rtol = Some(number),
                             "vntol" => self.transient.vntol = Some(number),
-                            _ => self.transient.abstol = Some(number),
+                            "abstol" => self.transient.abstol = Some(number),
+                            "chgtol" => self.transient.chgtol = Some(number),
+                            _ => self.transient.trtol = Some(number),
                         }
                     }
                 }
@@ -385,14 +401,16 @@ impl RunConfig {
         self.request(AnalysisRequest::from(&literal))
     }
 
-    /// Add deck settings to a request. Explicit request arguments win; tolerance
-    /// options apply only to `.tran`, the only consumer today.
+    /// Add deck settings to a request. Explicit request arguments win; the
+    /// integration and tolerance options apply only to `.tran`, the only consumer
+    /// today.
     ///
     /// # Errors
-    /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord` and
-    /// the request is a transient: the driver is diffsol BDF and does not
-    /// implement trap/Gear companion integration, so the selection cannot be
-    /// honoured and is not silently ignored.
+    /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord`
+    /// (or `chgtol`/`trtol`) and the transient request names `backend=diffsol`,
+    /// which implements neither trap/Gear nor truncation control, so the
+    /// selection cannot be honoured and is not silently ignored; also Gear
+    /// orders above 2.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
         // Parsed but unapplied: running would silently ignore the deck's
         // initial conditions / convergence hints (GitHub #27 analysis half).
@@ -408,22 +426,51 @@ impl RunConfig {
         if request.kind != AnalysisKind::Transient {
             return Ok(request);
         }
+        let diffsol = request
+            .named("backend")
+            .is_some_and(|name| name.eq_ignore_ascii_case("diffsol"));
         if let Some((name, location)) = &self.method {
             let order = self.maxord.as_ref().map_or(2, |(order, _)| *order);
             let method = IntegrationMethod::parse(name, order).expect("validated at parse");
             method.validate_runtime()?;
-            return Err(unsupported_integration(&format!("method={name}"), location));
+            if diffsol {
+                return Err(unsupported_integration(&format!("method={name}"), location));
+            }
+            if request.named("method").is_none() {
+                request.arguments.push(format!("method={name}"));
+            }
         }
         if let Some((order, location)) = &self.maxord {
-            return Err(unsupported_integration(
-                &format!("maxord={order}"),
-                location,
-            ));
+            if diffsol {
+                return Err(unsupported_integration(
+                    &format!("maxord={order}"),
+                    location,
+                ));
+            }
+            if request.named("maxord").is_none() {
+                request.arguments.push(format!("maxord={order}"));
+            }
+        }
+        for (key, value) in [
+            ("chgtol", self.transient.chgtol),
+            ("trtol", self.transient.trtol),
+        ] {
+            if value.is_some() && diffsol {
+                return Err(SpiceError::Unsupported {
+                    feature: format!(
+                        ".option {key}: local-truncation control belongs to the companion \
+                         trap/Gear driver, not backend=diffsol"
+                    ),
+                    location: None,
+                });
+            }
         }
         for (key, value) in [
             ("rtol", self.transient.rtol),
             ("vntol", self.transient.vntol),
             ("abstol", self.transient.abstol),
+            ("chgtol", self.transient.chgtol),
+            ("trtol", self.transient.trtol),
         ] {
             if let (Some(value), None) = (value, request.named(key)) {
                 request.arguments.push(format!("{key}={value:e}"));
@@ -436,8 +483,8 @@ impl RunConfig {
 fn unsupported_integration(what: &str, location: &SourceLoc) -> SpiceError {
     SpiceError::Unsupported {
         feature: format!(
-            ".option {what}: transient uses diffsol BDF; ngspice trap/Gear companion \
-             integration is not wired to the driver"
+            ".option {what}: backend=diffsol is adaptive BDF, not ngspice trap/Gear; \
+             omit backend= to run the companion driver"
         ),
         location: Some(location.clone()),
     }

@@ -1,5 +1,5 @@
 //! Independent sources, with current positive from the first terminal to the second.
-use crate::{Device, LinearContext, LinearSource, StampContext, Waveform};
+use crate::{AnalysisMode, Device, LinearContext, LinearSource, StampContext, Waveform};
 use spice_core::{Complex, NodeId, Real, SpiceError, SpiceResult};
 
 /// Independent V or I source. AC, DC and transient excitations are distinct.
@@ -51,19 +51,35 @@ impl Device for IndependentSource {
     fn branch_currents(&self) -> usize {
         usize::from(self.voltage)
     }
+    /// DC loads stamp the DC value. Companion transient loads stamp the time-`t`
+    /// forcing, evaluated with the one-sided limit of `context.forcing`
+    /// (`vsrcload.c`/`isrcload.c` evaluate the waveform at `CKTtime`).
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
-        if !context.mode.is_dc() {
-            return Err(SpiceError::circuit(
-                "use linear equation assembly for dynamic sources",
-            ));
-        }
+        let value = match context.mode {
+            AnalysisMode::OperatingPoint | AnalysisMode::DcSweep => self.dc,
+            AnalysisMode::Transient { time, .. } => {
+                let forcing = context.forcing.ok_or_else(|| {
+                    SpiceError::circuit(format!(
+                        "{}: transient source load without a forcing context",
+                        self.name
+                    ))
+                })?;
+                self.waveform
+                    .value_at_timed(time, forcing.limit, &forcing.timing)?
+            }
+            AnalysisMode::Ac { .. } => {
+                return Err(SpiceError::circuit(
+                    "use linear equation assembly for AC sources",
+                ));
+            }
+        };
         if self.voltage {
             let branch = context.branch(0)?;
             crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, branch)?;
-            context.rhs.add_to(branch, self.dc)
+            context.rhs.add_to(branch, value)
         } else {
-            context.stamp_rhs(self.terminals[0], -self.dc)?;
-            context.stamp_rhs(self.terminals[1], self.dc)
+            context.stamp_rhs(self.terminals[0], -value)?;
+            context.stamp_rhs(self.terminals[1], value)
         }
     }
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {

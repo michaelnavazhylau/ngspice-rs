@@ -89,9 +89,10 @@ fn a_period_cut_ramp_is_a_jump_sampled_from_the_right() {
 }
 
 #[test]
-fn ordinary_tran_and_unsupported_requests_still_fail() {
+fn diffsol_selection_and_unsupported_requests_still_fail() {
     let mut c = circuit("v1 in 0 pulse(0 1)\nr1 in 0 1k");
-    assert!(tran(&mut c, &["1m", "10m"]).is_err());
+    // Ordinary .tran now runs the companion backend (see companion_transient.rs).
+    assert!(tran(&mut c, &["1m", "10m"]).is_ok());
     assert!(tran(&mut c, &["1m", "10m", "backend=diffsol"]).is_err());
     assert!(tran(&mut c, &bdf(vec!["1m", "10m", "maxord=2"])).is_err());
 }

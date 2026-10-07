@@ -4,47 +4,64 @@
 use std::{fs, path::Path};
 
 use spice_analysis::{AnalysisContext, AnalysisRequest, RawFile, runner};
-use spice_core::AnalysisKind;
+use spice_core::{AnalysisKind, parse_spice_number};
 use spice_devices::Circuit;
 use spice_netlist::Parser;
 
-use crate::{compare, golden, workspace_root};
+use crate::{compare, golden, tran, workspace_root};
+
+/// How a fixture's Rust result is compared with its C golden.
+enum Gate {
+    /// Point-wise by variable name (DC/AC), optionally along a sweep axis.
+    Points {
+        axis: Option<&'static str>,
+        tolerance: compare::Tolerance,
+    },
+    /// Event-aware comparison on a shared physical time grid (`tran.rs`).
+    Transient(compare::TranTolerance),
+}
 
 struct Supported {
     name: &'static str,
     kind: AnalysisKind,
-    axis: Option<&'static str>,
-    tolerance: compare::Tolerance,
+    gate: Gate,
 }
 
 const SUPPORTED: &[Supported] = &[
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
-        axis: None,
-        tolerance: compare::DC,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
     },
     Supported {
         name: "rc_lowpass_ac",
         kind: AnalysisKind::Ac,
-        axis: Some("frequency"),
-        tolerance: compare::AC,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+    },
+    Supported {
+        name: "rc_transient",
+        kind: AnalysisKind::Transient,
+        gate: Gate::Transient(compare::TRAN),
     },
     Supported {
         name: "rlc_series",
         kind: AnalysisKind::OperatingPoint,
-        axis: None,
-        tolerance: compare::DC,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
     },
 ];
 const EXCLUDED: &[(&str, &str)] = &[
     ("bjt_ce", "nonlinear BJT backend unavailable"),
     ("diode_dc", "nonlinear diode backend unavailable"),
     ("mos_inverter", "nonlinear MOS backend unavailable"),
-    (
-        "rc_transient",
-        "waveform deck evaluation and SPICE transient parity unavailable",
-    ),
     (
         "subckt_divider",
         "subcircuit flattening/elaboration unavailable",
@@ -142,7 +159,35 @@ fn fixture_result(root: &Path, path: &Path, fixture: &Supported) -> Result<(), S
     if want.plots.len() != 1 {
         return Err(format!("expected one C plot, found {}", want.plots.len()));
     }
-    compare::plots(&got, &want.plots[0].plot, fixture.tolerance, fixture.axis)
+    match fixture.gate {
+        Gate::Points { axis, tolerance } => {
+            compare::plots(&got, &want.plots[0].plot, tolerance, axis)
+        }
+        Gate::Transient(tolerance) => {
+            let time = |index: usize, what: &str| {
+                request
+                    .argument(index)
+                    .and_then(parse_spice_number)
+                    .filter(|v| v.is_finite() && *v > 0.0)
+                    .ok_or_else(|| format!(".tran {what} is not a positive number"))
+            };
+            let (step, stop) = (time(0, "tstep")?, time(1, "tstop")?);
+            let breakpoints = tran::breakpoints(&netlist, step, stop)?;
+            tran::transient(
+                &got,
+                &want.plots[0].plot,
+                tolerance,
+                &tran::Grid { stop, step },
+                &breakpoints,
+            )
+            .map(|summary| {
+                println!(
+                    "             {} instants + {} breakpoint limits, worst error {:.3} of bound",
+                    summary.instants, summary.limits, summary.worst_ratio
+                );
+            })
+        }
+    }
 }
 
 #[cfg(test)]

@@ -2,6 +2,8 @@
 
 Implements the bounded rollout in [DIFFSOL_FAER_RECOMMENDATION.md](DIFFSOL_FAER_RECOMMENDATION.md),
 without replacing ngspice's trap/Gear semantics or claiming the full M3 milestone.
+The companion trap/Gear transient driver is documented separately in
+[TRANSIENT.md](TRANSIENT.md).
 
 ## Production interfaces
 
@@ -82,17 +84,24 @@ Implemented analyses:
   temperature and nested sweeps remain unsupported. At most 100,000 points.
 - `.ac lin|dec|oct points start stop`: complex linear RLC equations, requiring a
   valid DC bias point; positive frequencies and at most 100,000 samples.
+- `.tran tstep tstop [tstart [tmax]]` with no `backend=`: the SPICE-compatible
+  adaptive trapezoidal / Gear-2 **companion driver** (GitHub #26), documented in
+  [TRANSIENT.md](TRANSIENT.md): `method=trap` (default) or `gear`, `maxord` 1 or 2,
+  local-truncation-error step control, breakpoint landing, C-style output of every
+  accepted point.
 - `.tran step stop [start [maxstep]] backend=diffsol method=bdf`: separately
-  selected adaptive BDF, **not** ngspice trap or fixed Gear-2. Without this explicit
-  selection, or with trap/Gear/maxord/uic/unknown/duplicate options, returns an error.
-  Named assignments from tokenized AST cards are normalized at the request boundary.
+  selected adaptive BDF, **not** ngspice trap or fixed Gear-2. `backend=diffsol`
+  without `method=bdf`, trap/Gear/maxord/uic/unknown/duplicate options, or an unknown
+  backend return an error. Named assignments from tokenized AST cards are
+  normalized at the request boundary.
 
 Deck options (#16): `RunConfig::from_netlist(&netlist)?` resolves `.option` cards;
 `config.circuit(&netlist)` elaborates at its temperatures, `config.context()` is the
 `AnalysisContext`, and `config.request_for(&card)` adds `.options reltol/vntol/abstol`
 as `rtol=`/`vntol=`/`abstol=` unless the request states them (request > deck >
-defaults). `method`/`maxord` are retained and make a `.tran` request fail before
-simulation. `Circuit::from_netlist` rejects decks with `.option` cards.
+defaults). `method`/`maxord`/`chgtol`/`trtol` are forwarded to the companion driver
+and make a `backend=diffsol` request fail before simulation. `Circuit::from_netlist`
+rejects decks with `.option` cards.
 
 The CLI still exposes inspection/parsing commands, not a new simulation command.
 Driver/device coverage text reflects the bounded implementation. APIs above and
@@ -177,8 +186,9 @@ step is enforced by stop times and no-progress/final-time checks. Default option
 Diffsol's own bounded Newton/rejection controls and minimum timestep (1e-13 s)
 remain in force; backend failures propagate as `SpiceError::Numerical`. Nonlinear
 charge/flux, limiting, DC convergence policies and general DAEs remain deferred.
-The separate trap/Gear companion integrator (`spice_maths::integrator`) now
-provides order-1/2 coefficients and history operations; BDF never consumes them.
+The separate trap/Gear companion integrator (`spice_maths::integrator`) provides
+order-1/2 coefficients and history operations for the companion driver
+([TRANSIENT.md](TRANSIENT.md)); BDF never consumes them.
 
 ## Validation and dependencies
 

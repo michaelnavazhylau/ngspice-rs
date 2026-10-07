@@ -484,13 +484,16 @@ an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 
 ## Transient comparison tooling (#48 item 1)
 
-`xtask/src/tran.rs` is the event-aware comparator for the future M3 transient
-exit gate. It is **not yet registered** in `golden verify`: the only Rust
-transient engine is explicit diffsol BDF (`backend=diffsol method=bdf`), C
-rejects those tokens on `.tran` ("Cannot compute substitute"), `rc_transient`
-uses a PULSE source (#9) and an ordinary companion `.tran` (#26), and no
-shared deck has a meaningful `.ic`-free time-varying source yet. Registry wiring
-and a captured C golden are left to the M3 gate.
+`xtask/src/tran.rs` is the event-aware comparator for the M3 transient exit gate.
+`rc_transient` (PULSE RC, ordinary `.tran`, companion driver #26) is registered
+in `golden verify` against the committed `conformance/golden/rc_transient.raw`
+with `compare::TRAN` (11 interior instants and both limits of the in-run
+breakpoint, worst error 0.000 of the bound). Other shared decks (RLC `.tran`,
+`.ic`) have no C golden yet; the opt-in live comparisons in
+`crates/spice-analysis/tests/c_companion_reference.rs` cover the PULSE/PWL RC and
+series RLC decks for trap and Gear. C rejects `backend=diffsol method=bdf` tokens on `.tran`
+("Cannot compute substitute"), so diffsol BDF is checked against analytic
+solutions and the C PWL oracles of `c_linear_reference.rs` only.
 
 * Timestep sequences are never compared. Both plots are evaluated on a shared
   grid `0, step, ..., stop` (`tran::Grid`); linear interpolation is used only
@@ -501,8 +504,8 @@ and a captured C golden are left to the M3 gate.
   defaults, never from the data. At a breakpoint the left and right limits are
   compared separately: two samples at one instant are (left, right); one sample
   serves as both limits; no sample at a breakpoint is an error (ngspice lands a
-  step on every breakpoint; the Rust driver must emit one too, which today's
-  requested-grid-only output does not do for off-grid events).
+  step on every breakpoint; the companion driver emits one, the diffsol BDF
+  requested-grid output only on-grid events).
 * End time (and a nonzero start) must match `grid.stop`; missing/extra
   variables, unit/metadata mismatch, non-real data, nonfinite values, decreasing
   time and repeated times away from declared breakpoints are errors.
@@ -518,7 +521,8 @@ error 4e-5 of the bound).
 
 ## Not yet verified
 
-Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity,
-general DAEs, source-waveform deck evaluation and subcircuit/parameter elaboration
+Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity
+beyond the linear RC/RLC decks above, general DAEs, `.ic`/`uic`, remaining source
+waveforms and subcircuit/parameter elaboration
 are not established by the bounded linear implementation. Track those remaining
 gates in the central [TODO.md](../../TODO.md); do not claim full SPICE parity.

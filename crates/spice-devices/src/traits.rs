@@ -30,6 +30,7 @@ use std::ops::Range;
 use spice_core::{Node, NodeId, NodeTable, Real, SpiceError, SpiceResult};
 use spice_maths::{Coefficients, SparseMatrix, Vector};
 
+use crate::linear::Forcing;
 use crate::state::DeviceState;
 
 /// Which analysis is currently loading the matrix.
@@ -202,6 +203,8 @@ pub struct StampContext<'a> {
     pub integration: Option<&'a Coefficients>,
     /// This device's trial and accepted state slots.
     pub states: DeviceState<'a>,
+    /// Source-forcing context of a companion transient load; `None` otherwise.
+    pub forcing: Option<Forcing>,
 }
 
 impl StampContext<'_> {
@@ -308,6 +311,14 @@ pub trait Device: fmt::Debug {
     /// allocated after the branch rows, in device order.
     fn state_count(&self) -> usize {
         0
+    }
+
+    /// The state slot holding the integrated charge or flux that takes part in
+    /// local-truncation-error control; the *next* slot holds its derivative.
+    /// `None` (the default) for devices without a `DEVtrunc` equivalent
+    /// (`captrunc.c`, `indtrunc.c`, `CKTterr`).
+    fn truncation_slot(&self) -> Option<usize> {
+        None
     }
 
     /// Loads the device's contribution into the MNA system for one trial.

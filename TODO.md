@@ -26,7 +26,7 @@ checkout, not a claim that all M2 slices have already merged.
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps |
 | DC / AC | Linear `.op`, one-source `.dc`, complex RLC `.ac` |
-| Transient | Explicit diffsol adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
+| Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear circuits, `.ic`/`uic` rejected; explicit `backend=diffsol method=bdf` adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
 | Nonlinear devices | D/Q/M syntax and initial diode input validation; no equations |
 | CLI | Inspection/parsing; simulation through APIs/examples only |
 
@@ -124,16 +124,16 @@ Complex linear AC is already implemented on main. Bounded adaptive
 BDF does not close the following trap/Gear and general-transient requirements.
 
 - [x] Implement trapezoidal and Gear orders 1–2 coefficients, companion integration, prediction and per-element truncation estimates (`src/maths/ni/`, `cktterr.c`) with trial coefficients separate from accepted step history (#23); Gear orders 3–6 are rejected.
-- [ ] Implement adaptive timestep scheduling and truncation-error control in a companion transient driver (#26).
-- [x] Implement C/L trap/Gear-2 companion stamps from accepted charge/flux state without double-discretizing diffsol equation stamps (#25); sources still stamp only at DC, mutual inductance and companion `ic=`/`uic` are pending.
+- [x] Implement adaptive timestep scheduling and truncation-error control in a companion transient driver (#26): `spice_analysis::companion_transient` / ordinary `.tran`, trap and Gear-2 (`maxord` 1-2), `dctran.c` step/order/breakpoint policy, accepted points as output, work/min-step limits; analytic RC/RL/RLC and PULSE tests, `rc_transient` registered in `golden verify`, opt-in live C agreement ([TRANSIENT.md](docs/port/TRANSIENT.md)). Linear circuits only; Newton structure is in place for M4.
+- [x] Implement C/L trap/Gear-2 companion stamps from accepted charge/flux state without double-discretizing diffsol equation stamps (#25); independent sources stamp their time-`t` forcing (left/right limit) in companion loads (#26); mutual inductance and companion `ic=`/`uic` are pending.
 - [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives (#27). Frontend half done: `.ic`/`.nodeset` cards and the `.tran` `uic` flag parse into ordered, positioned AST entries (`Netlist::initial_conditions()`/`nodesets()`, `AnalysisCard::uic`) and are rejected by `RunConfig`/the transient driver until the analysis half lands.
-- [x] Connect parsed PULSE/PWL source waveforms to time evaluation and breakpoint handling (#9): validated analytic `Pulse` with C defaults resolved from the `.tran` step/stop (`PulseSpec`/`TransientTiming`), `Waveform::value_at(t, Limit)` and lazy `breakpoints_in(t0, t1)`; diffsol BDF stops at every corner/jump (budget 100k segments) and starts from the t=0 forcing. PULSE `PHASE`/pulse-count (8th field), PWL `r=`/`td=`, SIN/EXP/SFFM and a trap/Gear driver (#26) remain unported.
+- [x] Connect parsed PULSE/PWL source waveforms to time evaluation and breakpoint handling (#9): validated analytic `Pulse` with C defaults resolved from the `.tran` step/stop (`PulseSpec`/`TransientTiming`), `Waveform::value_at(t, Limit)` and lazy `breakpoints_in(t0, t1)`; diffsol BDF stops at every corner/jump (budget 100k segments) and starts from the t=0 forcing; the companion driver (#26) lands on every breakpoint lazily. PULSE `PHASE`/pulse-count (8th field), PWL `r=`/`td=` and SIN/EXP/SFFM remain unported.
 - [x] Demonstrate an index-one formulation for floating/coupled capacitor networks in the BDF backend: block-SVD `ker E`/`ker Eᵀ`, rank-certified `Wᵀ A N`, charge-preserving event projection and consistent derivatives, with analytic and opt-in C tests (#28).
 - [ ] Design and validate bounded higher-index source-constraint support (#29); such pencils remain rejected.
 - [x] Define explicit trial-versus-accepted device state: `&self` trial loads into a disposable `TrialState`, rotating `StateHistory`, per-device branch/state ranges and integration context, atomic accept hooks before commit (#24).
-- [ ] Retain accepted-state/trial-state separation in every transient/Newton driver, event left/right limits, voltage/current tolerances, output-grid separation and progress/work budgets.
+- [x] Accepted-state/trial-state separation, event left/right limits, distinct voltage/current tolerances and progress/work budgets in the companion driver (#26); tests show rejected trials never advance histories and accept-hook failures abort the run. Every future Newton/nonlinear driver must keep this.
 - [ ] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps.
-  - Tooling delivered (#48 item 1): `xtask/src/tran.rs` event-aware common-grid comparator and `compare::TRAN`; not yet registered in `golden verify` (needs #26 companion driver, #9 PULSE/PWL decks, #27 IC, and a deliberately captured C golden).
+  - Tooling delivered (#48 item 1): `xtask/src/tran.rs` event-aware common-grid comparator and `compare::TRAN`. `rc_transient` (PULSE RC) is registered in `golden verify` against the committed C golden (#26). Pending: RLC `.tran` fixtures and the AC/IC (#27) gates.
 
 ## 5. Nonlinear devices and convergence — M4
 

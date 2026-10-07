@@ -44,7 +44,6 @@ pub(crate) struct TranTolerance {
     pub(crate) current_absolute: f64,
 }
 
-#[cfg_attr(not(test), allow(dead_code))] // registered with the M3 transient gate
 pub(crate) const TRAN: TranTolerance = TranTolerance {
     relative: 1e-3,
     voltage_absolute: 1e-6,
