@@ -1,0 +1,6 @@
+IC in a subcircuit body
+.subckt s a b
+r1 a b 1k
+.ic v(a)=1
+.ends s
+.end

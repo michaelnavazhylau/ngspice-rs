@@ -3,3 +3,6 @@ conformance/snapshots/** text eol=lf
 conformance/cases/** text eol=lf
 conformance/netlists/*.cir text eol=lf
 conformance/parser/** text eol=lf
+# C-written ASCII rawfile goldens keep their bytes exactly, including the trailing
+# space after `Command:` and the final blank line.
+conformance/golden/*.raw -whitespace

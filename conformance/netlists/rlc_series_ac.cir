@@ -1,0 +1,8 @@
+Series RLC AC sweep
+* Resonance at 5.03 kHz with Q = 3.16; v(out) is across the capacitor.
+v1 in 0 dc 0 ac 1
+r1 in a 10
+l1 a out 1m
+c1 out 0 1u
+.ac lin 100 100 10k
+.end

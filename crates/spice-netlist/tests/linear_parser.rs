@@ -201,7 +201,8 @@ fn analysis_cards_keep_order_and_unvalidated_arguments() {
     );
     assert_eq!(netlist.analyses[1].arguments, ["V1", "0", "5", "0.1"]);
     assert_eq!(netlist.analyses[2].arguments, ["DEC", "10", "1", "1MEG"]);
-    assert_eq!(netlist.analyses[3].arguments, ["1n", "10u", "uic"]);
+    assert_eq!(netlist.analyses[3].arguments, ["1n", "10u"]);
+    assert!(netlist.analyses[3].uic);
 }
 
 #[test]

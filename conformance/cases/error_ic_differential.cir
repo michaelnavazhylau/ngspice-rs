@@ -1,0 +1,4 @@
+Differential IC rejected
+r1 a b 1k
+.ic v(a,b)=1
+.end

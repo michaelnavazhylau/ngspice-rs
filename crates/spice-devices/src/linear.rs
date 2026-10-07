@@ -1,9 +1,42 @@
 //! Immutable linear MNA assembly, distinct from timestep-dependent companions.
 use crate::MnaUnknowns;
+use crate::pulse::{Pulse, PulseSpec, TransientTiming};
 use spice_core::{Complex, NodeId, Real, SpiceError, SpiceResult};
 use spice_maths::{SparseMatrix, Vector};
 
+/// Which one-sided limit to take where a waveform has a jump.
+///
+/// Away from jumps both limits agree. Transient drivers evaluate the forcing at
+/// the *end* of a segment with [`Limit::Left`] and at the *start* of the next
+/// segment with [`Limit::Right`]; they never interpolate across a jump.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Limit {
+    /// The limit approaching `t` from earlier times.
+    Left,
+    /// The limit approaching `t` from later times (the value just after `t`).
+    Right,
+}
+
+/// How a companion transient load evaluates independent-source forcing.
+///
+/// A load at `AnalysisMode::Transient { time, .. }` evaluates every source at
+/// `time` with `limit`: [`Limit::Left`] for the step that *ends* at a source
+/// breakpoint, [`Limit::Right`] for a step that starts at or after one (the
+/// step's end time is then past the breakpoint, so either limit agrees with the
+/// strictly later value). `timing` supplies C's PULSE defaults.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Forcing {
+    /// Which one-sided limit to take at a jump.
+    pub limit: Limit,
+    /// The `.tran` quantities that resolve PULSE defaults.
+    pub timing: TransientTiming,
+}
+
 /// A bounded source waveform. Breakpoints are explicit and values finite.
+///
+/// Time forcing is evaluated with [`Waveform::value_at`] and its corners and
+/// jumps are enumerated lazily with [`Waveform::breakpoints_in`]; DC and AC
+/// excitations are separate fields of a source and never derived from this.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Waveform {
     /// Time-independent forcing.
@@ -19,6 +52,12 @@ pub enum Waveform {
     },
     /// Continuous piecewise linear points, held constant outside the range.
     Pwl(Vec<(Real, Real)>),
+    /// A fully specified periodic pulse; see [`Pulse`].
+    Pulse(Pulse),
+    /// A PULSE as written, with C's analysis-dependent defaults still pending.
+    /// [`LinearSystem::bind_transient_timing`] (or [`Waveform::resolve`]) turns
+    /// it into [`Waveform::Pulse`]; evaluating it earlier is an error.
+    PulseDefaults(PulseSpec),
 }
 impl Waveform {
     /// Checks finite values and strictly increasing nonnegative knot times.
@@ -38,22 +77,54 @@ impl Waveform {
                         .all(|(t, v)| t.is_finite() && *t >= 0. && v.is_finite())
                     && p.windows(2).all(|w| w[0].0 < w[1].0)
             }
+            // Pulse::new is the only constructor, so a Pulse is always valid.
+            Self::Pulse(_) => true,
+            Self::PulseDefaults(spec) => {
+                // Resolve against unit timing: checks everything that does not
+                // depend on the analysis (finiteness, prefix, delay sign).
+                spec.resolve(&TransientTiming::new(1., 1.)?)?;
+                true
+            }
         };
         if !valid {
             return Err(SpiceError::circuit("invalid source waveform"));
         }
         Ok(())
     }
-    /// Value at time t; left limit is used at a segment's terminating jump.
-    pub fn value(&self, t: Real, left_limit: bool) -> Real {
+
+    /// Resolves analysis-dependent defaults; other variants are returned as is.
+    ///
+    /// # Errors
+    /// The resolved pulse is invalid.
+    pub fn resolve(&self, timing: &TransientTiming) -> SpiceResult<Self> {
         match self {
+            Self::PulseDefaults(spec) => Ok(Self::Pulse(spec.resolve(timing)?)),
+            other => Ok(other.clone()),
+        }
+    }
+
+    /// Time forcing at `t` with an explicit one-sided limit.
+    ///
+    /// This is the evaluation API for transient drivers. `limit` only matters at
+    /// a jump (a [`Waveform::Step`] time, a zero-duration pulse edge, or a pulse
+    /// period boundary that cuts a ramp); elsewhere both limits are equal.
+    ///
+    /// # Errors
+    /// Nonfinite `t`, unresolved [`Waveform::PulseDefaults`], or a time too many
+    /// periods from the origin to resolve.
+    pub fn value_at(&self, t: Real, limit: Limit) -> SpiceResult<Real> {
+        if !t.is_finite() {
+            return Err(SpiceError::circuit("nonfinite waveform evaluation time"));
+        }
+        let left = limit == Limit::Left;
+        Ok(match self {
             Self::Constant(v) => *v,
             Self::Step {
                 before,
                 after,
                 time,
             } => {
-                if t < *time || (left_limit && t == *time) {
+                if t < *time || (left && t == *time) {
                     *before
                 } else {
                     *after
@@ -61,25 +132,129 @@ impl Waveform {
             }
             Self::Pwl(p) => {
                 if t <= p[0].0 {
-                    return p[0].1;
+                    return Ok(p[0].1);
                 }
                 for w in p.windows(2) {
                     if t <= w[1].0 {
                         let fraction = (t - w[0].0) / (w[1].0 - w[0].0);
-                        return (1. - fraction) * w[0].1 + fraction * w[1].1;
+                        return Ok((1. - fraction) * w[0].1 + fraction * w[1].1);
                     }
                 }
-                p.last().unwrap().1
+                p.last().map_or(0., |p| p.1)
             }
+            Self::Pulse(pulse) => return pulse.value_at(t, limit),
+            Self::PulseDefaults(_) => {
+                return Err(SpiceError::circuit(
+                    "PULSE defaults (TR/TF/PW/PER) are unresolved; bind transient timing first",
+                ));
+            }
+        })
+    }
+
+    /// Like [`Self::value_at`], but resolves a [`Waveform::PulseDefaults`]
+    /// against `timing` first, so unbound source devices can be loaded.
+    ///
+    /// # Errors
+    /// As [`Self::value_at`], or the pulse is invalid after resolution.
+    pub fn value_at_timed(
+        &self,
+        t: Real,
+        limit: Limit,
+        timing: &TransientTiming,
+    ) -> SpiceResult<Real> {
+        match self {
+            Self::PulseDefaults(spec) => spec.resolve(timing)?.value_at(t, limit),
+            other => other.value_at(t, limit),
         }
     }
-    /// Known knot/jump times.
-    pub fn breakpoints(&self) -> Vec<Real> {
-        match self {
+
+    /// Value at time t; left limit is used at a segment's terminating jump.
+    /// Returns NaN where [`Waveform::value_at`] would fail; prefer `value_at`.
+    pub fn value(&self, t: Real, left_limit: bool) -> Real {
+        let limit = if left_limit {
+            Limit::Left
+        } else {
+            Limit::Right
+        };
+        self.value_at(t, limit).unwrap_or(Real::NAN)
+    }
+
+    /// Lazily enumerates corner and jump times in the closed window `[t0, t1]`,
+    /// ascending without repeats.
+    ///
+    /// Periodic pulses are generated one cycle at a time and never expanded;
+    /// callers bound a run by taking only what they need. Constant waveforms
+    /// have none; Step has its jump; Pwl has its knots.
+    ///
+    /// # Errors
+    /// Nonfinite or reversed window, unresolved [`Waveform::PulseDefaults`], or a
+    /// window spanning more periods than can be resolved.
+    pub fn breakpoints_in(&self, t0: Real, t1: Real) -> SpiceResult<WaveformBreakpoints> {
+        if !(t0.is_finite() && t1.is_finite() && t0 <= t1) {
+            return Err(SpiceError::circuit(
+                "breakpoint window must be finite with t0 <= t1",
+            ));
+        }
+        let fixed: Vec<Real> = match self {
             Self::Constant(_) => vec![],
             Self::Step { time, .. } => vec![*time],
             Self::Pwl(p) => p.iter().map(|p| p.0).collect(),
+            Self::Pulse(pulse) => {
+                return Ok(WaveformBreakpoints(Inner::Pulse(
+                    pulse.breakpoints_in(t0, t1)?,
+                )));
+            }
+            Self::PulseDefaults(_) => {
+                return Err(SpiceError::circuit(
+                    "PULSE defaults are unresolved; bind transient timing before enumerating breakpoints",
+                ));
+            }
+        };
+        Ok(WaveformBreakpoints(Inner::Fixed(
+            fixed
+                .into_iter()
+                .filter(|t| (t0..=t1).contains(t))
+                .collect::<Vec<_>>()
+                .into_iter(),
+        )))
+    }
+}
+
+/// Lazy breakpoint sequence of one [`Waveform`] (see [`Waveform::breakpoints_in`]).
+#[derive(Debug, Clone)]
+pub struct WaveformBreakpoints(Inner);
+#[derive(Debug, Clone)]
+enum Inner {
+    Fixed(std::vec::IntoIter<Real>),
+    Pulse(crate::pulse::PulseBreakpoints),
+}
+impl Iterator for WaveformBreakpoints {
+    type Item = Real;
+    fn next(&mut self) -> Option<Real> {
+        match &mut self.0 {
+            Inner::Fixed(it) => it.next(),
+            Inner::Pulse(it) => it.next(),
         }
+    }
+}
+
+/// Lazy, merged breakpoints of every source in a [`LinearSystem`].
+#[derive(Debug, Clone)]
+pub struct SystemBreakpoints {
+    sources: Vec<std::iter::Peekable<WaveformBreakpoints>>,
+}
+impl Iterator for SystemBreakpoints {
+    type Item = Real;
+    fn next(&mut self) -> Option<Real> {
+        let next = self
+            .sources
+            .iter_mut()
+            .filter_map(|s| s.peek().copied())
+            .min_by(f64::total_cmp)?;
+        for source in &mut self.sources {
+            while source.next_if(|t| *t == next).is_some() {}
+        }
+        Some(next)
     }
 }
 
@@ -136,15 +311,39 @@ impl LinearSystem {
         }
         Ok(rhs)
     }
-    /// Real transient RHS, with explicit one-sided breakpoint evaluation.
-    pub fn transient_rhs(&self, t: Real, left_limit: bool) -> Vector {
+    /// Binds the analysis quantities that C uses for PULSE defaults (`CKTstep`,
+    /// `CKTfinalTime`), turning every [`Waveform::PulseDefaults`] into a
+    /// resolved [`Waveform::Pulse`]. Call once before time forcing is evaluated.
+    ///
+    /// # Errors
+    /// A pulse is invalid after resolution; the system is left unchanged.
+    pub fn bind_transient_timing(&mut self, timing: &TransientTiming) -> SpiceResult<()> {
+        let resolved = self
+            .sources
+            .iter()
+            .map(|s| s.waveform.resolve(timing))
+            .collect::<SpiceResult<Vec<_>>>()?;
+        for (source, waveform) in self.sources.iter_mut().zip(resolved) {
+            source.waveform = waveform;
+        }
+        Ok(())
+    }
+    /// Real transient RHS `b(t)` with an explicit one-sided limit at jumps.
+    ///
+    /// # Errors
+    /// Nonfinite time, unresolved PULSE defaults or a nonfinite source sum.
+    pub fn transient_rhs(&self, t: Real, limit: Limit) -> SpiceResult<Vector> {
         let mut rhs = Vector::zeros(self.a.rows());
         for s in &self.sources {
+            let value = s.waveform.value_at(t, limit)?;
             for (r, sign) in &s.rows {
-                rhs.as_mut_slice()[*r] += sign * s.waveform.value(t, left_limit);
+                rhs.add_to(*r, sign * value)?;
             }
         }
-        rhs
+        if !rhs.is_finite() {
+            return Err(SpiceError::circuit("non-finite source sum"));
+        }
+        Ok(rhs)
     }
     /// Complex AC forcing.
     pub fn ac_rhs(&self) -> Vec<Complex> {
@@ -156,17 +355,22 @@ impl LinearSystem {
         }
         rhs
     }
-    /// Sorted unique breakpoints inside the requested run.
-    pub fn breakpoints(&self, end: Real) -> Vec<Real> {
-        let mut times: Vec<_> = self
-            .sources
-            .iter()
-            .flat_map(|s| s.waveform.breakpoints())
-            .filter(|t| *t > 0. && *t < end)
-            .collect();
-        times.sort_by(f64::total_cmp);
-        times.dedup();
-        times
+    /// Lazily merges every source's corners and jumps in the closed window
+    /// `[t0, t1]` into one ascending, duplicate-free sequence.
+    ///
+    /// Nothing is materialized: a periodic pulse over a long run yields one
+    /// cycle at a time, so a driver must bound how many it consumes.
+    ///
+    /// # Errors
+    /// Invalid window or unresolved PULSE defaults.
+    pub fn breakpoints_in(&self, t0: Real, t1: Real) -> SpiceResult<SystemBreakpoints> {
+        Ok(SystemBreakpoints {
+            sources: self
+                .sources
+                .iter()
+                .map(|s| s.waveform.breakpoints_in(t0, t1).map(Iterator::peekable))
+                .collect::<SpiceResult<_>>()?,
+        })
     }
 }
 

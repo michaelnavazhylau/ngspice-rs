@@ -1,15 +1,16 @@
-//! Parsed syntax must not silently become runtime support (#8/#10).
+//! Parsed syntax must not silently become runtime support (#8/#10); PULSE/PWL
+//! source waveforms are enabled by #9 and invalid ones fail atomically.
 use spice_core::NodeTable;
 use spice_devices::{Circuit, ModelContext, ModelResolver, Registry};
 use spice_netlist::{Parser, RawCard, source::parse_deck_text};
 use std::path::Path;
 
 #[test]
-fn source_waveform_factories_reject_before_mutating_nodes_or_circuit() {
+fn invalid_source_waveforms_are_rejected_before_mutating_nodes_or_circuit() {
     for card in [
-        "Vnew fresh 0 7 dc 2 pulse(0 1)",
-        "Inew fresh 0 pwl(0 1 1u 2)",
-        "Vnew fresh 0 pulse(0 1) dc 7",
+        "Vnew fresh 0 7 dc 2 pwl(1u 1 1u 2)",
+        "Inew fresh 0 pwl(-1u 1 1u 2)",
+        "Vnew fresh 0 pulse(0 1 -1) dc 7",
     ] {
         let deck = parse_deck_text(
             Path::new("setters.cir"),
@@ -32,7 +33,7 @@ fn source_waveform_factories_reject_before_mutating_nodes_or_circuit() {
         let error = circuit
             .add_instance(&netlist.devices[1], &models, &ModelContext::default())
             .unwrap_err();
-        assert!(error.is_not_yet_ported(), "{card}: {error}");
+        assert!(!error.is_not_yet_ported(), "{card}: {error}");
         assert_eq!(
             (
                 circuit.nodes().nodes().to_vec(),
@@ -43,20 +44,16 @@ fn source_waveform_factories_reject_before_mutating_nodes_or_circuit() {
             before
         );
         assert_eq!(netlist, original);
-        assert!(
-            Circuit::from_netlist(&netlist)
-                .unwrap_err()
-                .is_not_yet_ported()
-        );
+        assert!(Circuit::from_netlist(&netlist).is_err());
         let raw = RawCard::parse(&deck.lines[1]).unwrap();
         let mut nodes = NodeTable::new();
         nodes.intern("old");
         let before = nodes.nodes().to_vec();
         let error = match Registry::with_builtins().instantiate(&raw, &mut nodes) {
             Err(error) => error,
-            Ok(_) => panic!("unsupported waveform"),
+            Ok(_) => panic!("invalid waveform"),
         };
-        assert!(error.is_not_yet_ported());
+        assert!(!error.is_not_yet_ported());
         assert_eq!(nodes.nodes(), before);
     }
 }

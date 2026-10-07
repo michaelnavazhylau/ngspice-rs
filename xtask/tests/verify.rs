@@ -15,8 +15,25 @@ fn default_and_selected_verification_need_no_c_binary() {
     let output = verify(&[]);
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("3 verified fixture(s), 5 unsupported fixture(s), 0 failure(s)"));
-    for name in ["rc_divider", "RC_LOWPASS_AC.cir", "rlc_series"] {
+    assert!(text.contains("16 verified fixture(s), 4 unsupported fixture(s), 0 failure(s)"));
+    for name in [
+        "rc_divider",
+        "RC_LOWPASS_AC.cir",
+        "rc_transient",
+        "rlc_series",
+        "rl_pulse_tran",
+        "rc_gear_tran",
+        "rc_pwl_tran",
+        "rlc_series_tran",
+        "rlc_series_gear_tran",
+        "floating_cap_tran",
+        "coupled_cap_tran",
+        "rc_ic_uic_tran",
+        "rlc_ic_uic_tran",
+        "rc_ic_node_tran",
+        "floating_cap_ic_tran",
+        "rlc_series_ac",
+    ] {
         let output = verify(&["--netlist", name]);
         assert!(output.status.success(), "{output:?}");
         assert!(
@@ -29,13 +46,7 @@ fn default_and_selected_verification_need_no_c_binary() {
 
 #[test]
 fn explicit_unsupported_requests_and_usage_errors_exit_nonzero() {
-    for name in [
-        "diode_dc",
-        "bjt_ce",
-        "mos_inverter",
-        "rc_transient",
-        "subckt_divider",
-    ] {
+    for name in ["diode_dc", "bjt_ce", "mos_inverter", "subckt_divider"] {
         let output = verify(&["--netlist", name]);
         assert!(!output.status.success());
         assert!(

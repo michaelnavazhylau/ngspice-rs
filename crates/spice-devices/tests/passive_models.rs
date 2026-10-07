@@ -355,6 +355,7 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         branches: 0..0,
         integration: None,
         states: spice_devices::DeviceState::none(),
+        forcing: None,
     };
     circuit.devices_mut()[0].stamp(&mut context).unwrap();
     close(matrix.get(0, 0), 1.0 / 1500.0);
@@ -420,6 +421,7 @@ fn model_backed_capacitors_and_inductors_own_companion_state() {
             model_context,
             integration,
             history,
+            forcing: None,
         }
     }
     let mut trial = history.trial();

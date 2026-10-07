@@ -5,7 +5,7 @@ the SPICE circuit simulator.
 
 > **Status: M1 front-end gate closed (outstanding M1d/M5 items listed in TODO.md); a bounded linear simulation engine is implemented.**
 > Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
-> and explicitly selected diffsol BDF transient analysis. Scalar models and
+> and transient analysis (adaptive trap/Gear-2 companion driver; explicitly selected diffsol BDF). Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
 > and bounded diode input schemas exist. This checkout also simulates bounded
 > model-backed R/C/L; nonlinear D/Q/M simulation remains unavailable.
@@ -38,16 +38,23 @@ table, formulas, temperatures and deliberately rejected forms.
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
 | Linear `.op`, single-source `.dc`, complex `.ac` | Implemented |
-| Transient | Explicit diffsol adaptive BDF, restricted DAE structure |
+| Transient | Ordinary `.tran`: adaptive trap/Gear-2 companion driver (linear circuits); explicit diffsol adaptive BDF, restricted DAE structure |
 | Nonlinear D/Q/M equations | Not implemented |
 | CLI simulation command | Not implemented; APIs/examples only |
 
-Transient requires explicit `backend=diffsol method=bdf`; it is
-**not ngspice trapezoidal or fixed Gear-2 and does not complete M3**. It currently
+An ordinary `.tran` runs the adaptive trapezoidal / Gear-2 companion driver
+([TRANSIENT.md](docs/port/TRANSIENT.md)); explicit `backend=diffsol method=bdf`
+selects the adaptive BDF backend, which is
+**not ngspice trapezoidal or fixed Gear-2**. M3's RC/RL/RLC, PWL, floating/coupled
+capacitor and AC exit gates against C goldens are closed for the linear decks
+(`cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`); M3 is not
+complete: no higher-index constraints (#29), no nonlinear
+charge and no subcircuits, and general MNA DAEs are not supported. The BDF backend currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
-constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Step/Pwl waveforms exist through the device API only;
-numeric PULSE/PWL netlist syntax parses, but factories reject it until runtime
-elaboration/evaluation is implemented. See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
+constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
+Pulse/Pwl forcing (#9), with C's PULSE defaults taken from the `.tran` step/stop
+time and explicit left/right limits at jumps; Step is device-API only. See
+[FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
 
 Remaining work is tracked only in [TODO.md](TODO.md):
 
@@ -58,9 +65,10 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
-4. **Transient (M3):** adaptive trap/Gear-2 companion driver (integrator, state
-   ownership and C/L companion stamps exist), initialization, parsed waveform
-   evaluation, broader DAEs and C parity.
+4. **Transient (M3):** the adaptive trap/Gear-2 companion driver exists for linear
+   circuits (#26) and its RC/RL/RLC/floating-capacitor/AC conformance gates pass
+   (#48, including the `.ic`/`uic`/`ic=` fixtures of #27); more waveforms,
+   higher-index DAEs (#29) and nonlinear charge remain.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
    nonlinear DC/AC/transient and conformance fixtures.
 6. **Usability (M5):** CLI simulation, subcircuit flattening/instantiation (#18),
@@ -78,7 +86,7 @@ cargo test                              # the whole suite, no C toolchain needed
 cargo xtask ci                          # fmt --check, clippy -D warnings, test
 cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
 cargo xtask golden list                 # what the captured comparison data holds
-cargo xtask golden verify               # Rust vs C data: 3 verified, 5 unsupported
+cargo xtask golden verify               # Rust vs C data: 16 verified, 4 unsupported
 cargo run -p spice-analysis --example rc_diffsol --locked # production simulation API
 ```
 
@@ -139,8 +147,12 @@ docs/port/              architecture, C-to-Rust mapping, roadmap, verification
 ## Verification
 
 There is no FFI: the C implementation is used only as an oracle, out of process.
-`conformance/netlists/` holds eight decks that exercise an operating point, an AC
-sweep, a transient run, a DC sweep, a diode, a BJT, a MOSFET and a subcircuit;
+`conformance/netlists/` holds twenty decks: the original eight (an operating
+point, an AC sweep, a transient run, a DC sweep, a diode, a BJT, a MOSFET and a
+subcircuit) and eight M3 exit-gate decks (RL/RC/RLC/PWL transients with trapezoidal
+and Gear-2 integration, floating and coupled capacitor networks, and an RLC AC
+sweep) plus four initialized-state decks (`uic`/`ic=` RC, RLC and floating-capacitor
+decays, and an `.ic` released after the initial bias);
 `conformance/golden/` holds the ASCII rawfile that upstream `ngspice-47+`
 produced for each of them, committed so the tests run without a C toolchain.
 

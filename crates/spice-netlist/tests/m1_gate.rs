@@ -123,6 +123,23 @@ const DECKS: &[Expect] = &[
     },
 ];
 
+/// Decks added for the M3 transient/AC and initialized-state conformance gates
+/// (GitHub #48, #27).
+const M3_GATE_DECKS: [&str; 12] = [
+    "coupled_cap_tran",
+    "floating_cap_ic_tran",
+    "floating_cap_tran",
+    "rc_gear_tran",
+    "rc_ic_node_tran",
+    "rc_ic_uic_tran",
+    "rc_pwl_tran",
+    "rl_pulse_tran",
+    "rlc_ic_uic_tran",
+    "rlc_series_ac",
+    "rlc_series_gear_tran",
+    "rlc_series_tran",
+];
+
 fn parse_fixture(rel: &str) -> Netlist {
     let path = conformance().join(rel);
     Parser::new()
@@ -167,6 +184,10 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         .map(|p| p.file_stem().unwrap().to_string_lossy().into_owned())
         .collect();
     on_disk.sort();
+    // The M3 exit-gate decks (#48) are separate fixtures with their own gate
+    // (`xtask golden verify`, `spice-analysis/tests/m3_gate.rs`); the M1 front-end
+    // gate stays pinned to the original eight and must list any other deck here.
+    on_disk.retain(|name| !M3_GATE_DECKS.contains(&name.as_str()));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

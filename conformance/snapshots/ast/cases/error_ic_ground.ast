@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_ic_ground.cir
+error parse @cases/error_ic_ground.cir:3:7
+  message: "an initial condition or nodeset on the ground node is not allowed"

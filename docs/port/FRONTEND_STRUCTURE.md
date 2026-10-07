@@ -140,6 +140,39 @@ variable) and invalid values are errors; every other `cktsopt.c` option is
 `NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
 `spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
 
+## `.ic`, `.nodeset` and `uic` (#27)
+
+`.ic`/`.nodeset` parse (winnow, `parser/hints.rs`) into
+`NodeHintCard { entries: Vec<NodeHint> }`; each `NodeHint` has the canonical node,
+byte locations of the entry/node/value, and a `NodeHintValue` (finite literal with
+original spelling, or an unevaluated `{expr}` that `elaborate::literalize`
+evaluates against `.param`). Cards are `ScopedCardKind::InitialCondition(i)` /
+`Nodeset(i)` into `Netlist::initial_conditions`/`nodesets`; entries keep card
+order, entry order and duplicates (no dedupe; precedence is the consumer's).
+Accessors: `Netlist::initial_conditions()`/`nodesets()` (entries, possibly
+unevaluated) and `ElaboratedNetlist::initial_conditions()`/`nodesets()`
+(`ResolvedNodeHint { node, value, location }`, finite). The `.tran` `uic` word is
+removed from `AnalysisCard::arguments` and stored in `uic`/`uic_location`
+(`AnalysisRequest::uic`); `Netlist::transient_uic()` finds it.
+
+C (`inppas3.c`): accepts `V(name)` with an optional `=`; `I(..)`, `V(a,b)`, bare
+names and non-numeric values give `.ic syntax error` / a netlist error. C silently
+accepts ground nodes, a missing value, an empty card, non-finite values, and warns
+and ignores unknown nodes. The port rejects the silent cases explicitly (ground,
+missing node/value, empty card, non-finite, `V(a,b)`, `I(..)`) and reports
+`.nodeset all=value` and any `.ic`/`.nodeset` inside a `.subckt` body (C
+translates them in `subckt.c`) as `NotYetPorted`. Unknown nodes cannot be seen
+without a circuit; the analysis layer rejects them with the entry's location (C only
+warns "IC on non-existent node ... ignored"). Bare parameter names are not
+references; use `{expr}`. The analysis half (landed): `RunConfig::from_netlist`
+evaluates the entries against `.param` (`elaborate::literalize_node_hints`) and
+attaches them, in deck order, to every `AnalysisRequest` as
+`initial_conditions`/`nodesets` (`NodeCondition { node, value, location }`); the
+last duplicate wins as in C. Semantics are in [TRANSIENT.md](TRANSIENT.md). AST dumps print
+`initial-conditions`/`nodesets` sections and the `uic @loc` line only when present, so existing snapshots are unchanged. Tests:
+`spice-netlist/tests/ic_nodeset_parser.rs`, opt-in `c_ic_nodeset.rs`,
+`spice-analysis/tests/run_config.rs`, `initial_conditions.rs`.
+
 ## Normalized deck writer (#20)
 
 `spice_netlist::write_netlist(&Netlist) -> SpiceResult<String>` serializes the

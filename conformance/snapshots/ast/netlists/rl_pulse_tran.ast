@@ -1,0 +1,43 @@
+# ngspice-rs ast-dump v1
+file: netlists/rl_pulse_tran.cir
+title: "RL pulse transient" @netlists/rl_pulse_tran.cir:1:1
+scope root
+  cards (5):
+    [0] device[0] @netlists/rl_pulse_tran.cir:4:1 "v1 in 0 pulse(0 1 20u 1u 1u 200u 500u)"
+    [1] device[1] @netlists/rl_pulse_tran.cir:5:1 "r1 in out 100"
+    [2] device[2] @netlists/rl_pulse_tran.cir:6:1 "l1 out 0 10m"
+    [3] analysis[0] @netlists/rl_pulse_tran.cir:7:1 ".tran 1u 600u"
+    [4] end @netlists/rl_pulse_tran.cir:8:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/rl_pulse_tran.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1 20u 1u 1u 200u 500u)" @netlists/rl_pulse_tran.cir:4:9
+          pulse
+            initial: "0"@netlists/rl_pulse_tran.cir:4:15
+            pulsed: "1"@netlists/rl_pulse_tran.cir:4:17
+            delay: "20u"@netlists/rl_pulse_tran.cir:4:19
+            rise: "1u"@netlists/rl_pulse_tran.cir:4:23
+            fall: "1u"@netlists/rl_pulse_tran.cir:4:26
+            width: "200u"@netlists/rl_pulse_tran.cir:4:29
+            period: "500u"@netlists/rl_pulse_tran.cir:4:34
+    device [1] name="r1" designator=r @netlists/rl_pulse_tran.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/rl_pulse_tran.cir:5:11
+    device [2] name="l1" designator=l @netlists/rl_pulse_tran.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="10m" @netlists/rl_pulse_tran.cir:6:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/rl_pulse_tran.cir:7:1
+      arguments: "1u" "600u"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

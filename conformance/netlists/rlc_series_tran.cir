@@ -1,0 +1,8 @@
+Series RLC pulse transient, trapezoidal
+* alpha = R/2L = 5000 /s, w0 = 31623 rad/s (zeta = 0.158): ringing.
+v1 in 0 pulse(0 1 50u 20u 20u 400u 1m)
+r1 in a 10
+l1 a out 1m
+c1 out 0 1u
+.tran 1u 1m
+.end

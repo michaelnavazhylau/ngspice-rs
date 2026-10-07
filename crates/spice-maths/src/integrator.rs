@@ -145,6 +145,8 @@ fn finite(value: Real, what: &str) -> SpiceResult<Real> {
 pub struct StepHistory {
     accepted: [Real; HISTORY_LEN],
     len: usize,
+    /// Placeholder for steps older than the first accepted one.
+    fill: Option<Real>,
 }
 
 impl StepHistory {
@@ -154,6 +156,23 @@ impl StepHistory {
         Self {
             accepted: [0.0; HISTORY_LEN],
             len: 0,
+            fill: None,
+        }
+    }
+
+    /// A history whose not-yet-accepted older steps read as `fill`, as C
+    /// initializes `CKTdeltaOld[0..7]` to `CKTmaxStep` before the first step.
+    ///
+    /// The placeholders only feed [`Coefficients::truncation_timestep`] (which
+    /// may then run at an order above the number of accepted steps, exactly as
+    /// `dctran.c` probes order 2 on its second step); coefficients and
+    /// prediction still require real accepted steps.
+    #[must_use]
+    pub const fn with_fill(fill: Real) -> Self {
+        Self {
+            accepted: [0.0; HISTORY_LEN],
+            len: 0,
+            fill: Some(fill),
         }
     }
 
@@ -233,6 +252,9 @@ impl StepHistory {
         let mut deltas = [0.0; HISTORY_LEN + 1];
         deltas[0] = dt;
         deltas[1..=self.len].copy_from_slice(self.accepted());
+        if let Some(fill) = self.fill {
+            deltas[self.len + 1..].fill(fill);
+        }
         // nicomcof.c
         let ag = match (method, order) {
             (_, 1) => [1.0 / dt, -1.0 / dt, 0.0],
@@ -255,6 +277,7 @@ impl StepHistory {
             order,
             deltas,
             history: self.len,
+            filled: self.fill.is_some(),
             ag,
         })
     }
@@ -269,7 +292,10 @@ impl StepHistory {
 
     /// Forgets every accepted step, e.g. when a run restarts.
     pub fn clear(&mut self) {
-        *self = Self::new();
+        *self = Self {
+            fill: self.fill,
+            ..Self::new()
+        };
     }
 }
 
@@ -285,6 +311,8 @@ pub struct Coefficients {
     /// C `CKTdeltaOld`: the trial step, then accepted steps.
     deltas: [Real; HISTORY_LEN + 1],
     history: usize,
+    /// Older steps are placeholders (see [`StepHistory::with_fill`]).
+    filled: bool,
     ag: [Real; 3],
 }
 
@@ -500,7 +528,7 @@ impl Coefficients {
                 "truncation tolerances must be positive and finite",
             ));
         }
-        if self.history < order || charge.len() < order + 2 {
+        if (self.history < order && !self.filled) || charge.len() < order + 2 {
             return Err(numerical(format!(
                 "order {order} truncation estimate needs {order} accepted steps and {} charges",
                 order + 2
@@ -809,5 +837,42 @@ mod tests {
         let bad = TruncationTolerances { trtol: 0.0, ..tol };
         assert!(c.truncation_timestep(&q, d, &bad).is_err());
         assert!(c.truncation_timestep(&q, [f64::NAN, 0.0], &tol).is_err());
+    }
+
+    #[test]
+    fn filled_history_supplies_placeholder_steps_for_truncation_only() {
+        // dctran.c fills CKTdeltaOld with CKTmaxStep, so the second step can
+        // already probe an order-2 truncation estimate.
+        let tol = TruncationTolerances::default();
+        let q = [3.1e-9, 2.0e-9, 1.6e-9, 1.5e-9];
+        let d = [1e-3, 8e-4];
+        let mut filled = StepHistory::with_fill(1e-4);
+        let mut plain = StepHistory::new();
+        for history in [&mut filled, &mut plain] {
+            let first = history.trial(TRAP, 1, 1e-6, DEFAULT_XMU).unwrap();
+            history.accept(&first);
+        }
+        let probe = |h: &StepHistory| h.trial(TRAP, 2, 5e-7, DEFAULT_XMU).unwrap();
+        assert!(probe(&plain).truncation_timestep(&q, d, &tol).is_err());
+        let with_fill = probe(&filled).truncation_timestep(&q, d, &tol).unwrap();
+        // The older step is the placeholder (1e-4) after one real step (1e-6).
+        let reference = history(&[1e-4, 1e-6])
+            .trial(TRAP, 2, 5e-7, DEFAULT_XMU)
+            .unwrap();
+        assert!(close(
+            with_fill,
+            reference.truncation_timestep(&q, d, &tol).unwrap()
+        ));
+        // Prediction still needs real accepted steps, and clear() keeps the fill.
+        assert!(probe(&filled).predict(&[1.0, 0.5, 0.25]).is_err());
+        filled.clear();
+        assert!(filled.is_empty());
+        assert!(probe_after_clear(&filled));
+    }
+
+    fn probe_after_clear(history: &StepHistory) -> bool {
+        // Order 2 is unavailable without a real step, filled or not.
+        history.trial(TRAP, 2, 5e-7, DEFAULT_XMU).is_err()
+            && history.trial(TRAP, 1, 5e-7, DEFAULT_XMU).is_ok()
     }
 }

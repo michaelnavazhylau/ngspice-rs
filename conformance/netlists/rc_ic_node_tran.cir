@@ -1,0 +1,10 @@
+RC charging released from an .ic node constraint (no uic)
+* Without uic, .ic v(out) is enforced only in the initial bias (the t = 0 row
+* has v(out) = 0.25 V and the 1 V source current of 0.75 mA) and then released:
+* v(out) = 1 - 0.75 exp(-t/tau), tau = 1 ms.
+v1 in 0 dc 1
+r1 in out 1k
+c1 out 0 1u
+.ic v(out)=0.25
+.tran 10u 5m
+.end

@@ -1,0 +1,37 @@
+# ngspice-rs ast-dump v1
+file: netlists/rc_ic_uic_tran.cir
+title: "RC discharge from an initial capacitor voltage, uic" @netlists/rc_ic_uic_tran.cir:1:1
+scope root
+  cards (5):
+    [0] device[0] @netlists/rc_ic_uic_tran.cir:5:1 "v1 in 0 dc 0"
+    [1] device[1] @netlists/rc_ic_uic_tran.cir:6:1 "r1 in out 1k"
+    [2] device[2] @netlists/rc_ic_uic_tran.cir:7:1 "c1 out 0 1u ic=2"
+    [3] analysis[0] @netlists/rc_ic_uic_tran.cir:8:1 ".tran 10u 5m uic"
+    [4] end @netlists/rc_ic_uic_tran.cir:9:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/rc_ic_uic_tran.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/rc_ic_uic_tran.cir:5:9
+    device [1] name="r1" designator=r @netlists/rc_ic_uic_tran.cir:6:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/rc_ic_uic_tran.cir:6:11
+    device [2] name="c1" designator=c @netlists/rc_ic_uic_tran.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/rc_ic_uic_tran.cir:7:10
+        [1] name="ic" kind=scalar value="2" @netlists/rc_ic_uic_tran.cir:7:13
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/rc_ic_uic_tran.cir:8:1
+      arguments: "10u" "5m"
+      uic @netlists/rc_ic_uic_tran.cir:8:14
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

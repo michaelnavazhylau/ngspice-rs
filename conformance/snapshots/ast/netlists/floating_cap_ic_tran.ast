@@ -1,0 +1,48 @@
+# ngspice-rs ast-dump v1
+file: netlists/floating_cap_ic_tran.cir
+title: "Floating capacitor with an initial plate charge, uic" @netlists/floating_cap_ic_tran.cir:1:1
+scope root
+  cards (6):
+    [0] device[0] @netlists/floating_cap_ic_tran.cir:6:1 "v1 in 0 pwl(0 0 1m 0 1.1m 1 8m 1)"
+    [1] device[1] @netlists/floating_cap_ic_tran.cir:7:1 "r1 in a 1k"
+    [2] device[2] @netlists/floating_cap_ic_tran.cir:8:1 "c1 a b 1u ic=2"
+    [3] device[3] @netlists/floating_cap_ic_tran.cir:9:1 "r2 b 0 1k"
+    [4] analysis[0] @netlists/floating_cap_ic_tran.cir:10:1 ".tran 10u 8m uic"
+    [5] end @netlists/floating_cap_ic_tran.cir:11:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/floating_cap_ic_tran.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pwl" kind=waveform value="(0 0 1m 0 1.1m 1 8m 1)" @netlists/floating_cap_ic_tran.cir:6:9
+          pwl
+            point [0] time="0"@netlists/floating_cap_ic_tran.cir:6:13 value="0"@netlists/floating_cap_ic_tran.cir:6:15
+            point [1] time="1m"@netlists/floating_cap_ic_tran.cir:6:17 value="0"@netlists/floating_cap_ic_tran.cir:6:20
+            point [2] time="1.1m"@netlists/floating_cap_ic_tran.cir:6:22 value="1"@netlists/floating_cap_ic_tran.cir:6:27
+            point [3] time="8m"@netlists/floating_cap_ic_tran.cir:6:29 value="1"@netlists/floating_cap_ic_tran.cir:6:32
+    device [1] name="r1" designator=r @netlists/floating_cap_ic_tran.cir:7:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/floating_cap_ic_tran.cir:7:9
+    device [2] name="c1" designator=c @netlists/floating_cap_ic_tran.cir:8:1
+      nodes: "a" "b"
+      model: none
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/floating_cap_ic_tran.cir:8:8
+        [1] name="ic" kind=scalar value="2" @netlists/floating_cap_ic_tran.cir:8:11
+    device [3] name="r2" designator=r @netlists/floating_cap_ic_tran.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/floating_cap_ic_tran.cir:9:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/floating_cap_ic_tran.cir:10:1
+      arguments: "10u" "8m"
+      uic @netlists/floating_cap_ic_tran.cir:10:14
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

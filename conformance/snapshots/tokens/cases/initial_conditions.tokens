@@ -1,0 +1,89 @@
+# ngspice-rs token-dump v1
+file: cases/initial_conditions.cir
+title: "Initial conditions, nodesets and uic" @cases/initial_conditions.cir:1:1
+card 1 @cases/initial_conditions.cir:2:1 lines=2-2 continuations=0
+  raw: ".param vstart=2.5"
+  kind: dot(.param)
+  token 1 2:1 word ".param"
+  token 2 2:8 word "vstart"
+  token 3 2:14 equals "="
+  token 4 2:15 number "2.5" value=2.5e0
+card 2 @cases/initial_conditions.cir:3:1 lines=3-3 continuations=0
+  raw: "v1 in 0 dc 1"
+  kind: device(v)
+  token 1 3:1 word "v1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 word "dc"
+  token 5 3:12 number "1" value=1e0
+card 3 @cases/initial_conditions.cir:4:1 lines=4-4 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 4:1 word "r1"
+  token 2 4:4 word "in"
+  token 3 4:7 word "out"
+  token 4 4:11 number "1k" value=1e3
+card 4 @cases/initial_conditions.cir:5:1 lines=5-5 continuations=0
+  raw: "c1 out 0 1u"
+  kind: device(c)
+  token 1 5:1 word "c1"
+  token 2 5:4 word "out"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "1u" value=1e-6
+card 5 @cases/initial_conditions.cir:6:1 lines=6-6 continuations=0
+  raw: ".ic v(out)=1.5 V(in)={vstart*2}"
+  kind: dot(.ic)
+  token 1 6:1 word ".ic"
+  token 2 6:5 word "v"
+  token 3 6:6 lparen "("
+  token 4 6:7 word "out"
+  token 5 6:10 rparen ")"
+  token 6 6:11 equals "="
+  token 7 6:12 number "1.5" value=1.5e0
+  token 8 6:16 word "V"
+  token 9 6:17 lparen "("
+  token 10 6:18 word "in"
+  token 11 6:20 rparen ")"
+  token 12 6:21 equals "="
+  token 13 6:22 expression "{vstart*2}" inner="vstart*2"
+card 6 @cases/initial_conditions.cir:7:1 lines=7-7 continuations=0
+  raw: ".nodeset v(out)=0.5"
+  kind: dot(.nodeset)
+  token 1 7:1 word ".nodeset"
+  token 2 7:10 word "v"
+  token 3 7:11 lparen "("
+  token 4 7:12 word "out"
+  token 5 7:15 rparen ")"
+  token 6 7:16 equals "="
+  token 7 7:17 number "0.5" value=5e-1
+card 7 @cases/initial_conditions.cir:8:1 lines=8-8 continuations=0
+  raw: ".ic v(out)=2m"
+  kind: dot(.ic)
+  token 1 8:1 word ".ic"
+  token 2 8:5 word "v"
+  token 3 8:6 lparen "("
+  token 4 8:7 word "out"
+  token 5 8:10 rparen ")"
+  token 6 8:11 equals "="
+  token 7 8:12 number "2m" value=2e-3
+card 8 @cases/initial_conditions.cir:9:1 lines=9-9 continuations=0
+  raw: ".nodeset V(in) = 1"
+  kind: dot(.nodeset)
+  token 1 9:1 word ".nodeset"
+  token 2 9:10 word "V"
+  token 3 9:11 lparen "("
+  token 4 9:12 word "in"
+  token 5 9:14 rparen ")"
+  token 6 9:16 equals "="
+  token 7 9:18 number "1" value=1e0
+card 9 @cases/initial_conditions.cir:10:1 lines=10-10 continuations=0
+  raw: ".tran 1u 10u uic"
+  kind: dot(.tran)
+  token 1 10:1 word ".tran"
+  token 2 10:7 number "1u" value=1e-6
+  token 3 10:10 number "10u" value=9.999999999999999e-6
+  token 4 10:14 word "uic"
+card 10 @cases/initial_conditions.cir:11:1 lines=11-11 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 11:1 word ".end"

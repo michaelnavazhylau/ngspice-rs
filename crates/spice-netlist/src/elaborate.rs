@@ -10,6 +10,10 @@
 //! original spelling and location of each replaced site are kept in
 //! [`ElaboratedNetlist::sites`].
 //!
+//! Top-level `.ic`/`.nodeset` expression values are literalized too (the
+//! ordered entries are available from [`ElaboratedNetlist::initial_conditions`]
+//! and [`ElaboratedNetlist::nodesets`]).
+//!
 //! Subcircuit bodies are left untouched (their expressions need formal
 //! binding, which is not ported; elaboration keeps rejecting subcircuits).
 //! Bare names in device cards are not references (see
@@ -20,7 +24,10 @@ use std::sync::Arc;
 
 use spice_core::{Real, SourceLoc, SpiceError, SpiceResult};
 
-use crate::ast::{AnalysisCard, Netlist, ParameterAssignment, ParameterKind};
+use crate::ast::{
+    AnalysisCard, Netlist, NodeHint, NodeHintCard, NodeHintValue, ParameterAssignment,
+    ParameterKind,
+};
 use crate::eval::{EvalBudget, EvalLimits, ParamScope};
 
 /// Which site was literalized (indexes into the *input* netlist).
@@ -47,6 +54,20 @@ pub enum SiteKind {
         /// Argument index.
         argument: usize,
     },
+    /// `Netlist::initial_conditions[card].entries[entry]`.
+    InitialCondition {
+        /// `.ic` card index.
+        card: usize,
+        /// Entry index within the card.
+        entry: usize,
+    },
+    /// `Netlist::nodesets[card].entries[entry]`.
+    Nodeset {
+        /// `.nodeset` card index.
+        card: usize,
+        /// Entry index within the card.
+        entry: usize,
+    },
 }
 
 /// One evaluated site with its original text.
@@ -71,6 +92,51 @@ pub struct ElaboratedNetlist {
     pub scope: Arc<ParamScope>,
     /// Every replaced site in deck order.
     pub sites: Vec<ResolvedSite>,
+}
+
+/// One `.ic`/`.nodeset` entry with a finite value (see
+/// [`ElaboratedNetlist::initial_conditions`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ResolvedNodeHint<'a> {
+    /// Canonical node name.
+    pub node: &'a str,
+    /// Finite value in volts.
+    pub value: Real,
+    /// Where the entry (`V(node)=value`) started.
+    pub location: &'a SourceLoc,
+}
+
+impl ElaboratedNetlist {
+    /// Ordered `.ic` entries `(node, value, location)`, duplicates preserved
+    /// (card order, then entry order). Every expression was evaluated by
+    /// [`literalize`], so values are finite. Syntax only: no precedence among
+    /// duplicates, `uic`, instance `ic=` or DC bias is applied here.
+    #[must_use]
+    pub fn initial_conditions(&self) -> Vec<ResolvedNodeHint<'_>> {
+        resolved(self.netlist.initial_conditions())
+    }
+
+    /// Ordered `.nodeset` entries, as [`Self::initial_conditions`]. A nodeset
+    /// is a convergence hint, not a constraint.
+    #[must_use]
+    pub fn nodesets(&self) -> Vec<ResolvedNodeHint<'_>> {
+        resolved(self.netlist.nodesets())
+    }
+}
+
+fn resolved<'a>(entries: impl Iterator<Item = &'a NodeHint>) -> Vec<ResolvedNodeHint<'a>> {
+    // `literalize` replaces every expression, so `literal()` is always `Some`
+    // for an elaborated netlist; an unevaluated entry is never reported with a
+    // made-up value.
+    entries
+        .filter_map(|entry| {
+            Some(ResolvedNodeHint {
+                node: &entry.node,
+                value: entry.literal()?,
+                location: &entry.location,
+            })
+        })
+        .collect()
 }
 
 /// Spell a finite value so it parses back exactly.
@@ -146,11 +212,87 @@ pub fn literalize_with(
             });
         }
     }
+    literalize_hints(
+        &mut out.initial_conditions,
+        &scope,
+        budget,
+        &mut sites,
+        |c, e| SiteKind::InitialCondition { card: c, entry: e },
+    )?;
+    literalize_hints(&mut out.nodesets, &scope, budget, &mut sites, |c, e| {
+        SiteKind::Nodeset { card: c, entry: e }
+    })?;
     Ok(ElaboratedNetlist {
         netlist: out,
         scope,
         sites,
     })
+}
+
+/// Evaluates only the `.ic` and `.nodeset` entries against `scope`, returning
+/// literalized copies of those cards (`.ic` first, `.nodeset` second) without
+/// elaborating the rest of the deck. Order and duplicates are preserved.
+///
+/// # Errors
+/// Any entry evaluation failure, located at the expression.
+pub fn literalize_node_hints(
+    netlist: &Netlist,
+    scope: &ParamScope,
+    budget: &mut EvalBudget,
+) -> SpiceResult<(Vec<NodeHintCard>, Vec<NodeHintCard>)> {
+    let mut sites = Vec::new();
+    let mut initial = netlist.initial_conditions.clone();
+    let mut nodesets = netlist.nodesets.clone();
+    literalize_hints(&mut initial, scope, budget, &mut sites, |c, e| {
+        SiteKind::InitialCondition { card: c, entry: e }
+    })?;
+    literalize_hints(&mut nodesets, scope, budget, &mut sites, |c, e| {
+        SiteKind::Nodeset { card: c, entry: e }
+    })?;
+    Ok((initial, nodesets))
+}
+
+fn literalize_hints(
+    cards: &mut [NodeHintCard],
+    scope: &ParamScope,
+    budget: &mut EvalBudget,
+    sites: &mut Vec<ResolvedSite>,
+    kind: impl Fn(usize, usize) -> SiteKind,
+) -> SpiceResult<()> {
+    for (ci, card) in cards.iter_mut().enumerate() {
+        for (ei, hint) in card.entries.iter_mut().enumerate() {
+            let NodeHintValue::Expression(expression) = &hint.value else {
+                continue;
+            };
+            let value = scope
+                .evaluate(expression, budget)
+                .map_err(|error| match error {
+                    SpiceError::Parse { location, message } => SpiceError::parse(
+                        location,
+                        format!(
+                            "{message}\n  while evaluating the value of V({}) at {}",
+                            hint.node, hint.location
+                        ),
+                    ),
+                    other => other,
+                })?;
+            sites.push(ResolvedSite {
+                kind: kind(ci, ei),
+                original: if expression.braced {
+                    format!("{{{}}}", expression.text)
+                } else {
+                    expression.text.clone()
+                },
+                location: expression.span.start.clone(),
+                value,
+            });
+            hint.value = NodeHintValue::Literal {
+                text: format_literal(value),
+                value,
+            };
+        }
+    }
+    Ok(())
 }
 
 fn literalize_parameters(

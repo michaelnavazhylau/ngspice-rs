@@ -3,48 +3,147 @@
 
 use std::{fs, path::Path};
 
-use spice_analysis::{AnalysisContext, AnalysisRequest, RawFile, runner};
-use spice_core::AnalysisKind;
-use spice_devices::Circuit;
+use spice_analysis::{AnalysisRequest, RawFile, RunConfig, runner};
+use spice_core::{AnalysisKind, parse_spice_number};
 use spice_netlist::Parser;
 
-use crate::{compare, golden, workspace_root};
+use crate::{compare, golden, tran, workspace_root};
+
+/// How a fixture's Rust result is compared with its C golden.
+enum Gate {
+    /// Point-wise by variable name (DC/AC), optionally along a sweep axis.
+    Points {
+        axis: Option<&'static str>,
+        tolerance: compare::Tolerance,
+    },
+    /// Event-aware comparison on a shared physical time grid (`tran.rs`).
+    Transient(compare::TranTolerance),
+}
+
+/// An additional Rust-only run of the same deck against the same C golden.
+///
+/// `extra` tokens are appended to the request after the deck's own settings,
+/// so a variant can select a backend that C itself cannot parse (for example
+/// the explicit diffsol BDF `backend=diffsol method=bdf`, which ngspice
+/// rejects). The deck text, the golden and the tolerance are unchanged, so the
+/// variant must reproduce the very same C waveform; it never loosens a bound.
+struct Variant {
+    label: &'static str,
+    extra: &'static [&'static str],
+    /// Overrides the fixture's transient tolerance for this run.
+    tolerance: compare::TranTolerance,
+}
+
+/// The explicit adaptive BDF backend (not ngspice trapezoidal/Gear-2) under the
+/// default C-parity bound: for decks whose C reference has no restart artefact
+/// exceeding it.
+const DIFFSOL_BDF: Variant = Variant {
+    label: "diffsol-bdf",
+    extra: &["backend=diffsol", "method=bdf"],
+    tolerance: compare::TRAN,
+};
+
+/// The same backend under `compare::TRAN_RESTART` (peak-scaled), for decks with
+/// source corners where C's backward-Euler restart error exceeds `TRAN` at small
+/// values; see that constant for the justification.
+const DIFFSOL_BDF_RESTART: Variant = Variant {
+    label: "diffsol-bdf, peak-scaled",
+    extra: &["backend=diffsol", "method=bdf"],
+    tolerance: compare::TRAN_RESTART,
+};
 
 struct Supported {
     name: &'static str,
     kind: AnalysisKind,
-    axis: Option<&'static str>,
-    tolerance: compare::Tolerance,
+    gate: Gate,
+    /// Extra runs against the same golden, in addition to the deck's own run.
+    variants: &'static [Variant],
+}
+
+/// Transient registry entry: `compare::TRAN`, no variants unless listed.
+const fn tran(name: &'static str, variants: &'static [Variant]) -> Supported {
+    Supported {
+        name,
+        kind: AnalysisKind::Transient,
+        gate: Gate::Transient(compare::TRAN),
+        variants,
+    }
 }
 
 const SUPPORTED: &[Supported] = &[
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
-        axis: None,
-        tolerance: compare::DC,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
     },
     Supported {
         name: "rc_lowpass_ac",
         kind: AnalysisKind::Ac,
-        axis: Some("frequency"),
-        tolerance: compare::AC,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
     },
+    tran("rc_transient", &[]),
     Supported {
         name: "rlc_series",
         kind: AnalysisKind::OperatingPoint,
-        axis: None,
-        tolerance: compare::DC,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    // M3 exit-gate fixtures (#48). All use `compare::TRAN`; the physical bound is
+    // the simulator's own default accuracy (see `compare.rs`), no fixture-specific
+    // tolerance exists. The companion driver (trap, or Gear-2 via
+    // `.options method=gear`) runs each deck as written. `DIFFSOL_BDF` variants
+    // add the Rust-only BDF tokens: used only where every source corner lies on
+    // the `.tran` output grid (the BDF backend emits the requested grid, and the
+    // comparator demands a sample at each breakpoint) and only for decks with no
+    // `.options method=` (the deck's trap/Gear choice cannot be combined with
+    // diffsol and is rejected explicitly by `RunConfig::request`).
+    tran("rl_pulse_tran", &[DIFFSOL_BDF_RESTART]),
+    tran("rc_gear_tran", &[]),
+    tran("rc_pwl_tran", &[DIFFSOL_BDF_RESTART]),
+    // The RLC pulse corners restart C's trapezoidal rule with a backward-Euler
+    // step, whose error (about 3e-6 V / 2e-6 A near the ringing zero crossings,
+    // measured against an independent RK4 solution) exceeds `compare::TRAN`'s
+    // 1e-6 V / 1e-12 A near-zero floor; BDF is the more accurate side, so it
+    // runs under `compare::TRAN_RESTART`.
+    tran("rlc_series_tran", &[DIFFSOL_BDF_RESTART]),
+    tran("rlc_series_gear_tran", &[]),
+    tran("floating_cap_tran", &[DIFFSOL_BDF]),
+    tran("coupled_cap_tran", &[DIFFSOL_BDF_RESTART]),
+    // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. No
+    // BDF variants: the diffsol backend deliberately rejects `.ic`, `uic` and
+    // instance `ic=` (asserted by a test below). With `uic` C writes no `t = 0`
+    // row and adds a breakpoint at the `.tran` step; the Rust driver reproduces
+    // both and the comparator (which only demands samples at source breakpoints)
+    // needs no special case.
+    tran("rc_ic_uic_tran", &[]),
+    tran("rlc_ic_uic_tran", &[]),
+    tran("rc_ic_node_tran", &[]),
+    tran("floating_cap_ic_tran", &[]),
+    Supported {
+        name: "rlc_series_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
     },
 ];
 const EXCLUDED: &[(&str, &str)] = &[
     ("bjt_ce", "nonlinear BJT backend unavailable"),
     ("diode_dc", "nonlinear diode backend unavailable"),
     ("mos_inverter", "nonlinear MOS backend unavailable"),
-    (
-        "rc_transient",
-        "waveform deck evaluation and SPICE transient parity unavailable",
-    ),
     (
         "subckt_divider",
         "subcircuit flattening/elaboration unavailable",
@@ -82,9 +181,12 @@ fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
             .ok_or("invalid fixture name")?;
         if let Some(fixture) = SUPPORTED.iter().find(|fixture| fixture.name == name) {
             match fixture_result(root, &path, fixture) {
-                Ok(()) => {
+                Ok(details) => {
                     verified += 1;
                     println!("  verified   {name}");
+                    for detail in details {
+                        println!("             {detail}");
+                    }
                 }
                 Err(error) => {
                     println!("  FAIL       {name}: {error}");
@@ -114,7 +216,27 @@ fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
     }
 }
 
-fn fixture_result(root: &Path, path: &Path, fixture: &Supported) -> Result<(), String> {
+/// Detail lines for a verified fixture: one per run (the deck's own, then each
+/// variant).
+fn fixture_result(root: &Path, path: &Path, fixture: &Supported) -> Result<Vec<String>, String> {
+    let mut details = vec![run_variant(root, path, fixture, None)?];
+    for variant in fixture.variants {
+        let detail = run_variant(root, path, fixture, Some(variant))
+            .map_err(|error| format!("variant {}: {error}", variant.label))?;
+        details.push(format!("[{}] {detail}", variant.label));
+    }
+    Ok(details)
+}
+
+/// One Rust run of the deck (optionally with a [`Variant`]'s extra request
+/// tokens) compared with the committed C golden. Deck `.option` cards are
+/// applied through `RunConfig`, exactly as for an ordinary run.
+fn run_variant(
+    root: &Path,
+    path: &Path,
+    fixture: &Supported,
+    variant: Option<&Variant>,
+) -> Result<String, String> {
     let netlist = Parser::new().parse_file(path).map_err(|e| e.to_string())?;
     if netlist.analyses.len() != 1 {
         return Err(format!(
@@ -122,16 +244,26 @@ fn fixture_result(root: &Path, path: &Path, fixture: &Supported) -> Result<(), S
             netlist.analyses.len()
         ));
     }
-    let request = AnalysisRequest::from(&netlist.analyses[0]);
+    if !netlist.analyses[0].expressions.is_empty() {
+        return Err("braced analysis arguments are not supported in verification fixtures".into());
+    }
+    let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
+    let mut request: AnalysisRequest = AnalysisRequest::from(&netlist.analyses[0]);
+    if let Some(variant) = variant {
+        request
+            .arguments
+            .extend(variant.extra.iter().map(|token| (*token).to_owned()));
+    }
+    let request = config.request(request).map_err(|e| e.to_string())?;
     if request.kind != fixture.kind {
         return Err(format!(
             "registry expects {:?}, deck requests {:?}",
             fixture.kind, request.kind
         ));
     }
-    let mut circuit = Circuit::from_netlist(&netlist).map_err(|e| e.to_string())?;
+    let mut circuit = config.circuit(&netlist).map_err(|e| e.to_string())?;
     let got = runner(request.kind)
-        .and_then(|driver| driver.run(&mut circuit, &request, &AnalysisContext::default()))
+        .and_then(|driver| driver.run(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
     let target = root
         .join(golden::GOLDEN_DIR)
@@ -142,7 +274,51 @@ fn fixture_result(root: &Path, path: &Path, fixture: &Supported) -> Result<(), S
     if want.plots.len() != 1 {
         return Err(format!("expected one C plot, found {}", want.plots.len()));
     }
-    compare::plots(&got, &want.plots[0].plot, fixture.tolerance, fixture.axis)
+    match fixture.gate {
+        Gate::Points { axis, tolerance } => {
+            compare::plots(&got, &want.plots[0].plot, tolerance, axis)
+                .map(|()| format!("{} point(s)", got.point_count()))
+        }
+        Gate::Transient(tolerance) => {
+            let tolerance = variant.map_or(tolerance, |variant| variant.tolerance);
+            let time = |index: usize, what: &str| {
+                request
+                    .argument(index)
+                    .and_then(parse_spice_number)
+                    .filter(|v| v.is_finite() && *v > 0.0)
+                    .ok_or_else(|| format!(".tran {what} is not a positive number"))
+            };
+            let (step, stop) = (time(0, "tstep")?, time(1, "tstop")?);
+            let breakpoints = tran::breakpoints(&netlist, step, stop)?;
+            // With `uic` C writes no t = 0 row: its first row is the first
+            // accepted step. The comparison then starts at that time, which the
+            // Rust plot must reproduce (`tran::Series::new`); without `uic`
+            // both plots start at 0 as always.
+            let start = if request.uic {
+                want.plots[0]
+                    .plot
+                    .value("time", 0)
+                    .map(|t| t.re)
+                    .filter(|t| t.is_finite() && *t > 0.0)
+                    .ok_or("uic golden has no positive first time")?
+            } else {
+                0.0
+            };
+            tran::transient(
+                &got,
+                &want.plots[0].plot,
+                tolerance,
+                &tran::Grid { start, stop, step },
+                &breakpoints,
+            )
+            .map(|summary| {
+                format!(
+                    "{} instants + {} breakpoint limits, worst error {:.3} of bound",
+                    summary.instants, summary.limits, summary.worst_ratio
+                )
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -153,6 +329,9 @@ mod tests {
     struct Temp(std::path::PathBuf);
     impl Temp {
         fn divider() -> Self {
+            Self::with(&["rc_divider"])
+        }
+        fn with(names: &[&str]) -> Self {
             static ID: AtomicUsize = AtomicUsize::new(0);
             let root = std::env::temp_dir().join(format!(
                 "spice-verify-{}-{}",
@@ -161,11 +340,13 @@ mod tests {
             ));
             fs::create_dir_all(root.join(golden::NETLIST_DIR)).unwrap();
             fs::create_dir_all(root.join(golden::GOLDEN_DIR)).unwrap();
-            for path in [
-                "conformance/netlists/rc_divider.cir",
-                "conformance/golden/rc_divider.raw",
-            ] {
-                fs::copy(workspace_root().join(path), root.join(path)).unwrap();
+            for name in names {
+                for path in [
+                    format!("conformance/netlists/{name}.cir"),
+                    format!("conformance/golden/{name}.raw"),
+                ] {
+                    fs::copy(workspace_root().join(&path), root.join(&path)).unwrap();
+                }
             }
             Self(root)
         }
@@ -196,6 +377,99 @@ mod tests {
         for (path, bytes) in paths.iter().zip(before) {
             assert_eq!(fs::read(path).unwrap(), bytes);
         }
+    }
+
+    #[test]
+    fn rust_only_variants_select_the_explicit_diffsol_bdf_backend() {
+        let mut with_variants = 0;
+        for fixture in SUPPORTED {
+            for variant in fixture.variants {
+                with_variants += 1;
+                assert_eq!(fixture.kind, AnalysisKind::Transient, "{}", fixture.name);
+                assert_eq!(variant.extra, ["backend=diffsol", "method=bdf"]);
+                // Trap/Gear selections in the deck cannot be combined with BDF
+                // (`RunConfig::request` rejects them); the fixture must not set one.
+                let deck = fs::read_to_string(
+                    workspace_root().join(format!("conformance/netlists/{}.cir", fixture.name)),
+                )
+                .unwrap();
+                assert!(!deck.to_ascii_lowercase().contains("method"), "{deck}");
+            }
+        }
+        assert_eq!(with_variants, 5);
+        // The same deck with a deck-level Gear selection and the BDF tokens is an
+        // explicit error, never a silent downgrade.
+        let temp = Temp::with(&["rc_gear_tran"]);
+        let fixture = Supported {
+            variants: &[DIFFSOL_BDF],
+            ..tran("rc_gear_tran", &[])
+        };
+        let path = temp.0.join("conformance/netlists/rc_gear_tran.cir");
+        let error = fixture_result(&temp.0, &path, &fixture).unwrap_err();
+        assert!(error.contains("variant diffsol-bdf"), "{error}");
+    }
+
+    #[test]
+    fn bdf_variants_of_initialized_state_decks_are_rejected_explicitly() {
+        // The diffsol backend deliberately has no `.ic`/`uic`/`ic=` support, so
+        // the initialized-state fixtures register no BDF variant, and asking for
+        // one is an explicit error rather than a silent downgrade.
+        for name in [
+            "rc_ic_uic_tran",
+            "rlc_ic_uic_tran",
+            "rc_ic_node_tran",
+            "floating_cap_ic_tran",
+        ] {
+            let entry = SUPPORTED.iter().find(|f| f.name == name).unwrap();
+            assert!(entry.variants.is_empty(), "{name}");
+            let path = workspace_root().join(format!("conformance/netlists/{name}.cir"));
+            let fixture = Supported {
+                variants: &[DIFFSOL_BDF],
+                ..tran(name, &[])
+            };
+            let error = fixture_result(&workspace_root(), &path, &fixture).unwrap_err();
+            assert!(error.contains("variant diffsol-bdf"), "{name}: {error}");
+            assert!(
+                error.contains("unsupported") || error.contains("uic") || error.contains(".ic"),
+                "{name}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn corrupted_transient_goldens_fail_both_the_companion_and_bdf_runs() {
+        let temp = Temp::with(&["floating_cap_tran"]);
+        let raw = temp.0.join("conformance/golden/floating_cap_tran.raw");
+        let original = fs::read_to_string(&raw).unwrap();
+        run(&temp.0, Some("floating_cap_tran")).unwrap();
+        // Perturb v(b) of point 600 (t ~ 6 ms, a smooth interior sample) by 1 mV:
+        // far above the 1e-3 relative + 1 uV bound at v(b) ~ 1e-3 V.
+        let mut lines: Vec<String> = original.lines().map(String::from).collect();
+        let start = lines
+            .iter()
+            .position(|line| line.starts_with(" 600\t"))
+            .unwrap();
+        let name = lines
+            .iter()
+            .position(|l| l.ends_with("v(b)\tvoltage"))
+            .unwrap();
+        let column: usize = lines[name]
+            .trim_start()
+            .split('\t')
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let line = &mut lines[start + column];
+        let value: f64 = line.trim().parse().unwrap();
+        *line = format!("\t{:.15e}", value + 1e-3);
+        fs::write(&raw, lines.join("\n") + "\n").unwrap();
+        let error = run(&temp.0, Some("floating_cap_tran")).unwrap_err();
+        assert!(error.contains("transient mismatch"), "{error}");
+        // The BDF variant alone also detects it.
+        let path = temp.0.join("conformance/netlists/floating_cap_tran.cir");
+        let fixture = tran("floating_cap_tran", &[]);
+        assert!(run_variant(&temp.0, &path, &fixture, Some(&DIFFSOL_BDF)).is_err());
     }
 
     #[test]

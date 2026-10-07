@@ -116,8 +116,8 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
         );
     }
     for options in [
-        ".options chgtol=1e-14",
-        ".options trtol=7",
+        ".options lteabstol=1e-6",
+        ".options srcsteps=3",
         ".options itl4=20",
         ".options gmin=1e-12",
         ".options list",
@@ -136,30 +136,64 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
 }
 
 #[test]
-fn method_and_maxord_are_retained_but_rejected_for_transient() {
+fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
     let c = config(".options method=Gear maxord=2").unwrap();
     assert_eq!((c.method(), c.maxord()), (Some("gear"), Some(2)));
-    let tran = AnalysisRequest::with_arguments(
+    let diffsol = AnalysisRequest::with_arguments(
         AnalysisKind::Transient,
         ["1u", "1m", "backend=diffsol", "method=bdf"],
     );
-    for options in [
-        ".options method=trap",
-        ".options method=trapezoidal",
-        ".options method=gear",
-        ".options method=gear maxord=4",
-        ".options maxord=2",
+    let ordinary = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m"]);
+    for (options, forwarded) in [
+        (".options method=trap", vec!["method=trap"]),
+        (".options method=trapezoidal", vec!["method=trapezoidal"]),
+        (".options method=gear", vec!["method=gear"]),
+        (".options maxord=2", vec!["maxord=2"]),
+        (
+            ".options method=gear maxord=1",
+            vec!["method=gear", "maxord=1"],
+        ),
     ] {
         let c = config(options).unwrap();
-        let error = c.request(tran.clone()).unwrap_err();
+        let error = c.request(diffsol.clone()).unwrap_err();
         assert!(
             matches!(error, SpiceError::Unsupported { .. }),
             "{options}: {error}"
         );
+        let mut want = ordinary.clone();
+        want.arguments
+            .extend(forwarded.into_iter().map(String::from));
+        assert_eq!(c.request(ordinary.clone()).unwrap(), want, "{options}");
         // Analyses that do not integrate are unaffected by the retained selection.
         let ac = AnalysisRequest::new(AnalysisKind::Ac);
         assert_eq!(c.request(ac.clone()).unwrap(), ac);
     }
+    // An explicit request selection beats the deck's.
+    let c = config(".options method=gear maxord=1").unwrap();
+    let explicit = AnalysisRequest::with_arguments(
+        AnalysisKind::Transient,
+        ["1u", "1m", "method=trap", "maxord=2"],
+    );
+    assert_eq!(c.request(explicit.clone()).unwrap(), explicit);
+    // Gear orders above the implemented 2 are rejected up front.
+    let error = config(".options method=gear maxord=4")
+        .unwrap()
+        .request(ordinary.clone())
+        .unwrap_err();
+    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+    // trtol/chgtol are companion truncation options.
+    let c = config(".options trtol=3 chgtol=1e-13").unwrap();
+    assert_eq!(
+        (c.transient().trtol, c.transient().chgtol),
+        (Some(3.), Some(1e-13))
+    );
+    let request = c.request(ordinary.clone()).unwrap();
+    assert_eq!(
+        (request.named("trtol"), request.named("chgtol")),
+        (Some("3e0"), Some("1e-13"))
+    );
+    assert!(c.request(diffsol).is_err());
+    assert!(config(".options trtol=0").is_err());
 }
 
 #[test]
@@ -222,4 +256,45 @@ fn top_level_globals_are_accepted_by_flat_elaboration() {
     let n = deck("v1 a 0 1\nr1 a gnd 1k\n.global a gnd");
     assert!(RunConfig::from_netlist(&n).is_ok());
     assert!(spice_devices::Circuit::from_netlist(&n).is_ok());
+}
+
+#[test]
+fn parsed_ic_and_nodeset_cards_travel_with_every_request() {
+    // #27: the evaluated cards (braced expressions against .param, duplicates
+    // in deck order) are attached to each analysis request instead of rejected.
+    let netlist = deck(
+        "r1 a 0 1k\n.param half=0.5\n.ic v(a)=1 v(a)={half*3}\n.nodeset v(a)=2\n.op\n.tran 1u 1m",
+    );
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    for analysis in &netlist.analyses {
+        let request = config.request_for(analysis).unwrap();
+        let ic: Vec<_> = request
+            .initial_conditions
+            .iter()
+            .map(|c| (c.node.as_str(), c.value))
+            .collect();
+        assert_eq!(ic, [("a", 1.), ("a", 1.5)]);
+        assert_eq!(request.nodesets.len(), 1);
+        assert_eq!(request.nodesets[0].value, 2.);
+        assert_eq!(request.nodesets[0].location.line, 5);
+    }
+    // An undefined parameter is an error, not a silently dropped entry.
+    let netlist = deck("r1 a 0 1k\n.ic v(a)={nope}\n.tran 1u 1m");
+    assert!(RunConfig::from_netlist(&netlist).is_err());
+}
+
+#[test]
+fn tran_uic_is_a_request_flag_the_diffsol_backend_rejects() {
+    let netlist =
+        deck("v1 a 0 0\nr1 a b 1k\nc1 b 0 1u\n.tran 1u 10u uic backend=diffsol method=bdf");
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    assert!(request.uic);
+    assert!(!request.arguments.iter().any(|a| a == "uic"));
+    let mut circuit = config.circuit(&netlist).unwrap();
+    let error = runner(AnalysisKind::Transient)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap_err();
+    assert!(error.to_string().contains("uic"), "{error}");
 }

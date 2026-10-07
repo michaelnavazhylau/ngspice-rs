@@ -1,0 +1,65 @@
+# ngspice-rs ast-dump v1
+file: cases/initial_conditions.cir
+title: "Initial conditions, nodesets and uic" @cases/initial_conditions.cir:1:1
+scope root
+  cards (10):
+    [0] param[0] @cases/initial_conditions.cir:2:1 ".param vstart=2.5"
+    [1] device[0] @cases/initial_conditions.cir:3:1 "v1 in 0 dc 1"
+    [2] device[1] @cases/initial_conditions.cir:4:1 "r1 in out 1k"
+    [3] device[2] @cases/initial_conditions.cir:5:1 "c1 out 0 1u"
+    [4] ic[0] @cases/initial_conditions.cir:6:1 ".ic v(out)=1.5 V(in)={vstart*2}"
+    [5] nodeset[0] @cases/initial_conditions.cir:7:1 ".nodeset v(out)=0.5"
+    [6] ic[1] @cases/initial_conditions.cir:8:1 ".ic v(out)=2m"
+    [7] nodeset[1] @cases/initial_conditions.cir:9:1 ".nodeset V(in) = 1"
+    [8] analysis[0] @cases/initial_conditions.cir:10:1 ".tran 1u 10u uic"
+    [9] end @cases/initial_conditions.cir:11:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @cases/initial_conditions.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @cases/initial_conditions.cir:3:9
+    device [1] name="r1" designator=r @cases/initial_conditions.cir:4:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @cases/initial_conditions.cir:4:11
+    device [2] name="c1" designator=c @cases/initial_conditions.cir:5:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @cases/initial_conditions.cir:5:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @cases/initial_conditions.cir:10:1
+      arguments: "1u" "10u"
+      uic @cases/initial_conditions.cir:10:14
+  includes (0):
+  params (1):
+    param-card [0] @cases/initial_conditions.cir:2:1
+      assignment [0] name="vstart" name_span=2:8..14
+        expression braced=false text="2.5" span=2:15..18
+          number "2.5" value=2.5e0 span=2:15..18
+  options (0):
+  globals (0):
+  initial-conditions (2):
+    ic-card [0] @cases/initial_conditions.cir:6:1
+      entry [0] node="out" node_at=cases/initial_conditions.cir:6:7 @cases/initial_conditions.cir:6:5
+        value literal "1.5" value=1.5e0 @cases/initial_conditions.cir:6:12
+      entry [1] node="in" node_at=cases/initial_conditions.cir:6:18 @cases/initial_conditions.cir:6:16
+        value expression @cases/initial_conditions.cir:6:22
+          expression braced=true text="vstart*2" span=6:23..31
+            binary mul span=6:23..31
+              identifier "vstart" span=6:23..29
+              number "2" value=2e0 span=6:30..31
+    ic-card [1] @cases/initial_conditions.cir:8:1
+      entry [0] node="out" node_at=cases/initial_conditions.cir:8:7 @cases/initial_conditions.cir:8:5
+        value literal "2m" value=2e-3 @cases/initial_conditions.cir:8:12
+  nodesets (2):
+    nodeset-card [0] @cases/initial_conditions.cir:7:1
+      entry [0] node="out" node_at=cases/initial_conditions.cir:7:12 @cases/initial_conditions.cir:7:10
+        value literal "0.5" value=5e-1 @cases/initial_conditions.cir:7:17
+    nodeset-card [1] @cases/initial_conditions.cir:9:1
+      entry [0] node="in" node_at=cases/initial_conditions.cir:9:12 @cases/initial_conditions.cir:9:10
+        value literal "1" value=1e0 @cases/initial_conditions.cir:9:18

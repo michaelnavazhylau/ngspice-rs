@@ -1,0 +1,11 @@
+Initial conditions, nodesets and uic
+.param vstart=2.5
+v1 in 0 dc 1
+r1 in out 1k
+c1 out 0 1u
+.ic v(out)=1.5 V(in)={vstart*2}
+.nodeset v(out)=0.5
+.ic v(out)=2m
+.nodeset V(in) = 1
+.tran 1u 10u uic
+.end

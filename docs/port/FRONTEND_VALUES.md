@@ -1,9 +1,11 @@
 # Bounded waveform, flag and IC syntax (#8 / #10)
 
-These are **syntax-only** contracts. Source waveform deck elaboration/time
-sampling and D/Q/M factories remain unavailable. A successful parse does not
+The waveform and flag/IC forms are **syntax** contracts. PULSE/PWL V/I
+setters are elaborated into time forcing by #9 (see
+[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md)); D/Q/M
+factories remain unavailable. A successful parse does not
 implement initialization, `.ic`/`uic`, nonlinear physics or trap/Gear integration.
-The existing device-API Constant/Step/Pwl backend is unchanged.
+Constant/Step/Pwl device-API forcing is unchanged.
 
 ## C-backed flag inventory
 

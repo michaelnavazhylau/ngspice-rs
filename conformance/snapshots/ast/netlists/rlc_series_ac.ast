@@ -1,0 +1,43 @@
+# ngspice-rs ast-dump v1
+file: netlists/rlc_series_ac.cir
+title: "Series RLC AC sweep" @netlists/rlc_series_ac.cir:1:1
+scope root
+  cards (6):
+    [0] device[0] @netlists/rlc_series_ac.cir:3:1 "v1 in 0 dc 0 ac 1"
+    [1] device[1] @netlists/rlc_series_ac.cir:4:1 "r1 in a 10"
+    [2] device[2] @netlists/rlc_series_ac.cir:5:1 "l1 a out 1m"
+    [3] device[3] @netlists/rlc_series_ac.cir:6:1 "c1 out 0 1u"
+    [4] analysis[0] @netlists/rlc_series_ac.cir:7:1 ".ac lin 100 100 10k"
+    [5] end @netlists/rlc_series_ac.cir:8:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/rlc_series_ac.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/rlc_series_ac.cir:3:9
+        [1] name="acmag" kind=scalar value="1" @netlists/rlc_series_ac.cir:3:17
+        [2] name="acphase" kind=scalar value="0" @netlists/rlc_series_ac.cir:3:14
+    device [1] name="r1" designator=r @netlists/rlc_series_ac.cir:4:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10" @netlists/rlc_series_ac.cir:4:9
+    device [2] name="l1" designator=l @netlists/rlc_series_ac.cir:5:1
+      nodes: "a" "out"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/rlc_series_ac.cir:5:10
+    device [3] name="c1" designator=c @netlists/rlc_series_ac.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/rlc_series_ac.cir:6:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/rlc_series_ac.cir:7:1
+      arguments: "lin" "100" "100" "10k"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

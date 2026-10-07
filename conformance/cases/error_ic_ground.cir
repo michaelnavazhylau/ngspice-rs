@@ -1,0 +1,4 @@
+Ground IC rejected
+r1 a 0 1k
+.ic v(0)=1
+.end

@@ -1,0 +1,8 @@
+RC pulse transient, Gear-2
+* tau = 100 us. .options method=gear selects order-2 Gear instead of trapezoidal.
+v1 in 0 pulse(0 1 100u 10u 10u 300u 800u)
+r1 in out 1k
+c1 out 0 0.1u
+.options method=gear
+.tran 2u 1.2m
+.end

@@ -257,6 +257,18 @@ impl Device for Capacitor {
         2
     }
 
+    fn truncation_slot(&self) -> Option<usize> {
+        Some(QUANTITY)
+    }
+
+    fn storage_element(&self) -> Option<crate::traits::StorageElement> {
+        Some(crate::traits::StorageElement {
+            kind: crate::traits::StorageKind::Capacitor,
+            value: self.capacitance,
+            initial: self.initial_voltage,
+        })
+    }
+
     /// `capload.c`: an open circuit at DC (recording `q = C v` when state
     /// is tracked); in transient, the Norton companion `i = geq v + ceq`
     /// from current from the first terminal to the second. `ic=` is not
@@ -366,6 +378,18 @@ impl Device for Inductor {
     /// Flux `L i` and voltage `dflux/dt` (C `INDflux`/`INDvolt`).
     fn state_count(&self) -> usize {
         2
+    }
+
+    fn truncation_slot(&self) -> Option<usize> {
+        Some(QUANTITY)
+    }
+
+    fn storage_element(&self) -> Option<crate::traits::StorageElement> {
+        Some(crate::traits::StorageElement {
+            kind: crate::traits::StorageKind::Inductor,
+            value: self.inductance,
+            initial: self.initial_current,
+        })
     }
 
     /// `indload.c`: a short at DC (recording `flux = L i` when state is
@@ -486,6 +510,7 @@ mod tests {
             branches: 0..0,
             integration: None,
             states: crate::state::DeviceState::none(),
+            forcing: None,
         };
         device.stamp(&mut context).unwrap_err().to_string()
     }

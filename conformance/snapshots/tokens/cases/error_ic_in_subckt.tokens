@@ -1,0 +1,36 @@
+# ngspice-rs token-dump v1
+file: cases/error_ic_in_subckt.cir
+title: "IC in a subcircuit body" @cases/error_ic_in_subckt.cir:1:1
+card 1 @cases/error_ic_in_subckt.cir:2:1 lines=2-2 continuations=0
+  raw: ".subckt s a b"
+  kind: dot(.subckt)
+  token 1 2:1 word ".subckt"
+  token 2 2:9 word "s"
+  token 3 2:11 word "a"
+  token 4 2:13 word "b"
+card 2 @cases/error_ic_in_subckt.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 a b 1k"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "a"
+  token 3 3:6 word "b"
+  token 4 3:8 number "1k" value=1e3
+card 3 @cases/error_ic_in_subckt.cir:4:1 lines=4-4 continuations=0
+  raw: ".ic v(a)=1"
+  kind: dot(.ic)
+  token 1 4:1 word ".ic"
+  token 2 4:5 word "v"
+  token 3 4:6 lparen "("
+  token 4 4:7 word "a"
+  token 5 4:8 rparen ")"
+  token 6 4:9 equals "="
+  token 7 4:10 number "1" value=1e0
+card 4 @cases/error_ic_in_subckt.cir:5:1 lines=5-5 continuations=0
+  raw: ".ends s"
+  kind: dot(.ends)
+  token 1 5:1 word ".ends"
+  token 2 5:7 word "s"
+card 5 @cases/error_ic_in_subckt.cir:6:1 lines=6-6 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 6:1 word ".end"

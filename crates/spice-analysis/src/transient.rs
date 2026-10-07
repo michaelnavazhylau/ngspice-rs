@@ -1,20 +1,67 @@
-//! Explicitly selected diffsol BDF transient; companion-model trap/Gear stay separate.
+//! `.tran` backend dispatch.
+//!
+//! * no `backend=` (or `backend=companion`): the SPICE-compatible adaptive
+//!   trapezoidal / Gear-2 companion driver ([`crate::companion`]);
+//! * `backend=diffsol method=bdf`: the explicitly selected bounded diffsol BDF
+//!   backend below, which is not ngspice trap/Gear and shares no state with the
+//!   companion driver.
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisRequest, Plot};
-use spice_core::{Complex, SpiceResult};
-use spice_devices::Circuit;
+use spice_core::{Complex, SpiceError, SpiceResult};
+use spice_devices::{Circuit, Limit, TransientTiming};
 use spice_maths::diffsol::{BdfOptions, DaeSegment, LinearDae};
+
+/// Upper bound on source-breakpoint segments in one run.
+const MAX_SEGMENTS: usize = 100_000;
 
 pub(crate) fn run(
     circuit: &mut Circuit,
     request: &AnalysisRequest,
     context: &crate::AnalysisContext,
 ) -> SpiceResult<Plot> {
-    if request.named("backend") != Some("diffsol") || request.named("method") != Some("bdf") {
+    match request.named("backend") {
+        None => crate::companion::companion_transient(circuit, request, context)
+            .map(|(plot, _stats)| plot),
+        Some(name) if name.eq_ignore_ascii_case("companion") => {
+            crate::companion::companion_transient(circuit, request, context)
+                .map(|(plot, _stats)| plot)
+        }
+        Some(name) if name.eq_ignore_ascii_case("diffsol") => {
+            run_diffsol(circuit, request, context)
+        }
+        Some(name) => Err(unsupported(format!(
+            "unknown transient backend '{name}'; expected companion (default) or diffsol"
+        ))),
+    }
+}
+
+fn run_diffsol(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &crate::AnalysisContext,
+) -> SpiceResult<Plot> {
+    if request.named("method") != Some("bdf") {
         return Err(unsupported(
-            "transient requires explicit backend=diffsol method=bdf; ngspice trap/Gear companion methods are not implemented",
+            "backend=diffsol requires method=bdf (diffsol adaptive BDF is not ngspice trap/Gear;              omit backend= for the companion trap/gear driver)",
         ));
     }
+    if request.uic {
+        return Err(unsupported(
+            ".tran uic is implemented only by the companion driver (omit backend=diffsol); \
+             the diffsol BDF backend has no initial-condition formulation",
+        ));
+    }
+    if let Some(entry) = request.initial_conditions.first() {
+        return Err(SpiceError::Unsupported {
+            feature: ".ic is implemented only by the companion driver (omit backend=diffsol); \
+                      the diffsol BDF backend would silently start from the DC operating point"
+                .into(),
+            location: Some(entry.location.clone()),
+        });
+    }
+    // .nodeset only steers DC convergence and cannot change a linear operating
+    // point; it is validated (unknown nodes) and otherwise has no effect.
+    crate::initial::resolve(circuit, request)?;
     let mut positional = vec![];
     let mut seen = std::collections::BTreeSet::new();
     for a in &request.arguments {
@@ -36,7 +83,7 @@ pub(crate) fn run(
     }
     if !(2..=4).contains(&positional.len()) {
         return Err(unsupported(
-            ".tran step stop [start [maxstep]] backend=diffsol method=bdf; .ic/uic are unsupported",
+            ".tran step stop [start [maxstep]] backend=diffsol method=bdf; .ic/uic/instance ic= are unsupported",
         ));
     }
     let dt = number(positional.first().copied(), "sample step")?;
@@ -57,24 +104,31 @@ pub(crate) fn run(
     if !count.is_finite() || !(0. ..=100_000.).contains(&count) {
         return Err(unsupported("transient sample limit exceeded"));
     }
+    // `start + i * dt` can land an ulp short of (or past) `end` when `end` is a
+    // decimal multiple of `dt`; such a point is the final sample, not a second one.
     let mut grid: Vec<_> = (0..=count as usize)
         .map(|i| start + (i as f64) * dt)
+        .filter(|t| end - t > 1e-9 * dt)
         .collect();
-    if grid.last().copied() != Some(end) {
-        grid.push(end);
-    }
+    grid.push(end);
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("transient sample grid makes no progress"));
     }
-    let system = circuit.linear_system_with_context(&context.model_context())?;
+    let mut system = circuit.linear_system_with_context(&context.model_context())?;
+    // C resolves PULSE TR/TF/PW/PER defaults from CKTstep and CKTfinalTime.
+    system.bind_transient_timing(&TransientTiming::new(dt, end)?)?;
     if system.has_initial_conditions {
         return Err(unsupported(
-            "device ic= requires .ic/uic semantics; this backend starts from a linear operating point",
+            "device ic= is implemented only by the companion driver (omit backend=diffsol); \
+             the diffsol BDF backend starts from a linear operating point",
         ));
     }
     let dae = LinearDae::new(&system.a, &system.e)?;
-    let op = system.a.solve(&system.dc_rhs(None)?)?;
-    let mut x = dae.project(&op, &system.transient_rhs(0., false))?;
+    // The initial operating point uses the forcing just before t=0 (left limit),
+    // as C's MODETRANOP evaluates the waveform at time zero, not the separate DC
+    // value. The state is then projected onto the constraints from the right.
+    let op = system.a.solve(&system.transient_rhs(0., Limit::Left)?)?;
+    let mut x = dae.project(&op, &system.transient_rhs(0., Limit::Right)?)?;
     let rtol = number(
         Some(request.named("rtol").unwrap_or("1e-7")),
         "relative tolerance",
@@ -119,7 +173,20 @@ pub(crate) fn run(
     if grid.first() == Some(&0.) {
         push(&mut plot, 0., &x)?;
     }
-    let mut boundaries = system.breakpoints(end);
+    // Breakpoints are enumerated lazily and consumed under an explicit budget so
+    // a fast periodic source cannot expand without bound.
+    let mut boundaries = vec![];
+    for t in system.breakpoints_in(0., end)? {
+        if t <= 0. || t >= end {
+            continue;
+        }
+        if boundaries.len() >= MAX_SEGMENTS {
+            return Err(unsupported(format!(
+                "source breakpoint limit ({MAX_SEGMENTS}) exceeded before the stop time"
+            )));
+        }
+        boundaries.push(t);
+    }
     boundaries.push(end);
     let mut segment_start = 0.;
     for segment_end in boundaries {
@@ -127,8 +194,8 @@ pub(crate) fn run(
             start: segment_start,
             end: segment_end,
             initial: x,
-            b_start: system.transient_rhs(segment_start, false),
-            b_end: system.transient_rhs(segment_end, true),
+            b_start: system.transient_rhs(segment_start, Limit::Right)?,
+            b_end: system.transient_rhs(segment_end, Limit::Left)?,
             samples: grid
                 .iter()
                 .copied()
@@ -147,7 +214,7 @@ pub(crate) fn run(
         // (including floating/coupled ones) and inductor fluxes never jump.
         x = dae.project(
             &result.final_state,
-            &system.transient_rhs(segment_end, false),
+            &system.transient_rhs(segment_end, Limit::Right)?,
         )?;
         if x != result.final_state {
             circuit.accept_solution(&x, Some(segment_end))?;

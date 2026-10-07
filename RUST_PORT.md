@@ -34,9 +34,10 @@ Waveform deck evaluation, subcircuit flattening, expressions and advanced passiv
 success does not imply a nonlinear backend is available.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
-bounded diffsol BDF transient analysis. Trap/Gear-2 C/L companion stamps exist
-as a device API without a transient driver. D/Q/M equations, companion `.tran`,
-general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
+an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
+linear circuits) and an explicitly selected bounded diffsol BDF transient. D/Q/M
+equations, `.ic`/`uic` on the diffsol backend, general DAEs and a CLI simulation command remain
+unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
@@ -57,12 +58,12 @@ What already works for real:
 | Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode IS/N/RS/AREA/TEMP/TNOM; no nonlinear factory |
 | Bounded model-backed passives | `spice-devices`, `spice-analysis` | R sheet/C area-perimeter geometry, model L, contextual TC1/TC2, scale/multiplicity; no coil geometry |
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
-| Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, explicit diffsol BDF; not trap/Gear parity |
+| Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` layout; known decimal round-trip limitation documented in verification |
-| Conformance fixtures and goldens | `conformance/`, `xtask` | 8 decks, captured from `ngspice-47+` |
+| Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
-| Rust-engine numerical verify | `xtask` | three supported linear fixtures; five explicit exclusions, no C invocation |
+| Rust-engine numerical verify | `xtask` | sixteen supported linear fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients); four explicit exclusions, no C invocation |
 
 ## Quick start
 
@@ -89,7 +90,7 @@ checkout that has been built — and then for `ngspice` on `PATH`.
 The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
-`mos_inverter`, `rc_transient` and `subckt_divider` (all eight fixtures).
+`mos_inverter`, `rc_transient` and `subckt_divider` (all original eight fixtures; the later M3 gate decks parse and simulate as well).
 This is parsing, not subcircuit flattening or simulation (the M1 round-trip gate is `crates/spice-netlist/tests/m1_gate.rs`, #22). **The CLI does not simulate yet; production simulation
 is available through APIs and `cargo run -p spice-analysis --example rc_diffsol`.**
 

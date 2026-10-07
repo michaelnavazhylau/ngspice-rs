@@ -1,0 +1,49 @@
+# ngspice-rs token-dump v1
+file: netlists/rlc_ic_uic_tran.cir
+title: "Series RLC free decay from nonzero inductor current and capacitor voltage, uic" @netlists/rlc_ic_uic_tran.cir:1:1
+card 1 @netlists/rlc_ic_uic_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc 0"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "0" value=0e0
+card 2 @netlists/rlc_ic_uic_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in a 10"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "a"
+  token 4 6:9 number "10" value=1e1
+card 3 @netlists/rlc_ic_uic_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "l1 a out 1m ic=20m"
+  kind: device(l)
+  token 1 7:1 word "l1"
+  token 2 7:4 word "a"
+  token 3 7:6 word "out"
+  token 4 7:10 number "1m" value=1e-3
+  token 5 7:13 word "ic"
+  token 6 7:15 equals "="
+  token 7 7:16 number "20m" value=2e-2
+card 4 @netlists/rlc_ic_uic_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "c1 out 0 1u ic=1"
+  kind: device(c)
+  token 1 8:1 word "c1"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "1u" value=1e-6
+  token 5 8:13 word "ic"
+  token 6 8:15 equals "="
+  token 7 8:16 number "1" value=1e0
+card 5 @netlists/rlc_ic_uic_tran.cir:9:1 lines=9-9 continuations=0
+  raw: ".tran 1u 1m uic"
+  kind: dot(.tran)
+  token 1 9:1 word ".tran"
+  token 2 9:7 number "1u" value=1e-6
+  token 3 9:10 number "1m" value=1e-3
+  token 4 9:13 word "uic"
+card 6 @netlists/rlc_ic_uic_tran.cir:10:1 lines=10-10 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 10:1 word ".end"

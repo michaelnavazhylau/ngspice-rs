@@ -22,7 +22,64 @@ pub(crate) const AC: Tolerance = Tolerance {
     absolute: 1e-12,
 };
 
-fn validate(plot: &Plot, label: &str) -> Result<BTreeMap<String, usize>, String> {
+/// Transient bounds, by signal kind. Transient waveforms are compared at
+/// shared physical times (see `tran.rs`), never step by step, so the bound must
+/// cover two different integrators plus linear resampling of the denser side:
+/// `|Rust - C| <= relative*|C| + absolute(kind)`.
+///
+/// * `relative = 1e-3` is ngspice's default `reltol`, the accuracy its own
+///   local-truncation control targets per step; two independent solutions of
+///   the same circuit can legitimately differ by about that much.
+/// * `voltage_absolute = 1e-6` V is ngspice's default `vntol` (1 uV), the
+///   natural voltage floor near zero crossings.
+/// * `current_absolute = 1e-12` A is ngspice's default `abstol` (1 pA), the
+///   natural current floor for the small branch currents of the linear decks.
+///
+/// These are the simulator's own default accuracy floors, not values fitted to
+/// any fixture. Tighten only with evidence; never loosen to make a case pass.
+///
+/// `peak_relative` adds `peak_relative * max|C signal|` to the bound (0 for
+/// [`TRAN`]); see [`TRAN_RESTART`].
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TranTolerance {
+    pub(crate) peak_relative: f64,
+    pub(crate) relative: f64,
+    pub(crate) voltage_absolute: f64,
+    pub(crate) current_absolute: f64,
+}
+
+pub(crate) const TRAN: TranTolerance = TranTolerance {
+    peak_relative: 0.0,
+    relative: 1e-3,
+    voltage_absolute: 1e-6,
+    current_absolute: 1e-12,
+};
+
+/// Bound for an *independent, more accurate* Rust integrator (explicit diffsol
+/// BDF, rtol 1e-7) against the C trapezoidal reference on decks with source
+/// corners: `|Rust - C| <= 1e-3 |C| + 1e-3 max|C| + floor`.
+///
+/// C restarts its integrator with a backward-Euler step at every breakpoint
+/// (`dctran.c`, order 1 after a break). That step's local error is first order
+/// in the step and is visible against an exact solution right after a corner
+/// (measured against closed forms and an independent RK4 integration: for
+/// example a 4% error of `v(out)` 10 us after a PWL corner, about 2e-5 V on a
+/// 1 V signal). It is not a Rust defect: the companion driver reproduces it
+/// (worst error 0.000 of `TRAN`) and BDF agrees with the analytic response.
+/// ngspice's own truncation control only bounds per-step charge error to
+/// `trtol * (reltol * max|q| + chgtol)`, i.e. relative to the *peak* charge
+/// scale, never to the instantaneous value, so a purely pointwise relative
+/// bound (`TRAN`) is stricter than C guarantees for small values. This policy
+/// adds `reltol` (1e-3, ngspice default, not fitted) times the signal peak.
+/// It applies only to Rust-only backend variants, never to the C-parity
+/// companion run; BDF accuracy itself is established by the tighter analytic
+/// tests in `crates/spice-analysis/tests/`.
+pub(crate) const TRAN_RESTART: TranTolerance = TranTolerance {
+    peak_relative: 1e-3,
+    ..TRAN
+};
+
+pub(crate) fn validate(plot: &Plot, label: &str) -> Result<BTreeMap<String, usize>, String> {
     if plot.is_empty() {
         return Err(format!("{label}: empty plot"));
     }
@@ -55,18 +112,14 @@ fn validate(plot: &Plot, label: &str) -> Result<BTreeMap<String, usize>, String>
     Ok(columns)
 }
 
-/// Compare one production plot with one committed C plot. Header dates,
-/// commands, titles and internal plot IDs are not numerical metadata.
-/// Axis identity is explicit in the fixture registry, not inferred from order.
-/// Complex components each satisfy `|got-want| <= relative*|want| + absolute`.
-pub(crate) fn plots(
+/// Plot name/flags, variable-name set, units and real-vector flags must match
+/// (shared by the point-wise and transient comparators).
+pub(crate) fn check_structure(
     got: &Plot,
     want: &Plot,
-    tolerance: Tolerance,
-    axis: Option<&str>,
+    got_columns: &BTreeMap<String, usize>,
+    want_columns: &BTreeMap<String, usize>,
 ) -> Result<(), String> {
-    let got_columns = validate(got, "Rust")?;
-    let want_columns = validate(want, "C")?;
     if got.plotname != want.plotname || got.flags != want.flags {
         return Err(format!(
             "plot metadata mismatch: Rust '{}'/{}; C '{}'/{}",
@@ -74,13 +127,6 @@ pub(crate) fn plots(
             got.flags.as_rawfile(),
             want.plotname,
             want.flags.as_rawfile()
-        ));
-    }
-    if got.point_count() != want.point_count() {
-        return Err(format!(
-            "point count mismatch: Rust {}; C {}",
-            got.point_count(),
-            want.point_count()
         ));
     }
     let missing: Vec<_> = want_columns
@@ -96,7 +142,7 @@ pub(crate) fn plots(
             "variable mismatch: missing {missing:?}; extra {extra:?}"
         ));
     }
-    for (name, &want_index) in &want_columns {
+    for (name, &want_index) in want_columns {
         let actual = &got.variables[got_columns[name]];
         let expected = &want.variables[want_index];
         if actual.unit != expected.unit || actual.is_real != expected.is_real {
@@ -104,6 +150,29 @@ pub(crate) fn plots(
                 "variable metadata mismatch for '{name}': Rust {actual:?}; C {expected:?}"
             ));
         }
+    }
+    Ok(())
+}
+
+/// Compare one production plot with one committed C plot. Header dates,
+/// commands, titles and internal plot IDs are not numerical metadata.
+/// Axis identity is explicit in the fixture registry, not inferred from order.
+/// Complex components each satisfy `|got-want| <= relative*|want| + absolute`.
+pub(crate) fn plots(
+    got: &Plot,
+    want: &Plot,
+    tolerance: Tolerance,
+    axis: Option<&str>,
+) -> Result<(), String> {
+    let got_columns = validate(got, "Rust")?;
+    let want_columns = validate(want, "C")?;
+    check_structure(got, want, &got_columns, &want_columns)?;
+    if got.point_count() != want.point_count() {
+        return Err(format!(
+            "point count mismatch: Rust {}; C {}",
+            got.point_count(),
+            want.point_count()
+        ));
     }
     if let Some(axis) = axis {
         for (plot, columns, label) in [(got, &got_columns, "Rust"), (want, &want_columns, "C")] {
