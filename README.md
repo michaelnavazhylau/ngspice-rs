@@ -6,7 +6,8 @@ the SPICE circuit simulator.
 > **Status: M1 in progress; a bounded linear simulation engine is implemented.**
 > Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
 > and explicitly selected diffsol BDF transient analysis. Scalar models and
-> bounded D/Q/M syntax parse, but nonlinear D/Q/M simulation is not implemented.
+> bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
+> and bounded diode input schemas exist; nonlinear/model-backed simulation does not.
 > Six of eight fixture decks parse; full SPICE parity is not claimed.
 
 [TODO.md](TODO.md) is the central implementation checklist, including branch-aware
@@ -22,9 +23,14 @@ The local C-reference development mainline at `d3c8cccf4` predates that work;
 its history differs from this Rust-only repository. Do not overwrite newer public
 code with a whole-tree export from an older development checkout.
 
-| Capability | GitHub main |
+The current checkout additionally implements passive syntax (#11) and initial
+model infrastructure (#17); these prerequisites are pending merge, not yet a
+claim that #19 is unblocked on GitHub main.
+
+| Capability | Current checkout |
 | --- | --- |
-| Scalar/model/D/Q/M parsing and petgraph topology | Implemented, bounded syntax |
+| Scalar/model/D/Q/M/passive-model parsing and petgraph topology | Implemented, bounded syntax |
+| Model resolver and diode input schemas | Top-level families/levels/defaults; no nonlinear factory |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
 | Linear `.op`, single-source `.dc`, complex `.ac` | Implemented |
 | Transient | Explicit diffsol adaptive BDF, restricted DAE structure |
@@ -42,10 +48,10 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** waveform syntax, flags/vector ICs, model-backed passives,
+2. **Front end (M1):** waveform syntax, flags/vector ICs, extended passive forms,
    subcircuits/includes, parameters/options/globals, serialization and snapshots.
-3. **Model elaboration:** resolution, family compatibility, typed defaults,
-   level selection and parameter validation.
+3. **Model elaboration:** passive geometry/temperature arithmetic, additional
+   device schemas and scoped resolution; top-level resolver/diode inputs exist.
 4. **Transient (M3):** trap/Gear-2 companions, initialization, parsed waveform
    evaluation, broader DAEs and C parity.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
@@ -88,8 +94,10 @@ combinators; the existing deck loader and tokenizer are unchanged. The parser
 preserves M1a's AST and CLI exit contract. M1b adds scalar D/BJT/MOS/R/C/L
 model cards, two-terminal diodes, three/four-terminal BJTs and four-terminal MOS
 instances. Q/M require in-deck model declarations (forward references work)
-for terminal disambiguation. Model type/backend and parameter validity remain
-elaboration work; parsing is not simulation.
+for terminal disambiguation. R/C/L also retain declared forward model references
+and omitted values. Parsing is not simulation: family/level checks and bounded
+diode inputs belong to `spice-devices`; see
+[MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md) for APIs and explicit limits.
 
 Winnow was the first external dependency and is used only by `spice-netlist`,
 with its `std` and `parser` features. Petgraph is also used in production topology

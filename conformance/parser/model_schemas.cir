@@ -1,0 +1,19 @@
+Model resolver selector and diode defaults/setup probe
+v1 a 0 dc 0
+ddefault a 0 default
+dexplicit a 0 explicit area=2 temp=50 temp=40
+dduplicate a 0 duplicate
+.model default d
+.model explicit d(is=1e-14 is=2e-14 n=2 rs=3 tnom=30 level=3 level=1.49)
+.model duplicate d(is=4e-14)
+.model duplicate d(is=9e-14)
+vqc qc 0 dc 0
+vqb qb 0 dc 0
+q1 qc qb 0 qmod
+.model qmod npn(level=1.5 level=9)
+vmd md 0 dc 0
+vmg mg 0 dc 0
+m1 md mg 0 0 mmod
+.model mmod nmos(level=1.49 level=49 vto=1 kp=1m)
+.op
+.end

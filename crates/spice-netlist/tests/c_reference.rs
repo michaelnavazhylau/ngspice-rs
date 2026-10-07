@@ -16,6 +16,7 @@ use spice_netlist::{
 const LINEAR: &str = include_str!("../../../conformance/parser/linear_sources.cir");
 const DIODES: &str = include_str!("../../../conformance/parser/model_diodes.cir");
 const TRANSISTORS: &str = include_str!("../../../conformance/parser/transistor_scalars.cir");
+const PASSIVES: &str = include_str!("../../../conformance/parser/passive_models.cir");
 
 struct Scratch(PathBuf);
 
@@ -120,6 +121,36 @@ fn parsed_transistor_scalars_and_terminal_bindings_match_live_c() {
         }
     }
     assert_reference("transistors", TRANSISTORS, expected);
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_model_backed_passives_match_c_setup_and_setter_order() {
+    let netlist = parse(PASSIVES);
+    let mut expected = BTreeMap::new();
+    for device in &netlist.devices {
+        assignments(&mut expected, &device.name, &device.parameters);
+    }
+    assert_eq!(expected["@rpre[resistance]"], 3e3);
+    assert_eq!(expected["@rpost[resistance]"], 4e3);
+    assert_eq!(expected["@rboth[resistance]"], 8e3);
+    assert_eq!(expected["@cpost[capacitance]"], 4e-6);
+    assert_eq!(expected["@lpost[inductance]"], 4e-3);
+    assert_eq!(expected["@rnumeric[resistance]"], 123.0);
+    assert_eq!(
+        netlist.device("rnumref").unwrap().model.as_deref(),
+        Some("rm123")
+    );
+    assert_eq!(
+        netlist.device("rkeyword").unwrap().model.as_deref(),
+        Some("tc1")
+    );
+    assert!(netlist.device("rassigned").unwrap().model.is_none());
+    // Independent hand-checked C setup values, not Rust geometry arithmetic.
+    // RES: rsh*l/w; CAP: cj*l*w. Omitted scalars stay omitted in the AST.
+    expected.insert("@rgeom[resistance]".into(), 200.0);
+    expected.insert("@cgeom[capacitance]".into(), 8e-15);
+    assert_reference("passive-models", PASSIVES, expected);
 }
 
 #[test]

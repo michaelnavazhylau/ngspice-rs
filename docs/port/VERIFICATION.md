@@ -216,6 +216,49 @@ Selector defaults/rounding, family compatibility, scoped model resolution,
 node/model `gnd`/`0` collisions, model defaults and advanced device arithmetic
 are not proven by these probes.
 
+## Passive syntax and model-schema verification
+
+The current checkout implements #11/#17; these prerequisites are pending merge.
+`passive_models.rs` adds 11 syntax regressions, and `spice-devices/tests/models.rs`
+adds 13 production-interface checks for top-level first-wins lookup, raw AST
+immutability, missing/wrong families, model/node namespace collisions, first raw
+versus rounded/applied levels, unsupported backends, nonfinite/range/cache errors,
+ordered setters/provenance, diode/context defaults and atomic circuit failures.
+A module doctest demonstrates the resolver/typed diode API.
+
+The fifth parser C oracle queries `conformance/parser/passive_models.cir`,
+checking R/C/L pre-/post-model scalar precedence, forward references, omitted
+values and independent C geometry expectations. The new device oracle queries
+`model_schemas.cir`, checking first model declarations, bounded diode defaults and
+explicit setters, Celsius/Kelvin conversion, repeated diode integer setters and
+first BJT/MOS selector choice. Device-query bounds are `1e-12` relative plus
+`1e-24` absolute; solver/golden tolerances are unchanged. C ground/model collision
+parity, nonlinear equations and advanced/scoped models remain unproven.
+
+Local validation: **282 passed, 0 failed, 7 opt-in C tests ignored** on stable
+(rustc 1.99.0) and Rust 1.89.0. All **7** opt-in tests also passed separately
+against the read-only local ngspice-47+ binary. Formatting, all-target workspace
+Clippy on both toolchains, warning-free rustdoc and `git diff --check` passed.
+Default and selected golden verification remain three supported/five excluded
+fixtures; no goldens were recaptured or changed.
+
+```sh
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo +1.89.0 test --workspace --locked
+cargo +1.89.0 clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test --workspace --locked -- --ignored
+cargo xtask golden verify
+cargo xtask golden verify --netlist rc_lowpass_ac
+```
+
+Schemas do **not** enable model-backed passive or D/Q/M factories, and successful
+parsing/validation is not nonlinear simulation parity. See
+[MODEL_SCHEMAS.md](MODEL_SCHEMAS.md) for API contracts, bounded level policy and C
+references. #19 geometry/temperature arithmetic remains a separate task.
+
 ## Petgraph topology verification
 
 `spice-devices::Circuit::topology()` is exercised by nine additional circuit

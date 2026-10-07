@@ -5,7 +5,7 @@ This is the **central implementation checklist**. Keep task status here;
 defines milestone exit criteria, and [VERIFICATION.md](docs/port/VERIFICATION.md)
 describes the C-oracle workflow. Parsing a card does not imply simulation support.
 
-## Current mainline status
+## Current checkout and mainline status
 
 GitHub `main` contains the solver implementation at `31e245f`, merged by
 `b467ca0`. The local C-reference development `main` at `d3c8cccf4` predates it;
@@ -13,14 +13,20 @@ that history and the Rust-only history are distinct. The solver development
 revision is `05f9eb8a9` on `inspect/diffsol-faer`. These are reference revisions,
 not build dependencies. Do not replace newer public code with an older export.
 
-| Area | GitHub main |
+This checkout implements #11 passive syntax and #17 initial model infrastructure;
+those changes are pending merge. Completed entries below describe the checkout.
+#19's prerequisites are not satisfied on main until their changes are merged and
+acceptance tests pass.
+
+| Area | Current checkout |
 | --- | --- |
-| Parser | Scalar R/C/L/V/I, scalar models, bounded D/Q/M; six of eight fixture decks |
+| Parser | Scalar R/C/L/V/I, declared-model passives, scalar models, bounded D/Q/M; six of eight fixture decks |
+| Model inputs | Top-level first-wins resolver, family/level checks and bounded diode schemas; no model-backed factory |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps |
 | DC / AC | Linear `.op`, one-source `.dc`, complex RLC `.ac` |
 | Transient | Explicit diffsol adaptive BDF; restricted diagonal mass structure and nonsingular algebraic block |
-| Nonlinear devices | D/Q/M syntax only |
+| Nonlinear devices | D/Q/M syntax and initial diode input validation; no equations |
 | CLI | Inspection/parsing; simulation through APIs/examples only |
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
@@ -30,7 +36,8 @@ DAEs, higher-index constraints, nonlinear charge, `.ic` and `uic` remain unsuppo
 
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) records
 245 passing tests and five separately passing opt-in C checks for the integrated
-solver work. This historical report is not a new test run for these doc updates.
+solver work. This historical report is separate from later prerequisite validation
+in [MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md).
 
 ## Completed front end and infrastructure
 
@@ -38,7 +45,7 @@ solver work. This historical report is not a new test run for these doc updates.
 - [x] M1a: scalar R/C/L and DC/AC V/I ASTs, terminal canonicalization, ordered textual parameters, source positions and `.end` termination.
 - [x] M1a: parser regressions, CLI process-exit tests and opt-in live C scalar oracle.
 - [x] Winnow semantic-parser rewrite with committed-error, lookahead and full-consumption regressions; loader/tokenizer contracts retained.
-- [x] Scalar `.model` name/type/raw first level/ordered assignments for D/BJT/MOS/R/C/L (`inpdomod.c`, `inpgmod.c`); schema/selector validation deferred.
+- [x] Scalar `.model` name/type/raw first level/ordered assignments for D/BJT/MOS/R/C/L (`inpdomod.c`, `inpgmod.c`); AST stays raw; schema/selector validation is device-owned.
 - [x] Two-terminal D syntax and scalar geometry (`inp2d.c`), leading-area precedence and `perim` alias; diode fixture and C scalar oracle.
 - [x] Three/four-terminal Q and four-terminal M syntax (`inp2q.c`, `inp2m.c`), declared-model disambiguation, forward references and ordered scalars.
 - [x] BJT/MOS fixture/CLI regressions and live scalar/terminal-binding oracle, including numeric BJT model rejection checks.
@@ -73,7 +80,7 @@ tests and documented limits as the remaining functionality is added.
 
 - [ ] Add required remaining model/diode and instance flags; keep thermal/CIDER, extra ports, binning and advanced-backend gaps explicit.
 - [ ] Support required vector IC forms while preserving ordered setter precedence.
-- [ ] Parse model-backed R/C/L without mistaking models for parameter references.
+- [x] Parse declared-model R/C/L without mistaking models for parameter references (#11); forward references, omitted values and bounded geometry-only forms, not arithmetic.
 - [ ] Represent source waveforms, starting with `PULSE`; keep syntax separate from time evaluation.
 - [ ] Pin malformed/unsupported variants and enable the transient fixture AST test.
 
@@ -98,8 +105,9 @@ tests and documented limits as the remaining functionality is added.
 
 ## 3. Model elaboration and validation
 
-- [ ] Resolve model references and validate device-family compatibility, including scoped models.
-- [ ] Apply typed defaults, level selection/rounding, setter order and parameter range checks before simulation.
+- [x] Top-level first-declaration model lookup, family compatibility and family-specific level selection/rounding (#17); failed elaboration leaves circuit state unchanged.
+- [x] Device-owned scalar schema extension API and bounded diode IS/N/RS/AREA/TEMP/TNOM defaults/ranges (#17); raw AST preserved; D/Q/M factories still unavailable.
+- [ ] Add scoped model resolution, binning and further device-owned schemas/defaults; expand only with production tests.
 - [ ] Preserve omitted BJT substrate semantics and explicitly diagnose unavailable device backends.
 - [ ] Define required model-backed passive and geometry semantics; scalar model parsing alone is not validation.
 

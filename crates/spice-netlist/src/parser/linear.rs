@@ -14,7 +14,9 @@ use crate::ast::{DeviceInstance, ParameterAssignment};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Failure, Input, ParsedCard, Result, gap, keyword, location};
-use super::syntax::{assignment, canonical_node, equals, leading_literal, literal, name as node};
+use super::syntax::{
+    assignment, canonical_node, equals, leading_literal, literal, malformed, name as node,
+};
 
 pub(super) fn device_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     let name = any
@@ -25,9 +27,9 @@ pub(super) fn device_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     // alt could fall through to the generic unported-device branch.
     let (positive, negative) =
         cut_err((node("positive terminal"), node("negative terminal"))).parse_next(input)?;
-    let parameters = cut_err(|input: &mut Input<'_>| {
+    let (model, parameters) = cut_err(|input: &mut Input<'_>| {
         if matches!(designator, 'v' | 'i') {
-            source_parameters(input)
+            source_parameters(input).map(|parameters| (None, parameters))
         } else {
             passive_parameters(input, designator)
         }
@@ -40,7 +42,7 @@ pub(super) fn device_card(input: &mut Input<'_>) -> Result<ParsedCard> {
             canonical_node(positive, input.state.auto_gnd),
             canonical_node(negative, input.state.auto_gnd),
         ],
-        model: None,
+        model,
         parameters,
         location: input.state.card.location.clone(),
     }))
@@ -63,25 +65,77 @@ fn primary_name(designator: char) -> &'static str {
     }
 }
 
-fn passive_parameters(input: &mut Input<'_>, designator: char) -> Result<Vec<ParameterAssignment>> {
+/// INP2R/C/L set a pre-model scalar before named setters. A scalar immediately
+/// after the model is INPdevParse's leading value, applied *after* named setters.
+/// No scalar is injected for a model-only/geometry instance. Declared numeric
+/// names cannot steal the first numeric slot; model semantics stay in devices.
+fn passive_parameters(
+    input: &mut Input<'_>,
+    designator: char,
+) -> Result<(Option<String>, Vec<ParameterAssignment>)> {
     let primary = primary_name(designator);
-    let (leading, remaining): (Option<&Token>, Vec<ParameterAssignment>) = (
-        opt(leading_literal),
-        repeat(0.., alt((passive_assignment, invalid_passive))),
-    )
-        .parse_next(input)?;
-    let mut parameters = Vec::with_capacity(remaining.len() + usize::from(leading.is_some()));
+    let leading = opt(leading_literal).parse_next(input)?;
+    let model = opt(passive_model).parse_next(input)?;
+    let after_model = if model.is_some() {
+        opt(leading_literal).parse_next(input)?
+    } else {
+        None
+    };
+    let remaining: Vec<ParameterAssignment> =
+        repeat(0.., alt((passive_assignment, invalid_passive))).parse_next(input)?;
+    let mut parameters = Vec::new();
     if let Some(value) = leading {
         parameters.push(assignment(primary, value));
     }
     parameters.extend(remaining);
-    if !parameters.iter().any(|parameter| parameter.name == primary) {
+    if let Some(value) = after_model {
+        parameters.push(assignment(primary, value));
+    }
+    if model.is_none() && !parameters.iter().any(|parameter| parameter.name == primary) {
         return Err(ErrMode::Cut(Failure(SpiceError::parse(
             location(input),
-            format!("expected {primary} (model-backed instances are not ported)"),
+            format!("expected {primary} or a declared passive model"),
         ))));
     }
-    Ok(parameters)
+    Ok((
+        model.map(|token| token.text.to_ascii_lowercase()),
+        parameters,
+    ))
+}
+
+fn passive_model<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
+    let designator = input.state.card.designator().expect("passive card");
+    // C reserves r/c/l for scalar assignment. inpcom's named-assignment
+    // preprocessing also preserves keyword=value even if keyword is declared
+    // as a model. Bare declared keywords in this slot *are* model references.
+    let assignment = input
+        .input
+        .get(1)
+        .is_some_and(|token| token.kind == TokenKind::Equals);
+    let declared = input.state.declared_models;
+    if input.input.first().is_some_and(|token| {
+        token.number().is_some() && declared.contains(&token.text.to_ascii_lowercase())
+    }) {
+        return Err(gap(input, "numeric-looking passive model references"));
+    }
+    if assignment
+        && input.input.first().is_some_and(|token| {
+            declared.contains(&token.text.to_ascii_lowercase())
+                && scalar_name(designator, &token.text).is_none()
+        })
+    {
+        return Err(malformed(
+            input,
+            "passive model reference does not take '='",
+        ));
+    }
+    any.verify(|token: &Token| {
+        token.is_name_like()
+            && !assignment
+            && !token.text.eq_ignore_ascii_case(&designator.to_string())
+            && declared.contains(&token.text.to_ascii_lowercase())
+    })
+    .parse_next(input)
 }
 
 fn passive_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
@@ -120,7 +174,7 @@ fn invalid_passive(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     peek(any).parse_next(input)?;
     Err(gap(
         input,
-        "passive models, expressions or non-scalar parameters",
+        "undeclared passive model names, expressions or non-scalar parameters",
     ))
 }
 

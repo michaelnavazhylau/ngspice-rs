@@ -23,9 +23,11 @@ D/BJT/MOS/R/C/L model cards and bounded D/Q/M instances. Q accepts three ports
 plus optional substrate; M accepts drain/gate/source/bulk and scalar geometry.
 Q/M require a declaration in the same deck before `.end` (forward definitions
 work); the declaration index disambiguates ports, not model backends.
-Model-backed passives, waveforms, subcircuits and expressions remain unported.
-Model types, keyword validity and defaults/selector rules remain elaboration
-work; AST success does not imply backend availability.
+The current checkout adds declared-model passive syntax and a top-level model
+resolver with family/level checks and bounded diode defaults/validation (#11/#17,
+pending merge). Waveforms, subcircuits, expressions and model-backed passive
+arithmetic remain unported. AST/schema success does not imply backend availability;
+see [MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md).
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
 bounded diffsol BDF transient analysis. D/Q/M equations, trap/Gear companions,
@@ -47,6 +49,7 @@ What already works for real:
 | Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, scalar models, bounded D/Q/M, opaque analyses; six fixture decks parse |
 | Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
 | Real/complex MNA storage and LU | `spice-maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
+| Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode IS/N/RS/AREA/TEMP/TNOM; no nonlinear factory |
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, explicit diffsol BDF; not trap/Gear parity |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |

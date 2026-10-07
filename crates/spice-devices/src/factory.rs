@@ -20,6 +20,41 @@ pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Bo
     instantiate(&netlist.devices[0], nodes)
 }
 
+/// Resolve and validate before any node interning. Schemas do not enable a
+/// factory: D/Q/M and model-backed passive equations remain separate issues.
+pub(crate) fn instantiate_with_models(
+    instance: &DeviceInstance,
+    nodes: &mut NodeTable,
+    models: &crate::models::ModelResolver<'_>,
+    context: &crate::models::ModelContext,
+) -> SpiceResult<Box<dyn Device>> {
+    context.validate(&instance.location)?;
+    if let Some(model) = models.resolve(instance)? {
+        if model.family() == crate::models::ModelFamily::Diode {
+            model.diode_parameters(context)?;
+            model.diode_instance_parameters(instance, context)?;
+        }
+        let reference = match model.family().designator() {
+            'r' => "src/spicelib/devices/res/restemp.c, ressetup.c",
+            'c' => "src/spicelib/devices/cap/captemp.c",
+            'l' => "src/spicelib/devices/ind/indtemp.c",
+            'd' => "src/spicelib/devices/dio/dioload.c",
+            'q' => "src/spicelib/devices/bjt/bjtload.c",
+            _ => "src/spicelib/devices/mos1/mos1load.c",
+        };
+        return Err(SpiceError::not_yet_ported(
+            format!(
+                "{}: model-backed {:?} factory for '{}'",
+                instance.location,
+                model.family(),
+                instance.name
+            ),
+            reference,
+        ));
+    }
+    instantiate(instance, nodes)
+}
+
 pub(crate) fn instantiate(
     instance: &DeviceInstance,
     nodes: &mut NodeTable,
