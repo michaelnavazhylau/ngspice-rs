@@ -341,7 +341,13 @@ inventory, base tokens versus model tail flags, Q 1–2/M 1–3 IC arities,
 component names/positions, scalar/vector duplicate order and leading area,
 malformed/overflow/advanced forms and first-error/.end behavior.
 
-`spice-devices/tests/parser_setters.rs` adds three tests proving waveform and
+#9 adds `spice-devices/tests/waveforms.rs` (deck binding, C defaults, limits,
+merged lazy breakpoints), `spice-analysis/tests/source_waveforms.rs` (parsed
+PWL/PULSE decks through diffsol BDF, jump sampling, budgets) and opt-in
+`parsed_pulse_rc_matches_c_on_requested_samples` / `parsed_pwl_rc_matches_c_on_requested_samples`
+in `c_linear_reference.rs`.
+
+`spice-devices/tests/parser_setters.rs` adds three tests proving invalid waveform and
 nonlinear factory failures are atomic, that flags/IC vectors do not enable
 initialization, and that scalar factories/schemas reject non-scalar AST kinds
 even when forged with valid numeric text. Device API waveforms are unchanged.

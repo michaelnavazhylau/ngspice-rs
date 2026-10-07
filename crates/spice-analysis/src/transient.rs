@@ -2,8 +2,11 @@
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisRequest, Plot};
 use spice_core::{Complex, SpiceResult};
-use spice_devices::Circuit;
+use spice_devices::{Circuit, Limit, TransientTiming};
 use spice_maths::diffsol::{BdfOptions, DaeSegment, LinearDae};
+
+/// Upper bound on source-breakpoint segments in one run.
+const MAX_SEGMENTS: usize = 100_000;
 
 pub(crate) fn run(
     circuit: &mut Circuit,
@@ -72,15 +75,20 @@ pub(crate) fn run(
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("transient sample grid makes no progress"));
     }
-    let system = circuit.linear_system_with_context(&context.model_context())?;
+    let mut system = circuit.linear_system_with_context(&context.model_context())?;
+    // C resolves PULSE TR/TF/PW/PER defaults from CKTstep and CKTfinalTime.
+    system.bind_transient_timing(&TransientTiming::new(dt, end)?)?;
     if system.has_initial_conditions {
         return Err(unsupported(
             "device ic= requires .ic/uic semantics; this backend starts from a linear operating point",
         ));
     }
     let dae = LinearDae::new(&system.a, &system.e)?;
-    let op = system.a.solve(&system.dc_rhs(None)?)?;
-    let mut x = dae.project(&op, &system.transient_rhs(0., false))?;
+    // The initial operating point uses the forcing just before t=0 (left limit),
+    // as C's MODETRANOP evaluates the waveform at time zero, not the separate DC
+    // value. The state is then projected onto the constraints from the right.
+    let op = system.a.solve(&system.transient_rhs(0., Limit::Left)?)?;
+    let mut x = dae.project(&op, &system.transient_rhs(0., Limit::Right)?)?;
     let rtol = number(
         Some(request.named("rtol").unwrap_or("1e-7")),
         "relative tolerance",
@@ -125,7 +133,20 @@ pub(crate) fn run(
     if grid.first() == Some(&0.) {
         push(&mut plot, 0., &x)?;
     }
-    let mut boundaries = system.breakpoints(end);
+    // Breakpoints are enumerated lazily and consumed under an explicit budget so
+    // a fast periodic source cannot expand without bound.
+    let mut boundaries = vec![];
+    for t in system.breakpoints_in(0., end)? {
+        if t <= 0. || t >= end {
+            continue;
+        }
+        if boundaries.len() >= MAX_SEGMENTS {
+            return Err(unsupported(format!(
+                "source breakpoint limit ({MAX_SEGMENTS}) exceeded before the stop time"
+            )));
+        }
+        boundaries.push(t);
+    }
     boundaries.push(end);
     let mut segment_start = 0.;
     for segment_end in boundaries {
@@ -133,8 +154,8 @@ pub(crate) fn run(
             start: segment_start,
             end: segment_end,
             initial: x,
-            b_start: system.transient_rhs(segment_start, false),
-            b_end: system.transient_rhs(segment_end, true),
+            b_start: system.transient_rhs(segment_start, Limit::Right)?,
+            b_end: system.transient_rhs(segment_end, Limit::Left)?,
             samples: grid
                 .iter()
                 .copied()
@@ -153,7 +174,7 @@ pub(crate) fn run(
         // (including floating/coupled ones) and inductor fluxes never jump.
         x = dae.project(
             &result.final_state,
-            &system.transient_rhs(segment_end, false),
+            &system.transient_rhs(segment_end, Limit::Right)?,
         )?;
         if x != result.final_state {
             circuit.accept_solution(&x, Some(segment_end))?;

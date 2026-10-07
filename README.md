@@ -45,9 +45,10 @@ table, formulas, temperatures and deliberately rejected forms.
 Transient requires explicit `backend=diffsol method=bdf`; it is
 **not ngspice trapezoidal or fixed Gear-2 and does not complete M3**. It currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
-constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Step/Pwl waveforms exist through the device API only;
-numeric PULSE/PWL netlist syntax parses, but factories reject it until runtime
-elaboration/evaluation is implemented. See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
+constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
+Pulse/Pwl forcing (#9), with C's PULSE defaults taken from the `.tran` step/stop
+time and explicit left/right limits at jumps; Step is device-API only. See
+[FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
 
 Remaining work is tracked only in [TODO.md](TODO.md):
 

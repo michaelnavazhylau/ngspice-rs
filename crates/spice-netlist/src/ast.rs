@@ -71,7 +71,7 @@ pub enum ParameterKind {
     Flag,
     /// Q/M IC values in C setter order, with omitted components left omitted.
     InitialConditions(Vec<InitialCondition>),
-    /// A source waveform, not yet evaluated or enabled by device factories.
+    /// A source waveform; analysis-dependent defaults are resolved by device elaboration.
     Waveform(SourceWaveform),
 }
 

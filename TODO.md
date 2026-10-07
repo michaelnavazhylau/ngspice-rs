@@ -20,7 +20,7 @@ checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
-| Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses and normalized round trips (M1 gate, #22); not simulation |
+| Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL (elaborated to forcing, #9), scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses and normalized round trips (M1 gate, #22); not simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
@@ -31,9 +31,9 @@ checkout, not a claim that all M2 slices have already merged.
 | CLI | Inspection/parsing; simulation through APIs/examples only |
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
-is not ngspice trapezoidal or fixed Gear-2. Its Step/Pwl source waveforms are
-available through the device API. Numeric PULSE/PWL deck syntax now parses (#8),
-but waveform deck elaboration/evaluation is still unavailable; higher-index constraints,
+is not ngspice trapezoidal or fixed Gear-2. Numeric PULSE/PWL V/I
+setters (#8) elaborate to analytic Pulse/Pwl forcing (#9) with lazy breakpoints
+and left/right limits (Step is device-API only); higher-index constraints,
 nonlinear charge, `.ic` and `uic` remain unsupported. Floating/coupled capacitor
 index-one DAEs are supported by the BDF backend (#28).
 
@@ -127,7 +127,7 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [ ] Implement adaptive timestep scheduling and truncation-error control in a companion transient driver (#26).
 - [x] Implement C/L trap/Gear-2 companion stamps from accepted charge/flux state without double-discretizing diffsol equation stamps (#25); sources still stamp only at DC, mutual inductance and companion `ic=`/`uic` are pending.
 - [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives (#27). Frontend half done: `.ic`/`.nodeset` cards and the `.tran` `uic` flag parse into ordered, positioned AST entries (`Netlist::initial_conditions()`/`nodesets()`, `AnalysisCard::uic`) and are rejected by `RunConfig`/the transient driver until the analysis half lands.
-- [ ] Connect parsed source waveforms to time evaluation and breakpoint handling, including `PULSE`.
+- [x] Connect parsed PULSE/PWL source waveforms to time evaluation and breakpoint handling (#9): validated analytic `Pulse` with C defaults resolved from the `.tran` step/stop (`PulseSpec`/`TransientTiming`), `Waveform::value_at(t, Limit)` and lazy `breakpoints_in(t0, t1)`; diffsol BDF stops at every corner/jump (budget 100k segments) and starts from the t=0 forcing. PULSE `PHASE`/pulse-count (8th field), PWL `r=`/`td=`, SIN/EXP/SFFM and a trap/Gear driver (#26) remain unported.
 - [x] Demonstrate an index-one formulation for floating/coupled capacitor networks in the BDF backend: block-SVD `ker E`/`ker Eᵀ`, rank-certified `Wᵀ A N`, charge-preserving event projection and consistent derivatives, with analytic and opt-in C tests (#28).
 - [ ] Design and validate bounded higher-index source-constraint support (#29); such pencils remain rejected.
 - [x] Define explicit trial-versus-accepted device state: `&self` trial loads into a disposable `TrialState`, rotating `StateHistory`, per-device branch/state ranges and integration context, atomic accept hooks before commit (#24).

@@ -128,9 +128,17 @@ rejects them. The numeric adapter also rejects inconsistent supplied algebraic
 initial conditions instead of silently changing them.
 
 `IndependentSource` exposes validated Constant, right-continuous Step and continuous
-Pwl waveforms through the **device API**. Numeric PULSE/PWL syntax now parses,
-but deck factories still explicitly reject it: runtime elaboration/evaluation is
-not implemented. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md). Device-API knot
+Pwl waveforms through the **device API**; numeric PULSE/PWL V/I setters elaborate
+to Pwl and `Waveform::PulseDefaults` (#9). C's PULSE defaults (`vsrcload.c`:
+TR/TF/PW/PER from `CKTstep`/`CKTfinalTime`, exactly five fields means PW=0) are
+resolved when the transient driver calls `LinearSystem::bind_transient_timing`.
+Evaluation is `Waveform::value_at(t, Limit::{Left,Right})` and corners are
+enumerated lazily by `breakpoints_in(t0, t1)` (never expanded; the BDF driver
+consumes at most 100,000 segments). The initial operating point uses the forcing
+just before `t=0` (C's MODETRANOP evaluates the waveform, not the DC value), then
+projects from the right. Cycles shorter than TR+PW+TF are cut at the period
+boundary (a jump). Unsupported: PULSE PHASE/pulse count, PWL `r=`/`td=`,
+SIN/EXP/SFFM, `.param` expressions in waveforms. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md). Device-API knot
 times must be finite, nonnegative and strictly increasing. DC and AC source excitations remain distinct from the waveform.
 
 For each interval between knots, forcing is preassembled at both endpoints and

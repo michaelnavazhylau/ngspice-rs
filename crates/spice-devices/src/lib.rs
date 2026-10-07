@@ -6,7 +6,8 @@
 //! | [`state`] | trial versus accepted device state ([`StateHistory`], [`TrialState`]) | rotating accepted history, atomic commits |
 //! | [`circuit`] | node/device container, petgraph incidence topology and unknown numbering | ported |
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I factories |
-//! | [`sources`] | independent DC/AC/transient sources | bounded waveform API |
+//! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE waveforms |
+//! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
@@ -19,7 +20,8 @@
 //!
 //! `Circuit::from_netlist` accepts literal R/C/L/V/I and bounded model-backed
 //! R/C/L. Nonlinear D/Q/M backends are not enabled by syntax or schema validation.
-//! Constant/Step/Pwl forcing is a device API, not waveform deck parsing. See
+//! Constant/Step/Pwl/Pulse forcing is available both through the device API and
+//! from numeric `PULSE(...)`/`PWL(...)` source setters. See
 //! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 
 #![warn(missing_docs)]
@@ -29,6 +31,7 @@ mod factory;
 pub mod linear;
 pub mod models;
 pub mod passive;
+pub mod pulse;
 pub use passive::PassiveParameters;
 pub mod schema;
 pub use models::{
@@ -37,7 +40,11 @@ pub use models::{
 };
 pub mod registry;
 pub mod sources;
-pub use linear::{LinearContext, LinearSource, LinearSystem, Waveform};
+pub use linear::{
+    Limit, LinearContext, LinearSource, LinearSystem, SystemBreakpoints, Waveform,
+    WaveformBreakpoints,
+};
+pub use pulse::{Pulse, PulseBreakpoints, PulseSpec, TransientTiming};
 pub use sources::IndependentSource;
 pub mod rlc;
 pub mod state;
