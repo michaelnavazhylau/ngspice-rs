@@ -118,6 +118,26 @@ An opt-in `c_reference.rs` test copies this source tree into a scratch directory
 and compares the parsed selected model's RSH with live C setup; it is not a Rust
 flattening or simulation comparison. No rawfile goldens/tolerances are changed.
 
-Next: **#14–16** expressions, parameter evaluation and options/globals; then
+## Options and globals (#16)
+
+`.option`/`.options`/`.opt` parse (winnow, `parser/options.rs`) into
+`OptionCard { settings: Vec<OptionSetting>, location }`; each setting has a
+lowercased name, optional positioned value text (`None` for a flag) and its
+location. Order and duplicates are kept; syntax only. `.global` parses into
+`GlobalCard { nodes: Vec<GlobalNode> }` using the device-node normalization
+(`gnd` -> `0` only with automatic aliasing). Cards are indexed by
+`ScopedCardKind::Options(i)`/`Global(i)` into `Netlist::options`/`globals`.
+`Netlist::is_global_node`/`global_node_names` are the flattener contract: `0` is
+always global, other names only if a top-level `.global` listed them. Options or
+globals inside a `.subckt` body return `NotYetPorted`.
+
+`spice_analysis::RunConfig` (docs in `config.rs`) accepts `temp`, `tnom`,
+`reltol`, `vntol`, `abstol`, `method`, `maxord`. Repeats override in order; a name
+used both as flag and value, unknown names (including `no_auto_gnd`, a front-end
+variable) and invalid values are errors; every other `cktsopt.c` option is
+`NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
+`spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
+
+Next: **#14, #15** expressions and parameter evaluation; then
 **#20–22** normalized serialization, deterministic snapshots and the complete
 M1 eight-fixture round-trip gate. None of those gates is closed by 8/8 parsing.

@@ -31,6 +31,7 @@ mod grammar;
 mod ic;
 mod linear;
 mod model;
+mod options;
 mod resolution;
 mod scopes;
 mod structure;

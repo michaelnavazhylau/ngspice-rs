@@ -238,12 +238,51 @@ pub struct AnalysisCard {
     pub location: SourceLoc,
 }
 
-/// A `.option` card, or a single option from one.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A `.option`/`.options`/`.opt` card: ordered settings, duplicates preserved.
+///
+/// C: `inp2dot.c` hands the card to `INPdoOpts()` (`inpdoopt.c`), which applies
+/// settings left to right. This AST validates syntax only; whether a name is a
+/// supported option is decided by the run-configuration consumer.
+#[derive(Debug, Clone, PartialEq)]
 pub struct OptionCard {
-    /// The card's text, minus the leading `.option(s)`.
-    pub raw: String,
+    /// Settings in source order. Repeats are retained; later settings override
+    /// earlier ones when a consumer applies them in order.
+    pub settings: Vec<OptionSetting>,
     /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// One `name=value` setter or bare flag from an option card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptionSetting {
+    /// Option name, ASCII-lowercased (ngspice lowercases deck text).
+    pub name: String,
+    /// The value as written (numeric spelling or a bare word such as `gear`);
+    /// `None` for a bare flag. Never evaluated or range-checked here.
+    pub value: Option<PositionedValue>,
+    /// Where the option name was written.
+    pub location: SourceLoc,
+}
+
+/// A `.global` card: node names in written order, normalized like device nodes
+/// (lowercased; `gnd` becomes `0` only when automatic gnd aliasing is on).
+///
+/// C: `collect_global_nodes()` in `frontend/subckt.c`, and `inpcom.c`, which
+/// adds `.global gnd` unless `no_auto_gnd` is set. Ground `0` is always global.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalCard {
+    /// Declared nodes, in order, duplicates retained.
+    pub nodes: Vec<GlobalNode>,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// One node named by a `.global` card.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalNode {
+    /// Canonical node name.
+    pub name: NodeName,
+    /// Where the node name was written.
     pub location: SourceLoc,
 }
 
@@ -273,6 +312,10 @@ pub enum ScopedCardKind {
     Analysis(usize),
     /// Index into source directives; resolved content follows this entry.
     Include(usize),
+    /// Index into [`Netlist::options`] (root scope only).
+    Options(usize),
+    /// Index into [`Netlist::globals`] (root scope only).
+    Global(usize),
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.
@@ -280,8 +323,8 @@ pub enum ScopedCardKind {
 }
 
 /// A semantic deck container. Scoped syntax and file resolution do not imply
-/// flattening, parameter evaluation or simulation. Parameter/option/global
-/// fields remain pending. See
+/// flattening, parameter evaluation or simulation. `.option` cards are applied
+/// by `spice_analysis::RunConfig`, not by the AST; parameter fields remain pending. See
 /// `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Netlist {
@@ -301,10 +344,11 @@ pub struct Netlist {
     pub includes: Vec<IncludeDirective>,
     /// `.param` values.
     pub params: Vec<ParamCard>,
-    /// `.option` cards.
+    /// `.option` cards in deck order (root scope only; inside `.subckt` bodies
+    /// they are rejected as not yet ported).
     pub options: Vec<OptionCard>,
-    /// `.global` node names.
-    pub globals: Vec<NodeName>,
+    /// `.global` cards in deck order (root scope only).
+    pub globals: Vec<GlobalCard>,
     /// All cards in source/expansion order, with scope-local typed indexes.
     pub cards: Vec<ScopedCard>,
     /// Where the deck started.
@@ -321,6 +365,34 @@ impl Netlist {
     #[must_use]
     pub fn top_level_device_count(&self) -> usize {
         self.devices.len()
+    }
+
+    /// Whether `name` is a global node for subcircuit flattening: ground `0` is
+    /// always global; other nodes are global only if a top-level `.global` card
+    /// named them. Matching is ASCII case-insensitive on canonical names, so
+    /// with automatic gnd aliasing `.global gnd` is the same as ground, while
+    /// under `no_auto_gnd` `gnd` is a distinct ordinary global node.
+    #[must_use]
+    pub fn is_global_node(&self, name: &str) -> bool {
+        name == "0"
+            || self
+                .globals
+                .iter()
+                .flat_map(|card| &card.nodes)
+                .any(|node| node.name.eq_ignore_ascii_case(name))
+    }
+
+    /// Declared global nodes in first-declaration order without duplicates.
+    /// Ground `0` is implicit and listed only if written (or aliased) explicitly.
+    #[must_use]
+    pub fn global_node_names(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = Vec::new();
+        for node in self.globals.iter().flat_map(|card| &card.nodes) {
+            if !names.contains(&node.name.as_str()) {
+                names.push(&node.name);
+            }
+        }
+        names
     }
 
     /// Looks up a top-level device by instance name, case-insensitively.

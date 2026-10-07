@@ -243,6 +243,9 @@ pub fn run(args: &Args) -> SpiceResult<()> {
                 .expect("Args::parse guarantees a netlist");
             let parser = spice_netlist::Parser::with_auto_gnd(args.auto_gnd);
             let netlist = parser.parse_file(path)?;
+            // Options are validated before reporting success: unknown or
+            // unsupported settings are errors, never ignored.
+            let config = spice_analysis::RunConfig::from_netlist(&netlist)?;
             println!(
                 "{}: {} device instance(s), {} model(s), {} subcircuit(s), {} analysis request(s)",
                 netlist.title,
@@ -250,6 +253,14 @@ pub fn run(args: &Args) -> SpiceResult<()> {
                 netlist.models.len(),
                 netlist.subcircuits.len(),
                 netlist.analyses.len()
+            );
+            let context = config.context();
+            println!(
+                "options: {} setting(s); TEMP = {} C, TNOM = {} C; {} global node card(s)",
+                config.applied().len(),
+                context.temperature,
+                context.nominal_temperature,
+                netlist.globals.len()
             );
             Ok(())
         }

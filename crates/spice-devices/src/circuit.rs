@@ -470,14 +470,32 @@ impl Circuit {
     }
 
     /// Elaborate literal R/C/L/V/I and bounded model-backed R/C/L at 27 Celsius.
+    ///
+    /// A deck with `.option` cards is rejected here: this entry point would
+    /// silently apply default temperatures. Resolve the options with
+    /// `spice_analysis::RunConfig` and elaborate with
+    /// [`Self::from_netlist_with_context`] (or `RunConfig::circuit`).
     /// # Errors
-    /// Unsupported elaboration constructs, models or invalid parameters.
+    /// Unsupported elaboration constructs, `.option` cards, models or invalid
+    /// parameters.
     pub fn from_netlist(netlist: &spice_netlist::ast::Netlist) -> SpiceResult<Self> {
+        if !netlist.options.is_empty() {
+            return Err(SpiceError::Unsupported {
+                feature: ".option cards require RunConfig::from_netlist to resolve them; \
+                          Circuit::from_netlist would apply default temperatures"
+                    .into(),
+                location: netlist.options.first().map(|card| card.location.clone()),
+            });
+        }
         Self::from_netlist_with_context(netlist, &crate::models::ModelContext::default())
     }
 
     /// Elaborate with explicit validation temperatures; the immutable model recipe
     /// is retained and later assemblies use their own explicit context.
+    /// `.option` cards are the caller's responsibility: the supplied context must
+    /// come from resolving them (`spice_analysis::RunConfig`). Top-level
+    /// `.global` cards only name top-level nodes, which are already global in a
+    /// flat circuit, so they need no elaboration.
     /// # Errors
     /// Invalid context, unsupported constructs/models or invalid parameters.
     pub fn from_netlist_with_context(
@@ -488,12 +506,9 @@ impl Circuit {
         if !netlist.subcircuits.is_empty()
             || !netlist.includes.is_empty()
             || !netlist.params.is_empty()
-            || !netlist.options.is_empty()
-            || !netlist.globals.is_empty()
         {
             return Err(SpiceError::Unsupported {
-                feature: "subcircuits/includes/parameters/options/globals in linear elaboration"
-                    .into(),
+                feature: "subcircuits/includes/parameters in linear elaboration".into(),
                 location: None,
             });
         }

@@ -2,8 +2,8 @@
 
 use super::grammar::{self, ParsedCard};
 use crate::ast::{
-    AnalysisCard, DeviceInstance, IncludeDirective, ModelCard, Netlist, ScopedCard, ScopedCardKind,
-    Subcircuit,
+    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, OptionCard,
+    ScopedCard, ScopedCardKind, Subcircuit,
 };
 use crate::card::{DotCommand, RawCard};
 use crate::source::Deck;
@@ -36,6 +36,8 @@ struct Scope {
     subcircuits: Vec<Subcircuit>,
     analyses: Vec<AnalysisCard>,
     includes: Vec<IncludeDirective>,
+    options: Vec<OptionCard>,
+    globals: Vec<GlobalCard>,
     cards: Vec<ScopedCard>,
 }
 
@@ -57,8 +59,8 @@ pub(super) fn assemble(
         includes: scope.includes,
         cards: scope.cards,
         params: Vec::new(),
-        options: Vec::new(),
-        globals: Vec::new(),
+        options: scope.options,
+        globals: scope.globals,
     })
 }
 
@@ -123,6 +125,16 @@ fn scope(
             ParsedCard::Analysis(a) => {
                 result.analyses.push(a);
                 ScopedCardKind::Analysis(result.analyses.len() - 1)
+            }
+            ParsedCard::Options(o) => {
+                reject_in_body(card, opening, ".option")?;
+                result.options.push(o);
+                ScopedCardKind::Options(result.options.len() - 1)
+            }
+            ParsedCard::Global(g) => {
+                reject_in_body(card, opening, ".global")?;
+                result.globals.push(g);
+                ScopedCardKind::Global(result.globals.len() - 1)
             }
             ParsedCard::Include(mut i) => {
                 i.resolved_path = entry.resolved_path.clone();
@@ -214,4 +226,20 @@ fn ordered(entry: &InputCard, kind: ScopedCardKind) -> ScopedCard {
         source: entry.source.clone(),
         include_chain: entry.include_chain.clone(),
     }
+}
+
+// Body-local options/globals need per-subcircuit storage and flattening rules
+// (inpcom.c/subckt.c); until then they must not be dropped or hoisted silently.
+fn reject_in_body(
+    card: &RawCard,
+    opening: Option<(&str, &SourceLoc)>,
+    what: &str,
+) -> SpiceResult<()> {
+    if opening.is_some() {
+        return Err(SpiceError::not_yet_ported(
+            format!("{}: {what} inside a .subckt body", card.location),
+            "src/frontend/inpcom.c, src/frontend/subckt.c",
+        ));
+    }
+    Ok(())
 }

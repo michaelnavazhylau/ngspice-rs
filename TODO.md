@@ -101,7 +101,7 @@ tests and documented limits as the remaining functionality is added.
 
 - [ ] Implement a bounded expression grammar (#14) and `.param` evaluator (#15) from numparam behaviour.
 - [ ] Define evaluation order, scope, units and undefined/cyclic-reference diagnostics.
-- [ ] Parse `.option` and `.global`; implement required ground scope rules (#16).
+- [x] Parse `.option` and `.global` (#16): ordered positioned settings, `spice_analysis::RunConfig` for temp/tnom/reltol/vntol/abstol (method/maxord retained, rejected for `.tran`; all other options error). Top-level `.global` contract for a future flattener; body-local `.option`/`.global` and flattening remain pending. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 - [ ] Add normalized-deck serialization preserving source parameter application order (#20).
 - [ ] Commit deterministic token/AST snapshots and document regeneration (#21).
 - [ ] Round-trip all eight rawfile fixture decks through AST and normalized text (#22).

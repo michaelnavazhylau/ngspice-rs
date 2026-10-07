@@ -13,16 +13,20 @@ use winnow::error::{AddContext, ErrMode, ModalResult, ParserError};
 use winnow::stream::{Stateful, Stream, TokenSlice};
 use winnow::token::{any, rest};
 
-use crate::ast::{AnalysisCard, DeviceInstance, IncludeDirective, ModelCard, Subcircuit};
+use crate::ast::{
+    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, OptionCard, Subcircuit,
+};
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::{diode, linear, model, structure, transistor};
+use super::{diode, linear, model, options, structure, transistor};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
     Model(ModelCard),
     Analysis(AnalysisCard),
+    Options(OptionCard),
+    Global(GlobalCard),
     Subckt(Subcircuit),
     Ends(Option<String>),
     Include(IncludeDirective),
@@ -93,7 +97,7 @@ pub(super) fn parse_card(
     // consumes its tail: INP2dot ignores additional input after .end.
     alt((
         end_card,
-        analysis_card,
+        alt((analysis_card, options::options_or_global)),
         model::model_card,
         structure::structural_card,
         linear::device_card,

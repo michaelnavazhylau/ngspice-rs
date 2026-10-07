@@ -53,7 +53,7 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** expressions/parameter evaluation/options/globals (#14–16),
+2. **Front end (M1):** expressions/parameter evaluation (#14, #15; `.option`/`.global` parsing and bounded `RunConfig` are done in #16),
    then serialization/snapshots/full round-trip gate (#20–22); extended passive forms.
    Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas
