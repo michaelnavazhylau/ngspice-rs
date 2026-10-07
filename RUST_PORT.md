@@ -38,9 +38,12 @@ PR #51 merged declared-model passive syntax and initial model infrastructure
 geometry/temperature/scale/multiplicity (#19, pending merge); see
 [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md). Numeric PULSE/PWL and bounded
 flags/Q/M IC vectors now parse (#8/#10); see [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
-Scoped subcircuits/X and source-relative includes/libraries now parse (#12/#13);
-see [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
-Waveform deck evaluation, subcircuit flattening, expressions and advanced passive forms remain unported. D/Q/M AST/schema
+Scoped subcircuits/X and source-relative includes/libraries parse (#12/#13), and
+`X` instances now elaborate through the production entry points (#18) with
+hierarchical names, scoped parameters/models and `.global`; see
+[SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md) and
+[FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md). Advanced passive forms
+and the remaining numparam surface remain unported. D/Q/M AST/schema
 success alone does not imply the requested physics is implemented: M4's bounded
 allowlists are validated by the model-aware factories.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
@@ -49,7 +52,7 @@ an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
 linear circuits) and an explicitly selected bounded diffsol BDF transient.
 This worktree extends the companion/DC/AC paths with M4's bounded D/Q/M equations.
 `.ic`/`uic` on diffsol or nonlinear companion circuits, physics outside the M4
-allowlists, general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
+allowlists, general DAEs and remaining usability work remain unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
@@ -72,10 +75,10 @@ What already works for real:
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
-| ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` layout; known decimal round-trip limitation documented in verification |
+| Rawfile read *and* write: ASCII and binary | `spice-analysis` | `src/frontend/rawfile.c` layout; binary real/complex read/write with explicit byte order, validated payload lengths and rejected variants documented in [RAWFILES.md](docs/port/RAWFILES.md) |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
-| Rust-engine numerical verify | `xtask` | sixteen supported linear fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients); four explicit exclusions, no C invocation |
+| Rust-engine numerical verify | `xtask` | 26 verified fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients, nonlinear and flattened-subcircuit decks); no exclusions, no C invocation |
 
 ## Quick start
 
@@ -103,8 +106,11 @@ The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
 `mos_inverter`, `rc_transient` and `subckt_divider` (all original eight fixtures; the later M3 gate decks parse and simulate as well).
-This is parsing, not subcircuit flattening or simulation (the M1 round-trip gate is `crates/spice-netlist/tests/m1_gate.rs`, #22). **The CLI does not simulate yet; production simulation
-is available through APIs and `cargo run -p spice-analysis --example rc_diffsol`.**
+Parsing succeeds for all eight (the M1 round-trip gate is
+`crates/spice-netlist/tests/m1_gate.rs`, #22). **`spice-rs simulate --output
+<path> <deck>` runs the deck's single analysis through the production runner and
+writes an ASCII rawfile** ([CLI.md](docs/port/CLI.md)); the same APIs remain
+available directly, e.g. `cargo run -p spice-analysis --example rc_diffsol`.
 
 ```sh
 cargo run -p spice-cli -- conformance/netlists/rc_divider.cir    # deck summary

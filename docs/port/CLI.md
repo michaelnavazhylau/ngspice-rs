@@ -68,7 +68,9 @@ The file is ngspice's ASCII form (`set filetype=ascii`), written by
 * a `.dc` plot's scale column is named `sweep` (C spells it `v(v-sweep)` or
   `i(i-sweep)`; `cargo xtask golden verify` maps the name when it compares
   against the committed C goldens);
-* binary rawfiles are not supported and are neither written nor read.
+* `simulate` always writes ASCII; it has no binary output. The rawfile library
+  itself reads *and* writes binary real/complex files since #45
+  ([RAWFILES.md](RAWFILES.md)); exposing a `simulate` format flag is future work.
 
 ### Output-path and overwrite contract
 
