@@ -8,9 +8,9 @@
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass. Current parser values are
-//!   finite scalar literals or positioned waveform/IC/flag setters;
-//!   formal/X parameter expressions are retained unevaluated as single tokens;
-//!   other expression syntax and evaluation remain pending.
+//!   finite scalar literals, positioned waveform/IC/flag setters, and parsed
+//!   but unevaluated `{...}` expressions ([`crate::expr`]); quoted values,
+//!   waveform/IC-vector expressions and evaluation remain pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -56,9 +56,16 @@ pub struct ParameterAssignment {
 pub enum ParameterKind {
     /// One finite numeric literal, retained in [`ParameterAssignment::value`].
     Scalar,
-    /// Unevaluated single-token formal/X parameter text (identifier, braced
-    /// expression or quoted value). Expression semantics are separate M1 work.
+    /// Unevaluated single-token formal/X parameter text that is neither a
+    /// finite literal nor a parsed expression (for instance a quoted value or
+    /// an extended numeric spelling such as `4k7`).
     Textual,
+    /// A `{...}` expression, or a bare parameter name at an `X`/`.subckt`
+    /// parameter site, parsed but **not evaluated**. [`ParameterAssignment::value`]
+    /// keeps the original token spelling (braces included); the box holds the
+    /// syntax tree and spans. Scalar consumers must treat this like any other
+    /// non-scalar kind until an evaluation pass resolves it.
+    Expression(Box<crate::expr::ParameterExpression>),
     /// A bare IF_FLAG keyword: C's INPgetValue supplies integer 1 without
     /// consuming a value. Explicit `flag=0`/`flag=1` forms are not accepted.
     Flag,
@@ -180,6 +187,8 @@ pub struct Subcircuit {
     pub analyses: Vec<AnalysisCard>,
     /// Source directives retained in this body.
     pub includes: Vec<IncludeDirective>,
+    /// `.param` cards written in this body, unevaluated.
+    pub params: Vec<ParamCard>,
     /// Ordered body cards, including the closing `.ends`.
     pub cards: Vec<ScopedCard>,
     /// Where the closing `.ends` was written.
@@ -216,26 +225,51 @@ pub struct LibrarySection {
     pub closing: crate::card::RawCard,
 }
 
-/// A `.param` card.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A `.param` card: one or more `name = expression` assignments in source
+/// order (C's `inp_split_multi_param_lines()` splits them the same way).
+/// Duplicates are kept; later assignments override earlier ones only during
+/// evaluation (GitHub #15). Nothing here is evaluated or checked for
+/// undefined references.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParamCard {
-    /// Parameter name.
-    pub name: String,
-    /// The expression that defines it.
-    pub expression: String,
+    /// Ordered assignments; never empty for a parsed card.
+    pub assignments: Vec<ParamAssignment>,
     /// Where the card was written.
     pub location: SourceLoc,
 }
 
+/// One `name = expression` pair from a `.param` card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParamAssignment {
+    /// Parameter name, lowercased (numparam names are case-insensitive).
+    pub name: String,
+    /// Byte span of the name as written.
+    pub name_span: crate::expr::SourceSpan,
+    /// The unevaluated right-hand side with its original text and spans.
+    pub expression: crate::expr::ParameterExpression,
+}
+
 /// An analysis request: which analysis, and its unparsed arguments.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AnalysisCard {
     /// Which analysis.
     pub kind: AnalysisKind,
     /// The card's arguments, as written.
     pub arguments: Vec<String>,
+    /// Parsed `{...}` arguments (unevaluated), by position in `arguments`.
+    /// Other arguments stay opaque text.
+    pub expressions: Vec<ArgumentExpression>,
     /// Where the card was written.
     pub location: SourceLoc,
+}
+
+/// A parsed `{...}` analysis argument.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArgumentExpression {
+    /// Index into [`AnalysisCard::arguments`] whose text is the braced form.
+    pub index: usize,
+    /// The unevaluated expression.
+    pub expression: crate::expr::ParameterExpression,
 }
 
 /// A `.option`/`.options`/`.opt` card: ordered settings, duplicates preserved.
@@ -316,6 +350,9 @@ pub enum ScopedCardKind {
     Options(usize),
     /// Index into [`Netlist::globals`] (root scope only).
     Global(usize),
+    /// Index into this scope's `.param` cards (`Netlist::params` at the root,
+    /// `Subcircuit::params` in a body).
+    Param(usize),
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.
@@ -323,8 +360,9 @@ pub enum ScopedCardKind {
 }
 
 /// A semantic deck container. Scoped syntax and file resolution do not imply
-/// flattening, parameter evaluation or simulation. `.option` cards are applied
-/// by `spice_analysis::RunConfig`, not by the AST; parameter fields remain pending. See
+/// flattening, parameter evaluation or simulation. `.param` cards are parsed
+/// but unevaluated; `.option` cards are applied by `spice_analysis::RunConfig`,
+/// not by the AST. See
 /// `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Netlist {
@@ -342,7 +380,7 @@ pub struct Netlist {
     pub analyses: Vec<AnalysisCard>,
     /// `.include` and `.lib` directives.
     pub includes: Vec<IncludeDirective>,
-    /// `.param` values.
+    /// Top-level `.param` cards in deck order, unevaluated.
     pub params: Vec<ParamCard>,
     /// `.option` cards in deck order (root scope only; inside `.subckt` bodies
     /// they are rejected as not yet ported).

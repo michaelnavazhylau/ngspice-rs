@@ -34,12 +34,14 @@ shadowing in child scopes is allowed. Missing, unmatched and mismatched `.ends`
 are errors, as is `.end` inside an open definition. Nesting is capped at 64.
 
 Formal and X assignments are ordered, including duplicates. Values are a
-single finite numeric token (`ParameterKind::Scalar`) or unevaluated identifier,
-braced expression or quoted token (`ParameterKind::Textual`). Original spelling
-is retained; no expression validation, defaults or parameter evaluation occurs.
-Use braces/quotes for multi-token text. Missing values, overflow and trailing
-input fail; `params:` requires an assignment. Other device/model scalar grammars
-still reject expressions. Scalar consumers reject the new textual kind.
+single finite numeric token (`ParameterKind::Scalar`), a braced expression or
+bare non-function name parsed into `ParameterKind::Expression` (#14; syntax
+checked, not evaluated, see [PARAM_EXPRESSIONS.md](PARAM_EXPRESSIONS.md)), or
+another single token such as a quoted value (`ParameterKind::Textual`). Original
+spelling is retained; no defaults or parameter evaluation occurs.
+Use braces/quotes for multi-token text. Missing values, overflow, malformed
+braces and trailing input fail; `params:` requires an assignment. Scalar
+consumers reject the expression and textual kinds.
 
 Forward model-name disambiguation is local to each body, with ancestor names
 visible and child/sibling names excluded. It is still only a name index, not
@@ -138,6 +140,6 @@ variable) and invalid values are errors; every other `cktsopt.c` option is
 `NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
 `spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
 
-Next: **#14, #15** expressions and parameter evaluation; then
+Next: **#15** parameter evaluation over the #14 expression AST; then
 **#20–22** normalized serialization, deterministic snapshots and the complete
 M1 eight-fixture round-trip gate. None of those gates is closed by 8/8 parsing.

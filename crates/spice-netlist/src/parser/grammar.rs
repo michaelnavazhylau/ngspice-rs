@@ -14,12 +14,13 @@ use winnow::stream::{Stateful, Stream, TokenSlice};
 use winnow::token::{any, rest};
 
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, OptionCard, Subcircuit,
+    AnalysisCard, ArgumentExpression, DeviceInstance, GlobalCard, IncludeDirective, ModelCard,
+    OptionCard, ParamCard, Subcircuit,
 };
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::{diode, linear, model, options, structure, transistor};
+use super::{diode, expression, linear, model, options, param, structure, transistor};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
@@ -30,6 +31,7 @@ pub(super) enum ParsedCard {
     Subckt(Subcircuit),
     Ends(Option<String>),
     Include(IncludeDirective),
+    Param(ParamCard),
     LibStart(String),
     LibEnd(Option<String>),
     End,
@@ -98,7 +100,7 @@ pub(super) fn parse_card(
     alt((
         end_card,
         alt((analysis_card, options::options_or_global)),
-        model::model_card,
+        alt((model::model_card, param::param_card)),
         structure::structural_card,
         linear::device_card,
         diode::diode_card,
@@ -127,9 +129,20 @@ fn analysis_card(input: &mut Input<'_>) -> Result<ParsedCard> {
         rest,
     )
         .parse_next(input)?;
+    // Braced arguments are validated and parsed (never evaluated here); the
+    // remaining arguments stay opaque text for the analysis drivers.
+    let mut expressions = Vec::new();
+    for (index, token) in arguments.iter().enumerate() {
+        if matches!(token.kind, crate::token::TokenKind::Expression(_)) {
+            let expression = expression::from_brace_token(token)
+                .map_err(|error| ErrMode::Cut(Failure(error)))?;
+            expressions.push(ArgumentExpression { index, expression });
+        }
+    }
     Ok(ParsedCard::Analysis(AnalysisCard {
         kind,
         arguments: arguments.iter().map(|token| token.text.clone()).collect(),
+        expressions,
         location: input.state.card.location.clone(),
     }))
 }

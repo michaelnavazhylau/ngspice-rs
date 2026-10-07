@@ -157,6 +157,14 @@ It was run successfully against the local ngspice-47+ binary for M1a.
 `.raw` files there or confuse these instance-query checks with engine parity.
 Token/AST snapshots and normalized-deck round trips are still M1d work.
 
+`crates/spice-netlist/tests/c_param_reference.rs` is a further ignored oracle for
+the `.param`/expression grammar (#14): it folds parsed trees with a test-local
+evaluator and compares the values with C's numparam, pinning precedence,
+associativity and the leading-sign rules. Run it with
+`NGSPICE_BIN=/abs/path/ngspice cargo test -p spice-netlist --test c_param_reference -- --ignored`.
+The fixture `conformance/parser/param_expressions.cir` is parsed by ordinary
+tests and the CLI without claiming any value is resolved.
+
 ## Winnow backend regressions
 
 The existing M1a contracts are retained; fixture/CLI expectations now also

@@ -3,14 +3,16 @@
 
 use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
-use winnow::error::ParserError;
+use winnow::error::{ErrMode, ParserError};
 use winnow::token::any;
 
-use super::grammar::{Input, ParsedCard, Result, keyword};
+use super::expression::{is_ident_continue, is_ident_start};
+use super::grammar::{Failure, Input, ParsedCard, Result, keyword};
 use super::syntax::{canonical_node, equals, malformed, name};
 use crate::ast::{
     DeviceInstance, IncludeDirective, ParameterAssignment, ParameterKind, Subcircuit,
 };
+use crate::expr::{EXCLUDED_FUNCTIONS, Function};
 use crate::token::{Token, TokenKind};
 
 pub(super) fn structural_card(input: &mut Input<'_>) -> Result<ParsedCard> {
@@ -50,6 +52,7 @@ fn subckt(input: &mut Input<'_>) -> Result<ParsedCard> {
             subcircuits: Vec::new(),
             analyses: Vec::new(),
             includes: Vec::new(),
+            params: Vec::new(),
             cards: Vec::new(),
             end_location: location.clone(),
             location,
@@ -103,16 +106,37 @@ fn parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     peek((opt(comma), name("parameter name"), equals)).parse_next(input)?;
     let (_, key, _, value) =
         cut_err((opt(comma), name("parameter name"), equals, value)).parse_next(input)?;
+    // Braced values and bare identifiers are parsed (never evaluated); other
+    // single tokens (quotes, extended numeric spellings) stay textual.
+    let kind = match &value.kind {
+        TokenKind::Number(_) => ParameterKind::Scalar,
+        TokenKind::Expression(_) => ParameterKind::Expression(Box::new(
+            super::expression::from_brace_token(value)
+                .map_err(|error| ErrMode::Cut(Failure(error)))?,
+        )),
+        TokenKind::Word if is_identifier(&value.text) => ParameterKind::Expression(Box::new(
+            super::expression::from_name_token(value)
+                .map_err(|error| ErrMode::Cut(Failure(error)))?,
+        )),
+        _ => ParameterKind::Textual,
+    };
     Ok(ParameterAssignment {
         name: key.text.to_ascii_lowercase(),
         value: value.text.clone(),
-        kind: if value.number().is_some() {
-            ParameterKind::Scalar
-        } else {
-            ParameterKind::Textual
-        },
+        kind,
         location: key.location.clone(),
     })
+}
+
+/// A bare parameter reference. Names of numparam functions stay textual (a
+/// value such as `min`), since they cannot be references.
+fn is_identifier(text: &str) -> bool {
+    let mut characters = text.chars();
+    let lowered = text.to_ascii_lowercase();
+    characters.next().is_some_and(is_ident_start)
+        && characters.all(is_ident_continue)
+        && Function::from_name(&lowered).is_none()
+        && !EXCLUDED_FUNCTIONS.contains(&lowered.as_str())
 }
 
 fn comma<'a>(input: &mut Input<'a>) -> Result<&'a Token> {

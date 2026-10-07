@@ -7,6 +7,7 @@
 //! | [`source`] | physical lines → logical cards: title, `+` continuations, comments | **ported** |
 //! | [`token`] | logical card → token stream | **ported** |
 //! | [`card`] | first token → [`card::CardKind`] classification | **ported** |
+//! | [`expr`] | unevaluated parameter-expression syntax tree (bounded numparam subset) | **#14** |
 //! | [`ast`] | the semantic netlist model | bounded devices/models, ordered subcircuit scopes and source provenance |
 //! | [`parser`] | winnow token stream → [`ast::Netlist`] | **M1a/M1b + scoped subcircuits/X and bounded source resolution; no flattening** |
 //!
@@ -20,11 +21,13 @@
 
 pub mod ast;
 pub mod card;
+pub mod expr;
 pub mod parser;
 pub mod source;
 pub mod token;
 
 pub use card::{CardKind, DEVICE_DESIGNATORS, DotCommand, RawCard};
+pub use expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
 pub use parser::{Parser, SourceLimits, classify_deck, load_classified};
 pub use source::{Deck, LogicalLine, PhysicalLine, load};
 pub use token::{Token, TokenKind, tokenize};

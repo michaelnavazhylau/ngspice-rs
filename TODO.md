@@ -20,7 +20,7 @@ checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
-| Parser | Scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses, not round trips or simulation |
+| Parser | Unevaluated `.param`/`{expr}` syntax (#14), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses, not round trips or simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
@@ -99,7 +99,8 @@ tests and documented limits as the remaining functionality is added.
 
 ### M1d: parameter semantics and full front-end gate
 
-- [ ] Implement a bounded expression grammar (#14) and `.param` evaluator (#15) from numparam behaviour.
+- [x] Parse `.param` cards and a bounded numparam expression grammar (#14): winnow precedence, C-pinned `^`/sign rules, function allowlist, braced values at device/model/analysis/X sites, positioned unevaluated AST. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md); no evaluation.
+- [ ] Implement the `.param` evaluator (#15) over that AST from numparam behaviour.
 - [ ] Define evaluation order, scope, units and undefined/cyclic-reference diagnostics.
 - [x] Parse `.option` and `.global` (#16): ordered positioned settings, `spice_analysis::RunConfig` for temp/tnom/reltol/vntol/abstol (method/maxord retained, rejected for `.tran`; all other options error). Top-level `.global` contract for a future flattener; body-local `.option`/`.global` and flattening remain pending. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 - [ ] Add normalized-deck serialization preserving source parameter application order (#20).

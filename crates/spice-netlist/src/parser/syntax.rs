@@ -2,11 +2,14 @@
 
 use spice_core::SpiceError;
 use winnow::Parser as _;
-use winnow::combinator::{cut_err, peek};
+use winnow::combinator::{cut_err, opt, peek};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
+use spice_core::SourceLoc;
+
 use crate::ast::{ParameterAssignment, ParameterKind};
+use crate::expr::ParameterExpression;
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Failure, Input, Result, gap};
@@ -35,13 +38,48 @@ pub(super) fn equals<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
         .parse_next(input)
 }
 
-/// Only a numeric prefix claims an optional positional slot. Once claimed,
-/// numeric overflow is a committed syntax error, not a missing optional value.
-pub(super) fn leading_literal<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
-    peek(any.verify(|token: &Token| token.number().is_some())).parse_next(input)?;
-    cut_err(literal).parse_next(input)
+/// A scalar value site: a finite literal or a parsed (unevaluated) `{...}`.
+pub(super) enum Value<'a> {
+    Literal(&'a Token),
+    Expression(&'a Token, Box<ParameterExpression>),
 }
 
+impl Value<'_> {
+    pub(super) fn token(&self) -> &Token {
+        match self {
+            Self::Literal(token) | Self::Expression(token, _) => token,
+        }
+    }
+}
+
+/// Only a numeric prefix or a brace expression claims an optional positional
+/// slot. Once claimed, overflow or a malformed expression is a committed
+/// syntax error, not a missing optional value. Bare names are never claimed:
+/// they may be model names (C does not substitute unbraced names in device
+/// cards).
+pub(super) fn leading_value<'a>(input: &mut Input<'a>) -> Result<Value<'a>> {
+    peek(any.verify(|token: &Token| {
+        token.number().is_some() || matches!(token.kind, TokenKind::Expression(_))
+    }))
+    .parse_next(input)?;
+    cut_err(value).parse_next(input)
+}
+
+/// A finite numeric literal or a brace expression.
+pub(super) fn value<'a>(input: &mut Input<'a>) -> Result<Value<'a>> {
+    if let Some(token) =
+        opt(any.verify(|token: &Token| matches!(token.kind, TokenKind::Expression(_))))
+            .parse_next(input)?
+    {
+        let expression = super::expression::from_brace_token(token)
+            .map_err(|error| ErrMode::Cut(Failure(error)))?;
+        return Ok(Value::Expression(token, Box::new(expression)));
+    }
+    literal.map(Value::Literal).parse_next(input)
+}
+
+/// A strictly numeric literal. Expressions are a gap at sites that have not
+/// adopted [`value`] (waveform and IC-vector components).
 pub(super) fn literal<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
     if input.input.first().is_some_and(|token| {
         matches!(
@@ -59,12 +97,23 @@ pub(super) fn literal<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
         .parse_next(input)
 }
 
-pub(super) fn assignment(name: &str, value: &Token) -> ParameterAssignment {
+/// Positional/leading assignment located at its value token.
+pub(super) fn assignment(name: &str, value: Value<'_>) -> ParameterAssignment {
+    let location = value.token().location.clone();
+    named(name, location, value)
+}
+
+/// Named assignment located at its setter keyword.
+pub(super) fn named(name: &str, location: SourceLoc, value: Value<'_>) -> ParameterAssignment {
+    let text = value.token().text.clone();
     ParameterAssignment {
         name: name.to_owned(),
-        value: value.text.clone(),
-        kind: ParameterKind::Scalar,
-        location: value.location.clone(),
+        value: text,
+        kind: match value {
+            Value::Literal(_) => ParameterKind::Scalar,
+            Value::Expression(_, expression) => ParameterKind::Expression(expression),
+        },
+        location,
     }
 }
 

@@ -3,7 +3,7 @@
 use super::grammar::{self, ParsedCard};
 use crate::ast::{
     AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, OptionCard,
-    ScopedCard, ScopedCardKind, Subcircuit,
+    ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
 };
 use crate::card::{DotCommand, RawCard};
 use crate::source::Deck;
@@ -38,6 +38,7 @@ struct Scope {
     includes: Vec<IncludeDirective>,
     options: Vec<OptionCard>,
     globals: Vec<GlobalCard>,
+    params: Vec<ParamCard>,
     cards: Vec<ScopedCard>,
 }
 
@@ -58,7 +59,7 @@ pub(super) fn assemble(
         analyses: scope.analyses,
         includes: scope.includes,
         cards: scope.cards,
-        params: Vec::new(),
+        params: scope.params,
         options: scope.options,
         globals: scope.globals,
     })
@@ -136,6 +137,10 @@ fn scope(
                 result.globals.push(g);
                 ScopedCardKind::Global(result.globals.len() - 1)
             }
+            ParsedCard::Param(p) => {
+                result.params.push(p);
+                ScopedCardKind::Param(result.params.len() - 1)
+            }
             ParsedCard::Include(mut i) => {
                 i.resolved_path = entry.resolved_path.clone();
                 i.selected_section = entry.selected_section.clone();
@@ -175,6 +180,7 @@ fn scope(
                 s.subcircuits = body.subcircuits;
                 s.analyses = body.analyses;
                 s.includes = body.includes;
+                s.params = body.params;
                 s.cards = body.cards;
                 result.subcircuits.push(s);
                 ScopedCardKind::Subcircuit(result.subcircuits.len() - 1)

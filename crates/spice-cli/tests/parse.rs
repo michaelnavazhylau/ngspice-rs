@@ -44,6 +44,28 @@ fn supported_fixtures_parse_successfully() {
 }
 
 #[test]
+fn param_fixture_parses_but_is_not_evaluated() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../conformance/parser/param_expressions.cir");
+    let output = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+        .arg("parse")
+        .arg(path)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        text.contains("6 device instance(s), 2 model(s), 1 subcircuit(s)"),
+        "{text}"
+    );
+}
+
+#[test]
 fn subcircuit_parse_success_is_not_flattening() {
     let output = run("subckt_divider");
     assert_eq!(output.status.code(), Some(0));
@@ -85,7 +107,9 @@ fn remaining_syntax_gaps_and_source_failures_keep_distinct_exits() {
     std::fs::create_dir(&dir).unwrap();
     let path = dir.join("deck.cir");
     for (text, status) in [
-        ("title\n.param x=1\n.include missing.inc\n", 3),
+        ("title\n.save v(a)\n.include missing.inc\n", 3),
+        // `.param` now parses, so the missing source is the first failure.
+        ("title\n.param x=1\n.include missing.inc\n", 2),
         ("title\n.include missing.inc\n", 2),
     ] {
         std::fs::write(&path, text).unwrap();

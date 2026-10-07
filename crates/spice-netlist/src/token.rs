@@ -27,7 +27,9 @@ pub enum TokenKind {
     /// A numeric literal. [`Token::text`] keeps the original spelling, which may
     /// carry a scale suffix (`1k`) and a trailing unit name (`5V`).
     Number(Real),
-    /// A `{ ... }` numparam expression, kept verbatim and unparsed.
+    /// A `{ ... }` numparam expression, kept verbatim. The tokenizer only
+    /// matches braces; grammar-level consumers parse the text (see
+    /// [`crate::expr`]).
     Expression(String),
     /// A quoted string, with its quotes removed and escapes resolved.
     Quoted(String),
@@ -125,8 +127,8 @@ fn char_at(text: &str, index: usize) -> char {
 ///
 /// # Errors
 ///
-/// Returns [`SpiceError::Parse`] for an unterminated `{` expression or an
-/// unterminated quoted string.
+/// Returns [`SpiceError::Parse`] for an unterminated `{` expression, an
+/// unmatched `}` or an unterminated quoted string.
 pub fn tokenize(line: &LogicalLine) -> SpiceResult<Vec<Token>> {
     let text = line.text.as_str();
     let bytes = text.as_bytes();
@@ -175,6 +177,12 @@ pub fn tokenize(line: &LogicalLine) -> SpiceResult<Vec<Token>> {
                     location,
                 ));
                 index = end + 1;
+            }
+            b'}' => {
+                return Err(SpiceError::parse(
+                    location,
+                    "unmatched '}' without an opening '{' on this card",
+                ));
             }
             quote @ (b'"' | b'\'') => {
                 let quote = quote as char;
@@ -375,6 +383,9 @@ mod tests {
     fn unterminated_constructs_are_errors() {
         assert!(tokenize(&card("{r2*2")).is_err());
         assert!(tokenize(&card("\"oops")).is_err());
+        let stray = tokenize(&card("r1 a 0 }")).unwrap_err().to_string();
+        assert!(stray.contains(":2:8"), "{stray}");
+        assert!(stray.contains("unmatched '}'"), "{stray}");
     }
 
     fn card(text: &str) -> crate::source::LogicalLine {

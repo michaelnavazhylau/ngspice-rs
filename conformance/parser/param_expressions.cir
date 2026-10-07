@@ -1,0 +1,18 @@
+Bounded .param assignments and expression-valued parameters
+.param vdd=5 rload=2k, scale=1meg
+.param half={vdd/2} tau={rload*1u} ratio=(vdd+1)*2^2
+.param vdd=3.3 decay=-2^2
+v1 in 0 dc {vdd} ac {half}
+r1 in out {rload}
+c1 out 0 {tau}
+rm out 0 rmod {rload*2}
+d1 out 0 dm area={ratio}
+.model rmod r rsh=100
+.model dm d is=1e-14
+.subckt cell a b params: w={scale/1k}
+.param local={w*2}
+r1 a b {local}
+.ends cell
+x1 out 0 cell w={half}
+.tran {tau/10} {tau*5}
+.end

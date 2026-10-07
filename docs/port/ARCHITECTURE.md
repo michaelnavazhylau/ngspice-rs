@@ -208,8 +208,8 @@ comment at the divergence site.
 
 The syntax subset requires an explicit scalar on model-less R/C/L instances.
 Declared-model passives may omit it and retain bounded scalar geometry setters.
-Numeric-looking passive model references after a scalar, expressions and extended
-flags remain explicit gaps; numeric initial values remain scalars, even when a
+Numeric-looking passive model references after a scalar, quoted expressions and extended
+flags remain explicit gaps (braced expressions parse unevaluated, see PARAM_EXPRESSIONS.md); numeric initial values remain scalars, even when a
 model has the same name. This is not a claim about legality of wider C forms.
 
 ## Model resolution and schema boundary

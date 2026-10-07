@@ -26,12 +26,14 @@ use crate::source::{Deck, load};
 pub use resolution::SourceLimits;
 
 mod diode;
+mod expression;
 mod flags;
 mod grammar;
 mod ic;
 mod linear;
 mod model;
 mod options;
+mod param;
 mod resolution;
 mod scopes;
 mod structure;
@@ -97,6 +99,24 @@ impl Parser {
     /// No partially parsed netlist is returned on failure.
     pub fn parse_deck(&self, deck: &Deck) -> SpiceResult<Netlist> {
         scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)
+    }
+
+    /// Parses one unevaluated parameter expression, for instance the text of a
+    /// `{...}` value. `location` is the position of the first byte of `text`
+    /// (its column anchors every span and diagnostic). Whitespace is allowed
+    /// between tokens, as inside braces. See [`crate::expr`] for the grammar.
+    ///
+    /// # Errors
+    ///
+    /// [`spice_core::SpiceError::Parse`] for malformed syntax and
+    /// [`spice_core::SpiceError::NotYetPorted`] for valid numparam outside the
+    /// bounded subset (other operators, functions or quoting).
+    pub fn parse_expression(
+        &self,
+        text: &str,
+        location: &spice_core::SourceLoc,
+    ) -> SpiceResult<crate::expr::ParameterExpression> {
+        expression::parse_expression(text, location, location.column, false)
     }
 
     /// Loads `path`, resolves source-relative `.include`/`.lib` directives and
