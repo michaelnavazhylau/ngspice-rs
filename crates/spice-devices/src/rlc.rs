@@ -81,7 +81,7 @@ impl Device for Resistor {
         &self.terminals
     }
 
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("use complex equation assembly for AC"));
         }
@@ -168,7 +168,7 @@ impl Device for Capacitor {
         0
     }
 
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_dc() {
             return Ok(());
         }
@@ -256,16 +256,14 @@ impl Device for Inductor {
         1
     }
 
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if !context.mode.is_dc() {
             return Err(SpiceError::not_yet_ported(
                 "inductor companion model",
                 "src/spicelib/devices/ind/indload.c",
             ));
         }
-        let row = context
-            .branch
-            .ok_or_else(|| SpiceError::circuit("missing inductor branch row"))?;
+        let row = context.branch(0)?;
         crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, row)
     }
     fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
@@ -331,13 +329,13 @@ mod tests {
 
     #[test]
     fn companion_stamping_remains_explicitly_unimplemented() {
-        let mut capacitor = Capacitor::new("c1", nodes(), 1e-6, None).unwrap();
-        assert!(stamp_error(&mut capacitor).contains("cap/capload.c"));
-        let mut inductor = Inductor::new("l1", nodes(), 1e-3, None).unwrap();
-        assert!(stamp_error(&mut inductor).contains("ind/indload.c"));
+        let capacitor = Capacitor::new("c1", nodes(), 1e-6, None).unwrap();
+        assert!(stamp_error(&capacitor).contains("cap/capload.c"));
+        let inductor = Inductor::new("l1", nodes(), 1e-3, None).unwrap();
+        assert!(stamp_error(&inductor).contains("ind/indload.c"));
     }
 
-    fn stamp_error(device: &mut dyn Device) -> String {
+    fn stamp_error(device: &dyn Device) -> String {
         use spice_core::NodeTable;
         use spice_maths::{SparseMatrix, Vector};
         let nodes = NodeTable::new();
@@ -354,7 +352,9 @@ mod tests {
             temperature: 27.0,
             nominal_temperature: 27.0,
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
-            branch: None,
+            branches: 0..0,
+            integration: None,
+            states: crate::state::DeviceState::none(),
         };
         device.stamp(&mut context).unwrap_err().to_string()
     }

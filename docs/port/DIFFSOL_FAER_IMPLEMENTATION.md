@@ -131,7 +131,9 @@ at those restarts with tight branch-current tolerances.
 
 `Device::accept` is called at the accepted initial state, accepted adaptive steps,
 and changed algebraic event states, never during Newton trials/rejected steps or
-for interpolated plot samples. Acceptance errors propagate.
+for interpolated plot samples. Acceptance errors propagate. This backend tracks
+no companion state: it calls `Circuit::accept_solution`, whose hooks see the
+accepted time and `states: None`.
 
 Requested plot samples and adaptive steps are distinct. The requested maximum
 step is enforced by stop times and no-progress/final-time checks. Default options:

@@ -124,7 +124,8 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives.
 - [ ] Connect parsed source waveforms to time evaluation and breakpoint handling, including `PULSE`.
 - [ ] Demonstrate formulations/tests for floating/coupled capacitor networks and higher-index source constraints before enabling general DAEs.
-- [ ] Retain accepted-state/trial-state separation, event left/right limits, voltage/current tolerances, output-grid separation and progress/work budgets.
+- [x] Define explicit trial-versus-accepted device state: `&self` trial loads into a disposable `TrialState`, rotating `StateHistory`, per-device branch/state ranges and integration context, atomic accept hooks before commit (#24).
+- [ ] Retain accepted-state/trial-state separation in every transient/Newton driver, event left/right limits, voltage/current tolerances, output-grid separation and progress/work budgets.
 - [ ] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps.
 
 ## 5. Nonlinear devices and convergence — M4

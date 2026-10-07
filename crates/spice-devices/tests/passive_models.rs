@@ -352,7 +352,9 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         temperature: 77.0,
         nominal_temperature: 27.0,
         mode: AnalysisMode::OperatingPoint,
-        branch: None,
+        branches: 0..0,
+        integration: None,
+        states: spice_devices::DeviceState::none(),
     };
     circuit.devices_mut()[0].stamp(&mut context).unwrap();
     close(matrix.get(0, 0), 1.0 / 1500.0);

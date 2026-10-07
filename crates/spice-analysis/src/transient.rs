@@ -1,5 +1,5 @@
 //! Explicitly selected diffsol BDF transient; companion-model trap/Gear stay separate.
-use crate::linear::{accept, number, plot, unsupported};
+use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisRequest, Plot};
 use spice_core::{Complex, SpiceResult};
 use spice_devices::Circuit;
@@ -115,7 +115,7 @@ pub(crate) fn run(
         Some(("time", "time")),
         false,
     )?;
-    accept(circuit, &x)?;
+    circuit.accept_solution(&x, Some(0.))?;
     if grid.first() == Some(&0.) {
         push(&mut plot, 0., &x)?;
     }
@@ -135,7 +135,9 @@ pub(crate) fn run(
                 .filter(|t| *t > segment_start && *t < segment_end)
                 .collect(),
         };
-        let result = dae.integrate_segment(&segment, &options, &mut |_t, x| accept(circuit, x))?;
+        let result = dae.integrate_segment(&segment, &options, &mut |t, x| {
+            circuit.accept_solution(x, Some(t))
+        })?;
         options.max_steps -= result.steps;
         for (t, sample) in result.samples {
             push(&mut plot, t, &sample)?;
@@ -147,7 +149,7 @@ pub(crate) fn run(
             &system.transient_rhs(segment_end, false),
         )?;
         if x != result.final_state {
-            accept(circuit, &x)?;
+            circuit.accept_solution(&x, Some(segment_end))?;
         }
         if grid.contains(&segment_end) {
             push(&mut plot, segment_end, &x)?;

@@ -304,3 +304,77 @@ fn elaboration_rejects_unimplemented_parameters() {
     );
     assert!(nodes.is_empty());
 }
+
+/// Records accepted times; delegates equations to a resistor.
+#[derive(Debug)]
+struct AcceptProbe {
+    inner: spice_devices::Resistor,
+    times: std::rc::Rc<std::cell::RefCell<Vec<Option<f64>>>>,
+}
+impl spice_devices::Device for AcceptProbe {
+    fn name(&self) -> &str {
+        spice_devices::Device::name(&self.inner)
+    }
+    fn designator(&self) -> char {
+        'r'
+    }
+    fn terminals(&self) -> &[spice_core::NodeId] {
+        spice_devices::Device::terminals(&self.inner)
+    }
+    fn stamp(&self, context: &mut spice_devices::StampContext<'_>) -> spice_core::SpiceResult<()> {
+        self.inner.stamp(context)
+    }
+    fn assemble_linear(
+        &self,
+        context: &mut spice_devices::LinearContext<'_>,
+    ) -> spice_core::SpiceResult<()> {
+        self.inner.assemble_linear(context)
+    }
+    fn accept(&self, context: &spice_devices::AcceptContext<'_>) -> spice_core::SpiceResult<()> {
+        assert!(context.states.is_none(), "BDF tracks no companion state");
+        self.times.borrow_mut().push(context.time);
+        Ok(())
+    }
+}
+
+#[test]
+fn bdf_accepts_initial_steps_and_event_states_but_not_samples() {
+    let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
+    waveform(
+        &mut c,
+        spice_devices::Waveform::Step {
+            before: 0.,
+            after: 1.,
+            time: 0.001,
+        },
+    );
+    let times = std::rc::Rc::default();
+    let t = c.devices()[1].terminals();
+    c.devices_mut()[1] = Box::new(AcceptProbe {
+        inner: spice_devices::Resistor::new("r1", [t[0], t[1]], 1e3).unwrap(),
+        times: std::rc::Rc::clone(&times),
+    });
+    let p = transient(&mut c).unwrap();
+    let times: Vec<f64> = times.borrow().iter().map(|t| t.unwrap()).collect();
+    assert_eq!(times[0], 0.);
+    assert!(times.windows(2).all(|w| w[1] >= w[0]));
+    assert_eq!(*times.last().unwrap(), 0.006);
+    // The jump is accepted twice at the same time: the integrated left state
+    // and the projected right-limit event state.
+    let at_jump = times.iter().filter(|t| (**t - 0.001).abs() < 1e-12).count();
+    assert_eq!(at_jump, 2, "{times:?}");
+    // Requested samples are interpolated, not accepted: 61 samples vs. the
+    // adaptive accepted points (maxstep 50 us bounds them from below).
+    assert_eq!(p.point_count(), 61);
+    assert!(times.len() >= 121, "{}", times.len());
+    // DC analyses accept without a time.
+    let mut c = circuit("v1 in 0 1\nr1 in 0 1k");
+    let times = std::rc::Rc::default();
+    let t = c.devices()[1].terminals();
+    c.devices_mut()[1] = Box::new(AcceptProbe {
+        inner: spice_devices::Resistor::new("r1", [t[0], t[1]], 1e3).unwrap(),
+        times: std::rc::Rc::clone(&times),
+    });
+    run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
+    assert_eq!(*times.borrow(), vec![None]);
+}

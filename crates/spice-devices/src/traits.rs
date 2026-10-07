@@ -14,11 +14,23 @@
 //! [`NodeId`]s to matrix rows and silently drops contributions that involve
 //! ground — the row/column for ground is eliminated from the system, which is
 //! what `CKTground` accomplishes in the C code.
+//!
+//! # Trial and accepted state
+//!
+//! [`Device::stamp`] takes `&self`: a load is a *trial* that may read the
+//! accepted history and write only its [`crate::state::DeviceState`] trial
+//! slots. Nothing a trial does survives unless the analysis accepts the point
+//! through [`crate::Circuit::accept_point`], which first runs every
+//! [`Device::accept`] hook and only then commits the trial state. See
+//! [`crate::state`].
 
 use std::fmt;
+use std::ops::Range;
 
-use spice_core::{Node, NodeId, NodeTable, Real, SpiceResult};
-use spice_maths::{SparseMatrix, Vector};
+use spice_core::{Node, NodeId, NodeTable, Real, SpiceError, SpiceResult};
+use spice_maths::{Coefficients, SparseMatrix, Vector};
+
+use crate::state::DeviceState;
 
 /// Which analysis is currently loading the matrix.
 ///
@@ -183,11 +195,40 @@ pub struct StampContext<'a> {
     pub nominal_temperature: Real,
     /// Which analysis is loading the matrix.
     pub mode: AnalysisMode,
-    /// First branch row allocated to this device, if any.
-    pub branch: Option<usize>,
+    /// Branch-current rows allocated to this device, in order (empty if none).
+    pub branches: Range<usize>,
+    /// Companion integration coefficients for this trial step; `None` outside
+    /// companion transient loads.
+    pub integration: Option<&'a Coefficients>,
+    /// This device's trial and accepted state slots.
+    pub states: DeviceState<'a>,
 }
 
 impl StampContext<'_> {
+    /// The `index`-th branch row of this device.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Circuit`] when the device has no such branch.
+    pub fn branch(&self, index: usize) -> SpiceResult<usize> {
+        self.branches
+            .clone()
+            .nth(index)
+            .ok_or_else(|| SpiceError::circuit("missing branch-row binding"))
+    }
+
+    /// The present solution value of a matrix row.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] for a row outside the solution.
+    pub fn row_value(&self, row: usize) -> SpiceResult<Real> {
+        self.solution.get(row).ok_or_else(|| SpiceError::Numerical {
+            context: "stamp".to_owned(),
+            message: format!("solution row {row} out of range"),
+        })
+    }
+
     /// Adds `value` to `A[row][col]`, ignoring contributions that involve ground.
     ///
     /// # Errors
@@ -263,13 +304,23 @@ pub trait Device: fmt::Debug {
         false
     }
 
-    /// Loads the device's contribution into the MNA system.
+    /// How many state slots (C `CKTnumStates`) the device owns. Slots are
+    /// allocated after the branch rows, in device order.
+    fn state_count(&self) -> usize {
+        0
+    }
+
+    /// Loads the device's contribution into the MNA system for one trial.
+    ///
+    /// Implementations may read accepted history and write their trial state
+    /// slots, but cannot change the device: a rejected or repeated trial has
+    /// no lasting effect.
     ///
     /// # Errors
     ///
     /// Device-specific failures, and [`spice_core::SpiceError::NotYetPorted`] for
     /// devices that have not been ported.
-    fn stamp(&mut self, context: &mut StampContext<'_>) -> SpiceResult<()>;
+    fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()>;
 
     /// Assembles immutable, state-independent linear equations.
     ///
@@ -282,14 +333,34 @@ pub trait Device: fmt::Debug {
         })
     }
 
-    /// Updates internal state after the analysis accepts a solution point.
+    /// Observes an accepted solution point before its state is committed.
+    ///
+    /// Called by [`crate::Circuit::accept_point`] for the accepted initial
+    /// state, accepted adaptive steps and changed event (right-limit) states;
+    /// never for Newton trials, rejected steps or interpolated output samples.
+    /// Any error aborts the acceptance and nothing is committed. Device history
+    /// lives in state slots, so the hook cannot mutate the device.
     ///
     /// # Errors
     ///
     /// Device-specific failures.
-    fn accept(&mut self, _solution: &Vector) -> SpiceResult<()> {
+    fn accept(&self, _context: &AcceptContext<'_>) -> SpiceResult<()> {
         Ok(())
     }
+}
+
+/// What [`Device::accept`] sees for one accepted point.
+#[derive(Debug, Clone, Copy)]
+pub struct AcceptContext<'a> {
+    /// The accepted solution.
+    pub solution: &'a Vector,
+    /// The accepted time, `None` for DC points.
+    pub time: Option<Real>,
+    /// This device's branch-current rows.
+    pub branches: &'a Range<usize>,
+    /// This device's slots of the state about to be committed, when the
+    /// analysis tracks state.
+    pub states: Option<&'a [Real]>,
 }
 
 #[cfg(test)]
