@@ -9,7 +9,8 @@ the SPICE circuit simulator.
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
 > and bounded diode input schemas exist. This checkout also simulates bounded
 > model-backed R/C/L; nonlinear D/Q/M simulation remains unavailable.
-> Six of eight fixture decks parse; full SPICE parity is not claimed.
+> Numeric PULSE/PWL and bounded flags/IC vectors parse (syntax only).
+> Seven of eight fixture decks parse; full SPICE parity is not claimed.
 
 [TODO.md](TODO.md) is the central implementation checklist, including branch-aware
 status, remaining work and completion gates. See
@@ -44,14 +45,15 @@ Transient requires explicit `backend=diffsol method=bdf`; it is
 **not ngspice trapezoidal or fixed Gear-2 and does not complete M3**. It currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
 constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Step/Pwl waveforms exist through the device API only;
-waveform netlist syntax still needs implementation.
+numeric PULSE/PWL netlist syntax parses, but factories reject it until runtime
+elaboration/evaluation is implemented. See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
 
 Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** waveform syntax, flags/vector ICs, extended passive forms,
-   subcircuits/includes, parameters/options/globals, serialization and snapshots.
+2. **Front end (M1):** extended passive forms, subcircuits/includes,
+   parameters/options/globals, serialization and snapshots.
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
 4. **Transient (M3):** adaptive trap/Gear-2 companion driver (integrator, state
@@ -98,7 +100,9 @@ preserves M1a's AST and CLI exit contract. M1b adds scalar D/BJT/MOS/R/C/L
 model cards, two-terminal diodes, three/four-terminal BJTs and four-terminal MOS
 instances. Q/M require in-deck model declarations (forward references work)
 for terminal disambiguation. R/C/L also retain declared forward model references
-and omitted values. Parsing is not simulation: family/level checks and bounded
+and omitted values. Positioned PULSE/PWL, OFF/model-family flags and Q/M IC vectors
+retain ordered setter semantics without enabling runtime support.
+Parsing is not simulation: family/level checks and bounded
 diode inputs belong to `spice-devices`; see
 [MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md) for APIs and explicit limits.
 

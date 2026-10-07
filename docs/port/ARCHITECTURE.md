@@ -116,10 +116,13 @@ offline builds require the registry dependencies to have been cached first.
   and `repeat` express optional scalars and repeated assignments. AST creation
   happens only after a complete card succeeds.
 - `parser/syntax.rs`: shared positioned-name and finite-scalar primitives.
-- `parser/model.rs` and `parser/diode.rs`: scalar model cards with an optional
-  outer parenthesis pair, and two-terminal diodes with named scalar geometry.
+- `parser/model.rs` and `parser/diode.rs`: model cards with an optional outer
+  parenthesis pair and bounded tail flags, and two-terminal diodes with scalar
+  geometry/IC and OFF flags.
 - `parser/transistor.rs`: three/four-terminal Q and four-terminal M forms;
-  declared-model lookahead chooses port count and scalar parameter grammars.
+  declared-model lookahead chooses port count. `flags.rs`, `ic.rs`, `waveform.rs`
+  and `vector.rs` add positioned bare flags, bounded IC vectors and numeric
+  PULSE/PWL in the same ordered assignment storage, not runtime semantics.
 - `parser.rs::prepare_cards`: cache tokenization results up to `.end`, collect
   top-level model names (not model semantics) and replay errors in card order.
   Names inside unsupported subcircuit/control bodies are excluded. This keeps
@@ -144,8 +147,9 @@ this is still not completion of the remaining M1 syntax.
   tokenizer; already implemented.
 - **`Netlist`** — the semantic model (device instances with textual parameters,
   `.model` cards, `.subckt` bodies, analyses, includes). The incremental parser
-  now constructs a **bounded subset**: scalar and declared-model R/C/L instances, DC/AC V/I sources,
-  D/BJT/MOS/R/C/L scalar model cards, bounded D/Q/M instances and opaque analyses.
+  constructs a **bounded subset**: scalar and declared-model R/C/L instances,
+  DC/AC/PULSE/PWL V/I sources, D/BJT/MOS/R/C/L model cards, bounded D/Q/M
+  flags/IC instances and opaque analyses.
   Subcircuit/include/parameter-expression syntax is still unported and never
   silently dropped.
 
@@ -165,8 +169,8 @@ applied before named setters; one after its model is applied after them.
 Analysis arguments remain unvalidated until their
 consumer interprets them; AST success is not a promise of simulation support.
 
-Model cards retain lowercased parameter names and original numeric text, without
-checking the device-specific keyword schema or applying model defaults. Their
+Model cards retain lowercased parameter names, original scalar text and bounded
+bare family flags, without checking the scalar keyword schema or applying defaults. Their
 `level` field is the first explicit raw scalar; selector/default/range rules
 belong to the `spice-devices` model resolver, not this syntax layer.
 D references can remain unresolved;
@@ -175,9 +179,11 @@ inferred from numbers or parameter keywords. Forward references work. The
 first declared name wins over an optional substrate interpretation, as in
 INP2Q. Q retains the three/four supplied ports; an omitted substrate's implicit
 ground belongs to elaboration. M requires four ports and refuses a declared
-model in the bulk slot. Model names are never ground-aliased. Flags, IC vectors,
-extra/thermal terminals, model binning, CIDER and numeric-looking Q/M model
-names remain outside this grammar. Purely numeric Q model names produce Parse
+model in the bulk slot. Model names are never ground-aliased. Bounded bare OFF,
+model-family flags, Q/M IC vectors and PULSE/PWL now parse; arities, omissions,
+C references and stricter delimiter policy are in [FRONTEND_VALUES.md](FRONTEND_VALUES.md).
+Extra/thermal terminals, sensitivity flags, model binning, CIDER and numeric-looking
+Q/M model names remain outside this grammar. Purely numeric Q model names produce Parse
 errors: C's front end requires an alphabetic character; ngspice-47+ also rejects
 the scaled-numeric `123n` probe. Ordinary alpha-named models containing digits
 are covered by the live oracle.
