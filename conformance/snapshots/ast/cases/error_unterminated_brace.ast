@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_unterminated_brace.cir
+error parse @cases/error_unterminated_brace.cir:2:9
+  message: "unterminated '{' expression on this card"

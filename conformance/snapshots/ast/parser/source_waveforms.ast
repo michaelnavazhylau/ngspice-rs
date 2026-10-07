@@ -1,0 +1,104 @@
+# ngspice-rs ast-dump v1
+file: parser/source_waveforms.cir
+title: "Numeric waveform setter order and omissions (syntax/setup only)" @parser/source_waveforms.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @parser/source_waveforms.cir:2:1 "vpulse a 0 7 DC=2 AC 2 90 PULSE(0 5 1n 2n 3n 4u 5u) dc 3"
+    [1] device[1] @parser/source_waveforms.cir:3:1 "ipulse a 0 PULSE(0 2m) AC"
+    [2] device[2] @parser/source_waveforms.cir:4:1 "vpwl b 0 DC 2 PULSE(0 3) PWL(0,1,1u,2) AC 3 45"
+    [3] device[3] @parser/source_waveforms.cir:5:1 "ipwl b 0 DC 3 PWL(0 1m 1u 2m) PULSE(0 4m)"
+    [4] device[4] @parser/source_waveforms.cir:6:1 "r1 a 0 1k"
+    [5] device[5] @parser/source_waveforms.cir:7:1 "r2 b 0 1k"
+    [6] analysis[0] @parser/source_waveforms.cir:8:1 ".op"
+    [7] end @parser/source_waveforms.cir:9:1 ".end"
+  devices (6):
+    device [0] name="vpulse" designator=v @parser/source_waveforms.cir:2:1
+      nodes: "a" "0"
+      model: none
+      parameters (6):
+        [0] name="dc" kind=scalar value="2" @parser/source_waveforms.cir:2:14
+        [1] name="acmag" kind=scalar value="2" @parser/source_waveforms.cir:2:22
+        [2] name="acphase" kind=scalar value="90" @parser/source_waveforms.cir:2:24
+        [3] name="pulse" kind=waveform value="(0 5 1n 2n 3n 4u 5u)" @parser/source_waveforms.cir:2:27
+          pulse
+            initial: "0"@parser/source_waveforms.cir:2:33
+            pulsed: "5"@parser/source_waveforms.cir:2:35
+            delay: "1n"@parser/source_waveforms.cir:2:37
+            rise: "2n"@parser/source_waveforms.cir:2:40
+            fall: "3n"@parser/source_waveforms.cir:2:43
+            width: "4u"@parser/source_waveforms.cir:2:46
+            period: "5u"@parser/source_waveforms.cir:2:49
+        [4] name="dc" kind=scalar value="3" @parser/source_waveforms.cir:2:53
+        [5] name="dc" kind=scalar value="7" @parser/source_waveforms.cir:2:12
+    device [1] name="ipulse" designator=i @parser/source_waveforms.cir:3:1
+      nodes: "a" "0"
+      model: none
+      parameters (3):
+        [0] name="pulse" kind=waveform value="(0 2m)" @parser/source_waveforms.cir:3:12
+          pulse
+            initial: "0"@parser/source_waveforms.cir:3:18
+            pulsed: "2m"@parser/source_waveforms.cir:3:20
+            delay: none
+            rise: none
+            fall: none
+            width: none
+            period: none
+        [1] name="acmag" kind=scalar value="1" @parser/source_waveforms.cir:3:24
+        [2] name="acphase" kind=scalar value="0" @parser/source_waveforms.cir:3:24
+    device [2] name="vpwl" designator=v @parser/source_waveforms.cir:4:1
+      nodes: "b" "0"
+      model: none
+      parameters (5):
+        [0] name="dc" kind=scalar value="2" @parser/source_waveforms.cir:4:10
+        [1] name="pulse" kind=waveform value="(0 3)" @parser/source_waveforms.cir:4:15
+          pulse
+            initial: "0"@parser/source_waveforms.cir:4:21
+            pulsed: "3"@parser/source_waveforms.cir:4:23
+            delay: none
+            rise: none
+            fall: none
+            width: none
+            period: none
+        [2] name="pwl" kind=waveform value="(0,1,1u,2)" @parser/source_waveforms.cir:4:26
+          pwl
+            point [0] time="0"@parser/source_waveforms.cir:4:30 value="1"@parser/source_waveforms.cir:4:32
+            point [1] time="1u"@parser/source_waveforms.cir:4:34 value="2"@parser/source_waveforms.cir:4:37
+        [3] name="acmag" kind=scalar value="3" @parser/source_waveforms.cir:4:43
+        [4] name="acphase" kind=scalar value="45" @parser/source_waveforms.cir:4:45
+    device [3] name="ipwl" designator=i @parser/source_waveforms.cir:5:1
+      nodes: "b" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="3" @parser/source_waveforms.cir:5:10
+        [1] name="pwl" kind=waveform value="(0 1m 1u 2m)" @parser/source_waveforms.cir:5:15
+          pwl
+            point [0] time="0"@parser/source_waveforms.cir:5:19 value="1m"@parser/source_waveforms.cir:5:21
+            point [1] time="1u"@parser/source_waveforms.cir:5:24 value="2m"@parser/source_waveforms.cir:5:27
+        [2] name="pulse" kind=waveform value="(0 4m)" @parser/source_waveforms.cir:5:31
+          pulse
+            initial: "0"@parser/source_waveforms.cir:5:37
+            pulsed: "4m"@parser/source_waveforms.cir:5:39
+            delay: none
+            rise: none
+            fall: none
+            width: none
+            period: none
+    device [4] name="r1" designator=r @parser/source_waveforms.cir:6:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/source_waveforms.cir:6:8
+    device [5] name="r2" designator=r @parser/source_waveforms.cir:7:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/source_waveforms.cir:7:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/source_waveforms.cir:8:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

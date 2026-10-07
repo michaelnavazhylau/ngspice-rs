@@ -8,12 +8,12 @@ use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::token::any;
 
-use crate::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
+use crate::ast::{DeviceInstance, ParameterAssignment};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap};
 use super::syntax::{
-    assignment, canonical_node, equals, leading_literal, literal, malformed, name,
+    assignment, canonical_node, equals, leading_value, malformed, name, named, value,
 };
 
 pub(super) fn diode_card(input: &mut Input<'_>) -> Result<ParsedCard> {
@@ -48,7 +48,7 @@ pub(super) fn diode_card(input: &mut Input<'_>) -> Result<ParsedCard> {
 }
 
 fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
-    let leading = opt(leading_literal).parse_next(input)?;
+    let leading = opt(leading_value).parse_next(input)?;
     let mut parameters: Vec<ParameterAssignment> = repeat(
         0..,
         alt((super::flags::instance, scalar_assignment, invalid_parameter)),
@@ -73,13 +73,8 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             Some((token, canonical.to_owned()))
         })
         .parse_next(input)?;
-    let (_, value) = cut_err((opt(equals), literal)).parse_next(input)?;
-    Ok(ParameterAssignment {
-        name,
-        value: value.text.clone(),
-        kind: ParameterKind::Scalar,
-        location: token.location.clone(),
-    })
+    let (_, value) = cut_err((opt(equals), value)).parse_next(input)?;
+    Ok(named(&name, token.location.clone(), value))
 }
 
 fn invalid_parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {

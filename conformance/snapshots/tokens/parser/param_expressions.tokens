@@ -1,0 +1,153 @@
+# ngspice-rs token-dump v1
+file: parser/param_expressions.cir
+title: "Bounded .param assignments and expression-valued parameters" @parser/param_expressions.cir:1:1
+card 1 @parser/param_expressions.cir:2:1 lines=2-2 continuations=0
+  raw: ".param vdd=5 rload=2k, scale=1meg"
+  kind: dot(.param)
+  token 1 2:1 word ".param"
+  token 2 2:8 word "vdd"
+  token 3 2:11 equals "="
+  token 4 2:12 number "5" value=5e0
+  token 5 2:14 word "rload"
+  token 6 2:19 equals "="
+  token 7 2:20 number "2k" value=2e3
+  token 8 2:22 comma ","
+  token 9 2:24 word "scale"
+  token 10 2:29 equals "="
+  token 11 2:30 number "1meg" value=1e6
+card 2 @parser/param_expressions.cir:3:1 lines=3-3 continuations=0
+  raw: ".param half={vdd/2} tau={rload*1u} ratio=(vdd+1)*2^2"
+  kind: dot(.param)
+  token 1 3:1 word ".param"
+  token 2 3:8 word "half"
+  token 3 3:12 equals "="
+  token 4 3:13 expression "{vdd/2}" inner="vdd/2"
+  token 5 3:21 word "tau"
+  token 6 3:24 equals "="
+  token 7 3:25 expression "{rload*1u}" inner="rload*1u"
+  token 8 3:36 word "ratio"
+  token 9 3:41 equals "="
+  token 10 3:42 lparen "("
+  token 11 3:43 word "vdd+1"
+  token 12 3:48 rparen ")"
+  token 13 3:49 word "*2^2"
+card 3 @parser/param_expressions.cir:4:1 lines=4-4 continuations=0
+  raw: ".param vdd=3.3 decay=-2^2"
+  kind: dot(.param)
+  token 1 4:1 word ".param"
+  token 2 4:8 word "vdd"
+  token 3 4:11 equals "="
+  token 4 4:12 number "3.3" value=3.3e0
+  token 5 4:16 word "decay"
+  token 6 4:21 equals "="
+  token 7 4:22 word "-2^2"
+card 4 @parser/param_expressions.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc {vdd} ac {half}"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 expression "{vdd}" inner="vdd"
+  token 6 5:18 word "ac"
+  token 7 5:21 expression "{half}" inner="half"
+card 5 @parser/param_expressions.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in out {rload}"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "out"
+  token 4 6:11 expression "{rload}" inner="rload"
+card 6 @parser/param_expressions.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 out 0 {tau}"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 expression "{tau}" inner="tau"
+card 7 @parser/param_expressions.cir:8:1 lines=8-8 continuations=0
+  raw: "rm out 0 rmod {rload*2}"
+  kind: device(r)
+  token 1 8:1 word "rm"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 word "rmod"
+  token 5 8:15 expression "{rload*2}" inner="rload*2"
+card 8 @parser/param_expressions.cir:9:1 lines=9-9 continuations=0
+  raw: "d1 out 0 dm area={ratio}"
+  kind: device(d)
+  token 1 9:1 word "d1"
+  token 2 9:4 word "out"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 word "dm"
+  token 5 9:13 word "area"
+  token 6 9:17 equals "="
+  token 7 9:18 expression "{ratio}" inner="ratio"
+card 9 @parser/param_expressions.cir:10:1 lines=10-10 continuations=0
+  raw: ".model rmod r rsh=100"
+  kind: dot(.model)
+  token 1 10:1 word ".model"
+  token 2 10:8 word "rmod"
+  token 3 10:13 word "r"
+  token 4 10:15 word "rsh"
+  token 5 10:18 equals "="
+  token 6 10:19 number "100" value=1e2
+card 10 @parser/param_expressions.cir:11:1 lines=11-11 continuations=0
+  raw: ".model dm d is=1e-14"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "dm"
+  token 3 11:11 word "d"
+  token 4 11:13 word "is"
+  token 5 11:15 equals "="
+  token 6 11:16 number "1e-14" value=1e-14
+card 11 @parser/param_expressions.cir:12:1 lines=12-12 continuations=0
+  raw: ".subckt cell a b params: w={scale/1k}"
+  kind: dot(.subckt)
+  token 1 12:1 word ".subckt"
+  token 2 12:9 word "cell"
+  token 3 12:14 word "a"
+  token 4 12:16 word "b"
+  token 5 12:18 word "params:"
+  token 6 12:26 word "w"
+  token 7 12:27 equals "="
+  token 8 12:28 expression "{scale/1k}" inner="scale/1k"
+card 12 @parser/param_expressions.cir:13:1 lines=13-13 continuations=0
+  raw: ".param local={w*2}"
+  kind: dot(.param)
+  token 1 13:1 word ".param"
+  token 2 13:8 word "local"
+  token 3 13:13 equals "="
+  token 4 13:14 expression "{w*2}" inner="w*2"
+card 13 @parser/param_expressions.cir:14:1 lines=14-14 continuations=0
+  raw: "r1 a b {local}"
+  kind: device(r)
+  token 1 14:1 word "r1"
+  token 2 14:4 word "a"
+  token 3 14:6 word "b"
+  token 4 14:8 expression "{local}" inner="local"
+card 14 @parser/param_expressions.cir:15:1 lines=15-15 continuations=0
+  raw: ".ends cell"
+  kind: dot(.ends)
+  token 1 15:1 word ".ends"
+  token 2 15:7 word "cell"
+card 15 @parser/param_expressions.cir:16:1 lines=16-16 continuations=0
+  raw: "x1 out 0 cell w={half}"
+  kind: device(x)
+  token 1 16:1 word "x1"
+  token 2 16:4 word "out"
+  token 3 16:8 number "0" value=0e0
+  token 4 16:10 word "cell"
+  token 5 16:15 word "w"
+  token 6 16:16 equals "="
+  token 7 16:17 expression "{half}" inner="half"
+card 16 @parser/param_expressions.cir:17:1 lines=17-17 continuations=0
+  raw: ".tran {tau/10} {tau*5}"
+  kind: dot(.tran)
+  token 1 17:1 word ".tran"
+  token 2 17:7 expression "{tau/10}" inner="tau/10"
+  token 3 17:16 expression "{tau*5}" inner="tau*5"
+card 17 @parser/param_expressions.cir:18:1 lines=18-18 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 18:1 word ".end"

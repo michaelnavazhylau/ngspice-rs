@@ -1,0 +1,13 @@
+Combined params, options and globals, simulatable at top level
+.option reltol=1e-4 temp=30
+.global vdd
+.param vcc=5 rtop=2k ratio=3
+.param rbot={rtop*ratio}
+.option reltol=1e-5
+vdd vdd 0 dc {vcc}
+r1 vdd out {rtop}
+r2 out 0 {rbot}
+.param late=1
+.option temp=40
+.op
+.end

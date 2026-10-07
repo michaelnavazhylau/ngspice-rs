@@ -1,0 +1,20 @@
+Combined includes, subcircuits, params and options
+.option reltol=1e-4 temp=30
+.param vin=5 rtop=1k
+.include 'sources/combined/models.inc'
+.global vdd
+.option reltol=1e-5 noopiter
+.subckt stage a b params: r=1k
+.param rr={r*2}
+.model local r rsh=100
+.include 'sources/combined/stage_body.inc'
+.ends stage
+.lib 'sources/combined/lib.inc' TYPICAL
+v1 vdd 0 dc {vin}
+x1 vdd mid stage r={rtop}
+r1 mid 0 {rtop*2}
+d1 mid 0 dm
+.param late=3
+.option temp=40
+.op
+.end

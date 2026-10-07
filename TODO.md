@@ -20,7 +20,7 @@ checkout, not a claim that all M2 slices have already merged.
 
 | Area | Current checkout |
 | --- | --- |
-| Parser | Scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses, not round trips or simulation |
+| Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses and normalized round trips (M1 gate, #22); not simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
@@ -94,18 +94,20 @@ tests and documented limits as the remaining functionality is added.
 - [x] Parse `.include`/`.inc`/`.lib` paths and sections, preserving quoted spelling and selected library boundaries (#13).
 - [x] Implement source-relative resolution, canonical file/section cycle checks, depth/file/byte/card limits and include-chain/source provenance.
 - [x] Use a directed petgraph file/section dependency graph with incremental reachability checks; no custom graph engine.
-- [ ] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5) and parameter evaluation (#15), when those semantics land.
+- [x] Parameter evaluation (#15) uses a directed petgraph dependency graph (cycles via SCC, order via toposort levels).
+- [ ] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5).
 - [x] Enable `subckt_divider` AST/CLI tests: 8/8 fixture parsing, not flattening or the full M1 gate. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 
 ### M1d: parameter semantics and full front-end gate
 
-- [ ] Implement a bounded expression grammar (#14) and `.param` evaluator (#15) from numparam behaviour.
-- [ ] Define evaluation order, scope, units and undefined/cyclic-reference diagnostics.
-- [ ] Parse `.option` and `.global`; implement required ground scope rules (#16).
-- [ ] Add normalized-deck serialization preserving source parameter application order (#20).
-- [ ] Commit deterministic token/AST snapshots and document regeneration (#21).
-- [ ] Round-trip all eight rawfile fixture decks through AST and normalized text (#22).
-- [ ] Keep `cargo xtask ci` green and mark M1 complete only after every exit gate passes.
+- [x] Parse `.param` cards and a bounded numparam expression grammar (#14): winnow precedence, C-pinned `^`/sign rules, function allowlist, braced values at device/model/analysis/X sites, positioned unevaluated AST. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md); no evaluation.
+- [x] Evaluate top-level `.param` values (#15): C-backed order/redefinition/forward-reference rules, petgraph cycle and undefined-name chains, bounded work, finite-or-error arithmetic (`spice_netlist::eval`), and a literalized netlist copy consumed by `Circuit` elaboration and `RunConfig::request_for` (`spice_netlist::elaborate`). Opt-in C probes: `c_param_eval`. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md).
+- [ ] Subcircuit formal defaults/overrides and scoped evaluation (scope API is ready; subcircuits still rejected), `{expr}` option values, quoted/`'expr'` values, `.func`.
+- [x] Parse `.option` and `.global` (#16): ordered positioned settings, `spice_analysis::RunConfig` for temp/tnom/reltol/vntol/abstol (method/maxord retained, rejected for `.tran`; all other options error). Top-level `.global` contract for a future flattener; body-local `.option`/`.global` and flattening remain pending. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
+- [x] Add normalized-deck serialization preserving source parameter application order (#20): `spice_netlist::write_netlist` plus location-free `semantic_eq`/`semantic_diff` (contract in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md)); directives are written, resolved include content is not inlined. The eight-fixture gate is closed by #22 below.
+- [x] Commit deterministic token/AST snapshots and document regeneration (#21): `spice_netlist::dump`, 66 files under `conformance/snapshots/`, `cargo xtask snapshots [--bless]` (see `conformance/snapshots/README.md`).
+- [x] Close the M1 front-end fixture and round-trip gate (#22): `crates/spice-netlist/tests/m1_gate.rs` pins per-deck device/terminal/model/analysis expectations for all eight `conformance/netlists` decks, parse→write→parse semantic equality with a writer fixed point, matching committed token/AST snapshots, combined fixtures `conformance/parser/combined_{includes,params_options}.cir` (includes + subcircuit + params + options; include provenance and setter order), and negative coverage (malformed cards, unsupported forms, include/parameter cycles, scoped-name containment). `crates/spice-analysis/tests/m1_combined.rs` runs the params+options fixture through `RunConfig`. Scoped-name enforcement is structural only: declarations stay in their scope and Q-family lookup sees only the local scope and ancestors; unresolved X targets and D/M model names are *not* resolved at parse time (elaboration owns that).
+- [x] `cargo xtask ci` is green with the gate; the M1 front-end gate is closed. **Not part of this claim and still outstanding:** subcircuit flattening (#18, M5), subcircuit formal defaults/scoped `.param` evaluation, `{expr}` option values, quoted/`'expr'` values, `.func`, body-local `.option`/`.global`, scoped model resolution/binning. D/Q/M and subcircuit decks parse only; this is not nonlinear simulation parity. C parser oracles remain opt-in (`NGSPICE_BIN`).
 
 ## 3. Model elaboration and validation
 
@@ -159,7 +161,7 @@ BDF does not close the following trap/Gear and general-transient requirements.
 ## Suggested sequence
 
 #12/#13 scoped/source syntax → #14–16 expressions/evaluation/options/globals →
-#20–22 serialization/snapshots/full M1 round-trip gate. Keep #18 flattening in M5.
+#20–22 serialization/snapshots/full M1 round-trip gate (done). Keep #18 flattening in M5.
 CLI simulation and model elaboration →
 SPICE-compatible transient → nonlinear devices → remaining M5 usability. Numerical optimization is follow-up,
 not grounds to weaken correctness gates.

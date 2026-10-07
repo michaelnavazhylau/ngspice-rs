@@ -1,0 +1,5 @@
+# Snapshots and their inputs are compared byte for byte; keep LF on every platform.
+conformance/snapshots/** text eol=lf
+conformance/cases/** text eol=lf
+conformance/netlists/*.cir text eol=lf
+conformance/parser/** text eol=lf

@@ -3,7 +3,7 @@
 A from-scratch Rust implementation of [ngspice](https://ngspice.sourceforge.io/),
 the SPICE circuit simulator.
 
-> **Status: M1 in progress; a bounded linear simulation engine is implemented.**
+> **Status: M1 front-end gate closed (outstanding M1d/M5 items listed in TODO.md); a bounded linear simulation engine is implemented.**
 > Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
 > and explicitly selected diffsol BDF transient analysis. Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
@@ -53,8 +53,8 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** expressions/parameter evaluation/options/globals (#14–16),
-   then serialization/snapshots/full round-trip gate (#20–22); extended passive forms.
+2. **Front end (M1):** `.param`/expression syntax (#14, [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md)), `.option`/`.global` parsing with a bounded `RunConfig` (#16) and top-level `.param` evaluation (#15, `spice_netlist::eval`/`elaborate`) are done; subcircuit parameters remain.
+   Normalized deck serialization exists (#20, `spice_netlist::write_netlist`); token/AST snapshots exist (#21, `cargo xtask snapshots`); the eight-fixture M1 front-end round-trip gate is closed (#22, `crates/spice-netlist/tests/m1_gate.rs`); subcircuit flattening (#18, M5), subcircuit-scoped params and extended passive forms remain.
    Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.

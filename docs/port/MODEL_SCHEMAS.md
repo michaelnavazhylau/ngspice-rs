@@ -76,8 +76,8 @@ let instance_inputs = model.diode_instance_parameters(&netlist.devices[0], &cont
 ```
 
 `ModelContext` avoids a lower-crate dependency on `spice-analysis`. Callers may
-explicitly pass circuit and nominal temperatures; netlist `.option` processing
-is still unsupported. All temperatures must be finite and exceed absolute zero.
+explicitly pass circuit and nominal temperatures; `.option` cards are resolved by
+`spice_analysis::RunConfig` (see FRONTEND_STRUCTURE.md), whose context is passed here. All temperatures must be finite and exceed absolute zero.
 
 ## Raw levels, backend selection and applied setters
 

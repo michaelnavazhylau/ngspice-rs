@@ -10,11 +10,11 @@ use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
-use crate::ast::{ModelCard, ParameterAssignment, ParameterKind};
+use crate::ast::{ModelCard, ParameterAssignment};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap, keyword};
-use super::syntax::{equals, literal, malformed, name};
+use super::syntax::{equals, malformed, name, named, value};
 
 pub(super) fn model_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     keyword(".model").parse_next(input)?;
@@ -114,13 +114,20 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     let token = any
         .verify(|token: &Token| matches!(token.kind, TokenKind::Word))
         .parse_next(input)?;
-    let (_, value) = cut_err((opt(equals), literal)).parse_next(input)?;
-    Ok(ParameterAssignment {
-        name: token.text.to_ascii_lowercase(),
-        value: value.text.clone(),
-        kind: ParameterKind::Scalar,
-        location: token.location.clone(),
-    })
+    let name = token.text.to_ascii_lowercase();
+    opt(equals).parse_next(input)?;
+    if name == "level"
+        && input
+            .input
+            .first()
+            .is_some_and(|token| matches!(token.kind, TokenKind::Expression(_)))
+    {
+        // INPfindLev reads the literal level; ModelCard::level cannot carry an
+        // unevaluated expression, so refuse instead of defaulting it.
+        return Err(gap(input, "expression-valued model level selectors"));
+    }
+    let value = cut_err(value).parse_next(input)?;
+    Ok(named(&name, token.location.clone(), value))
 }
 
 fn invalid_parameter(input: &mut Input<'_>) -> Result<Option<ParameterAssignment>> {

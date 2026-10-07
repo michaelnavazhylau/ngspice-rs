@@ -1,0 +1,24 @@
+# ngspice-rs token-dump v1
+file: cases/error_malformed_resistor.cir
+title: "Resistor with a missing value" @cases/error_malformed_resistor.cir:1:1
+card 1 @cases/error_malformed_resistor.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 in 0 dc 1"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "in"
+  token 3 2:7 number "0" value=0e0
+  token 4 2:9 word "dc"
+  token 5 2:12 number "1" value=1e0
+card 2 @cases/error_malformed_resistor.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 in"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "in"
+card 3 @cases/error_malformed_resistor.cir:4:1 lines=4-4 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 4:1 word ".op"
+card 4 @cases/error_malformed_resistor.cir:5:1 lines=5-5 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 5:1 word ".end"

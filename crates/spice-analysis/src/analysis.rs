@@ -389,6 +389,7 @@ mod tests {
                 "1".to_owned(),
                 "1meg".to_owned(),
             ],
+            expressions: Vec::new(),
             location: SourceLoc::new(PathBuf::from("deck.cir"), 7, 1),
         };
         let request = AnalysisRequest::from(&card);

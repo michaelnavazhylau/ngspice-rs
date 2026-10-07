@@ -208,7 +208,9 @@ fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
                         );
                     }
                 }
-                ParameterKind::Waveform(_) | ParameterKind::Textual => panic!("not a scalar probe"),
+                ParameterKind::Waveform(_)
+                | ParameterKind::Textual
+                | ParameterKind::Expression(_) => panic!("not a scalar probe"),
             }
         }
     }

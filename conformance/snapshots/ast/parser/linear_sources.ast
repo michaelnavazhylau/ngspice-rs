@@ -1,0 +1,64 @@
+# ngspice-rs ast-dump v1
+file: parser/linear_sources.cir
+title: "M1a scalar parser reference" @parser/linear_sources.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @parser/linear_sources.cir:3:1 "v1 a 0 5 dc 2 ac 2 90"
+    [1] device[1] @parser/linear_sources.cir:4:1 "r1 a gnd 1k"
+    [2] device[2] @parser/linear_sources.cir:5:1 "c1 a 0 1u ic=2"
+    [3] device[3] @parser/linear_sources.cir:6:1 "l1 b 0 1m ic=3m"
+    [4] device[4] @parser/linear_sources.cir:7:1 "r2 b 0 1k"
+    [5] device[5] @parser/linear_sources.cir:8:1 "i1 a 0 ac"
+    [6] device[6] @parser/linear_sources.cir:9:1 "i2 b 0"
+    [7] analysis[0] @parser/linear_sources.cir:10:1 ".op"
+    [8] end @parser/linear_sources.cir:11:1 ".end"
+  devices (7):
+    device [0] name="v1" designator=v @parser/linear_sources.cir:3:1
+      nodes: "a" "0"
+      model: none
+      parameters (4):
+        [0] name="dc" kind=scalar value="2" @parser/linear_sources.cir:3:10
+        [1] name="acmag" kind=scalar value="2" @parser/linear_sources.cir:3:18
+        [2] name="acphase" kind=scalar value="90" @parser/linear_sources.cir:3:20
+        [3] name="dc" kind=scalar value="5" @parser/linear_sources.cir:3:8
+    device [1] name="r1" designator=r @parser/linear_sources.cir:4:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/linear_sources.cir:4:10
+    device [2] name="c1" designator=c @parser/linear_sources.cir:5:1
+      nodes: "a" "0"
+      model: none
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="1u" @parser/linear_sources.cir:5:8
+        [1] name="ic" kind=scalar value="2" @parser/linear_sources.cir:5:11
+    device [3] name="l1" designator=l @parser/linear_sources.cir:6:1
+      nodes: "b" "0"
+      model: none
+      parameters (2):
+        [0] name="inductance" kind=scalar value="1m" @parser/linear_sources.cir:6:8
+        [1] name="ic" kind=scalar value="3m" @parser/linear_sources.cir:6:11
+    device [4] name="r2" designator=r @parser/linear_sources.cir:7:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/linear_sources.cir:7:8
+    device [5] name="i1" designator=i @parser/linear_sources.cir:8:1
+      nodes: "a" "0"
+      model: none
+      parameters (2):
+        [0] name="acmag" kind=scalar value="1" @parser/linear_sources.cir:8:8
+        [1] name="acphase" kind=scalar value="0" @parser/linear_sources.cir:8:8
+    device [6] name="i2" designator=i @parser/linear_sources.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (0):
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/linear_sources.cir:10:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

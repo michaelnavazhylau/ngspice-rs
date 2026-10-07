@@ -1,0 +1,5 @@
+Unterminated brace expression
+v1 in 0 {5*
+r1 in 0 1k
+.op
+.end

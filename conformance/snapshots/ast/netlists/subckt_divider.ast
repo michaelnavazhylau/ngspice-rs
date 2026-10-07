@@ -1,0 +1,55 @@
+# ngspice-rs ast-dump v1
+file: netlists/subckt_divider.cir
+title: "Subcircuit divider" @netlists/subckt_divider.cir:1:1
+scope root
+  cards (6):
+    [0] subcircuit[0] @netlists/subckt_divider.cir:2:1 ".subckt div a b"
+    [1] device[0] @netlists/subckt_divider.cir:5:1 "v1 in 0 dc 10"
+    [2] device[1] @netlists/subckt_divider.cir:6:1 "x1 in out div"
+    [3] device[2] @netlists/subckt_divider.cir:7:1 "r2 out 0 1k"
+    [4] analysis[0] @netlists/subckt_divider.cir:8:1 ".op"
+    [5] end @netlists/subckt_divider.cir:9:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/subckt_divider.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="10" @netlists/subckt_divider.cir:5:9
+    device [1] name="x1" designator=x @netlists/subckt_divider.cir:6:1
+      nodes: "in" "out"
+      model: "div"
+      parameters (0):
+    device [2] name="r2" designator=r @netlists/subckt_divider.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/subckt_divider.cir:7:10
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="div" @netlists/subckt_divider.cir:2:1 end=@netlists/subckt_divider.cir:4:1
+      terminals: "a" "b"
+      parameters (0):
+      scope body
+        cards (2):
+          [0] device[0] @netlists/subckt_divider.cir:3:1 "r1 a b 1k"
+          [1] ends @netlists/subckt_divider.cir:4:1 ".ends div"
+        devices (1):
+          device [0] name="r1" designator=r @netlists/subckt_divider.cir:3:1
+            nodes: "a" "b"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="1k" @netlists/subckt_divider.cir:3:8
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/subckt_divider.cir:8:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

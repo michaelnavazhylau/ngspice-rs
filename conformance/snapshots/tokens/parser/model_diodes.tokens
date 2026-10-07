@@ -1,0 +1,113 @@
+# ngspice-rs token-dump v1
+file: parser/model_diodes.cir
+title: "M1b scalar model and diode parser reference" @parser/model_diodes.cir:1:1
+card 1 @parser/model_diodes.cir:3:1 lines=3-3 continuations=0
+  raw: "v1 a 0 dc 0.1"
+  kind: device(v)
+  token 1 3:1 word "v1"
+  token 2 3:4 word "a"
+  token 3 3:6 number "0" value=0e0
+  token 4 3:8 word "dc"
+  token 5 3:11 number "0.1" value=1e-1
+card 2 @parser/model_diodes.cir:4:1 lines=4-4 continuations=0
+  raw: "dlead a gnd dm 2 area=7 perim=3 m=4 ic=.05"
+  kind: device(d)
+  token 1 4:1 word "dlead"
+  token 2 4:7 word "a"
+  token 3 4:9 word "gnd"
+  token 4 4:13 word "dm"
+  token 5 4:16 number "2" value=2e0
+  token 6 4:18 word "area"
+  token 7 4:22 equals "="
+  token 8 4:23 number "7" value=7e0
+  token 9 4:25 word "perim"
+  token 10 4:30 equals "="
+  token 11 4:31 number "3" value=3e0
+  token 12 4:33 word "m"
+  token 13 4:34 equals "="
+  token 14 4:35 number "4" value=4e0
+  token 15 4:37 word "ic"
+  token 16 4:39 equals "="
+  token 17 4:40 number ".05" value=5e-2
+card 3 @parser/model_diodes.cir:5:1 lines=5-5 continuations=0
+  raw: "dnamed a 0 dm area=3 temp=30 dtemp=2"
+  kind: device(d)
+  token 1 5:1 word "dnamed"
+  token 2 5:8 word "a"
+  token 3 5:10 number "0" value=0e0
+  token 4 5:12 word "dm"
+  token 5 5:15 word "area"
+  token 6 5:19 equals "="
+  token 7 5:20 number "3" value=3e0
+  token 8 5:22 word "temp"
+  token 9 5:26 equals "="
+  token 10 5:27 number "30" value=3e1
+  token 11 5:30 word "dtemp"
+  token 12 5:35 equals "="
+  token 13 5:36 number "2" value=2e0
+card 4 @parser/model_diodes.cir:6:1 lines=6-6 continuations=0
+  raw: "dgeom a 0 dm w=10u l=20u"
+  kind: device(d)
+  token 1 6:1 word "dgeom"
+  token 2 6:7 word "a"
+  token 3 6:9 number "0" value=0e0
+  token 4 6:11 word "dm"
+  token 5 6:14 word "w"
+  token 6 6:15 equals "="
+  token 7 6:16 number "10u" value=9.999999999999999e-6
+  token 8 6:20 word "l"
+  token 9 6:21 equals "="
+  token 10 6:22 number "20u" value=1.9999999999999998e-5
+card 5 @parser/model_diodes.cir:7:1 lines=7-7 continuations=0
+  raw: "dimplicit a 0 dm"
+  kind: device(d)
+  token 1 7:1 word "dimplicit"
+  token 2 7:11 word "a"
+  token 3 7:13 number "0" value=0e0
+  token 4 7:15 word "dm"
+card 6 @parser/model_diodes.cir:9:1 lines=9-9 continuations=0
+  raw: ".model dm d(level=1 is=1e-14 is=2e-14 n=1 rs=2 cjo=3p tt=4n bv=50 ibv=2u tnom=27)"
+  kind: dot(.model)
+  token 1 9:1 word ".model"
+  token 2 9:8 word "dm"
+  token 3 9:11 word "d"
+  token 4 9:12 lparen "("
+  token 5 9:13 word "level"
+  token 6 9:18 equals "="
+  token 7 9:19 number "1" value=1e0
+  token 8 9:21 word "is"
+  token 9 9:23 equals "="
+  token 10 9:24 number "1e-14" value=1e-14
+  token 11 9:30 word "is"
+  token 12 9:32 equals "="
+  token 13 9:33 number "2e-14" value=2e-14
+  token 14 9:39 word "n"
+  token 15 9:40 equals "="
+  token 16 9:41 number "1" value=1e0
+  token 17 9:43 word "rs"
+  token 18 9:45 equals "="
+  token 19 9:46 number "2" value=2e0
+  token 20 9:48 word "cjo"
+  token 21 9:51 equals "="
+  token 22 9:52 number "3p" value=3e-12
+  token 23 9:55 word "tt"
+  token 24 9:57 equals "="
+  token 25 9:58 number "4n" value=4e-9
+  token 26 9:61 word "bv"
+  token 27 9:63 equals "="
+  token 28 9:64 number "50" value=5e1
+  token 29 9:67 word "ibv"
+  token 30 9:70 equals "="
+  token 31 9:71 number "2u" value=2e-6
+  token 32 9:74 word "tnom"
+  token 33 9:78 equals "="
+  token 34 9:79 number "27" value=2.7e1
+  token 35 9:81 rparen ")"
+card 7 @parser/model_diodes.cir:10:1 lines=10-10 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 10:1 word ".op"
+card 8 @parser/model_diodes.cir:11:1 lines=11-11 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 11:1 word ".end"

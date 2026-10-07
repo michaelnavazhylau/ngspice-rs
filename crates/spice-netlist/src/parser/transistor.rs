@@ -7,12 +7,12 @@ use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::token::any;
 
-use crate::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
+use crate::ast::{DeviceInstance, ParameterAssignment};
 use crate::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap};
 use super::syntax::{
-    assignment, canonical_node, equals, leading_literal, literal, malformed, name,
+    assignment, canonical_node, equals, leading_value, malformed, name, named, value,
 };
 
 type Connections<'a> = (Vec<&'a Token>, &'a Token);
@@ -161,7 +161,7 @@ fn mos_connections<'a>(input: &mut Input<'a>) -> Result<Connections<'a>> {
 
 fn parameters(input: &mut Input<'_>, designator: char) -> Result<Vec<ParameterAssignment>> {
     let leading = if designator == 'q' {
-        opt(leading_literal).parse_next(input)?
+        opt(leading_value).parse_next(input)?
     } else {
         None
     };
@@ -211,18 +211,19 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             }
         })
         .parse_next(input)?;
-    let (_, value) = cut_err((opt(equals), literal)).parse_next(input)?;
-    Ok(ParameterAssignment {
-        name: token.text.to_ascii_lowercase(),
-        value: value.text.clone(),
-        kind: ParameterKind::Scalar,
-        location: token.location.clone(),
-    })
+    let (_, value) = cut_err((opt(equals), value)).parse_next(input)?;
+    Ok(named(
+        &token.text.to_ascii_lowercase(),
+        token.location.clone(),
+        value,
+    ))
 }
 
 fn invalid_parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     let token = peek(any).parse_next(input)?;
-    if input.state.card.designator() == Some('m') && matches!(token.kind, TokenKind::Number(_)) {
+    if input.state.card.designator() == Some('m')
+        && matches!(token.kind, TokenKind::Number(_) | TokenKind::Expression(_))
+    {
         return Err(malformed(
             input,
             "no unlabeled parameter permitted on MOSFET",

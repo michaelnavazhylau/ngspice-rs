@@ -1,0 +1,5 @@
+Subcircuit without .ends
+.subckt a p q
+r1 p q 1k
+.op
+.end

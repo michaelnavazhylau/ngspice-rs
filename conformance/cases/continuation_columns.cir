@@ -1,0 +1,10 @@
+Continuation lines and comments: columns are relative to the joined card
+* a full-line comment
+v1 in 0
++ dc 5 ; trailing comment
+r1 in out
++ 1k
++ tc1=0.01
+c1 out 0 1u ic=0
+.op
+.end

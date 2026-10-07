@@ -1,0 +1,56 @@
+# ngspice-rs token-dump v1
+file: netlists/bjt_ce.cir
+title: "BJT common-emitter bias" @netlists/bjt_ce.cir:1:1
+card 1 @netlists/bjt_ce.cir:2:1 lines=2-2 continuations=0
+  raw: "vcc vcc 0 dc 5"
+  kind: device(v)
+  token 1 2:1 word "vcc"
+  token 2 2:5 word "vcc"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 word "dc"
+  token 5 2:14 number "5" value=5e0
+card 2 @netlists/bjt_ce.cir:3:1 lines=3-3 continuations=0
+  raw: "vin base 0 dc 0.65"
+  kind: device(v)
+  token 1 3:1 word "vin"
+  token 2 3:5 word "base"
+  token 3 3:10 number "0" value=0e0
+  token 4 3:12 word "dc"
+  token 5 3:15 number "0.65" value=6.5e-1
+card 3 @netlists/bjt_ce.cir:4:1 lines=4-4 continuations=0
+  raw: "rc vcc coll 1k"
+  kind: device(r)
+  token 1 4:1 word "rc"
+  token 2 4:4 word "vcc"
+  token 3 4:8 word "coll"
+  token 4 4:13 number "1k" value=1e3
+card 4 @netlists/bjt_ce.cir:5:1 lines=5-5 continuations=0
+  raw: "q1 coll base 0 qmod"
+  kind: device(q)
+  token 1 5:1 word "q1"
+  token 2 5:4 word "coll"
+  token 3 5:9 word "base"
+  token 4 5:14 number "0" value=0e0
+  token 5 5:16 word "qmod"
+card 5 @netlists/bjt_ce.cir:6:1 lines=6-6 continuations=0
+  raw: ".model qmod npn(is=1e-14 bf=100)"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "qmod"
+  token 3 6:13 word "npn"
+  token 4 6:16 lparen "("
+  token 5 6:17 word "is"
+  token 6 6:19 equals "="
+  token 7 6:20 number "1e-14" value=1e-14
+  token 8 6:26 word "bf"
+  token 9 6:28 equals "="
+  token 10 6:29 number "100" value=1e2
+  token 11 6:32 rparen ")"
+card 6 @netlists/bjt_ce.cir:7:1 lines=7-7 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 7:1 word ".op"
+card 7 @netlists/bjt_ce.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

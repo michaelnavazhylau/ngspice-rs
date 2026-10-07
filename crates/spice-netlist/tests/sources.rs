@@ -229,7 +229,7 @@ fn library_boundary_and_missing_source_errors_are_positioned() {
     f.write("main.cir", "title\n.include missing.inc\n");
     let e = f.parse("main.cir").unwrap_err();
     assert!(e.to_string().contains("main.cir:2:1"), "{e}");
-    f.write("missing.inc", "r1 a 0 {unknown}\n");
+    f.write("missing.inc", "r1 a 0 'unknown'\n");
     let e = f.parse("main.cir").unwrap_err();
     assert!(e.is_not_yet_ported());
     assert!(e.to_string().contains("missing.inc:1:"), "{e}");
@@ -337,7 +337,7 @@ fn file_depth_byte_and_card_work_limits_include_repeated_sources() {
 #[test]
 fn end_and_error_order_survive_preprocessing() {
     let f = Files::new();
-    f.write("main.cir", "title\n.param missing=2\n.include absent\n");
+    f.write("main.cir", "title\n.save v(a)\n.include absent\n");
     let e = f.parse("main.cir").unwrap_err();
     assert!(e.is_not_yet_ported());
     assert!(e.to_string().contains("main.cir:2:1"));

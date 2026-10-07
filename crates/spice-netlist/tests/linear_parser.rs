@@ -250,18 +250,17 @@ fn malformed_supported_syntax_has_source_locations() {
 #[test]
 fn unsupported_semantics_never_get_silently_dropped() {
     for (body, reference) in [
-        ("R1 a 0 {rval}", "inp2r.c"),
+        ("R1 a 0 'rval'", "inp2r.c"),
         ("R1 a 0 modelname", "inp2r.c"),
         ("R1 a 0 4k7", "inp2r.c"),
         ("R1 a 0 1k sens_resist", "inp2r.c"),
         ("C1 a 0 1u bad=2", "inp2c.c"),
         ("V1 a 0 sin(0 5 1k)", "inp2v.c"),
-        ("I1 a 0 dc {ival}", "inp2i.c"),
-        ("V1 a 0 ac {gain}", "inp2v.c"),
-        (".param rval=1k", "numparam/spicenum.c"),
+        ("I1 a 0 dc 'ival'", "inp2i.c"),
+        ("V1 a 0 ac 'gain'", "inp2v.c"),
         (".control\nquit\n.endc", "frontend/inp.c"),
         (".save v(a)", "inp2dot.c"),
-        (".model rm r(rsh={sheet})", "inpdomod.c"),
+        (".model rm r(rsh='sheet')", "inpdomod.c"),
     ] {
         let error = parse(body).expect_err("not ported");
         assert!(error.is_not_yet_ported(), "{body}: {error}");

@@ -1,0 +1,44 @@
+# ngspice-rs ast-dump v1
+file: cases/options_globals.cir
+title: "Options, globals and duplicate setters keep application order" @cases/options_globals.cir:1:1
+scope root
+  cards (7):
+    [0] global[0] @cases/options_globals.cir:2:1 ".global vdd gnd"
+    [1] options[0] @cases/options_globals.cir:3:1 ".option reltol=1e-4 gmin=1e-12 noopiter"
+    [2] options[1] @cases/options_globals.cir:4:1 ".options reltol=1e-5"
+    [3] device[0] @cases/options_globals.cir:5:1 "v1 vdd 0 dc 1 dc 2"
+    [4] device[1] @cases/options_globals.cir:6:1 "r1 vdd 0 1k tc1=1 tc1=2"
+    [5] analysis[0] @cases/options_globals.cir:7:1 ".op"
+    [6] end @cases/options_globals.cir:8:1 ".end"
+  devices (2):
+    device [0] name="v1" designator=v @cases/options_globals.cir:5:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (2):
+        [0] name="dc" kind=scalar value="1" @cases/options_globals.cir:5:10
+        [1] name="dc" kind=scalar value="2" @cases/options_globals.cir:5:15
+    device [1] name="r1" designator=r @cases/options_globals.cir:6:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (3):
+        [0] name="resistance" kind=scalar value="1k" @cases/options_globals.cir:6:10
+        [1] name="tc1" kind=scalar value="1" @cases/options_globals.cir:6:13
+        [2] name="tc1" kind=scalar value="2" @cases/options_globals.cir:6:19
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @cases/options_globals.cir:7:1
+      arguments:
+  includes (0):
+  params (0):
+  options (2):
+    option-card [0] @cases/options_globals.cir:3:1
+      setting [0] name="reltol" value="1e-4"@cases/options_globals.cir:3:16 @cases/options_globals.cir:3:9
+      setting [1] name="gmin" value="1e-12"@cases/options_globals.cir:3:26 @cases/options_globals.cir:3:21
+      setting [2] name="noopiter" value=flag @cases/options_globals.cir:3:32
+    option-card [1] @cases/options_globals.cir:4:1
+      setting [0] name="reltol" value="1e-5"@cases/options_globals.cir:4:17 @cases/options_globals.cir:4:10
+  globals (1):
+    global-card [0] @cases/options_globals.cir:2:1
+      node [0] "vdd" @cases/options_globals.cir:2:9
+      node [1] "0" @cases/options_globals.cir:2:13

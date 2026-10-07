@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_missing_include.cir
+error parse @cases/error_missing_include.cir:2:1
+  message: "cannot resolve source 'cases/does_not_exist.inc': <os error>"

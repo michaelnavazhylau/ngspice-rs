@@ -15,7 +15,7 @@ use crate::token::{Token, TokenKind};
 
 use super::grammar::{Failure, Input, ParsedCard, Result, gap, keyword, location};
 use super::syntax::{
-    assignment, canonical_node, equals, leading_literal, literal, malformed, name as node,
+    assignment, canonical_node, equals, leading_value, malformed, name as node, named, value,
 };
 
 pub(super) fn device_card(input: &mut Input<'_>) -> Result<ParsedCard> {
@@ -74,10 +74,10 @@ fn passive_parameters(
     designator: char,
 ) -> Result<(Option<String>, Vec<ParameterAssignment>)> {
     let primary = primary_name(designator);
-    let leading = opt(leading_literal).parse_next(input)?;
+    let leading = opt(leading_value).parse_next(input)?;
     let model = opt(passive_model).parse_next(input)?;
     let after_model = if model.is_some() {
-        opt(leading_literal).parse_next(input)?
+        opt(leading_value).parse_next(input)?
     } else {
         None
     };
@@ -146,13 +146,8 @@ fn passive_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
         })
         .parse_next(input)?;
     // INPgetTok() gobbles '=': both tc1=0.01 and tc1 0.01 are legal.
-    let (_, value) = cut_err((opt(equals), literal)).parse_next(input)?;
-    Ok(ParameterAssignment {
-        name,
-        value: value.text.clone(),
-        kind: ParameterKind::Scalar,
-        location: token.location.clone(),
-    })
+    let (_, value) = cut_err((opt(equals), value)).parse_next(input)?;
+    Ok(named(&name, token.location.clone(), value))
 }
 
 fn scalar_name(designator: char, text: &str) -> Option<String> {
@@ -182,7 +177,7 @@ fn invalid_passive(input: &mut Input<'_>) -> Result<ParameterAssignment> {
 /// `INP2V()`/`INP2I()` apply leading DC after `INPdevParse()` named parameters.
 /// VSRCtemp/ISRCtemp default bare AC to magnitude 1 and phase 0.
 fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
-    let leading = opt(leading_literal).parse_next(input)?;
+    let leading = opt(leading_value).parse_next(input)?;
     let mut parameters = repeat(
         0..,
         alt((
@@ -205,13 +200,8 @@ fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> 
 }
 
 fn dc_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
-    let (token, (_, value)) = (keyword("dc"), cut_err((opt(equals), literal))).parse_next(input)?;
-    Ok(vec![ParameterAssignment {
-        name: "dc".to_owned(),
-        value: value.text.clone(),
-        kind: ParameterKind::Scalar,
-        location: token.location.clone(),
-    }])
+    let (token, (_, value)) = (keyword("dc"), cut_err((opt(equals), value))).parse_next(input)?;
+    Ok(vec![named("dc", token.location.clone(), value)])
 }
 
 fn ac_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
@@ -232,12 +222,14 @@ fn ac_value<'a>(
 ) -> impl winnow::Parser<Input<'a>, ParameterAssignment, ErrMode<Failure>> {
     let default_location = default_location.clone();
     move |input: &mut Input<'a>| {
-        if input.input.first().is_some_and(|token| {
-            matches!(token.kind, TokenKind::Expression(_) | TokenKind::Quoted(_))
-        }) {
-            return Err(gap(input, "AC parameter expressions"));
+        if input
+            .input
+            .first()
+            .is_some_and(|token| matches!(token.kind, TokenKind::Quoted(_)))
+        {
+            return Err(gap(input, "quoted AC parameter expressions"));
         }
-        opt(leading_literal)
+        opt(leading_value)
             .map(|value| {
                 value.map_or_else(
                     || ParameterAssignment {

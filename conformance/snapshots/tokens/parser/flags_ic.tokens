@@ -1,0 +1,203 @@
+# ngspice-rs token-dump v1
+file: parser/flags_ic.cir
+title: "Bare OFF, model family flags and partial/full IC setter order" @parser/flags_ic.cir:1:1
+card 1 @parser/flags_ic.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 c 0 dc .1"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "c"
+  token 3 2:6 number "0" value=0e0
+  token 4 2:8 word "dc"
+  token 5 2:11 number ".1" value=1e-1
+card 2 @parser/flags_ic.cir:3:1 lines=3-3 continuations=0
+  raw: "v2 b 0 dc .1"
+  kind: device(v)
+  token 1 3:1 word "v2"
+  token 2 3:4 word "b"
+  token 3 3:6 number "0" value=0e0
+  token 4 3:8 word "dc"
+  token 5 3:11 number ".1" value=1e-1
+card 3 @parser/flags_ic.cir:4:1 lines=4-4 continuations=0
+  raw: "dlead c 0 dm 2 OFF ic=.4 area=7 off"
+  kind: device(d)
+  token 1 4:1 word "dlead"
+  token 2 4:7 word "c"
+  token 3 4:9 number "0" value=0e0
+  token 4 4:11 word "dm"
+  token 5 4:14 number "2" value=2e0
+  token 6 4:16 word "OFF"
+  token 7 4:20 word "ic"
+  token 8 4:22 equals "="
+  token 9 4:23 number ".4" value=4e-1
+  token 10 4:26 word "area"
+  token 11 4:30 equals "="
+  token 12 4:31 number "7" value=7e0
+  token 13 4:33 word "off"
+card 4 @parser/flags_ic.cir:5:1 lines=5-5 continuations=0
+  raw: "dflag c 0 dm OFF ic=.5"
+  kind: device(d)
+  token 1 5:1 word "dflag"
+  token 2 5:7 word "c"
+  token 3 5:9 number "0" value=0e0
+  token 4 5:11 word "dm"
+  token 5 5:14 word "OFF"
+  token 6 5:18 word "ic"
+  token 7 5:20 equals "="
+  token 8 5:21 number ".5" value=5e-1
+card 5 @parser/flags_ic.cir:6:1 lines=6-6 continuations=0
+  raw: "qfull c b 0 qm 2 off ic=.6,2 icvce=3 ic=.7,4 area=7"
+  kind: device(q)
+  token 1 6:1 word "qfull"
+  token 2 6:7 word "c"
+  token 3 6:9 word "b"
+  token 4 6:11 number "0" value=0e0
+  token 5 6:13 word "qm"
+  token 6 6:16 number "2" value=2e0
+  token 7 6:18 word "off"
+  token 8 6:22 word "ic"
+  token 9 6:24 equals "="
+  token 10 6:25 number ".6" value=6e-1
+  token 11 6:27 comma ","
+  token 12 6:28 number "2" value=2e0
+  token 13 6:30 word "icvce"
+  token 14 6:35 equals "="
+  token 15 6:36 number "3" value=3e0
+  token 16 6:38 word "ic"
+  token 17 6:40 equals "="
+  token 18 6:41 number ".7" value=7e-1
+  token 19 6:43 comma ","
+  token 20 6:44 number "4" value=4e0
+  token 21 6:46 word "area"
+  token 22 6:50 equals "="
+  token 23 6:51 number "7" value=7e0
+card 6 @parser/flags_ic.cir:7:1 lines=7-7 continuations=0
+  raw: "qpartial c b 0 qm off icvce=5 ic=.8"
+  kind: device(q)
+  token 1 7:1 word "qpartial"
+  token 2 7:10 word "c"
+  token 3 7:12 word "b"
+  token 4 7:14 number "0" value=0e0
+  token 5 7:16 word "qm"
+  token 6 7:19 word "off"
+  token 7 7:23 word "icvce"
+  token 8 7:28 equals "="
+  token 9 7:29 number "5" value=5e0
+  token 10 7:31 word "ic"
+  token 11 7:33 equals "="
+  token 12 7:34 number ".8" value=8e-1
+card 7 @parser/flags_ic.cir:8:1 lines=8-8 continuations=0
+  raw: "mfull c b 0 0 nm off w=10u l=1u ic=.1,2,-.1 icvgs=3 ic=.2,4,-.2"
+  kind: device(m)
+  token 1 8:1 word "mfull"
+  token 2 8:7 word "c"
+  token 3 8:9 word "b"
+  token 4 8:11 number "0" value=0e0
+  token 5 8:13 number "0" value=0e0
+  token 6 8:15 word "nm"
+  token 7 8:18 word "off"
+  token 8 8:22 word "w"
+  token 9 8:23 equals "="
+  token 10 8:24 number "10u" value=9.999999999999999e-6
+  token 11 8:28 word "l"
+  token 12 8:29 equals "="
+  token 13 8:30 number "1u" value=1e-6
+  token 14 8:33 word "ic"
+  token 15 8:35 equals "="
+  token 16 8:36 number ".1" value=1e-1
+  token 17 8:38 comma ","
+  token 18 8:39 number "2" value=2e0
+  token 19 8:40 comma ","
+  token 20 8:41 number "-.1" value=-1e-1
+  token 21 8:45 word "icvgs"
+  token 22 8:50 equals "="
+  token 23 8:51 number "3" value=3e0
+  token 24 8:53 word "ic"
+  token 25 8:55 equals "="
+  token 26 8:56 number ".2" value=2e-1
+  token 27 8:58 comma ","
+  token 28 8:59 number "4" value=4e0
+  token 29 8:60 comma ","
+  token 30 8:61 number "-.2" value=-2e-1
+card 8 @parser/flags_ic.cir:9:1 lines=9-9 continuations=0
+  raw: "mpartial c b 0 0 nm off w=10u l=1u icvgs=5 icvbs=-.3 ic=.3,6 ic=.4"
+  kind: device(m)
+  token 1 9:1 word "mpartial"
+  token 2 9:10 word "c"
+  token 3 9:12 word "b"
+  token 4 9:14 number "0" value=0e0
+  token 5 9:16 number "0" value=0e0
+  token 6 9:18 word "nm"
+  token 7 9:21 word "off"
+  token 8 9:25 word "w"
+  token 9 9:26 equals "="
+  token 10 9:27 number "10u" value=9.999999999999999e-6
+  token 11 9:31 word "l"
+  token 12 9:32 equals "="
+  token 13 9:33 number "1u" value=1e-6
+  token 14 9:36 word "icvgs"
+  token 15 9:41 equals "="
+  token 16 9:42 number "5" value=5e0
+  token 17 9:44 word "icvbs"
+  token 18 9:49 equals "="
+  token 19 9:50 number "-.3" value=-3e-1
+  token 20 9:54 word "ic"
+  token 21 9:56 equals "="
+  token 22 9:57 number ".3" value=3e-1
+  token 23 9:59 comma ","
+  token 24 9:60 number "6" value=6e0
+  token 25 9:62 word "ic"
+  token 26 9:64 equals "="
+  token 27 9:65 number ".4" value=4e-1
+card 9 @parser/flags_ic.cir:10:1 lines=10-10 continuations=0
+  raw: ".model dm d(d is=1e-14)"
+  kind: dot(.model)
+  token 1 10:1 word ".model"
+  token 2 10:8 word "dm"
+  token 3 10:11 word "d"
+  token 4 10:12 lparen "("
+  token 5 10:13 word "d"
+  token 6 10:15 word "is"
+  token 7 10:17 equals "="
+  token 8 10:18 number "1e-14" value=1e-14
+  token 9 10:23 rparen ")"
+card 10 @parser/flags_ic.cir:11:1 lines=11-11 continuations=0
+  raw: ".model qm npn(npn is=1e-16 bf=100)"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "qm"
+  token 3 11:11 word "npn"
+  token 4 11:14 lparen "("
+  token 5 11:15 word "npn"
+  token 6 11:19 word "is"
+  token 7 11:21 equals "="
+  token 8 11:22 number "1e-16" value=1e-16
+  token 9 11:28 word "bf"
+  token 10 11:30 equals "="
+  token 11 11:31 number "100" value=1e2
+  token 12 11:34 rparen ")"
+card 11 @parser/flags_ic.cir:12:1 lines=12-12 continuations=0
+  raw: ".model nm nmos(nmos level=1 vto=1 kp=100u)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "nm"
+  token 3 12:11 word "nmos"
+  token 4 12:15 lparen "("
+  token 5 12:16 word "nmos"
+  token 6 12:21 word "level"
+  token 7 12:26 equals "="
+  token 8 12:27 number "1" value=1e0
+  token 9 12:29 word "vto"
+  token 10 12:32 equals "="
+  token 11 12:33 number "1" value=1e0
+  token 12 12:35 word "kp"
+  token 13 12:37 equals "="
+  token 14 12:38 number "100u" value=9.999999999999999e-5
+  token 15 12:42 rparen ")"
+card 12 @parser/flags_ic.cir:13:1 lines=13-13 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 13:1 word ".op"
+card 13 @parser/flags_ic.cir:14:1 lines=14-14 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 14:1 word ".end"

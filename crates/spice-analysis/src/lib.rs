@@ -22,12 +22,14 @@
 
 mod ac;
 pub mod analysis;
+pub mod config;
 mod linear;
 pub mod rawfile;
 pub mod results;
 mod transient;
 
 pub use analysis::{Analysis, AnalysisContext, AnalysisRequest, DRIVERS, has_driver, runner};
+pub use config::{AppliedOption, RunConfig, RunOverrides, TransientSettings};
 pub use rawfile::{RawFile, RawPlot};
 pub use results::{Plot, PlotFlags, Variable};
 

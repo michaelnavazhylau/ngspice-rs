@@ -21,7 +21,7 @@ Exit criteria met:
 - no external crate dependencies at M0 completion (the later `new-parsing`
   branch adds winnow deliberately)
 
-## M1 — Netlist front end (current, in progress)
+## M1 — Netlist front end (fixture and round-trip gate closed by #22)
 
 Parse a deck into `spice-netlist::Netlist`: title, device instances, `.model`,
 `.subckt`/`.ends`, `.include`/`.lib`, `.param`/`.option`, analysis cards.
@@ -54,8 +54,8 @@ stage. Main now includes the bounded linear engine described below.
 
 M1a checks: parser fixture/unit regressions, CLI exit-contract tests, and an
 opt-in C oracle comparing scalar AST parameters with live C instance queries.
-See `VERIFICATION.md`. Token/AST golden dumps and serialization are **not yet
-implemented** and remain part of the full M1 exit gate.
+See `VERIFICATION.md`. Token/AST snapshots (#21) and the normalized deck writer (#20) are
+implemented and exercised by the #22 gate.
 
 ### `new-parsing` — Winnow backend ✅
 
@@ -116,12 +116,16 @@ Subcircuit flattening (#18) remains M5 work.
 1. **M1b:** further model/device/passive forms beyond the documented bounded
    subset. No nonlinear arithmetic or waveform deck evaluation yet.
 2. **M1d, #14–16:** expressions, parameter evaluation, `.option` and `.global`.
-3. **M1d, #20–22:** normalized-deck writer, token/AST snapshots and full
+3. **M1d, #20–22 (done):** normalized-deck writer, token/AST snapshots and full
    eight-fixture round-trip gate. Subcircuit circuit elaboration (#18) is M5.
 
-Exit criteria (not met yet): round-trip every deck in
-`conformance/netlists/` into the AST and back to a normalised deck text; golden
-fixtures for tokens and AST dumps. Track concrete work in the central
+Exit criteria (met by #22, `crates/spice-netlist/tests/m1_gate.rs`): every deck in
+`conformance/netlists/` round-trips AST -> normalised deck text -> AST with
+semantic equality and a writer fixed point, with committed token/AST snapshots,
+combined include/subcircuit/param/option fixtures and explicit negative cases.
+Still outstanding and not claimed: subcircuit flattening (#18, M5),
+subcircuit-scoped parameter evaluation, and any nonlinear simulation (a D/Q/M
+parse is syntax only). C parser oracles stay opt-in. Track concrete work in the central
 [`TODO.md`](../../TODO.md).
 
 ## M2 follow-up — Linear-core verification and documentation

@@ -1,0 +1,335 @@
+# ngspice-rs token-dump v1
+file: parser/passive_elaboration.cir
+title: "Bounded passive geometry, temperature, scale and multiplicity" @parser/passive_elaboration.cir:1:1
+card 1 @parser/passive_elaboration.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 a 0 dc 1 ac 1"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "a"
+  token 3 2:6 number "0" value=0e0
+  token 4 2:8 word "dc"
+  token 5 2:11 number "1" value=1e0
+  token 6 2:13 word "ac"
+  token 7 2:16 number "1" value=1e0
+card 2 @parser/passive_elaboration.cir:3:1 lines=3-3 continuations=0
+  raw: "rmodel a 0 rm"
+  kind: device(r)
+  token 1 3:1 word "rmodel"
+  token 2 3:8 word "a"
+  token 3 3:10 number "0" value=0e0
+  token 4 3:12 word "rm"
+card 3 @parser/passive_elaboration.cir:4:1 lines=4-4 continuations=0
+  raw: "rgeom a 0 rg l=8u w=4u temp=40 tc1=0.002 scale=1.5 m=2"
+  kind: device(r)
+  token 1 4:1 word "rgeom"
+  token 2 4:7 word "a"
+  token 3 4:9 number "0" value=0e0
+  token 4 4:11 word "rg"
+  token 5 4:14 word "l"
+  token 6 4:15 equals "="
+  token 7 4:16 number "8u" value=8e-6
+  token 8 4:19 word "w"
+  token 9 4:20 equals "="
+  token 10 4:21 number "4u" value=4e-6
+  token 11 4:24 word "temp"
+  token 12 4:28 equals "="
+  token 13 4:29 number "40" value=4e1
+  token 14 4:32 word "tc1"
+  token 15 4:35 equals "="
+  token 16 4:36 number "0.002" value=2e-3
+  token 17 4:42 word "scale"
+  token 18 4:47 equals "="
+  token 19 4:48 number "1.5" value=1.5e0
+  token 20 4:52 word "m"
+  token 21 4:53 equals "="
+  token 22 4:54 number "2" value=2e0
+card 4 @parser/passive_elaboration.cir:5:1 lines=5-5 continuations=0
+  raw: "rdefaults a 0 rg"
+  kind: device(r)
+  token 1 5:1 word "rdefaults"
+  token 2 5:11 word "a"
+  token 3 5:13 number "0" value=0e0
+  token 4 5:15 word "rg"
+card 5 @parser/passive_elaboration.cir:6:1 lines=6-6 continuations=0
+  raw: "rpre a 0 1k rm resistance=3k"
+  kind: device(r)
+  token 1 6:1 word "rpre"
+  token 2 6:6 word "a"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "1k" value=1e3
+  token 5 6:13 word "rm"
+  token 6 6:16 word "resistance"
+  token 7 6:26 equals "="
+  token 8 6:27 number "3k" value=3e3
+card 6 @parser/passive_elaboration.cir:7:1 lines=7-7 continuations=0
+  raw: "rpost a 0 rm 4k resistance=5k"
+  kind: device(r)
+  token 1 7:1 word "rpost"
+  token 2 7:7 word "a"
+  token 3 7:9 number "0" value=0e0
+  token 4 7:11 word "rm"
+  token 5 7:14 number "4k" value=4e3
+  token 6 7:17 word "resistance"
+  token 7 7:27 equals "="
+  token 8 7:28 number "5k" value=5e3
+card 7 @parser/passive_elaboration.cir:8:1 lines=8-8 continuations=0
+  raw: "rboth a 0 7k rm 8k resistance=9k"
+  kind: device(r)
+  token 1 8:1 word "rboth"
+  token 2 8:7 word "a"
+  token 3 8:9 number "0" value=0e0
+  token 4 8:11 number "7k" value=7e3
+  token 5 8:14 word "rm"
+  token 6 8:17 number "8k" value=8e3
+  token 7 8:20 word "resistance"
+  token 8 8:30 equals "="
+  token 9 8:31 number "9k" value=9e3
+card 8 @parser/passive_elaboration.cir:9:1 lines=9-9 continuations=0
+  raw: "rinstance a 0 2k rm tc1=0.001 tc2=0.00001 temp=60 m=3 scale=0.5"
+  kind: device(r)
+  token 1 9:1 word "rinstance"
+  token 2 9:11 word "a"
+  token 3 9:13 number "0" value=0e0
+  token 4 9:15 number "2k" value=2e3
+  token 5 9:18 word "rm"
+  token 6 9:21 word "tc1"
+  token 7 9:24 equals "="
+  token 8 9:25 number "0.001" value=1e-3
+  token 9 9:31 word "tc2"
+  token 10 9:34 equals "="
+  token 11 9:35 number "0.00001" value=1e-5
+  token 12 9:43 word "temp"
+  token 13 9:47 equals "="
+  token 14 9:48 number "60" value=6e1
+  token 15 9:51 word "m"
+  token 16 9:52 equals "="
+  token 17 9:53 number "3" value=3e0
+  token 18 9:55 word "scale"
+  token 19 9:60 equals "="
+  token 20 9:61 number "0.5" value=5e-1
+card 9 @parser/passive_elaboration.cir:10:1 lines=10-10 continuations=0
+  raw: "cmodel a 0 cm m=2 scale=3 temp=40"
+  kind: device(c)
+  token 1 10:1 word "cmodel"
+  token 2 10:8 word "a"
+  token 3 10:10 number "0" value=0e0
+  token 4 10:12 word "cm"
+  token 5 10:15 word "m"
+  token 6 10:16 equals "="
+  token 7 10:17 number "2" value=2e0
+  token 8 10:19 word "scale"
+  token 9 10:24 equals "="
+  token 10 10:25 number "3" value=3e0
+  token 11 10:27 word "temp"
+  token 12 10:31 equals "="
+  token 13 10:32 number "40" value=4e1
+card 10 @parser/passive_elaboration.cir:11:1 lines=11-11 continuations=0
+  raw: "cgeom a 0 cg l=10u w=6u"
+  kind: device(c)
+  token 1 11:1 word "cgeom"
+  token 2 11:7 word "a"
+  token 3 11:9 number "0" value=0e0
+  token 4 11:11 word "cg"
+  token 5 11:14 word "l"
+  token 6 11:15 equals "="
+  token 7 11:16 number "10u" value=9.999999999999999e-6
+  token 8 11:20 word "w"
+  token 9 11:21 equals "="
+  token 10 11:22 number "6u" value=6e-6
+card 11 @parser/passive_elaboration.cir:12:1 lines=12-12 continuations=0
+  raw: "cdefaults a 0 cg l=12u"
+  kind: device(c)
+  token 1 12:1 word "cdefaults"
+  token 2 12:11 word "a"
+  token 3 12:13 number "0" value=0e0
+  token 4 12:15 word "cg"
+  token 5 12:18 word "l"
+  token 6 12:19 equals "="
+  token 7 12:20 number "12u" value=1.2e-5
+card 12 @parser/passive_elaboration.cir:13:1 lines=13-13 continuations=0
+  raw: "coverrides a 0 2u cm tc1=0.002"
+  kind: device(c)
+  token 1 13:1 word "coverrides"
+  token 2 13:12 word "a"
+  token 3 13:14 number "0" value=0e0
+  token 4 13:16 number "2u" value=2e-6
+  token 5 13:19 word "cm"
+  token 6 13:22 word "tc1"
+  token 7 13:25 equals "="
+  token 8 13:26 number "0.002" value=2e-3
+card 13 @parser/passive_elaboration.cir:14:1 lines=14-14 continuations=0
+  raw: "lmodel a b lm m=2 scale=3 temp=40"
+  kind: device(l)
+  token 1 14:1 word "lmodel"
+  token 2 14:8 word "a"
+  token 3 14:10 word "b"
+  token 4 14:12 word "lm"
+  token 5 14:15 word "m"
+  token 6 14:16 equals "="
+  token 7 14:17 number "2" value=2e0
+  token 8 14:19 word "scale"
+  token 9 14:24 equals "="
+  token 10 14:25 number "3" value=3e0
+  token 11 14:27 word "temp"
+  token 12 14:31 equals "="
+  token 13 14:32 number "40" value=4e1
+card 14 @parser/passive_elaboration.cir:15:1 lines=15-15 continuations=0
+  raw: "rload b 0 1k"
+  kind: device(r)
+  token 1 15:1 word "rload"
+  token 2 15:7 word "b"
+  token 3 15:9 number "0" value=0e0
+  token 4 15:11 number "1k" value=1e3
+card 15 @parser/passive_elaboration.cir:16:1 lines=16-16 continuations=0
+  raw: "lexplicit a c 4m lm inductance=5m tc1=0.002 m=3"
+  kind: device(l)
+  token 1 16:1 word "lexplicit"
+  token 2 16:11 word "a"
+  token 3 16:13 word "c"
+  token 4 16:15 number "4m" value=4e-3
+  token 5 16:18 word "lm"
+  token 6 16:21 word "inductance"
+  token 7 16:31 equals "="
+  token 8 16:32 number "5m" value=5e-3
+  token 9 16:35 word "tc1"
+  token 10 16:38 equals "="
+  token 11 16:39 number "0.002" value=2e-3
+  token 12 16:45 word "m"
+  token 13 16:46 equals "="
+  token 14 16:47 number "3" value=3e0
+card 16 @parser/passive_elaboration.cir:17:1 lines=17-17 continuations=0
+  raw: "rload2 c 0 2k"
+  kind: device(r)
+  token 1 17:1 word "rload2"
+  token 2 17:8 word "c"
+  token 3 17:10 number "0" value=0e0
+  token 4 17:12 number "2k" value=2e3
+card 17 @parser/passive_elaboration.cir:18:1 lines=18-18 continuations=0
+  raw: ".model rm r(r=1k r=2k tc1=0.001 tc2=0.00001 tnom=20)"
+  kind: dot(.model)
+  token 1 18:1 word ".model"
+  token 2 18:8 word "rm"
+  token 3 18:11 word "r"
+  token 4 18:12 lparen "("
+  token 5 18:13 word "r"
+  token 6 18:14 equals "="
+  token 7 18:15 number "1k" value=1e3
+  token 8 18:18 word "r"
+  token 9 18:19 equals "="
+  token 10 18:20 number "2k" value=2e3
+  token 11 18:23 word "tc1"
+  token 12 18:26 equals "="
+  token 13 18:27 number "0.001" value=1e-3
+  token 14 18:33 word "tc2"
+  token 15 18:36 equals "="
+  token 16 18:37 number "0.00001" value=1e-5
+  token 17 18:45 word "tnom"
+  token 18 18:49 equals "="
+  token 19 18:50 number "20" value=2e1
+  token 20 18:52 rparen ")"
+card 18 @parser/passive_elaboration.cir:19:1 lines=19-19 continuations=0
+  raw: ".model rg r(r=9k rsh=100 defw=6u l=12u narrow=0.5u short=1u tc1=0.001 tnom=20)"
+  kind: dot(.model)
+  token 1 19:1 word ".model"
+  token 2 19:8 word "rg"
+  token 3 19:11 word "r"
+  token 4 19:12 lparen "("
+  token 5 19:13 word "r"
+  token 6 19:14 equals "="
+  token 7 19:15 number "9k" value=9e3
+  token 8 19:18 word "rsh"
+  token 9 19:21 equals "="
+  token 10 19:22 number "100" value=1e2
+  token 11 19:26 word "defw"
+  token 12 19:30 equals "="
+  token 13 19:31 number "6u" value=6e-6
+  token 14 19:34 word "l"
+  token 15 19:35 equals "="
+  token 16 19:36 number "12u" value=1.2e-5
+  token 17 19:40 word "narrow"
+  token 18 19:46 equals "="
+  token 19 19:47 number "0.5u" value=5e-7
+  token 20 19:52 word "short"
+  token 21 19:57 equals "="
+  token 22 19:58 number "1u" value=1e-6
+  token 23 19:61 word "tc1"
+  token 24 19:64 equals "="
+  token 25 19:65 number "0.001" value=1e-3
+  token 26 19:71 word "tnom"
+  token 27 19:75 equals "="
+  token 28 19:76 number "20" value=2e1
+  token 29 19:78 rparen ")"
+card 19 @parser/passive_elaboration.cir:20:1 lines=20-20 continuations=0
+  raw: ".model cm c(cap=1u tc1=0.001 tc2=0.00001 tnom=20)"
+  kind: dot(.model)
+  token 1 20:1 word ".model"
+  token 2 20:8 word "cm"
+  token 3 20:11 word "c"
+  token 4 20:12 lparen "("
+  token 5 20:13 word "cap"
+  token 6 20:16 equals "="
+  token 7 20:17 number "1u" value=1e-6
+  token 8 20:20 word "tc1"
+  token 9 20:23 equals "="
+  token 10 20:24 number "0.001" value=1e-3
+  token 11 20:30 word "tc2"
+  token 12 20:33 equals "="
+  token 13 20:34 number "0.00001" value=1e-5
+  token 14 20:42 word "tnom"
+  token 15 20:46 equals "="
+  token 16 20:47 number "20" value=2e1
+  token 17 20:49 rparen ")"
+card 20 @parser/passive_elaboration.cir:21:1 lines=21-21 continuations=0
+  raw: ".model cg c(cj=2m cjsw=3n defw=8u narrow=1u short=2u tc1=0.001)"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "cg"
+  token 3 21:11 word "c"
+  token 4 21:12 lparen "("
+  token 5 21:13 word "cj"
+  token 6 21:15 equals "="
+  token 7 21:16 number "2m" value=2e-3
+  token 8 21:19 word "cjsw"
+  token 9 21:23 equals "="
+  token 10 21:24 number "3n" value=3.0000000000000004e-9
+  token 11 21:27 word "defw"
+  token 12 21:31 equals "="
+  token 13 21:32 number "8u" value=8e-6
+  token 14 21:35 word "narrow"
+  token 15 21:41 equals "="
+  token 16 21:42 number "1u" value=1e-6
+  token 17 21:45 word "short"
+  token 18 21:50 equals "="
+  token 19 21:51 number "2u" value=2e-6
+  token 20 21:54 word "tc1"
+  token 21 21:57 equals "="
+  token 22 21:58 number "0.001" value=1e-3
+  token 23 21:63 rparen ")"
+card 21 @parser/passive_elaboration.cir:22:1 lines=22-22 continuations=0
+  raw: ".model lm l(ind=6m tc1=0.001 tc2=0.00001 tnom=20)"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "lm"
+  token 3 22:11 word "l"
+  token 4 22:12 lparen "("
+  token 5 22:13 word "ind"
+  token 6 22:16 equals "="
+  token 7 22:17 number "6m" value=6e-3
+  token 8 22:20 word "tc1"
+  token 9 22:23 equals "="
+  token 10 22:24 number "0.001" value=1e-3
+  token 11 22:30 word "tc2"
+  token 12 22:33 equals "="
+  token 13 22:34 number "0.00001" value=1e-5
+  token 14 22:42 word "tnom"
+  token 15 22:46 equals "="
+  token 16 22:47 number "20" value=2e1
+  token 17 22:49 rparen ")"
+card 22 @parser/passive_elaboration.cir:23:1 lines=23-23 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 23:1 word ".op"
+card 23 @parser/passive_elaboration.cir:24:1 lines=24-24 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 24:1 word ".end"

@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_unmatched_close_brace.cir
+error parse @cases/error_unmatched_close_brace.cir:2:11
+  message: "unmatched '}' without an opening '{' on this card"

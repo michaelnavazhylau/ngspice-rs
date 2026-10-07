@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_unterminated_quote.cir
+error parse @cases/error_unterminated_quote.cir:2:10
+  message: "unterminated \" quoted string on this card"

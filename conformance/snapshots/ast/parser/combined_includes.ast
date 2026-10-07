@@ -1,0 +1,145 @@
+# ngspice-rs ast-dump v1
+file: parser/combined_includes.cir
+title: "Combined includes, subcircuits, params and options" @parser/combined_includes.cir:1:1
+scope root
+  cards (19):
+    [0] options[0] @parser/combined_includes.cir:2:1 ".option reltol=1e-4 temp=30"
+    [1] param[0] @parser/combined_includes.cir:3:1 ".param vin=5 rtop=1k"
+    [2] include[0] @parser/combined_includes.cir:4:1 ".include 'sources/combined/models.inc'"
+    [3] param[1] @parser/sources/combined/models.inc:2:1 ".param fromfile=2" via=[parser/combined_includes.cir:4:1]
+    [4] model[0] @parser/sources/combined/models.inc:3:1 ".model dm d(is=1e-14)" via=[parser/combined_includes.cir:4:1]
+    [5] global[0] @parser/combined_includes.cir:5:1 ".global vdd"
+    [6] options[1] @parser/combined_includes.cir:6:1 ".option reltol=1e-5 noopiter"
+    [7] subcircuit[0] @parser/combined_includes.cir:7:1 ".subckt stage a b params: r=1k"
+    [8] include[1] @parser/combined_includes.cir:12:1 ".lib 'sources/combined/lib.inc' TYPICAL"
+    [9] param[2] @parser/sources/combined/lib.inc:5:1 ".param speed=1" via=[parser/combined_includes.cir:12:1]
+    [10] model[1] @parser/sources/combined/lib.inc:6:1 ".model rlib r rsh=50" via=[parser/combined_includes.cir:12:1]
+    [11] device[0] @parser/combined_includes.cir:13:1 "v1 vdd 0 dc {vin}"
+    [12] device[1] @parser/combined_includes.cir:14:1 "x1 vdd mid stage r={rtop}"
+    [13] device[2] @parser/combined_includes.cir:15:1 "r1 mid 0 {rtop*2}"
+    [14] device[3] @parser/combined_includes.cir:16:1 "d1 mid 0 dm"
+    [15] param[3] @parser/combined_includes.cir:17:1 ".param late=3"
+    [16] options[2] @parser/combined_includes.cir:18:1 ".option temp=40"
+    [17] analysis[0] @parser/combined_includes.cir:19:1 ".op"
+    [18] end @parser/combined_includes.cir:20:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @parser/combined_includes.cir:13:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=expression value="{vin}" @parser/combined_includes.cir:13:10
+          expression braced=true text="vin" span=13:14..17
+            identifier "vin" span=13:14..17
+    device [1] name="x1" designator=x @parser/combined_includes.cir:14:1
+      nodes: "vdd" "mid"
+      model: "stage"
+      parameters (1):
+        [0] name="r" kind=expression value="{rtop}" @parser/combined_includes.cir:14:18
+          expression braced=true text="rtop" span=14:21..25
+            identifier "rtop" span=14:21..25
+    device [2] name="r1" designator=r @parser/combined_includes.cir:15:1
+      nodes: "mid" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rtop*2}" @parser/combined_includes.cir:15:10
+          expression braced=true text="rtop*2" span=15:11..17
+            binary mul span=15:11..17
+              identifier "rtop" span=15:11..15
+              number "2" value=2e0 span=15:16..17
+    device [3] name="d1" designator=d @parser/combined_includes.cir:16:1
+      nodes: "mid" "0"
+      model: "dm"
+      parameters (0):
+  models (2):
+    model [0] name="dm" base="d" level=none @parser/sources/combined/models.inc:3:1
+      parameters (1):
+        [0] name="is" kind=scalar value="1e-14" @parser/sources/combined/models.inc:3:13
+    model [1] name="rlib" base="r" level=none @parser/sources/combined/lib.inc:6:1
+      parameters (1):
+        [0] name="rsh" kind=scalar value="50" @parser/sources/combined/lib.inc:6:15
+  subcircuits (1):
+    subcircuit [0] name="stage" @parser/combined_includes.cir:7:1 end=@parser/combined_includes.cir:11:1
+      terminals: "a" "b"
+      parameters (1):
+        [0] name="r" kind=scalar value="1k" @parser/combined_includes.cir:7:27
+      scope body
+        cards (7):
+          [0] param[0] @parser/combined_includes.cir:8:1 ".param rr={r*2}"
+          [1] model[0] @parser/combined_includes.cir:9:1 ".model local r rsh=100"
+          [2] include[0] @parser/combined_includes.cir:10:1 ".include 'sources/combined/stage_body.inc'"
+          [3] device[0] @parser/sources/combined/stage_body.inc:2:1 "r1 a n1 {rr}" via=[parser/combined_includes.cir:10:1]
+          [4] device[1] @parser/sources/combined/stage_body.inc:3:1 "r2 n1 b local" via=[parser/combined_includes.cir:10:1]
+          [5] param[1] @parser/sources/combined/stage_body.inc:4:1 ".param inner=7" via=[parser/combined_includes.cir:10:1]
+          [6] ends @parser/combined_includes.cir:11:1 ".ends stage"
+        devices (2):
+          device [0] name="r1" designator=r @parser/sources/combined/stage_body.inc:2:1
+            nodes: "a" "n1"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=expression value="{rr}" @parser/sources/combined/stage_body.inc:2:9
+                expression braced=true text="rr" span=2:10..12
+                  identifier "rr" span=2:10..12
+          device [1] name="r2" designator=r @parser/sources/combined/stage_body.inc:3:1
+            nodes: "n1" "b"
+            model: "local"
+            parameters (0):
+        models (1):
+          model [0] name="local" base="r" level=none @parser/combined_includes.cir:9:1
+            parameters (1):
+              [0] name="rsh" kind=scalar value="100" @parser/combined_includes.cir:9:16
+        subcircuits (0):
+        analyses (0):
+        includes (1):
+          include [0] path="sources/combined/stage_body.inc" spelling="'sources/combined/stage_body.inc'" resolved="parser/sources/combined/stage_body.inc" section=none @parser/combined_includes.cir:10:1
+        params (2):
+          param-card [0] @parser/combined_includes.cir:8:1
+            assignment [0] name="rr" name_span=8:8..10
+              expression braced=true text="r*2" span=8:12..15
+                binary mul span=8:12..15
+                  identifier "r" span=8:12..13
+                  number "2" value=2e0 span=8:14..15
+          param-card [1] @parser/sources/combined/stage_body.inc:4:1
+            assignment [0] name="inner" name_span=4:8..13
+              expression braced=false text="7" span=4:14..15
+                number "7" value=7e0 span=4:14..15
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @parser/combined_includes.cir:19:1
+      arguments:
+  includes (2):
+    include [0] path="sources/combined/models.inc" spelling="'sources/combined/models.inc'" resolved="parser/sources/combined/models.inc" section=none @parser/combined_includes.cir:4:1
+    include [1] path="sources/combined/lib.inc" spelling="'sources/combined/lib.inc'" resolved="parser/sources/combined/lib.inc" section="typical" @parser/combined_includes.cir:12:1
+      selected "typical" opening=@parser/sources/combined/lib.inc:4:1 ".lib typical" closing=@parser/sources/combined/lib.inc:7:1 ".endl typical"
+  params (4):
+    param-card [0] @parser/combined_includes.cir:3:1
+      assignment [0] name="vin" name_span=3:8..11
+        expression braced=false text="5" span=3:12..13
+          number "5" value=5e0 span=3:12..13
+      assignment [1] name="rtop" name_span=3:14..18
+        expression braced=false text="1k" span=3:19..21
+          number "1k" value=1e3 span=3:19..21
+    param-card [1] @parser/sources/combined/models.inc:2:1
+      assignment [0] name="fromfile" name_span=2:8..16
+        expression braced=false text="2" span=2:17..18
+          number "2" value=2e0 span=2:17..18
+    param-card [2] @parser/sources/combined/lib.inc:5:1
+      assignment [0] name="speed" name_span=5:8..13
+        expression braced=false text="1" span=5:14..15
+          number "1" value=1e0 span=5:14..15
+    param-card [3] @parser/combined_includes.cir:17:1
+      assignment [0] name="late" name_span=17:8..12
+        expression braced=false text="3" span=17:13..14
+          number "3" value=3e0 span=17:13..14
+  options (3):
+    option-card [0] @parser/combined_includes.cir:2:1
+      setting [0] name="reltol" value="1e-4"@parser/combined_includes.cir:2:16 @parser/combined_includes.cir:2:9
+      setting [1] name="temp" value="30"@parser/combined_includes.cir:2:26 @parser/combined_includes.cir:2:21
+    option-card [1] @parser/combined_includes.cir:6:1
+      setting [0] name="reltol" value="1e-5"@parser/combined_includes.cir:6:16 @parser/combined_includes.cir:6:9
+      setting [1] name="noopiter" value=flag @parser/combined_includes.cir:6:21
+    option-card [2] @parser/combined_includes.cir:18:1
+      setting [0] name="temp" value="40"@parser/combined_includes.cir:18:14 @parser/combined_includes.cir:18:9
+  globals (1):
+    global-card [0] @parser/combined_includes.cir:5:1
+      node [0] "vdd" @parser/combined_includes.cir:5:9

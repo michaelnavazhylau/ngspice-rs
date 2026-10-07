@@ -8,9 +8,9 @@
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass. Current parser values are
-//!   finite scalar literals or positioned waveform/IC/flag setters;
-//!   formal/X parameter expressions are retained unevaluated as single tokens;
-//!   other expression syntax and evaluation remain pending.
+//!   finite scalar literals, positioned waveform/IC/flag setters, and parsed
+//!   but unevaluated `{...}` expressions ([`crate::expr`]); quoted values,
+//!   waveform/IC-vector expressions and evaluation remain pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -56,9 +56,16 @@ pub struct ParameterAssignment {
 pub enum ParameterKind {
     /// One finite numeric literal, retained in [`ParameterAssignment::value`].
     Scalar,
-    /// Unevaluated single-token formal/X parameter text (identifier, braced
-    /// expression or quoted value). Expression semantics are separate M1 work.
+    /// Unevaluated single-token formal/X parameter text that is neither a
+    /// finite literal nor a parsed expression (for instance a quoted value or
+    /// an extended numeric spelling such as `4k7`).
     Textual,
+    /// A `{...}` expression, or a bare parameter name at an `X`/`.subckt`
+    /// parameter site, parsed but **not evaluated**. [`ParameterAssignment::value`]
+    /// keeps the original token spelling (braces included); the box holds the
+    /// syntax tree and spans. Scalar consumers must treat this like any other
+    /// non-scalar kind until an evaluation pass resolves it.
+    Expression(Box<crate::expr::ParameterExpression>),
     /// A bare IF_FLAG keyword: C's INPgetValue supplies integer 1 without
     /// consuming a value. Explicit `flag=0`/`flag=1` forms are not accepted.
     Flag,
@@ -180,6 +187,8 @@ pub struct Subcircuit {
     pub analyses: Vec<AnalysisCard>,
     /// Source directives retained in this body.
     pub includes: Vec<IncludeDirective>,
+    /// `.param` cards written in this body, unevaluated.
+    pub params: Vec<ParamCard>,
     /// Ordered body cards, including the closing `.ends`.
     pub cards: Vec<ScopedCard>,
     /// Where the closing `.ends` was written.
@@ -216,34 +225,98 @@ pub struct LibrarySection {
     pub closing: crate::card::RawCard,
 }
 
-/// A `.param` card.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A `.param` card: one or more `name = expression` assignments in source
+/// order (C's `inp_split_multi_param_lines()` splits them the same way).
+/// Duplicates are kept; later assignments override earlier ones only during
+/// evaluation (GitHub #15). Nothing here is evaluated or checked for
+/// undefined references.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParamCard {
-    /// Parameter name.
-    pub name: String,
-    /// The expression that defines it.
-    pub expression: String,
+    /// Ordered assignments; never empty for a parsed card.
+    pub assignments: Vec<ParamAssignment>,
     /// Where the card was written.
     pub location: SourceLoc,
 }
 
+/// One `name = expression` pair from a `.param` card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParamAssignment {
+    /// Parameter name, lowercased (numparam names are case-insensitive).
+    pub name: String,
+    /// Byte span of the name as written.
+    pub name_span: crate::expr::SourceSpan,
+    /// The unevaluated right-hand side with its original text and spans.
+    pub expression: crate::expr::ParameterExpression,
+}
+
 /// An analysis request: which analysis, and its unparsed arguments.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AnalysisCard {
     /// Which analysis.
     pub kind: AnalysisKind,
     /// The card's arguments, as written.
     pub arguments: Vec<String>,
+    /// Parsed `{...}` arguments (unevaluated), by position in `arguments`.
+    /// Other arguments stay opaque text.
+    pub expressions: Vec<ArgumentExpression>,
     /// Where the card was written.
     pub location: SourceLoc,
 }
 
-/// A `.option` card, or a single option from one.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A parsed `{...}` analysis argument.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArgumentExpression {
+    /// Index into [`AnalysisCard::arguments`] whose text is the braced form.
+    pub index: usize,
+    /// The unevaluated expression.
+    pub expression: crate::expr::ParameterExpression,
+}
+
+/// A `.option`/`.options`/`.opt` card: ordered settings, duplicates preserved.
+///
+/// C: `inp2dot.c` hands the card to `INPdoOpts()` (`inpdoopt.c`), which applies
+/// settings left to right. This AST validates syntax only; whether a name is a
+/// supported option is decided by the run-configuration consumer.
+#[derive(Debug, Clone, PartialEq)]
 pub struct OptionCard {
-    /// The card's text, minus the leading `.option(s)`.
-    pub raw: String,
+    /// Settings in source order. Repeats are retained; later settings override
+    /// earlier ones when a consumer applies them in order.
+    pub settings: Vec<OptionSetting>,
     /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// One `name=value` setter or bare flag from an option card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptionSetting {
+    /// Option name, ASCII-lowercased (ngspice lowercases deck text).
+    pub name: String,
+    /// The value as written (numeric spelling or a bare word such as `gear`);
+    /// `None` for a bare flag. Never evaluated or range-checked here.
+    pub value: Option<PositionedValue>,
+    /// Where the option name was written.
+    pub location: SourceLoc,
+}
+
+/// A `.global` card: node names in written order, normalized like device nodes
+/// (lowercased; `gnd` becomes `0` only when automatic gnd aliasing is on).
+///
+/// C: `collect_global_nodes()` in `frontend/subckt.c`, and `inpcom.c`, which
+/// adds `.global gnd` unless `no_auto_gnd` is set. Ground `0` is always global.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalCard {
+    /// Declared nodes, in order, duplicates retained.
+    pub nodes: Vec<GlobalNode>,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// One node named by a `.global` card.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalNode {
+    /// Canonical node name.
+    pub name: NodeName,
+    /// Where the node name was written.
     pub location: SourceLoc,
 }
 
@@ -273,6 +346,13 @@ pub enum ScopedCardKind {
     Analysis(usize),
     /// Index into source directives; resolved content follows this entry.
     Include(usize),
+    /// Index into [`Netlist::options`] (root scope only).
+    Options(usize),
+    /// Index into [`Netlist::globals`] (root scope only).
+    Global(usize),
+    /// Index into this scope's `.param` cards (`Netlist::params` at the root,
+    /// `Subcircuit::params` in a body).
+    Param(usize),
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.
@@ -280,8 +360,9 @@ pub enum ScopedCardKind {
 }
 
 /// A semantic deck container. Scoped syntax and file resolution do not imply
-/// flattening, parameter evaluation or simulation. Parameter/option/global
-/// fields remain pending. See
+/// flattening, parameter evaluation or simulation. `.param` cards are parsed
+/// but unevaluated; `.option` cards are applied by `spice_analysis::RunConfig`,
+/// not by the AST. See
 /// `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Netlist {
@@ -299,12 +380,13 @@ pub struct Netlist {
     pub analyses: Vec<AnalysisCard>,
     /// `.include` and `.lib` directives.
     pub includes: Vec<IncludeDirective>,
-    /// `.param` values.
+    /// Top-level `.param` cards in deck order, unevaluated.
     pub params: Vec<ParamCard>,
-    /// `.option` cards.
+    /// `.option` cards in deck order (root scope only; inside `.subckt` bodies
+    /// they are rejected as not yet ported).
     pub options: Vec<OptionCard>,
-    /// `.global` node names.
-    pub globals: Vec<NodeName>,
+    /// `.global` cards in deck order (root scope only).
+    pub globals: Vec<GlobalCard>,
     /// All cards in source/expansion order, with scope-local typed indexes.
     pub cards: Vec<ScopedCard>,
     /// Where the deck started.
@@ -321,6 +403,34 @@ impl Netlist {
     #[must_use]
     pub fn top_level_device_count(&self) -> usize {
         self.devices.len()
+    }
+
+    /// Whether `name` is a global node for subcircuit flattening: ground `0` is
+    /// always global; other nodes are global only if a top-level `.global` card
+    /// named them. Matching is ASCII case-insensitive on canonical names, so
+    /// with automatic gnd aliasing `.global gnd` is the same as ground, while
+    /// under `no_auto_gnd` `gnd` is a distinct ordinary global node.
+    #[must_use]
+    pub fn is_global_node(&self, name: &str) -> bool {
+        name == "0"
+            || self
+                .globals
+                .iter()
+                .flat_map(|card| &card.nodes)
+                .any(|node| node.name.eq_ignore_ascii_case(name))
+    }
+
+    /// Declared global nodes in first-declaration order without duplicates.
+    /// Ground `0` is implicit and listed only if written (or aliased) explicitly.
+    #[must_use]
+    pub fn global_node_names(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = Vec::new();
+        for node in self.globals.iter().flat_map(|card| &card.nodes) {
+            if !names.contains(&node.name.as_str()) {
+                names.push(&node.name);
+            }
+        }
+        names
     }
 
     /// Looks up a top-level device by instance name, case-insensitively.

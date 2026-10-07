@@ -140,7 +140,7 @@ offline builds require the registry dependencies to have been cached first.
 The initial backend rewrite preserved loader/tokenizer contracts. M1b's
 model/D/Q/M slices and M1c's ordered scoped/source storage extend that AST;
 `parse_deck` is syntax-only and `parse_file` now resolves sources. This is still
-not completion of the remaining M1 syntax/round-trip gate.
+not subcircuit flattening (#18, M5); the M1 round-trip gate is closed by #22.
 
 ## Two data models for a netlist
 
@@ -156,7 +156,8 @@ not completion of the remaining M1 syntax/round-trip gate.
   flags/IC instances, opaque analyses, nested subcircuits/X instances and
   source-relative includes/library selections. Ordered `ScopedCard` entries
   refer to typed vectors in the owning scope and retain raw source/provenance.
-  Parameter evaluation, flattening and serialization are still unported.
+  Parameter evaluation and flattening are still unported; a normalized raw-AST
+  deck writer exists (`spice_netlist::writer`, #20).
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
@@ -208,8 +209,8 @@ comment at the divergence site.
 
 The syntax subset requires an explicit scalar on model-less R/C/L instances.
 Declared-model passives may omit it and retain bounded scalar geometry setters.
-Numeric-looking passive model references after a scalar, expressions and extended
-flags remain explicit gaps; numeric initial values remain scalars, even when a
+Numeric-looking passive model references after a scalar, quoted expressions and extended
+flags remain explicit gaps (braced expressions parse unevaluated, see PARAM_EXPRESSIONS.md); numeric initial values remain scalars, even when a
 model has the same name. This is not a claim about legality of wider C forms.
 
 ## Model resolution and schema boundary

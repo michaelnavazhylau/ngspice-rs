@@ -1,0 +1,44 @@
+# ngspice-rs ast-dump v1
+file: cases/name_number_ambiguity.cir
+title: "Numeric node names, number-like model names and ground aliases" @cases/name_number_ambiguity.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @cases/name_number_ambiguity.cir:2:1 "v1 1 0 dc 5"
+    [1] device[1] @cases/name_number_ambiguity.cir:3:1 "r1 1 2 1k"
+    [2] device[2] @cases/name_number_ambiguity.cir:4:1 "r2 2 gnd 4.7k"
+    [3] device[3] @cases/name_number_ambiguity.cir:5:1 "d1 2 0 1n4148"
+    [4] model[0] @cases/name_number_ambiguity.cir:6:1 ".model 1n4148 d(is=1e-14)"
+    [5] analysis[0] @cases/name_number_ambiguity.cir:7:1 ".op"
+    [6] end @cases/name_number_ambiguity.cir:8:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @cases/name_number_ambiguity.cir:2:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @cases/name_number_ambiguity.cir:2:8
+    device [1] name="r1" designator=r @cases/name_number_ambiguity.cir:3:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @cases/name_number_ambiguity.cir:3:8
+    device [2] name="r2" designator=r @cases/name_number_ambiguity.cir:4:1
+      nodes: "2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @cases/name_number_ambiguity.cir:4:10
+    device [3] name="d1" designator=d @cases/name_number_ambiguity.cir:5:1
+      nodes: "2" "0"
+      model: "1n4148"
+      parameters (0):
+  models (1):
+    model [0] name="1n4148" base="d" level=none @cases/name_number_ambiguity.cir:6:1
+      parameters (1):
+        [0] name="is" kind=scalar value="1e-14" @cases/name_number_ambiguity.cir:6:17
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @cases/name_number_ambiguity.cir:7:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

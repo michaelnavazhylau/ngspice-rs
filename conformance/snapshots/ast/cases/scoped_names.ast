@@ -1,0 +1,128 @@
+# ngspice-rs ast-dump v1
+file: cases/scoped_names.cir
+title: "Scoped names: same names in sibling and nested subcircuits" @cases/scoped_names.cir:1:1
+scope root
+  cards (8):
+    [0] param[0] @cases/scoped_names.cir:2:1 ".param top = 1k"
+    [1] subcircuit[0] @cases/scoped_names.cir:3:1 ".subckt outer a b w=1u"
+    [2] subcircuit[1] @cases/scoped_names.cir:13:1 ".subckt inner p q"
+    [3] device[0] @cases/scoped_names.cir:16:1 "x1 in out outer w=2u"
+    [4] device[1] @cases/scoped_names.cir:17:1 "x2 out 0 inner"
+    [5] device[2] @cases/scoped_names.cir:18:1 "r1 in 0 {top}"
+    [6] analysis[0] @cases/scoped_names.cir:19:1 ".op"
+    [7] end @cases/scoped_names.cir:20:1 ".end"
+  devices (3):
+    device [0] name="x1" designator=x @cases/scoped_names.cir:16:1
+      nodes: "in" "out"
+      model: "outer"
+      parameters (1):
+        [0] name="w" kind=scalar value="2u" @cases/scoped_names.cir:16:17
+    device [1] name="x2" designator=x @cases/scoped_names.cir:17:1
+      nodes: "out" "0"
+      model: "inner"
+      parameters (0):
+    device [2] name="r1" designator=r @cases/scoped_names.cir:18:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{top}" @cases/scoped_names.cir:18:9
+          expression braced=true text="top" span=18:10..13
+            identifier "top" span=18:10..13
+  models (0):
+  subcircuits (2):
+    subcircuit [0] name="outer" @cases/scoped_names.cir:3:1 end=@cases/scoped_names.cir:12:1
+      terminals: "a" "b"
+      parameters (1):
+        [0] name="w" kind=scalar value="1u" @cases/scoped_names.cir:3:19
+      scope body
+        cards (7):
+          [0] param[0] @cases/scoped_names.cir:4:1 ".param local = {w * 2}"
+          [1] device[0] @cases/scoped_names.cir:5:1 "r1 a mid {local}"
+          [2] model[0] @cases/scoped_names.cir:6:1 ".model dm d(is=1e-14)"
+          [3] device[1] @cases/scoped_names.cir:7:1 "d1 mid b dm"
+          [4] subcircuit[0] @cases/scoped_names.cir:8:1 ".subckt inner p q"
+          [5] device[2] @cases/scoped_names.cir:11:1 "x1 a b inner"
+          [6] ends @cases/scoped_names.cir:12:1 ".ends outer"
+        devices (3):
+          device [0] name="r1" designator=r @cases/scoped_names.cir:5:1
+            nodes: "a" "mid"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=expression value="{local}" @cases/scoped_names.cir:5:10
+                expression braced=true text="local" span=5:11..16
+                  identifier "local" span=5:11..16
+          device [1] name="d1" designator=d @cases/scoped_names.cir:7:1
+            nodes: "mid" "b"
+            model: "dm"
+            parameters (0):
+          device [2] name="x1" designator=x @cases/scoped_names.cir:11:1
+            nodes: "a" "b"
+            model: "inner"
+            parameters (0):
+        models (1):
+          model [0] name="dm" base="d" level=none @cases/scoped_names.cir:6:1
+            parameters (1):
+              [0] name="is" kind=scalar value="1e-14" @cases/scoped_names.cir:6:13
+        subcircuits (1):
+          subcircuit [0] name="inner" @cases/scoped_names.cir:8:1 end=@cases/scoped_names.cir:10:1
+            terminals: "p" "q"
+            parameters (0):
+            scope body
+              cards (2):
+                [0] device[0] @cases/scoped_names.cir:9:1 "r1 p q 10k"
+                [1] ends @cases/scoped_names.cir:10:1 ".ends inner"
+              devices (1):
+                device [0] name="r1" designator=r @cases/scoped_names.cir:9:1
+                  nodes: "p" "q"
+                  model: none
+                  parameters (1):
+                    [0] name="resistance" kind=scalar value="10k" @cases/scoped_names.cir:9:8
+              models (0):
+              subcircuits (0):
+              analyses (0):
+              includes (0):
+              params (0):
+              options (0):
+              globals (0):
+        analyses (0):
+        includes (0):
+        params (1):
+          param-card [0] @cases/scoped_names.cir:4:1
+            assignment [0] name="local" name_span=4:8..13
+              expression braced=true text="w * 2" span=4:17..22
+                binary mul span=4:17..22
+                  identifier "w" span=4:17..18
+                  number "2" value=2e0 span=4:21..22
+        options (0):
+        globals (0):
+    subcircuit [1] name="inner" @cases/scoped_names.cir:13:1 end=@cases/scoped_names.cir:15:1
+      terminals: "p" "q"
+      parameters (0):
+      scope body
+        cards (2):
+          [0] device[0] @cases/scoped_names.cir:14:1 "r1 p q 20k"
+          [1] ends @cases/scoped_names.cir:15:1 ".ends inner"
+        devices (1):
+          device [0] name="r1" designator=r @cases/scoped_names.cir:14:1
+            nodes: "p" "q"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="20k" @cases/scoped_names.cir:14:8
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @cases/scoped_names.cir:19:1
+      arguments:
+  includes (0):
+  params (1):
+    param-card [0] @cases/scoped_names.cir:2:1
+      assignment [0] name="top" name_span=2:8..11
+        expression braced=false text="1k" span=2:14..16
+          number "1k" value=1e3 span=2:14..16
+  options (0):
+  globals (0):

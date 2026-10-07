@@ -64,6 +64,7 @@ drift rather than silently absorbed.
 | `cargo xtask golden check` | capture into the scratch directory and report drift; writes nothing, exits non-zero on drift |
 | `cargo xtask golden list` | describe each committed golden: plot name, variable count, point count, finiteness |
 | `cargo xtask golden verify [--netlist <NAME>]` | run the supported Rust analyses against committed C data; no C binary, no writes, non-zero on failure |
+| `cargo xtask snapshots [--bless]` | check/regenerate token and AST snapshots; Rust only; non-zero on drift without `--bless` |
 | `cargo xtask ci` | `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` |
 
 For **capture/check only**, locate the reference binary with `--ngspice <PATH>` or `NGSPICE_BIN`; otherwise
@@ -155,7 +156,21 @@ It was run successfully against the local ngspice-47+ binary for M1a.
 
 `conformance/parser/` is **not** part of the rawfile fixture corpus; do not add
 `.raw` files there or confuse these instance-query checks with engine parity.
-Token/AST snapshots and normalized-deck round trips are still M1d work.
+Token/AST snapshots (#21) are committed under `conformance/snapshots/` and
+checked byte for byte by `crates/spice-netlist/tests/snapshots.rs`;
+`cargo xtask snapshots` reports drift and `--bless` regenerates (Rust only, no C,
+fixed point, never touches goldens). Schema, layout, path/Windows rules and the
+schema-change procedure: `conformance/snapshots/README.md`. The eight-fixture
+round-trip gate is `crates/spice-netlist/tests/m1_gate.rs` (#22); ordinary tests
+never need C, and C parser oracles remain opt-in.
+
+`crates/spice-netlist/tests/c_param_reference.rs` is a further ignored oracle for
+the `.param`/expression grammar (#14): it folds parsed trees with a test-local
+evaluator and compares the values with C's numparam, pinning precedence,
+associativity and the leading-sign rules. Run it with
+`NGSPICE_BIN=/abs/path/ngspice cargo test -p spice-netlist --test c_param_reference -- --ignored`.
+The fixture `conformance/parser/param_expressions.cir` is parsed by ordinary
+tests and the CLI without claiming any value is resolved.
 
 ## Winnow backend regressions
 
@@ -350,9 +365,9 @@ warning-free rustdoc and `git diff --check` pass. `cargo xtask golden verify`
 remains three verified/five explicitly unsupported fixtures; no goldens changed.
 
 These are syntax/setup comparisons, not Rust waveform evaluation or nonlinear
-simulation. Scoped/source syntax is now implemented below. Full M1 still
-requires expressions/evaluation/options/globals, serialization/snapshots and
-its eight-fixture round-trip gate.
+simulation. Scoped/source syntax is implemented below. (Historical note: the
+expressions, evaluation, options/globals, serialization, snapshots and the
+eight-fixture round-trip gate were completed later, #14-#16, #20-#22.)
 
 ## Scoped/source syntax (#12 / #13)
 

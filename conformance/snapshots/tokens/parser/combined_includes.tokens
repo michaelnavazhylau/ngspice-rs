@@ -1,0 +1,138 @@
+# ngspice-rs token-dump v1
+file: parser/combined_includes.cir
+title: "Combined includes, subcircuits, params and options" @parser/combined_includes.cir:1:1
+card 1 @parser/combined_includes.cir:2:1 lines=2-2 continuations=0
+  raw: ".option reltol=1e-4 temp=30"
+  kind: dot(.options)
+  token 1 2:1 word ".option"
+  token 2 2:9 word "reltol"
+  token 3 2:15 equals "="
+  token 4 2:16 number "1e-4" value=1e-4
+  token 5 2:21 word "temp"
+  token 6 2:25 equals "="
+  token 7 2:26 number "30" value=3e1
+card 2 @parser/combined_includes.cir:3:1 lines=3-3 continuations=0
+  raw: ".param vin=5 rtop=1k"
+  kind: dot(.param)
+  token 1 3:1 word ".param"
+  token 2 3:8 word "vin"
+  token 3 3:11 equals "="
+  token 4 3:12 number "5" value=5e0
+  token 5 3:14 word "rtop"
+  token 6 3:18 equals "="
+  token 7 3:19 number "1k" value=1e3
+card 3 @parser/combined_includes.cir:4:1 lines=4-4 continuations=0
+  raw: ".include 'sources/combined/models.inc'"
+  kind: dot(.include)
+  token 1 4:1 word ".include"
+  token 2 4:10 quoted "'sources/combined/models.inc'" unquoted="sources/combined/models.inc"
+card 4 @parser/combined_includes.cir:5:1 lines=5-5 continuations=0
+  raw: ".global vdd"
+  kind: dot(.global)
+  token 1 5:1 word ".global"
+  token 2 5:9 word "vdd"
+card 5 @parser/combined_includes.cir:6:1 lines=6-6 continuations=0
+  raw: ".option reltol=1e-5 noopiter"
+  kind: dot(.options)
+  token 1 6:1 word ".option"
+  token 2 6:9 word "reltol"
+  token 3 6:15 equals "="
+  token 4 6:16 number "1e-5" value=1e-5
+  token 5 6:21 word "noopiter"
+card 6 @parser/combined_includes.cir:7:1 lines=7-7 continuations=0
+  raw: ".subckt stage a b params: r=1k"
+  kind: dot(.subckt)
+  token 1 7:1 word ".subckt"
+  token 2 7:9 word "stage"
+  token 3 7:15 word "a"
+  token 4 7:17 word "b"
+  token 5 7:19 word "params:"
+  token 6 7:27 word "r"
+  token 7 7:28 equals "="
+  token 8 7:29 number "1k" value=1e3
+card 7 @parser/combined_includes.cir:8:1 lines=8-8 continuations=0
+  raw: ".param rr={r*2}"
+  kind: dot(.param)
+  token 1 8:1 word ".param"
+  token 2 8:8 word "rr"
+  token 3 8:10 equals "="
+  token 4 8:11 expression "{r*2}" inner="r*2"
+card 8 @parser/combined_includes.cir:9:1 lines=9-9 continuations=0
+  raw: ".model local r rsh=100"
+  kind: dot(.model)
+  token 1 9:1 word ".model"
+  token 2 9:8 word "local"
+  token 3 9:14 word "r"
+  token 4 9:16 word "rsh"
+  token 5 9:19 equals "="
+  token 6 9:20 number "100" value=1e2
+card 9 @parser/combined_includes.cir:10:1 lines=10-10 continuations=0
+  raw: ".include 'sources/combined/stage_body.inc'"
+  kind: dot(.include)
+  token 1 10:1 word ".include"
+  token 2 10:10 quoted "'sources/combined/stage_body.inc'" unquoted="sources/combined/stage_body.inc"
+card 10 @parser/combined_includes.cir:11:1 lines=11-11 continuations=0
+  raw: ".ends stage"
+  kind: dot(.ends)
+  token 1 11:1 word ".ends"
+  token 2 11:7 word "stage"
+card 11 @parser/combined_includes.cir:12:1 lines=12-12 continuations=0
+  raw: ".lib 'sources/combined/lib.inc' TYPICAL"
+  kind: dot(.lib)
+  token 1 12:1 word ".lib"
+  token 2 12:6 quoted "'sources/combined/lib.inc'" unquoted="sources/combined/lib.inc"
+  token 3 12:33 word "TYPICAL"
+card 12 @parser/combined_includes.cir:13:1 lines=13-13 continuations=0
+  raw: "v1 vdd 0 dc {vin}"
+  kind: device(v)
+  token 1 13:1 word "v1"
+  token 2 13:4 word "vdd"
+  token 3 13:8 number "0" value=0e0
+  token 4 13:10 word "dc"
+  token 5 13:13 expression "{vin}" inner="vin"
+card 13 @parser/combined_includes.cir:14:1 lines=14-14 continuations=0
+  raw: "x1 vdd mid stage r={rtop}"
+  kind: device(x)
+  token 1 14:1 word "x1"
+  token 2 14:4 word "vdd"
+  token 3 14:8 word "mid"
+  token 4 14:12 word "stage"
+  token 5 14:18 word "r"
+  token 6 14:19 equals "="
+  token 7 14:20 expression "{rtop}" inner="rtop"
+card 14 @parser/combined_includes.cir:15:1 lines=15-15 continuations=0
+  raw: "r1 mid 0 {rtop*2}"
+  kind: device(r)
+  token 1 15:1 word "r1"
+  token 2 15:4 word "mid"
+  token 3 15:8 number "0" value=0e0
+  token 4 15:10 expression "{rtop*2}" inner="rtop*2"
+card 15 @parser/combined_includes.cir:16:1 lines=16-16 continuations=0
+  raw: "d1 mid 0 dm"
+  kind: device(d)
+  token 1 16:1 word "d1"
+  token 2 16:4 word "mid"
+  token 3 16:8 number "0" value=0e0
+  token 4 16:10 word "dm"
+card 16 @parser/combined_includes.cir:17:1 lines=17-17 continuations=0
+  raw: ".param late=3"
+  kind: dot(.param)
+  token 1 17:1 word ".param"
+  token 2 17:8 word "late"
+  token 3 17:12 equals "="
+  token 4 17:13 number "3" value=3e0
+card 17 @parser/combined_includes.cir:18:1 lines=18-18 continuations=0
+  raw: ".option temp=40"
+  kind: dot(.options)
+  token 1 18:1 word ".option"
+  token 2 18:9 word "temp"
+  token 3 18:13 equals "="
+  token 4 18:14 number "40" value=4e1
+card 18 @parser/combined_includes.cir:19:1 lines=19-19 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 19:1 word ".op"
+card 19 @parser/combined_includes.cir:20:1 lines=20-20 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 20:1 word ".end"

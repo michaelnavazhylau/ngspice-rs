@@ -1,0 +1,89 @@
+# ngspice-rs token-dump v1
+file: parser/combined_params_options.cir
+title: "Combined params, options and globals, simulatable at top level" @parser/combined_params_options.cir:1:1
+card 1 @parser/combined_params_options.cir:2:1 lines=2-2 continuations=0
+  raw: ".option reltol=1e-4 temp=30"
+  kind: dot(.options)
+  token 1 2:1 word ".option"
+  token 2 2:9 word "reltol"
+  token 3 2:15 equals "="
+  token 4 2:16 number "1e-4" value=1e-4
+  token 5 2:21 word "temp"
+  token 6 2:25 equals "="
+  token 7 2:26 number "30" value=3e1
+card 2 @parser/combined_params_options.cir:3:1 lines=3-3 continuations=0
+  raw: ".global vdd"
+  kind: dot(.global)
+  token 1 3:1 word ".global"
+  token 2 3:9 word "vdd"
+card 3 @parser/combined_params_options.cir:4:1 lines=4-4 continuations=0
+  raw: ".param vcc=5 rtop=2k ratio=3"
+  kind: dot(.param)
+  token 1 4:1 word ".param"
+  token 2 4:8 word "vcc"
+  token 3 4:11 equals "="
+  token 4 4:12 number "5" value=5e0
+  token 5 4:14 word "rtop"
+  token 6 4:18 equals "="
+  token 7 4:19 number "2k" value=2e3
+  token 8 4:22 word "ratio"
+  token 9 4:27 equals "="
+  token 10 4:28 number "3" value=3e0
+card 4 @parser/combined_params_options.cir:5:1 lines=5-5 continuations=0
+  raw: ".param rbot={rtop*ratio}"
+  kind: dot(.param)
+  token 1 5:1 word ".param"
+  token 2 5:8 word "rbot"
+  token 3 5:12 equals "="
+  token 4 5:13 expression "{rtop*ratio}" inner="rtop*ratio"
+card 5 @parser/combined_params_options.cir:6:1 lines=6-6 continuations=0
+  raw: ".option reltol=1e-5"
+  kind: dot(.options)
+  token 1 6:1 word ".option"
+  token 2 6:9 word "reltol"
+  token 3 6:15 equals "="
+  token 4 6:16 number "1e-5" value=1e-5
+card 6 @parser/combined_params_options.cir:7:1 lines=7-7 continuations=0
+  raw: "vdd vdd 0 dc {vcc}"
+  kind: device(v)
+  token 1 7:1 word "vdd"
+  token 2 7:5 word "vdd"
+  token 3 7:9 number "0" value=0e0
+  token 4 7:11 word "dc"
+  token 5 7:14 expression "{vcc}" inner="vcc"
+card 7 @parser/combined_params_options.cir:8:1 lines=8-8 continuations=0
+  raw: "r1 vdd out {rtop}"
+  kind: device(r)
+  token 1 8:1 word "r1"
+  token 2 8:4 word "vdd"
+  token 3 8:8 word "out"
+  token 4 8:12 expression "{rtop}" inner="rtop"
+card 8 @parser/combined_params_options.cir:9:1 lines=9-9 continuations=0
+  raw: "r2 out 0 {rbot}"
+  kind: device(r)
+  token 1 9:1 word "r2"
+  token 2 9:4 word "out"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 expression "{rbot}" inner="rbot"
+card 9 @parser/combined_params_options.cir:10:1 lines=10-10 continuations=0
+  raw: ".param late=1"
+  kind: dot(.param)
+  token 1 10:1 word ".param"
+  token 2 10:8 word "late"
+  token 3 10:12 equals "="
+  token 4 10:13 number "1" value=1e0
+card 10 @parser/combined_params_options.cir:11:1 lines=11-11 continuations=0
+  raw: ".option temp=40"
+  kind: dot(.options)
+  token 1 11:1 word ".option"
+  token 2 11:9 word "temp"
+  token 3 11:13 equals "="
+  token 4 11:14 number "40" value=4e1
+card 11 @parser/combined_params_options.cir:12:1 lines=12-12 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 12:1 word ".op"
+card 12 @parser/combined_params_options.cir:13:1 lines=13-13 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 13:1 word ".end"

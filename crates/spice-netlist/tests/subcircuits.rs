@@ -20,7 +20,10 @@ fn ordered_cards_are_scope_local_and_nested_definitions_are_retained() {
     assert_eq!(n.devices.len(), 1);
     assert_eq!(n.devices[0].nodes, ["a", "0"]);
     assert_eq!(n.devices[0].parameters[1].value, "{base*2}");
-    assert_eq!(n.devices[0].parameters[1].kind, ParameterKind::Textual);
+    assert!(matches!(
+        n.devices[0].parameters[1].kind,
+        ParameterKind::Expression(_)
+    ));
     assert_eq!(
         n.cards.iter().map(|c| c.kind).collect::<Vec<_>>(),
         [
@@ -144,7 +147,7 @@ fn nesting_budget_and_first_error_order_are_explicit() {
             .to_string()
             .contains("nesting limit")
     );
-    let e = parse(".param unsupported=1\n.subckt a\nmalformed {\n").unwrap_err();
+    let e = parse(".save v(a)\n.subckt a\nmalformed {\n").unwrap_err();
     assert!(e.is_not_yet_ported());
     assert!(e.to_string().contains("scopes.cir:2:1"));
 }

@@ -1,0 +1,20 @@
+Scoped names: same names in sibling and nested subcircuits
+.param top = 1k
+.subckt outer a b w=1u
+.param local = {w * 2}
+r1 a mid {local}
+.model dm d(is=1e-14)
+d1 mid b dm
+.subckt inner p q
+r1 p q 10k
+.ends inner
+x1 a b inner
+.ends outer
+.subckt inner p q
+r1 p q 20k
+.ends inner
+x1 in out outer w=2u
+x2 out 0 inner
+r1 in 0 {top}
+.op
+.end

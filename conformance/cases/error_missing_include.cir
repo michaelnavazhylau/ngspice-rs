@@ -1,0 +1,5 @@
+Include that cannot be resolved
+.include 'does_not_exist.inc'
+r1 in 0 1k
+.op
+.end

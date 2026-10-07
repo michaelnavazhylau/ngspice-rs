@@ -1,0 +1,52 @@
+# ngspice-rs token-dump v1
+file: netlists/subckt_divider.cir
+title: "Subcircuit divider" @netlists/subckt_divider.cir:1:1
+card 1 @netlists/subckt_divider.cir:2:1 lines=2-2 continuations=0
+  raw: ".subckt div a b"
+  kind: dot(.subckt)
+  token 1 2:1 word ".subckt"
+  token 2 2:9 word "div"
+  token 3 2:13 word "a"
+  token 4 2:15 word "b"
+card 2 @netlists/subckt_divider.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 a b 1k"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "a"
+  token 3 3:6 word "b"
+  token 4 3:8 number "1k" value=1e3
+card 3 @netlists/subckt_divider.cir:4:1 lines=4-4 continuations=0
+  raw: ".ends div"
+  kind: dot(.ends)
+  token 1 4:1 word ".ends"
+  token 2 4:7 word "div"
+card 4 @netlists/subckt_divider.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc 10"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "10" value=1e1
+card 5 @netlists/subckt_divider.cir:6:1 lines=6-6 continuations=0
+  raw: "x1 in out div"
+  kind: device(x)
+  token 1 6:1 word "x1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "out"
+  token 4 6:11 word "div"
+card 6 @netlists/subckt_divider.cir:7:1 lines=7-7 continuations=0
+  raw: "r2 out 0 1k"
+  kind: device(r)
+  token 1 7:1 word "r2"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "1k" value=1e3
+card 7 @netlists/subckt_divider.cir:8:1 lines=8-8 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 8:1 word ".op"
+card 8 @netlists/subckt_divider.cir:9:1 lines=9-9 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 9:1 word ".end"

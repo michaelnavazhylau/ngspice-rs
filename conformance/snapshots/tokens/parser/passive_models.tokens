@@ -1,0 +1,249 @@
+# ngspice-rs token-dump v1
+file: parser/passive_models.cir
+title: "Model-backed passive syntax and setter precedence" @parser/passive_models.cir:1:1
+card 1 @parser/passive_models.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 a 0 dc 1"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "a"
+  token 3 2:6 number "0" value=0e0
+  token 4 2:8 word "dc"
+  token 5 2:11 number "1" value=1e0
+card 2 @parser/passive_models.cir:3:1 lines=3-3 continuations=0
+  raw: "rpre a 0 1k rm r=2k r=3k"
+  kind: device(r)
+  token 1 3:1 word "rpre"
+  token 2 3:6 word "a"
+  token 3 3:8 number "0" value=0e0
+  token 4 3:10 number "1k" value=1e3
+  token 5 3:13 word "rm"
+  token 6 3:16 word "r"
+  token 7 3:17 equals "="
+  token 8 3:18 number "2k" value=2e3
+  token 9 3:21 word "r"
+  token 10 3:22 equals "="
+  token 11 3:23 number "3k" value=3e3
+card 3 @parser/passive_models.cir:4:1 lines=4-4 continuations=0
+  raw: "rpost a 0 rm 4k r=5k"
+  kind: device(r)
+  token 1 4:1 word "rpost"
+  token 2 4:7 word "a"
+  token 3 4:9 number "0" value=0e0
+  token 4 4:11 word "rm"
+  token 5 4:14 number "4k" value=4e3
+  token 6 4:17 word "r"
+  token 7 4:18 equals "="
+  token 8 4:19 number "5k" value=5e3
+card 4 @parser/passive_models.cir:5:1 lines=5-5 continuations=0
+  raw: "rboth a 0 7k rm 8k r=9k"
+  kind: device(r)
+  token 1 5:1 word "rboth"
+  token 2 5:7 word "a"
+  token 3 5:9 number "0" value=0e0
+  token 4 5:11 number "7k" value=7e3
+  token 5 5:14 word "rm"
+  token 6 5:17 number "8k" value=8e3
+  token 7 5:20 word "r"
+  token 8 5:21 equals "="
+  token 9 5:22 number "9k" value=9e3
+card 5 @parser/passive_models.cir:6:1 lines=6-6 continuations=0
+  raw: "rgeom a 0 rm l=4u w=2u"
+  kind: device(r)
+  token 1 6:1 word "rgeom"
+  token 2 6:7 word "a"
+  token 3 6:9 number "0" value=0e0
+  token 4 6:11 word "rm"
+  token 5 6:14 word "l"
+  token 6 6:15 equals "="
+  token 7 6:16 number "4u" value=4e-6
+  token 8 6:19 word "w"
+  token 9 6:20 equals "="
+  token 10 6:21 number "2u" value=2e-6
+card 6 @parser/passive_models.cir:7:1 lines=7-7 continuations=0
+  raw: "cpre a 0 1u cm c=2u c=3u"
+  kind: device(c)
+  token 1 7:1 word "cpre"
+  token 2 7:6 word "a"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "1u" value=1e-6
+  token 5 7:13 word "cm"
+  token 6 7:16 word "c"
+  token 7 7:17 equals "="
+  token 8 7:18 number "2u" value=2e-6
+  token 9 7:21 word "c"
+  token 10 7:22 equals "="
+  token 11 7:23 number "3u" value=3e-6
+card 7 @parser/passive_models.cir:8:1 lines=8-8 continuations=0
+  raw: "cpost a 0 cm 4u c=5u"
+  kind: device(c)
+  token 1 8:1 word "cpost"
+  token 2 8:7 word "a"
+  token 3 8:9 number "0" value=0e0
+  token 4 8:11 word "cm"
+  token 5 8:14 number "4u" value=4e-6
+  token 6 8:17 word "c"
+  token 7 8:18 equals "="
+  token 8 8:19 number "5u" value=4.9999999999999996e-6
+card 8 @parser/passive_models.cir:9:1 lines=9-9 continuations=0
+  raw: "cgeom a 0 cm l=4u w=2u"
+  kind: device(c)
+  token 1 9:1 word "cgeom"
+  token 2 9:7 word "a"
+  token 3 9:9 number "0" value=0e0
+  token 4 9:11 word "cm"
+  token 5 9:14 word "l"
+  token 6 9:15 equals "="
+  token 7 9:16 number "4u" value=4e-6
+  token 8 9:19 word "w"
+  token 9 9:20 equals "="
+  token 10 9:21 number "2u" value=2e-6
+card 9 @parser/passive_models.cir:10:1 lines=10-10 continuations=0
+  raw: "lpre a b 1m lm inductance=2m inductance=3m"
+  kind: device(l)
+  token 1 10:1 word "lpre"
+  token 2 10:6 word "a"
+  token 3 10:8 word "b"
+  token 4 10:10 number "1m" value=1e-3
+  token 5 10:13 word "lm"
+  token 6 10:16 word "inductance"
+  token 7 10:26 equals "="
+  token 8 10:27 number "2m" value=2e-3
+  token 9 10:30 word "inductance"
+  token 10 10:40 equals "="
+  token 11 10:41 number "3m" value=3e-3
+card 10 @parser/passive_models.cir:11:1 lines=11-11 continuations=0
+  raw: "rload b 0 1k"
+  kind: device(r)
+  token 1 11:1 word "rload"
+  token 2 11:7 word "b"
+  token 3 11:9 number "0" value=0e0
+  token 4 11:11 number "1k" value=1e3
+card 11 @parser/passive_models.cir:12:1 lines=12-12 continuations=0
+  raw: "lpost a c lm 4m inductance=5m"
+  kind: device(l)
+  token 1 12:1 word "lpost"
+  token 2 12:7 word "a"
+  token 3 12:9 word "c"
+  token 4 12:11 word "lm"
+  token 5 12:14 number "4m" value=4e-3
+  token 6 12:17 word "inductance"
+  token 7 12:27 equals "="
+  token 8 12:28 number "5m" value=5e-3
+card 12 @parser/passive_models.cir:13:1 lines=13-13 continuations=0
+  raw: "rload2 c 0 1k"
+  kind: device(r)
+  token 1 13:1 word "rload2"
+  token 2 13:8 word "c"
+  token 3 13:10 number "0" value=0e0
+  token 4 13:12 number "1k" value=1e3
+card 13 @parser/passive_models.cir:14:1 lines=14-14 continuations=0
+  raw: "lmodel a e lm nt=2"
+  kind: device(l)
+  token 1 14:1 word "lmodel"
+  token 2 14:8 word "a"
+  token 3 14:10 word "e"
+  token 4 14:12 word "lm"
+  token 5 14:15 word "nt"
+  token 6 14:17 equals "="
+  token 7 14:18 number "2" value=2e0
+card 14 @parser/passive_models.cir:15:1 lines=15-15 continuations=0
+  raw: "rload3 e 0 1k"
+  kind: device(r)
+  token 1 15:1 word "rload3"
+  token 2 15:8 word "e"
+  token 3 15:10 number "0" value=0e0
+  token 4 15:12 number "1k" value=1e3
+card 15 @parser/passive_models.cir:16:1 lines=16-16 continuations=0
+  raw: "rnumeric a 0 123"
+  kind: device(r)
+  token 1 16:1 word "rnumeric"
+  token 2 16:10 word "a"
+  token 3 16:12 number "0" value=0e0
+  token 4 16:14 number "123" value=1.23e2
+card 16 @parser/passive_models.cir:17:1 lines=17-17 continuations=0
+  raw: "rnumref a 0 1k rm123"
+  kind: device(r)
+  token 1 17:1 word "rnumref"
+  token 2 17:9 word "a"
+  token 3 17:11 number "0" value=0e0
+  token 4 17:13 number "1k" value=1e3
+  token 5 17:16 word "rm123"
+card 17 @parser/passive_models.cir:18:1 lines=18-18 continuations=0
+  raw: "rkeyword a 0 tc1 2k"
+  kind: device(r)
+  token 1 18:1 word "rkeyword"
+  token 2 18:10 word "a"
+  token 3 18:12 number "0" value=0e0
+  token 4 18:14 word "tc1"
+  token 5 18:18 number "2k" value=2e3
+card 18 @parser/passive_models.cir:19:1 lines=19-19 continuations=0
+  raw: "rassigned a 0 r=1k tc1=2"
+  kind: device(r)
+  token 1 19:1 word "rassigned"
+  token 2 19:11 word "a"
+  token 3 19:13 number "0" value=0e0
+  token 4 19:15 word "r"
+  token 5 19:16 equals "="
+  token 6 19:17 number "1k" value=1e3
+  token 7 19:20 word "tc1"
+  token 8 19:23 equals "="
+  token 9 19:24 number "2" value=2e0
+card 19 @parser/passive_models.cir:20:1 lines=20-20 continuations=0
+  raw: ".model rm r(rsh=100)"
+  kind: dot(.model)
+  token 1 20:1 word ".model"
+  token 2 20:8 word "rm"
+  token 3 20:11 word "r"
+  token 4 20:12 lparen "("
+  token 5 20:13 word "rsh"
+  token 6 20:16 equals "="
+  token 7 20:17 number "100" value=1e2
+  token 8 20:20 rparen ")"
+card 20 @parser/passive_models.cir:21:1 lines=21-21 continuations=0
+  raw: ".model cm c(cj=1m)"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "cm"
+  token 3 21:11 word "c"
+  token 4 21:12 lparen "("
+  token 5 21:13 word "cj"
+  token 6 21:15 equals "="
+  token 7 21:16 number "1m" value=1e-3
+  token 8 21:18 rparen ")"
+card 21 @parser/passive_models.cir:22:1 lines=22-22 continuations=0
+  raw: ".model lm l(ind=6m)"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "lm"
+  token 3 22:11 word "l"
+  token 4 22:12 lparen "("
+  token 5 22:13 word "ind"
+  token 6 22:16 equals "="
+  token 7 22:17 number "6m" value=6e-3
+  token 8 22:19 rparen ")"
+card 22 @parser/passive_models.cir:23:1 lines=23-23 continuations=0
+  raw: ".model 123 r"
+  kind: dot(.model)
+  token 1 23:1 word ".model"
+  token 2 23:8 number "123" value=1.23e2
+  token 3 23:12 word "r"
+card 23 @parser/passive_models.cir:24:1 lines=24-24 continuations=0
+  raw: ".model rm123 r"
+  kind: dot(.model)
+  token 1 24:1 word ".model"
+  token 2 24:8 word "rm123"
+  token 3 24:14 word "r"
+card 24 @parser/passive_models.cir:25:1 lines=25-25 continuations=0
+  raw: ".model tc1 r"
+  kind: dot(.model)
+  token 1 25:1 word ".model"
+  token 2 25:8 word "tc1"
+  token 3 25:12 word "r"
+card 25 @parser/passive_models.cir:26:1 lines=26-26 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 26:1 word ".op"
+card 26 @parser/passive_models.cir:27:1 lines=27-27 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 27:1 word ".end"

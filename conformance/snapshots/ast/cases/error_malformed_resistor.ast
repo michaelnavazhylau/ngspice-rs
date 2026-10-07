@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_malformed_resistor.cir
+error parse @cases/error_malformed_resistor.cir:3:6
+  message: "expected negative terminal"

@@ -1,0 +1,66 @@
+# ngspice-rs ast-dump v1
+file: parser/model_diodes.cir
+title: "M1b scalar model and diode parser reference" @parser/model_diodes.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @parser/model_diodes.cir:3:1 "v1 a 0 dc 0.1"
+    [1] device[1] @parser/model_diodes.cir:4:1 "dlead a gnd dm 2 area=7 perim=3 m=4 ic=.05"
+    [2] device[2] @parser/model_diodes.cir:5:1 "dnamed a 0 dm area=3 temp=30 dtemp=2"
+    [3] device[3] @parser/model_diodes.cir:6:1 "dgeom a 0 dm w=10u l=20u"
+    [4] device[4] @parser/model_diodes.cir:7:1 "dimplicit a 0 dm"
+    [5] model[0] @parser/model_diodes.cir:9:1 ".model dm d(level=1 is=1e-14 is=2e-14 n=1 rs=2 cjo=3p tt=4n bv=50 ibv=2u tnom=27)"
+    [6] analysis[0] @parser/model_diodes.cir:10:1 ".op"
+    [7] end @parser/model_diodes.cir:11:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @parser/model_diodes.cir:3:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.1" @parser/model_diodes.cir:3:8
+    device [1] name="dlead" designator=d @parser/model_diodes.cir:4:1
+      nodes: "a" "0"
+      model: "dm"
+      parameters (5):
+        [0] name="area" kind=scalar value="7" @parser/model_diodes.cir:4:18
+        [1] name="pj" kind=scalar value="3" @parser/model_diodes.cir:4:25
+        [2] name="m" kind=scalar value="4" @parser/model_diodes.cir:4:33
+        [3] name="ic" kind=scalar value=".05" @parser/model_diodes.cir:4:37
+        [4] name="area" kind=scalar value="2" @parser/model_diodes.cir:4:16
+    device [2] name="dnamed" designator=d @parser/model_diodes.cir:5:1
+      nodes: "a" "0"
+      model: "dm"
+      parameters (3):
+        [0] name="area" kind=scalar value="3" @parser/model_diodes.cir:5:15
+        [1] name="temp" kind=scalar value="30" @parser/model_diodes.cir:5:22
+        [2] name="dtemp" kind=scalar value="2" @parser/model_diodes.cir:5:30
+    device [3] name="dgeom" designator=d @parser/model_diodes.cir:6:1
+      nodes: "a" "0"
+      model: "dm"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @parser/model_diodes.cir:6:14
+        [1] name="l" kind=scalar value="20u" @parser/model_diodes.cir:6:20
+    device [4] name="dimplicit" designator=d @parser/model_diodes.cir:7:1
+      nodes: "a" "0"
+      model: "dm"
+      parameters (0):
+  models (1):
+    model [0] name="dm" base="d" level=1e0 @parser/model_diodes.cir:9:1
+      parameters (10):
+        [0] name="level" kind=scalar value="1" @parser/model_diodes.cir:9:13
+        [1] name="is" kind=scalar value="1e-14" @parser/model_diodes.cir:9:21
+        [2] name="is" kind=scalar value="2e-14" @parser/model_diodes.cir:9:30
+        [3] name="n" kind=scalar value="1" @parser/model_diodes.cir:9:39
+        [4] name="rs" kind=scalar value="2" @parser/model_diodes.cir:9:43
+        [5] name="cjo" kind=scalar value="3p" @parser/model_diodes.cir:9:48
+        [6] name="tt" kind=scalar value="4n" @parser/model_diodes.cir:9:55
+        [7] name="bv" kind=scalar value="50" @parser/model_diodes.cir:9:61
+        [8] name="ibv" kind=scalar value="2u" @parser/model_diodes.cir:9:67
+        [9] name="tnom" kind=scalar value="27" @parser/model_diodes.cir:9:74
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/model_diodes.cir:10:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,0 +1,64 @@
+# ngspice-rs token-dump v1
+file: netlists/mos_inverter.cir
+title: "MOS inverter, operating point" @netlists/mos_inverter.cir:1:1
+card 1 @netlists/mos_inverter.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd vdd 0 dc 5"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 word "vdd"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 word "dc"
+  token 5 2:14 number "5" value=5e0
+card 2 @netlists/mos_inverter.cir:3:1 lines=3-3 continuations=0
+  raw: "vin gate 0 dc 2"
+  kind: device(v)
+  token 1 3:1 word "vin"
+  token 2 3:5 word "gate"
+  token 3 3:10 number "0" value=0e0
+  token 4 3:12 word "dc"
+  token 5 3:15 number "2" value=2e0
+card 3 @netlists/mos_inverter.cir:4:1 lines=4-4 continuations=0
+  raw: "rd vdd drain 10k"
+  kind: device(r)
+  token 1 4:1 word "rd"
+  token 2 4:4 word "vdd"
+  token 3 4:8 word "drain"
+  token 4 4:14 number "10k" value=1e4
+card 4 @netlists/mos_inverter.cir:5:1 lines=5-5 continuations=0
+  raw: "m1 drain gate 0 0 nmos w=10u l=1u"
+  kind: device(m)
+  token 1 5:1 word "m1"
+  token 2 5:4 word "drain"
+  token 3 5:10 word "gate"
+  token 4 5:15 number "0" value=0e0
+  token 5 5:17 number "0" value=0e0
+  token 6 5:19 word "nmos"
+  token 7 5:24 word "w"
+  token 8 5:25 equals "="
+  token 9 5:26 number "10u" value=9.999999999999999e-6
+  token 10 5:30 word "l"
+  token 11 5:31 equals "="
+  token 12 5:32 number "1u" value=1e-6
+card 5 @netlists/mos_inverter.cir:6:1 lines=6-6 continuations=0
+  raw: ".model nmos nmos level=1 vto=1 kp=1e-4"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "nmos"
+  token 3 6:13 word "nmos"
+  token 4 6:18 word "level"
+  token 5 6:23 equals "="
+  token 6 6:24 number "1" value=1e0
+  token 7 6:26 word "vto"
+  token 8 6:29 equals "="
+  token 9 6:30 number "1" value=1e0
+  token 10 6:32 word "kp"
+  token 11 6:34 equals "="
+  token 12 6:35 number "1e-4" value=1e-4
+card 6 @netlists/mos_inverter.cir:7:1 lines=7-7 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 7:1 word ".op"
+card 7 @netlists/mos_inverter.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

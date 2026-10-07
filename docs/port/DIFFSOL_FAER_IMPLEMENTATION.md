@@ -87,6 +87,13 @@ Implemented analyses:
   selection, or with trap/Gear/maxord/uic/unknown/duplicate options, returns an error.
   Named assignments from tokenized AST cards are normalized at the request boundary.
 
+Deck options (#16): `RunConfig::from_netlist(&netlist)?` resolves `.option` cards;
+`config.circuit(&netlist)` elaborates at its temperatures, `config.context()` is the
+`AnalysisContext`, and `config.request_for(&card)` adds `.options reltol/vntol/abstol`
+as `rtol=`/`vntol=`/`abstol=` unless the request states them (request > deck >
+defaults). `method`/`maxord` are retained and make a `.tran` request fail before
+simulation. `Circuit::from_netlist` rejects decks with `.option` cards.
+
 The CLI still exposes inspection/parsing commands, not a new simulation command.
 Driver/device coverage text reflects the bounded implementation. APIs above and
 this runnable example exercise production simulation:
