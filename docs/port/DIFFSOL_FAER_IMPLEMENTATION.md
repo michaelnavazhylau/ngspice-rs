@@ -148,7 +148,8 @@ step is enforced by stop times and no-progress/final-time checks. Default option
 Diffsol's own bounded Newton/rejection controls and minimum timestep (1e-13 s)
 remain in force; backend failures propagate as `SpiceError::Numerical`. Nonlinear
 charge/flux, limiting, DC convergence policies and general DAEs remain deferred.
-The existing trap/Gear companion integrator APIs remain explicit stubs.
+The separate trap/Gear companion integrator (`spice_maths::integrator`) now
+provides order-1/2 coefficients and history operations; BDF never consumes them.
 
 ## Validation and dependencies
 

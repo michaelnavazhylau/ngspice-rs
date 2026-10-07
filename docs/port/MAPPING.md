@@ -40,7 +40,7 @@ therefore the central risk of this port — see
 | `src/maths/dense/` | 1,742 | `spice-maths::dense` | row-major storage and owned faer pivoted LU with checked solves |
 | `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `spice-maths::sparse` | triplet storage, petgraph row-coupling projection and owned faer sparse LU; finite/rank/residual checks and exact-pattern symbolic reuse |
 | `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; faer supplies real/complex LU, see licensing below |
-| `src/maths/ni/` | 1,961 | `spice-maths::integrator`, separate `spice-maths::diffsol` | trap/Gear types only, coefficient/history operations pending; explicit adaptive BDF supports restricted diagonal-mass index-one DAEs, not ngspice trap/Gear parity |
+| `src/maths/ni/` | 1,961 | `spice-maths::integrator`, separate `spice-maths::diffsol` | trap and Gear orders 1–2 coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history; orders 3–6 rejected; explicit adaptive BDF supports restricted diagonal-mass index-one DAEs, not ngspice trap/Gear parity |
 | `src/maths/cmaths/` | 4,054 | `spice-core::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
 | `src/maths/poly/`, `deriv/`, `fft/`, `misc/` | 6,358 | `spice-maths` (planned modules) | **not ported** |
 

@@ -118,7 +118,8 @@ tests and documented limits as the remaining functionality is added.
 Complex linear AC is already implemented on main. Bounded adaptive
 BDF does not close the following trap/Gear and general-transient requirements.
 
-- [ ] Implement trapezoidal and Gear-2 integration (`src/maths/ni/`) and timestep/truncation-error control.
+- [x] Implement trapezoidal and Gear orders 1–2 coefficients, companion integration, prediction and per-element truncation estimates (`src/maths/ni/`, `cktterr.c`) with trial coefficients separate from accepted step history (#23); Gear orders 3–6 are rejected.
+- [ ] Implement adaptive timestep scheduling and truncation-error control in a companion transient driver (#26).
 - [ ] Implement C/L companion models without double-discretizing diffsol equation stamps.
 - [ ] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints/derivatives.
 - [ ] Connect parsed source waveforms to time evaluation and breakpoint handling, including `PULSE`.
