@@ -152,7 +152,8 @@ let plot = spice_analysis::runner(request.kind)?.run(&mut circuit, &request, &co
 Behavioral/nonlinear passives, advanced resistor levels, coil geometry, DTEMP,
 TCE/exponential temperature, AC-only resistance, noise/breakdown fields, unsupported
 aliases, global geometry scaling and `.option` parsing remain gaps. D/Q/M factories,
-SPICE trap/Gear companions and general DAEs are unchanged and unavailable.
+Model-backed C/L delegate to the scalar trap/Gear-2 companion stamps, which have
+no transient driver yet; general DAEs remain unavailable.
 
 Owner-crate tests check formulas, precedence, duplicates, signs, missing/invalid
 geometry, overflow, immutable recipes and atomic failures. Production tests compare

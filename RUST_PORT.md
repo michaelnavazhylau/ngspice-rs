@@ -31,7 +31,8 @@ expressions and advanced passive forms remain unported. D/Q/M AST/schema
 success does not imply a nonlinear backend is available.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
-bounded diffsol BDF transient analysis. D/Q/M equations, trap/Gear companions,
+bounded diffsol BDF transient analysis. Trap/Gear-2 C/L companion stamps exist
+as a device API without a transient driver. D/Q/M equations, companion `.tran`,
 general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.

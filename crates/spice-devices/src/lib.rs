@@ -8,7 +8,7 @@
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I factories |
 //! | [`sources`] | independent DC/AC/transient sources | bounded waveform API |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
-//! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; companions still pending |
+//! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework

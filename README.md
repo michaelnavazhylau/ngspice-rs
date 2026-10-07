@@ -55,7 +55,8 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    subcircuits/includes, parameters/options/globals, serialization and snapshots.
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
-4. **Transient (M3):** trap/Gear-2 companions, initialization, parsed waveform
+4. **Transient (M3):** adaptive trap/Gear-2 companion driver (integrator, state
+   ownership and C/L companion stamps exist), initialization, parsed waveform
    evaluation, broader DAEs and C parity.
 5. **Nonlinear devices (M4):** diode/BJT/MOS1 equations, Newton/limiting/stepping,
    nonlinear DC/AC/transient and conformance fixtures.
