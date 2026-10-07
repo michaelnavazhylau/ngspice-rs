@@ -1,0 +1,11 @@
+Floating capacitor transient
+* c1 couples nodes a and b with no capacitor to ground: the mass matrix is
+* rank deficient (index-one DAE for the explicit BDF backend). Both nodes have a
+* resistive DC path, so the t = 0 operating point exists. Corner times lie on
+* the 10 us grid.
+v1 in 0 pwl(0 0 1m 0 1.1m 1 8m 1)
+r1 in a 1k
+c1 a b 1u
+r2 b 0 1k
+.tran 10u 8m
+.end

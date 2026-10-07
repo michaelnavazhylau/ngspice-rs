@@ -1,0 +1,58 @@
+# ngspice-rs ast-dump v1
+file: netlists/coupled_cap_tran.cir
+title: "Coupled capacitance transient" @netlists/coupled_cap_tran.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/coupled_cap_tran.cir:4:1 "v1 in 0 pwl(0 0 1m 0 1.1m 1 8m 1)"
+    [1] device[1] @netlists/coupled_cap_tran.cir:5:1 "r1 in a 1k"
+    [2] device[2] @netlists/coupled_cap_tran.cir:6:1 "c1 a 0 1u"
+    [3] device[3] @netlists/coupled_cap_tran.cir:7:1 "c12 a b 2u"
+    [4] device[4] @netlists/coupled_cap_tran.cir:8:1 "c2 b 0 1u"
+    [5] device[5] @netlists/coupled_cap_tran.cir:9:1 "r2 b 0 1k"
+    [6] analysis[0] @netlists/coupled_cap_tran.cir:10:1 ".tran 10u 8m"
+    [7] end @netlists/coupled_cap_tran.cir:11:1 ".end"
+  devices (6):
+    device [0] name="v1" designator=v @netlists/coupled_cap_tran.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pwl" kind=waveform value="(0 0 1m 0 1.1m 1 8m 1)" @netlists/coupled_cap_tran.cir:4:9
+          pwl
+            point [0] time="0"@netlists/coupled_cap_tran.cir:4:13 value="0"@netlists/coupled_cap_tran.cir:4:15
+            point [1] time="1m"@netlists/coupled_cap_tran.cir:4:17 value="0"@netlists/coupled_cap_tran.cir:4:20
+            point [2] time="1.1m"@netlists/coupled_cap_tran.cir:4:22 value="1"@netlists/coupled_cap_tran.cir:4:27
+            point [3] time="8m"@netlists/coupled_cap_tran.cir:4:29 value="1"@netlists/coupled_cap_tran.cir:4:32
+    device [1] name="r1" designator=r @netlists/coupled_cap_tran.cir:5:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/coupled_cap_tran.cir:5:9
+    device [2] name="c1" designator=c @netlists/coupled_cap_tran.cir:6:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/coupled_cap_tran.cir:6:8
+    device [3] name="c12" designator=c @netlists/coupled_cap_tran.cir:7:1
+      nodes: "a" "b"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="2u" @netlists/coupled_cap_tran.cir:7:9
+    device [4] name="c2" designator=c @netlists/coupled_cap_tran.cir:8:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/coupled_cap_tran.cir:8:8
+    device [5] name="r2" designator=r @netlists/coupled_cap_tran.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/coupled_cap_tran.cir:9:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/coupled_cap_tran.cir:10:1
+      arguments: "10u" "8m"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

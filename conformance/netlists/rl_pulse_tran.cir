@@ -1,0 +1,8 @@
+RL pulse transient
+* Series R-L driven by a PULSE. tau = L/R = 100 us. i(l1) is continuous, v(out)
+* jumps with the inductor voltage at every source edge.
+v1 in 0 pulse(0 1 20u 1u 1u 200u 500u)
+r1 in out 100
+l1 out 0 10m
+.tran 1u 600u
+.end

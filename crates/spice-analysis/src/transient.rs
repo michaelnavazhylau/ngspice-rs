@@ -104,12 +104,13 @@ fn run_diffsol(
     if !count.is_finite() || !(0. ..=100_000.).contains(&count) {
         return Err(unsupported("transient sample limit exceeded"));
     }
+    // `start + i * dt` can land an ulp short of (or past) `end` when `end` is a
+    // decimal multiple of `dt`; such a point is the final sample, not a second one.
     let mut grid: Vec<_> = (0..=count as usize)
         .map(|i| start + (i as f64) * dt)
+        .filter(|t| end - t > 1e-9 * dt)
         .collect();
-    if grid.last().copied() != Some(end) {
-        grid.push(end);
-    }
+    grid.push(end);
     if grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(unsupported("transient sample grid makes no progress"));
     }

@@ -37,17 +37,46 @@ pub(crate) const AC: Tolerance = Tolerance {
 ///
 /// These are the simulator's own default accuracy floors, not values fitted to
 /// any fixture. Tighten only with evidence; never loosen to make a case pass.
+///
+/// `peak_relative` adds `peak_relative * max|C signal|` to the bound (0 for
+/// [`TRAN`]); see [`TRAN_RESTART`].
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TranTolerance {
+    pub(crate) peak_relative: f64,
     pub(crate) relative: f64,
     pub(crate) voltage_absolute: f64,
     pub(crate) current_absolute: f64,
 }
 
 pub(crate) const TRAN: TranTolerance = TranTolerance {
+    peak_relative: 0.0,
     relative: 1e-3,
     voltage_absolute: 1e-6,
     current_absolute: 1e-12,
+};
+
+/// Bound for an *independent, more accurate* Rust integrator (explicit diffsol
+/// BDF, rtol 1e-7) against the C trapezoidal reference on decks with source
+/// corners: `|Rust - C| <= 1e-3 |C| + 1e-3 max|C| + floor`.
+///
+/// C restarts its integrator with a backward-Euler step at every breakpoint
+/// (`dctran.c`, order 1 after a break). That step's local error is first order
+/// in the step and is visible against an exact solution right after a corner
+/// (measured against closed forms and an independent RK4 integration: for
+/// example a 4% error of `v(out)` 10 us after a PWL corner, about 2e-5 V on a
+/// 1 V signal). It is not a Rust defect: the companion driver reproduces it
+/// (worst error 0.000 of `TRAN`) and BDF agrees with the analytic response.
+/// ngspice's own truncation control only bounds per-step charge error to
+/// `trtol * (reltol * max|q| + chgtol)`, i.e. relative to the *peak* charge
+/// scale, never to the instantaneous value, so a purely pointwise relative
+/// bound (`TRAN`) is stricter than C guarantees for small values. This policy
+/// adds `reltol` (1e-3, ngspice default, not fitted) times the signal peak.
+/// It applies only to Rust-only backend variants, never to the C-parity
+/// companion run; BDF accuracy itself is established by the tighter analytic
+/// tests in `crates/spice-analysis/tests/`.
+pub(crate) const TRAN_RESTART: TranTolerance = TranTolerance {
+    peak_relative: 1e-3,
+    ..TRAN
 };
 
 pub(crate) fn validate(plot: &Plot, label: &str) -> Result<BTreeMap<String, usize>, String> {

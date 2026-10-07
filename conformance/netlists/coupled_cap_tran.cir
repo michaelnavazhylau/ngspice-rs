@@ -1,0 +1,11 @@
+Coupled capacitance transient
+* Nondiagonal, nonsingular mass block (c12 couples a and b). Modes decay at
+* 1000 /s and 200 /s. Corner times lie on the 10 us grid.
+v1 in 0 pwl(0 0 1m 0 1.1m 1 8m 1)
+r1 in a 1k
+c1 a 0 1u
+c12 a b 2u
+c2 b 0 1u
+r2 b 0 1k
+.tran 10u 8m
+.end

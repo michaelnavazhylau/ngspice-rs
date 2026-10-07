@@ -1,0 +1,9 @@
+Series RLC pulse transient, Gear-2
+* Same circuit and drive as rlc_series_tran, integrated with Gear order 2.
+v1 in 0 pulse(0 1 50u 20u 20u 400u 1m)
+r1 in a 10
+l1 a out 1m
+c1 out 0 1u
+.options method=gear
+.tran 1u 1m
+.end

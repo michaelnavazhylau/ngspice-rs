@@ -104,3 +104,21 @@ fn breakpoint_budget_stops_runaway_periodic_sources() {
     let error = tran(&mut c, &bdf(vec!["1m", "10m"])).unwrap_err();
     assert!(error.to_string().contains("breakpoint limit"), "{error}");
 }
+
+#[test]
+fn requested_grid_ends_once_at_a_decimal_stop_time() {
+    // 60 * 50u lands one ulp short of 3m, and 75 * 0.2m one ulp past 15m: each
+    // is the final sample, not a second one beside `tstop`.
+    for (step, stop, count) in [("50u", "3m", 61), ("0.2m", "15m", 76)] {
+        let mut c = circuit("v1 in 0 pwl(0 0 0.2m 1)\nr1 in out 1k\nc1 out 0 0.1u");
+        let p = tran(&mut c, &bdf(vec![step, stop])).unwrap();
+        let times: Vec<_> = (0..p.point_count())
+            .map(|i| p.value("time", i).unwrap().re)
+            .collect();
+        assert_eq!(times.len(), count, "{step} {stop}: {times:?}");
+        assert!(
+            times.windows(2).all(|w| w[1] - w[0] > 1e-6),
+            "{step} {stop}: {times:?}"
+        );
+    }
+}

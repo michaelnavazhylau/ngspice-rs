@@ -216,6 +216,13 @@ The live C Pwl RC oracle uses a common requested grid and **2e-5 V** bound, rath
 than comparing internal timestep sequences. Existing topology and rawfile/golden
 round-trip regressions are preserved.
 
+The M3 exit-gate decks (GitHub #48, `docs/port/VERIFICATION.md`) additionally run
+the floating/coupled-capacitor and PWL/pulse RC/RL/RLC transients on the explicit
+`backend=diffsol method=bdf` tokens against the same C goldens: under the
+peak-scaled `TRAN_RESTART` bound where C's own backward-Euler restart error exceeds
+the pointwise bound, and against closed forms at 7e-7 of device scale in
+`crates/spice-analysis/tests/m3_gate.rs`.
+
 ```sh
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings

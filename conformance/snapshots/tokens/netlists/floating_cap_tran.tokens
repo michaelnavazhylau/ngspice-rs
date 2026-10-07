@@ -1,0 +1,51 @@
+# ngspice-rs token-dump v1
+file: netlists/floating_cap_tran.cir
+title: "Floating capacitor transient" @netlists/floating_cap_tran.cir:1:1
+card 1 @netlists/floating_cap_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 in 0 pwl(0 0 1m 0 1.1m 1 8m 1)"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 word "in"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 word "pwl"
+  token 5 6:12 lparen "("
+  token 6 6:13 number "0" value=0e0
+  token 7 6:15 number "0" value=0e0
+  token 8 6:17 number "1m" value=1e-3
+  token 9 6:20 number "0" value=0e0
+  token 10 6:22 number "1.1m" value=1.1e-3
+  token 11 6:27 number "1" value=1e0
+  token 12 6:29 number "8m" value=8e-3
+  token 13 6:32 number "1" value=1e0
+  token 14 6:33 rparen ")"
+card 2 @netlists/floating_cap_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "in"
+  token 3 7:7 word "a"
+  token 4 7:9 number "1k" value=1e3
+card 3 @netlists/floating_cap_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "c1 a b 1u"
+  kind: device(c)
+  token 1 8:1 word "c1"
+  token 2 8:4 word "a"
+  token 3 8:6 word "b"
+  token 4 8:8 number "1u" value=1e-6
+card 4 @netlists/floating_cap_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "r2 b 0 1k"
+  kind: device(r)
+  token 1 9:1 word "r2"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1k" value=1e3
+card 5 @netlists/floating_cap_tran.cir:10:1 lines=10-10 continuations=0
+  raw: ".tran 10u 8m"
+  kind: dot(.tran)
+  token 1 10:1 word ".tran"
+  token 2 10:7 number "10u" value=9.999999999999999e-6
+  token 3 10:11 number "8m" value=8e-3
+card 6 @netlists/floating_cap_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 11:1 word ".end"

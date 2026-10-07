@@ -301,6 +301,25 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "coupled_cap_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 817,
+        variables: &["time", "v(a)", "v(b)", "v(in)", "i(v1)"],
+        // Ramp 0 -> 1 V over 1.0-1.1 ms into a coupled-capacitor network
+        // (modes 1000 /s and 200 /s): at 8 ms only the slow mode remains, so
+        // v(a) = 1 - e^-1.38 / 2 = 0.875 and v(b) = e^-1.38 / 2 = 0.124.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(a)", 0, 0.0, 0.0),
+            ("v(b)", 0, 0.0, 0.0),
+            ("time", 816, 8.000000000000000e-03, 0.0),
+            ("v(in)", 816, 1.000000000000000e+00, 0.0),
+            ("v(a)", 816, 8.749807989177535e-01, 0.0),
+            ("v(b)", 816, 1.240602142961135e-01, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "diode_dc",
         plotname: "DC transfer characteristic",
         flags: PlotFlags::Real,
@@ -314,6 +333,24 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(out)", 4, 6.296706738025182e-1, 0.0),
             ("v(v-sweep)", 4, 1.0, 0.0),
             ("v(in)", 4, 1.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "floating_cap_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 817,
+        variables: &["time", "v(a)", "v(b)", "v(in)", "i(v1)"],
+        // c1 floats between a and b: after the 0 -> 1 V ramp (1.0-1.1 ms) the series
+        // R-C-R loop (tau = 2 ms) leaves i = e^-(t - 1.1 ms)/tau / 2 k and v(b) = 1 k i.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(a)", 0, 0.0, 0.0),
+            ("v(b)", 0, 0.0, 0.0),
+            ("time", 816, 8.000000000000000e-03, 0.0),
+            ("v(in)", 816, 1.000000000000000e+00, 0.0),
+            ("v(a)", 816, 9.845175521824301e-01, 0.0),
+            ("v(b)", 816, 1.548244781757727e-02, 0.0),
         ],
     },
     Expectation {
@@ -347,6 +384,23 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rc_gear_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 630,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // Gear-2 RC (tau = 100 us), PULSE 0 -> 1 V: by 1.2 ms the capacitor has
+        // charged for 0.29 ms through the second pulse, v(out) = 0.948.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 629, 1.200000000000000e-03, 0.0),
+            ("v(in)", 629, 1.000000000000000e+00, 0.0),
+            ("v(out)", 629, 9.480297958450857e-01, 0.0),
+            ("i(v1)", 629, -5.197020415491427e-05, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_lowpass_ac",
         plotname: "AC Analysis",
         flags: PlotFlags::Complex,
@@ -360,6 +414,23 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(out)", 0, 7.169568003248978e-1, -4.504772433683887e-1),
             ("v(out)", 2, 2.470452303185765e-2, -1.552230961346477e-1),
             ("frequency", 2, 1000.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_pwl_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 823,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // PWL-driven RC (tau = 1 ms): the source ends at 0.25 V after 3.1 ms and
+        // the capacitor is still 4.4 mV above it at 8 ms.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 822, 8.000000000000000e-03, 0.0),
+            ("v(in)", 822, 2.500000000000000e-01, 0.0),
+            ("v(out)", 822, 2.543555791170526e-01, 0.0),
+            ("i(v1)", 822, 4.355579117052644e-06, 0.0),
         ],
     },
     Expectation {
@@ -377,6 +448,24 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rl_pulse_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 630,
+        variables: &["time", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // R-L (tau = 100 us) driven by PULSE; the second pulse starts at 0.52 ms,
+        // so at 0.6 ms the source is high and i(l1) has risen to about 5.7 mA.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("i(l1)", 0, 0.0, 0.0),
+            ("time", 629, 5.999999999999999e-04, 0.0),
+            ("v(in)", 629, 1.000000000000000e+00, 0.0),
+            ("i(l1)", 629, 5.681063666152677e-03, 0.0),
+            ("v(out)", 629, 4.318936333847322e-01, 0.0),
+            ("i(v1)", 629, -5.681063666152677e-03, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rlc_series",
         plotname: "Operating Point",
         flags: PlotFlags::Real,
@@ -391,6 +480,56 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(mid)", 0, 1.0, 0.0),
             ("v(out)", 0, 1.0, 0.0),
             ("i(v1)", 0, 0.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rlc_series_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 100,
+        variables: &["frequency", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // Series RLC low-pass, v(out) across C: H(jw) = 1/(1 - w^2 LC + jwRC).
+        // At 10 kHz w^2 LC = 3.948 so H = 1/(-2.948 + 0.628j) = (-0.3245, -0.0692).
+        values: &[
+            ("frequency", 0, 1.000000000000000e+02, 0.0),
+            ("v(out)", 0, 1.000355416442797e+00, -6.287900818294491e-03),
+            ("frequency", 99, 1.000000000000000e+04, 0.0),
+            ("v(in)", 99, 1.000000000000000e+00, 0.0),
+            ("v(out)", 99, -3.244893876309116e-01, -6.916337844392535e-02),
+            ("i(v1)", 99, -4.345663232337732e-03, 2.038826952698245e-02),
+        ],
+    },
+    Expectation {
+        fixture: "rlc_series_gear_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1030,
+        variables: &["time", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // Same circuit as rlc_series_tran with Gear-2; both ring down to about -64 mV
+        // at 1 ms (analytic damped response).
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 1029, 1.000000000000000e-03, 0.0),
+            ("v(out)", 1029, -6.380437251083911e-02, 0.0),
+            ("i(l1)", 1029, 9.117920253419437e-04, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rlc_series_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1026,
+        variables: &["time", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // Underdamped series RLC (zeta = 0.158) after a pulse that ended at 0.49 ms.
+        // i(l1) = -i(v1) is the series current.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 1025, 1.000000000000000e-03, 0.0),
+            ("v(out)", 1025, -6.366414858193775e-02, 0.0),
+            ("i(l1)", 1025, 9.174249997766158e-04, 0.0),
+            ("i(v1)", 1025, -9.174249997766159e-04, 0.0),
         ],
     },
     Expectation {

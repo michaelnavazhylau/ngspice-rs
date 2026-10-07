@@ -274,6 +274,10 @@ pub(crate) fn transient(
             "current" => tolerance.current_absolute,
             other => return Err(format!("signal '{name}' has unsupported unit '{other}'")),
         };
+        let peak = (0..want.point_count())
+            .map(|row| want.points[row][column].re.abs())
+            .fold(0.0, f64::max);
+        let absolute = absolute + tolerance.peak_relative * peak;
         signals.push((name, rust.columns[name], column, absolute));
     }
     let mut summary = Summary {
@@ -858,5 +862,26 @@ mod tests {
         let grid = Grid { stop, step: 1e-4 };
         let summary = transient(&got_v, &want, compare::TRAN, &grid, &bps).unwrap();
         assert_eq!(summary.limits, 4);
+    }
+
+    #[test]
+    fn peak_scaled_policy_widens_only_by_the_signal_peak() {
+        // C data: a 1 V ramp (peak 1). Rust is offset by 3e-4 V at mid-scale and
+        // by the same amount near zero.
+        let want = sampled(&times(0.5), |t| t / STOP);
+        let near_zero = sampled(&times(0.5), |t| t / STOP + 3e-4 * (-t).exp());
+        // Pointwise bound at t = 0 is only 1e-6 V: TRAN rejects, the peak-scaled
+        // bound (1e-3 * 1 V) accepts.
+        assert!(run(&near_zero, &want, &[]).is_err());
+        let scaled = compare::TRAN_RESTART;
+        assert!(transient(&near_zero, &want, scaled, &grid(), &[]).is_ok());
+        // An error above reltol * peak is still rejected, and the bound follows
+        // the peak of C's data rather than a fixed constant.
+        let off = sampled(&times(0.5), |t| t / STOP + 2e-3);
+        assert!(transient(&off, &want, scaled, &grid(), &[]).is_err());
+        let small = sampled(&times(0.5), |t| 1e-3 * t / STOP);
+        let small_off = sampled(&times(0.5), |t| 1e-3 * t / STOP + 3e-6);
+        assert!(transient(&small_off, &small, scaled, &grid(), &[]).is_err());
+        assert_eq!(compare::TRAN.peak_relative, 0.0);
     }
 }
