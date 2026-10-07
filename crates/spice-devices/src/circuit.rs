@@ -239,28 +239,67 @@ impl Circuit {
         Ok(system)
     }
 
-    /// Builds supported scalar devices from a semantic netlist.
+    /// Elaborate one AST instance atomically with explicit model context.
+    /// Model lookup/schema validation happens before a factory; unavailable
+    /// model-backed/nonlinear factories remain explicit errors. As with
+    /// [`Circuit::add_device`], finalize after successful additions to renumber.
+    ///
     /// # Errors
-    /// Unsupported elaboration constructs or device parameters.
+    /// Duplicate names, missing/wrong-family models, invalid setters/selectors
+    /// or unavailable factories. Nodes, devices and branch rows are unchanged
+    /// on failure, including construction/validation failures.
+    pub fn add_instance(
+        &mut self,
+        instance: &spice_netlist::ast::DeviceInstance,
+        models: &crate::models::ModelResolver<'_>,
+        context: &crate::models::ModelContext,
+    ) -> SpiceResult<()> {
+        if self.device(&instance.name).is_some() {
+            return Err(SpiceError::circuit(format!(
+                "duplicate instance name '{}'",
+                instance.name
+            )));
+        }
+        let mut nodes = self.nodes.clone();
+        let device =
+            crate::factory::instantiate_with_models(instance, &mut nodes, models, context)?;
+        // Builtin factories bind terminals in this staged table. Nothing
+        // fallible remains after committing the two containers together.
+        self.nodes = nodes;
+        self.devices.push(device);
+        Ok(())
+    }
+
+    /// Builds supported scalar devices from a semantic netlist. Model-backed
+    /// inputs use the resolver before returning an unavailable factory error.
+    /// # Errors
+    /// Unsupported elaboration constructs, models or device parameters.
     pub fn from_netlist(netlist: &spice_netlist::ast::Netlist) -> SpiceResult<Self> {
-        if !netlist.models.is_empty()
-            || !netlist.subcircuits.is_empty()
+        if !netlist.subcircuits.is_empty()
             || !netlist.includes.is_empty()
             || !netlist.params.is_empty()
             || !netlist.options.is_empty()
             || !netlist.globals.is_empty()
         {
             return Err(SpiceError::Unsupported {
-                feature:
-                    "models/subcircuits/includes/parameters/options/globals in linear elaboration"
-                        .into(),
+                feature: "subcircuits/includes/parameters/options/globals in linear elaboration"
+                    .into(),
                 location: None,
             });
         }
+        let models = crate::models::ModelResolver::new(&netlist.models)?;
+        let context = crate::models::ModelContext::default();
         let mut circuit = Self::new();
         for instance in &netlist.devices {
-            let device = crate::factory::instantiate(instance, &mut circuit.nodes)?;
-            circuit.add_device(device)?;
+            circuit.add_instance(instance, &models, &context)?;
+        }
+        if !netlist.models.is_empty() {
+            // No model-backed factory is enabled yet. Don't silently discard
+            // unused model cards merely because all literal devices succeed.
+            return Err(SpiceError::Unsupported {
+                feature: "unused model declarations in scalar linear elaboration".into(),
+                location: netlist.models.first().map(|model| model.location.clone()),
+            });
         }
         circuit.finalize()?;
         Ok(circuit)

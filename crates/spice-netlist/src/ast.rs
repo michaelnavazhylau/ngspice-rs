@@ -27,7 +27,8 @@ pub type NodeName = String;
 /// R/C/L leading values become `resistance`/`capacitance`/`inductance`; source
 /// values become `dc`, `acmag`, and `acphase`; a diode/BJT's leading value
 /// becomes `area`. AC defaults are made explicit. Parameters are in application
-/// order: C applies leading source DC and D/Q area after named assignments.
+/// order: a passive scalar before its model precedes named setters; one after
+/// the model follows them. C applies leading source DC and D/Q area last.
 /// Duplicate assignments remain visible; consumers must apply them in order
 /// rather than treating this vector as a map.
 #[derive(Debug, Clone, PartialEq)]

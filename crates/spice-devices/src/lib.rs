@@ -25,6 +25,12 @@
 pub mod circuit;
 mod factory;
 pub mod linear;
+pub mod models;
+pub mod schema;
+pub use models::{
+    DiodeInstanceParameters, DiodeModelParameters, LevelSelection, ModelContext, ModelFamily,
+    ModelResolver, ResolvedModel,
+};
 pub mod registry;
 pub mod sources;
 pub use linear::{LinearContext, LinearSource, LinearSystem, Waveform};

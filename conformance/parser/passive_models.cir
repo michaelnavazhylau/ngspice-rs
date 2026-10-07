@@ -1,0 +1,27 @@
+Model-backed passive syntax and setter precedence
+v1 a 0 dc 1
+rpre a 0 1k rm r=2k r=3k
+rpost a 0 rm 4k r=5k
+rboth a 0 7k rm 8k r=9k
+rgeom a 0 rm l=4u w=2u
+cpre a 0 1u cm c=2u c=3u
+cpost a 0 cm 4u c=5u
+cgeom a 0 cm l=4u w=2u
+lpre a b 1m lm inductance=2m inductance=3m
+rload b 0 1k
+lpost a c lm 4m inductance=5m
+rload2 c 0 1k
+lmodel a e lm nt=2
+rload3 e 0 1k
+rnumeric a 0 123
+rnumref a 0 1k rm123
+rkeyword a 0 tc1 2k
+rassigned a 0 r=1k tc1=2
+.model rm r(rsh=100)
+.model cm c(cj=1m)
+.model lm l(ind=6m)
+.model 123 r
+.model rm123 r
+.model tc1 r
+.op
+.end

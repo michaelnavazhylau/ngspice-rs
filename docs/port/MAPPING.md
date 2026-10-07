@@ -24,8 +24,8 @@ therefore the central risk of this port — see
 | `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, card classification ported; include/lib/numparam preprocessing still missing |
 | `src/frontend/inp.c` | 2,967 | `spice-netlist::source` | title line, continuation folding ported |
 | `src/frontend/parse-bison.y` | 180 | future front-end expression parser | **not ported**; this is an expression grammar, not the netlist deck grammar |
-| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | scalar R/C/L, DC/AC V/I and bounded D/Q/M syntax; analysis arguments retained without validation; remaining grammars unported |
-| `src/spicelib/parser/{inpdomod,inpgmod,inpfindl}.c` | — | `spice-netlist::parser::model` | scalar D/BJT/MOS/R/C/L cards and first raw level retained; schema, model defaults and backend selection deferred |
+| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | scalar/declared-model R/C/L, DC/AC V/I and bounded D/Q/M syntax; analysis arguments retained without validation; remaining grammars unported |
+| `src/spicelib/parser/{inpmkmod,inpdomod,inpgmod,inpfindl,inpgval}.c` | — | `spice-netlist::parser::model`, `spice-devices::{models,schema}` | raw scalar cards retained; top-level first-wins resolution, family/level checks and bounded diode input schemas; advanced backends/scopes pending |
 | `src/spicelib/parser/inppas*.c` (input passes: models, devices, IC/nodeset, shunts) | 667 | `spice-netlist::parser`, later circuit elaboration | card dispatch and model-name indexing partially ported; model elaboration/IC/shunt passes unported; these are **not** `.param` evaluators |
 | `src/frontend/numparam/{spicenum,xpressn}.c`, preprocessing in `inpcom.c` | — | `spice-netlist::expr` (planned) | `.param` expression/scoping behaviour; **not ported** |
 | `src/spicelib/parser/ifeval.c` | 190 | future behavioural-device evaluator | **not ported**; evaluates IF parse trees, not numparam `.param` expressions |
@@ -51,7 +51,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly; typed model resolution pending |
+| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution; model-backed factories pending |
 | `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::rlc` | scalar resistor conductance, capacitor mass operator and inductor branch/mass equations; DC/complex AC/bounded BDF work; model-backed geometry/temperature and trap/Gear companions pending |
 | `vsrc/`, `isrc/` | — | `spice-devices::sources` | DC/AC V/I stamps, device-API Constant/Step/Pwl forcing; waveform deck syntax pending |
 | `dio/` | 5,598 | `spice-devices::diode` (planned) | **not ported** |

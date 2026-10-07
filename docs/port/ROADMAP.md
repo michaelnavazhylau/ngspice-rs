@@ -86,15 +86,18 @@ Implemented bounded model/D/Q/M slices:
   references, without leaking names across scopes or parser calls
 
 `diode_dc`, `bjt_ce` and `mos_inverter` now parse, bringing supported fixture decks
-to six. Q/M need declared names for arity; model type/schema validation, backend
-selection/defaults and full resolution remain elaboration work. No nonlinear
-device arithmetic is implemented. Flags, IC vectors, thermal/CIDER forms,
-model-backed passives and waveforms remain pending.
+to six. Q/M need declared names for arity. The current checkout additionally
+retains declared-model R/C/L forms and omitted values (#11), including forward
+references and pre-/post-model scalar precedence. Device-owned top-level
+resolution, family/level checks and bounded diode inputs are implemented (#17);
+see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md). These changes are pending merge.
+No nonlinear/model-backed passive arithmetic is implemented. Flags, IC vectors,
+thermal/CIDER forms, extended passive forms and waveforms remain pending.
 
 ### Remaining slices
 
 1. **M1b:** required remaining model/device forms (flags, IC vectors),
-   model-backed passives and source waveform syntax. No device arithmetic yet.
+   extended passive forms and source waveform syntax. No nonlinear arithmetic yet.
 2. **M1c:** `.subckt`/`.ends`, X instances, `.include`/`.lib` structure and
    resolution, with explicit scope and recursion/error rules.
 3. **M1d:** `.param` expressions, `.option`, `.global`, normalized-deck writer
@@ -117,8 +120,9 @@ model-backed passive elaboration (#19) and historical documentation correction
 (#49). `cargo xtask golden verify` covers three committed linear fixtures and
 explicitly reports the five excluded fixtures; see
 [VERIFICATION.md](VERIFICATION.md#rust-engine-golden-verification).
-Model-backed passives remain blocked by passive syntax (#11) and typed model
-infrastructure (#17). No M2 completion is implied by the unblocked slices.
+Model-backed passive arithmetic (#19) remains a separate task. Its #11/#17
+prerequisites are implemented in this checkout but still require merge and
+passing acceptance tests on main. No M2 completion is implied.
 
 Exit gate: all three issue slices merged with production/failure-path tests,
 justified relative and near-zero absolute bounds and accurate capability docs.

@@ -31,7 +31,7 @@ examples, not a CLI simulation command.
 | `spice-core` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
 | `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
 | `spice-maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF; trap/Gear coefficient/history APIs pending | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
-| `spice-devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch binding, immutable linear operators, `Circuit` and petgraph incidence topology; nonlinear models pending | `src/spicelib/devices/` |
+| `spice-devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch binding, immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver and bounded diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
 | `spice-analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
 | `spice-cli` | Command-line entry point: `spice-rs <netlist>` | `src/frontend/main.c`, `src/ngspice.c` |
 | `xtask` | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
@@ -144,7 +144,7 @@ this is still not completion of the remaining M1 syntax.
   tokenizer; already implemented.
 - **`Netlist`** — the semantic model (device instances with textual parameters,
   `.model` cards, `.subckt` bodies, analyses, includes). The incremental parser
-  now constructs a **bounded subset**: scalar R/C/L instances, DC/AC V/I sources,
+  now constructs a **bounded subset**: scalar and declared-model R/C/L instances, DC/AC V/I sources,
   D/BJT/MOS/R/C/L scalar model cards, bounded D/Q/M instances and opaque analyses.
   Subcircuit/include/parameter-expression syntax is still unported and never
   silently dropped.
@@ -160,14 +160,16 @@ onto canonical instance parameters (`resistance`, `capacitance`, `inductance`,
 vector records **application order**, not a dictionary: `INP2V()`/`INP2I()` apply
 a leading DC value after named parameters; `INP2D()`/`INP2Q()` do the same for
 a leading diode/BJT `area`. MOS accepts no unlabeled scalar. This order must
-survive future
-serialization and elaboration. Analysis arguments remain unvalidated until their
+survive serialization and elaboration. A passive scalar before its model is
+applied before named setters; one after its model is applied after them.
+Analysis arguments remain unvalidated until their
 consumer interprets them; AST success is not a promise of simulation support.
 
 Model cards retain lowercased parameter names and original numeric text, without
 checking the device-specific keyword schema or applying model defaults. Their
-`level` field is the first explicit raw scalar; C's selector rounding, default
-levels and backend/range checks are deferred. D references can remain unresolved;
+`level` field is the first explicit raw scalar; selector/default/range rules
+belong to the `spice-devices` model resolver, not this syntax layer.
+D references can remain unresolved;
 Q/M require an in-deck declaration before `.end` so port/model roles are not
 inferred from numbers or parameter keywords. Forward references work. The
 first declared name wins over an optional substrate interpretation, as in
@@ -193,6 +195,26 @@ comment at the divergence site.
 | `gnd` aliasing is restricted to port positions, after model-name disambiguation | C's `inp_fix_gnd_name()` does a broader delimiter-based replacement in card text, including model identifiers. The AST deliberately preserves model/parameter spelling. Reserved-name collisions between `gnd` and `0` are not C-parity-proven. |
 | Model parameter parentheses must form one optional balanced outer pair | The C tokenizer gobbles parentheses as delimiters. Diagnosing unmatched/nested pairs avoids accepting malformed scalar cards; comma delimiters are still accepted. |
 
-The current syntax subset requires an explicit scalar value on a model-less
-R/C/L instance. Geometry-only/model-backed instances and expression-valued
-parameters are not supported yet; this is not a claim about their legality in C.
+The syntax subset requires an explicit scalar on model-less R/C/L instances.
+Declared-model passives may omit it and retain bounded scalar geometry setters.
+Numeric-looking passive model references after a scalar, expressions and extended
+flags remain explicit gaps; numeric initial values remain scalars, even when a
+model has the same name. This is not a claim about legality of wider C forms.
+
+## Model resolution and schema boundary
+
+`spice-devices::models::ModelResolver` indexes one deck's top-level declarations
+case-insensitively, keeps the first definition and checks designator/family and
+family-specific levels. `ResolvedModel` borrows the raw card; syntax never applies
+model defaults. `spice-devices::schema::ScalarSchema` is an extensible ordered
+finite-scalar validator with units, ranges, defaults and last-set provenance.
+Initial typed diode inputs cover IS/N/RS/AREA/TEMP/TNOM. `ModelContext` passes
+Celsius temperatures explicitly, without depending on `spice-analysis`.
+
+`Circuit::add_instance` stages node/device changes and rejects missing models,
+bad schema inputs and unavailable factories without changing existing numbering.
+D/Q/M and model-backed passive equations are still unavailable. Unused model
+cards also cannot silently disappear from a successful scalar simulation.
+[MODEL_SCHEMAS.md](MODEL_SCHEMAS.md) records API examples, selector policy, C
+references and deliberate bounded divergences. These APIs are input validation,
+not completed nonlinear setup, scoped expansion or simulation.
