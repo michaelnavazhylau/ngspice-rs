@@ -217,6 +217,8 @@ pub struct StampContext<'a> {
     pub temperature: Real,
     /// Default model nominal temperature in degrees Celsius.
     pub nominal_temperature: Real,
+    /// Junction minimum conductance (S), [`crate::ModelContext::gmin`].
+    pub gmin: Real,
     /// Which analysis is loading the matrix.
     pub mode: AnalysisMode,
     /// Branch-current rows allocated to this device, in order (empty if none).
@@ -231,6 +233,13 @@ pub struct StampContext<'a> {
 }
 
 impl StampContext<'_> {
+    /// The temperatures and junction `gmin` of this load as a [`crate::ModelContext`]
+    /// (without resistor overrides, which [`crate::Circuit`] has already applied).
+    #[must_use]
+    pub const fn model_context(&self) -> crate::ModelContext {
+        crate::ModelContext::new(self.temperature, self.nominal_temperature).with_gmin(self.gmin)
+    }
+
     /// The `index`-th branch row of this device.
     ///
     /// # Errors

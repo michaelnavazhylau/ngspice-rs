@@ -250,7 +250,10 @@ fn preflight(
             continue;
         };
         for temperature in &temperatures {
-            let model = ModelContext::new(*temperature, context.nominal_temperature);
+            let model = ModelContext {
+                temperature: *temperature,
+                ..context.model_context()
+            };
             for value in grid {
                 let target = circuit.resistor_override(name, *value)?;
                 circuit.effective_resistance(&target, &model)?;
@@ -259,6 +262,47 @@ fn preflight(
     }
     Ok(())
 }
+/// Request key of the per-point warm-start Newton limit (deck `itl2`, C
+/// `CKTdcTrcvMaxIter`).
+pub(crate) const POINT_ITERATIONS_KEY: &str = "trcvmaxiter";
+
+/// Split the `.dc`-only `trcvmaxiter=` (1..=[`crate::newton::MAX_ITERATIONS`])
+/// from the DC Newton/continuation settings shared with `.op`.
+fn sweep_settings(
+    request: &AnalysisRequest,
+) -> SpiceResult<(Option<usize>, crate::bias::DcSettings)> {
+    let mut limit = None;
+    let mut rest = Vec::new();
+    for argument in &request.arguments {
+        match argument.split_once('=') {
+            Some((key, text)) if key.trim().eq_ignore_ascii_case(POINT_ITERATIONS_KEY) => {
+                if limit.is_some() {
+                    return Err(SpiceError::Unsupported {
+                        feature: format!("duplicate .dc option {POINT_ITERATIONS_KEY}"),
+                        location: None,
+                    });
+                }
+                let largest = crate::newton::MAX_ITERATIONS as Real;
+                let value = spice_core::parse_spice_number(text.trim())
+                    .filter(|v| v.fract() == 0. && (1. ..=largest).contains(v))
+                    .ok_or_else(|| SpiceError::Unsupported {
+                        feature: format!(
+                            "{POINT_ITERATIONS_KEY} must be an integer in 1..={}, not '{}'",
+                            crate::newton::MAX_ITERATIONS,
+                            text.trim()
+                        ),
+                        location: None,
+                    })?;
+                limit = Some(value as usize);
+            }
+            _ => rest.push(argument.clone()),
+        }
+    }
+    let mut stripped = request.clone();
+    stripped.arguments = rest;
+    Ok((limit, crate::bias::DcSettings::from_request(&stripped)?))
+}
+
 pub(crate) fn run(
     circuit: &mut Circuit,
     request: &AnalysisRequest,
@@ -269,7 +313,7 @@ pub(crate) fn run(
     // Everything that can be rejected is rejected before the first sample.
     let hints = crate::initial::resolve(circuit, request)?;
     let axes = resolve(circuit, request, context)?;
-    let settings = crate::bias::DcSettings::from_request(request)?;
+    let (point_iterations, settings) = sweep_settings(request)?;
     let grids = axes
         .iter()
         .map(SweepSpec::grid)
@@ -312,6 +356,7 @@ pub(crate) fn run(
     };
     let lu = system.as_ref().map(|s| s.a.factorize()).transpose()?;
     let mut previous = Vector::zeros(circuit.unknown_count());
+    let mut first = true;
     for hint in hints.nodesets {
         previous.as_mut_slice()[hint.row] = hint.value;
     }
@@ -345,17 +390,58 @@ pub(crate) fn run(
                 }
                 lu.solve(&rhs)?
             } else {
-                crate::bias::solve_dc_with(
-                    circuit,
-                    &model,
-                    &settings,
-                    &overrides,
-                    Some(&previous),
-                    None,
-                )?
-                .solution
-                .values
+                // dctrcurv.c: every point after the first first tries a plain
+                // warm-started Newton bounded by `itl2` (CKTdcTrcvMaxIter) and
+                // only on failure falls back to the full operating-point solve.
+                let warm = match point_iterations.filter(|_| !first) {
+                    None => None,
+                    Some(limit) => {
+                        let direct = crate::bias::DcSettings {
+                            newton: crate::newton::NewtonOptions {
+                                max_iterations: limit,
+                                ..settings.newton
+                            },
+                            continuation: crate::bias::ContinuationPolicy::disabled(),
+                        };
+                        match crate::bias::solve_dc_with(
+                            circuit,
+                            &model,
+                            &direct,
+                            &overrides,
+                            Some(&previous),
+                            None,
+                        ) {
+                            Ok(solved) => Some(solved.solution.values),
+                            Err(failure)
+                                if matches!(
+                                    failure.report.outcome,
+                                    crate::bias::DcOutcome::Exhausted
+                                        | crate::bias::DcOutcome::BudgetExhausted
+                                ) =>
+                            {
+                                None
+                            }
+                            Err(failure) => return Err(failure.error),
+                        }
+                    }
+                };
+                match warm {
+                    Some(values) => values,
+                    None => {
+                        crate::bias::solve_dc_with(
+                            circuit,
+                            &model,
+                            &settings,
+                            &overrides,
+                            Some(&previous),
+                            None,
+                        )?
+                        .solution
+                        .values
+                    }
+                }
             };
+            first = false;
             // Only a solved point is accepted; a failure above returns before
             // any accept hook runs for it.
             circuit.accept_solution(&x, None)?;

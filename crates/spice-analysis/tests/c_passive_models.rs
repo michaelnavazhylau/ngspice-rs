@@ -87,6 +87,7 @@ fn passive_effective_geometry_temperature_and_precedence_match_c() {
         AnalysisContext {
             temperature: 77.0,
             nominal_temperature: 22.0,
+            ..Default::default()
         },
     ] {
         let mut expected = BTreeMap::new();
@@ -151,6 +152,7 @@ fn passive_model_production_dc_ac_matches_c() {
         AnalysisContext {
             temperature: 77.0,
             nominal_temperature: 22.0,
+            ..Default::default()
         },
     ] {
         for (kind, args, command) in [

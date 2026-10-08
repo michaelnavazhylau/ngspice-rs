@@ -74,17 +74,25 @@ fn bjt_forward_reverse_gain_kcl_and_polarity_are_physical() {
         let vbc = 0.62 - 2.;
         let arg = (3. * VT / (vbc * std::f64::consts::E)).powi(3);
         let ibc = -1e-14 * (1. + arg);
-        let ic = pol * (ibe - 1.5 * ibc - 1e-12 * vbc);
-        let ib = pol * (ibe / 80. + ibc / 2. + 1e-12 * (0.62 + vbc));
+        // bjtload.c: the default-geometry substrate junction is gmin from the
+        // grounded substrate to the collector (vertical NPN) or the base
+        // (lateral PNP); that current leaves through ground.
+        let (substrate_c, substrate_b) = if pol > 0. {
+            (1e-12 * 2., 0.)
+        } else {
+            (0., 1e-12 * -0.62)
+        };
+        let ic = pol * (ibe - 1.5 * ibc - 1e-12 * vbc) + substrate_c;
+        let ib = pol * (ibe / 80. + ibc / 2. + 1e-12 * (0.62 + vbc)) + substrate_b;
         close(-p.value("i(vc)", 0).unwrap().re, ic, 1e-8, 1e-12);
         close(-p.value("i(vb)", 0).unwrap().re, ib, 1e-8, 1e-12);
         close(
             p.value("i(vc)", 0).unwrap().re
                 + p.value("i(vb)", 0).unwrap().re
                 + p.value("i(ve)", 0).unwrap().re,
+            -(substrate_c + substrate_b),
             0.,
-            0.,
-            1e-12,
+            1e-15,
         );
     }
 }

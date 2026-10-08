@@ -4,7 +4,7 @@
 //! are explicit errors, not ignored setters. MOS intrinsic Meyer capacitance
 //! (`tox > 0`) is not implemented; absent/zero TOX matches C's zero oxide cap.
 use crate::nonlinear::{
-    GMIN, JunctionPoint, K_OVER_Q, depletion_charge, junction_current, stamp_junction, value,
+    JunctionPoint, K_OVER_Q, depletion_charge, junction_current, stamp_junction, value,
 };
 use crate::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
@@ -245,6 +245,21 @@ impl Bjt {
         Ok([(self.pol * ibe, gbe, be), (self.pol * ibc, gbc, bc)])
     }
 }
+impl Bjt {
+    /// The substrate node (the optional fourth terminal, else ground) and the
+    /// node its junction connects to: the collector for NPN (default vertical
+    /// geometry), the base for PNP (default lateral), as `bjtsetup.c` chooses
+    /// when the `subs` model parameter is not given.
+    fn substrate(&self) -> [NodeId; 2] {
+        let substrate = self.nodes.get(3).copied().unwrap_or(NodeId::GROUND);
+        let connection = if self.pol > 0. {
+            self.nodes[0]
+        } else {
+            self.nodes[1]
+        };
+        [substrate, connection]
+    }
+}
 impl Device for Bjt {
     fn name(&self) -> &str {
         &self.name
@@ -271,11 +286,7 @@ impl Device for Bjt {
         let (c, b, e) = (self.nodes[0], self.nodes[1], self.nodes[2]);
         let vbe = context.node_voltage(b) - context.node_voltage(e);
         let vbc = context.node_voltage(b) - context.node_voltage(c);
-        let [(ibe, gbe, qbe), (ibc, gbc, qbc)] = self.points(
-            vbe,
-            vbc,
-            &ModelContext::new(context.temperature, context.nominal_temperature),
-        )?;
+        let [(ibe, gbe, qbe), (ibc, gbc, qbc)] = self.points(vbe, vbc, &context.model_context())?;
         stamp_current(
             context,
             [c, e],
@@ -300,13 +311,24 @@ impl Device for Bjt {
                 ports,
                 v,
                 JunctionPoint {
-                    current: GMIN * v,
-                    conductance: GMIN,
+                    current: context.gmin * v,
+                    conductance: context.gmin,
                     ..q
                 },
                 slot,
             )?;
         }
+        // bjtload.c: without a substrate saturation current the substrate
+        // junction is just CKTgmin between the substrate node and its
+        // connection node (see `substrate`).
+        let [substrate, connection] = self.substrate();
+        let v = context.node_voltage(connection) - context.node_voltage(substrate);
+        stamp_current(
+            context,
+            [connection, substrate],
+            context.gmin * v,
+            &[(connection, context.gmin), (substrate, -context.gmin)],
+        )?;
         Ok(())
     }
     fn assemble_small_signal(
@@ -322,9 +344,10 @@ impl Device for Bjt {
         linear_current(context, [b, e], &[(b, gbe / self.bf), (e, -gbe / self.bf)])?;
         linear_current(context, [b, c], &[(b, gbc / self.br), (c, -gbc / self.br)])?;
         for (ports, q) in [([b, e], qbe), ([b, c], qbc)] {
-            context.nodal(ports, GMIN, false)?;
+            context.nodal(ports, context.model_context.gmin, false)?;
             context.nodal(ports, q.capacitance, true)?;
         }
+        context.nodal(self.substrate(), context.model_context.gmin, false)?;
         Ok(())
     }
 }
@@ -493,7 +516,7 @@ impl Mos1 {
             [(drain, gds), (g, gm), (source, -gds - gm - gmb), (b, gmb)],
         ))
     }
-    fn junction(&self, v: Real, c: Real, vt: Real) -> SpiceResult<JunctionPoint> {
+    fn junction(&self, v: Real, c: Real, vt: Real, gmin: Real) -> SpiceResult<JunctionPoint> {
         // MOS1 uses a constant reverse saturation current below -3*Vt,
         // unlike the diode/BJT cubic reverse continuation.
         let (i, g) = if self.pol * v <= -3. * vt {
@@ -502,8 +525,8 @@ impl Mos1 {
             junction_current(self.pol * v, vt, self.is)?
         };
         let mut q = charge_point(v, (c, self.pb, self.mj, self.fc), (0., i, g), self.pol);
-        q.current = self.pol * i + GMIN * v;
-        q.conductance = g + GMIN;
+        q.current = self.pol * i + gmin * v;
+        q.conductance = g + gmin;
         q.validate()?;
         Ok(q)
     }
@@ -534,11 +557,7 @@ impl Device for Mos1 {
         let v = self.nodes.map(|n| context.node_voltage(n));
         let (ports, i, partials) = self.channel(v)?;
         stamp_current(context, ports, i, &partials)?;
-        let vt = nominal(
-            &ModelContext::new(context.temperature, context.nominal_temperature),
-            self.temp,
-            self.tnom,
-        )?;
+        let vt = nominal(&context.model_context(), self.temp, self.tnom)?;
         let [d, g, s, b] = self.nodes;
         for (slot, node, c) in [(0, d, self.cbd), (2, s, self.cbs)] {
             let voltage = context.node_voltage(b) - context.node_voltage(node);
@@ -546,7 +565,7 @@ impl Device for Mos1 {
                 context,
                 [b, node],
                 voltage,
-                self.junction(voltage, c, vt)?,
+                self.junction(voltage, c, vt, context.gmin)?,
                 slot,
             )?;
         }
@@ -583,7 +602,7 @@ impl Device for Mos1 {
         let [d, g, s, b] = self.nodes;
         for (node, c) in [(d, self.cbd), (s, self.cbs)] {
             let voltage = bias_voltage(context, bias, b) - bias_voltage(context, bias, node);
-            let q = self.junction(voltage, c, vt)?;
+            let q = self.junction(voltage, c, vt, context.model_context.gmin)?;
             context.nodal([b, node], q.conductance, false)?;
             context.nodal([b, node], q.capacitance, true)?;
         }

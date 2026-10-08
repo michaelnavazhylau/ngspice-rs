@@ -424,6 +424,7 @@ impl Circuit {
                 solution: request.solution,
                 temperature: request.model_context.temperature,
                 nominal_temperature: request.model_context.nominal_temperature,
+                gmin: request.model_context.gmin,
                 mode: request.mode,
                 branches: self.branch_rows[index].clone(),
                 integration: request.integration,
