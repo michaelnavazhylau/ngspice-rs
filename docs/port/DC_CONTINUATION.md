@@ -117,7 +117,7 @@ Highest first, resolved **per name**:
 | Deck option | Request key | Meaning |
 | --- | --- | --- |
 | `itl1` | `maxiter` | Newton iterations of the direct solve: deck `0..=10000` forwarded as `max(itl1, 100)` (C `niiter.c` raises any limit below 100 to 100); the request key is a literal `1..=10000`. Without `stagemaxiter` it also bounds every continuation stage |
-| `itl2` | `stagemaxiter` | Newton iterations of every gmin/source-stepping stage, including each strategy's final full-source zero-gmin solve (C `cktop.c`: `NIiter(ckt, CKTdcTrcvMaxIter)`); forwarded as `max(itl2, 100)` whenever the deck sets `itl1` or `itl2` (only `itl1` set: C's effective default 100); the request key is a literal `1..=10000` |
+| `itl2` | `stagemaxiter` | Newton iterations of every gmin/source-stepping stage, including source stepping's final full-source solve (C `cktop.c`: `NIiter(ckt, CKTdcTrcvMaxIter)`); gmin stepping's closing zero-gmin solve uses the direct limit (`itl1`) instead, as C's `spice3_gmin`/`dynamic_gmin`/`new_gmin` end with `NIiter(ckt, iterlim)`; forwarded as `max(itl2, 100)` whenever the deck sets `itl1` or `itl2` (only `itl1` set: C's effective default 100); the request key is a literal `1..=10000` |
 | `srcsteps` | `srcsteps` | `0` disables source stepping, else `N` equal increments (1..=1000) |
 | `gminsteps` | `gminsteps` | `0` disables gmin stepping, else `N` stages (1..=100) from 1e-3 S |
 | `gminfactor` | `gminfactor` | ratio between stages, finite, `1 < f <= 1e6`, default 10 |
@@ -147,7 +147,9 @@ Propagation is honest:
 - `itl2` (#110) bounds every continuation stage (`stagemaxiter`) of `.op`,
   `.ac`, `.dc` and the companion `.tran` initial bias, as C's `CKTop` does for
   `dcop.c`, `acan.c`, `dctrcurv.c` and `dctran.c`; `itl1` then bounds only the
-  direct solve. The total budget is `itl1 + stages * itl2`. On `.dc` it is
+  direct solve and gmin stepping's closing zero-gmin solve (C:
+  `NIiter(ckt, iterlim)`). The total budget is `2 * itl1 + stages * itl2` with
+  gmin stepping enabled (`itl1 + stages * itl2` without). On `.dc` it is
   also `trcvmaxiter` (`max(itl2, 100)`, the same `niiter.c` floor): every point
   after the first first tries a plain warm-started Newton bounded by it
   (continuation disabled, C `dctrcurv.c` `NIiter(CKTdcTrcvMaxIter)`); a

@@ -130,10 +130,12 @@ pub struct ContinuationPolicy {
     /// limits already imply; `Some(n)` caps the work at `n`.
     pub max_total_iterations: Option<usize>,
     /// Newton iteration limit of every gmin/source-stepping stage, including
-    /// each strategy's final full-source zero-gmin solve (C: `CKTop` calls
-    /// `NIiter(ckt, CKTdcTrcvMaxIter)` there, deck `itl2`, while the direct
-    /// solve uses `CKTdcMaxIter`, deck `itl1`). `None` keeps
-    /// `NewtonOptions::max_iterations` for the stages too.
+    /// source stepping's final full-source solve (C: `NIiter(ckt,
+    /// CKTdcTrcvMaxIter)`, deck `itl2`). Gmin stepping's closing zero-gmin
+    /// solve is not a stage: like the direct solve it uses
+    /// `NewtonOptions::max_iterations` (C: `dynamic_gmin`, `spice3_gmin` and
+    /// `new_gmin` end with `NIiter(ckt, iterlim)`, i.e. `CKTdcMaxIter`, deck
+    /// `itl1`). `None` keeps `NewtonOptions::max_iterations` for the stages too.
     pub stage_max_iterations: Option<usize>,
 }
 
@@ -691,7 +693,8 @@ type Stages<'a> = &'a [(Real, Real)];
 
 impl Engine<'_> {
     /// One disposable Newton solve at `(scale, gmin)`; charges the budget.
-    /// `continued` is the preceding stage's converged trial, if any.
+    /// `continued` is the preceding stage's converged trial, if any; `closing`
+    /// marks a strategy's final full-source zero-gmin solve.
     fn stage(
         &mut self,
         report: &mut DcReport,
@@ -699,6 +702,7 @@ impl Engine<'_> {
         guess: &Vector,
         continued: Option<TrialState>,
         (scale, gmin): (Real, Real),
+        closing: bool,
     ) -> Result<NewtonSolution<TrialState>, Halt> {
         if self.remaining == 0 {
             return Err(Halt::Budget(format!(
@@ -707,8 +711,13 @@ impl Engine<'_> {
             )));
         }
         let n = self.circuit.unknown_count();
+        // C bounds the direct solve and gmin stepping's closing solve by
+        // `iterlim` (itl1) and every other continuation solve by itl2
+        // (`cktop.c`: `spice3_gmin`/`dynamic_gmin`/`new_gmin` end with
+        // `NIiter(ckt, iterlim)`; `gillespie_src`/`spice3_src` ignore it).
         let limit = match strategy {
             DcStrategy::Direct => self.newton.max_iterations,
+            DcStrategy::GminStepping if closing => self.newton.max_iterations,
             DcStrategy::GminStepping | DcStrategy::SourceStepping => self.stage_limit,
         };
         let options = NewtonOptions {
@@ -802,11 +811,11 @@ impl Engine<'_> {
         let mut guess = start.clone();
         let mut continued = None;
         for &point in stages {
-            let solved = self.stage(report, strategy, &guess, continued, point)?;
+            let solved = self.stage(report, strategy, &guess, continued, point, false)?;
             guess = solved.values;
             continued = Some(solved.trial);
         }
-        self.stage(report, strategy, &guess, continued, (1., 0.))
+        self.stage(report, strategy, &guess, continued, (1., 0.), true)
     }
 
     /// [`Self::walk`] plus its entry in the report's attempt list.
@@ -949,21 +958,21 @@ fn run(
         .unwrap_or_default();
     let gmin_enabled = !gmin_stages.is_empty();
     let source_enabled = policy.source_stepping.is_some();
-    let stage_count = if gmin_enabled {
-        gmin_stages.len() + 1
-    } else {
-        0
-    } + if source_enabled {
-        source_stages.len() + 1
-    } else {
-        0
-    };
+    // Stage-limited solves; gmin stepping's closing solve is charged at the
+    // direct limit instead (see `Engine::stage`).
+    let stage_count = if gmin_enabled { gmin_stages.len() } else { 0 }
+        + if source_enabled {
+            source_stages.len() + 1
+        } else {
+            0
+        };
+    let direct_count = 1 + usize::from(gmin_enabled);
     let stage_limit = policy
         .stage_max_iterations
         .unwrap_or(options.max_iterations);
     let budget = policy.max_total_iterations.unwrap_or_else(|| {
-        options
-            .max_iterations
+        direct_count
+            .saturating_mul(options.max_iterations)
             .saturating_add(stage_count.saturating_mul(stage_limit))
     });
     report.budget = budget;
