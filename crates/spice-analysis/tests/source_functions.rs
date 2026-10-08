@@ -132,24 +132,8 @@ fn sffm_am_pulse_count_and_repeated_pwl_drive_their_nodes_exactly() {
         if t > 1.2e-3 - 1e-12 {
             let local = (t - 1.2e-3).rem_euclid(0.5e-3);
             if local.min(0.5e-3 - local) < 1e-12 {
-                // A repetition boundary: the right limit is the restart value
-                // 1 V; the sample landing there is C's single value, 0.5 V at
-                // the first boundary or wherever C's fold rounds up to the
-                // last knot, otherwise the restart value (`vsrcload.c`).
-                let want = if right {
-                    1.
-                } else {
-                    let time = t - 0.2e-3;
-                    if time <= 1e-3 {
-                        0.5
-                    } else {
-                        let (start, period) = (0.5e-3, 0.5e-3);
-                        let folded = ((time - start) - period * ((time - start) / period).floor()
-                            + start)
-                            .min(1e-3);
-                        1. - (folded - start) / 1e-3
-                    }
-                };
+                // A repetition boundary: left limit 0.5 V, right limit 1 V.
+                let want = if right { 1. } else { 0.5 };
                 assert!((d[i] - want).abs() < 1e-9, "pwl boundary t={t}: {}", d[i]);
             } else {
                 let want = 1. - local / 1e-3;
@@ -249,4 +233,69 @@ fn the_bdf_backend_refuses_non_piecewise_linear_forcing() {
         b[time.iter().position(|x| (x - 3e-3).abs() < 1e-12).unwrap()],
         0.
     );
+}
+
+/// Analytic RC (tau = 0.1 ms) response to the sawtooth `pwl(0 0 1m 1) r=0`:
+/// within each ramp `v' = (t_local / P - v) / tau`, with `v` continuous across
+/// the jumps of the source.
+fn sawtooth_rc(t: f64) -> f64 {
+    let (period, tau) = (1e-3, 1e-4);
+    let ramp = |v0: f64, s: f64| {
+        // Solution of v' = (s/P - v)/tau from v(0) = v0.
+        let k = tau / period;
+        s / period - k + (v0 + k) * (-s / tau).exp()
+    };
+    let mut v = 0.;
+    let mut start = 0.;
+    while t - start > period {
+        v = ramp(v, period);
+        start += period;
+    }
+    ramp(v, t - start)
+}
+
+#[test]
+fn a_discontinuous_repeated_pwl_ramps_every_repetition_in_both_backends() {
+    // Every repetition boundary is a 1 V -> 0 V jump: the step ending there
+    // takes the left limit, so the diffsol segments interpolate the full ramp
+    // instead of holding the restart value.
+    for backend in ["", " backend=diffsol method=bdf"] {
+        let plot = run(&format!(
+            "v1 in 0 pwl(0 0 1m 1) r=0\nr1 in out 1k\nc1 out 0 0.1u\n.tran 10u 4m 0 10u{backend}"
+        ));
+        let (time, vin, vout) = (
+            column(&plot, "time"),
+            column(&plot, "v(in)"),
+            column(&plot, "v(out)"),
+        );
+        for (i, t) in time.iter().enumerate() {
+            let local = t - 1e-3 * (t / 1e-3).floor();
+            // Away from a jump the input is the ramp itself (to the BDF
+            // solver tolerance on algebraic rows).
+            if local > 1e-9 && local < 1e-3 - 1e-9 {
+                assert!(
+                    (vin[i] - local / 1e-3).abs() < 1e-6,
+                    "{backend} v(in) at {t:e}: {}",
+                    vin[i]
+                );
+            }
+            let want = sawtooth_rc(*t);
+            assert!(
+                (vout[i] - want).abs() < 5e-3,
+                "{backend} v(out) at {t:e}: {} vs {want}",
+                vout[i]
+            );
+        }
+        // Every later repetition reaches the top of the ramp again.
+        for k in 1..4 {
+            let start = f64::from(k) * 1e-3;
+            let peak = time
+                .iter()
+                .zip(&vin)
+                .filter(|(t, _)| **t > start + 1e-9 && **t < start + 1e-3 - 1e-9)
+                .map(|(_, v)| *v)
+                .fold(0., f64::max);
+            assert!(peak > 0.95, "{backend} repetition {k}: peak {peak}");
+        }
+    }
 }

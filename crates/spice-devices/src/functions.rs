@@ -554,13 +554,16 @@ impl SourceFunction {
 /// first value holds. Without repetition the last value holds after the last
 /// knot. With `r = t_k` the segment `[t_k, t_last]` repeats forever with period
 /// `t_last - t_k`; where `v_k != v_last` each repetition boundary is a jump.
-/// The port reproduces C's single-valued evaluation at the boundary instant
-/// rather than a mathematical left limit: the first boundary (and any later
-/// one whose fold rounds up to `t_last`) evaluates to `v_last` on the left and
-/// `v_k` on the right, while every later boundary that C folds back onto the
-/// restart knot evaluates to `v_k` for both limits, exactly as `vsrcload.c`
-/// loads it, so the step landing there integrates toward the restart value
-/// as C's does.
+///
+/// At every repetition boundary (including one a few ulps away, as the port's
+/// own breakpoint arithmetic produces) the left limit is `v_last` and the
+/// right limit `v_k`, like any other source jump, so the step ending at the
+/// boundary integrates toward `v_last` and both the companion driver and the
+/// diffsol segment assembly see the true ramp. Away from boundaries the fold
+/// uses `vsrcload.c`'s arithmetic. This is a deliberate difference from C,
+/// which evaluates a boundary instant once: depending on which side of
+/// `t_last` its accumulated landing time rounds to, C loads either `v_last` or
+/// `v_k` there (see `docs/port/TRANSIENT.md` for the measured effect).
 #[derive(Debug, Clone, PartialEq)]
 pub struct PwlSource {
     knots: Vec<(Real, Real)>,
@@ -671,10 +674,7 @@ impl PwlSource {
         if time <= first.0 {
             return Ok(first.1);
         }
-        let Some(index) = self
-            .repeat
-            .filter(|_| time > last.0 || (time == last.0 && limit == Limit::Right))
-        else {
+        let Some(index) = self.repeat.filter(|_| time >= last.0) else {
             return Ok(if time >= last.0 {
                 last.1
             } else {
@@ -684,28 +684,28 @@ impl PwlSource {
         let start = self.knots[index].0;
         let period = last.0 - start;
         let elapsed = time - start;
-        let cycle = (elapsed / period).floor();
-        if !cycle.is_finite() || cycle >= MAX_CYCLE {
+        let ratio = elapsed / period;
+        if !ratio.is_finite() || ratio >= MAX_CYCLE {
             return Err(invalid(
                 kind,
                 "evaluation time is too many repetitions from the origin",
             ));
         }
-        // C's arithmetic, including its clamp to the last knot ("prevent
-        // glitches"), so a rounded boundary lands where C puts it.
-        let position = (start + (elapsed - period * cycle)).min(last.0);
-        if position >= last.0 {
-            // C evaluates this instant (the first boundary, or a later one
-            // whose fold rounded up) to the end of the repetition; the next
-            // step starts from the restart value.
+        // A repetition boundary, within the round-off of the port's own
+        // breakpoint times (`delay + knot + cycle * period`): a jump from
+        // `v_last` to `v_k`, never C's ulp-dependent single value.
+        let nearest = ratio.round();
+        let tolerance = 64. * Real::EPSILON * (t.abs() + self.delay.abs() + start.abs() + period);
+        if nearest >= 1. && (elapsed - period * nearest).abs() <= tolerance {
             return Ok(match limit {
                 Limit::Left => last.1,
                 Limit::Right => self.knots[index].1,
             });
         }
-        // Includes a later boundary that C folds back onto the restart knot:
-        // C loads the restart value at that instant, so the step that lands
-        // there integrates toward the post-jump value. Both limits follow C.
+        // Inside a repetition: C's fold, including its clamp to the last knot
+        // ("prevent glitches").
+        let cycle = ratio.floor();
+        let position = (start + (elapsed - period * cycle)).min(last.0);
         Ok(self.interpolate(position))
     }
 
@@ -1053,27 +1053,33 @@ mod tests {
         assert_eq!(p.value_at(2.5, L).unwrap(), 0.5);
         assert_eq!(p.value_at(2.5, R).unwrap(), 1.);
         assert_eq!(p.value_at(3., R).unwrap(), 0.75);
-        // Later boundaries fold back onto the restart knot, as in C.
-        assert_eq!(p.value_at(3.5, L).unwrap(), 1.);
+        // Every later boundary is the same jump (left 0.5, right 1).
+        assert_eq!(p.value_at(3.5, L).unwrap(), 0.5);
         assert_eq!(p.value_at(3.5, R).unwrap(), 1.);
         assert_eq!(p.value_at(100.75, R).unwrap(), 0.875);
         let corners: Vec<_> = p.breakpoints_in(0., 5.).unwrap().collect();
         assert_eq!(corners, [0.5, 1.5, 2.5, 3.5, 4.5]);
-        // Sawtooth `pwl(0 0 1m 1) r=0`: C evaluates the first boundary to the
-        // end value and folds every later one onto the restart value.
+        // Sawtooth `pwl(0 0 1m 1) r=0`: every boundary, at the port's own
+        // breakpoint times and a few ulps to either side, is the jump 1 -> 0.
         let saw = PwlSource::new(vec![(0., 0.), (1e-3, 1.)], 0., Some(0.)).unwrap();
-        assert_eq!(saw.value_at(1e-3, L).unwrap(), 1.);
-        assert_eq!(saw.value_at(1e-3, R).unwrap(), 0.);
-        for t in [2e-3, 3e-3, 4e-3] {
-            let c_value = {
-                // vsrcload.c `case PWL` arithmetic.
-                let folded = (t - 1e-3 * (t / 1e-3_f64).floor()).min(1e-3);
-                folded / 1e-3
-            };
-            assert_eq!(c_value, 0., "C folds t={t} onto the restart knot");
-            assert_eq!(saw.value_at(t, L).unwrap(), c_value, "t={t}");
-            let right = if c_value == 1. { 0. } else { c_value };
-            assert_eq!(saw.value_at(t, R).unwrap(), right, "t={t}");
+        let boundaries: Vec<_> = saw.breakpoints_in(0., 4e-3).unwrap().skip(1).collect();
+        assert_eq!(boundaries.len(), 4);
+        for t in boundaries {
+            for at in [t, t.next_up(), t.next_down(), t * (1. + 4. * Real::EPSILON)] {
+                // Just before the first boundary is ordinary interpolation.
+                assert!(close(saw.value_at(at, L).unwrap(), 1.), "t={at:e}");
+                assert!(
+                    close(saw.value_at(at, R).unwrap(), 0.) || at < 1e-3,
+                    "t={at:e}"
+                );
+            }
+        }
+        assert!(close(saw.value_at(2.5e-3, R).unwrap(), 0.5));
+        // An odd period whose boundaries are not representable exactly.
+        let odd = PwlSource::new(vec![(0., 0.), (0.3e-3, 1.)], 0.05e-3, Some(0.)).unwrap();
+        for t in odd.breakpoints_in(0., 3e-3).unwrap().skip(1) {
+            assert_eq!(odd.value_at(t, L).unwrap(), 1., "t={t:e}");
+            assert_eq!(odd.value_at(t, R).unwrap(), 0., "t={t:e}");
         }
         // r = 0 repeats everything: a continuous triangle when ends match.
         let tri = PwlSource::new(vec![(0., 0.), (1., 1.), (2., 0.)], 0., Some(0.)).unwrap();

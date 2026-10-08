@@ -201,7 +201,6 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "rc_exp_tran",
         "rc_pulse_count_tran",
         "rc_pwl_repeat_tran",
-        "rc_pwl_sawtooth_tran",
         "rc_sffm_am_tran",
         "rc_sin_tran",
     ];

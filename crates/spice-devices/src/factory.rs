@@ -161,7 +161,7 @@ pub(crate) fn instantiate(
             "td" => pwl_delay = Some((number, p.location.clone())),
             "r" => {
                 // C silently ignores r= when no PWL coefficients exist yet.
-                if !matches!(waveform, Some(Waveform::Pwl(_))) {
+                let Some(Waveform::Pwl(knots)) = &waveform else {
                     return Err(SpiceError::Unsupported {
                         feature: format!(
                             "{}: r= without a preceding PWL setter (C ignores it)",
@@ -169,7 +169,16 @@ pub(crate) fn instantiate(
                         ),
                         location: Some(p.location.clone()),
                     });
-                }
+                };
+                // VSRC_R/ISRC_R validate every r= as it is set (E_PARMVAL
+                // aborts the deck), so an invalid earlier r= is an error even
+                // when a later one is valid.
+                PwlSource::new(knots.clone(), 0., Some(number)).map_err(|error| {
+                    SpiceError::Unsupported {
+                        feature: format!("{}: {error}", instance.name),
+                        location: Some(p.location.clone()),
+                    }
+                })?;
                 pwl_repeat = Some((number, p.location.clone()));
             }
             _ => value = Some(number),

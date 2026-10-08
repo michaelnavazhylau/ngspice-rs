@@ -15,6 +15,10 @@
 //!   C's time-zero values.
 //! * **Fourier.** A SIN-driven diode clipper (strong harmonics) is transformed
 //!   by both engines' `.four`; THD and harmonic magnitudes are compared.
+//! * **Documented divergences.** RC decks without marker sources (discontinuous
+//!   repeated PWL, SIN/EXP/SFFM/AM delays, a fractional PULSE count) run in
+//!   both engines; the worst `v(out)` difference must stay within the bounds
+//!   stated in `docs/port/TRANSIENT.md`.
 //!
 //! Ordinary `cargo test` never needs C: everything here is `#[ignore]`d.
 
@@ -141,6 +145,10 @@ fn source_function_values_match_c_at_c_timepoints() {
             // C's rawfile prints time with 16 significant digits, so at a jump
             // its sample may sit an ulp to either side: the left and right
             // limits and the values 1e-14 relative away are all admissible.
+            // This also covers repeated-PWL boundaries, where C's single value
+            // depends on how its landing time rounds (either limit); the
+            // effect of the port always integrating to the left limit there
+            // is bounded separately by the unmarked-deck test below.
             let delta = 1e-14 * t.abs();
             let candidates = [
                 (*t, Limit::Left),
@@ -264,5 +272,105 @@ fn four_of_a_sin_driven_clipper_matches_c() {
             "harmonic {order}: port {}, C {magnitude}",
             harmonic.amplitude
         );
+    }
+}
+
+/// Linear interpolation of `(time, value)` at `t` (clamped at the ends).
+fn interpolate(time: &[Real], value: &[Real], t: Real) -> Real {
+    let k = time.partition_point(|x| *x < t);
+    if k == 0 {
+        return value[0];
+    }
+    if k == time.len() {
+        return value[k - 1];
+    }
+    if time[k] == t {
+        return value[k];
+    }
+    let (a, b) = (time[k - 1], time[k]);
+    value[k - 1] + (value[k] - value[k - 1]) * (t - a) / (b - a)
+}
+
+/// Documented divergences from C on ordinary decks (no marker sources):
+/// `(deck, worst |v(out)| difference allowed)`. Each RC has tau = 0.1 ms.
+///
+/// * Discontinuous repeated PWL: at a repetition boundary C loads either the
+///   end value or the restart value depending on how its accumulated landing
+///   time rounds; the port always takes the left limit (measured 0.024-0.036 V
+///   for a 1 V jump with 7-10 us steps).
+/// * SIN/EXP/SFFM/AM delays and a fractional PULSE count: the port lands on the
+///   corner or jump, C's `VSRCaccept` does not (measured 2e-5 to 9e-3 V).
+const UNMARKED: &[(&str, &str, Real)] = &[
+    ("sawtooth", "v1 in 0 pwl(0 0 1m 1) r=0\n.tran 10u 4m", 0.04),
+    (
+        "odd sawtooth",
+        "v1 in 0 pwl(0 0 0.3m 1) r=0\n.tran 7u 3m",
+        0.03,
+    ),
+    (
+        "delayed partial repeat",
+        "v1 in 0 pwl(0 0 0.3m 1 0.7m 0.2) r=0.3m td=0.05m\n.tran 10u 4m",
+        0.035,
+    ),
+    (
+        "exp",
+        "v1 in 0 exp(0 1 0.2m 0.3m 1.5m 0.5m)\n.tran 5u 4m",
+        2e-4,
+    ),
+    (
+        "exp td2 < td1",
+        "v1 in 0 exp(0 1 0.5m 0.2m 0.3m 0.1m)\n.tran 5u 4m",
+        0.012,
+    ),
+    (
+        "sin",
+        "v1 in 0 sin(0.5 1 1k 0.2m 200 30)\n.tran 2u 3m",
+        1e-4,
+    ),
+    (
+        "sffm",
+        "v1 in 0 sffm(0.5 1 5k 1 500 0.3m)\n.tran 1u 2m",
+        3e-3,
+    ),
+    ("am", "v1 in 0 am(0.5 1 0.5 500 5k 0.3m)\n.tran 1u 2m", 3e-3),
+    (
+        "fractional pulse count",
+        "v1 in 0 pulse(0 1 0.1m 20u 20u 0.2m 0.5m 1.3)\n.tran 10u 3m",
+        2e-3,
+    ),
+];
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs temporary C decks out of process"]
+fn unmarked_decks_diverge_from_c_only_within_documented_bounds() {
+    for (k, (name, cards, bound)) in UNMARKED.iter().enumerate() {
+        let (source, tran) = cards.split_once('\n').unwrap();
+        let circuit_cards = format!("{source}\nr1 in out 1k\nc1 out 0 0.1u\n");
+        let (plot, text) = run_c(
+            &format!("unmarked{k}"),
+            &circuit_cards,
+            &tran.replace(".tran", "tran"),
+            "",
+        );
+        let c = plot.unwrap_or_else(|| panic!("{name}: no C rawfile:\n{text}"));
+        let netlist = rust_netlist(&format!("t\n{circuit_cards}{tran}\n.end\n"));
+        let config = RunConfig::from_netlist(&netlist).unwrap();
+        let request = config.request_for(&netlist.analyses[0]).unwrap();
+        let mut circuit = config.circuit(&netlist).unwrap();
+        let ours = runner(request.kind)
+            .unwrap()
+            .run(&mut circuit, &request, &AnalysisContext::default())
+            .unwrap();
+        let column = |plot: &Plot, name: &str| -> Vec<Real> {
+            plot.column(name).unwrap().iter().map(|v| v.re).collect()
+        };
+        let (port_time, port_out) = (column(&ours, "time"), column(&ours, "v(out)"));
+        let worst = column(&c, "time")
+            .iter()
+            .zip(column(&c, "v(out)"))
+            .map(|(t, v)| (v - interpolate(&port_time, &port_out, *t)).abs())
+            .fold(0., Real::max);
+        println!("{name}: worst v(out) difference {worst:.3e} V (bound {bound:e})");
+        assert!(worst <= *bound, "{name}: {worst:e} > {bound:e}");
     }
 }

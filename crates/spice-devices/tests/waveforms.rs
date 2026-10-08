@@ -249,6 +249,33 @@ fn unsupported_source_options_are_explicit() {
 }
 
 #[test]
+fn every_r_setter_is_validated_in_order_like_c() {
+    // vsrcpar.c/isrcpar.c return E_PARMVAL for the invalid first r= even though
+    // the later one is valid; the error points at the offending setter.
+    for designator in ['v', 'i'] {
+        let body = format!("{designator}1 a 0 pwl(0 0 1m 1) r=0.3m r=0\nr1 a 0 1");
+        let error = build_error(&body);
+        assert!(error.contains("matches no time point"), "{body}: {error}");
+        assert!(error.contains("w.cir:2:22:"), "{body}: {error}");
+        let body = format!("{designator}1 a 0 pwl(0 0 1m 1) r=0 r=2m\nr1 a 0 1");
+        let error = build_error(&body);
+        assert!(error.contains("smaller than the last"), "{body}: {error}");
+        assert!(error.contains("w.cir:2:26:"), "{body}: {error}");
+    }
+    // Valid setters: the last wins, and r=-1 switches repetition off again.
+    let s = system("v1 a 0 pwl(0 0 1m 1 2m 0) r=1m r=0\nr1 a 0 1");
+    let Waveform::PwlSource(pwl) = &s.sources[0].waveform else {
+        panic!("{:?}", s.sources[0].waveform);
+    };
+    assert_eq!(pwl.repeat(), Some(0));
+    let s = system("v1 a 0 pwl(0 0 1m 1 2m 0) r=0 r=-1\nr1 a 0 1");
+    let Waveform::PwlSource(pwl) = &s.sources[0].waveform else {
+        panic!("{:?}", s.sources[0].waveform);
+    };
+    assert_eq!(pwl.repeat(), None);
+}
+
+#[test]
 fn hand_built_function_asts_with_bad_field_counts_are_refused() {
     use spice_core::SpiceError;
     use spice_netlist::ast::{ParameterKind, PositionedValue, SourceWaveform};
