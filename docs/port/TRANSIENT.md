@@ -29,6 +29,12 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 the request already states them (explicit request > deck > defaults). With
 `backend=diffsol` a deck `method`/`maxord`/`chgtol`/`trtol` is an error, not
 silently ignored. `maxsteps=` bounds accepted + rejected steps.
+`.option itl4` (request `tranmaxiter=`, 1..=10000, default 10 as C's
+`CKTtranMaxIter`) bounds the Newton iterations of each nonlinear trial,
+`.option xmu` (request `xmu=`, `0..=0.5`, default 0.5) is the trapezoidal
+weighting of `nicomcof.c`, and `itl1`/`srcsteps`/`gminsteps`/`gminfactor`
+(requests `maxiter=` etc.) configure the nonlinear initial bias (#110). All of
+them are rejected with `backend=diffsol`.
 
 Defaults are ngspice's: `reltol` 1e-3, `vntol` 1e-6 V, `abstol` 1e-12 A,
 `chgtol` 1e-14 C, `trtol` 7, `maxsteps` 1,000,000 (range 1 to 10,000,000). The

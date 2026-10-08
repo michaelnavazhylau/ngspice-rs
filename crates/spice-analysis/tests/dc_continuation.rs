@@ -1040,13 +1040,9 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
     let off = config(".options srcsteps=0 gminsteps=0").unwrap();
     assert_eq!((off.dc().srcsteps, off.dc().gminsteps), (Some(0), Some(0)));
     assert_eq!(off.dc().policy().unwrap(), ContinuationPolicy::disabled());
-    // Junction gmin and the other iteration limits remain explicit gaps.
-    for pending in [
-        ".options gmin=1e-12",
-        ".options itl2=10",
-        ".options itl4=20",
-        ".options gshunt=1e-12",
-    ] {
+    // Junction gmin, itl2 and itl4 are implemented (tests/run_config.rs);
+    // diagonal gshunt remains an explicit gap.
+    for pending in [".options gshunt=1e-12", ".options noopiter"] {
         assert!(
             config(pending).unwrap_err().is_not_yet_ported(),
             "{pending}"
@@ -1057,26 +1053,42 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
 }
 
 #[test]
-fn transient_and_diffsol_do_not_silently_ignore_dc_options() {
-    let config = RunConfig::from_netlist(&parse("v1 a 0 1\nr1 a 0 1k\n.options itl1=50")).unwrap();
-    let tran = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u"]);
+fn companion_transient_reads_dc_options_and_diffsol_rejects_them() {
+    let config = RunConfig::from_netlist(&parse(
+        "v1 a 0 1\nr1 a 0 1k\n.options itl1=50 srcsteps=4 gminsteps=3 gminfactor=20",
+    ))
+    .unwrap();
+    // dctran.c computes the initial bias with CKTop(CKTdcMaxIter): the companion
+    // driver receives the same settings as .op.
+    let tran = config
+        .request(AnalysisRequest::with_arguments(
+            AnalysisKind::Transient,
+            ["1u", "10u"],
+        ))
+        .unwrap();
+    assert_eq!(tran.named("maxiter"), Some("50"));
+    assert_eq!(tran.named("srcsteps"), Some("4"));
+    assert_eq!(tran.named("gminsteps"), Some("3"));
+    assert_eq!(tran.named("gminfactor"), Some("2e1"));
+    let mut c = circuit("v1 a 0 1\nr1 a 0 1k");
+    runner(AnalysisKind::Transient)
+        .unwrap()
+        .run(&mut c, &tran, &AnalysisContext::default())
+        .unwrap();
     let diffsol = AnalysisRequest::with_arguments(
         AnalysisKind::Transient,
         ["1u", "10u", "backend=diffsol", "method=bdf"],
     );
-    for request in [tran, diffsol] {
-        let error = config.request(request).unwrap_err();
-        assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
-        assert!(error.to_string().contains("itl1"), "{error}");
-    }
-    // DC analyses accept them; an explicit continuation name is not a .tran key.
+    let error = config.request(diffsol).unwrap_err();
+    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+    assert!(error.to_string().contains("itl1"), "{error}");
+    // DC analyses accept them; invalid explicit .tran bias settings fail.
     assert!(config.request(request(&[])).is_ok());
-    let mut c = circuit("v1 a 0 1\nr1 a 0 1k");
     let error = runner(AnalysisKind::Transient)
         .unwrap()
         .run(
             &mut c,
-            &AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u", "srcsteps=5"]),
+            &AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u", "srcsteps=-5"]),
             &AnalysisContext::default(),
         )
         .unwrap_err();

@@ -1,0 +1,9 @@
+RC pulse transient, trapezoidal xmu=0.2
+* tau = 100 us. .options xmu=0.2 changes the trapezoidal weighting
+* (nicomcof.c); itl4 bounds the per-timepoint Newton work.
+v1 in 0 pulse(0 10 100u 10u 10u 300u 800u)
+r1 in out 1k
+c1 out 0 0.1u
+.options xmu=0.2 itl4=20
+.tran 2u 1.2m
+.end

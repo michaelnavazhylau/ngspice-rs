@@ -199,6 +199,24 @@ fn unknown_and_unimplemented_options_fail_with_distinct_exits() {
     let unknown = run_text("unknown", "t\nr1 a 0 1k\n.options bogus=1\n.end\n");
     assert_eq!(unknown.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&unknown.stderr).contains("unknown option 'bogus'"));
-    let pending = run_text("pending", "t\nr1 a 0 1k\n.options itl4=20\n.end\n");
+    let pending = run_text("pending", "t\nr1 a 0 1k\n.options gshunt=1e-12\n.end\n");
     assert_eq!(pending.status.code(), Some(3));
+}
+
+#[test]
+fn documented_no_op_options_are_named_by_parse() {
+    let output = run_text(
+        "noops",
+        "t\nr1 a 0 1k\n.param g=1u\n.options nopage noacct gmin={g} itl4=40 pivtol=1e-13\n.end\n",
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("options: 2 setting(s)"), "{stdout}");
+    assert!(
+        stdout.contains("options without effect (documented no-ops): nopage, noacct, pivtol"),
+        "{stdout}"
+    );
+    let plain = run_text("noops-plain", "t\nr1 a 0 1k\n.options reltol=1m\n.end\n");
+    let stdout = String::from_utf8(plain.stdout).unwrap();
+    assert!(!stdout.contains("without effect"), "{stdout}");
 }

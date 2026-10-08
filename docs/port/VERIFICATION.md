@@ -562,6 +562,20 @@ registry coverage and process exit statuses. Temporary copies are used for
 corruption tests; committed fixtures are never rewritten. Process tests select
 an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 
+## `.option` coverage oracles (#110/#107)
+
+`golden verify` registers `options_gmin_dc` (`.dc`, `compare::NONLINEAR`, junction
+`gmin` from a `{}` value) and `options_xmu_tran` (`compare::TRAN`, `xmu=0.2`,
+`itl4`), both captured individually. Opt-in live comparisons in
+`crates/spice-analysis/tests/c_options_reference.rs` (`NGSPICE_BIN=... cargo test
+-p spice-analysis --test c_options_reference -- --ignored`) cover reverse-biased
+diode/NPN/PNP/4-terminal BJT/MOS1 junction `gmin` (`.op`, `.dc`, `.ac`), `xmu`
+on a common transient grid, `itl1`/`itl4` limits on the `m4_diode_tran` circuit
+and `{expr}`/`'expr'` `temp`/`tnom` values. Each numerical test also asserts that
+the option moves the C result beyond the bound, so agreement is not vacuous
+(iteration limits excepted: they only bound convergence work, and this port's
+damped Newton is not C's per-junction limiting).
+
 ## Transient comparison tooling (#48 item 1)
 
 `xtask/src/tran.rs` is the event-aware comparator for the M3 transient exit gate.

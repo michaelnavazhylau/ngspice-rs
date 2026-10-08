@@ -1,0 +1,53 @@
+# ngspice-rs token-dump v1
+file: netlists/options_xmu_tran.cir
+title: "RC pulse transient, trapezoidal xmu=0.2" @netlists/options_xmu_tran.cir:1:1
+card 1 @netlists/options_xmu_tran.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 pulse(0 10 100u 10u 10u 300u 800u)"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "pulse"
+  token 5 4:14 lparen "("
+  token 6 4:15 number "0" value=0e0
+  token 7 4:17 number "10" value=1e1
+  token 8 4:20 number "100u" value=9.999999999999999e-5
+  token 9 4:25 number "10u" value=9.999999999999999e-6
+  token 10 4:29 number "10u" value=9.999999999999999e-6
+  token 11 4:33 number "300u" value=3e-4
+  token 12 4:38 number "800u" value=7.999999999999999e-4
+  token 13 4:42 rparen ")"
+card 2 @netlists/options_xmu_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "out"
+  token 4 5:11 number "1k" value=1e3
+card 3 @netlists/options_xmu_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "c1 out 0 0.1u"
+  kind: device(c)
+  token 1 6:1 word "c1"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "0.1u" value=1e-7
+card 4 @netlists/options_xmu_tran.cir:7:1 lines=7-7 continuations=0
+  raw: ".options xmu=0.2 itl4=20"
+  kind: dot(.options)
+  token 1 7:1 word ".options"
+  token 2 7:10 word "xmu"
+  token 3 7:13 equals "="
+  token 4 7:14 number "0.2" value=2e-1
+  token 5 7:18 word "itl4"
+  token 6 7:22 equals "="
+  token 7 7:23 number "20" value=2e1
+card 5 @netlists/options_xmu_tran.cir:8:1 lines=8-8 continuations=0
+  raw: ".tran 2u 1.2m"
+  kind: dot(.tran)
+  token 1 8:1 word ".tran"
+  token 2 8:7 number "2u" value=2e-6
+  token 3 8:10 number "1.2m" value=1.2e-3
+card 6 @netlists/options_xmu_tran.cir:9:1 lines=9-9 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 9:1 word ".end"

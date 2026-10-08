@@ -71,8 +71,12 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m4_bjt_tran` | `.tran` | independent BE/BC charge companions |
 | `m4_mos1_ac` | `.ac` | MOS1 square law, body junction and overlap charges, zero TOX |
 | `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
+| `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, `itl1`/`itl2`, documented no-op options |
+| `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
 for the demonstrated local #41 gate, physics allowlists and justified tolerances.
 Only the subcircuit fixture remains excluded by Rust-engine verification.
+The two `options_*` decks (#110/#107) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.

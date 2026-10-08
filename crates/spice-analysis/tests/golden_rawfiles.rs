@@ -493,6 +493,39 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "options_gmin_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 11,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
+        // `.options gmin={gj}` = 1 uS: at v1 = -10 V the reverse diode and the
+        // PNP base-collector junction each conduct gmin (the lateral PNP's
+        // substrate gmin sits base-to-ground at 0 V), so the 1 k source
+        // resistor sees 2 uS: v(out) = -10 / (1 + 1k * 2u).
+        values: &[
+            ("v(v-sweep)", 0, -10.0, 0.0),
+            ("v(out)", 0, -9.980039920149501, 0.0),
+            ("i(v1)", 0, 1.996007985049886e-5, 0.0),
+            ("v(v-sweep)", 10, 0.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "options_xmu_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 629,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // RC (tau = 100 us) charging again 290 us after the second 10 V pulse
+        // edge at 910 us, integrated with trapezoidal xmu = 0.2.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("time", 628, 1.2e-3, 0.0),
+            ("v(in)", 628, 10.0, 0.0),
+            ("v(out)", 628, 9.473638039474475, 0.0),
+            ("i(v1)", 628, -5.263619605255255e-4, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_divider",
         plotname: "Operating Point",
         flags: PlotFlags::Real,

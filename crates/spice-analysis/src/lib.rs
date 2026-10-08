@@ -46,7 +46,9 @@ pub use analysis::{
     Analysis, AnalysisContext, AnalysisRequest, DRIVERS, NodeCondition, has_driver, runner,
 };
 pub use companion::{TransientStats, companion_transient};
-pub use config::{AppliedOption, DcOptions, RunConfig, RunOverrides, TransientSettings};
+pub use config::{
+    AppliedOption, DcOptions, IgnoredOption, RunConfig, RunOverrides, TransientSettings,
+};
 pub use fourier::{FourierAnalysis, FourierWindow, Harmonic};
 pub use measure::{MeasureEvents, MeasureSpan, Measurement};
 pub use rawfile::{BinaryByteOrder, RawFile, RawFileReader, RawFormat, RawPlot};

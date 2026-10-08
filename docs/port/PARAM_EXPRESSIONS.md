@@ -169,9 +169,12 @@ undefined.
 - Diagnostics are `SpiceError::Parse` with the failing sub-expression's
   location and text, plus the enclosing parameter/site.
 
-Remaining limits: `{expr}` option values still
-`NotYetPorted`, no quoted `'expr'`, `.func`, comparison/ternary operators or
-random functions.
+`.option` values may be `{expr}` or single-quoted `'expr'` (#107 option part):
+`RunConfig::from_netlist` evaluates them against the top-level scope (see
+[FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md#expression-option-values-107-option-part)).
+
+Remaining limits: no quoted `'expr'` outside `.option` values, `.func`,
+comparison/ternary operators or random functions.
 
 ## Public API for an evaluator
 

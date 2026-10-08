@@ -136,12 +136,62 @@ location. Order and duplicates are kept; syntax only. `.global` parses into
 always global, other names only if a top-level `.global` listed them. Options or
 globals inside a `.subckt` body return `NotYetPorted`.
 
-`spice_analysis::RunConfig` (docs in `config.rs`) accepts `temp`, `tnom`,
-`reltol`, `vntol`, `abstol`, `method`, `maxord`. Repeats override in order; a name
-used both as flag and value, unknown names (including `no_auto_gnd`, a front-end
-variable) and invalid values are errors; every other `cktsopt.c` option is
-`NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
-`spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
+`spice_analysis::RunConfig` (docs in `config.rs`) resolves the settings. Repeats
+override in order; a name used both as flag and value, unknown names (including
+`no_auto_gnd`, a front-end variable) and invalid values are errors. Every
+accepted name has real semantics or is a documented no-op; the remaining
+`cktsopt.c` names and front-end variables with an effect are `NotYetPorted`.
+Tests: `spice-netlist/tests/options_globals.rs`,
+`spice-analysis/tests/{run_config,options_coverage,dc_continuation}.rs`,
+`spice-cli/tests/parse.rs`; opt-in C comparisons in
+`spice-analysis/tests/c_options_reference.rs`; goldens `options_gmin_dc`,
+`options_xmu_tran`.
+
+### Option coverage (#110)
+
+C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
+`cktntask.c` (defaults), `frontend/spiceif.c::if_option`, `frontend/options.c`.
+
+| Option | Status | Port semantics (request key) | C behaviour / justification |
+| --- | --- | --- | --- |
+| `temp`, `tnom` | effect | circuit / nominal temperature (C) | `TSKtemp`/`TSKnomTemp` |
+| `gmin` | effect | `AnalysisContext::gmin` = `ModelContext::gmin`: parallel junction conductance of diode, BJT (B-E, B-C and the default substrate junction: collector for NPN/vertical, base for PNP/lateral) and MOS1 (B-D, B-S) in every analysis; finite, `>= 0`, default 1e-12 | `CKTgmin` in `dioload.c`, `bjtload.c`, `mos1load.c` |
+| `reltol`, `vntol`, `abstol` | effect | `rtol`/`vntol`/`abstol` for `.op`/`.dc`/`.ac` Newton and `.tran` | `TSKreltol`/`TSKvoltTol`/`TSKabstol` |
+| `chgtol`, `trtol` | effect | companion truncation control; rejected with `backend=diffsol` | `CKTterr` |
+| `method`, `maxord` | effect | companion trap/Gear-2, orders 1..2 (3..6 `Unsupported`); rejected with diffsol | `TSKintegrateMethod`/`TSKmaxOrder` |
+| `xmu` | effect | companion trapezoidal weighting `0..=0.5` (`xmu`); rejected with diffsol | `CKTxmu` in `nicomcof.c` (C accepts any value; > 0.5 is an explicit error here) |
+| `itl1` | effect | DC Newton limit per stage (`maxiter`, 1..=10000) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias | `CKTdcMaxIter` in `cktop.c`, `dctran.c` (default 100; this port keeps 200, see DC_CONTINUATION.md) |
+| `itl2` | effect | `.dc` only: warm-started Newton limit at every point after the first, falling back to the full `itl1` solve (`trcvmaxiter`) | `CKTdcTrcvMaxIter` in `dctrcurv.c`; C also bounds its dynamic gmin/source-stepping stages with it, which this port's fixed ladders do not implement |
+| `itl4` | effect | companion Newton iterations per timepoint (`tranmaxiter`, default 10); rejected with diffsol | `CKTtranMaxIter` in `dctran.c` |
+| `srcsteps`, `itl6` | effect | source-stepping increments (`srcsteps`; `itl6` is the same setting) | `OPT_SRCSTEPS` (both names) |
+| `gminsteps`, `gminfactor` | effect | gmin-stepping ladder | see DC_CONTINUATION.md |
+| `acct`, `noacct`, `list`, `nomod`, `nopage`, `node`, `opts`, `noinit`, `norefvalue` | no-op (flag only) | none | front-end print controls handled first by `if_option`; no numerical effect; this port prints no such listing |
+| `itl3`, `itl5`, `cptime`, `limtim`, `limpts`, `lvlcod`, `lvltim` | no-op (value validated) | none | `OPTtbl` entries without `IF_SET`; `if_option` warns "unsupported"/"obsolete" and C ignores them |
+| `post`, `ingold` | no-op | none | plain front-end variables that nothing in ngspice reads |
+| `bypass=0` | no-op | none | C default (`TSKbypass = 0`); this port never bypasses device evaluation. Other values `NotYetPorted` |
+| `pivtol`, `pivrel` | no-op (documented divergence) | none; `pivtol >= 0`, `0 < pivrel <= 1` validated | Sparse 1.3 thresholds (`spfactor.c`); this port's faer partial-pivoting LU plus rank diagnostics has no equivalent knob |
+| `gshunt`, `cshunt`, `rshunt`, `noopiter`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `indverbosity`, `badmos3`, `trytocompact`, `keepopinfo`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
+| `filetype`, `savecurrents`, `scale`, `scalm`, `seed`, `seedinfo`, `rndseed`, `interp`, `warn`, `measureprec`, `rawfileprec`, `strict_errorhandling` | `NotYetPorted` | | front-end variables with an output/setup effect |
+| anything else | parse error | | C would store an unread variable or warn |
+
+No-ops are recorded with their reason in `RunConfig::ignored()` (`IgnoredOption`)
+and named by `spice-rs parse` ("options without effect"); `applied()` lists only
+settings with an effect. With `backend=diffsol`, any deck `itl1`/`srcsteps`/
+`itl6`/`gminsteps`/`gminfactor`/`itl4`/`xmu` is `Unsupported`.
+
+### Expression option values (#107, option part)
+
+`{expr}` and single-quoted `'expr'` values parse (numparam grammar,
+`parser/options.rs`) into `OptionSetting::expression` while `value.text` keeps
+the written form; double-quoted strings and quotes containing escapes are parse
+errors. `RunConfig::from_netlist` evaluates them against the deck's top-level
+`.param` scope (one root scope, so later `.param` cards are visible), then applies
+the usual range checks to the number; `RunConfig::from_options` has no scope and
+returns `Unsupported`; `method` takes a word, never an expression. The writer
+emits the value text verbatim and `semantic_eq` compares the parsed expression;
+AST dumps add the expression tree. C quirk (not reproduced): ngspice aborts the
+deck when a print flag such as `noacct` shares an `.options` card with a `{}`
+value; this port accepts that card.
 
 ## `.ic`, `.nodeset` and `uic` (#27)
 
