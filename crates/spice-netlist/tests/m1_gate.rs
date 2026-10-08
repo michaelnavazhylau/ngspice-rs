@@ -476,7 +476,6 @@ fn malformed_and_unsupported_cards_are_explicit_errors() {
         "q1 c b e s1 s2 s3 qm\n",
         "d1 a b dm thermal\n",
         ".subckt s a\n.option reltol=1e-3\n.ends\n",
-        "r1 a 0 {ternary_s(1,2,3)}\n",
     ] {
         let result = parse_text(&format!("t\n{body}.end\n"));
         assert!(
@@ -487,6 +486,14 @@ fn malformed_and_unsupported_cards_are_explicit_errors() {
             "{body}: {result:?}"
         );
     }
+    // A call to an unknown function parses as a user `.func` call; without a
+    // definition it is an explicit evaluation error, never a dropped value.
+    let unknown = parse_text("t\nr1 a 0 {ternary_s(1,2,3)}\n.end\n").unwrap();
+    let error = spice_netlist::elaborate::literalize(&unknown).unwrap_err();
+    assert!(
+        error.to_string().contains("undefined function 'ternary_s'"),
+        "{error}"
+    );
 }
 
 /// What the parser enforces about scoped names: structural scoping only.

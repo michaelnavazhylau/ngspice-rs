@@ -29,6 +29,7 @@ mod diode;
 mod expression;
 mod flags;
 mod fourier;
+mod func;
 mod grammar;
 mod hints;
 mod ic;

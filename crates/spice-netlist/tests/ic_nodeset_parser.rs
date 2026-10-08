@@ -83,7 +83,9 @@ fn malformed_forms_are_explicit_errors() {
         (".nodeset v(0)=1\n", "ground"),
         (".ic v(a)=abc\n", "expected a finite numeric literal"),
         (".ic v(a)=1e999\n", "finite"),
-        (".ic v(a)='1'\n", "expected a finite numeric literal"),
+        // A single-quoted value is an expression (C: inp_change_quotes); a
+        // double-quoted string is not a value.
+        (".ic v(a)=\"1\"\n", "expected a finite numeric literal"),
         (".ic v(a)={1\n", "unterminated"),
         (".ic v(a)=1 v(b)\n", "missing value"),
     ] {

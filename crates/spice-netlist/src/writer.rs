@@ -54,6 +54,10 @@
 //!   stored syntax tree, and that each `.param` card re-parses to the same
 //!   assignments, instead of re-printing from the tree. Parentheses are
 //!   therefore exactly those of the source, which are always sufficient.
+//! - `.func name(p1,p2) body`: the body keeps its delimiters (`{...}`, `'...'`
+//!   or bare) and text, verified to re-parse like `.param`.
+//! - Single-quoted expressions (`'a*2'`) keep their quotes everywhere; C's
+//!   `inp_change_quotes()` makes them identical to braces.
 //! - Analysis cards: `.name` plus the stored argument tokens joined with single
 //!   spaces (no space around `(`, `)`, `=` or before `,`). A `.tran` `uic` flag
 //!   is written after the positional arguments, before any `name=value` options.
@@ -98,9 +102,9 @@ use spice_core::{AnalysisKind, SourceLoc, SpiceError, SpiceResult, parse_spice_n
 
 use crate::Parser;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
-    NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind, PositionedValue,
-    ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, FuncCard, GlobalCard, IncludeDirective, ModelCard, Netlist,
+    NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind,
+    PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::expr::ParameterExpression;
 use crate::semantic::expr_form;
@@ -132,6 +136,7 @@ pub fn write_netlist(netlist: &Netlist) -> SpiceResult<String> {
             analyses: &netlist.analyses,
             includes: &netlist.includes,
             params: &netlist.params,
+            functions: &netlist.functions,
             options: &netlist.options,
             globals: &netlist.globals,
             initial_conditions: &netlist.initial_conditions,
@@ -159,6 +164,7 @@ struct Scope<'a> {
     analyses: &'a [AnalysisCard],
     includes: &'a [IncludeDirective],
     params: &'a [ParamCard],
+    functions: &'a [FuncCard],
     options: &'a [OptionCard],
     globals: &'a [GlobalCard],
     initial_conditions: &'a [NodeHintCard],
@@ -196,7 +202,7 @@ impl Writer {
     }
 
     fn scope(&mut self, scope: &Scope<'_>, depth: usize, body: bool) -> SpiceResult<()> {
-        let mut used = [0usize; 10];
+        let mut used = [0usize; 11];
         for card in scope.cards {
             // Cards read from an include/lib file are represented by their
             // directive; they are counted but not written.
@@ -244,6 +250,13 @@ impl Writer {
                     let param = entry(scope.params, i, "params")?;
                     if !skip {
                         self.param(param, depth)?;
+                    }
+                }
+                ScopedCardKind::Func(i) => {
+                    used[10] += 1;
+                    let function = entry(scope.functions, i, "functions")?;
+                    if !skip {
+                        self.func(function, depth)?;
                     }
                 }
                 ScopedCardKind::Options(i) => {
@@ -312,6 +325,7 @@ impl Writer {
             scope.globals.len(),
             scope.initial_conditions.len(),
             scope.nodesets.len(),
+            scope.functions.len(),
         ];
         if used != lengths {
             return Err(refuse(
@@ -343,6 +357,7 @@ impl Writer {
                 analyses: &sub.analyses,
                 includes: &sub.includes,
                 params: &sub.params,
+                functions: &sub.functions,
                 options: &[],
                 globals: &[],
                 initial_conditions: &[],
@@ -419,11 +434,7 @@ impl Writer {
         let mut text = ".param".to_owned();
         for assignment in &card.assignments {
             check_expression(&assignment.expression, location)?;
-            let value = if assignment.expression.braced {
-                format!("{{{}}}", assignment.expression.text)
-            } else {
-                assignment.expression.text.clone()
-            };
+            let value = assignment.expression.spelling();
             let _ = write!(text, " {}={value}", assignment.name);
         }
         if card.assignments.is_empty() {
@@ -447,12 +458,54 @@ impl Writer {
                 .all(|(a, b)| {
                     a.name == b.name
                         && a.expression.braced == b.expression.braced
+                        && a.expression.quoted == b.expression.quoted
                         && a.expression.text == b.expression.text
                         && expr_form(&a.expression.root) == expr_form(&b.expression.root)
                 });
         if !same {
             return Err(refuse(
                 "`.param` card does not re-parse to the same assignments",
+                Some(location),
+            ));
+        }
+        self.line(depth, &text, location)
+    }
+
+    /// `.func name(p1,p2) body`, the body in its original delimiters. Like
+    /// `.param`, the card is verified to re-parse to the same definition.
+    fn func(&mut self, card: &FuncCard, depth: usize) -> SpiceResult<()> {
+        let location = &card.location;
+        check_expression(&card.body, location)?;
+        let formals: Vec<&str> = card.parameters.iter().map(|p| p.name.as_str()).collect();
+        let text = format!(
+            ".func {}({}) {}",
+            card.name,
+            formals.join(","),
+            card.body.spelling()
+        );
+        let deck = parse_deck_text(location.path(), &format!("t\n{text}\n"));
+        let reparsed = Parser::new().parse_deck(&deck).map_err(|error| {
+            refuse(
+                format!("`.func` card does not re-parse: {error}"),
+                Some(location),
+            )
+        })?;
+        let same = reparsed.functions.len() == 1 && {
+            let other = &reparsed.functions[0];
+            other.name == card.name
+                && other
+                    .parameters
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .eq(formals.iter().copied())
+                && other.body.braced == card.body.braced
+                && other.body.quoted == card.body.quoted
+                && other.body.text == card.body.text
+                && expr_form(&other.body.root) == expr_form(&card.body.root)
+        };
+        if !same {
+            return Err(refuse(
+                "`.func` card does not re-parse to the same definition",
                 Some(location),
             ));
         }
@@ -516,14 +569,10 @@ impl Writer {
         for hint in &card.entries {
             let (kind, value) = match &hint.value {
                 NodeHintValue::Literal { text, .. } => (ParameterKind::Scalar, text.clone()),
-                NodeHintValue::Expression(expression) => {
-                    let spelled = if expression.braced {
-                        format!("{{{}}}", expression.text)
-                    } else {
-                        expression.text.clone()
-                    };
-                    (ParameterKind::Expression(expression.clone()), spelled)
-                }
+                NodeHintValue::Expression(expression) => (
+                    ParameterKind::Expression(expression.clone()),
+                    expression.spelling(),
+                ),
             };
             let value = value_text(
                 &ParameterAssignment {
@@ -815,24 +864,29 @@ fn value_text(parameter: &ParameterAssignment, text_ok: bool) -> SpiceResult<Str
         }
         ParameterKind::Expression(expression) => {
             check_expression(expression, location)?;
-            let consistent = if expression.braced {
-                parameter.value == format!("{{{}}}", expression.text)
-            } else {
-                parameter.value == expression.text
-            };
+            let consistent = parameter.value == expression.spelling();
             let kind_ok = matches!(
-                (&token, expression.braced),
+                (&token, expression.braced, expression.quoted),
                 (
                     Some(Token {
                         kind: TokenKind::Expression(_),
                         ..
                     }),
+                    true,
+                    false
+                ) | (
+                    Some(Token {
+                        kind: TokenKind::Quoted(_),
+                        ..
+                    }),
+                    true,
                     true
                 ) | (
                     Some(Token {
                         kind: TokenKind::Word,
                         ..
                     }),
+                    false,
                     false
                 )
             );

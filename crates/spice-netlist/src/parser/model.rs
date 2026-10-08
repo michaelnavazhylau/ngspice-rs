@@ -120,7 +120,7 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
         && input
             .input
             .first()
-            .is_some_and(|token| matches!(token.kind, TokenKind::Expression(_)))
+            .is_some_and(super::expression::is_expression_token)
     {
         // INPfindLev reads the literal level; ModelCard::level cannot carry an
         // unevaluated expression, so refuse instead of defaulting it.

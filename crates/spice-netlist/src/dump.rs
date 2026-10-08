@@ -40,7 +40,8 @@
 //! The root and every `.subckt` body are *scopes*. Each scope lists its ordered
 //! `cards` (with scope-local typed indexes and `via=[...]` include chains) and
 //! then its typed vectors (`devices`, `models`, `subcircuits`, `analyses`,
-//! `includes`, `params`, and at the root `options`, `globals`, plus
+//! `includes`, `params`, `functions` (only when the scope has `.func` cards),
+//! and at the root `options`, `globals`, plus
 //! `initial-conditions` and `nodesets` only when the deck has such cards, so
 //! decks without them keep the earlier v1 shape; `.tran` `uic` is an extra
 //! `uic @loc` line under the analysis, only when set). Parameter
@@ -54,9 +55,9 @@ use std::path::Path;
 use spice_core::{SourceLoc, SpiceError, SpiceResult};
 
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
-    NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind, PositionedValue,
-    ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, FuncCard, GlobalCard, IncludeDirective, ModelCard, Netlist,
+    NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind,
+    PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{BinaryOp, Expr, ExprKind, ParameterExpression, SourceSpan, UnaryOp};
@@ -444,6 +445,7 @@ struct Scope<'a> {
     analyses: &'a [AnalysisCard],
     includes: &'a [IncludeDirective],
     params: &'a [ParamCard],
+    functions: &'a [FuncCard],
     options: &'a [OptionCard],
     globals: &'a [GlobalCard],
     initial_conditions: &'a [NodeHintCard],
@@ -473,6 +475,7 @@ pub fn dump_ast(netlist: &Netlist, paths: &PathMapper) -> String {
         analyses: &netlist.analyses,
         includes: &netlist.includes,
         params: &netlist.params,
+        functions: &netlist.functions,
         options: &netlist.options,
         globals: &netlist.globals,
         initial_conditions: &netlist.initial_conditions,
@@ -532,6 +535,7 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
             analyses: &sub.analyses,
             includes: &sub.includes,
             params: &sub.params,
+            functions: &sub.functions,
             options: &[],
             globals: &[],
             initial_conditions: &[],
@@ -612,6 +616,29 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
                 ),
             );
             write_expression(ctx, out, indent + 3, &assignment.expression);
+        }
+    }
+    // Only decks with `.func` cards get the section, so other snapshots keep
+    // the earlier v1 shape.
+    if !scope.functions.is_empty() {
+        section(out, indent, "functions", scope.functions.len());
+        for (n, card) in scope.functions.iter().enumerate() {
+            let parameters: Vec<String> = card
+                .parameters
+                .iter()
+                .map(|p| format!("{}@{}", quote(&p.name), ctx.span(&p.span)))
+                .collect();
+            out.line(
+                indent + 1,
+                format!(
+                    "func [{n}] name={} name_span={} parameters=[{}] @{}",
+                    quote(&card.name),
+                    ctx.span(&card.name_span),
+                    parameters.join(", "),
+                    ctx.loc(&card.location)
+                ),
+            );
+            write_expression(ctx, out, indent + 2, &card.body);
         }
     }
     section(out, indent, "options", scope.options.len());
@@ -710,6 +737,7 @@ fn write_card(ctx: &Ctx<'_>, out: &mut Out, indent: usize, n: usize, card: &Scop
         ScopedCardKind::Options(i) => format!("options[{i}]"),
         ScopedCardKind::Global(i) => format!("global[{i}]"),
         ScopedCardKind::Param(i) => format!("param[{i}]"),
+        ScopedCardKind::Func(i) => format!("func[{i}]"),
         ScopedCardKind::InitialCondition(i) => format!("ic[{i}]"),
         ScopedCardKind::Nodeset(i) => format!("nodeset[{i}]"),
         ScopedCardKind::Output => "output".to_owned(),
@@ -861,8 +889,13 @@ fn write_expression(ctx: &Ctx<'_>, out: &mut Out, indent: usize, expression: &Pa
     out.line(
         indent,
         format!(
-            "expression braced={} text={} span={}",
+            "expression braced={}{} text={} span={}",
             expression.braced,
+            if expression.quoted {
+                " quoted=true"
+            } else {
+                ""
+            },
             quote(&expression.text),
             ctx.span(&expression.span)
         ),
@@ -916,6 +949,12 @@ fn write_expr(ctx: &Ctx<'_>, out: &mut Out, indent: usize, expr: &Expr) {
         ExprKind::Group(inner) => {
             out.line(indent, format!("group span={span}"));
             write_expr(ctx, out, indent + 1, inner);
+        }
+        ExprKind::UserCall { name, arguments } => {
+            out.line(indent, format!("user-call {} span={span}", quote(name)));
+            for argument in arguments {
+                write_expr(ctx, out, indent + 1, argument);
+            }
         }
     }
 }

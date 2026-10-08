@@ -49,11 +49,13 @@ use petgraph::algo::{tarjan_scc, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
 use spice_core::{Real, SourceLoc, SpiceError, SpiceResult};
 
-use crate::ast::ParamCard;
-use crate::expr::{BinaryOp, Expr, ExprKind, Function, ParameterExpression, UnaryOp};
+use crate::ast::{FuncCard, Netlist, ParamCard, Subcircuit};
+use crate::expr::{
+    BinaryOp, EXCLUDED_FUNCTIONS, Expr, ExprKind, Function, ParameterExpression, UnaryOp,
+};
 
 /// C reference used in diagnostics.
-pub const C_REFERENCE: &str = "src/frontend/numparam/xpressn.c (formula, operate, mathfunction), src/frontend/inpcom.c (inp_sort_params)";
+pub const C_REFERENCE: &str = "src/frontend/numparam/xpressn.c (formula, operate, mathfunction), src/frontend/inpcom.c (inp_sort_params, inp_expand_macros_in_deck)";
 
 /// Work bounds for evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,11 +158,29 @@ pub struct ParamScope {
     parent: Option<Arc<ParamScope>>,
     entries: Vec<ParamEntry>,
     active: HashMap<String, usize>,
+    functions: Option<Arc<FunctionScope>>,
 }
 
 struct Failure {
     location: SourceLoc,
     message: String,
+    /// Valid numparam outside the port's subset (NotYetPorted, not Parse).
+    unsupported: bool,
+}
+
+impl Failure {
+    fn into_error(self) -> SpiceError {
+        if self.unsupported {
+            SpiceError::not_yet_ported(format!("{}: {}", self.location, self.message), C_REFERENCE)
+        } else {
+            SpiceError::parse(self.location, self.message)
+        }
+    }
+
+    fn context(mut self, context: impl FnOnce() -> String) -> Self {
+        self.message = format!("{}\n  {}", self.message, context());
+        self
+    }
 }
 
 type Lookup<'a> = &'a dyn Fn(&str) -> Option<Real>;
@@ -193,6 +213,24 @@ impl ParamScope {
         Self::resolve(None, &[], cards, &mut EvalBudget::default())
     }
 
+    /// The top-level scope of a deck: its `.func` definitions
+    /// ([`Netlist::functions`]) and `.param` cards ([`Netlist::params`]), with
+    /// default limits.
+    ///
+    /// This is the reusable entry point for anything that evaluates an
+    /// expression against the deck's top-level parameters (device and analysis
+    /// sites, and other consumers such as option values):
+    /// `ParamScope::for_netlist(&netlist)?.evaluate(&expression, &mut budget)`.
+    ///
+    /// # Errors
+    /// As [`Self::root`], plus invalid `.func` definitions
+    /// ([`FunctionScope::new`]).
+    pub fn for_netlist(netlist: &Netlist) -> SpiceResult<Self> {
+        let mut budget = EvalBudget::default();
+        let functions = FunctionScope::for_netlist(netlist, &budget)?;
+        Self::resolve_scoped(None, Some(functions), &[], &netlist.params, &mut budget)
+    }
+
     /// Resolve with explicit limits and a shared budget.
     ///
     /// `parent` supplies outer names; `bindings` are visible to the cards and
@@ -208,7 +246,24 @@ impl ParamScope {
         cards: &[ParamCard],
         budget: &mut EvalBudget,
     ) -> SpiceResult<Self> {
-        Self::resolve_with(parent, bindings, cards, budget, Bindings::Reject)
+        let functions = parent.as_ref().and_then(|p| p.functions.clone());
+        Self::resolve_with(parent, functions, bindings, cards, budget, Bindings::Reject)
+    }
+
+    /// As [`Self::resolve`], with the `.func` definitions visible in this
+    /// scope given explicitly (`None`: no user functions). [`Self::resolve`]
+    /// inherits the parent's functions instead.
+    ///
+    /// # Errors
+    /// As [`Self::root`].
+    pub fn resolve_scoped(
+        parent: Option<Arc<ParamScope>>,
+        functions: Option<Arc<FunctionScope>>,
+        bindings: &[ParamBinding],
+        cards: &[ParamCard],
+        budget: &mut EvalBudget,
+    ) -> SpiceResult<Self> {
+        Self::resolve_with(parent, functions, bindings, cards, budget, Bindings::Reject)
     }
 
     /// Resolve one subcircuit body's scope, where `bindings` are that
@@ -230,11 +285,32 @@ impl ParamScope {
         cards: &[ParamCard],
         budget: &mut EvalBudget,
     ) -> SpiceResult<Self> {
-        Self::resolve_with(parent, bindings, cards, budget, Bindings::Win)
+        let functions = parent.as_ref().and_then(|p| p.functions.clone());
+        Self::resolve_with(parent, functions, bindings, cards, budget, Bindings::Win)
+    }
+
+    /// As [`Self::resolve_instance`], with the `.func` definitions visible in
+    /// the body given explicitly. C's function environments follow the
+    /// **lexical** `.subckt` nesting (`inpcom.c` `inp_expand_macros_in_deck()`),
+    /// so a body sees its own definitions and those of the enclosing
+    /// definitions, not those of the instantiating body: pass the definition's
+    /// [`FunctionScope`], not the caller's.
+    ///
+    /// # Errors
+    /// As [`Self::root`].
+    pub fn resolve_instance_scoped(
+        parent: Option<Arc<ParamScope>>,
+        functions: Option<Arc<FunctionScope>>,
+        bindings: &[ParamBinding],
+        cards: &[ParamCard],
+        budget: &mut EvalBudget,
+    ) -> SpiceResult<Self> {
+        Self::resolve_with(parent, functions, bindings, cards, budget, Bindings::Win)
     }
 
     fn resolve_with(
         parent: Option<Arc<ParamScope>>,
+        functions: Option<Arc<FunctionScope>>,
         bindings: &[ParamBinding],
         cards: &[ParamCard],
         budget: &mut EvalBudget,
@@ -318,6 +394,7 @@ impl ParamScope {
         }
 
         let scope_parent = parent.as_deref();
+        let scope_functions = functions.as_deref();
         let is_active_def = |i: usize| {
             i >= binding_count && exprs[i].is_some() && active.get(&entries[i].name) == Some(&i)
         };
@@ -335,22 +412,22 @@ impl ParamScope {
         for &i in &live {
             let Some(expr) = exprs[i] else { continue };
             let mut refs = Vec::new();
-            collect_refs(&expr.root, &mut refs);
+            collect_refs(&expr.root, scope_functions, &mut refs);
             for (name, loc) in refs {
                 let known = |n: &str| {
                     active.get(n).is_some_and(|&j| j < binding_count)
                         || scope_parent.is_some_and(|p| p.get(n).is_some())
                 };
                 if name != entries[i].name
-                    && let Some(&j) = active.get(name)
+                    && let Some(&j) = active.get(name.as_str())
                     && j >= binding_count
                 {
                     let (a, b) = (node_of[&i], node_of[&j]);
                     if !graph.contains_edge(a, b) {
                         graph.add_edge(a, b, ());
                     }
-                } else if !known(name) && undefined.is_none() {
-                    undefined = Some((i, name.to_owned(), loc));
+                } else if !known(&name) && undefined.is_none() {
+                    undefined = Some((i, name, loc));
                 }
             }
         }
@@ -436,14 +513,14 @@ impl ParamScope {
                 }
                 scope_parent.and_then(|p| p.get(n))
             };
-            let value = evaluate_root(expr, &lookup, budget).map_err(|f| {
-                SpiceError::parse(
-                    f.location,
+            let value = evaluate_root(expr, &lookup, scope_functions, budget).map_err(|f| {
+                f.context(|| {
                     format!(
-                        "{}\n  while evaluating parameter '{name}' defined at {}",
-                        f.message, entries[i].location
-                    ),
-                )
+                        "while evaluating parameter '{name}' defined at {}",
+                        entries[i].location
+                    )
+                })
+                .into_error()
             })?;
             values[i] = Some(value);
         }
@@ -454,7 +531,14 @@ impl ParamScope {
             parent,
             entries,
             active,
+            functions,
         })
+    }
+
+    /// The `.func` definitions visible in this scope, if any.
+    #[must_use]
+    pub fn functions(&self) -> Option<&Arc<FunctionScope>> {
+        self.functions.as_ref()
     }
 
     /// Every definition and binding in order, duplicates included.
@@ -490,23 +574,351 @@ impl ParamScope {
         expression: &ParameterExpression,
         budget: &mut EvalBudget,
     ) -> SpiceResult<Real> {
-        evaluate_root(expression, &|n| self.get(n), budget)
-            .map_err(|f| SpiceError::parse(f.location, f.message))
+        evaluate_root(
+            expression,
+            &|n| self.get(n),
+            self.functions.as_deref(),
+            budget,
+        )
+        .map_err(Failure::into_error)
     }
 }
 
-fn collect_refs<'a>(expr: &'a Expr, out: &mut Vec<(&'a str, SourceLoc)>) {
+/// One `.func` definition, as collected into a [`FunctionScope`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionDef {
+    /// Lowercased name.
+    pub name: String,
+    /// Lowercased formal parameters, in order.
+    pub parameters: Vec<String>,
+    /// The body expression.
+    pub body: ParameterExpression,
+    /// Where the `.func` card was written.
+    pub location: SourceLoc,
+}
+
+/// The `.func` definitions of one lexical scope (the deck or one `.subckt`
+/// body), linked to the enclosing scope.
+///
+/// C: `src/frontend/inpcom.c`, `inp_grab_func()` / `find_function()` /
+/// `inp_expand_macros_in_func()`. Rules (verified against the C binary,
+/// `c_func_eval.rs`):
+///
+/// - Every `.func` of a scope is visible throughout that scope (hoisted) and
+///   in nested `.subckt` definitions, never outside it.
+/// - A definition shadows one of the same name in an enclosing scope; within
+///   one scope the **last** definition wins.
+/// - A `.func` may redefine a built-in function (same arity only; see
+///   [`crate::ast::FuncCard`]).
+/// - Calls are by value: each formal is bound to its argument's value. A name
+///   in the body that is not a formal is resolved where the call is written
+///   (C expands the body textually there), after the formals of any
+///   enclosing `.func` calls.
+/// - Recursion (direct or mutual) is fatal in C even if unused (unbounded
+///   expansion); here it is an error naming the cycle. A call with the wrong
+///   number of arguments is an error, including inside an unused body.
+/// - Free names in an unused body are not checked, as in C.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionScope {
+    parent: Option<Arc<FunctionScope>>,
+    definitions: Vec<FunctionDef>,
+    active: HashMap<String, usize>,
+}
+
+impl FunctionScope {
+    /// Collects and checks one scope's `.func` cards.
+    ///
+    /// # Errors
+    /// More definitions than [`EvalLimits::max_definitions`], recursive
+    /// definitions (a cycle among the lexically resolved calls of this
+    /// scope's bodies), and calls in a body with the wrong number of
+    /// arguments for the definition they resolve to.
+    pub fn new(
+        parent: Option<Arc<FunctionScope>>,
+        cards: &[FuncCard],
+        budget: &EvalBudget,
+    ) -> SpiceResult<Self> {
+        let limit = budget.limits.max_definitions;
+        if let Some(card) = cards.get(limit) {
+            return Err(SpiceError::parse(
+                card.name_span.start.clone(),
+                format!("more than {limit} .func definitions in one scope"),
+            ));
+        }
+        let mut definitions = Vec::with_capacity(cards.len());
+        let mut active = HashMap::new();
+        for card in cards {
+            active.insert(card.name.clone(), definitions.len());
+            definitions.push(FunctionDef {
+                name: card.name.clone(),
+                parameters: card.parameters.iter().map(|p| p.name.clone()).collect(),
+                body: card.body.clone(),
+                location: card.name_span.start.clone(),
+            });
+        }
+        let scope = Self {
+            parent,
+            definitions,
+            active,
+        };
+        scope.check()?;
+        Ok(scope)
+    }
+
+    /// The deck's top-level scope, after checking the `.func` cards of every
+    /// `.subckt` body as well (each inside its lexically enclosing scope), so
+    /// that a recursive or mis-called definition is reported even in a
+    /// subcircuit that is never instantiated, as C does.
+    ///
+    /// # Errors
+    /// As [`Self::new`], for any scope of the deck.
+    pub fn for_netlist(netlist: &Netlist, budget: &EvalBudget) -> SpiceResult<Arc<Self>> {
+        fn bodies(
+            parent: &Arc<FunctionScope>,
+            subcircuits: &[Subcircuit],
+            budget: &EvalBudget,
+        ) -> SpiceResult<()> {
+            for sub in subcircuits {
+                let scope = if sub.functions.is_empty() {
+                    Arc::clone(parent)
+                } else {
+                    Arc::new(FunctionScope::new(
+                        Some(Arc::clone(parent)),
+                        &sub.functions,
+                        budget,
+                    )?)
+                };
+                bodies(&scope, &sub.subcircuits, budget)?;
+            }
+            Ok(())
+        }
+        let root = Arc::new(Self::new(None, &netlist.functions, budget)?);
+        bodies(&root, &netlist.subcircuits, budget)?;
+        Ok(root)
+    }
+
+    /// Arity of every resolvable call in the active bodies, then cycles.
+    fn check(&self) -> SpiceResult<()> {
+        let mut live: Vec<usize> = self.active.values().copied().collect();
+        live.sort_unstable();
+        let mut graph: DiGraph<usize, ()> = DiGraph::new();
+        let mut node_of: HashMap<usize, NodeIndex> = HashMap::new();
+        for &i in &live {
+            node_of.insert(i, graph.add_node(i));
+        }
+        for &i in &live {
+            let def = &self.definitions[i];
+            let mut calls = Vec::new();
+            collect_calls(&def.body.root, &mut calls);
+            for (name, arguments, location) in calls {
+                let local = self.active.get(name).copied();
+                let callee = match local {
+                    Some(j) => Some(&self.definitions[j]),
+                    None => self
+                        .parent
+                        .as_deref()
+                        .and_then(|p| p.get(name))
+                        .map(|(d, _)| d),
+                };
+                let Some(callee) = callee else { continue };
+                if callee.parameters.len() != arguments {
+                    return Err(SpiceError::parse(
+                        location,
+                        format!(
+                            "function '{}' (defined at {}) takes {} argument(s), found {} \
+                             (in the body of function '{}' defined at {})",
+                            callee.name,
+                            callee.location,
+                            callee.parameters.len(),
+                            arguments,
+                            def.name,
+                            def.location
+                        ),
+                    ));
+                }
+                if let Some(j) = local {
+                    let (a, b) = (node_of[&i], node_of[&j]);
+                    if !graph.contains_edge(a, b) {
+                        graph.add_edge(a, b, ());
+                    }
+                }
+            }
+        }
+        let mut cyclic: Vec<Vec<NodeIndex>> = tarjan_scc(&graph)
+            .into_iter()
+            .filter(|c| c.len() > 1 || graph.contains_edge(c[0], c[0]))
+            .collect();
+        if cyclic.is_empty() {
+            return Ok(());
+        }
+        cyclic.sort_by_key(|c| c.iter().map(|&n| graph[n]).min());
+        let component = &cyclic[0];
+        let start = *component
+            .iter()
+            .min_by_key(|&&n| graph[n])
+            .expect("non-empty component");
+        let path = shortest_cycle(&graph, component, start);
+        let chain: Vec<String> = path
+            .iter()
+            .map(|&n| {
+                let def = &self.definitions[graph[n]];
+                format!("'{}' ({})", def.name, def.location)
+            })
+            .collect();
+        Err(SpiceError::parse(
+            self.definitions[graph[start]].location.clone(),
+            format!("recursive .func definition: {}", chain.join(" -> ")),
+        ))
+    }
+
+    /// Every definition of this scope in deck order, superseded ones included.
+    #[must_use]
+    pub fn definitions(&self) -> &[FunctionDef] {
+        &self.definitions
+    }
+
+    /// The enclosing scope, if any.
+    #[must_use]
+    pub fn parent(&self) -> Option<&Arc<FunctionScope>> {
+        self.parent.as_ref()
+    }
+
+    /// The definition `name` (case-insensitive) resolves to, searching
+    /// enclosing scopes, with the scope it was defined in.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<(&FunctionDef, &FunctionScope)> {
+        let key = name.to_ascii_lowercase();
+        let mut scope = self;
+        loop {
+            if let Some(&i) = scope.active.get(&key) {
+                return Some((&scope.definitions[i], scope));
+            }
+            scope = scope.parent.as_deref()?;
+        }
+    }
+}
+
+/// `(name, argument count, location)` of every call in `expr`.
+fn collect_calls<'a>(expr: &'a Expr, out: &mut Vec<(&'a str, usize, SourceLoc)>) {
+    match &expr.kind {
+        ExprKind::Number { .. } | ExprKind::Identifier(_) => {}
+        ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => collect_calls(operand, out),
+        ExprKind::Binary { lhs, rhs, .. } => {
+            collect_calls(lhs, out);
+            collect_calls(rhs, out);
+        }
+        ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
+            out.push((
+                call_name(&expr.kind),
+                arguments.len(),
+                expr.span.start.clone(),
+            ));
+            for a in arguments {
+                collect_calls(a, out);
+            }
+        }
+    }
+}
+
+/// Names an expression depends on, with the location to blame: identifiers
+/// (at their own location) and, for calls of user functions visible in
+/// `functions`, the names their bodies leave free (at the call).
+fn collect_refs(
+    expr: &Expr,
+    functions: Option<&FunctionScope>,
+    out: &mut Vec<(String, SourceLoc)>,
+) {
     match &expr.kind {
         ExprKind::Number { .. } => {}
-        ExprKind::Identifier(name) => out.push((name, expr.span.start.clone())),
-        ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => collect_refs(operand, out),
-        ExprKind::Binary { lhs, rhs, .. } => {
-            collect_refs(lhs, out);
-            collect_refs(rhs, out);
+        ExprKind::Identifier(name) => out.push((name.clone(), expr.span.start.clone())),
+        ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => {
+            collect_refs(operand, functions, out);
         }
-        ExprKind::Call { arguments, .. } => {
+        ExprKind::Binary { lhs, rhs, .. } => {
+            collect_refs(lhs, functions, out);
+            collect_refs(rhs, functions, out);
+        }
+        ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
             for a in arguments {
-                collect_refs(a, out);
+                collect_refs(a, functions, out);
+            }
+            let name = call_name(&expr.kind);
+            if let Some((def, scope)) = functions.and_then(|f| f.get(name)) {
+                let mut free = Vec::new();
+                free_names(def, scope, functions, &mut Vec::new(), &mut free);
+                for name in free {
+                    out.push((name, expr.span.start.clone()));
+                }
+            }
+        }
+    }
+}
+
+/// The lowercased callee name of a call node.
+fn call_name(kind: &ExprKind) -> &str {
+    match kind {
+        ExprKind::Call { function, .. } => function.name(),
+        ExprKind::UserCall { name, .. } => name,
+        _ => "",
+    }
+}
+
+/// Names a call of `def` leaves free for the call site to supply: names in
+/// its body that are not its formals, plus (transitively) the free names of
+/// the user functions it calls that its own formals do not capture.
+///
+/// C expands `.func` bodies textually (`inp_expand_macro_in_str()`), so a
+/// callee's free name is captured by the formals of every enclosing call and
+/// otherwise resolved where the outermost call was written.
+fn free_names<'a>(
+    def: &'a FunctionDef,
+    scope: &'a FunctionScope,
+    use_site: Option<&'a FunctionScope>,
+    stack: &mut Vec<*const FunctionDef>,
+    out: &mut Vec<String>,
+) {
+    if stack.contains(&std::ptr::from_ref(def)) {
+        // A dynamic cycle; evaluation reports it.
+        return;
+    }
+    stack.push(std::ptr::from_ref(def));
+    let mut names = Vec::new();
+    body_names(&def.body.root, scope, use_site, stack, &mut names);
+    stack.pop();
+    for name in names {
+        if !def.parameters.contains(&name) && !out.contains(&name) {
+            out.push(name);
+        }
+    }
+}
+
+fn body_names<'a>(
+    expr: &'a Expr,
+    scope: &'a FunctionScope,
+    use_site: Option<&'a FunctionScope>,
+    stack: &mut Vec<*const FunctionDef>,
+    out: &mut Vec<String>,
+) {
+    match &expr.kind {
+        ExprKind::Number { .. } => {}
+        ExprKind::Identifier(name) => out.push(name.clone()),
+        ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => {
+            body_names(operand, scope, use_site, stack, out);
+        }
+        ExprKind::Binary { lhs, rhs, .. } => {
+            body_names(lhs, scope, use_site, stack, out);
+            body_names(rhs, scope, use_site, stack, out);
+        }
+        ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
+            for a in arguments {
+                body_names(a, scope, use_site, stack, out);
+            }
+            let name = call_name(&expr.kind);
+            let callee = scope
+                .get(name)
+                .or_else(|| use_site.and_then(|u| u.get(name)));
+            if let Some((callee, callee_scope)) = callee {
+                free_names(callee, callee_scope, use_site, stack, out);
             }
         }
     }
@@ -547,12 +959,64 @@ fn shortest_cycle(
     vec![start, start]
 }
 
+/// One active `.func` call: the definition, the scope it was defined in and
+/// its argument values, linked to the enclosing call.
+struct Frame<'a> {
+    def: &'a FunctionDef,
+    scope: &'a FunctionScope,
+    args: Vec<Real>,
+    call: SourceLoc,
+    outer: Option<&'a Frame<'a>>,
+}
+
+/// What an expression is evaluated against: the site's parameter lookup and
+/// `.func` scope, plus the chain of active calls.
+#[derive(Clone, Copy)]
+struct Env<'a> {
+    lookup: Lookup<'a>,
+    functions: Option<&'a FunctionScope>,
+    frame: Option<&'a Frame<'a>>,
+}
+
+impl<'a> Env<'a> {
+    /// A name: the formals of the active calls, innermost first (C's textual
+    /// expansion lets an enclosing call's formal capture a callee's free
+    /// name), then the site's parameters.
+    fn value(&self, name: &str) -> Option<Real> {
+        let mut frame = self.frame;
+        while let Some(f) = frame {
+            if let Some(i) = f.def.parameters.iter().position(|p| p == name) {
+                return Some(f.args[i]);
+            }
+            frame = f.outer;
+        }
+        (self.lookup)(name)
+    }
+
+    /// A user function: looked up where the calling body was defined (or at
+    /// the site, outside any call), then at the site. C expands bodies in
+    /// their own environment first (`inp_expand_macros_in_func()`), and what
+    /// is left is expanded where the outermost call was written.
+    fn function(&self, name: &str) -> Option<(&'a FunctionDef, &'a FunctionScope)> {
+        let lexical = self.frame.map(|f| f.scope).or(self.functions);
+        lexical
+            .and_then(|scope| scope.get(name))
+            .or_else(|| self.functions.and_then(|scope| scope.get(name)))
+    }
+}
+
 fn evaluate_root(
     root: &ParameterExpression,
     lookup: Lookup<'_>,
+    functions: Option<&FunctionScope>,
     budget: &mut EvalBudget,
 ) -> Result<Real, Failure> {
-    eval(&root.root, root, lookup, budget, 0)
+    let env = Env {
+        lookup,
+        functions,
+        frame: None,
+    };
+    eval(&root.root, root, env, budget, 0)
 }
 
 fn snippet<'a>(root: &'a ParameterExpression, node: &Expr) -> &'a str {
@@ -566,6 +1030,7 @@ fn fail(node: &Expr, root: &ParameterExpression, message: String) -> Failure {
     Failure {
         location: node.span.start.clone(),
         message: format!("{message} in `{}`", snippet(root, node)),
+        unsupported: false,
     }
 }
 
@@ -590,7 +1055,7 @@ fn checked(
 fn eval(
     node: &Expr,
     root: &ParameterExpression,
-    lookup: Lookup<'_>,
+    env: Env<'_>,
     budget: &mut EvalBudget,
     depth: usize,
 ) -> Result<Real, Failure> {
@@ -614,21 +1079,22 @@ fn eval(
     }
     match &node.kind {
         ExprKind::Number { value, .. } => Ok(*value),
-        ExprKind::Identifier(name) => lookup(name).ok_or_else(|| Failure {
+        ExprKind::Identifier(name) => env.value(name).ok_or_else(|| Failure {
             location: node.span.start.clone(),
             message: format!("undefined parameter '{name}'"),
+            unsupported: false,
         }),
-        ExprKind::Group(inner) => eval(inner, root, lookup, budget, depth + 1),
+        ExprKind::Group(inner) => eval(inner, root, env, budget, depth + 1),
         ExprKind::Unary { op, operand } => {
-            let v = eval(operand, root, lookup, budget, depth + 1)?;
+            let v = eval(operand, root, env, budget, depth + 1)?;
             Ok(match op {
                 UnaryOp::Plus => v,
                 UnaryOp::Minus => -v,
             })
         }
         ExprKind::Binary { op, lhs, rhs } => {
-            let x = eval(lhs, root, lookup, budget, depth + 1)?;
-            let y = eval(rhs, root, lookup, budget, depth + 1)?;
+            let x = eval(lhs, root, env, budget, depth + 1)?;
+            let y = eval(rhs, root, env, budget, depth + 1)?;
             let result = match op {
                 BinaryOp::Add => x + y,
                 BinaryOp::Sub => x - y,
@@ -641,6 +1107,7 @@ fn eval(
                                 "division by zero ({x} / {y}) in `{}`",
                                 snippet(root, node)
                             ),
+                            unsupported: false,
                         });
                     }
                     x / y
@@ -662,7 +1129,12 @@ fn eval(
         } => {
             let mut args = Vec::with_capacity(arguments.len());
             for a in arguments {
-                args.push(eval(a, root, lookup, budget, depth + 1)?);
+                args.push(eval(a, root, env, budget, depth + 1)?);
+            }
+            // A `.func` of the same name replaces the built-in, as C's
+            // textual expansion does before numparam sees the call.
+            if let Some((def, scope)) = env.function(function.name()) {
+                return call(node, root, env, budget, depth, def, scope, args);
             }
             let result = apply(*function, &args);
             checked(result, node, root, || {
@@ -670,7 +1142,96 @@ fn eval(
                 format!("{}({})", function.name(), list.join(", "))
             })
         }
+        ExprKind::UserCall { name, arguments } => {
+            let Some((def, scope)) = env.function(name) else {
+                if EXCLUDED_FUNCTIONS.contains(&name.as_str()) {
+                    return Err(Failure {
+                        location: node.span.start.clone(),
+                        message: format!(
+                            "function '{name}' is a numparam function outside the bounded \
+                             allowlist in `{}`",
+                            snippet(root, node)
+                        ),
+                        unsupported: true,
+                    });
+                }
+                return Err(fail(
+                    node,
+                    root,
+                    format!("undefined function '{name}' (no .func definition is in scope)"),
+                ));
+            };
+            let mut args = Vec::with_capacity(arguments.len());
+            for a in arguments {
+                args.push(eval(a, root, env, budget, depth + 1)?);
+            }
+            call(node, root, env, budget, depth, def, scope, args)
+        }
     }
+}
+
+/// Evaluates one `.func` call with already evaluated arguments.
+#[allow(clippy::too_many_arguments)]
+fn call(
+    node: &Expr,
+    root: &ParameterExpression,
+    env: Env<'_>,
+    budget: &mut EvalBudget,
+    depth: usize,
+    def: &FunctionDef,
+    scope: &FunctionScope,
+    args: Vec<Real>,
+) -> Result<Real, Failure> {
+    if args.len() != def.parameters.len() {
+        return Err(fail(
+            node,
+            root,
+            format!(
+                "function '{}' (defined at {}) takes {} argument(s), found {}",
+                def.name,
+                def.location,
+                def.parameters.len(),
+                args.len()
+            ),
+        ));
+    }
+    let mut outer = env.frame;
+    while let Some(f) = outer {
+        if std::ptr::eq(f.def, def) {
+            // Static checks reject lexical cycles; this catches one formed
+            // through a call-site fallback. C recurses without bound.
+            return Err(fail(
+                node,
+                root,
+                format!(
+                    "recursive call of function '{}' (defined at {})",
+                    def.name, def.location
+                ),
+            ));
+        }
+        outer = f.outer;
+    }
+    let frame = Frame {
+        def,
+        scope,
+        args,
+        call: node.span.start.clone(),
+        outer: env.frame,
+    };
+    let inner = Env {
+        lookup: env.lookup,
+        functions: env.functions,
+        frame: Some(&frame),
+    };
+    let value = eval(&def.body.root, &def.body, inner, budget, depth + 1).map_err(|f| {
+        f.context(|| {
+            format!(
+                "in function '{}' (defined at {}) called at {}",
+                def.name, def.location, frame.call
+            )
+        })
+    })?;
+    checked(value, node, root, || format!("{}(...)", def.name))
 }
 
 /// xpressn.c `mathfunction(f, z, x)`: `z` is the first argument of two.

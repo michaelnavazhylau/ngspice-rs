@@ -208,7 +208,7 @@ impl RunConfig {
     /// Unknown, unimplemented, malformed, out-of-range or conflicting options.
     pub fn from_netlist(netlist: &Netlist) -> SpiceResult<Self> {
         let mut config = Self::from_options(&netlist.options, &RunOverrides::default())?;
-        let scope = spice_netlist::eval::ParamScope::root(&netlist.params)?;
+        let scope = spice_netlist::eval::ParamScope::for_netlist(netlist)?;
         let (initial, nodesets) = spice_netlist::elaborate::literalize_node_hints(
             netlist,
             &scope,

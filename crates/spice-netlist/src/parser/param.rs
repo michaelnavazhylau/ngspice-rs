@@ -6,7 +6,8 @@
 //! `nupa_assignment()` (`xpressn.c`) evaluates `name = expression` pairs in
 //! order. This grammar applies that extent rule to every card, including
 //! single-assignment ones where C is more permissive: spaces inside an
-//! unbraced expression must be written as `{ ... }`. Duplicates and order are
+//! unbraced expression must be written as `{ ... }` (or `'...'`, which
+//! `inp_change_quotes()` makes identical to braces). Duplicates and order are
 //! preserved; nothing is evaluated.
 
 use std::cell::Cell;
@@ -25,7 +26,7 @@ use crate::token::Token;
 
 use super::expression::{
     Ctx, Fail, In, Res, cut, cut_unsupported, into_error, is_ident_continue, is_ident_start,
-    parse_expression, ws,
+    parse_delimited, parse_expression, ws,
 };
 use super::grammar::{Failure, Input, ParsedCard, Result};
 
@@ -150,9 +151,10 @@ fn value(input: &mut In<'_>) -> Res<ParameterExpression> {
     match peek(opt(any)).parse_next(input)? {
         None => Err(cut(start, "expected an expression after '='")),
         Some('{') => braced(input),
-        Some('\'' | '"') => Err(cut_unsupported(
+        Some('\'') => quoted(input),
+        Some('"') => Err(cut_unsupported(
             start,
-            "quoted expressions are outside the bounded subset",
+            "double-quoted string parameters are outside the bounded subset",
         )),
         Some(_) => unbraced(input),
     }
@@ -178,6 +180,29 @@ fn braced(input: &mut In<'_>) -> Res<ParameterExpression> {
         }
     }
     parse_slice(input, body, body_start, true)
+}
+
+/// `'expr'`: C's `inp_change_quotes()` (`inpcom.c`) rewrites the quote pair
+/// to braces before the card is split, so this is exactly a braced value.
+fn quoted(input: &mut In<'_>) -> Res<ParameterExpression> {
+    let open = input.eof_offset();
+    literal("'").void().parse_next(input)?;
+    let body_start = input.eof_offset();
+    let body: &str =
+        take_while(0.., |c: char| c != '\'' && c != '{' && c != '}').parse_next(input)?;
+    let here = input.eof_offset();
+    if opt(literal("'")).parse_next(input)?.is_none() {
+        return Err(cut(
+            if here == 0 { open } else { here },
+            if here == 0 {
+                "unterminated quoted expression".to_owned()
+            } else {
+                "braces are not supported inside a quoted expression".to_owned()
+            },
+        ));
+    }
+    let column = input.state.location(body_start).column;
+    parse_delimited(body, input.state.origin, column, true, true).map_err(resolved)
 }
 
 /// Extent rule from `inp_split_multi_param_lines()`: whitespace and commas end
@@ -211,12 +236,15 @@ fn parse_slice(
     braced: bool,
 ) -> Res<ParameterExpression> {
     let column = input.state.location(start_remaining).column;
-    parse_expression(slice, input.state.origin, column, braced).map_err(|error| {
-        ErrMode::Cut(Fail {
-            remaining: 0,
-            message: String::new(),
-            unsupported: false,
-            resolved: Some(error),
-        })
+    parse_expression(slice, input.state.origin, column, braced).map_err(resolved)
+}
+
+/// Wraps an already positioned error from a nested parse.
+pub(super) fn resolved(error: spice_core::SpiceError) -> ErrMode<Fail> {
+    ErrMode::Cut(Fail {
+        remaining: 0,
+        message: String::new(),
+        unsupported: false,
+        resolved: Some(error),
     })
 }

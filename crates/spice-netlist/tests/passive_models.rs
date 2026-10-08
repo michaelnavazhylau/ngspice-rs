@@ -175,10 +175,10 @@ fn malformed_extended_and_overflow_forms_commit_errors() {
         "mdl =",
         "mdl 1k 2k",
         "mdl extra",
-        "mdl 'expr'",
-        "'expr' mdl",
+        "mdl \"expr\"",
+        "\"expr\" mdl",
         "unresolved r=1k",
-        "mdl w='expr'",
+        "mdl w=\"expr\"",
         "mdl r=1k mdl",
     ] {
         let error = parse(&format!("r1 a 0 {tail}\n.model mdl r")).unwrap_err();

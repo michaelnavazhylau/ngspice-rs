@@ -59,7 +59,7 @@ impl Value<'_> {
 /// cards).
 pub(super) fn leading_value<'a>(input: &mut Input<'a>) -> Result<Value<'a>> {
     peek(any.verify(|token: &Token| {
-        token.number().is_some() || matches!(token.kind, TokenKind::Expression(_))
+        token.number().is_some() || super::expression::is_expression_token(token)
     }))
     .parse_next(input)?;
     cut_err(value).parse_next(input)
@@ -68,8 +68,7 @@ pub(super) fn leading_value<'a>(input: &mut Input<'a>) -> Result<Value<'a>> {
 /// A finite numeric literal or a brace expression.
 pub(super) fn value<'a>(input: &mut Input<'a>) -> Result<Value<'a>> {
     if let Some(token) =
-        opt(any.verify(|token: &Token| matches!(token.kind, TokenKind::Expression(_))))
-            .parse_next(input)?
+        opt(any.verify(super::expression::is_expression_token)).parse_next(input)?
     {
         let expression = super::expression::from_brace_token(token)
             .map_err(|error| ErrMode::Cut(Failure(error)))?;

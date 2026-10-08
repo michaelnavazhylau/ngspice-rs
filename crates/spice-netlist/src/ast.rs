@@ -189,6 +189,9 @@ pub struct Subcircuit {
     pub includes: Vec<IncludeDirective>,
     /// `.param` cards written in this body, unevaluated.
     pub params: Vec<ParamCard>,
+    /// `.func` definitions local to this body (visible to the body and to
+    /// nested definitions, not outside).
+    pub functions: Vec<FuncCard>,
     /// Ordered body cards, including the closing `.ends`.
     pub cards: Vec<ScopedCard>,
     /// Where the closing `.ends` was written.
@@ -247,6 +250,36 @@ pub struct ParamAssignment {
     pub name_span: crate::expr::SourceSpan,
     /// The unevaluated right-hand side with its original text and spans.
     pub expression: crate::expr::ParameterExpression,
+}
+
+/// A `.func name(p1, p2, ...) body` card: a user-defined numparam function.
+///
+/// C: `src/frontend/inpcom.c` (`inp_get_func_from_line()`,
+/// `inp_expand_macro_in_str()`). Nothing here is evaluated; the definitions
+/// of a scope are collected by [`crate::eval::FunctionScope`], which checks
+/// recursion and arity, and calls are resolved during evaluation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FuncCard {
+    /// Function name, lowercased (numparam names are case-insensitive).
+    pub name: String,
+    /// Byte span of the name as written.
+    pub name_span: crate::expr::SourceSpan,
+    /// Formal parameters in order; may be empty (`.func f() {1}`). Names are
+    /// distinct, lowercased and never a built-in function name.
+    pub parameters: Vec<FuncParameter>,
+    /// The unevaluated body (`{...}`, `'...'` or the bare rest of the card).
+    pub body: crate::expr::ParameterExpression,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// One formal parameter of a [`FuncCard`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct FuncParameter {
+    /// Lowercased name.
+    pub name: String,
+    /// Byte span of the name as written.
+    pub span: crate::expr::SourceSpan,
 }
 
 /// An analysis request: which analysis, and its unparsed arguments.
@@ -814,6 +847,9 @@ pub enum ScopedCardKind {
     /// Index into this scope's `.param` cards (`Netlist::params` at the root,
     /// `Subcircuit::params` in a body).
     Param(usize),
+    /// Index into this scope's `.func` cards (`Netlist::functions` at the
+    /// root, `Subcircuit::functions` in a body).
+    Func(usize),
     /// Index into [`Netlist::initial_conditions`] (root scope only).
     InitialCondition(usize),
     /// Index into [`Netlist::nodesets`] (root scope only).
@@ -862,6 +898,8 @@ pub struct Netlist {
     pub includes: Vec<IncludeDirective>,
     /// Top-level `.param` cards in deck order, unevaluated.
     pub params: Vec<ParamCard>,
+    /// Top-level `.func` definitions in deck order, unevaluated.
+    pub functions: Vec<FuncCard>,
     /// `.option` cards in deck order (root scope only; inside `.subckt` bodies
     /// they are rejected as not yet ported).
     pub options: Vec<OptionCard>,
