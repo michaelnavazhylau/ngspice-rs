@@ -30,6 +30,7 @@ use crate::ast::{
     ParamAssignment, ParamCard, ParameterAssignment, ParameterKind, PositionedValue, PulseWaveform,
     PwlPoint, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
+use crate::bexpr::{BExpr, BExprKind, BehaviouralExpression, TableTransfer};
 use crate::card::{CardKind, RawCard};
 use crate::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
 
@@ -97,6 +98,67 @@ fn expression_form(expression: &ParameterExpression) -> ParameterExpression {
     }
 }
 
+/// Strips spans from a behavioural-expression tree, keeping shape and spellings.
+#[must_use]
+pub fn bexpr_form(expr: &BExpr) -> BExpr {
+    let boxed = |expr: &BExpr| Box::new(bexpr_form(expr));
+    let kind = match &expr.kind {
+        BExprKind::Number { value, spelling } => BExprKind::Number {
+            value: *value,
+            spelling: spelling.clone(),
+        },
+        BExprKind::Name(name) => BExprKind::Name(name.clone()),
+        BExprKind::Voltage { positive, negative } => BExprKind::Voltage {
+            positive: positive.clone(),
+            negative: negative.clone(),
+        },
+        BExprKind::Current(name) => BExprKind::Current(name.clone()),
+        BExprKind::Unary { op, operand } => BExprKind::Unary {
+            op: *op,
+            operand: boxed(operand),
+        },
+        BExprKind::Binary { op, lhs, rhs } => BExprKind::Binary {
+            op: *op,
+            lhs: boxed(lhs),
+            rhs: boxed(rhs),
+        },
+        BExprKind::Ternary {
+            condition,
+            then,
+            otherwise,
+        } => BExprKind::Ternary {
+            condition: boxed(condition),
+            then: boxed(then),
+            otherwise: boxed(otherwise),
+        },
+        BExprKind::Call { name, arguments } => BExprKind::Call {
+            name: name.clone(),
+            arguments: arguments.iter().map(bexpr_form).collect(),
+        },
+        BExprKind::Group(inner) => BExprKind::Group(boxed(inner)),
+        BExprKind::Value(value) => BExprKind::Value(Box::new(expression_form(value))),
+        BExprKind::Table(table) => BExprKind::Table(Box::new(TableTransfer {
+            input: bexpr_form(&table.input),
+            points: table
+                .points
+                .iter()
+                .map(|(x, y)| (bexpr_form(x), bexpr_form(y)))
+                .collect(),
+            domain: table.domain,
+        })),
+    };
+    BExpr { kind, span: span() }
+}
+
+fn behavioural_form(expression: &BehaviouralExpression) -> BehaviouralExpression {
+    BehaviouralExpression {
+        text: expression.text.clone(),
+        span: span(),
+        verbatim: expression.verbatim,
+        root: bexpr_form(&expression.root),
+    }
+}
+
 fn positioned(value: &PositionedValue) -> PositionedValue {
     PositionedValue {
         text: value.text.clone(),
@@ -143,6 +205,10 @@ fn assignment(parameter: &ParameterAssignment) -> ParameterAssignment {
         ParameterKind::Textual => (ParameterKind::Textual, parameter.value.clone()),
         ParameterKind::Flag => (ParameterKind::Flag, parameter.value.clone()),
         ParameterKind::Instance => (ParameterKind::Instance, parameter.value.clone()),
+        ParameterKind::Behavioural(expression) => (
+            ParameterKind::Behavioural(Box::new(behavioural_form(expression))),
+            parameter.value.clone(),
+        ),
         ParameterKind::Expression(expression) => (
             ParameterKind::Expression(Box::new(expression_form(expression))),
             parameter.value.clone(),

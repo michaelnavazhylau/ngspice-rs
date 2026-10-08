@@ -1,7 +1,7 @@
-POLY controlled source is not yet ported
+POLY controlled source without coefficients is an error
 vin in 0 dc 1
-* POLY(n) is rewritten by inpcom.c/XSPICE in C; the port reports it explicitly.
-e1 out 0 poly(1) in 0 0 2
+* C: "Number of connections differs from poly dimension" (enhtrans.c).
+e1 out 0 poly(1) in 0
 r1 out 0 1k
 .op
 .end

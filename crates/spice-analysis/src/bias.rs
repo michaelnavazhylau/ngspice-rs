@@ -533,6 +533,36 @@ impl From<DcFailure> for SpiceError {
 }
 
 /// Row kinds shared by DC and companion Newton iteration.
+/// Rows Newton's global voltage-step damping watches, or `None` for every
+/// non-branch row (the historical policy, kept whenever no device opts out).
+///
+/// When some nonlinear device does not want limiting
+/// ([`spice_devices::Device::limits_voltage_steps`], behavioural sources),
+/// only the node rows of the nonlinear devices that do (junctions) are
+/// watched, so a large but exact step at a behavioural output is not damped
+/// to 0.2 V per iteration.
+pub(crate) fn limited_rows(circuit: &Circuit) -> Option<Vec<bool>> {
+    let devices = circuit.devices();
+    if !devices
+        .iter()
+        .any(|device| device.is_nonlinear() && !device.limits_voltage_steps())
+    {
+        return None;
+    }
+    let mut rows = vec![false; circuit.unknown_count()];
+    for device in devices
+        .iter()
+        .filter(|device| device.is_nonlinear() && device.limits_voltage_steps())
+    {
+        for terminal in device.terminals() {
+            if let Some(row) = circuit.unknowns().node_row(*terminal) {
+                rows[row] = true;
+            }
+        }
+    }
+    Some(rows)
+}
+
 pub(crate) fn branch_rows(circuit: &Circuit) -> Vec<bool> {
     let mut kinds = vec![false; circuit.unknown_count()];
     for i in 0..circuit.device_count() {
@@ -622,6 +652,8 @@ struct Engine<'a> {
     context: &'a ModelContext,
     history: StateHistory,
     branches: Vec<bool>,
+    /// Rows watched by Newton's voltage-step damping ([`limited_rows`]).
+    limited: Option<Vec<bool>>,
     target: Vector,
     original: Vector,
     newton: NewtonOptions,
@@ -657,7 +689,8 @@ impl Engine<'_> {
             ..self.newton
         };
         let reduced = options.max_iterations < limit;
-        let result = newton::solve_counted(guess, &self.branches, &options, |x| {
+        let limited = self.limited.as_deref();
+        let result = newton::solve_counted_limited(guess, &self.branches, limited, &options, |x| {
             let mut a = SparseMatrix::new(n, n);
             let mut b = Vector::zeros(n);
             let mut trial = self.history.trial();
@@ -887,6 +920,7 @@ fn run(
         context,
         history,
         branches: branch_rows(circuit),
+        limited: limited_rows(circuit),
         target,
         original,
         newton: *options,

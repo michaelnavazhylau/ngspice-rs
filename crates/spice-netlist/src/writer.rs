@@ -114,7 +114,7 @@ use crate::ast::{
     Subcircuit,
 };
 use crate::expr::ParameterExpression;
-use crate::semantic::expr_form;
+use crate::semantic::{bexpr_form, expr_form};
 use crate::source::{LogicalLine, parse_deck_text, strip_comment};
 use crate::token::{Token, TokenKind, tokenize};
 
@@ -686,6 +686,16 @@ impl Writer {
                 Some(location),
             ));
         }
+        if designator == 'b'
+            || (matches!(designator, 'e' | 'f' | 'g' | 'h')
+                && device
+                    .parameters
+                    .iter()
+                    .any(|p| matches!(p.name.as_str(), "value" | "table" | "poly")))
+        {
+            let line = behavioural_card(device)?;
+            return self.line(depth, &line, location);
+        }
         let mut parts = vec![node(&device.name, location)?];
         let count = device.nodes.len();
         let count_ok = match designator {
@@ -1084,6 +1094,222 @@ fn controlled_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
         _ => return Err(unrepresentable()),
     }
     Ok(())
+}
+
+/// The behavioural expression text must re-parse to the stored tree.
+fn behavioural_text(parameter: &ParameterAssignment) -> SpiceResult<String> {
+    let location = &parameter.location;
+    let ParameterKind::Behavioural(expression) = &parameter.kind else {
+        return Err(refuse(
+            format!(
+                "parameter {:?} is not a behavioural expression",
+                parameter.name
+            ),
+            Some(location),
+        ));
+    };
+    let reparsed = Parser::new()
+        .parse_behavioural_expression(&expression.text, location, expression.verbatim)
+        .map_err(|error| {
+            refuse(
+                format!(
+                    "behavioural expression {:?} does not re-parse: {error}",
+                    expression.text
+                ),
+                Some(location),
+            )
+        })?;
+    if expression.text.contains(['\n', '\r'])
+        || bexpr_form(&reparsed.root) != bexpr_form(&expression.root)
+    {
+        return Err(refuse(
+            format!(
+                "behavioural expression text {:?} does not match its stored syntax tree",
+                expression.text
+            ),
+            Some(location),
+        ));
+    }
+    Ok(expression.text.clone())
+}
+
+/// B sources and the nonlinear E/G/F/H forms (`parser/behavioural.rs`):
+/// `b1 n+ n- v=<text> [setters]`, `e1 n+ n- value=<text> [setters]`,
+/// `e1 n+ n- table {<text>} = (x, y) ... [m=..]`,
+/// `e1 n+ n- nc+ nc- table=(x0, y0, ...)` and
+/// `e1 n+ n- poly(n) <controls> <coefficients> [m=..]`.
+fn behavioural_card(device: &DeviceInstance) -> SpiceResult<String> {
+    let location = &device.location;
+    let designator = device.designator;
+    if device.model.is_some() {
+        return Err(refuse("behavioural source with a model", Some(location)));
+    }
+    let mut parts = vec![node(&device.name, location)?];
+    let [positive, negative, controls @ ..] = device.nodes.as_slice() else {
+        return Err(refuse(
+            format!("'{designator}' instance with fewer than two nodes"),
+            Some(location),
+        ));
+    };
+    parts.push(node(positive, location)?);
+    parts.push(node(negative, location)?);
+    let setter = |parameter: &ParameterAssignment, allowed: &[&str]| {
+        if allowed.contains(&parameter.name.as_str()) {
+            named_value(parameter, false)
+        } else {
+            Err(refuse(
+                format!("parameter {:?} on '{designator}' instance", parameter.name),
+                Some(&parameter.location),
+            ))
+        }
+    };
+    let b_setters = [
+        "m",
+        "tc1",
+        "tc2",
+        "temp",
+        "dtemp",
+        "reciproctc",
+        "reciprocm",
+    ];
+    let parameters = device.parameters.as_slice();
+    let first = parameters.first().ok_or_else(|| {
+        refuse(
+            format!("'{designator}' instance without a behavioural form"),
+            Some(location),
+        )
+    })?;
+    match (designator, first.name.as_str()) {
+        ('b', "v" | "i") | ('e' | 'g', "value") if controls.is_empty() => {
+            parts.push(format!("{}={}", first.name, behavioural_text(first)?));
+            let allowed: &[&str] = if designator == 'g' {
+                &["m"]
+            } else {
+                &b_setters
+            };
+            for parameter in &parameters[1..] {
+                parts.push(setter(parameter, allowed)?);
+            }
+        }
+        ('e' | 'g', "table") => {
+            let four_node = match (&first.kind, controls) {
+                (ParameterKind::Behavioural(_), []) => false,
+                (ParameterKind::Flag, [nc_positive, nc_negative]) if designator == 'e' => {
+                    parts.push(node(nc_positive, location)?);
+                    parts.push(node(nc_negative, location)?);
+                    true
+                }
+                _ => {
+                    return Err(refuse(
+                        format!("'{designator}' TABLE with {} nodes", device.nodes.len()),
+                        Some(location),
+                    ));
+                }
+            };
+            let mut rest = &parameters[1..];
+            let mut values = Vec::new();
+            while let [x, y, tail @ ..] = rest {
+                if x.name != "x" || y.name != "y" {
+                    break;
+                }
+                values.push((value_text(x, false)?, value_text(y, false)?));
+                rest = tail;
+            }
+            if values.is_empty() {
+                return Err(refuse("TABLE without points", Some(location)));
+            }
+            if four_node {
+                let flat: Vec<String> = values
+                    .iter()
+                    .flat_map(|(x, y)| [x.clone(), y.clone()])
+                    .collect();
+                parts.push(format!("table=({})", flat.join(", ")));
+            } else {
+                parts.push(format!("table {{{}}} =", behavioural_text(first)?));
+                for (x, y) in &values {
+                    parts.push(format!("({x}, {y})"));
+                }
+            }
+            let allowed: &[&str] = if designator == 'g' { &["m"] } else { &[] };
+            for parameter in rest {
+                parts.push(setter(parameter, allowed)?);
+            }
+        }
+        (_, "poly") => {
+            let dimension = value_text(first, false)?
+                .parse::<usize>()
+                .ok()
+                .filter(|n| *n >= 1)
+                .ok_or_else(|| refuse("POLY dimension is not an integer", Some(location)))?;
+            parts.push(format!("poly({dimension})"));
+            let mut rest = &parameters[1..];
+            if matches!(designator, 'e' | 'g') {
+                if controls.len() != 2 * dimension {
+                    return Err(refuse(
+                        format!(
+                            "POLY({dimension}) with {} controlling nodes",
+                            controls.len()
+                        ),
+                        Some(location),
+                    ));
+                }
+                for control in controls {
+                    parts.push(node(control, location)?);
+                }
+            } else {
+                for _ in 0..dimension {
+                    match rest.split_first() {
+                        Some((control, tail))
+                            if control.name == "control"
+                                && control.kind == ParameterKind::Instance =>
+                        {
+                            parts.push(node(&control.value, &control.location)?);
+                            rest = tail;
+                        }
+                        _ => {
+                            return Err(refuse(
+                                format!("POLY({dimension}) without its controlling sources"),
+                                Some(location),
+                            ));
+                        }
+                    }
+                }
+                if !controls.is_empty() {
+                    return Err(refuse("F/H POLY with controlling nodes", Some(location)));
+                }
+            }
+            let mut coefficients = 0;
+            while let Some((coefficient, tail)) = rest.split_first() {
+                if coefficient.name != "coef" {
+                    break;
+                }
+                parts.push(value_text(coefficient, false)?);
+                coefficients += 1;
+                rest = tail;
+            }
+            if coefficients == 0 {
+                return Err(refuse("POLY without coefficients", Some(location)));
+            }
+            let allowed: &[&str] = if matches!(designator, 'g' | 'f') {
+                &["m"]
+            } else {
+                &[]
+            };
+            for parameter in rest {
+                parts.push(setter(parameter, allowed)?);
+            }
+        }
+        _ => {
+            return Err(refuse(
+                format!(
+                    "'{designator}' instance whose first parameter {:?} is not a behavioural form",
+                    first.name
+                ),
+                Some(location),
+            ));
+        }
+    }
+    Ok(parts.join(" "))
 }
 
 fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {

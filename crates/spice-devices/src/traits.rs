@@ -372,6 +372,16 @@ pub trait Device: fmt::Debug {
         false
     }
 
+    /// Whether Newton's global voltage-step damping (the port's stand-in for
+    /// C's junction limiting) should watch this device's terminals. Only
+    /// meaningful for [`Self::is_nonlinear`] devices; `true` by default.
+    /// Behavioural sources return `false`: `asrcload.c` applies no limiting,
+    /// and their outputs may legitimately move by kilovolts in one exact
+    /// step.
+    fn limits_voltage_steps(&self) -> bool {
+        true
+    }
+
     /// How many state slots (C `CKTnumStates`) the device owns. Slots are
     /// allocated after the branch rows, in device order.
     fn state_count(&self) -> usize {

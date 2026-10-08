@@ -6,7 +6,7 @@
 //! explicit, so that the port's coverage can be reported programmatically
 //! instead of inferred from the presence of C files.
 //!
-//! Scalar R/C/L/V/I and linear E/F/G/H factories are implemented. Other built-in entries report
+//! Scalar R/C/L/V/I, E/F/G/H controlled and B behavioural factories are implemented. Other built-in entries report
 //! `ported: false` and return explicit `NotYetPorted` errors with C references.
 //! Unsupported scalar-device parameters are rejected, never silently ignored.
 
@@ -203,8 +203,8 @@ impl Registry {
         Self::default()
     }
 
-    /// Built-in registry with bounded scalar R/C/L/V/I and linear E/F/G/H
-    /// factories.
+    /// Built-in registry with bounded scalar R/C/L/V/I, E/F/G/H controlled and
+    /// B behavioural factories.
     #[must_use]
     pub fn with_builtins() -> Self {
         let mut registry = Self::new();
@@ -215,11 +215,11 @@ impl Registry {
                 c_reference,
                 ported: matches!(
                     designator,
-                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h'
+                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'b'
                 ),
                 factory: if matches!(
                     designator,
-                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h'
+                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'b'
                 ) {
                     crate::factory::from_card
                 } else {
@@ -333,7 +333,7 @@ mod tests {
         for (designator, _, _) in super::BUILTINS {
             assert!(registry.contains(*designator), "missing {designator}");
         }
-        assert_eq!(registry.ported_count(), 9);
+        assert_eq!(registry.ported_count(), 10);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
@@ -463,7 +463,7 @@ mod tests {
             factory,
         });
         assert!(replaced.is_some_and(|entry| entry.ported));
-        assert_eq!(registry.ported_count(), 9);
+        assert_eq!(registry.ported_count(), 10);
         let mut nodes = spice_core::NodeTable::new();
         assert_eq!(
             registry

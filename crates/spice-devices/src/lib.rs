@@ -8,6 +8,7 @@
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I and linear E/F/G/H factories |
 //! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE/SIN/EXP/SFFM/AM waveforms |
 //! | [`controlled`] | linear E/F/G/H controlled sources | VCVS/CCCS/VCCS/CCVS gain stamps; F/H controlling branches resolved by [`circuit`] |
+//! | [`behavioural`] | B sources and the lowered E/G/F/H VALUE/TABLE/POLY forms | `inpptree.c` function set with C's derivative rules; Newton, AC and transient loads |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
@@ -33,6 +34,7 @@
 
 #![warn(missing_docs)]
 
+pub mod behavioural;
 pub mod circuit;
 pub mod controlled;
 mod factory;
@@ -67,6 +69,7 @@ pub mod state;
 pub mod traits;
 pub mod transistors;
 
+pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
 pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use controlled::{ControlledKind, ControlledSource};

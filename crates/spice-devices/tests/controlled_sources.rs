@@ -370,5 +370,9 @@ fn the_registry_builds_all_four_from_cards() {
     let error = registry
         .instantiate(&card("e1 a 0 poly(1) b 0 0 1"), &mut nodes)
         .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
+    // A single-card factory cannot build the front end's rewrite (#79).
+    assert!(
+        error.to_string().contains("lower_nonlinear_sources"),
+        "{error}"
+    );
 }

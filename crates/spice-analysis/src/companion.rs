@@ -825,12 +825,21 @@ impl Driver<'_> {
                 abstol: tolerance.abstol,
                 ..crate::newton::NewtonOptions::default()
             };
-            return match crate::newton::solve(previous, &self.branch_row, &options, |x| {
-                let mut matrix = SparseMatrix::new(n, n);
-                let mut rhs = Vector::zeros(n);
-                let state = load(x, &mut matrix, &mut rhs)?;
-                Ok((matrix, rhs, state))
-            }) {
+            let limited = crate::bias::limited_rows(self.circuit);
+            return match crate::newton::solve_counted_limited(
+                previous,
+                &self.branch_row,
+                limited.as_deref(),
+                &options,
+                |x| {
+                    let mut matrix = SparseMatrix::new(n, n);
+                    let mut rhs = Vector::zeros(n);
+                    let state = load(x, &mut matrix, &mut rhs)?;
+                    Ok((matrix, rhs, state))
+                },
+            )
+            .map_err(|failure| failure.error)
+            {
                 Ok(solved) => Ok(Trial::Converged {
                     x: solved.values,
                     state: solved.trial,

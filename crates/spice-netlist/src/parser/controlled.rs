@@ -45,6 +45,7 @@ use winnow::token::any;
 use crate::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
 use crate::token::{Token, TokenKind};
 
+use super::behavioural;
 use super::grammar::{Failure, Input, ParsedCard, Result, location};
 use super::syntax::{assignment, canonical_node, equals, leading_value, name, named, value};
 
@@ -70,21 +71,41 @@ fn body(input: &mut Input<'_>, instance: &Token, designator: char) -> Result<Par
     let auto_gnd = input.state.auto_gnd;
     let positive = terminal(input, "positive output terminal")?;
     let negative = terminal(input, "negative output terminal")?;
-    reject_nonlinear_form(input)?;
-    hspice_keyword(input, designator)?;
     let mut nodes = vec![
         canonical_node(positive, auto_gnd),
         canonical_node(negative, auto_gnd),
     ];
+    let device = |nodes: Vec<String>, parameters: Vec<ParameterAssignment>, input: &Input<'_>| {
+        ParsedCard::Device(DeviceInstance {
+            name: instance.text.to_ascii_lowercase(),
+            designator,
+            nodes,
+            model: None,
+            parameters,
+            location: input.state.card.location.clone(),
+        })
+    };
+    if let Some(parameters) = nonlinear_form(input, designator, &mut nodes)? {
+        return Ok(device(nodes, parameters, input));
+    }
+    hspice_keyword(input, designator)?;
     let mut parameters = Vec::new();
     if matches!(designator, 'e' | 'g') {
         let control_positive = terminal(input, "positive controlling node")?;
         let control_negative = terminal(input, "negative controlling node")?;
-        if input.input.first().is_some_and(|t| t.is_keyword("table")) {
-            return Err(nonlinear(input, "TABLE controlled sources"));
-        }
         nodes.push(canonical_node(control_positive, auto_gnd));
         nodes.push(canonical_node(control_negative, auto_gnd));
+        if input.input.first().is_some_and(|t| t.is_keyword("table")) {
+            if designator == 'g' {
+                return Err(parse_error(
+                    input,
+                    "a four-node G TABLE is not accepted (C: bad syntax; only the LTspice \
+                     E form Ename n+ n- nc+ nc- table=(...) exists)",
+                ));
+            }
+            let parameters = behavioural::table_form(input, designator, true)?;
+            return Ok(device(nodes, parameters, input));
+        }
     } else {
         let control = terminal(input, "controlling voltage source name")?;
         parameters.push(ParameterAssignment {
@@ -97,19 +118,96 @@ fn body(input: &mut Input<'_>, instance: &Token, designator: char) -> Result<Par
     // INPevaluate()/INPgetTok() skip a closing parenthesis or comma left over
     // from a parenthesized node list.
     let _: () = repeat(0.., closing_punctuation).parse_next(input)?;
+    if implicit_poly(input) {
+        // inp_poly_2g6_compat(): more values after the gain make a spice2g6
+        // one-dimensional polynomial, the gain being its first coefficient.
+        let location = input.input[0].location.clone();
+        parameters.insert(
+            0,
+            ParameterAssignment {
+                name: "poly".to_owned(),
+                value: "1".to_owned(),
+                kind: ParameterKind::Scalar,
+                location,
+            },
+        );
+        behavioural::coefficients(input, designator, &mut parameters)?;
+        return Ok(device(nodes, parameters, input));
+    }
     let (leading, setters) = gain_and_setters(input, designator)?;
     parameters.extend(setters);
     if let Some(gain) = leading {
         parameters.push(gain);
     }
-    Ok(ParsedCard::Device(DeviceInstance {
-        name: instance.text.to_ascii_lowercase(),
-        designator,
-        nodes,
-        model: None,
-        parameters,
-        location: input.state.card.location.clone(),
-    }))
+    Ok(device(nodes, parameters, input))
+}
+
+/// The gain is followed by another token that is neither `m=` nor `ic=`.
+fn implicit_poly(input: &Input<'_>) -> bool {
+    let tokens = &input.input;
+    let Some(first) = tokens.first() else {
+        return false;
+    };
+    if !(first.number().is_some() || super::expression::is_expression_token(first)) {
+        return false;
+    }
+    let Some(second) = tokens.get(1) else {
+        return false;
+    };
+    let named = |keyword: &str| {
+        second.is_keyword(keyword) && tokens.get(2).is_some_and(|t| t.kind == TokenKind::Equals)
+    };
+    !(named("m") || named("ic") || named("gain"))
+        && !matches!(second.kind, TokenKind::Equals)
+        && !second.text.to_ascii_lowercase().starts_with("sens_")
+        && !second.is_keyword("control")
+}
+
+/// The fourth-token forms that `inpcom.c` turns into B sources or XSPICE
+/// models before `INP2E`..`INP2H` ever see the card. Returns their
+/// parameters (and extends `nodes` with POLY controlling nodes).
+fn nonlinear_form(
+    input: &mut Input<'_>,
+    designator: char,
+    nodes: &mut Vec<String>,
+) -> Result<Option<Vec<ParameterAssignment>>> {
+    let Some(token) = input.input.first() else {
+        return Ok(None);
+    };
+    if token.kind != TokenKind::Word {
+        return Ok(None);
+    }
+    let named = input
+        .input
+        .get(1)
+        .is_some_and(|next| next.kind == TokenKind::Equals);
+    let lowered = token.text.to_ascii_lowercase();
+    match lowered.as_str() {
+        "poly" => behavioural::poly_form(input, designator, nodes).map(Some),
+        "value" | "vol" | "cur" if named => {
+            let accepted = match designator {
+                'e' => lowered != "cur",
+                'g' => lowered != "vol",
+                _ => false,
+            };
+            if !accepted {
+                return Err(parse_error(
+                    input,
+                    &format!(
+                        "'{lowered}=' is not a form of a '{designator}' source (C: E accepts \
+                         VALUE=/VOL=, G accepts VALUE=/CUR=)"
+                    ),
+                ));
+            }
+            let keyword = token.clone();
+            behavioural::value_form(input, designator, &keyword).map(Some)
+        }
+        "table" if matches!(designator, 'e' | 'g') => {
+            behavioural::table_form(input, designator, false).map(Some)
+        }
+        "laplace" => Err(nonlinear(input, "LAPLACE controlled sources")),
+        _ => Ok(None),
+    }
 }
 
 /// A node or instance name, after any `(`, `)` or `,` that C's token readers
@@ -132,25 +230,6 @@ fn punctuation<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
 fn closing_punctuation<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
     any.verify(|token: &Token| matches!(token.kind, TokenKind::RParen | TokenKind::Comma))
         .parse_next(input)
-}
-
-/// The fourth-token forms that `inpcom.c` turns into B sources or XSPICE
-/// models before `INP2E`..`INP2H` ever see the card.
-fn reject_nonlinear_form(input: &mut Input<'_>) -> Result<()> {
-    let Some(token) = input.input.first() else {
-        return Ok(());
-    };
-    if token.kind != TokenKind::Word {
-        return Ok(());
-    }
-    let what = match token.text.to_ascii_lowercase().as_str() {
-        "poly" => "POLY(n) controlled sources",
-        "value" | "vol" | "cur" => "VALUE=/VOL=/CUR= behavioural controlled sources",
-        "table" => "TABLE controlled sources",
-        "laplace" => "LAPLACE controlled sources",
-        _ => return Ok(()),
-    };
-    Err(nonlinear(input, what))
 }
 
 fn nonlinear(input: &Input<'_>, what: &str) -> ErrMode<Failure> {
@@ -210,7 +289,7 @@ fn hspice_keyword(input: &mut Input<'_>, designator: char) -> Result<()> {
 /// dropped, and inside `{...}` also around arithmetic characters
 /// (`is_arith_char()`: `+-*/()<>?:|&^!%\`) and `,`. So `gain = 2` is one
 /// word, as in C.
-fn remove_ws(raw: &str) -> String {
+pub(super) fn remove_ws(raw: &str) -> String {
     let joins = |c: char, braces: i32| c == '=' || (braces > 0 && is_arith_or_comma(c));
     let mut out = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
@@ -285,9 +364,12 @@ fn gain_and_setters(
             ),
         ));
     }
-    Err(nonlinear(
+    Err(parse_error(
         input,
-        "values after the gain (inp_check_syntax() turns them into an implicit POLY(1) source)",
+        &format!(
+            "unexpected '{}' after the gain",
+            input.input.first().map_or("", |t| t.text.as_str())
+        ),
     ))
 }
 

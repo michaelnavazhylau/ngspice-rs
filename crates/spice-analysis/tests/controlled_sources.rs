@@ -279,8 +279,11 @@ fn invalid_controlling_sources_fail_before_any_analysis() {
         let error = circuit(body).unwrap_err();
         assert!(error.to_string().contains(message), "{error}");
     }
+    // POLY/VALUE/TABLE are ported (#79, behavioural_sources.rs); LAPLACE
+    // remains an explicit gap.
     let error =
-        circuit("vin in 0 dc 1\nrin in 0 1k\ne1 a 0 poly(1) in 0 0 2\nra a 0 1k").unwrap_err();
+        circuit("vin in 0 dc 1\nrin in 0 1k\ne1 a 0 laplace {v(in)} = {1/(1+s)}\nra a 0 1k")
+            .unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
 }
 

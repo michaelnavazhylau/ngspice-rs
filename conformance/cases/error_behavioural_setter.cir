@@ -1,0 +1,7 @@
+Unknown text after a behavioural expression is a parse error
+vin in 0 dc 1
+* C: "unknown parameter (3)" -- the expression ends before the bare 3.
+b1 out 0 v=2*v(in) 3
+r1 out 0 1k
+.op
+.end

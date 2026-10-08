@@ -316,6 +316,24 @@ pub(crate) fn instantiate(
             instance.name
         )));
     };
+    if let Some(form) = instance
+        .parameters
+        .iter()
+        .find(|p| matches!(p.name.as_str(), "poly" | "value" | "table"))
+    {
+        // The front end rewrites these into B sources/XSPICE instances
+        // (spice_netlist::behavioural::lower_nonlinear_sources, run by
+        // Circuit::from_netlist), as inpcom.c does before INP2E..INP2H.
+        return Err(SpiceError::Unsupported {
+            feature: format!(
+                "{}: the {} form must be lowered with \
+                 spice_netlist::behavioural::lower_nonlinear_sources before instantiation",
+                instance.name,
+                form.name.to_ascii_uppercase()
+            ),
+            location: Some(instance.location.clone()),
+        });
+    }
     let expected = if kind.voltage_controlled() { 4 } else { 2 };
     if instance.model.is_some() || instance.nodes.len() != expected {
         return Err(SpiceError::Unsupported {

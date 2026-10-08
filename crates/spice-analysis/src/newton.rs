@@ -161,21 +161,51 @@ pub fn solve_counted<T>(
     options: &NewtonOptions,
     load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
 ) -> Result<NewtonSolution<T>, NewtonFailure> {
+    solve_counted_limited(initial, branch_rows, None, options, load)
+}
+
+/// [`solve_counted`] whose voltage-step damping watches only the rows marked
+/// in `limited_rows` (all non-branch rows when `None`). Devices that C never
+/// limits, such as behavioural sources (`asrcload.c` has no limiting), opt out
+/// through [`spice_devices::Device::limits_voltage_steps`]; see
+/// [`crate::bias::limited_rows`].
+///
+/// # Errors
+/// As [`solve_counted`], plus a `limited_rows` of the wrong length.
+pub fn solve_counted_limited<T>(
+    initial: &Vector,
+    branch_rows: &[bool],
+    limited_rows: Option<&[bool]>,
+    options: &NewtonOptions,
+    load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+) -> Result<NewtonSolution<T>, NewtonFailure> {
     let mut iterations = 0;
-    iterate(initial, branch_rows, options, load, &mut iterations)
-        .map_err(|error| NewtonFailure { error, iterations })
+    iterate(
+        initial,
+        branch_rows,
+        limited_rows,
+        options,
+        load,
+        &mut iterations,
+    )
+    .map_err(|error| NewtonFailure { error, iterations })
 }
 
 fn iterate<T>(
     initial: &Vector,
     branch_rows: &[bool],
+    limited_rows: Option<&[bool]>,
     options: &NewtonOptions,
     mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
     started: &mut usize,
 ) -> SpiceResult<NewtonSolution<T>> {
     options.validate()?;
     let n = initial.len();
-    if n == 0 || n != branch_rows.len() || !initial.is_finite() {
+    if n == 0
+        || n != branch_rows.len()
+        || limited_rows.is_some_and(|rows| rows.len() != n)
+        || !initial.is_finite()
+    {
         return Err(failure(
             "Newton requires a nonempty square system, finite solution and matching row kinds",
         ));
@@ -193,8 +223,11 @@ fn iterate<T>(
             .iter()
             .zip(guess.as_slice())
             .zip(branch_rows)
-            .filter(|(_, branch)| !**branch)
-            .map(|((new, old), _)| (new - old).abs())
+            .enumerate()
+            .filter(|(row, (_, branch))| {
+                !**branch && limited_rows.is_none_or(|limited| limited[*row])
+            })
+            .map(|(_, ((new, old), _))| (new - old).abs())
             .fold(0., Real::max);
         let damping = (options.voltage_step / largest_voltage_step).min(1.);
         if damping < 1. {

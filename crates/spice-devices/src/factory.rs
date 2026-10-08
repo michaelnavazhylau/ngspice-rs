@@ -84,6 +84,11 @@ pub(crate) fn instantiate(
     if matches!(instance.designator, 'e' | 'f' | 'g' | 'h') {
         return crate::controlled::instantiate(instance, nodes);
     }
+    // `a` instances only come from the front end's TABLE/POLY lowering
+    // (spice_netlist::behavioural); user XSPICE cards are not parsed.
+    if matches!(instance.designator, 'b' | 'a') {
+        return crate::behavioural::instantiate(instance, nodes);
+    }
     if instance.model.is_some() || instance.nodes.len() != 2 {
         return Err(SpiceError::Unsupported {
             feature: format!("model/multiport device {}", instance.name),
