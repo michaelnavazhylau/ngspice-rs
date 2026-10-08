@@ -263,6 +263,12 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "gauss",
 ];
 
+/// The statistical functions C replaces in B lines before parsing them
+/// (`src/frontend/inp.c` `eval_agauss()`, over the same set as
+/// `src/frontend/inpcom.c` `inp_fix_agauss_in_param()`). A user `.func` of
+/// the same name takes precedence, as C expands macros first.
+pub const STATISTICAL_FUNCTIONS: &[&str] = &["agauss", "gauss", "aunif", "unif", "limit"];
+
 /// True for a name the B-source parser knows as a function.
 #[must_use]
 pub fn is_builtin_function(name: &str) -> bool {

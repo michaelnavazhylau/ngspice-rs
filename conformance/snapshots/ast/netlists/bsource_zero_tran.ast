@@ -1,0 +1,71 @@
+# ngspice-rs ast-dump v1
+file: netlists/bsource_zero_tran.cir
+title: "B-source zero start: singular slopes in a transient" @netlists/bsource_zero_tran.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/bsource_zero_tran.cir:7:1 "vin in 0 sin(2 1 2k)"
+    [1] device[1] @netlists/bsource_zero_tran.cir:8:1 "rin in 0 1k"
+    [2] device[2] @netlists/bsource_zero_tran.cir:9:1 "b1 o1 0 v=1/v(in) + sqrt(v(in))"
+    [3] device[3] @netlists/bsource_zero_tran.cir:10:1 "r1 o1 0 1k"
+    [4] device[4] @netlists/bsource_zero_tran.cir:11:1 "b2 0 o2 i=1m*log(v(in))/v(in)"
+    [5] device[5] @netlists/bsource_zero_tran.cir:12:1 "r2 o2 0 1k"
+    [6] analysis[0] @netlists/bsource_zero_tran.cir:13:1 ".tran 5u 1m 0 1u"
+    [7] end @netlists/bsource_zero_tran.cir:14:1 ".end"
+  devices (6):
+    device [0] name="vin" designator=v @netlists/bsource_zero_tran.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="sin" kind=waveform value="(2 1 2k)" @netlists/bsource_zero_tran.cir:7:10
+          sin
+            vo: "2"@netlists/bsource_zero_tran.cir:7:14
+            va: "1"@netlists/bsource_zero_tran.cir:7:16
+            freq: "2k"@netlists/bsource_zero_tran.cir:7:18
+    device [1] name="rin" designator=r @netlists/bsource_zero_tran.cir:8:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_tran.cir:8:10
+    device [2] name="b1" designator=b @netlists/bsource_zero_tran.cir:9:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="1/v(in) + sqrt(v(in))" @netlists/bsource_zero_tran.cir:9:9
+          behavioural text="1/v(in) + sqrt(v(in))" span=9:11..32
+            binary "+" span=9:11..32
+              binary "/" span=9:11..18
+                number "1" value=1e0 span=9:11..12
+                voltage "in" span=9:13..18
+              call "sqrt" span=9:21..32
+                voltage "in" span=9:26..31
+    device [3] name="r1" designator=r @netlists/bsource_zero_tran.cir:10:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_tran.cir:10:9
+    device [4] name="b2" designator=b @netlists/bsource_zero_tran.cir:11:1
+      nodes: "0" "o2"
+      model: none
+      parameters (1):
+        [0] name="i" kind=behavioural value="1m*log(v(in))/v(in)" @netlists/bsource_zero_tran.cir:11:9
+          behavioural text="1m*log(v(in))/v(in)" span=11:11..30
+            binary "/" span=11:11..30
+              binary "*" span=11:11..24
+                number "1m" value=1e-3 span=11:11..13
+                call "log" span=11:14..24
+                  voltage "in" span=11:18..23
+              voltage "in" span=11:25..30
+    device [5] name="r2" designator=r @netlists/bsource_zero_tran.cir:12:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_tran.cir:12:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/bsource_zero_tran.cir:13:1
+      arguments: "5u" "1m" "0" "1u"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

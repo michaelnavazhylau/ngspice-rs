@@ -196,6 +196,65 @@ fn the_bdf_backend_rejects_behavioural_sources_explicitly() {
 }
 
 #[test]
+fn singular_slopes_at_the_zero_start_converge_in_every_analysis() {
+    // At the 0 V Newton start 1/x, sqrt, log and division have C's ~1e32
+    // PTdivide-fudge slopes and log() is -1e99; the first linearisation is
+    // well posed but needs the balanced, refined fallback solve (#79).
+    let body = "vin in 0 dc 2 ac 1\nrin in 0 1k\n\
+                b1 o1 0 v=1/v(in)\nr1 o1 0 1k\n\
+                b2 o2 0 v=sqrt(v(in))\nr2 o2 0 1k\n\
+                b3 o3 0 v=log(v(in))\nr3 o3 0 1k\n\
+                b4 o4 0 v=2/v(in,0)\nr4 o4 0 1k\n\
+                b5 0 o5 i=1m*log10(v(in))\nr5 o5 0 1k";
+    let expected = |v: f64| [1. / v, v.sqrt(), v.ln(), 2. / v, v.log10()];
+    let check = |plot: &Plot, point: usize, v: f64| {
+        for (index, want) in expected(v).into_iter().enumerate() {
+            close(
+                value(plot, &format!("v(o{})", index + 1), point),
+                want,
+                1e-12,
+            );
+        }
+    };
+    check(
+        &run(body, AnalysisKind::OperatingPoint, &[]).unwrap(),
+        0,
+        2.,
+    );
+    let dc = run(body, AnalysisKind::DcSweep, &["vin", "0.5", "3", "0.5"]).unwrap();
+    for point in 0..dc.point_count() {
+        check(&dc, point, value(&dc, "v(in)", point));
+    }
+    let tran = run(body, AnalysisKind::Transient, &["1u", "10u"]).unwrap();
+    check(&tran, 0, 2.);
+    let ac = run(body, AnalysisKind::Ac, &["dec", "1", "1", "10"]).unwrap();
+    // d/dv of 1/v, sqrt v, ln v and 2/v at 2 V.
+    close(value(&ac, "v(o1)", 0), -0.25, 1e-12);
+    close(value(&ac, "v(o2)", 0), 0.5 / 2_f64.sqrt(), 1e-12);
+    close(value(&ac, "v(o3)", 0), 0.5, 1e-12);
+    close(value(&ac, "v(o4)", 0), -0.5, 1e-12);
+}
+
+#[test]
+fn infinite_slopes_at_the_zero_start_name_the_offending_derivative() {
+    // pwr(0, -0.5) is infinite, so v(in)^0.5 has an infinite slope at the
+    // 0 V start. C loads it and carries a NaN iterate; the port stops with
+    // the value and the derivative it could not use.
+    let error = run(
+        "vin in 0 dc 2\nrin in 0 1k\nb1 o 0 v=v(in)^0.5\nr1 o 0 1k",
+        AnalysisKind::OperatingPoint,
+        &[],
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("non-finite derivative inf (value 0) in '^'"),
+        "{error}"
+    );
+}
+
+#[test]
 fn evaluation_failures_stop_the_analysis_with_the_function_name() {
     let error = run(
         "vin in 0 dc -1\nrin in 0 1k\nb1 o 0 v=sqrt(v(in) + 0.5)\nr1 o 0 1k",

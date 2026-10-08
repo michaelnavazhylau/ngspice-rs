@@ -35,8 +35,8 @@ use spice_core::{Real, SourceLoc, SpiceError, SpiceResult};
 
 use crate::ast::{DeviceInstance, Netlist, ParameterAssignment, ParameterKind, Subcircuit};
 use crate::bexpr::{
-    BBinaryOp, BExpr, BExprKind, BUnaryOp, BehaviouralExpression, SPECIAL_NAMES, TableTransfer,
-    is_builtin_function, round_like_c_literal,
+    BBinaryOp, BExpr, BExprKind, BUnaryOp, BehaviouralExpression, SPECIAL_NAMES,
+    STATISTICAL_FUNCTIONS, TableTransfer, is_builtin_function, round_like_c_literal,
 };
 use crate::elaborate::format_literal;
 use crate::eval::{EvalBudget, FunctionScope, ParamScope};
@@ -901,6 +901,20 @@ impl Resolver<'_> {
                 kind: BExprKind::Group(Box::new(expanded)),
                 span: expr.span.clone(),
             });
+        }
+        if STATISTICAL_FUNCTIONS.contains(&name) {
+            // inp.c's eval_agauss() replaces each call on a B line by one
+            // value drawn before parsing (inpcom.c applies the same set to
+            // .param lines in inp_fix_agauss_in_param()).
+            return Err(SpiceError::not_yet_ported(
+                format!(
+                    "{}: {name}() in a behavioural expression (a random value drawn \
+                     once before the expression is parsed)",
+                    expr.span.start
+                ),
+                "src/frontend/inp.c (eval_agauss); src/frontend/inpcom.c \
+                 (inp_fix_agauss_in_param)",
+            ));
         }
         if !is_builtin_function(name) {
             return Err(SpiceError::parse(

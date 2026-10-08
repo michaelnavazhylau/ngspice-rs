@@ -216,8 +216,7 @@ fn iterate<T>(
         let (mut matrix, rhs, _) = load(&guess)?;
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
-        let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
-        let mut next = matrix.solve(&rhs)?;
+        let mut next = linearised_solve(&matrix, &rhs)?;
         let largest_voltage_step = next
             .as_slice()
             .iter()
@@ -257,6 +256,41 @@ fn iterate<T>(
         options.max_iterations
     )))
 }
+/// Solves one Newton linearisation: row-equilibrated first (the established
+/// path, unchanged for every system it accepts), then, only when that solve
+/// fails numerically, once more with Curtis-Reid row/column balancing and
+/// iterative refinement ([`spice_maths::EquilibratedSparseLu::new_balanced`],
+/// [`spice_maths::EquilibratedSparseLu::solve_refined`]).
+///
+/// The fallback exists for linearisations that are well posed but scaled
+/// across tens of decades through a coupling cycle. ngspice's `PTdivide`
+/// fudge gives `1/v(x)`, `sqrt(v(x))` or `log(v(x))` a slope of about `1e32`
+/// at a 0 V iterate (`src/spicelib/parser/ptfuncs.c`); SPARSE's threshold
+/// pivoting factors that matrix, whereas row scaling alone leaves the
+/// `v(out)` column `1e32` times weaker than its `v(in)` coupling and trips the
+/// conditioning guard. Balancing changes no equation: the factor is checked
+/// for rank/conditioning in scaled form and every solution is checked against
+/// the original snapshot in physical units; refinement then recovers small
+/// unknowns (a 2 V source beside a `-1e99` `log(0)` output) that the normwise
+/// residual bound alone would let the solve lose. When both attempts fail, the
+/// row-equilibrated error is reported, so diagnostics for genuinely singular
+/// systems are unchanged.
+/// Iterative-refinement rounds of the balanced fallback solve.
+const REFINEMENT_STEPS: usize = 3;
+
+fn linearised_solve(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<Vector> {
+    let (scaled, scaled_rhs) = equilibrated(matrix, rhs)?;
+    match scaled.solve(&scaled_rhs) {
+        Ok(solution) => Ok(solution),
+        Err(error @ SpiceError::Numerical { .. }) => {
+            spice_maths::EquilibratedSparseLu::new_balanced(matrix, None)
+                .and_then(|factor| factor.solve_refined(rhs, REFINEMENT_STEPS))
+                .map_err(|_| error)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 fn check(matrix: &SparseMatrix, rhs: &Vector, n: usize) -> SpiceResult<()> {
     if matrix.rows() != n || matrix.cols() != n || rhs.len() != n || !rhs.is_finite() {
         return Err(failure("invalid Newton load dimensions or nonfinite RHS"));

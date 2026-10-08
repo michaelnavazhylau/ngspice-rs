@@ -253,7 +253,14 @@ fn unported_and_unknown_functions_are_rejected_at_compile_time() {
             .unwrap();
         Program::compile(&parsed.root)
     };
-    for text in ["ddt(v(a))", "gauss(1, 0.1, 3)"] {
+    for text in [
+        "ddt(v(a))",
+        "gauss(1, 0.1, 3)",
+        "agauss(1, 0.1, 3)",
+        "aunif(1, 0.1)",
+        "unif(1, 0.1)",
+        "limit(1, 0.1)",
+    ] {
         let error = compile(text).unwrap_err();
         assert!(error.is_not_yet_ported(), "{text}: {error}");
     }

@@ -284,6 +284,35 @@ fn resolution_errors_name_their_cause() {
 }
 
 #[test]
+fn statistical_functions_are_not_yet_ported_at_their_call() {
+    // C's inp.c eval_agauss() replaces these by a drawn value before parsing
+    // a B line (and E/G VALUE lines become B lines first).
+    for (body, column) in [
+        ("b1 o 0 v=agauss(1,0.1,3)*v(1)", 10),
+        ("b1 o 0 v=2*gauss(1,0.1,3)", 12),
+        ("b1 o 0 i=aunif(1,0.1)*1m", 10),
+        ("e1 o 0 value={unif(1,0.1)*v(1)}", 15),
+        ("g1 o 0 value={limit(1,0.1)*v(1)}", 15),
+    ] {
+        let netlist = lower_nonlinear_sources(&parse(body)).unwrap();
+        let error = literalize(&netlist).unwrap_err();
+        assert!(error.is_not_yet_ported(), "{body}: {error}");
+        let text = error.to_string();
+        assert!(
+            text.contains(&format!("in.cir:2:{column}:")),
+            "{body}: {text}"
+        );
+        assert!(text.contains("src/frontend/inp.c (eval_agauss)"), "{text}");
+    }
+    // A user .func of the same name is expanded first, as in C.
+    let netlist = resolved(".func agauss(a,b,c) {a*2}\nb1 o 0 v=agauss(1,0.1,3)*v(x)");
+    assert_eq!(
+        shape(&expression(&netlist.devices[0], "v").root),
+        "((1 * 2) * v(x))"
+    );
+}
+
+#[test]
 fn resolution_against_an_explicit_scope() {
     let netlist = parse(".param a=4\nb1 o 0 v=a*v(x)");
     let scope = ParamScope::for_netlist(&netlist).unwrap();

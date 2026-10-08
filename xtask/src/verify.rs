@@ -333,7 +333,28 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::NONLINEAR,
         },
         variants: &[],
+    }, // B sources whose sqrt/log/reciprocal/division slopes are ~1e32 (or whose
+    // log() is -1e99) at the 0 V Newton start, in OP, a DC sweep and a
+    // transient's initial point (#79); the Newton solve's balanced fallback.
+    Supported {
+        name: "bsource_zero_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
     },
+    Supported {
+        name: "bsource_zero_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("bsource_zero_tran", &[]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

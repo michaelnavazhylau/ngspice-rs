@@ -159,6 +159,14 @@ sources; and with no breakpoints for B time functions both simulators' default
 steps leave percent-level errors on a fast `sin(time)` drive, so
 `bsource_tran` sets a 1 us maximum step.
 
+Three more goldens, captured the same way, cover expressions whose slope at
+the 0 V Newton start is about `1e32` (C's `PTdivide` fudge) or whose value is
+`log(0) = -1e99`: `bsource_zero_op` and `bsource_zero_dc` (`NONLINEAR`) and
+`bsource_zero_tran` (`compare::TRAN`; resistive loads and a 1 us maximum step,
+because a capacitor current near its zero crossings differed by more than the
+relative bound between the two simulators' step sequences). Registered, the
+count is 48 verified fixtures.
+
 Opt-in live check (`NGSPICE_BIN` absolute):
 
 ```sh

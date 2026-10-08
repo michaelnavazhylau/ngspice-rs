@@ -230,6 +230,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
                 | "evalue_op"
                 | "gtable_dc"
                 | "epoly_dc"
+                | "bsource_zero_op"
+                | "bsource_zero_dc"
+                | "bsource_zero_tran"
         )
     });
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();

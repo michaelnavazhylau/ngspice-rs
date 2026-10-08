@@ -93,6 +93,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `evalue_op` | `.op` | E `VALUE=`/`VOL=`, G `VALUE=`/`CUR=` with `m=`, a VALUE E inside a subcircuit, `i(e2)` sensing |
 | `gtable_dc` | `.dc` | E/G `TABLE` (XSPICE `pwl` map, `* xtask-codemodels: analog`), single-pair and LTspice four-node forms |
 | `epoly_dc` | `.dc` | E/G/F/H `POLY(n)` up to three dimensions and the implicit `POLY(1)` (`* xtask-codemodels: spice2poly`) |
+| `bsource_zero_op` | `.op` | `1/x`, `sqrt`, `log`/`ln`/`log10` and divisions whose controlling nodes start Newton at 0 V (`1e32` slopes, `log(0) = -1e99`) |
+| `bsource_zero_dc` | `.dc` | the same singular slopes at the first sweep point's 0 V start |
+| `bsource_zero_tran` | `.tran` | the same at the initial operating point, then a 1–3 V `sin` input into resistive loads (1 us maximum step) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -109,7 +112,7 @@ The three `controlled_*` decks (#78) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 See [CONTROLLED_SOURCES.md](../../docs/port/CONTROLLED_SOURCES.md).
 
-The seven behavioural-source decks (#79) were captured one at a time with
+The ten behavioural-source decks (#79) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 `gtable_dc` and `epoly_dc` need XSPICE code models, which the capture loads
 through a scratch `.spiceinit` because their decks carry a

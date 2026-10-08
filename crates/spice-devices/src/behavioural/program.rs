@@ -30,7 +30,7 @@
 //! are not modelled: the reference binary runs without a compatibility mode.
 
 use spice_core::{Real, SpiceError, SpiceResult};
-use spice_netlist::bexpr::{BBinaryOp, BExpr, BExprKind, BUnaryOp};
+use spice_netlist::bexpr::{BBinaryOp, BExpr, BExprKind, BUnaryOp, STATISTICAL_FUNCTIONS};
 
 use super::xspice::XspicePwl;
 
@@ -246,7 +246,8 @@ impl Program {
     /// calls), unknown functions or wrong argument counts (positioned parse
     /// errors), non-literal or non-monotonic `pwl()` points (C:
     /// `prepare_PTF_PWL`), and [`SpiceError::NotYetPorted`] for `ddt()` and
-    /// `gauss()`.
+    /// the statistical functions (`agauss`, `gauss`, `aunif`, `unif`,
+    /// `limit`; normally already rejected by the front end).
     pub fn compile(expr: &BExpr) -> SpiceResult<Self> {
         let mut quantities = Vec::new();
         let root = compile(expr, &mut quantities)?;
@@ -504,12 +505,14 @@ fn call(
             ),
             "src/spicelib/parser/ptfuncs.c (PTddt)",
         )),
-        "gauss" => Err(SpiceError::not_yet_ported(
+        name if STATISTICAL_FUNCTIONS.contains(&name) => Err(SpiceError::not_yet_ported(
             format!(
-                "{}: gauss() in a behavioural source (a random value drawn at parse time)",
+                "{}: {name}() in a behavioural source (a random value drawn once before \
+                 the expression is parsed)",
                 expr.span.start
             ),
-            "src/spicelib/parser/inpptree.c (PT_mkfnode, gauss)",
+            "src/frontend/inp.c (eval_agauss); src/frontend/inpcom.c \
+             (inp_fix_agauss_in_param)",
         )),
         "pwl_derivative" => Err(unsupported(
             expr,
@@ -715,13 +718,18 @@ impl Evaluator<'_> {
                 (value, scale(&dx, slope))
             }
         };
-        if !value.is_finite() || gradient.iter().any(|d| !d.is_finite()) {
+        let offending = if value.is_finite() {
+            gradient
+                .iter()
+                .find(|d| !d.is_finite())
+                .map(|d| format!("non-finite derivative {d} (value {value})"))
+        } else {
+            Some(format!("non-finite value {value}"))
+        };
+        if let Some(offending) = offending {
             return Err(SpiceError::Numerical {
                 context: "behavioural source".into(),
-                message: format!(
-                    "non-finite value or derivative ({value}) in {}",
-                    describe(node)
-                ),
+                message: format!("{offending} in {}", describe(node)),
             });
         }
         Ok((value, gradient))

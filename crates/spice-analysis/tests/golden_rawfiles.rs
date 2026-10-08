@@ -1114,6 +1114,75 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(b3)", 1007, -2.009060417479346e-03, 0.0),
         ],
     },
+    // Every B source here starts Newton at 0 V on a ~1e32 slope (or log()'s
+    // -1e99). v(in) = 2, v(mid) = 1.5: v(o1) = 1/2, v(o2) = sqrt(1.5),
+    // v(o3) = ln 2 + ln 1.5 = ln 3, v(o4) = 2/2 - 1/1.5 and
+    // v(o5) = 1k x 1m (log10 1.5 + sqrt(2)/1.5).
+    Expectation {
+        fixture: "bsource_zero_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(in)", "i(b1)", "i(b2)", "i(b3)", "i(b4)", "v(mid)", "v(o1)", "v(o2)", "v(o3)",
+            "v(o4)", "v(o5)", "i(vin)",
+        ],
+        values: &[
+            ("v(mid)", 0, 1.500000000000000e+00, 0.0),
+            ("v(o1)", 0, 5.000000000000000e-01, 0.0),
+            ("v(o2)", 0, 1.224744871391589e+00, 0.0),
+            ("v(o3)", 0, 1.098612288668110e+00, 0.0),
+            ("v(o4)", 0, 3.333333333333335e-01, 0.0),
+            ("v(o5)", 0, 1.118900300637745e+00, 0.0),
+        ],
+    },
+    // The first point (v(in) = 0.5, v(mid) = 0.375) starts Newton at 0 V:
+    // v(o1) = 2, v(o2) = sqrt(0.375) ln 0.5 and v(o3) = 0.5/0.375 +
+    // log10 0.375; at 3 V (v(mid) = 2.25) v(o2) = 1.5 ln 3.
+    Expectation {
+        fixture: "bsource_zero_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 11,
+        variables: &[
+            "v(v-sweep)",
+            "i(b1)",
+            "i(b2)",
+            "v(in)",
+            "v(mid)",
+            "v(o1)",
+            "v(o2)",
+            "v(o3)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 5.000000000000000e-01, 0.0),
+            ("v(o1)", 0, 2.000000000000000e+00, 0.0),
+            ("v(o2)", 0, -4.244642272551664e-01, 0.0),
+            ("v(o3)", 0, 9.073646010610521e-01, 0.0),
+            ("v(v-sweep)", 10, 3.000000000000000e+00, 0.0),
+            ("v(o2)", 10, 1.647918433002165e+00, 0.0),
+            ("v(o3)", 10, 1.685515851444696e+00, 0.0),
+        ],
+    },
+    // The initial point (v(in) = 2) starts Newton at 0 V: v(o1) = 1/2 +
+    // sqrt 2, v(o2) = 1k x 1m ln 2 / 2. At 1 ms v(in) is 2 again; C's B
+    // outputs there carry its converged-Newton linearisation error (reltol).
+    Expectation {
+        fixture: "bsource_zero_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1006,
+        variables: &["time", "i(b1)", "v(in)", "v(o1)", "v(o2)", "i(vin)"],
+        values: &[
+            ("time", 0, 0.000000000000000e+00, 0.0),
+            ("v(o1)", 0, 1.914213562373095e+00, 0.0),
+            ("v(o2)", 0, 3.465735902799727e-01, 0.0),
+            ("time", 1005, 1.000000000000000e-03, 0.0),
+            ("v(in)", 1005, 2.000000000000000e+00, 0.0),
+            ("v(o1)", 1005, 1.914207239425050e+00, 0.0),
+        ],
+    },
     // v(in) = 1.2: e1 drives 3 v - v^2/2 = 2.88 through e1_int1, e2 adds
     // tanh(1.2) on top, g1 sources 2 (m) x 1m x 1.2^3 into o3, g2 sinks
     // 0.5m exp(1.2) from o4, x1's E gives 1.44/3 at o5 (x1.e1_int1), and

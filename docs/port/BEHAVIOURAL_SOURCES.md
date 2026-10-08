@@ -3,8 +3,9 @@
 **Implemented: B arbitrary sources (`v=`/`i=` expressions) and the nonlinear
 E/G/F/H forms `VALUE=`/`VOL=`/`CUR=`, `TABLE`, `POLY(n)` and the implicit
 spice2g6 `POLY(1)`, for `.op`, `.dc`, `.ac` and the companion `.tran`
-(trapezoidal/Gear-2).** `LAPLACE`, `ddt()` and `gauss()` are explicit
-`NotYetPorted` errors; the diffsol BDF backend rejects behavioural sources
+(trapezoidal/Gear-2).** `LAPLACE`, `ddt()` and the statistical functions
+(`agauss`, `gauss`, `aunif`, `unif`, `limit`) are explicit `NotYetPorted`
+errors; the diffsol BDF backend rejects behavioural sources
 like every nonlinear device.
 
 C references (read-only behaviour): `src/spicelib/parser/inp2b.c`,
@@ -73,7 +74,11 @@ literally (C does not substitute formals there; verified).
 The complete `inpptree.c` table: `abs acos acosh asin asinh atan atanh cos
 cosh exp ln log log10 sgn sin sinh sqrt tan tanh u uramp ceil floor nint u2
 pwl eq0 ne0 gt0 lt0 ge0 le0 pow pwr min max ternary_fcn`. Unknown names are a
-parse error ("no such function"); `ddt` and `gauss` are `NotYetPorted`;
+parse error ("no such function"); `ddt` is `NotYetPorted`, and so are
+`agauss`, `gauss`, `aunif`, `unif` and `limit`, which C replaces by one drawn
+value before parsing a B line (`src/frontend/inp.c` `eval_agauss()`, the
+`inp_fix_agauss_in_param()` set of `inpcom.c`; a user `.func` of the same name
+is expanded first, as in C);
 `pwl_derivative` (internal to `pwl`, C would dereference a missing table) is
 `Unsupported`.
 
@@ -117,7 +122,28 @@ accidental quirks (all verified against the C binary's AC analysis):
 Elsewhere the analytic gradient matches finite differences for every function
 and operator (`spice-devices/tests/behavioural_sources.rs`). Where C would
 continue with a NaN or an infinity (`acos(2)`, `cosh(1000)`), the port stops
-with a numerical error naming the function.
+with a numerical error naming the function and the non-finite value or
+derivative. This includes infinite *slopes* at an intermediate Newton iterate:
+`v(in)^0.5` or `v(in)^-1` at the 0 V start has derivative `b pwr(0, b-1) =
+inf`; C loads it, carries a NaN iterate for the unknowns that depend on that
+row and converges on the next iteration, while the port stops ("non-finite
+derivative inf (value 0) in '^'"). See Limits.
+
+### Singular slopes at the zero start
+
+C's `PTdivide` fudge gives `1/v(x)`, `sqrt(v(x))`, `log(v(x))` and divisions a
+slope of about `1e32` at a 0 V iterate (and `log(0)` is `-1e99`). The first
+linearisation is well posed, but row scaling alone leaves the output column
+`1e32` times weaker than its coupling and trips the sparse LU conditioning
+guard. Newton (`spice-analysis/src/newton.rs` `linearised_solve`) therefore
+retries a numerically failed row-equilibrated solve once with Curtis-Reid
+power-of-two row/column balancing and up to three rounds of iterative
+refinement (`EquilibratedSparseLu::new_balanced`/`solve_refined`); the
+rank/conditioning guard still applies to the balanced matrix and every
+solution is checked against the original equations. Solves the first path
+accepts are unchanged, and when both fail the original error is reported.
+`bsource_zero_op`, `bsource_zero_dc` and `bsource_zero_tran` are C goldens
+for this.
 
 ## Device equations
 
@@ -203,10 +229,11 @@ rewritten and must name a findable branch (V, E, H or voltage B).
 | --- | --- |
 | malformed expression, trailing text, two `v=`/`i=`, missing `v=`/`i=` | positioned `Parse` error |
 | undefined `.param`, unknown function, wrong argument count, non-literal or non-monotonic `pwl()` points | `Parse` error at the name |
-| `ddt()`, `gauss()`, `LAPLACE` | `NotYetPorted` |
+| `ddt()`, `LAPLACE` | `NotYetPorted` |
+| `agauss()`, `gauss()`, `aunif()`, `unif()`, `limit()` | `NotYetPorted` at the call (`src/frontend/inp.c` `eval_agauss`; `inpcom.c` `inp_fix_agauss_in_param`) |
 | `v=` with coinciding nodes | `Unsupported` ("shorted ASRC") |
 | `temp=` and `dtemp=` together | `Unsupported` (C ignores `dtemp` with a message) |
-| domain error or non-finite value/derivative during a load | `Numerical`, naming the function |
+| domain error or non-finite value/derivative during a load | `Numerical`, naming the function and the offending value or derivative |
 | `m=` on an E/H POLY, a four-node G TABLE, `VALUE=` on F/H | parse/unsupported errors |
 | a nonlinear E/G form handed to the single-card registry factory | `Unsupported` (the lowering needs the whole deck) |
 
@@ -216,8 +243,9 @@ rewritten and must name a findable branch (V, E, H or voltage B).
   `bsource_op`, `bsource_dc`, `bsource_ac` (nonlinear B sources, 1 ppm
   `NONLINEAR` bound), `bsource_tran` (`compare::TRAN`), `evalue_op` (VALUE
   forms, a subcircuit, inserted current sensing), `gtable_dc` (TABLE forms,
-  needs the `analog` code models) and `epoly_dc` (POLY forms, needs
-  `spice2poly`). Fixtures that need XSPICE code models name them on a
+  needs the `analog` code models), `epoly_dc` (POLY forms, needs
+  `spice2poly`) and `bsource_zero_op`/`bsource_zero_dc`/`bsource_zero_tran`
+  (sqrt/log/reciprocal/division started from the 0 V Newton iterate). Fixtures that need XSPICE code models name them on a
   `* xtask-codemodels:` comment; the capture then writes a scratch
   `.spiceinit` loading only those libraries (see VERIFICATION.md).
 - `crates/spice-devices/tests/behavioural_sources.rs`: finite-difference
@@ -229,7 +257,10 @@ rewritten and must name a findable branch (V, E, H or voltage B).
   `conformance/parser/behavioural_sources.cir` and the
   `error_behavioural_*`/`error_controlled_poly` cases are snapshotted.
 - `crates/spice-analysis/tests/behavioural_sources.rs`: analytic OP/DC/AC/
-  transient results, `temper` sweeps, `hertz` in AC and undamped large steps.
+  transient results, `temper` sweeps, `hertz` in AC, undamped large steps,
+  zero-start singular slopes in every analysis and the infinite-slope error.
+- `crates/spice-maths/tests/equilibration.rs`: Curtis-Reid balancing and
+  refinement on the zero-start linearisation; singular systems stay rejected.
 - Opt-in: `NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test
   c_behavioural_reference -- --ignored` compares 47 expressions' values (OP)
   and derivatives (one-point AC) with the C binary at four bias points to
@@ -237,7 +268,13 @@ rewritten and must name a findable branch (V, E, H or voltage B).
 
 ## Limits
 
-- `ddt()`, `gauss()`, `LAPLACE` (XSPICE `s_xfer`), the PSPICE/HSPICE/
+- An infinite derivative at an intermediate Newton iterate stops the port
+  where C continues through a NaN iterate and converges: `v(x)^b` with a
+  constant `b < 1` (`v(in)^0.5`, `v(in)^-1`, `v(in)**-2`) or `pow(0, -1)`
+  whose controlling node starts at 0 V. This is a C-parity gap for common
+  decks; write `sqrt(v(x))` or `1/v(x)` (finite `1e32` slopes) instead.
+- `ddt()`, the statistical functions (`agauss`, `gauss`, `aunif`, `unif`,
+  `limit`), `LAPLACE` (XSPICE `s_xfer`), the PSPICE/HSPICE/
   LTspice compatibility variants of `^`, `exp` and `pwr`, and user XSPICE `a`
   cards are not ported.
 - `.func` bodies are expanded after the lowering passes, so an `i()` that only
