@@ -132,8 +132,24 @@ fn sffm_am_pulse_count_and_repeated_pwl_drive_their_nodes_exactly() {
         if t > 1.2e-3 - 1e-12 {
             let local = (t - 1.2e-3).rem_euclid(0.5e-3);
             if local.min(0.5e-3 - local) < 1e-12 {
-                // A repetition boundary: left limit 0.5 V, right limit 1 V.
-                let want = if right { 1. } else { 0.5 };
+                // A repetition boundary: the right limit is the restart value
+                // 1 V; the sample landing there is C's single value, 0.5 V at
+                // the first boundary or wherever C's fold rounds up to the
+                // last knot, otherwise the restart value (`vsrcload.c`).
+                let want = if right {
+                    1.
+                } else {
+                    let time = t - 0.2e-3;
+                    if time <= 1e-3 {
+                        0.5
+                    } else {
+                        let (start, period) = (0.5e-3, 0.5e-3);
+                        let folded = ((time - start) - period * ((time - start) / period).floor()
+                            + start)
+                            .min(1e-3);
+                        1. - (folded - start) / 1e-3
+                    }
+                };
                 assert!((d[i] - want).abs() < 1e-9, "pwl boundary t={t}: {}", d[i]);
             } else {
                 let want = 1. - local / 1e-3;

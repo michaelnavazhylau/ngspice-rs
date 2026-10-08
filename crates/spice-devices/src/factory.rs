@@ -122,7 +122,7 @@ pub(crate) fn instantiate(
                     location: Some(at.clone()),
                 });
             }
-            waveform = Some(source_waveform(&p.name, source)?);
+            waveform = Some(source_waveform(&p.name, source, &p.location)?);
             continue;
         }
         if p.kind != ParameterKind::Scalar {
@@ -246,9 +246,30 @@ fn pwl_options(
 
 /// Converts a parsed PULSE/PWL/SIN/EXP/SFFM/AM setter into a device waveform.
 /// Analysis-dependent defaults stay pending (`vsrcload.c`).
-fn source_waveform(name: &str, source: &SourceWaveform) -> SpiceResult<Waveform> {
+/// `setter` locates the whole setter for diagnostics without a field.
+fn source_waveform(
+    name: &str,
+    source: &SourceWaveform,
+    setter: &SourceLoc,
+) -> SpiceResult<Waveform> {
     match (name, source) {
         (_, SourceWaveform::Function(f)) => {
+            // The parser bounds the field count; a hand-built AST may not.
+            let most = f.function.fields().len();
+            if !(2..=most).contains(&f.values.len()) {
+                return Err(SpiceError::Unsupported {
+                    feature: format!(
+                        "{} with {} fields (needs 2 to {most})",
+                        f.function.keyword(),
+                        f.values.len()
+                    ),
+                    location: Some(
+                        f.values
+                            .get(most)
+                            .map_or_else(|| setter.clone(), |extra| extra.location.clone()),
+                    ),
+                });
+            }
             let at = &f.values[0];
             let fields = f
                 .values

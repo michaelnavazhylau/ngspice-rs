@@ -247,3 +247,57 @@ fn unsupported_source_options_are_explicit() {
         assert!(error.contains(needle), "{body}: {error}");
     }
 }
+
+#[test]
+fn hand_built_function_asts_with_bad_field_counts_are_refused() {
+    use spice_core::SpiceError;
+    use spice_netlist::ast::{ParameterKind, PositionedValue, SourceWaveform};
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(
+            Path::new("w.cir"),
+            "w\nv1 a 0 sin(0 1 1k 0 0 0)\nr1 a 0 1k\n.end\n",
+        ))
+        .unwrap();
+    let edit = |netlist: &spice_netlist::ast::Netlist,
+                change: &dyn Fn(&mut Vec<PositionedValue>)| {
+        let mut netlist = netlist.clone();
+        let setter = &mut netlist.devices[0].parameters[0];
+        let ParameterKind::Waveform(SourceWaveform::Function(f)) = &mut setter.kind else {
+            panic!("expected a function waveform, got {:?}", setter.kind);
+        };
+        change(&mut f.values);
+        let at = setter.location.clone();
+        (netlist, at)
+    };
+    // A seventh SIN field must not be dropped silently: refused at that field.
+    let (seven, _) = edit(&netlist, &|values| {
+        let mut extra = values[5].clone();
+        extra.text = "9".to_owned();
+        values.push(extra);
+    });
+    let extra_at = match &seven.devices[0].parameters[0].kind {
+        ParameterKind::Waveform(SourceWaveform::Function(f)) => f.values[6].location.clone(),
+        _ => unreachable!(),
+    };
+    match Circuit::from_netlist(&seven) {
+        Err(SpiceError::Unsupported { feature, location }) => {
+            assert!(feature.contains("sin with 7 fields"), "{feature}");
+            assert_eq!(location, Some(extra_at));
+        }
+        other => panic!("7-field SIN accepted: {other:?}"),
+    }
+    // Too few fields must not panic: refused at the setter.
+    for keep in [0, 1] {
+        let (short, setter_at) = edit(&netlist, &|values| values.truncate(keep));
+        match Circuit::from_netlist(&short) {
+            Err(SpiceError::Unsupported { feature, location }) => {
+                assert!(
+                    feature.contains(&format!("sin with {keep} fields")),
+                    "{feature}"
+                );
+                assert_eq!(location, Some(setter_at.clone()));
+            }
+            other => panic!("{keep}-field SIN accepted: {other:?}"),
+        }
+    }
+}

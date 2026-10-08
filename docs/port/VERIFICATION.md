@@ -56,11 +56,12 @@ delivery; they are not the current totals.
 
 ## M6 source functions (#94, #95)
 
-Five new C goldens, each captured once with `cargo xtask golden capture
+Six new C goldens, each captured once with `cargo xtask golden capture
 --netlist <name>` (no existing golden recaptured or tolerance changed), are
 registered in `golden verify` with `compare::TRAN`: `rc_sin_tran`,
-`rc_exp_tran`, `rc_sffm_am_tran`, `rc_pwl_repeat_tran` and
-`rc_pulse_count_tran` (31 verified fixtures in this slice, each worst error
+`rc_exp_tran`, `rc_sffm_am_tran`, `rc_pwl_repeat_tran`,
+`rc_pwl_sawtooth_tran` (a sawtooth whose later repetition boundaries C loads at
+the restart value) and `rc_pulse_count_tran` (32 verified fixtures in this slice, each worst error
 0.000 of the bound). `tran::breakpoints` follows C's `VSRCaccept`: PULSE
 corners up to `TD + NP*PER`, delayed and repeated PWL knots, none for
 SIN/EXP/SFFM/AM. The SIN and EXP decks therefore add a constant PWL marker whose

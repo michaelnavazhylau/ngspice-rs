@@ -629,6 +629,29 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rc_pwl_sawtooth_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 421,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // A 1 ms 0 -> 1 V sawtooth: C loads the end value 1 V at the first
+        // boundary (1 ms) but folds 2 ms and 4 ms onto the restart knot (0 V),
+        // so the step landing there already integrates toward 0 V.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 111, 1.000000000000000e-03, 0.0),
+            ("v(in)", 111, 1.0, 0.0),
+            ("time", 214, 2.000000000000000e-03, 0.0),
+            ("v(in)", 214, 0.0, 0.0),
+            ("v(out)", 214, 8.639004526429658e-01, 0.0),
+            ("time", 420, 4.000000000000000e-03, 0.0),
+            ("v(in)", 420, 0.0, 0.0),
+            ("v(out)", 420, 8.638988267771625e-01, 0.0),
+            ("i(v1)", 420, 8.638988267771625e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_pwl_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,

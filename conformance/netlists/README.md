@@ -65,6 +65,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `rc_exp_tran` | `.tran` | EXP rise and fall (#94); constant PWL marker lands C on `TD1`/`TD2` |
 | `rc_sffm_am_tran` | `.tran` | SFFM voltage source and AM current source (#94), continuous at `t = 0` |
 | `rc_pwl_repeat_tran` | `.tran` | PWL `r=0 td=0.2m` triangle (#95), repeated knots are C breakpoints |
+| `rc_pwl_sawtooth_tran` | `.tran` | PWL `r=0` sawtooth (#95): C loads the restart value at repetition boundaries after the first |
 | `rc_pulse_count_tran` | `.tran` | PULSE eighth field `NP = 3` (#95): three pulses, then V1 |
 | `diode_dc` | `.dc` | nonlinear device, source sweep |
 | `bjt_ce` | `.op` | BJT with a `.model` card |

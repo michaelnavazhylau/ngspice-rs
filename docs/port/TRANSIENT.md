@@ -180,7 +180,12 @@ Phases are degrees. Before its delay a SIN holds `VO + VA sin(PHASE)` and an
 EXP holds V1, but SFFM and AM hold **zero** (C returns 0 for `time <= TD`), so
 they jump at their delay unless `VO + VA sin(...)` vanishes there. A repeating
 PWL jumps at each repetition boundary when `v(r) != v(t_last)`. Every jump has
-distinct left/right limits (`Limit`). OP/DC analyses without an explicit DC
+distinct left/right limits (`Limit`), except where C itself is single-valued at
+a repeated PWL boundary: C evaluates the first boundary (and any later one whose
+fold rounds up to `t_last`) to `v(t_last)`, but folds every other later boundary
+back onto the restart knot and loads `v(r)` there. The port follows C exactly,
+so for a sawtooth such as `pwl(0 0 1m 1) r=0` the step landing on 2 ms, 3 ms,
+... integrates toward the restart value, as C's does (`rc_pwl_sawtooth_tran`). OP/DC analyses without an explicit DC
 value use C's time-zero value (`Waveform::time_zero`); the transient initial
 point uses the left limit at `t = 0`, as C's `MODETRANOP` load does (an explicit
 `dc` value only affects OP/DC, as in C).
@@ -211,7 +216,8 @@ Verification: analytic unit tests per form and default; deck-level tests
 response under trap and Gear-2 and a `.four` of a SIN-driven RC: fundamental
 gain/phase of the low-pass within 1e-3 and THD below 0.1 %). C goldens
 `rc_sin_tran`, `rc_exp_tran`, `rc_sffm_am_tran` (AM as a current source),
-`rc_pwl_repeat_tran` and `rc_pulse_count_tran` verify under `compare::TRAN`
+`rc_pwl_repeat_tran`, `rc_pwl_sawtooth_tran` (discontinuous `r=` repeat) and
+`rc_pulse_count_tran` verify under `compare::TRAN`
 with worst error 0.000 of the bound. Because C sets no SIN/EXP breakpoints, the
 SIN and EXP decks carry a constant PWL marker source whose knots make C land on
 the corners too; otherwise the comparison would interpolate C's plot across a

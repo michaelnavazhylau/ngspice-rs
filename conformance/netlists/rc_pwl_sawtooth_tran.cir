@@ -1,0 +1,9 @@
+RC driven by a repeating PWL sawtooth
+* pwl(0 0 1m 1) r=0: a 1 ms sawtooth whose restart value differs from its end
+* value, so every repetition boundary is a jump. C evaluates the first boundary
+* (1 ms) to the end value and folds later ones (2, 3, 4 ms) onto the restart knot.
+v1 in 0 pwl(0 0 1m 1) r=0
+r1 in out 1k
+c1 out 0 0.1u
+.tran 10u 4m
+.end

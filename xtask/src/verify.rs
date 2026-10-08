@@ -208,6 +208,9 @@ const SUPPORTED: &[Supported] = &[
     tran("rc_sffm_am_tran", &[]),
     tran("rc_pwl_repeat_tran", &[]),
     tran("rc_pulse_count_tran", &[]),
+    // Discontinuous `r=` repeat: C loads the restart value at boundaries after
+    // the first, which the port reproduces.
+    tran("rc_pwl_sawtooth_tran", &[]),
     Supported {
         name: "rlc_series_ac",
         kind: AnalysisKind::Ac,
