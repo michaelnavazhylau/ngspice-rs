@@ -321,10 +321,13 @@ impl Circuit {
 
     /// `MUTtemp`'s inductive-system check, as a rejection: every connected
     /// group of coupled inductors must have a positive semidefinite
-    /// inductance matrix. The test runs on the matrix normalized to a unit
-    /// diagonal (`M_ij / sqrt(L_i L_j)`, a congruence that preserves
+    /// inductance matrix. The test runs on the matrix actually stamped
+    /// (self-inductances `INDinduct / m`, mutuals from `INDinduct`) normalized
+    /// to a unit diagonal (`M_ij / sqrt(L_i L_j)`, a congruence that preserves
     /// definiteness), whose eigenvalues are compared with a rounding
-    /// tolerance of `64 n eps` times the largest magnitude.
+    /// tolerance of `64 n eps` times the largest magnitude. C's own check puts
+    /// `INDinduct` on the diagonal; when only the stamped matrix fails (an
+    /// `m != 1`), the message says that C stays silent.
     fn check_inductive_systems(
         &self,
         values: &std::collections::BTreeMap<usize, InductanceValue>,
@@ -345,29 +348,42 @@ impl Circuit {
         for members in groups.values() {
             let n = members.len();
             let local = |slot: usize| members.iter().position(|member| *member == slot);
-            let mut matrix = spice_maths::Matrix::zeros(n, n);
-            for row in 0..n {
-                matrix.set(row, row, 1.0)?;
-            }
-            let mut couplings = Vec::new();
-            for (pair, mutual) in self.mutual.pairs.iter().zip(mutuals) {
-                let (Some(i), Some(j)) =
-                    (local(position(pair.first)), local(position(pair.second)))
-                else {
-                    continue;
-                };
-                let scale = (values[&pair.first].effective * values[&pair.second].effective).sqrt();
-                let normalized = mutual / scale;
-                matrix.add_to(i, j, normalized)?;
-                matrix.add_to(j, i, normalized)?;
-                couplings.push(pair.coupling);
-            }
-            let eigenvalues = matrix.symmetric_eigenvalues()?;
-            let largest = eigenvalues.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-            #[allow(clippy::cast_precision_loss)]
-            let tolerance = 64.0 * n as Real * Real::EPSILON * largest;
-            let smallest = eigenvalues.first().copied().unwrap_or(0.0);
-            if smallest < -tolerance {
+            // The smallest eigenvalue of the group's matrix normalized by
+            // `diagonal` (`M_ij / sqrt(d_i d_j)` off the unit diagonal), and
+            // its rounding tolerance.
+            let smallest = |diagonal: &dyn Fn(&InductanceValue) -> Real| -> SpiceResult<_> {
+                let mut matrix = spice_maths::Matrix::zeros(n, n);
+                for row in 0..n {
+                    matrix.set(row, row, 1.0)?;
+                }
+                let mut couplings = Vec::new();
+                for (pair, mutual) in self.mutual.pairs.iter().zip(mutuals) {
+                    let (Some(i), Some(j)) =
+                        (local(position(pair.first)), local(position(pair.second)))
+                    else {
+                        continue;
+                    };
+                    let scale =
+                        (diagonal(&values[&pair.first]) * diagonal(&values[&pair.second])).sqrt();
+                    let normalized = mutual / scale;
+                    matrix.add_to(i, j, normalized)?;
+                    matrix.add_to(j, i, normalized)?;
+                    couplings.push(pair.coupling);
+                }
+                let eigenvalues = matrix.symmetric_eigenvalues()?;
+                let largest = eigenvalues.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+                #[allow(clippy::cast_precision_loss)]
+                let tolerance = 64.0 * n as Real * Real::EPSILON * largest;
+                let smallest = eigenvalues.first().copied().unwrap_or(0.0);
+                Ok((smallest, tolerance, couplings))
+            };
+            // The matrix actually simulated: self-inductances as stamped
+            // (`INDinduct / m`), mutuals from `INDinduct` (as C).
+            let (stamped, tolerance, mut couplings) = smallest(&|value| value.effective)?;
+            if stamped < -tolerance {
+                // C's own check (`muttemp.c`) puts `INDinduct` (before `/m`)
+                // on the diagonal; it warns only when that matrix fails too.
+                let (c_matrix, c_tolerance, _) = smallest(&|value| value.coupling_base.abs())?;
                 couplings.sort_unstable();
                 couplings.dedup();
                 let names = |indices: &mut dyn Iterator<Item = usize>| {
@@ -383,12 +399,20 @@ impl Circuit {
                         .mutual_coupling()
                         .and_then(|coupling| coupling.location.cloned())
                 });
+                let cause = if c_matrix < -c_tolerance {
+                    "a coupling with |k| > 1 or an inconsistent set of couplings stores \
+                     negative energy; C only warns, see muttemp.c"
+                } else {
+                    "an inductor multiplicity m divides the self-inductance but not \
+                     M = k sqrt(L1 L2), which C computes from INDinduct before /m; C checks \
+                     that undivided matrix in muttemp.c, so it neither warns nor rejects \
+                     here, and simulates the indefinite system"
+                };
                 return Err(SpiceError::Unsupported {
                     feature: format!(
                         "the inductive system {inductor_names} coupled by {coupling_names} is not \
-                         positive semidefinite (smallest normalized eigenvalue {smallest:.6e}; \
-                         a coupling with |k| > 1 or an inconsistent set of couplings stores \
-                         negative energy; C only warns, see muttemp.c)"
+                         positive semidefinite as stamped (smallest normalized eigenvalue \
+                         {stamped:.6e}; {cause})"
                     ),
                     location,
                 });

@@ -5,8 +5,9 @@
 //! from the operating point), the diffsol BDF backend on the coupled mass
 //! matrix, and explicit failures.
 //!
-//! The committed C goldens `transformer_ac`, `transformer_tran` and
-//! `transformer_ic_uic_tran` are compared by `cargo xtask golden verify`.
+//! The committed C goldens `transformer_ac`, `transformer_tran`,
+//! `transformer_ic_uic_tran` and `transformer_model_uic_tran` are compared by
+//! `cargo xtask golden verify`.
 use std::path::Path;
 
 use spice_analysis::{AnalysisRequest, Plot, RunConfig, runner};
@@ -201,6 +202,45 @@ fn coupled_rl_decay_from_instance_ic_matches_the_matrix_exponential() {
     )
     .expect_err("BDF has no uic");
     assert!(error.to_string().contains("uic"), "{error}");
+}
+
+#[test]
+fn model_backed_coupled_inductors_start_from_their_instance_ic() {
+    // The same loops with l1 and l2 model-backed: uic seeds their branch
+    // currents from ic= exactly as for literal inductors, and the decay
+    // keeps truncation control on the coupled flux.
+    let deck = "l1 a 0 lm ic=10m\nr1 a 0 10\nl2 b 0 lm2 ic=-5m\nr2 b 0 20\nk1 l1 l2 0.7\n\
+                .model lm l(ind=1m)\n.model lm2 l(ind=2m)";
+    let literal = "l1 a 0 1m ic=10m\nr1 a 0 10\nl2 b 0 2m ic=-5m\nr2 b 0 20\nk1 l1 l2 0.7";
+    for options in ["", ".options method=gear"] {
+        let p = run(&format!("{deck}\n{options}\n.tran 1u 500u uic"));
+        let q = run(&format!("{literal}\n{options}\n.tran 1u 500u uic"));
+        assert_eq!(column(&p, "time"), column(&q, "time"), "{options}");
+        for name in ["i(l1)", "i(l2)"] {
+            assert_eq!(column(&p, name), column(&q, name), "{options} {name}");
+        }
+        let error = max_decay_error(&p, [10e-3, -5e-3], 0.0);
+        assert!(error < 2e-6, "{options}: max error {error:e} A");
+    }
+}
+
+#[test]
+fn indverbosity_is_a_documented_no_op() {
+    let p = run(&format!(
+        "{TRANSFORMER}\nk1 l1 l2 0.5\n.options indverbosity=2\n.ac lin 1 1k 1k"
+    ));
+    let q = run(&format!("{TRANSFORMER}\nk1 l1 l2 0.5\n.ac lin 1 1k 1k"));
+    assert_eq!(complex(&p, "v(s)", 0), complex(&q, "v(s)", 0));
+    // It never silences the definiteness rejection.
+    let error = run_with(
+        &format!("{TRANSFORMER}\nk1 l1 l2 1.5\n.options indverbosity=0\n.op"),
+        &[],
+    )
+    .expect_err("indefinite");
+    assert!(
+        error.to_string().contains("not positive semidefinite"),
+        "{error}"
+    );
 }
 
 #[test]

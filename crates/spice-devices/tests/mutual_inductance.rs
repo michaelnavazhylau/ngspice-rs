@@ -5,7 +5,9 @@
 use std::path::Path;
 
 use spice_core::{SpiceError, SpiceResult};
-use spice_devices::{AnalysisMode, Circuit, LoadRequest, ModelContext, MutualInductance, Registry};
+use spice_devices::{
+    AnalysisMode, Circuit, LoadRequest, ModelContext, MutualInductance, Registry, StorageKind,
+};
 use spice_maths::{IntegrationMethod, SparseMatrix, StepHistory, Vector, integrator::DEFAULT_XMU};
 use spice_netlist::{Parser, source::parse_deck_text};
 
@@ -189,6 +191,55 @@ fn model_backed_inductors_couple_through_their_undivided_inductance() {
         terms[index("l1")][0].inductance,
         0.5 * (2e-3_f64 * 4e-3).sqrt(),
     );
+}
+
+#[test]
+fn multiplicity_can_make_the_stamped_system_indefinite_where_c_stays_silent() {
+    // l1 stamps 10m / 2 = 5m but M = 0.9 sqrt(10m 40m) = 18m > sqrt(5m 40m):
+    // the simulated matrix is indefinite although C's own check (INDinduct
+    // on the diagonal, muttemp.c) passes and C prints nothing.
+    let deck = "r1 a 0 1\nr2 b 0 1\nl1 a 0 lm m=2\nl2 b 0 lm2\nk1 l1 l2 0.9\n\
+                .model lm l(ind=10m)\n.model lm2 l(ind=40m)";
+    let message = error(deck).to_string();
+    assert!(
+        message.contains("not positive semidefinite as stamped"),
+        "{message}"
+    );
+    assert!(message.contains("multiplicity m"), "{message}");
+    assert!(!message.contains("C only warns"), "{message}");
+    // With |k| > 1 C's matrix fails too, and the message says C warns.
+    let message = error(&deck.replace("0.9", "1.5")).to_string();
+    assert!(message.contains("C only warns"), "{message}");
+    assert!(!message.contains("multiplicity m"), "{message}");
+}
+
+#[test]
+fn model_backed_storage_elements_seed_uic_and_join_truncation_control() {
+    let c = circuit(
+        "r1 a 0 1\nr2 b 0 1\nl1 a 0 lm ic=10m m=2\nc1 b 0 cm ic=2 m=3\n\
+         .model lm l(ind=2m tc1=0.01)\n.model cm c(cap=1u tc1=0.02)",
+    )
+    .unwrap();
+    let index = |name: &str| c.devices().iter().position(|d| d.name() == name).unwrap();
+    let hot = ModelContext::new(77.0, 27.0);
+    let inductor = c.devices()[index("l1")]
+        .storage_element(&hot)
+        .unwrap()
+        .unwrap();
+    assert_eq!(inductor.kind, StorageKind::Inductor);
+    close(inductor.value, 2e-3 * 1.5 / 2.0);
+    assert_eq!(inductor.initial, Some(10e-3));
+    let capacitor = c.devices()[index("c1")]
+        .storage_element(&hot)
+        .unwrap()
+        .unwrap();
+    assert_eq!(capacitor.kind, StorageKind::Capacitor);
+    close(capacitor.value, 1e-6 * 2.0 * 3.0);
+    assert_eq!(capacitor.initial, Some(2.0));
+    for name in ["l1", "c1"] {
+        assert_eq!(c.devices()[index(name)].truncation_slots(), [0], "{name}");
+    }
+    assert!(c.devices()[index("r1")].truncation_slots().is_empty());
 }
 
 fn load(

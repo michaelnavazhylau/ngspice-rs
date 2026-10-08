@@ -1,0 +1,96 @@
+# ngspice-rs token-dump v1
+file: netlists/transformer_model_uic_tran.cir
+title: "Model-backed coupled inductors from instance ic=, uic, Gear-2" @netlists/transformer_model_uic_tran.cir:1:1
+card 1 @netlists/transformer_model_uic_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "l1 a 0 lm ic=10m m=2"
+  kind: device(l)
+  token 1 5:1 word "l1"
+  token 2 5:4 word "a"
+  token 3 5:6 number "0" value=0e0
+  token 4 5:8 word "lm"
+  token 5 5:11 word "ic"
+  token 6 5:13 equals "="
+  token 7 5:14 number "10m" value=1e-2
+  token 8 5:18 word "m"
+  token 9 5:19 equals "="
+  token 10 5:20 number "2" value=2e0
+card 2 @netlists/transformer_model_uic_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 a 0 10"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "a"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 number "10" value=1e1
+card 3 @netlists/transformer_model_uic_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "l2 b 0 lm2 ic=-5m"
+  kind: device(l)
+  token 1 7:1 word "l2"
+  token 2 7:4 word "b"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 word "lm2"
+  token 5 7:12 word "ic"
+  token 6 7:14 equals "="
+  token 7 7:15 number "-5m" value=-5e-3
+card 4 @netlists/transformer_model_uic_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "r2 b 0 20"
+  kind: device(r)
+  token 1 8:1 word "r2"
+  token 2 8:4 word "b"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "20" value=2e1
+card 5 @netlists/transformer_model_uic_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "k1 l1 l2 0.5"
+  kind: device(k)
+  token 1 9:1 word "k1"
+  token 2 9:4 word "l1"
+  token 3 9:7 word "l2"
+  token 4 9:10 number "0.5" value=5e-1
+card 6 @netlists/transformer_model_uic_tran.cir:10:1 lines=10-10 continuations=0
+  raw: ".model lm l(ind=2m tc1=0.01)"
+  kind: dot(.model)
+  token 1 10:1 word ".model"
+  token 2 10:8 word "lm"
+  token 3 10:11 word "l"
+  token 4 10:12 lparen "("
+  token 5 10:13 word "ind"
+  token 6 10:16 equals "="
+  token 7 10:17 number "2m" value=2e-3
+  token 8 10:20 word "tc1"
+  token 9 10:23 equals "="
+  token 10 10:24 number "0.01" value=1e-2
+  token 11 10:28 rparen ")"
+card 7 @netlists/transformer_model_uic_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".model lm2 l(ind=2m)"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "lm2"
+  token 3 11:12 word "l"
+  token 4 11:13 lparen "("
+  token 5 11:14 word "ind"
+  token 6 11:17 equals "="
+  token 7 11:18 number "2m" value=2e-3
+  token 8 11:20 rparen ")"
+card 8 @netlists/transformer_model_uic_tran.cir:12:1 lines=12-12 continuations=0
+  raw: ".options temp=50 method=gear indverbosity=2"
+  kind: dot(.options)
+  token 1 12:1 word ".options"
+  token 2 12:10 word "temp"
+  token 3 12:14 equals "="
+  token 4 12:15 number "50" value=5e1
+  token 5 12:18 word "method"
+  token 6 12:24 equals "="
+  token 7 12:25 word "gear"
+  token 8 12:30 word "indverbosity"
+  token 9 12:42 equals "="
+  token 10 12:43 number "2" value=2e0
+card 9 @netlists/transformer_model_uic_tran.cir:13:1 lines=13-13 continuations=0
+  raw: ".tran 1u 300u uic"
+  kind: dot(.tran)
+  token 1 13:1 word ".tran"
+  token 2 13:7 number "1u" value=1e-6
+  token 3 13:10 number "300u" value=3e-4
+  token 4 13:15 word "uic"
+card 10 @netlists/transformer_model_uic_tran.cir:14:1 lines=14-14 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 14:1 word ".end"

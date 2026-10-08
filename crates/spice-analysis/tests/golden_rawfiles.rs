@@ -511,6 +511,24 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "transformer_model_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 311,
+        variables: &["time", "v(a)", "v(b)", "i(l1)", "i(l2)"],
+        // Model-backed coupled inductors (l1: tc1 and m = 2 at 50 C) decay from
+        // their instance ic= under uic and Gear-2: the first point keeps the
+        // ic= currents, M uses INDinduct before /m (muttemp.c).
+        values: &[
+            ("time", 0, 1.000000000000000e-08, 0.0),
+            ("i(l1)", 0, 9.997473067814353e-03, 0.0),
+            ("i(l2)", 0, -4.998098938423450e-03, 0.0),
+            ("time", 310, 3.000000000000000e-04, 0.0),
+            ("i(l1)", 310, 4.628569432759175e-04, 0.0),
+            ("i(l2)", 310, 2.817878342905811e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "coupled_cap_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,

@@ -458,8 +458,13 @@ pub trait Device: fmt::Debug {
     /// The charge/flux-storage description used to seed initial conditions
     /// (`CAPgetic`/`INDgetic`-style `ic=` handling, see `capload.c`/`indload.c`).
     /// `None` (the default) for devices that store no charge or flux in the
-    /// state slots named by [`Self::truncation_slot`].
-    fn storage_element(&self) -> Option<StorageElement> {
+    /// state slots named by [`Self::truncation_slot`]. The value is evaluated
+    /// under `context` (model-backed C/L depend on temperature, TC, scale and
+    /// `m`).
+    fn storage_element(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<StorageElement>> {
         None
     }
 

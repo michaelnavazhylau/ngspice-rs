@@ -26,8 +26,12 @@ instance R remains allowed. Model R and all base/effective C/L must be positive.
 Units: R/RSH in ohms (RSH per square); C in farads; L in henries; geometry in
 metres; CJ in F/m²; CJSW in F/m; TC1 in K⁻¹; TC2 in K⁻²; TEMP/TNOM input in
 Celsius. Scale and multiplicity are positive finite dimensionless scalars, not
-integer-only. C IC is volts; L IC is amperes. IC is retained, **not** newly
-applied: transient continues to reject it until `.ic`/`uic` initialization lands.
+integer-only. C IC is volts; L IC is amperes. Under companion `.tran ... uic`
+the instance IC seeds the model-backed C/L exactly as a literal one (charge
+from the effective, temperature-adjusted capacitance; inductor branch current),
+and the model-backed C/L charge/flux takes part in truncation control like the
+scalar device it delegates to (#80 review fix; checked against C for coupled
+inductors and a TC/`m` capacitor). Without `uic` IC is ignored, as in C.
 
 ## Values, geometry and defaults
 

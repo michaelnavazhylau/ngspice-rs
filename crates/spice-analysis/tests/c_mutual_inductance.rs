@@ -140,3 +140,24 @@ fn c_only_warns_about_an_indefinite_system_that_the_port_rejects() {
         "{error}"
     );
 }
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; documents that C does not check the stamped L/m matrix"]
+fn c_is_silent_when_multiplicity_makes_the_stamped_system_indefinite() {
+    // l1 stamps 10m / 2 but M = 0.9 sqrt(10m 40m): C's check uses INDinduct
+    // (before /m) on its diagonal, passes and prints nothing; the port
+    // rejects the indefinite matrix it would actually simulate.
+    let body = "v1 a 0 dc 0 ac 1\nr1 a b 1\nl1 b 0 lm m=2\nl2 c 0 lm2\nr2 c 0 10\n\
+                k1 l1 l2 0.9\n.model lm l(ind=10m)\n.model lm2 l(ind=40m)";
+    let scratch = Scratch::new();
+    let output = scratch.run(&format!(
+        "k\n{body}\n.ac lin 1 1k 1k\n.print ac v(c)\n.end\n"
+    ));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success());
+    assert!(!stderr.contains("Inductive System"), "{stderr}");
+    let error = rust(&format!("k\n{body}\n.ac lin 1 1k 1k\n.end\n")).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("multiplicity m"), "{message}");
+    assert!(!message.contains("C only warns"), "{message}");
+}

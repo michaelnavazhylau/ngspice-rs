@@ -81,7 +81,8 @@ impl PassiveParameters {
         })
     }
     /// Capacitor initial volts or inductor initial amperes, if given.
-    /// Retained for the existing explicit transient IC rejection, not applied.
+    /// Applied by the companion transient under `uic` (see
+    /// `Device::storage_element`), ignored otherwise as in C.
     #[must_use]
     pub const fn initial_condition(&self) -> Option<Real> {
         self.initial_condition

@@ -75,6 +75,7 @@ cards on the same pair add up, as C's loads add them.
 | `|k| > 1`, or an inconsistent set (each `|k| < 1`) | **warning only** ("is not positive definite"), then simulates | `Unsupported`: every connected group of coupled inductors must have a positive **semi**definite inductance matrix (eigenvalues of the unit-diagonal normalized matrix `>= -64 n eps max|lambda|`) |
 | all `|k| = 1` | exempt from the warning | accepted when the matrix is semidefinite (ideal transformer); C's exemption also covers indefinite `±1` sets, which the port rejects |
 | duplicate K on one pair | warning; loads sum both, check uses the last | summed, check on the sum |
+| inductor multiplicity `m != 1` | checks the matrix with `INDinduct` (before `/m`) on the diagonal, so `l1 b 0 lm m=2` (`ind=10m`), `l2 40m`, `k = 0.9` passes silently, then simulates the matrix with `INDinduct / m` on the diagonal, which is indefinite (its transient diverges) | the check runs on the matrix actually stamped (`INDinduct / m` diagonal, `M` from `INDinduct`) and rejects it; the message says the multiplicity, not `|k| > 1`, is the cause and that C does not warn here |
 
 A non-positive-semidefinite inductance matrix stores negative magnetic energy:
 its transient grows without bound and its AC answer has no physical meaning,
@@ -86,7 +87,9 @@ The opt-in test `c_mutual_inductance` shows that C only warns for `k = 1.5`.
 - C goldens in `cargo xtask golden verify`: `transformer_ac` (1:2 transformer,
   a three-winding K in a subcircuit, a negative coupling; linear AC bound),
   `transformer_tran` (PULSE into a k = 0.99 transformer, trapezoidal) and
-  `transformer_ic_uic_tran` (coupled `ic=` free decay, `uic`, Gear-2), all
+  `transformer_ic_uic_tran` (coupled `ic=` free decay, `uic`, Gear-2) and
+  `transformer_model_uic_tran` (model-backed coupled inductors with TC and
+  `m = 2` at 50 C decaying from instance `ic=`, `uic`, Gear-2), all
   with `compare::TRAN` and worst error 0.000 of the bound. `transformer_tran`
   has no BDF variant: C's backward-Euler restart error after the 1 us pulse
   corner (1 % of `i(l1)` at 2 us against a reltol = 1e-7 reference) exceeds
@@ -109,10 +112,17 @@ The opt-in test `c_mutual_inductance` shows that C only warns for `k = 1.5`.
 - Opt-in live C (`NGSPICE_BIN` absolute): `cargo test -p spice-analysis --test
   c_mutual_inductance --locked -- --ignored` compares complex AC for duplicate
   K cards, model-backed inductors with `m=`/TC at 50 C and a `±1` three-winding
-  system (1e-10 relative), and checks C's warning-only behaviour.
+  system (1e-10 relative), checks C's warning-only behaviour, and checks that
+  C stays silent when `m` makes the stamped matrix indefinite.
+
+Model-backed inductors (and capacitors) expose the same truncation slot and
+storage element as the scalar devices they delegate to, evaluated at the
+analysis temperature: their coupled flux takes part in truncation control and
+their instance `ic=` seeds `uic` (golden `transformer_model_uic_tran`).
+
+`.options indverbosity=N` is accepted as a documented no-op: in C it selects
+only which stderr diagnostics `muttemp.c` prints, while the port prints none
+and always applies the rejection above.
 
 Not covered: K sensitivities (`sens_coeff`) and `.pz`/noise (no such analyses
-in the port). A pre-existing limitation of model-backed C/L, coupled or not, is
-not addressed here: the model-backed device exposes no truncation slot or
-storage element, so its flux takes no part in truncation control and its
-instance `ic=` is not applied under `uic` (literal inductors are unaffected).
+in the port).

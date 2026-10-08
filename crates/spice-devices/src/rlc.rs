@@ -279,12 +279,15 @@ impl Device for Capacitor {
         Some(QUANTITY)
     }
 
-    fn storage_element(&self) -> Option<crate::traits::StorageElement> {
-        Some(crate::traits::StorageElement {
+    fn storage_element(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<crate::traits::StorageElement>> {
+        Some(Ok(crate::traits::StorageElement {
             kind: crate::traits::StorageKind::Capacitor,
             value: self.capacitance,
             initial: self.initial_voltage,
-        })
+        }))
     }
 
     /// `capload.c`: an open circuit at DC (recording `q = C v` when state
@@ -402,12 +405,15 @@ impl Device for Inductor {
         Some(QUANTITY)
     }
 
-    fn storage_element(&self) -> Option<crate::traits::StorageElement> {
-        Some(crate::traits::StorageElement {
+    fn storage_element(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<crate::traits::StorageElement>> {
+        Some(Ok(crate::traits::StorageElement {
             kind: crate::traits::StorageKind::Inductor,
             value: self.inductance,
             initial: self.initial_current,
-        })
+        }))
     }
 
     fn inductance(

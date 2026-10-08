@@ -293,6 +293,7 @@ const SUPPORTED: &[Supported] = &[
     },
     tran("transformer_tran", &[]),
     tran("transformer_ic_uic_tran", &[]),
+    tran("transformer_model_uic_tran", &[]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

@@ -113,6 +113,10 @@ registered in `golden verify`: `transformer_ac` (linear AC bound),
 reproduces the three. `transformer_tran` has no BDF variant because C's own
 restart error after the 1 us pulse corner exceeds `compare::TRAN_RESTART`; the
 BDF backend is instead checked against a reltol = 1e-7 companion reference.
+A review follow-up added a fourth golden, `transformer_model_uic_tran`
+(model-backed coupled inductors with instance `ic=` under `uic`, captured the
+same way; 42 verified fixtures), after model-backed C/L gained their
+truncation slot and `uic` storage element.
 Opt-in live C:
 
 ```sh
