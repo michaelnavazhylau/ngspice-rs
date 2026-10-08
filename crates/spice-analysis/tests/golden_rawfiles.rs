@@ -1063,6 +1063,8 @@ const EXPECTATIONS: &[Expectation] = &[
     // The AC drive of vin passes through each B source's derivative at the
     // 0.6 V bias: v(sq) = 6 x 0.6 + 0.5 cos(0.6) at every frequency, and
     // b3 = 1k i(vin) v(in) linearises to 1k (0.6 x -1m + -0.6m x 1) = -1.2.
+    // b4 reads hertz (C re-solves the bias per frequency): its derivative is
+    // f/1k + 1.2 sqrt(f), 3.8047 at 10 Hz and 2200 at 1 MHz.
     Expectation {
         fixture: "bsource_ac",
         plotname: "AC Analysis",
@@ -1072,7 +1074,9 @@ const EXPECTATIONS: &[Expectation] = &[
             "frequency",
             "i(b1)",
             "i(b3)",
+            "i(b4)",
             "v(cur)",
+            "v(hz)",
             "v(in)",
             "v(out1)",
             "v(out2)",
@@ -1084,9 +1088,11 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(sq)", 0, 4.012667807454839e+00, 0.0),
             ("v(cur)", 0, -1.200000000000000e+00, 0.0),
             ("i(vin)", 0, -1.000000000000000e-03, 0.0),
+            ("v(hz)", 0, 3.804733192202056e+00, 0.0),
             ("frequency", 25, 1.000000000000002e+06, 0.0),
-            ("v(out1)", 25, 1.016418054920059e-05, -6.386342988625775e-03),
-            ("v(out2)", 25, 3.008985388246520e-06, -1.366126857795614e-02),
+            ("v(hz)", 25, 2.200000000000002e+03, 0.0),
+            ("v(out1)", 25, 1.016418054920059e-05, -6.386342988625776e-03),
+            ("v(out2)", 25, 3.008985388246513e-06, -1.366126857795614e-02),
         ],
     },
     // At 1 ms the envelope has settled: v(drive) = 1.5 sin(4 pi) x ... +

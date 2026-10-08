@@ -61,6 +61,7 @@ const EXPRESSIONS: &[&str] = &[
     "v(in) > v(b) ? exp(v(in)) : cos(v(in))",
     "(v(in) < 0.5 && v(b) != 0) + (v(in) >= 0 || v(b) <= 0)",
     "temper*v(in) + pi + e",
+    "hertz*v(in)^2 + hertz",
     "1.23456789012345*v(in)",
 ];
 

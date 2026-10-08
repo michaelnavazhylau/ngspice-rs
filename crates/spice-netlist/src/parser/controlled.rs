@@ -158,10 +158,13 @@ fn implicit_poly(input: &Input<'_>) -> bool {
     let named = |keyword: &str| {
         second.is_keyword(keyword) && tokens.get(2).is_some_and(|t| t.kind == TokenKind::Equals)
     };
-    !(named("m") || named("ic") || named("gain"))
-        && !matches!(second.kind, TokenKind::Equals)
-        && !second.text.to_ascii_lowercase().starts_with("sens_")
-        && !second.is_keyword("control")
+    let setter_tail = named("m")
+        || named("ic")
+        || named("gain")
+        || matches!(second.kind, TokenKind::Equals)
+        || second.text.to_ascii_lowercase().starts_with("sens_")
+        || second.is_keyword("control");
+    !setter_tail
 }
 
 /// The fourth-token forms that `inpcom.c` turns into B sources or XSPICE

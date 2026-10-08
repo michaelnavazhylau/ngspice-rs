@@ -38,6 +38,7 @@ fn environment(values: &[Real]) -> Environment<'_> {
         time: 1.25e-3,
         temperature: 27.,
         gmin: 1e-12,
+        frequency: 50.,
     }
 }
 
@@ -137,7 +138,7 @@ fn every_function_has_a_derivative_matching_finite_differences() {
         "v(a) > v(b) ? exp(v(a)) : cos(v(b))",
         "(v(a) < 0.5 && v(b) != 0) + (v(a) >= 0 || v(b) <= 0) + !(v(a) == v(b))",
         "i(vx)*1k + v(a)*i(vx)",
-        "time*v(a) + temper*v(b)",
+        "time*v(a) + temper*v(b) + hertz*v(a)*v(b)",
         "pi*v(a) + e*v(b)",
     ] {
         assert_gradient(text, POINTS);
@@ -181,6 +182,7 @@ fn values_follow_the_c_functions() {
         std::f64::consts::PI + std::f64::consts::E
     );
     assert_eq!(at("time*1000 + temper + v(a)"), 1.25 + 27.);
+    assert_eq!(at("hertz + v(a)"), 50.);
     // sin/cos/tan reduce their argument like C's MODULUS before evaluating.
     let x: Real = 100.;
     let reduced =
@@ -251,7 +253,7 @@ fn unported_and_unknown_functions_are_rejected_at_compile_time() {
             .unwrap();
         Program::compile(&parsed.root)
     };
-    for text in ["ddt(v(a))", "gauss(1, 0.1, 3)", "hertz*v(a)"] {
+    for text in ["ddt(v(a))", "gauss(1, 0.1, 3)"] {
         let error = compile(text).unwrap_err();
         assert!(error.is_not_yet_ported(), "{text}: {error}");
     }
@@ -453,7 +455,6 @@ fn invalid_instances_are_explicit_errors() {
             "b1 a 0 v=1 temp=30 dtemp=2\nr1 a 0 1",
             "both temp= and dtemp=",
         ),
-        ("b1 a 0 v=hertz\nr1 a 0 1", "hertz"),
         ("b1 a 0 v=k\nr1 a 0 1", "undefined parameter [k]"),
         ("b1 a 0 v=sqr(2)\nr1 a 0 1", "no such function 'sqr'"),
     ] {

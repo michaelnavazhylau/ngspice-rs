@@ -317,6 +317,10 @@ pub struct ModelContext {
     /// artificial nodal continuation conductance of DC gmin stepping. Default
     /// [`DEFAULT_GMIN`]; must be finite and nonnegative.
     pub gmin: Real,
+    /// The analysis frequency in Hz that a behavioural source's `hertz` reads
+    /// (C `CKTomega / 2 pi`): the AC frequency while an AC analysis re-solves
+    /// the operating point for a frequency-dependent circuit, 0 otherwise.
+    pub frequency: Real,
 }
 
 /// ngspice's default junction `gmin` (`cktntask.c`: `TSKgmin = 1e-12`).
@@ -336,7 +340,15 @@ impl ModelContext {
             nominal_temperature,
             resistor_overrides: [None; MAX_RESISTOR_OVERRIDES],
             gmin: DEFAULT_GMIN,
+            frequency: 0.,
         }
+    }
+
+    /// This context with the `hertz` frequency replaced (validated on use).
+    #[must_use]
+    pub const fn with_frequency(mut self, frequency: Real) -> Self {
+        self.frequency = frequency;
+        self
     }
 
     /// This context with junction `gmin` replaced (validated on use, see
@@ -373,6 +385,15 @@ impl ModelContext {
     pub(crate) fn validate(&self, location: &SourceLoc) -> SpiceResult<()> {
         temperature_kelvin(self.temperature, location)?;
         temperature_kelvin(self.nominal_temperature, location)?;
+        if !(self.frequency.is_finite() && self.frequency >= 0.) {
+            return Err(SpiceError::parse(
+                location.clone(),
+                format!(
+                    "analysis frequency must be finite and nonnegative, got {}",
+                    self.frequency
+                ),
+            ));
+        }
         if !(self.gmin.is_finite() && self.gmin >= 0.) {
             return Err(SpiceError::parse(
                 location.clone(),

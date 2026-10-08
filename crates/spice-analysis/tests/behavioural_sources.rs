@@ -140,6 +140,21 @@ fn ac_uses_the_bias_point_derivative() {
 }
 
 #[test]
+fn hertz_re_solves_the_operating_point_at_every_ac_frequency() {
+    // acan.c (CKTvarHertz): the bias, and so the linearisation, follows the
+    // frequency. d/dv(in) of v(in)^2 hertz is 2 v(in) hertz = f at 0.5 V;
+    // hertz is 0 in the operating point.
+    let body = "vin in 0 dc 0.5 ac 1\nrin in 0 1k\nb1 o 0 v=v(in)^2*hertz + hertz/1k\nr1 o 0 1k";
+    let plot = run(body, AnalysisKind::Ac, &["lin", "3", "100", "300"]).unwrap();
+    for point in 0..3 {
+        let f = value(&plot, "frequency", point);
+        close(value(&plot, "v(o)", point), f, 1e-12);
+    }
+    let op = run(body, AnalysisKind::OperatingPoint, &[]).unwrap();
+    close(value(&op, "v(o)", 0), 0., 1e-12);
+}
+
+#[test]
 fn transient_time_functions_are_evaluated_at_each_accepted_time() {
     let plot = run(
         "b1 o 0 v=sin(2*pi*1k*time) + pwl(time, 0, 0, 0.5m, 1, 1m, 0)\nr1 o 0 1k\n\

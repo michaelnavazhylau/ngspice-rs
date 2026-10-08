@@ -3,7 +3,7 @@
 **Implemented: B arbitrary sources (`v=`/`i=` expressions) and the nonlinear
 E/G/F/H forms `VALUE=`/`VOL=`/`CUR=`, `TABLE`, `POLY(n)` and the implicit
 spice2g6 `POLY(1)`, for `.op`, `.dc`, `.ac` and the companion `.tran`
-(trapezoidal/Gear-2).** `LAPLACE`, `hertz`, `ddt()` and `gauss()` are explicit
+(trapezoidal/Gear-2).** `LAPLACE`, `ddt()` and `gauss()` are explicit
 `NotYetPorted` errors; the diffsol BDF backend rejects behavioural sources
 like every nonlinear device.
 
@@ -136,7 +136,12 @@ source to `n-` (V/I conventions; a delivering voltage B source has a negative
 `i(b1)`). AC stamps the same Jacobian at the bias point without RHS
 (`ASRCacLoad`), real and frequency independent. `time` is 0 in OP/DC and the AC
 linearisation, the transient time otherwise; `temper` is the circuit
-temperature in Celsius (it follows `.dc temp` sweeps).
+temperature in Celsius (it follows `.dc temp` sweeps); `hertz` is the AC
+frequency and 0 elsewhere (also in an `.op` after an `.ac` of the same deck,
+as observed with the C binary). As `acan.c` does when `CKTvarHertz` is set,
+an AC analysis of a circuit with a `hertz`-dependent device re-solves the
+operating point at every frequency (warm-started from the previous one) and
+linearises there.
 
 **Breakpoints:** ngspice registers none for B sources, and neither does the
 port; a time function (including `pwl(time, ...)` corners and `u(time-t0)`) is
@@ -198,7 +203,7 @@ rewritten and must name a findable branch (V, E, H or voltage B).
 | --- | --- |
 | malformed expression, trailing text, two `v=`/`i=`, missing `v=`/`i=` | positioned `Parse` error |
 | undefined `.param`, unknown function, wrong argument count, non-literal or non-monotonic `pwl()` points | `Parse` error at the name |
-| `hertz` (C re-solves the operating point at every AC frequency), `ddt()`, `gauss()`, `LAPLACE` | `NotYetPorted` |
+| `ddt()`, `gauss()`, `LAPLACE` | `NotYetPorted` |
 | `v=` with coinciding nodes | `Unsupported` ("shorted ASRC") |
 | `temp=` and `dtemp=` together | `Unsupported` (C ignores `dtemp` with a message) |
 | domain error or non-finite value/derivative during a load | `Numerical`, naming the function |
@@ -224,15 +229,15 @@ rewritten and must name a findable branch (V, E, H or voltage B).
   `conformance/parser/behavioural_sources.cir` and the
   `error_behavioural_*`/`error_controlled_poly` cases are snapshotted.
 - `crates/spice-analysis/tests/behavioural_sources.rs`: analytic OP/DC/AC/
-  transient results, `temper` sweeps and undamped large steps.
+  transient results, `temper` sweeps, `hertz` in AC and undamped large steps.
 - Opt-in: `NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test
-  c_behavioural_reference -- --ignored` compares 46 expressions' values (OP)
+  c_behavioural_reference -- --ignored` compares 47 expressions' values (OP)
   and derivatives (one-point AC) with the C binary at four bias points to
   `1e-12` relative.
 
 ## Limits
 
-- `hertz`, `ddt()`, `gauss()`, `LAPLACE` (XSPICE `s_xfer`), the PSPICE/HSPICE/
+- `ddt()`, `gauss()`, `LAPLACE` (XSPICE `s_xfer`), the PSPICE/HSPICE/
   LTspice compatibility variants of `^`, `exp` and `pwr`, and user XSPICE `a`
   cards are not ported.
 - `.func` bodies are expanded after the lowering passes, so an `i()` that only

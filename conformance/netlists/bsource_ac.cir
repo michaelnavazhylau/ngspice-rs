@@ -2,7 +2,9 @@ B-source AC: small-signal linearisation at the bias point
 * Nonlinear B sources biased by DC and driven by an AC source: the AC
 * response uses their Jacobian at the operating point (asrcacld.c), for a
 * voltage output (a squarer driving an RC) and a current output (an
-* exponential transconductor into an RC), plus a sensed branch current (#79).
+* exponential transconductor into an RC), plus a sensed branch current; b4
+* reads hertz, so the operating point is re-solved at every frequency
+* (acan.c, CKTvarHertz) (#79).
 vin in 0 dc 0.6 ac 1
 rin in 0 1k
 b1 sq 0 v=v(in)^2*3 + 0.5*sin(v(in))
@@ -13,5 +15,7 @@ r2 out2 0 1k
 c2 out2 0 47n
 b3 cur 0 v=i(vin)*1k*v(in)
 r3 cur 0 1k
+b4 hz 0 v=v(in)*hertz/1k + v(in)^2*sqrt(hertz)
+r4 hz 0 1k
 .ac dec 5 10 1meg
 .end

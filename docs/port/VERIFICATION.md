@@ -165,7 +165,7 @@ Opt-in live check (`NGSPICE_BIN` absolute):
 NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_behavioural_reference --locked -- --ignored
 ```
 
-It compares 46 B expressions (every `inpptree.c` function, operators, C's
+It compares 47 B expressions (every `inpptree.c` function, operators, C's
 derivative quirks and the 11-digit literal rounding) by value (OP) and
 derivative (one-point AC) at four bias points with `1e-12` relative. Details:
 [BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md).

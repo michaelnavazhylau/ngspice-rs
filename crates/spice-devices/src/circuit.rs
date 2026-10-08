@@ -503,6 +503,7 @@ impl Circuit {
                 temperature: request.model_context.temperature,
                 nominal_temperature: request.model_context.nominal_temperature,
                 gmin: request.model_context.gmin,
+                frequency: request.model_context.frequency,
                 mode: request.mode,
                 branches: self.branch_rows[index].clone(),
                 controls: self.controls(index)?,

@@ -26,7 +26,9 @@
 //! `reciprocm=1` divides by `m`.
 //!
 //! `time` is the transient time (0 in OP/DC and in the AC linearisation),
-//! `temper` the circuit temperature. ngspice sets no breakpoints for B
+//! `temper` the circuit temperature and `hertz` the AC frequency (0 outside
+//! AC; an AC analysis of a circuit using it re-solves the operating point at
+//! every frequency, as `acan.c` does for `CKTvarHertz`). ngspice sets no breakpoints for B
 //! sources, and neither does the port: a time-dependent expression is
 //! followed by the ordinary truncation-error step control.
 //!
@@ -159,8 +161,7 @@ impl Behavioural {
         unknowns: &MnaUnknowns,
         controls: &[usize],
         time: Real,
-        temperature: Real,
-        gmin: Real,
+        context: &crate::ModelContext,
     ) -> SpiceResult<(Evaluation, Vec<Real>, Vec<Option<usize>>)> {
         let columns = self.columns(unknowns, controls)?;
         let values: Vec<Real> = columns
@@ -172,8 +173,9 @@ impl Behavioural {
             .evaluate(&Environment {
                 values: &values,
                 time,
-                temperature,
-                gmin,
+                temperature: context.temperature,
+                gmin: context.gmin,
+                frequency: context.frequency,
             })
             .map_err(|error| match error {
                 SpiceError::Numerical { message, .. } => SpiceError::Numerical {
@@ -313,6 +315,11 @@ impl Device for Behavioural {
         false
     }
 
+    /// `hertz` makes the DC equations frequency dependent (C `CKTvarHertz`).
+    fn depends_on_frequency(&self) -> bool {
+        self.program.uses_frequency()
+    }
+
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         let time = match context.mode {
             AnalysisMode::Transient { time, .. } => time,
@@ -329,8 +336,7 @@ impl Device for Behavioural {
             context.unknowns,
             context.controls,
             time,
-            context.temperature,
-            context.gmin,
+            &context.model_context(),
         )?;
         let factor = self.checked_factor(context.temperature)?;
         let branch = (!context.branches.is_empty()).then_some(context.branches.start);
@@ -358,8 +364,7 @@ impl Device for Behavioural {
             context.unknowns,
             context.controls,
             0.,
-            temperature,
-            context.model_context.gmin,
+            context.model_context,
         )?;
         let factor = self.checked_factor(temperature)?;
         self.stamp_into(

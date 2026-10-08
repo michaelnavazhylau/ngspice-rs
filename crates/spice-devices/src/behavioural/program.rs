@@ -55,6 +55,8 @@ pub struct Environment<'a> {
     pub temperature: Real,
     /// The circuit gmin; `PTdivide` adds `gmin * 1e-20` to divisors.
     pub gmin: Real,
+    /// `hertz`: the analysis frequency in Hz (C `CKTomega / 2 pi`).
+    pub frequency: Real,
 }
 
 /// A value and its partial derivatives with respect to each quantity.
@@ -201,6 +203,7 @@ enum Node {
     Variable(usize),
     Time,
     Temperature,
+    Frequency,
     Unary(Unary, Box<Node>),
     Operator(Operator, Box<Node>, Box<Node>),
     Binary(Binary, Box<Node>, Box<Node>),
@@ -242,12 +245,27 @@ impl Program {
     /// Names the front end should have resolved (`.param` values, `.func`
     /// calls), unknown functions or wrong argument counts (positioned parse
     /// errors), non-literal or non-monotonic `pwl()` points (C:
-    /// `prepare_PTF_PWL`), and [`SpiceError::NotYetPorted`] for `hertz`,
-    /// `ddt()` and `gauss()`.
+    /// `prepare_PTF_PWL`), and [`SpiceError::NotYetPorted`] for `ddt()` and
+    /// `gauss()`.
     pub fn compile(expr: &BExpr) -> SpiceResult<Self> {
         let mut quantities = Vec::new();
         let root = compile(expr, &mut quantities)?;
         Ok(Self { root, quantities })
+    }
+
+    /// True when the expression reads `hertz`.
+    #[must_use]
+    pub fn uses_frequency(&self) -> bool {
+        fn walk(node: &Node) -> bool {
+            match node {
+                Node::Frequency => true,
+                Node::Constant(_) | Node::Variable(_) | Node::Time | Node::Temperature => false,
+                Node::Unary(_, a) | Node::Pwl(a, _) | Node::Table(a, _) => walk(a),
+                Node::Operator(_, a, b) | Node::Binary(_, a, b) => walk(a) || walk(b),
+                Node::Ternary(a, b, c) => walk(a) || walk(b) || walk(c),
+            }
+        }
+        walk(&self.root)
     }
 
     /// The circuit quantities the expression reads, in variable order.
@@ -300,16 +318,7 @@ fn compile(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Node> {
             "temper" => Node::Temperature,
             "pi" => Node::Constant(std::f64::consts::PI),
             "e" => Node::Constant(std::f64::consts::E),
-            "hertz" => {
-                return Err(SpiceError::not_yet_ported(
-                    format!(
-                        "{}: 'hertz' in a behavioural source (C re-solves the operating point \
-                         at every AC frequency, CKTvarHertz)",
-                        expr.span.start
-                    ),
-                    "src/spicelib/analysis/acan.c, src/spicelib/parser/inp2b.c",
-                ));
-            }
+            "hertz" => Node::Frequency,
             other => {
                 return Err(parse_error(
                     expr,
@@ -680,6 +689,7 @@ impl Evaluator<'_> {
             }
             Node::Time => (self.environment.time, self.zero()),
             Node::Temperature => (self.environment.temperature, self.zero()),
+            Node::Frequency => (self.environment.frequency, self.zero()),
             Node::Unary(function, argument) => {
                 let (x, dx) = self.eval(argument)?;
                 let (value, slope) = self.unary(*function, x)?;
@@ -951,6 +961,7 @@ fn describe(node: &Node) -> String {
         Node::Variable(_) => "a circuit quantity".into(),
         Node::Time => "time".into(),
         Node::Temperature => "temper".into(),
+        Node::Frequency => "hertz".into(),
         Node::Unary(function, _) => format!("{}()", function.name()),
         Node::Operator(op, _, _) => format!(
             "'{}'",
