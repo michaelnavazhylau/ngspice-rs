@@ -13,11 +13,12 @@
 //!   small" at the same instant in both engines. The port reproduces C's accepted
 //!   timepoints, so the samples are compared point by point.
 //! * **Sweeps.** An upward and a downward `.dc` sweep of the same deck: the
-//!   hysteresis carried from point to point must match.
-//! * **AC divergence.** C's `ACan` reloads with `MODEINITSMSIG`, which copies
-//!   its zero `CKTstate1` into `CKTstate0`, so a switch closed at the operating
-//!   point is open in C's AC sweep; the port uses the converged state. The test
-//!   pins both values so the documented divergence cannot drift silently.
+//!   hysteresis carried from point to point must match. Decimal steps (`0.1`,
+//!   `-0.25m`) whose accumulated values land next to a threshold, and nested
+//!   sweeps whose every inner sweep restarts from the instance flags.
+//! * **AC.** C's `ACan` reloads with `MODEINITSMSIG`, which copies its zero
+//!   `CKTstate1` into `CKTstate0`, so a switch closed at the operating point is
+//!   open in the AC sweep; the port reproduces that.
 //!
 //! Ordinary `cargo test` never needs C: everything here is `#[ignore]`d.
 
@@ -203,33 +204,116 @@ const SWEEP: &str = "vc c 0 0\nvin in 0 1\nr1 in a 1k\ns1 a 0 c 0 sm\nr2 in b 1k
 #[test]
 #[ignore = "requires absolute NGSPICE_BIN; runs a temporary C deck out of process"]
 fn upward_and_downward_sweeps_match_c() {
-    // Binary-exact steps: C accumulates the sweep value (`dctrcurv.c`) while the
-    // port computes `start + i step`, which differ by an ulp for steps like
-    // 0.1 and decide a control sitting exactly on a threshold differently.
     for (tag, sweep) in [("up", "dc vc -1 3 0.125"), ("down", "dc vc 3 -1 -0.125")] {
         let ours = run_rust(SWEEP, sweep);
         let theirs = run_c(tag, SWEEP, sweep);
-        assert_eq!(column(&ours, "v(c)").len(), column(&theirs, "v(c)").len());
-        for name in ["v(a)", "v(b)", "v(e)", "i(vs)"] {
-            for (x, y) in column(&ours, name).iter().zip(column(&theirs, name)) {
-                assert!((x - y).abs() <= 1e-6 * y.abs() + 1e-12, "{tag} {name}");
-            }
+        same_points(&ours, &theirs, "v(c)", &["v(a)", "v(b)", "v(e)", "i(vs)"]);
+    }
+}
+
+/// Decimal steps land on round thresholds only through C's accumulated sweep
+/// values (`dctrcurv.c`: `value += step`): at `0.1 * 10` C has
+/// `0.9999999999999999` and `1.5000000000000004` at the fifteenth point, which
+/// decide `vt=1` (no band) and `vt=1 vh=0.5` (band edge) differently from the
+/// exact `start + i step`. The port must visit C's values.
+const DECIMAL: &str = "vc c 0 0\nvin in 0 1\nr1 in a 1k\ns1 a 0 c 0 sm\nr2 in b 1k\ns2 b 0 c 0 sh\n\
+    .model sm sw(vt=1 ron=10 roff=1meg)\n.model sh sw(vt=1 vh=0.5 ron=10 roff=1meg)\n";
+
+const DECIMAL_W: &str = "i1 0 c 0\nrc c 0 1k\nvs c d 0\nrd d 0 1\nvin in 0 1\nr1 in b 1k\nw1 b 0 vs wm\n\
+    .model wm csw(it=0.75m ih=0.25m ron=10 roff=1meg)\n";
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs a temporary C deck out of process"]
+fn decimal_sweep_steps_visit_cs_accumulated_values() {
+    for (tag, deck, sweep, names) in [
+        ("d-up", DECIMAL, "dc vc 0 2 0.1", &["v(a)", "v(b)"][..]),
+        ("d-up3", DECIMAL, "dc vc 0 3 0.1", &["v(a)", "v(b)"][..]),
+        ("d-down", DECIMAL, "dc vc 3 0 -0.1", &["v(a)", "v(b)"][..]),
+        (
+            "w-down",
+            DECIMAL_W,
+            "dc i1 3m -1m -0.25m",
+            &["v(b)", "i(vs)"][..],
+        ),
+    ] {
+        let ours = run_rust(deck, sweep);
+        let theirs = run_c(tag, deck, sweep);
+        // C's raw file rounds the swept values, so they are compared with a
+        // tolerance; the switch states they decide are what must agree.
+        let (a, b) = (scale(&ours), scale(&theirs));
+        assert_eq!(a.len(), b.len(), "{tag}");
+        for (x, y) in a.iter().zip(&b) {
+            assert!((x - y).abs() <= 1e-12 * y.abs().max(1e-3), "{tag}: {x} {y}");
         }
+        same_points(&ours, &theirs, "v(c)", names);
+    }
+}
+
+/// Nested sweeps: when the inner sweep wraps for the next outer value, C sets
+/// `firstTime` and MODEINITJCT again, so the first inner point is decided from
+/// the instance flag (here OFF, open inside the band), not carried over from
+/// the last point of the previous inner sweep (closed at `vc = 3`).
+fn scale(plot: &Plot) -> Vec<Real> {
+    column(plot, &plot.variables[0].name)
+}
+
+const NESTED: &str = "vc c 0 0\nvdd vdd 0 1\nr1 vdd a 1k\ns1 a 0 c 0 swh\n\
+    r2 vdd b 1k\ns2 b 0 c 0 swh on\n\
+    .model swh sw(vt=1 vh=0.5 ron=10 roff=1meg)\n";
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs a temporary C deck out of process"]
+fn nested_sweeps_restart_each_inner_sweep_from_the_flags() {
+    for (tag, sweep) in [
+        ("n-up", "dc vc 1 3 0.25 vdd 1 2 1"),
+        ("n-down", "dc vc 3 -1 -0.5 vdd 1 3 1"),
+        ("n-dec", "dc vc 0 2 0.1 vdd 1 2 0.5"),
+    ] {
+        let ours = run_rust(NESTED, sweep);
+        let theirs = run_c(tag, NESTED, sweep);
+        same_points(&ours, &theirs, "v(c)", &["v(a)", "v(b)", "v(vdd)"]);
     }
 }
 
 const AC: &str = "vc c 0 2\nvin in 0 0 ac 1\nr1 in a 1k\ns1 a 0 c 0 sm\n\
     .model sm sw(vt=1 vh=0.5 ron=10 roff=1meg)\n";
 
+/// A switch that is off inside its band at the operating point (HYST_OFF), a
+/// closed one, an ON-flagged one and a W, with AC on the control too.
+const AC_MIX: &str = "vc ctrl 0 dc 2 ac 1\nvdd vdd 0 dc 1 ac 1\nr1 vdd a 1k\n\
+    s1 a 0 ctrl 0 sm off\nc1 a 0 1u\nr2 vdd b 1k\ns2 b 0 ctrl 0 sn on\n\
+    rc ctrl d 1k\nvs d 0 0\nr3 vdd e 1k\nw1 e 0 vs wm\nc3 e 0 1u\n\
+    .model sm sw(vt=1 vh=0.2 ron=10 roff=1meg)\n.model sn sw(vt=2.5 vh=1 ron=20 roff=2meg)\n\
+    .model wm csw(it=1m ih=0.5m ron=30)\n";
+
+/// Same rows, and every named complex vector within `1e-6 |C| + 1e-12`.
+fn same_complex(ours: &Plot, theirs: &Plot, names: &[&str]) {
+    for name in names {
+        let (a, b) = (ours.column(name).unwrap(), theirs.column(name).unwrap());
+        assert_eq!(a.len(), b.len(), "{name}");
+        for (k, (x, y)) in a.iter().zip(&b).enumerate() {
+            let scale = 1e-6 * y.re.hypot(y.im) + 1e-12;
+            assert!(
+                (x.re - y.re).abs() <= scale && (x.im - y.im).abs() <= scale,
+                "{name}[{k}]: port {x:?}, C {y:?}"
+            );
+        }
+    }
+}
+
 #[test]
 #[ignore = "requires absolute NGSPICE_BIN; runs a temporary C deck out of process"]
-fn ac_uses_the_operating_point_state_unlike_c() {
-    let ours = run_rust(AC, "ac lin 1 1k 1k").value("v(a)", 0).unwrap().re;
-    let theirs = run_c("ac", AC, "ac lin 1 1k 1k")
-        .value("v(a)", 0)
-        .unwrap()
-        .re;
-    // Port: closed (10 ohm) as at the operating point; C: open (1 Mohm).
-    assert!((ours - 10. / 1010.).abs() < 1e-12, "port {ours}");
-    assert!((theirs - 1e6 / (1e6 + 1e3)).abs() < 1e-9, "C {theirs}");
+fn ac_uses_cs_minitsmsig_state() {
+    let ours = run_rust(AC, "ac lin 1 1k 1k");
+    let theirs = run_c("ac", AC, "ac lin 1 1k 1k");
+    // Closed at the operating point, open in both engines' AC (CKTstate1 = 0).
+    assert!((ours.value("v(a)", 0).unwrap().re - 1e6 / (1e6 + 1e3)).abs() < 1e-9);
+    same_complex(&ours, &theirs, &["v(a)", "i(vin)"]);
+    let ours = run_rust(AC_MIX, "ac dec 2 10 1k");
+    let theirs = run_c("ac-mix", AC_MIX, "ac dec 2 10 1k");
+    same_complex(
+        &ours,
+        &theirs,
+        &["frequency", "v(a)", "v(b)", "v(e)", "i(vdd)", "i(vs)"],
+    );
 }

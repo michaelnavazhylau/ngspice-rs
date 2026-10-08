@@ -300,6 +300,28 @@ const SUPPORTED: &[Supported] = &[
     // immutable linear assembly).
     tran("switch_tran", &[]),
     tran("switch_w_tran", &[]),
+    // A `.dc` with a decimal step: C's accumulated sweep values decide
+    // switches at their thresholds (`dctrcurv.c` `value += step`).
+    Supported {
+        name: "switch_dc_decimal",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // AC uses C's MODEINITSMSIG switch state (the zero CKTstate1: open), not
+    // the operating point's.
+    Supported {
+        name: "switch_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

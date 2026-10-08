@@ -638,19 +638,19 @@ impl Circuit {
         self.small_signal_system_at(context, bias, None)
     }
 
-    /// [`Self::small_signal_system`] at a solved operating point whose
-    /// converged trial `state` devices with discrete state (switches) read
-    /// through [`crate::LinearContext::states`].
+    /// [`Self::small_signal_system`] with a full state vector (C's
+    /// `CKTstate0` at `MODEINITSMSIG`) that devices with discrete state
+    /// (switches) read through [`crate::LinearContext::states`].
     /// # Errors
     /// As [`Self::small_signal_system`], or a state of the wrong length.
     pub fn small_signal_system_at(
         &self,
         context: &ModelContext,
         bias: &Vector,
-        state: Option<&TrialState>,
+        state: Option<&[Real]>,
     ) -> SpiceResult<crate::linear::LinearSystem> {
         self.check_numbering()?;
-        if state.is_some_and(|state| state.values().len() != self.state_len) {
+        if state.is_some_and(|state| state.len() != self.state_len) {
             return Err(SpiceError::circuit(
                 "small-signal bias state does not match the circuit numbering",
             ));
@@ -683,7 +683,7 @@ impl Circuit {
                     states: match state {
                         Some(state) => Some(
                             state
-                                .slice(self.state_rows[index].clone())
+                                .get(self.state_rows[index].clone())
                                 .ok_or_else(|| SpiceError::circuit("bias state is too short"))?,
                         ),
                         None => None,

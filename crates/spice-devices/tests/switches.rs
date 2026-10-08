@@ -325,31 +325,34 @@ fn timestep_limits_follow_swtrunc() {
 }
 
 #[test]
-fn small_signal_conductance_follows_the_bias_state() {
+fn small_signal_conductance_follows_swacload() {
     let c = circuit(BAND).unwrap();
-    let history = c.state_history();
     let a = c.unknowns().node_row(c.nodes().get("a").unwrap()).unwrap();
-    // The solved bias state (closed) is used, not a reload from the flags.
-    let (closed, _) = load(&c, &history, 2., IterationPhase::Predict, None);
-    let bias = solution(&c, 0.);
+    // The small-signal state is C's CKTstate0 at MODEINITSMSIG (a copy of
+    // CKTstate1): code 0 is open, and every non-zero code, including "off in
+    // the band" (2), stamps the on conductance as SWacLoad does.
+    let bias = solution(&c, 2.);
+    for (code, conductance) in [(0., 1e-6), (1., 0.1), (2., 0.1), (3., 0.1)] {
+        let system = c
+            .small_signal_system_at(&ModelContext::default(), &bias, Some(&[code, 2.]))
+            .unwrap();
+        close(system.a.get(a, a) - 1e-3, conductance);
+    }
+    // An invalid code is an error, not a guess.
+    assert!(
+        c.small_signal_system_at(&ModelContext::default(), &bias, Some(&[0.5, 2.]))
+            .is_err()
+    );
+    // Without a state (zero-bias assemblies) the MODEINITJCT state at `bias`.
     let system = c
-        .small_signal_system_at(&ModelContext::default(), &bias, Some(&closed))
-        .unwrap();
-    close(system.a.get(a, a) - 1e-3, 0.1);
-    // Without a solved state (zero-bias assemblies) the MODEINITJCT state.
-    let system = c
-        .small_signal_system(&ModelContext::default(), &bias)
+        .small_signal_system(&ModelContext::default(), &solution(&c, 0.))
         .unwrap();
     close(system.a.get(a, a) - 1e-3, 1e-6);
     // The switch has no immutable linear form: the BDF assembly refuses it.
     let mut c = c;
     assert!(c.linear_system().is_err());
     assert!(
-        c.small_signal_system_at(
-            &ModelContext::default(),
-            &bias,
-            Some(&StateHistory::new(1).trial())
-        )
-        .is_err()
+        c.small_signal_system_at(&ModelContext::default(), &bias, Some(&[0.]))
+            .is_err()
     );
 }

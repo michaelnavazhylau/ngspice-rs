@@ -1,7 +1,7 @@
 //! S/W switches through the production analyses (GitHub #81): operating-point
 //! flags and hysteresis bands, DC-sweep hysteresis carried by accepted state,
 //! transient threshold crossings with `swtrunc.c` step control, Newton
-//! nonconvergence on state flips, AC at the operating point's state and
+//! nonconvergence on state flips, AC at C's `MODEINITSMSIG` state and
 //! explicit failures.
 //!
 //! The committed C goldens `switch_op`, `switch_dc`, `switch_tran` and
@@ -202,18 +202,25 @@ fn current_switches_follow_the_sensed_branch_current() {
 }
 
 #[test]
-fn ac_linearizes_at_the_operating_point_state() {
-    // The switch is closed at the operating point (2 V > 1.5 V): the AC divider
-    // is 10 / (1k + 10). C's ACan would use its zero CKTstate1 (open) here;
-    // the port deliberately uses the converged state (docs/port/SWITCHES.md).
-    let plot = run(
-        "vc c 0 2\nvin in 0 0 ac 1\nr1 in a 1k\ns1 a 0 c 0 sm\n\
-         .model sm sw(vt=1 vh=0.5 ron=10 roff=1meg)",
-        AnalysisKind::Ac,
-        &["lin", "1", "1k", "1k"],
-    )
-    .unwrap();
-    close(plot.value("v(a)", 0).unwrap().re, CLOSED, 1e-12);
+fn ac_uses_cs_minitsmsig_state_not_the_operating_point() {
+    // The switch is closed at the operating point (2 V > 1.5 V), but C's ACan
+    // reloads with MODEINITSMSIG, which copies the zero CKTstate1 ("really
+    // off") into CKTstate0: the AC divider is the open 1M / (1k + 1M), as in C
+    // (docs/port/SWITCHES.md). The operating point itself is closed.
+    let deck = "vc c 0 2\nvin in 0 0 ac 1\nr1 in a 1k\ns1 a 0 c 0 sm\n\
+                .model sm sw(vt=1 vh=0.5 ron=10 roff=1meg)";
+    let plot = run(deck, AnalysisKind::Ac, &["lin", "1", "1k", "1k"]).unwrap();
+    close(plot.value("v(a)", 0).unwrap().re, OPEN, 1e-12);
+    // The same for an ON-flagged switch inside its band (HYST_ON at the
+    // operating point) and for W.
+    let on = "vc c 0 1.2\nvin in 0 0 ac 1\nr1 in a 1k\ns1 a 0 c 0 sm on\n\
+              .model sm sw(vt=1 vh=0.5 ron=10 roff=1meg)";
+    let plot = run(on, AnalysisKind::Ac, &["lin", "1", "1k", "1k"]).unwrap();
+    close(plot.value("v(a)", 0).unwrap().re, OPEN, 1e-12);
+    let w = "vc c 0 2\nrc c d 1k\nvs d 0 0\nvin in 0 0 ac 1\nr1 in a 1k\nw1 a 0 vs wm\n\
+             .model wm csw(it=1m ih=0.5m ron=10 roff=1meg)";
+    let plot = run(w, AnalysisKind::Ac, &["lin", "1", "1k", "1k"]).unwrap();
+    close(plot.value("v(a)", 0).unwrap().re, OPEN, 1e-12);
 }
 
 #[test]
@@ -338,4 +345,99 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
     )
     .unwrap();
     assert_eq!(first, Some(IterationPhase::Predict));
+}
+
+#[test]
+fn accumulated_grids_visit_cs_dctrcurv_values() {
+    use spice_analysis::sweep::{SweepSpec, SweepTarget};
+    let spec = |target, start, stop, step| SweepSpec {
+        target,
+        start,
+        stop,
+        step,
+    };
+    let v = || SweepTarget::VoltageSource("vc".into());
+    // C: value += step while sign(step) (value - stop) <= 1e3 DBL_EPSILON.
+    let up = spec(v(), 0., 2., 0.1).accumulated_grid().unwrap();
+    let mut value = 0.;
+    let mut want = vec![];
+    for _ in 0..21 {
+        want.push(value);
+        value += 0.1;
+    }
+    assert_eq!(up, want);
+    assert_eq!(up[10], 0.9999999999999999);
+    assert_eq!(up[20], 2.0000000000000004);
+    // The exact grid differs there; continuous devices keep using it.
+    assert_eq!(spec(v(), 0., 2., 0.1).grid().unwrap()[10], 1.);
+    let down = spec(v(), 3., 0., -0.1).accumulated_grid().unwrap();
+    assert_eq!(down.len(), 31);
+    assert!(down[30].abs() < 1e-13);
+    // Binary-exact steps are the same either way.
+    let exact = spec(v(), 3., -3., -0.125);
+    assert_eq!(exact.accumulated_grid().unwrap(), exact.grid().unwrap());
+    // Temperatures accumulate in kelvin (CKTtemp) and are reported in Celsius.
+    let t = spec(SweepTarget::Temperature, 27., 28., 0.1)
+        .accumulated_grid()
+        .unwrap();
+    let mut kelvin: f64 = 27. + 273.15;
+    let mut want = vec![];
+    while (kelvin - 273.15) - 28. <= 1e3 * f64::EPSILON {
+        want.push(kelvin - 273.15);
+        kelvin += 0.1;
+    }
+    assert_eq!(t, want);
+    // C's absolute stop test: the kelvin rounding leaves 28 C just out of
+    // reach, so C (and the port) stop at the tenth step.
+    assert_eq!(t.len(), 10);
+    // The grid's input validation still applies.
+    assert!(spec(v(), 0., 1., 0.).accumulated_grid().is_err());
+    assert!(spec(v(), 0., 1., -0.1).accumulated_grid().is_err());
+    assert!(
+        spec(SweepTarget::Resistor("r1".into()), 1., -1., -1.)
+            .accumulated_grid()
+            .is_err()
+    );
+}
+
+#[test]
+fn decimal_sweeps_decide_thresholds_at_cs_accumulated_values() {
+    // C's tenth value of `0 2 0.1` is 0.9999999999999999: a VT = 1 switch
+    // (no band) is still open there and closes at 1.1 V.
+    let plot = run(
+        "vc c 0 0\nvin in 0 1\nr1 in a 1k\ns1 a 0 c 0 sm\n\
+         .model sm sw(vt=1 ron=10 roff=1meg)",
+        AnalysisKind::DcSweep,
+        &["vc", "0", "2", "0.1"],
+    )
+    .unwrap();
+    let sweep = column(&plot, "sweep");
+    assert_eq!(sweep[10], 0.9999999999999999);
+    let a = column(&plot, "v(a)");
+    close(a[10], OPEN, 1e-12);
+    close(a[11], CLOSED, 1e-12);
+}
+
+#[test]
+fn nested_inner_sweeps_restart_from_the_instance_flags() {
+    // Inner vc 1 .. 3 (band 0.5 .. 1.5 V, OFF), outer vdd 1, 2. The first
+    // inner sweep closes at 1.75 V and stays closed up to 3 V; the second
+    // starts again from the OFF flag at 1 V (open inside the band), as C's
+    // `firstTime` restart does, instead of continuing the closed state.
+    let plot = run(
+        "vc c 0 0\nvdd vdd 0 1\nr1 vdd a 1k\ns1 a 0 c 0 swh\n\
+         .model swh sw(vt=1 vh=0.5 ron=10 roff=1meg)",
+        AnalysisKind::DcSweep,
+        &["vc", "1", "3", "0.25", "vdd", "1", "2", "1"],
+    )
+    .unwrap();
+    let a = column(&plot, "v(a)");
+    assert_eq!(a.len(), 18);
+    for (k, scale) in [(0, 1.), (9, 2.)] {
+        for value in &a[k..k + 3] {
+            close(*value, scale * OPEN, 1e-12);
+        }
+        close(a[k + 3], scale * CLOSED, 1e-12);
+        close(a[k + 8], scale * CLOSED, 1e-12);
+    }
 }

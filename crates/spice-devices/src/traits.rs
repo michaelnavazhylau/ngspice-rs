@@ -372,6 +372,13 @@ pub trait Device: fmt::Debug {
         false
     }
 
+    /// True when the device holds a discrete state (a switch position) that
+    /// a last-bit change of its control can flip, so drivers must reproduce
+    /// C's exact control values (e.g. `dctrcurv.c`'s accumulated sweep values).
+    fn has_discrete_state(&self) -> bool {
+        false
+    }
+
     /// How many state slots (C `CKTnumStates`) the device owns. Slots are
     /// allocated after the branch rows, in device order.
     fn state_count(&self) -> usize {

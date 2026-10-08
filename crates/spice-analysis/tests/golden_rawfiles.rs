@@ -979,6 +979,40 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "switch_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 5,
+        variables: &[
+            "frequency",
+            "v(a)",
+            "v(b)",
+            "v(ctrl)",
+            "v(e)",
+            "v(f)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vs)",
+            "v(x)",
+        ],
+        // ACan's MODEINITSMSIG load copies the zero CKTstate1 into CKTstate0,
+        // so every switch is open in the AC sweep although s2 (on in its band),
+        // s3 and w1 are closed at the operating point: v(b) = 2M/2.001M,
+        // v(f) = 1M/1.001M, and v(a)/v(e) are 1k into 1u with the open switch.
+        values: &[
+            ("frequency", 0, 1.000000000000000e+01, 0.0),
+            ("v(a)", 0, 9.950804240186061e-01, -6.246028670984753e-02),
+            ("v(b)", 0, 9.995002498750625e-01, 0.0),
+            ("v(e)", 0, 9.960676814189385e-01, -6.258477814589433e-02),
+            ("v(f)", 0, 9.990009990009990e-01, 0.0),
+            ("i(vs)", 0, 1.000000000000000e-03, 0.0),
+            ("frequency", 4, 1.000000000000000e+03, 0.0),
+            ("v(a)", 4, 2.472800515685005e-02, -1.552154232541272e-01),
+            ("i(vdd)", 4, -1.952066222911747e-03, -3.104385193811054e-04),
+        ],
+    },
+    Expectation {
         fixture: "switch_dc",
         plotname: "DC transfer characteristic",
         flags: PlotFlags::Real,
@@ -1018,6 +1052,43 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(e)", 26, 3.846153846153846e-02, 0.0),
             ("v(e)", 30, 9.996667777407531e-01, 0.0),
             ("i(vsense)", 48, -3.000000000000000e-03, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_dc_decimal",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 18,
+        variables: &[
+            "v(v-sweep)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(ctrl)",
+            "v(d)",
+            "v(e)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vsense)",
+        ],
+        // C accumulates vc += 0.1 from 0.5 V: the fifth step is
+        // 0.9999999999999999, so s1 (VT = 1, no band) is still open (0.999)
+        // and closes at 1.1 V (1/101); the tenth is 1.5000000000000002, above
+        // s2's band edge, so s2 and w1 (IT = 1.5 mA) close there. s4 (ON) is
+        // closed from the first point by its flag (20 ohm: 1/51), s3 (OFF)
+        // open until 2.1 V.
+        values: &[
+            ("v(a)", 5, 9.990009990009990e-01, 0.0),
+            ("v(a)", 6, 9.900990099009901e-03, 0.0),
+            ("v(b)", 9, 9.990009990009990e-01, 0.0),
+            ("v(b)", 10, 9.900990099009901e-03, 0.0),
+            ("v(e)", 9, 9.996667777407531e-01, 0.0),
+            ("v(e)", 10, 2.912621359223301e-02, 0.0),
+            ("v(c)", 15, 9.995002498750625e-01, 0.0),
+            ("v(c)", 16, 1.960784313725490e-02, 0.0),
+            ("v(d)", 0, 1.960784313725490e-02, 0.0),
         ],
     },
     Expectation {

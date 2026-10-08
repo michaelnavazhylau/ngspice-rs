@@ -524,6 +524,10 @@ impl Device for Switch {
         true
     }
 
+    fn has_discrete_state(&self) -> bool {
+        true
+    }
+
     fn state_count(&self) -> usize {
         2
     }
@@ -565,12 +569,16 @@ impl Device for Switch {
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
-        let state = match context.states {
-            Some(states) => self
-                .stored(states.get(STATE).copied(), "bias-point")?
-                .ok_or_else(|| {
-                    SpiceError::circuit(format!("{}: missing bias-point state", self.name))
-                })?,
+        let closed = match context.states {
+            // SWacLoad/CSWacLoad: any non-zero code, including "off in the
+            // band", stamps the on conductance.
+            Some(states) => {
+                self.stored(states.get(STATE).copied(), "small-signal")?
+                    .ok_or_else(|| {
+                        SpiceError::circuit(format!("{}: missing small-signal state", self.name))
+                    })?
+                    != SwitchState::ReallyOff
+            }
             // Zero-bias assemblies (forcing/breakpoint extraction) carry no
             // solved state: use the MODEINITJCT state at `bias`.
             None => {
@@ -589,10 +597,16 @@ impl Device for Switch {
                     },
                     context.controls,
                 )?;
-                self.flag_state(control)
+                self.flag_state(control).is_closed()
             }
         };
-        let g = self.conductance(state, context.model_context.gmin);
+        let g = if closed {
+            self.model.on_conductance
+        } else {
+            self.model
+                .off_conductance
+                .unwrap_or(context.model_context.gmin)
+        };
         context.nodal([self.terminals[0], self.terminals[1]], g, false)
     }
 

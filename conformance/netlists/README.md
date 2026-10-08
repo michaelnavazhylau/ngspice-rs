@@ -90,6 +90,8 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `switch_dc` | `.dc` | downward sweep through S/W bands (positive, negative and zero hysteresis): accepted switch state carried from point to point |
 | `switch_tran` | `.tran` | PULSE-controlled charge sharing, SIN-controlled discharge, a self-controlled relaxation oscillator (`swtrunc.c` step control) |
 | `switch_w_tran` | `.tran` | W switches sensing a SIN and a PULSE current (positive and negative hysteresis, ON flag) |
+| `switch_dc_decimal` | `.dc` | 0.1 V step: C's accumulated sweep values (`0.9999999999999999`, `1.5000000000000002`) decide S and W at their thresholds; ON/OFF flags at the first point |
+| `switch_ac` | `.ac` | C's `MODEINITSMSIG` switch state: every switch open in AC, including ones closed at the operating point |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -106,7 +108,7 @@ The three `controlled_*` decks (#78) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 See [CONTROLLED_SOURCES.md](../../docs/port/CONTROLLED_SOURCES.md).
 
-The four `switch_*` decks (#81) were captured one at a time with
+The six `switch_*` decks (#81) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
-Every plotted node is a source or capacitor node, so no plotted value jumps
-between samples where a switch flips.
+In the two transient decks every plotted node is a source or capacitor node,
+so no plotted value jumps between samples where a switch flips.

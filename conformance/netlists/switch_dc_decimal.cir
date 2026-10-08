@@ -1,0 +1,29 @@
+Switches in a DC sweep with a decimal step
+* vc sweeps 0.5 .. 2.2 V in 0.1 V steps. C accumulates the swept value
+* (dctrcurv.c: value += step), giving 0.9999999999999999 at the fifth step
+* and 1.5000000000000002 at the tenth instead of the exact 1.0 and 1.5:
+* S1 (VT = 1, no band) stays open at the fifth point and S2 (band 1 +- 0.5 V,
+* OFF flag) closes at the tenth. S3 (OFF) and S4 (ON) share the band
+* 1.2 +- 0.85 V, so the first point is decided by their flags and both close
+* above 2.05 V. W1 senses vc/1k through vsense with IT = 1.5 mA, IH = 0
+* (closing at the accumulated 1.5000000000000002 mA, not at 1.5 mA).
+vc ctrl 0 dc 0
+vdd vdd 0 dc 1
+r1 vdd a 1k
+s1 a 0 ctrl 0 sm
+r2 vdd b 1k
+s2 b 0 ctrl 0 sh
+r3 vdd c 1k
+s3 c 0 ctrl 0 sb off
+r4 vdd d 1k
+s4 d 0 ctrl 0 sb on
+rsense ctrl sx 1k
+vsense sx 0 dc 0
+r5 vdd e 1k
+w1 e 0 vsense wm
+.model sm sw(vt=1 ron=10 roff=1meg)
+.model sh sw(vt=1 vh=0.5 ron=10 roff=1meg)
+.model sb sw(vt=1.2 vh=0.85 ron=20 roff=2meg)
+.model wm csw(it=1.5m ron=30 roff=3meg)
+.dc vc 0.5 2.2 0.1
+.end

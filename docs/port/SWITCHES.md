@@ -73,7 +73,21 @@ maps the previous state (S: `MODEINITPRED` swaps really-on and really-off).
 **DC sweeps** keep an accepted-state history from point to point
 (`dctrcurv.c` rotates its state vectors), so hysteresis is visible across a
 sweep. Each point after the first starts in `Predict`; its gmin/source
-fallbacks restart in `Junction` against the same history.
+fallbacks restart in `Junction` against the same history. In a nested sweep
+the first point of **every** inner sweep is solved like the very first point
+(C sets `firstTime` and `MODEINITJCT` again when the inner sweep wraps), so it
+is decided from the instance flags, not from the last point of the previous
+inner sweep; its converged state then becomes the history (C's `firstTime`
+copy of `CKTstate0` into `CKTstate1`).
+
+A switch control that lands exactly on a threshold is decided by the last
+bit of the swept value, so in circuits with discrete-state devices
+(`Device::has_discrete_state`) the sweep visits C's accumulated values
+(`SweepSpec::accumulated_grid`: `value += step` with C's absolute
+`1e3 DBL_EPSILON` stop test, temperatures accumulated in kelvin) instead of
+`start + i step`. With `.dc vc 0 2 0.1` C's tenth value is
+`0.9999999999999999`, not `1`, and a `VT = 1` switch stays open there in both
+engines (`switch_dc_decimal`).
 
 **Transient**: the initial operating point's converged state (not a reload
 from the flags) seeds the history; every timepoint starts in `Predict`.
@@ -90,16 +104,20 @@ the port does the same. C's `cswtrunc.c` would apply the same rule with
 `5e-5`, but `CSWload` never stores the control value (the store is commented
 out, a `FIXME` in C), so W sets no limit in either engine.
 
-## AC (deliberate divergence)
+## AC
 
-The small-signal conductance is that of the converged operating point's state
-(codes 1 and 3 on), the same rule the DC load used. C's `ACan` instead reloads
-with `MODEINITSMSIG`, which copies `CKTstate1` (still zero, "really off",
-after a plain operating point) into `CKTstate0`, and `SWacLoad`/`CSWacLoad`
-then treat every non-zero code (including off-in-band) as on. So C's AC sweep
-sees a switch that is closed at the operating point as **open**. The opt-in
-test `c_switches::ac_uses_the_operating_point_state_unlike_c` pins both values.
-No AC golden is captured for switches.
+The port reproduces C. `ACan` reloads with `MODEINITSMSIG` after `CKTop`;
+`SWload`/`CSWload` then copy `CKTstate1` into `CKTstate0`, and
+`SWacLoad`/`CSWacLoad` stamp the on conductance for every non-zero code
+(including off-in-band) and the off conductance for code 0. `CKTop` never
+accepts or rotates states, so `CKTstate1` is still the zero ("really off")
+vector, and C's AC sweep sees every switch as **open**, even one closed at the
+operating point (checked in C after a preceding `.dc`/`.tran` too). The AC
+driver therefore assembles the small-signal system with the accepted history's
+latest vector (zero for the operating point it just solved) through
+`Circuit::small_signal_system_at`, not with the operating point's own state.
+Golden `switch_ac` (S off and on in their bands, S and W really on at the
+operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
 
 ## Verification
 
@@ -107,28 +125,39 @@ No AC golden is captured for switches.
   flags, defaults, a W latch), `switch_dc` (`.dc` downwards through S/W
   bands with positive, negative and zero hysteresis), `switch_tran` (PULSE-
   and SIN-controlled S, charge sharing, a relaxation oscillator) and
-  `switch_w_tran` (W sensing SIN and PULSE currents). The port reproduces C's
-  accepted timepoints on these decks (identical point counts; worst error
-  0.000 of the `compare::TRAN` bound).
+  `switch_w_tran` (W sensing SIN and PULSE currents), `switch_dc_decimal`
+  (a `0.1` V step whose accumulated values decide S and W at their
+  thresholds) and `switch_ac` (C's `MODEINITSMSIG` state). The port
+  reproduces C's accepted timepoints on these decks (identical point counts;
+  worst error 0.000 of the `compare::TRAN` bound).
 * `spice-devices/tests/switches.rs`: elaboration errors, C defaults, trial
   isolation (dropped trials never change the accepted state), hysteresis and
   threshold crossings, flag/band decisions, `Float` nonconvergence, W branch
-  sensing, `swtrunc.c` limits and the small-signal state.
+  sensing, `swtrunc.c` limits and the `SWacLoad` small-signal rule.
 * `spice-analysis/tests/switches.rs`: production `.op`/`.dc`/`.ac`/`.tran`,
   step control on a resistive ramp, the phased Newton contract and explicit
   diffsol/`uic` failures.
 * Opt-in live C (`NGSPICE_BIN=... cargo test -p spice-analysis --test
   c_switches -- --ignored`): a resistive ramp (identical steps), negative
   hysteresis with a PULSE and an ON-flagged W, switches in a subcircuit, up
-  and down DC sweeps, a chattering switch that fails with "timestep too small"
-  at the same instant in both engines, and the AC divergence.
+  and down DC sweeps, decimal-step sweeps (`0.1`, `-0.1`, `-0.25m`), nested
+  sweeps whose inner sweeps restart from the flags, a chattering switch that
+  fails with "timestep too small" at the same instant in both engines, and AC
+  with C's `MODEINITSMSIG` state.
 
 ## Limits
 
-* `.dc` sweep values are computed as `start + i step` while C accumulates
-  `value += step`; for steps that are not binary-exact (for example `0.1`) the
-  two differ by an ulp, which decides a control that lands exactly on a
-  threshold differently. Binary-exact steps match C.
+* Numeric literals: C's `INPevaluate` builds a number from its digits and a
+  power of ten and does not always return the nearest double (C reads `0.7`
+  as `0.7000000000000001`), while the shared port parser
+  (`spice_core::parse_spice_number`) rounds correctly. A sweep start, step or
+  threshold literal that C reads one ulp off can still decide a control that
+  lands exactly on a threshold differently. This is a parser-wide divergence,
+  not specific to switches; the switch fixtures use literals both engines read
+  identically.
+* Only the outer value of a nested sweep is written by the port as
+  `sweep(<name>)`; C writes no such vector, so nested switch sweeps are
+  compared with live C (`c_switches`) rather than a golden.
 * C always tries a warm `MODEINITPRED` solve at a sweep point after the first
   and then `CKTop` (a direct `MODEINITJCT` attempt, then stepping). Without
   a warm-start limit (`itl2`, `trcvmaxiter=`) the port's per-point solve runs
