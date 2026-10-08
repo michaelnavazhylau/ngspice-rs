@@ -342,6 +342,7 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         solution: &solution,
         temperature: 77.0,
         nominal_temperature: 27.0,
+        gmin: spice_devices::DEFAULT_GMIN,
         mode: AnalysisMode::OperatingPoint,
         branches: 0..0,
         integration: None,

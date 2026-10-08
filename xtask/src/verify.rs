@@ -228,7 +228,22 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::AC,
         },
         variants: &[],
+    }, // `.option` coverage (#110/#107): `gmin={gj}` (evaluated against
+    // `.param`) is the junction gmin of the reverse-biased diode/BJT junctions,
+    // with itl1/itl2 and documented no-ops; the reverse region is nearly linear,
+    // so the 1 ppm NONLINEAR bound applies.
+    Supported {
+        name: "options_gmin_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
     },
+    // Trapezoidal `xmu=0.2` and `itl4` on the companion driver. No BDF variant:
+    // backend=diffsol rejects both options explicitly.
+    tran("options_xmu_tran", &[]),
 ];
 /// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
 /// every committed deck, including `subckt_divider`, is verified through its

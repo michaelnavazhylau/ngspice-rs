@@ -1,0 +1,110 @@
+# ngspice-rs token-dump v1
+file: netlists/options_gmin_dc.cir
+title: "Junction gmin and DC iteration options" @netlists/options_gmin_dc.cir:1:1
+card 1 @netlists/options_gmin_dc.cir:6:1 lines=6-6 continuations=0
+  raw: ".param gj=1u"
+  kind: dot(.param)
+  token 1 6:1 word ".param"
+  token 2 6:8 word "gj"
+  token 3 6:10 equals "="
+  token 4 6:11 number "1u" value=1e-6
+card 2 @netlists/options_gmin_dc.cir:7:1 lines=7-7 continuations=0
+  raw: "v1 in 0 dc 0"
+  kind: device(v)
+  token 1 7:1 word "v1"
+  token 2 7:4 word "in"
+  token 3 7:7 number "0" value=0e0
+  token 4 7:9 word "dc"
+  token 5 7:12 number "0" value=0e0
+card 3 @netlists/options_gmin_dc.cir:8:1 lines=8-8 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 8:1 word "r1"
+  token 2 8:4 word "in"
+  token 3 8:7 word "out"
+  token 4 8:11 number "1k" value=1e3
+card 4 @netlists/options_gmin_dc.cir:9:1 lines=9-9 continuations=0
+  raw: "d1 out 0 dmod"
+  kind: device(d)
+  token 1 9:1 word "d1"
+  token 2 9:4 word "out"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 word "dmod"
+card 5 @netlists/options_gmin_dc.cir:10:1 lines=10-10 continuations=0
+  raw: "q1 out 0 0 qmod"
+  kind: device(q)
+  token 1 10:1 word "q1"
+  token 2 10:4 word "out"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "0" value=0e0
+  token 5 10:12 word "qmod"
+card 6 @netlists/options_gmin_dc.cir:11:1 lines=11-11 continuations=0
+  raw: "q2 out 0 0 qmod m=2 area=3"
+  kind: device(q)
+  token 1 11:1 word "q2"
+  token 2 11:4 word "out"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 number "0" value=0e0
+  token 5 11:12 word "qmod"
+  token 6 11:17 word "m"
+  token 7 11:18 equals "="
+  token 8 11:19 number "2" value=2e0
+  token 9 11:21 word "area"
+  token 10 11:25 equals "="
+  token 11 11:26 number "3" value=3e0
+card 7 @netlists/options_gmin_dc.cir:12:1 lines=12-12 continuations=0
+  raw: ".model dmod d(is=1e-14 n=1.0)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "dmod"
+  token 3 12:13 word "d"
+  token 4 12:14 lparen "("
+  token 5 12:15 word "is"
+  token 6 12:17 equals "="
+  token 7 12:18 number "1e-14" value=1e-14
+  token 8 12:24 word "n"
+  token 9 12:25 equals "="
+  token 10 12:26 number "1.0" value=1e0
+  token 11 12:29 rparen ")"
+card 8 @netlists/options_gmin_dc.cir:13:1 lines=13-13 continuations=0
+  raw: ".model qmod pnp(is=1e-16)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "qmod"
+  token 3 13:13 word "pnp"
+  token 4 13:16 lparen "("
+  token 5 13:17 word "is"
+  token 6 13:19 equals "="
+  token 7 13:20 number "1e-16" value=1e-16
+  token 8 13:25 rparen ")"
+card 9 @netlists/options_gmin_dc.cir:14:1 lines=14-14 continuations=0
+  raw: ".options gmin={gj} itl1=150 itl2=60"
+  kind: dot(.options)
+  token 1 14:1 word ".options"
+  token 2 14:10 word "gmin"
+  token 3 14:14 equals "="
+  token 4 14:15 expression "{gj}" inner="gj"
+  token 5 14:20 word "itl1"
+  token 6 14:24 equals "="
+  token 7 14:25 number "150" value=1.5e2
+  token 8 14:29 word "itl2"
+  token 9 14:33 equals "="
+  token 10 14:34 number "60" value=6e1
+card 10 @netlists/options_gmin_dc.cir:16:1 lines=16-16 continuations=0
+  raw: ".options nopage noacct"
+  kind: dot(.options)
+  token 1 16:1 word ".options"
+  token 2 16:10 word "nopage"
+  token 3 16:17 word "noacct"
+card 11 @netlists/options_gmin_dc.cir:17:1 lines=17-17 continuations=0
+  raw: ".dc v1 -10 0 1"
+  kind: dot(.dc)
+  token 1 17:1 word ".dc"
+  token 2 17:5 word "v1"
+  token 3 17:8 number "-10" value=-1e1
+  token 4 17:12 number "0" value=0e0
+  token 5 17:14 number "1" value=1e0
+card 12 @netlists/options_gmin_dc.cir:18:1 lines=18-18 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 18:1 word ".end"

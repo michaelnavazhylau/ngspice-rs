@@ -544,22 +544,37 @@ impl Writer {
             }
             text.push(' ');
             text.push_str(&setting.name);
+            if setting.expression.is_some() && setting.value.is_none() {
+                return Err(refuse(
+                    format!(
+                        "option {:?} has an expression but no value text",
+                        setting.name
+                    ),
+                    Some(location),
+                ));
+            }
             if let Some(value) = &setting.value {
+                let expression = setting.expression.is_some();
                 let ok = match single_token(&value.text, location) {
                     Some(Token {
                         kind: TokenKind::Word,
                         ..
-                    }) => true,
+                    }) => !expression,
                     Some(Token {
                         kind: TokenKind::Number(v),
                         ..
-                    }) => v.is_finite(),
+                    }) => v.is_finite() && !expression,
+                    Some(Token {
+                        kind: TokenKind::Expression(_) | TokenKind::Quoted(_),
+                        ..
+                    }) => expression,
                     _ => false,
                 };
                 if !ok {
                     return Err(refuse(
                         format!(
-                            "option value {:?} is not a word or finite number",
+                            "option value {:?} is not a word, finite number or parsed \
+                             expression",
                             value.text
                         ),
                         Some(location),

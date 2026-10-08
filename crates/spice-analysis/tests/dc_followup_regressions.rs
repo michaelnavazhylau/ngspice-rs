@@ -117,8 +117,10 @@ fn resistor_preflight_uses_the_actual_point_context_not_the_original_value() {
 #[test]
 fn dc_points_consume_deck_continuation_controls_and_request_overrides() {
     let n = Parser::new().parse_deck(&parse_deck_text(Path::new("policy.cir"),
-        "Policy sweep\ni1 0 a 1m\nd1 a 0 dm\n.model dm d(is=1m)\n.option itl1=4 gminsteps=0 srcsteps=20\n.dc i1 0 1m 1m\n.end\n"
+        "Policy sweep\ni1 0 a 1m\nd1 a 0 dm\n.model dm d(is=1m)\n.option gminsteps=0 srcsteps=20\n.dc i1 0 1m 1m maxiter=4\n.end\n"
     )).unwrap();
+    // The four-iteration budget is a request argument: a deck `itl1` below 100
+    // is C's effective 100 (niiter.c), which this bias needs no continuation for.
     let config = RunConfig::from_netlist(&n).unwrap();
     let request = config.request_for(&n.analyses[0]).unwrap();
     let mut c = config.circuit(&n).unwrap();

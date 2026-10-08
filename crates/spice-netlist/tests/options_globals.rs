@@ -66,7 +66,8 @@ fn malformed_option_cards_are_errors() {
         ".options reltol=1e-3 =5",
         ".options 1e-3",
         ".options reltol=1e999",
-        ".options temp={t}",
+        ".options temp={t+}",
+        ".options temp=\"t\"",
         ".options method=(gear)",
         ".options reltol==1",
     ] {
@@ -137,4 +138,60 @@ fn separate_parses_share_no_option_state() {
     let second = parse("r1 a 0 1\n.end\n").unwrap();
     assert_eq!(first.options.len(), 1);
     assert!(second.options.is_empty() && second.globals.is_empty());
+}
+
+#[test]
+fn braced_and_single_quoted_option_values_are_parsed_expressions() {
+    let n = parse(".param t=40\n.options temp={t + 10} tnom='t-5' reltol=1m post\n.end\n").unwrap();
+    let settings = &n.options[0].settings;
+    let temp = &settings[0];
+    assert_eq!(temp.value.as_ref().unwrap().text, "{t + 10}");
+    let expression = temp.expression.as_ref().unwrap();
+    assert!(expression.braced);
+    assert_eq!(expression.text, "t + 10");
+    assert_eq!(expression.references(), ["t"]);
+    // The expression text starts one byte after the brace / quote.
+    assert_eq!(temp.value.as_ref().unwrap().location.column, 15);
+    assert_eq!(expression.span.start.column, 16);
+    let tnom = &settings[1];
+    assert_eq!(tnom.value.as_ref().unwrap().text, "'t-5'");
+    let expression = tnom.expression.as_ref().unwrap();
+    assert!(!expression.braced);
+    assert_eq!(expression.text, "t-5");
+    assert_eq!(expression.span.start.column, 30);
+    assert!(settings[2].expression.is_none() && settings[3].expression.is_none());
+    // Malformed or unsupported expression text fails at the value.
+    for body in [
+        ".options temp={t+}",
+        ".options temp='t+'",
+        ".options temp={}",
+        ".options temp=\"t\"",
+    ] {
+        let error = parse(&format!("{body}\n.end\n")).unwrap_err();
+        assert!(
+            matches!(
+                error,
+                SpiceError::Parse { .. } | SpiceError::NotYetPorted { .. }
+            ),
+            "{body}: {error}"
+        );
+    }
+}
+
+#[test]
+fn option_expressions_round_trip_through_the_writer() {
+    use spice_netlist::{semantic_eq, write_netlist};
+    let n = parse(".param g=1u\n.options gmin={g/10} temp='27+3' reltol=1m acct\n.end\n").unwrap();
+    let written = write_netlist(&n).unwrap();
+    assert!(
+        written.contains(".options gmin={g/10} temp='27+3' reltol=1m acct"),
+        "{written}"
+    );
+    let again = parse_with(Parser::new(), written.split_once('\n').unwrap().1).unwrap();
+    assert!(semantic_eq(&n, &again), "{written}");
+    assert_eq!(write_netlist(&again).unwrap(), written);
+    // A different expression is semantically different.
+    let other =
+        parse(".param g=1u\n.options gmin={g/100} temp='27+3' reltol=1m acct\n.end\n").unwrap();
+    assert!(!semantic_eq(&n, &other));
 }

@@ -144,14 +144,20 @@ pub struct AnalysisContext {
     pub temperature: Real,
     /// Nominal temperature at which model parameters were measured.
     pub nominal_temperature: Real,
+    /// Junction minimum conductance in siemens (`.option gmin`, C `CKTgmin`),
+    /// default [`spice_devices::DEFAULT_GMIN`]. See
+    /// [`spice_devices::ModelContext::gmin`].
+    pub gmin: Real,
 }
 
 impl AnalysisContext {
-    /// Copy temperature settings into the lower-level device context. Validation
-    /// occurs at circuit elaboration/equation assembly; no global state is used.
+    /// Copy temperature and junction-gmin settings into the lower-level device
+    /// context. Validation occurs at circuit elaboration/equation assembly; no
+    /// global state is used.
     #[must_use]
     pub const fn model_context(&self) -> spice_devices::ModelContext {
         spice_devices::ModelContext::new(self.temperature, self.nominal_temperature)
+            .with_gmin(self.gmin)
     }
 }
 
@@ -160,6 +166,7 @@ impl Default for AnalysisContext {
         Self {
             temperature: 27.0,
             nominal_temperature: 27.0,
+            gmin: spice_devices::DEFAULT_GMIN,
         }
     }
 }

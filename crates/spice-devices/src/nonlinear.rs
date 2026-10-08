@@ -13,7 +13,6 @@ use spice_maths::Vector;
 use spice_netlist::ast::DeviceInstance;
 
 pub(crate) const K_OVER_Q: Real = 1.38064852e-23 / 1.6021766208e-19; // ngspice CONSTboltz/CHARGE
-pub(crate) const GMIN: Real = 1e-12; // bounded fixed junction gmin; nodal continuation is separate
 const MODEL: ScalarSchema<'static> = ScalarSchema {
     parameters: &[
         Parameter {
@@ -214,8 +213,8 @@ impl DiodeParameters {
             self.fc,
         );
         let point = JunctionPoint {
-            current: current + GMIN * voltage,
-            conductance: conductance + GMIN,
+            current: current + context.gmin * voltage,
+            conductance: conductance + context.gmin,
             charge: charge + self.tt * current,
             capacitance: capacitance + self.tt * conductance,
         };
@@ -360,10 +359,7 @@ impl Device for Diode {
             return Err(SpiceError::circuit("diode AC needs small-signal assembly"));
         }
         let v = context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]);
-        let p = self.parameters.evaluate(
-            v,
-            &ModelContext::new(context.temperature, context.nominal_temperature),
-        )?;
+        let p = self.parameters.evaluate(v, &context.model_context())?;
         if self.parameters.rs > 0. {
             crate::linear::nodal_stamp(
                 context.matrix,

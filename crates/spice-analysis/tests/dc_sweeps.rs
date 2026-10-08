@@ -26,6 +26,7 @@ fn hot() -> AnalysisContext {
     AnalysisContext {
         temperature: 47.,
         nominal_temperature: 27.,
+        ..Default::default()
     }
 }
 fn run_in(c: &mut Circuit, args: &[&str], context: &AnalysisContext) -> SpiceResult<Plot> {

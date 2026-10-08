@@ -94,6 +94,7 @@ fn repeated_analysis_contexts_adjust_without_cached_or_cumulative_temperature() 
         AnalysisContext {
             temperature: 77.0,
             nominal_temperature: 22.0,
+            ..Default::default()
         },
         AnalysisContext::default(),
     ] {
@@ -123,6 +124,7 @@ fn explicit_temp_tnom_and_independent_instance_coefficient_overrides() {
     let context = AnalysisContext {
         temperature: 77.0,
         nominal_temperature: 22.0,
+        ..Default::default()
     };
     let mut c =
         circuit("v1 a 0 1\nr1 a 0 mdl temp=40 tc1=0\n.model mdl r(r=1k tc1=99 tc2=0.001 tnom=30)");
@@ -147,6 +149,7 @@ fn contextual_model_rc_transient_matches_the_analytic_step() {
     let context = AnalysisContext {
         temperature: 77.0,
         nominal_temperature: 27.0,
+        ..Default::default()
     };
     let mut c =
         circuit("r1 a 0 rm\nc1 a 0 cm\n.model rm r(r=1k tc1=0.01)\n.model cm c(cap=1u tc1=0.002)");
@@ -212,6 +215,7 @@ fn invalid_runtime_temperatures_factors_and_ic_remain_explicit_failures() {
     let context = AnalysisContext {
         temperature: 77.0,
         nominal_temperature: 27.0,
+        ..Default::default()
     };
     for (kind, args) in [
         (AnalysisKind::OperatingPoint, vec![]),
@@ -226,6 +230,7 @@ fn invalid_runtime_temperatures_factors_and_ic_remain_explicit_failures() {
         let invalid = AnalysisContext {
             temperature: f64::NAN,
             nominal_temperature: 27.0,
+            ..Default::default()
         };
         assert!(run(&mut c, kind, &args, &invalid).is_err());
     }

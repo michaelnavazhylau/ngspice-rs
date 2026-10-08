@@ -42,8 +42,8 @@ pub mod pulse;
 pub use passive::PassiveParameters;
 pub mod schema;
 pub use models::{
-    DiodeInstanceParameters, DiodeModelParameters, LevelSelection, ModelContext, ModelFamily,
-    ModelResolver, ResolvedModel,
+    DEFAULT_GMIN, DiodeInstanceParameters, DiodeModelParameters, LevelSelection, ModelContext,
+    ModelFamily, ModelResolver, ResolvedModel,
 };
 pub mod registry;
 pub mod sources;

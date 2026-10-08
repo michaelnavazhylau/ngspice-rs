@@ -125,9 +125,16 @@ pub struct ContinuationPolicy {
     /// Source schedule, or `None` to disable source stepping.
     pub source_stepping: Option<SourceStepping>,
     /// Total Newton iterations over *all* stages of one solve. `None` selects
-    /// `stages * NewtonOptions::max_iterations`, i.e. no tighter than the
-    /// per-stage limit already implies; `Some(n)` caps the work at `n`.
+    /// `NewtonOptions::max_iterations` for the direct solve plus the stage
+    /// limit for every continuation stage, i.e. no tighter than the per-stage
+    /// limits already imply; `Some(n)` caps the work at `n`.
     pub max_total_iterations: Option<usize>,
+    /// Newton iteration limit of every gmin/source-stepping stage, including
+    /// each strategy's final full-source zero-gmin solve (C: `CKTop` calls
+    /// `NIiter(ckt, CKTdcTrcvMaxIter)` there, deck `itl2`, while the direct
+    /// solve uses `CKTdcMaxIter`, deck `itl1`). `None` keeps
+    /// `NewtonOptions::max_iterations` for the stages too.
+    pub stage_max_iterations: Option<usize>,
 }
 
 impl Default for ContinuationPolicy {
@@ -141,6 +148,7 @@ impl Default for ContinuationPolicy {
                 gmin: DEFAULT_SOURCE_GMIN,
             }),
             max_total_iterations: None,
+            stage_max_iterations: None,
         }
     }
 }
@@ -153,6 +161,7 @@ impl ContinuationPolicy {
             gmin_schedule: Vec::new(),
             source_stepping: None,
             max_total_iterations: None,
+            stage_max_iterations: None,
         }
     }
 
@@ -232,6 +241,14 @@ impl ContinuationPolicy {
                 "total iteration budget must be in 1..={MAX_TOTAL_ITERATIONS}, not {total}"
             )));
         }
+        if let Some(limit) = self.stage_max_iterations
+            && !(1..=newton::MAX_ITERATIONS).contains(&limit)
+        {
+            return Err(invalid(format!(
+                "continuation stage iteration limit must be in 1..={}, not {limit}",
+                newton::MAX_ITERATIONS
+            )));
+        }
         Ok(())
     }
 }
@@ -300,6 +317,7 @@ impl DcSettings {
     pub fn from_request(request: &crate::AnalysisRequest) -> SpiceResult<Self> {
         let mut forwarded = Vec::new();
         let (mut source, mut gmin_steps, mut gmin_factor) = (None, None, None);
+        let mut stage_limit = None;
         let mut seen = std::collections::BTreeSet::new();
         for argument in &request.arguments {
             let Some((key, text)) = argument.split_once('=') else {
@@ -320,28 +338,32 @@ impl DcSettings {
                 gmin_factor = Some(value);
                 continue;
             }
-            let limit = if key == "srcsteps" {
-                MAX_SOURCE_STEPS
-            } else {
-                MAX_GMIN_STAGES
+            let (lowest, limit) = match key.as_str() {
+                "srcsteps" => (0, MAX_SOURCE_STEPS),
+                newton::STAGE_ITERATIONS_KEY => (1, newton::MAX_ITERATIONS),
+                _ => (0, MAX_GMIN_STAGES),
             };
-            if value.fract() != 0. || !(0. ..=limit as Real).contains(&value) {
+            if value.fract() != 0. || !(lowest as Real..=limit as Real).contains(&value) {
                 return Err(invalid(format!(
-                    "option {key} must be an integer in 0..={limit}, not {text}"
+                    "option {key} must be an integer in {lowest}..={limit}, not {text}"
                 )));
             }
-            if key == "srcsteps" {
+            if key == newton::STAGE_ITERATIONS_KEY {
+                stage_limit = Some(value as usize);
+            } else if key == "srcsteps" {
                 source = Some(value as usize);
             } else {
                 gmin_steps = Some(value as usize);
             }
         }
+        let mut continuation = ContinuationPolicy::from_steps(source, gmin_steps, gmin_factor)?;
+        continuation.stage_max_iterations = stage_limit;
         Ok(Self {
             newton: NewtonOptions::from_request(&crate::AnalysisRequest::with_arguments(
                 request.kind,
                 forwarded,
             ))?,
-            continuation: ContinuationPolicy::from_steps(source, gmin_steps, gmin_factor)?,
+            continuation,
         })
     }
 }
@@ -603,6 +625,8 @@ struct Engine<'a> {
     target: Vector,
     original: Vector,
     newton: NewtonOptions,
+    /// Per-stage limit of the gmin/source-stepping strategies.
+    stage_limit: usize,
     remaining: usize,
 }
 
@@ -624,11 +648,15 @@ impl Engine<'_> {
             )));
         }
         let n = self.circuit.unknown_count();
+        let limit = match strategy {
+            DcStrategy::Direct => self.newton.max_iterations,
+            DcStrategy::GminStepping | DcStrategy::SourceStepping => self.stage_limit,
+        };
         let options = NewtonOptions {
-            max_iterations: self.newton.max_iterations.min(self.remaining),
+            max_iterations: limit.min(self.remaining),
             ..self.newton
         };
-        let reduced = options.max_iterations < self.newton.max_iterations;
+        let reduced = options.max_iterations < limit;
         let result = newton::solve_counted(guess, &self.branches, &options, |x| {
             let mut a = SparseMatrix::new(n, n);
             let mut b = Vector::zeros(n);
@@ -836,19 +864,23 @@ fn run(
         .unwrap_or_default();
     let gmin_enabled = !gmin_stages.is_empty();
     let source_enabled = policy.source_stepping.is_some();
-    let stage_count =
-        1 + if gmin_enabled {
-            gmin_stages.len() + 1
-        } else {
-            0
-        } + if source_enabled {
-            source_stages.len() + 1
-        } else {
-            0
-        };
-    let budget = policy
-        .max_total_iterations
-        .unwrap_or_else(|| stage_count.saturating_mul(options.max_iterations));
+    let stage_count = if gmin_enabled {
+        gmin_stages.len() + 1
+    } else {
+        0
+    } + if source_enabled {
+        source_stages.len() + 1
+    } else {
+        0
+    };
+    let stage_limit = policy
+        .stage_max_iterations
+        .unwrap_or(options.max_iterations);
+    let budget = policy.max_total_iterations.unwrap_or_else(|| {
+        options
+            .max_iterations
+            .saturating_add(stage_count.saturating_mul(stage_limit))
+    });
     report.budget = budget;
     let mut engine = Engine {
         circuit,
@@ -858,6 +890,7 @@ fn run(
         target,
         original,
         newton: *options,
+        stage_limit,
         remaining: budget,
     };
     let no_stages: Stages<'_> = &[];

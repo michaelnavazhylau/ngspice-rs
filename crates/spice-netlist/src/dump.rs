@@ -667,6 +667,9 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
                     ctx.loc(&setting.location)
                 ),
             );
+            if let Some(expression) = &setting.expression {
+                write_expression(ctx, out, indent + 3, expression);
+            }
         }
     }
     section(out, indent, "globals", scope.globals.len());

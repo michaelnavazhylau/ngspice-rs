@@ -136,12 +136,71 @@ location. Order and duplicates are kept; syntax only. `.global` parses into
 always global, other names only if a top-level `.global` listed them. Options or
 globals inside a `.subckt` body return `NotYetPorted`.
 
-`spice_analysis::RunConfig` (docs in `config.rs`) accepts `temp`, `tnom`,
-`reltol`, `vntol`, `abstol`, `method`, `maxord`. Repeats override in order; a name
-used both as flag and value, unknown names (including `no_auto_gnd`, a front-end
-variable) and invalid values are errors; every other `cktsopt.c` option is
-`NotYetPorted`. Tests: `spice-netlist/tests/options_globals.rs`,
-`spice-analysis/tests/run_config.rs`, `spice-cli/tests/parse.rs`.
+`spice_analysis::RunConfig` (docs in `config.rs`) resolves the settings. Repeats
+override in order; a name used both as flag and value, unknown names (including
+`no_auto_gnd`, a front-end variable) and invalid values are errors. Every
+accepted name has real semantics or is a documented no-op; the remaining
+`cktsopt.c` names and front-end variables with an effect are `NotYetPorted`.
+Tests: `spice-netlist/tests/options_globals.rs`,
+`spice-analysis/tests/{run_config,options_coverage,dc_continuation}.rs`,
+`spice-cli/tests/parse.rs`; opt-in C comparisons in
+`spice-analysis/tests/c_options_reference.rs`; goldens `options_gmin_dc`,
+`options_xmu_tran`.
+
+### Option coverage (#110)
+
+C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
+`cktntask.c` (defaults), `frontend/spiceif.c::if_option`, `frontend/options.c`.
+
+| Option | Status | Port semantics (request key) | C behaviour / justification |
+| --- | --- | --- | --- |
+| `temp`, `tnom` | effect | circuit / nominal temperature (C) | `TSKtemp`/`TSKnomTemp` |
+| `gmin` | effect | `AnalysisContext::gmin` = `ModelContext::gmin`: parallel junction conductance of diode, BJT (B-E, B-C and the default substrate junction: collector for NPN/vertical, base for PNP/lateral; scaled by the instance `m`, not by `area`) and MOS1 (B-D, B-S) in every analysis; finite, `>= 0`, default 1e-12. It does **not** move the artificial DC gmin-stepping ladder (C's `spice3_gmin` starts at `gmin * gminfactor^gminsteps` and `dynamic_gmin` stops at `max(gmin, gshunt)`; this port's ladder starts at 1e-3 S and ends with a zero-artificial-gmin solve, see DC_CONTINUATION.md) | `CKTgmin` in `dioload.c`, `bjtload.c` (`m *` every conductance), `mos1load.c` |
+| `reltol`, `vntol`, `abstol` | effect | `rtol`/`vntol`/`abstol` for `.op`/`.dc`/`.ac` Newton and `.tran` | `TSKreltol`/`TSKvoltTol`/`TSKabstol` |
+| `chgtol`, `trtol` | effect | companion truncation control; rejected with `backend=diffsol` | `CKTterr` |
+| `method`, `maxord` | effect | companion trap/Gear-2, orders 1..2 (3..6 `Unsupported`); rejected with diffsol | `TSKintegrateMethod`/`TSKmaxOrder` |
+| `xmu` | effect | companion trapezoidal weighting `0..=0.5` (`xmu`); rejected with diffsol | `CKTxmu` in `nicomcof.c` (C accepts any value; > 0.5 is an explicit error here) |
+| `itl1` | effect | Newton limit of the direct DC solve (`maxiter` = `max(itl1, 100)`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias | `CKTdcMaxIter` in `cktop.c` (`dcop.c`, `acan.c`, `dctrcurv.c`, `dctran.c` call `CKTop`); `NIiter()` raises any limit below 100 to 100 (`niiter.c`). Unset, this port keeps 200 (C: 100), see DC_CONTINUATION.md |
+| `itl2` | effect | Newton limit of every gmin/source-stepping stage of that DC bias (`stagemaxiter` = `max(itl2, 100)`, or 100 when only `itl1` is set) in `.op`/`.dc`/`.ac`/`.tran`; on `.dc` also the warm-started Newton limit at every point after the first (`trcvmaxiter`), falling back to the full bias | `CKTdcTrcvMaxIter` in `cktop.c` stepping stages and `dctrcurv.c` (same `niiter.c` floor; C default 50, effectively 100). **Divergence:** C's `dynamic_gmin`/`gillespie_src` also adapt their step from the raw `itl2/4`; this port's fixed ladders have no step adaptation (DC_CONTINUATION.md) |
+| `itl4` | effect | companion Newton iterations per timepoint (`tranmaxiter` = `max(itl4, 100)`; unset, 100); rejected with diffsol | `CKTtranMaxIter` in `dctran.c`: nominal default 10, but `niiter.c` raises it (and any value below 100) to 100 |
+| `srcsteps`, `itl6` | effect | source-stepping increments (`srcsteps`; `itl6` is the same setting) | `OPT_SRCSTEPS` (both names) |
+| `gminsteps`, `gminfactor` | effect | gmin-stepping ladder | see DC_CONTINUATION.md |
+| `acct`, `noacct`, `list`, `nomod`, `nopage`, `node`, `opts`, `noinit`, `norefvalue` | no-op (flag only) | none | front-end print controls handled first by `if_option`; no numerical effect; this port prints no such listing |
+| `itl3`, `itl5`, `cptime`, `limtim`, `limpts`, `lvlcod`, `lvltim` | no-op (value validated) | none | `OPTtbl` entries without `IF_SET`; `if_option` warns "unsupported"/"obsolete" and C ignores them |
+| `post`, `ingold` | no-op | none | plain front-end variables that nothing in ngspice reads |
+| `bypass=0` | no-op | none | C default (`TSKbypass = 0`); this port never bypasses device evaluation. Other values `NotYetPorted` |
+| `pivtol`, `pivrel` | `NotYetPorted` | | Sparse 1.3 pivot thresholds (`TSKpivotAbsTol`/`TSKpivotRelTol`, `spfactor.c`); this port's faer partial-pivoting LU has no equivalent knob yet |
+| `gshunt`, `cshunt`, `rshunt`, `noopiter`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `indverbosity`, `badmos3`, `trytocompact`, `keepopinfo`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
+| `filetype`, `savecurrents`, `scale`, `scalm`, `seed`, `seedinfo`, `rndseed`, `interp`, `warn`, `measureprec`, `rawfileprec`, `strict_errorhandling` | `NotYetPorted` | | front-end variables with an output/setup effect |
+| anything else | parse error | | C would store an unread variable or warn |
+
+No-ops are recorded with their reason in `RunConfig::ignored()` (`IgnoredOption`)
+and named by `spice-rs parse` ("options without effect"); `applied()` lists only
+settings with an effect. With `backend=diffsol`, any deck `itl1`/`itl2`/
+`srcsteps`/`itl6`/`gminsteps`/`gminfactor`/`itl4`/`xmu` is `Unsupported`.
+
+Iteration limits follow C's *effective* values: `NIiter()` (`niiter.c`) raises
+every `maxIter` below 100 to 100, so `itl1`/`itl2`/`itl4` take integers in
+`0..=10000` and are stored and forwarded as `max(n, 100)`; values below 100
+change nothing in C (verified: identical results and iteration counts) or here.
+The request keys `maxiter=`/`stagemaxiter=`/`trcvmaxiter=`/`tranmaxiter=` stay literal port
+knobs (`1..=10000`) for tests and diagnostics. C's `IF_INTEGER` options round a
+real value (`floor(x + 0.5)`); this port rejects a non-integer `itl*` value
+instead (a safe, documented difference).
+
+### Expression option values (#107, option part)
+
+`{expr}` and single-quoted `'expr'` values parse (numparam grammar,
+`parser/options.rs`) into `OptionSetting::expression` while `value.text` keeps
+the written form; double-quoted strings and quotes containing escapes are parse
+errors. `RunConfig::from_netlist` evaluates them against the deck's top-level
+`.param` scope (one root scope, so later `.param` cards are visible), then applies
+the usual range checks to the number; `RunConfig::from_options` has no scope and
+returns `Unsupported`; `method` takes a word, never an expression. The writer
+emits the value text verbatim and `semantic_eq` compares the parsed expression;
+AST dumps add the expression tree. C quirk (not reproduced): ngspice aborts the
+deck when a print flag such as `noacct` shares an `.options` card with a `{}`
+value; this port accepts that card.
 
 ## `.ic`, `.nodeset` and `uic` (#27)
 

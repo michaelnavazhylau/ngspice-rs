@@ -524,6 +524,7 @@ mod tests {
             solution: &solution,
             temperature: 27.0,
             nominal_temperature: 27.0,
+            gmin: crate::DEFAULT_GMIN,
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
             branches: 0..0,
             integration: None,

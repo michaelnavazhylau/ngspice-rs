@@ -116,7 +116,8 @@ Highest first, resolved **per name**:
 
 | Deck option | Request key | Meaning |
 | --- | --- | --- |
-| `itl1` | `maxiter` | Newton iterations per stage, 1..=10000 |
+| `itl1` | `maxiter` | Newton iterations of the direct solve: deck `0..=10000` forwarded as `max(itl1, 100)` (C `niiter.c` raises any limit below 100 to 100); the request key is a literal `1..=10000`. Without `stagemaxiter` it also bounds every continuation stage |
+| `itl2` | `stagemaxiter` | Newton iterations of every gmin/source-stepping stage, including each strategy's final full-source zero-gmin solve (C `cktop.c`: `NIiter(ckt, CKTdcTrcvMaxIter)`); forwarded as `max(itl2, 100)` whenever the deck sets `itl1` or `itl2` (only `itl1` set: C's effective default 100); the request key is a literal `1..=10000` |
 | `srcsteps` | `srcsteps` | `0` disables source stepping, else `N` equal increments (1..=1000) |
 | `gminsteps` | `gminsteps` | `0` disables gmin stepping, else `N` stages (1..=100) from 1e-3 S |
 | `gminfactor` | `gminfactor` | ratio between stages, finite, `1 < f <= 1e6`, default 10 |
@@ -135,13 +136,30 @@ Propagation is honest:
   `srcsteps`/`gminsteps`/`gminfactor` therefore configures `.dc` exactly as it
   configures `.op`/`.ac` (see [DC_SWEEPS.md](DC_SWEEPS.md)); the names are still
   refused by `NewtonOptions::from_request` so no analysis can silently ignore one.
-- `.tran` (companion or diffsol) does **not** read these settings: its initial
-  bias uses `solve_dc` with the default policy. A deck `itl1`/`srcsteps`/
-  `gminsteps`/`gminfactor` therefore makes `RunConfig::request` fail with
-  `Unsupported` for a transient request, and an explicit `srcsteps=` argument on a
-  `.tran` request is rejected by the companion driver as an unknown key.
-- `gmin` (the fixed junction gmin), `gshunt`/`cshunt`, `itl2`-`itl6` remain
-  explicit `NotYetPorted` options.
+- `.tran` on the companion driver reads them for its nonlinear initial bias
+  (C `dctran.c` calls `CKTop` with `CKTdcMaxIter` and the same stepping
+  settings): `RunConfig::request` forwards `maxiter`/`srcsteps`/`gminsteps`/
+  `gminfactor`, which the companion driver validates through
+  `DcSettings::from_request` and passes to `solve_dc_with` together with its own
+  Newton tolerances. Linear circuits and `uic` runs perform no bias Newton solve
+  (C skips `CKTop` under `uic` as well). With `backend=diffsol` a deck DC option
+  is `Unsupported`.
+- `itl2` (#110) bounds every continuation stage (`stagemaxiter`) of `.op`,
+  `.ac`, `.dc` and the companion `.tran` initial bias, as C's `CKTop` does for
+  `dcop.c`, `acan.c`, `dctrcurv.c` and `dctran.c`; `itl1` then bounds only the
+  direct solve. The total budget is `itl1 + stages * itl2`. On `.dc` it is
+  also `trcvmaxiter` (`max(itl2, 100)`, the same `niiter.c` floor): every point
+  after the first first tries a plain warm-started Newton bounded by it
+  (continuation disabled, C `dctrcurv.c` `NIiter(CKTdcTrcvMaxIter)`); a
+  numerical failure falls back to the full bias solve from the same seed.
+  Unset, the sweep keeps the single full solve per point. C's `dynamic_gmin`
+  and `gillespie_src` also adapt their step from the *raw* `itl2`
+  (`iters <= itl2/4`); this port's fixed ladders have no step adaptation.
+- `itl6` is an alias of `srcsteps` (one setting, last occurrence wins).
+- `gmin` is now the junction gmin (`AnalysisContext::gmin`, see
+  [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md#option-coverage-110)); it is not
+  the artificial nodal continuation conductance, which still ends at zero.
+  `gshunt`/`cshunt` remain explicit `NotYetPorted` options.
 
 ## Deliberate differences from C
 
@@ -159,15 +177,25 @@ are cited as parity facts.
   1e-8 S nodal gmin, then an unregularized solve; `gminsteps`/`gminfactor` build
   a decade-style ladder from a fixed 1e-3 S start. They are not C's schedule.
 - **`itl1` default is 200**, not C's 100, to keep this port's existing accuracy
-  and damping (global 0.2 V step limit, not per-junction PN/FET limiting).
+  and damping (global 0.2 V step limit, not per-junction PN/FET limiting). A
+  deck `itl1` follows C's effective value `max(itl1, 100)`, so `itl1=4` is 100
+  in both; tests that need a tiny budget use the literal request `maxiter=`.
+- **`.option gmin` does not move the artificial gmin ladder.** C's
+  `spice3_gmin` starts at `CKTgmin * gminfactor^gminsteps` and `dynamic_gmin`
+  stops at `max(CKTgmin, CKTgshunt)` (`cktop.c`); this port's ladder always
+  starts at 1e-3 S and finishes with a zero-artificial-gmin solve, whatever
+  `.option gmin` is.
 - **Success is always unregularized.** Each strategy must finish with full
   sources and zero artificial gmin; no regularized result is ever returned.
 - **Non-numerical errors are never retried**, and a total iteration budget
   exists (C has none beyond the per-solve limits).
-- **Junction `gmin` stays a model constant** (1e-12 S), not an option, so it
-  cannot be confused with the artificial continuation conductance.
-- `.tran` does not consume these options (see above); `itl2` (DC sweep points)
-  is not implemented.
+- **Junction `gmin`** (default 1e-12 S, `.option gmin`) is a device-model
+  conductance carried by `ModelContext`, separate from the artificial
+  continuation conductance; unlike C's dynamic gmin stepping, continuation never
+  changes it.
+- `.tran` reads these options only for the companion initial bias (see above);
+  `itl2` bounds the continuation stages everywhere and the warm starts of
+  `.dc`.
 
 ## Validation
 

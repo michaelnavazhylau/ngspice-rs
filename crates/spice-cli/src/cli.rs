@@ -341,6 +341,18 @@ pub fn run(args: &Args) -> SpiceResult<()> {
                 context.nominal_temperature,
                 netlist.globals.len()
             );
+            // Accepted documented no-ops are named, never silently dropped.
+            if !config.ignored().is_empty() {
+                let names: Vec<_> = config
+                    .ignored()
+                    .iter()
+                    .map(|option| option.name.as_str())
+                    .collect();
+                println!(
+                    "options without effect (documented no-ops): {}",
+                    names.join(", ")
+                );
+            }
             Ok(())
         }
     }
