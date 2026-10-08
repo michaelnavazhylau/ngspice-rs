@@ -1,0 +1,93 @@
+# ngspice-rs token-dump v1
+file: cases/param_func.cir
+title: "Function definitions written as .param cards" @cases/param_func.cir:1:1
+card 1 @cases/param_func.cir:4:1 lines=4-4 continuations=0
+  raw: ".param f(x)={x*3}"
+  kind: dot(.param)
+  token 1 4:1 word ".param"
+  token 2 4:8 word "f"
+  token 3 4:9 lparen "("
+  token 4 4:10 word "x"
+  token 5 4:11 rparen ")"
+  token 6 4:12 equals "="
+  token 7 4:13 expression "{x*3}" inner="x*3"
+card 2 @cases/param_func.cir:5:1 lines=5-5 continuations=0
+  raw: ".PARAM Gain(x, y) = 'x+y'"
+  kind: dot(.param)
+  token 1 5:1 word ".PARAM"
+  token 2 5:8 word "Gain"
+  token 3 5:12 lparen "("
+  token 4 5:13 word "x"
+  token 5 5:14 comma ","
+  token 6 5:16 word "y"
+  token 7 5:17 rparen ")"
+  token 8 5:19 equals "="
+  token 9 5:21 quoted "'x+y'" unquoted="x+y"
+card 3 @cases/param_func.cir:6:1 lines=6-6 continuations=0
+  raw: ".param h()=4"
+  kind: dot(.param)
+  token 1 6:1 word ".param"
+  token 2 6:8 word "h"
+  token 3 6:9 lparen "("
+  token 4 6:10 rparen ")"
+  token 5 6:11 equals "="
+  token 6 6:12 number "4" value=4e0
+card 4 @cases/param_func.cir:7:1 lines=7-7 continuations=0
+  raw: ".param p={f(2)+gain(1, h())}"
+  kind: dot(.param)
+  token 1 7:1 word ".param"
+  token 2 7:8 word "p"
+  token 3 7:9 equals "="
+  token 4 7:10 expression "{f(2)+gain(1, h())}" inner="f(2)+gain(1, h())"
+card 5 @cases/param_func.cir:8:1 lines=8-8 continuations=0
+  raw: ".subckt leg a b"
+  kind: dot(.subckt)
+  token 1 8:1 word ".subckt"
+  token 2 8:9 word "leg"
+  token 3 8:13 word "a"
+  token 4 8:15 word "b"
+card 6 @cases/param_func.cir:9:1 lines=9-9 continuations=0
+  raw: ".param k(q)={q*2}"
+  kind: dot(.param)
+  token 1 9:1 word ".param"
+  token 2 9:8 word "k"
+  token 3 9:9 lparen "("
+  token 4 9:10 word "q"
+  token 5 9:11 rparen ")"
+  token 6 9:12 equals "="
+  token 7 9:13 expression "{q*2}" inner="q*2"
+card 7 @cases/param_func.cir:10:1 lines=10-10 continuations=0
+  raw: "r1 a b {k(p)}"
+  kind: device(r)
+  token 1 10:1 word "r1"
+  token 2 10:4 word "a"
+  token 3 10:6 word "b"
+  token 4 10:8 expression "{k(p)}" inner="k(p)"
+card 8 @cases/param_func.cir:11:1 lines=11-11 continuations=0
+  raw: ".ends leg"
+  kind: dot(.ends)
+  token 1 11:1 word ".ends"
+  token 2 11:7 word "leg"
+card 9 @cases/param_func.cir:12:1 lines=12-12 continuations=0
+  raw: "x1 in 0 leg"
+  kind: device(x)
+  token 1 12:1 word "x1"
+  token 2 12:4 word "in"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 word "leg"
+card 10 @cases/param_func.cir:13:1 lines=13-13 continuations=0
+  raw: "v1 in 0 dc 'f(1)'"
+  kind: device(v)
+  token 1 13:1 word "v1"
+  token 2 13:4 word "in"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 word "dc"
+  token 5 13:12 quoted "'f(1)'" unquoted="f(1)"
+card 11 @cases/param_func.cir:14:1 lines=14-14 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 14:1 word ".op"
+card 12 @cases/param_func.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

@@ -8,7 +8,12 @@
 //! `'...'` expression, or the bare rest of the card, and parses it with the
 //! ordinary expression grammar ([`crate::expr`]); nothing is evaluated here.
 //! Mixed spellings such as `{a}+{b}` (which C would glue together) are
-//! rejected explicitly rather than reinterpreted.
+//! reported as not yet ported rather than reinterpreted.
+//!
+//! `.param name(p1, ...) [=] body` is the same definition: C rewrites a
+//! `.param` card whose first token contains `(` into `.func`
+//! (`inp_fix_macro_param_func_paren_io()`), so [`super::param`] hands such a
+//! card to [`definition`] with [`FuncSpelling::Param`].
 
 use spice_core::{SourceLoc, SpiceError, SpiceResult};
 use winnow::Parser as _;
@@ -17,7 +22,7 @@ use winnow::error::ErrMode;
 use winnow::stream::Stream;
 use winnow::token::{any, literal, one_of, take_while};
 
-use crate::ast::{FuncCard, FuncParameter};
+use crate::ast::{FuncCard, FuncParameter, FuncSpelling};
 use crate::card::DotCommand;
 use crate::expr::{EXCLUDED_FUNCTIONS, Function, ParameterExpression, SourceSpan};
 use crate::token::Token;
@@ -31,6 +36,10 @@ use super::param::resolved;
 
 /// C reference for `.func` diagnostics.
 const C_REFERENCE: &str = "src/frontend/inpcom.c (inp_get_func_from_line)";
+
+/// C reference for the body text C concatenates after removing braces.
+const C_STRIP_REFERENCE: &str =
+    "src/frontend/inpcom.c (inp_get_func_from_line, inp_strip_braces, inp_split_multi_param_lines)";
 
 pub(super) fn func_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     any.verify(|token: &Token| {
@@ -49,12 +58,18 @@ pub(super) fn func_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     // braces and quotes), so drain the token slice.
     winnow::token::rest.parse_next(input)?;
     let start = (first as usize).saturating_sub(1).min(raw.len());
-    let card = definition(raw, start, &location).map_err(|error| ErrMode::Cut(Failure(error)))?;
+    let card = definition(raw, start, &location, FuncSpelling::Func)
+        .map_err(|error| ErrMode::Cut(Failure(error)))?;
     Ok(ParsedCard::Func(card))
 }
 
 /// Parses `raw[start..]` as `name(params) [=] body`.
-fn definition(raw: &str, start: usize, origin: &SourceLoc) -> SpiceResult<FuncCard> {
+pub(super) fn definition(
+    raw: &str,
+    start: usize,
+    origin: &SourceLoc,
+    spelling: FuncSpelling,
+) -> SpiceResult<FuncCard> {
     let text = &raw[start..];
     let column = u32::try_from(start).unwrap_or(u32::MAX).saturating_add(1);
     let mut input = In {
@@ -66,7 +81,7 @@ fn definition(raw: &str, start: usize, origin: &SourceLoc) -> SpiceResult<FuncCa
             depth: 0,
         },
     };
-    let card = match card(&mut input) {
+    let card = match card(&mut input, spelling) {
         Ok(card) => card,
         Err(ErrMode::Backtrack(fail) | ErrMode::Cut(fail)) => {
             return Err(into_error(origin, column, text.len(), fail));
@@ -92,7 +107,7 @@ fn identifier<'a>(input: &mut In<'a>) -> Res<(&'a str, SourceSpan)> {
     ))
 }
 
-fn card(input: &mut In<'_>) -> Res<FuncCard> {
+fn card(input: &mut In<'_>, spelling: FuncSpelling) -> Res<FuncCard> {
     ws.parse_next(input)?;
     let here = input.eof_offset();
     let Some((name, name_span)) = opt(identifier).parse_next(input)? else {
@@ -131,9 +146,17 @@ fn card(input: &mut In<'_>) -> Res<FuncCard> {
         }
     }
     ws.parse_next(input)?;
-    // C skips an optional, undocumented '=' before the body.
+    // C skips an optional, undocumented '=' before a `.func` body. The
+    // `.param` spelling needs it: without one C does not keep the card as a
+    // definition and the deck fails (checked against the C binary).
+    let here = input.eof_offset();
     if opt(literal("=")).parse_next(input)?.is_some() {
         ws.parse_next(input)?;
+    } else if spelling == FuncSpelling::Param {
+        return Err(cut(
+            here,
+            format!("expected '=' after the parameter list of function '{name}'"),
+        ));
     }
     let body = body(input, name)?;
     Ok(FuncCard {
@@ -141,6 +164,7 @@ fn card(input: &mut In<'_>) -> Res<FuncCard> {
         name_span,
         parameters,
         body,
+        spelling,
         location: input.state.origin.clone(),
     })
 }
@@ -191,10 +215,18 @@ fn body(input: &mut In<'_>, name: &str) -> Res<ParameterExpression> {
     ws.parse_next(input)?;
     let here = input.eof_offset();
     if peek(opt(any)).parse_next(input)?.is_some() {
-        return Err(cut(
-            here,
-            format!("unexpected text after the body of function '{name}'"),
-        ));
+        // Only a delimited body can be followed by text (a bare body is the
+        // rest of the card). C accepts it: `inp_strip_braces()` glues
+        // `{x}+{1}` into `x+1`, and a `.param` card with a further
+        // assignment is split first. Neither is reproduced.
+        return Err(resolved(SpiceError::not_yet_ported(
+            format!(
+                "{}: text after the delimited body of function '{name}' (C removes the \
+                 braces and joins the pieces, or splits a multi-assignment .param card)",
+                input.state.location(here)
+            ),
+            C_STRIP_REFERENCE,
+        )));
     }
     Ok(expression)
 }
@@ -218,14 +250,14 @@ fn validate(card: &FuncCard) -> SpiceResult<()> {
             .iter()
             .find(|other| other.name == parameter.name)
         {
-            // C silently binds only the first of two equal formals; refuse
-            // the ambiguous definition instead.
-            return Err(SpiceError::parse(
-                parameter.span.start.clone(),
+            // C accepts this and binds only the first of two equal formals;
+            // the port does not reproduce that binding.
+            return Err(SpiceError::not_yet_ported(
                 format!(
-                    "duplicate parameter '{}' in function '{}' (first at {})",
-                    parameter.name, card.name, first.span.start
+                    "{}: duplicate parameter '{}' in function '{}' (first at {})",
+                    parameter.span.start, parameter.name, card.name, first.span.start
                 ),
+                C_REFERENCE,
             ));
         }
     }

@@ -4,7 +4,8 @@
 //! `inp_split_multi_param_lines()`: each right-hand side runs to the next
 //! whitespace outside `{}`/`()` or to a comma outside parentheses, and
 //! `nupa_assignment()` (`xpressn.c`) evaluates `name = expression` pairs in
-//! order. This grammar applies that extent rule to every card, including
+//! order. A card whose first token contains `(` is a function definition
+//! (`.param f(x) = {x*3}`), parsed by [`super::func`]. This grammar applies that extent rule to every card, including
 //! single-assignment ones where C is more permissive: spaces inside an
 //! unbraced expression must be written as `{ ... }` (or `'...'`, which
 //! `inp_change_quotes()` makes identical to braces). Duplicates and order are
@@ -19,7 +20,7 @@ use winnow::error::ErrMode;
 use winnow::stream::Stream;
 use winnow::token::{any, literal, one_of, take_while};
 
-use crate::ast::{ParamAssignment, ParamCard};
+use crate::ast::{FuncSpelling, ParamAssignment, ParamCard};
 use crate::card::DotCommand;
 use crate::expr::{ParameterExpression, SourceSpan};
 use crate::token::Token;
@@ -47,12 +48,26 @@ pub(super) fn param_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     // is fully consumed (the tokenizer already matched braces and quotes).
     winnow::token::rest.parse_next(input)?;
     let start = (first as usize).saturating_sub(1).min(raw.len());
+    if defines_function(&raw[start..]) {
+        let card = super::func::definition(raw, start, &location, FuncSpelling::Param)
+            .map_err(|error| ErrMode::Cut(Failure(error)))?;
+        return Ok(ParsedCard::Func(card));
+    }
     let assignments =
         assignments(raw, start, &location).map_err(|error| ErrMode::Cut(Failure(error)))?;
     Ok(ParsedCard::Param(ParamCard {
         assignments,
         location,
     }))
+}
+
+/// C's test in `inpcom.c` `inp_fix_macro_param_func_paren_io()`: a `.param`
+/// card whose first token (up to whitespace or `=`) contains `(` is a
+/// function definition and is rewritten to `.func`, unconditionally.
+fn defines_function(text: &str) -> bool {
+    text.chars()
+        .take_while(|&c| !c.is_ascii_whitespace() && c != '=')
+        .any(|c| c == '(')
 }
 
 /// Parses `raw[start..]` (columns are 1-based bytes of the joined card).
@@ -125,6 +140,20 @@ fn assignment(input: &mut In<'_>) -> Res<ParamAssignment> {
         .take()
         .parse_next(input)?;
     let end = input.eof_offset();
+    if peek(opt(literal("("))).parse_next(input)?.is_some() {
+        // A later assignment of a multi-assignment card that defines a
+        // function: C splits the card first, then rewrites that piece to
+        // `.func`. Only a card that is a single definition is ported.
+        return Err(resolved(spice_core::SpiceError::not_yet_ported(
+            format!(
+                "{}: function definition '{name}(...)' inside a multi-assignment .param \
+                 card (write it on its own .param or .func card)",
+                input.state.location(end)
+            ),
+            "src/frontend/inpcom.c (inp_split_multi_param_lines, \
+             inp_fix_macro_param_func_paren_io)",
+        )));
+    }
     // Committed from here: a name must be followed by '='.
     ws.parse_next(input)?;
     let here = input.eof_offset();

@@ -97,10 +97,15 @@ fn malformed_func_cards_are_positioned_errors() {
         (".func f(x,) {x}", 11, "expected a parameter name"),
         (".func f(x)", 11, "expected a body"),
         (".func f(x) {x*}", 15, "expected an operand"),
-        (".func f(x) {x} y", 16, "unexpected text after the body"),
         (".func f(x) {x+{1}}", 15, "nested braces"),
-        (".func f(x,x) {x}", 11, "duplicate parameter 'x'"),
         (".func f(max) {1}", 9, "name of a built-in function"),
+        (".param f(x", 11, "expected ',' or ')'"),
+        (".param f(x)=", 13, "expected a body"),
+        (
+            ".param f(x) {x}",
+            13,
+            "expected '=' after the parameter list",
+        ),
     ] {
         match parse(body).expect_err(body) {
             SpiceError::Parse {
@@ -118,6 +123,125 @@ fn malformed_func_cards_are_positioned_errors() {
     for body in [".func max(a) {a}", ".func f(x) \"x\""] {
         assert!(parse(body).unwrap_err().is_not_yet_ported(), "{body}");
     }
+    // Forms C accepts that the port does not reproduce: glued pieces after a
+    // delimited body (`inp_strip_braces()`), duplicate formals (C binds the
+    // first), and a function definition inside a multi-assignment `.param`
+    // card (C splits the card first). Positioned NotYetPorted, not Parse.
+    for (body, position, message) in [
+        (
+            ".func f(x) {x}+{1}",
+            "f.cir:2:15",
+            "text after the delimited body",
+        ),
+        (
+            ".func f(x) {x} y",
+            "f.cir:2:16",
+            "text after the delimited body",
+        ),
+        (
+            ".param f(x)={x} a=2",
+            "f.cir:2:17",
+            "text after the delimited body",
+        ),
+        (".func f(x,x) {x}", "f.cir:2:11", "duplicate parameter 'x'"),
+        (
+            ".param a=1 f(x)={x}",
+            "f.cir:2:13",
+            "inside a multi-assignment .param",
+        ),
+    ] {
+        let error = parse(body).expect_err(body);
+        assert!(error.is_not_yet_ported(), "{body}: {error}");
+        let text = error.to_string();
+        assert!(
+            text.contains(position) && text.contains(message),
+            "{body}: {text}"
+        );
+    }
+}
+
+#[test]
+fn param_cards_spelling_a_function_are_func_definitions() {
+    // C: inpcom.c inp_fix_macro_param_func_paren_io() rewrites a `.param`
+    // card whose first token contains '(' into `.func`, unconditionally.
+    let n =
+        deck(".param f(x)={x*3}\n.PARAM G(x, y) = 'x+y'\n.param h()=4\n.param p={f(3)+g(3,4)+h()}");
+    assert_eq!(n.functions.len(), 3);
+    assert_eq!(n.params.len(), 1);
+    assert!(
+        n.functions
+            .iter()
+            .all(|f| f.spelling == spice_netlist::ast::FuncSpelling::Param)
+    );
+    let g = &n.functions[1];
+    assert_eq!(g.name, "g");
+    assert_eq!(g.name_span.start.column, 8);
+    assert!(g.body.quoted);
+    assert_eq!(
+        n.cards.iter().map(|c| c.kind).take(4).collect::<Vec<_>>(),
+        [
+            ScopedCardKind::Func(0),
+            ScopedCardKind::Func(1),
+            ScopedCardKind::Func(2),
+            ScopedCardKind::Param(0),
+        ]
+    );
+    assert_eq!(value(".param f(x)={x*3}\n.param p={f(3)}", "p"), 9.0);
+    assert_eq!(
+        probe(
+            ".param f(x)={x*3}\n.param g(x,y) = 'x+y'\n.param h()=4",
+            "f(3)+g(3,4)+h()"
+        ),
+        20.0
+    );
+    // The same definition as `.func`, semantically.
+    assert!(semantic_eq(
+        &deck(".param f(x)={x*3}"),
+        &deck(".func f(x) {x*3}")
+    ));
+    // Inside a subcircuit body too.
+    let n = deck(".subckt s a\n.param k(x)={x*2}\nr1 a 0 {k(2)}\n.ends");
+    assert_eq!(n.subcircuits[0].functions.len(), 1);
+}
+
+#[test]
+fn param_dependency_scan_is_bounded() {
+    // Exponential DAG: each level calls the previous one twice. The
+    // dependency scan memoizes free names, so only evaluation itself runs
+    // into the node budget (C expands it textually and is no better).
+    let mut body = String::from(".func f0(x) {x}\n");
+    for i in 1..=60 {
+        body.push_str(&format!(".func f{i}(x) {{f{}(x)+f{}(x)}}\n", i - 1, i - 1));
+    }
+    body.push_str(".param p={f60(1)}");
+    let start = std::time::Instant::now();
+    let error = scope_error(&body).to_string();
+    assert!(error.contains("budget"), "{error}");
+    assert!(start.elapsed() < std::time::Duration::from_secs(30));
+    // A small DAG still resolves, with free names found through it.
+    let mut body = String::from(".func f0(x) {x*k}\n");
+    for i in 1..=15 {
+        body.push_str(&format!(
+            ".func f{i}(x) {{f{}(x)-f{}(x)+x}}\n",
+            i - 1,
+            i - 1
+        ));
+    }
+    body.push_str(".param p={f15(2)}\n.param k=5");
+    assert_eq!(value(&body, "p"), 2.0);
+    // Deep linear chain on the `.param` path: a positioned depth error, not
+    // a stack overflow.
+    let mut body = String::from(".func f0(x) {x}\n");
+    for i in 1..=20_000 {
+        body.push_str(&format!(".func f{i}(x) {{f{}(x)}}\n", i - 1));
+    }
+    body.push_str(".param p={f20000(1)}");
+    let error = scope_error(&body).to_string();
+    assert!(error.contains("deeper than 1024 levels"), "{error}");
+    assert!(
+        error.contains("while collecting the dependencies of parameter 'p'"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -397,6 +521,16 @@ fn writer_round_trips_functions_and_quotes() {
         x1 n s w='3'\n\
         .ic v(n)='a'\n.tran '1u' 1m\n.end\n";
     assert_eq!(written, expected);
+    // The `.param` spelling of a function definition is kept.
+    let written = round_trip(
+        "t\n.param f(x)={x*3}\n.PARAM G( X , y ) = 'x+y'\n.param h()= x+1\n.param x=1\n\
+         .subckt s a\n.param k(q)={q*2}\nr1 a 0 {k(f(1))}\n.ends\n.end\n",
+    );
+    assert_eq!(
+        written,
+        "t\n.param f(x)={x*3}\n.param g(x,y)='x+y'\n.param h()=x+1\n.param x=1\n\
+         .subckt s a\n  .param k(q)={q*2}\n  r1 a 0 {k(f(1))}\n.ends s\n.end\n"
+    );
     // A quoted value is not semantically the same spelling as a braced one,
     // but both evaluate the same.
     let quoted = deck(".param a='1'");

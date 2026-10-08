@@ -99,6 +99,11 @@ fn functions_and_quotes_agree_with_c_numparam() {
         (".func limit(x,a,b) {min(max(x,a),b)}", "{limit(5,1,3)}"),
         // An unused body may name an undefined parameter.
         (".func f(x) {zz*x}", "{1}"),
+        // `.param name(formals) = body` is a `.func` (inp_fix_macro_param_func_paren_io).
+        (".param f(x)={x*3}", "{f(3)}"),
+        (".param g(x,y) = 'x+y'", "'g(3,4)'"),
+        (".param h()=4", "{h()+1}"),
+        (".param k(x)=x*2\n.param q={k(5)}", "{q}"),
         // Single quotes are braces.
         (".param a='1+2' b='a*2'", "{b}"),
         (".param a = '1 + 2'", "{a*2}"),
@@ -139,6 +144,12 @@ fn function_failures_c_reports_are_errors_here_too() {
             "{1}",
             "recursive .func definition",
         ),
+        // The `.param` spelling of a definition needs its '='.
+        (
+            ".param f(x) {x*3}",
+            "{f(3)}",
+            "expected '=' after the parameter list",
+        ),
         // A function's free name that is not defined where it is used.
         (".func f(x) {zz*x}", "{f(1)}", "undefined parameter 'zz'"),
     ];
@@ -149,5 +160,30 @@ fn function_failures_c_reports_are_errors_here_too() {
         );
         let error = rust_value(cards, value).expect_err(cards);
         assert!(error.contains(message), "{cards} {value}: {error}");
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_func_eval -- --ignored"]
+fn forms_c_accepts_but_the_port_does_not_are_not_yet_ported() {
+    let cases: &[(&str, &str)] = &[
+        // inp_strip_braces() glues the pieces: `x+1`.
+        (".func f(x) {x}+{1}", "{f(2)}"),
+        // C binds the first of two equal formals.
+        (".func f(x,x) {x*2}", "{f(2,3)}"),
+        // C splits the card, then rewrites `f(x)={x}` to `.func`.
+        (".param a=1 f(x)={x}", "{f(3)}"),
+        (".param f(x)={x} a=2", "{f(3)+a}"),
+        // A different-arity redefinition of an allowlisted built-in.
+        (".func max(a) {a}", "{max(3)}"),
+    ];
+    for (index, (cards, value)) in cases.iter().enumerate() {
+        c_value(&format!("nyp{index}"), cards, value)
+            .unwrap_or_else(|e| panic!("C rejected {cards} {value}: {e}"));
+        let text = format!("t\n{cards}\n.param probe__={value}\n.end\n");
+        let error = Parser::new()
+            .parse_deck(&parse_deck_text(Path::new("probe.cir"), &text))
+            .expect_err(cards);
+        assert!(error.is_not_yet_ported(), "{cards}: {error}");
     }
 }

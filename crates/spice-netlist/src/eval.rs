@@ -420,10 +420,25 @@ impl ParamScope {
             node_of.insert(i, graph.add_node(i));
         }
         let mut undefined: Option<(usize, String, SourceLoc)> = None;
+        let mut scan = RefScan {
+            use_site: scope_functions,
+            budget: &mut *budget,
+            memo: HashMap::new(),
+            stack: Vec::new(),
+            cuts: 0,
+        };
         for &i in &live {
             let Some(expr) = exprs[i] else { continue };
             let mut refs = Vec::new();
-            collect_refs(&expr.root, scope_functions, &mut refs);
+            scan.refs(&expr.root, 0, &mut refs).map_err(|f| {
+                f.context(|| {
+                    format!(
+                        "while collecting the dependencies of parameter '{}' defined at {}",
+                        entries[i].name, entries[i].location
+                    )
+                })
+                .into_error()
+            })?;
             for (name, loc) in refs {
                 let known = |n: &str| {
                     active.get(n).is_some_and(|&j| j < binding_count)
@@ -831,37 +846,178 @@ fn collect_calls<'a>(expr: &'a Expr, out: &mut Vec<(&'a str, usize, SourceLoc)>)
     }
 }
 
-/// Names an expression depends on, with the location to blame: identifiers
-/// (at their own location) and, for calls of user functions visible in
-/// `functions`, the names their bodies leave free (at the call).
-fn collect_refs(
-    expr: &Expr,
-    functions: Option<&FunctionScope>,
-    out: &mut Vec<(String, SourceLoc)>,
-) {
-    match &expr.kind {
-        ExprKind::Number { .. } => {}
-        ExprKind::Identifier(name) => out.push((name.clone(), expr.span.start.clone())),
-        ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => {
-            collect_refs(operand, functions, out);
+/// The dependency pre-pass of one [`ParamScope`]: the names a `.param`
+/// expression depends on, with the location to blame. Identifiers count at
+/// their own location; a call of a user function visible at the site counts
+/// with the names its body leaves free (at the call).
+///
+/// The work is bounded like evaluation: every visited `.func` body node is
+/// charged to the [`EvalBudget`], the walk is cut at
+/// [`EvalLimits::max_depth`] levels (expression nesting plus call nesting,
+/// counted as in [`eval`]), and the free names
+/// of each definition are computed once per scope (memoized), so a DAG of
+/// functions costs linear rather than exponential work.
+struct RefScan<'a, 'b> {
+    /// The site's `.func` scope; also where a body's unresolved call names
+    /// are looked up (C expands what is left at the outermost call).
+    use_site: Option<&'a FunctionScope>,
+    budget: &'b mut EvalBudget,
+    /// Free names per definition (keyed by address; definitions live in the
+    /// scope chain for the whole scan).
+    memo: HashMap<*const FunctionDef, Arc<[String]>>,
+    /// Definitions being expanded, to cut a cycle formed through the
+    /// call-site fallback (evaluation reports it).
+    stack: Vec<*const FunctionDef>,
+    /// Number of cycles cut so far: a result computed while a cycle was cut
+    /// may be partial and is not memoized.
+    cuts: usize,
+}
+
+impl<'a> RefScan<'a, '_> {
+    /// Checks the depth of `node`; inside a `.func` body (`in_body`) also
+    /// charges it to the budget. Site expressions are not charged: their
+    /// scan is linear and evaluation charges them anyway.
+    fn charge(&mut self, node: &Expr, depth: usize, in_body: bool) -> Result<(), Failure> {
+        let limits = self.budget.limits;
+        if depth > limits.max_depth {
+            return Err(Failure {
+                location: node.span.start.clone(),
+                message: format!(
+                    "expression deeper than {} levels{}",
+                    limits.max_depth,
+                    if in_body { CALL_DEPTH_NOTE } else { "" }
+                ),
+                unsupported: false,
+            });
         }
-        ExprKind::Binary { lhs, rhs, .. } => {
-            collect_refs(lhs, functions, out);
-            collect_refs(rhs, functions, out);
+        if !in_body {
+            return Ok(());
         }
-        ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
-            for a in arguments {
-                collect_refs(a, functions, out);
+        self.budget.nodes += 1;
+        if self.budget.nodes > limits.max_nodes {
+            return Err(Failure {
+                location: node.span.start.clone(),
+                message: format!(
+                    "evaluation exceeded the budget of {} expression nodes \
+                     (while collecting the names used through .func calls)",
+                    limits.max_nodes
+                ),
+                unsupported: false,
+            });
+        }
+        Ok(())
+    }
+
+    /// Names `expr` (a site expression) depends on.
+    fn refs(
+        &mut self,
+        expr: &'a Expr,
+        depth: usize,
+        out: &mut Vec<(String, SourceLoc)>,
+    ) -> Result<(), Failure> {
+        self.charge(expr, depth, false)?;
+        match &expr.kind {
+            ExprKind::Number { .. } => {}
+            ExprKind::Identifier(name) => out.push((name.clone(), expr.span.start.clone())),
+            ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => {
+                self.refs(operand, depth + 1, out)?;
             }
-            let name = call_name(&expr.kind);
-            if let Some((def, scope)) = functions.and_then(|f| f.get(name)) {
-                let mut free = Vec::new();
-                free_names(def, scope, functions, &mut Vec::new(), &mut free);
-                for name in free {
-                    out.push((name, expr.span.start.clone()));
+            ExprKind::Binary { lhs, rhs, .. } => {
+                self.refs(lhs, depth + 1, out)?;
+                self.refs(rhs, depth + 1, out)?;
+            }
+            ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
+                for a in arguments {
+                    self.refs(a, depth + 1, out)?;
+                }
+                let name = call_name(&expr.kind);
+                if let Some((def, scope)) = self.use_site.and_then(|f| f.get(name)) {
+                    let free = self.free_names(def, scope, depth)?;
+                    for name in free.iter() {
+                        out.push((name.clone(), expr.span.start.clone()));
+                    }
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Names a call of `def` leaves free for the call site to supply: names
+    /// in its body that are not its formals, plus (transitively) the free
+    /// names of the user functions it calls that its own formals do not
+    /// capture. `depth` is the call node's; the body is [`CALL_DEPTH`]
+    /// levels deeper, as in [`call`].
+    ///
+    /// C expands `.func` bodies textually (`inp_expand_macro_in_str()`), so a
+    /// callee's free name is captured by the formals of every enclosing call
+    /// and otherwise resolved where the outermost call was written.
+    fn free_names(
+        &mut self,
+        def: &'a FunctionDef,
+        scope: &'a FunctionScope,
+        depth: usize,
+    ) -> Result<Arc<[String]>, Failure> {
+        let key = std::ptr::from_ref(def);
+        if let Some(free) = self.memo.get(&key) {
+            return Ok(Arc::clone(free));
+        }
+        if self.stack.contains(&key) {
+            // A dynamic cycle; evaluation reports it.
+            self.cuts += 1;
+            return Ok(Arc::from([]));
+        }
+        let cuts = self.cuts;
+        self.stack.push(key);
+        let mut names = Vec::new();
+        let result = self.body_names(&def.body.root, scope, depth + CALL_DEPTH, &mut names);
+        self.stack.pop();
+        result?;
+        let mut free: Vec<String> = Vec::new();
+        for name in names {
+            if !def.parameters.contains(&name) && !free.contains(&name) {
+                free.push(name);
+            }
+        }
+        let free: Arc<[String]> = free.into();
+        if self.cuts == cuts {
+            self.memo.insert(key, Arc::clone(&free));
+        }
+        Ok(free)
+    }
+
+    fn body_names(
+        &mut self,
+        expr: &'a Expr,
+        scope: &'a FunctionScope,
+        depth: usize,
+        out: &mut Vec<String>,
+    ) -> Result<(), Failure> {
+        self.charge(expr, depth, true)?;
+        match &expr.kind {
+            ExprKind::Number { .. } => {}
+            ExprKind::Identifier(name) => out.push(name.clone()),
+            ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => {
+                self.body_names(operand, scope, depth + 1, out)?;
+            }
+            ExprKind::Binary { lhs, rhs, .. } => {
+                self.body_names(lhs, scope, depth + 1, out)?;
+                self.body_names(rhs, scope, depth + 1, out)?;
+            }
+            ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
+                for a in arguments {
+                    self.body_names(a, scope, depth + 1, out)?;
+                }
+                let name = call_name(&expr.kind);
+                let callee = scope
+                    .get(name)
+                    .or_else(|| self.use_site.and_then(|u| u.get(name)));
+                if let Some((callee, callee_scope)) = callee {
+                    let free = self.free_names(callee, callee_scope, depth)?;
+                    out.extend(free.iter().cloned());
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -871,67 +1027,6 @@ fn call_name(kind: &ExprKind) -> &str {
         ExprKind::Call { function, .. } => function.name(),
         ExprKind::UserCall { name, .. } => name,
         _ => "",
-    }
-}
-
-/// Names a call of `def` leaves free for the call site to supply: names in
-/// its body that are not its formals, plus (transitively) the free names of
-/// the user functions it calls that its own formals do not capture.
-///
-/// C expands `.func` bodies textually (`inp_expand_macro_in_str()`), so a
-/// callee's free name is captured by the formals of every enclosing call and
-/// otherwise resolved where the outermost call was written.
-fn free_names<'a>(
-    def: &'a FunctionDef,
-    scope: &'a FunctionScope,
-    use_site: Option<&'a FunctionScope>,
-    stack: &mut Vec<*const FunctionDef>,
-    out: &mut Vec<String>,
-) {
-    if stack.contains(&std::ptr::from_ref(def)) {
-        // A dynamic cycle; evaluation reports it.
-        return;
-    }
-    stack.push(std::ptr::from_ref(def));
-    let mut names = Vec::new();
-    body_names(&def.body.root, scope, use_site, stack, &mut names);
-    stack.pop();
-    for name in names {
-        if !def.parameters.contains(&name) && !out.contains(&name) {
-            out.push(name);
-        }
-    }
-}
-
-fn body_names<'a>(
-    expr: &'a Expr,
-    scope: &'a FunctionScope,
-    use_site: Option<&'a FunctionScope>,
-    stack: &mut Vec<*const FunctionDef>,
-    out: &mut Vec<String>,
-) {
-    match &expr.kind {
-        ExprKind::Number { .. } => {}
-        ExprKind::Identifier(name) => out.push(name.clone()),
-        ExprKind::Unary { operand, .. } | ExprKind::Group(operand) => {
-            body_names(operand, scope, use_site, stack, out);
-        }
-        ExprKind::Binary { lhs, rhs, .. } => {
-            body_names(lhs, scope, use_site, stack, out);
-            body_names(rhs, scope, use_site, stack, out);
-        }
-        ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
-            for a in arguments {
-                body_names(a, scope, use_site, stack, out);
-            }
-            let name = call_name(&expr.kind);
-            let callee = scope
-                .get(name)
-                .or_else(|| use_site.and_then(|u| u.get(name)));
-            if let Some((callee, callee_scope)) = callee {
-                free_names(callee, callee_scope, use_site, stack, out);
-            }
-        }
     }
 }
 
@@ -969,6 +1064,15 @@ fn shortest_cycle(
     }
     vec![start, start]
 }
+
+/// Depth units a `.func` call adds before its body, against
+/// [`EvalLimits::max_depth`]. A call nests several evaluator frames, so it is
+/// charged more than one level of expression nesting; this keeps the stack
+/// used by the deepest accepted input within that of a plain expression of
+/// [`EvalLimits::max_depth`] levels (a 2 MiB thread stack, unoptimized).
+const CALL_DEPTH: usize = 4;
+
+const CALL_DEPTH_NOTE: &str = " (each nested .func call counts as 4 levels)";
 
 /// One active `.func` call: the definition, the scope it was defined in and
 /// its argument values, linked to the enclosing call.
@@ -1063,6 +1167,10 @@ fn checked(
     }
 }
 
+/// The recursive evaluator. Kept to a small dispatch (every diagnostic and
+/// call is built in a separate, non-inlined function) so that one level of
+/// nesting costs little stack even unoptimized: [`EvalLimits::max_depth`]
+/// levels must fit a 2 MiB thread stack.
 fn eval(
     node: &Expr,
     root: &ParameterExpression,
@@ -1071,30 +1179,18 @@ fn eval(
     depth: usize,
 ) -> Result<Real, Failure> {
     if depth > budget.limits.max_depth {
-        return Err(fail(
-            node,
-            root,
-            format!("expression deeper than {} levels", budget.limits.max_depth),
-        ));
+        return Err(too_deep(node, root, env, budget.limits.max_depth));
     }
     budget.nodes += 1;
     if budget.nodes > budget.limits.max_nodes {
-        return Err(fail(
-            node,
-            root,
-            format!(
-                "evaluation exceeded the budget of {} expression nodes",
-                budget.limits.max_nodes
-            ),
-        ));
+        return Err(over_budget(node, root, budget.limits.max_nodes));
     }
     match &node.kind {
         ExprKind::Number { value, .. } => Ok(*value),
-        ExprKind::Identifier(name) => env.value(name).ok_or_else(|| Failure {
-            location: node.span.start.clone(),
-            message: format!("undefined parameter '{name}'"),
-            unsupported: false,
-        }),
+        ExprKind::Identifier(name) => match env.value(name) {
+            Some(value) => Ok(value),
+            None => Err(undefined_parameter(node, name)),
+        },
         ExprKind::Group(inner) => eval(inner, root, env, budget, depth + 1),
         ExprKind::Unary { op, operand } => {
             let v = eval(operand, root, env, budget, depth + 1)?;
@@ -1106,79 +1202,150 @@ fn eval(
         ExprKind::Binary { op, lhs, rhs } => {
             let x = eval(lhs, root, env, budget, depth + 1)?;
             let y = eval(rhs, root, env, budget, depth + 1)?;
-            let result = match op {
-                BinaryOp::Add => x + y,
-                BinaryOp::Sub => x - y,
-                BinaryOp::Mul => x * y,
-                BinaryOp::Div => {
-                    if y == 0.0 {
-                        return Err(Failure {
-                            location: rhs.span.start.clone(),
-                            message: format!(
-                                "division by zero ({x} / {y}) in `{}`",
-                                snippet(root, node)
-                            ),
-                            unsupported: false,
-                        });
-                    }
-                    x / y
-                }
-                // xpressn.c operate(), default compatibility.
-                BinaryOp::Pow => x.abs().powf(y),
-            };
-            checked(result, node, root, || match op {
-                BinaryOp::Add => format!("{x} + {y}"),
-                BinaryOp::Sub => format!("{x} - {y}"),
-                BinaryOp::Mul => format!("{x} * {y}"),
-                BinaryOp::Div => format!("{x} / {y}"),
-                BinaryOp::Pow => format!("pow(fabs({x}), {y})"),
-            })
+            binary(*op, x, y, node, rhs, root)
         }
         ExprKind::Call {
             function,
             arguments,
-        } => {
-            let mut args = Vec::with_capacity(arguments.len());
-            for a in arguments {
-                args.push(eval(a, root, env, budget, depth + 1)?);
-            }
-            // A `.func` of the same name replaces the built-in, as C's
-            // textual expansion does before numparam sees the call.
-            if let Some((def, scope)) = env.function(function.name()) {
-                return call(node, root, env, budget, depth, def, scope, args);
-            }
-            let result = apply(*function, &args);
-            checked(result, node, root, || {
-                let list: Vec<String> = args.iter().map(ToString::to_string).collect();
-                format!("{}({})", function.name(), list.join(", "))
-            })
-        }
+        } => builtin_call(node, root, env, budget, depth, *function, arguments),
         ExprKind::UserCall { name, arguments } => {
-            let Some((def, scope)) = env.function(name) else {
-                if EXCLUDED_FUNCTIONS.contains(&name.as_str()) {
-                    return Err(Failure {
-                        location: node.span.start.clone(),
-                        message: format!(
-                            "function '{name}' is a numparam function outside the bounded \
-                             allowlist in `{}`",
-                            snippet(root, node)
-                        ),
-                        unsupported: true,
-                    });
-                }
-                return Err(fail(
-                    node,
-                    root,
-                    format!("undefined function '{name}' (no .func definition is in scope)"),
-                ));
-            };
-            let mut args = Vec::with_capacity(arguments.len());
-            for a in arguments {
-                args.push(eval(a, root, env, budget, depth + 1)?);
-            }
-            call(node, root, env, budget, depth, def, scope, args)
+            user_call(node, root, env, budget, depth, name, arguments)
         }
     }
+}
+
+#[inline(never)]
+#[cold]
+fn too_deep(node: &Expr, root: &ParameterExpression, env: Env<'_>, max: usize) -> Failure {
+    let note = if env.frame.is_some() {
+        CALL_DEPTH_NOTE
+    } else {
+        ""
+    };
+    fail(
+        node,
+        root,
+        format!("expression deeper than {max} levels{note}"),
+    )
+}
+
+#[inline(never)]
+#[cold]
+fn over_budget(node: &Expr, root: &ParameterExpression, max: usize) -> Failure {
+    fail(
+        node,
+        root,
+        format!("evaluation exceeded the budget of {max} expression nodes"),
+    )
+}
+
+#[inline(never)]
+#[cold]
+fn undefined_parameter(node: &Expr, name: &str) -> Failure {
+    Failure {
+        location: node.span.start.clone(),
+        message: format!("undefined parameter '{name}'"),
+        unsupported: false,
+    }
+}
+
+/// One binary operation on evaluated operands.
+#[inline(never)]
+fn binary(
+    op: BinaryOp,
+    x: Real,
+    y: Real,
+    node: &Expr,
+    rhs: &Expr,
+    root: &ParameterExpression,
+) -> Result<Real, Failure> {
+    let result = match op {
+        BinaryOp::Add => x + y,
+        BinaryOp::Sub => x - y,
+        BinaryOp::Mul => x * y,
+        BinaryOp::Div => {
+            if y == 0.0 {
+                return Err(Failure {
+                    location: rhs.span.start.clone(),
+                    message: format!("division by zero ({x} / {y}) in `{}`", snippet(root, node)),
+                    unsupported: false,
+                });
+            }
+            x / y
+        }
+        // xpressn.c operate(), default compatibility.
+        BinaryOp::Pow => x.abs().powf(y),
+    };
+    checked(result, node, root, || match op {
+        BinaryOp::Add => format!("{x} + {y}"),
+        BinaryOp::Sub => format!("{x} - {y}"),
+        BinaryOp::Mul => format!("{x} * {y}"),
+        BinaryOp::Div => format!("{x} / {y}"),
+        BinaryOp::Pow => format!("pow(fabs({x}), {y})"),
+    })
+}
+
+/// A built-in call, or the `.func` that redefines it.
+#[inline(never)]
+fn builtin_call(
+    node: &Expr,
+    root: &ParameterExpression,
+    env: Env<'_>,
+    budget: &mut EvalBudget,
+    depth: usize,
+    function: Function,
+    arguments: &[Expr],
+) -> Result<Real, Failure> {
+    let mut args = Vec::with_capacity(arguments.len());
+    for a in arguments {
+        args.push(eval(a, root, env, budget, depth + 1)?);
+    }
+    // A `.func` of the same name replaces the built-in, as C's textual
+    // expansion does before numparam sees the call.
+    if let Some((def, scope)) = env.function(function.name()) {
+        return call(node, root, env, budget, depth, def, scope, args);
+    }
+    let result = apply(function, &args);
+    checked(result, node, root, || {
+        let list: Vec<String> = args.iter().map(ToString::to_string).collect();
+        format!("{}({})", function.name(), list.join(", "))
+    })
+}
+
+/// A call of a name outside the built-in allowlist.
+#[inline(never)]
+fn user_call(
+    node: &Expr,
+    root: &ParameterExpression,
+    env: Env<'_>,
+    budget: &mut EvalBudget,
+    depth: usize,
+    name: &str,
+    arguments: &[Expr],
+) -> Result<Real, Failure> {
+    let Some((def, scope)) = env.function(name) else {
+        if EXCLUDED_FUNCTIONS.contains(&name) {
+            return Err(Failure {
+                location: node.span.start.clone(),
+                message: format!(
+                    "function '{name}' is a numparam function outside the bounded \
+                     allowlist in `{}`",
+                    snippet(root, node)
+                ),
+                unsupported: true,
+            });
+        }
+        return Err(fail(
+            node,
+            root,
+            format!("undefined function '{name}' (no .func definition is in scope)"),
+        ));
+    };
+    let mut args = Vec::with_capacity(arguments.len());
+    for a in arguments {
+        args.push(eval(a, root, env, budget, depth + 1)?);
+    }
+    call(node, root, env, budget, depth, def, scope, args)
 }
 
 /// Evaluates one `.func` call with already evaluated arguments.
@@ -1234,14 +1401,15 @@ fn call(
         functions: env.functions,
         frame: Some(&frame),
     };
-    let value = eval(&def.body.root, &def.body, inner, budget, depth + 1).map_err(|f| {
-        f.context(|| {
-            format!(
-                "in function '{}' (defined at {}) called at {}",
-                def.name, def.location, frame.call
-            )
-        })
-    })?;
+    let value =
+        eval(&def.body.root, &def.body, inner, budget, depth + CALL_DEPTH).map_err(|f| {
+            f.context(|| {
+                format!(
+                    "in function '{}' (defined at {}) called at {}",
+                    def.name, def.location, frame.call
+                )
+            })
+        })?;
     checked(value, node, root, || format!("{}(...)", def.name))
 }
 

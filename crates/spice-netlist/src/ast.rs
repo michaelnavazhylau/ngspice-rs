@@ -271,8 +271,21 @@ pub struct FuncCard {
     pub parameters: Vec<FuncParameter>,
     /// The unevaluated body (`{...}`, `'...'` or the bare rest of the card).
     pub body: crate::expr::ParameterExpression,
+    /// Which card spelled the definition (kept for the writer only).
+    pub spelling: FuncSpelling,
     /// Where the card was written.
     pub location: SourceLoc,
+}
+
+/// How a [`FuncCard`] was written. Both spellings define the same function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FuncSpelling {
+    /// `.func name(p1, p2) body`.
+    #[default]
+    Func,
+    /// `.param name(p1, p2) = body`, which C rewrites to `.func`
+    /// unconditionally (`inpcom.c` `inp_fix_macro_param_func_paren_io()`).
+    Param,
 }
 
 /// One formal parameter of a [`FuncCard`].

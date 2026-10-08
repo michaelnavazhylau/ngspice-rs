@@ -24,9 +24,9 @@ use std::path::PathBuf;
 use spice_core::SourceLoc;
 
 use crate::ast::{
-    AnalysisCard, ArgumentExpression, DeviceInstance, FuncCard, FuncParameter, GlobalCard,
-    GlobalNode, IncludeDirective, InitialCondition, LibrarySection, ModelCard, Netlist, NodeHint,
-    NodeHintCard, NodeHintValue, OptionCard, OptionSetting, ParamAssignment, ParamCard,
+    AnalysisCard, ArgumentExpression, DeviceInstance, FuncCard, FuncParameter, FuncSpelling,
+    GlobalCard, GlobalNode, IncludeDirective, InitialCondition, LibrarySection, ModelCard, Netlist,
+    NodeHint, NodeHintCard, NodeHintValue, OptionCard, OptionSetting, ParamAssignment, ParamCard,
     ParameterAssignment, ParameterKind, PositionedValue, PulseWaveform, PwlPoint, ScopedCard,
     ScopedCardKind, SourceWaveform, Subcircuit,
 };
@@ -252,6 +252,8 @@ fn function(card: &FuncCard) -> FuncCard {
             })
             .collect(),
         body: expression_form(&card.body),
+        // `.param f(x)=...` and `.func f(x) ...` define the same function.
+        spelling: FuncSpelling::Func,
         location: blank(),
     }
 }

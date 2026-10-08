@@ -225,6 +225,14 @@ to the end of the card. Cards are `ast::FuncCard` in `Netlist::functions` /
 `Subcircuit::functions`, ordered by `ScopedCardKind::Func`, written back by
 the writer and compared by `semantic_eq`.
 
+`.param name(p1, ...) = body` is the same definition: C rewrites a `.param`
+card whose first token contains `(` into `.func` unconditionally
+(`inp_fix_macro_param_func_paren_io()`). The port parses it as a `FuncCard`
+with `FuncSpelling::Param` (the writer keeps the `.param` spelling;
+`semantic_eq` treats both spellings alike). Here the `=` is required: C does
+not keep `.param f(x) {x}` as a definition and the deck fails, and the port
+reports a positioned parse error. Fixture: `conformance/cases/param_func.cir`.
+
 | Case (probed against the C binary) | C | Port |
 | --- | --- | --- |
 | visibility | all definitions of a scope are visible throughout it (hoisted), also to `.param` cards and nested definitions, never outside the defining `.subckt` | same: one `FunctionScope` per lexical scope; expansion uses the definition's scope, not the caller's |
@@ -236,12 +244,27 @@ the writer and compared by `semantic_eq`.
 | undefined function | `Undefined parameter` error | `undefined function` error at the call |
 | wrong argument count (at a site or inside an unused body) | fatal `parameter mismatch` | error at the call, naming the enclosing definition |
 | direct or mutual recursion, even unused | crash (unbounded expansion) | error printing the cycle (petgraph SCC), also in an uninstantiated subcircuit |
-| `.func f(x,x)` | silently binds the first `x` | rejected (duplicate formal); formals named like a built-in are rejected too |
+| `.func f(x,x)` | silently binds the first `x` | `NotYetPorted` (duplicate formal); formals named like a built-in are a parse error |
+| text after a delimited body, `.func f(x) {x}+{1}` | glued after stripping braces and whitespace (`x+1`) | `NotYetPorted` |
+| a definition inside a multi-assignment card, `.param a=1 f(x)={x}` or `.param f(x)={x} a=2` | split into separate cards (`inp_split_multi_param_lines()`), then rewritten to `.func` | `NotYetPorted`; write the definition on its own card |
 
 Dependency ordering of `.param` cards includes the free names of the
 functions they call, so `.param p={f(2)}` before `.func f(x) {x*q}` and
 `.param q=3` resolves. Mixed body spellings that C glues together after
-stripping braces and whitespace (`{a}+{b}`, `2 3`) are rejected.
+stripping braces and whitespace (`{a}+{b}`) are `NotYetPorted`; a bare body
+runs to the end of the card and is parsed as one expression, so a bare body
+whose whitespace C would delete to join tokens (`2 3` becomes `23` in C) is
+still a plain parse error (known gap).
+
+The dependency pre-pass is bounded like evaluation: the free names of each
+definition are computed once per scope (memoized), every `.func` body node it
+visits is charged to the `EvalBudget`, and it stops at the depth limit. For
+the depth limit (1 024) each nested `.func` call counts as 4 levels, which
+keeps the deepest accepted input within the stack of a plain 1 024-level
+expression (a 2 MiB thread stack, unoptimized); deeper chains are a
+positioned error. Expansion that is exponential in the deck size (each
+definition calling the previous one twice) runs into the node budget, where C
+expands it textually.
 
 API: `eval::FunctionScope::{new, for_netlist, get, definitions, parent}`,
 `eval::FunctionDef`; `ParamScope::for_netlist(&Netlist)` (top-level params and

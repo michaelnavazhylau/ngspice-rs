@@ -55,9 +55,9 @@ use std::path::Path;
 use spice_core::{SourceLoc, SpiceError, SpiceResult};
 
 use crate::ast::{
-    AnalysisCard, DeviceInstance, FuncCard, GlobalCard, IncludeDirective, ModelCard, Netlist,
-    NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind,
-    PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, FuncCard, FuncSpelling, GlobalCard, IncludeDirective, ModelCard,
+    Netlist, NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment,
+    ParameterKind, PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{BinaryOp, Expr, ExprKind, ParameterExpression, SourceSpan, UnaryOp};
@@ -631,10 +631,17 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
             out.line(
                 indent + 1,
                 format!(
-                    "func [{n}] name={} name_span={} parameters=[{}] @{}",
+                    "func [{n}] name={} name_span={} parameters=[{}]{} @{}",
                     quote(&card.name),
                     ctx.span(&card.name_span),
                     parameters.join(", "),
+                    // Printed only for the `.param` spelling, so `.func`
+                    // snapshots keep their shape.
+                    if card.spelling == FuncSpelling::Param {
+                        " spelling=param"
+                    } else {
+                        ""
+                    },
                     ctx.loc(&card.location)
                 ),
             );

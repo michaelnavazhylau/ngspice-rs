@@ -102,9 +102,9 @@ use spice_core::{AnalysisKind, SourceLoc, SpiceError, SpiceResult, parse_spice_n
 
 use crate::Parser;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, FuncCard, GlobalCard, IncludeDirective, ModelCard, Netlist,
-    NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind,
-    PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, FuncCard, FuncSpelling, GlobalCard, IncludeDirective, ModelCard,
+    Netlist, NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment,
+    ParameterKind, PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::expr::ParameterExpression;
 use crate::semantic::expr_form;
@@ -477,12 +477,20 @@ impl Writer {
         let location = &card.location;
         check_expression(&card.body, location)?;
         let formals: Vec<&str> = card.parameters.iter().map(|p| p.name.as_str()).collect();
-        let text = format!(
-            ".func {}({}) {}",
-            card.name,
-            formals.join(","),
-            card.body.spelling()
-        );
+        let text = match card.spelling {
+            FuncSpelling::Func => format!(
+                ".func {}({}) {}",
+                card.name,
+                formals.join(","),
+                card.body.spelling()
+            ),
+            FuncSpelling::Param => format!(
+                ".param {}({})={}",
+                card.name,
+                formals.join(","),
+                card.body.spelling()
+            ),
+        };
         let deck = parse_deck_text(location.path(), &format!("t\n{text}\n"));
         let reparsed = Parser::new().parse_deck(&deck).map_err(|error| {
             refuse(
@@ -493,6 +501,7 @@ impl Writer {
         let same = reparsed.functions.len() == 1 && {
             let other = &reparsed.functions[0];
             other.name == card.name
+                && other.spelling == card.spelling
                 && other
                     .parameters
                     .iter()
