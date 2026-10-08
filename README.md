@@ -43,6 +43,8 @@ table, formulas, temperatures and deliberately rejected forms.
 | Transient | Ordinary `.tran`: adaptive trap/Gear-2 with bounded nonlinear charge; explicit diffsol BDF remains linear-only |
 | Nonlinear D/Q/M equations | Bounded diode / Ebers-Moll BJT / MOS1; see M4 support table and explicit exclusions |
 | CLI simulation command | `spice-rs simulate --output <path> <deck>` (#6) runs the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner and writes an ASCII rawfile ([CLI.md](docs/port/CLI.md)) |
+| Output selection (`.save`/`.print`) | Bounded typed request parsing and projection of the full plot into the written rawfile in C's `dbs` order: `v(n)`, `v(n1,n2)`, `i(source|inductor)` and `vm`/`vp`/`vr`/`vi`/`vdb`, first-wins dedup; `.print` also renders a text table; unresolvable or unsupported requests fail before anything is published; `.plot` is unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
+| Measurements (`.measure`/`.meas`) | Bounded subset `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) with `FROM`/`TO`, and `TRIG … TARG …` with `AT=` or `<operand> VAL=` plus `RISE`/`FALL`/`CROSS`/`LAST`; evaluated over the full plot before output selection narrows the rawfile; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
 
 Local #34/#35 follow-ups add [DC continuation controls/reports](docs/port/DC_CONTINUATION.md)
 and [scalar resistor/nested sweeps](docs/port/DC_SWEEPS.md), including model-backed
@@ -83,8 +85,11 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 6. **Usability (M5):** wave 1 is merged — subcircuit instantiation (#18,
    [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `simulate` command (#6,
    [CLI.md](docs/port/CLI.md)) and binary rawfile read/write (#45,
-   [RAWFILES.md](docs/port/RAWFILES.md)). M5 is not complete: `.save`/`.print`
-   output selection (#42), `.measure` (#43) and `.four` (#44) remain.
+   [RAWFILES.md](docs/port/RAWFILES.md)); wave 2 adds bounded `.save`/`.print`
+   output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
+   and bounded `.measure`/`.meas` measurements (#43,
+   [MEASURE.md](docs/port/MEASURE.md)). M5 is not complete: `.four` (#44) is
+   still open, in progress on a parallel lane. `.plot` remains unported.
 
 Advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, Tcl, full numparam
 compatibility and the interactive interpreter are outside the initial scope.

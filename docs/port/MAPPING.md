@@ -32,7 +32,10 @@ therefore the central risk of this port — see
 | `src/spicelib/parser/ifeval.c` | 190 | future behavioural-device evaluator | **not ported**; evaluates IF parse trees, not numparam `.param` expressions |
 | `src/spicelib/parser/inpsymt.c` | 305 | `spice-netlist::symbols` (planned) | **not ported** |
 | `src/frontend/circuits.c`, `define.c` | 483 | `spice-devices::registry`, `spice-core::node` | registry with working scalar R/C/L/V/I factories; other designators explicitly unavailable |
-| `src/frontend/` (whole directory) | 88,452 | — | includes the command interpreter, plots and measurement; mostly deferred |
+| `src/spicelib/parser/inp2dot.c` (dot-card grammar), `src/frontend/postcoms.c` (`com_print`) | 2,938 | `spice-netlist::parser::save`, `spice-analysis::selection` | bounded `.save`/`.print` output selection ported (#42): typed positioned requests, projection of the full plot into the written rawfile in C `dbs` order with first-wins dedup and a `.print` text table; `.plot` unported; the full C reference chain (`dotcards.c` `ft_dotsaves`, `breakp2.c` `dbs`, `outitf.c` `beginPlot`) is in [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md) |
+| `src/frontend/measure.c`, `src/frontend/com_measure2.c` | 3,246 | `spice-netlist::parser::measure`, `spice-analysis::measure` | bounded `.measure`/`.meas` measurements ported (#43): `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) and `TRIG … TARG …`; `WHEN`, `MIN_AT`/`MAX_AT`, `PP`, `DERIV`, `ERR*`, `TD=` and body-local cards unported; see [MEASURE.md](MEASURE.md) |
+| `src/frontend/fourier.c` (`.four`) | 373 | — | **not ported** (#44, in progress on a parallel lane) |
+| `src/frontend/` (whole directory) | 88,452 | — | includes the command interpreter and interactive plotting; mostly deferred; the bounded `.measure`/`.meas` subset is ported ([MEASURE.md](MEASURE.md)) |
 
 ## Maths
 
