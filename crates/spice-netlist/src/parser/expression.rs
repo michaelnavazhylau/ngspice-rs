@@ -23,7 +23,7 @@ use crate::expr::{
     BinaryOp, EXCLUDED_FUNCTIONS, Expr, ExprKind, Function, MAX_NESTING, ParameterExpression,
     SourceSpan, UnaryOp,
 };
-use crate::token::Token;
+use crate::token::{Token, TokenKind};
 
 pub(super) const C_REFERENCE: &str = "src/frontend/numparam/xpressn.c";
 
@@ -157,7 +157,9 @@ fn describe(c: char) -> String {
             "operator '{c}' is outside the bounded subset (only + - * / ^ ** are parsed; \
              comparison, logical, ternary, '%' and '\\' operators are not)"
         ),
-        '\'' | '"' => "quoted expressions are outside the bounded subset".to_owned(),
+        '\'' | '"' => "quoted text inside an expression is outside the bounded subset \
+                        (single quotes may only delimit a whole value, like braces)"
+            .to_owned(),
         '{' => "nested '{' is not supported inside an expression".to_owned(),
         '}' => "unmatched '}'".to_owned(),
         ')' => "unmatched ')'".to_owned(),
@@ -427,12 +429,7 @@ fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
         });
     }
     let Some(function) = Function::from_name(&lowered) else {
-        let why = if EXCLUDED_FUNCTIONS.contains(&lowered.as_str()) {
-            "is a numparam function outside the bounded allowlist"
-        } else {
-            "is not in the bounded function allowlist"
-        };
-        return Err(cut_unsupported(start, format!("function '{name}' {why}")));
+        return user_call(input, start, lowered);
     };
     ws.parse_next(input)?;
     let open = input.eof_offset();
@@ -461,6 +458,27 @@ fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
     })
 }
 
+/// `name(args)` for a name outside the allowlist: a user `.func` call
+/// (resolved during evaluation). Zero arguments are allowed (`f()`).
+fn user_call(input: &mut In<'_>, start: usize, name: String) -> Res<Expr> {
+    ws.parse_next(input)?;
+    let open = input.eof_offset();
+    literal("(").void().parse_next(input)?;
+    enter(input, open)?;
+    let empty = peek((ws, opt(literal(")")))).parse_next(input)?.1.is_some();
+    let arguments: Vec<Expr> = if empty {
+        Vec::new()
+    } else {
+        separated(1.., sum, (ws, literal(","))).parse_next(input)?
+    };
+    close(input, open)?;
+    leave(input);
+    Ok(Expr {
+        kind: ExprKind::UserCall { name, arguments },
+        span: span(input, start, input.eof_offset()),
+    })
+}
+
 /// Parses `text` (the content of a `{...}` expression, or an unbraced `.param`
 /// value / bare name) whose first byte is at `column` on `origin`'s line.
 ///
@@ -474,6 +492,17 @@ pub(super) fn parse_expression(
     origin: &SourceLoc,
     column: u32,
     braced: bool,
+) -> SpiceResult<ParameterExpression> {
+    parse_delimited(text, origin, column, braced, false)
+}
+
+/// As [`parse_expression`], recording whether the delimiters were quotes.
+pub(super) fn parse_delimited(
+    text: &str,
+    origin: &SourceLoc,
+    column: u32,
+    braced: bool,
+    quoted: bool,
 ) -> SpiceResult<ParameterExpression> {
     let mut input = In {
         input: text,
@@ -506,7 +535,8 @@ pub(super) fn parse_expression(
     match run(&mut input) {
         Ok(root) => Ok(ParameterExpression {
             text: text.to_owned(),
-            braced,
+            braced: braced || quoted,
+            quoted,
             span: SourceSpan {
                 start: origin.at_column(column),
                 end: origin.at_column(
@@ -522,12 +552,39 @@ pub(super) fn parse_expression(
     }
 }
 
-/// Parses the text of a `{...}` token (tokenizer-matched braces).
+/// True for a token that holds a delimited expression: a `{...}` token, or a
+/// single-quoted `'...'` token. C's `inp_change_quotes()` (`inpcom.c`) turns
+/// every single-quote pair into a brace pair before numparam runs, so both
+/// spellings mean the same expression. Double-quoted strings stay strings.
+pub(super) fn is_expression_token(token: &Token) -> bool {
+    match token.kind {
+        TokenKind::Expression(_) => true,
+        TokenKind::Quoted(_) => token.text.starts_with('\''),
+        _ => false,
+    }
+}
+
+/// Parses the text of a `{...}` token (tokenizer-matched braces) or of a
+/// single-quoted `'...'` token (see [`is_expression_token`]).
 ///
 /// # Errors
 ///
 /// As [`parse_expression`].
 pub(super) fn from_brace_token(token: &Token) -> SpiceResult<ParameterExpression> {
+    if let Some(inner) = token
+        .text
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+        .filter(|_| token.text.len() >= 2)
+    {
+        return parse_delimited(
+            inner,
+            &token.location,
+            token.location.column + 1,
+            true,
+            true,
+        );
+    }
     let inner = token
         .text
         .strip_prefix('{')

@@ -478,7 +478,7 @@ fn number(input: &mut Input<'_>, name: &str, at: &SourceLoc) -> Result<Real> {
             any.parse_next(input)?;
             Ok(number)
         }
-        TokenKind::Expression(_) => Err(gap(
+        _ if super::expression::is_expression_token(&value) => Err(gap(
             &value.location,
             format!("a {{…}} expression as the value of {name}="),
         )),

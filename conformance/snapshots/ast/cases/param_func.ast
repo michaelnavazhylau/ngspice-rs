@@ -1,0 +1,89 @@
+# ngspice-rs ast-dump v1
+file: cases/param_func.cir
+title: "Function definitions written as .param cards" @cases/param_func.cir:1:1
+scope root
+  cards (9):
+    [0] func[0] @cases/param_func.cir:4:1 ".param f(x)={x*3}"
+    [1] func[1] @cases/param_func.cir:5:1 ".PARAM Gain(x, y) = 'x+y'"
+    [2] func[2] @cases/param_func.cir:6:1 ".param h()=4"
+    [3] param[0] @cases/param_func.cir:7:1 ".param p={f(2)+gain(1, h())}"
+    [4] subcircuit[0] @cases/param_func.cir:8:1 ".subckt leg a b"
+    [5] device[0] @cases/param_func.cir:12:1 "x1 in 0 leg"
+    [6] device[1] @cases/param_func.cir:13:1 "v1 in 0 dc 'f(1)'"
+    [7] analysis[0] @cases/param_func.cir:14:1 ".op"
+    [8] end @cases/param_func.cir:15:1 ".end"
+  devices (2):
+    device [0] name="x1" designator=x @cases/param_func.cir:12:1
+      nodes: "in" "0"
+      model: "leg"
+      parameters (0):
+    device [1] name="v1" designator=v @cases/param_func.cir:13:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=expression value="'f(1)'" @cases/param_func.cir:13:9
+          expression braced=true quoted=true text="f(1)" span=13:13..17
+            user-call "f" span=13:13..17
+              number "1" value=1e0 span=13:15..16
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="leg" @cases/param_func.cir:8:1 end=@cases/param_func.cir:11:1
+      terminals: "a" "b"
+      parameters (0):
+      scope body
+        cards (3):
+          [0] func[0] @cases/param_func.cir:9:1 ".param k(q)={q*2}"
+          [1] device[0] @cases/param_func.cir:10:1 "r1 a b {k(p)}"
+          [2] ends @cases/param_func.cir:11:1 ".ends leg"
+        devices (1):
+          device [0] name="r1" designator=r @cases/param_func.cir:10:1
+            nodes: "a" "b"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=expression value="{k(p)}" @cases/param_func.cir:10:8
+                expression braced=true text="k(p)" span=10:9..13
+                  user-call "k" span=10:9..13
+                    identifier "p" span=10:11..12
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        functions (1):
+          func [0] name="k" name_span=9:8..9 parameters=["q"@9:10..11] spelling=param @cases/param_func.cir:9:1
+            expression braced=true text="q*2" span=9:14..17
+              binary mul span=9:14..17
+                identifier "q" span=9:14..15
+                number "2" value=2e0 span=9:16..17
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @cases/param_func.cir:14:1
+      arguments:
+  includes (0):
+  params (1):
+    param-card [0] @cases/param_func.cir:7:1
+      assignment [0] name="p" name_span=7:8..9
+        expression braced=true text="f(2)+gain(1, h())" span=7:11..28
+          binary add span=7:11..28
+            user-call "f" span=7:11..15
+              number "2" value=2e0 span=7:13..14
+            user-call "gain" span=7:16..28
+              number "1" value=1e0 span=7:21..22
+              user-call "h" span=7:24..27
+  functions (3):
+    func [0] name="f" name_span=4:8..9 parameters=["x"@4:10..11] spelling=param @cases/param_func.cir:4:1
+      expression braced=true text="x*3" span=4:14..17
+        binary mul span=4:14..17
+          identifier "x" span=4:14..15
+          number "3" value=3e0 span=4:16..17
+    func [1] name="gain" name_span=5:8..12 parameters=["x"@5:13..14, "y"@5:16..17] spelling=param @cases/param_func.cir:5:1
+      expression braced=true quoted=true text="x+y" span=5:22..25
+        binary add span=5:22..25
+          identifier "x" span=5:22..23
+          identifier "y" span=5:24..25
+    func [2] name="h" name_span=6:8..9 parameters=[] spelling=param @cases/param_func.cir:6:1
+      expression braced=false text="4" span=6:12..13
+        number "4" value=4e0 span=6:12..13
+  options (0):
+  globals (0):

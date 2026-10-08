@@ -196,8 +196,10 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "m4_mos1_ac",
         "m4_mos1_tran",
     ];
-    // M6 source-function decks (#94, #95) are verified by `xtask golden verify`.
-    let m6_sources = [
+    // M6 common-deck fixtures (#94, #95, #107) are gated by `xtask golden verify`
+    // and their own feature tests.
+    let m6 = [
+        "func_quotes",
         "rc_exp_tran",
         "rc_pulse_count_tran",
         "rc_pwl_repeat_tran",
@@ -207,7 +209,7 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     on_disk.retain(|name| {
         !M3_GATE_DECKS.contains(&name.as_str())
             && !m4.contains(&name.as_str())
-            && !m6_sources.contains(&name.as_str())
+            && !m6.contains(&name.as_str())
     });
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
@@ -488,7 +490,6 @@ fn malformed_and_unsupported_cards_are_explicit_errors() {
         "q1 c b e s1 s2 s3 qm\n",
         "d1 a b dm thermal\n",
         ".subckt s a\n.option reltol=1e-3\n.ends\n",
-        "r1 a 0 {ternary_s(1,2,3)}\n",
     ] {
         let result = parse_text(&format!("t\n{body}.end\n"));
         assert!(
@@ -499,6 +500,14 @@ fn malformed_and_unsupported_cards_are_explicit_errors() {
             "{body}: {result:?}"
         );
     }
+    // A call to an unknown function parses as a user `.func` call; without a
+    // definition it is an explicit evaluation error, never a dropped value.
+    let unknown = parse_text("t\nr1 a 0 {ternary_s(1,2,3)}\n.end\n").unwrap();
+    let error = spice_netlist::elaborate::literalize(&unknown).unwrap_err();
+    assert!(
+        error.to_string().contains("undefined function 'ternary_s'"),
+        "{error}"
+    );
 }
 
 /// What the parser enforces about scoped names: structural scoping only.

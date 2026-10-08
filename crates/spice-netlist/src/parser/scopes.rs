@@ -3,7 +3,7 @@
 use super::grammar::{self, ParsedCard};
 use super::save::OutputCard;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, FourierCard, GlobalCard, IncludeDirective, MeasureCard,
+    AnalysisCard, DeviceInstance, FourierCard, FuncCard, GlobalCard, IncludeDirective, MeasureCard,
     ModelCard, Netlist, NodeHintCard, OptionCard, OutputCards, ParamCard, ScopedCard,
     ScopedCardKind, Subcircuit,
 };
@@ -43,6 +43,7 @@ struct Scope {
     initial_conditions: Vec<NodeHintCard>,
     nodesets: Vec<NodeHintCard>,
     params: Vec<ParamCard>,
+    functions: Vec<FuncCard>,
     output: OutputCards,
     measurements: Vec<MeasureCard>,
     fourier: Vec<FourierCard>,
@@ -68,6 +69,7 @@ pub(super) fn assemble(
             includes: scope.includes,
             cards: scope.cards,
             params: scope.params,
+            functions: scope.functions,
             options: scope.options,
             globals: scope.globals,
             initial_conditions: scope.initial_conditions,
@@ -185,6 +187,10 @@ fn scope(
                 result.params.push(p);
                 ScopedCardKind::Param(result.params.len() - 1)
             }
+            ParsedCard::Func(f) => {
+                result.functions.push(f);
+                ScopedCardKind::Func(result.functions.len() - 1)
+            }
             ParsedCard::Output(output) => {
                 // `.save`/`.print` describe the analysis output, not the
                 // circuit: their typed requests travel beside the netlist
@@ -284,6 +290,7 @@ fn scope(
                 s.analyses = body.analyses;
                 s.includes = body.includes;
                 s.params = body.params;
+                s.functions = body.functions;
                 s.cards = body.cards;
                 result.subcircuits.push(s);
                 ScopedCardKind::Subcircuit(result.subcircuits.len() - 1)

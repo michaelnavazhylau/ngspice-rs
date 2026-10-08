@@ -247,8 +247,8 @@ fn numeric_overflow_cannot_escape_optional_or_repeated_parsers() {
 #[test]
 fn unsupported_model_shapes_preserve_specific_gaps() {
     for body in [
-        ".model dm d(is='saturation')",
-        ".model dm d(is='1e-14')",
+        ".model dm d(is=\"saturation\")",
+        ".model dm d(is=\"1e-14\")",
         ".model dm d is=parameter",
         ".model nm nmos version=3.3.0",
         ".model dm d(nchan)",
@@ -272,8 +272,8 @@ fn unsupported_diode_shapes_preserve_specific_gaps() {
     for body in [
         "D1 a 0 dm sens_area",
         "D1 a 0 dm thermal",
-        "D1 a 0 dm area='size'",
-        "D1 a 0 dm area='2'",
+        "D1 a 0 dm area=\"size\"",
+        "D1 a 0 dm area=\"2\"",
         "D1 a 0 heat dm",
         "D1 a 0 dm unknown=2",
         "D1 a 0 dm 2 3",

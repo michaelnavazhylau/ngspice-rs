@@ -138,7 +138,7 @@ fn value(input: &mut Input<'_>) -> Result<(NodeHintValue, SourceLoc)> {
         return Err(fail(&location(input), "missing value after V(node)="));
     };
     let value = match &token.kind {
-        TokenKind::Expression(_) => {
+        _ if super::expression::is_expression_token(token) => {
             let expression = super::expression::from_brace_token(token)
                 .map_err(|error| ErrMode::Cut(Failure(error)))?;
             NodeHintValue::Expression(Box::new(expression))

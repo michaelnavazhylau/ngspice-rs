@@ -47,7 +47,7 @@ use spice_netlist::ast::{
     DeviceInstance, ModelCard, Netlist, ParamAssignment, ParamCard, ParameterAssignment,
     ParameterKind, Subcircuit,
 };
-use spice_netlist::eval::{EvalBudget, ParamBinding, ParamScope};
+use spice_netlist::eval::{EvalBudget, FunctionScope, ParamBinding, ParamScope};
 use spice_netlist::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
 
 /// The C reference for expansion used in diagnostics.
@@ -117,6 +117,8 @@ pub fn expand_subcircuits(
         devices: Vec::new(),
         models: netlist.models.clone(),
         emitted_locals: BTreeSet::new(),
+        root_functions: root.functions().cloned(),
+        functions: BTreeMap::new(),
     };
     let mut locals = vec![expander.root_models()];
     let devices = netlist.devices.clone();
@@ -146,6 +148,11 @@ struct Expander<'a> {
     models: Vec<ModelCard>,
     /// Lowercased names of the body-local models that were renamed and emitted.
     emitted_locals: BTreeSet<String>,
+    /// The deck's top-level `.func` definitions.
+    root_functions: Option<Arc<FunctionScope>>,
+    /// Each definition's own `.func` scope (lexically inside the root's),
+    /// built and checked once per definition name.
+    functions: BTreeMap<String, Arc<FunctionScope>>,
 }
 
 /// Definition lookup: first declaration wins, like `ModelResolver` and C's
@@ -501,12 +508,38 @@ impl Expander<'_> {
             });
         }
         cards.extend(definition.params.iter().cloned());
-        Ok(Arc::new(ParamScope::resolve_instance(
+        let functions = self.definition_functions(definition)?;
+        Ok(Arc::new(ParamScope::resolve_instance_scoped(
             Some(Arc::clone(parent)),
+            functions,
             &bindings,
             &cards,
             &mut self.budget,
         )?))
+    }
+
+    /// The `.func` definitions a definition's body sees: its own, then the
+    /// deck's. C (`inpcom.c` `inp_expand_macros_in_deck()`) scopes functions
+    /// by the lexical `.subckt` nesting, not by the instantiating body, so a
+    /// caller's local functions never leak into the callee.
+    fn definition_functions(
+        &mut self,
+        definition: &Subcircuit,
+    ) -> SpiceResult<Option<Arc<FunctionScope>>> {
+        if definition.functions.is_empty() {
+            return Ok(self.root_functions.clone());
+        }
+        let key = definition.name.to_ascii_lowercase();
+        if let Some(scope) = self.functions.get(&key) {
+            return Ok(Some(Arc::clone(scope)));
+        }
+        let scope = Arc::new(FunctionScope::new(
+            self.root_functions.clone(),
+            &definition.functions,
+            &self.budget,
+        )?);
+        self.functions.insert(key, Arc::clone(&scope));
+        Ok(Some(scope))
     }
 
     /// One instance parameter's value, evaluated at the call site.
@@ -540,6 +573,7 @@ impl Expander<'_> {
             analyses: Vec::new(),
             includes: Vec::new(),
             params: Vec::new(),
+            functions: Vec::new(),
             options: Vec::new(),
             globals: Vec::new(),
             initial_conditions: Vec::new(),
@@ -678,6 +712,7 @@ fn literal_expression(text: &str, value: Real, start: &SourceLoc) -> ParameterEx
     ParameterExpression {
         text: text.to_owned(),
         braced: false,
+        quoted: false,
         span: span.clone(),
         root: Expr {
             kind: ExprKind::Number {

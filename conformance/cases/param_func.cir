@@ -1,0 +1,15 @@
+Function definitions written as .param cards
+* C rewrites a .param card whose first token contains '(' into .func
+* (inpcom.c inp_fix_macro_param_func_paren_io); the '=' is required.
+.param f(x)={x*3}
+.PARAM Gain(x, y) = 'x+y'
+.param h()=4
+.param p={f(2)+gain(1, h())}
+.subckt leg a b
+.param k(q)={q*2}
+r1 a b {k(p)}
+.ends leg
+x1 in 0 leg
+v1 in 0 dc 'f(1)'
+.op
+.end

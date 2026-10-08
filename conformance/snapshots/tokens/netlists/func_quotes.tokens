@@ -1,0 +1,160 @@
+# ngspice-rs token-dump v1
+file: netlists/func_quotes.cir
+title: "Function definitions and single-quoted values" @netlists/func_quotes.cir:1:1
+card 1 @netlists/func_quotes.cir:5:1 lines=5-5 continuations=0
+  raw: ".param vin=10 x=100 k=2"
+  kind: dot(.param)
+  token 1 5:1 word ".param"
+  token 2 5:8 word "vin"
+  token 3 5:11 equals "="
+  token 4 5:12 number "10" value=1e1
+  token 5 5:15 word "x"
+  token 6 5:16 equals "="
+  token 7 5:17 number "100" value=1e2
+  token 8 5:21 word "k"
+  token 9 5:22 equals "="
+  token 10 5:23 number "2" value=2e0
+card 2 @netlists/func_quotes.cir:6:1 lines=6-6 continuations=0
+  raw: ".func pll(a, b) {a*b/(a+b)}"
+  kind: dot(.func)
+  token 1 6:1 word ".func"
+  token 2 6:7 word "pll"
+  token 3 6:10 lparen "("
+  token 4 6:11 word "a"
+  token 5 6:12 comma ","
+  token 6 6:14 word "b"
+  token 7 6:15 rparen ")"
+  token 8 6:17 expression "{a*b/(a+b)}" inner="a*b/(a+b)"
+card 3 @netlists/func_quotes.cir:7:1 lines=7-7 continuations=0
+  raw: ".FUNC Gain(x) 'x*k'"
+  kind: dot(.func)
+  token 1 7:1 word ".FUNC"
+  token 2 7:7 word "Gain"
+  token 3 7:11 lparen "("
+  token 4 7:12 word "x"
+  token 5 7:13 rparen ")"
+  token 6 7:15 quoted "'x*k'" unquoted="x*k"
+card 4 @netlists/func_quotes.cir:8:1 lines=8-8 continuations=0
+  raw: ".func twice(y)= y*2"
+  kind: dot(.func)
+  token 1 8:1 word ".func"
+  token 2 8:7 word "twice"
+  token 3 8:12 lparen "("
+  token 4 8:13 word "y"
+  token 5 8:14 rparen ")"
+  token 6 8:15 equals "="
+  token 7 8:17 word "y*2"
+card 5 @netlists/func_quotes.cir:9:1 lines=9-9 continuations=0
+  raw: ".func base() {1k}"
+  kind: dot(.func)
+  token 1 9:1 word ".func"
+  token 2 9:7 word "base"
+  token 3 9:11 lparen "("
+  token 4 9:12 rparen ")"
+  token 5 9:14 expression "{1k}" inner="1k"
+card 6 @netlists/func_quotes.cir:10:1 lines=10-10 continuations=0
+  raw: ".param rload='twice(base())'"
+  kind: dot(.param)
+  token 1 10:1 word ".param"
+  token 2 10:8 word "rload"
+  token 3 10:13 equals "="
+  token 4 10:14 quoted "'twice(base())'" unquoted="twice(base())"
+card 7 @netlists/func_quotes.cir:11:1 lines=11-11 continuations=0
+  raw: ".param rtop={pll(3k, 6k) + gain(500)}"
+  kind: dot(.param)
+  token 1 11:1 word ".param"
+  token 2 11:8 word "rtop"
+  token 3 11:12 equals "="
+  token 4 11:13 expression "{pll(3k, 6k) + gain(500)}" inner="pll(3k, 6k) + gain(500)"
+card 8 @netlists/func_quotes.cir:14:1 lines=14-14 continuations=0
+  raw: ".subckt leg a b w=1"
+  kind: dot(.subckt)
+  token 1 14:1 word ".subckt"
+  token 2 14:9 word "leg"
+  token 3 14:13 word "a"
+  token 4 14:15 word "b"
+  token 5 14:17 word "w"
+  token 6 14:18 equals "="
+  token 7 14:19 number "1" value=1e0
+card 9 @netlists/func_quotes.cir:15:1 lines=15-15 continuations=0
+  raw: ".param k=3"
+  kind: dot(.param)
+  token 1 15:1 word ".param"
+  token 2 15:8 word "k"
+  token 3 15:9 equals "="
+  token 4 15:10 number "3" value=3e0
+card 10 @netlists/func_quotes.cir:16:1 lines=16-16 continuations=0
+  raw: ".func gain(x) {x*k*w}"
+  kind: dot(.func)
+  token 1 16:1 word ".func"
+  token 2 16:7 word "gain"
+  token 3 16:11 lparen "("
+  token 4 16:12 word "x"
+  token 5 16:13 rparen ")"
+  token 6 16:15 expression "{x*k*w}" inner="x*k*w"
+card 11 @netlists/func_quotes.cir:17:1 lines=17-17 continuations=0
+  raw: "r1 a mid 'gain(100)'"
+  kind: device(r)
+  token 1 17:1 word "r1"
+  token 2 17:4 word "a"
+  token 3 17:6 word "mid"
+  token 4 17:10 quoted "'gain(100)'" unquoted="gain(100)"
+card 12 @netlists/func_quotes.cir:18:1 lines=18-18 continuations=0
+  raw: "r2 mid b {pll(base(), base()) + x}"
+  kind: device(r)
+  token 1 18:1 word "r2"
+  token 2 18:4 word "mid"
+  token 3 18:8 word "b"
+  token 4 18:10 expression "{pll(base(), base()) + x}" inner="pll(base(), base()) + x"
+card 13 @netlists/func_quotes.cir:19:1 lines=19-19 continuations=0
+  raw: ".ends leg"
+  kind: dot(.ends)
+  token 1 19:1 word ".ends"
+  token 2 19:7 word "leg"
+card 14 @netlists/func_quotes.cir:20:1 lines=20-20 continuations=0
+  raw: "v1 in 0 dc 'vin'"
+  kind: device(v)
+  token 1 20:1 word "v1"
+  token 2 20:4 word "in"
+  token 3 20:7 number "0" value=0e0
+  token 4 20:9 word "dc"
+  token 5 20:12 quoted "'vin'" unquoted="vin"
+card 15 @netlists/func_quotes.cir:21:1 lines=21-21 continuations=0
+  raw: "r1 in out {rtop}"
+  kind: device(r)
+  token 1 21:1 word "r1"
+  token 2 21:4 word "in"
+  token 3 21:7 word "out"
+  token 4 21:11 expression "{rtop}" inner="rtop"
+card 16 @netlists/func_quotes.cir:22:1 lines=22-22 continuations=0
+  raw: "r2 out 0 'rload'"
+  kind: device(r)
+  token 1 22:1 word "r2"
+  token 2 22:4 word "out"
+  token 3 22:8 number "0" value=0e0
+  token 4 22:10 quoted "'rload'" unquoted="rload"
+card 17 @netlists/func_quotes.cir:23:1 lines=23-23 continuations=0
+  raw: "x1 out 0 leg w='twice(2)'"
+  kind: device(x)
+  token 1 23:1 word "x1"
+  token 2 23:4 word "out"
+  token 3 23:8 number "0" value=0e0
+  token 4 23:10 word "leg"
+  token 5 23:14 word "w"
+  token 6 23:15 equals "="
+  token 7 23:16 quoted "'twice(2)'" unquoted="twice(2)"
+card 18 @netlists/func_quotes.cir:24:1 lines=24-24 continuations=0
+  raw: "x2 out 0 leg"
+  kind: device(x)
+  token 1 24:1 word "x2"
+  token 2 24:4 word "out"
+  token 3 24:8 number "0" value=0e0
+  token 4 24:10 word "leg"
+card 19 @netlists/func_quotes.cir:25:1 lines=25-25 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 25:1 word ".op"
+card 20 @netlists/func_quotes.cir:26:1 lines=26-26 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 26:1 word ".end"

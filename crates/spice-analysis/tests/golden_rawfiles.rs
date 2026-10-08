@@ -64,6 +64,7 @@ fn production_linear_drivers_match_c_goldens() {
         "rlc_series",
         "rc_lowpass_ac",
         "subckt_divider",
+        "func_quotes",
     ] {
         let deck = spice_netlist::source::parse_deck_text(Path::new(name), &netlist_text(name));
         let netlist = spice_netlist::Parser::new().parse_deck(&deck).unwrap();
@@ -392,6 +393,25 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(in)", 816, 1.000000000000000e+00, 0.0),
             ("v(a)", 816, 9.845175521824301e-01, 0.0),
             ("v(b)", 816, 1.548244781757727e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "func_quotes",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(in)", "v(out)", "i(v1)", "v(x1.mid)", "v(x2.mid)"],
+        // rtop = pll(3k, 6k) + gain(500) = 2k + 500*k(=2) = 3k and rload =
+        // twice(base()) = 2k. Each leg is gain(100) = 100*k(=3)*w plus
+        // pll(1k, 1k) + x = 600: 1.8k for x1 (w = twice(2) = 4), 0.9k for x2
+        // (w = 1). The load is 2k || 1.8k || 0.9k = 6k/13, so v(out) = 4/3 V,
+        // i(v1) = -(26/9) mA and the taps sit at 1/3 and 2/3 of v(out).
+        values: &[
+            ("v(in)", 0, 1.000000000000000e+01, 0.0),
+            ("v(out)", 0, 1.333333333333334e+00, 0.0),
+            ("i(v1)", 0, -2.888888888888889e-03, 0.0),
+            ("v(x1.mid)", 0, 4.444444444444446e-01, 0.0),
+            ("v(x2.mid)", 0, 8.888888888888892e-01, 0.0),
         ],
     },
     Expectation {

@@ -144,7 +144,7 @@ fn fundamental(input: &mut Input<'_>, card: &SourceLoc) -> Result<(Real, SourceL
                 token.text
             ),
         )),
-        TokenKind::Expression(_) => Err(gap(
+        _ if super::expression::is_expression_token(&token) => Err(gap(
             &token.location,
             "a {…} expression as the .four fundamental frequency",
         )),
@@ -226,7 +226,7 @@ fn harmonics_value(input: &mut Input<'_>, at: &SourceLoc) -> Result<u32> {
             }
             Ok(harmonics)
         }
-        TokenKind::Expression(_) => Err(gap(
+        _ if super::expression::is_expression_token(&value) => Err(gap(
             &value.location,
             "a {…} expression as the value of HARMONICS=",
         )),

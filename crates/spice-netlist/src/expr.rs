@@ -16,7 +16,12 @@
 //! factor  := atom { ('^' | '**') atom }             (left associative, as in C)
 //! atom    := number | '-' number | identifier | call | '(' sum ')'
 //! call    := function '(' sum { ',' sum } ')'
+//!          | name '(' [ sum { ',' sum } ] ')'     (user `.func`, see below)
 //! ```
+//!
+//! A call to a name outside the [`Function`] allowlist is an
+//! [`ExprKind::UserCall`]; whether a `.func` defines it is decided during
+//! evaluation ([`crate::eval::FunctionScope`]).
 //!
 //! Precedence, tightest first: `^`/`**`, then `*` `/`, then `+` `-`. A sign at
 //! the start of an expression, group or argument binds like C's
@@ -58,9 +63,15 @@ pub struct ParameterExpression {
     /// The expression text exactly as written: without the surrounding braces
     /// when [`braced`](Self::braced), including any inner whitespace.
     pub text: String,
-    /// True for a `{...}` expression, false for an unbraced `.param` value or
-    /// a bare name at an `X`/`.subckt` parameter site.
+    /// True for a `{...}` or `'...'` expression, false for an unbraced
+    /// `.param` value or a bare name at an `X`/`.subckt` parameter site.
     pub braced: bool,
+    /// True when the delimiters were single quotes (`'...'`) rather than braces.
+    /// C's `inpcom.c` `inp_change_quotes()` rewrites every quote pair to a
+    /// brace pair before numparam runs, so a quoted expression means exactly
+    /// the same as the braced one; the flag only preserves the spelling for
+    /// the writer and dumps. Implies [`braced`](Self::braced).
+    pub quoted: bool,
     /// Span of [`text`](Self::text). For a braced expression the braces sit one
     /// column before `span.start` and at `span.end`.
     pub span: SourceSpan,
@@ -69,6 +80,19 @@ pub struct ParameterExpression {
 }
 
 impl ParameterExpression {
+    /// The expression as written, delimiters included: `{text}`, `'text'` or
+    /// the bare text.
+    #[must_use]
+    pub fn spelling(&self) -> String {
+        if self.quoted {
+            format!("'{}'", self.text)
+        } else if self.braced {
+            format!("{{{}}}", self.text)
+        } else {
+            self.text.clone()
+        }
+    }
+
     /// Names referenced by the expression, lowercased, in source order with
     /// duplicates kept. Function names are not references.
     #[must_use]
@@ -101,7 +125,7 @@ impl Expr {
                 lhs.collect_references(names);
                 rhs.collect_references(names);
             }
-            ExprKind::Call { arguments, .. } => {
+            ExprKind::Call { arguments, .. } | ExprKind::UserCall { arguments, .. } => {
                 for argument in arguments {
                     argument.collect_references(names);
                 }
@@ -151,6 +175,19 @@ pub enum ExprKind {
     },
     /// A parenthesised sub-expression, kept so spans and shape survive.
     Group(Box<Expr>),
+    /// A call to a name outside the [`Function`] allowlist: a user `.func`
+    /// (C: `inpcom.c` `inp_expand_macro_in_str()`), resolved during
+    /// evaluation in the scope of the site. Any argument count (including
+    /// zero) is syntactically valid; arity is checked against the definition.
+    /// Names of numparam built-ins outside the allowlist (`agauss`, `limit`,
+    /// ...) parse here too, so a `.func` may define them; without one they are
+    /// reported as not yet ported when evaluated.
+    UserCall {
+        /// Lowercased function name.
+        name: String,
+        /// Arguments in source order.
+        arguments: Vec<Expr>,
+    },
 }
 
 /// Prefix signs.
@@ -261,8 +298,10 @@ functions! {
     Nint => "nint" / 1,
 }
 
-/// C `fmathS` names that are recognised only to give a precise rejection.
-pub(crate) const EXCLUDED_FUNCTIONS: &[&str] = &[
+/// C `fmathS` names outside the allowlist. A call to one parses as
+/// [`ExprKind::UserCall`] and is rejected as not yet ported during evaluation
+/// unless a `.func` of that name is in scope.
+pub const EXCLUDED_FUNCTIONS: &[&str] = &[
     "ternary_fcn",
     "agauss",
     "gauss",

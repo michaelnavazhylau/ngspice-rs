@@ -58,6 +58,10 @@ fn sexp(expr: &Expr) -> String {
             format!("{}({})", function.name(), arguments.join(", "))
         }
         ExprKind::Group(inner) => format!("[{}]", sexp(inner)),
+        ExprKind::UserCall { name, arguments } => {
+            let arguments: Vec<_> = arguments.iter().map(sexp).collect();
+            format!("user:{name}({})", arguments.join(", "))
+        }
     }
 }
 
@@ -243,11 +247,7 @@ fn valid_numparam_outside_the_subset_is_not_yet_ported() {
         ("a\\b", "operator '\\'"),
         ("!a", "operator '!'"),
         ("a>=1", "operator '>'"),
-        ("agauss(1,2,3)", "outside the bounded allowlist"),
-        ("unif(1,2)", "outside the bounded allowlist"),
-        ("ternary_fcn(1,2,3)", "outside the bounded allowlist"),
-        ("vec(x)", "outside the bounded allowlist"),
-        ("myfunc(1)", "not in the bounded function allowlist"),
+        // A quote *inside* an expression text (not as its delimiters).
         ("'1+2'", "quoted"),
         ("\"s\"", "quoted"),
     ] {
@@ -257,6 +257,29 @@ fn valid_numparam_outside_the_subset_is_not_yet_ported() {
         assert!(rendered.contains("e.cir:5:"), "{rendered}");
         assert!(rendered.contains(fragment), "{text}: {rendered}");
         assert!(rendered.contains("xpressn.c"), "{rendered}");
+    }
+}
+
+#[test]
+fn calls_outside_the_allowlist_parse_as_user_function_calls() {
+    for (text, expected) in [
+        ("agauss(1,2,3)", "user:agauss(1, 2, 3)"),
+        ("unif(1,2)", "user:unif(1, 2)"),
+        ("ternary_fcn(1,2,3)", "user:ternary_fcn(1, 2, 3)"),
+        ("vec(x)", "user:vec(x)"),
+        ("myFunc(1)", "user:myfunc(1)"),
+        ("f()", "user:f()"),
+        ("f( )+1", "(+ user:f() 1)"),
+        ("2*g(a, b^2)", "(* 2 user:g(a, (^ b 2)))"),
+    ] {
+        assert_eq!(shape(text), expected, "{text}");
+    }
+    // Malformed user calls are still committed syntax errors.
+    for text in ["f(", "f(1,)", "f(,1)", "f(1"] {
+        assert!(
+            matches!(expression(text), Err(SpiceError::Parse { .. })),
+            "{text}"
+        );
     }
 }
 
@@ -437,12 +460,7 @@ fn unmatched_braces_are_tokenizer_errors_with_columns() {
 
 #[test]
 fn quoted_param_values_and_unsupported_syntax_are_not_silently_dropped() {
-    for card in [
-        ".param a='1+2'",
-        ".param s=\"text\"",
-        ".param a=1<2",
-        ".param a=f(1)",
-    ] {
+    for card in [".param s=\"text\"", ".param a=1<2"] {
         let error = parse(card).unwrap_err();
         assert!(error.is_not_yet_ported(), "{card}: {error}");
         assert!(error.to_string().contains("param.cir:2:"), "{error}");
@@ -610,7 +628,7 @@ fn site_expression_errors_carry_byte_columns() {
         }
     }
     // Valid numparam outside the bounded subset is explicit, not dropped.
-    for card in ["R1 a 0 {a<b}", "R1 a 0 {agauss(1,2,3)}", ".tran {a?b:c} 1"] {
+    for card in ["R1 a 0 {a<b}", ".tran {a?b:c} 1"] {
         assert!(parse(card).unwrap_err().is_not_yet_ported(), "{card}");
     }
 }
@@ -635,7 +653,7 @@ fn subcircuit_and_x_values_use_parsed_expressions_or_stay_textual() {
             "expr:true",
             "expr:false",
             "Textual",
-            "Textual",
+            "expr:true",
             "Textual",
             "Scalar"
         ]
@@ -658,8 +676,9 @@ fn unsupported_expression_sites_stay_explicit_gaps() {
         "V1 a 0 pwl(0 {v1})",
         "Q1 c b e qm ic={vbe},0.1\n.model qm npn",
         ".model nm nmos level={lv}",
-        ".model dm d(is='x')",
-        "R1 a 0 'rval'",
+        ".model nm nmos level='lv'",
+        ".model dm d(is=\"x\")",
+        "R1 a 0 \"rval\"",
     ] {
         let error = parse(card).unwrap_err();
         assert!(error.is_not_yet_ported(), "{card}: {error}");

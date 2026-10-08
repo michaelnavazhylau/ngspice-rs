@@ -70,6 +70,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `bjt_ce` | `.op` | BJT with a `.model` card |
 | `mos_inverter` | `.op` | MOSFET with instance parameters (`w=`, `l=`) |
 | `subckt_divider` | `.op` | `.subckt` / `.ends` and an `X` instance |
+| `func_quotes` | `.op` | `.func` (top-level and body-local, free names resolved at the call site) and single-quoted values (#107) |
 | `m4_diode_ac` | `.ac` | bias-linearized diode RS/CJO/TT and internal anode |
 | `m4_diode_tran` | `.tran` | junction depletion/diffusion charge, PULSE and KCL |
 | `m4_bjt_ac` | `.ac` | level-1 NPN forward/reverse transport, CJE/CJC/TF |

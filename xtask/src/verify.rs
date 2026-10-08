@@ -168,6 +168,18 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // `.func` definitions and single-quoted values (#107): top-level and
+    // body-local functions, quoted device/instance values, flattened through
+    // the production `.op` path. Purely resistive, so the linear DC bound.
+    Supported {
+        name: "func_quotes",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     // M3 exit-gate fixtures (#48). All use `compare::TRAN`; the physical bound is
     // the simulator's own default accuracy (see `compare.rs`), no fixture-specific
     // tolerance exists. The companion driver (trap, or Gear-2 via

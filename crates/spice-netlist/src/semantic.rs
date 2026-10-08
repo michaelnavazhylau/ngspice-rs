@@ -7,7 +7,7 @@
 //! netlists through it and [`semantic_diff`] explains the first difference.
 //!
 //! What is **kept** (it is semantics): titles, device/model/subcircuit/
-//! analysis (including the `.tran` `uic` flag)/directive/`.param`/`.option`/`.global`/`.ic`/`.nodeset` content, ordered parameter
+//! analysis (including the `.tran` `uic` flag)/directive/`.param`/`.func`/`.option`/`.global`/`.ic`/`.nodeset` content, ordered parameter
 //! assignments with their kinds and value spelling, parsed expression trees and
 //! their original text, the card order with typed indexes, include-chain depth
 //! and resolved include paths.
@@ -24,11 +24,11 @@ use std::path::PathBuf;
 use spice_core::SourceLoc;
 
 use crate::ast::{
-    AnalysisCard, ArgumentExpression, DeviceInstance, FunctionWaveform, GlobalCard, GlobalNode,
-    IncludeDirective, InitialCondition, LibrarySection, ModelCard, Netlist, NodeHint, NodeHintCard,
-    NodeHintValue, OptionCard, OptionSetting, ParamAssignment, ParamCard, ParameterAssignment,
-    ParameterKind, PositionedValue, PulseWaveform, PwlPoint, ScopedCard, ScopedCardKind,
-    SourceWaveform, Subcircuit,
+    AnalysisCard, ArgumentExpression, DeviceInstance, FuncCard, FuncParameter, FuncSpelling,
+    FunctionWaveform, GlobalCard, GlobalNode, IncludeDirective, InitialCondition, LibrarySection,
+    ModelCard, Netlist, NodeHint, NodeHintCard, NodeHintValue, OptionCard, OptionSetting,
+    ParamAssignment, ParamCard, ParameterAssignment, ParameterKind, PositionedValue, PulseWaveform,
+    PwlPoint, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
@@ -79,6 +79,10 @@ pub fn expr_form(expr: &Expr) -> Expr {
             arguments: arguments.iter().map(expr_form).collect(),
         },
         ExprKind::Group(inner) => ExprKind::Group(Box::new(expr_form(inner))),
+        ExprKind::UserCall { name, arguments } => ExprKind::UserCall {
+            name: name.clone(),
+            arguments: arguments.iter().map(expr_form).collect(),
+        },
     };
     Expr { kind, span: span() }
 }
@@ -87,6 +91,7 @@ fn expression_form(expression: &ParameterExpression) -> ParameterExpression {
     ParameterExpression {
         text: expression.text.clone(),
         braced: expression.braced,
+        quoted: expression.quoted,
         span: span(),
         root: expr_form(&expression.root),
     }
@@ -241,6 +246,25 @@ fn param(card: &ParamCard) -> ParamCard {
     }
 }
 
+fn function(card: &FuncCard) -> FuncCard {
+    FuncCard {
+        name: card.name.clone(),
+        name_span: span(),
+        parameters: card
+            .parameters
+            .iter()
+            .map(|parameter| FuncParameter {
+                name: parameter.name.clone(),
+                span: span(),
+            })
+            .collect(),
+        body: expression_form(&card.body),
+        // `.param f(x)=...` and `.func f(x) ...` define the same function.
+        spelling: FuncSpelling::Func,
+        location: blank(),
+    }
+}
+
 fn option(card: &OptionCard) -> OptionCard {
     OptionCard {
         settings: card
@@ -332,6 +356,7 @@ fn subcircuit(sub: &Subcircuit) -> Subcircuit {
         analyses: sub.analyses.iter().map(analysis).collect(),
         includes: sub.includes.iter().map(include).collect(),
         params: sub.params.iter().map(param).collect(),
+        functions: sub.functions.iter().map(function).collect(),
         cards: cards(&sub.cards),
         end_location: blank(),
         location: blank(),
@@ -351,6 +376,7 @@ pub fn semantic_form(netlist: &Netlist) -> Netlist {
         analyses: netlist.analyses.iter().map(analysis).collect(),
         includes: netlist.includes.iter().map(include).collect(),
         params: netlist.params.iter().map(param).collect(),
+        functions: netlist.functions.iter().map(function).collect(),
         options: netlist.options.iter().map(option).collect(),
         globals: netlist.globals.iter().map(global).collect(),
         initial_conditions: netlist.initial_conditions.iter().map(hints).collect(),
@@ -400,6 +426,7 @@ pub fn semantic_diff(left: &Netlist, right: &Netlist) -> Option<String> {
         .or_else(|| compare("analyses", &l.analyses, &r.analyses))
         .or_else(|| compare("includes", &l.includes, &r.includes))
         .or_else(|| compare("params", &l.params, &r.params))
+        .or_else(|| compare("functions", &l.functions, &r.functions))
         .or_else(|| compare("options", &l.options, &r.options))
         .or_else(|| compare("globals", &l.globals, &r.globals))
         .or_else(|| {
