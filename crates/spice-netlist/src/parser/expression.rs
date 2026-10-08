@@ -157,7 +157,9 @@ fn describe(c: char) -> String {
             "operator '{c}' is outside the bounded subset (only + - * / ^ ** are parsed; \
              comparison, logical, ternary, '%' and '\\' operators are not)"
         ),
-        '\'' | '"' => "quoted expressions are outside the bounded subset".to_owned(),
+        '\'' | '"' => "quoted text inside an expression is outside the bounded subset \
+                        (single quotes may only delimit a whole value, like braces)"
+            .to_owned(),
         '{' => "nested '{' is not supported inside an expression".to_owned(),
         '}' => "unmatched '}'".to_owned(),
         ')' => "unmatched ')'".to_owned(),

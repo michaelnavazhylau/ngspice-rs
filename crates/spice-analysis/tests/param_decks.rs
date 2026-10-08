@@ -99,3 +99,19 @@ fn subcircuits_are_elaborated_only_when_instantiated() {
     assert_eq!(circuit.resistor("r.x1.r1").unwrap().1.supplied, 2e3);
     assert_eq!(circuit.device_count(), 3);
 }
+
+#[test]
+fn func_and_quoted_values_reach_devices_analyses_and_initial_conditions() {
+    // #107: `.func` calls and single-quoted values through RunConfig: device
+    // values, analysis arguments and `.ic` entries.
+    same(
+        ".func half(x) {x/2}\n.param lo=0\nv1 a 0 dc 0\nr1 a 0 'half(2k)'\n\
+         .dc v1 'lo' {half(4)} 'half(1)'",
+        "v1 a 0 dc 0\nr1 a 0 1k\n.dc v1 0 2 0.5",
+    );
+    same(
+        ".func tau(r, c) {r*c}\nv1 a 0 dc 1\nr1 a b 1k\nc1 b 0 1u\n.ic v(b)='tau(1k,1u)*1k'\n\
+         .tran 'tau(1k,1u)/10' {tau(1k,1u)*2}",
+        "v1 a 0 dc 1\nr1 a b 1k\nc1 b 0 1u\n.ic v(b)=1\n.tran 1e-4 2e-3",
+    );
+}

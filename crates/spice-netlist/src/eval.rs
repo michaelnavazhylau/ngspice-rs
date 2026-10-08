@@ -40,6 +40,17 @@
 //! defaults and instance overrides) through [`ParamScope::resolve_instance`].
 //! Nothing here flattens or substitutes into identifiers; expansion lives in
 //! `spice_devices::subckt`.
+//!
+//! # User functions (`.func`, GitHub #107)
+//!
+//! A [`FunctionScope`] holds the `.func` definitions of one lexical scope
+//! (deck or `.subckt` body) and is attached to a [`ParamScope`]; calls
+//! ([`ExprKind::UserCall`], or a built-in name a `.func` redefines) are
+//! evaluated by value, with the body's free names resolved at the call site,
+//! as C's textual expansion (`inpcom.c` `inp_expand_macro_in_str()`) implies.
+//! Recursion is rejected with the cycle (petgraph SCC) instead of C's
+//! unbounded expansion. [`ParamScope::for_netlist`] is the entry point for
+//! evaluating anything against a deck's top-level parameters and functions.
 
 use std::collections::HashMap;
 use std::sync::Arc;

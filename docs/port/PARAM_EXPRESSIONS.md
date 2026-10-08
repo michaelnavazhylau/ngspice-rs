@@ -21,6 +21,7 @@ term    := factor { ('*' | '/') factor }          left associative
 factor  := atom { ('^' | '**') atom }             left associative
 atom    := number | '-' number | name | call | '(' sum ')'
 call    := function '(' sum { ',' sum } ')'
+         | name '(' [ sum { ',' sum } ] ')'      user .func call (#107)
 ```
 
 Implemented in `crates/spice-netlist/src/parser/expression.rs` with winnow
@@ -59,12 +60,20 @@ tanh sgn ceil floor asin acos atan asinh acosh atanh tan nint` (`Function::ALL`)
 wrong counts are errors. Function names cannot be used as parameter names. The
 call parentheses may follow optional whitespace.
 
+A call to any other name (`f(1, 2)`, `f()`, and the numparam built-ins outside
+the allowlist such as `agauss`/`limit`) parses as `ExprKind::UserCall` and is
+resolved during evaluation against the `.func` definitions in scope (see
+"`.func` and quoted values" below). Without a definition it is an evaluation
+error (`undefined function`), or `NotYetPorted` for an excluded numparam
+built-in.
+
 ## `.param` cards
 
 `.param name=expr [name=expr ...]` (`.params` classifies the same). Assignments
 are separated by whitespace and/or commas, kept **in order including
 duplicates** (`ParamCard::assignments`), and spelled with original expression
-text. Values are `{braced}` or unbraced.
+text. Values are `{braced}`, `'quoted'` (identical to braces, #107) or
+unbraced.
 
 The extent of an **unbraced** value follows C's multi-assignment splitter
 (`inp_split_multi_param_lines()`): it ends at whitespace or a comma outside
@@ -107,8 +116,8 @@ offending text. Valid numparam outside the subset is `SpiceError::NotYetPorted`
 
 Not accepted: comparison/logical/ternary operators (`< > <= >= == != <> && || ! ? :`), `%`
 and `\`; `ternary_fcn`, randomised `agauss gauss unif aunif limit`, string
-`vec`/`var`, user `.func` functions; quoted `'...'` expressions and string
-parameters; `.param` with `&`, `.if` blocks; expressions inside waveform
+`vec`/`var` (unless a `.func` defines the name); double-quoted string
+parameters and quotes *inside* an expression; `.param` with `&`, `.if` blocks; expressions inside waveform
 (`PULSE`/`PWL`), `ic=` vector, flag and `level=` model-selector sites (explicit
 gaps); nested braces; behavioural/time-dependent device equations
 (`B`, `E`/`G` expression sources); and full numparam compatibility. Subcircuit
@@ -170,8 +179,7 @@ undefined.
   location and text, plus the enclosing parameter/site.
 
 Remaining limits: `{expr}` option values still
-`NotYetPorted`, no quoted `'expr'`, `.func`, comparison/ternary operators or
-random functions.
+`NotYetPorted`; no comparison/ternary operators or random functions.
 
 ## Public API for an evaluator
 
@@ -182,3 +190,69 @@ random functions.
 `Netlist::params`/`Subcircuit::params: Vec<ParamCard>`, each with
 `assignments: Vec<ParamAssignment { name, name_span, expression }>`.
 `Parser::parse_expression(text, &SourceLoc)` parses a standalone expression.
+
+## `.func` and quoted values (#107)
+
+C references (read-only): `src/frontend/inpcom.c` `inp_change_quotes()`,
+`inp_get_func_from_line()`, `inp_grab_func()`, `find_function()`,
+`inp_expand_macros_in_func()`, `inp_expand_macro_in_str()`,
+`inp_do_macro_param_replace()` and `inp_expand_macros_in_deck()`. C works on
+the deck text before numparam runs; the port parses the same constructs into
+the AST and evaluates them in `spice_netlist::eval`, which is equivalent for
+everything below (pinned by `crates/spice-netlist/tests/c_func_eval.rs`, opt-in
+`NGSPICE_BIN`, and the `func_quotes` golden).
+
+### Single-quoted expressions
+
+C rewrites every single-quote pair outside `.control` to a brace pair, so
+`'expr'` means exactly `{expr}`. The port treats a single-quoted token as a
+delimited expression at every site that accepts braces (device, model, `X`,
+`.subckt` formal, `.ic`/`.nodeset`, analysis arguments and `.param` values,
+whose quoted value may contain spaces like a braced one). The AST keeps the
+spelling: `ParameterExpression::quoted` (with `braced` also true),
+`ParameterExpression::spelling()`, and `quoted=true` in AST dumps; the writer
+writes the quotes back. Sites that reject braces (waveform fields, `ic=`
+vectors, `level=`, `.four`, `.measure` values, `.option` values) reject quotes
+with the same `NotYetPorted` gap. Double-quoted strings are not expressions;
+`.include`/`.lib` paths keep their quoting. Quotes inside a `{...}` expression
+and braces inside a quoted one are rejected rather than reinterpreted.
+
+### `.func` cards
+
+`.func name(p1, p2, ...) body` (the undocumented `=` before the body is
+accepted, as in C). The body is a `{...}`, `'...'` or bare expression running
+to the end of the card. Cards are `ast::FuncCard` in `Netlist::functions` /
+`Subcircuit::functions`, ordered by `ScopedCardKind::Func`, written back by
+the writer and compared by `semantic_eq`.
+
+| Case (probed against the C binary) | C | Port |
+| --- | --- | --- |
+| visibility | all definitions of a scope are visible throughout it (hoisted), also to `.param` cards and nested definitions, never outside the defining `.subckt` | same: one `FunctionScope` per lexical scope; expansion uses the definition's scope, not the caller's |
+| shadowing | a body-local definition hides an outer one; within one scope the **last** definition wins | same |
+| built-ins | a `.func` replaces a built-in of the same name (`max`, or excluded names such as `limit`) | same; a different-arity redefinition of an allowlisted built-in is `NotYetPorted` |
+| arguments | bound by value; a formal shadows a `.param` of the same name inside the body | same |
+| free names | resolved where the call is written (e.g. a body `.param k` inside a subcircuit); an enclosing `.func` call's formals capture them first (textual expansion) | same, through the chain of active calls |
+| unused body naming an undefined parameter | accepted | accepted; a used one is an `undefined parameter` error with the call chain |
+| undefined function | `Undefined parameter` error | `undefined function` error at the call |
+| wrong argument count (at a site or inside an unused body) | fatal `parameter mismatch` | error at the call, naming the enclosing definition |
+| direct or mutual recursion, even unused | crash (unbounded expansion) | error printing the cycle (petgraph SCC), also in an uninstantiated subcircuit |
+| `.func f(x,x)` | silently binds the first `x` | rejected (duplicate formal); formals named like a built-in are rejected too |
+
+Dependency ordering of `.param` cards includes the free names of the
+functions they call, so `.param p={f(2)}` before `.func f(x) {x*q}` and
+`.param q=3` resolves. Mixed body spellings that C glues together after
+stripping braces and whitespace (`{a}+{b}`, `2 3`) are rejected.
+
+API: `eval::FunctionScope::{new, for_netlist, get, definitions, parent}`,
+`eval::FunctionDef`; `ParamScope::for_netlist(&Netlist)` (top-level params and
+functions; the reusable entry point for evaluating any expression against the
+deck's top-level scope), `ParamScope::{resolve_scoped,
+resolve_instance_scoped, functions}`. `ParamScope::{root, resolve,
+resolve_instance}` keep their signatures and inherit the parent's functions
+(none at the root). `elaborate::literalize`, `RunConfig::from_netlist` and
+subcircuit expansion use the function-aware scopes.
+
+Known pre-existing divergence (not changed here, #18): C evaluates an `X`
+instance's parameter expression inside the callee's numparam scope, so
+`x1 n s w={k*5}` sees a body `.param k`; the port evaluates it in the caller's
+scope.

@@ -9,8 +9,9 @@
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass. Current parser values are
 //!   finite scalar literals, positioned waveform/IC/flag setters, and parsed
-//!   but unevaluated `{...}` expressions ([`crate::expr`]); quoted values,
-//!   waveform/IC-vector expressions and evaluation remain pending.
+//!   but unevaluated `{...}`/`'...'` expressions ([`crate::expr`]), evaluated
+//!   by [`crate::eval`]/[`crate::elaborate`]; waveform/IC-vector expressions
+//!   remain pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -57,12 +58,13 @@ pub enum ParameterKind {
     /// One finite numeric literal, retained in [`ParameterAssignment::value`].
     Scalar,
     /// Unevaluated single-token formal/X parameter text that is neither a
-    /// finite literal nor a parsed expression (for instance a quoted value or
-    /// an extended numeric spelling such as `4k7`).
+    /// finite literal nor a parsed expression (for instance a double-quoted
+    /// string or an extended numeric spelling such as `4k7`).
     Textual,
-    /// A `{...}` expression, or a bare parameter name at an `X`/`.subckt`
-    /// parameter site, parsed but **not evaluated**. [`ParameterAssignment::value`]
-    /// keeps the original token spelling (braces included); the box holds the
+    /// A `{...}` or single-quoted `'...'` expression, or a bare parameter name
+    /// at an `X`/`.subckt` parameter site, parsed but **not evaluated**.
+    /// [`ParameterAssignment::value`] keeps the original token spelling
+    /// (braces or quotes included); the box holds the
     /// syntax tree and spans. Scalar consumers must treat this like any other
     /// non-scalar kind until an evaluation pass resolves it.
     Expression(Box<crate::expr::ParameterExpression>),
