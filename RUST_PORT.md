@@ -17,7 +17,10 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 **Branch-local M4 update:** bounded diode/Ebers-Moll BJT/MOS1 DC, AC and
 charge-companion transient, reusable Newton/continuation and typed nested
-source/temperature sweeps are now implemented. See
+source/temperature sweeps are implemented. Local #34/#35 follow-ups add bounded
+configurable DC policies/reports and scalar-resistor sweeps (including supported
+model-backed resistance); see [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md) and
+[DC_SWEEPS.md](docs/port/DC_SWEEPS.md). The follow-ups are not yet published. See
 [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md) for exact allowlists, deliberate
 rejections and local #41 evidence. Historical scaffold notes below do not widen
 this demonstrated subset or imply full SPICE parity.
@@ -35,18 +38,33 @@ PR #51 merged declared-model passive syntax and initial model infrastructure
 geometry/temperature/scale/multiplicity (#19, pending merge); see
 [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md). Numeric PULSE/PWL and bounded
 flags/Q/M IC vectors now parse (#8/#10); see [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
-Scoped subcircuits/X and source-relative includes/libraries now parse (#12/#13);
-see [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
-Waveform deck evaluation, subcircuit flattening, expressions and advanced passive forms remain unported. D/Q/M AST/schema
+Scoped subcircuits/X and source-relative includes/libraries parse (#12/#13), and
+`X` instances now elaborate through the production entry points (#18) with
+hierarchical names, scoped parameters/models and `.global`; see
+[SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md) and
+[FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md). Advanced passive forms
+and the remaining numparam surface remain unported. D/Q/M AST/schema
 success alone does not imply the requested physics is implemented: M4's bounded
 allowlists are validated by the model-aware factories.
+**M5 wave 2** adds bounded `.save`/`.print` output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
+and bounded `.measure`/`.meas` measurements (#43, [MEASURE.md](docs/port/MEASURE.md)):
+`.save`/`.print` cards parse into positioned typed requests and project the full
+plot into the written rawfile in C's `dbs` order with first-wins dedup (`.print`
+also renders a text table), a bounded `.measure` subset evaluates over the full
+plot before output selection narrows the rawfile, and unresolvable requests fail
+before anything is published. Bounded `.four` (#44,
+[FOURIER.md](docs/port/FOURIER.md)) now evaluates the final complete transient
+period over the full plot with physical-grid quadrature, DC/peak amplitude,
+window-referenced phase in radians and THD (1–100 harmonics). All six bounded
+M5 deliverables are implemented; `.plot`, interactive Fourier commands and the
+documented extended forms remain unported.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
 an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
 linear circuits) and an explicitly selected bounded diffsol BDF transient.
 This worktree extends the companion/DC/AC paths with M4's bounded D/Q/M equations.
 `.ic`/`uic` on diffsol or nonlinear companion circuits, physics outside the M4
-allowlists, general DAEs and a CLI simulation command remain unimplemented. Unsupported cases
+allowlists, general DAEs and remaining usability work remain unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
@@ -69,10 +87,12 @@ What already works for real:
 | Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
-| ASCII rawfile read *and* write | `spice-analysis` | `src/frontend/rawfile.c` layout; known decimal round-trip limitation documented in verification |
+| Rawfile read *and* write: ASCII and binary | `spice-analysis` | `src/frontend/rawfile.c` layout; binary real/complex read/write with explicit byte order, validated payload lengths and rejected variants documented in [RAWFILES.md](docs/port/RAWFILES.md) |
+| Output selection (`.save`/`.print`) | `spice-netlist`, `spice-analysis`, `spice-cli` | bounded typed request parsing and projection into the written rawfile in C `dbs` order with first-wins dedup; `.print` text table; unresolvable/unsupported requests fail before publishing; `.plot` unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
+| Measurements (`.measure`/`.meas`) | `spice-netlist`, `spice-analysis`, `spice-cli` | bounded `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` and `TRIG … TARG …` subset evaluated over the full plot before output selection narrows it; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
-| Rust-engine numerical verify | `xtask` | sixteen supported linear fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients); four explicit exclusions, no C invocation |
+| Rust-engine numerical verify | `xtask` | 26 verified fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients, nonlinear and flattened-subcircuit decks); no exclusions, no C invocation |
 
 ## Quick start
 
@@ -100,8 +120,13 @@ The CLI is `spice-rs`. It loads and tokenizes decks, classifies cards, and can
 build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
 `mos_inverter`, `rc_transient` and `subckt_divider` (all original eight fixtures; the later M3 gate decks parse and simulate as well).
-This is parsing, not subcircuit flattening or simulation (the M1 round-trip gate is `crates/spice-netlist/tests/m1_gate.rs`, #22). **The CLI does not simulate yet; production simulation
-is available through APIs and `cargo run -p spice-analysis --example rc_diffsol`.**
+Parsing succeeds for all eight (the M1 round-trip gate is
+`crates/spice-netlist/tests/m1_gate.rs`, #22). **`spice-rs simulate --output
+<path> <deck>` runs the deck's single analysis through the production runner and
+writes an ASCII rawfile** ([CLI.md](docs/port/CLI.md)); it honours the bounded
+`.save`/`.print` output selection ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
+and reports the bounded `.measure`/`.meas` measurements ([MEASURE.md](docs/port/MEASURE.md)). The same APIs remain
+available directly, e.g. `cargo run -p spice-analysis --example rc_diffsol`.
 
 ```sh
 cargo run -p spice-cli -- conformance/netlists/rc_divider.cir    # deck summary

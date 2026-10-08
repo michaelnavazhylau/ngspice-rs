@@ -35,10 +35,11 @@
 //!
 //! # Scopes
 //!
-//! [`ParamScope`] is an immutable resolved scope with an optional parent, so a
-//! later subcircuit pass can create a child scope seeded with
-//! [`ParamBinding`]s (formal defaults/overrides). Subcircuit evaluation itself
-//! is not implemented; nothing here flattens or substitutes into identifiers.
+//! [`ParamScope`] is an immutable resolved scope with an optional parent, so the
+//! subcircuit pass creates a child scope seeded with [`ParamBinding`]s (formal
+//! defaults and instance overrides) through [`ParamScope::resolve_instance`].
+//! Nothing here flattens or substitutes into identifiers; expansion lives in
+//! `spice_devices::subckt`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -164,6 +165,24 @@ struct Failure {
 
 type Lookup<'a> = &'a dyn Fn(&str) -> Option<Real>;
 
+/// What a card that redefines a bound name does. [`Bindings::Reject`] is the
+/// ordinary `.param` rule; [`Bindings::Win`] is the subcircuit rule, where the
+/// binding came from the instance's own override list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Bindings {
+    Reject,
+    Win,
+}
+
+/// The original spelling of a definition (braces re-added when braced).
+fn source_text(expression: &ParameterExpression) -> String {
+    if expression.braced {
+        format!("{{{}}}", expression.text)
+    } else {
+        expression.text.clone()
+    }
+}
+
 impl ParamScope {
     /// Resolve top-level `.param` cards with default limits.
     ///
@@ -177,8 +196,9 @@ impl ParamScope {
     /// Resolve with explicit limits and a shared budget.
     ///
     /// `parent` supplies outer names; `bindings` are visible to the cards and
-    /// may not be redefined by them (an explicit error, since the subcircuit
-    /// precedence rules are not ported).
+    /// may not be redefined by them (an explicit error; see
+    /// [`Self::resolve_instance`] for the subcircuit rule, where the bound
+    /// value wins instead).
     ///
     /// # Errors
     /// As [`Self::root`].
@@ -187,6 +207,38 @@ impl ParamScope {
         bindings: &[ParamBinding],
         cards: &[ParamCard],
         budget: &mut EvalBudget,
+    ) -> SpiceResult<Self> {
+        Self::resolve_with(parent, bindings, cards, budget, Bindings::Reject)
+    }
+
+    /// Resolve one subcircuit body's scope, where `bindings` are that
+    /// instance's parameter overrides and therefore beat every card.
+    ///
+    /// C: `src/frontend/numparam/spicenum.c`. Precedence runs from the instance
+    /// override, through a body `.param`, down to the formal default, so a card
+    /// that redefines a bound name is kept in [`Self::entries`] as
+    /// [`ParamState::Superseded`] and never evaluated instead of failing as
+    /// [`Self::resolve`] does. A formal default belongs in `cards`, before the
+    /// body's own `.param` cards, which makes it the losing definition for a
+    /// name the body also defines.
+    ///
+    /// # Errors
+    /// As [`Self::root`].
+    pub fn resolve_instance(
+        parent: Option<Arc<ParamScope>>,
+        bindings: &[ParamBinding],
+        cards: &[ParamCard],
+        budget: &mut EvalBudget,
+    ) -> SpiceResult<Self> {
+        Self::resolve_with(parent, bindings, cards, budget, Bindings::Win)
+    }
+
+    fn resolve_with(
+        parent: Option<Arc<ParamScope>>,
+        bindings: &[ParamBinding],
+        cards: &[ParamCard],
+        budget: &mut EvalBudget,
+        policy: Bindings,
     ) -> SpiceResult<Self> {
         let mut entries: Vec<ParamEntry> = Vec::new();
         let mut exprs: Vec<Option<&ParameterExpression>> = Vec::new();
@@ -227,14 +279,27 @@ impl ParamScope {
             }
             if let Some(&old) = active.get(&assignment.name) {
                 if old < binding_count {
-                    return Err(SpiceError::parse(
+                    let bound = entries[old].location.clone();
+                    if policy == Bindings::Reject {
+                        return Err(SpiceError::parse(
+                            location,
+                            format!(
+                                "parameter '{}' redefines a bound value (defined at {bound}); \
+                                 use ParamScope::resolve_instance for subcircuit scopes",
+                                assignment.name
+                            ),
+                        ));
+                    }
+                    // The instance value wins, so the card is dropped unevaluated.
+                    let e = &assignment.expression;
+                    entries.push(ParamEntry {
+                        name: assignment.name.clone(),
                         location,
-                        format!(
-                            "parameter '{}' redefines a bound value (defined at {}); \
-                             precedence between formals and body .param cards is not ported",
-                            assignment.name, entries[old].location
-                        ),
-                    ));
+                        source: Some(source_text(e)),
+                        state: ParamState::Superseded { by: bound },
+                    });
+                    exprs.push(None);
+                    continue;
                 }
                 entries[old].state = ParamState::Superseded {
                     by: location.clone(),
@@ -245,11 +310,7 @@ impl ParamScope {
             entries.push(ParamEntry {
                 name: assignment.name.clone(),
                 location,
-                source: Some(if e.braced {
-                    format!("{{{}}}", e.text)
-                } else {
-                    e.text.clone()
-                }),
+                source: Some(source_text(e)),
                 // Placeholder until evaluated; replaced below.
                 state: ParamState::Resolved(0.0),
             });

@@ -156,6 +156,18 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // Subcircuit elaboration (#18): one `X` instance is flattened through the
+    // production `.op` path. The deck is a purely resistive divider, so it keeps
+    // the same 1e-12 relative bound as the other linear operating points.
+    Supported {
+        name: "subckt_divider",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     // M3 exit-gate fixtures (#48). All use `compare::TRAN`; the physical bound is
     // the simulator's own default accuracy (see `compare.rs`), no fixture-specific
     // tolerance exists. The companion driver (trap, or Gear-2 via
@@ -197,10 +209,11 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
 ];
-const EXCLUDED: &[(&str, &str)] = &[(
-    "subckt_divider",
-    "subcircuit flattening/elaboration unavailable",
-)];
+/// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
+/// every committed deck, including `subckt_divider`, is verified through its
+/// own production path. A requested excluded fixture still fails the run, so a
+/// future entry cannot be reported as a success by accident.
+const EXCLUDED: &[(&str, &str)] = &[];
 
 pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
     let only = match arguments {
@@ -212,12 +225,27 @@ pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
 }
 
 fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
+    run_with_registry(root, only, SUPPORTED, EXCLUDED)
+}
+
+/// The verification loop, parameterized by the fixture registry.
+///
+/// `EXCLUDED` is empty while every committed deck verifies, so the
+/// `requested unsupported fixture` path has no committed fixture to exercise it;
+/// this signature lets a unit test drive that branch with a synthetic entry
+/// instead of leaving it untested until an excluded fixture reappears.
+fn run_with_registry(
+    root: &Path,
+    only: Option<&str>,
+    supported: &[Supported],
+    excluded: &[(&str, &str)],
+) -> Result<(), String> {
     let paths = golden::netlist_paths_at(root, only)?;
     let mut verified = 0;
     let mut unsupported = 0;
     let mut failures = Vec::new();
     if only.is_none() {
-        for fixture in SUPPORTED {
+        for fixture in supported {
             if !paths
                 .iter()
                 .any(|path| path.file_stem().is_some_and(|stem| stem == fixture.name))
@@ -231,7 +259,7 @@ fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
             .file_stem()
             .and_then(|s| s.to_str())
             .ok_or("invalid fixture name")?;
-        if let Some(fixture) = SUPPORTED.iter().find(|fixture| fixture.name == name) {
+        if let Some(fixture) = supported.iter().find(|fixture| fixture.name == name) {
             match fixture_result(root, &path, fixture) {
                 Ok(details) => {
                     verified += 1;
@@ -245,7 +273,7 @@ fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
                     failures.push(format!("{name}: {error}"));
                 }
             }
-        } else if let Some((_, reason)) = EXCLUDED.iter().find(|(fixture, _)| *fixture == name) {
+        } else if let Some((_, reason)) = excluded.iter().find(|(fixture, _)| *fixture == name) {
             unsupported += 1;
             println!("  unsupported {name}: {reason}");
             if only.is_some() {
@@ -556,6 +584,21 @@ mod tests {
 
     #[test]
     fn requested_unsupported_unknown_and_bad_options_fail() {
+        // `EXCLUDED` is empty now that every committed deck is verified. Drive
+        // the excluded branch with a synthetic entry so the
+        // `requested unsupported fixture` report stays tested, rather than
+        // waiting for a future excluded fixture to exercise it.
+        let error = run_with_registry(
+            &workspace_root(),
+            Some("rc_divider"),
+            &[],
+            &[("rc_divider", "synthetic exclusion")],
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("requested unsupported fixture 'rc_divider': synthetic exclusion"),
+            "{error}"
+        );
         for (name, _) in EXCLUDED {
             assert!(
                 run(&workspace_root(), Some(name))

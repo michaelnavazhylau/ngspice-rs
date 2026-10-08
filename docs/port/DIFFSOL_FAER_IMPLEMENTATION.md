@@ -4,6 +4,10 @@
 nonlinear DC/AC and charge-companion transient. This report remains the historical
 linear/BDF delivery; diffsol still rejects nonlinear devices and never consumes
 companion stamps. M4 uses faer-backed disposable Newton systems separately.
+Local #34/#35 follow-ups add configured/reported DC bias continuation for OP/DC/AC
+([DC_CONTINUATION.md](DC_CONTINUATION.md)) and typed R/TEMP/source sweeps
+([DC_SWEEPS.md](DC_SWEEPS.md)); explicit continuation controls still reject for
+transient, and diffsol remains linear-only.
 
 Implements the bounded rollout in [DIFFSOL_FAER_RECOMMENDATION.md](DIFFSOL_FAER_RECOMMENDATION.md),
 without replacing ngspice's trap/Gear semantics or claiming the full M3 milestone.

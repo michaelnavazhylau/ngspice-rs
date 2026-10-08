@@ -121,7 +121,8 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
     }
     for options in [
         ".options lteabstol=1e-6",
-        ".options srcsteps=3",
+        // srcsteps/gminsteps/gminfactor/itl1 are implemented (tests/dc_continuation.rs).
+        ".options itl6=3",
         ".options itl4=20",
         ".options gmin=1e-12",
         ".options list",

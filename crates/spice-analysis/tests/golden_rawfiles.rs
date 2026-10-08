@@ -53,9 +53,18 @@ fn netlist_text(name: &str) -> String {
 }
 
 /// Compare actual production solves, not just rawfile round-tripping.
+///
+/// `subckt_divider` goes through the same `Circuit::from_netlist` entry point as
+/// the linear fixtures, so its `X` instance is expanded by production code, not
+/// by a test helper.
 #[test]
 fn production_linear_drivers_match_c_goldens() {
-    for name in ["rc_divider", "rlc_series", "rc_lowpass_ac"] {
+    for name in [
+        "rc_divider",
+        "rlc_series",
+        "rc_lowpass_ac",
+        "subckt_divider",
+    ] {
         let deck = spice_netlist::source::parse_deck_text(Path::new(name), &netlist_text(name));
         let netlist = spice_netlist::Parser::new().parse_deck(&deck).unwrap();
         let mut circuit = spice_devices::Circuit::from_netlist(&netlist).unwrap();

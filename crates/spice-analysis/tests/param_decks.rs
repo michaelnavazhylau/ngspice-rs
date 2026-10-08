@@ -88,10 +88,14 @@ fn failures_are_explicit_with_source_context() {
 }
 
 #[test]
-fn subcircuits_remain_explicitly_unsupported() {
+fn subcircuits_are_elaborated_only_when_instantiated() {
+    // An unused definition does not block a flat deck and its body never runs.
     let n = deck(".param a=1\n.subckt s x y\nr1 x y {a}\n.ends\nr9 n 0 1k");
-    assert!(matches!(
-        RunConfig::from_netlist(&n).unwrap().circuit(&n),
-        Err(SpiceError::Unsupported { .. })
-    ));
+    let circuit = RunConfig::from_netlist(&n).unwrap().circuit(&n).unwrap();
+    assert_eq!(circuit.device_count(), 1);
+    // An instantiated one binds its body against the caller's scope (#18).
+    let n = deck(".param rv=2k\n.subckt s x y\nr1 x y {rv}\n.ends\nv1 n 0 1\nx1 n m s\nr9 m 0 1k");
+    let circuit = RunConfig::from_netlist(&n).unwrap().circuit(&n).unwrap();
+    assert_eq!(circuit.resistor("r.x1.r1").unwrap().1.supplied, 2e3);
+    assert_eq!(circuit.device_count(), 3);
 }

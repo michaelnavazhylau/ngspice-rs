@@ -1,10 +1,33 @@
 # Verification
 
+## Bounded M5 gate (#18, #6, #45, #42, #43, #44)
+
+`cargo xtask golden verify` reports **26 verified fixture(s), 0 unsupported
+fixture(s), 0 failure(s)**: `EXCLUDED` in `xtask/src/verify.rs` is empty, so
+`subckt_divider` runs through the production `.op` path and matches its committed
+C golden. `cargo test --workspace --locked` reports **799 passed, 0 failed, 37
+ignored** on stable (rustc 1.99.0) and Rust 1.89.0; the 37 opt-in live-C
+comparisons pass with `NGSPICE_BIN` set. Subcircuit instantiation:
+[SUBCIRCUITS.md](SUBCIRCUITS.md); CLI `simulate` (one analysis, ASCII rawfile):
+[CLI.md](CLI.md); binary rawfile read/write: [RAWFILES.md](RAWFILES.md);
+`.save`/`.print` output selection: [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md);
+`.measure`/`.meas` measurements: [MEASURE.md](MEASURE.md); final-period `.four`:
+[FOURIER.md](FOURIER.md). All six bounded M5 deliverables are complete
+([ROADMAP.md](ROADMAP.md)); `.plot` and the documented extended forms remain
+unported. Fourier C checks compare all nine harmonic magnitudes and at least
+five significant phases per vector; a temporary +90° phase mutation failed all
+three tests, then passed after restoring production code. Clippy on both
+toolchains, formatting and whitespace checks pass; goldens, 110 parser snapshots
+and `Cargo.lock` are unchanged by the Fourier slice.
+The historical per-slice counts below record the state at each
+delivery; they are not the current totals.
+
 ## Branch-local M4 gate (#41)
 
 The nonlinear support/gate is documented in [M4_NONLINEAR.md](M4_NONLINEAR.md).
-`cargo xtask golden verify` verifies 25 fixtures (nine nonlinear), leaving only
-subcircuit flattening excluded. Six new C AC/charge-transient goldens and twelve
+`cargo xtask golden verify` verifies 26 fixtures (nine nonlinear), including
+`subckt_divider` through the production `.op` path, with no exclusions. Six new C
+AC/charge-transient goldens and twelve
 parser snapshots were added without changing previous data. Physical/Jacobian/
 charge/continuation/ownership checks live in `spice-analysis/tests/m4_gate.rs`.
 The historical linear sections below describe their original M2/M3 delivery;
@@ -210,7 +233,9 @@ forward/unresolved references, scalar geometry, ground aliasing, continuation
 provenance, committed malformed/overflow errors and specific unsupported gaps.
 At that slice's completion, CLI tests required six fixture parses; #8 now adds
 `rc_transient`, bringing the count to seven at that stage. #12 adds
-`subckt_divider`: all eight now exit 0 for parsing, not simulation.
+`subckt_divider`: all eight exited 0 for parsing at that stage; #18 later added
+subcircuit elaboration, so the deck now simulates through the production `.op`
+path.
 
 The second ignored test in `c_reference.rs` instruments
 `conformance/parser/model_diodes.cir`. Live C instance/model queries check
@@ -267,8 +292,8 @@ Local validation: **282 passed, 0 failed, 7 opt-in C tests ignored** on stable
 (rustc 1.99.0) and Rust 1.89.0. All **7** opt-in tests also passed separately
 against the read-only local ngspice-47+ binary. Formatting, all-target workspace
 Clippy on both toolchains, warning-free rustdoc and `git diff --check` passed.
-Default and selected golden verification remain three supported/five excluded
-fixtures; no goldens were recaptured or changed.
+Default and selected golden verification stood at three supported/five excluded
+fixtures at this slice; no goldens were recaptured or changed.
 
 ```sh
 cargo test --workspace --locked
@@ -319,8 +344,8 @@ Local validation: **302 passed, 0 failed, 9 opt-in C tests ignored** on stable
 Rust 1.99.0 and MSRV 1.89.0. All **9** opt-in C tests also passed separately against
 the read-only local ngspice-47+ binary. Both toolchains' all-target Clippy,
 formatting, warning-free rustdoc, the RC example and `git diff --check` pass.
-Default golden verification still verifies three linear fixtures with five
-explicit exclusions; selected AC verification reports one verified fixture.
+Default golden verification stood at three linear fixtures with five
+explicit exclusions at this slice; selected AC verification reports one verified fixture.
 Neither is full corpus parity.
 
 ```sh
@@ -378,7 +403,7 @@ Local validation: **322 passed, 0 failed, 11 opt-in C tests ignored** on stable
 Rust 1.99.0 and MSRV 1.89.0. All **11** opt-in C tests passed separately, including
 all seven parser probes. Both toolchains' all-target Clippy, formatting,
 warning-free rustdoc and `git diff --check` pass. `cargo xtask golden verify`
-remains three verified/five explicitly unsupported fixtures; no goldens changed.
+remains three verified/five explicitly unsupported fixtures at this slice; no goldens changed.
 
 These are syntax/setup comparisons, not Rust waveform evaluation or nonlinear
 simulation. Scoped/source syntax is implemented below. (Historical note: the
@@ -406,8 +431,9 @@ Local validation for this slice: **342 passed, 0 failed, 12 opt-in tests ignored
 on stable and Rust 1.89.0; both all-target Clippy checks and formatting pass.
 All **12 opt-in C tests** pass separately on stable, including all **8 parser
 probes** and the new source probe. Warning-free rustdoc and `git diff --check` pass. `golden verify` still
-reports three verified/five unsupported fixtures, now correctly naming
-subcircuit **flattening/elaboration**, not parsing, as unavailable.
+reports three verified/five unsupported fixtures at this slice, naming
+subcircuit **flattening/elaboration**, not parsing, as the blocker; #18 later
+removed it (the fixture now verifies and `EXCLUDED` is empty).
 
 ## Petgraph topology verification
 
@@ -454,17 +480,19 @@ cargo xtask golden verify
 cargo xtask golden verify --netlist rc_lowpass_ac
 ```
 
-The default verifies **sixteen fixtures** through `Parser::parse_file`,
+The default verifies **26 fixtures** through `Parser::parse_file`,
 `RunConfig::from_netlist` (so deck `.options`, for example `method=gear`, reach the
 driver exactly as in an ordinary run), `Circuit::from_netlist` and the production
-analysis runner: `rc_divider` and `rlc_series` (`.op`), `rc_lowpass_ac` and
-`rlc_series_ac` (complex `.ac`), and the transients `rc_transient`, `rl_pulse_tran`,
-`rc_gear_tran`, `rc_pwl_tran`, `rlc_series_tran`, `rlc_series_gear_tran`,
-`floating_cap_tran` and `coupled_cap_tran`, plus the initialized-state transients
-`rc_ic_uic_tran`, `rlc_ic_uic_tran`, `rc_ic_node_tran` and `floating_cap_ic_tran`
-(next section but one). It reports **four unsupported fixtures**
-with reasons: `diode_dc`, `bjt_ce`, `mos_inverter` (non-linear backends) and
-`subckt_divider` (subcircuit flattening/elaboration). A requested unsupported
+analysis runner: `rc_divider`, `rlc_series` and the flattened `subckt_divider`
+(`.op`), `rc_lowpass_ac` and `rlc_series_ac` (complex `.ac`), the transients
+`rc_transient`, `rl_pulse_tran`, `rc_gear_tran`, `rc_pwl_tran`, `rlc_series_tran`,
+`rlc_series_gear_tran`, `floating_cap_tran` and `coupled_cap_tran`, the
+initialized-state transients `rc_ic_uic_tran`, `rlc_ic_uic_tran`,
+`rc_ic_node_tran` and `floating_cap_ic_tran`, and the M4 nonlinear decks
+`diode_dc`, `bjt_ce`, `mos_inverter`, `m4_diode_ac`, `m4_bjt_ac`, `m4_mos1_ac`,
+`m4_diode_tran`, `m4_bjt_tran` and `m4_mos1_tran`. It reports **no unsupported
+fixtures** — `EXCLUDED` is empty and `subckt_divider` verifies through its own
+production path. A requested unsupported
 fixture fails, never silently skips. Names are case-insensitive and an optional
 `.cir` suffix is accepted. Unknown fixtures/options, missing input/goldens,
 unregistered new fixtures and missing default supported decks fail explicitly.
@@ -650,14 +678,16 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 (`source_waveforms.rs`).
 
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
-charge and devices (M4), subcircuits (M5), orders above 2, mutual inductors and
+charge and devices (M4), orders above 2, mutual inductors and
 nonlinear device initial conditions, and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
 
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity
-beyond the linear RC/RLC decks above, general DAEs, remaining source
-waveforms and subcircuit/parameter elaboration
-are not established by the bounded linear implementation. Track those remaining
+beyond the linear RC/RLC decks above, general DAEs and the remaining source
+waveforms
+are not established by the bounded linear implementation; subcircuit elaboration
+and parameter scoping are covered by the #18 gate ([SUBCIRCUITS.md](SUBCIRCUITS.md)).
+Track those remaining
 gates in the central [TODO.md](../../TODO.md); do not claim full SPICE parity.

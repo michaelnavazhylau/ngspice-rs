@@ -6,7 +6,7 @@ the SPICE circuit simulator.
 > **Status: M1 front-end gate closed; bounded linear and M4 nonlinear subsets are implemented.**
 > The branch-local nonlinear support/gate and deliberate physics limits are in
 > [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md); no full SPICE parity is claimed.
-> Scalar R/C/L/V/I devices support `.op`, single-source `.dc`, complex `.ac`
+> Scalar R/C/L/V/I devices support `.op`, typed one/two-axis `.dc`, complex `.ac`
 > and transient analysis (adaptive trap/Gear-2 companion driver; explicitly selected diffsol BDF). Scalar models and
 > bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
 > and bounded diode input schemas exist. This checkout also simulates bounded
@@ -35,14 +35,22 @@ table, formulas, temperatures and deliberately rejected forms.
 | Capability | Current checkout |
 | --- | --- |
 | Scalar/model/D/Q/M/passive-model parsing and petgraph topology | Implemented, bounded syntax |
-| Scoped subcircuits/X and source-relative includes/libraries | Ordered scoped cards, bounded resolution/provenance; 8/8 fixture parses, no flattening |
+| Scoped subcircuits/X and source-relative includes/libraries | Ordered scoped cards and `X` expansion through the production entry points (#18): hierarchical names, scoped parameters/models and `.global`; `subckt_divider` verifies against its C golden ([SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)) |
 | Model resolver and scalar schemas | Top-level families/levels/defaults; bounded passive and D/Q/M model-aware factories |
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
-| `.op`, typed/nested source/temperature `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices |
+| `.op`, typed/nested V/I/R/TEMP `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices; configurable bounded DC bias continuation |
 | Transient | Ordinary `.tran`: adaptive trap/Gear-2 with bounded nonlinear charge; explicit diffsol BDF remains linear-only |
 | Nonlinear D/Q/M equations | Bounded diode / Ebers-Moll BJT / MOS1; see M4 support table and explicit exclusions |
-| CLI simulation command | Not implemented; APIs/examples only |
+| CLI simulation command | `spice-rs simulate --output <path> <deck>` (#6) runs the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner and writes an ASCII rawfile ([CLI.md](docs/port/CLI.md)) |
+| Output selection (`.save`/`.print`) | Bounded typed request parsing and projection of the full plot into the written rawfile in C's `dbs` order: `v(n)`, `v(n1,n2)`, `i(source|inductor)` and `vm`/`vp`/`vr`/`vi`/`vdb`, first-wins dedup; `.print` also renders a text table; unresolvable or unsupported requests fail before anything is published; `.plot` is unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
+| Measurements (`.measure`/`.meas`) | Bounded subset `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) with `FROM`/`TO`, and `TRIG … TARG …` with `AT=` or `<operand> VAL=` plus `RISE`/`FALL`/`CROSS`/`LAST`; evaluated over the full plot before output selection narrows the rawfile; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
+| Fourier (`.four`) | Final complete transient period, physical-time resampling onto `4 * max(harmonics, 50)` subintervals, DC/single-sided peak amplitude/window-referenced phase in radians/THD; 1–100 harmonics, full-plot evaluation independent of rawfile selection ([FOURIER.md](docs/port/FOURIER.md)) |
+
+Local #34/#35 follow-ups add [DC continuation controls/reports](docs/port/DC_CONTINUATION.md)
+and [scalar resistor/nested sweeps](docs/port/DC_SWEEPS.md), including model-backed
+resistor temperature/multiplicity semantics. These changes are not yet published;
+full C dynamic continuation and arbitrary model-parameter sweeps remain unsupported.
 
 An ordinary `.tran` runs the adaptive trapezoidal / Gear-2 companion driver
 ([TRANSIENT.md](docs/port/TRANSIENT.md)); explicit `backend=diffsol method=bdf`
@@ -50,7 +58,7 @@ selects the adaptive BDF backend, which is
 **not ngspice trapezoidal or fixed Gear-2**. M3's RC/RL/RLC, PWL, floating/coupled
 capacitor and AC exit gates against C goldens are closed for the linear decks
 (`cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`); M3 is not
-complete: higher-index constraints (#29) and subcircuits remain unsupported.
+complete: higher-index constraints (#29) remain unsupported.
 M4 adds bounded nonlinear charge to the companion path, not general MNA DAE support. The BDF backend currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
 constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
@@ -62,8 +70,8 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 
 1. **Verification:** extend the bounded Rust-engine `golden verify` registry
    as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** `.param`/expression syntax (#14, [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md)), `.option`/`.global` parsing with a bounded `RunConfig` (#16) and top-level `.param` evaluation (#15, `spice_netlist::eval`/`elaborate`) are done; subcircuit parameters remain.
-   Normalized deck serialization exists (#20, `spice_netlist::write_netlist`); token/AST snapshots exist (#21, `cargo xtask snapshots`); the eight-fixture M1 front-end round-trip gate is closed (#22, `crates/spice-netlist/tests/m1_gate.rs`); subcircuit flattening (#18, M5), subcircuit-scoped params and extended passive forms remain.
+2. **Front end (M1):** `.param`/expression syntax (#14, [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md)), `.option`/`.global` parsing with a bounded `RunConfig` (#16) and top-level `.param` evaluation (#15, `spice_netlist::eval`/`elaborate`) are done; subcircuit formal defaults, overrides and body `.param` scoping now evaluate during `X` expansion (#18, [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)).
+   Normalized deck serialization exists (#20, `spice_netlist::write_netlist`); token/AST snapshots exist (#21, `cargo xtask snapshots`); the eight-fixture M1 front-end round-trip gate is closed (#22, `crates/spice-netlist/tests/m1_gate.rs`); subcircuit flattening/scoping (#18, M5) is done, while extended passive forms remain.
    Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 3. **Model elaboration:** extended passive forms, additional device schemas
    and scoped resolution; bounded passive geometry/temperature arithmetic exists.
@@ -75,8 +83,16 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 5. **Nonlinear devices (M4):** bounded equations, Newton/damping/continuation,
    typed nested sweeps and nonlinear DC/AC/charge-companion gate implemented;
    expansion beyond [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md) remains explicit work.
-6. **Usability (M5):** CLI simulation, subcircuit flattening/instantiation (#18),
-   measurements/output selection and binary rawfiles.
+6. **Usability (M5):** wave 1 is merged — subcircuit instantiation (#18,
+   [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `simulate` command (#6,
+   [CLI.md](docs/port/CLI.md)) and binary rawfile read/write (#45,
+   [RAWFILES.md](docs/port/RAWFILES.md)); wave 2 adds bounded `.save`/`.print`
+   output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
+   and bounded `.measure`/`.meas` measurements (#43,
+   [MEASURE.md](docs/port/MEASURE.md)). Bounded `.four` (#44,
+   [FOURIER.md](docs/port/FOURIER.md)) completes M5's six deliverables. This is
+   bounded usability coverage, not full SPICE parity; `.plot` and the documented
+   extended output/measurement/Fourier forms remain unported.
 
 Advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, Tcl, full numparam
 compatibility and the interactive interpreter are outside the initial scope.
@@ -90,7 +106,7 @@ cargo test                              # the whole suite, no C toolchain needed
 cargo xtask ci                          # fmt --check, clippy -D warnings, test
 cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
 cargo xtask golden list                 # what the captured comparison data holds
-cargo xtask golden verify               # Rust vs C data: 16 verified, 4 unsupported
+cargo xtask golden verify               # Rust vs C data: 26 verified, 0 unsupported
 cargo run -p spice-analysis --example rc_diffsol --locked # production simulation API
 ```
 
@@ -140,7 +156,7 @@ crates/spice-core       numbers, units, nodes, errors, analysis taxonomy
 crates/spice-netlist    deck loading, tokenizer, card classification, AST
 crates/spice-maths      dense/sparse/complex storage, LU, bounded BDF integration
 crates/spice-devices    Device trait, MNA stamping, device registry
-crates/spice-analysis   analysis dispatch, plots, ASCII rawfile read and write
+crates/spice-analysis   analysis dispatch, plots, rawfile read/write (ASCII and binary)
 crates/spice-cli        the `spice-rs` binary
 xtask                   C capture/drift checks, Rust numerical verification, CI
 conformance/            fixture decks and the rawfiles captured from ngspice
@@ -171,8 +187,9 @@ cargo xtask golden check --ngspice /path/to/ngspice   # equivalent
 [docs/port/VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness and
 its limits. `golden check` checks reproducibility of C output; it does not run
 the Rust simulation engine. `cargo xtask golden verify` runs the Rust library
-APIs against three committed linear fixtures with name/metadata/axis/value
-checks and explicit exclusions; no C binary is needed. Production DC/AC golden
+APIs against 26 committed fixtures (linear, nonlinear, transient and the
+flattened subcircuit deck) with name/metadata/axis/value checks and no remaining
+exclusions; no C binary is needed. Production DC/AC golden
 comparisons and analytic/
 live-C transient tests are documented in
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md), including

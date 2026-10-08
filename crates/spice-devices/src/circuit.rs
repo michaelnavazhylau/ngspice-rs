@@ -22,7 +22,9 @@ use spice_maths::{Coefficients, SparseMatrix, Vector};
 
 use crate::linear::Forcing;
 use crate::models::ModelContext;
+use crate::rlc::Resistor;
 use crate::state::{StateHistory, TrialState};
+use crate::sweep::{ResistorMetadata, ResistorOverride};
 use crate::traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
 
 /// A vertex in the circuit's bipartite incidence graph.
@@ -280,16 +282,105 @@ impl Circuit {
         Ok(())
     }
 
+    /// The resistor named `name` (case-insensitive) and its device ordinal,
+    /// identified by [`Device::resistor_metadata`], never by the name's first
+    /// letter.
+    #[must_use]
+    pub fn resistor(&self, name: &str) -> Option<(usize, ResistorMetadata)> {
+        self.devices.iter().enumerate().find_map(|(index, device)| {
+            if !device.name().eq_ignore_ascii_case(name) {
+                return None;
+            }
+            device.resistor_metadata().map(|metadata| (index, metadata))
+        })
+    }
+
+    /// An immutable per-point override of resistor `name`'s supplied scalar.
+    /// Carry it in a [`ModelContext`] ([`ModelContext::with_resistor_override`]);
+    /// no device changes. See [`crate::sweep`] for supplied-versus-effective
+    /// semantics.
+    ///
+    /// # Errors
+    /// [`SpiceError::Circuit`] if `name` is not a resistor, or `supplied` is
+    /// nonfinite, zero, or has a nonfinite conductance.
+    pub fn resistor_override(&self, name: &str, supplied: Real) -> SpiceResult<ResistorOverride> {
+        let (index, _) = self
+            .resistor(name)
+            .ok_or_else(|| SpiceError::circuit(format!("{name} is not a resistor")))?;
+        if !supplied.is_finite() || supplied == 0.0 || !(1.0 / supplied).is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "resistor {name}: supplied resistance must be finite and nonzero with finite conductance"
+            )));
+        }
+        Ok(ResistorOverride::new(index, supplied))
+    }
+
+    /// The effective resistance (ohms) `target` stamps under `context`'s
+    /// temperatures: the supplied scalar with the device's own temperature, TC,
+    /// scale and multiplicity laws applied. Nothing is mutated.
+    ///
+    /// # Errors
+    /// A stale override, an invalid context, or an invalid derived value.
+    pub fn effective_resistance(
+        &self,
+        target: &ResistorOverride,
+        context: &ModelContext,
+    ) -> SpiceResult<Real> {
+        let device = self
+            .devices
+            .get(target.device())
+            .ok_or_else(|| SpiceError::circuit("stale resistor override"))?;
+        context.validate(&spice_core::SourceLoc::new(
+            std::path::PathBuf::from("<model-context>"),
+            1,
+            1,
+        ))?;
+        device.resistor_effective(target.supplied(), context)
+    }
+
+    /// Disposable resistors carrying the context's overrides' effective values,
+    /// as `(device ordinal, resistor)`. The circuit's own devices are untouched;
+    /// callers stamp the replacement instead of the original for that ordinal.
+    fn resistor_replacements(&self, context: &ModelContext) -> SpiceResult<Vec<(usize, Resistor)>> {
+        let mut replacements: Vec<(usize, Resistor)> = Vec::new();
+        for target in context.resistor_overrides.iter().flatten() {
+            let device = self
+                .devices
+                .get(target.device())
+                .ok_or_else(|| SpiceError::circuit("stale resistor override"))?;
+            let terminals = match device.terminals() {
+                [a, b] if device.resistor_metadata().is_some() => [*a, *b],
+                _ => {
+                    return Err(SpiceError::circuit(format!(
+                        "resistor override targets {}, which is not a two-terminal resistor",
+                        device.name()
+                    )));
+                }
+            };
+            if replacements.iter().any(|(i, _)| *i == target.device()) {
+                return Err(SpiceError::circuit("duplicate resistor override"));
+            }
+            let effective = device.resistor_effective(target.supplied(), context)?;
+            replacements.push((
+                target.device(),
+                Resistor::new(device.name(), terminals, effective)?,
+            ));
+        }
+        Ok(replacements)
+    }
+
     /// Loads every device for one trial into `matrix`, `rhs` and `trial`.
     ///
-    /// The accepted history is read-only here. On error, `matrix`, `rhs` and
+    /// The accepted history is read-only here. Resistors named by the model
+    /// context's overrides stamp their per-point effective value; no device is
+    /// modified. On error, `matrix`, `rhs` and
     /// `trial` hold a partial load and must be discarded; nothing the circuit
     /// or history owns has changed.
     ///
     /// # Errors
     ///
-    /// Stale numbering, mismatched dimensions/nonfinite solution, or device
-    /// failures.
+    /// Stale numbering, mismatched dimensions/nonfinite solution, device
+    /// failures, or an invalid resistor override.
     pub fn load(
         &self,
         request: &LoadRequest<'_>,
@@ -316,7 +407,12 @@ impl Circuit {
             1,
             1,
         ))?;
+        let replacements = self.resistor_replacements(request.model_context)?;
         for (index, device) in self.devices.iter().enumerate() {
+            let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
+                Some((_, resistor)) => resistor,
+                None => &**device,
+            };
             let states = request
                 .history
                 .device(trial, self.state_rows[index].clone())?;
@@ -428,8 +524,13 @@ impl Circuit {
             1,
         ))?;
         self.finalize()?;
+        let replacements = self.resistor_replacements(context)?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
+            let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
+                Some((_, resistor)) => resistor,
+                None => &**device,
+            };
             let range = &self.branch_rows[index];
             device.assemble_linear(&mut crate::linear::LinearContext {
                 model_context: context,
@@ -463,8 +564,13 @@ impl Circuit {
                 "invalid small-signal bias dimensions/values",
             ));
         }
+        let replacements = self.resistor_replacements(context)?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
+            let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
+                Some((_, resistor)) => resistor,
+                None => &**device,
+            };
             let range = &self.branch_rows[index];
             device.assemble_small_signal(
                 &mut crate::linear::LinearContext {
@@ -496,19 +602,51 @@ impl Circuit {
         models: &crate::models::ModelResolver<'_>,
         context: &crate::models::ModelContext,
     ) -> SpiceResult<()> {
-        if self.device(&instance.name).is_some() {
-            return Err(SpiceError::circuit(format!(
-                "duplicate instance name '{}'",
-                instance.name
-            )));
-        }
+        self.add_instances(std::slice::from_ref(instance), models, context)
+    }
+
+    /// Elaborate several AST instances atomically, in order.
+    ///
+    /// Every device is built against one staged copy of the node table, and the
+    /// nodes and devices are committed together only once the whole batch has
+    /// succeeded. A failure at any point — a duplicate name, an unavailable
+    /// factory, an invalid parameter — therefore leaves the caller's node table,
+    /// devices and branch rows untouched, which is what subcircuit expansion
+    /// (#18) needs when it hands over a flattened deck. As with
+    /// [`Circuit::add_instance`], finalize after successful additions.
+    ///
+    /// # Errors
+    /// [`SpiceError::Circuit`] on a duplicate instance name (against the
+    /// existing devices and within the batch), or whatever
+    /// [`crate::factory::instantiate_with_models`] reports.
+    pub fn add_instances(
+        &mut self,
+        instances: &[spice_netlist::ast::DeviceInstance],
+        models: &crate::models::ModelResolver<'_>,
+        context: &crate::models::ModelContext,
+    ) -> SpiceResult<()> {
+        let mut seen: BTreeSet<String> = self
+            .devices
+            .iter()
+            .map(|device| device.name().to_lowercase())
+            .collect();
         let mut nodes = self.nodes.clone();
-        let device =
-            crate::factory::instantiate_with_models(instance, &mut nodes, models, context)?;
-        // Builtin factories bind terminals in this staged table. Nothing
-        // fallible remains after committing the two containers together.
+        let mut staged: Vec<Box<dyn Device>> = Vec::with_capacity(instances.len());
+        for instance in instances {
+            if !seen.insert(instance.name.to_lowercase()) {
+                return Err(SpiceError::circuit(format!(
+                    "duplicate instance name '{}'",
+                    instance.name
+                )));
+            }
+            // Builtin factories bind terminals in this staged table. Nothing
+            // fallible remains after committing the two containers together.
+            staged.push(crate::factory::instantiate_with_models(
+                instance, &mut nodes, models, context,
+            )?);
+        }
         self.nodes = nodes;
-        self.devices.push(device);
+        self.devices.extend(staged);
         Ok(())
     }
 
@@ -538,21 +676,17 @@ impl Circuit {
     /// is retained and later assemblies use their own explicit context.
     /// `.option` cards are the caller's responsibility: the supplied context must
     /// come from resolving them (`spice_analysis::RunConfig`). Top-level
-    /// `.global` cards only name top-level nodes, which are already global in a
-    /// flat circuit, so they need no elaboration.
+    /// `.global` cards name nodes that stay global through subcircuit expansion
+    /// (see [`crate::subckt`]); everything else keeps the deck's names.
     /// # Errors
-    /// Invalid context, unsupported constructs/models or invalid parameters.
+    /// Invalid context, unsupported constructs/models, invalid parameters or a
+    /// failing subcircuit expansion ([`crate::subckt::expand_subcircuits`]).
+    /// Nothing is added to the returned circuit; a failed deck yields `Err`.
     pub fn from_netlist_with_context(
         netlist: &spice_netlist::ast::Netlist,
         context: &crate::models::ModelContext,
     ) -> SpiceResult<Self> {
         context.validate(&netlist.location)?;
-        if !netlist.subcircuits.is_empty() {
-            return Err(SpiceError::Unsupported {
-                feature: "subcircuits in linear elaboration".into(),
-                location: None,
-            });
-        }
         // Resolved `.include`/`.lib` content is already inlined, in order, in
         // the cards and devices of its insertion scope (`Parser::parse_file*`);
         // the retained directive is provenance only. A syntax-only parse
@@ -571,9 +705,18 @@ impl Circuit {
         // literal copy before any factory sees them (#15).
         let elaborated = spice_netlist::elaborate::literalize(netlist)?;
         let netlist = &elaborated.netlist;
-        let models = crate::models::ModelResolver::new(&netlist.models)?;
+        // `X` instances are expanded into a fresh device/model list before any
+        // device is built, so a deck that fails to elaborate never leaves a
+        // partial circuit behind (#18).
+        let expanded = crate::subckt::expand_subcircuits(
+            netlist,
+            &elaborated.scope,
+            crate::subckt::SubcircuitLimits::default(),
+        )?;
+        let models = crate::models::ModelResolver::new(&expanded.models)?;
         let mut circuit = Self::new();
-        let referenced: BTreeSet<_> = netlist
+        circuit.add_instances(&expanded.devices, &models, context)?;
+        let referenced: BTreeSet<_> = expanded
             .devices
             .iter()
             .filter_map(|instance| {
@@ -583,16 +726,15 @@ impl Circuit {
                     .map(|name| name.to_ascii_lowercase())
             })
             .collect();
-        for instance in &netlist.devices {
-            circuit.add_instance(instance, &models, context)?;
-        }
         if let Some(model) = netlist
             .models
             .iter()
             .find(|model| !referenced.contains(&model.name.to_ascii_lowercase()))
         {
             // First-declaration duplicate policy remains explicit; unused
-            // declarations cannot silently discard unsupported physics.
+            // declarations cannot silently discard unsupported physics. A root
+            // model shadowed only inside a subcircuit body is unused by this
+            // rule and is reported, not dropped silently.
             return Err(SpiceError::Unsupported {
                 feature: "unused model declarations in scalar linear elaboration".into(),
                 location: Some(model.location.clone()),

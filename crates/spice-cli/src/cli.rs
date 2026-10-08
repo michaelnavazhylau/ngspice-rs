@@ -36,6 +36,8 @@ pub enum Command {
     Tokens,
     /// Build a semantic netlist for supported syntax; report any unported gaps.
     Parse,
+    /// Run the deck's single analysis and write an ASCII rawfile.
+    Simulate,
     /// List the device designators the registry knows.
     Devices,
     /// List the analyses and whether a driver exists.
@@ -55,6 +57,7 @@ impl Command {
             Self::Cards => "cards",
             Self::Tokens => "tokens",
             Self::Parse => "parse",
+            Self::Simulate => "simulate",
             Self::Devices => "devices",
             Self::Analyses => "analyses",
             Self::Help => "help",
@@ -70,6 +73,7 @@ impl Command {
             Self::Cards,
             Self::Tokens,
             Self::Parse,
+            Self::Simulate,
             Self::Devices,
             Self::Analyses,
             Self::Help,
@@ -84,8 +88,14 @@ impl Command {
     pub const fn needs_netlist(self) -> bool {
         matches!(
             self,
-            Self::Summary | Self::Cards | Self::Tokens | Self::Parse
+            Self::Summary | Self::Cards | Self::Tokens | Self::Parse | Self::Simulate
         )
+    }
+
+    /// Whether the command writes a rawfile and therefore needs `--output`.
+    #[must_use]
+    const fn needs_output(self) -> bool {
+        matches!(self, Self::Simulate)
     }
 }
 
@@ -96,6 +106,8 @@ pub struct Args {
     pub command: Command,
     /// The deck, for the commands that need one.
     pub netlist: Option<PathBuf>,
+    /// Where `simulate` writes its rawfile.
+    pub output: Option<PathBuf>,
     /// Whether `gnd` is aliased to node `0`, as ngspice does by default.
     pub auto_gnd: bool,
 }
@@ -105,6 +117,7 @@ impl Default for Args {
         Self {
             command: Command::Summary,
             netlist: None,
+            output: None,
             auto_gnd: true,
         }
     }
@@ -123,9 +136,9 @@ impl Args {
     {
         let mut args = Self::default();
         let mut command_seen = false;
+        let mut arguments = arguments.into_iter().map(Into::into);
 
-        for argument in arguments {
-            let argument = argument.into();
+        while let Some(argument) = arguments.next() {
             match argument.as_str() {
                 "-h" | "--help" => {
                     args.command = Command::Help;
@@ -137,6 +150,22 @@ impl Args {
                 }
                 "--no-auto-gnd" => args.auto_gnd = false,
                 "--auto-gnd" => args.auto_gnd = true,
+                "--output" => {
+                    let path = arguments
+                        .next()
+                        .ok_or("--output needs a path: --output <path>")?;
+                    if path.is_empty() {
+                        return Err("--output needs a path: --output <path>".to_owned());
+                    }
+                    args.set_output(PathBuf::from(path))?;
+                }
+                other if other.starts_with("--output=") => {
+                    let path = &other["--output=".len()..];
+                    if path.is_empty() {
+                        return Err("--output needs a path: --output <path>".to_owned());
+                    }
+                    args.set_output(PathBuf::from(path))?;
+                }
                 other if other.starts_with("--") => {
                     return Err(format!("unknown option '{other}'"));
                 }
@@ -171,7 +200,25 @@ impl Args {
                 args.command.name()
             ));
         }
+        if args.command.needs_output() && args.output.is_none() {
+            return Err("'simulate' needs an output path: --output <path> <netlist>".to_owned());
+        }
+        if !args.command.needs_output() && args.output.is_some() {
+            return Err(format!(
+                "'{}' does not take --output (only 'simulate' writes a rawfile)",
+                args.command.name()
+            ));
+        }
         Ok(args)
+    }
+
+    /// Records `--output`, rejecting a repeated option.
+    fn set_output(&mut self, path: PathBuf) -> Result<(), String> {
+        if self.output.is_some() {
+            return Err("--output is given more than once".to_owned());
+        }
+        self.output = Some(path);
+        Ok(())
     }
 }
 
@@ -186,17 +233,25 @@ USAGE:
     spice-rs cards [OPTIONS] <netlist>    list the cards and their classification
     spice-rs tokens [OPTIONS] <netlist>   dump the token stream
     spice-rs parse [OPTIONS] <netlist>    parse the deck into the netlist model
+    spice-rs simulate (--output <path>) [OPTIONS] <netlist>
+                                          run the deck's one analysis and write an ASCII rawfile
     spice-rs devices                      list the device designators known to the port
     spice-rs analyses                     list the analyses and their driver status
     spice-rs help | version
 
 OPTIONS:
-    --no-auto-gnd    treat 'gnd' as an ordinary node, like ngspice's no_auto_gnd
+    --output <path>  where 'simulate' writes the rawfile; also --output=<path>.
+                     An existing destination is replaced only after a successful
+                     run; a failed run leaves it untouched
+    --no-auto-gnd    treat 'gnd' as an ordinary node in the parser, like
+                     ngspice's no_auto_gnd (the device node table still folds
+                     'gnd'; see docs/port/CLI.md)
     -h, --help       print this text
     -V, --version    print the version
 
 EXIT STATUS:
-    0 success, 1 bad command line, 2 deck could not be read, 3 not ported yet"
+    0 success, 1 bad command line, 2 deck could not be read, simulation,
+    numerical or output failure, 3 not ported yet"
 }
 
 /// Runs the parsed command, printing to stdout.
@@ -207,6 +262,7 @@ EXIT STATUS:
 /// [`spice_core::SpiceError::Parse`] when it cannot be understood, and
 /// [`spice_core::SpiceError::NotYetPorted`] for syntax outside the
 /// parser's current subset, mapped to [`exit_code::NOT_YET_PORTED`].
+/// `simulate` adds the run and rawfile failures of [`crate::simulate::run`].
 pub fn run(args: &Args) -> SpiceResult<()> {
     match args.command {
         Command::Help => {
@@ -223,6 +279,19 @@ pub fn run(args: &Args) -> SpiceResult<()> {
         }
         Command::Analyses => {
             print!("{}", analyses_text());
+            Ok(())
+        }
+        Command::Simulate => {
+            let deck = args
+                .netlist
+                .as_ref()
+                .expect("Args::parse guarantees a netlist");
+            let output = args
+                .output
+                .as_ref()
+                .expect("Args::parse guarantees --output for 'simulate'");
+            let report = crate::simulate::run(deck, output, args.auto_gnd)?;
+            print!("{}", crate::simulate::report_text(&report));
             Ok(())
         }
         Command::Summary | Command::Cards | Command::Tokens => {
@@ -439,7 +508,7 @@ pub fn analyses_text() -> String {
     out
 }
 
-fn kind_name(kind: Kind) -> &'static str {
+pub(crate) fn kind_name(kind: Kind) -> &'static str {
     match kind {
         Kind::OperatingPoint => "DC operating point",
         Kind::DcSweep => "DC sweep",
@@ -490,6 +559,12 @@ r2 out 0 1k
             args(&["tokens", "rc.cir"]).unwrap().command,
             Command::Tokens
         );
+        assert_eq!(
+            args(&["simulate", "--output", "out.raw", "rc.cir"])
+                .unwrap()
+                .command,
+            Command::Simulate
+        );
         assert_eq!(args(&["devices"]).unwrap().command, Command::Devices);
         assert_eq!(args(&["analyses"]).unwrap().command, Command::Analyses);
         assert_eq!(args(&["--help"]).unwrap().command, Command::Help);
@@ -516,6 +591,39 @@ r2 out 0 1k
         assert!(args(&["--nope", "rc.cir"]).is_err());
         assert!(args(&["rc.cir", "other.cir"]).is_err());
         assert!(args(&["devices", "rc.cir"]).is_err());
+    }
+
+    #[test]
+    fn simulate_needs_an_output_path_and_sets_it() {
+        let parsed = args(&["simulate", "--output", "out.raw", "rc.cir"]).unwrap();
+        assert_eq!(parsed.command, Command::Simulate);
+        assert_eq!(parsed.output, Some(PathBuf::from("out.raw")));
+        assert_eq!(parsed.netlist, Some(PathBuf::from("rc.cir")));
+
+        // The option may precede its subcommand, and `--output=<path>` is the
+        // same option.
+        let parsed = args(&["--output", "out.raw", "simulate", "rc.cir"]).unwrap();
+        assert_eq!(parsed.command, Command::Simulate);
+        assert_eq!(parsed.output, Some(PathBuf::from("out.raw")));
+        let parsed = args(&["simulate", "--output=out.raw", "rc.cir"]).unwrap();
+        assert_eq!(parsed.output, Some(PathBuf::from("out.raw")));
+    }
+
+    #[test]
+    fn a_broken_or_misplaced_output_option_is_a_usage_error() {
+        for list in [
+            vec!["simulate", "rc.cir"],
+            vec!["simulate", "--output"],
+            vec!["simulate", "--output=", "rc.cir"],
+            vec![
+                "simulate", "--output", "a.raw", "--output", "b.raw", "rc.cir",
+            ],
+            vec!["cards", "--output", "out.raw", "rc.cir"],
+            vec!["devices", "--output", "out.raw"],
+            vec!["--output", "out.raw", "rc.cir"],
+        ] {
+            assert!(args(&list).is_err(), "{list:?}");
+        }
     }
 
     fn classified() -> (spice_netlist::Deck, Vec<spice_netlist::RawCard>) {

@@ -268,8 +268,8 @@ fn typed_nested_source_and_temperature_sweeps_are_bounded_and_nonmutating() {
     }
     let original = run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
     close(original.value("v(a)", 0).unwrap().re, 1., 0., 1e-15);
+    // Resistor targets are supported (tests/dc_sweeps.rs); only invalid axes fail.
     for args in [
-        vec!["r1", "1", "2", "1"],
         vec!["v1", "0", "1", "0.5", "v1", "1", "2", "1"],
         vec!["v1", "0", "1", "0"],
         vec!["v1", "0", "1000", "0.1", "v2", "0", "1000", "0.1"],

@@ -1,21 +1,49 @@
-//! #12/#13 must not silently enable subcircuit flattening or simulation.
+//! #12/#13 parse structure without flattening; #18 elaborates top-level `.subckt`
+//! definitions deliberately. Resolved `.include`/`.lib` content is inlined and
+//! elaborates; a deck whose includes were never resolved stays explicitly
+//! unavailable.
 use spice_devices::{Circuit, ModelContext, ModelResolver};
 use spice_netlist::{Parser, source::parse_deck_text};
 use std::path::Path;
 
 #[test]
-fn structure_decks_remain_explicitly_unavailable_for_linear_elaboration() {
+fn the_committed_subcircuit_deck_now_elaborates_and_includes_resolve() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance");
-    for path in [
-        root.join("netlists/subckt_divider.cir"),
-        root.join("parser/sources/main.cir"),
-    ] {
-        let n = Parser::new().parse_file(path).unwrap();
-        assert!(matches!(
-            Circuit::from_netlist(&n),
-            Err(spice_core::SpiceError::Unsupported { .. })
-        ));
-    }
+    let n = Parser::new()
+        .parse_file(root.join("netlists/subckt_divider.cir"))
+        .unwrap();
+    let circuit = Circuit::from_netlist(&n).unwrap();
+    assert_eq!(
+        circuit
+            .devices()
+            .iter()
+            .map(|device| device.name())
+            .collect::<Vec<_>>(),
+        ["v1", "r.x1.r1", "r2"]
+    );
+    // The subcircuit comes from an include and its resistor model from the
+    // selected `.lib typical` section (which itself includes shared/sheet.inc).
+    let main = root.join("parser/sources/main.cir");
+    let n = Parser::new().parse_file(&main).unwrap();
+    let circuit = Circuit::from_netlist(&n).unwrap();
+    assert_eq!(
+        circuit
+            .devices()
+            .iter()
+            .map(|device| device.name())
+            .collect::<Vec<_>>(),
+        ["v1", "r.x1.r1", "r2"]
+    );
+    // The same deck parsed without resolution has no subcircuit or model: it is
+    // an explicit error, never a partial circuit or an empty include.
+    let text = std::fs::read_to_string(&main).unwrap();
+    let n = Parser::new()
+        .parse_deck(&parse_deck_text(&main, &text))
+        .unwrap();
+    assert!(matches!(
+        Circuit::from_netlist(&n),
+        Err(spice_core::SpiceError::Unsupported { .. })
+    ));
 }
 
 #[test]

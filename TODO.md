@@ -28,7 +28,10 @@ checkout, not a claim that all M2 slices have already merged.
 | DC / AC | Linear and bounded nonlinear `.op`, typed/nested source/temperature `.dc`, bias-linearized `.ac` |
 | Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear circuits, `.ic`/`uic` rejected; explicit `backend=diffsol method=bdf` adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
 | Nonlinear devices | Bounded diode/Ebers-Moll BJT/MOS1 DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
-| CLI | Inspection/parsing; simulation through APIs/examples only |
+| CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner, ASCII rawfile written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
+| Output selection | `.save`/`.print` cards project the full plot into the written rawfile in C `dbs` order with first-wins dedup and bounded operand support (`v(n)`, `v(n1,n2)`, `i(source|inductor)`, `vm`/`vp`/`vr`/`vi`/`vdb`); `.print` also renders a text table; unsupported/unresolvable requests fail before publishing; `.plot` unported (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
+| Measurements | `.measure`/`.meas` bounded subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) evaluated over the full plot before output selection narrows it; a failing card fails the run; the remaining variants are unported (#43, [MEASURE.md](docs/port/MEASURE.md)) |
+| Fourier | Bounded `.four` (#44): final complete transient period, physical-grid resampling, DC, single-sided peak amplitudes, window-referenced phase in radians and THD; 1–100 harmonics; full-plot evaluation before output selection ([FOURIER.md](docs/port/FOURIER.md)) |
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
 is not ngspice trapezoidal or fixed Gear-2. Numeric PULSE/PWL V/I
@@ -36,6 +39,16 @@ setters (#8) elaborate to analytic Pulse/Pwl forcing (#9) with lazy breakpoints
 and left/right limits (Step is device-API only); higher-index constraints,
 nonlinear charge, `.ic` and `uic` remain unsupported. Floating/coupled capacitor
 index-one DAEs are supported by the BDF backend (#28).
+
+**M5's bounded scope is complete.** Wave 1 merged subcircuit instantiation
+(#18, [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `spice-rs simulate`
+command (#6, [CLI.md](docs/port/CLI.md)) and binary rawfile read/write (#45,
+[RAWFILES.md](docs/port/RAWFILES.md)). Wave 2 merged bounded `.save`/`.print`
+output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) and
+bounded `.measure`/`.meas` measurements (#43,
+[MEASURE.md](docs/port/MEASURE.md)). Final-period `.four` (#44,
+[FOURIER.md](docs/port/FOURIER.md)) completes the six deliverables; `.plot` and
+extended output/measurement/Fourier forms remain unported.
 
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) records
 245 passing tests and five separately passing opt-in C checks for the integrated
@@ -95,19 +108,20 @@ tests and documented limits as the remaining functionality is added.
 - [x] Implement source-relative resolution, canonical file/section cycle checks, depth/file/byte/card limits and include-chain/source provenance.
 - [x] Use a directed petgraph file/section dependency graph with incremental reachability checks; no custom graph engine.
 - [x] Parameter evaluation (#15) uses a directed petgraph dependency graph (cycles via SCC, order via toposort levels).
-- [ ] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5).
-- [x] Enable `subckt_divider` AST/CLI tests: 8/8 fixture parsing, not flattening or the full M1 gate. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
+- [x] Use directed petgraph dependency graphs for subcircuit elaboration (#18, M5): `expand_subcircuits` builds the reachable definition graph and rejects recursion via its SCCs. See [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md).
+- [x] Enable `subckt_divider` AST/CLI tests: all eight fixtures parse (the M1 round-trip gate is #22). With #18 the deck also simulates through the production `.op` path and is verified against its C golden. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 
 ### M1d: parameter semantics and full front-end gate
 
 - [x] Parse `.param` cards and a bounded numparam expression grammar (#14): winnow precedence, C-pinned `^`/sign rules, function allowlist, braced values at device/model/analysis/X sites, positioned unevaluated AST. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md); no evaluation.
 - [x] Evaluate top-level `.param` values (#15): C-backed order/redefinition/forward-reference rules, petgraph cycle and undefined-name chains, bounded work, finite-or-error arithmetic (`spice_netlist::eval`), and a literalized netlist copy consumed by `Circuit` elaboration and `RunConfig::request_for` (`spice_netlist::elaborate`). Opt-in C probes: `c_param_eval`. See [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md).
-- [ ] Subcircuit formal defaults/overrides and scoped evaluation (scope API is ready; subcircuits still rejected), `{expr}` option values, quoted/`'expr'` values, `.func`.
-- [x] Parse `.option` and `.global` (#16): ordered positioned settings, `spice_analysis::RunConfig` for temp/tnom/reltol/vntol/abstol (method/maxord retained, rejected for `.tran`; all other options error). Top-level `.global` contract for a future flattener; body-local `.option`/`.global` and flattening remain pending. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
+- [x] Subcircuit formal defaults/overrides and scoped evaluation (#18, M5): `X` instances expand through the production entry points with hierarchical names, per-instance parameter/model scope and `.global`; precedence is instance override > body `.param` > formal default. See [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md).
+- [ ] `{expr}` option values, quoted/`'expr'` values, `.func`.
+- [x] Parse `.option` and `.global` (#16): ordered positioned settings, `spice_analysis::RunConfig` for temp/tnom/reltol/vntol/abstol (method/maxord retained, rejected for `.tran`; all other options error). Top-level `.global` contract consumed by the #18 flattener; `.option`/`.global`/`.ic`/`.nodeset` inside a body remain rejected. See [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
 - [x] Add normalized-deck serialization preserving source parameter application order (#20): `spice_netlist::write_netlist` plus location-free `semantic_eq`/`semantic_diff` (contract in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md)); directives are written, resolved include content is not inlined. The eight-fixture gate is closed by #22 below.
 - [x] Commit deterministic token/AST snapshots and document regeneration (#21): `spice_netlist::dump`, 66 files under `conformance/snapshots/`, `cargo xtask snapshots [--bless]` (see `conformance/snapshots/README.md`).
 - [x] Close the M1 front-end fixture and round-trip gate (#22): `crates/spice-netlist/tests/m1_gate.rs` pins per-deck device/terminal/model/analysis expectations for all eight `conformance/netlists` decks, parse→write→parse semantic equality with a writer fixed point, matching committed token/AST snapshots, combined fixtures `conformance/parser/combined_{includes,params_options}.cir` (includes + subcircuit + params + options; include provenance and setter order), and negative coverage (malformed cards, unsupported forms, include/parameter cycles, scoped-name containment). `crates/spice-analysis/tests/m1_combined.rs` runs the params+options fixture through `RunConfig`. Scoped-name enforcement is structural only: declarations stay in their scope and Q-family lookup sees only the local scope and ancestors; unresolved X targets and D/M model names are *not* resolved at parse time (elaboration owns that).
-- [x] `cargo xtask ci` is green with the gate; the M1 front-end gate is closed. **Not part of this claim and still outstanding:** subcircuit flattening (#18, M5), subcircuit formal defaults/scoped `.param` evaluation, `{expr}` option values, quoted/`'expr'` values, `.func`, body-local `.option`/`.global`, scoped model resolution/binning. D/Q/M and subcircuit decks parse only; this is not nonlinear simulation parity. C parser oracles remain opt-in (`NGSPICE_BIN`).
+- [x] `cargo xtask ci` is green with the gate; the M1 front-end gate is closed. **Not part of this claim and still outstanding:** `{expr}` option values, quoted/`'expr'` values, `.func`, directives inside a body (`.option`/`.global`/`.ic`/`.nodeset`), scoped model resolution/binning. D/Q/M decks parse only; this is not nonlinear simulation parity. (#18 later added subcircuit elaboration on top of the gate; see [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md).) C parser oracles remain opt-in (`NGSPICE_BIN`).
 
 ## 3. Model elaboration and validation
 
@@ -134,28 +148,37 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [x] Accepted-state/trial-state separation, event left/right limits, distinct voltage/current tolerances and progress/work budgets in the companion driver (#26); tests show rejected trials never advance histories and accept-hook failures abort the run. Every future Newton/nonlinear driver must keep this.
 - [x] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps (#48). `xtask/src/tran.rs` event-aware comparator with `compare::TRAN`; twelve fixtures registered in `golden verify` at that point, sixteen with the initialized-state fixtures below (8 new: RL/RC-Gear/RC-PWL/RLC trap+Gear/floating/coupled `.tran`, RLC `.ac`), with Rust-only explicit-BDF variants against the same goldens (`TRAN`, or the peak-scaled `TRAN_RESTART` where C's backward-Euler restart error exceeds the pointwise bound); analytic closed-form, KCL, charge, energy and production-API gate tests in `crates/spice-analysis/tests/m3_gate.rs` ([VERIFICATION.md](docs/port/VERIFICATION.md)).
 - [x] Initialized-state (`.ic`/`uic`/instance `ic=`) conformance fixtures (#48 remainder): `rc_ic_uic_tran` (RC discharge from `ic=2`), `rlc_ic_uic_tran` (series RLC from inductor `ic=20m` and capacitor `ic=1`), `rc_ic_node_tran` (`.ic v(out)=0.25` without `uic`: constrained initial bias, then released) and `floating_cap_ic_tran` (floating capacitor with a 2 uC plate charge). New C goldens captured one at a time with `cargo xtask golden capture --netlist <name>` (no existing golden touched), registered in `golden verify` with `compare::TRAN` unchanged (16 verified, worst error 0.000 of the bound); no BDF variants because the diffsol backend rejects `.ic`/`uic`/`ic=` (a test asserts the rejection). The comparator's `tran::Grid` gained a `start` for `uic` runs (C writes no `t = 0` row; both plots must begin at the same first accepted step). Closed-form decay, conserved plate charge, `uic` first-row/step-breakpoint and `.ic`-release checks in `crates/spice-analysis/tests/m3_gate.rs`.
-- Still blocked / unsupported by the gate (do not claim M3 or universal MNA DAE support): higher-index source constraints (#29), nonlinear initialization and physics beyond the M4 support table, subcircuit decks (M5), orders above 2.
+- Still blocked / unsupported by the gate (do not claim M3 or universal MNA DAE support): higher-index source constraints (#29), nonlinear initialization and physics beyond the M4 support table, orders above 2.
 
 ## 5. Nonlinear devices and convergence — M4
 
-Branch-local bounded support on `work/m4-nonlinear`; no due date. Exact schemas,
-physics exclusions and local #41 evidence: [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md).
+Bounded M4 baseline merged in PR #58. Local `work/m4-followups` adds #34/#35
+acceptance work; it has not been published and those issues remain open.
+Exact schemas, physics exclusions and #41 evidence: [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md).
 
 - [x] Reuse typed first-declaration model resolution and device-owned ordered schemas/defaults; extend bounded diode/BJT/MOS1 factories atomically.
 - [x] Implement diode and Ebers-Moll BJT junction/charge equations and bounded MOS1 square-law/body/overlap charge with analytic Jacobian stamps.
 - [x] Add reusable Newton iteration with global voltage-step damping, physical residual checks, source/nodal-gmin stepping and request/deck physical tolerances. Full C PN/FET limiting/control-option parity is not claimed.
-- [x] Add typed independent-source/temperature DC targets and one nested outer axis; preserve source values and linear repeated-RHS LU reuse.
+- [x] Add typed independent-source/temperature/scalar-resistor DC targets and one nested outer axis; preserve originals, validate reachable grids, rebuild R/TEMP operators, retain source-only linear LU reuse (#35 local follow-up; [DC_SWEEPS.md](docs/port/DC_SWEEPS.md)).
+- [x] Add bounded configurable DC continuation schedules/budgets, success/failure stage reports, and request > deck > default controls shared by OP/DC/AC bias (#34 local follow-up; [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md)); explicit continuation controls reject for transient.
 - [x] Implement bias-linearized AC and actual nonlinear Q-based trap/Gear-2 companions, multi-charge LTE and disposable trial/atomic accepted history.
 - [x] Demonstrate diode DC, BJT bias and MOS1 operating point against existing C data; add six C AC/charge-transient decks, physical/Jacobian/conservation/continuation checks and explicit tolerances for local #41 subset.
 - [x] Reject unimplemented parsed physics; BSIM/CIDER/XSPICE and full SPICE parity remain outside scope.
-- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT/MOS temperatures, BJT Early/high-injection/substrate/series physics, MOS intrinsic channel charge (nonzero TOX), nonlinear .ic/uic, resistor/model sweeps and configurable full C convergence controls.
+- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT/MOS temperatures, BJT Early/high-injection/substrate/series physics, MOS intrinsic channel charge (nonzero TOX), nonlinear .ic/uic, arbitrary model-setter sweeps and full C dynamic convergence/limiting parity.
 
 ## 6. Usability and output — M5
 
-- [ ] Add a CLI simulation command that elaborates supported decks, runs analyses and writes results while preserving exits 0/1/2/3.
-- [ ] Implement subcircuit instantiation/flattening, parameter passing, model/node scoping and `.global` semantics.
-- [ ] Add `.measure` (or a deliberate substitute), `.print`/`.save` output selection and `.four`.
-- [ ] Add binary rawfile support so unmodified C goldens can be consumed.
+M5 waves 1 and 2 are merged: #18 (subcircuits), #6 (`simulate`), #45 (binary
+rawfiles), #42 (`.save`/`.print` output selection) and #43 (`.measure`).
+Final-period `.four` (#44) completes the bounded milestone; documented exclusions
+remain explicit, rather than implying complete ngspice output compatibility.
+
+- [x] Add a CLI simulation command (#6) that elaborates supported decks, runs one analysis and writes an ASCII rawfile while preserving exits 0/1/2/3. See [CLI.md](docs/port/CLI.md).
+- [x] Implement subcircuit instantiation/flattening, parameter passing, model/node scoping and `.global` semantics (#18). See [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md).
+- [x] Add bounded `.print`/`.save` output selection (#42): typed positioned requests, C `dbs`-order projection of the full plot into the written rawfile with first-wins dedup, a `.print` text table and pre-publish failure for unsupported/unresolvable requests; `.plot` unported. See [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md).
+- [x] Add bounded `.measure`/`.meas` measurements (#43): typed positioned requests (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`), evaluated over the full plot before output selection narrows the rawfile, with a failing card failing the run. See [MEASURE.md](docs/port/MEASURE.md).
+- [x] Add bounded `.four` (#44): positioned frequency/vector requests, 1–100 harmonics, final-period physical-grid quadrature, DC/peak amplitude/window-referenced phase/THD, and atomic failure. Analytic, process and opt-in C gates pass. See [FOURIER.md](docs/port/FOURIER.md).
+- [x] Add binary rawfile read/write (#45) so binary C rawfiles can be consumed; real/complex, explicit byte order, validated payload lengths. See [RAWFILES.md](docs/port/RAWFILES.md).
 
 ## 7. Verification, numerical follow-up and documentation
 
@@ -168,9 +191,10 @@ physics exclusions and local #41 evidence: [M4_NONLINEAR.md](docs/port/M4_NONLIN
 ## Suggested sequence
 
 #12/#13 scoped/source syntax → #14–16 expressions/evaluation/options/globals →
-#20–22 serialization/snapshots/full M1 round-trip gate (done). Keep #18 flattening in M5.
-CLI simulation and model elaboration →
-SPICE-compatible transient → nonlinear devices → remaining M5 usability. Numerical optimization is follow-up,
+#20–22 serialization/snapshots/full M1 round-trip gate (done). #18 flattening landed in M5 wave 1 ([SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)).
+CLI simulation (#6, done) and model elaboration →
+SPICE-compatible transient → nonlinear devices → bounded M5 usability (done).
+Numerical optimization is follow-up,
 not grounds to weaken correctness gates.
 
 ## Initially out of scope

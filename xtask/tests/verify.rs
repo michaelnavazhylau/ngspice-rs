@@ -15,12 +15,13 @@ fn default_and_selected_verification_need_no_c_binary() {
     let output = verify(&[]);
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("25 verified fixture(s), 1 unsupported fixture(s), 0 failure(s)"));
+    assert!(text.contains("26 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
     for name in [
         "rc_divider",
         "RC_LOWPASS_AC.cir",
         "rc_transient",
         "rlc_series",
+        "subckt_divider",
         "rl_pulse_tran",
         "rc_gear_tran",
         "rc_pwl_tran",
@@ -54,22 +55,9 @@ fn default_and_selected_verification_need_no_c_binary() {
 }
 
 #[test]
-fn explicit_unsupported_requests_and_usage_errors_exit_nonzero() {
-    {
-        let name = "subckt_divider";
-        let output = verify(&["--netlist", name]);
-        assert!(!output.status.success());
-        assert!(
-            String::from_utf8(output.stderr)
-                .unwrap()
-                .contains("requested unsupported fixture")
-        );
-        assert!(
-            String::from_utf8(output.stdout)
-                .unwrap()
-                .contains("0 verified fixture(s), 1 unsupported fixture(s)")
-        );
-    }
+fn explicit_bad_requests_and_usage_errors_exit_nonzero() {
+    // No committed fixture is excluded any more, so an unknown name is the
+    // remaining "not verifiable" case, and it must never pass silently.
     for args in [
         vec!["--netlist", "unknown"],
         vec!["--netlist"],
@@ -78,4 +66,7 @@ fn explicit_unsupported_requests_and_usage_errors_exit_nonzero() {
     ] {
         assert!(!verify(&args).status.success(), "{args:?}");
     }
+    let output = verify(&["--netlist", "unknown"]);
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("no fixture named 'unknown'"), "{stderr}");
 }

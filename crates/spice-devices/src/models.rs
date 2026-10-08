@@ -31,6 +31,7 @@ use crate::schema::{
     ScalarDomain, ScalarParameter, ScalarSchema, ScalarUnit, ScalarValues, finite_literal,
     temperature_kelvin,
 };
+use crate::sweep::{MAX_RESISTOR_OVERRIDES, ResistorOverride};
 
 /// Parsed model family, including polarity without rewriting the raw AST.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -299,22 +300,58 @@ impl<'a> ResolvedModel<'a> {
 
 /// Device-owned context, intentionally independent of spice-analysis. Analysis
 /// consumers can pass their temperature settings explicitly when factories land.
+///
+/// The context is an immutable per-point value: a typed DC sweep carries its
+/// resistor overrides here (see [`crate::sweep`]) instead of mutating devices.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelContext {
     /// Circuit temperature, degrees Celsius (instance TEMP default).
     pub temperature: Real,
     /// Nominal temperature, degrees Celsius (model TNOM default).
     pub nominal_temperature: Real,
+    /// Per-point replacements of resistors' supplied scalars, applied by
+    /// [`crate::Circuit`] when it assembles or loads. Empty slots are `None`.
+    pub resistor_overrides: [Option<ResistorOverride>; MAX_RESISTOR_OVERRIDES],
 }
 impl Default for ModelContext {
     fn default() -> Self {
-        Self {
-            temperature: 27.0,
-            nominal_temperature: 27.0,
-        }
+        Self::new(27.0, 27.0)
     }
 }
 impl ModelContext {
+    /// A context at explicit temperatures with no resistor overrides.
+    #[must_use]
+    pub const fn new(temperature: Real, nominal_temperature: Real) -> Self {
+        Self {
+            temperature,
+            nominal_temperature,
+            resistor_overrides: [None; MAX_RESISTOR_OVERRIDES],
+        }
+    }
+
+    /// This context plus one resistor override, in the first free slot.
+    ///
+    /// # Errors
+    /// [`SpiceError::Circuit`] when the same resistor is already overridden or
+    /// every slot is used. The context itself is not changed on failure.
+    pub fn with_resistor_override(mut self, target: ResistorOverride) -> SpiceResult<Self> {
+        if self
+            .resistor_overrides
+            .iter()
+            .flatten()
+            .any(|existing| existing.device() == target.device())
+        {
+            return Err(SpiceError::circuit("duplicate resistor override"));
+        }
+        let slot = self
+            .resistor_overrides
+            .iter_mut()
+            .find(|slot| slot.is_none())
+            .ok_or_else(|| SpiceError::circuit("too many resistor overrides"))?;
+        *slot = Some(target);
+        Ok(self)
+    }
+
     pub(crate) fn validate(&self, location: &SourceLoc) -> SpiceResult<()> {
         temperature_kelvin(self.temperature, location)?;
         temperature_kelvin(self.nominal_temperature, location)?;

@@ -20,7 +20,10 @@ use crate::ast::{
 use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
-use super::{diode, expression, hints, linear, model, options, param, structure, transistor};
+use super::{
+    diode, expression, fourier, hints, linear, measure, model, options, param, save, structure,
+    transistor,
+};
 
 pub(super) enum ParsedCard {
     Device(DeviceInstance),
@@ -34,6 +37,12 @@ pub(super) enum ParsedCard {
     Ends(Option<String>),
     Include(IncludeDirective),
     Param(ParamCard),
+    /// A `.save` or `.print` output card; see [`crate::ast::OutputCards`].
+    Output(save::OutputCard),
+    /// A `.measure`/`.meas` card; see [`crate::ast::MeasureCard`].
+    Measure(crate::ast::MeasureCard),
+    /// A `.four` card; see [`crate::ast::FourierCard`].
+    Fourier(crate::ast::FourierCard),
     LibStart(String),
     LibEnd(Option<String>),
     End,
@@ -101,8 +110,18 @@ pub(super) fn parse_card(
     // consumes its tail: INP2dot ignores additional input after .end.
     alt((
         end_card,
-        alt((analysis_card, options::options_or_global)),
-        alt((model::model_card, param::param_card, hints::hint_card)),
+        alt((
+            fourier::fourier_card,
+            analysis_card,
+            options::options_or_global,
+        )),
+        alt((
+            model::model_card,
+            param::param_card,
+            hints::hint_card,
+            save::output_card,
+            measure::measure_card,
+        )),
         structure::structural_card,
         linear::device_card,
         diode::diode_card,
@@ -252,6 +271,7 @@ pub(super) fn gap(input: &Input<'_>, what: &str) -> ErrMode<Failure> {
             DotCommand::Subckt | DotCommand::Ends => "src/frontend/subckt.c",
             DotCommand::Include | DotCommand::Lib => "src/frontend/inpcom.c",
             DotCommand::Param => "src/frontend/numparam/spicenum.c",
+            DotCommand::Measure => "src/frontend/measure.c, src/frontend/com_measure2.c",
             DotCommand::Control | DotCommand::Endc => "src/frontend/inp.c",
             _ => "src/spicelib/parser/inp2dot.c",
         }

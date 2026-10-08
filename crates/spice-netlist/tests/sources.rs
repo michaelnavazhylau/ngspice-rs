@@ -337,7 +337,9 @@ fn file_depth_byte_and_card_work_limits_include_repeated_sources() {
 #[test]
 fn end_and_error_order_survive_preprocessing() {
     let f = Files::new();
-    f.write("main.cir", "title\n.save v(a)\n.include absent\n");
+    // The unported card on line 2 wins over the missing include on line 3;
+    // `.plot` stands in for an unported `.` card (`.save`/`.print` are parsed).
+    f.write("main.cir", "title\n.plot dc v(a)\n.include absent\n");
     let e = f.parse("main.cir").unwrap_err();
     assert!(e.is_not_yet_ported());
     assert!(e.to_string().contains("main.cir:2:1"));

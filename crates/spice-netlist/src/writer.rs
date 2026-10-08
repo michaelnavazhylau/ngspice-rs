@@ -274,6 +274,16 @@ impl Writer {
                         self.hints(".nodeset", card_, depth)?;
                     }
                 }
+                // `.save`/`.print` requests (`ast::OutputCards`), `.measure`
+                // requests (`ParsedDeck::measurements`) and `.four` requests
+                // (`ParsedDeck::fourier`) are returned beside the netlist, so
+                // their typed index lives outside the netlist and the card is
+                // reproduced from its own spelling.
+                ScopedCardKind::Output | ScopedCardKind::Measure | ScopedCardKind::Fourier => {
+                    if !skip {
+                        self.line(depth, card.source.raw.trim(), location)?;
+                    }
+                }
                 // The closing `.ends` is written by `subcircuit`; it was
                 // verified there to be the final card.
                 ScopedCardKind::Ends => {

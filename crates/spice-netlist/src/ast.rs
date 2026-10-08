@@ -394,6 +394,393 @@ impl NodeHint {
     }
 }
 
+/// A `.save` card: deck-wide output-vector requests, in source order.
+///
+/// C: `ft_dotsaves()` in `src/frontend/dotcards.c` selects the deck's `.save`
+/// lines and hands them to `com_save()` (`src/frontend/breakp2.c`), which stores
+/// them in the `dbs` save list. A `.save` set applies to **every** analysis of
+/// the deck; `.print` is analysis-specific ([`PrintCard`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SaveCard {
+    /// Requests in source order. Duplicates stay visible here; the consumer
+    /// collapses them (see `spice_analysis::selection`).
+    pub requests: Vec<VectorRequest>,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// A `.print` card: output-vector requests for **one** analysis, in source order.
+///
+/// C: `ft_savedotargs()` in `src/frontend/dotcards.c` reads the analysis name
+/// after `.print` and registers the rest of the line for that analysis through
+/// `com_save2()`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrintCard {
+    /// The analysis the card names, e.g. `.print ac v(out)`.
+    pub analysis: AnalysisKind,
+    /// Where the analysis name was written.
+    pub analysis_location: SourceLoc,
+    /// Requests in source order. Duplicates stay visible here.
+    pub requests: Vec<VectorRequest>,
+    /// Where the `.print` card was written.
+    pub location: SourceLoc,
+}
+
+/// One vector requested by a `.save` or `.print` card.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VectorRequest {
+    /// What to write.
+    pub vector: RequestedVector,
+    /// Where the request starts: the function word of `v(out)`/`i(v1)`, or the
+    /// `all` keyword.
+    pub location: SourceLoc,
+}
+
+/// The bounded request grammar of `.save`/`.print`.
+///
+/// C: `com_save()`/`settrace()` in `src/frontend/breakp2.c` (`copynode()`
+/// normalises `v(2)` to node `2` and `i(vds)` to the `vds#branch` vector) and
+/// `fixem()` in `src/frontend/dotcards.c` (the `vm`/`vp`/`vr`/`vi`/`vdb` AC
+/// component spellings). Device instance currents other than a source or
+/// inductor branch current are **not** representable: see
+/// `docs/port/OUTPUT_SELECTION.md`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestedVector {
+    /// `all`: keep the driver's whole vector set. C: `.save all`.
+    All,
+    /// `v(node)` or `v(first,second)`: a node voltage or a voltage difference.
+    Voltage {
+        /// The positive node.
+        positive: NodeName,
+        /// The negative node of a difference; `None` for a single node.
+        negative: Option<NodeName>,
+    },
+    /// `i(device)`: the branch current of a voltage source or an inductor.
+    Current {
+        /// The instance name, lowercased.
+        device: String,
+    },
+    /// `vm`/`vp`/`vr`/`vi`/`vdb` of `v(node)` or `v(first,second)`.
+    Component {
+        /// Which component.
+        component: VectorComponent,
+        /// The positive node.
+        positive: NodeName,
+        /// The negative node of a difference; `None` for a single node.
+        negative: Option<NodeName>,
+    },
+}
+
+/// An AC component spelling. C: `fixem()` in `src/frontend/dotcards.c`
+/// (`vm(a,b)` becomes `mag(v(a)-v(b))`, `vp` `ph()`, `vr` `real()`, `vi`
+/// `imag()`, `vdb` `db()`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VectorComponent {
+    /// `vm`: the magnitude. C's `mag()`.
+    Magnitude,
+    /// `vp`: the phase in radians in `(-pi, pi]`. C's `ph()`.
+    Phase,
+    /// `vr`: the real part. C's `real()`.
+    Real,
+    /// `vi`: the imaginary part. C's `imag()`.
+    Imaginary,
+    /// `vdb`: `20 log10` of the magnitude. C's `db()`.
+    Decibels,
+}
+
+impl VectorComponent {
+    /// The spelling as written on the card.
+    #[must_use]
+    pub const fn function(self) -> &'static str {
+        match self {
+            Self::Magnitude => "vm",
+            Self::Phase => "vp",
+            Self::Real => "vr",
+            Self::Imaginary => "vi",
+            Self::Decibels => "vdb",
+        }
+    }
+}
+
+impl RequestedVector {
+    /// The canonical spelling of the request, for diagnostics and for the name
+    /// of a computed column: `all`, `v(out)`, `v(in,out)`, `i(v1)`, `vm(out)`.
+    #[must_use]
+    pub fn name(&self) -> String {
+        fn terminals(positive: &str, negative: Option<&str>) -> String {
+            match negative {
+                Some(negative) => format!("{positive},{negative}"),
+                None => positive.to_owned(),
+            }
+        }
+        match self {
+            Self::All => "all".to_owned(),
+            Self::Voltage { positive, negative } => {
+                format!("v({})", terminals(positive, negative.as_deref()))
+            }
+            Self::Current { device } => format!("i({device})"),
+            Self::Component {
+                component,
+                positive,
+                negative,
+            } => format!(
+                "{}({})",
+                component.function(),
+                terminals(positive, negative.as_deref())
+            ),
+        }
+    }
+
+    /// True when the request is a node voltage difference. The single-node form
+    /// has `negative == None`.
+    #[must_use]
+    pub const fn is_difference(&self) -> bool {
+        match self {
+            Self::Voltage { negative, .. } | Self::Component { negative, .. } => negative.is_some(),
+            Self::All | Self::Current { .. } => false,
+        }
+    }
+}
+
+/// The `.save` and `.print` cards a deck contains, in deck order.
+///
+/// The parser returns these beside the [`Netlist`] rather than inside it: they
+/// describe the *output* of an analysis and never reach the device elaboration,
+/// so the netlist stays a description of the circuit. See
+/// [`crate::Parser::parse_file_with_output`] and `docs/port/OUTPUT_SELECTION.md`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct OutputCards {
+    /// `.save` cards in deck order; they apply to every analysis.
+    pub saves: Vec<SaveCard>,
+    /// `.print` cards in deck order; each names one analysis.
+    pub prints: Vec<PrintCard>,
+}
+
+impl OutputCards {
+    /// True when the deck has no `.save` and no `.print` card.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.saves.is_empty() && self.prints.is_empty()
+    }
+
+    /// Number of output cards.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.saves.len() + self.prints.len()
+    }
+}
+
+/// A `.measure`/`.meas` card: one named post-processing request over the plot.
+///
+/// C: `inp_spsource()` in `src/frontend/inp.c` removes the deck's `.measure`
+/// lines and stores them in `ft_curckt->ci_meas`; after the run,
+/// `do_measure()` (`src/frontend/measure.c`) hands each line to
+/// `get_measure2()` (`src/frontend/com_measure2.c`). Measuring happens on the
+/// **full** plot, before any `.save`/`.print` selection narrows what is
+/// written: an operand the output selection dropped is still measurable. See
+/// `docs/port/MEASURE.md`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeasureCard {
+    /// The analysis the measurement applies to.
+    pub analysis: AnalysisKind,
+    /// Where the analysis name was written.
+    pub analysis_location: SourceLoc,
+    /// The result name, spelled as written (C prints it verbatim).
+    pub name: String,
+    /// Where the result name was written.
+    pub name_location: SourceLoc,
+    /// What to measure.
+    pub request: MeasureRequest,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// The bounded operation of a [`MeasureCard`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureRequest {
+    /// `FIND <operand> AT=<value>`: the operand's value at one axis value.
+    Find {
+        /// The vector to read.
+        operand: VectorRequest,
+        /// The axis value to read it at.
+        at: Real,
+        /// Where the `AT=` setter was written.
+        at_location: SourceLoc,
+        /// The axis window the query must fall in.
+        window: MeasureWindow,
+    },
+    /// `MIN`/`MAX`/`AVG`/`RMS`/`INTEG <operand> [FROM=…] [TO=…]`.
+    Statistic {
+        /// Which statistic.
+        statistic: MeasureStatistic,
+        /// The vector to reduce.
+        operand: VectorRequest,
+        /// The axis window to reduce over.
+        window: MeasureWindow,
+    },
+    /// `TRIG <event> TARG <event>`: the axis distance between two events, as
+    /// `targ - trig` (C's `AT_DELAY`; C also spells the operation `DELAY` and
+    /// `TARG`, which the port does not accept).
+    TrigTarg {
+        /// The trigger event.
+        trig: MeasureEvent,
+        /// The target event.
+        targ: MeasureEvent,
+        /// The axis window the events are searched in.
+        window: MeasureWindow,
+    },
+}
+
+/// A whole-window reduction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasureStatistic {
+    /// `MIN`: the smallest operand value in the window.
+    Min,
+    /// `MAX`: the largest operand value in the window.
+    Max,
+    /// `AVG`: the operand averaged over the window.
+    Avg,
+    /// `RMS`: the root mean square of the operand over the window.
+    Rms,
+    /// `INTEG`/`INTEGRAL`: the operand integrated over the window.
+    Integ,
+}
+
+impl MeasureStatistic {
+    /// The spelling as written on the card.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Min => "MIN",
+            Self::Max => "MAX",
+            Self::Avg => "AVG",
+            Self::Rms => "RMS",
+            Self::Integ => "INTEG",
+        }
+    }
+}
+
+/// One `TRIG`/`TARG` event clause.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureEvent {
+    /// `AT=<value>`: one axis value, with no operand.
+    At {
+        /// The axis value.
+        at: Real,
+        /// Where the `AT=` setter was written.
+        location: SourceLoc,
+    },
+    /// `<operand> VAL=<value> [RISE=n|FALL=n|CROSS=n|LAST]`.
+    Crossing {
+        /// The vector whose threshold crossing is sought.
+        operand: VectorRequest,
+        /// The threshold value.
+        value: Real,
+        /// Where the `VAL=` setter was written.
+        value_location: SourceLoc,
+        /// Which crossing to take.
+        transition: MeasureTransition,
+    },
+}
+
+/// Which threshold crossing of an operand a measurement takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasureTransition {
+    /// No selector given: the first crossing, whatever its direction.
+    First,
+    /// `RISE=<n>`: the `n`-th rising crossing, `n >= 1`.
+    Rise(u32),
+    /// `FALL=<n>`: the `n`-th falling crossing, `n >= 1`.
+    Fall(u32),
+    /// `CROSS=<n>`: the `n`-th crossing in either direction, `n >= 1`.
+    Cross(u32),
+    /// `LAST` (or `RISE=LAST`/`FALL=LAST`/`CROSS=LAST`): the last crossing in
+    /// either direction, as C's `MEASURE_LAST_TRANSITION` does.
+    Last,
+}
+
+impl MeasureTransition {
+    /// The selector's spelling, for diagnostics and for the `TRIG`/`TARG`
+    /// crossings a measurement looks for.
+    #[must_use]
+    pub fn name(self) -> String {
+        match self {
+            Self::First => "first".to_owned(),
+            Self::Last => "last".to_owned(),
+            Self::Rise(n) => format!("RISE={n}"),
+            Self::Fall(n) => format!("FALL={n}"),
+            Self::Cross(n) => format!("CROSS={n}"),
+        }
+    }
+}
+
+/// The axis window a `.measure` request covers.
+///
+/// `None` bounds default to the ends of the plot's axis. The port requires
+/// `from <= to` and treats a zero bound literally; C instead treats an upper
+/// bound of `0` as "no upper bound" and swaps an inverted window for a `.dc`
+/// measurement (`measure_parse_stdParams()` in `com_measure2.c`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MeasureWindow {
+    /// `FROM=<value>`: the lower bound, when written.
+    pub from: Option<Real>,
+    /// `TO=<value>`: the upper bound, when written.
+    pub to: Option<Real>,
+}
+
+impl MeasureWindow {
+    /// True when neither bound was written.
+    #[must_use]
+    pub const fn is_unbounded(&self) -> bool {
+        self.from.is_none() && self.to.is_none()
+    }
+}
+
+/// The highest harmonic index a [`FourierCard`] tabulates when the card writes
+/// no `HARMONICS=`. C's `nfreqs` default of 10 rows is one DC row plus harmonics
+/// `1..=9` (`fourier()` in `src/frontend/fourier.c`).
+pub const DEFAULT_HARMONICS: u32 = 9;
+
+/// The port's bounded harmonic count, and with it the resampling work budget:
+/// harmonic `n` resamples the period onto `4 * max(n, 50)` subintervals, so the
+/// widest grid this port builds is `4 * MAX_HARMONICS` subintervals per vector
+/// (`400` subintervals, `401` samples). A larger `HARMONICS=` is
+/// [`SpiceError::Unsupported`](spice_core::SpiceError::Unsupported) rather than a
+/// silent clamp; C has no such bound (`set nfreqs=…`).
+pub const MAX_HARMONICS: u32 = 100;
+
+/// A `.four` card: Fourier amplitude/phase and THD of the **final complete
+/// period** of a transient run.
+///
+/// C: `ft_dotsaves()` (`src/frontend/dotcards.c`) removes the deck's `.four`
+/// lines (registering the named vectors for the `TRAN` plot so the transient
+/// keeps them) and later hands each line to `fourier()`
+/// (`src/frontend/fourier.c`), which transforms the last `nperiods / fundamental`
+/// seconds of the `tran` plot it selects with `setcplot("tran")`. The port keeps
+/// the typed request beside the netlist (`ParsedDeck::fourier`) and evaluates it
+/// over the **full** plot, exactly as `.measure` does, so a `.save`/`.print`
+/// selection never hides a transformed vector and a `.four` card never changes
+/// the written rawfile. See `docs/port/FOURIER.md`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FourierCard {
+    /// The fundamental frequency in hertz: a finite, strictly positive value.
+    pub fundamental: Real,
+    /// Where the fundamental frequency was written.
+    pub fundamental_location: SourceLoc,
+    /// The highest harmonic index tabulated: harmonics `1..=harmonics` are
+    /// reported beside one DC row, i.e. `harmonics + 1` rows. C's `nfreqs` is
+    /// `harmonics + 1`, C's row `0` is the DC component.
+    pub harmonics: u32,
+    /// Where the `HARMONICS=` value was written; `None` when the card wrote
+    /// none and [`DEFAULT_HARMONICS`] was used.
+    pub harmonics_location: Option<SourceLoc>,
+    /// The vectors to transform, in source order: the `.save` spelling of one
+    /// node voltage, voltage difference or source/inductor branch current each.
+    pub vectors: Vec<VectorRequest>,
+    /// Where the `.four` card was written.
+    pub location: SourceLoc,
+}
+
 /// One ordered card in its owning scope. Indexes address that scope's typed
 /// vectors, so semantic values are not duplicated. Source cards remain intact
 /// for future serializers/snapshots; neither is implemented by this storage.
@@ -431,6 +818,21 @@ pub enum ScopedCardKind {
     InitialCondition(usize),
     /// Index into [`Netlist::nodesets`] (root scope only).
     Nodeset(usize),
+    /// A `.save` or `.print` card (root scope only). The typed requests live in
+    /// the [`OutputCards`] the parser returns beside the [`Netlist`]
+    /// ([`crate::Parser::parse_file_with_output`]), so this card carries no
+    /// scope-local index.
+    Output,
+    /// A `.measure`/`.meas` card (root scope only). The typed request lives in
+    /// the [`MeasureCard`] list returned beside the [`Netlist`]
+    /// ([`ParsedDeck::measurements`](crate::ParsedDeck::measurements)), so this
+    /// card carries no scope-local index.
+    Measure,
+    /// A `.four` card (root scope only). The typed request lives in the
+    /// [`FourierCard`] list returned beside the [`Netlist`]
+    /// ([`ParsedDeck::fourier`](crate::ParsedDeck::fourier)), so this card
+    /// carries no scope-local index.
+    Fourier,
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.
