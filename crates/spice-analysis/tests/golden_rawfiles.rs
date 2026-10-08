@@ -978,6 +978,268 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(v1)", 0, -5.0e-3, 0.0),
         ],
     },
+    // Behavioural sources (#79). v(in) = 0.8, v(b) = -0.3: b1 is
+    // 2.5 v(in)^2 - sqrt|v(b)| + exp(v(in) - v(b)); its current is sensed by
+    // i(b1) through the zero-volt v_b1 that inp_meas_current() inserts at
+    // o1 (o1_vmeas_0). b3 = 2 ln(1.8) (m=2), b4 = pwl 2.4 + min -0.3 + max
+    // 0.8, b7 = v(o1)/2 x (1 + 1m 23 + 1u 23^2) (temp=50) and b9 =
+    // -v(o1) + v(o1)^2/10 + 0.8^v(o3) + 2^-0.3.
+    Expectation {
+        fixture: "bsource_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(in)",
+            "i(b1)",
+            "i(b3)",
+            "i(b4)",
+            "i(b5)",
+            "v(b)",
+            "i(b6)",
+            "i(b8)",
+            "i(b9)",
+            "v(o1)",
+            "v(o1_vmeas_0)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(o6)",
+            "v(o7)",
+            "v(o8)",
+            "v(o9)",
+            "i(v_b1)",
+            "i(vb)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(o1)", 0, 4.056443466441268e+00, 0.0),
+            ("v(o1_vmeas_0)", 0, 4.056443466441268e+00, 0.0),
+            ("i(b1)", 0, -4.056443466441267e-03, 0.0),
+            ("i(v_b1)", 0, -4.056443466441267e-03, 0.0),
+            ("v(o3)", 0, 1.175573329804238e+00, 0.0),
+            ("v(o4)", 0, 2.900000000000000e+00, 0.0),
+            ("v(o7)", 0, 2.075943762381582e+00, 0.0),
+            ("v(o9)", 0, -8.294541275689211e-01, 0.0),
+            ("i(vin)", 0, -8.000000000000000e-04, 0.0),
+            ("v(o2)", 0, -1.285207636379154e-01, 0.0),
+        ],
+    },
+    // v(lim) = 2 tanh(1.5 v) + 0.1 v, v(ter) = 2 x 1m (0.34 - v) or 2 x 1m v
+    // into 1k, v(a) = 100 x 1p (exp(v/0.05) - 1) (about 1.07 kV at 1.5 V) and
+    // v(sq) = sqrt(v^2 + 0.01) at the sweep ends.
+    Expectation {
+        fixture: "bsource_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 31,
+        variables: &[
+            "v(v-sweep)",
+            "v(a)",
+            "i(b2)",
+            "i(b3)",
+            "i(b4)",
+            "i(b6)",
+            "v(in)",
+            "v(lim)",
+            "v(pw)",
+            "v(sh)",
+            "v(sq)",
+            "v(ter)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -1.500000000000000e+00, 0.0),
+            ("v(lim)", 0, -2.106052229477627e+00, 0.0),
+            ("v(ter)", 0, 3.680000000000000e+00, 0.0),
+            ("v(v-sweep)", 30, 1.500000000000001e+00, 0.0),
+            ("v(lim)", 30, 2.106052229477628e+00, 0.0),
+            ("v(ter)", 30, 3.000000000000001e+00, 0.0),
+            ("v(a)", 30, 1.068647458152356e+03, 0.0),
+            ("v(sq)", 30, 1.503329637837291e+00, 0.0),
+        ],
+    },
+    // The AC drive of vin passes through each B source's derivative at the
+    // 0.6 V bias: v(sq) = 6 x 0.6 + 0.5 cos(0.6) at every frequency, and
+    // b3 = 1k i(vin) v(in) linearises to 1k (0.6 x -1m + -0.6m x 1) = -1.2.
+    Expectation {
+        fixture: "bsource_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 26,
+        variables: &[
+            "frequency",
+            "i(b1)",
+            "i(b3)",
+            "v(cur)",
+            "v(in)",
+            "v(out1)",
+            "v(out2)",
+            "v(sq)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1.000000000000000e+01, 0.0),
+            ("v(sq)", 0, 4.012667807454839e+00, 0.0),
+            ("v(cur)", 0, -1.200000000000000e+00, 0.0),
+            ("i(vin)", 0, -1.000000000000000e-03, 0.0),
+            ("frequency", 25, 1.000000000000002e+06, 0.0),
+            ("v(out1)", 25, 1.016418054920059e-05, -6.386342988625775e-03),
+            ("v(out2)", 25, 3.008985388246520e-06, -1.366126857795614e-02),
+        ],
+    },
+    // At 1 ms the envelope has settled: v(drive) = 1.5 sin(4 pi) x ... +
+    // pwl(1m) = -0.25, and v(sq) = v(out) v(drive) + 2 within C's Newton
+    // tolerance.
+    Expectation {
+        fixture: "bsource_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1008,
+        variables: &["time", "i(b1)", "i(b3)", "v(drive)", "v(out)", "v(sq)"],
+        values: &[
+            ("time", 0, 0.000000000000000e+00, 0.0),
+            ("v(drive)", 0, 0.000000000000000e+00, 0.0),
+            ("time", 1007, 1.000000000000000e-03, 0.0),
+            ("v(drive)", 1007, -2.499999999999999e-01, 0.0),
+            ("v(out)", 1007, -3.623175662242532e-02, 0.0),
+            ("v(sq)", 1007, 2.009060417479346e+00, 0.0),
+            ("i(b3)", 1007, -2.009060417479346e-03, 0.0),
+        ],
+    },
+    // v(in) = 1.2: e1 drives 3 v - v^2/2 = 2.88 through e1_int1, e2 adds
+    // tanh(1.2) on top, g1 sources 2 (m) x 1m x 1.2^3 into o3, g2 sinks
+    // 0.5m exp(1.2) from o4, x1's E gives 1.44/3 at o5 (x1.e1_int1), and
+    // i(e2) is sensed through the inserted v_e2 (e2 is not a simple E).
+    Expectation {
+        fixture: "evalue_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(in)",
+            "i(b.x1.be1)",
+            "i(b1)",
+            "i(be1)",
+            "i(be2)",
+            "i(bg1)",
+            "i(bg2)",
+            "i(e.x1.e1)",
+            "i(e1)",
+            "v(e1_int1)",
+            "i(e2)",
+            "v(e2_int1)",
+            "v(g1_int1)",
+            "v(g2_int1)",
+            "v(o1)",
+            "v(o2)",
+            "v(o2_vmeas_0)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(o6)",
+            "i(v_e2)",
+            "i(vin)",
+            "v(x1.e1_int1)",
+        ],
+        values: &[
+            ("v(o1)", 0, 2.880000000000001e+00, 0.0),
+            ("v(e1_int1)", 0, 2.880000000000001e+00, 0.0),
+            ("v(o2)", 0, 3.713654607012156e+00, 0.0),
+            ("v(o3)", 0, 3.456000000000002e+00, 0.0),
+            ("v(o4)", 0, -1.660058461368274e+00, 0.0),
+            ("v(o5)", 0, 4.800000000000000e-01, 0.0),
+            ("v(x1.e1_int1)", 0, 4.800000000000000e-01, 0.0),
+            ("i(v_e2)", 0, -1.856827303506078e-03, 0.0),
+            ("v(o6)", 0, -1.376827303506078e+00, 0.0),
+        ],
+    },
+    // Below the tables the XSPICE pwl is flat (limit=TRUE): g1 = 2 (m) x -1m
+    // into 1k, e2 (LTspice four-node form) = 2; the single pair of g2 is a
+    // 3 mA source; on linear segments g1 = 2 x (2m + 0.5m (v - 0.5)), and at
+    // the top e1's input is 2 x 2.05 + 0.1 with the output flat at 1.75.
+    Expectation {
+        fixture: "gtable_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 42,
+        variables: &[
+            "v(v-sweep)",
+            "i(ae1)",
+            "i(ae2)",
+            "i(ag1)",
+            "i(be1)",
+            "i(bg1)",
+            "i(e1)",
+            "v(e1_int1)",
+            "v(e1_int2)",
+            "i(e2)",
+            "v(e2_int1)",
+            "v(g1_int1)",
+            "v(g1_int2)",
+            "v(g2_int1)",
+            "v(in)",
+            "v(o1)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "i(vg2)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -2.050000000000000e+00, 0.0),
+            ("v(o1)", 0, -2.000000000000000e+00, 0.0),
+            ("v(o3)", 0, 2.000000000000000e+00, 0.0),
+            ("v(o4)", 0, 3.000000000000000e+00, 0.0),
+            ("v(o1)", 41, 5.000000000000000e+00, 0.0),
+            ("v(o2)", 41, 1.750000000000000e+00, 0.0),
+            ("v(e1_int2)", 41, 4.200000000000003e+00, 0.0),
+            ("v(in)", 30, 9.500000000000008e-01, 0.0),
+            ("v(o1)", 30, 4.450000000000001e+00, 0.0),
+        ],
+    },
+    // At v(in) = 0.4 (v(b) = 0.5, v(c) = -0.2, i(vin) = -0.4m, i(vb) =
+    // -0.25m): e1 = 0.1 + a + 2b + 0.5a^2 - 0.25ab + 0.3b^2, h1 = 0.2 +
+    // 100 i + 1e4 i^2, the implicit POLY(1) e2 = 0.5 + d + 0.25 d^2 with
+    // d = v(in, b), g1 = 2 (m) x (1m a + 0.5m a^2 + 0.2m a^3) into 1k, f1 =
+    // i(vin) - 2 i(vb) + 0.5 i(vin)^2 into 1k and e3 the full 3-D quadratic
+    // in SPICE2 term order (a, b, c, a^2, ab, ac, b^2, bc, c^2).
+    Expectation {
+        fixture: "epoly_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 21,
+        variables: &[
+            "v(v-sweep)",
+            "i(a$poly$e1)",
+            "i(a$poly$e2)",
+            "i(a$poly$e3)",
+            "i(a$poly$h1)",
+            "v(b)",
+            "v(c)",
+            "v(in)",
+            "v(o1)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(o6)",
+            "i(vb)",
+            "i(vc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(v-sweep)", 14, 3.999999999999999e-01, 0.0),
+            ("v(o1)", 14, 1.605000000000000e+00, 0.0),
+            ("v(o4)", 14, 1.616000000000000e-01, 0.0),
+            ("v(o5)", 14, 4.024999999999999e-01, 0.0),
+            ("v(o2)", 14, 9.855999999999998e-01, 0.0),
+            ("v(o6)", 14, -9.400000000000010e-02, 0.0),
+            ("v(o3)", 14, 1.000800000000001e-01, 0.0),
+            ("i(vb)", 14, -2.500000000000000e-04, 0.0),
+        ],
+    },
 ];
 
 /// Multi-analysis fixtures (#96): one [`Expectation`] per plot, in rawfile

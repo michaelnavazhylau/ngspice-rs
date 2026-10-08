@@ -1,0 +1,112 @@
+# ngspice-rs ast-dump v1
+file: netlists/gtable_dc.cir
+title: "E/G TABLE sources: XSPICE pwl lowering (inpcom.c inp_compat)" @netlists/gtable_dc.cir:1:1
+scope root
+  cards (12):
+    [0] device[0] @netlists/gtable_dc.cir:7:1 "vin in 0 dc 0"
+    [1] device[1] @netlists/gtable_dc.cir:8:1 "rin in 0 1k"
+    [2] device[2] @netlists/gtable_dc.cir:9:1 "g1 0 o1 table {v(in)} = (-1, -1m) (0, 0) (0.5, 2m) (1.5, 2.5m) m=2"
+    [3] device[3] @netlists/gtable_dc.cir:10:1 "r1 o1 0 1k"
+    [4] device[4] @netlists/gtable_dc.cir:11:1 "e1 o2 0 TABLE {2*v(in)+0.1} = (-2,-1) (0,0) (1,1.5) (2,1.75)"
+    [5] device[5] @netlists/gtable_dc.cir:12:1 "r2 o2 0 1k"
+    [6] device[6] @netlists/gtable_dc.cir:13:1 "e2 o3 0 in 0 table=(-1, 2, 0, 0, 1, 1)"
+    [7] device[7] @netlists/gtable_dc.cir:14:1 "r3 o3 0 1k"
+    [8] device[8] @netlists/gtable_dc.cir:15:1 "g2 0 o4 table {v(in)} = (0, 3m)"
+    [9] device[9] @netlists/gtable_dc.cir:16:1 "r4 o4 0 1k"
+    [10] analysis[0] @netlists/gtable_dc.cir:17:1 ".dc vin -2.05 2.05 0.1"
+    [11] end @netlists/gtable_dc.cir:18:1 ".end"
+  devices (10):
+    device [0] name="vin" designator=v @netlists/gtable_dc.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/gtable_dc.cir:7:10
+    device [1] name="rin" designator=r @netlists/gtable_dc.cir:8:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/gtable_dc.cir:8:10
+    device [2] name="g1" designator=g @netlists/gtable_dc.cir:9:1
+      nodes: "0" "o1"
+      model: none
+      parameters (10):
+        [0] name="table" kind=behavioural value="v(in)" @netlists/gtable_dc.cir:9:9
+          behavioural text="v(in)" span=9:16..21
+            voltage "in" span=9:16..21
+        [1] name="x" kind=scalar value="-1" @netlists/gtable_dc.cir:9:26
+        [2] name="y" kind=scalar value="-1m" @netlists/gtable_dc.cir:9:30
+        [3] name="x" kind=scalar value="0" @netlists/gtable_dc.cir:9:36
+        [4] name="y" kind=scalar value="0" @netlists/gtable_dc.cir:9:39
+        [5] name="x" kind=scalar value="0.5" @netlists/gtable_dc.cir:9:43
+        [6] name="y" kind=scalar value="2m" @netlists/gtable_dc.cir:9:48
+        [7] name="x" kind=scalar value="1.5" @netlists/gtable_dc.cir:9:53
+        [8] name="y" kind=scalar value="2.5m" @netlists/gtable_dc.cir:9:58
+        [9] name="m" kind=scalar value="2" @netlists/gtable_dc.cir:9:64
+    device [3] name="r1" designator=r @netlists/gtable_dc.cir:10:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/gtable_dc.cir:10:9
+    device [4] name="e1" designator=e @netlists/gtable_dc.cir:11:1
+      nodes: "o2" "0"
+      model: none
+      parameters (9):
+        [0] name="table" kind=behavioural value="2*v(in)+0.1" @netlists/gtable_dc.cir:11:9
+          behavioural text="2*v(in)+0.1" span=11:16..27
+            binary "+" span=11:16..27
+              binary "*" span=11:16..23
+                number "2" value=2e0 span=11:16..17
+                voltage "in" span=11:18..23
+              number "0.1" value=1e-1 span=11:24..27
+        [1] name="x" kind=scalar value="-2" @netlists/gtable_dc.cir:11:32
+        [2] name="y" kind=scalar value="-1" @netlists/gtable_dc.cir:11:35
+        [3] name="x" kind=scalar value="0" @netlists/gtable_dc.cir:11:40
+        [4] name="y" kind=scalar value="0" @netlists/gtable_dc.cir:11:42
+        [5] name="x" kind=scalar value="1" @netlists/gtable_dc.cir:11:46
+        [6] name="y" kind=scalar value="1.5" @netlists/gtable_dc.cir:11:48
+        [7] name="x" kind=scalar value="2" @netlists/gtable_dc.cir:11:54
+        [8] name="y" kind=scalar value="1.75" @netlists/gtable_dc.cir:11:56
+    device [5] name="r2" designator=r @netlists/gtable_dc.cir:12:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/gtable_dc.cir:12:9
+    device [6] name="e2" designator=e @netlists/gtable_dc.cir:13:1
+      nodes: "o3" "0" "in" "0"
+      model: none
+      parameters (7):
+        [0] name="table" kind=flag value="" @netlists/gtable_dc.cir:13:14
+        [1] name="x" kind=scalar value="-1" @netlists/gtable_dc.cir:13:21
+        [2] name="y" kind=scalar value="2" @netlists/gtable_dc.cir:13:25
+        [3] name="x" kind=scalar value="0" @netlists/gtable_dc.cir:13:28
+        [4] name="y" kind=scalar value="0" @netlists/gtable_dc.cir:13:31
+        [5] name="x" kind=scalar value="1" @netlists/gtable_dc.cir:13:34
+        [6] name="y" kind=scalar value="1" @netlists/gtable_dc.cir:13:37
+    device [7] name="r3" designator=r @netlists/gtable_dc.cir:14:1
+      nodes: "o3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/gtable_dc.cir:14:9
+    device [8] name="g2" designator=g @netlists/gtable_dc.cir:15:1
+      nodes: "0" "o4"
+      model: none
+      parameters (3):
+        [0] name="table" kind=behavioural value="v(in)" @netlists/gtable_dc.cir:15:9
+          behavioural text="v(in)" span=15:16..21
+            voltage "in" span=15:16..21
+        [1] name="x" kind=scalar value="0" @netlists/gtable_dc.cir:15:26
+        [2] name="y" kind=scalar value="3m" @netlists/gtable_dc.cir:15:29
+    device [9] name="r4" designator=r @netlists/gtable_dc.cir:16:1
+      nodes: "o4" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/gtable_dc.cir:16:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/gtable_dc.cir:17:1
+      arguments: "vin" "-2.05" "2.05" "0.1"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

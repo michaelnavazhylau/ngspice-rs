@@ -218,6 +218,20 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M6 controlled-source decks (#78) are gated by `xtask golden verify` and
     // `spice-analysis/tests/controlled_sources.rs`.
     on_disk.retain(|name| !name.starts_with("controlled_"));
+    // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
+    // `spice-analysis/tests/behavioural_sources.rs`.
+    on_disk.retain(|name| {
+        !matches!(
+            name.as_str(),
+            "bsource_op"
+                | "bsource_dc"
+                | "bsource_ac"
+                | "bsource_tran"
+                | "evalue_op"
+                | "gtable_dc"
+                | "epoly_dc"
+        )
+    });
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

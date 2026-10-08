@@ -1,0 +1,18 @@
+E/G TABLE sources: XSPICE pwl lowering (inpcom.c inp_compat)
+* xtask-codemodels: analog
+* TABLE becomes a linear E/G driven by the XSPICE pwl code model
+* (input_domain=0.1 fraction=TRUE limit=TRUE: flat outside, parabolic corners)
+* whose input is a B source; a single pair becomes a DC source; the LTspice
+* four-node form reads v(nc+, nc-) directly (input_domain=0.001) (#79).
+vin in 0 dc 0
+rin in 0 1k
+g1 0 o1 table {v(in)} = (-1, -1m) (0, 0) (0.5, 2m) (1.5, 2.5m) m=2
+r1 o1 0 1k
+e1 o2 0 TABLE {2*v(in)+0.1} = (-2,-1) (0,0) (1,1.5) (2,1.75)
+r2 o2 0 1k
+e2 o3 0 in 0 table=(-1, 2, 0, 0, 1, 1)
+r3 o3 0 1k
+g2 0 o4 table {v(in)} = (0, 3m)
+r4 o4 0 1k
+.dc vin -2.05 2.05 0.1
+.end

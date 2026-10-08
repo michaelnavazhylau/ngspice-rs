@@ -1,0 +1,159 @@
+# ngspice-rs token-dump v1
+file: netlists/evalue_op.cir
+title: "E/G VALUE= sources: lowering onto B sources (inpcom.c inp_compat)" @netlists/evalue_op.cir:1:1
+card 1 @netlists/evalue_op.cir:6:1 lines=6-6 continuations=0
+  raw: ".param k=3"
+  kind: dot(.param)
+  token 1 6:1 word ".param"
+  token 2 6:8 word "k"
+  token 3 6:9 equals "="
+  token 4 6:10 number "3" value=3e0
+card 2 @netlists/evalue_op.cir:7:1 lines=7-7 continuations=0
+  raw: ".subckt sq a y"
+  kind: dot(.subckt)
+  token 1 7:1 word ".subckt"
+  token 2 7:9 word "sq"
+  token 3 7:12 word "a"
+  token 4 7:14 word "y"
+card 3 @netlists/evalue_op.cir:8:1 lines=8-8 continuations=0
+  raw: "e1 y 0 value={v(a)*v(a)/k}"
+  kind: device(e)
+  token 1 8:1 word "e1"
+  token 2 8:4 word "y"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "value"
+  token 5 8:13 equals "="
+  token 6 8:14 expression "{v(a)*v(a)/k}" inner="v(a)*v(a)/k"
+card 4 @netlists/evalue_op.cir:9:1 lines=9-9 continuations=0
+  raw: ".ends"
+  kind: dot(.ends)
+  token 1 9:1 word ".ends"
+card 5 @netlists/evalue_op.cir:10:1 lines=10-10 continuations=0
+  raw: "vin in 0 dc 1.2"
+  kind: device(v)
+  token 1 10:1 word "vin"
+  token 2 10:5 word "in"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 word "dc"
+  token 5 10:13 number "1.2" value=1.2e0
+card 6 @netlists/evalue_op.cir:11:1 lines=11-11 continuations=0
+  raw: "rin in 0 1k"
+  kind: device(r)
+  token 1 11:1 word "rin"
+  token 2 11:5 word "in"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 number "1k" value=1e3
+card 7 @netlists/evalue_op.cir:12:1 lines=12-12 continuations=0
+  raw: "e1 o1 0 value={k*v(in) - 0.5*v(in)**2}"
+  kind: device(e)
+  token 1 12:1 word "e1"
+  token 2 12:4 word "o1"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 word "value"
+  token 5 12:14 equals "="
+  token 6 12:15 expression "{k*v(in) - 0.5*v(in)**2}" inner="k*v(in) - 0.5*v(in)**2"
+card 8 @netlists/evalue_op.cir:13:1 lines=13-13 continuations=0
+  raw: "r1 o1 0 1k"
+  kind: device(r)
+  token 1 13:1 word "r1"
+  token 2 13:4 word "o1"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 number "1k" value=1e3
+card 9 @netlists/evalue_op.cir:14:1 lines=14-14 continuations=0
+  raw: "e2 o2 o1 vol='tanh(v(in))'"
+  kind: device(e)
+  token 1 14:1 word "e2"
+  token 2 14:4 word "o2"
+  token 3 14:7 word "o1"
+  token 4 14:10 word "vol"
+  token 5 14:13 equals "="
+  token 6 14:14 quoted "'tanh(v(in))'" unquoted="tanh(v(in))"
+card 10 @netlists/evalue_op.cir:15:1 lines=15-15 continuations=0
+  raw: "r2 o2 0 2k"
+  kind: device(r)
+  token 1 15:1 word "r2"
+  token 2 15:4 word "o2"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "2k" value=2e3
+card 11 @netlists/evalue_op.cir:16:1 lines=16-16 continuations=0
+  raw: "g1 0 o3 value={1m*v(in)^3} m=2"
+  kind: device(g)
+  token 1 16:1 word "g1"
+  token 2 16:4 number "0" value=0e0
+  token 3 16:6 word "o3"
+  token 4 16:9 word "value"
+  token 5 16:14 equals "="
+  token 6 16:15 expression "{1m*v(in)^3}" inner="1m*v(in)^3"
+  token 7 16:28 word "m"
+  token 8 16:29 equals "="
+  token 9 16:30 number "2" value=2e0
+card 12 @netlists/evalue_op.cir:17:1 lines=17-17 continuations=0
+  raw: "r3 o3 0 1k"
+  kind: device(r)
+  token 1 17:1 word "r3"
+  token 2 17:4 word "o3"
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 number "1k" value=1e3
+card 13 @netlists/evalue_op.cir:18:1 lines=18-18 continuations=0
+  raw: "g2 o4 0 cur={0.5m*exp(v(in))}"
+  kind: device(g)
+  token 1 18:1 word "g2"
+  token 2 18:4 word "o4"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 word "cur"
+  token 5 18:12 equals "="
+  token 6 18:13 expression "{0.5m*exp(v(in))}" inner="0.5m*exp(v(in))"
+card 14 @netlists/evalue_op.cir:19:1 lines=19-19 continuations=0
+  raw: "r4 o4 0 1k"
+  kind: device(r)
+  token 1 19:1 word "r4"
+  token 2 19:4 word "o4"
+  token 3 19:7 number "0" value=0e0
+  token 4 19:9 number "1k" value=1e3
+card 15 @netlists/evalue_op.cir:20:1 lines=20-20 continuations=0
+  raw: "x1 in o5 sq"
+  kind: device(x)
+  token 1 20:1 word "x1"
+  token 2 20:4 word "in"
+  token 3 20:7 word "o5"
+  token 4 20:10 word "sq"
+card 16 @netlists/evalue_op.cir:21:1 lines=21-21 continuations=0
+  raw: "r5 o5 0 1k"
+  kind: device(r)
+  token 1 21:1 word "r5"
+  token 2 21:4 word "o5"
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 number "1k" value=1e3
+card 17 @netlists/evalue_op.cir:22:1 lines=22-22 continuations=0
+  raw: "b1 o6 0 v=i(e2)*1k + v(o5)"
+  kind: device(b)
+  token 1 22:1 word "b1"
+  token 2 22:4 word "o6"
+  token 3 22:7 number "0" value=0e0
+  token 4 22:9 word "v"
+  token 5 22:10 equals "="
+  token 6 22:11 word "i"
+  token 7 22:12 lparen "("
+  token 8 22:13 word "e2"
+  token 9 22:15 rparen ")"
+  token 10 22:16 word "*1k"
+  token 11 22:20 word "+"
+  token 12 22:22 word "v"
+  token 13 22:23 lparen "("
+  token 14 22:24 word "o5"
+  token 15 22:26 rparen ")"
+card 18 @netlists/evalue_op.cir:23:1 lines=23-23 continuations=0
+  raw: "r6 o6 0 1k"
+  kind: device(r)
+  token 1 23:1 word "r6"
+  token 2 23:4 word "o6"
+  token 3 23:7 number "0" value=0e0
+  token 4 23:9 number "1k" value=1e3
+card 19 @netlists/evalue_op.cir:24:1 lines=24-24 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 24:1 word ".op"
+card 20 @netlists/evalue_op.cir:25:1 lines=25-25 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 25:1 word ".end"

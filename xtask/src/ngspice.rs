@@ -21,6 +21,11 @@
 //!    `quit`: without it, batch mode re-runs every analysis after `.endc` for a
 //!    deck with `.op` (`ft_savedotargs()` registers an op-only save list, so the
 //!    other analyses then fail with "no data saved").
+//! 4. **XSPICE code models.** ngspice runs without `spinit`, so no code model
+//!    is loaded. A fixture that needs one (E/G `TABLE` uses the `analog`
+//!    library's `pwl`, `POLY` uses `spice2poly`) names it on a
+//!    `* xtask-codemodels: <name>...` comment; the scratch directory then gets
+//!    a `.spiceinit` with just those `codemodel` commands.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -200,6 +205,7 @@ pub(crate) fn capture(
 
     let text = fs::read_to_string(netlist)
         .map_err(|error| format!("reading {}: {error}", netlist.display()))?;
+    write_codemodel_init(ngspice, &text, &directory)?;
     let plots = batch_plot_names(netlist)?;
     let deck = if plots.len() > 1 {
         instrument_plots(&text, &plot_file, &plots)?
@@ -266,6 +272,74 @@ pub(crate) fn capture(
     })
 }
 
+/// The marker comment through which a fixture asks for XSPICE code models.
+pub(crate) const CODEMODEL_MARKER: &str = "* xtask-codemodels:";
+
+/// The XSPICE code models a fixture names on a `* xtask-codemodels: a b`
+/// comment line (E/G `TABLE` needs `analog`, `POLY` needs `spice2poly`).
+pub(crate) fn requested_codemodels(netlist: &str) -> Vec<String> {
+    netlist
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            trimmed
+                .get(..CODEMODEL_MARKER.len())
+                .filter(|prefix| prefix.eq_ignore_ascii_case(CODEMODEL_MARKER))
+                .map(|_| &trimmed[CODEMODEL_MARKER.len()..])
+        })
+        .flat_map(str::split_whitespace)
+        .map(str::to_ascii_lowercase)
+        .collect()
+}
+
+/// Where a code model library lives: `NGSPICE_CODEMODEL_DIR/<name>.cm`, the
+/// C build tree next to the binary (`xspice/icm/<name>/<name>.cm`) or an
+/// installed `../lib/ngspice/<name>.cm`.
+fn codemodel_path(ngspice: &Ngspice, name: &str) -> Result<PathBuf, String> {
+    let file = format!("{name}.cm");
+    let mut candidates = Vec::new();
+    if let Some(directory) = std::env::var_os("NGSPICE_CODEMODEL_DIR") {
+        candidates.push(PathBuf::from(directory).join(&file));
+    }
+    if let Some(bin) = ngspice.path.parent() {
+        candidates.push(bin.join("xspice/icm").join(name).join(&file));
+        candidates.push(bin.join("../lib/ngspice").join(&file));
+    }
+    candidates
+        .iter()
+        .find(|path| path.is_file())
+        .map(|path| fs::canonicalize(path).unwrap_or_else(|_| path.clone()))
+        .ok_or_else(|| {
+            format!(
+                "XSPICE code model '{name}' not found; tried {} (set NGSPICE_CODEMODEL_DIR)",
+                candidates
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+}
+
+/// Writes (or removes) the scratch directory's `.spiceinit`, which ngspice
+/// reads from its working directory: `codemodel` commands for the libraries
+/// the fixture requests and nothing else, so other fixtures run exactly as
+/// before (no spinit, no compatibility mode).
+fn write_codemodel_init(ngspice: &Ngspice, netlist: &str, directory: &Path) -> Result<(), String> {
+    let init = directory.join(".spiceinit");
+    let models = requested_codemodels(netlist);
+    if models.is_empty() {
+        let _ = fs::remove_file(&init);
+        return Ok(());
+    }
+    let mut text = String::new();
+    for name in &models {
+        let path = codemodel_path(ngspice, name)?;
+        text.push_str(&format!("codemodel {}\n", path.display()));
+    }
+    fs::write(&init, text).map_err(|error| format!("writing {}: {error}", init.display()))
+}
+
 /// The C plot names of the fixture's analyses in batch order (one entry per
 /// analysis card).
 fn batch_plot_names(netlist: &Path) -> Result<Vec<String>, String> {
@@ -322,7 +396,16 @@ pub(crate) fn first_difference(left: &str, right: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_difference, instrument, instrument_plots, rawfiles_match};
+    use super::{
+        first_difference, instrument, instrument_plots, rawfiles_match, requested_codemodels,
+    };
+
+    #[test]
+    fn fixtures_request_code_models_by_a_marker_comment() {
+        let deck = "t\n* xtask-codemodels: spice2poly Analog\n* other\nr1 a 0 1\n.end\n";
+        assert_eq!(requested_codemodels(deck), ["spice2poly", "analog"]);
+        assert!(requested_codemodels("t\nr1 a 0 1\n").is_empty());
+    }
 
     const DECK: &str = "RC divider\nv1 in 0 dc 5\n.op\n.end\n";
 

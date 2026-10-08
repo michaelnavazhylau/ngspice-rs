@@ -1,0 +1,58 @@
+Title: e/g value= sources: lowering onto b sources (inpcom.c inp_compat)
+Date: Thu Oct  8 15:04:36  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 24
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	i(b.x1.be1)	current
+	2	i(b1)	current
+	3	i(be1)	current
+	4	i(be2)	current
+	5	i(bg1)	current
+	6	i(bg2)	current
+	7	i(e.x1.e1)	current
+	8	i(e1)	current
+	9	v(e1_int1)	voltage
+	10	i(e2)	current
+	11	v(e2_int1)	voltage
+	12	v(g1_int1)	voltage
+	13	v(g2_int1)	voltage
+	14	v(o1)	voltage
+	15	v(o2)	voltage
+	16	v(o2_vmeas_0)	voltage
+	17	v(o3)	voltage
+	18	v(o4)	voltage
+	19	v(o5)	voltage
+	20	v(o6)	voltage
+	21	i(v_e2)	current
+	22	i(vin)	current
+	23	v(x1.e1_int1)	voltage
+Values:
+ 0	1.200000000000000e+00
+	0.000000000000000e+00
+	1.376827303506078e-03
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-4.800000000000001e-04
+	-4.736827303506079e-03
+	2.880000000000001e+00
+	-1.856827303506078e-03
+	8.336546070121553e-01
+	1.728000000000001e-03
+	1.660058461368274e-03
+	2.880000000000001e+00
+	3.713654607012156e+00
+	3.713654607012156e+00
+	3.456000000000002e+00
+	-1.660058461368274e+00
+	4.800000000000000e-01
+	-1.376827303506078e+00
+	-1.856827303506078e-03
+	-1.200000000000000e-03
+	4.800000000000000e-01
+

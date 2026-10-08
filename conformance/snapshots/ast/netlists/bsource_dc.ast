@@ -1,0 +1,191 @@
+# ngspice-rs ast-dump v1
+file: netlists/bsource_dc.cir
+title: "B-source DC sweep: nonlinear transfer curves" @netlists/bsource_dc.cir:1:1
+scope root
+  cards (17):
+    [0] param[0] @netlists/bsource_dc.cir:5:1 ".param is=1e-12 nvt=0.05"
+    [1] device[0] @netlists/bsource_dc.cir:6:1 "vin in 0 dc 0"
+    [2] device[1] @netlists/bsource_dc.cir:7:1 "rin in 0 1k"
+    [3] device[2] @netlists/bsource_dc.cir:8:1 "b1 0 a i=is*(exp(v(in)/nvt)-1)"
+    [4] device[3] @netlists/bsource_dc.cir:9:1 "ra a 0 100"
+    [5] device[4] @netlists/bsource_dc.cir:10:1 "b2 lim 0 v=2*tanh(1.5*v(in)) + 0.1*v(in)"
+    [6] device[5] @netlists/bsource_dc.cir:11:1 "rl lim 0 1k"
+    [7] device[6] @netlists/bsource_dc.cir:12:1 "b3 sh 0 v=pwl(v(in), -2,-1, -0.5,0.25, 0.75,1.5, 2,1)*v(lim)"
+    [8] device[7] @netlists/bsource_dc.cir:13:1 "rs sh 0 1k"
+    [9] device[8] @netlists/bsource_dc.cir:14:1 "b4 pw 0 v=pwr(v(in),3) - pow(abs(v(in))+0.1,0.5) + uramp(v(in)-0.33)*2"
+    [10] device[9] @netlists/bsource_dc.cir:15:1 "rp pw 0 1k"
+    [11] device[10] @netlists/bsource_dc.cir:16:1 "b5 0 ter i=v(in)>0.17 ? 1m*v(in) : 1m*(0.34-v(in)) m=2"
+    [12] device[11] @netlists/bsource_dc.cir:17:1 "rt ter 0 1k"
+    [13] device[12] @netlists/bsource_dc.cir:18:1 "b6 sq 0 v=sqrt(v(in)^2+0.01)*sgn(v(in)+0.001)"
+    [14] device[13] @netlists/bsource_dc.cir:19:1 "rq sq 0 1k"
+    [15] analysis[0] @netlists/bsource_dc.cir:20:1 ".dc vin -1.5 1.5 0.1"
+    [16] end @netlists/bsource_dc.cir:21:1 ".end"
+  devices (14):
+    device [0] name="vin" designator=v @netlists/bsource_dc.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/bsource_dc.cir:6:10
+    device [1] name="rin" designator=r @netlists/bsource_dc.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_dc.cir:7:10
+    device [2] name="b1" designator=b @netlists/bsource_dc.cir:8:1
+      nodes: "0" "a"
+      model: none
+      parameters (1):
+        [0] name="i" kind=behavioural value="is*(exp(v(in)/nvt)-1)" @netlists/bsource_dc.cir:8:8
+          behavioural text="is*(exp(v(in)/nvt)-1)" span=8:10..31
+            binary "*" span=8:10..31
+              name "is" span=8:10..12
+              group span=8:13..31
+                binary "-" span=8:14..30
+                  call "exp" span=8:14..28
+                    binary "/" span=8:18..27
+                      voltage "in" span=8:18..23
+                      name "nvt" span=8:24..27
+                  number "1" value=1e0 span=8:29..30
+    device [3] name="ra" designator=r @netlists/bsource_dc.cir:9:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/bsource_dc.cir:9:8
+    device [4] name="b2" designator=b @netlists/bsource_dc.cir:10:1
+      nodes: "lim" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="2*tanh(1.5*v(in)) + 0.1*v(in)" @netlists/bsource_dc.cir:10:10
+          behavioural text="2*tanh(1.5*v(in)) + 0.1*v(in)" span=10:12..41
+            binary "+" span=10:12..41
+              binary "*" span=10:12..29
+                number "2" value=2e0 span=10:12..13
+                call "tanh" span=10:14..29
+                  binary "*" span=10:19..28
+                    number "1.5" value=1.5e0 span=10:19..22
+                    voltage "in" span=10:23..28
+              binary "*" span=10:32..41
+                number "0.1" value=1e-1 span=10:32..35
+                voltage "in" span=10:36..41
+    device [5] name="rl" designator=r @netlists/bsource_dc.cir:11:1
+      nodes: "lim" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_dc.cir:11:10
+    device [6] name="b3" designator=b @netlists/bsource_dc.cir:12:1
+      nodes: "sh" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="pwl(v(in), -2,-1, -0.5,0.25, 0.75,1.5, 2,1)*v(lim)" @netlists/bsource_dc.cir:12:9
+          behavioural verbatim=true text="pwl(v(in), -2,-1, -0.5,0.25, 0.75,1.5, 2,1)*v(lim)" span=12:11..61
+            binary "*" span=12:11..61
+              call "pwl" span=12:11..54
+                voltage "in" span=12:15..20
+                unary minus span=12:22..24
+                  number "2" value=2e0 span=12:23..24
+                unary minus span=12:25..27
+                  number "1" value=1e0 span=12:26..27
+                unary minus span=12:29..33
+                  number "0.5" value=5e-1 span=12:30..33
+                number "0.25" value=2.5e-1 span=12:34..38
+                number "0.75" value=7.5e-1 span=12:40..44
+                number "1.5" value=1.5e0 span=12:45..48
+                number "2" value=2e0 span=12:50..51
+                number "1" value=1e0 span=12:52..53
+              voltage "lim" span=12:55..61
+    device [7] name="rs" designator=r @netlists/bsource_dc.cir:13:1
+      nodes: "sh" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_dc.cir:13:9
+    device [8] name="b4" designator=b @netlists/bsource_dc.cir:14:1
+      nodes: "pw" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="pwr(v(in),3) - pow(abs(v(in))+0.1,0.5) + uramp(v(in)-0.33)*2" @netlists/bsource_dc.cir:14:9
+          behavioural text="pwr(v(in),3) - pow(abs(v(in))+0.1,0.5) + uramp(v(in)-0.33)*2" span=14:11..71
+            binary "+" span=14:11..71
+              binary "-" span=14:11..49
+                call "pwr" span=14:11..23
+                  voltage "in" span=14:15..20
+                  number "3" value=3e0 span=14:21..22
+                call "pow" span=14:26..49
+                  binary "+" span=14:30..44
+                    call "abs" span=14:30..40
+                      voltage "in" span=14:34..39
+                    number "0.1" value=1e-1 span=14:41..44
+                  number "0.5" value=5e-1 span=14:45..48
+              binary "*" span=14:52..71
+                call "uramp" span=14:52..69
+                  binary "-" span=14:58..68
+                    voltage "in" span=14:58..63
+                    number "0.33" value=3.3e-1 span=14:64..68
+                number "2" value=2e0 span=14:70..71
+    device [9] name="rp" designator=r @netlists/bsource_dc.cir:15:1
+      nodes: "pw" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_dc.cir:15:9
+    device [10] name="b5" designator=b @netlists/bsource_dc.cir:16:1
+      nodes: "0" "ter"
+      model: none
+      parameters (2):
+        [0] name="i" kind=behavioural value="v(in)>0.17 ? 1m*v(in) : 1m*(0.34-v(in))" @netlists/bsource_dc.cir:16:10
+          behavioural text="v(in)>0.17 ? 1m*v(in) : 1m*(0.34-v(in))" span=16:12..51
+            ternary span=16:12..51
+              binary ">" span=16:12..22
+                voltage "in" span=16:12..17
+                number "0.17" value=1.7e-1 span=16:18..22
+              binary "*" span=16:25..33
+                number "1m" value=1e-3 span=16:25..27
+                voltage "in" span=16:28..33
+              binary "*" span=16:36..51
+                number "1m" value=1e-3 span=16:36..38
+                group span=16:39..51
+                  binary "-" span=16:40..50
+                    number "0.34" value=3.4e-1 span=16:40..44
+                    voltage "in" span=16:45..50
+        [1] name="m" kind=scalar value="2" @netlists/bsource_dc.cir:16:52
+    device [11] name="rt" designator=r @netlists/bsource_dc.cir:17:1
+      nodes: "ter" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_dc.cir:17:10
+    device [12] name="b6" designator=b @netlists/bsource_dc.cir:18:1
+      nodes: "sq" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="sqrt(v(in)^2+0.01)*sgn(v(in)+0.001)" @netlists/bsource_dc.cir:18:9
+          behavioural text="sqrt(v(in)^2+0.01)*sgn(v(in)+0.001)" span=18:11..46
+            binary "*" span=18:11..46
+              call "sqrt" span=18:11..29
+                binary "+" span=18:16..28
+                  binary "^" span=18:16..23
+                    voltage "in" span=18:16..21
+                    number "2" value=2e0 span=18:22..23
+                  number "0.01" value=1e-2 span=18:24..28
+              call "sgn" span=18:30..46
+                binary "+" span=18:34..45
+                  voltage "in" span=18:34..39
+                  number "0.001" value=1e-3 span=18:40..45
+    device [13] name="rq" designator=r @netlists/bsource_dc.cir:19:1
+      nodes: "sq" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_dc.cir:19:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/bsource_dc.cir:20:1
+      arguments: "vin" "-1.5" "1.5" "0.1"
+  includes (0):
+  params (1):
+    param-card [0] @netlists/bsource_dc.cir:5:1
+      assignment [0] name="is" name_span=5:8..10
+        expression braced=false text="1e-12" span=5:11..16
+          number "1e-12" value=1e-12 span=5:11..16
+      assignment [1] name="nvt" name_span=5:17..20
+        expression braced=false text="0.05" span=5:21..25
+          number "0.05" value=5e-2 span=5:21..25
+  options (0):
+  globals (0):

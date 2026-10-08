@@ -1,0 +1,15 @@
+B-source transient: time-dependent and nonlinear behavioural sources
+* time in sin(), a pwl() of time and an exponential envelope, driving an RC
+* loaded by a nonlinear tanh current and a product of node voltages (#79).
+* C sets no breakpoints for B sources (nor does the port), so the time
+* functions are resolved by the 1 us maximum step; without it both
+* simulators' default step control leaves percent-level errors of their own.
+.param f=2k
+b1 drive 0 v=1.5*sin(2*pi*f*time)*(1-exp(-time/0.2m)) + pwl(time, 0,0, 0.3m,0.5, 0.6m,0.5, 1m,-0.25)
+r1 drive out 1k
+c1 out 0 1u
+b2 out 0 i=0.4m*tanh(v(out)/0.3)
+b3 sq 0 v=v(out)*v(drive) + 1 + time/1m
+r3 sq 0 1k
+.tran 10u 1m 0 1u
+.end

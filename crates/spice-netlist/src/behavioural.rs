@@ -64,11 +64,208 @@ const MAX_RESOLVED_NODES: usize = 100_000;
 /// POLY without its controls), positioned at the card.
 pub fn lower_nonlinear_sources(netlist: &Netlist) -> SpiceResult<Netlist> {
     let mut out = netlist.clone();
-    out.devices = lower_devices(&netlist.devices)?;
+    measure_currents(&mut out);
+    out.devices = lower_devices(&out.devices)?;
     for subcircuit in &mut out.subcircuits {
         lower_subcircuit(subcircuit)?;
     }
     Ok(out)
+}
+
+/// A device position: the chain of subcircuit indexes (empty at the root)
+/// and the index in that scope's device list.
+type Position = (Vec<usize>, usize);
+
+fn scope_devices<'a>(netlist: &'a mut Netlist, path: &[usize]) -> &'a mut Vec<DeviceInstance> {
+    let Some((first, rest)) = path.split_first() else {
+        return &mut netlist.devices;
+    };
+    let mut subcircuit = &mut netlist.subcircuits[*first];
+    for index in rest {
+        subcircuit = &mut subcircuit.subcircuits[*index];
+    }
+    &mut subcircuit.devices
+}
+
+/// Device positions in deck order: the root's and every body's cards as they
+/// were written (falling back to vector order without card lists).
+fn deck_order(netlist: &Netlist) -> Vec<Position> {
+    fn walk(
+        cards: &[crate::ast::ScopedCard],
+        devices: usize,
+        subcircuits: &[Subcircuit],
+        path: &[usize],
+        out: &mut Vec<Position>,
+    ) {
+        let start = out.len();
+        for card in cards {
+            match card.kind {
+                crate::ast::ScopedCardKind::Device(index) if index < devices => {
+                    out.push((path.to_vec(), index));
+                }
+                crate::ast::ScopedCardKind::Subcircuit(index) => {
+                    if let Some(body) = subcircuits.get(index) {
+                        let mut nested = path.to_vec();
+                        nested.push(index);
+                        walk(
+                            &body.cards,
+                            body.devices.len(),
+                            &body.subcircuits,
+                            &nested,
+                            out,
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        let listed = out[start..].iter().filter(|(p, _)| p == path).count();
+        if listed != devices {
+            out.retain(|(p, _)| p != path);
+            out.extend((0..devices).map(|index| (path.to_vec(), index)));
+        }
+    }
+    let mut out = Vec::new();
+    walk(
+        &netlist.cards,
+        netlist.devices.len(),
+        &netlist.subcircuits,
+        &[],
+        &mut out,
+    );
+    out
+}
+
+/// Characters `is_arith_char()` accepts before `i(` (plus `{` and `=`).
+fn converts_after(previous: char) -> bool {
+    "+-*/()<>?:|&^!%\\{='".contains(previous)
+}
+
+/// Whether `inp_meas_current()` rewrites the `i(` at byte `offset` of an
+/// expression's text: the character before it (after
+/// `stripWhiteSpacesInsideParens()`) must be an arithmetic character, `{`,
+/// `=` or a space outside parentheses; a comma is not.
+fn measured_reference(text: &str, offset: usize) -> bool {
+    let before = &text[..offset.min(text.len())];
+    let trimmed = before.trim_end();
+    let Some(previous) = trimmed.chars().last() else {
+        // The expression starts the value: `=`, `{` or a space precede it.
+        return true;
+    };
+    if trimmed.len() < before.len() {
+        let depth = trimmed.chars().fold(0i32, |depth, c| match c {
+            '(' => depth + 1,
+            ')' => depth - 1,
+            _ => depth,
+        });
+        if depth <= 0 {
+            return true;
+        }
+    }
+    converts_after(previous)
+}
+
+/// `inp_meas_current()` (`src/frontend/inpcom.c`): an `i(name)` in a
+/// behavioural expression whose `name` does not start with `v` senses the
+/// current into `name`'s first node through an inserted zero-volt source
+/// `v_name` (`name`'s first node becomes `<node>_vmeas_<n>`), unless `name`
+/// is a simple linear E/H. The device is searched in the same scope only.
+fn measure_currents(netlist: &mut Netlist) {
+    // Phase 1: every rewritable reference, in deck order.
+    let mut references: Vec<(Position, usize, String)> = Vec::new();
+    for position in deck_order(netlist) {
+        let device = &scope_devices(netlist, &position.0)[position.1];
+        let mut occurrence = 0;
+        for parameter in &device.parameters {
+            let ParameterKind::Behavioural(expression) = &parameter.kind else {
+                continue;
+            };
+            let origin = expression.span.start.column;
+            expression.root.visit(&mut |node| {
+                if let BExprKind::Current(name) = &node.kind {
+                    let offset = node.span.start.column.saturating_sub(origin) as usize;
+                    if !name.starts_with('v') && measured_reference(&expression.text, offset) {
+                        references.push((position.clone(), occurrence, name.clone()));
+                    }
+                    occurrence += 1;
+                }
+            });
+        }
+    }
+    // Phase 2: rewrite references and add the measurement sources, which are
+    // inserted after their devices only at the end so positions stay valid.
+    let mut serial = 0usize;
+    let mut insertions: Vec<(Vec<usize>, usize, DeviceInstance)> = Vec::new();
+    for ((path, index), occurrence, name) in references {
+        let devices = scope_devices(netlist, &path);
+        let simple = devices
+            .iter()
+            .any(|d| d.name == name && is_simple_linear(d));
+        if !simple {
+            rename_occurrence(&mut devices[index], occurrence, &format!("v_{name}"));
+        }
+        let source = format!("v_{name}");
+        for (target, device) in devices.iter_mut().enumerate() {
+            if device.name != name || is_simple_linear(device) || device.nodes.is_empty() {
+                continue;
+            }
+            let node = device.nodes[0].clone();
+            if !node.contains("_vmeas") {
+                device.nodes[0] = format!("{node}_vmeas_{serial}");
+            }
+            if !insertions
+                .iter()
+                .any(|(p, _, d)| *p == path && d.name == source)
+            {
+                let original = node
+                    .split_once("_vmeas_")
+                    .map_or_else(|| node.clone(), |(base, _)| base.to_owned());
+                let location = device.location.clone();
+                insertions.push((
+                    path.clone(),
+                    target,
+                    instance(
+                        source.clone(),
+                        'v',
+                        vec![original, device.nodes[0].clone()],
+                        vec![scalar("dc", "0", &location)],
+                        &location,
+                    ),
+                ));
+            }
+            serial += 1;
+        }
+    }
+    insertions.sort_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
+    for (path, after, source) in insertions.into_iter().rev() {
+        scope_devices(netlist, &path).insert(after + 1, source);
+    }
+}
+
+/// C's "simple linear e source": an E/H without `=` or POLY on its card.
+fn is_simple_linear(device: &DeviceInstance) -> bool {
+    matches!(device.designator, 'e' | 'h')
+        && !device
+            .parameters
+            .iter()
+            .any(|p| matches!(p.name.as_str(), "value" | "table" | "poly"))
+}
+
+fn rename_occurrence(device: &mut DeviceInstance, occurrence: usize, name: &str) {
+    let mut seen = 0;
+    for parameter in &mut device.parameters {
+        let ParameterKind::Behavioural(expression) = &mut parameter.kind else {
+            continue;
+        };
+        expression.root.visit_mut(&mut |node| {
+            if let BExprKind::Current(source) = &mut node.kind {
+                if seen == occurrence {
+                    *source = name.to_owned();
+                }
+                seen += 1;
+            }
+        });
+    }
 }
 
 fn lower_subcircuit(subcircuit: &mut Subcircuit) -> SpiceResult<()> {

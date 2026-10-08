@@ -271,6 +271,69 @@ const SUPPORTED: &[Supported] = &[
     // `compare::TRAN` floor at small values (about 1e-8 A on the sub-uA
     // currents right after the 20 us edge), so the BDF run is peak-scaled.
     tran("controlled_tran", &[DIFFSOL_BDF_RESTART]),
+    // Behavioural sources (#79): B sources over node voltages, branch
+    // currents, time and temper in OP, a DC sweep, the AC linearisation at the
+    // bias point and a time-dependent transient; E/G VALUE= lowered onto B
+    // sources (also inside a subcircuit), E/G TABLE onto the XSPICE pwl
+    // transfer and E/G/F/H POLY onto spice2poly (captured with those code
+    // models, `* xtask-codemodels:`). Newton-solved, so the nonlinear 1 ppm
+    // bound; the transient keeps `compare::TRAN` (the diffsol BDF backend
+    // rejects nonlinear devices, so there is no variant).
+    Supported {
+        name: "bsource_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "bsource_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "bsource_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("bsource_tran", &[]),
+    Supported {
+        name: "evalue_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "gtable_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "epoly_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

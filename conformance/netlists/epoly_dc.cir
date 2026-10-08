@@ -1,0 +1,25 @@
+E/G/F/H POLY sources: XSPICE spice2poly lowering (enhtrans.c)
+* xtask-codemodels: spice2poly
+* POLY(n) becomes the spice2poly code model a$poly$<name> with SPICE2
+* coefficient order (constant, linear, then a^2 ab b^2 ...); G/F take m=; a
+* linear card with extra values is an implicit POLY(1) (#79).
+vin in 0 dc 0
+rin in 0 1k
+vb b 0 dc 0.5
+rb b 0 2k
+vc c 0 dc -0.2
+rc c 0 1k
+e1 o1 0 poly(2) in 0 b 0 0.1 1 2 0.5 -0.25 0.3
+r1 o1 0 1k
+g1 0 o2 poly(1) in 0 0 1m 0.5m 0.2m m=2
+r2 o2 0 1k
+f1 0 o3 poly(2) vin vb 0 1 -2 0.5
+r3 o3 0 1k
+h1 o4 0 poly(1) vin 0.2 100 1e4
+r4 o4 0 1k
+e2 o5 0 in b 0.5 1 0.25
+r5 o5 0 1k
+e3 o6 0 poly(3) in 0 b 0 c 0 0 1 -1 0.5 0.1 0.2 0.3 0.4 0.5 0.6
+r6 o6 0 1k
+.dc vin -1 1 0.1
+.end
