@@ -140,6 +140,36 @@ coefficient vectors (`@dev[function]`, `@dev[coeffs]`) of
 `conformance/parser/source_functions.cir`. Details:
 [TRANSIENT.md](TRANSIENT.md#source-functions-94-95).
 
+## M6 behavioural sources (#79)
+
+Seven new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed), are
+registered in `golden verify` (45 verified fixtures): `bsource_op`,
+`bsource_dc`, `bsource_ac`, `evalue_op`, `gtable_dc` and `epoly_dc` under the
+1 ppm `compare::NONLINEAR` bound and `bsource_tran` under `compare::TRAN`.
+ngspice runs without `spinit`, so no XSPICE code model is loaded by default;
+the TABLE and POLY decks name the libraries they need on a
+`* xtask-codemodels: <name>...` comment and the capture (and `golden check`)
+then writes a `.spiceinit` with just those `codemodel` commands into the
+scratch directory (`NGSPICE_CODEMODEL_DIR`, the C build tree next to the binary
+or `../lib/ngspice` are searched). Two findings shaped the decks: C's
+operating points of chained XSPICE POLY sources are converged only to its own
+`reltol` (about 5e-6 relative), so `epoly_dc` keeps POLY inputs on independent
+sources; and with no breakpoints for B time functions both simulators' default
+steps leave percent-level errors on a fast `sin(time)` drive, so
+`bsource_tran` sets a 1 us maximum step.
+
+Opt-in live check (`NGSPICE_BIN` absolute):
+
+```sh
+NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_behavioural_reference --locked -- --ignored
+```
+
+It compares 46 B expressions (every `inpptree.c` function, operators, C's
+derivative quirks and the 11-digit literal rounding) by value (OP) and
+derivative (one-point AC) at four bias points with `1e-12` relative. Details:
+[BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md).
+
 ## Branch-local M4 gate (#41)
 
 The nonlinear support/gate is documented in [M4_NONLINEAR.md](M4_NONLINEAR.md).

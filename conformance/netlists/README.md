@@ -86,6 +86,13 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `controlled_op` | `.op` | E/F/G/H signs, E op-amp loop (gain 1e4), F sensing an E branch, H inside a subcircuit, HSPICE keyword, `(a,b)` controls, G `m=` |
 | `controlled_ac` | `.ac` | E integrator (gain 1e4), G into an RC, F/H sensing a load current (`lin`) |
 | `controlled_tran` | `.tran` | PULSE RC buffered by E, G charging a second RC, F/H sensing its current |
+| `bsource_op` | `.op` | B sources: the `inpptree.c` functions, comparisons/logic/ternary, `.param`, `.func`, `m`/`tc1`/`tc2`/`temp`, `i(b1)` through the inserted `v_b1` |
+| `bsource_dc` | `.dc` | nonlinear B transfer curves (exponential current, tanh limiter, `pwl()`, power laws, ternary) |
+| `bsource_ac` | `.ac` | B sources linearised at the bias point, including a sensed source current |
+| `bsource_tran` | `.tran` | `time` in `sin()`/`pwl()`/`exp()` (no breakpoints, 1 us maximum step) driving an RC with nonlinear B loads |
+| `evalue_op` | `.op` | E `VALUE=`/`VOL=`, G `VALUE=`/`CUR=` with `m=`, a VALUE E inside a subcircuit, `i(e2)` sensing |
+| `gtable_dc` | `.dc` | E/G `TABLE` (XSPICE `pwl` map, `* xtask-codemodels: analog`), single-pair and LTspice four-node forms |
+| `epoly_dc` | `.dc` | E/G/F/H `POLY(n)` up to three dimensions and the implicit `POLY(1)` (`* xtask-codemodels: spice2poly`) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -101,3 +108,10 @@ The two `options_*` decks (#110/#107) were captured one at a time with
 The three `controlled_*` decks (#78) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 See [CONTROLLED_SOURCES.md](../../docs/port/CONTROLLED_SOURCES.md).
+
+The seven behavioural-source decks (#79) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+`gtable_dc` and `epoly_dc` need XSPICE code models, which the capture loads
+through a scratch `.spiceinit` because their decks carry a
+`* xtask-codemodels:` comment. See
+[BEHAVIOURAL_SOURCES.md](../../docs/port/BEHAVIOURAL_SOURCES.md).

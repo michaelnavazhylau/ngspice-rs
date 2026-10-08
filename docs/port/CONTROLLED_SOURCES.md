@@ -3,8 +3,9 @@
 **Implemented: the linear gain forms of E (VCVS), F (CCCS), G (VCCS) and H
 (CCVS) for `.op`, `.dc`, `.ac` and `.tran` (companion trapezoidal/Gear-2 and
 the explicit `backend=diffsol method=bdf`).** `POLY(n)`, `VALUE=`/`VOL=`/`CUR=`,
-`TABLE`, `LAPLACE` and the implicit spice2g6 polynomial are explicit
-`SpiceError::NotYetPorted` errors.
+`TABLE` and the implicit spice2g6 polynomial are lowered onto behavioural
+sources since #79 (see [BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md));
+`LAPLACE` remains an explicit `SpiceError::NotYetPorted` error.
 
 C references (read-only): `src/spicelib/parser/inp2e.c` … `inp2h.c`,
 `src/frontend/inpcom.c` (`inp_compat()`, `inp_check_syntax()`),
@@ -41,8 +42,9 @@ Errors:
 
 | Input | Result |
 | --- | --- |
-| `POLY(n)`, `VALUE=`, `VOL=`, `CUR=`, `TABLE`, `LAPLACE` | `NotYetPorted` (exit 3), naming `inpcom.c`/XSPICE/`asrc` |
-| more values after the gain (`e1 o 0 a b 1 2`) | `NotYetPorted`: C turns this into an implicit `POLY(1)` |
+| `POLY(n)`, `VALUE=`, `VOL=`, `CUR=`, `TABLE` | behavioural forms (#79), [BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md) |
+| more values after the gain (`e1 o 0 a b 1 2`) | the implicit `POLY(1)` of `inp_poly_2g6_compat()` (#79) |
+| `LAPLACE` | `NotYetPorted` (exit 3), naming XSPICE |
 | `sens_*` flags, a named `control=` | `NotYetPorted` |
 | no gain (`e1 o 0 a b`) | positioned `Parse` error (C: "not enough parameters") |
 | `m=` where the gain belongs (`g1 o 0 a b m=2`) | positioned `Parse` error; **C silently builds a zero-gain source** — a deliberate divergence |
@@ -122,7 +124,8 @@ targets.
 
 ## Limits
 
-- Nonlinear forms (POLY/VALUE/TABLE/LAPLACE) are not ported.
+- `LAPLACE` is not ported; POLY/VALUE/TABLE are documented in
+  [BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md).
 - AC solves have no equilibration. A resistive op-amp loop with gain `1e6`
   solves in `.op`, `.ac` and both transient backends, but the
   `controlled_ac` integrator (1 uF feedback, G into an RC load) with open-loop

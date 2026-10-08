@@ -27,14 +27,15 @@
 //!   applies the setters in order. `VCCSparam`/`CCCSparam` multiply a gain by
 //!   `m` only if `m` was already given, so the order is semantic.
 //!
-//! Not ported, reported as [`spice_core::SpiceError::NotYetPorted`]: `POLY(n)`,
-//! `VALUE=`/`VOL=`/`CUR=`, `TABLE`, `LAPLACE` (all rewritten by `inpcom.c`
-//! into B sources/XSPICE models) and the implicit spice2g6 one-dimensional
-//! polynomial that `inp_check_syntax()` creates when more values follow the
-//! gain. A card without a gain is a parse error ("not enough parameters" in
-//! C); a card whose first value after the controls is `m=` is rejected too,
-//! although C would silently build a zero-gain source (a documented
-//! divergence).
+//! The nonlinear forms (`POLY(n)`, `VALUE=`/`VOL=`/`CUR=`, `TABLE`, and the
+//! implicit spice2g6 one-dimensional polynomial that `inp_poly_2g6_compat()`
+//! creates when more values follow the gain) are parsed by
+//! [`super::behavioural`] (#79) and lowered onto B sources by
+//! [`crate::behavioural`]. `LAPLACE` is reported as
+//! [`spice_core::SpiceError::NotYetPorted`]. A card without a gain is a parse
+//! error ("not enough parameters" in C); a card whose first value after the
+//! controls is `m=` is rejected too, although C would silently build a
+//! zero-gain source (a documented divergence).
 
 use spice_core::SpiceError;
 use winnow::Parser as _;
@@ -49,9 +50,9 @@ use super::behavioural;
 use super::grammar::{Failure, Input, ParsedCard, Result, location};
 use super::syntax::{assignment, canonical_node, equals, leading_value, name, named, value};
 
-/// C reference for the B-source/XSPICE rewrites of nonlinear forms.
-const NONLINEAR_REFERENCE: &str = "src/frontend/inpcom.c (inp_compat, inp_check_syntax); \
-     src/xspice/enh/enhtrans.c (POLY); src/spicelib/devices/asrc/";
+/// C reference for the still unported LAPLACE rewrite.
+const NONLINEAR_REFERENCE: &str =
+    "src/frontend/inpcom.c (inp_compat); src/xspice/icm/xtradev (s_xfer, LAPLACE)";
 
 pub(super) fn controlled_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     let instance = any
