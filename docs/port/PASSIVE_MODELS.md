@@ -87,6 +87,8 @@ Last explicit instance L wins; otherwise explicit model IND is required.
 Coil geometry (`nt`, `csect`, `dia`, `length`, `mu`) needs C's specific-inductance
 and Lundin correction behavior and is **explicitly unsupported**, even alongside
 an explicit scalar. No invented simple-solenoid approximation is used.
+K cards couple model-backed inductors through C's `INDinduct` (temperature- and
+scale-adjusted, before `/m`); see [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md).
 
 ## Temperature, scale and multiplicity
 
