@@ -313,6 +313,7 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
         gmin_schedule: Vec::new(),
         source_stepping: Some(SourceStepping::uniform(20, 1e-8).unwrap()),
         max_total_iterations: None,
+        stage_max_iterations: None,
     };
     let solved = run(source_only).unwrap();
     let report = &solved.report;
@@ -410,6 +411,7 @@ fn configured_gmin_schedule_rescues_a_singular_jacobian_without_source_stepping(
         gmin_schedule: vec![1e-2, 1e-6],
         source_stepping: None,
         max_total_iterations: None,
+        stage_max_iterations: None,
     };
     let solved = solve_dc_with(
         &c,
@@ -749,6 +751,7 @@ fn easy_nonlinear_and_linear_solves_stay_direct_and_exact() {
         gmin_schedule: Vec::new(),
         source_stepping: None,
         max_total_iterations: Some(1),
+        stage_max_iterations: None,
     };
     assert!(
         solve_dc_with(

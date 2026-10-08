@@ -116,7 +116,8 @@ Highest first, resolved **per name**:
 
 | Deck option | Request key | Meaning |
 | --- | --- | --- |
-| `itl1` | `maxiter` | Newton iterations per stage: deck `0..=10000` forwarded as `max(itl1, 100)` (C `niiter.c` raises any limit below 100 to 100); the request key is a literal `1..=10000` |
+| `itl1` | `maxiter` | Newton iterations of the direct solve: deck `0..=10000` forwarded as `max(itl1, 100)` (C `niiter.c` raises any limit below 100 to 100); the request key is a literal `1..=10000`. Without `stagemaxiter` it also bounds every continuation stage |
+| `itl2` | `stagemaxiter` | Newton iterations of every gmin/source-stepping stage, including each strategy's final full-source zero-gmin solve (C `cktop.c`: `NIiter(ckt, CKTdcTrcvMaxIter)`); forwarded as `max(itl2, 100)` whenever the deck sets `itl1` or `itl2` (only `itl1` set: C's effective default 100); the request key is a literal `1..=10000` |
 | `srcsteps` | `srcsteps` | `0` disables source stepping, else `N` equal increments (1..=1000) |
 | `gminsteps` | `gminsteps` | `0` disables gmin stepping, else `N` stages (1..=100) from 1e-3 S |
 | `gminfactor` | `gminfactor` | ratio between stages, finite, `1 < f <= 1e6`, default 10 |
@@ -143,14 +144,17 @@ Propagation is honest:
   Newton tolerances. Linear circuits and `uic` runs perform no bias Newton solve
   (C skips `CKTop` under `uic` as well). With `backend=diffsol` a deck DC option
   is `Unsupported`.
-- `itl2` (#110) reaches `.dc` only, as `trcvmaxiter` (`max(itl2, 100)`, the
-  same `niiter.c` floor): every point after the
-  first first tries a plain warm-started Newton bounded by it (continuation
-  disabled, C `dctrcurv.c` `NIiter(CKTdcTrcvMaxIter)`); a numerical failure falls
-  back to the full `itl1` solve with continuation from the same seed. Unset, the
-  sweep keeps the single full solve per point. C also bounds its dynamic
-  gmin/source-stepping stages with `itl2`; this port's fixed ladders use `itl1`
-  per stage.
+- `itl2` (#110) bounds every continuation stage (`stagemaxiter`) of `.op`,
+  `.ac`, `.dc` and the companion `.tran` initial bias, as C's `CKTop` does for
+  `dcop.c`, `acan.c`, `dctrcurv.c` and `dctran.c`; `itl1` then bounds only the
+  direct solve. The total budget is `itl1 + stages * itl2`. On `.dc` it is
+  also `trcvmaxiter` (`max(itl2, 100)`, the same `niiter.c` floor): every point
+  after the first first tries a plain warm-started Newton bounded by it
+  (continuation disabled, C `dctrcurv.c` `NIiter(CKTdcTrcvMaxIter)`); a
+  numerical failure falls back to the full bias solve from the same seed.
+  Unset, the sweep keeps the single full solve per point. C's `dynamic_gmin`
+  and `gillespie_src` also adapt their step from the *raw* `itl2`
+  (`iters <= itl2/4`); this port's fixed ladders have no step adaptation.
 - `itl6` is an alias of `srcsteps` (one setting, last occurrence wins).
 - `gmin` is now the junction gmin (`AnalysisContext::gmin`, see
   [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md#option-coverage-110)); it is not
@@ -190,7 +194,8 @@ are cited as parity facts.
   continuation conductance; unlike C's dynamic gmin stepping, continuation never
   changes it.
 - `.tran` reads these options only for the companion initial bias (see above);
-  `itl2` bounds only `.dc` warm starts.
+  `itl2` bounds the continuation stages everywhere and the warm starts of
+  `.dc`.
 
 ## Validation
 

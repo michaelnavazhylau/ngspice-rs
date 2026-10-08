@@ -201,13 +201,16 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
         above.request(dc()).unwrap().named("trcvmaxiter"),
         Some("300")
     );
-    // C reads it only for .dc points (and its dynamic stepping stages).
+    // The warm start exists only in .dc; the continuation stage limit reaches
+    // every analysis that runs the DC bias (tests below).
     for request in [
         AnalysisRequest::new(AnalysisKind::OperatingPoint),
         AnalysisRequest::new(AnalysisKind::Ac),
         tran(),
     ] {
-        assert_eq!(c.request(request).unwrap().named("trcvmaxiter"), None);
+        let request = c.request(request).unwrap();
+        assert_eq!(request.named("trcvmaxiter"), None);
+        assert_eq!(request.named("stagemaxiter"), Some("100"));
     }
     // One large sweep step (0 V -> 5 V) on a diode: the first point is
     // trivial, the second needs several damped Newton iterations from the
@@ -254,6 +257,116 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
         .run(&mut circuit, &request, &AnalysisContext::default())
         .unwrap_err();
     assert!(error.to_string().contains("trcvmaxiter"), "{error}");
+}
+
+#[test]
+fn itl2_bounds_every_continuation_stage_of_the_dc_bias() {
+    // cktop.c: the direct solve runs NIiter(itl1), every dynamic/spice3 gmin
+    // and source-stepping stage NIiter(itl2); CKTop serves .op, .ac, the .dc
+    // first point and the .tran initial bias alike.
+    let op = AnalysisRequest::new(AnalysisKind::OperatingPoint);
+    let ac = AnalysisRequest::with_arguments(AnalysisKind::Ac, ["dec", "1", "1k", "10k"]);
+    assert_eq!(
+        config("")
+            .unwrap()
+            .request(op.clone())
+            .unwrap()
+            .named("stagemaxiter"),
+        None
+    );
+    for (options, stage) in [
+        (".options itl2=300", "300"),
+        (".options itl2=7", "100"),
+        // itl1 alone: C keeps the stages at its default itl2 (50 -> 100).
+        (".options itl1=5000", "100"),
+        (".options itl1=5000 itl2=250", "250"),
+    ] {
+        let c = config(options).unwrap();
+        for request in [op.clone(), ac.clone(), dc(), tran()] {
+            let kind = request.kind;
+            let request = c.request(request).unwrap();
+            assert_eq!(
+                request.named("stagemaxiter"),
+                Some(stage),
+                "{options} {kind:?}"
+            );
+        }
+    }
+    // backend=diffsol runs no continuation ladder, so it cannot honour itl2.
+    let error = config(".options itl2=300")
+        .unwrap()
+        .request(diffsol())
+        .unwrap_err();
+    assert!(error.to_string().contains("itl2"), "{error}");
+    let c = config(".options itl1=5000").unwrap();
+    assert_eq!(
+        c.request(op.clone()).unwrap().named("maxiter"),
+        Some("5000")
+    );
+    // Explicit request entries win.
+    let mut explicit = op.clone();
+    explicit.arguments.push("stagemaxiter=7".into());
+    assert_eq!(
+        c.request(explicit).unwrap().named("stagemaxiter"),
+        Some("7")
+    );
+
+    // Observable: a diode the damped direct Newton cannot reach in three
+    // iterations. With maxiter=3 and no deck limits every gmin stage gets
+    // three iterations too and the bias fails; deck itl2=5 (C's effective
+    // 100) gives the stages 100 and gmin stepping converges, in .op, .ac and
+    // the .tran initial bias alike.
+    let body = "v1 a 0 5 ac 1\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)";
+    let tight = ["maxiter=3", "srcsteps=0"];
+    let reference = simulate(&format!("{body}\n.op")).unwrap();
+    let expected = reference.value("v(b)", 0).unwrap().re;
+    for analysis in [".op", ".ac dec 1 1k 10k", ".tran 1u 2u"] {
+        let plain = format!("{body}\n{analysis}");
+        let error = deck_with_request(&plain, &tight).unwrap_err();
+        assert!(error.to_string().contains("gmin"), "{analysis}: {error}");
+        let limited = format!("{body}\n{analysis}\n.options itl2=5");
+        let plot = deck_with_request(&limited, &tight).unwrap();
+        if analysis == ".op" {
+            close(plot.value("v(b)", 0).unwrap().re, expected, 1e-6, 1e-9);
+        }
+        // The stage limit is the bound, not the direct-solve limit: a literal
+        // stagemaxiter=3 fails as before.
+        let mut literal = tight.to_vec();
+        literal.push("stagemaxiter=3");
+        assert!(deck_with_request(&limited, &literal).is_err(), "{analysis}");
+    }
+}
+
+#[test]
+fn stage_iteration_limit_is_separate_from_the_direct_limit() {
+    use spice_analysis::bias::{DcSettings, DcStrategy, solve_dc_with};
+    let n = deck("v1 a 0 5\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.op");
+    let circuit = RunConfig::from_netlist(&n).unwrap().circuit(&n).unwrap();
+    let settings = DcSettings::from_request(&AnalysisRequest::with_arguments(
+        AnalysisKind::OperatingPoint,
+        ["maxiter=3", "stagemaxiter=40", "srcsteps=0"],
+    ))
+    .unwrap();
+    assert_eq!(settings.newton.max_iterations, 3);
+    assert_eq!(settings.continuation.stage_max_iterations, Some(40));
+    let context = AnalysisContext::default().model_context();
+    let solved = solve_dc_with(&circuit, &context, &settings, &[], None, None).unwrap();
+    let stages = &solved.report.stages;
+    assert_eq!(stages[0].strategy, DcStrategy::Direct);
+    assert_eq!(stages[0].iterations, 3);
+    assert!(
+        stages[1..]
+            .iter()
+            .all(|s| s.strategy == DcStrategy::GminStepping)
+    );
+    assert!(stages[1..].iter().all(|s| s.iterations <= 40));
+    assert!(stages[1..].iter().any(|s| s.iterations > 3), "{stages:?}");
+    // Budget: direct limit plus stage limit per continuation stage.
+    assert_eq!(solved.report.budget, 3 + (stages.len() - 1) * 40);
+    for bad in ["stagemaxiter=0", "stagemaxiter=10001", "stagemaxiter=2.5"] {
+        let request = AnalysisRequest::with_arguments(AnalysisKind::OperatingPoint, [bad]);
+        assert!(DcSettings::from_request(&request).is_err(), "{bad}");
+    }
 }
 
 #[test]

@@ -577,7 +577,11 @@ so agreement is not vacuous. `iteration_limits_below_c_floor_match_c` asserts
 the opposite for `itl1`/`itl2`/`itl4` below 100: C's results are bit-identical
 with and without them (`niiter.c` floor), Rust's are bit-identical too, and both
 agree (`compare::TRAN` on the `m4_diode_tran` circuit; `.op`/`.dc` at the
-Newton tolerances, since two Newton runs stop at different iterates).
+Newton tolerances, since two Newton runs stop at different iterates). Deck
+`itl1`/`itl2`/`itl4` values *above* 100 are not C-checked: no small deck was
+found where C's junction-limited Newton needs more than 100 iterations, so
+their effect (and `itl2` as the continuation stage limit) is covered only by
+the port-internal tests in `options_coverage.rs`.
 
 ## Transient comparison tooling (#48 item 1)
 

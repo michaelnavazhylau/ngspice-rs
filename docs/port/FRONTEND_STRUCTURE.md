@@ -160,8 +160,8 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 | `chgtol`, `trtol` | effect | companion truncation control; rejected with `backend=diffsol` | `CKTterr` |
 | `method`, `maxord` | effect | companion trap/Gear-2, orders 1..2 (3..6 `Unsupported`); rejected with diffsol | `TSKintegrateMethod`/`TSKmaxOrder` |
 | `xmu` | effect | companion trapezoidal weighting `0..=0.5` (`xmu`); rejected with diffsol | `CKTxmu` in `nicomcof.c` (C accepts any value; > 0.5 is an explicit error here) |
-| `itl1` | effect | DC Newton limit per stage (`maxiter` = `max(itl1, 100)`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias | `CKTdcMaxIter` in `cktop.c`, `dctran.c`; `NIiter()` raises any limit below 100 to 100 (`niiter.c`). Unset, this port keeps 200 (C: 100), see DC_CONTINUATION.md |
-| `itl2` | effect | `.dc` only: warm-started Newton limit at every point after the first (`trcvmaxiter` = `max(itl2, 100)`), falling back to the full `itl1` solve | `CKTdcTrcvMaxIter` in `dctrcurv.c` (same `niiter.c` floor). **Divergence:** C also bounds its dynamic gmin/source-stepping stages with it, so in C it can affect `.op` and the transient initial bias; here it is accepted but has no effect outside `.dc` (this port's fixed ladders use `itl1` per stage) |
+| `itl1` | effect | Newton limit of the direct DC solve (`maxiter` = `max(itl1, 100)`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias | `CKTdcMaxIter` in `cktop.c` (`dcop.c`, `acan.c`, `dctrcurv.c`, `dctran.c` call `CKTop`); `NIiter()` raises any limit below 100 to 100 (`niiter.c`). Unset, this port keeps 200 (C: 100), see DC_CONTINUATION.md |
+| `itl2` | effect | Newton limit of every gmin/source-stepping stage of that DC bias (`stagemaxiter` = `max(itl2, 100)`, or 100 when only `itl1` is set) in `.op`/`.dc`/`.ac`/`.tran`; on `.dc` also the warm-started Newton limit at every point after the first (`trcvmaxiter`), falling back to the full bias | `CKTdcTrcvMaxIter` in `cktop.c` stepping stages and `dctrcurv.c` (same `niiter.c` floor; C default 50, effectively 100). **Divergence:** C's `dynamic_gmin`/`gillespie_src` also adapt their step from the raw `itl2/4`; this port's fixed ladders have no step adaptation (DC_CONTINUATION.md) |
 | `itl4` | effect | companion Newton iterations per timepoint (`tranmaxiter` = `max(itl4, 100)`; unset, 100); rejected with diffsol | `CKTtranMaxIter` in `dctran.c`: nominal default 10, but `niiter.c` raises it (and any value below 100) to 100 |
 | `srcsteps`, `itl6` | effect | source-stepping increments (`srcsteps`; `itl6` is the same setting) | `OPT_SRCSTEPS` (both names) |
 | `gminsteps`, `gminfactor` | effect | gmin-stepping ladder | see DC_CONTINUATION.md |
@@ -176,14 +176,14 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 
 No-ops are recorded with their reason in `RunConfig::ignored()` (`IgnoredOption`)
 and named by `spice-rs parse` ("options without effect"); `applied()` lists only
-settings with an effect. With `backend=diffsol`, any deck `itl1`/`srcsteps`/
-`itl6`/`gminsteps`/`gminfactor`/`itl4`/`xmu` is `Unsupported`.
+settings with an effect. With `backend=diffsol`, any deck `itl1`/`itl2`/
+`srcsteps`/`itl6`/`gminsteps`/`gminfactor`/`itl4`/`xmu` is `Unsupported`.
 
 Iteration limits follow C's *effective* values: `NIiter()` (`niiter.c`) raises
 every `maxIter` below 100 to 100, so `itl1`/`itl2`/`itl4` take integers in
 `0..=10000` and are stored and forwarded as `max(n, 100)`; values below 100
 change nothing in C (verified: identical results and iteration counts) or here.
-The request keys `maxiter=`/`trcvmaxiter=`/`tranmaxiter=` stay literal port
+The request keys `maxiter=`/`stagemaxiter=`/`trcvmaxiter=`/`tranmaxiter=` stay literal port
 knobs (`1..=10000`) for tests and diagnostics. C's `IF_INTEGER` options round a
 real value (`floor(x + 0.5)`); this port rejects a non-integer `itl*` value
 instead (a safe, documented difference).

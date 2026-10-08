@@ -100,7 +100,7 @@ const DEFAULT_ABSTOL: Real = 1e-12;
 const DEFAULT_CHGTOL: Real = 1e-14;
 const DEFAULT_TRTOL: Real = 7.0;
 /// Request keys the companion backend understands.
-const KEYS: [&str; 15] = [
+const KEYS: [&str; 16] = [
     "backend",
     "method",
     "maxord",
@@ -116,9 +116,16 @@ const KEYS: [&str; 15] = [
     "srcsteps",
     "gminsteps",
     "gminfactor",
+    "stagemaxiter",
 ];
 /// Request keys forwarded to the initial-bias DC solve.
-const BIAS_KEYS: [&str; 4] = ["maxiter", "srcsteps", "gminsteps", "gminfactor"];
+const BIAS_KEYS: [&str; 5] = [
+    "maxiter",
+    "srcsteps",
+    "gminsteps",
+    "gminfactor",
+    "stagemaxiter",
+];
 
 /// Counters describing one companion transient run.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

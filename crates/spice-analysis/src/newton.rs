@@ -10,7 +10,13 @@ use spice_maths::{SparseMatrix, Vector};
 pub const MAX_ITERATIONS: usize = 10_000;
 
 /// Request names owned by [`crate::bias::ContinuationPolicy`], not by Newton.
-pub(crate) const CONTINUATION_KEYS: [&str; 3] = ["srcsteps", "gminsteps", "gminfactor"];
+pub(crate) const CONTINUATION_KEYS: [&str; 4] =
+    ["srcsteps", "gminsteps", "gminfactor", STAGE_ITERATIONS_KEY];
+
+/// Request key of the Newton limit per gmin/source-stepping stage (deck
+/// `itl2`, C `CKTdcTrcvMaxIter` in `cktop.c`); see
+/// [`crate::bias::ContinuationPolicy::stage_max_iterations`].
+pub(crate) const STAGE_ITERATIONS_KEY: &str = "stagemaxiter";
 
 /// Finite work and physical voltage/current tolerances for Newton iteration.
 #[derive(Debug, Clone, Copy, PartialEq)]

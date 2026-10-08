@@ -19,24 +19,27 @@
 //! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
 //! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
 //! | `xmu` | companion trapezoidal weighting (`nicomcof.c`, default 0.5, `0..=0.5`); **rejected with `backend=diffsol`** |
-//! | `itl1` | DC Newton iteration limit per stage (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (`dctran.c` calls `CKTop` with it) |
-//! | `itl2` | `.dc` only: Newton limit of the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`); a failure falls back to the full `itl1` solve |
+//! | `itl1` | Newton iteration limit of the direct DC solve (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (C `CKTdcMaxIter`; `dcop.c`, `acan.c`, `dctran.c` call `CKTop`) |
+//! | `itl2` | Newton limit of every gmin/source-stepping stage of that DC bias (`stagemaxiter`, C `CKTdcTrcvMaxIter` in `cktop.c`); on `.dc` also the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`), whose failure falls back to the full bias |
 //! | `itl4` | companion `.tran` Newton iterations per timepoint (`tranmaxiter`; effective default 100 as in C) |
+//! | `srcsteps` (alias `itl6`) | DC source-stepping increments (`0` disables, else 1..=1000 equal steps) |
+//! | `gminsteps`, `gminfactor` | DC gmin-stepping stage count (`0` disables, else 1..=100) and ratio (1 < factor <= 1e6, default 10) from 1e-3 S |
 //!
 //! `itl1`/`itl2`/`itl4` take integers in `0..=10000` and are stored as C's
 //! *effective* limit `max(n, 100)`: `NIiter()` (`niiter.c`) raises every limit
 //! below 100 to 100, so smaller values change nothing in C or here (C's
-//! nominal `itl4` default of 10 is effectively 100 too). Unlike C's
-//! `IF_INTEGER` options, a non-integer (`itl4=2.5`) is rejected rather than
-//! rounded.
-//! | `srcsteps` (alias `itl6`) | DC source-stepping increments (`0` disables, else 1..=1000 equal steps) |
-//! | `gminsteps`, `gminfactor` | DC gmin-stepping stage count (`0` disables, else 1..=100) and ratio (1 < factor <= 1e6, default 10) from 1e-3 S |
+//! nominal `itl4` default of 10 and `itl2` default of 50 are effectively 100
+//! too). When a deck sets `itl1` or `itl2`, the continuation stages use `itl2`
+//! (default 100) as in C; without either, every stage keeps the port's default
+//! limit (200). Unlike C's `IF_INTEGER` options, a non-integer (`itl4=2.5`) is
+//! rejected rather than rounded.
 //!
 //! The DC options reach `.op`, `.dc`, `.ac` and the companion `.tran` initial
 //! bias; with `backend=diffsol` they (and `itl4`, `xmu`) are rejected.
-//! They are *not* C's `itl1`/`srcsteps`/`gminsteps` semantics verbatim
-//! (this port's schedules are fixed and deterministic, the default `itl1`
-//! is 200, not 100; the artificial gmin ladder starts at 1e-3 S and ends with
+//! They are *not* C's `itl1`/`itl2`/`srcsteps`/`gminsteps` semantics verbatim
+//! (this port's schedules are fixed and deterministic, so C's `dynamic_gmin`
+//! step adaptation from the raw `itl2` (`iters <= itl2/4`) has no counterpart;
+//! the default `itl1` is 200, not 100; the artificial gmin ladder starts at 1e-3 S and ends with
 //! a zero-artificial-gmin solve whatever `.option gmin` is, where C's
 //! `spice3_gmin` starts at `gmin * gminfactor^gminsteps` and `dynamic_gmin`
 //! stops at `max(gmin, gshunt)`); see `docs/port/DC_CONTINUATION.md`.
@@ -235,7 +238,18 @@ pub const NIITER_MIN_ITERATIONS: usize = 100;
 
 /// Option names that configure the DC Newton/continuation solve, in no
 /// particular order (`itl6` is stored as `srcsteps`).
-const DC_OPTIONS: [&str; 5] = ["itl1", "srcsteps", "itl6", "gminsteps", "gminfactor"];
+const DC_OPTIONS: [&str; 6] = [
+    "itl1",
+    "itl2",
+    "srcsteps",
+    "itl6",
+    "gminsteps",
+    "gminfactor",
+];
+
+/// C's default `itl2` (`cktntask.c`: `TSKdcTrcvMaxIter = 50`) as `NIiter()`
+/// applies it: raised to [`NIITER_MIN_ITERATIONS`].
+pub const C_DEFAULT_ITL2_EFFECTIVE: usize = NIITER_MIN_ITERATIONS;
 
 /// Options only the companion transient driver implements.
 const COMPANION_ONLY: [&str; 2] = ["itl4", "xmu"];
@@ -244,11 +258,13 @@ const COMPANION_ONLY: [&str; 2] = ["itl4", "xmu"];
 /// `Some(0)` disables source/gmin stepping.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct DcOptions {
-    /// `itl1` → Newton iteration limit per DC stage, stored as C's effective
-    /// `max(itl1, 100)` (see [`NIITER_MIN_ITERATIONS`]).
+    /// `itl1` → Newton iteration limit of the direct DC solve (C
+    /// `CKTdcMaxIter`), stored as C's effective `max(itl1, 100)` (see
+    /// [`NIITER_MIN_ITERATIONS`]).
     pub itl1: Option<usize>,
-    /// `itl2` → `.dc` warm-start Newton limit at points after the first,
-    /// stored as C's effective `max(itl2, 100)`.
+    /// `itl2` → Newton limit of every gmin/source-stepping stage (C
+    /// `CKTdcTrcvMaxIter` in `cktop.c`) and of the `.dc` warm start at points
+    /// after the first (`dctrcurv.c`), stored as C's effective `max(itl2, 100)`.
     pub itl2: Option<usize>,
     /// `srcsteps`/`itl6` → equal source-stepping increments.
     pub srcsteps: Option<usize>,
@@ -776,14 +792,13 @@ impl RunConfig {
     ///
     /// * `.op`, `.dc`, `.ac`: `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
     ///   `abstol`), `itl1` (as `maxiter`), `srcsteps`, `gminsteps`,
-    ///   `gminfactor`; `.dc` also `itl2` (as `trcvmaxiter`).
+    ///   `gminfactor` and, when the deck sets `itl1` or `itl2`, the
+    ///   continuation stage limit `stagemaxiter` (`itl2`, else C's effective
+    ///   default 100); `.dc` also `itl2` (as `trcvmaxiter`).
     /// * `.tran`: the tolerances plus `chgtol`, `trtol`, `method`, `maxord`,
     ///   `itl4` (as `tranmaxiter`), `xmu` and the initial-bias DC options
-    ///   (`maxiter`, `srcsteps`, `gminsteps`, `gminfactor`) for the companion
-    ///   driver.
-    ///
-    /// `itl2` reaches `.dc` only: C also bounds its dynamic gmin/source-stepping
-    /// stages with it, which this port's fixed ladders do not implement.
+    ///   (`maxiter`, `stagemaxiter`, `srcsteps`, `gminsteps`, `gminfactor`)
+    ///   for the companion driver.
     ///
     /// # Errors
     /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord`,
@@ -896,8 +911,20 @@ impl RunConfig {
 
     /// DC Newton/continuation settings shared by `.op`/`.dc`/`.ac` and the
     /// companion transient initial bias.
+    ///
+    /// C (`cktop.c`) bounds the direct solve with `itl1` and every gmin/source
+    /// stepping stage with `itl2`, so once the deck sets either, the stages get
+    /// `itl2` (or C's effective default 100) instead of following `itl1`.
+    /// Without deck limits the port's own defaults apply to all stages.
     fn push_dc(&self, request: &mut AnalysisRequest) {
         push_count(request, "maxiter", self.dc.itl1);
+        if self.dc.itl1.is_some() || self.dc.itl2.is_some() {
+            push_count(
+                request,
+                crate::newton::STAGE_ITERATIONS_KEY,
+                Some(self.dc.itl2.unwrap_or(C_DEFAULT_ITL2_EFFECTIVE)),
+            );
+        }
         push_count(request, "srcsteps", self.dc.srcsteps);
         push_count(request, "gminsteps", self.dc.gminsteps);
         push_real(request, "gminfactor", self.dc.gminfactor);

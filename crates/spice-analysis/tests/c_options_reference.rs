@@ -200,9 +200,16 @@ fn gmin_matches_c_in_sweeps_and_ac() {
     points_match(&rust, &c, &["v(out)", "i(v1)"]).unwrap();
     let ac_cards = "gmin ac\nv1 in 0 dc -5 ac 1\nr1 in out 1k\nd1 out 0 dm\n\
                     .model dm d(is=1e-14)\n.options gmin=1u";
-    let rust = run_rust(ac_cards, "ac dec 2 1k 1meg");
-    let c = run_c("gmin-ac", ac_cards, "ac dec 2 1k 1meg");
-    points_match(&rust, &c, &["v(out)", "i(v1)"]).unwrap();
+    let rust_ac = run_rust(ac_cards, "ac dec 2 1k 1meg");
+    let c_ac = run_c("gmin-ac", ac_cards, "ac dec 2 1k 1meg");
+    points_match(&rust_ac, &c_ac, &["v(out)", "i(v1)"]).unwrap();
+    // Sensitivity: C at the default gmin differs from Rust at gmin=1u beyond
+    // the bound, in the sweep and in the small-signal response alike.
+    let plain = |cards: &str| cards.replace(".options gmin=1u", ".options");
+    let c_dc_default = run_c("gmin-dc-default", &plain(cards), "dc v1 -10 0 1");
+    assert!(points_match(&rust, &c_dc_default, &["v(out)", "i(v1)"]).is_err());
+    let c_ac_default = run_c("gmin-ac-default", &plain(ac_cards), "ac dec 2 1k 1meg");
+    assert!(points_match(&rust_ac, &c_ac_default, &["v(out)", "i(v1)"]).is_err());
 }
 
 const XMU_RC: &str = "options xmu\nv1 in 0 pulse(0 10 100u 10u 10u 300u 800u)\nr1 in out 1k\n\
