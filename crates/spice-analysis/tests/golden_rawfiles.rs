@@ -430,6 +430,87 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "transformer_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 41,
+        variables: &[
+            "frequency",
+            "v(in)",
+            "i(l.x1.la)",
+            "i(l.x1.lb)",
+            "i(l.x1.lc)",
+            "i(l1)",
+            "i(l2)",
+            "i(l3)",
+            "v(p)",
+            "v(q)",
+            "v(s)",
+            "v(t1)",
+            "v(t2)",
+            "v(u)",
+            "i(vin)",
+        ],
+        // K mutual inductance (#80). At 1 kHz an independent complex MNA solve
+        // with -j w M between every coupled branch pair (k1 0.98, kn -0.15,
+        // and the three pairs of kabc at 0.6 inside x1) reproduces these values
+        // to 1e-15; v(s) = -1k i(l2) across the secondary load.
+        values: &[
+            ("frequency", 20, 1.000000000000001e+03, 0.0),
+            ("v(s)", 20, 1.179101980781495e+00, 9.663452185500626e-01),
+            ("i(l2)", 20, -1.179101980781495e-03, -9.663452185500627e-04),
+            ("v(t2)", 20, 4.024739519207775e-01, 4.515530188829902e-01),
+            (
+                "i(l.x1.la)",
+                20,
+                7.062171790396722e-02,
+                -4.133835192472151e-02,
+            ),
+            ("v(u)", 20, 5.352513910176180e-01, -4.921833025874221e-01),
+        ],
+    },
+    Expectation {
+        fixture: "transformer_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 437,
+        variables: &["time", "v(in)", "i(l1)", "i(l2)", "v(p)", "v(s)", "i(vin)"],
+        // A 1:2 transformer (k = 0.99) under a 1 V PULSE: the secondary current
+        // opposes the primary's (v(s) = -100 i(l2)); at 0.4 ms the source is low
+        // and the magnetizing current decays through both windings.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("i(l1)", 0, 0.0, 0.0),
+            ("time", 1, 1.000000000000000e-08, 0.0),
+            ("i(l2)", 1, -2.444441426615508e-06, 0.0),
+            ("v(s)", 1, 2.444441426615508e-04, 0.0),
+            ("time", 436, 4.000000000000000e-04, 0.0),
+            ("i(l1)", 436, 2.254497890661927e-02, 0.0),
+            ("i(l2)", 436, 4.489536564091304e-03, 0.0),
+            ("v(s)", 436, -4.489536564091304e-01, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "transformer_ic_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 511,
+        variables: &["time", "v(a)", "v(b)", "i(l1)", "i(l2)"],
+        // Coupled RL free decay from l1 ic=10m, l2 ic=-5m (k = 0.7, Gear-2,
+        // uic: no t = 0 row). The modes of L^-1 R decay at 5882 /s and
+        // 33333 /s; the analytic currents at 0.5 ms are 7.7330e-5 and
+        // 5.4680e-5 A, within Gear-2 truncation error of these values.
+        values: &[
+            ("time", 0, 1.000000000000000e-08, 0.0),
+            ("i(l1)", 0, 9.997069630110690e-03, 0.0),
+            ("i(l2)", 0, -4.998049735932326e-03, 0.0),
+            ("time", 510, 5.000000000000000e-04, 0.0),
+            ("v(a)", 510, -7.732693024550181e-04, 0.0),
+            ("i(l1)", 510, 7.732693024550182e-05, 0.0),
+            ("i(l2)", 510, 5.467770368085151e-05, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "coupled_cap_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,

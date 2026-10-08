@@ -1,0 +1,55 @@
+# ngspice-rs ast-dump v1
+file: netlists/transformer_ic_uic_tran.cir
+title: "Coupled RL free decay from instance ic=, uic, Gear-2" @netlists/transformer_ic_uic_tran.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/transformer_ic_uic_tran.cir:6:1 "l1 a 0 1m ic=10m"
+    [1] device[1] @netlists/transformer_ic_uic_tran.cir:7:1 "r1 a 0 10"
+    [2] device[2] @netlists/transformer_ic_uic_tran.cir:8:1 "l2 b 0 2m ic=-5m"
+    [3] device[3] @netlists/transformer_ic_uic_tran.cir:9:1 "r2 b 0 20"
+    [4] device[4] @netlists/transformer_ic_uic_tran.cir:10:1 "k1 l1 l2 0.7"
+    [5] options[0] @netlists/transformer_ic_uic_tran.cir:11:1 ".options method=gear"
+    [6] analysis[0] @netlists/transformer_ic_uic_tran.cir:12:1 ".tran 1u 500u uic"
+    [7] end @netlists/transformer_ic_uic_tran.cir:13:1 ".end"
+  devices (5):
+    device [0] name="l1" designator=l @netlists/transformer_ic_uic_tran.cir:6:1
+      nodes: "a" "0"
+      model: none
+      parameters (2):
+        [0] name="inductance" kind=scalar value="1m" @netlists/transformer_ic_uic_tran.cir:6:8
+        [1] name="ic" kind=scalar value="10m" @netlists/transformer_ic_uic_tran.cir:6:11
+    device [1] name="r1" designator=r @netlists/transformer_ic_uic_tran.cir:7:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10" @netlists/transformer_ic_uic_tran.cir:7:8
+    device [2] name="l2" designator=l @netlists/transformer_ic_uic_tran.cir:8:1
+      nodes: "b" "0"
+      model: none
+      parameters (2):
+        [0] name="inductance" kind=scalar value="2m" @netlists/transformer_ic_uic_tran.cir:8:8
+        [1] name="ic" kind=scalar value="-5m" @netlists/transformer_ic_uic_tran.cir:8:11
+    device [3] name="r2" designator=r @netlists/transformer_ic_uic_tran.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20" @netlists/transformer_ic_uic_tran.cir:9:8
+    device [4] name="k1" designator=k @netlists/transformer_ic_uic_tran.cir:10:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/transformer_ic_uic_tran.cir:10:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/transformer_ic_uic_tran.cir:10:7
+        [2] name="coefficient" kind=scalar value="0.7" @netlists/transformer_ic_uic_tran.cir:10:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/transformer_ic_uic_tran.cir:12:1
+      arguments: "1u" "500u"
+      uic @netlists/transformer_ic_uic_tran.cir:12:15
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/transformer_ic_uic_tran.cir:11:1
+      setting [0] name="method" value="gear"@netlists/transformer_ic_uic_tran.cir:11:17 @netlists/transformer_ic_uic_tran.cir:11:10
+  globals (0):

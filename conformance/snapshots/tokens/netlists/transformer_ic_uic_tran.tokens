@@ -1,0 +1,62 @@
+# ngspice-rs token-dump v1
+file: netlists/transformer_ic_uic_tran.cir
+title: "Coupled RL free decay from instance ic=, uic, Gear-2" @netlists/transformer_ic_uic_tran.cir:1:1
+card 1 @netlists/transformer_ic_uic_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "l1 a 0 1m ic=10m"
+  kind: device(l)
+  token 1 6:1 word "l1"
+  token 2 6:4 word "a"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 number "1m" value=1e-3
+  token 5 6:11 word "ic"
+  token 6 6:13 equals "="
+  token 7 6:14 number "10m" value=1e-2
+card 2 @netlists/transformer_ic_uic_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 a 0 10"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "a"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "10" value=1e1
+card 3 @netlists/transformer_ic_uic_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "l2 b 0 2m ic=-5m"
+  kind: device(l)
+  token 1 8:1 word "l2"
+  token 2 8:4 word "b"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "2m" value=2e-3
+  token 5 8:11 word "ic"
+  token 6 8:13 equals "="
+  token 7 8:14 number "-5m" value=-5e-3
+card 4 @netlists/transformer_ic_uic_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "r2 b 0 20"
+  kind: device(r)
+  token 1 9:1 word "r2"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "20" value=2e1
+card 5 @netlists/transformer_ic_uic_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "k1 l1 l2 0.7"
+  kind: device(k)
+  token 1 10:1 word "k1"
+  token 2 10:4 word "l1"
+  token 3 10:7 word "l2"
+  token 4 10:10 number "0.7" value=7e-1
+card 6 @netlists/transformer_ic_uic_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".options method=gear"
+  kind: dot(.options)
+  token 1 11:1 word ".options"
+  token 2 11:10 word "method"
+  token 3 11:16 equals "="
+  token 4 11:17 word "gear"
+card 7 @netlists/transformer_ic_uic_tran.cir:12:1 lines=12-12 continuations=0
+  raw: ".tran 1u 500u uic"
+  kind: dot(.tran)
+  token 1 12:1 word ".tran"
+  token 2 12:7 number "1u" value=1e-6
+  token 3 12:10 number "500u" value=5e-4
+  token 4 12:15 word "uic"
+card 8 @netlists/transformer_ic_uic_tran.cir:13:1 lines=13-13 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 13:1 word ".end"

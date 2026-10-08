@@ -3,7 +3,8 @@
 //! Dispatch follows `src/spicelib/parser/inppas2.c`, `INPpas2()`;
 //! device grammars follow `inp2r.c`, `inp2c.c`, `inp2l.c`, `inp2v.c`, and
 //! `inp2i.c`, plus `inp2d.c`, `inp2q.c` and `inp2m.c` for bounded D/Q/M forms
-//! and `inp2e.c`..`inp2h.c` for linear controlled sources.
+//! and `inp2e.c`..`inp2h.c` for linear controlled sources, and `inp2k.c` for
+//! mutual inductance.
 //! Scalar model cards follow
 //! `inpdomod.c`/`inpgmod.c`. Dot-card dispatch follows `inp2dot.c`, not the front-end
 //! `parse-bison.y` expression grammar.
@@ -38,6 +39,7 @@ mod ic;
 mod linear;
 mod measure;
 mod model;
+mod mutual;
 mod options;
 mod param;
 mod resolution;

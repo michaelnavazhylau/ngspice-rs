@@ -2,8 +2,8 @@
 use super::PassiveParameters;
 use crate::models::{ModelContext, ModelFamily, ResolvedModel};
 use crate::{
-    Capacitor, Device, Inductor, LinearContext, Resistor, ResistorMetadata, ResistorOrigin,
-    StampContext,
+    Capacitor, Device, InductanceValue, Inductor, LinearContext, Resistor, ResistorMetadata,
+    ResistorOrigin, StampContext,
 };
 use spice_core::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 use spice_netlist::ast::DeviceInstance;
@@ -55,6 +55,14 @@ impl Device for ModelPassive {
     }
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
         self.scalar(context.model_context)?.assemble_linear(context)
+    }
+    fn inductance(&self, context: &ModelContext) -> Option<SpiceResult<InductanceValue>> {
+        (self.parameters.family() == ModelFamily::Inductor).then(|| {
+            Ok(InductanceValue {
+                effective: self.parameters.effective_value(context)?,
+                coupling_base: self.parameters.coupling_value(context)?,
+            })
+        })
     }
     fn resistor_metadata(&self) -> Option<ResistorMetadata> {
         (self.parameters.family() == ModelFamily::Resistor).then(|| ResistorMetadata {

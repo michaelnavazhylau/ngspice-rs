@@ -97,6 +97,30 @@ impl PassiveParameters {
     /// Invalid context, nonpositive/nonfinite factor, overflow, underflow to
     /// zero, or nonfinite resistor conductance. No cache/state is mutated.
     pub fn effective_value(&self, context: &ModelContext) -> SpiceResult<Real> {
+        let scaled = self.scaled_value(context)?;
+        let value = if self.family == ModelFamily::Capacitor {
+            scaled * self.multiplicity
+        } else {
+            scaled / self.multiplicity
+        };
+        valid_value(self.family, value, &self.location)?;
+        Ok(value)
+    }
+
+    /// The temperature-adjusted and scaled value before multiplicity: C's
+    /// `INDinduct` for an inductor, which `MUTtemp` (`ind/muttemp.c`) uses
+    /// for `M = k sqrt(|L1 L2|)` while the inductor itself stamps
+    /// `INDinduct / m`.
+    ///
+    /// # Errors
+    /// As [`Self::effective_value`].
+    pub fn coupling_value(&self, context: &ModelContext) -> SpiceResult<Real> {
+        let scaled = self.scaled_value(context)?;
+        valid_value(self.family, scaled, &self.location)?;
+        Ok(scaled)
+    }
+
+    fn scaled_value(&self, context: &ModelContext) -> SpiceResult<Real> {
         context.validate(&self.location)?;
         let temperature = temperature_kelvin(
             self.temperature.unwrap_or(context.temperature),
@@ -125,14 +149,7 @@ impl PassiveParameters {
             &self.location,
             "temperature-adjusted value",
         )?;
-        let scaled = finite(adjusted * self.scale, &self.location, "scaled value")?;
-        let value = if self.family == ModelFamily::Capacitor {
-            scaled * self.multiplicity
-        } else {
-            scaled / self.multiplicity
-        };
-        valid_value(self.family, value, &self.location)?;
-        Ok(value)
+        finite(adjusted * self.scale, &self.location, "scaled value")
     }
 }
 

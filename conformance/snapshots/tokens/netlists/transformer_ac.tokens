@@ -1,0 +1,155 @@
+# ngspice-rs token-dump v1
+file: netlists/transformer_ac.cir
+title: "Coupled-inductor transformers, AC sweep" @netlists/transformer_ac.cir:1:1
+card 1 @netlists/transformer_ac.cir:6:1 lines=6-6 continuations=0
+  raw: "vin in 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 6:1 word "vin"
+  token 2 6:5 word "in"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 word "dc"
+  token 5 6:13 number "0" value=0e0
+  token 6 6:15 word "ac"
+  token 7 6:18 number "1" value=1e0
+card 2 @netlists/transformer_ac.cir:7:1 lines=7-7 continuations=0
+  raw: "rs in p 50"
+  kind: device(r)
+  token 1 7:1 word "rs"
+  token 2 7:4 word "in"
+  token 3 7:7 word "p"
+  token 4 7:9 number "50" value=5e1
+card 3 @netlists/transformer_ac.cir:8:1 lines=8-8 continuations=0
+  raw: "l1 p 0 10m"
+  kind: device(l)
+  token 1 8:1 word "l1"
+  token 2 8:4 word "p"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "10m" value=1e-2
+card 4 @netlists/transformer_ac.cir:9:1 lines=9-9 continuations=0
+  raw: "l2 s 0 40m"
+  kind: device(l)
+  token 1 9:1 word "l2"
+  token 2 9:4 word "s"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "40m" value=4e-2
+card 5 @netlists/transformer_ac.cir:10:1 lines=10-10 continuations=0
+  raw: "k1 l1 l2 0.98"
+  kind: device(k)
+  token 1 10:1 word "k1"
+  token 2 10:4 word "l1"
+  token 3 10:7 word "l2"
+  token 4 10:10 number "0.98" value=9.8e-1
+card 6 @netlists/transformer_ac.cir:11:1 lines=11-11 continuations=0
+  raw: "rl s 0 1k"
+  kind: device(r)
+  token 1 11:1 word "rl"
+  token 2 11:4 word "s"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "1k" value=1e3
+card 7 @netlists/transformer_ac.cir:12:1 lines=12-12 continuations=0
+  raw: ".subckt tri a b c"
+  kind: dot(.subckt)
+  token 1 12:1 word ".subckt"
+  token 2 12:9 word "tri"
+  token 3 12:13 word "a"
+  token 4 12:15 word "b"
+  token 5 12:17 word "c"
+card 8 @netlists/transformer_ac.cir:13:1 lines=13-13 continuations=0
+  raw: "la a 0 1m"
+  kind: device(l)
+  token 1 13:1 word "la"
+  token 2 13:4 word "a"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "1m" value=1e-3
+card 9 @netlists/transformer_ac.cir:14:1 lines=14-14 continuations=0
+  raw: "lb b 0 2m"
+  kind: device(l)
+  token 1 14:1 word "lb"
+  token 2 14:4 word "b"
+  token 3 14:6 number "0" value=0e0
+  token 4 14:8 number "2m" value=2e-3
+card 10 @netlists/transformer_ac.cir:15:1 lines=15-15 continuations=0
+  raw: "lc c 0 4m"
+  kind: device(l)
+  token 1 15:1 word "lc"
+  token 2 15:4 word "c"
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 number "4m" value=4e-3
+card 11 @netlists/transformer_ac.cir:16:1 lines=16-16 continuations=0
+  raw: "kabc la lb lc k=0.6"
+  kind: device(k)
+  token 1 16:1 word "kabc"
+  token 2 16:6 word "la"
+  token 3 16:9 word "lb"
+  token 4 16:12 word "lc"
+  token 5 16:15 word "k"
+  token 6 16:16 equals "="
+  token 7 16:17 number "0.6" value=6e-1
+card 12 @netlists/transformer_ac.cir:17:1 lines=17-17 continuations=0
+  raw: ".ends"
+  kind: dot(.ends)
+  token 1 17:1 word ".ends"
+card 13 @netlists/transformer_ac.cir:18:1 lines=18-18 continuations=0
+  raw: "r3 in q 10"
+  kind: device(r)
+  token 1 18:1 word "r3"
+  token 2 18:4 word "in"
+  token 3 18:7 word "q"
+  token 4 18:9 number "10" value=1e1
+card 14 @netlists/transformer_ac.cir:19:1 lines=19-19 continuations=0
+  raw: "x1 q t1 t2 tri"
+  kind: device(x)
+  token 1 19:1 word "x1"
+  token 2 19:4 word "q"
+  token 3 19:6 word "t1"
+  token 4 19:9 word "t2"
+  token 5 19:12 word "tri"
+card 15 @netlists/transformer_ac.cir:20:1 lines=20-20 continuations=0
+  raw: "r4 t1 0 100"
+  kind: device(r)
+  token 1 20:1 word "r4"
+  token 2 20:4 word "t1"
+  token 3 20:7 number "0" value=0e0
+  token 4 20:9 number "100" value=1e2
+card 16 @netlists/transformer_ac.cir:21:1 lines=21-21 continuations=0
+  raw: "r5 t2 0 200"
+  kind: device(r)
+  token 1 21:1 word "r5"
+  token 2 21:4 word "t2"
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 number "200" value=2e2
+card 17 @netlists/transformer_ac.cir:22:1 lines=22-22 continuations=0
+  raw: "l3 in u 5m"
+  kind: device(l)
+  token 1 22:1 word "l3"
+  token 2 22:4 word "in"
+  token 3 22:7 word "u"
+  token 4 22:9 number "5m" value=5e-3
+card 18 @netlists/transformer_ac.cir:23:1 lines=23-23 continuations=0
+  raw: "ru u 0 30"
+  kind: device(r)
+  token 1 23:1 word "ru"
+  token 2 23:4 word "u"
+  token 3 23:6 number "0" value=0e0
+  token 4 23:8 number "30" value=3e1
+card 19 @netlists/transformer_ac.cir:24:1 lines=24-24 continuations=0
+  raw: "kn l3 l1 coefficient=-0.15"
+  kind: device(k)
+  token 1 24:1 word "kn"
+  token 2 24:4 word "l3"
+  token 3 24:7 word "l1"
+  token 4 24:10 word "coefficient"
+  token 5 24:21 equals "="
+  token 6 24:22 number "-0.15" value=-1.5e-1
+card 20 @netlists/transformer_ac.cir:25:1 lines=25-25 continuations=0
+  raw: ".ac dec 10 10 100k"
+  kind: dot(.ac)
+  token 1 25:1 word ".ac"
+  token 2 25:5 word "dec"
+  token 3 25:9 number "10" value=1e1
+  token 4 25:12 number "10" value=1e1
+  token 5 25:15 number "100k" value=1e5
+card 21 @netlists/transformer_ac.cir:26:1 lines=26-26 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 26:1 word ".end"

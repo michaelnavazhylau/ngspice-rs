@@ -1,0 +1,12 @@
+Coupled-inductor transformer, PULSE transient (trapezoidal)
+* A 1:2 transformer (k=0.99) driven through 10 ohms by a 1 V pulse into a
+* 100 ohm load; the primary leakage and magnetizing currents ramp during the
+* pulse and the secondary voltage droops with the L/R time constant.
+vin in 0 pulse(0 1 0 1u 1u 100u 200u)
+rs in p 10
+l1 p 0 1m
+l2 s 0 4m
+k1 l1 l2 0.99
+rl s 0 100
+.tran 1u 400u
+.end

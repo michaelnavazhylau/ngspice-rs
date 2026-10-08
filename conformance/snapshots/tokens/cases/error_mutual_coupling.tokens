@@ -1,0 +1,46 @@
+# ngspice-rs token-dump v1
+file: cases/error_mutual_coupling.cir
+title: "Mutual inductance without a coupling coefficient" @cases/error_mutual_coupling.cir:1:1
+card 1 @cases/error_mutual_coupling.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 a 0 dc 1"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "a"
+  token 3 2:6 number "0" value=0e0
+  token 4 2:8 word "dc"
+  token 5 2:11 number "1" value=1e0
+card 2 @cases/error_mutual_coupling.cir:3:1 lines=3-3 continuations=0
+  raw: "l1 a 0 1m"
+  kind: device(l)
+  token 1 3:1 word "l1"
+  token 2 3:4 word "a"
+  token 3 3:6 number "0" value=0e0
+  token 4 3:8 number "1m" value=1e-3
+card 3 @cases/error_mutual_coupling.cir:4:1 lines=4-4 continuations=0
+  raw: "l2 b 0 1m"
+  kind: device(l)
+  token 1 4:1 word "l2"
+  token 2 4:4 word "b"
+  token 3 4:6 number "0" value=0e0
+  token 4 4:8 number "1m" value=1e-3
+card 4 @cases/error_mutual_coupling.cir:5:1 lines=5-5 continuations=0
+  raw: "r2 b 0 1"
+  kind: device(r)
+  token 1 5:1 word "r2"
+  token 2 5:4 word "b"
+  token 3 5:6 number "0" value=0e0
+  token 4 5:8 number "1" value=1e0
+card 5 @cases/error_mutual_coupling.cir:6:1 lines=6-6 continuations=0
+  raw: "k1 l1 l2"
+  kind: device(k)
+  token 1 6:1 word "k1"
+  token 2 6:4 word "l1"
+  token 3 6:7 word "l2"
+card 6 @cases/error_mutual_coupling.cir:7:1 lines=7-7 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 7:1 word ".op"
+card 7 @cases/error_mutual_coupling.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"
