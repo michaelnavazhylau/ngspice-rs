@@ -24,12 +24,12 @@ use winnow::token::{any, literal, one_of, take_while};
 
 use crate::ast::{FuncCard, FuncParameter, FuncSpelling};
 use crate::card::DotCommand;
-use crate::expr::{EXCLUDED_FUNCTIONS, Function, ParameterExpression, SourceSpan};
+use crate::expr::{Function, ParameterExpression, SourceSpan};
 use crate::token::Token;
 
 use super::expression::{
-    Ctx, In, Res, cut, cut_unsupported, into_error, is_ident_continue, is_ident_start,
-    parse_delimited, parse_expression, ws,
+    Ctx, In, Res, cut, cut_unsupported, into_error, is_builtin_name, is_ident_continue,
+    is_ident_start, parse_func_body, ws,
 };
 use super::grammar::{Failure, Input, ParsedCard, Result};
 use super::param::resolved;
@@ -79,6 +79,7 @@ pub(super) fn definition(
             column,
             total: text.len(),
             depth: 0,
+            shadowing: &[],
         },
     };
     let card = match card(&mut input, spelling) {
@@ -158,7 +159,13 @@ fn card(input: &mut In<'_>, spelling: FuncSpelling) -> Res<FuncCard> {
             format!("expected '=' after the parameter list of function '{name}'"),
         ));
     }
-    let body = body(input, name)?;
+    // Formals that reuse a built-in name bind as plain names in the body.
+    let shadowing: Vec<String> = parameters
+        .iter()
+        .filter(|p| is_builtin_name(&p.name))
+        .map(|p| p.name.clone())
+        .collect();
+    let body = body(input, name, &shadowing)?;
     Ok(FuncCard {
         name: name.to_ascii_lowercase(),
         name_span,
@@ -169,7 +176,7 @@ fn card(input: &mut In<'_>, spelling: FuncSpelling) -> Res<FuncCard> {
     })
 }
 
-fn body(input: &mut In<'_>, name: &str) -> Res<ParameterExpression> {
+fn body(input: &mut In<'_>, name: &str, shadowing: &[String]) -> Res<ParameterExpression> {
     let start = input.eof_offset();
     let expression = match peek(opt(any)).parse_next(input)? {
         None => {
@@ -196,8 +203,15 @@ fn body(input: &mut In<'_>, name: &str) -> Res<ParameterExpression> {
                 ));
             }
             let column = input.state.location(body_start).column;
-            parse_delimited(text, input.state.origin, column, true, open == '\'')
-                .map_err(resolved)?
+            parse_func_body(
+                text,
+                input.state.origin,
+                column,
+                true,
+                open == '\'',
+                shadowing,
+            )
+            .map_err(resolved)?
         }
         Some('"') => {
             return Err(cut_unsupported(
@@ -209,7 +223,8 @@ fn body(input: &mut In<'_>, name: &str) -> Res<ParameterExpression> {
             let text: &str = winnow::token::rest.parse_next(input)?;
             let text = text.trim_end();
             let column = input.state.location(start).column;
-            parse_expression(text, input.state.origin, column, false).map_err(resolved)?
+            parse_func_body(text, input.state.origin, column, false, false, shadowing)
+                .map_err(resolved)?
         }
     };
     ws.parse_next(input)?;
@@ -231,21 +246,11 @@ fn body(input: &mut In<'_>, name: &str) -> Res<ParameterExpression> {
     Ok(expression)
 }
 
-/// Checks that need the whole card: formal names, and redefinitions of the
-/// allowlisted built-ins.
+/// Checks that need the whole card: duplicate formals, and redefinitions of
+/// the allowlisted built-ins. A formal may reuse a built-in name (C accepts
+/// `.func f(max) {max*2}`); the body parser binds it.
 fn validate(card: &FuncCard) -> SpiceResult<()> {
     for (index, parameter) in card.parameters.iter().enumerate() {
-        if Function::from_name(&parameter.name).is_some()
-            || EXCLUDED_FUNCTIONS.contains(&parameter.name.as_str())
-        {
-            return Err(SpiceError::parse(
-                parameter.span.start.clone(),
-                format!(
-                    "function parameter '{}' is the name of a built-in function",
-                    parameter.name
-                ),
-            ));
-        }
         if let Some(first) = card.parameters[..index]
             .iter()
             .find(|other| other.name == parameter.name)

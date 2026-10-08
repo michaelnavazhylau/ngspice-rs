@@ -482,7 +482,15 @@ impl Writer {
     /// `.param`, the card is verified to re-parse to the same definition.
     fn func(&mut self, card: &FuncCard, depth: usize) -> SpiceResult<()> {
         let location = &card.location;
-        check_expression(&card.body, location)?;
+        // A formal named like a built-in only parses inside its own card;
+        // the whole-card re-parse below still compares the tree.
+        let shadows = card.parameters.iter().any(|p| {
+            crate::expr::Function::from_name(&p.name).is_some()
+                || crate::expr::EXCLUDED_FUNCTIONS.contains(&p.name.as_str())
+        });
+        if !shadows {
+            check_expression(&card.body, location)?;
+        }
         let formals: Vec<&str> = card.parameters.iter().map(|p| p.name.as_str()).collect();
         let text = match card.spelling {
             FuncSpelling::Func => format!(

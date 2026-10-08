@@ -85,6 +85,7 @@ pub(super) fn assignments(
             column,
             total: text.len(),
             depth: 0,
+            shadowing: &[],
         },
     };
     match list(&mut input) {

@@ -252,7 +252,8 @@ reports a positioned parse error. Fixture: `conformance/cases/param_func.cir`.
 | wrong argument count (at a site, or inside an unused top-level body) | fatal `parameter mismatch` | error at the call, naming the enclosing definition |
 | direct or mutual recursion, even unused at top level | crash (unbounded expansion) | error printing the cycle (petgraph SCC) |
 | recursion or wrong arity inside a `.subckt` body | fatal (mismatch or crash) only when the subcircuit is instantiated; an uninstantiated body is never checked | same: a body's `FunctionScope` is built and checked when an instance is expanded |
-| `.func f(x,x)` | silently binds the first `x` | `NotYetPorted` (duplicate formal); formals named like a built-in are a parse error |
+| `.func f(x,x)` | silently binds the first `x` | `NotYetPorted` (duplicate formal) |
+| `.func f(max) {max*2}` (formal named like a built-in) | a bare use binds to the formal; calling that built-in in the body (`{max(1,5)}`) fails | same: bare uses bind to the formal, a call is a positioned parse error |
 | text after a delimited body, `.func f(x) {x}+{1}` | glued after stripping braces and whitespace (`x+1`) | `NotYetPorted` |
 | a definition inside a multi-assignment card, `.param a=1 f(x)={x}` or `.param f(x)={x} a=2` | split into separate cards (`inp_split_multi_param_lines()`), then rewritten to `.func` | `NotYetPorted`; write the definition on its own card |
 

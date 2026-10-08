@@ -97,6 +97,13 @@ fn functions_and_quotes_agree_with_c_numparam() {
         (".func max(a,b) {a+b}", "{max(3,4)}"),
         (".func max(a,b) {a+b}\n.func f(x) {max(x,1)}", "{f(3)}"),
         (".func limit(x,a,b) {min(max(x,a),b)}", "{limit(5,1,3)}"),
+        // A formal may reuse a built-in name; a bare use binds to the formal.
+        (".func f(max) {max*2}", "{f(3)}"),
+        (".func f(exp) {exp*2}", "{f(3)}"),
+        (".func f(limit) {limit+1}", "{f(4)}"),
+        (".func f(sin, x) {sin+x}", "{f(4,1)}"),
+        (".func f(agauss) {agauss*2}", "{f(3)}"),
+        (".func u(sin) {sin}", "{7}"),
         // An unused body may name an undefined parameter.
         (".func f(x) {zz*x}", "{1}"),
         // `.param name(formals) = body` is a `.func` (inp_fix_macro_param_func_paren_io).
@@ -150,6 +157,13 @@ fn function_failures_c_reports_are_errors_here_too() {
             "{f(3)}",
             "expected '=' after the parameter list",
         ),
+        // Calling the built-in a formal shadows fails in C's numparam.
+        (
+            ".func f(exp, x) {exp(x)+exp}",
+            "{f(10,0)}",
+            "'exp' is a parameter of this function",
+        ),
+        (".func f(max) {max(1,5)}", "{f(3)}", "'max' is a parameter"),
         // A function's free name that is not defined where it is used.
         (".func f(x) {zz*x}", "{f(1)}", "undefined parameter 'zz'"),
     ];
