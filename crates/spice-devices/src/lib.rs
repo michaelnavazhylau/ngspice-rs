@@ -8,6 +8,7 @@
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I and linear E/F/G/H factories |
 //! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE/SIN/EXP/SFFM/AM waveforms |
 //! | [`controlled`] | linear E/F/G/H controlled sources | VCVS/CCCS/VCCS/CCVS gain stamps; F/H controlling branches resolved by [`circuit`] |
+//! | [`mutual`] | K mutual inductance | coupled flux in DC/AC/companion/BDF; inductors and inductive-system checks resolved by [`circuit`] |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
@@ -23,7 +24,7 @@
 //! extension point that keeps the core small — see `docs/port/ROADMAP.md`.
 //!
 //! `Circuit::from_netlist` accepts literal R/C/L/V/I, linear E/F/G/H controlled
-//! sources, bounded model-backed R/C/L and the explicitly bounded M4
+//! sources, K mutual inductance, bounded model-backed R/C/L and the explicitly bounded M4
 //! diode/Ebers-Moll BJT/MOS1 subset.
 //! Parsing alone never enables unsupported physics; model-aware schemas reject it.
 //! Constant/Step/Pwl/Pulse forcing is available both through the device API and
@@ -39,6 +40,7 @@ mod factory;
 pub mod functions;
 pub mod linear;
 pub mod models;
+pub mod mutual;
 pub mod nonlinear;
 pub mod passive;
 pub mod pulse;
@@ -70,13 +72,14 @@ pub mod transistors;
 pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use controlled::{ControlledKind, ControlledSource};
+pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, StateHistory, TrialState};
 pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};
 pub use traits::{
-    AcceptContext, AnalysisMode, ControlReference, Device, MnaUnknowns, StampContext,
-    StorageElement, StorageKind,
+    AcceptContext, AnalysisMode, ControlReference, Device, InductanceValue, MnaUnknowns,
+    MutualCoupling, MutualTerm, StampContext, StorageElement, StorageKind,
 };
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.

@@ -25,7 +25,9 @@ use crate::models::ModelContext;
 use crate::rlc::Resistor;
 use crate::state::{StateHistory, TrialState};
 use crate::sweep::{ResistorMetadata, ResistorOverride};
-use crate::traits::{AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext};
+use crate::traits::{
+    AcceptContext, AnalysisMode, Device, InductanceValue, MnaUnknowns, MutualTerm, StampContext,
+};
 
 /// A vertex in the circuit's bipartite incidence graph.
 ///
@@ -58,6 +60,26 @@ pub struct Circuit {
     control_rows: Vec<Result<Vec<usize>, SpiceError>>,
     state_rows: Vec<std::ops::Range<usize>>,
     state_len: usize,
+    /// Inductor pairs coupled by K devices, or why the K references could not
+    /// be resolved (reported by `finalize` and every load).
+    mutual: MutualBinding,
+}
+
+/// One inductor pair coupled by a K device, by device ordinal.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct MutualPair {
+    /// The K device.
+    coupling: usize,
+    first: usize,
+    second: usize,
+    coefficient: Real,
+}
+
+/// The resolved K couplings of a circuit.
+#[derive(Debug, Clone, Default)]
+struct MutualBinding {
+    pairs: Vec<MutualPair>,
+    error: Option<SpiceError>,
 }
 
 /// One trial load of every device (C `CKTload`).
@@ -168,6 +190,235 @@ impl Circuit {
             .iter()
             .map(|device| self.resolve_controls(device.as_ref()))
             .collect();
+        self.mutual = match self.resolve_mutual() {
+            Ok(pairs) => MutualBinding { pairs, error: None },
+            Err(error) => MutualBinding {
+                pairs: Vec::new(),
+                error: Some(error),
+            },
+        };
+    }
+
+    /// The inductor pairs of every K device (C `MUTsetup`, which looks the
+    /// inductors up with `CKTfndDev`; a card with more than two inductors
+    /// couples every pair, as `inp_compat()` expands it). Names are matched
+    /// case-insensitively after subcircuit renaming.
+    fn resolve_mutual(&self) -> Result<Vec<MutualPair>, SpiceError> {
+        let mut pairs = Vec::new();
+        for (coupling, device) in self.devices.iter().enumerate() {
+            let Some(description) = device.mutual_coupling() else {
+                continue;
+            };
+            let mut inductors = Vec::with_capacity(description.inductors.len());
+            for reference in description.inductors {
+                let failure = |message: String| match &reference.location {
+                    Some(location) => SpiceError::parse(location.clone(), message),
+                    None => SpiceError::circuit(message),
+                };
+                let Some(index) = self
+                    .devices
+                    .iter()
+                    .position(|other| other.name().eq_ignore_ascii_case(&reference.name))
+                else {
+                    return Err(failure(format!(
+                        "{}: coupling to non-existent inductor {}",
+                        device.name(),
+                        reference.name
+                    )));
+                };
+                let target = &self.devices[index];
+                if target.inductance(&ModelContext::default()).is_none()
+                    || self.branch_rows[index].len() != 1
+                {
+                    return Err(failure(format!(
+                        "{}: {} is not an inductor (a K card couples inductors only)",
+                        device.name(),
+                        target.name()
+                    )));
+                }
+                if inductors.contains(&index) {
+                    return Err(failure(format!(
+                        "{}: couples inductor {} to itself",
+                        device.name(),
+                        target.name()
+                    )));
+                }
+                inductors.push(index);
+            }
+            for (position, first) in inductors.iter().enumerate() {
+                for second in &inductors[position + 1..] {
+                    pairs.push(MutualPair {
+                        coupling,
+                        first: *first,
+                        second: *second,
+                        coefficient: description.coefficient,
+                    });
+                }
+            }
+        }
+        Ok(pairs)
+    }
+
+    /// The mutual-inductance terms of every device's branch equation under
+    /// `context`, by device ordinal (empty when the circuit has no K device).
+    ///
+    /// `M = k sqrt(|L1 L2|)` from the inductors' coupling inductances (C
+    /// `MUTtemp`). Every inductive system (a connected group of coupled
+    /// inductors, found with petgraph) is checked: its inductance matrix must
+    /// be positive semidefinite. C only warns ("is not positive definite",
+    /// `muttemp.c`) and then simulates a system that stores negative energy;
+    /// the port rejects it. See [`crate::mutual`].
+    ///
+    /// # Errors
+    /// Stale numbering, unresolved K references, invalid inductances or a
+    /// system that is not positive semidefinite.
+    pub fn mutual_terms(&self, context: &ModelContext) -> SpiceResult<Vec<Vec<MutualTerm>>> {
+        self.check_numbering()?;
+        if let Some(error) = &self.mutual.error {
+            return Err(error.clone());
+        }
+        if self.mutual.pairs.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut values: std::collections::BTreeMap<usize, InductanceValue> =
+            std::collections::BTreeMap::new();
+        for pair in &self.mutual.pairs {
+            for index in [pair.first, pair.second] {
+                if values.contains_key(&index) {
+                    continue;
+                }
+                let device = &self.devices[index];
+                let value = device.inductance(context).ok_or_else(|| {
+                    SpiceError::circuit(format!("{} is not an inductor", device.name()))
+                })??;
+                values.insert(index, value);
+            }
+        }
+        let mut terms = vec![Vec::new(); self.devices.len()];
+        let mut mutuals = Vec::with_capacity(self.mutual.pairs.len());
+        for pair in &self.mutual.pairs {
+            let (a, b) = (values[&pair.first], values[&pair.second]);
+            let inductance = pair.coefficient * (a.coupling_base * b.coupling_base).abs().sqrt();
+            if !inductance.is_finite() {
+                return Err(SpiceError::circuit(format!(
+                    "{}: nonfinite mutual inductance",
+                    self.devices[pair.coupling].name()
+                )));
+            }
+            terms[pair.first].push(MutualTerm {
+                row: self.branch_rows[pair.second].start,
+                inductance,
+            });
+            terms[pair.second].push(MutualTerm {
+                row: self.branch_rows[pair.first].start,
+                inductance,
+            });
+            mutuals.push(inductance);
+        }
+        self.check_inductive_systems(&values, &mutuals)?;
+        Ok(terms)
+    }
+
+    /// `MUTtemp`'s inductive-system check, as a rejection: every connected
+    /// group of coupled inductors must have a positive semidefinite
+    /// inductance matrix. The test runs on the matrix actually stamped
+    /// (self-inductances `INDinduct / m`, mutuals from `INDinduct`) normalized
+    /// to a unit diagonal (`M_ij / sqrt(L_i L_j)`, a congruence that preserves
+    /// definiteness), whose eigenvalues are compared with a rounding
+    /// tolerance of `64 n eps` times the largest magnitude. C's own check puts
+    /// `INDinduct` on the diagonal; when only the stamped matrix fails (an
+    /// `m != 1`), the message says that C stays silent.
+    fn check_inductive_systems(
+        &self,
+        values: &std::collections::BTreeMap<usize, InductanceValue>,
+        mutuals: &[Real],
+    ) -> SpiceResult<()> {
+        let inductors: Vec<usize> = values.keys().copied().collect();
+        let position = |index: usize| inductors.binary_search(&index).unwrap_or(0);
+        let mut systems = petgraph::unionfind::UnionFind::<usize>::new(inductors.len());
+        for pair in &self.mutual.pairs {
+            systems.union(position(pair.first), position(pair.second));
+        }
+        let labels = systems.into_labeling();
+        let mut groups: std::collections::BTreeMap<usize, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (slot, label) in labels.iter().enumerate() {
+            groups.entry(*label).or_default().push(slot);
+        }
+        for members in groups.values() {
+            let n = members.len();
+            let local = |slot: usize| members.iter().position(|member| *member == slot);
+            // The smallest eigenvalue of the group's matrix normalized by
+            // `diagonal` (`M_ij / sqrt(d_i d_j)` off the unit diagonal), and
+            // its rounding tolerance.
+            let smallest = |diagonal: &dyn Fn(&InductanceValue) -> Real| -> SpiceResult<_> {
+                let mut matrix = spice_maths::Matrix::zeros(n, n);
+                for row in 0..n {
+                    matrix.set(row, row, 1.0)?;
+                }
+                let mut couplings = Vec::new();
+                for (pair, mutual) in self.mutual.pairs.iter().zip(mutuals) {
+                    let (Some(i), Some(j)) =
+                        (local(position(pair.first)), local(position(pair.second)))
+                    else {
+                        continue;
+                    };
+                    let scale =
+                        (diagonal(&values[&pair.first]) * diagonal(&values[&pair.second])).sqrt();
+                    let normalized = mutual / scale;
+                    matrix.add_to(i, j, normalized)?;
+                    matrix.add_to(j, i, normalized)?;
+                    couplings.push(pair.coupling);
+                }
+                let eigenvalues = matrix.symmetric_eigenvalues()?;
+                let largest = eigenvalues.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+                #[allow(clippy::cast_precision_loss)]
+                let tolerance = 64.0 * n as Real * Real::EPSILON * largest;
+                let smallest = eigenvalues.first().copied().unwrap_or(0.0);
+                Ok((smallest, tolerance, couplings))
+            };
+            // The matrix actually simulated: self-inductances as stamped
+            // (`INDinduct / m`), mutuals from `INDinduct` (as C).
+            let (stamped, tolerance, mut couplings) = smallest(&|value| value.effective)?;
+            if stamped < -tolerance {
+                // C's own check (`muttemp.c`) puts `INDinduct` (before `/m`)
+                // on the diagonal; it warns only when that matrix fails too.
+                let (c_matrix, c_tolerance, _) = smallest(&|value| value.coupling_base.abs())?;
+                couplings.sort_unstable();
+                couplings.dedup();
+                let names = |indices: &mut dyn Iterator<Item = usize>| {
+                    indices
+                        .map(|index| self.devices[index].name().to_owned())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                };
+                let inductor_names = names(&mut members.iter().map(|slot| inductors[*slot]));
+                let coupling_names = names(&mut couplings.iter().copied());
+                let location = couplings.first().and_then(|index| {
+                    self.devices[*index]
+                        .mutual_coupling()
+                        .and_then(|coupling| coupling.location.cloned())
+                });
+                let cause = if c_matrix < -c_tolerance {
+                    "a coupling with |k| > 1 or an inconsistent set of couplings stores \
+                     negative energy; C only warns, see muttemp.c"
+                } else {
+                    "an inductor multiplicity m divides the self-inductance but not \
+                     M = k sqrt(L1 L2), which C computes from INDinduct before /m; C checks \
+                     that undivided matrix in muttemp.c, so it neither warns nor rejects \
+                     here, and simulates the indefinite system"
+                };
+                return Err(SpiceError::Unsupported {
+                    feature: format!(
+                        "the inductive system {inductor_names} coupled by {coupling_names} is not \
+                         positive semidefinite as stamped (smallest normalized eigenvalue \
+                         {stamped:.6e}; {cause})"
+                    ),
+                    location,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Branch rows of the devices `device` senses (C `CKTfndBranch`, called
@@ -248,6 +499,9 @@ impl Circuit {
         self.rebuild_unknowns();
         for index in 0..self.devices.len() {
             self.controls(index)?;
+        }
+        if let Some(error) = &self.mutual.error {
+            return Err(error.clone());
         }
         Ok(())
     }
@@ -486,6 +740,7 @@ impl Circuit {
             1,
         ))?;
         let replacements = self.resistor_replacements(request.model_context)?;
+        let mutual = self.mutual_terms(request.model_context)?;
         for (index, device) in self.devices.iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, resistor)) => resistor,
@@ -506,6 +761,7 @@ impl Circuit {
                 mode: request.mode,
                 branches: self.branch_rows[index].clone(),
                 controls: self.controls(index)?,
+                mutual: mutual.get(index).map_or(&[], Vec::as_slice),
                 integration: request.integration,
                 states,
                 forcing: request.forcing,
@@ -605,6 +861,7 @@ impl Circuit {
         ))?;
         self.finalize()?;
         let replacements = self.resistor_replacements(context)?;
+        let mutual = self.mutual_terms(context)?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
@@ -618,6 +875,7 @@ impl Circuit {
                 unknowns: &self.unknowns,
                 branch: (!range.is_empty()).then_some(range.start),
                 controls: self.controls(index)?,
+                mutual: mutual.get(index).map_or(&[], Vec::as_slice),
             })?;
         }
         system.a.fold_duplicates();
@@ -646,6 +904,7 @@ impl Circuit {
             ));
         }
         let replacements = self.resistor_replacements(context)?;
+        let mutual = self.mutual_terms(context)?;
         let mut system = crate::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
@@ -660,6 +919,7 @@ impl Circuit {
                     unknowns: &self.unknowns,
                     branch: (!range.is_empty()).then_some(range.start),
                     controls: self.controls(index)?,
+                    mutual: mutual.get(index).map_or(&[], Vec::as_slice),
                 },
                 bias,
             )?;
@@ -815,6 +1075,8 @@ impl Circuit {
             });
         }
         circuit.finalize()?;
+        // Reject an invalid inductive system (K coupling) before any analysis.
+        circuit.mutual_terms(context)?;
         Ok(circuit)
     }
 

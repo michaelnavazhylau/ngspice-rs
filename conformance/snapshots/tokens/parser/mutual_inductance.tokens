@@ -1,0 +1,198 @@
+# ngspice-rs token-dump v1
+file: parser/mutual_inductance.cir
+title: "Mutual-inductance parser reference" @parser/mutual_inductance.cir:1:1
+card 1 @parser/mutual_inductance.cir:5:1 lines=5-5 continuations=0
+  raw: ".param kk=0.25"
+  kind: dot(.param)
+  token 1 5:1 word ".param"
+  token 2 5:8 word "kk"
+  token 3 5:10 equals "="
+  token 4 5:11 number "0.25" value=2.5e-1
+card 2 @parser/mutual_inductance.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 a 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 word "a"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 word "dc"
+  token 5 6:11 number "0" value=0e0
+  token 6 6:13 word "ac"
+  token 7 6:16 number "1" value=1e0
+card 3 @parser/mutual_inductance.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 a b 1"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "a"
+  token 3 7:6 word "b"
+  token 4 7:8 number "1" value=1e0
+card 4 @parser/mutual_inductance.cir:8:1 lines=8-8 continuations=0
+  raw: "L1 b 0 1m"
+  kind: device(l)
+  token 1 8:1 word "L1"
+  token 2 8:4 word "b"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "1m" value=1e-3
+card 5 @parser/mutual_inductance.cir:9:1 lines=9-9 continuations=0
+  raw: "l2 c 0 4m"
+  kind: device(l)
+  token 1 9:1 word "l2"
+  token 2 9:4 word "c"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "4m" value=4e-3
+card 6 @parser/mutual_inductance.cir:10:1 lines=10-10 continuations=0
+  raw: "l3 d 0 2m ic=1m"
+  kind: device(l)
+  token 1 10:1 word "l3"
+  token 2 10:4 word "d"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "2m" value=2e-3
+  token 5 10:11 word "ic"
+  token 6 10:13 equals "="
+  token 7 10:14 number "1m" value=1e-3
+card 7 @parser/mutual_inductance.cir:11:1 lines=11-11 continuations=0
+  raw: "r2 c 0 10"
+  kind: device(r)
+  token 1 11:1 word "r2"
+  token 2 11:4 word "c"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "10" value=1e1
+card 8 @parser/mutual_inductance.cir:12:1 lines=12-12 continuations=0
+  raw: "r3 d 0 5"
+  kind: device(r)
+  token 1 12:1 word "r3"
+  token 2 12:4 word "d"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 number "5" value=5e0
+card 9 @parser/mutual_inductance.cir:13:1 lines=13-13 continuations=0
+  raw: "K1 L1 l2 0.5"
+  kind: device(k)
+  token 1 13:1 word "K1"
+  token 2 13:4 word "L1"
+  token 3 13:7 word "l2"
+  token 4 13:10 number "0.5" value=5e-1
+card 10 @parser/mutual_inductance.cir:14:1 lines=14-14 continuations=0
+  raw: "k2 l1 l3 k=0.2"
+  kind: device(k)
+  token 1 14:1 word "k2"
+  token 2 14:4 word "l1"
+  token 3 14:7 word "l3"
+  token 4 14:10 word "k"
+  token 5 14:11 equals "="
+  token 6 14:12 number "0.2" value=2e-1
+card 11 @parser/mutual_inductance.cir:15:1 lines=15-15 continuations=0
+  raw: "k3 l2 l3 coefficient = -0.1"
+  kind: device(k)
+  token 1 15:1 word "k3"
+  token 2 15:4 word "l2"
+  token 3 15:7 word "l3"
+  token 4 15:10 word "coefficient"
+  token 5 15:22 equals "="
+  token 6 15:24 number "-0.1" value=-1e-1
+card 12 @parser/mutual_inductance.cir:16:1 lines=16-16 continuations=0
+  raw: ".subckt xf p s"
+  kind: dot(.subckt)
+  token 1 16:1 word ".subckt"
+  token 2 16:9 word "xf"
+  token 3 16:12 word "p"
+  token 4 16:14 word "s"
+card 13 @parser/mutual_inductance.cir:17:1 lines=17-17 continuations=0
+  raw: "la p 0 1m"
+  kind: device(l)
+  token 1 17:1 word "la"
+  token 2 17:4 word "p"
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 number "1m" value=1e-3
+card 14 @parser/mutual_inductance.cir:18:1 lines=18-18 continuations=0
+  raw: "lb s 0 4m"
+  kind: device(l)
+  token 1 18:1 word "lb"
+  token 2 18:4 word "s"
+  token 3 18:6 number "0" value=0e0
+  token 4 18:8 number "4m" value=4e-3
+card 15 @parser/mutual_inductance.cir:19:1 lines=19-19 continuations=0
+  raw: "lc t 0 2m"
+  kind: device(l)
+  token 1 19:1 word "lc"
+  token 2 19:4 word "t"
+  token 3 19:6 number "0" value=0e0
+  token 4 19:8 number "2m" value=2e-3
+card 16 @parser/mutual_inductance.cir:20:1 lines=20-20 continuations=0
+  raw: "rt t 0 7"
+  kind: device(r)
+  token 1 20:1 word "rt"
+  token 2 20:4 word "t"
+  token 3 20:6 number "0" value=0e0
+  token 4 20:8 number "7" value=7e0
+card 17 @parser/mutual_inductance.cir:21:1 lines=21-21 continuations=0
+  raw: "kab la lb {kk*2}"
+  kind: device(k)
+  token 1 21:1 word "kab"
+  token 2 21:5 word "la"
+  token 3 21:8 word "lb"
+  token 4 21:11 expression "{kk*2}" inner="kk*2"
+card 18 @parser/mutual_inductance.cir:22:1 lines=22-22 continuations=0
+  raw: "kabc la lb lc 0.1"
+  kind: device(k)
+  token 1 22:1 word "kabc"
+  token 2 22:6 word "la"
+  token 3 22:9 word "lb"
+  token 4 22:12 word "lc"
+  token 5 22:15 number "0.1" value=1e-1
+card 19 @parser/mutual_inductance.cir:23:1 lines=23-23 continuations=0
+  raw: ".ends"
+  kind: dot(.ends)
+  token 1 23:1 word ".ends"
+card 20 @parser/mutual_inductance.cir:24:1 lines=24-24 continuations=0
+  raw: "rx a g 10"
+  kind: device(r)
+  token 1 24:1 word "rx"
+  token 2 24:4 word "a"
+  token 3 24:6 word "g"
+  token 4 24:8 number "10" value=1e1
+card 21 @parser/mutual_inductance.cir:25:1 lines=25-25 continuations=0
+  raw: "x1 g e xf"
+  kind: device(x)
+  token 1 25:1 word "x1"
+  token 2 25:4 word "g"
+  token 3 25:6 word "e"
+  token 4 25:8 word "xf"
+card 22 @parser/mutual_inductance.cir:26:1 lines=26-26 continuations=0
+  raw: "re e 0 50"
+  kind: device(r)
+  token 1 26:1 word "re"
+  token 2 26:4 word "e"
+  token 3 26:6 number "0" value=0e0
+  token 4 26:8 number "50" value=5e1
+card 23 @parser/mutual_inductance.cir:27:1 lines=27-27 continuations=0
+  raw: "l4 f 0 1m"
+  kind: device(l)
+  token 1 27:1 word "l4"
+  token 2 27:4 word "f"
+  token 3 27:6 number "0" value=0e0
+  token 4 27:8 number "1m" value=1e-3
+card 24 @parser/mutual_inductance.cir:28:1 lines=28-28 continuations=0
+  raw: "rf f 0 1"
+  kind: device(r)
+  token 1 28:1 word "rf"
+  token 2 28:4 word "f"
+  token 3 28:6 number "0" value=0e0
+  token 4 28:8 number "1" value=1e0
+card 25 @parser/mutual_inductance.cir:29:1 lines=29-29 continuations=0
+  raw: "kx l4 l.x1.la 0.3"
+  kind: device(k)
+  token 1 29:1 word "kx"
+  token 2 29:4 word "l4"
+  token 3 29:7 word "l.x1.la"
+  token 4 29:15 number "0.3" value=3e-1
+card 26 @parser/mutual_inductance.cir:30:1 lines=30-30 continuations=0
+  raw: ".ac lin 1 1k 1k"
+  kind: dot(.ac)
+  token 1 30:1 word ".ac"
+  token 2 30:5 word "lin"
+  token 3 30:9 number "1" value=1e0
+  token 4 30:11 number "1k" value=1e3
+  token 5 30:14 number "1k" value=1e3
+card 27 @parser/mutual_inductance.cir:31:1 lines=31-31 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 31:1 word ".end"

@@ -133,7 +133,9 @@ connected components of its petgraph coupling graph; each block is rank-revealed
 tolerance `64 m ε σ_max`, at most `MAX_MASS_BLOCK` = 512 unknowns). The null
 vectors give `N = ker E` and `W = ker Eᵀ`, and the pencil is accepted only when
 `Wᵀ A N` passes the numerical sparse rank guard described above. Grounded, floating and coupled
-capacitors and index-one RL/RLC/source equations are accepted; higher-index
+capacitors, index-one RL/RLC/source equations and K-coupled inductors
+(off-diagonal branch mass entries, including the rank-deficient ideal `k = 1`
+block; #80, [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md)) are accepted; higher-index
 ideal-source constraints (a source across a capacitor or a floating capacitor),
 singular pencils and nonunique nullspaces are rejected. For diagonal `E` this is
 exactly the earlier algebraic-block formulation. Integration stays in physical

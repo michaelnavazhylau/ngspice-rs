@@ -84,6 +84,9 @@ pub(crate) fn instantiate(
     if matches!(instance.designator, 'e' | 'f' | 'g' | 'h') {
         return crate::controlled::instantiate(instance, nodes);
     }
+    if instance.designator == 'k' {
+        return crate::mutual::instantiate(instance);
+    }
     if instance.model.is_some() || instance.nodes.len() != 2 {
         return Err(SpiceError::Unsupported {
             feature: format!("model/multiport device {}", instance.name),

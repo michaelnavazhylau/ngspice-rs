@@ -453,6 +453,9 @@ pub struct LinearContext<'a> {
     /// Branch rows of the devices this one senses
     /// ([`crate::Device::controlling_sources`]), in order.
     pub controls: &'a [usize],
+    /// Mutual-inductance terms of this device's branch equation (empty except
+    /// for coupled inductors); see [`crate::traits::MutualTerm`].
+    pub mutual: &'a [crate::traits::MutualTerm],
 }
 impl LinearContext<'_> {
     /// Stamps a two-terminal nodal operator into A or E.

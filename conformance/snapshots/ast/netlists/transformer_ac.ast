@@ -1,0 +1,142 @@
+# ngspice-rs ast-dump v1
+file: netlists/transformer_ac.cir
+title: "Coupled-inductor transformers, AC sweep" @netlists/transformer_ac.cir:1:1
+scope root
+  cards (16):
+    [0] device[0] @netlists/transformer_ac.cir:6:1 "vin in 0 dc 0 ac 1"
+    [1] device[1] @netlists/transformer_ac.cir:7:1 "rs in p 50"
+    [2] device[2] @netlists/transformer_ac.cir:8:1 "l1 p 0 10m"
+    [3] device[3] @netlists/transformer_ac.cir:9:1 "l2 s 0 40m"
+    [4] device[4] @netlists/transformer_ac.cir:10:1 "k1 l1 l2 0.98"
+    [5] device[5] @netlists/transformer_ac.cir:11:1 "rl s 0 1k"
+    [6] subcircuit[0] @netlists/transformer_ac.cir:12:1 ".subckt tri a b c"
+    [7] device[6] @netlists/transformer_ac.cir:18:1 "r3 in q 10"
+    [8] device[7] @netlists/transformer_ac.cir:19:1 "x1 q t1 t2 tri"
+    [9] device[8] @netlists/transformer_ac.cir:20:1 "r4 t1 0 100"
+    [10] device[9] @netlists/transformer_ac.cir:21:1 "r5 t2 0 200"
+    [11] device[10] @netlists/transformer_ac.cir:22:1 "l3 in u 5m"
+    [12] device[11] @netlists/transformer_ac.cir:23:1 "ru u 0 30"
+    [13] device[12] @netlists/transformer_ac.cir:24:1 "kn l3 l1 coefficient=-0.15"
+    [14] analysis[0] @netlists/transformer_ac.cir:25:1 ".ac dec 10 10 100k"
+    [15] end @netlists/transformer_ac.cir:26:1 ".end"
+  devices (13):
+    device [0] name="vin" designator=v @netlists/transformer_ac.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/transformer_ac.cir:6:10
+        [1] name="acmag" kind=scalar value="1" @netlists/transformer_ac.cir:6:18
+        [2] name="acphase" kind=scalar value="0" @netlists/transformer_ac.cir:6:15
+    device [1] name="rs" designator=r @netlists/transformer_ac.cir:7:1
+      nodes: "in" "p"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/transformer_ac.cir:7:9
+    device [2] name="l1" designator=l @netlists/transformer_ac.cir:8:1
+      nodes: "p" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="10m" @netlists/transformer_ac.cir:8:8
+    device [3] name="l2" designator=l @netlists/transformer_ac.cir:9:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="40m" @netlists/transformer_ac.cir:9:8
+    device [4] name="k1" designator=k @netlists/transformer_ac.cir:10:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/transformer_ac.cir:10:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/transformer_ac.cir:10:7
+        [2] name="coefficient" kind=scalar value="0.98" @netlists/transformer_ac.cir:10:10
+    device [5] name="rl" designator=r @netlists/transformer_ac.cir:11:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/transformer_ac.cir:11:8
+    device [6] name="r3" designator=r @netlists/transformer_ac.cir:18:1
+      nodes: "in" "q"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10" @netlists/transformer_ac.cir:18:9
+    device [7] name="x1" designator=x @netlists/transformer_ac.cir:19:1
+      nodes: "q" "t1" "t2"
+      model: "tri"
+      parameters (0):
+    device [8] name="r4" designator=r @netlists/transformer_ac.cir:20:1
+      nodes: "t1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/transformer_ac.cir:20:9
+    device [9] name="r5" designator=r @netlists/transformer_ac.cir:21:1
+      nodes: "t2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="200" @netlists/transformer_ac.cir:21:9
+    device [10] name="l3" designator=l @netlists/transformer_ac.cir:22:1
+      nodes: "in" "u"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="5m" @netlists/transformer_ac.cir:22:9
+    device [11] name="ru" designator=r @netlists/transformer_ac.cir:23:1
+      nodes: "u" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="30" @netlists/transformer_ac.cir:23:8
+    device [12] name="kn" designator=k @netlists/transformer_ac.cir:24:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l3" @netlists/transformer_ac.cir:24:4
+        [1] name="inductor2" kind=instance value="l1" @netlists/transformer_ac.cir:24:7
+        [2] name="coefficient" kind=scalar value="-0.15" @netlists/transformer_ac.cir:24:10
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="tri" @netlists/transformer_ac.cir:12:1 end=@netlists/transformer_ac.cir:17:1
+      terminals: "a" "b" "c"
+      parameters (0):
+      scope body
+        cards (5):
+          [0] device[0] @netlists/transformer_ac.cir:13:1 "la a 0 1m"
+          [1] device[1] @netlists/transformer_ac.cir:14:1 "lb b 0 2m"
+          [2] device[2] @netlists/transformer_ac.cir:15:1 "lc c 0 4m"
+          [3] device[3] @netlists/transformer_ac.cir:16:1 "kabc la lb lc k=0.6"
+          [4] ends @netlists/transformer_ac.cir:17:1 ".ends"
+        devices (4):
+          device [0] name="la" designator=l @netlists/transformer_ac.cir:13:1
+            nodes: "a" "0"
+            model: none
+            parameters (1):
+              [0] name="inductance" kind=scalar value="1m" @netlists/transformer_ac.cir:13:8
+          device [1] name="lb" designator=l @netlists/transformer_ac.cir:14:1
+            nodes: "b" "0"
+            model: none
+            parameters (1):
+              [0] name="inductance" kind=scalar value="2m" @netlists/transformer_ac.cir:14:8
+          device [2] name="lc" designator=l @netlists/transformer_ac.cir:15:1
+            nodes: "c" "0"
+            model: none
+            parameters (1):
+              [0] name="inductance" kind=scalar value="4m" @netlists/transformer_ac.cir:15:8
+          device [3] name="kabc" designator=k @netlists/transformer_ac.cir:16:1
+            nodes:
+            model: none
+            parameters (4):
+              [0] name="inductor1" kind=instance value="la" @netlists/transformer_ac.cir:16:6
+              [1] name="inductor2" kind=instance value="lb" @netlists/transformer_ac.cir:16:9
+              [2] name="inductor3" kind=instance value="lc" @netlists/transformer_ac.cir:16:12
+              [3] name="coefficient" kind=scalar value="0.6" @netlists/transformer_ac.cir:16:15
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/transformer_ac.cir:25:1
+      arguments: "dec" "10" "10" "100k"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

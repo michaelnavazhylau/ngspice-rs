@@ -103,6 +103,28 @@ and `Cargo.lock` are unchanged by the Fourier slice.
 The historical per-slice counts below record the state at each
 delivery; they are not the current totals.
 
+## M6 mutual inductance (#80)
+
+Three new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured or tolerance changed), are
+registered in `golden verify`: `transformer_ac` (linear AC bound),
+`transformer_tran` and `transformer_ic_uic_tran` (`compare::TRAN`, worst error
+0.000 of the bound); this slice reports 41 verified fixtures and `golden check`
+reproduces the three. `transformer_tran` has no BDF variant because C's own
+restart error after the 1 us pulse corner exceeds `compare::TRAN_RESTART`; the
+BDF backend is instead checked against a reltol = 1e-7 companion reference.
+A review follow-up added a fourth golden, `transformer_model_uic_tran`
+(model-backed coupled inductors with instance `ic=` under `uic`, captured the
+same way; 42 verified fixtures), after model-backed C/L gained their
+truncation slot and `uic` storage element.
+Opt-in live C:
+
+```sh
+NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_mutual_inductance --locked -- --ignored
+```
+
+Details and measured analytic errors: [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md).
+
 ## M6 source functions (#94, #95)
 
 Five new C goldens, each captured once with `cargo xtask golden capture
@@ -821,7 +843,7 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 (`source_waveforms.rs`).
 
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
-charge and devices (M4), orders above 2, mutual inductors and
+charge and devices (M4), orders above 2 and
 nonlinear device initial conditions, and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
 

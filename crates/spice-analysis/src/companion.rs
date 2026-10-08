@@ -686,7 +686,7 @@ impl Driver<'_> {
     fn initialize(&mut self) -> SpiceResult<Vector> {
         let rhs = self.system.transient_rhs(0., spice_devices::Limit::Left)?;
         let (x, trial) = if self.uic {
-            let start = initial::uic_start(self.circuit, &self.hints)?;
+            let start = initial::uic_start(self.circuit, &self.hints, &self.model_context)?;
             let trial = self.initial_state(&start.x, &start.charges)?;
             let tolerances = &self.settings.tolerances;
             initial::check_impulse_free(
@@ -699,6 +699,7 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                     abstol: tolerances.abstol,
                 },
+                &self.model_context,
             )?;
             (start.x, trial)
         } else {

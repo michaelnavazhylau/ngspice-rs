@@ -168,9 +168,10 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 | `acct`, `noacct`, `list`, `nomod`, `nopage`, `node`, `opts`, `noinit`, `norefvalue` | no-op (flag only) | none | front-end print controls handled first by `if_option`; no numerical effect; this port prints no such listing |
 | `itl3`, `itl5`, `cptime`, `limtim`, `limpts`, `lvlcod`, `lvltim` | no-op (value validated) | none | `OPTtbl` entries without `IF_SET`; `if_option` warns "unsupported"/"obsolete" and C ignores them |
 | `post`, `ingold` | no-op | none | plain front-end variables that nothing in ngspice reads |
+| `indverbosity` | no-op (non-negative integer validated) | none | selects only which stderr diagnostics `muttemp.c` prints for an inductive system (`CKTindverbosity`); the port prints none and always rejects a coupled inductance matrix that is not positive semidefinite (MUTUAL_INDUCTANCE.md) |
 | `bypass=0` | no-op | none | C default (`TSKbypass = 0`); this port never bypasses device evaluation. Other values `NotYetPorted` |
 | `pivtol`, `pivrel` | `NotYetPorted` | | Sparse 1.3 pivot thresholds (`TSKpivotAbsTol`/`TSKpivotRelTol`, `spfactor.c`); this port's faer partial-pivoting LU has no equivalent knob yet |
-| `gshunt`, `cshunt`, `rshunt`, `noopiter`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `indverbosity`, `badmos3`, `trytocompact`, `keepopinfo`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
+| `gshunt`, `cshunt`, `rshunt`, `noopiter`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `badmos3`, `trytocompact`, `keepopinfo`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
 | `filetype`, `savecurrents`, `scale`, `scalm`, `seed`, `seedinfo`, `rndseed`, `interp`, `warn`, `measureprec`, `rawfileprec`, `strict_errorhandling` | `NotYetPorted` | | front-end variables with an output/setup effect |
 | anything else | parse error | | C would store an unread variable or warn |
 

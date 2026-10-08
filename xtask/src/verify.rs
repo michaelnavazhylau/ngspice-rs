@@ -271,6 +271,29 @@ const SUPPORTED: &[Supported] = &[
     // `compare::TRAN` floor at small values (about 1e-8 A on the sub-uA
     // currents right after the 20 us edge), so the BDF run is peak-scaled.
     tran("controlled_tran", &[DIFFSOL_BDF_RESTART]),
+    // K mutual inductance (#80): a 1:2 transformer, a three-winding K inside a
+    // subcircuit and a negative coupling in AC; a PULSE transformer transient
+    // (trapezoidal companions on the coupled flux); and coupled `ic=` free
+    // decay under `uic` with Gear-2. All linear: the linear AC bound and
+    // `compare::TRAN`. No BDF variant for `transformer_tran`: the k = 0.99
+    // leakage time constant (about 0.6 us) is shorter than C's backward-Euler
+    // restart step after each pulse corner, and C's resulting error (1 % of
+    // i(l1) at t = 2 us, measured against a reltol = 1e-7 companion run that
+    // the BDF result matches to 1e-6) exceeds even `compare::TRAN_RESTART`.
+    // The BDF backend's coupled mass matrix is instead checked against that
+    // tight reference in `spice-analysis/tests/mutual_inductance.rs`.
+    Supported {
+        name: "transformer_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    tran("transformer_tran", &[]),
+    tran("transformer_ic_uic_tran", &[]),
+    tran("transformer_model_uic_tran", &[]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

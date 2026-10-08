@@ -56,6 +56,10 @@
 //!   "unsupported"/"obsolete");
 //! * `post`, `ingold` (flag or value): plain front-end variables nothing in
 //!   ngspice reads;
+//! * `indverbosity=N` (a non-negative integer): only selects which stderr
+//!   diagnostics C's inductive-system check prints (`muttemp.c`); the port
+//!   prints none and always rejects a coupled inductance matrix that is not
+//!   positive semidefinite (`docs/port/MUTUAL_INDUCTANCE.md`);
 //! * `bypass=0`: C's default (`cktntask.c`); this port never bypasses device
 //!   evaluation. Any other `bypass` is `NotYetPorted`.
 //!
@@ -112,7 +116,6 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "gshunt",
     "oldlimit",
     "numdgt",
-    "indverbosity",
     "defm",
     "defl",
     "defw",
@@ -196,6 +199,10 @@ const IGNORED_BY_C: &[(&str, bool)] = &[
 const IGNORED_BY_C_REASON: &str = "ignored by ngspice (OPTtbl entry without IF_SET; \
                                    spiceif.c reports it unsupported or obsolete)";
 const UNREAD_REASON: &str = "plain ngspice front-end variable that nothing reads";
+const INDVERBOSITY_REASON: &str = "controls only the stderr diagnostics of C's inductive-system \
+                                   check (muttemp.c, CKTindverbosity); this port never prints \
+                                   them and always rejects a coupled inductance matrix that is \
+                                   not positive semidefinite";
 const BYPASS_REASON: &str = "bypass=0 is ngspice's default (cktntask.c); this port never \
                              bypasses device evaluation";
 
@@ -537,6 +544,17 @@ impl RunConfig {
         match name {
             "post" | "ingold" => {
                 self.ignore(setting, UNREAD_REASON);
+                return Ok(());
+            }
+            "indverbosity" => {
+                if setting.value.is_none() {
+                    return Err(SpiceError::parse(
+                        location.clone(),
+                        "option 'indverbosity' requires an integer value",
+                    ));
+                }
+                whole(0, u32::MAX)?;
+                self.ignore(setting, INDVERBOSITY_REASON);
                 return Ok(());
             }
             "bypass" => {
@@ -939,6 +957,7 @@ fn accepted(name: &str) -> bool {
             name,
             "post"
                 | "ingold"
+                | "indverbosity"
                 | "bypass"
                 | "temp"
                 | "tnom"

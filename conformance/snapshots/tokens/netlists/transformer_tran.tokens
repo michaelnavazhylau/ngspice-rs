@@ -1,0 +1,64 @@
+# ngspice-rs token-dump v1
+file: netlists/transformer_tran.cir
+title: "Coupled-inductor transformer, PULSE transient (trapezoidal)" @netlists/transformer_tran.cir:1:1
+card 1 @netlists/transformer_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "vin in 0 pulse(0 1 0 1u 1u 100u 200u)"
+  kind: device(v)
+  token 1 5:1 word "vin"
+  token 2 5:5 word "in"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 word "pulse"
+  token 5 5:15 lparen "("
+  token 6 5:16 number "0" value=0e0
+  token 7 5:18 number "1" value=1e0
+  token 8 5:20 number "0" value=0e0
+  token 9 5:22 number "1u" value=1e-6
+  token 10 5:25 number "1u" value=1e-6
+  token 11 5:28 number "100u" value=9.999999999999999e-5
+  token 12 5:33 number "200u" value=1.9999999999999998e-4
+  token 13 5:37 rparen ")"
+card 2 @netlists/transformer_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "rs in p 10"
+  kind: device(r)
+  token 1 6:1 word "rs"
+  token 2 6:4 word "in"
+  token 3 6:7 word "p"
+  token 4 6:9 number "10" value=1e1
+card 3 @netlists/transformer_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "l1 p 0 1m"
+  kind: device(l)
+  token 1 7:1 word "l1"
+  token 2 7:4 word "p"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "1m" value=1e-3
+card 4 @netlists/transformer_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "l2 s 0 4m"
+  kind: device(l)
+  token 1 8:1 word "l2"
+  token 2 8:4 word "s"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "4m" value=4e-3
+card 5 @netlists/transformer_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "k1 l1 l2 0.99"
+  kind: device(k)
+  token 1 9:1 word "k1"
+  token 2 9:4 word "l1"
+  token 3 9:7 word "l2"
+  token 4 9:10 number "0.99" value=9.9e-1
+card 6 @netlists/transformer_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "rl s 0 100"
+  kind: device(r)
+  token 1 10:1 word "rl"
+  token 2 10:4 word "s"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "100" value=1e2
+card 7 @netlists/transformer_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".tran 1u 400u"
+  kind: dot(.tran)
+  token 1 11:1 word ".tran"
+  token 2 11:7 number "1u" value=1e-6
+  token 3 11:10 number "400u" value=3.9999999999999996e-4
+card 8 @netlists/transformer_tran.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"
