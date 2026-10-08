@@ -1,0 +1,26 @@
+Function definitions and single-quoted values
+* Top-level functions: braced, quoted and bare bodies, the optional '=',
+* zero arity, nesting, a formal that shadows a .param of the same name and a
+* free name (k) resolved where the function is called.
+.param vin=10 x=100 k=2
+.func pll(a, b) {a*b/(a+b)}
+.FUNC Gain(x) 'x*k'
+.func twice(y)= y*2
+.func base() {1k}
+.param rload='twice(base())'
+.param rtop={pll(3k, 6k) + gain(500)}
+* A body-local function shadows the deck's gain(); its free names come from
+* the body .param k and the formal w. Deck functions stay visible.
+.subckt leg a b w=1
+.param k=3
+.func gain(x) {x*k*w}
+r1 a mid 'gain(100)'
+r2 mid b {pll(base(), base()) + x}
+.ends leg
+v1 in 0 dc 'vin'
+r1 in out {rtop}
+r2 out 0 'rload'
+x1 out 0 leg w='twice(2)'
+x2 out 0 leg
+.op
+.end

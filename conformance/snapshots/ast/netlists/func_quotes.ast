@@ -1,0 +1,161 @@
+# ngspice-rs ast-dump v1
+file: netlists/func_quotes.cir
+title: "Function definitions and single-quoted values" @netlists/func_quotes.cir:1:1
+scope root
+  cards (15):
+    [0] param[0] @netlists/func_quotes.cir:5:1 ".param vin=10 x=100 k=2"
+    [1] func[0] @netlists/func_quotes.cir:6:1 ".func pll(a, b) {a*b/(a+b)}"
+    [2] func[1] @netlists/func_quotes.cir:7:1 ".FUNC Gain(x) 'x*k'"
+    [3] func[2] @netlists/func_quotes.cir:8:1 ".func twice(y)= y*2"
+    [4] func[3] @netlists/func_quotes.cir:9:1 ".func base() {1k}"
+    [5] param[1] @netlists/func_quotes.cir:10:1 ".param rload='twice(base())'"
+    [6] param[2] @netlists/func_quotes.cir:11:1 ".param rtop={pll(3k, 6k) + gain(500)}"
+    [7] subcircuit[0] @netlists/func_quotes.cir:14:1 ".subckt leg a b w=1"
+    [8] device[0] @netlists/func_quotes.cir:20:1 "v1 in 0 dc 'vin'"
+    [9] device[1] @netlists/func_quotes.cir:21:1 "r1 in out {rtop}"
+    [10] device[2] @netlists/func_quotes.cir:22:1 "r2 out 0 'rload'"
+    [11] device[3] @netlists/func_quotes.cir:23:1 "x1 out 0 leg w='twice(2)'"
+    [12] device[4] @netlists/func_quotes.cir:24:1 "x2 out 0 leg"
+    [13] analysis[0] @netlists/func_quotes.cir:25:1 ".op"
+    [14] end @netlists/func_quotes.cir:26:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @netlists/func_quotes.cir:20:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=expression value="'vin'" @netlists/func_quotes.cir:20:9
+          expression braced=true quoted=true text="vin" span=20:13..16
+            identifier "vin" span=20:13..16
+    device [1] name="r1" designator=r @netlists/func_quotes.cir:21:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rtop}" @netlists/func_quotes.cir:21:11
+          expression braced=true text="rtop" span=21:12..16
+            identifier "rtop" span=21:12..16
+    device [2] name="r2" designator=r @netlists/func_quotes.cir:22:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="'rload'" @netlists/func_quotes.cir:22:10
+          expression braced=true quoted=true text="rload" span=22:11..16
+            identifier "rload" span=22:11..16
+    device [3] name="x1" designator=x @netlists/func_quotes.cir:23:1
+      nodes: "out" "0"
+      model: "leg"
+      parameters (1):
+        [0] name="w" kind=expression value="'twice(2)'" @netlists/func_quotes.cir:23:14
+          expression braced=true quoted=true text="twice(2)" span=23:17..25
+            user-call "twice" span=23:17..25
+              number "2" value=2e0 span=23:23..24
+    device [4] name="x2" designator=x @netlists/func_quotes.cir:24:1
+      nodes: "out" "0"
+      model: "leg"
+      parameters (0):
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="leg" @netlists/func_quotes.cir:14:1 end=@netlists/func_quotes.cir:19:1
+      terminals: "a" "b"
+      parameters (1):
+        [0] name="w" kind=scalar value="1" @netlists/func_quotes.cir:14:17
+      scope body
+        cards (5):
+          [0] param[0] @netlists/func_quotes.cir:15:1 ".param k=3"
+          [1] func[0] @netlists/func_quotes.cir:16:1 ".func gain(x) {x*k*w}"
+          [2] device[0] @netlists/func_quotes.cir:17:1 "r1 a mid 'gain(100)'"
+          [3] device[1] @netlists/func_quotes.cir:18:1 "r2 mid b {pll(base(), base()) + x}"
+          [4] ends @netlists/func_quotes.cir:19:1 ".ends leg"
+        devices (2):
+          device [0] name="r1" designator=r @netlists/func_quotes.cir:17:1
+            nodes: "a" "mid"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=expression value="'gain(100)'" @netlists/func_quotes.cir:17:10
+                expression braced=true quoted=true text="gain(100)" span=17:11..20
+                  user-call "gain" span=17:11..20
+                    number "100" value=1e2 span=17:16..19
+          device [1] name="r2" designator=r @netlists/func_quotes.cir:18:1
+            nodes: "mid" "b"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=expression value="{pll(base(), base()) + x}" @netlists/func_quotes.cir:18:10
+                expression braced=true text="pll(base(), base()) + x" span=18:11..34
+                  binary add span=18:11..34
+                    user-call "pll" span=18:11..30
+                      user-call "base" span=18:15..21
+                      user-call "base" span=18:23..29
+                    identifier "x" span=18:33..34
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (1):
+          param-card [0] @netlists/func_quotes.cir:15:1
+            assignment [0] name="k" name_span=15:8..9
+              expression braced=false text="3" span=15:10..11
+                number "3" value=3e0 span=15:10..11
+        functions (1):
+          func [0] name="gain" name_span=16:7..11 parameters=["x"@16:12..13] @netlists/func_quotes.cir:16:1
+            expression braced=true text="x*k*w" span=16:16..21
+              binary mul span=16:16..21
+                binary mul span=16:16..19
+                  identifier "x" span=16:16..17
+                  identifier "k" span=16:18..19
+                identifier "w" span=16:20..21
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/func_quotes.cir:25:1
+      arguments:
+  includes (0):
+  params (3):
+    param-card [0] @netlists/func_quotes.cir:5:1
+      assignment [0] name="vin" name_span=5:8..11
+        expression braced=false text="10" span=5:12..14
+          number "10" value=1e1 span=5:12..14
+      assignment [1] name="x" name_span=5:15..16
+        expression braced=false text="100" span=5:17..20
+          number "100" value=1e2 span=5:17..20
+      assignment [2] name="k" name_span=5:21..22
+        expression braced=false text="2" span=5:23..24
+          number "2" value=2e0 span=5:23..24
+    param-card [1] @netlists/func_quotes.cir:10:1
+      assignment [0] name="rload" name_span=10:8..13
+        expression braced=true quoted=true text="twice(base())" span=10:15..28
+          user-call "twice" span=10:15..28
+            user-call "base" span=10:21..27
+    param-card [2] @netlists/func_quotes.cir:11:1
+      assignment [0] name="rtop" name_span=11:8..12
+        expression braced=true text="pll(3k, 6k) + gain(500)" span=11:14..37
+          binary add span=11:14..37
+            user-call "pll" span=11:14..25
+              number "3k" value=3e3 span=11:18..20
+              number "6k" value=6e3 span=11:22..24
+            user-call "gain" span=11:28..37
+              number "500" value=5e2 span=11:33..36
+  functions (4):
+    func [0] name="pll" name_span=6:7..10 parameters=["a"@6:11..12, "b"@6:14..15] @netlists/func_quotes.cir:6:1
+      expression braced=true text="a*b/(a+b)" span=6:18..27
+        binary div span=6:18..27
+          binary mul span=6:18..21
+            identifier "a" span=6:18..19
+            identifier "b" span=6:20..21
+          group span=6:22..27
+            binary add span=6:23..26
+              identifier "a" span=6:23..24
+              identifier "b" span=6:25..26
+    func [1] name="gain" name_span=7:7..11 parameters=["x"@7:12..13] @netlists/func_quotes.cir:7:1
+      expression braced=true quoted=true text="x*k" span=7:16..19
+        binary mul span=7:16..19
+          identifier "x" span=7:16..17
+          identifier "k" span=7:18..19
+    func [2] name="twice" name_span=8:7..12 parameters=["y"@8:13..14] @netlists/func_quotes.cir:8:1
+      expression braced=false text="y*2" span=8:17..20
+        binary mul span=8:17..20
+          identifier "y" span=8:17..18
+          number "2" value=2e0 span=8:19..20
+    func [3] name="base" name_span=9:7..11 parameters=[] @netlists/func_quotes.cir:9:1
+      expression braced=true text="1k" span=9:15..17
+        number "1k" value=1e3 span=9:15..17
+  options (0):
+  globals (0):
