@@ -645,11 +645,19 @@ impl Driver<'_> {
                     Some(&rhs),
                 )?
                 .values
-            } else if constraints.is_empty() {
+            } else if constraints.is_unconstrained() {
                 self.system.a.solve(&rhs)?
             } else {
-                initial::constrained_bias(&self.system.a, &rhs, &constraints)?
+                initial::constrained_bias(&self.system.a, &rhs, &constraints.imposed)?
             };
+            initial::check_implied(
+                &x,
+                &constraints,
+                VoltageTolerance {
+                    reltol: tolerances.reltol,
+                    vntol: tolerances.vntol,
+                },
+            )?;
             let trial = self.initial_state(&x, &[])?;
             (x, trial)
         };

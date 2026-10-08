@@ -29,7 +29,7 @@ Hname n+ n- [ccvs] vname   gain           transresistance (ohm)
 | `gain` as a number or `{expr}` | the leading value; applied **after** any named setter |
 | `gain=value` instead of the leading value | a named setter, applied in written order |
 | `(in, 0)`, `(in) (0)`, `in,0`, `(vname)` | `(`, `)` and `,` around nodes and the controlling source are skipped (`INPgetNetTok`/`INPgetTok`) |
-| HSPICE `vcvs`/`vccs`/`cccs`/`ccvs` keyword | removed only as the fourth whitespace token of a card with exactly 7 (E/G) or 6 (F/H) tokens (`inp_compat`); otherwise it is a node name |
+| HSPICE `vcvs`/`vccs`/`cccs`/`ccvs` keyword | removed only as the fourth whitespace token of a card with exactly 7 (E/G) or 6 (F/H) tokens (`inp_compat`), counted after `inp_remove_ws()` joins `name = value` into one token; otherwise it is a node name |
 | G/F `m=` tail (`… gain m=2 [gain=…]`) | setters in order; a gain is multiplied by `m` only if `m` was given **before** it (`VCCSparam`/`CCCSparam`) |
 | Controlling source of F/H | stored first as `control` (`ParameterKind::Instance`); resolved after elaboration |
 
@@ -131,8 +131,30 @@ targets.
   returning a result; the committed deck uses gain `1e4`. The OP fixture also
   uses `1e4` because with `1e6` C's own rounding (about 8e-12 relative,
   against an exact Rust result) exceeds the 1e-12 DC comparison bound.
-- A `.ic` on a node driven by an E/H output is not reduced against the E/H
-  relation (only V sources and inductors are), so the constrained initial bias
-  is singular and fails explicitly (C runs such a deck through its
-  `cktload.c` `.ic` row handling).
+- AC equilibration for very high gains is a numerical-policy follow-up
+  (#46/#47); once it lands, a high-gain capacitive op-amp AC golden should be
+  added without changing tolerances.
+
+## Initial conditions on E/H outputs
+
+An E/H output fixes `v(n+) - v(n-)` to a value that depends on the rest of
+the solution, so `.ic`/`uic` are reduced against it like V sources, except the
+check happens after the solve:
+
+- `.ic` (no `uic`) on a node tied to ground or to an imposed `.ic` node through
+  a chain that includes an E/H output is not imposed as a row constraint. The
+  initial bias is solved with the remaining entries and the node's solved
+  voltage must agree with the `.ic` value (`reltol`/`vntol`); otherwise it is
+  a positioned error. C keeps the E/H relation too (its `cktload.c` adds a
+  `1e10` conductance that only loads the ideal output, so v(o) stays at the
+  E/H value) and silently ignores the contradicting `.ic`; the port rejects
+  it, as it does for ideal V sources.
+- `uic`: a capacitor in a loop closed by an E/H output (an op-amp load
+  capacitor) leaves the instantaneous `t = 0+` system and its starting voltage
+  is compared with the solved one; a mismatch is an impulse error naming the
+  capacitor and the controlled sources.
+
+Both cases are pinned by `crates/spice-analysis/tests/controlled_sources.rs`
+against values from the C binary.
+
 - `m=` scaling and `sens_*` sensitivity setters are limited to the forms above.

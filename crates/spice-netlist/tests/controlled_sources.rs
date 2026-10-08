@@ -128,6 +128,22 @@ fn the_hspice_keyword_is_removed_only_where_inp_compat_removes_it() {
             assert_eq!(d.parameters[0].value, "v1", "{text}");
         }
     }
+    // inp_remove_ws() runs first, so `gain = 2` counts as one word.
+    for (text, nodes) in [
+        ("e1 o 0 vcvs a 0 gain = 2", &["o", "0", "a", "0"][..]),
+        ("g1 o 0 vccs a 0 gain= 2m", &["o", "0", "a", "0"]),
+        ("f1 o 0 cccs v1 gain =2", &["o", "0"]),
+    ] {
+        let d = device(text);
+        assert_eq!(d.nodes, nodes, "{text}");
+        assert_eq!(
+            d.parameters
+                .last()
+                .map(|p| (p.name.as_str(), p.value.as_str())),
+            Some(("gain", text.rsplit(['=', ' ']).next().unwrap())),
+            "{text}"
+        );
+    }
     // With another token count C keeps the word as a node name.
     let e = device("e1 o 0 vcvs a 2");
     assert_eq!(e.nodes, ["o", "0", "vcvs", "a"]);

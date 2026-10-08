@@ -173,7 +173,8 @@ fn hspice_keyword(input: &mut Input<'_>, designator: char) -> Result<()> {
         'f' => ("cccs", 6),
         _ => ("ccvs", 6),
     };
-    let words: Vec<&str> = input.state.card.raw.split_whitespace().collect();
+    let compacted = remove_ws(&input.state.card.raw);
+    let words: Vec<&str> = compacted.split_whitespace().collect();
     let Some(token) = input.input.first() else {
         return Ok(());
     };
@@ -202,6 +203,41 @@ fn hspice_keyword(input: &mut Input<'_>, designator: char) -> Result<()> {
         ))));
     }
     Ok(())
+}
+
+/// The card text as `inp_remove_ws()` (`src/frontend/inpcom.c`) leaves it
+/// before `inp_compat()` counts its words: whitespace before or after `=` is
+/// dropped, and inside `{...}` also around arithmetic characters
+/// (`is_arith_char()`: `+-*/()<>?:|&^!%\`) and `,`. So `gain = 2` is one
+/// word, as in C.
+fn remove_ws(raw: &str) -> String {
+    let joins = |c: char, braces: i32| c == '=' || (braces > 0 && is_arith_or_comma(c));
+    let mut out = String::with_capacity(raw.len());
+    let mut chars = raw.chars().peekable();
+    let mut braces = 0_i32;
+    while let Some(c) = chars.next() {
+        match c {
+            '{' => braces += 1,
+            '}' => braces -= 1,
+            _ => {}
+        }
+        if c.is_whitespace() {
+            while chars.next_if(|c| c.is_whitespace()).is_some() {}
+            if chars.peek().is_some_and(|next| !joins(*next, braces)) {
+                out.push(' ');
+            }
+            continue;
+        }
+        out.push(c);
+        if joins(c, braces) {
+            while chars.next_if(|c| c.is_whitespace()).is_some() {}
+        }
+    }
+    out
+}
+
+fn is_arith_or_comma(c: char) -> bool {
+    c == ',' || "+-*/()<>?:|&^!%\\".contains(c)
 }
 
 /// The gain slot and any trailing setters, in C application order. Returns

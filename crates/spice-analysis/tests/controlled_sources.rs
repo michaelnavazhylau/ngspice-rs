@@ -6,7 +6,9 @@
 //! `controlled_tran` are compared by `cargo xtask golden verify`.
 use std::path::Path;
 
-use spice_analysis::{AnalysisContext, AnalysisRequest, Plot, Selection, runner, write_requests};
+use spice_analysis::{
+    AnalysisContext, AnalysisRequest, Plot, RunConfig, Selection, runner, write_requests,
+};
 use spice_core::{AnalysisKind, SpiceResult};
 use spice_devices::Circuit;
 use spice_netlist::{Parser, source::parse_deck_text};
@@ -297,4 +299,79 @@ fn ideal_controlled_source_loops_are_singular_not_silently_solved() {
         );
         assert!(result.is_err(), "{body}");
     }
+}
+
+/// Runs the deck's only analysis exactly as the CLI path does (`.ic`, `uic`).
+fn run_deck(body: &str) -> SpiceResult<Plot> {
+    let netlist = Parser::new().parse_deck(&parse_deck_text(
+        Path::new("controlled.cir"),
+        &format!("controlled\n{body}\n.end\n"),
+    ))?;
+    let config = RunConfig::from_netlist(&netlist)?;
+    let request = config.request_for(&netlist.analyses[0])?;
+    let mut circuit = config.circuit(&netlist)?;
+    runner(request.kind)?.run(&mut circuit, &request, &config.context())
+}
+
+/// An op-amp-like E stage driving a load capacitor (values cross-checked with
+/// the C oracle, see the module docs of `initial.rs`).
+const E_LOAD: &str = "vin in 0 pulse(0 1 0 1u 1u 10u 20u)\nr1 in a 1k\nc1 a 0 1n\n\
+    e1 o 0 a 0 2\nc2 o 0 1n{c2}\nro o 0 1k";
+
+#[test]
+fn uic_accepts_a_capacitor_across_a_controlled_voltage_output() {
+    // C: v(o) = 4.997501e-07, v(a) = 2.498751e-07 at the first step 5e-10.
+    let p = run_deck(&format!(
+        "{}\n.tran 0.1u 5u uic",
+        E_LOAD.replace("{c2}", "")
+    ))
+    .unwrap();
+    close(re(&p, "time", 0), 5e-10, 1e-12);
+    close(re(&p, "v(o)", 0), 4.997_501e-7, 1e-6);
+    close(re(&p, "v(a)", 0), 2.498_751e-7, 1e-6);
+    // A capacitor ic contradicting the controlled source is an impulse.
+    let error = run_deck(&format!(
+        "{}\n.tran 0.1u 5u uic",
+        E_LOAD.replace("{c2}", " ic=1")
+    ))
+    .expect_err("impulse")
+    .to_string();
+    assert!(
+        error.contains("impulse") && error.contains("c2") && error.contains("e1"),
+        "{error}"
+    );
+    // The same through H: at t = 0+ i(vin) = 0 forces v(o) = 0 = ic.
+    let p = run_deck(
+        "vin in 0 pulse(0 1 0 1u 1u 10u 20u)\nr1 in 0 1k\nh1 o 0 vin 1k\n\
+         c2 o 0 1n\nro o 0 1k\n.tran 0.1u 5u uic",
+    )
+    .unwrap();
+    assert!(p.point_count() > 1);
+}
+
+#[test]
+fn ic_on_a_controlled_voltage_output_is_checked_not_imposed() {
+    // Consistent with e1 (v(o) = 2 v(a)): C starts at 0.5/0.25 and gives
+    // v(o) = 4.997506e-01 at 5e-10.
+    let p = run_deck(&format!(
+        "{}\n.ic v(o)=0.5 v(a)=0.25\n.tran 0.1u 5u",
+        E_LOAD.replace("{c2}", "")
+    ))
+    .unwrap();
+    close(re(&p, "v(o)", 0), 0.5, 1e-12);
+    close(re(&p, "v(a)", 0), 0.25, 1e-12);
+    close(re(&p, "time", 1), 5e-10, 1e-12);
+    close(re(&p, "v(o)", 1), 4.997_506e-1, 1e-6);
+    // Contradicting it: C keeps the E relation (v(o) = 0) under a 1e10
+    // conductance compromise; the port rejects it like an ideal V source.
+    let error = run_deck(&format!(
+        "{}\n.ic v(o)=0.5\n.tran 0.1u 5u",
+        E_LOAD.replace("{c2}", "")
+    ))
+    .expect_err("contradiction")
+    .to_string();
+    assert!(
+        error.contains("controlled source") && error.contains("controlled.cir:"),
+        "{error}"
+    );
 }
