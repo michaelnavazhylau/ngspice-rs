@@ -21,7 +21,8 @@ use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
 use super::{
-    diode, expression, hints, linear, measure, model, options, param, save, structure, transistor,
+    diode, expression, fourier, hints, linear, measure, model, options, param, save, structure,
+    transistor,
 };
 
 pub(super) enum ParsedCard {
@@ -40,6 +41,8 @@ pub(super) enum ParsedCard {
     Output(save::OutputCard),
     /// A `.measure`/`.meas` card; see [`crate::ast::MeasureCard`].
     Measure(crate::ast::MeasureCard),
+    /// A `.four` card; see [`crate::ast::FourierCard`].
+    Fourier(crate::ast::FourierCard),
     LibStart(String),
     LibEnd(Option<String>),
     End,
@@ -107,7 +110,11 @@ pub(super) fn parse_card(
     // consumes its tail: INP2dot ignores additional input after .end.
     alt((
         end_card,
-        alt((analysis_card, options::options_or_global)),
+        alt((
+            fourier::fourier_card,
+            analysis_card,
+            options::options_or_global,
+        )),
         alt((
             model::model_card,
             param::param_card,

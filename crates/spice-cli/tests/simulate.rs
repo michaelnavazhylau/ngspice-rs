@@ -1051,3 +1051,235 @@ fn a_later_failing_measure_card_publishes_none_of_the_other_results() {
     assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
     fs::remove_dir_all(&dir).unwrap();
 }
+
+/// A 1 kHz square wave (0 -> 1 V, 50 % duty) through a 1 kohm / 1 uF lowpass.
+///
+/// `v(in)` is the square wave itself: DC 0.5 and single-sided harmonic
+/// amplitudes `2/(k*pi)` for odd `k` (0.63662 at the fundamental, 0.21221 at the
+/// third), so every value in its Fourier block has an analytic counterpart.
+/// `v(out)` is the filtered trace, scaled by `|H(f)| =
+/// 1/sqrt(1 + (2*pi*f*R*C)^2)`, which is 0.157179 at 1 kHz and 0.052952 at
+/// 3 kHz. PULSE is the periodic source this front end supports; a `sin(...)`
+/// source is not part of the port's subset.
+const FOUR_DECK: &str = "rc lowpass\nv1 in 0 pulse(0 1 0 1n 1n 0.5m 1m)\n\
+     r1 in out 1k\nc1 out 0 1u\n.tran 1u 5m\n.four 1k v(in)\n.four 1k v(out)\n.end\n";
+
+/// The scalar `key` of one Fourier block of a `simulate` report.
+fn four_scalar(report: &str, block: &str, key: &str) -> f64 {
+    let start = report
+        .find(block)
+        .unwrap_or_else(|| panic!("no '{block}' in:\n{report}"));
+    for line in report[start..].lines() {
+        let Some(rest) = line.trim().strip_prefix(key) else {
+            continue;
+        };
+        let Some((_, value)) = rest.split_once('=') else {
+            continue;
+        };
+        return value
+            .split_whitespace()
+            .next()
+            .expect("a value")
+            .parse()
+            .expect("a number");
+    }
+    panic!("no '{key}' in '{block}':\n{report}");
+}
+
+/// The `(magnitude, phase)` of one harmonic row of a Fourier block.
+fn four_harmonic(report: &str, block: &str, order: u32) -> (f64, f64) {
+    let start = report
+        .find(block)
+        .unwrap_or_else(|| panic!("no '{block}' in:\n{report}"));
+    for line in report[start..].lines() {
+        let mut fields = line.split_whitespace();
+        let Some(parsed) = fields.next().and_then(|first| first.parse::<u32>().ok()) else {
+            continue;
+        };
+        if parsed != order {
+            continue;
+        }
+        let _frequency: f64 = fields.next().expect("frequency").parse().expect("a number");
+        let magnitude: f64 = fields.next().expect("magnitude").parse().expect("a number");
+        let phase: f64 = fields.next().expect("phase").parse().expect("a number");
+        return (magnitude, phase);
+    }
+    panic!("no harmonic {order} in '{block}':\n{report}");
+}
+
+/// The `.four` cards of a deck, transformed over the final complete period.
+///
+/// The Fourier block is appended after the report (and after the `.print` table
+/// and `.measure` block), and a transform never changes the written rawfile:
+/// this test compares the rawfiles of the same deck with and without `.four`.
+#[test]
+fn a_four_card_transforms_the_final_period_and_leaves_the_rawfile_alone() {
+    let dir = scratch("four-tran");
+    let deck = write_deck(&dir, FOUR_DECK);
+    let output = dir.join("with.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("four: 2 analysis(es) of the final complete period"),
+        "{report}"
+    );
+    assert!(report.contains("Fourier analysis for v(in):"), "{report}");
+    assert!(report.contains("Fourier analysis for v(out):"), "{report}");
+
+    // The source is the analytic square wave: DC 0.5, fundamental 2/pi and
+    // third harmonic 2/(3*pi). The 1 ns edges and the resampling grid leave a
+    // few parts in 1e-3 (measured: 0.63688 and 0.21298).
+    let dc = four_scalar(&report, "Fourier analysis for v(in):", "dc");
+    assert!((dc - 0.5).abs() < 1e-3, "dc = {dc}");
+    let (fundamental, _) = four_harmonic(&report, "Fourier analysis for v(in):", 1);
+    assert!(
+        (fundamental - 2.0 / std::f64::consts::PI).abs() < 0.01,
+        "2/pi = {}, got {fundamental}",
+        2.0 / std::f64::consts::PI
+    );
+    let (third, _) = four_harmonic(&report, "Fourier analysis for v(in):", 3);
+    assert!(
+        (third - 2.0 / (3.0 * std::f64::consts::PI)).abs() < 0.005,
+        "2/(3*pi) = {}, got {third}",
+        2.0 / (3.0 * std::f64::consts::PI)
+    );
+
+    // The lowpass scales those amplitudes by |H(f)| and delays the phase by
+    // -atan(2*pi*f*R*C) = -1.412966 rad at the fundamental. The port prints
+    // radians with the sin() convention, matching C's -81.746 degrees.
+    let gain =
+        |frequency: f64| (1.0 + (2.0 * std::f64::consts::PI * frequency * 1e-3).powi(2)).sqrt();
+    let (filtered, phase) = four_harmonic(&report, "Fourier analysis for v(out):", 1);
+    let expected = 2.0 / std::f64::consts::PI / gain(1e3);
+    assert!(
+        (filtered - expected).abs() < 0.003,
+        "filtered fundamental = {expected}, got {filtered}"
+    );
+    let expected_phase = -(2.0 * std::f64::consts::PI * 1e3 * 1e-3).atan();
+    assert!(
+        (phase - expected_phase).abs() < 0.05,
+        "phase = {expected_phase}, got {phase}"
+    );
+    let (filtered_third, _) = four_harmonic(&report, "Fourier analysis for v(out):", 3);
+    let expected_third = 2.0 / (3.0 * std::f64::consts::PI) / gain(3e3);
+    assert!(
+        (filtered_third - expected_third).abs() < 0.002,
+        "filtered third = {expected_third}, got {filtered_third}"
+    );
+
+    let without = dir.join("without.cir");
+    fs::write(
+        &without,
+        "rc lowpass\nv1 in 0 pulse(0 1 0 1n 1n 0.5m 1m)\nr1 in out 1k\nc1 out 0 1u\n\
+         .tran 1u 5m\n.end\n",
+    )
+    .unwrap();
+    let plain = dir.join("without.raw");
+    let run = simulate(&plain, &without);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let plain_report = stdout(&run);
+    assert!(
+        !plain_report.contains("four:"),
+        "a deck without .four keeps today's report: {plain_report}"
+    );
+    assert_eq!(
+        without_date(&fs::read_to_string(&output).unwrap()),
+        without_date(&fs::read_to_string(&plain).unwrap()),
+        "a .four card must not change the written rawfile"
+    );
+    assert_eq!(
+        entries(&dir),
+        ["deck.cir", "with.raw", "without.cir", "without.raw"]
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_transformed_vector_the_output_selection_dropped_is_still_transformed() {
+    let dir = scratch("four-hidden");
+    let deck = write_deck(
+        &dir,
+        "rc lowpass, transformed but not written\n\
+         v1 in 0 pulse(0 1 0 1n 1n 0.5m 1m)\nr1 in out 1k\nc1 out 0 1u\n.tran 1u 5m\n\
+         .save v(in)\n.four 1k v(out)\n.end\n",
+    );
+    let output = dir.join("tran.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(report.contains("variables: time v(in)"), "{report}");
+    assert!(report.contains("Fourier analysis for v(out):"), "{report}");
+    let written = RawFile::load(&output).expect("parses");
+    let plot = written.single_plot().unwrap();
+    assert_eq!(plot.value("v(out)", 0), None, "v(out) was not written");
+    // The hidden vector is still transformed by the lowpass, not merely listed.
+    let (filtered, _) = four_harmonic(&report, "Fourier analysis for v(out):", 1);
+    let gain = (1.0 + (2.0 * std::f64::consts::PI * 1e3 * 1e-3).powi(2)).sqrt();
+    let expected = 2.0 / std::f64::consts::PI / gain;
+    assert!(
+        (filtered - expected).abs() < 0.003,
+        "filtered fundamental = {expected}, got {filtered}"
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_failed_or_unsupported_four_card_publishes_nothing() {
+    let dir = scratch("four-fail");
+    // The destination must survive, exactly as it does for a bad `.save`.
+    let output = dir.join("keep.raw");
+    for (card, status, message) in [
+        // A period longer than the run.
+        (".four 100 v(out)", 2, "the run spans"),
+        (".four 1k v(nosuch)", 2, "v(nosuch)"),
+        (".four 1k v(out) HARMONICS=101", 2, "bounded Fourier budget"),
+        (".four 0 v(out)", 2, "greater than zero"),
+        (".four 1k vm(out)", 2, "is an AC component"),
+        (".four 1k v(out) bogus=1", 2, "no such .four parameter"),
+        (".four 1k all", 2, "cannot be transformed"),
+        (".four 1k v(out) NFREQS=4", 3, "the nfreqs= .four parameter"),
+    ] {
+        let deck = write_deck(
+            &dir,
+            &format!(
+                "rc lowpass\nv1 in 0 pulse(0 1 0 1n 1n 0.5m 1m)\nr1 in out 1k\nc1 out 0 1u\n\
+                 .tran 1u 5m\n{card}\n.end\n"
+            ),
+        );
+        fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+        let run = simulate(&output, &deck);
+        assert_eq!(run.status.code(), Some(status), "{card}: {}", stderr(&run));
+        assert!(run.stdout.is_empty(), "{card}: {}", stdout(&run));
+        assert!(stderr(&run).contains(message), "{card}: {}", stderr(&run));
+        assert_eq!(
+            fs::read_to_string(&output).unwrap(),
+            "PREVIOUS CONTENT\n",
+            "{card}: the destination survives"
+        );
+    }
+    assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_four_card_in_a_run_that_is_not_transient_is_refused_at_evaluation() {
+    let dir = scratch("four-ac");
+    let deck = write_deck(
+        &dir,
+        "rc lowpass\nv1 in 0 ac 1\nr1 in out 1k\nc1 out 0 1u\n.ac dec 10 10 10k\n\
+         .four 1k v(out)\n.end\n",
+    );
+    let output = dir.join("keep.raw");
+    fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+    assert!(stdout(&run).is_empty(), "{}", stdout(&run));
+    assert!(
+        stderr(&run).contains("transforms a .tran result"),
+        "{}",
+        stderr(&run)
+    );
+    assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
+    fs::remove_dir_all(&dir).unwrap();
+}

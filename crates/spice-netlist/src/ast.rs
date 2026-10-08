@@ -736,6 +736,51 @@ impl MeasureWindow {
     }
 }
 
+/// The highest harmonic index a [`FourierCard`] tabulates when the card writes
+/// no `HARMONICS=`. C's `nfreqs` default of 10 rows is one DC row plus harmonics
+/// `1..=9` (`fourier()` in `src/frontend/fourier.c`).
+pub const DEFAULT_HARMONICS: u32 = 9;
+
+/// The port's bounded harmonic count, and with it the resampling work budget:
+/// harmonic `n` resamples the period onto `4 * max(n, 16)` subintervals, so the
+/// widest grid this port builds is `4 * MAX_HARMONICS` subintervals per vector
+/// (`400` subintervals, `401` samples). A larger `HARMONICS=` is
+/// [`SpiceError::Unsupported`](spice_core::SpiceError::Unsupported) rather than a
+/// silent clamp; C has no such bound (`set nfreqs=…`).
+pub const MAX_HARMONICS: u32 = 100;
+
+/// A `.four` card: Fourier amplitude/phase and THD of the **final complete
+/// period** of a transient run.
+///
+/// C: `ft_dotsaves()` (`src/frontend/dotcards.c`) removes the deck's `.four`
+/// lines (registering the named vectors for the `TRAN` plot so the transient
+/// keeps them) and later hands each line to `fourier()`
+/// (`src/frontend/fourier.c`), which transforms the last `nperiods / fundamental`
+/// seconds of the `tran` plot it selects with `setcplot("tran")`. The port keeps
+/// the typed request beside the netlist (`ParsedDeck::fourier`) and evaluates it
+/// over the **full** plot, exactly as `.measure` does, so a `.save`/`.print`
+/// selection never hides a transformed vector and a `.four` card never changes
+/// the written rawfile. See `docs/port/FOURIER.md`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FourierCard {
+    /// The fundamental frequency in hertz: a finite, strictly positive value.
+    pub fundamental: Real,
+    /// Where the fundamental frequency was written.
+    pub fundamental_location: SourceLoc,
+    /// The highest harmonic index tabulated: harmonics `1..=harmonics` are
+    /// reported beside one DC row, i.e. `harmonics + 1` rows. C's `nfreqs` is
+    /// `harmonics + 1`, C's row `0` is the DC component.
+    pub harmonics: u32,
+    /// Where the `HARMONICS=` value was written; `None` when the card wrote
+    /// none and [`DEFAULT_HARMONICS`] was used.
+    pub harmonics_location: Option<SourceLoc>,
+    /// The vectors to transform, in source order: the `.save` spelling of one
+    /// node voltage, voltage difference or source/inductor branch current each.
+    pub vectors: Vec<VectorRequest>,
+    /// Where the `.four` card was written.
+    pub location: SourceLoc,
+}
+
 /// One ordered card in its owning scope. Indexes address that scope's typed
 /// vectors, so semantic values are not duplicated. Source cards remain intact
 /// for future serializers/snapshots; neither is implemented by this storage.
@@ -783,6 +828,11 @@ pub enum ScopedCardKind {
     /// ([`ParsedDeck::measurements`](crate::ParsedDeck::measurements)), so this
     /// card carries no scope-local index.
     Measure,
+    /// A `.four` card (root scope only). The typed request lives in the
+    /// [`FourierCard`] list returned beside the [`Netlist`]
+    /// ([`ParsedDeck::fourier`](crate::ParsedDeck::fourier)), so this card
+    /// carries no scope-local index.
+    Fourier,
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.

@@ -5,6 +5,7 @@
 //! | [`results`] | [`Plot`], [`Variable`] and the flags that describe them | ported |
 //! | [`selection`] | `.save`/`.print` output selection and its text rendering | ported for the bounded request subset in `docs/port/OUTPUT_SELECTION.md` |
 //! | [`measure`] | `.measure`/`.meas` evaluation over the full plot and its text rendering | ported for the bounded operation subset in `docs/port/MEASURE.md` |
+//! | [`fourier`] | `.four` Fourier/THD evaluation over the final complete period of a transient plot and its text rendering | ported for the bounded card subset in `docs/port/FOURIER.md` |
 //! | [`rawfile`] | ngspice rawfile reading **and** writing, ASCII and binary | ported for the bounded layouts in `docs/port/RAWFILES.md` |
 //! | [`analysis`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
 //!
@@ -30,6 +31,7 @@ pub mod analysis;
 pub mod bias;
 mod companion;
 pub mod config;
+pub mod fourier;
 mod initial;
 mod linear;
 pub mod measure;
@@ -45,6 +47,7 @@ pub use analysis::{
 };
 pub use companion::{TransientStats, companion_transient};
 pub use config::{AppliedOption, DcOptions, RunConfig, RunOverrides, TransientSettings};
+pub use fourier::{FourierAnalysis, FourierWindow, Harmonic};
 pub use measure::{MeasureEvents, MeasureSpan, Measurement};
 pub use rawfile::{BinaryByteOrder, RawFile, RawFileReader, RawFormat, RawPlot};
 pub use results::{Plot, PlotFlags, Variable};
