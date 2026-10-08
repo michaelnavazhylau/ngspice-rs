@@ -16,7 +16,7 @@ are never treated as a uniform grid, and the port never transforms internal time
 | Card type and bounds (`DEFAULT_HARMONICS`, `MAX_HARMONICS`) | `crates/spice-netlist/src/ast.rs` |
 | Evaluation, text block | `crates/spice-analysis/src/fourier.rs` |
 | Full-plot evaluation before the `.save`/`.print` narrowing, report block | `crates/spice-cli/src/simulate.rs` |
-| C reference | `src/frontend/fourier.c` (`fourier()`, `CKTfour()`), reached from `ft_dorun()` in `src/frontend/dotcards.c` |
+| C reference | `src/frontend/fourier.c` (`fourier()`, `CKTfour()`), reached from `ft_cktcoms()` in `src/frontend/dotcards.c` |
 
 ## The supported grammar
 
@@ -49,7 +49,7 @@ Every vector is transformed over the **final complete period** on the physical t
 window = [to - 1/fundamental, to]        to = the plot's last time sample
 ```
 
-This is C's default `nperiods = 1` window (`src/frontend/fourier.c:71-72`, `:105-110`: `dp[1]`
+This is C's default `nperiods = 1` window (`src/frontend/fourier.c:71-72`, `:135-141`: `dp[1]`
 is the last time, `dp[0] = dp[1] - nperiods/fundamental`). The endpoint `to` is **included** as
 the window's last grid point; C's own grid is half-open, which is one of the small differences
 the live comparison sees. A run shorter than one period is refused rather than partially
@@ -62,14 +62,14 @@ The window is resampled onto a **uniform closed grid** of `divisions + 1` points
 
 ```text
 t_i = from + i / fundamental / divisions         i = 0..=divisions
-divisions = 4 * max(harmonics, 16)               (64 for the default 9 harmonics)
+divisions = 4 * max(harmonics, 50)               (200 for the default 9 harmonics)
 ```
 
 Each grid point is read with `.measure`'s sample model (`docs/port/MEASURE.md`): linear
 interpolation inside the two samples that bracket it, and an explicit failure — never a silent
 choice of one side — when it lands on a time carried by two samples with different values, i.e.
 an unrepresented discontinuity. C instead interpolates with `polydegree = 1` by default onto
-`fourgridsize = 200` points per period (`src/frontend/fourier.c:73-76`, `:126-129`).
+`fourgridsize = 200` points per period (`src/frontend/fourier.c:73-76`, `:142-148`).
 
 With `w_i = i/divisions` the point's phase within the period, the coefficients are the
 trapezoid quadrature of the resampled trace `y` against the sine and cosine basis:
@@ -79,22 +79,27 @@ A_k = 2/divisions * Σ wgt_i * y_i * sin(2πk w_i)
 B_k = 2/divisions * Σ wgt_i * y_i * cos(2πk w_i)      wgt_i = 1/2 at both ends, 1 inside
 ```
 
-The rule is exact for a trace whose content stops below `divisions/2` cycles per period: with
-`divisions = 64`, harmonics up to 32 are integrated exactly for a band-limited trace. A trace
-with a genuine discontinuity (a square wave) is integrated only to the grid's own accuracy,
-which is why the live comparison bounds the higher harmonics of an ideal step separately.
+The discrete projection is exact below Nyquist for band-limited **grid values**; linear
+interpolation from the original samples can still introduce error. With `divisions = 200`,
+frequencies strictly below 100 cycles per period are below Nyquist. A square wave with its
+edges aligned to the grid has amplitude bias `x/sin(x)-1`, where `x = πk/divisions`:
+about 0.20 % at k=7 and 0.33 % at k=9. The bias grows as k²/divisions², not linearly with
+harmonic order. Both engines use the same default resolution; all nine harmonics are
+compared in the live-C test.
 
 ## Normalization, phase, DC and THD
 
 | Quantity | Definition |
 | --- | --- |
-| Harmonic amplitude | `sqrt(A_k² + B_k²)` — the **single-sided peak amplitude** of the component `amplitude * sin(k * 2π f t + phase)` in the vector's unit |
-| Harmonic phase | `atan2(B_k, A_k)` in **radians** in `(-π, π]`; phase `0` is a pure sine, `±π/2` a pure cosine |
+| Harmonic amplitude | `sqrt(A_k² + B_k²)` — the **single-sided peak amplitude** of the component `amplitude * sin(k * 2π f * (t - window.from) + phase)` in the vector's unit |
+| Harmonic phase | `atan2(B_k, A_k)` in **radians** in `[-π, π]`; relative to `window.from`: phase `0` is a pure sine, `±π/2` a pure cosine |
 | DC | the mean of the resampled trace over the window, `Σ wgt_i * y_i / divisions` (C's row `0`) |
 | THD | `sqrt(Σ_{k≥2} (amplitude_k / amplitude_1)²)` — a **fraction** in the API, printed as a percentage in the text block (C's `thd = 100*sqrt(...)`, `src/frontend/fourier.c`) |
 
 C prints the same phase in **degrees** (`atan2(cosine, sine)` scaled), so the opt-in comparison
-converts once, explicitly. A zero fundamental amplitude leaves the THD undefined and is
+converts once, explicitly. Like C, phase is referenced to the window's start, **not** absolute
+time zero: stopping the same periodic signal a quarter period later shifts its reported
+fundamental phase by π/2. A zero fundamental amplitude leaves the THD undefined and is
 `SpiceError::Numerical`, never a fabricated `inf`.
 
 ## Failure policy
@@ -112,12 +117,16 @@ value. Exit statuses are `simulate`'s (`docs/port/CLI.md`): `NotYetPorted` → 3
 
 ## Divergence from C
 
-* **The grid is `4 * max(harmonics, 16)` subintervals per period, not a fixed 200.** C's
-  `fourgridsize` defaults to 200 per period and is settable from the `set` command; the port
-  scales the grid with the requested harmonic count and rejects `FOURGRIDSIZE=`. For a smooth
-  trace both agree to the printed digits; for a discontinuous one the port's coarser grid
-  integrates the step less accurately, in proportion to each harmonic's own size (measured on
-  the shared square-wave deck: 2.0 % at harmonic 7 and 3.3 % at harmonic 9 against C's ~0.3 %).
+* **The grid is `4 * max(harmonics, 50)` subintervals per period.** This matches C's default
+  resolution of 200 for counts up to 50, then grows to at most 400. C uses a half-open grid;
+  the port includes both endpoints with trapezoid weights. For a non-periodic endpoint pair,
+  these rules can differ. The port rejects `FOURGRIDSIZE=` instead of changing its grid.
+* **`.four` does not add vectors to the rawfile selection.** C's `ft_savedotargs()` registers
+  `.four` vectors into the TRAN save list (`src/frontend/dotcards.c:137-147`). The port
+  evaluates the full plot independently of `.save`/`.print` and does not alter the rawfile.
+* **`.four` is honoured when writing a rawfile.** C's `ft_cktcoms()` ignores `.four` when
+  a batch run produces a rawfile (`src/frontend/dotcards.c:395-399`, the `terse` branch).
+  The port writes the rawfile and prints the Fourier report on success.
 * **Phase is radians.** C prints degrees.
 * **THD is a fraction in the API** and a percentage in the text block; C only prints the
   percentage.
@@ -131,8 +140,9 @@ value. Exit statuses are `simulate`'s (`docs/port/CLI.md`): `NotYetPorted` → 3
   run. C's failure messages are modelled in the port's wording: `no vectors loaded`, `fourier
   needs real time scale`, `bad fundamental freq`, `isn't real!`, `longer than time span`
   (`src/frontend/fourier.c:65-137`).
-* **A grid point on an unrepresented discontinuity is an error.** C interpolates across it with
-  a zero time span and reports nonsense; the port names the discontinuity.
+* **A grid point on an unrepresented discontinuity is an error.** The port refuses to choose
+  a side when duplicate time samples disagree; C delegates interpolation to `ft_interpolate`
+  rather than exposing this same explicit duplicate-time error policy.
 * **Only `.four` is a card name.** C accepts the `tran` analysis word and `.four`; other
   spellings reach it through the same `ciprefix`-style matching as `.measure`, which the port
   does not reproduce.

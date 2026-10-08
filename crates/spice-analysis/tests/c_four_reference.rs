@@ -12,12 +12,11 @@
 //! takes the harmonic count from an interactive `set nfreqs`), so the port's
 //! `DEFAULT_HARMONICS = 9` tabulates exactly C's rows `1..=9` beside its `0` row.
 //!
-//! The grids differ: C resamples with `fourgridsize = 200` subintervals per
-//! period, the port with `4 * max(harmonics, 16) = 64`. C prints magnitudes with
-//! six significant digits and phases in **degrees** (the port uses radians and
-//! the `sin()` convention), so the comparison converts once, explicitly. The
-//! tolerances below state the grid difference and the printed precision; they are
-//! not a relaxed physical bound, and analytic checks of the same deck live in
+//! Both engines use 200 subintervals per period for the default harmonic count.
+//! C uses a half-open grid, the port a closed trapezoid rule, and each engine
+//! produces its own transient samples. C prints six significant digits and
+//! phases in **degrees** (the port uses radians), so the comparison converts
+//! once, explicitly. Analytic checks of the same deck live in
 //! `crates/spice-cli/tests/simulate.rs`.
 //!
 //! Nothing here reads or rewrites a committed golden, and the deck uses PULSE
@@ -156,11 +155,9 @@ fn c_analysis(tag: &str, vector: &str) -> (Real, Real, Vec<CRow>) {
 /// Runs both engines on the same deck and compares DC, THD and every harmonic
 /// the port tabulated.
 ///
-/// `magnitude_relative`, `magnitude_floor` and `phase_degrees` are the grid
-/// difference's own size: a slower-decaying spectrum (a discontinuous current)
-/// sees a larger difference than a filtered voltage, so each case states its own
-/// bound. One of the port's 64 subintervals per period is `360/64 = 5.6` degrees
-/// of phase, which is what a phase bound has to cover.
+/// The bounds cover independent transient sampling, interpolation and C's
+/// printed precision, not a difference in default grid resolution. All nine
+/// magnitudes must be compared, with at least five significant phase checks.
 ///
 /// Phases are only compared for harmonics that carry at least 1 % of the
 /// fundamental: the even harmonics of a symmetric square wave are zero in both
@@ -172,7 +169,6 @@ fn compare(
     magnitude_relative: Real,
     magnitude_floor: Real,
     phase_degrees: Real,
-    compared_orders: u32,
 ) {
     let ours = port_analysis(vector);
     let (c_dc, c_thd_percent, c_rows) = c_analysis(tag, vector);
@@ -190,6 +186,8 @@ fn compare(
         "{tag}: THD: port {ours_percent} %, C {c_thd_percent} %"
     );
 
+    let mut compared_magnitudes = 0;
+    let mut compared_phases = 0;
     for row in &c_rows {
         let Some(harmonic) = ours
             .harmonics
@@ -202,11 +200,7 @@ fn compare(
             continue;
         };
         assert_eq!(harmonic.frequency, row.order as Real * ours.fundamental);
-        if row.order > compared_orders {
-            // Beyond this order the two grids are not comparable for this
-            // vector (see each caller); DC and THD still cover the spectrum.
-            continue;
-        }
+        compared_magnitudes += 1;
         let error = (harmonic.amplitude - row.magnitude).abs();
         assert!(
             error <= magnitude_relative * row.magnitude.abs() + magnitude_floor,
@@ -216,9 +210,10 @@ fn compare(
             row.magnitude
         );
         // Radians with the sin() convention here, degrees there: convert once.
-        if row.magnitude < 0.01 * ours.fundamental {
+        if row.magnitude < 0.01 * ours.harmonics[0].amplitude {
             continue;
         }
+        compared_phases += 1;
         let ours_degrees = harmonic.phase * 180.0 / PI;
         let difference = (ours_degrees - row.phase_degrees).abs();
         let wrapped = if difference > 180.0 {
@@ -226,6 +221,10 @@ fn compare(
         } else {
             difference
         };
+        eprintln!(
+            "{tag}: k={} magnitude error {error:e}, phase difference {wrapped:.6} deg",
+            row.order
+        );
         assert!(
             wrapped <= phase_degrees,
             "{tag}: harmonic {} phase: port {ours_degrees} deg, C {} deg",
@@ -233,6 +232,14 @@ fn compare(
             row.phase_degrees
         );
     }
+    assert_eq!(
+        compared_magnitudes, 9,
+        "{tag}: every default harmonic must be checked"
+    );
+    assert!(
+        compared_phases >= 5,
+        "{tag}: only {compared_phases} significant phase checks"
+    );
     assert!(
         c_rows
             .iter()
@@ -250,29 +257,26 @@ fn compare(
 fn a_filtered_square_wave_transforms_like_c() {
     // The RC output is smooth (the filter removes the edges), so its spectrum
     // decays fast and the two grids agree closely.
-    compare("filtered", "v(out)", 0.01, 1e-4, 5.0, 9);
+    // A degree is less than one grid interval (1.8 degrees), and leaves
+    // margin for independently sampled edges without excusing a phase reversal.
+    compare("filtered", "v(out)", 0.01, 1e-4, 1.0);
 }
 
 #[test]
 #[ignore = "requires absolute NGSPICE_BIN; runs a temporary C deck out of process"]
 fn the_source_square_wave_transforms_like_c() {
-    // The unfiltered source exercises discontinuity handling: the pulse edges
-    // carry duplicated grid samples. Orders 1..=5 agree closely. Beyond that the
-    // two grids are no longer comparable for an ideal step, because the port
-    // integrates it on 64 subintervals where C uses 200, and the error is a
-    // growing fraction of a 1/k amplitude: ideal 2/(k*pi) is 0.0909457 at k = 7
-    // (C 0.0911292, +0.2 %; port 0.0927603, +2.0 %) and 0.0707355 at k = 9
-    // (C 0.0709717, +0.3 %; port 0.0730900, +3.3 %). DC and THD are compared
-    // across the whole spectrum, so the high orders are not ignored.
-    compare("source", "v(in)", 0.01, 1e-4, 5.0, 5);
+    // Finite 1 ns pulse edges approximate the ideal square wave. The discrete
+    // projection has relative bias x/sin(x)-1, x=pi*k/200, about 0.33 % at k=9
+    // against the continuous series. Both engines share that grid resolution,
+    // so every order can be compared without a high-order exclusion.
+    compare("source", "v(in)", 0.01, 1e-4, 1.0);
 }
 
 #[test]
 #[ignore = "requires absolute NGSPICE_BIN; runs a temporary C deck out of process"]
 fn a_branch_current_transforms_like_c() {
-    // The source current is discontinuous at every pulse edge (it charges the
-    // capacitor in spikes), so its spectrum decays much more slowly and the
-    // 64-subinterval grid differs from C's 200 far more than for a voltage: two
-    // grid intervals (11 degrees) rather than one.
-    compare("current", "i(v1)", 0.10, 1e-3, 12.0, 9);
+    // The resistor-limited source current jumps at pulse edges; both engines
+    // still use the same grid resolution. The absolute floor is in amperes,
+    // well below the fundamental (~6e-4 A), not a milliamperes-wide escape.
+    compare("current", "i(v1)", 0.01, 1e-7, 1.0);
 }

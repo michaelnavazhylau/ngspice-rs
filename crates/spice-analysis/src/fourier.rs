@@ -9,7 +9,7 @@
 //! `.four` card writes exactly the rawfile it would have written without one.
 //!
 //! C: `fourier()` and `CKTfour()` in `src/frontend/fourier.c`, reached from
-//! `ft_dorun()` (`src/frontend/dotcards.c`) for each `.four` line of the deck.
+//! `ft_cktcoms()` (`src/frontend/dotcards.c`) for each `.four` line of the deck.
 //! The bounded grammar is parsed by `spice-netlist`
 //! (`crates/spice-netlist/src/parser/fourier.rs`); the supported subset, the
 //! window/resampling/quadrature/normalization rules and every divergence from C
@@ -31,7 +31,7 @@
 //!
 //! The window is resampled onto a **uniform closed grid** of `divisions + 1`
 //! points, `t_i = from + i/fundamental/divisions` for `i = 0..=divisions` with
-//! `divisions = 4 * max(harmonics, 16)`; the adaptive steps of the transient
+//! `divisions = 4 * max(harmonics, 50)`; the adaptive steps of the transient
 //! driver are never treated as a uniform grid, and no FFT is used. Each grid
 //! point is read with `.measure`'s sample model: linear interpolation inside the
 //! two samples bracketing it, and an explicit failure — never a silent limit
@@ -39,8 +39,9 @@
 //! (an unrepresented discontinuity, `docs/port/MEASURE.md`). The complex
 //! amplitudes are then the trapezoid quadrature of the trace against
 //! `sin(k*2*pi*w)` and `cos(k*2*pi*w)` on that grid (`w = i/divisions` is the
-//! point's phase within the period by construction), which is exact for any
-//! trace whose content stops below `divisions/2` cycles per period.
+//! point's phase within the period by construction). The discrete projection
+//! is exact for band-limited grid values below `divisions/2` cycles per period;
+//! interpolating the original trace can still introduce error.
 //!
 //! # Normalization and phase
 //!
@@ -49,9 +50,10 @@
 //! `B_k = 2/divisions * sum(w_i * y_i * cos(2*pi*k*w_i))` (trapezoid weights
 //! `w_i = 1/2` at both ends, `1` inside) give the **single-sided peak
 //! amplitude** `sqrt(A_k^2 + B_k^2)` and the **phase** `atan2(B_k, A_k)` in
-//! **radians** in `(-pi, pi]`, i.e. the trace's component is
-//! `amplitude * sin(k * 2*pi*fundamental * t + phase)` in the vector's unit.
-//! Phase `0` is a pure sine, `±pi/2` a pure cosine; C prints the same phase in
+//! **radians** in `[-pi, pi]`, i.e. the trace's component is
+//! `amplitude * sin(k * 2*pi*fundamental * (t - window.from) + phase)`
+//! in the vector's unit. Phase is referenced to the window's start, not time zero.
+//! Phase `0` is a pure sine relative to that start, `±pi/2` a pure cosine; C prints the same phase in
 //! **degrees** (`atan2(cosine, sine) * 180/pi`), so a comparison with C converts
 //! once, explicitly. `dc` is the mean of the resampled trace over the window
 //! (`sum(w_i * y_i)/divisions`, C's row `0`), and the **total harmonic
@@ -86,11 +88,10 @@ use spice_netlist::ast::{FourierCard, MAX_HARMONICS, VectorRequest};
 use crate::results::Plot;
 use crate::selection::{self, Column};
 
-/// The least number of harmonics the resampling grid resolves per period,
-/// independent of the card's own count: `4 * 16 = 64` subintervals, so a card
-/// that tabulates one harmonic still projects a smooth trace accurately. C fixes
-/// `fourgridsize` at 200 subintervals per period instead.
-const GRID_FLOOR: u32 = 16;
+/// The grid's harmonic-count floor: `4 * 50 = 200` subintervals per period,
+/// matching C's default `fourgridsize`. Higher counts retain four subintervals
+/// per requested harmonic, with the same maximum of 400 subintervals.
+const GRID_FLOOR: u32 = 50;
 
 /// How many ULPs of the quadrature's own sums a fundamental amplitude must
 /// exceed before a total harmonic distortion can be formed from it.
@@ -110,10 +111,11 @@ pub struct Harmonic {
     /// `k * fundamental`, in hertz.
     pub frequency: Real,
     /// The single-sided peak amplitude `sqrt(A_k^2 + B_k^2)` in the vector's
-    /// unit: the trace contributes `amplitude * sin(k*omega*t + phase)`.
+    /// unit: the trace contributes `amplitude * sin(k*omega*(t-window.from) + phase)`.
     pub amplitude: Real,
-    /// The phase in **radians**, `atan2(B_k, A_k)`, in `(-pi, pi]`: `0` for a
-    /// pure sine, `+pi/2` for a pure cosine. C prints degrees.
+    /// The phase in **radians**, `atan2(B_k, A_k)`, in `[-pi, pi]`: `0` for a
+    /// pure sine relative to `window.from`, `+pi/2` for a pure cosine.
+    /// C uses the same window reference but prints degrees.
     pub phase: Real,
 }
 
@@ -515,9 +517,9 @@ fn evaluate(
         });
     }
     let fundamental_amplitude = tabulated.first().map_or(0.0, |harmonic| harmonic.amplitude);
-    // The amplitudes were checked finite above and `magnitude` is a sum of finite
-    // magnitudes, so a plain comparison is exact here: at or below the
-    // quadrature's own rounding noise, the THD has no denominator.
+    // Amplitudes were checked finite above. At or below the quadrature's
+    // rounding noise, THD has no denominator. An overflowed magnitude also
+    // refuses the transform instead of producing a spurious denominator.
     if fundamental_amplitude <= NOISE_ULPS * f64::EPSILON * magnitude {
         return Err(nonfinite(
             trace.name().to_owned(),
@@ -613,11 +615,10 @@ mod tests {
     use std::f64::consts::{PI, TAU};
     use std::path::PathBuf;
 
-    /// The default card's period: 1 kHz, and with `GRID_FLOOR` this is 64 grid
-    /// subintervals of 1.5625e-5 s.
+    /// The default card's period: 1 kHz, with 200 grid subintervals of 5e-6 s.
     const FUNDAMENTAL: Real = 1.0e3;
     const PERIOD: Real = 1.0e-3;
-    const DIVISIONS: usize = 64;
+    const DIVISIONS: usize = 200;
 
     fn loc() -> SourceLoc {
         SourceLoc::new(PathBuf::from("deck.cir"), 2, 1)
@@ -757,7 +758,7 @@ mod tests {
 
     #[test]
     fn a_pure_sine_has_an_analytic_amplitude_phase_and_no_leakage() {
-        // A 1 V sine sampled exactly on the 64-point resampling grid: the
+        // A 1 V sine sampled exactly on the 200-subinterval resampling grid: the
         // quadrature is exact for it, so the only error is the rounding of the
         // `sin` values and of the sums.
         let plot = tran(&on_grid(sine(1.0, 1, 0.0)));
@@ -856,6 +857,21 @@ mod tests {
     }
 
     #[test]
+    fn phase_is_referenced_to_the_window_start_not_absolute_time_zero() {
+        let offset = PERIOD / 4.0;
+        // Same absolute-time sine, but stop a quarter period later: its phase
+        // relative to the final window's start must lead by pi/2.
+        let rows: Vec<_> = on_grid(|time| sine(1.0, 1, 0.0)(time + offset))
+            .into_iter()
+            .map(|(time, value)| (time + offset, value))
+            .collect();
+        let result = one(&tran(&rows));
+        assert!((result.window.from - offset).abs() < 1e-15);
+        assert!((amplitude(&result, 1) - 1.0).abs() < 1e-12);
+        assert!((phase(&result, 1) - PI / 2.0).abs() < 1e-12);
+    }
+
+    #[test]
     fn a_run_shorter_than_one_period_is_refused_rather_than_partially_transformed() {
         let plot = tran(&sweep(0.0, 0.5 * PERIOD, 200, sine(1.0, 1, 0.0)));
         let error = failed(&plot, &[out()], 9);
@@ -886,11 +902,11 @@ mod tests {
     }
 
     #[test]
-    fn the_resampling_grid_is_four_subintervals_per_harmonic_with_a_floor_of_sixty_four() {
+    fn the_resampling_grid_is_four_subintervals_per_harmonic_with_a_floor_of_two_hundred() {
         let plot = tran(&sweep(0.0, PERIOD, 400, sine(1.0, 1, 0.0)));
-        assert_eq!(analyze(&plot, &[out()], 1)[0].divisions, 64);
-        assert_eq!(analyze(&plot, &[out()], 16)[0].divisions, 64);
-        assert_eq!(analyze(&plot, &[out()], 17)[0].divisions, 68);
+        assert_eq!(analyze(&plot, &[out()], 1)[0].divisions, 200);
+        assert_eq!(analyze(&plot, &[out()], 50)[0].divisions, 200);
+        assert_eq!(analyze(&plot, &[out()], 51)[0].divisions, 204);
         assert_eq!(analyze(&plot, &[out()], 100)[0].divisions, 400);
     }
 
@@ -898,8 +914,8 @@ mod tests {
     fn a_jump_at_a_grid_point_is_refused_instead_of_choosing_a_limit() {
         // A duplicated time whose values differ is an unrepresented
         // discontinuity; the grid point at half a period lands exactly on it.
-        let half = 32.0 * (PERIOD / DIVISIONS as Real);
-        let mut rows = sweep(0.0, PERIOD, 128, sine(1.0, 1, 0.0));
+        let half = 100.0 * (PERIOD / DIVISIONS as Real);
+        let mut rows = on_grid(sine(1.0, 1, 0.0));
         let at = rows
             .iter()
             .position(|(time, _)| *time == half)
@@ -913,7 +929,7 @@ mod tests {
         assert!(error.to_string().contains("discontinuous"), "{error}");
 
         // A repeated time with the *same* value is not a discontinuity.
-        let mut rows = sweep(0.0, PERIOD, 128, sine(1.0, 1, 0.0));
+        let mut rows = on_grid(sine(1.0, 1, 0.0));
         rows.insert(at + 1, rows[at]);
         let result = analyze(&tran(&rows), &[out()], 9).remove(0);
         assert!((amplitude(&result, 1) - 1.0).abs() < 1e-9, "{result:?}");
@@ -974,7 +990,8 @@ mod tests {
         assert_eq!(result.unit, "current");
         // The plot's `i(v1)` column is the negated voltage.
         assert!((amplitude(&result, 1) - 1.0).abs() < 1e-12, "{result:?}");
-        assert!((phase(&result, 1) - PI).abs() < 1e-12, "{result:?}");
+        // atan2 can return either representation of the pi branch cut.
+        assert!((phase(&result, 1).abs() - PI).abs() < 1e-12, "{result:?}");
     }
 
     #[test]
@@ -1086,7 +1103,7 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("grid                =  64 subinterval(s) per period, 65 sample(s)"),
+            text.contains("grid                =  200 subinterval(s) per period, 201 sample(s)"),
             "{text}"
         );
         assert!(

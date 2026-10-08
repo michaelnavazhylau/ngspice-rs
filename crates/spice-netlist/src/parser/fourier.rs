@@ -1,9 +1,9 @@
 //! The `.four` Fourier card grammar.
 //!
 //! C: `inp_spsource()` (`src/frontend/inp.c`) filters the deck's `.four` lines
-//! out into `ft_first`/`ft_last`; `ft_dotsaves()` (`src/frontend/dotcards.c`)
+//! out into `ft_first`/`ft_last`; `ft_savedotargs()` (`src/frontend/dotcards.c`)
 //! registers the named vectors for the `TRAN` plot so the transient keeps them,
-//! and `ft_dorun()` hands each line to `fourier()`
+//! and `ft_cktcoms()` hands each line to `fourier()`
 //! (`src/frontend/fourier.c`), which transforms the last `nperiods/fundamental`
 //! seconds of the `tran` plot. The port keeps the card's typed request beside
 //! the netlist (`ParsedDeck::fourier`) and evaluates it over the **full** plot,
@@ -49,7 +49,7 @@ use super::save;
 
 /// The C files this card's contract comes from, quoted in "not ported" errors.
 const C_REFERENCE: &str = "src/frontend/inp.c (inp_spsource), src/frontend/dotcards.c \
-     (ft_dotsaves), src/frontend/fourier.c (fourier, CKTfour)";
+     (ft_savedotargs, ft_cktcoms), src/frontend/fourier.c (fourier, CKTfour)";
 
 /// The vector spellings a `.four` card accepts.
 const VECTORS: &str = "v(node), v(first,second), i(source|inductor)";
@@ -216,7 +216,7 @@ fn harmonics_value(input: &mut Input<'_>, at: &SourceLoc) -> Result<u32> {
             if harmonics > MAX_HARMONICS {
                 return Err(ErrMode::Cut(Failure(SpiceError::Unsupported {
                     feature: format!(
-                        "HARMONICS={harmonics}: this port resamples the period onto 4 * max(n, 16) \
+                        "HARMONICS={harmonics}: this port resamples the period onto 4 * max(n, 50) \
                          subintervals per vector, so its bounded Fourier budget is {MAX_HARMONICS} \
                          harmonics ({MAX_GRID} grid subintervals); C has no such bound \
                          (docs/port/FOURIER.md)"

@@ -1128,11 +1128,12 @@ fn a_four_card_transforms_the_final_period_and_leaves_the_rawfile_alone() {
     assert!(report.contains("Fourier analysis for v(out):"), "{report}");
 
     // The source is the analytic square wave: DC 0.5, fundamental 2/pi and
-    // third harmonic 2/(3*pi). The 1 ns edges and the resampling grid leave a
-    // few parts in 1e-3 (measured: 0.63688 and 0.21298).
+    // third harmonic 2/(3*pi). On N=200 subintervals the ideal sampled square
+    // wave's relative amplitude bias is x/sin(x)-1, x=pi*k/N (below 0.34 %
+    // through k=9); the 1 ns ramps are negligible on a 1 ms period.
     let dc = four_scalar(&report, "Fourier analysis for v(in):", "dc");
     assert!((dc - 0.5).abs() < 1e-3, "dc = {dc}");
-    let (fundamental, _) = four_harmonic(&report, "Fourier analysis for v(in):", 1);
+    let (fundamental, source_phase) = four_harmonic(&report, "Fourier analysis for v(in):", 1);
     assert!(
         (fundamental - 2.0 / std::f64::consts::PI).abs() < 0.01,
         "2/pi = {}, got {fundamental}",
@@ -1145,9 +1146,15 @@ fn a_four_card_transforms_the_final_period_and_leaves_the_rawfile_alone() {
         2.0 / (3.0 * std::f64::consts::PI)
     );
 
-    // The lowpass scales those amplitudes by |H(f)| and delays the phase by
-    // -atan(2*pi*f*R*C) = -1.412966 rad at the fundamental. The port prints
-    // radians with the sin() convention, matching C's -81.746 degrees.
+    for order in [7, 9] {
+        let (magnitude, _) = four_harmonic(&report, "Fourier analysis for v(in):", order);
+        let expected = 2.0 / (f64::from(order) * std::f64::consts::PI);
+        assert!((magnitude - expected).abs() < 0.005 * expected + 1e-6);
+    }
+
+    // Compare the transfer-function phase, not an absolute output phase:
+    // subtract the source's phase to cancel the discrete square wave's phase
+    // bias and the common window reference. The lowpass delay is -atan(w*RC).
     let gain =
         |frequency: f64| (1.0 + (2.0 * std::f64::consts::PI * frequency * 1e-3).powi(2)).sqrt();
     let (filtered, phase) = four_harmonic(&report, "Fourier analysis for v(out):", 1);
@@ -1158,8 +1165,9 @@ fn a_four_card_transforms_the_final_period_and_leaves_the_rawfile_alone() {
     );
     let expected_phase = -(2.0 * std::f64::consts::PI * 1e3 * 1e-3).atan();
     assert!(
-        (phase - expected_phase).abs() < 0.05,
-        "phase = {expected_phase}, got {phase}"
+        (phase - source_phase - expected_phase).abs() < 0.02,
+        "transfer phase = {expected_phase}, got {}",
+        phase - source_phase
     );
     let (filtered_third, _) = four_harmonic(&report, "Fourier analysis for v(out):", 3);
     let expected_third = 2.0 / (3.0 * std::f64::consts::PI) / gain(3e3);

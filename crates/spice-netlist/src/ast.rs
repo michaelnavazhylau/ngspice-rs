@@ -742,7 +742,7 @@ impl MeasureWindow {
 pub const DEFAULT_HARMONICS: u32 = 9;
 
 /// The port's bounded harmonic count, and with it the resampling work budget:
-/// harmonic `n` resamples the period onto `4 * max(n, 16)` subintervals, so the
+/// harmonic `n` resamples the period onto `4 * max(n, 50)` subintervals, so the
 /// widest grid this port builds is `4 * MAX_HARMONICS` subintervals per vector
 /// (`400` subintervals, `401` samples). A larger `HARMONICS=` is
 /// [`SpiceError::Unsupported`](spice_core::SpiceError::Unsupported) rather than a
