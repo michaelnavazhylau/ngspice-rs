@@ -6,6 +6,7 @@
 //! | [`sparse`] | sparse triplet storage and petgraph coupling topology | owned faer sparse LU, symbolic reuse and checked solves |
 //! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; floating/coupled mass blocks via block-SVD nullspaces; higher-index pencils rejected |
 //! | [`complex`] | complex sparse operators for AC | owned faer LU |
+//! | [`equilibration`] | explicit bounded row/column scaling | owned LU wrappers with original-unit residuals |
 //! | [`integrator`] | trapezoidal and Gear companion coefficients, integration, prediction and truncation estimates | orders 1–2; trial coefficients separate from accepted step history |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`
@@ -21,12 +22,16 @@
 pub mod complex;
 pub mod dense;
 pub mod diffsol;
+pub mod equilibration;
 pub mod integrator;
 pub mod linear;
 pub use linear::{DenseLu, SparseLu, SparseSymbolic};
 pub mod sparse;
 
 pub use dense::{Matrix, Vector};
+pub use equilibration::{
+    BackwardError, EquilibratedComplexLu, EquilibratedDenseLu, EquilibratedSparseLu, Equilibration,
+};
 pub use integrator::{
     Coefficients, Companion, IntegrationMethod, StepHistory, TruncationTolerances,
 };
