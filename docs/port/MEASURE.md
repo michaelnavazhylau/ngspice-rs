@@ -66,7 +66,7 @@ card      := .measure | .meas
 <selector> := RISE=<n> | FALL=<n> | CROSS=<n> | LAST
             | RISE=LAST | FALL=LAST | CROSS=LAST          (n >= 1 is a whole number)
 
-<operand>  := v(<node>) | v(<node>,<node>) | i(<source|inductor>)
+<operand>  := v(<node>) | v(<node>,<node>) | i(<source|inductor|E|H>)
             | vm|vp|vr|vi|vdb (<node> [, <node>])         (the `.save` spelling, without `all`)
 
 <value>    := a finite numeric literal, e.g. 1m, 2.5e-3

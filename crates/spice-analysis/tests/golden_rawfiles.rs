@@ -321,6 +321,114 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "controlled_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 20,
+        variables: &[
+            "frequency",
+            "i(e1)",
+            "i(h1)",
+            "v(in)",
+            "v(inv)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(out)",
+            "i(vin)",
+            "i(vs)",
+        ],
+        // Inverting integrator with A = 1e4: v(out) = -A x with
+        // x = (1/R) / (1/R + (1 + A) jwC), about +j/(wRC) = 1.5914j at 100 Hz.
+        // G (1 mS) drives Y = jw 1u + 2 mS; i(vs) = v(o2)/1k, F gives
+        // v(o4) = 2 i(vs) 1k and H gives v(o5) = 100 i(vs) (C sign convention).
+        values: &[
+            ("frequency", 0, 1.000000000000000e+02, 0.0),
+            ("v(out)", 0, -2.532522996984260e-04, 1.591390251587439e+00),
+            ("v(o2)", 0, 2.274044503765859e-01, 7.242539107240491e-01),
+            ("i(vs)", 0, 2.274044503765859e-04, 7.242539107240491e-04),
+            ("v(o4)", 0, 4.548089007531717e-01, 1.448507821448098e+00),
+            ("v(o5)", 0, 2.274044503765859e-02, 7.242539107240491e-02),
+            ("i(h1)", 0, -2.274044503765859e-05, -7.242539107240491e-05),
+            ("frequency", 19, 2.000000000000000e+03, 0.0),
+            ("v(out)", 19, -6.331307652401620e-07, 7.956951458945044e-02),
+        ],
+    },
+    Expectation {
+        fixture: "controlled_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(in)",
+            "i(e1)",
+            "i(e2)",
+            "v(fb)",
+            "i(h.x1.h1)",
+            "i(h1)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(o6)",
+            "v(o7)",
+            "v(out)",
+            "i(v.x1.vs)",
+            "i(vin)",
+            "i(vsense)",
+            "v(x1.hout)",
+            "v(x1.mid)",
+        ],
+        // E (A = 1e4) closes a 1 + 3k/1k loop: v(out) = 6/(1 + 4/A). The leading
+        // 2m of g1 follows m=2, so 4 mS x 1.5 V flows into 1k || 4k: 4.8 V and
+        // 1.2 mA through vsense; F x3 gives 3.6 V, H x500 gives 0.6 V (and
+        // i(h1) = -0.3 mA into its 2k load), e2 (vcvs keyword) -2 x 0.6 V.
+        // i(e1) = -v(out) (1/4k + 1/2k) feeds f2 x0.5 into 1k; inside x1, h1
+        // senses v.x1.vs (out/2k) through a hierarchical controlling name.
+        values: &[
+            ("v(out)", 0, 5.997600959615738e+00, 0.0),
+            ("i(e1)", 0, -4.498200719711768e-03, 0.0),
+            ("v(o2)", 0, 4.800000000000001e+00, 0.0),
+            ("i(vsense)", 0, 1.200000000000000e-03, 0.0),
+            ("v(o4)", 0, 3.600000000000001e+00, 0.0),
+            ("v(o5)", 0, 6.000000000000001e-01, 0.0),
+            ("i(h1)", 0, -3.000000000000000e-04, 0.0),
+            ("v(o6)", 0, 2.249100359855884e+00, 0.0),
+            ("v(o7)", 0, -1.200000000000000e+00, 0.0),
+            ("i(e2)", 0, 4.000000000000000e-04, 0.0),
+            ("i(v.x1.vs)", 0, 2.998800479807869e-03, 0.0),
+            ("v(x1.hout)", 0, 2.998800479807869e+00, 0.0),
+            ("i(h.x1.h1)", 0, -2.998800479807869e-04, 0.0),
+            ("i(vin)", 0, -1.500000000000000e-04, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "controlled_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 632,
+        variables: &[
+            "time", "v(a)", "v(b)", "v(c)", "v(d)", "i(e1)", "i(h1)", "v(in)", "v(o4)", "v(o5)",
+            "i(vin)", "i(vs)",
+        ],
+        // At 0.6 ms the second pulse is high: v(b) = 2 v(a) (E), i(e1) = -v(b)/1k,
+        // and the current the G charges through r2 into vs gives
+        // v(o4) = 2 i(vs) 1k (F) and v(o5) = 100 i(vs) (H).
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(b)", 0, 0.0, 0.0),
+            ("time", 631, 5.999999999999999e-04, 0.0),
+            ("v(a)", 631, 5.681063687010960e-01, 0.0),
+            ("v(b)", 631, 1.136212737402192e+00, 0.0),
+            ("i(e1)", 631, -1.136212737402192e-03, 0.0),
+            ("i(vs)", 631, 5.548169243707399e-04, 0.0),
+            ("v(o4)", 631, 1.109633848741480e+00, 0.0),
+            ("v(o5)", 631, 5.548169243707399e-02, 0.0),
+            ("i(h1)", 631, -5.548169243707399e-05, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "coupled_cap_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,

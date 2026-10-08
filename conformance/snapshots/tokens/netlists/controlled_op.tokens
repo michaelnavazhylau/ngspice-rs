@@ -1,0 +1,195 @@
+# ngspice-rs token-dump v1
+file: netlists/controlled_op.cir
+title: "Linear controlled sources operating point" @netlists/controlled_op.cir:1:1
+card 1 @netlists/controlled_op.cir:6:1 lines=6-6 continuations=0
+  raw: ".subckt sense a b"
+  kind: dot(.subckt)
+  token 1 6:1 word ".subckt"
+  token 2 6:9 word "sense"
+  token 3 6:15 word "a"
+  token 4 6:17 word "b"
+card 2 @netlists/controlled_op.cir:7:1 lines=7-7 continuations=0
+  raw: "vs a mid 0"
+  kind: device(v)
+  token 1 7:1 word "vs"
+  token 2 7:4 word "a"
+  token 3 7:6 word "mid"
+  token 4 7:10 number "0" value=0e0
+card 3 @netlists/controlled_op.cir:8:1 lines=8-8 continuations=0
+  raw: "rs mid b 2k"
+  kind: device(r)
+  token 1 8:1 word "rs"
+  token 2 8:4 word "mid"
+  token 3 8:8 word "b"
+  token 4 8:10 number "2k" value=2e3
+card 4 @netlists/controlled_op.cir:9:1 lines=9-9 continuations=0
+  raw: "h1 hout 0 vs 1k"
+  kind: device(h)
+  token 1 9:1 word "h1"
+  token 2 9:4 word "hout"
+  token 3 9:9 number "0" value=0e0
+  token 4 9:11 word "vs"
+  token 5 9:14 number "1k" value=1e3
+card 5 @netlists/controlled_op.cir:10:1 lines=10-10 continuations=0
+  raw: "rh hout 0 10k"
+  kind: device(r)
+  token 1 10:1 word "rh"
+  token 2 10:4 word "hout"
+  token 3 10:9 number "0" value=0e0
+  token 4 10:11 number "10k" value=1e4
+card 6 @netlists/controlled_op.cir:11:1 lines=11-11 continuations=0
+  raw: ".ends sense"
+  kind: dot(.ends)
+  token 1 11:1 word ".ends"
+  token 2 11:7 word "sense"
+card 7 @netlists/controlled_op.cir:12:1 lines=12-12 continuations=0
+  raw: "vin in 0 dc 1.5"
+  kind: device(v)
+  token 1 12:1 word "vin"
+  token 2 12:5 word "in"
+  token 3 12:8 number "0" value=0e0
+  token 4 12:10 word "dc"
+  token 5 12:13 number "1.5" value=1.5e0
+card 8 @netlists/controlled_op.cir:13:1 lines=13-13 continuations=0
+  raw: "rin in 0 10k"
+  kind: device(r)
+  token 1 13:1 word "rin"
+  token 2 13:5 word "in"
+  token 3 13:8 number "0" value=0e0
+  token 4 13:10 number "10k" value=1e4
+card 9 @netlists/controlled_op.cir:14:1 lines=14-14 continuations=0
+  raw: "e1 out 0 in fb 1e4"
+  kind: device(e)
+  token 1 14:1 word "e1"
+  token 2 14:4 word "out"
+  token 3 14:8 number "0" value=0e0
+  token 4 14:10 word "in"
+  token 5 14:13 word "fb"
+  token 6 14:16 number "1e4" value=1e4
+card 10 @netlists/controlled_op.cir:15:1 lines=15-15 continuations=0
+  raw: "r1 fb 0 1k"
+  kind: device(r)
+  token 1 15:1 word "r1"
+  token 2 15:4 word "fb"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "1k" value=1e3
+card 11 @netlists/controlled_op.cir:16:1 lines=16-16 continuations=0
+  raw: "r2 out fb 3k"
+  kind: device(r)
+  token 1 16:1 word "r2"
+  token 2 16:4 word "out"
+  token 3 16:8 word "fb"
+  token 4 16:11 number "3k" value=3e3
+card 12 @netlists/controlled_op.cir:17:1 lines=17-17 continuations=0
+  raw: "g1 0 o2 (in, 0) 2m m=2"
+  kind: device(g)
+  token 1 17:1 word "g1"
+  token 2 17:4 number "0" value=0e0
+  token 3 17:6 word "o2"
+  token 4 17:9 lparen "("
+  token 5 17:10 word "in"
+  token 6 17:12 comma ","
+  token 7 17:14 number "0" value=0e0
+  token 8 17:15 rparen ")"
+  token 9 17:17 number "2m" value=2e-3
+  token 10 17:20 word "m"
+  token 11 17:21 equals "="
+  token 12 17:22 number "2" value=2e0
+card 13 @netlists/controlled_op.cir:18:1 lines=18-18 continuations=0
+  raw: "rg o2 0 1k"
+  kind: device(r)
+  token 1 18:1 word "rg"
+  token 2 18:4 word "o2"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 number "1k" value=1e3
+card 14 @netlists/controlled_op.cir:19:1 lines=19-19 continuations=0
+  raw: "vsense o2 o3 0"
+  kind: device(v)
+  token 1 19:1 word "vsense"
+  token 2 19:8 word "o2"
+  token 3 19:11 word "o3"
+  token 4 19:14 number "0" value=0e0
+card 15 @netlists/controlled_op.cir:20:1 lines=20-20 continuations=0
+  raw: "r3 o3 0 4k"
+  kind: device(r)
+  token 1 20:1 word "r3"
+  token 2 20:4 word "o3"
+  token 3 20:7 number "0" value=0e0
+  token 4 20:9 number "4k" value=4e3
+card 16 @netlists/controlled_op.cir:21:1 lines=21-21 continuations=0
+  raw: "f1 0 o4 vsense 3"
+  kind: device(f)
+  token 1 21:1 word "f1"
+  token 2 21:4 number "0" value=0e0
+  token 3 21:6 word "o4"
+  token 4 21:9 word "vsense"
+  token 5 21:16 number "3" value=3e0
+card 17 @netlists/controlled_op.cir:22:1 lines=22-22 continuations=0
+  raw: "r4 o4 0 1k"
+  kind: device(r)
+  token 1 22:1 word "r4"
+  token 2 22:4 word "o4"
+  token 3 22:7 number "0" value=0e0
+  token 4 22:9 number "1k" value=1e3
+card 18 @netlists/controlled_op.cir:23:1 lines=23-23 continuations=0
+  raw: "h1 o5 0 vsense 500"
+  kind: device(h)
+  token 1 23:1 word "h1"
+  token 2 23:4 word "o5"
+  token 3 23:7 number "0" value=0e0
+  token 4 23:9 word "vsense"
+  token 5 23:16 number "500" value=5e2
+card 19 @netlists/controlled_op.cir:24:1 lines=24-24 continuations=0
+  raw: "r5 o5 0 2k"
+  kind: device(r)
+  token 1 24:1 word "r5"
+  token 2 24:4 word "o5"
+  token 3 24:7 number "0" value=0e0
+  token 4 24:9 number "2k" value=2e3
+card 20 @netlists/controlled_op.cir:25:1 lines=25-25 continuations=0
+  raw: "f2 o6 0 e1 0.5"
+  kind: device(f)
+  token 1 25:1 word "f2"
+  token 2 25:4 word "o6"
+  token 3 25:7 number "0" value=0e0
+  token 4 25:9 word "e1"
+  token 5 25:12 number "0.5" value=5e-1
+card 21 @netlists/controlled_op.cir:26:1 lines=26-26 continuations=0
+  raw: "r6 o6 0 1k"
+  kind: device(r)
+  token 1 26:1 word "r6"
+  token 2 26:4 word "o6"
+  token 3 26:7 number "0" value=0e0
+  token 4 26:9 number "1k" value=1e3
+card 22 @netlists/controlled_op.cir:27:1 lines=27-27 continuations=0
+  raw: "e2 o7 0 vcvs o5 0 -2"
+  kind: device(e)
+  token 1 27:1 word "e2"
+  token 2 27:4 word "o7"
+  token 3 27:7 number "0" value=0e0
+  token 4 27:9 word "vcvs"
+  token 5 27:14 word "o5"
+  token 6 27:17 number "0" value=0e0
+  token 7 27:19 number "-2" value=-2e0
+card 23 @netlists/controlled_op.cir:28:1 lines=28-28 continuations=0
+  raw: "r7 o7 0 3k"
+  kind: device(r)
+  token 1 28:1 word "r7"
+  token 2 28:4 word "o7"
+  token 3 28:7 number "0" value=0e0
+  token 4 28:9 number "3k" value=3e3
+card 24 @netlists/controlled_op.cir:29:1 lines=29-29 continuations=0
+  raw: "x1 out 0 sense"
+  kind: device(x)
+  token 1 29:1 word "x1"
+  token 2 29:4 word "out"
+  token 3 29:8 number "0" value=0e0
+  token 4 29:10 word "sense"
+card 25 @netlists/controlled_op.cir:30:1 lines=30-30 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 30:1 word ".op"
+card 26 @netlists/controlled_op.cir:31:1 lines=31-31 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 31:1 word ".end"

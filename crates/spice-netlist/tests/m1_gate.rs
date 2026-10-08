@@ -197,6 +197,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "m4_mos1_tran",
     ];
     on_disk.retain(|name| !M3_GATE_DECKS.contains(&name.as_str()) && !m4.contains(&name.as_str()));
+    // M6 controlled-source decks (#78) are gated by `xtask golden verify` and
+    // `spice-analysis/tests/controlled_sources.rs`.
+    on_disk.retain(|name| !name.starts_with("controlled_"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

@@ -526,6 +526,7 @@ mod tests {
             nominal_temperature: 27.0,
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
             branches: 0..0,
+            controls: &[],
             integration: None,
             states: crate::state::DeviceState::none(),
             forcing: None,

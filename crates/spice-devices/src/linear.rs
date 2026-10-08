@@ -395,6 +395,9 @@ pub struct LinearContext<'a> {
     pub unknowns: &'a MnaUnknowns,
     /// The first allocated branch row for this device, if any.
     pub branch: Option<usize>,
+    /// Branch rows of the devices this one senses
+    /// ([`crate::Device::controlling_sources`]), in order.
+    pub controls: &'a [usize],
 }
 impl LinearContext<'_> {
     /// Stamps a two-terminal nodal operator into A or E.

@@ -1,0 +1,46 @@
+Title: linear controlled sources operating point
+Date: Thu Oct  8 13:19:04  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 18
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	i(e1)	current
+	2	i(e2)	current
+	3	v(fb)	voltage
+	4	i(h.x1.h1)	current
+	5	i(h1)	current
+	6	v(o2)	voltage
+	7	v(o3)	voltage
+	8	v(o4)	voltage
+	9	v(o5)	voltage
+	10	v(o6)	voltage
+	11	v(o7)	voltage
+	12	v(out)	voltage
+	13	i(v.x1.vs)	current
+	14	i(vin)	current
+	15	i(vsense)	current
+	16	v(x1.hout)	voltage
+	17	v(x1.mid)	voltage
+Values:
+ 0	1.500000000000000e+00
+	-4.498200719711768e-03
+	4.000000000000000e-04
+	1.499400239904038e+00
+	-2.998800479807869e-04
+	-3.000000000000000e-04
+	4.800000000000001e+00
+	4.800000000000001e+00
+	3.600000000000001e+00
+	6.000000000000001e-01
+	2.249100359855884e+00
+	-1.200000000000000e+00
+	5.997600959615738e+00
+	2.998800479807869e-03
+	-1.500000000000000e-04
+	1.200000000000000e-03
+	2.998800479807869e+00
+	5.997600959615738e+00
+

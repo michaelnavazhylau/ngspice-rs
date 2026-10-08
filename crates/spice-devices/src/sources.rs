@@ -51,6 +51,10 @@ impl Device for IndependentSource {
     fn branch_currents(&self) -> usize {
         usize::from(self.voltage)
     }
+    /// A voltage source's current can control F/H sources (`VSRCfindBr`).
+    fn findable_branch(&self) -> Option<usize> {
+        self.voltage.then_some(0)
+    }
     /// DC loads stamp the DC value. Companion transient loads stamp the time-`t`
     /// forcing, evaluated with the one-sided limit of `context.forcing`
     /// (`vsrcload.c`/`isrcload.c` evaluate the waveform at `CKTtime`).

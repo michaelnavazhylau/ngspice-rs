@@ -27,7 +27,7 @@
 use std::fmt;
 use std::ops::Range;
 
-use spice_core::{Node, NodeId, NodeTable, Real, SpiceError, SpiceResult};
+use spice_core::{Node, NodeId, NodeTable, Real, SourceLoc, SpiceError, SpiceResult};
 use spice_maths::{Coefficients, SparseMatrix, Vector};
 
 use crate::linear::Forcing;
@@ -54,6 +54,21 @@ pub struct StorageElement {
     /// The instance `ic=` (volts for a capacitor, amperes for an inductor),
     /// if given.
     pub initial: Option<Real>,
+}
+
+/// A device whose branch current another device senses, named as in the deck
+/// (after subcircuit renaming): the controlling voltage source of an F/H card.
+///
+/// [`crate::Circuit`] resolves it to the named device's branch row when it
+/// numbers the unknowns (C: `CCCSsetup`/`CCVSsetup` call `CKTfndBranch`,
+/// `src/spicelib/analysis/cktfbran.c`). Only devices whose
+/// [`Device::findable_branch`] is `Some` can be named.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlReference {
+    /// Instance name, lowercased.
+    pub name: String,
+    /// Where the reference was written, for diagnostics.
+    pub location: Option<SourceLoc>,
 }
 
 /// Which analysis is currently loading the matrix.
@@ -221,6 +236,9 @@ pub struct StampContext<'a> {
     pub mode: AnalysisMode,
     /// Branch-current rows allocated to this device, in order (empty if none).
     pub branches: Range<usize>,
+    /// Branch rows of the devices named by [`Device::controlling_sources`], in
+    /// that order (empty for devices that sense no branch current).
+    pub controls: &'a [usize],
     /// Companion integration coefficients for this trial step; `None` outside
     /// companion transient loads.
     pub integration: Option<&'a Coefficients>,
@@ -322,6 +340,21 @@ pub trait Device: fmt::Debug {
     /// current row; zero for everything else.
     fn branch_currents(&self) -> usize {
         0
+    }
+
+    /// Devices whose branch current this device senses (F/H controlling
+    /// sources), resolved to rows passed as `controls` in [`StampContext`] and
+    /// [`crate::LinearContext`]. Empty (the default) for everything else.
+    fn controlling_sources(&self) -> &[ControlReference] {
+        &[]
+    }
+
+    /// Which of this device's branch currents another device may sense by
+    /// name, as an index into its branch rows (C `DEVfindBranch`: `VSRCfindBr`,
+    /// `VCVSfindBr`, `CCVSfindBr`). `None` (the default) for devices C's
+    /// `CKTfndBranch` cannot find, including inductors.
+    fn findable_branch(&self) -> Option<usize> {
+        None
     }
 
     /// True when the device's contribution depends on the present solution, so

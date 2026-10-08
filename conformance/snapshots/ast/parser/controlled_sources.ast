@@ -1,0 +1,205 @@
+# ngspice-rs ast-dump v1
+file: parser/controlled_sources.cir
+title: "Linear controlled-source parser reference" @parser/controlled_sources.cir:1:1
+scope root
+  cards (31):
+    [0] device[0] @parser/controlled_sources.cir:4:1 "vin in 0 dc 2"
+    [1] device[1] @parser/controlled_sources.cir:5:1 "vb b 0 dc 1"
+    [2] device[2] @parser/controlled_sources.cir:6:1 "rin in 0 1k"
+    [3] device[3] @parser/controlled_sources.cir:7:1 "e1 o1 0 in 0 3"
+    [4] device[4] @parser/controlled_sources.cir:8:1 "e2 o2 0 (in, b) gain=4"
+    [5] device[5] @parser/controlled_sources.cir:9:1 "e3 o3 0 vcvs in b {2*5}"
+    [6] device[6] @parser/controlled_sources.cir:10:1 "g1 0 o4 in 0 1m"
+    [7] device[7] @parser/controlled_sources.cir:11:1 "g2 0 o5 (in) (0) 2m m=3"
+    [8] device[8] @parser/controlled_sources.cir:12:1 "g3 0 o6 in 0 gain=2m m=3"
+    [9] device[9] @parser/controlled_sources.cir:13:1 "g4 0 o7 vccs in 0 5m"
+    [10] device[10] @parser/controlled_sources.cir:14:1 "f1 0 o8 vin 2"
+    [11] device[11] @parser/controlled_sources.cir:15:1 "f2 0 o9 vin 1 m=2 gain=3"
+    [12] device[12] @parser/controlled_sources.cir:16:1 "f3 0 o10 cccs vin 4"
+    [13] device[13] @parser/controlled_sources.cir:17:1 "h1 o11 0 vin 100"
+    [14] device[14] @parser/controlled_sources.cir:18:1 "h2 o12 0 e1 gain=50"
+    [15] device[15] @parser/controlled_sources.cir:19:1 "h3 o13 0 ccvs (vin) 7"
+    [16] device[16] @parser/controlled_sources.cir:20:1 "re1 o1 0 1k"
+    [17] device[17] @parser/controlled_sources.cir:21:1 "re2 o2 0 1k"
+    [18] device[18] @parser/controlled_sources.cir:22:1 "re3 o3 0 1k"
+    [19] device[19] @parser/controlled_sources.cir:23:1 "rg1 o4 0 1k"
+    [20] device[20] @parser/controlled_sources.cir:24:1 "rg2 o5 0 1k"
+    [21] device[21] @parser/controlled_sources.cir:25:1 "rg3 o6 0 1k"
+    [22] device[22] @parser/controlled_sources.cir:26:1 "rg4 o7 0 1k"
+    [23] device[23] @parser/controlled_sources.cir:27:1 "rf1 o8 0 1k"
+    [24] device[24] @parser/controlled_sources.cir:28:1 "rf2 o9 0 1k"
+    [25] device[25] @parser/controlled_sources.cir:29:1 "rf3 o10 0 1k"
+    [26] device[26] @parser/controlled_sources.cir:30:1 "rh1 o11 0 1k"
+    [27] device[27] @parser/controlled_sources.cir:31:1 "rh2 o12 0 1k"
+    [28] device[28] @parser/controlled_sources.cir:32:1 "rh3 o13 0 1k"
+    [29] analysis[0] @parser/controlled_sources.cir:33:1 ".op"
+    [30] end @parser/controlled_sources.cir:34:1 ".end"
+  devices (29):
+    device [0] name="vin" designator=v @parser/controlled_sources.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @parser/controlled_sources.cir:4:10
+    device [1] name="vb" designator=v @parser/controlled_sources.cir:5:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @parser/controlled_sources.cir:5:8
+    device [2] name="rin" designator=r @parser/controlled_sources.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:6:10
+    device [3] name="e1" designator=e @parser/controlled_sources.cir:7:1
+      nodes: "o1" "0" "in" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="3" @parser/controlled_sources.cir:7:14
+    device [4] name="e2" designator=e @parser/controlled_sources.cir:8:1
+      nodes: "o2" "0" "in" "b"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="4" @parser/controlled_sources.cir:8:17
+    device [5] name="e3" designator=e @parser/controlled_sources.cir:9:1
+      nodes: "o3" "0" "in" "b"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=expression value="{2*5}" @parser/controlled_sources.cir:9:19
+          expression braced=true text="2*5" span=9:20..23
+            binary mul span=9:20..23
+              number "2" value=2e0 span=9:20..21
+              number "5" value=5e0 span=9:22..23
+    device [6] name="g1" designator=g @parser/controlled_sources.cir:10:1
+      nodes: "0" "o4" "in" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="1m" @parser/controlled_sources.cir:10:14
+    device [7] name="g2" designator=g @parser/controlled_sources.cir:11:1
+      nodes: "0" "o5" "in" "0"
+      model: none
+      parameters (2):
+        [0] name="m" kind=scalar value="3" @parser/controlled_sources.cir:11:21
+        [1] name="gain" kind=scalar value="2m" @parser/controlled_sources.cir:11:18
+    device [8] name="g3" designator=g @parser/controlled_sources.cir:12:1
+      nodes: "0" "o6" "in" "0"
+      model: none
+      parameters (2):
+        [0] name="gain" kind=scalar value="2m" @parser/controlled_sources.cir:12:14
+        [1] name="m" kind=scalar value="3" @parser/controlled_sources.cir:12:22
+    device [9] name="g4" designator=g @parser/controlled_sources.cir:13:1
+      nodes: "0" "o7" "in" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="5m" @parser/controlled_sources.cir:13:19
+    device [10] name="f1" designator=f @parser/controlled_sources.cir:14:1
+      nodes: "0" "o8"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vin" @parser/controlled_sources.cir:14:9
+        [1] name="gain" kind=scalar value="2" @parser/controlled_sources.cir:14:13
+    device [11] name="f2" designator=f @parser/controlled_sources.cir:15:1
+      nodes: "0" "o9"
+      model: none
+      parameters (4):
+        [0] name="control" kind=instance value="vin" @parser/controlled_sources.cir:15:9
+        [1] name="m" kind=scalar value="2" @parser/controlled_sources.cir:15:15
+        [2] name="gain" kind=scalar value="3" @parser/controlled_sources.cir:15:19
+        [3] name="gain" kind=scalar value="1" @parser/controlled_sources.cir:15:13
+    device [12] name="f3" designator=f @parser/controlled_sources.cir:16:1
+      nodes: "0" "o10"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vin" @parser/controlled_sources.cir:16:15
+        [1] name="gain" kind=scalar value="4" @parser/controlled_sources.cir:16:19
+    device [13] name="h1" designator=h @parser/controlled_sources.cir:17:1
+      nodes: "o11" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vin" @parser/controlled_sources.cir:17:10
+        [1] name="gain" kind=scalar value="100" @parser/controlled_sources.cir:17:14
+    device [14] name="h2" designator=h @parser/controlled_sources.cir:18:1
+      nodes: "o12" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="e1" @parser/controlled_sources.cir:18:10
+        [1] name="gain" kind=scalar value="50" @parser/controlled_sources.cir:18:13
+    device [15] name="h3" designator=h @parser/controlled_sources.cir:19:1
+      nodes: "o13" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vin" @parser/controlled_sources.cir:19:16
+        [1] name="gain" kind=scalar value="7" @parser/controlled_sources.cir:19:21
+    device [16] name="re1" designator=r @parser/controlled_sources.cir:20:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:20:10
+    device [17] name="re2" designator=r @parser/controlled_sources.cir:21:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:21:10
+    device [18] name="re3" designator=r @parser/controlled_sources.cir:22:1
+      nodes: "o3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:22:10
+    device [19] name="rg1" designator=r @parser/controlled_sources.cir:23:1
+      nodes: "o4" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:23:10
+    device [20] name="rg2" designator=r @parser/controlled_sources.cir:24:1
+      nodes: "o5" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:24:10
+    device [21] name="rg3" designator=r @parser/controlled_sources.cir:25:1
+      nodes: "o6" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:25:10
+    device [22] name="rg4" designator=r @parser/controlled_sources.cir:26:1
+      nodes: "o7" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:26:10
+    device [23] name="rf1" designator=r @parser/controlled_sources.cir:27:1
+      nodes: "o8" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:27:10
+    device [24] name="rf2" designator=r @parser/controlled_sources.cir:28:1
+      nodes: "o9" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:28:10
+    device [25] name="rf3" designator=r @parser/controlled_sources.cir:29:1
+      nodes: "o10" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:29:11
+    device [26] name="rh1" designator=r @parser/controlled_sources.cir:30:1
+      nodes: "o11" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:30:11
+    device [27] name="rh2" designator=r @parser/controlled_sources.cir:31:1
+      nodes: "o12" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:31:11
+    device [28] name="rh3" designator=r @parser/controlled_sources.cir:32:1
+      nodes: "o13" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @parser/controlled_sources.cir:32:11
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/controlled_sources.cir:33:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

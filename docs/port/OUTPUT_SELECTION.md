@@ -61,8 +61,9 @@ Route map:
   `0` under the default `auto_gnd` rule (`Parser::with_auto_gnd(false)` keeps it
   a plain node). Matching against the plot is case-insensitive.
 * device names are lowercased, so `.save i(V1)` matches the plot's `i(v1)`.
-* `i(…)` accepts a **voltage source or an inductor** only: those are the branch
-  currents the port's plots carry (`i(v1)`, `i(l1)`).
+* `i(…)` accepts a **voltage source, an inductor or an E/H controlled source**
+  only: those are the branch currents the port's plots carry (`i(v1)`, `i(l1)`,
+  `i(e1)`, `i(h.x1.h1)`; see [CONTROLLED_SOURCES.md](CONTROLLED_SOURCES.md)).
 * `vm` is the magnitude, `vp` the phase in radians in `(-pi, pi]` (C's `ph()`),
   `vr`/`vi` the real and imaginary parts, `vdb` `20*log10` of the magnitude.
 
@@ -71,7 +72,7 @@ synthesised request:
 
 | Input | Result |
 | --- | --- |
-| `i(r1)`, `i(q1)`, … | `SpiceError::NotYetPorted` (exit 3): only source/inductor branch currents are observable; a resistor or nonlinear instance current needs a device observation API |
+| `i(r1)`, `i(q1)`, `i(g1)`, `i(f1)`, … | `SpiceError::NotYetPorted` (exit 3): only source/inductor/E/H branch currents are observable; a resistor, G/F or nonlinear instance current needs a device observation API |
 | `@r1[resistance]`, any `@…` name | `SpiceError::NotYetPorted` (exit 3): instance parameters are not observable |
 | `power(v1)`, `im(v1)`, a bare `v`, `v(a,b,c)`, a missing `)`, an empty `v()` | `SpiceError::Parse` (exit 2) |
 | `v(a,a)`, `v(0,0)` | `SpiceError::Parse` (exit 2): identically zero, so there is nothing to write |

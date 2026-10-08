@@ -78,6 +78,9 @@ pub(crate) fn instantiate(
     instance: &DeviceInstance,
     nodes: &mut NodeTable,
 ) -> SpiceResult<Box<dyn Device>> {
+    if matches!(instance.designator, 'e' | 'f' | 'g' | 'h') {
+        return crate::controlled::instantiate(instance, nodes);
+    }
     if instance.model.is_some() || instance.nodes.len() != 2 {
         return Err(SpiceError::Unsupported {
             feature: format!("model/multiport device {}", instance.name),

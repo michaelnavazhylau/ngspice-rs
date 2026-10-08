@@ -344,6 +344,7 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         nominal_temperature: 27.0,
         mode: AnalysisMode::OperatingPoint,
         branches: 0..0,
+        controls: &[],
         integration: None,
         states: spice_devices::DeviceState::none(),
         forcing: None,

@@ -130,6 +130,7 @@ fn assignment(parameter: &ParameterAssignment) -> ParameterAssignment {
         ParameterKind::Scalar => (ParameterKind::Scalar, parameter.value.clone()),
         ParameterKind::Textual => (ParameterKind::Textual, parameter.value.clone()),
         ParameterKind::Flag => (ParameterKind::Flag, parameter.value.clone()),
+        ParameterKind::Instance => (ParameterKind::Instance, parameter.value.clone()),
         ParameterKind::Expression(expression) => (
             ParameterKind::Expression(Box::new(expression_form(expression))),
             parameter.value.clone(),

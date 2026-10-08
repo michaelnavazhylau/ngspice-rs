@@ -1,0 +1,31 @@
+Linear controlled sources operating point
+* E: ideal op-amp style non-inverting amplifier, open-loop gain 1e4, closed-loop gain ~ 1 + 3k/1k.
+* G/F/H with the C sign conventions, an F/H controlled by an E branch and by a
+* voltage source inside a subcircuit (hierarchical controlling-source names),
+* the HSPICE vcvs keyword, a parenthesized control pair and a G with m=.
+.subckt sense a b
+vs a mid 0
+rs mid b 2k
+h1 hout 0 vs 1k
+rh hout 0 10k
+.ends sense
+vin in 0 dc 1.5
+rin in 0 10k
+e1 out 0 in fb 1e4
+r1 fb 0 1k
+r2 out fb 3k
+g1 0 o2 (in, 0) 2m m=2
+rg o2 0 1k
+vsense o2 o3 0
+r3 o3 0 4k
+f1 0 o4 vsense 3
+r4 o4 0 1k
+h1 o5 0 vsense 500
+r5 o5 0 2k
+f2 o6 0 e1 0.5
+r6 o6 0 1k
+e2 o7 0 vcvs o5 0 -2
+r7 o7 0 3k
+x1 out 0 sense
+.op
+.end

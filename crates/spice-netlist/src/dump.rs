@@ -782,6 +782,7 @@ fn write_parameters(
             ParameterKind::Flag => "flag",
             ParameterKind::InitialConditions(_) => "initial-conditions",
             ParameterKind::Waveform(_) => "waveform",
+            ParameterKind::Instance => "instance",
         };
         out.line(
             indent + 1,
@@ -852,7 +853,10 @@ fn write_parameters(
                     );
                 }
             }
-            ParameterKind::Scalar | ParameterKind::Textual | ParameterKind::Flag => {}
+            ParameterKind::Scalar
+            | ParameterKind::Textual
+            | ParameterKind::Flag
+            | ParameterKind::Instance => {}
         }
     }
 }

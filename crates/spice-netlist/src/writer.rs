@@ -41,6 +41,11 @@
 //!   were omitted stay omitted; PWL pairs and PULSE fields are space separated
 //!   inside one pair of parentheses (the stored vector text is re-spelled, so
 //!   it is excluded from semantic comparison).
+//! - E/F/G/H (linear gain forms): `e1 n+ n- nc+ nc- <gain>`,
+//!   `f1 n+ n- vname <gain>`; parentheses and the HSPICE `vcvs`-style keyword
+//!   are not written. A gain stored last after `m=` setters (C's leading value,
+//!   applied after the named setters) is written positionally before them; a
+//!   gain stored first is written as `gain=`. Other orders are refused.
 //! - D/Q/M: bare flags (`off`), `name=value` scalars, `ic=(a,b[,c])` vectors
 //!   with omitted trailing components omitted. An omitted Q substrate stays
 //!   omitted.
@@ -609,9 +614,9 @@ impl Writer {
         let mut parts = vec![node(&device.name, location)?];
         let count = device.nodes.len();
         let count_ok = match designator {
-            'r' | 'c' | 'l' | 'v' | 'i' | 'd' => count == 2,
+            'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' => count == 2,
             'q' => count == 3 || count == 4,
-            'm' => count == 4,
+            'm' | 'e' | 'g' => count == 4,
             'x' => true,
             _ => {
                 return Err(refuse(
@@ -630,7 +635,7 @@ impl Writer {
             parts.push(node(n, location)?);
         }
         match (designator, &device.model) {
-            ('v' | 'i', Some(_)) => {
+            ('v' | 'i' | 'e' | 'f' | 'g' | 'h', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
             ('d' | 'q' | 'm' | 'x', None) => {
@@ -656,6 +661,7 @@ impl Writer {
         match designator {
             'r' | 'c' | 'l' => passive_parameters(device, &mut parts)?,
             'v' | 'i' => source_parameters(device, &mut parts)?,
+            'e' | 'f' | 'g' | 'h' => controlled_parameters(device, &mut parts)?,
             'x' => {
                 for parameter in &device.parameters {
                     parts.push(named_value(parameter, true)?);
@@ -922,6 +928,80 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
         } else {
             parts.push(named_value(parameter, false)?);
         }
+    }
+    Ok(())
+}
+
+/// E/F/G/H (`parser/controlled.rs`): the F/H controlling source first, then
+/// the gain slot, then any `m=`/`gain=` tail. A gain stored last after other
+/// setters was C's leading value (applied after the named setters), so it is
+/// written positionally; a gain stored first is written as `gain=`. Any other
+/// order cannot be re-parsed to the same setter sequence and is refused.
+fn controlled_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
+    let designator = device.designator;
+    let mut setters = device.parameters.as_slice();
+    if matches!(designator, 'f' | 'h') {
+        match setters.split_first() {
+            Some((control, rest))
+                if control.name == "control" && control.kind == ParameterKind::Instance =>
+            {
+                parts.push(node(&control.value, &control.location)?);
+                setters = rest;
+            }
+            _ => {
+                return Err(refuse(
+                    format!("'{designator}' instance without a leading controlling source"),
+                    Some(&device.location),
+                ));
+            }
+        }
+    }
+    let multiplier = matches!(designator, 'f' | 'g');
+    for parameter in setters {
+        let allowed = parameter.name == "gain" || (multiplier && parameter.name == "m");
+        if !allowed
+            || !matches!(
+                parameter.kind,
+                ParameterKind::Scalar | ParameterKind::Expression(_)
+            )
+        {
+            return Err(refuse(
+                format!("parameter {:?} on '{designator}' instance", parameter.name),
+                Some(&parameter.location),
+            ));
+        }
+    }
+    let unrepresentable = || {
+        refuse(
+            format!("'{designator}' setter order cannot be written as a linear gain card"),
+            Some(&device.location),
+        )
+    };
+    match setters {
+        [gain] if gain.name == "gain" => parts.push(value_text(gain, false)?),
+        [first, rest @ ..] if first.name == "gain" => {
+            if rest.first().is_some_and(|next| next.name != "m") {
+                return Err(unrepresentable());
+            }
+            for parameter in setters {
+                parts.push(named_value(parameter, false)?);
+            }
+        }
+        [tail @ .., gain]
+            if gain.name == "gain" && tail.first().is_some_and(|first| first.name == "m") =>
+        {
+            parts.push(value_text(gain, false)?);
+            for parameter in tail {
+                parts.push(named_value(parameter, false)?);
+            }
+        }
+        _ if !setters.iter().any(|parameter| parameter.name == "gain") => {
+            return Err(refuse(
+                format!("'{designator}' instance without a gain"),
+                Some(&device.location),
+            ));
+        }
+        _ => return Err(unrepresentable()),
     }
     Ok(())
 }

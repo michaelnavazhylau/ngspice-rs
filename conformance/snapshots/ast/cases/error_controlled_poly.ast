@@ -1,0 +1,5 @@
+# ngspice-rs ast-dump v1
+file: cases/error_controlled_poly.cir
+error not-yet-ported
+  what: "cases/error_controlled_poly.cir:4:10: POLY(n) controlled sources (only the linear gain form is ported)"
+  c_reference: "src/frontend/inpcom.c (inp_compat, inp_check_syntax); src/xspice/enh/enhtrans.c (POLY); src/spicelib/devices/asrc/"
