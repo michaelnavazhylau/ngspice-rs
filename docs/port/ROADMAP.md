@@ -210,11 +210,18 @@ Wave 2 merged on `main`:
   `TRIG … TARG …`, evaluated over the full plot before output selection narrows
   the rawfile ([MEASURE.md](MEASURE.md))
 
-`cargo xtask golden verify` now reports **26 verified fixtures with no
-exclusions**, so `subckt_divider` no longer blocks the milestone. **M5 is not
-complete.** Still open:
+Final deliverable:
 
-- `.four` (#44, in progress on a parallel lane)
+- ✅ bounded `.four` (#44): final complete transient period, physical-time
+  resampling/quadrature, DC/peak amplitude/window-referenced phase/THD, bounded
+  harmonics and explicit failures ([FOURIER.md](FOURIER.md))
+
+All six bounded M5 deliverables are complete. `cargo xtask golden verify`
+reports **26 verified fixtures with no exclusions**; stable/MSRV tests report
+**799 passed / 37 ignored**, and all **37 opt-in live-C** checks pass. This
+completes the defined milestone, not full SPICE parity: `.plot`, multi-analysis
+CLI scheduling, interactive Fourier commands and the documented extended forms
+remain outside the delivered subset.
 
 ## Deliberately out of scope (initially)
 

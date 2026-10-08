@@ -31,6 +31,7 @@ checkout, not a claim that all M2 slices have already merged.
 | CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner, ASCII rawfile written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
 | Output selection | `.save`/`.print` cards project the full plot into the written rawfile in C `dbs` order with first-wins dedup and bounded operand support (`v(n)`, `v(n1,n2)`, `i(source|inductor)`, `vm`/`vp`/`vr`/`vi`/`vdb`); `.print` also renders a text table; unsupported/unresolvable requests fail before publishing; `.plot` unported (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
 | Measurements | `.measure`/`.meas` bounded subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) evaluated over the full plot before output selection narrows it; a failing card fails the run; the remaining variants are unported (#43, [MEASURE.md](docs/port/MEASURE.md)) |
+| Fourier | Bounded `.four` (#44): final complete transient period, physical-grid resampling, DC, single-sided peak amplitudes, window-referenced phase in radians and THD; 1–100 harmonics; full-plot evaluation before output selection ([FOURIER.md](docs/port/FOURIER.md)) |
 
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
 is not ngspice trapezoidal or fixed Gear-2. Numeric PULSE/PWL V/I
@@ -39,14 +40,15 @@ and left/right limits (Step is device-API only); higher-index constraints,
 nonlinear charge, `.ic` and `uic` remain unsupported. Floating/coupled capacitor
 index-one DAEs are supported by the BDF backend (#28).
 
-**M5 is in progress, not complete.** Wave 1 merged subcircuit instantiation
+**M5's bounded scope is complete.** Wave 1 merged subcircuit instantiation
 (#18, [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `spice-rs simulate`
 command (#6, [CLI.md](docs/port/CLI.md)) and binary rawfile read/write (#45,
 [RAWFILES.md](docs/port/RAWFILES.md)). Wave 2 merged bounded `.save`/`.print`
 output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) and
 bounded `.measure`/`.meas` measurements (#43,
-[MEASURE.md](docs/port/MEASURE.md)). `.four` (#44) is still open, in progress on
-a parallel lane; `.plot` remains unported.
+[MEASURE.md](docs/port/MEASURE.md)). Final-period `.four` (#44,
+[FOURIER.md](docs/port/FOURIER.md)) completes the six deliverables; `.plot` and
+extended output/measurement/Fourier forms remain unported.
 
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) records
 245 passing tests and five separately passing opt-in C checks for the integrated
@@ -168,13 +170,14 @@ Exact schemas, physics exclusions and #41 evidence: [M4_NONLINEAR.md](docs/port/
 
 M5 waves 1 and 2 are merged: #18 (subcircuits), #6 (`simulate`), #45 (binary
 rawfiles), #42 (`.save`/`.print` output selection) and #43 (`.measure`).
-Still owed: #44 (`.four`, in progress on a parallel lane).
+Final-period `.four` (#44) completes the bounded milestone; documented exclusions
+remain explicit, rather than implying complete ngspice output compatibility.
 
 - [x] Add a CLI simulation command (#6) that elaborates supported decks, runs one analysis and writes an ASCII rawfile while preserving exits 0/1/2/3. See [CLI.md](docs/port/CLI.md).
 - [x] Implement subcircuit instantiation/flattening, parameter passing, model/node scoping and `.global` semantics (#18). See [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md).
 - [x] Add bounded `.print`/`.save` output selection (#42): typed positioned requests, C `dbs`-order projection of the full plot into the written rawfile with first-wins dedup, a `.print` text table and pre-publish failure for unsupported/unresolvable requests; `.plot` unported. See [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md).
 - [x] Add bounded `.measure`/`.meas` measurements (#43): typed positioned requests (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`), evaluated over the full plot before output selection narrows the rawfile, with a failing card failing the run. See [MEASURE.md](docs/port/MEASURE.md).
-- [ ] Add `.four` (#44), or a deliberate substitute; in progress on a parallel lane.
+- [x] Add bounded `.four` (#44): positioned frequency/vector requests, 1–100 harmonics, final-period physical-grid quadrature, DC/peak amplitude/window-referenced phase/THD, and atomic failure. Analytic, process and opt-in C gates pass. See [FOURIER.md](docs/port/FOURIER.md).
 - [x] Add binary rawfile read/write (#45) so binary C rawfiles can be consumed; real/complex, explicit byte order, validated payload lengths. See [RAWFILES.md](docs/port/RAWFILES.md).
 
 ## 7. Verification, numerical follow-up and documentation
@@ -190,8 +193,8 @@ Still owed: #44 (`.four`, in progress on a parallel lane).
 #12/#13 scoped/source syntax → #14–16 expressions/evaluation/options/globals →
 #20–22 serialization/snapshots/full M1 round-trip gate (done). #18 flattening landed in M5 wave 1 ([SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)).
 CLI simulation (#6, done) and model elaboration →
-SPICE-compatible transient → nonlinear devices → remaining M5 usability
-(#44, `.four`). Numerical optimization is follow-up,
+SPICE-compatible transient → nonlinear devices → bounded M5 usability (done).
+Numerical optimization is follow-up,
 not grounds to weaken correctness gates.
 
 ## Initially out of scope
