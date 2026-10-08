@@ -15,7 +15,7 @@ fn default_and_selected_verification_need_no_c_binary() {
     let output = verify(&[]);
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("26 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
+    assert!(text.contains("27 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
     for name in [
         "rc_divider",
         "RC_LOWPASS_AC.cir",
@@ -43,6 +43,7 @@ fn default_and_selected_verification_need_no_c_binary() {
         "m4_bjt_tran",
         "m4_mos1_ac",
         "m4_mos1_tran",
+        "multi_analysis_rc",
     ] {
         let output = verify(&["--netlist", name]);
         assert!(output.status.success(), "{output:?}");

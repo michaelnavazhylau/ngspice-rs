@@ -2,8 +2,9 @@
 //!
 //! The C equivalent is `src/frontend/main.c` and the batch-mode path of
 //! `src/ngspice.c`. The default command reports what a deck contains and what
-//! the port cannot do with it; [`simulate`] runs the deck's one analysis with
-//! the production engine and writes an ASCII rawfile. See `docs/port/CLI.md`.
+//! the port cannot do with it; [`simulate`] runs every analysis of the deck,
+//! in ngspice batch order, with the production engine and writes one ASCII
+//! rawfile with a plot per analysis. See `docs/port/CLI.md`.
 //!
 //! Exit status is part of the interface:
 //!
