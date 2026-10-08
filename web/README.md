@@ -10,7 +10,7 @@ dependencies are `react`, `react-dom` and `clsx`.
 | command | what it does |
 |---|---|
 | `bun install` | install dependencies |
-| `bun run build:wasm` | compile `spice-wasm` to wasm32 and run `wasm-bindgen --target web` into `src/wasm/pkg/` (gitignored; needed before typecheck, test of the engine, dev and build) |
+| `bun run build:wasm` | `scripts/build-wasm.ts`: checks that the `wasm-bindgen` CLI matches the version in `Cargo.lock` (prints the `cargo install wasm-bindgen-cli --version … --locked` command otherwise) and that the wasm32 target is installed, then compiles `spice-wasm` and generates bindings into `src/wasm/pkg/` (gitignored; needed before typecheck, the engine tests, dev and build) |
 | `bun run dev` | dev server on http://localhost:3000 (`PORT=...` to change) |
 | `bun run build` | production bundle into `dist/` (page, CSS, `worker.js`, `.wasm`) |
 | `bun run preview` | serve `dist/` (`PORT=...`) |
@@ -70,9 +70,14 @@ tests/         bun tests
 
 ## Known limitations
 
-* Engine: R, C, L, independent V/I (dc, ac, pulse, pwl), and since M4 model-backed
-  diodes, Ebers-Moll BJTs and level-1 MOSFETs (`.op`/`.dc`/`.ac`/`.tran`). Subcircuits
-  and controlled sources (E/F/G/H) are not ported.
+* Engine: R, C, L, independent V/I (dc, ac, pulse, pwl), model-backed diodes,
+  Ebers-Moll BJTs and level-1 MOSFETs (`.op`/`.dc`/`.ac`/`.tran`), and since M5
+  `.subckt`/`X` (in "Edit as text" or from virtual include files). Controlled
+  sources (E/F/G/H) are not ported.
+* The engine follows `spice-rs simulate`: exactly one analysis card per run;
+  `.save`/`.print` select the plotted vectors (`.print` vectors are saved too, as
+  in C); `.measure` and `.four` run over the full plot and appear as extra
+  Results tabs (Measurements, Fourier with THD, and the `.print` table).
 * Semiconductors (palette: Diode, NPN/PNP BJT, NMOS/PMOS MOSFET). Each part carries a
   `.model` card (name, type, parameters). Parts with the same model name share one
   card: editing parameters in the Inspector updates all of them, and two different

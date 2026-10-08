@@ -5,13 +5,27 @@ import { formatSI } from "../circuit/si.ts";
 import { LineChart } from "../plot/LineChart.tsx";
 import { buildSeries, isScaleless, traceColors } from "../plot/results.ts";
 import type { RunOutcome } from "../sim/engine.ts";
-import type { Plot, Variable } from "../sim/types.ts";
+import type { Fourier, Measurement, Plot, SimResult, Variable } from "../sim/types.ts";
 
 export type RunState =
   | { status: "idle" }
   | { status: "running"; startedAt: number }
   | { status: "done"; outcome: RunOutcome }
   | { status: "error"; message: string };
+
+/** SI symbol for an engine unit name (`voltage`, `current`, `time`, …). */
+export function unitName(unit: string): string {
+  const u = unit.toLowerCase();
+  if (u.startsWith("volt")) return "V";
+  if (u.startsWith("curr")) return "A";
+  if (u === "time") return "s";
+  if (u.startsWith("freq")) return "Hz";
+  if (u === "db") return "dB";
+  if (u === "phase") return "°";
+  return u === "none" ? "" : unit;
+}
+
+type View = "plot" | "measure" | "fourier" | "print";
 
 export function unitSymbol(v: Variable): string {
   const u = v.unit.toLowerCase();
@@ -36,7 +50,16 @@ export function Results({ state, warnings, shown, toggle }: Props) {
   const [showProblems, setShowProblems] = useState(true);
   const plots = state.status === "done" ? state.outcome.result.plots : [];
   const plot = plots[Math.min(plotIdx, plots.length - 1)] ?? null;
-  useEffect(() => setPlotIdx(0), [state]);
+  const result: SimResult | null = state.status === "done" ? state.outcome.result : null;
+  const extras: { view: View; label: string }[] = [];
+  if (result?.measurements?.length) extras.push({ view: "measure", label: `Measurements (${result.measurements.length})` });
+  if (result?.fourier?.length) extras.push({ view: "fourier", label: `Fourier (${result.fourier.length})` });
+  if (result?.printed) extras.push({ view: "print", label: ".print" });
+  const [view, setView] = useState<View>("plot");
+  useEffect(() => {
+    setPlotIdx(0);
+    setView("plot");
+  }, [state]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-panel">
@@ -49,6 +72,18 @@ export function Results({ state, warnings, shown, toggle }: Props) {
             </button>
           ))}
         {plot && <span className="text-muted">{plot.type}</span>}
+        {extras.length > 0 && (
+          <span className="flex gap-1">
+            <button className={clsx("btn", view === "plot" && "btn-on")} onClick={() => setView("plot")}>
+              Plot
+            </button>
+            {extras.map((e) => (
+              <button key={e.view} className={clsx("btn", view === e.view && "btn-on")} onClick={() => setView(e.view)}>
+                {e.label}
+              </button>
+            ))}
+          </span>
+        )}
         {warnings.length > 0 && (
           <button
             className={clsx("btn", warnings.some((w) => w.severity === "error") ? "text-danger" : "text-warn")}
@@ -78,7 +113,12 @@ export function Results({ state, warnings, shown, toggle }: Props) {
         {state.status === "error" && (
           <pre className="m-3 rounded border border-danger/50 bg-danger/10 p-3 font-mono text-xs whitespace-pre-wrap text-danger">{state.message}</pre>
         )}
-        {plot && <PlotView plot={plot} shown={shown} toggle={toggle} />}
+        {plot && view === "plot" && <PlotView plot={plot} shown={shown} toggle={toggle} />}
+        {view === "measure" && result?.measurements && <MeasureTable rows={result.measurements} />}
+        {view === "fourier" && result?.fourier && <FourierView rows={result.fourier} />}
+        {view === "print" && result?.printed && (
+          <pre className="p-3 font-mono text-xs whitespace-pre">{result.printed}</pre>
+        )}
       </div>
     </div>
   );
@@ -136,5 +176,72 @@ function OpTable({ plot }: { plot: Plot }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+const si = (v: number | null, unit: string, digits = 6) => (v == null ? "–" : formatSI(v, digits, unit));
+
+function MeasureTable({ rows }: { rows: Measurement[] }) {
+  return (
+    <table className="w-full max-w-xl text-xs">
+      <thead>
+        <tr className="border-b border-line text-left text-muted">
+          <th className="px-3 py-1 font-normal">.measure</th>
+          <th className="px-3 py-1 font-normal">Value</th>
+          <th className="px-3 py-1 font-normal">At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((m) => (
+          <tr key={m.name} className="border-b border-line/50">
+            <td className="px-3 py-0.5 font-mono">{m.name}</td>
+            <td className="px-3 py-0.5 font-mono">{si(m.value, unitName(m.unit))}</td>
+            <td className="px-3 py-0.5 font-mono text-muted">{m.at == null ? "" : formatSI(m.at, 6, "")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function FourierView({ rows }: { rows: Fourier[] }) {
+  return (
+    <div className="space-y-4 p-3">
+      {rows.map((f, i) => {
+        const unit = unitName(f.unit);
+        return (
+          <div key={`${f.vector}${i}`}>
+            <p className="mb-1 text-xs">
+              <span className="font-mono font-semibold">{f.vector}</span>
+              <span className="text-muted">
+                {" "}
+                · fundamental {si(f.fundamental, "Hz")} · DC {si(f.dc, unit)} · THD{" "}
+                {f.thd == null ? "–" : `${(100 * f.thd).toPrecision(5)} %`}
+              </span>
+            </p>
+            <table className="w-full max-w-xl text-xs">
+              <thead>
+                <tr className="border-b border-line text-left text-muted">
+                  <th className="px-3 py-1 font-normal">Harmonic</th>
+                  <th className="px-3 py-1 font-normal">Frequency</th>
+                  <th className="px-3 py-1 font-normal">Amplitude</th>
+                  <th className="px-3 py-1 font-normal">Phase</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.harmonics.map((h) => (
+                  <tr key={h.order} className="border-b border-line/50 font-mono">
+                    <td className="px-3 py-0.5">{h.order}</td>
+                    <td className="px-3 py-0.5">{si(h.frequency, "Hz")}</td>
+                    <td className="px-3 py-0.5">{si(h.amplitude, unit)}</td>
+                    <td className="px-3 py-0.5">{h.phase == null ? "–" : `${((h.phase * 180) / Math.PI).toFixed(2)}°`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
   );
 }

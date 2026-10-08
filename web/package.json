@@ -16,7 +16,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:wasm": "cargo build --release --target wasm32-unknown-unknown -p spice-wasm --manifest-path ../Cargo.toml && wasm-bindgen --target web --out-dir src/wasm/pkg ../target/wasm32-unknown-unknown/release/spice_wasm.wasm",
+    "build:wasm": "bun run scripts/build-wasm.ts",
     "dev": "bun run server.ts",
     "preview": "bun run server.ts --dist",
     "build": "bun run build.ts",

@@ -1,4 +1,4 @@
-# WebAssembly feasibility spike (2026-10-07, synced to main 5478c38)
+# WebAssembly feasibility spike (2026-10-07, synced to main 803fcb5)
 
 Question: can the Rust port run a circuit simulator inside a web page?
 
@@ -103,11 +103,12 @@ inside `compare::TRAN` (1e-3).
 
 ## Gaps for a web circuit-sim product
 
-* **Scope, not WASM:** since M4 (main 5478c38) the WASM build also runs
-  model-backed diodes, Ebers-Moll BJTs and MOS1 for DC, AC and transient. Every
-  `conformance/netlists` deck runs in it except `subckt_divider`. Subcircuits
-  are rejected ("subcircuits in linear elaboration"), and E/F/G/H controlled
-  sources are "not yet ported".
+* **Scope, not WASM:** the WASM build runs everything the native port does:
+  linear and M4 nonlinear devices (diode, Ebers-Moll BJT, MOS1), and since M5
+  `.subckt`/`X`. `spice_wasm::run` follows the `spice-rs simulate` pipeline:
+  exactly one analysis, `.save`/`.print` selection, and `.measure`/`.four` over
+  the full plot, all returned in the JSON. E/F/G/H controlled sources are "not
+  yet ported", and `.include` inside a `.subckt` body is `NotYetPorted`.
 * **File system:** solved by `MemorySources`. The page supplies the file map,
   filling it from OPFS, IndexedDB, `fetch` or the user.
 * **API shape:** the ASCII rawfile is 25 MB for ladder1000_tran. Return
