@@ -201,9 +201,12 @@ value). A jump therefore behaves as follows:
   it, and a mean or integral covers exactly the clipped window (`from=`/`to=` in
   the report).
 * A window that contains no sample, or whose width is zero, is
-  `SpiceError::Unsupported`: an `AVG`/`RMS` of an empty window is not a number
-  the port is willing to invent, and C's division by a zero span is not
-  reproduced.
+  `SpiceError::Unsupported` **for `AVG`/`RMS`/`INTEG`**, whose value is a mean or
+  an integral over the width: an `AVG` of an empty window is not a number the
+  port is willing to invent, and C's division by a zero span is not reproduced.
+  `MIN`/`MAX` reduce whole samples instead, so they are defined on a window that
+  contains a sample even when `FROM == TO`; a `MIN`/`MAX` window that contains no
+  sample is the "covers no sample" error above.
 * `FIND … AT=` and `TRIG/TARG … AT=` must lie inside both the axis and the
   window; anything else is `SpiceError::Unsupported` ("out of interval",
   C's wording).
@@ -322,13 +325,31 @@ the `Date:` header).
   analysis word is missing and evaluates a card for another analysis as a
   failure inside that card; the port rejects the card up front, positioned.
 * **`AT=`/`VAL=` on a statistic is an error.** C parses and ignores them; the
-  port refuses to silently ignore a parameter.
+  port refuses to silently ignore a parameter. The same applies to a
+  `RISE=`/`FALL=`/`CROSS=`/`LAST` selector on `FIND` or on a statistic: it
+  describes an event, so it is a positioned `Parse` error rather than a silently
+  dropped word.
 * **An inverted or zero-bounded window is an error.** C swaps `FROM`/`TO` for
   `.dc` and treats `TO=0` as "no upper bound"; the port requires `FROM <= TO`,
   treats every value literally, and reports the covered window, so the echoed
   `from=`/`to=` always describe the window the value came from.
 * **A query at a discontinuity is an error.** C interpolates with a zero span
   (`NaN`, reported as "out of interval"); the port names the discontinuity.
+* **A sample exactly on the threshold starts no new crossing.** The port's
+  section test is "the high side changed between consecutive samples", so a
+  plateau whose samples all equal `VAL` after a rise is one crossing, not a fall
+  and a second rise. C's `com_measure2.c:677-694` fires a fall for a sample that
+  equals `VAL` while its section is `ABOVE`, which then divides by
+  `value - prevValue == 0` in the position formula (`NaN`, "out of interval");
+  the port keeps the well-defined answer and documents the difference, so a
+  `CROSS=2`/`FALL=1` selector over such a plateau is an explicit "no crossing"
+  error here where C reports a degenerate event.
+* **The crossing that enters the window may lie below `FROM`.** The scan starts at
+  the last sample at or before `FROM` so the side the operand enters on is known
+  and a transition that began just before the window is still found; the reported
+  position is the interpolated crossing of that bracket, which can be slightly
+  below `FROM`. This is C's behaviour, and it is what makes a `TRIG` that began
+  before the window detectable at all.
 * **`vp` is in radians.** C's measurement `get_value()` returns degrees for `vp`;
   the port uses the same radians convention as its `.print` table, so a measured
   and a printed phase agree (the `vdb`/`vm`/`vr`/`vi` spellings agree with C).

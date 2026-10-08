@@ -771,7 +771,8 @@ fn crossing(
         unsupported(
             card,
             format!(
-                ".measure {}: no {} crossing of {} through {} in [{}, {}]",
+                ".measure {}: no {} crossing of {} through {} found from the window's \
+                 lower bound [{}, {}]",
                 card.name,
                 transition.name(),
                 request.vector.name(),

@@ -266,6 +266,15 @@ fn malformed_cards_are_positioned_parse_errors() {
         (".measure tran t avg v(out) at=1m\n", "not AVG parameters"),
         (".measure tran t min v(out) val=1\n", "not MIN parameters"),
         (
+            ".measure tran t find v(out) at=1m rise=1\n",
+            "not accepted by FIND",
+        ),
+        (".measure tran t avg v(out) last\n", "not accepted by AVG"),
+        (
+            ".measure tran t max v(out) cross=2\n",
+            "not accepted by MAX",
+        ),
+        (
             ".measure tran t trig v(a) val=1 rise=1 fall=1 targ v(b) val=1\n",
             "at most one crossing selector",
         ),

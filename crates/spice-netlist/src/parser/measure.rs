@@ -238,6 +238,13 @@ fn find(input: &mut Input<'_>, card: &SourceLoc) -> Result<MeasureRequest> {
             "VAL= is not a FIND parameter: FIND <vector> AT=<value> [FROM=…] [TO=…]",
         ));
     }
+    if let Some((_, selector)) = setters.transition() {
+        return Err(fail(
+            &selector,
+            "a RISE=/FALL=/CROSS=/LAST selector is not accepted by FIND: it describes an \
+             event, not a query point (FIND <vector> AT=<value> [FROM=…] [TO=…])",
+        ));
+    }
     let Some((at, at_location)) = setters.at() else {
         return Err(fail(
             card,
@@ -263,6 +270,17 @@ fn statistic_request(input: &mut Input<'_>, statistic: MeasureStatistic) -> Resu
             &at,
             format!(
                 "AT=/VAL= are not {} parameters: {} <vector> [FROM=<value>] [TO=<value>]",
+                statistic.name(),
+                statistic.name()
+            ),
+        ));
+    }
+    if let Some((_, selector)) = setters.transition() {
+        return Err(fail(
+            &selector,
+            format!(
+                "a RISE=/FALL=/CROSS=/LAST selector is not accepted by {}: {} <vector> \
+                 [FROM=<value>] [TO=<value>]",
                 statistic.name(),
                 statistic.name()
             ),

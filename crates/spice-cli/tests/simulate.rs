@@ -1016,3 +1016,38 @@ fn a_failed_or_unsupported_measurement_publishes_nothing() {
     assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn a_later_failing_measure_card_publishes_none_of_the_other_results() {
+    // Atomicity: the first and third cards are valid and the second fails, so a
+    // partial-publish regression would leak their values to stdout.
+    let dir = scratch("measure-partial");
+    let output = dir.join("keep.raw");
+    let deck = write_deck(
+        &dir,
+        "rc delay\nv1 in 0 pulse(0 1 0 1n 1n 1 2)\nr1 in out 1k\nc1 out 0 1u\n\
+         .tran 1u 5m\n.meas tran first max v(out)\n.meas tran second find v(out) at=1\n\
+         .meas tran third avg v(out)\n.end\n",
+    );
+    fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(report.is_empty(), "{report}");
+    assert!(
+        !report.contains("first") && !report.contains("third"),
+        "a valid card must not be published when another fails: {report}"
+    );
+    assert!(
+        stderr(&run).contains("outside the time range"),
+        "{}",
+        stderr(&run)
+    );
+    assert_eq!(
+        fs::read_to_string(&output).unwrap(),
+        "PREVIOUS CONTENT\n",
+        "the destination survives"
+    );
+    assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
+    fs::remove_dir_all(&dir).unwrap();
+}
