@@ -887,3 +887,132 @@ fn unsupported_and_malformed_selections_fail_explicitly() {
     assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
     fs::remove_dir_all(&dir).unwrap();
 }
+
+/// The `.measure` cards of a deck, evaluated over the full plot.
+///
+/// The measurement block is appended after the report (and after a `.print`
+/// table), and a measurement never changes the written rawfile: this test
+/// compares the rawfiles of the same deck with and without `.measure`.
+#[test]
+fn a_measure_card_is_measured_over_the_full_plot_and_leaves_the_rawfile_alone() {
+    let dir = scratch("measure-tran");
+    let deck = write_deck(
+        &dir,
+        "rc delay\nv1 in 0 pulse(0 1 0 1n 1n 1 2)\nr1 in out 1k\nc1 out 0 1u\n.tran 1u 5m\n\
+         .meas tran tdelay trig v(in) val=0.5 rise=1 targ v(out) val=0.5 rise=1\n\
+         .meas tran vavg avg v(out) from=0 to=5m\n.end\n",
+    );
+    let output = dir.join("with.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("measure: 2 result(s), evaluated on the full plot"),
+        "{report}"
+    );
+    // The RC delay is R*C*ln(2) = 6.93147e-4 s, and the average of the rising
+    // exponential over [0, 5ms] is (5m - RC*(1 - e^-5))/5m = 8.01347e-1 V.
+    assert!(
+        report.contains("tdelay              =  6.93147"),
+        "{report}"
+    );
+    assert!(
+        report.contains("vavg                =  8.01347"),
+        "{report}"
+    );
+    assert!(
+        report.contains("targ="),
+        "the delay echoes both events: {report}"
+    );
+
+    let without = dir.join("without.cir");
+    fs::write(
+        &without,
+        "rc delay\nv1 in 0 pulse(0 1 0 1n 1n 1 2)\nr1 in out 1k\nc1 out 0 1u\n.tran 1u 5m\n.end\n",
+    )
+    .unwrap();
+    let plain = dir.join("without.raw");
+    let run = simulate(&plain, &without);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    assert!(
+        !stdout(&run).contains("measure:"),
+        "a deck without .measure keeps today's report: {}",
+        stdout(&run)
+    );
+    assert_eq!(
+        without_date(&fs::read_to_string(&output).unwrap()),
+        without_date(&fs::read_to_string(&plain).unwrap()),
+        "a .measure card must not change the written rawfile"
+    );
+    assert_eq!(
+        entries(&dir),
+        ["deck.cir", "with.raw", "without.cir", "without.raw"]
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_measured_operand_the_output_selection_dropped_is_still_measurable() {
+    let dir = scratch("measure-hidden");
+    let deck = write_deck(
+        &dir,
+        "rc delay, measured but not written\nv1 in 0 pulse(0 1 0 1n 1n 1 2)\nr1 in out 1k\n\
+         c1 out 0 1u\n.tran 1u 5m\n.save v(in)\n.meas tran vout_max max v(out)\n.end\n",
+    );
+    let output = dir.join("tran.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(report.contains("variables: time v(in)"), "{report}");
+    assert!(
+        report.contains("vout_max            =  9.93262"),
+        "the measurement reads the full plot: {report}"
+    );
+    let written = RawFile::load(&output).expect("parses");
+    let plot = written.single_plot().unwrap();
+    assert_eq!(plot.value("v(out)", 0), None, "v(out) was not written");
+    assert!(plot.value("v(in)", 0).is_some());
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_failed_or_unsupported_measurement_publishes_nothing() {
+    let dir = scratch("measure-fail");
+    // The destination must survive, exactly as it does for a bad `.save`.
+    let output = dir.join("keep.raw");
+    for (card, status, message) in [
+        (
+            ".meas tran vat find v(out) at=1",
+            2,
+            "is outside the time range",
+        ),
+        (".meas tran x when v(out)=2", 3, "the when measurement"),
+        (".meas tran x frobnicate v(out)", 2, "no such measurement"),
+        (
+            ".meas dc x max v(out)",
+            2,
+            "the card names a .dc measurement",
+        ),
+        (".meas tran x avg v(out) to=0", 2, "has no width"),
+    ] {
+        let deck = write_deck(
+            &dir,
+            &format!(
+                "rc delay\nv1 in 0 pulse(0 1 0 1n 1n 1 2)\nr1 in out 1k\nc1 out 0 1u\n\
+                 .tran 1u 5m\n{card}\n.end\n"
+            ),
+        );
+        fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+        let run = simulate(&output, &deck);
+        assert_eq!(run.status.code(), Some(status), "{card}: {}", stderr(&run));
+        assert!(run.stdout.is_empty(), "{card}: {}", stdout(&run));
+        assert!(stderr(&run).contains(message), "{card}: {}", stderr(&run));
+        assert_eq!(
+            fs::read_to_string(&output).unwrap(),
+            "PREVIOUS CONTENT\n",
+            "{card}: the destination survives"
+        );
+    }
+    assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
+    fs::remove_dir_all(&dir).unwrap();
+}

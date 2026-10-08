@@ -80,8 +80,12 @@ fn applicable(
 
 /// One written column: a signed sum of full-plot columns, then an optional AC
 /// component.
+///
+/// Shared with [`crate::measure`], which resolves a measurement operand through
+/// exactly the same rules (differences, ground and AC components) so that a
+/// measured vector and a written vector can never disagree.
 #[derive(Debug, Clone, PartialEq)]
-struct Column {
+pub(crate) struct Column {
     /// The name written to the rawfile.
     name: String,
     /// The rawfile unit.
@@ -294,12 +298,22 @@ impl Column {
         self.terms == other.terms && self.component == other.component
     }
 
+    /// The written name of this column, e.g. `v(out)`.
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The unit of this column, e.g. `voltage`, `phase` or `db`.
+    pub(crate) fn unit(&self) -> &str {
+        &self.unit
+    }
+
     /// The value of this column at `point`.
     ///
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] when the computed value is not finite.
-    fn value(&self, point: &[Complex]) -> SpiceResult<Complex> {
+    pub(crate) fn value(&self, point: &[Complex]) -> SpiceResult<Complex> {
         let mut sum = Complex::real(0.0);
         for (index, factor) in &self.terms {
             let Some(value) = point.get(*index) else {
@@ -354,7 +368,12 @@ fn driver_columns(plot: &Plot) -> Vec<Column> {
 }
 
 /// The column one request resolves to.
-fn resolve_request(plot: &Plot, request: &VectorRequest) -> SpiceResult<Column> {
+///
+/// # Errors
+///
+/// [`SpiceError::Unsupported`], carrying the request's `SourceLoc`, for a vector
+/// the plot does not carry or an AC component of a real plot.
+pub(crate) fn resolve_request(plot: &Plot, request: &VectorRequest) -> SpiceResult<Column> {
     let name = request.vector.name();
     let unsupported = |detail: String| SpiceError::Unsupported {
         feature: detail,
