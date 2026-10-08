@@ -3,216 +3,138 @@
 A from-scratch Rust implementation of [ngspice](https://ngspice.sourceforge.io/),
 the SPICE circuit simulator.
 
-> **Status: M1 front-end gate closed; bounded linear and M4 nonlinear subsets are implemented.**
-> The branch-local nonlinear support/gate and deliberate physics limits are in
-> [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md); no full SPICE parity is claimed.
-> Scalar R/C/L/V/I devices support `.op`, typed one/two-axis `.dc`, complex `.ac`
-> and transient analysis (adaptive trap/Gear-2 companion driver; explicitly selected diffsol BDF). Scalar models and
-> bounded D/Q/M and model-backed passive syntax parse. Top-level model resolution
-> and bounded diode input schemas exist. This checkout also simulates bounded
-> model-backed R/C/L plus bounded diode, Ebers-Moll BJT and MOS1 DC/AC/charge-companion transient.
-> Numeric PULSE/PWL and bounded flags/IC vectors parse (syntax only).
-> All eight original fixture decks and the new M4 charge decks parse; unsupported physics is rejected.
-
-[TODO.md](TODO.md) is the central implementation checklist, including branch-aware
-status, remaining work and completion gates. See
-[docs/port/ROADMAP.md](docs/port/ROADMAP.md) for milestones,
-[docs/port/ARCHITECTURE.md](docs/port/ARCHITECTURE.md) for crate boundaries, and
-[RUST_PORT.md](RUST_PORT.md#status) for per-area details.
-
-## Current capabilities and remaining work
-
-GitHub `main` includes the solver implementation (`31e245f`, merged by `b467ca0`).
-The local C-reference development mainline at `d3c8cccf4` predates that work;
-its history differs from this Rust-only repository. Do not overwrite newer public
-code with a whole-tree export from an older development checkout.
-
-Passive syntax (#11) and initial model infrastructure (#17) are merged in
-PR #51 (`cdc078c`). This checkout implements bounded passive elaboration (#19),
-pending merge; see [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md) for its support
-table, formulas, temperatures and deliberately rejected forms.
-
-| Capability | Current checkout |
-| --- | --- |
-| Scalar/model/D/Q/M/passive-model parsing and petgraph topology | Implemented, bounded syntax |
-| Scoped subcircuits/X and source-relative includes/libraries | Ordered scoped cards and `X` expansion through the production entry points (#18): hierarchical names, scoped parameters/models and `.global`; `subckt_divider` verifies against its C golden ([SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)) |
-| Model resolver and scalar schemas | Top-level families/levels/defaults; bounded passive and D/Q/M model-aware factories |
-| Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
-| Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
-| Opt-in equilibration | Maths-library owned dense/sparse/complex wrappers with bounded power-of-two scaling, physical RHS/solution transforms and original-unit residuals; no deck/driver default change (#46, [EQUILIBRATION.md](docs/port/EQUILIBRATION.md)) |
-| Higher-index formulation | Tested numeric constrained-RLC reduction/reconstruction and ADR only; production BDF still rejects these pencils (#29, [HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)) |
-| `.op`, typed/nested V/I/R/TEMP `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices; configurable bounded DC bias continuation |
-| Transient | Ordinary `.tran`: adaptive trap/Gear-2 with bounded nonlinear charge; explicit diffsol BDF remains linear-only |
-| Nonlinear D/Q/M equations | Bounded diode / Ebers-Moll BJT / MOS1; see M4 support table and explicit exclusions |
-| CLI simulation command | `spice-rs simulate --output <path> <deck>` (#6) runs the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner and writes an ASCII rawfile ([CLI.md](docs/port/CLI.md)) |
-| Output selection (`.save`/`.print`) | Bounded typed request parsing and projection of the full plot into the written rawfile in C's `dbs` order: `v(n)`, `v(n1,n2)`, `i(source|inductor)` and `vm`/`vp`/`vr`/`vi`/`vdb`, first-wins dedup; `.print` also renders a text table; unresolvable or unsupported requests fail before anything is published; `.plot` is unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
-| Measurements (`.measure`/`.meas`) | Bounded subset `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) with `FROM`/`TO`, and `TRIG … TARG …` with `AT=` or `<operand> VAL=` plus `RISE`/`FALL`/`CROSS`/`LAST`; evaluated over the full plot before output selection narrows the rawfile; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
-| Fourier (`.four`) | Final complete transient period, physical-time resampling onto `4 * max(harmonics, 50)` subintervals, DC/single-sided peak amplitude/window-referenced phase in radians/THD; 1–100 harmonics, full-plot evaluation independent of rawfile selection ([FOURIER.md](docs/port/FOURIER.md)) |
-
-Local #34/#35 follow-ups add [DC continuation controls/reports](docs/port/DC_CONTINUATION.md)
-and [scalar resistor/nested sweeps](docs/port/DC_SWEEPS.md), including model-backed
-resistor temperature/multiplicity semantics. These changes are not yet published;
-full C dynamic continuation and arbitrary model-parameter sweeps remain unsupported.
-
-An ordinary `.tran` runs the adaptive trapezoidal / Gear-2 companion driver
-([TRANSIENT.md](docs/port/TRANSIENT.md)); explicit `backend=diffsol method=bdf`
-selects the adaptive BDF backend, which is
-**not ngspice trapezoidal or fixed Gear-2**. M3's RC/RL/RLC, PWL, floating/coupled
-capacitor and AC exit gates against C goldens are closed for the linear decks
-(`cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`); M3 is not
-complete: runtime higher-index constraints remain unsupported. #29 now delivers
-a prototype/ADR, not enabling; the separate runtime gates are #69–#72.
-M4 adds bounded nonlinear charge to the companion path, not general MNA DAE support. The BDF backend currently
-accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
-constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
-Pulse/Pwl forcing (#9), with C's PULSE defaults taken from the `.tran` step/stop
-time and explicit left/right limits at jumps; Step is device-API only. See
-[FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
-
-Remaining work is tracked only in [TODO.md](TODO.md):
-
-1. **Verification:** extend the bounded Rust-engine `golden verify` registry
-   as support lands; preserve the implemented solver's correctness gates.
-2. **Front end (M1):** `.param`/expression syntax (#14, [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md)), `.option`/`.global` parsing with a bounded `RunConfig` (#16) and top-level `.param` evaluation (#15, `spice_netlist::eval`/`elaborate`) are done; subcircuit formal defaults, overrides and body `.param` scoping now evaluate during `X` expansion (#18, [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)).
-   Normalized deck serialization exists (#20, `spice_netlist::write_netlist`); token/AST snapshots exist (#21, `cargo xtask snapshots`); the eight-fixture M1 front-end round-trip gate is closed (#22, `crates/spice-netlist/tests/m1_gate.rs`); subcircuit flattening/scoping (#18, M5) is done, while extended passive forms remain.
-   Scoped/source syntax (#12/#13) is documented in [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md).
-3. **Model elaboration:** extended passive forms, additional device schemas
-   and scoped resolution; bounded passive geometry/temperature arithmetic exists.
-4. **Transient (M3):** the adaptive trap/Gear-2 companion driver exists for linear
-   circuits (#26) and its RC/RL/RLC/floating-capacitor/AC conformance gates pass
-   (#48, including the `.ic`/`uic`/`ic=` fixtures of #27); more waveforms,
-   higher-index runtime enabling (#69–#72) and nonlinear initialization remain;
-   #29's formulation/prototype is delivered; bounded nonlinear
-   charge is now provided by M4.
-5. **Nonlinear devices (M4):** bounded equations, Newton/damping/continuation,
-   typed nested sweeps and nonlinear DC/AC/charge-companion gate implemented;
-   expansion beyond [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md) remains explicit work.
-6. **Usability (M5):** wave 1 is merged — subcircuit instantiation (#18,
-   [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `simulate` command (#6,
-   [CLI.md](docs/port/CLI.md)) and binary rawfile read/write (#45,
-   [RAWFILES.md](docs/port/RAWFILES.md)); wave 2 adds bounded `.save`/`.print`
-   output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
-   and bounded `.measure`/`.meas` measurements (#43,
-   [MEASURE.md](docs/port/MEASURE.md)). Bounded `.four` (#44,
-   [FOURIER.md](docs/port/FOURIER.md)) completes M5's six deliverables. This is
-   bounded usability coverage, not full SPICE parity; `.plot` and the documented
-   extended output/measurement/Fourier forms remain unported.
-
-7. **Numerical follow-up:** the bounded milestone delivers opt-in library
-   equilibration (#46), a measured sparse-rank audit/retain outcome (#47,
-   [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md)) and #29's
-   unenabled prototype/ADR. Production rank policy and default simulation remain
-   unchanged. The existing sparse guard has an aggregate-certification proof
-   caveat (#68); no formal uniqueness theorem or enabled batching speedup is
-   claimed. Higher-index runtime gates remain #69–#72. Current stable/MSRV gate:
-   **824 passed / 37 ignored**, golden verify **26/0/0**, **37 live-C** passed.
-
-Advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, Tcl, full numparam
-compatibility and the interactive interpreter are outside the initial scope.
-Unsupported cases must fail explicitly; CLI `NotYetPorted` errors exit 3 rather
-than reporting partial success.
-
-## Quick start
+The port reads ngspice decks, runs DC, AC and transient analyses on a bounded set
+of linear and nonlinear devices, and writes ngspice-compatible rawfiles. Results
+are checked against output captured from upstream ngspice. It is **not** yet a
+drop-in replacement: coverage is deliberately bounded, and anything outside it
+fails with an explicit error instead of a partial or approximate result.
 
 ```sh
-cargo test                              # the whole suite, no C toolchain needed
-cargo xtask ci                          # fmt --check, clippy -D warnings, test
-cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir
-cargo xtask golden list                 # what the captured comparison data holds
-cargo xtask golden verify               # Rust vs C data: 26 verified, 0 unsupported
-cargo run -p spice-analysis --example rc_diffsol --locked # production simulation API
+cargo run -p spice-cli -- simulate --output rc.raw conformance/netlists/rc_transient.cir
 ```
 
-## Continuous integration
+## What works
 
-Separate GitHub Actions workflows run on every push and pull request, and can
-also be started manually. Both run on Ubuntu with dependency caching; the test
-workflow covers stable Rust and the declared MSRV, Rust 1.89:
+| Area | Supported |
+| --- | --- |
+| Netlists | Scalar R/C/L/V/I, `.model`, D/Q/M instances, `.param` and `{expr}` expressions, `.option`/`.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE/PWL sources, `.ic` |
+| Devices | Linear R/C/L/V/I; model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Ebers–Moll BJT and MOS1 (level 1) |
+| Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` |
+| Output | ASCII rawfiles from the CLI, ASCII and binary rawfile read/write in the library, `.save`/`.print` selection |
+| Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
-- **Build**: `cargo build --workspace --locked --release`.
-- **Tests**: `cargo test --workspace --locked` and all-target Clippy with warnings
-  denied, including doctests and committed conformance fixtures. Opt-in live C
-  oracle tests remain ignored; no ngspice binary or C toolchain is required.
+Each area has documented limits; see [the feature guides](#documentation).
+Notable gaps include advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, `.plot`,
+multiple analyses per deck, nonlinear transient initialization, higher-index DAEs
+and the interactive interpreter. Remaining work is tracked in [TODO.md](TODO.md);
+milestones are in [ROADMAP.md](docs/port/ROADMAP.md).
 
-## Parsing backend (`new-parsing`)
+## Getting started
 
-Semantic parsing uses **winnow 1.0.4** over borrowed, positioned tokens. Card
-alternatives, terminals, scalar assignments and DC/AC source forms use parser
-combinators; the existing deck loader and tokenizer are unchanged. The parser
-preserves M1a's AST and CLI exit contract. M1b adds scalar D/BJT/MOS/R/C/L
-model cards, two-terminal diodes, three/four-terminal BJTs and four-terminal MOS
-instances. Q/M require in-deck model declarations (forward references work)
-for terminal disambiguation. R/C/L also retain declared forward model references
-and omitted values. Positioned PULSE/PWL, OFF/model-family flags and Q/M IC vectors
-retain ordered setter semantics without enabling runtime support.
-Parsing is not simulation: family/level checks and bounded
-diode inputs belong to `spice-devices`; see
-[MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md) for APIs and explicit limits.
+Rust **1.89** or newer is required (edition 2024); `rust-toolchain.toml` selects
+stable with clippy and rustfmt. No C toolchain or ngspice binary is needed to
+build or test.
 
-Winnow was the first external dependency and is used only by `spice-netlist`,
-with its `std` and `parser` features. Petgraph is also used in production topology
-APIs; faer supplies real/complex LU and diffsol supplies the bounded BDF backend.
-Both solver backends are MIT-licensed; no LGPL KLU algorithms are copied.
-Rust edition 2024 / MSRV **1.89** is required by the locked dependency graph.
-SuiteSparse/SUNDIALS features remain disabled. A fresh checkout needs registry
-downloads; cache the locked dependencies once for subsequent offline builds:
+```sh
+cargo build --release                    # builds the `spice-rs` binary
+cargo test --workspace --locked          # full test suite
+cargo xtask ci                           # fmt --check, clippy -D warnings, tests
+```
+
+For offline builds, fetch the locked dependencies once:
 
 ```sh
 cargo fetch --locked
 cargo test --workspace --locked --offline
 ```
 
-## Layout
+## Command line
 
+```sh
+spice-rs simulate --output out.raw deck.cir   # run the deck's analysis, write a rawfile
+spice-rs parse deck.cir                       # parse and report unported constructs
+spice-rs cards deck.cir                       # classify every card
+spice-rs tokens deck.cir                      # dump the token stream
+spice-rs devices                             # list supported device designators
+spice-rs analyses                            # list analyses and their status
 ```
-crates/spice-core       numbers, units, nodes, errors, analysis taxonomy
-crates/spice-netlist    deck loading, tokenizer, card classification, AST
-crates/spice-maths      dense/sparse/complex storage, LU, bounded BDF integration
-crates/spice-devices    Device trait, MNA stamping, device registry
-crates/spice-analysis   analysis dispatch, plots, rawfile read/write (ASCII and binary)
-crates/spice-cli        the `spice-rs` binary
-xtask                   C capture/drift checks, Rust numerical verification, CI
-conformance/            fixture decks and the rawfiles captured from ngspice
-TODO.md                 central branch-aware implementation checklist
-docs/port/              architecture, C-to-Rust mapping, roadmap, verification
-```
+
+`simulate` runs exactly one `.op`, `.dc`, `.ac` or `.tran` per deck. Exit status
+is `0` on success, `1` for a bad command line, `2` for a bad deck or failed run,
+and `3` when the deck needs something the port does not support yet. Details are
+in [CLI.md](docs/port/CLI.md).
+
+The engine can also be used as a library; `crates/spice-analysis/examples/rc_diffsol.rs`
+shows the production simulation API.
+
+## Transient solvers
+
+An ordinary `.tran` uses the adaptive trapezoidal / Gear-2 companion driver with
+truncation-error control and breakpoint handling, matching ngspice's approach
+([TRANSIENT.md](docs/port/TRANSIENT.md)). Adding `backend=diffsol method=bdf` to
+the `.tran` card selects an alternative adaptive BDF integrator from
+[diffsol](https://github.com/martinjrobins/diffsol); it supports linear index-one
+DAEs only and is not equivalent to ngspice's integration methods. Linear systems
+are factored with [faer](https://github.com/sarah-quinones/faer-rs).
 
 ## Verification
 
-There is no FFI: the C implementation is used only as an oracle, out of process.
-`conformance/netlists/` holds twenty decks: the original eight (an operating
-point, an AC sweep, a transient run, a DC sweep, a diode, a BJT, a MOSFET and a
-subcircuit) and eight M3 exit-gate decks (RL/RC/RLC/PWL transients with trapezoidal
-and Gear-2 integration, floating and coupled capacitor networks, and an RLC AC
-sweep) plus four initialized-state decks (`uic`/`ic=` RC, RLC and floating-capacitor
-decays, and an `.ic` released after the initial bias);
-`conformance/golden/` holds the ASCII rawfile that upstream `ngspice-47+`
-produced for each of them, committed so the tests run without a C toolchain.
-
-To check that the committed data still reproduces, point the harness at a built
-upstream `ngspice`:
+The C implementation is used only as an out-of-process oracle; there is no FFI.
+`conformance/netlists/` holds fixture decks (linear, diode, BJT, MOSFET,
+subcircuit and transient cases), and `conformance/golden/` holds the rawfiles
+upstream ngspice produced for them, committed so tests run without C.
 
 ```sh
-NGSPICE_BIN=/path/to/ngspice cargo xtask golden check
-cargo xtask golden check --ngspice /path/to/ngspice   # equivalent
+cargo xtask golden verify                            # Rust engine vs committed C output
+NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-[docs/port/VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness and
-its limits. `golden check` checks reproducibility of C output; it does not run
-the Rust simulation engine. `cargo xtask golden verify` runs the Rust library
-APIs against 26 committed fixtures (linear, nonlinear, transient and the
-flattened subcircuit deck) with name/metadata/axis/value checks and no remaining
-exclusions; no C binary is needed. Production DC/AC golden
-comparisons and analytic/
-live-C transient tests are documented in
-[DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md), including
-recorded validation and justified tolerances. No new test run is implied by this
-status summary.
+`golden verify` currently verifies all 26 golden fixtures with no exclusions.
+[VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
+and its limits.
+
+## Repository layout
+
+```
+crates/spice-core       numbers, units, nodes, errors, analysis taxonomy
+crates/spice-netlist    deck loading, tokenizer, winnow parser, AST, parameter evaluation
+crates/spice-maths      dense/sparse/complex LU (faer), BDF integration (diffsol)
+crates/spice-devices    device models, MNA stamping, device registry
+crates/spice-analysis   analysis drivers, plots, measurements, rawfile I/O
+crates/spice-cli        the `spice-rs` binary
+xtask                   golden capture/verification, snapshots, CI
+conformance/            fixture decks and captured ngspice output
+docs/port/              architecture, C-to-Rust mapping, roadmap and feature guides
+```
+
+## Documentation
+
+- Design: [ARCHITECTURE.md](docs/port/ARCHITECTURE.md),
+  [MAPPING.md](docs/port/MAPPING.md) (C sources to Rust modules),
+  [ROADMAP.md](docs/port/ROADMAP.md), [TODO.md](TODO.md), [RUST_PORT.md](RUST_PORT.md)
+- Front end: [FRONTEND_STRUCTURE.md](docs/port/FRONTEND_STRUCTURE.md),
+  [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md),
+  [PARAM_EXPRESSIONS.md](docs/port/PARAM_EXPRESSIONS.md),
+  [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)
+- Devices: [MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md),
+  [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md),
+  [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md)
+- Analyses: [DC_SWEEPS.md](docs/port/DC_SWEEPS.md),
+  [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md),
+  [TRANSIENT.md](docs/port/TRANSIENT.md)
+- Output: [CLI.md](docs/port/CLI.md), [RAWFILES.md](docs/port/RAWFILES.md),
+  [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md),
+  [MEASURE.md](docs/port/MEASURE.md), [FOURIER.md](docs/port/FOURIER.md)
+- Numerics: [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md),
+  [EQUILIBRATION.md](docs/port/EQUILIBRATION.md),
+  [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md),
+  [HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)
 
 ## License
 
-Modified BSD, the same license as ngspice, because this is a **derivative work**:
-the Rust code reimplements behaviour defined by ngspice's C sources.
-[COPYING](COPYING) is reproduced verbatim from upstream and includes the few
-contributions that carry different terms; [AUTHORS](AUTHORS) is upstream's
-attribution. See [NOTICE](NOTICE).
+Modified BSD, the same license as ngspice. This is a **derivative work**: the Rust
+code reimplements behaviour defined by ngspice's C sources. [COPYING](COPYING) is
+reproduced verbatim from upstream and covers the few contributions with different
+terms; [AUTHORS](AUTHORS) is upstream's attribution. See [NOTICE](NOTICE). The
+Rust dependencies (winnow, petgraph, faer, diffsol) are permissively licensed, and
+no LGPL KLU code is used.
