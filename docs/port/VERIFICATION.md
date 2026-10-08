@@ -1,18 +1,20 @@
 # Verification
 
-## M5 wave-1 gate (#18, #6, #45)
+## M5 wave-1 and wave-2 gate (#18, #6, #45, #42, #43)
 
 `cargo xtask golden verify` reports **26 verified fixture(s), 0 unsupported
 fixture(s), 0 failure(s)**: `EXCLUDED` in `xtask/src/verify.rs` is empty, so
 `subckt_divider` runs through the production `.op` path and matches its committed
-C golden. `cargo test --workspace --locked` reports **704 passed, 0 failed, 31
-ignored** on stable (rustc 1.99.0) and Rust 1.89.0; the 31 opt-in live-C
+C golden. `cargo test --workspace --locked` reports **762 passed, 0 failed, 34
+ignored** on stable (rustc 1.99.0) and Rust 1.89.0; the 34 opt-in live-C
 comparisons pass with `NGSPICE_BIN` set. Subcircuit instantiation:
 [SUBCIRCUITS.md](SUBCIRCUITS.md); CLI `simulate` (one analysis, ASCII rawfile):
-[CLI.md](CLI.md); binary rawfile read/write: [RAWFILES.md](RAWFILES.md). **M5 is
-not complete:** output selection (#42), `.measure` (#43) and `.four` (#44) remain
-open ([ROADMAP.md](ROADMAP.md)). The historical per-slice counts below record the
-state at each delivery; they are not the current totals.
+[CLI.md](CLI.md); binary rawfile read/write: [RAWFILES.md](RAWFILES.md);
+`.save`/`.print` output selection: [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md);
+`.measure`/`.meas` measurements: [MEASURE.md](MEASURE.md). **M5 is not
+complete:** `.four` (#44) remains open ([ROADMAP.md](ROADMAP.md)); `.plot` is
+unported. The historical per-slice counts below record the state at each
+delivery; they are not the current totals.
 
 ## Branch-local M4 gate (#41)
 
