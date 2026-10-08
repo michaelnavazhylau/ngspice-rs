@@ -31,8 +31,12 @@ The companion trap/Gear transient driver is documented separately in
 - Dense LU checks pivots against `epsilon * n * max_abs(A)`. Sparse real and complex
   LU solve every basis RHS for rank diagnostics, including homogeneous systems,
   and reject unresolved conditioning when `128 * epsilon * n * ||A||inf *
-  ||inverse(A)||inf >= 0.5`. This conservative, unscaled policy may reject
-  otherwise solvable, extremely ill-scaled systems; equilibration is future work.
+  ||X||inf >= 0.5`, where X contains the computed basis solutions. This
+  conservative default may reject otherwise solvable unit-imbalanced systems;
+  #46 now provides explicit library scaling wrappers ([EQUILIBRATION.md](EQUILIBRATION.md)).
+  #47 retains this policy and documents its aggregate-certification proof caveat
+  ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)); formal proof gate #68
+  remains unresolved. A passing cutoff is not a newly proved uniqueness theorem.
   Since faer's high-level sparse LU does not expose numeric pivots, the diagnostic
   costs **n extra sparse solves** and O(n) auxiliary storage per factorization.
 - Every solve checks finite output and row-scaled normwise backward error:
@@ -128,7 +132,7 @@ connected components of its petgraph coupling graph; each block is rank-revealed
 (1×1 blocks exactly, larger floating/coupled capacitor blocks by dense SVD with
 tolerance `64 m ε σ_max`, at most `MAX_MASS_BLOCK` = 512 unknowns). The null
 vectors give `N = ker E` and `W = ker Eᵀ`, and the pencil is accepted only when
-`Wᵀ A N` passes the rank-certified sparse LU. Grounded, floating and coupled
+`Wᵀ A N` passes the numerical sparse rank guard described above. Grounded, floating and coupled
 capacitors and index-one RL/RLC/source equations are accepted; higher-index
 ideal-source constraints (a source across a capacitor or a floating capacitor),
 singular pencils and nonunique nullspaces are rejected. For diagonal `E` this is
@@ -198,6 +202,12 @@ charge/flux, limiting, DC convergence policies and general DAEs remain deferred.
 The separate trap/Gear companion integrator (`spice_maths::integrator`) provides
 order-1/2 coefficients and history operations for the companion driver
 ([TRANSIENT.md](TRANSIENT.md)); BDF never consumes them.
+
+The #29 numeric-only constrained-RLC prototype is separate from this runtime
+adapter: [HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md). It does not enable
+higher-index integration or change initialization/events. Production waveform,
+exact-class mapping, reduced integration/error ownership and corner handling
+remain separately gated by #69–#72.
 
 ## Validation and dependencies
 

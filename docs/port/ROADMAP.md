@@ -161,10 +161,10 @@ C/L companion stamps (#25), PULSE/PWL evaluation (#9) and the adaptive companion
 driver for linear circuits (#26, [TRANSIENT.md](TRANSIENT.md)) exist. The
 **RC/RL/RLC/PWL, Gear-2, floating/coupled-capacitor, RLC AC and initialized-state
 (`.ic`/`uic`/`ic=`) exit gates against C goldens are closed** (#48; `cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`,
-[VERIFICATION.md](VERIFICATION.md)). Still open and blocking M3 completion:
-higher-index source constraints
-(#29) and nonlinear charge (M4). General MNA DAEs are not
-supported: only the demonstrated index-one structures are.
+[VERIFICATION.md](VERIFICATION.md)). Runtime higher-index constraints remain
+unsupported: #29's formulation/prototype gate is delivered, but enabling
+requires #69–#72. Nonlinear charge is bounded by the M4 support table, not
+universal nonlinear initialization/physics. General MNA DAEs are not supported.
 
 C, L, and the numerical integration machinery.
 
@@ -175,7 +175,7 @@ C, L, and the numerical integration machinery.
 
 Exit criteria: RC and RLC golden fixtures for `.tran` and `.ac` (met for the
 linear decks, including the initialized-state `.ic`/`uic`/`ic=` fixtures of #27;
-higher-index constraints and nonlinear charge remain open).
+higher-index runtime constraints and physics beyond the M4 subset remain open).
 
 ## M4 — Nonlinear devices
 
@@ -222,6 +222,27 @@ reports **26 verified fixtures with no exclusions**; stable/MSRV tests report
 completes the defined milestone, not full SPICE parity: `.plot`, multi-analysis
 CLI scheduling, interactive Fourier commands and the documented extended forms
 remain outside the delivered subset.
+
+## Follow-up — Numerical robustness and higher-index DAEs
+
+The defined three-issue bounded milestone is delivered:
+
+- ✅ #46: opt-in library dense/sparse/complex equilibration, finite bounded
+  transforms, owned metadata and original-unit residuals ([EQUILIBRATION.md](EQUILIBRATION.md)).
+  Default factors/drivers do not opt in automatically.
+- ✅ #47: public-backend audit, deterministic guard regressions and measured
+  example-only batching. Production policy is retained; **no enabled speedup or
+  formal uniqueness certificate** ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)).
+  The aggregate-contraction proof caveat is a separate reviewed-policy gate (#68).
+- ✅ #29: fallible smooth constrained-RLC prototype/ADR, signed reconstruction,
+  original/differentiated residuals, IC/rank/impulse tests and enabling checklist
+  ([HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md)). Existing index-one runtime
+  guards remain. Production waveform/adapter/integration/event gates are #69–#72.
+
+Parent combined validation: **824 passed / 0 failed / 37 ignored** on stable and
+Rust 1.89; both all-target Clippy checks clean, formatting/whitespace clean,
+golden verify **26/0/0**, all **37 live-C** checks pass and **26 C goldens reproduce**.
+Neither an ADR nor the bounded audit closes general DAE or formal-rank guarantees.
 
 ## Deliberately out of scope (initially)
 
