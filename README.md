@@ -17,7 +17,7 @@ cargo run -p spice-cli -- simulate --output rc.raw conformance/netlists/rc_trans
 
 | Area | Supported |
 | --- | --- |
-| Netlists | Scalar R/C/L/V/I, `.model`, D/Q/M instances, `.param` and `{expr}` expressions, `.option`/`.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE/PWL sources, `.ic` |
+| Netlists | Scalar R/C/L/V/I, `.model`, D/Q/M instances, `.param` and `{expr}` expressions, `.option`/`.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
 | Devices | Linear R/C/L/V/I; model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Ebers–Moll BJT and MOS1 (level 1) |
 | Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` |
 | Output | ASCII rawfiles from the CLI, ASCII and binary rawfile read/write in the library, `.save`/`.print` selection |
