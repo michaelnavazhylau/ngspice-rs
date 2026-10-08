@@ -60,7 +60,7 @@ use petgraph::algo::{tarjan_scc, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
 use spice_core::{Real, SourceLoc, SpiceError, SpiceResult};
 
-use crate::ast::{FuncCard, Netlist, ParamCard, Subcircuit};
+use crate::ast::{FuncCard, Netlist, ParamCard};
 use crate::expr::{
     BinaryOp, EXCLUDED_FUNCTIONS, Expr, ExprKind, Function, ParameterExpression, UnaryOp,
 };
@@ -691,36 +691,20 @@ impl FunctionScope {
         Ok(scope)
     }
 
-    /// The deck's top-level scope, after checking the `.func` cards of every
-    /// `.subckt` body as well (each inside its lexically enclosing scope), so
-    /// that a recursive or mis-called definition is reported even in a
-    /// subcircuit that is never instantiated, as C does.
+    /// The deck's top-level scope.
+    ///
+    /// Only the top-level `.func` cards are checked here. C expands and
+    /// checks a `.subckt` body's `.func` cards only when the subcircuit is
+    /// instantiated (`inpcom.c` `inp_expand_macros_in_deck()` runs on the
+    /// flattened deck), so a recursive or mis-called definition inside a
+    /// never-instantiated subcircuit is accepted by C. Each body's scope is
+    /// built and checked with [`Self::new`] when an instance of it is
+    /// expanded (`spice-devices` subcircuit expansion).
     ///
     /// # Errors
-    /// As [`Self::new`], for any scope of the deck.
+    /// As [`Self::new`], for the top-level scope.
     pub fn for_netlist(netlist: &Netlist, budget: &EvalBudget) -> SpiceResult<Arc<Self>> {
-        fn bodies(
-            parent: &Arc<FunctionScope>,
-            subcircuits: &[Subcircuit],
-            budget: &EvalBudget,
-        ) -> SpiceResult<()> {
-            for sub in subcircuits {
-                let scope = if sub.functions.is_empty() {
-                    Arc::clone(parent)
-                } else {
-                    Arc::new(FunctionScope::new(
-                        Some(Arc::clone(parent)),
-                        &sub.functions,
-                        budget,
-                    )?)
-                };
-                bodies(&scope, &sub.subcircuits, budget)?;
-            }
-            Ok(())
-        }
-        let root = Arc::new(Self::new(None, &netlist.functions, budget)?);
-        bodies(&root, &netlist.subcircuits, budget)?;
-        Ok(root)
+        Ok(Arc::new(Self::new(None, &netlist.functions, budget)?))
     }
 
     /// Arity of every resolvable call in the active bodies, then cycles.
@@ -1312,6 +1296,12 @@ fn builtin_call(
     })
 }
 
+/// The behavioural-source probe functions. C accepts `v(...)` and `i(...)`
+/// in a device value such as `r1 1 0 {1/i(v1)}` by rewriting the device into
+/// a behavioural one, so a call of either with no `.func` in scope is
+/// reported as not yet ported rather than as an invalid deck.
+const PROBE_FUNCTIONS: &[&str] = &["v", "i"];
+
 /// A call of a name outside the built-in allowlist.
 #[inline(never)]
 fn user_call(
@@ -1330,6 +1320,23 @@ fn user_call(
                 message: format!(
                     "function '{name}' is a numparam function outside the bounded \
                      allowlist in `{}`",
+                    snippet(root, node)
+                ),
+                unsupported: true,
+            });
+        }
+        if PROBE_FUNCTIONS
+            .iter()
+            .any(|probe| probe.eq_ignore_ascii_case(name))
+        {
+            return Err(Failure {
+                location: node.span.start.clone(),
+                message: format!(
+                    "behavioural probe function '{name}' in `{}`: C turns a device \
+                     value that reads a node voltage or branch current into a \
+                     behavioural source (see src/frontend/inpcom.c \
+                     `b_transformation_wanted()`), which is not \
+                     ported",
                     snippet(root, node)
                 ),
                 unsupported: true,

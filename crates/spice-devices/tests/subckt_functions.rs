@@ -88,3 +88,22 @@ fn errors_inside_bodies_keep_their_locations() {
     assert!(text.contains("funcs.cir:4:9"), "{text}");
     assert!(text.contains("takes 1 argument(s), found 2"), "{text}");
 }
+
+#[test]
+fn invalid_body_functions_fail_only_when_instantiated() {
+    // C checks a body's .func cards when the subcircuit is expanded.
+    for body in [
+        ".subckt s a\n.func h(x) {h(x)}\nr1 a 0 1k\n.ends",
+        ".subckt s a\n.func g(x) {x}\n.func h(x) {g(x,1)}\nr1 a 0 1k\n.ends",
+    ] {
+        circuit(&format!("{body}\nv1 n 0 dc 1\nr2 n 0 1k"))
+            .unwrap_or_else(|e| panic!("{body}: {e}"));
+        let error = circuit(&format!("{body}\nx1 n s\nv1 n 0 dc 1")).unwrap_err();
+        let text = error.to_string();
+        assert!(!error.is_not_yet_ported(), "{text}");
+        assert!(
+            text.contains("recursive .func definition") || text.contains("found 2"),
+            "{text}"
+        );
+    }
+}

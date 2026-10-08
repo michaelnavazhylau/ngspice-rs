@@ -131,13 +131,13 @@ fn function_failures_c_reports_are_errors_here_too() {
             "{f(3,4)}",
             "takes 1 argument(s), found 2",
         ),
-        // Arity is checked inside an unused body as well.
+        // Arity is checked inside an unused top-level body as well.
         (
             ".func f(x) {g(x,1)}\n.func g(x) {x}",
             "{1}",
             "in the body of function 'f'",
         ),
-        // Recursion is fatal in C (unbounded expansion), even unused.
+        // Recursion is fatal in C (unbounded expansion), even unused at top level.
         (".func f(x) {f(x)}", "{1}", "recursive .func definition"),
         (
             ".func f(x) {g(x)}\n.func g(x) {f(x)}",
@@ -184,6 +184,45 @@ fn forms_c_accepts_but_the_port_does_not_are_not_yet_ported() {
         let error = Parser::new()
             .parse_deck(&parse_deck_text(Path::new("probe.cir"), &text))
             .expect_err(cards);
+        assert!(error.is_not_yet_ported(), "{cards}: {error}");
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_func_eval -- --ignored"]
+fn uninstantiated_subcircuit_functions_are_not_checked() {
+    // C expands and checks a body's .func cards only for an instantiated
+    // subcircuit, so these decks run in C and resolve here.
+    let cases: &[&str] = &[
+        ".subckt s a b\n.func h(x) {h(x)}\nr1 a b 1k\n.ends",
+        ".subckt s a b\n.func g(x) {x}\n.func h(x) {g(x,1)}\nr1 a b 1k\n.ends",
+    ];
+    for (index, cards) in cases.iter().enumerate() {
+        let c = c_value(&format!("unused{index}"), cards, "{2}")
+            .unwrap_or_else(|e| panic!("C rejected {cards}: {e}"));
+        assert_eq!(c, 2.0, "{cards}");
+        assert_eq!(rust_value(cards, "{2}").expect(cards), 2.0, "{cards}");
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_func_eval -- --ignored"]
+fn behavioural_probe_calls_c_accepts_are_not_yet_ported() {
+    // C rewrites a device value reading v() or i() into a behavioural device.
+    for (index, cards) in [
+        "v2 2 0 dc 1\nr2 2 0 {1/i(v2)}",
+        "v2 2 0 dc 1\nr2 2 0 {v(2)*2}",
+    ]
+    .iter()
+    .enumerate()
+    {
+        c_value(&format!("probe{index}"), cards, "{1}")
+            .unwrap_or_else(|e| panic!("C rejected {cards}: {e}"));
+        let text = format!("t\n{cards}\n.end\n");
+        let netlist = Parser::new()
+            .parse_deck(&parse_deck_text(Path::new("probe.cir"), &text))
+            .expect(cards);
+        let error = spice_netlist::elaborate::literalize(&netlist).expect_err(cards);
         assert!(error.is_not_yet_ported(), "{cards}: {error}");
     }
 }

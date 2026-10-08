@@ -65,7 +65,10 @@ the allowlist such as `agauss`/`limit`) parses as `ExprKind::UserCall` and is
 resolved during evaluation against the `.func` definitions in scope (see
 "`.func` and quoted values" below). Without a definition it is an evaluation
 error (`undefined function`), or `NotYetPorted` for an excluded numparam
-built-in.
+built-in and for the behavioural probe functions `v(...)`/`i(...)` (C accepts
+them in a device value such as `r1 1 0 {1/i(v1)}` by rewriting the device into
+a behavioural one, `inpcom.c` `b_transformation_wanted()`; that rewrite is not
+ported).
 
 ## `.param` cards
 
@@ -242,8 +245,10 @@ reports a positioned parse error. Fixture: `conformance/cases/param_func.cir`.
 | free names | resolved where the call is written (e.g. a body `.param k` inside a subcircuit); an enclosing `.func` call's formals capture them first (textual expansion) | same, through the chain of active calls |
 | unused body naming an undefined parameter | accepted | accepted; a used one is an `undefined parameter` error with the call chain |
 | undefined function | `Undefined parameter` error | `undefined function` error at the call |
-| wrong argument count (at a site or inside an unused body) | fatal `parameter mismatch` | error at the call, naming the enclosing definition |
-| direct or mutual recursion, even unused | crash (unbounded expansion) | error printing the cycle (petgraph SCC), also in an uninstantiated subcircuit |
+| `v(...)`/`i(...)` in a device value with no `.func` of that name | device rewritten to a behavioural one | `NotYetPorted` |
+| wrong argument count (at a site, or inside an unused top-level body) | fatal `parameter mismatch` | error at the call, naming the enclosing definition |
+| direct or mutual recursion, even unused at top level | crash (unbounded expansion) | error printing the cycle (petgraph SCC) |
+| recursion or wrong arity inside a `.subckt` body | fatal (mismatch or crash) only when the subcircuit is instantiated; an uninstantiated body is never checked | same: a body's `FunctionScope` is built and checked when an instance is expanded |
 | `.func f(x,x)` | silently binds the first `x` | `NotYetPorted` (duplicate formal); formals named like a built-in are a parse error |
 | text after a delimited body, `.func f(x) {x}+{1}` | glued after stripping braces and whitespace (`x+1`) | `NotYetPorted` |
 | a definition inside a multi-assignment card, `.param a=1 f(x)={x}` or `.param f(x)={x} a=2` | split into separate cards (`inp_split_multi_param_lines()`), then rewritten to `.func` | `NotYetPorted`; write the definition on its own card |

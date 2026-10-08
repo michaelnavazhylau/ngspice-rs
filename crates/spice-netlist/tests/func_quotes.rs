@@ -323,12 +323,17 @@ fn function_errors_are_explicit() {
         e.contains("'a' (f.cir:2:7) -> 'b' (f.cir:3:7) -> 'c' (f.cir:4:7) -> 'a'"),
         "{e}"
     );
-    // A recursive definition in an unused subcircuit is found too.
-    let e = scope_error(".subckt s a\n.func f(x) {f(x)}\n.ends").to_string();
-    assert!(
-        e.contains("recursive .func definition") && e.contains("f.cir:3:7"),
-        "{e}"
-    );
+    // C checks a subcircuit's .func cards only when it is instantiated, so a
+    // recursive or mis-called definition in an unused body is accepted (the
+    // instantiated case is covered in spice-devices subckt_functions).
+    for body in [
+        ".subckt s a\n.func f(x) {f(x)}\n.ends",
+        ".subckt s a\n.func g(x) {x}\n.func h(x) {g(x,1)}\n.ends",
+    ] {
+        let n = deck(body);
+        assert!(ParamScope::for_netlist(&n).is_ok(), "{body}");
+        assert!(literalize(&n).is_ok(), "{body}");
+    }
     // Undefined names in a body are reported where the function is used,
     // with the call chain.
     let e = scope_error(".func f(x) {x*zz}\n.param p={f(1)}").to_string();
@@ -349,6 +354,24 @@ fn function_errors_are_explicit() {
     let e = literalize(&n).unwrap_err();
     assert!(e.is_not_yet_ported(), "{e}");
     assert!(e.to_string().contains("f.cir:2:9"), "{e}");
+    // Behavioural probe functions with no .func in scope: C rewrites such a
+    // device into a behavioural one, which is not ported.
+    for (body, at) in [
+        ("v1 1 0 dc 1\nr1 1 0 {1/i(v1)}", "f.cir:3:11"),
+        ("r1 1 0 {v(2)*2}", "f.cir:2:9"),
+        ("r1 1 0 {2*V(2)}", "f.cir:2:11"),
+    ] {
+        let e = literalize(&deck(body)).unwrap_err();
+        assert!(e.is_not_yet_ported(), "{body}: {e}");
+        assert!(e.to_string().contains(at), "{body}: {e}");
+        assert!(e.to_string().contains("b_transformation_wanted"), "{e}");
+    }
+    // ... but a .func named like one is an ordinary function.
+    assert_eq!(probe(".func v(x) {x*3}", "v(2)"), 6.0);
+    // Other undefined names stay invalid in device values too, as in C.
+    let e = literalize(&deck("r1 1 0 {myfunc(1)}")).unwrap_err();
+    assert!(!e.is_not_yet_ported(), "{e}");
+    assert!(e.to_string().contains("undefined function 'myfunc'"), "{e}");
 }
 
 #[test]
