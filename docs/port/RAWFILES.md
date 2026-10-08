@@ -95,6 +95,18 @@ Multiple plots are concatenated, exactly as they are in ASCII: a payload ends an
 the next plot's header begins at the next byte. `raw_read()` re-enters its line
 loop, so a file of many binary plots is what C expects too.
 
+That is also the layout of a multi-analysis batch run (`ngspice -b -r`, #96):
+one plot per analysis, in `CKTdoJob()` order. The opt-in
+`crates/spice-cli/tests/c_batch_reference.rs` reads such a C binary file with
+`RawFile::parse_bytes` and compares it plot by plot with `spice-rs simulate`;
+`crates/spice-analysis/tests/golden_rawfiles.rs`
+(`multi_plot_goldens_round_trip_through_both_encodings`) round-trips the
+committed four-plot golden `multi_analysis_rc.raw` through the ASCII and binary
+writers. C's incremental batch writer (`OUTpData()` → `fileAddComplexValue()`
+in `src/frontend/outitf.c`) writes the AC `frequency` reference as a complex
+value whose imaginary half the AC driver never sets, so those bytes are not
+data and the scale is compared by real part only.
+
 ## Reading and writing
 
 ```rust
