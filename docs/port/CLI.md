@@ -118,6 +118,10 @@ stdout. A deck without those cards writes exactly the driver's plot, unchanged.
 See [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md) for the grammar, the ordering and
 duplicate rules and the failure modes.
 
+Fourier/THD reporting is implemented for the bounded `.four` subset, evaluated over
+the final complete period of the transient result, and its block is appended after
+the `.measure` block. See [FOURIER.md](FOURIER.md).
+
 Measurements are implemented for the bounded `.measure`/`.meas` subset: the
 cards are evaluated over the **full** plot before the selection narrows what is
 written, so an operand the selection dropped is still measurable, and the
@@ -134,8 +138,9 @@ the written rawfiles back with the production reader and compares them vector by
 vector, by name, with the committed C goldens in `conformance/golden/`
 (`.op`, both `.dc` sweep directions, complex `.ac`, plain `.tran` and a
 `uic`/`ic=` `.tran`). It also covers `.save`/`.print` selection and its failures
-(see [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md)) and `.measure` measurement
-blocks, hidden operands and failed measurements (see [MEASURE.md](MEASURE.md)).
+(see [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md)), `.measure` measurement
+blocks, hidden operands and failed measurements (see [MEASURE.md](MEASURE.md)), and
+`.four` Fourier/THD blocks (see [FOURIER.md](FOURIER.md)).
 `crates/spice-cli/tests/parse.rs`
 keeps the older inspection commands green. Nothing in these tests invokes C or
 re-captures a golden.

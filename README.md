@@ -45,6 +45,7 @@ table, formulas, temperatures and deliberately rejected forms.
 | CLI simulation command | `spice-rs simulate --output <path> <deck>` (#6) runs the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner and writes an ASCII rawfile ([CLI.md](docs/port/CLI.md)) |
 | Output selection (`.save`/`.print`) | Bounded typed request parsing and projection of the full plot into the written rawfile in C's `dbs` order: `v(n)`, `v(n1,n2)`, `i(source|inductor)` and `vm`/`vp`/`vr`/`vi`/`vdb`, first-wins dedup; `.print` also renders a text table; unresolvable or unsupported requests fail before anything is published; `.plot` is unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
 | Measurements (`.measure`/`.meas`) | Bounded subset `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) with `FROM`/`TO`, and `TRIG … TARG …` with `AT=` or `<operand> VAL=` plus `RISE`/`FALL`/`CROSS`/`LAST`; evaluated over the full plot before output selection narrows the rawfile; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
+| Fourier (`.four`) | Final complete transient period, physical-time resampling onto `4 * max(harmonics, 50)` subintervals, DC/single-sided peak amplitude/window-referenced phase in radians/THD; 1–100 harmonics, full-plot evaluation independent of rawfile selection ([FOURIER.md](docs/port/FOURIER.md)) |
 
 Local #34/#35 follow-ups add [DC continuation controls/reports](docs/port/DC_CONTINUATION.md)
 and [scalar resistor/nested sweeps](docs/port/DC_SWEEPS.md), including model-backed
@@ -88,8 +89,10 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    [RAWFILES.md](docs/port/RAWFILES.md)); wave 2 adds bounded `.save`/`.print`
    output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
    and bounded `.measure`/`.meas` measurements (#43,
-   [MEASURE.md](docs/port/MEASURE.md)). M5 is not complete: `.four` (#44) is
-   still open, in progress on a parallel lane. `.plot` remains unported.
+   [MEASURE.md](docs/port/MEASURE.md)). Bounded `.four` (#44,
+   [FOURIER.md](docs/port/FOURIER.md)) completes M5's six deliverables. This is
+   bounded usability coverage, not full SPICE parity; `.plot` and the documented
+   extended output/measurement/Fourier forms remain unported.
 
 Advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, Tcl, full numparam
 compatibility and the interactive interpreter are outside the initial scope.

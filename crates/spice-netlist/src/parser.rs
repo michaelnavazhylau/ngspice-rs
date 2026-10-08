@@ -19,7 +19,7 @@ use std::path::Path;
 
 use spice_core::SpiceResult;
 
-use crate::ast::{MeasureCard, Netlist, OutputCards};
+use crate::ast::{FourierCard, MeasureCard, Netlist, OutputCards};
 use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, load};
 
@@ -28,6 +28,7 @@ pub use resolution::SourceLimits;
 mod diode;
 mod expression;
 mod flags;
+mod fourier;
 mod grammar;
 mod hints;
 mod ic;
@@ -51,16 +52,16 @@ pub struct Parser {
     auto_gnd: bool,
 }
 
-/// A parsed deck: the semantic netlist, the `.save`/`.print` cards and the
-/// `.measure` cards.
+/// A parsed deck: the semantic netlist, the `.save`/`.print` cards, the
+/// `.measure` cards and the `.four` cards.
 ///
-/// The output and measurement cards are returned beside the netlist rather than
-/// inside it. They describe what an analysis should write and what should be
-/// measured afterwards, not how the circuit is built, so they never reach
-/// device elaboration; separating them also keeps the netlist unchanged for
-/// every consumer that only simulates the circuit. See
-/// [`Parser::parse_file_with_output`], `docs/port/OUTPUT_SELECTION.md` and
-/// `docs/port/MEASURE.md`.
+/// The output and post-processing cards are returned beside the netlist rather
+/// than inside it. They describe what an analysis should write and what should
+/// be measured or transformed afterwards, not how the circuit is built, so they
+/// never reach device elaboration; separating them also keeps the netlist
+/// unchanged for every consumer that only simulates the circuit. See
+/// [`Parser::parse_file_with_output`], `docs/port/OUTPUT_SELECTION.md`,
+/// `docs/port/MEASURE.md` and `docs/port/FOURIER.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedDeck {
     /// The semantic netlist.
@@ -71,6 +72,11 @@ pub struct ParsedDeck {
     /// positioned. Measurements are evaluated over the **full** plot, so the
     /// output selection never hides a measurable vector.
     pub measurements: Vec<MeasureCard>,
+    /// The `.four` cards the deck contains, in deck order, typed and
+    /// positioned. A `.four` card is evaluated over the **full** plot as well,
+    /// so the output selection never hides a transformed vector and the written
+    /// rawfile never changes because a `.four` exists.
+    pub fourier: Vec<FourierCard>,
 }
 
 impl Parser {
@@ -137,12 +143,13 @@ impl Parser {
     ///
     /// The same failures as [`Parser::parse_deck`].
     pub fn parse_deck_with_output(&self, deck: &Deck) -> SpiceResult<ParsedDeck> {
-        let (netlist, output, measurements) =
+        let (netlist, output, measurements, fourier) =
             scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)?;
         Ok(ParsedDeck {
             netlist,
             output,
             measurements,
+            fourier,
         })
     }
 
@@ -216,11 +223,13 @@ impl Parser {
         limits: SourceLimits,
     ) -> SpiceResult<ParsedDeck> {
         let (deck, cards) = resolution::resolve(path.as_ref(), limits)?;
-        let (netlist, output, measurements) = scopes::assemble(&deck, cards, self.auto_gnd)?;
+        let (netlist, output, measurements, fourier) =
+            scopes::assemble(&deck, cards, self.auto_gnd)?;
         Ok(ParsedDeck {
             netlist,
             output,
             measurements,
+            fourier,
         })
     }
 }

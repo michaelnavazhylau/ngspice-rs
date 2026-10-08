@@ -18,6 +18,12 @@
 //!   changes the written rawfile. A deck with no `.measure` card prints exactly
 //!   what it printed before this work ([`Report`] carries only what was
 //!   written and measured);
+//! * a deck's `.four` cards are evaluated through [`spice_analysis::fourier`]
+//!   against that same **full** plot as well, so a `.save`/`.print` selection
+//!   never hides a transformed vector. A deck with no `.four` card prints
+//!   exactly what it printed before this work, and a `.four` card never changes
+//!   the written rawfile (C registers the named vectors for the transient plot
+//!   instead);
 //! * the rawfile is written through a temporary file in the destination's
 //!   directory and renamed into place, so a failed run never truncates,
 //!   replaces or removes an existing destination, and never leaves a partial
@@ -31,6 +37,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use spice_analysis::fourier::{self, FourierAnalysis};
 use spice_analysis::measure::{self, Measurement};
 use spice_analysis::selection::{self, Selection};
 use spice_analysis::{Plot, RawFile, RawPlot, RunConfig, runner};
@@ -69,6 +76,12 @@ pub struct Report {
     pub measured: Option<String>,
     /// The measurement results themselves, in card order.
     pub measurements: Vec<Measurement>,
+    /// The `.four` block, when the deck asked for one. `None` for a deck without
+    /// a `.four` card, which keeps the report unchanged.
+    pub fourier: Option<String>,
+    /// The Fourier results themselves, in card order, one per transformed
+    /// vector.
+    pub fourier_results: Vec<FourierAnalysis>,
 }
 
 /// Simulates the deck's single analysis and writes it as an ASCII rawfile.
@@ -83,11 +96,14 @@ pub struct Report {
 ///   because this command runs one analysis per invocation;
 /// * [`SpiceError::Unsupported`] when a `.save`/`.print` request cannot be
 ///   resolved against the run's result (an unknown vector, a `.print` card for
-///   another analysis, an AC component of a real plot) or when a `.measure`
+///   another analysis, an AC component of a real plot), when a `.measure`
 ///   request cannot be evaluated against it (an operand the plot lacks, a window
 ///   that covers no data, a crossing that does not occur, …; see
-///   `docs/port/MEASURE.md`), and [`SpiceError::Numerical`] when a computed
-///   vector or measurement value is not finite;
+///   `docs/port/MEASURE.md`), or when a `.four` request cannot be evaluated
+///   (a run that is not `.tran`, a run shorter than one period, a period with
+///   too few samples for the requested harmonics, a harmonic count beyond the
+///   port's budget; see `docs/port/FOURIER.md`), and [`SpiceError::Numerical`]
+///   when a computed vector, measurement or Fourier value is not finite;
 /// * whatever the production runner reports for unsupported devices, analyses,
 ///   options or numerically failed runs ([`SpiceError::Unsupported`],
 ///   [`SpiceError::NotYetPorted`], [`SpiceError::Numerical`], …).
@@ -127,6 +143,14 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
     } else {
         Some(measure::to_text(&measurements))
     };
+    // Fourier results resolve against the same **full** plot, and before
+    // anything is written: a failed transform publishes nothing either.
+    let fourier_results = fourier::resolve(&plot, card.kind, &parsed.fourier)?;
+    let fourier = if fourier_results.is_empty() {
+        None
+    } else {
+        Some(fourier::to_text(&fourier_results))
+    };
     let written = selection.apply(&plot)?;
 
     let rawfile = rawfile_for(netlist, written, &now_header());
@@ -147,6 +171,8 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
         printed,
         measured,
         measurements,
+        fourier,
+        fourier_results,
     };
     write_rawfile(&rawfile, output)?;
     Ok(report)
@@ -358,14 +384,18 @@ pub fn report_text(report: &Report) -> String {
         "output:    {} (ngspice ASCII rawfile, no binary support)",
         report.output.display()
     );
-    // Only a deck with an applicable `.print` card has a table, and only a deck
-    // with a `.measure` card has a measurement block; a deck without either
-    // keeps today's report unchanged.
+    // Only a deck with an applicable `.print` card has a table, only a deck
+    // with a `.measure` card has a measurement block, and only a deck with a
+    // `.four` card has a Fourier block; a deck without any of them keeps today's
+    // report unchanged.
     if let Some(printed) = &report.printed {
         out.push_str(printed);
     }
     if let Some(measured) = &report.measured {
         out.push_str(measured);
+    }
+    if let Some(fourier) = &report.fourier {
+        out.push_str(fourier);
     }
     out
 }
@@ -413,6 +443,8 @@ mod tests {
             printed: None,
             measured: None,
             measurements: Vec::new(),
+            fourier: None,
+            fourier_results: Vec::new(),
         };
         let text = report_text(&report);
         assert!(text.contains("deck:      rc.cir"), "{text}");
@@ -450,6 +482,8 @@ mod tests {
             printed: Some("print: 1 vector(s): v(out)\nvalues: real\n".to_owned()),
             measured: Some("measure: 1 result(s)\n".to_owned()),
             measurements: Vec::new(),
+            fourier: None,
+            fourier_results: Vec::new(),
         };
         let text = report_text(&report);
         let report_end = text.find("output:    out.raw").expect("the report");
@@ -472,6 +506,8 @@ mod tests {
             printed: None,
             measured: None,
             measurements: Vec::new(),
+            fourier: None,
+            fourier_results: Vec::new(),
         };
         assert!(report_text(&report).contains("title:     <empty title line>"));
     }

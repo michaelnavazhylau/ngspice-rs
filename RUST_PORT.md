@@ -52,7 +52,12 @@ and bounded `.measure`/`.meas` measurements (#43, [MEASURE.md](docs/port/MEASURE
 plot into the written rawfile in C's `dbs` order with first-wins dedup (`.print`
 also renders a text table), a bounded `.measure` subset evaluates over the full
 plot before output selection narrows the rawfile, and unresolvable requests fail
-before anything is published. `.four` (#44) and `.plot` remain unported.
+before anything is published. Bounded `.four` (#44,
+[FOURIER.md](docs/port/FOURIER.md)) now evaluates the final complete transient
+period over the full plot with physical-grid quadrature, DC/peak amplitude,
+window-referenced phase in radians and THD (1–100 harmonics). All six bounded
+M5 deliverables are implemented; `.plot`, interactive Fourier commands and the
+documented extended forms remain unported.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
 an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,

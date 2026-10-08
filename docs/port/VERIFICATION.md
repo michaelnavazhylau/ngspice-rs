@@ -1,19 +1,25 @@
 # Verification
 
-## M5 wave-1 and wave-2 gate (#18, #6, #45, #42, #43)
+## Bounded M5 gate (#18, #6, #45, #42, #43, #44)
 
 `cargo xtask golden verify` reports **26 verified fixture(s), 0 unsupported
 fixture(s), 0 failure(s)**: `EXCLUDED` in `xtask/src/verify.rs` is empty, so
 `subckt_divider` runs through the production `.op` path and matches its committed
-C golden. `cargo test --workspace --locked` reports **762 passed, 0 failed, 34
-ignored** on stable (rustc 1.99.0) and Rust 1.89.0; the 34 opt-in live-C
+C golden. `cargo test --workspace --locked` reports **799 passed, 0 failed, 37
+ignored** on stable (rustc 1.99.0) and Rust 1.89.0; the 37 opt-in live-C
 comparisons pass with `NGSPICE_BIN` set. Subcircuit instantiation:
 [SUBCIRCUITS.md](SUBCIRCUITS.md); CLI `simulate` (one analysis, ASCII rawfile):
 [CLI.md](CLI.md); binary rawfile read/write: [RAWFILES.md](RAWFILES.md);
 `.save`/`.print` output selection: [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md);
-`.measure`/`.meas` measurements: [MEASURE.md](MEASURE.md). **M5 is not
-complete:** `.four` (#44) remains open ([ROADMAP.md](ROADMAP.md)); `.plot` is
-unported. The historical per-slice counts below record the state at each
+`.measure`/`.meas` measurements: [MEASURE.md](MEASURE.md); final-period `.four`:
+[FOURIER.md](FOURIER.md). All six bounded M5 deliverables are complete
+([ROADMAP.md](ROADMAP.md)); `.plot` and the documented extended forms remain
+unported. Fourier C checks compare all nine harmonic magnitudes and at least
+five significant phases per vector; a temporary +90° phase mutation failed all
+three tests, then passed after restoring production code. Clippy on both
+toolchains, formatting and whitespace checks pass; goldens, 110 parser snapshots
+and `Cargo.lock` are unchanged by the Fourier slice.
+The historical per-slice counts below record the state at each
 delivery; they are not the current totals.
 
 ## Branch-local M4 gate (#41)

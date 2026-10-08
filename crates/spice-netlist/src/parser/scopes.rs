@@ -3,8 +3,9 @@
 use super::grammar::{self, ParsedCard};
 use super::save::OutputCard;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, MeasureCard, ModelCard, Netlist,
-    NodeHintCard, OptionCard, OutputCards, ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
+    AnalysisCard, DeviceInstance, FourierCard, GlobalCard, IncludeDirective, MeasureCard,
+    ModelCard, Netlist, NodeHintCard, OptionCard, OutputCards, ParamCard, ScopedCard,
+    ScopedCardKind, Subcircuit,
 };
 use crate::card::{DotCommand, RawCard};
 use crate::source::Deck;
@@ -44,6 +45,7 @@ struct Scope {
     params: Vec<ParamCard>,
     output: OutputCards,
     measurements: Vec<MeasureCard>,
+    fourier: Vec<FourierCard>,
     cards: Vec<ScopedCard>,
 }
 
@@ -51,7 +53,7 @@ pub(super) fn assemble(
     deck: &Deck,
     cards: Vec<SpiceResult<InputCard>>,
     auto_gnd: bool,
-) -> SpiceResult<(Netlist, OutputCards, Vec<MeasureCard>)> {
+) -> SpiceResult<(Netlist, OutputCards, Vec<MeasureCard>, Vec<FourierCard>)> {
     let mut cursor = 0;
     let scope = scope(&cards, &mut cursor, auto_gnd, &BTreeSet::new(), None, 0)?;
     Ok((
@@ -73,6 +75,7 @@ pub(super) fn assemble(
         },
         scope.output,
         scope.measurements,
+        scope.fourier,
     ))
 }
 
@@ -223,6 +226,23 @@ fn scope(
                 )?;
                 result.measurements.push(measure);
                 ScopedCardKind::Measure
+            }
+            ParsedCard::Fourier(fourier) => {
+                // Like `.measure`, a `.four` card describes the analysis output
+                // rather than the circuit: the typed request travels beside the
+                // netlist (`ParsedDeck::fourier`) and the card carries no
+                // scope-local index. C filters `.four` lines out of the deck in
+                // `inp_spsource()` and runs them after the transient; body-local
+                // Fourier scope is not defined yet in this port.
+                reject_in_body(
+                    card,
+                    opening,
+                    ".four",
+                    "src/frontend/inp.c (inp_spsource), src/frontend/dotcards.c (ft_dotsaves), \
+                     src/frontend/fourier.c (fourier)",
+                )?;
+                result.fourier.push(fourier);
+                ScopedCardKind::Fourier
             }
             ParsedCard::Include(mut i) => {
                 i.resolved_path = entry.resolved_path.clone();
