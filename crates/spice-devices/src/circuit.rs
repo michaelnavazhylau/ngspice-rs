@@ -876,6 +876,7 @@ impl Circuit {
                 branch: (!range.is_empty()).then_some(range.start),
                 controls: self.controls(index)?,
                 mutual: mutual.get(index).map_or(&[], Vec::as_slice),
+                states: None,
             })?;
         }
         system.a.fold_duplicates();
@@ -892,7 +893,26 @@ impl Circuit {
         context: &ModelContext,
         bias: &Vector,
     ) -> SpiceResult<crate::linear::LinearSystem> {
+        self.small_signal_system_at(context, bias, None)
+    }
+
+    /// [`Self::small_signal_system`] with a full state vector (C's
+    /// `CKTstate0` at `MODEINITSMSIG`) that devices with discrete state
+    /// (switches) read through [`crate::LinearContext::states`].
+    /// # Errors
+    /// As [`Self::small_signal_system`], or a state of the wrong length.
+    pub fn small_signal_system_at(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&[Real]>,
+    ) -> SpiceResult<crate::linear::LinearSystem> {
         self.check_numbering()?;
+        if state.is_some_and(|state| state.len() != self.state_len) {
+            return Err(SpiceError::circuit(
+                "small-signal bias state does not match the circuit numbering",
+            ));
+        }
         context.validate(&spice_core::SourceLoc::new(
             std::path::PathBuf::from("<model-context>"),
             1,
@@ -920,6 +940,14 @@ impl Circuit {
                     branch: (!range.is_empty()).then_some(range.start),
                     controls: self.controls(index)?,
                     mutual: mutual.get(index).map_or(&[], Vec::as_slice),
+                    states: match state {
+                        Some(state) => Some(
+                            state
+                                .get(self.state_rows[index].clone())
+                                .ok_or_else(|| SpiceError::circuit("bias state is too short"))?,
+                        ),
+                        None => None,
+                    },
                 },
                 bias,
             )?;

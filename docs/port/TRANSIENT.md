@@ -70,6 +70,9 @@ the run with an error; no partial plot is returned.
   with `reltol`, `abstol` (on the charge/flux derivative), `chgtol`, `trtol`.
   The next step is `min(2 dt, bound)`. A trial with a bound of at most `0.9 dt`
   is rejected and retried with the bound; the first step is never checked.
+  Devices without charge storage add their own bound through
+  `Device::timestep_limit` (S switches: `swtrunc.c`, see
+  [SWITCHES.md](SWITCHES.md#timestep-control)).
 * **Order policy.** Order 1 (backward Euler) for the first step and the first
   step after every breakpoint; after an accepted order-1 step the order-2
   estimate is probed and order 2 is kept if it allows more than `1.05 dt`

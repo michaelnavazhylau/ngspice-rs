@@ -17,8 +17,8 @@ cargo run -p spice-cli -- simulate --output rc.raw conformance/netlists/rc_trans
 
 | Area | Supported |
 | --- | --- |
-| Netlists | Scalar R/C/L/V/I, linear E/F/G/H controlled sources, K mutual inductance, `.model`, D/Q/M instances, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
-| Devices | Linear R/C/L/V/I; linear E/F/G/H controlled sources (gain forms; POLY/VALUE/TABLE/LAPLACE unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Ebers–Moll BJT and MOS1 (level 1) |
+| Netlists | Scalar R/C/L/V/I, linear E/F/G/H controlled sources, K mutual inductance, `.model`, D/Q/M instances, S/W switches with `sw`/`csw` models, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
+| Devices | Linear R/C/L/V/I; linear E/F/G/H controlled sources (gain forms; POLY/VALUE/TABLE/LAPLACE unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Ebers–Moll BJT and MOS1 (level 1); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only) |
 | Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` |
 | Output | ASCII rawfiles from the CLI (one plot per analysis for multi-analysis decks, in ngspice batch order), ASCII and binary rawfile read/write in the library, per-analysis `.save`/`.print` selection |
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
@@ -59,6 +59,10 @@ spice-rs devices                             # list supported device designators
 spice-rs analyses                            # list analyses and their status
 ```
 
+`devices` reports the model-less card factories: model-backed families (D/Q/M,
+and S/W, which require an `sw`/`csw` model) are listed as pending there but
+elaborate through `.model` in `simulate`.
+
 `simulate` runs every `.op`, `.dc`, `.ac` and `.tran` card of a deck in ngspice
 batch order (`.ac`, `.dc`, `.op`, `.tran`) and writes one plot per analysis;
 a failure in any analysis publishes nothing. Exit status
@@ -91,7 +95,7 @@ cargo xtask golden verify                            # Rust engine vs committed 
 NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-`golden verify` currently verifies all 38 golden fixtures (one of them a
+`golden verify` currently verifies all 48 golden fixtures (one of them a
 four-plot multi-analysis deck) with no exclusions.
 [VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
 and its limits.
@@ -123,7 +127,8 @@ docs/port/              architecture, C-to-Rust mapping, roadmap and feature gui
   [PASSIVE_MODELS.md](docs/port/PASSIVE_MODELS.md),
   [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md),
   [CONTROLLED_SOURCES.md](docs/port/CONTROLLED_SOURCES.md),
-  [MUTUAL_INDUCTANCE.md](docs/port/MUTUAL_INDUCTANCE.md)
+  [MUTUAL_INDUCTANCE.md](docs/port/MUTUAL_INDUCTANCE.md),
+  [SWITCHES.md](docs/port/SWITCHES.md)
 - Analyses: [DC_SWEEPS.md](docs/port/DC_SWEEPS.md),
   [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md),
   [TRANSIENT.md](docs/port/TRANSIENT.md)

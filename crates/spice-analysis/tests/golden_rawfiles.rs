@@ -1077,6 +1077,227 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(v1)", 0, -5.0e-3, 0.0),
         ],
     },
+    Expectation {
+        fixture: "switch_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 5,
+        variables: &[
+            "frequency",
+            "v(a)",
+            "v(b)",
+            "v(ctrl)",
+            "v(e)",
+            "v(f)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vs)",
+            "v(x)",
+        ],
+        // ACan's MODEINITSMSIG load copies the zero CKTstate1 into CKTstate0,
+        // so every switch is open in the AC sweep although s2 (on in its band),
+        // s3 and w1 are closed at the operating point: v(b) = 2M/2.001M,
+        // v(f) = 1M/1.001M, and v(a)/v(e) are 1k into 1u with the open switch.
+        values: &[
+            ("frequency", 0, 1.000000000000000e+01, 0.0),
+            ("v(a)", 0, 9.950804240186061e-01, -6.246028670984753e-02),
+            ("v(b)", 0, 9.995002498750625e-01, 0.0),
+            ("v(e)", 0, 9.960676814189385e-01, -6.258477814589433e-02),
+            ("v(f)", 0, 9.990009990009990e-01, 0.0),
+            ("i(vs)", 0, 1.000000000000000e-03, 0.0),
+            ("frequency", 4, 1.000000000000000e+03, 0.0),
+            ("v(a)", 4, 2.472800515685005e-02, -1.552154232541272e-01),
+            ("i(vdd)", 4, -1.952066222911747e-03, -3.104385193811054e-04),
+        ],
+    },
+    Expectation {
+        fixture: "switch_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 49,
+        variables: &[
+            "v(v-sweep)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(ctrl)",
+            "v(d)",
+            "v(e)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vsense)",
+        ],
+        // vc falls from 3 V in 0.125 V steps. s1 (1 +- 0.5 V) closes at 3 V
+        // (10 ohm: 1/101) and stays closed through the band down to 0.5 V,
+        // opening at -0.25 V (1 Mohm: 0.999). w1 (1 +- 0.6 mA) stays closed
+        // (50 ohm: 1/21) until the sensed vc/1k drops below 0.4 mA. w2's
+        // negative band (-1.4 .. -0.6 mA) opens it at -0.75 mA (3 Mohm). s3
+        // (VT = -2, VH = 0) closes exactly at its threshold (vc = 2 V), where
+        // C maps the previous really-off state to on.
+        values: &[
+            ("v(a)", 0, 9.900990099009901e-03, 0.0),
+            ("v(c)", 0, 9.999000099990001e-01, 0.0),
+            ("v(d)", 0, 4.761904761904762e-02, 0.0),
+            ("v(e)", 0, 3.846153846153846e-02, 0.0),
+            ("v(c)", 8, 9.990009990009992e-04, 0.0),
+            ("v(b)", 12, 9.900990099009901e-01, 0.0),
+            ("v(a)", 20, 9.900990099009901e-03, 0.0),
+            ("v(d)", 20, 4.761904761904762e-02, 0.0),
+            ("v(a)", 26, 9.990009990009990e-01, 0.0),
+            ("v(d)", 26, 9.995002498750625e-01, 0.0),
+            ("v(e)", 26, 3.846153846153846e-02, 0.0),
+            ("v(e)", 30, 9.996667777407531e-01, 0.0),
+            ("i(vsense)", 48, -3.000000000000000e-03, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_dc_decimal",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 18,
+        variables: &[
+            "v(v-sweep)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(ctrl)",
+            "v(d)",
+            "v(e)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vsense)",
+        ],
+        // C accumulates vc += 0.1 from 0.5 V: the fifth step is
+        // 0.9999999999999999, so s1 (VT = 1, no band) is still open (0.999)
+        // and closes at 1.1 V (1/101); the tenth is 1.5000000000000002, above
+        // s2's band edge, so s2 and w1 (IT = 1.5 mA) close there. s4 (ON) is
+        // closed from the first point by its flag (20 ohm: 1/51), s3 (OFF)
+        // open until 2.1 V.
+        values: &[
+            ("v(a)", 5, 9.990009990009990e-01, 0.0),
+            ("v(a)", 6, 9.900990099009901e-03, 0.0),
+            ("v(b)", 9, 9.990009990009990e-01, 0.0),
+            ("v(b)", 10, 9.900990099009901e-03, 0.0),
+            ("v(e)", 9, 9.996667777407531e-01, 0.0),
+            ("v(e)", 10, 2.912621359223301e-02, 0.0),
+            ("v(c)", 15, 9.995002498750625e-01, 0.0),
+            ("v(c)", 16, 1.960784313725490e-02, 0.0),
+            ("v(d)", 0, 1.960784313725490e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(ctrl)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(d)",
+            "v(e)",
+            "v(f)",
+            "v(g)",
+            "v(hi)",
+            "v(l1)",
+            "v(l2)",
+            "v(src)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vhi)",
+            "i(vi)",
+            "v(vl)",
+            "i(vl)",
+            "i(vsense)",
+            "i(vsl)",
+        ],
+        // 1 V through 1k into each switch: open (1 Mohm) gives 0.999, closed
+        // (10 ohm) 1/101. s1/s2 sit inside their band at 1.5 V, so the instance
+        // flag decides; s3/s4 follow a control outside it whatever the flag;
+        // s5 closes with the default 1 S (1/1001). w1 senses 2 mA > 1.5 mA
+        // (20 ohm: 1/51). w2 (ON, band 1.4 .. 2.2 mA) opens: in MODEINITFLOAT
+        // CSWload keeps CKTstate1, zero ("really off") at an operating point.
+        // w3 holds itself closed: 1 V across 1k + 100 ohm is 0.909 mA.
+        values: &[
+            ("v(a)", 0, 9.990009990009990e-01, 0.0),
+            ("v(b)", 0, 9.900990099009901e-03, 0.0),
+            ("v(c)", 0, 9.900990099009901e-03, 0.0),
+            ("v(d)", 0, 9.990009990009990e-01, 0.0),
+            ("v(e)", 0, 9.990009990009992e-04, 0.0),
+            ("v(f)", 0, 1.960784313725490e-02, 0.0),
+            ("v(g)", 0, 9.995002498750625e-01, 0.0),
+            ("v(l1)", 0, 9.090909090909091e-02, 0.0),
+            ("i(vsl)", 0, 9.090909090909091e-04, 0.0),
+            ("i(vsense)", 0, 2.000000000000000e-03, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1046,
+        variables: &[
+            "time", "v(c1)", "v(c2)", "v(c3)", "v(c4)", "v(p)", "v(s)", "v(vdd)", "i(vdd)",
+            "i(vp)", "i(vs)",
+        ],
+        // At t = 0 every switch is open (1 Gohm, 10 Mohm, 1 Mohm): c1 sits at
+        // 2 V less the 2k/(2k + 1G + 20k) divider, c3 at 2 x 10M/(10M + 5k).
+        // The controls draw no current.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(c1)", 0, 1.999996000087998e+00, 0.0),
+            ("v(c2)", 0, 3.999912001935957e-05, 0.0),
+            ("v(c3)", 0, 1.999000499750125e+00, 0.0),
+            ("v(c4)", 0, 0.0, 0.0),
+            ("time", 1045, 1.000000000000000e-03, 0.0),
+            ("v(c1)", 1045, 1.859214521122436e+00, 0.0),
+            ("v(c2)", 1045, 1.378613168658710e+00, 0.0),
+            ("v(c4)", 1045, 5.418052695450274e-01, 0.0),
+            ("i(vp)", 1045, 0.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_w_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1038,
+        variables: &[
+            "time",
+            "v(a)",
+            "v(b)",
+            "v(c1)",
+            "v(c2)",
+            "v(c3)",
+            "v(p)",
+            "v(q)",
+            "i(va)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vp)",
+            "i(vsense)",
+            "i(vsense2)",
+        ],
+        // At t = 0 both switches are open: c1 = 2 x 1M/(1M + 4k), and w2 (100
+        // Mohm) leaves c3 at 2 x 10k/(3k + 100M + 10k). At 2 ms the PULSE is
+        // high and vsense2 carries 2 V / 1k.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(c1)", 0, 1.992031872509960e+00, 0.0),
+            ("v(c3)", 0, 1.999740033795607e-04, 0.0),
+            ("time", 1037, 2.000000000000000e-03, 0.0),
+            ("v(c1)", 1037, 1.493033752313648e+00, 0.0),
+            ("v(c3)", 1037, 1.393870438628249e+00, 0.0),
+            ("i(vsense2)", 1037, 2.000000000000000e-03, 0.0),
+        ],
+    },
 ];
 
 /// Multi-analysis fixtures (#96): one [`Expectation`] per plot, in rawfile

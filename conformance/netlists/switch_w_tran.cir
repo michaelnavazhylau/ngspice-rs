@@ -1,0 +1,23 @@
+Current controlled switches in a transient
+* vsense measures the current a SIN source drives through rload. W1 (band
+* 0.3 m +- 0.1 mA) discharges C1, charged from vdd through R1. W2 senses a
+* PULSE-driven current with negative hysteresis and ON, connecting C2 to C3.
+vdd vdd 0 dc 2
+va a 0 sin(0 1 2k)
+vsense a b dc 0
+rload b 0 1k
+r1 vdd c1 4k
+c1 c1 0 50n
+w1 c1 0 vsense wh
+vp p 0 pulse(0 2 100u 50u 50u 300u 800u)
+vsense2 p q dc 0
+rq q 0 1k
+r2 vdd c2 3k
+c2 c2 0 100n
+w2 c2 c3 vsense2 wn on
+c3 c3 0 100n
+r3 c3 0 10k
+.model wh csw(it=0.3m ih=0.1m ron=200 roff=1meg)
+.model wn csw(it=1m ih=-0.3m ron=500 roff=100meg)
+.tran 2u 2m
+.end

@@ -456,6 +456,10 @@ pub struct LinearContext<'a> {
     /// Mutual-inductance terms of this device's branch equation (empty except
     /// for coupled inductors); see [`crate::traits::MutualTerm`].
     pub mutual: &'a [crate::traits::MutualTerm],
+    /// This device's slots of the bias point's converged state, for
+    /// small-signal assemblies built from a solved operating point
+    /// ([`crate::Circuit::small_signal_system_at`]); `None` otherwise.
+    pub states: Option<&'a [Real]>,
 }
 impl LinearContext<'_> {
     /// Stamps a two-terminal nodal operator into A or E.

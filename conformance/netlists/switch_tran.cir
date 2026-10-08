@@ -1,0 +1,27 @@
+Voltage controlled switches in a transient
+* Every plotted node is a source or capacitor node, so no waveform jumps
+* where a switch flips between samples.
+* S1: a PULSE control (ramps through the 1 +- 0.3 V band) connects C1, charged
+* from vdd through R1, to C2 (charge sharing), which R2 discharges.
+* S2: a SIN control (band 0.5 +- 0.2 V) discharges C3 through RON.
+* S3: a relaxation oscillator; the switch senses its own capacitor C4 (band
+* 1 +- 0.5 V), charged by a delayed current step.
+vdd vdd 0 dc 2
+vp p 0 pulse(0 2 50u 40u 40u 200u 500u)
+r1 vdd c1 2k
+c1 c1 0 100n
+s1 c1 c2 p 0 swp
+c2 c2 0 100n
+r2 c2 0 20k
+vs s 0 sin(0 1.5 4k)
+r3 vdd c3 5k
+c3 c3 0 20n
+s2 c3 0 s 0 sws
+i1 0 c4 pulse(0 1m 10u 1u)
+c4 c4 0 100n
+s3 c4 0 c4 0 swr
+.model swp sw(vt=1 vh=0.3 ron=1k roff=1g)
+.model sws sw(vt=0.5 vh=0.2 ron=100 roff=10meg)
+.model swr sw(vt=1 vh=0.5 ron=50 roff=1meg)
+.tran 1u 1m
+.end

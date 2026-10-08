@@ -294,6 +294,57 @@ const SUPPORTED: &[Supported] = &[
     tran("transformer_tran", &[]),
     tran("transformer_ic_uic_tran", &[]),
     tran("transformer_model_uic_tran", &[]),
+    // S/W switches (#81): hysteresis bands, ON/OFF flags, gmin off conductance
+    // and a W latch at an operating point, and a downward `.dc` sweep whose
+    // points continue the previous point's accepted switch state. Switches
+    // are nonlinear devices, so the nonlinear 1 ppm bound applies.
+    Supported {
+        name: "switch_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "switch_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // PULSE/SIN-controlled S, a self-controlled relaxation oscillator and W
+    // switches sensing SIN/PULSE currents. Every plotted node is a source or
+    // capacitor node, so no plotted value jumps between samples where a switch
+    // flips. No BDF variant: the diffsol backend rejects switches (no
+    // immutable linear assembly).
+    tran("switch_tran", &[]),
+    tran("switch_w_tran", &[]),
+    // A `.dc` with a decimal step: C's accumulated sweep values decide
+    // switches at their thresholds (`dctrcurv.c` `value += step`).
+    Supported {
+        name: "switch_dc_decimal",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // AC uses C's MODEINITSMSIG switch state (the zero CKTstate1: open), not
+    // the operating point's.
+    Supported {
+        name: "switch_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

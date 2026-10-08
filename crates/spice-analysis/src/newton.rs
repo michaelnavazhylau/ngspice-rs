@@ -3,7 +3,13 @@
 //! C references: `niiter.c`, `niconv.c`, `cktop.c`. This bounded policy uses
 //! global voltage-step damping, not ngspice's per-junction PN/FET limiting.
 //! No trial or continuation stage invokes device acceptance hooks.
+//!
+//! [`solve_phased`] additionally tags each load with C's `MODEINITF` phase
+//! ([`IterationPhase`], `niiter.c`), hands it the previous load's trial (C's
+//! `CKTstate0` survives between iterations) and refuses to converge on a load
+//! a device marked nonconvergent (C `CKTnoncon`), as the S/W switches need.
 use spice_core::{Real, SpiceError, SpiceResult};
+use spice_devices::{IterationPhase, TrialState};
 use spice_maths::{SparseMatrix, Vector};
 
 /// Largest accepted per-solve Newton iteration limit (`maxiter`, deck `itl1`).
@@ -159,18 +165,99 @@ pub fn solve_counted<T>(
     initial: &Vector,
     branch_rows: &[bool],
     options: &NewtonOptions,
-    load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+    mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
 ) -> Result<NewtonSolution<T>, NewtonFailure> {
     let mut iterations = 0;
-    iterate(initial, branch_rows, options, load, &mut iterations)
-        .map_err(|error| NewtonFailure { error, iterations })
+    iterate(
+        initial,
+        branch_rows,
+        options,
+        Phases {
+            first: IterationPhase::Junction,
+            previous: None,
+            nonconvergent: |_: &T| false,
+        },
+        |x: &Vector, _, _: Option<&T>| load(x),
+        &mut iterations,
+    )
+    .map_err(|error| NewtonFailure { error, iterations })
 }
 
-fn iterate<T>(
+/// How a phased solve starts (C `NIiter`'s initial `MODEINITF`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhasePolicy {
+    /// A DC operating point from scratch: `MODEINITJCT` for the first load,
+    /// `MODEINITFIX` until the iterate first converges, then `MODEINITFLOAT`.
+    OperatingPoint,
+    /// A point continuing accepted history (a transient timepoint or a
+    /// warm-started DC sweep point): `MODEINITPRED`, then `MODEINITFLOAT`.
+    Predicted,
+}
+
+/// [`solve_counted`] for device trials with C's Newton phases.
+///
+/// `load(x, phase, previous)` must build its trial with
+/// [`spice_devices::StateHistory::trial_in`]`(phase, previous)`. A load whose
+/// trial [`TrialState::is_nonconvergent`] never ends the solve (C: `CKTnoncon`
+/// set by a device). Convergence is checked, as in [`solve`], by reloading at
+/// the new iterate, here in `MODEINITFLOAT` with the producing load as the
+/// previous iterate; that reload must also be free of device nonconvergence.
+/// Under [`PhasePolicy::OperatingPoint`] the first such check also ends the
+/// `MODEINITFIX` phase, so the returned point was always checked under
+/// `MODEINITFLOAT`, like `NIiter`. A `continued` trial (the converged trial
+/// of a preceding continuation stage, as `cktop.c` continues its stepping
+/// stages in `MODEINITFLOAT` with `CKTstate0` intact) starts the solve in
+/// `MODEINITFLOAT` with that trial as the previous iterate instead. Devices
+/// without discrete state load identically in every phase, so their solves
+/// and iteration counts match [`solve_counted`].
+///
+/// # Errors
+/// As [`solve_counted`].
+pub fn solve_phased(
     initial: &Vector,
     branch_rows: &[bool],
     options: &NewtonOptions,
-    mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+    policy: PhasePolicy,
+    continued: Option<TrialState>,
+    load: impl FnMut(
+        &Vector,
+        IterationPhase,
+        Option<&TrialState>,
+    ) -> SpiceResult<(SparseMatrix, Vector, TrialState)>,
+) -> Result<NewtonSolution<TrialState>, NewtonFailure> {
+    let mut iterations = 0;
+    let first = match (policy, &continued) {
+        (_, Some(_)) => IterationPhase::Float,
+        (PhasePolicy::OperatingPoint, None) => IterationPhase::Junction,
+        (PhasePolicy::Predicted, None) => IterationPhase::Predict,
+    };
+    iterate(
+        initial,
+        branch_rows,
+        options,
+        Phases {
+            first,
+            previous: continued,
+            nonconvergent: TrialState::is_nonconvergent,
+        },
+        load,
+        &mut iterations,
+    )
+    .map_err(|error| NewtonFailure { error, iterations })
+}
+
+struct Phases<T, F> {
+    first: IterationPhase,
+    previous: Option<T>,
+    nonconvergent: F,
+}
+
+fn iterate<T, F: Fn(&T) -> bool>(
+    initial: &Vector,
+    branch_rows: &[bool],
+    options: &NewtonOptions,
+    phases: Phases<T, F>,
+    mut load: impl FnMut(&Vector, IterationPhase, Option<&T>) -> SpiceResult<(SparseMatrix, Vector, T)>,
     started: &mut usize,
 ) -> SpiceResult<NewtonSolution<T>> {
     options.validate()?;
@@ -181,9 +268,12 @@ fn iterate<T>(
         ));
     }
     let mut guess = initial.clone();
+    let mut phase = phases.first;
+    let mut previous = phases.previous;
     for iteration in 1..=options.max_iterations {
         *started = iteration;
-        let (mut matrix, rhs, _) = load(&guess)?;
+        let (mut matrix, rhs, trial) = load(&guess, phase, previous.as_ref())?;
+        let flagged = (phases.nonconvergent)(&trial);
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
         let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
@@ -205,18 +295,28 @@ fn iterate<T>(
         if !next.is_finite() {
             return Err(failure("nonfinite Newton iterate"));
         }
-        if converged(&next, &guess, branch_rows, options) {
-            let (mut physical, rhs, trial) = load(&next)?;
+        if !flagged && converged(&next, &guess, branch_rows, options) {
+            let (mut physical, rhs, checked) = load(&next, IterationPhase::Float, Some(&trial))?;
             check(&physical, &rhs, n)?;
             physical.fold_duplicates();
-            if residual_ok(&physical, &rhs, &next, branch_rows, options)? {
+            if !(phases.nonconvergent)(&checked)
+                && residual_ok(&physical, &rhs, &next, branch_rows, options)?
+            {
                 return Ok(NewtonSolution {
                     values: next,
-                    trial,
+                    trial: checked,
                     iterations: iteration,
                 });
             }
+            // NIiter: an iterate converged under MODEINITFIX ends that phase.
+            phase = IterationPhase::Float;
+        } else {
+            phase = match phase {
+                IterationPhase::Junction | IterationPhase::Fix => IterationPhase::Fix,
+                IterationPhase::Predict | IterationPhase::Float => IterationPhase::Float,
+            };
         }
+        previous = Some(trial);
         guess = next;
     }
     Err(failure(format!(

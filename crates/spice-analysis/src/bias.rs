@@ -6,7 +6,7 @@
 //! stage on success *and* failure. [`solve_dc`] is the compatible default
 //! wrapper. See `docs/port/DC_CONTINUATION.md` for the contract and for the
 //! deliberate differences from ngspice's dynamic gmin/source stepping.
-use crate::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution};
+use crate::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution, PhasePolicy};
 use spice_core::{Real, SpiceError, SpiceResult};
 use spice_devices::{AnalysisMode, Circuit, LoadRequest, ModelContext, StateHistory, TrialState};
 use spice_maths::{SparseMatrix, Vector};
@@ -589,16 +589,72 @@ pub fn solve_dc_with(
     initial: Option<&Vector>,
     forcing: Option<&Vector>,
 ) -> Result<DcSolution, DcFailure> {
-    let mut report = DcReport::default();
-    match run(
+    solve(
         circuit,
         context,
         settings,
         overrides,
-        initial,
-        forcing,
-        &mut report,
-    ) {
+        Start {
+            initial,
+            forcing,
+            history: &circuit.state_history(),
+            policy: PhasePolicy::OperatingPoint,
+        },
+    )
+}
+
+/// [`solve_dc_with`] continuing an accepted state `history` (C `CKTstate1..`),
+/// starting the direct Newton attempt in `policy`'s phase: a DC sweep point
+/// after the first runs [`PhasePolicy::Predicted`] (`dctrcurv.c` sets
+/// `MODEINITPRED`). Gmin/source-stepping strategies always restart in
+/// [`PhasePolicy::OperatingPoint`] against the same history (`CKTop` with
+/// `MODEINITJCT`; the rotated states are not cleared).
+/// Only devices with discrete state (switches) read the history; nothing is
+/// committed to it.
+///
+/// # Errors
+/// As [`solve_dc_with`], or a history that does not match the circuit.
+pub fn solve_dc_from(
+    circuit: &Circuit,
+    context: &ModelContext,
+    settings: &DcSettings,
+    overrides: &[(&str, f64)],
+    initial: Option<&Vector>,
+    history: &StateHistory,
+    policy: PhasePolicy,
+) -> Result<DcSolution, DcFailure> {
+    solve(
+        circuit,
+        context,
+        settings,
+        overrides,
+        Start {
+            initial,
+            forcing: None,
+            history,
+            policy,
+        },
+    )
+}
+
+/// Where a DC solve starts: seed, transient-bias forcing, accepted history and
+/// the direct attempt's Newton phase policy.
+struct Start<'a> {
+    initial: Option<&'a Vector>,
+    forcing: Option<&'a Vector>,
+    history: &'a StateHistory,
+    policy: PhasePolicy,
+}
+
+fn solve(
+    circuit: &Circuit,
+    context: &ModelContext,
+    settings: &DcSettings,
+    overrides: &[(&str, f64)],
+    start: Start<'_>,
+) -> Result<DcSolution, DcFailure> {
+    let mut report = DcReport::default();
+    match run(circuit, context, settings, overrides, start, &mut report) {
         Ok(solution) => Ok(DcSolution { solution, report }),
         Err(error) => Err(DcFailure {
             error,
@@ -620,7 +676,8 @@ enum Halt {
 struct Engine<'a> {
     circuit: &'a Circuit,
     context: &'a ModelContext,
-    history: StateHistory,
+    history: &'a StateHistory,
+    policy: PhasePolicy,
     branches: Vec<bool>,
     target: Vector,
     original: Vector,
@@ -634,11 +691,13 @@ type Stages<'a> = &'a [(Real, Real)];
 
 impl Engine<'_> {
     /// One disposable Newton solve at `(scale, gmin)`; charges the budget.
+    /// `continued` is the preceding stage's converged trial, if any.
     fn stage(
         &mut self,
         report: &mut DcReport,
         strategy: DcStrategy,
         guess: &Vector,
+        continued: Option<TrialState>,
         (scale, gmin): (Real, Real),
     ) -> Result<NewtonSolution<TrialState>, Halt> {
         if self.remaining == 0 {
@@ -657,34 +716,48 @@ impl Engine<'_> {
             ..self.newton
         };
         let reduced = options.max_iterations < limit;
-        let result = newton::solve_counted(guess, &self.branches, &options, |x| {
-            let mut a = SparseMatrix::new(n, n);
-            let mut b = Vector::zeros(n);
-            let mut trial = self.history.trial();
-            self.circuit.load(
-                &LoadRequest {
-                    mode: AnalysisMode::OperatingPoint,
-                    solution: x,
-                    model_context: self.context,
-                    integration: None,
-                    history: &self.history,
-                    forcing: None,
-                },
-                &mut a,
-                &mut b,
-                &mut trial,
-            )?;
-            for (row, branch) in self.branches.iter().enumerate() {
-                b.add_to(
-                    row,
-                    scale * self.target.as_slice()[row] - self.original.as_slice()[row],
+        let history = self.history;
+        let result = newton::solve_phased(
+            guess,
+            &self.branches,
+            &options,
+            // Continuation strategies restart like `CKTop` (MODEINITJCT); only
+            // the direct attempt may continue a predicted point.
+            if strategy == DcStrategy::Direct {
+                self.policy
+            } else {
+                PhasePolicy::OperatingPoint
+            },
+            continued,
+            |x, phase, previous| {
+                let mut a = SparseMatrix::new(n, n);
+                let mut b = Vector::zeros(n);
+                let mut trial = history.trial_in(phase, previous)?;
+                self.circuit.load(
+                    &LoadRequest {
+                        mode: AnalysisMode::OperatingPoint,
+                        solution: x,
+                        model_context: self.context,
+                        integration: None,
+                        history,
+                        forcing: None,
+                    },
+                    &mut a,
+                    &mut b,
+                    &mut trial,
                 )?;
-                if !branch && gmin > 0. {
-                    a.add(row, row, gmin)?;
+                for (row, branch) in self.branches.iter().enumerate() {
+                    b.add_to(
+                        row,
+                        scale * self.target.as_slice()[row] - self.original.as_slice()[row],
+                    )?;
+                    if !branch && gmin > 0. {
+                        a.add(row, row, gmin)?;
+                    }
                 }
-            }
-            Ok((a, b, trial))
-        });
+                Ok((a, b, trial))
+            },
+        );
         let (iterations, error) = match &result {
             Ok(solved) => (solved.iterations, None),
             Err(NewtonFailure { error, iterations }) => (*iterations, Some(error)),
@@ -727,10 +800,13 @@ impl Engine<'_> {
         stages: Stages<'_>,
     ) -> Result<NewtonSolution<TrialState>, Halt> {
         let mut guess = start.clone();
+        let mut continued = None;
         for &point in stages {
-            guess = self.stage(report, strategy, &guess, point)?.values;
+            let solved = self.stage(report, strategy, &guess, continued, point)?;
+            guess = solved.values;
+            continued = Some(solved.trial);
         }
-        self.stage(report, strategy, &guess, (1., 0.))
+        self.stage(report, strategy, &guess, continued, (1., 0.))
     }
 
     /// [`Self::walk`] plus its entry in the report's attempt list.
@@ -763,11 +839,21 @@ fn run(
     context: &ModelContext,
     settings: &DcSettings,
     overrides: &[(&str, f64)],
-    initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    start: Start<'_>,
     report: &mut DcReport,
 ) -> SpiceResult<NewtonSolution<TrialState>> {
+    let Start {
+        initial,
+        forcing,
+        history,
+        policy: phases,
+    } = start;
     settings.validate()?;
+    if history.len() != circuit.state_len() {
+        return Err(SpiceError::circuit(
+            "DC state history does not match the circuit numbering",
+        ));
+    }
     let options = &settings.newton;
     let policy = &settings.continuation;
     let n = circuit.unknown_count();
@@ -804,7 +890,6 @@ fn run(
             target.add_to(*row, sign * (value - source.dc))?;
         }
     }
-    let history = circuit.state_history();
     // Preserve exact linear solving (no nonlinear damping or continuation).
     if !circuit.devices().iter().any(|device| device.is_nonlinear()) {
         let result = (|| {
@@ -816,7 +901,7 @@ fn run(
                     solution: &values,
                     model_context: context,
                     integration: None,
-                    history: &history,
+                    history,
                     forcing: None,
                 },
                 &mut SparseMatrix::new(n, n),
@@ -886,6 +971,7 @@ fn run(
         circuit,
         context,
         history,
+        policy: phases,
         branches: branch_rows(circuit),
         target,
         original,

@@ -636,7 +636,7 @@ impl Writer {
         let base = model.base.as_str();
         if !matches!(
             base,
-            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l"
+            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -651,6 +651,8 @@ impl Writer {
                         "d" => &["d"],
                         "npn" | "pnp" => &["npn", "pnp"],
                         "nmos" | "pmos" => &["nmos", "pmos"],
+                        "sw" => &["sw"],
+                        "csw" => &["csw"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {
@@ -689,9 +691,9 @@ impl Writer {
         let mut parts = vec![node(&device.name, location)?];
         let count = device.nodes.len();
         let count_ok = match designator {
-            'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' => count == 2,
+            'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
-            'm' | 'e' | 'g' => count == 4,
+            'm' | 'e' | 'g' | 's' => count == 4,
             'x' => true,
             'k' => count == 0,
             _ => {
@@ -710,11 +712,29 @@ impl Writer {
         for n in &device.nodes {
             parts.push(node(n, location)?);
         }
+        let mut setters = device.parameters.as_slice();
+        if designator == 'w' {
+            // INP2W reads the controlling source before the model name.
+            match setters.split_first() {
+                Some((control, rest))
+                    if control.name == "control" && control.kind == ParameterKind::Instance =>
+                {
+                    parts.push(node(&control.value, &control.location)?);
+                    setters = rest;
+                }
+                _ => {
+                    return Err(refuse(
+                        "'w' instance without a leading controlling source",
+                        Some(location),
+                    ));
+                }
+            }
+        }
         match (designator, &device.model) {
             ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
-            ('d' | 'q' | 'm' | 'x', None) => {
+            ('d' | 'q' | 'm' | 'x' | 's' | 'w', None) => {
                 return Err(refuse("device without a model/target", Some(location)));
             }
             (_, Some(model)) => {
@@ -739,6 +759,7 @@ impl Writer {
             'v' | 'i' => source_parameters(device, &mut parts)?,
             'e' | 'f' | 'g' | 'h' => controlled_parameters(device, &mut parts)?,
             'k' => mutual_parameters(device, &mut parts)?,
+            's' | 'w' => switch_parameters(setters, designator, &mut parts)?,
             'x' => {
                 for parameter in &device.parameters {
                     parts.push(named_value(parameter, true)?);
@@ -1010,6 +1031,28 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
         } else {
             parts.push(named_value(parameter, false)?);
         }
+    }
+    Ok(())
+}
+
+/// S/W (`parser/switch.rs`): only bare `on`/`off` flags follow the model, in
+/// their written order; W's `control` was already written before the model.
+fn switch_parameters(
+    setters: &[ParameterAssignment],
+    designator: char,
+    parts: &mut Vec<String>,
+) -> SpiceResult<()> {
+    for parameter in setters {
+        if parameter.kind != ParameterKind::Flag
+            || !matches!(parameter.name.as_str(), "on" | "off")
+            || !parameter.value.is_empty()
+        {
+            return Err(refuse(
+                format!("parameter {:?} on '{designator}' instance", parameter.name),
+                Some(&parameter.location),
+            ));
+        }
+        parts.push(parameter.name.clone());
     }
     Ok(())
 }

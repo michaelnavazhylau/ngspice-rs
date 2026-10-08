@@ -1,0 +1,295 @@
+# ngspice-rs token-dump v1
+file: netlists/switch_op.cir
+title: "Voltage and current controlled switches operating point" @netlists/switch_op.cir:1:1
+card 1 @netlists/switch_op.cir:9:1 lines=9-9 continuations=0
+  raw: "vc ctrl 0 dc 1.5"
+  kind: device(v)
+  token 1 9:1 word "vc"
+  token 2 9:4 word "ctrl"
+  token 3 9:9 number "0" value=0e0
+  token 4 9:11 word "dc"
+  token 5 9:14 number "1.5" value=1.5e0
+card 2 @netlists/switch_op.cir:10:1 lines=10-10 continuations=0
+  raw: "vhi hi 0 dc 3"
+  kind: device(v)
+  token 1 10:1 word "vhi"
+  token 2 10:5 word "hi"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 word "dc"
+  token 5 10:13 number "3" value=3e0
+card 3 @netlists/switch_op.cir:11:1 lines=11-11 continuations=0
+  raw: "vdd vdd 0 dc 1"
+  kind: device(v)
+  token 1 11:1 word "vdd"
+  token 2 11:5 word "vdd"
+  token 3 11:9 number "0" value=0e0
+  token 4 11:11 word "dc"
+  token 5 11:14 number "1" value=1e0
+card 4 @netlists/switch_op.cir:12:1 lines=12-12 continuations=0
+  raw: "r1 vdd a 1k"
+  kind: device(r)
+  token 1 12:1 word "r1"
+  token 2 12:4 word "vdd"
+  token 3 12:8 word "a"
+  token 4 12:10 number "1k" value=1e3
+card 5 @netlists/switch_op.cir:13:1 lines=13-13 continuations=0
+  raw: "s1 a 0 ctrl 0 swh"
+  kind: device(s)
+  token 1 13:1 word "s1"
+  token 2 13:4 word "a"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 word "ctrl"
+  token 5 13:13 number "0" value=0e0
+  token 6 13:15 word "swh"
+card 6 @netlists/switch_op.cir:14:1 lines=14-14 continuations=0
+  raw: "r2 vdd b 1k"
+  kind: device(r)
+  token 1 14:1 word "r2"
+  token 2 14:4 word "vdd"
+  token 3 14:8 word "b"
+  token 4 14:10 number "1k" value=1e3
+card 7 @netlists/switch_op.cir:15:1 lines=15-15 continuations=0
+  raw: "s2 b 0 ctrl 0 swh on"
+  kind: device(s)
+  token 1 15:1 word "s2"
+  token 2 15:4 word "b"
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 word "ctrl"
+  token 5 15:13 number "0" value=0e0
+  token 6 15:15 word "swh"
+  token 7 15:19 word "on"
+card 8 @netlists/switch_op.cir:16:1 lines=16-16 continuations=0
+  raw: "r3 vdd c 1k"
+  kind: device(r)
+  token 1 16:1 word "r3"
+  token 2 16:4 word "vdd"
+  token 3 16:8 word "c"
+  token 4 16:10 number "1k" value=1e3
+card 9 @netlists/switch_op.cir:17:1 lines=17-17 continuations=0
+  raw: "s3 c 0 hi 0 swh off"
+  kind: device(s)
+  token 1 17:1 word "s3"
+  token 2 17:4 word "c"
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 word "hi"
+  token 5 17:11 number "0" value=0e0
+  token 6 17:13 word "swh"
+  token 7 17:17 word "off"
+card 10 @netlists/switch_op.cir:18:1 lines=18-18 continuations=0
+  raw: "r4 vdd d 1k"
+  kind: device(r)
+  token 1 18:1 word "r4"
+  token 2 18:4 word "vdd"
+  token 3 18:8 word "d"
+  token 4 18:10 number "1k" value=1e3
+card 11 @netlists/switch_op.cir:19:1 lines=19-19 continuations=0
+  raw: "s4 d 0 0 hi swh on"
+  kind: device(s)
+  token 1 19:1 word "s4"
+  token 2 19:4 word "d"
+  token 3 19:6 number "0" value=0e0
+  token 4 19:8 number "0" value=0e0
+  token 5 19:10 word "hi"
+  token 6 19:13 word "swh"
+  token 7 19:17 word "on"
+card 12 @netlists/switch_op.cir:20:1 lines=20-20 continuations=0
+  raw: "r5 vdd e 1k"
+  kind: device(r)
+  token 1 20:1 word "r5"
+  token 2 20:4 word "vdd"
+  token 3 20:8 word "e"
+  token 4 20:10 number "1k" value=1e3
+card 13 @netlists/switch_op.cir:21:1 lines=21-21 continuations=0
+  raw: "s5 e 0 hi 0 swd"
+  kind: device(s)
+  token 1 21:1 word "s5"
+  token 2 21:4 word "e"
+  token 3 21:6 number "0" value=0e0
+  token 4 21:8 word "hi"
+  token 5 21:11 number "0" value=0e0
+  token 6 21:13 word "swd"
+card 14 @netlists/switch_op.cir:22:1 lines=22-22 continuations=0
+  raw: "vi src 0 dc 2"
+  kind: device(v)
+  token 1 22:1 word "vi"
+  token 2 22:4 word "src"
+  token 3 22:8 number "0" value=0e0
+  token 4 22:10 word "dc"
+  token 5 22:13 number "2" value=2e0
+card 15 @netlists/switch_op.cir:23:1 lines=23-23 continuations=0
+  raw: "rs src sx 1k"
+  kind: device(r)
+  token 1 23:1 word "rs"
+  token 2 23:4 word "src"
+  token 3 23:8 word "sx"
+  token 4 23:11 number "1k" value=1e3
+card 16 @netlists/switch_op.cir:24:1 lines=24-24 continuations=0
+  raw: "vsense sx 0 dc 0"
+  kind: device(v)
+  token 1 24:1 word "vsense"
+  token 2 24:8 word "sx"
+  token 3 24:11 number "0" value=0e0
+  token 4 24:13 word "dc"
+  token 5 24:16 number "0" value=0e0
+card 17 @netlists/switch_op.cir:25:1 lines=25-25 continuations=0
+  raw: "r6 vdd f 1k"
+  kind: device(r)
+  token 1 25:1 word "r6"
+  token 2 25:4 word "vdd"
+  token 3 25:8 word "f"
+  token 4 25:10 number "1k" value=1e3
+card 18 @netlists/switch_op.cir:26:1 lines=26-26 continuations=0
+  raw: "w1 f 0 vsense wh"
+  kind: device(w)
+  token 1 26:1 word "w1"
+  token 2 26:4 word "f"
+  token 3 26:6 number "0" value=0e0
+  token 4 26:8 word "vsense"
+  token 5 26:15 word "wh"
+card 19 @netlists/switch_op.cir:27:1 lines=27-27 continuations=0
+  raw: "r7 vdd g 1k"
+  kind: device(r)
+  token 1 27:1 word "r7"
+  token 2 27:4 word "vdd"
+  token 3 27:8 word "g"
+  token 4 27:10 number "1k" value=1e3
+card 20 @netlists/switch_op.cir:28:1 lines=28-28 continuations=0
+  raw: "w2 g 0 vsense wb on"
+  kind: device(w)
+  token 1 28:1 word "w2"
+  token 2 28:4 word "g"
+  token 3 28:6 number "0" value=0e0
+  token 4 28:8 word "vsense"
+  token 5 28:15 word "wb"
+  token 6 28:18 word "on"
+card 21 @netlists/switch_op.cir:29:1 lines=29-29 continuations=0
+  raw: "vl vl 0 dc 1"
+  kind: device(v)
+  token 1 29:1 word "vl"
+  token 2 29:4 word "vl"
+  token 3 29:7 number "0" value=0e0
+  token 4 29:9 word "dc"
+  token 5 29:12 number "1" value=1e0
+card 22 @netlists/switch_op.cir:30:1 lines=30-30 continuations=0
+  raw: "rl1 vl l1 1k"
+  kind: device(r)
+  token 1 30:1 word "rl1"
+  token 2 30:5 word "vl"
+  token 3 30:8 word "l1"
+  token 4 30:11 number "1k" value=1e3
+card 23 @netlists/switch_op.cir:31:1 lines=31-31 continuations=0
+  raw: "vsl l1 l2 dc 0"
+  kind: device(v)
+  token 1 31:1 word "vsl"
+  token 2 31:5 word "l1"
+  token 3 31:8 word "l2"
+  token 4 31:11 word "dc"
+  token 5 31:14 number "0" value=0e0
+card 24 @netlists/switch_op.cir:32:1 lines=32-32 continuations=0
+  raw: "w3 l2 0 vsl wl on"
+  kind: device(w)
+  token 1 32:1 word "w3"
+  token 2 32:4 word "l2"
+  token 3 32:7 number "0" value=0e0
+  token 4 32:9 word "vsl"
+  token 5 32:13 word "wl"
+  token 6 32:16 word "on"
+card 25 @netlists/switch_op.cir:33:1 lines=33-33 continuations=0
+  raw: ".model swh sw(vt=1.5 vh=0.5 ron=10 roff=1meg)"
+  kind: dot(.model)
+  token 1 33:1 word ".model"
+  token 2 33:8 word "swh"
+  token 3 33:12 word "sw"
+  token 4 33:14 lparen "("
+  token 5 33:15 word "vt"
+  token 6 33:17 equals "="
+  token 7 33:18 number "1.5" value=1.5e0
+  token 8 33:22 word "vh"
+  token 9 33:24 equals "="
+  token 10 33:25 number "0.5" value=5e-1
+  token 11 33:29 word "ron"
+  token 12 33:32 equals "="
+  token 13 33:33 number "10" value=1e1
+  token 14 33:36 word "roff"
+  token 15 33:40 equals "="
+  token 16 33:41 number "1meg" value=1e6
+  token 17 33:45 rparen ")"
+card 26 @netlists/switch_op.cir:34:1 lines=34-34 continuations=0
+  raw: ".model swd sw(vt=1)"
+  kind: dot(.model)
+  token 1 34:1 word ".model"
+  token 2 34:8 word "swd"
+  token 3 34:12 word "sw"
+  token 4 34:14 lparen "("
+  token 5 34:15 word "vt"
+  token 6 34:17 equals "="
+  token 7 34:18 number "1" value=1e0
+  token 8 34:19 rparen ")"
+card 27 @netlists/switch_op.cir:35:1 lines=35-35 continuations=0
+  raw: ".model wh csw(it=1m ih=0.5m ron=20 roff=500k)"
+  kind: dot(.model)
+  token 1 35:1 word ".model"
+  token 2 35:8 word "wh"
+  token 3 35:11 word "csw"
+  token 4 35:14 lparen "("
+  token 5 35:15 word "it"
+  token 6 35:17 equals "="
+  token 7 35:18 number "1m" value=1e-3
+  token 8 35:21 word "ih"
+  token 9 35:23 equals "="
+  token 10 35:24 number "0.5m" value=5e-4
+  token 11 35:29 word "ron"
+  token 12 35:32 equals "="
+  token 13 35:33 number "20" value=2e1
+  token 14 35:36 word "roff"
+  token 15 35:40 equals "="
+  token 16 35:41 number "500k" value=5e5
+  token 17 35:45 rparen ")"
+card 28 @netlists/switch_op.cir:36:1 lines=36-36 continuations=0
+  raw: ".model wb csw(it=1.8m ih=0.4m ron=30 roff=2meg)"
+  kind: dot(.model)
+  token 1 36:1 word ".model"
+  token 2 36:8 word "wb"
+  token 3 36:11 word "csw"
+  token 4 36:14 lparen "("
+  token 5 36:15 word "it"
+  token 6 36:17 equals "="
+  token 7 36:18 number "1.8m" value=1.8000000000000002e-3
+  token 8 36:23 word "ih"
+  token 9 36:25 equals "="
+  token 10 36:26 number "0.4m" value=4e-4
+  token 11 36:31 word "ron"
+  token 12 36:34 equals "="
+  token 13 36:35 number "30" value=3e1
+  token 14 36:38 word "roff"
+  token 15 36:42 equals "="
+  token 16 36:43 number "2meg" value=2e6
+  token 17 36:47 rparen ")"
+card 29 @netlists/switch_op.cir:37:1 lines=37-37 continuations=0
+  raw: ".model wl csw(it=0.4m ih=0.2m ron=100 roff=10meg)"
+  kind: dot(.model)
+  token 1 37:1 word ".model"
+  token 2 37:8 word "wl"
+  token 3 37:11 word "csw"
+  token 4 37:14 lparen "("
+  token 5 37:15 word "it"
+  token 6 37:17 equals "="
+  token 7 37:18 number "0.4m" value=4e-4
+  token 8 37:23 word "ih"
+  token 9 37:25 equals "="
+  token 10 37:26 number "0.2m" value=2e-4
+  token 11 37:31 word "ron"
+  token 12 37:34 equals "="
+  token 13 37:35 number "100" value=1e2
+  token 14 37:39 word "roff"
+  token 15 37:43 equals "="
+  token 16 37:44 number "10meg" value=1e7
+  token 17 37:49 rparen ")"
+card 30 @netlists/switch_op.cir:38:1 lines=38-38 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 38:1 word ".op"
+card 31 @netlists/switch_op.cir:39:1 lines=39-39 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 39:1 word ".end"
