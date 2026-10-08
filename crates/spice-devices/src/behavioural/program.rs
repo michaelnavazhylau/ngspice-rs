@@ -892,6 +892,11 @@ impl Evaluator<'_> {
             }
         };
         if rhs.is_constant() {
+            // C builds `b * pwr(a, b-1) * a'` with mkb(), which folds a zero
+            // constant factor away: no 0 * inf at a = 0.
+            if b == 0. {
+                return Ok(vec![0.; da.len()]);
+            }
             let factor = b * match kind {
                 Power::Pwr => power(a, b - 1.),
                 Power::Operator | Power::Pow => pwr(a, b - 1.),
