@@ -242,6 +242,10 @@ fn option(card: &OptionCard) -> OptionCard {
             .map(|setting| OptionSetting {
                 name: setting.name.clone(),
                 value: setting.value.as_ref().map(positioned),
+                expression: setting
+                    .expression
+                    .as_ref()
+                    .map(|expression| Box::new(expression_form(expression))),
                 location: blank(),
             })
             .collect(),

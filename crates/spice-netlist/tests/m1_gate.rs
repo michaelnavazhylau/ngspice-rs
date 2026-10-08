@@ -196,7 +196,13 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "m4_mos1_ac",
         "m4_mos1_tran",
     ];
-    on_disk.retain(|name| !M3_GATE_DECKS.contains(&name.as_str()) && !m4.contains(&name.as_str()));
+    // M6 `.option` coverage decks (#110) are verified by `xtask golden verify`.
+    let m6_options = ["options_gmin_dc", "options_xmu_tran"];
+    on_disk.retain(|name| {
+        !M3_GATE_DECKS.contains(&name.as_str())
+            && !m4.contains(&name.as_str())
+            && !m6_options.contains(&name.as_str())
+    });
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

@@ -298,9 +298,14 @@ pub struct OptionCard {
 pub struct OptionSetting {
     /// Option name, ASCII-lowercased (ngspice lowercases deck text).
     pub name: String,
-    /// The value as written (numeric spelling or a bare word such as `gear`);
-    /// `None` for a bare flag. Never evaluated or range-checked here.
+    /// The value as written (numeric spelling, a bare word such as `gear`, or
+    /// the full `{expr}` / `'expr'` text); `None` for a bare flag. Never
+    /// evaluated or range-checked here.
     pub value: Option<PositionedValue>,
+    /// The parsed, unevaluated expression when the value was written as
+    /// `{expr}` or `'expr'` (C: numparam substitutes both on `.option` lines);
+    /// the run-configuration consumer evaluates it against top-level `.param`.
+    pub expression: Option<Box<crate::expr::ParameterExpression>>,
     /// Where the option name was written.
     pub location: SourceLoc,
 }
