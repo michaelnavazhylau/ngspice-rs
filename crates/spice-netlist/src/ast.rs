@@ -570,6 +570,172 @@ impl OutputCards {
     }
 }
 
+/// A `.measure`/`.meas` card: one named post-processing request over the plot.
+///
+/// C: `inp_spsource()` in `src/frontend/inp.c` removes the deck's `.measure`
+/// lines and stores them in `ft_curckt->ci_meas`; after the run,
+/// `do_measure()` (`src/frontend/measure.c`) hands each line to
+/// `get_measure2()` (`src/frontend/com_measure2.c`). Measuring happens on the
+/// **full** plot, before any `.save`/`.print` selection narrows what is
+/// written: an operand the output selection dropped is still measurable. See
+/// `docs/port/MEASURE.md`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeasureCard {
+    /// The analysis the measurement applies to.
+    pub analysis: AnalysisKind,
+    /// Where the analysis name was written.
+    pub analysis_location: SourceLoc,
+    /// The result name, spelled as written (C prints it verbatim).
+    pub name: String,
+    /// Where the result name was written.
+    pub name_location: SourceLoc,
+    /// What to measure.
+    pub request: MeasureRequest,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// The bounded operation of a [`MeasureCard`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureRequest {
+    /// `FIND <operand> AT=<value>`: the operand's value at one axis value.
+    Find {
+        /// The vector to read.
+        operand: VectorRequest,
+        /// The axis value to read it at.
+        at: Real,
+        /// Where the `AT=` setter was written.
+        at_location: SourceLoc,
+        /// The axis window the query must fall in.
+        window: MeasureWindow,
+    },
+    /// `MIN`/`MAX`/`AVG`/`RMS`/`INTEG <operand> [FROM=…] [TO=…]`.
+    Statistic {
+        /// Which statistic.
+        statistic: MeasureStatistic,
+        /// The vector to reduce.
+        operand: VectorRequest,
+        /// The axis window to reduce over.
+        window: MeasureWindow,
+    },
+    /// `TRIG <event> TARG <event>`: the axis distance between two events, as
+    /// `targ - trig` (C's `AT_DELAY`; C also spells the operation `DELAY` and
+    /// `TARG`, which the port does not accept).
+    TrigTarg {
+        /// The trigger event.
+        trig: MeasureEvent,
+        /// The target event.
+        targ: MeasureEvent,
+        /// The axis window the events are searched in.
+        window: MeasureWindow,
+    },
+}
+
+/// A whole-window reduction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasureStatistic {
+    /// `MIN`: the smallest operand value in the window.
+    Min,
+    /// `MAX`: the largest operand value in the window.
+    Max,
+    /// `AVG`: the operand averaged over the window.
+    Avg,
+    /// `RMS`: the root mean square of the operand over the window.
+    Rms,
+    /// `INTEG`/`INTEGRAL`: the operand integrated over the window.
+    Integ,
+}
+
+impl MeasureStatistic {
+    /// The spelling as written on the card.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Min => "MIN",
+            Self::Max => "MAX",
+            Self::Avg => "AVG",
+            Self::Rms => "RMS",
+            Self::Integ => "INTEG",
+        }
+    }
+}
+
+/// One `TRIG`/`TARG` event clause.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureEvent {
+    /// `AT=<value>`: one axis value, with no operand.
+    At {
+        /// The axis value.
+        at: Real,
+        /// Where the `AT=` setter was written.
+        location: SourceLoc,
+    },
+    /// `<operand> VAL=<value> [RISE=n|FALL=n|CROSS=n|LAST]`.
+    Crossing {
+        /// The vector whose threshold crossing is sought.
+        operand: VectorRequest,
+        /// The threshold value.
+        value: Real,
+        /// Where the `VAL=` setter was written.
+        value_location: SourceLoc,
+        /// Which crossing to take.
+        transition: MeasureTransition,
+    },
+}
+
+/// Which threshold crossing of an operand a measurement takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasureTransition {
+    /// No selector given: the first crossing, whatever its direction.
+    First,
+    /// `RISE=<n>`: the `n`-th rising crossing, `n >= 1`.
+    Rise(u32),
+    /// `FALL=<n>`: the `n`-th falling crossing, `n >= 1`.
+    Fall(u32),
+    /// `CROSS=<n>`: the `n`-th crossing in either direction, `n >= 1`.
+    Cross(u32),
+    /// `LAST` (or `RISE=LAST`/`FALL=LAST`/`CROSS=LAST`): the last crossing in
+    /// either direction, as C's `MEASURE_LAST_TRANSITION` does.
+    Last,
+}
+
+impl MeasureTransition {
+    /// The selector's spelling, for diagnostics and for the `TRIG`/`TARG`
+    /// crossings a measurement looks for.
+    #[must_use]
+    pub fn name(self) -> String {
+        match self {
+            Self::First => "first".to_owned(),
+            Self::Last => "last".to_owned(),
+            Self::Rise(n) => format!("RISE={n}"),
+            Self::Fall(n) => format!("FALL={n}"),
+            Self::Cross(n) => format!("CROSS={n}"),
+        }
+    }
+}
+
+/// The axis window a `.measure` request covers.
+///
+/// `None` bounds default to the ends of the plot's axis. The port requires
+/// `from <= to` and treats a zero bound literally; C instead treats an upper
+/// bound of `0` as "no upper bound" and swaps an inverted window for a `.dc`
+/// measurement (`measure_parse_stdParams()` in `com_measure2.c`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MeasureWindow {
+    /// `FROM=<value>`: the lower bound, when written.
+    pub from: Option<Real>,
+    /// `TO=<value>`: the upper bound, when written.
+    pub to: Option<Real>,
+}
+
+impl MeasureWindow {
+    /// True when neither bound was written.
+    #[must_use]
+    pub const fn is_unbounded(&self) -> bool {
+        self.from.is_none() && self.to.is_none()
+    }
+}
+
 /// One ordered card in its owning scope. Indexes address that scope's typed
 /// vectors, so semantic values are not duplicated. Source cards remain intact
 /// for future serializers/snapshots; neither is implemented by this storage.
@@ -612,6 +778,11 @@ pub enum ScopedCardKind {
     /// ([`crate::Parser::parse_file_with_output`]), so this card carries no
     /// scope-local index.
     Output,
+    /// A `.measure`/`.meas` card (root scope only). The typed request lives in
+    /// the [`MeasureCard`] list returned beside the [`Netlist`]
+    /// ([`ParsedDeck::measurements`](crate::ParsedDeck::measurements)), so this
+    /// card carries no scope-local index.
+    Measure,
     /// End of a subcircuit body.
     Ends,
     /// End of a deck.

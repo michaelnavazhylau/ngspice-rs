@@ -105,7 +105,9 @@ fn requests(input: &mut Input<'_>, card: &str) -> Result<Vec<VectorRequest>> {
 const SUPPORTED: &str =
     "all, v(node), v(first,second), i(source|inductor), vm/vp/vr/vi/vdb(node[,second])";
 
-fn request(input: &mut Input<'_>) -> Result<VectorRequest> {
+/// One vector request. Shared with the `.measure` grammar
+/// (`super::measure`), whose operands use the same bounded spelling.
+pub(super) fn request(input: &mut Input<'_>) -> Result<VectorRequest> {
     // Backtracks at the end of the card so `repeat` stops; everything else cuts.
     peek(any).parse_next(input)?;
     let head = any.parse_next(input)?;

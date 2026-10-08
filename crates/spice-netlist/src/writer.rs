@@ -274,10 +274,11 @@ impl Writer {
                         self.hints(".nodeset", card_, depth)?;
                     }
                 }
-                // `.save`/`.print` requests are returned beside the netlist
-                // (`ast::OutputCards`), so their typed index lives outside the
+                // `.save`/`.print` requests (`ast::OutputCards`) and
+                // `.measure` requests (`ParsedDeck::measurements`) are returned
+                // beside the netlist, so their typed index lives outside the
                 // netlist and the card is reproduced from its own spelling.
-                ScopedCardKind::Output => {
+                ScopedCardKind::Output | ScopedCardKind::Measure => {
                     if !skip {
                         self.line(depth, card.source.raw.trim(), location)?;
                     }

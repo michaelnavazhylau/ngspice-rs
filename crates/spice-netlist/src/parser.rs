@@ -19,7 +19,7 @@ use std::path::Path;
 
 use spice_core::SpiceResult;
 
-use crate::ast::{Netlist, OutputCards};
+use crate::ast::{MeasureCard, Netlist, OutputCards};
 use crate::card::{DotCommand, RawCard};
 use crate::source::{Deck, load};
 
@@ -32,6 +32,7 @@ mod grammar;
 mod hints;
 mod ic;
 mod linear;
+mod measure;
 mod model;
 mod options;
 mod param;
@@ -50,19 +51,26 @@ pub struct Parser {
     auto_gnd: bool,
 }
 
-/// A parsed deck: the semantic netlist and the `.save`/`.print` cards.
+/// A parsed deck: the semantic netlist, the `.save`/`.print` cards and the
+/// `.measure` cards.
 ///
-/// The output cards are returned beside the netlist rather than inside it. They
-/// describe what an analysis should write, not how the circuit is built, so
-/// they never reach device elaboration; separating them also keeps the netlist
-/// unchanged for every consumer that only simulates the circuit. See
-/// [`Parser::parse_file_with_output`] and `docs/port/OUTPUT_SELECTION.md`.
+/// The output and measurement cards are returned beside the netlist rather than
+/// inside it. They describe what an analysis should write and what should be
+/// measured afterwards, not how the circuit is built, so they never reach
+/// device elaboration; separating them also keeps the netlist unchanged for
+/// every consumer that only simulates the circuit. See
+/// [`Parser::parse_file_with_output`], `docs/port/OUTPUT_SELECTION.md` and
+/// `docs/port/MEASURE.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedDeck {
     /// The semantic netlist.
     pub netlist: Netlist,
     /// The `.save`/`.print` cards the deck contains, typed and positioned.
     pub output: OutputCards,
+    /// The `.measure`/`.meas` cards the deck contains, in deck order, typed and
+    /// positioned. Measurements are evaluated over the **full** plot, so the
+    /// output selection never hides a measurable vector.
+    pub measurements: Vec<MeasureCard>,
 }
 
 impl Parser {
@@ -109,8 +117,8 @@ impl Parser {
     /// D references may remain unresolved. None of these are simulation inputs
     /// until the later elaboration pass validates them.
     ///
-    /// `.save`/`.print` cards are validated here (a malformed request is an
-    /// error, never a dropped card) and returned by
+    /// `.save`/`.print` and `.measure` cards are validated here (a malformed
+    /// request is an error, never a dropped card) and returned by
     /// [`Parser::parse_deck_with_output`].
     ///
     /// # Errors
@@ -122,14 +130,20 @@ impl Parser {
         Ok(self.parse_deck_with_output(deck)?.netlist)
     }
 
-    /// Builds a semantic netlist and reports the deck's `.save`/`.print` cards.
+    /// Builds a semantic netlist and reports the deck's `.save`/`.print` cards
+    /// and `.measure` cards.
     ///
     /// # Errors
     ///
     /// The same failures as [`Parser::parse_deck`].
     pub fn parse_deck_with_output(&self, deck: &Deck) -> SpiceResult<ParsedDeck> {
-        let (netlist, output) = scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)?;
-        Ok(ParsedDeck { netlist, output })
+        let (netlist, output, measurements) =
+            scopes::assemble(deck, prepare_cards(deck), self.auto_gnd)?;
+        Ok(ParsedDeck {
+            netlist,
+            output,
+            measurements,
+        })
     }
 
     /// Parses one unevaluated parameter expression, for instance the text of a
@@ -162,7 +176,8 @@ impl Parser {
         Ok(self.parse_file_with_output(path)?.netlist)
     }
 
-    /// Loads `path` and reports the deck's `.save`/`.print` cards as well.
+    /// Loads `path` and reports the deck's `.save`/`.print` and `.measure`
+    /// cards as well.
     ///
     /// # Errors
     ///
@@ -201,8 +216,12 @@ impl Parser {
         limits: SourceLimits,
     ) -> SpiceResult<ParsedDeck> {
         let (deck, cards) = resolution::resolve(path.as_ref(), limits)?;
-        let (netlist, output) = scopes::assemble(&deck, cards, self.auto_gnd)?;
-        Ok(ParsedDeck { netlist, output })
+        let (netlist, output, measurements) = scopes::assemble(&deck, cards, self.auto_gnd)?;
+        Ok(ParsedDeck {
+            netlist,
+            output,
+            measurements,
+        })
     }
 }
 

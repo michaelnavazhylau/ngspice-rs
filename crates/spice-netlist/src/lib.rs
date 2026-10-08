@@ -13,14 +13,15 @@
 //! | [`ast`] | the semantic netlist model | bounded devices/models, ordered subcircuit scopes and source provenance |
 //! | [`writer`], [`semantic`] | normalized deck serialization and location-free comparison | **#20** |
 //! | [`dump`], [`snapshot`] | versioned token/AST text dumps and snapshot generation | **#21** |
-//! | [`parser`] | winnow token stream → [`ast::Netlist`] and the deck's `.save`/`.print` cards | **M1a/M1b + scoped subcircuits/X, bounded source resolution and output cards; no flattening** |
+//! | [`parser`] | winnow token stream → [`ast::Netlist`] and the deck's `.save`/`.print`/`.measure` cards | **M1a/M1b + scoped subcircuits/X, bounded source resolution and output/measurement cards; no flattening** |
 //!
 //! The C equivalent is spread over `src/frontend/inp.c`,
 //! `src/frontend/inpcom.c` and `src/spicelib/parser/`. Deck dispatch is in
 //! `inppas2.c`/`inp2dot.c` and per-device functions (`inp2r.c`, `inp2c.c`, …).
 //! `.save`/`.print` output cards are collected by `ft_dotsaves()`/
-//! `ft_savedotargs()` (`src/frontend/dotcards.c`); see
-//! `docs/port/OUTPUT_SELECTION.md`.
+//! `ft_savedotargs()` (`src/frontend/dotcards.c`; see
+//! `docs/port/OUTPUT_SELECTION.md`) and `.measure` cards by `inp_spsource()`
+//! (`src/frontend/inp.c`; see `docs/port/MEASURE.md`).
 //! `src/frontend/parse-bison.y` is a separate expression grammar, not a deck
 //! grammar; `.param` evaluation lives in `src/frontend/numparam/`.
 

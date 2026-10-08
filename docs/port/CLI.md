@@ -106,7 +106,7 @@ title, analysis, plot, variable names and output path on stdout.
 
 ## What is deliberately not implemented
 
-* waveform parsing and any other post-processing of results;
+* waveform parsing and any post-processing of results other than `.measure`;
 * binary rawfile output (ASCII only);
 * an interactive interpreter;
 * more than one analysis per invocation.
@@ -118,6 +118,14 @@ stdout. A deck without those cards writes exactly the driver's plot, unchanged.
 See [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md) for the grammar, the ordering and
 duplicate rules and the failure modes.
 
+Measurements are implemented for the bounded `.measure`/`.meas` subset: the
+cards are evaluated over the **full** plot before the selection narrows what is
+written, so an operand the selection dropped is still measurable, and the
+measurement block is appended to the report after the `.print` table. A deck
+without a `.measure` card prints exactly what it printed before, and no
+measurement changes the written rawfile. See [MEASURE.md](MEASURE.md) for the
+grammar, the axis/interpolation/crossing/window rules and the failure modes.
+
 ## Covered by tests
 
 `crates/spice-cli/tests/simulate.rs` runs the binary and checks the exit
@@ -126,6 +134,8 @@ the written rawfiles back with the production reader and compares them vector by
 vector, by name, with the committed C goldens in `conformance/golden/`
 (`.op`, both `.dc` sweep directions, complex `.ac`, plain `.tran` and a
 `uic`/`ic=` `.tran`). It also covers `.save`/`.print` selection and its failures
-(see [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md)). `crates/spice-cli/tests/parse.rs`
+(see [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md)) and `.measure` measurement
+blocks, hidden operands and failed measurements (see [MEASURE.md](MEASURE.md)).
+`crates/spice-cli/tests/parse.rs`
 keeps the older inspection commands green. Nothing in these tests invokes C or
 re-captures a golden.

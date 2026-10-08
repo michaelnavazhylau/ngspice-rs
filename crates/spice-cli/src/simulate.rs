@@ -11,8 +11,13 @@
 //! * a deck's `.save`/`.print` cards select which vectors are written, through
 //!   [`spice_analysis::selection`]; the selection is resolved against the full
 //!   plot the driver produced, so an unresolvable request fails before anything
-//!   is written or printed, and the full plot stays available for the
-//!   measurement work that follows ([`Report`] carries only what was written);
+//!   is written or printed;
+//! * a deck's `.measure`/`.meas` cards are evaluated through
+//!   [`spice_analysis::measure`] against that same **full** plot, so an operand
+//!   the output selection excluded is still measurable and a measurement never
+//!   changes the written rawfile. A deck with no `.measure` card prints exactly
+//!   what it printed before this work ([`Report`] carries only what was
+//!   written and measured);
 //! * the rawfile is written through a temporary file in the destination's
 //!   directory and renamed into place, so a failed run never truncates,
 //!   replaces or removes an existing destination, and never leaves a partial
@@ -26,6 +31,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use spice_analysis::measure::{self, Measurement};
 use spice_analysis::selection::{self, Selection};
 use spice_analysis::{Plot, RawFile, RawPlot, RunConfig, runner};
 use spice_core::{AnalysisKind, SpiceError, SpiceResult};
@@ -58,6 +64,11 @@ pub struct Report {
     /// The `.print` table, when the deck asked for one. `None` for a deck
     /// without an applicable `.print` card, which keeps the report unchanged.
     pub printed: Option<String>,
+    /// The `.measure` results, when the deck asked for any. `None` for a deck
+    /// without a `.measure` card, which keeps the report unchanged.
+    pub measured: Option<String>,
+    /// The measurement results themselves, in card order.
+    pub measurements: Vec<Measurement>,
 }
 
 /// Simulates the deck's single analysis and writes it as an ASCII rawfile.
@@ -72,15 +83,19 @@ pub struct Report {
 ///   because this command runs one analysis per invocation;
 /// * [`SpiceError::Unsupported`] when a `.save`/`.print` request cannot be
 ///   resolved against the run's result (an unknown vector, a `.print` card for
-///   another analysis, an AC component of a real plot), and
-///   [`SpiceError::Numerical`] when a computed vector is not finite;
+///   another analysis, an AC component of a real plot) or when a `.measure`
+///   request cannot be evaluated against it (an operand the plot lacks, a window
+///   that covers no data, a crossing that does not occur, …; see
+///   `docs/port/MEASURE.md`), and [`SpiceError::Numerical`] when a computed
+///   vector or measurement value is not finite;
 /// * whatever the production runner reports for unsupported devices, analyses,
 ///   options or numerically failed runs ([`SpiceError::Unsupported`],
 ///   [`SpiceError::NotYetPorted`], [`SpiceError::Numerical`], …).
 ///
-/// The destination is written only after the runner returned a plot and the
-/// selection resolved, and the `.print` table is only returned with the report,
-/// so a failure publishes nothing at all.
+/// The destination is written only after the runner returned a plot, the
+/// selection resolved and every measurement was evaluated, and the `.print`
+/// table and measurement block are only returned with the report, so a failure
+/// publishes nothing at all.
 pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
     let parsed = Parser::with_auto_gnd(auto_gnd).parse_file_with_output(deck)?;
     let netlist = &parsed.netlist;
@@ -103,6 +118,15 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
     } else {
         Some(Selection::resolve(&plot, card.kind, &print_requests)?.to_text(&plot)?)
     };
+    // Measurements resolve against the **full** plot, exactly like the
+    // selection, and before anything is written: a failed measurement publishes
+    // nothing, and an operand the selection dropped is still measurable.
+    let measurements = measure::resolve(&plot, card.kind, &parsed.measurements)?;
+    let measured = if measurements.is_empty() {
+        None
+    } else {
+        Some(measure::to_text(&measurements))
+    };
     let written = selection.apply(&plot)?;
 
     let rawfile = rawfile_for(netlist, written, &now_header());
@@ -121,6 +145,8 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
         points: raw_plot.plot.point_count(),
         output: output.to_path_buf(),
         printed,
+        measured,
+        measurements,
     };
     write_rawfile(&rawfile, output)?;
     Ok(report)
@@ -332,10 +358,14 @@ pub fn report_text(report: &Report) -> String {
         "output:    {} (ngspice ASCII rawfile, no binary support)",
         report.output.display()
     );
-    // Only a deck with an applicable `.print` card has a table; a deck without
-    // one keeps today's report unchanged.
+    // Only a deck with an applicable `.print` card has a table, and only a deck
+    // with a `.measure` card has a measurement block; a deck without either
+    // keeps today's report unchanged.
     if let Some(printed) = &report.printed {
         out.push_str(printed);
+    }
+    if let Some(measured) = &report.measured {
+        out.push_str(measured);
     }
     out
 }
@@ -381,6 +411,8 @@ mod tests {
             points: 1,
             output: PathBuf::from("out.raw"),
             printed: None,
+            measured: None,
+            measurements: Vec::new(),
         };
         let text = report_text(&report);
         assert!(text.contains("deck:      rc.cir"), "{text}");
@@ -399,6 +431,10 @@ mod tests {
             !text.contains("print:"),
             "a deck without .print has no table: {text}"
         );
+        assert!(
+            !text.contains("measure:"),
+            "a deck without .measure has no measurement block: {text}"
+        );
     }
 
     #[test]
@@ -412,11 +448,15 @@ mod tests {
             points: 1,
             output: PathBuf::from("out.raw"),
             printed: Some("print: 1 vector(s): v(out)\nvalues: real\n".to_owned()),
+            measured: Some("measure: 1 result(s)\n".to_owned()),
+            measurements: Vec::new(),
         };
         let text = report_text(&report);
         let report_end = text.find("output:    out.raw").expect("the report");
         let table = text.find("print: 1 vector(s): v(out)").expect("the table");
+        let measured = text.find("measure: 1 result(s)").expect("the block");
         assert!(report_end < table, "the table follows the report: {text}");
+        assert!(table < measured, "the block follows the table: {text}");
     }
 
     #[test]
@@ -430,6 +470,8 @@ mod tests {
             points: 0,
             output: PathBuf::from("out.raw"),
             printed: None,
+            measured: None,
+            measurements: Vec::new(),
         };
         assert!(report_text(&report).contains("title:     <empty title line>"));
     }

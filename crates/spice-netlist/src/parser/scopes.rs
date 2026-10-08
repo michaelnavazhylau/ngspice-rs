@@ -3,8 +3,8 @@
 use super::grammar::{self, ParsedCard};
 use super::save::OutputCard;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
-    OptionCard, OutputCards, ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
+    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, MeasureCard, ModelCard, Netlist,
+    NodeHintCard, OptionCard, OutputCards, ParamCard, ScopedCard, ScopedCardKind, Subcircuit,
 };
 use crate::card::{DotCommand, RawCard};
 use crate::source::Deck;
@@ -43,6 +43,7 @@ struct Scope {
     nodesets: Vec<NodeHintCard>,
     params: Vec<ParamCard>,
     output: OutputCards,
+    measurements: Vec<MeasureCard>,
     cards: Vec<ScopedCard>,
 }
 
@@ -50,7 +51,7 @@ pub(super) fn assemble(
     deck: &Deck,
     cards: Vec<SpiceResult<InputCard>>,
     auto_gnd: bool,
-) -> SpiceResult<(Netlist, OutputCards)> {
+) -> SpiceResult<(Netlist, OutputCards, Vec<MeasureCard>)> {
     let mut cursor = 0;
     let scope = scope(&cards, &mut cursor, auto_gnd, &BTreeSet::new(), None, 0)?;
     Ok((
@@ -71,6 +72,7 @@ pub(super) fn assemble(
             nodesets: scope.nodesets,
         },
         scope.output,
+        scope.measurements,
     ))
 }
 
@@ -205,6 +207,22 @@ fn scope(
                     }
                 }
                 ScopedCardKind::Output
+            }
+            ParsedCard::Measure(measure) => {
+                // Like `.save`/`.print`, `.measure` describes the analysis
+                // output rather than the circuit: the typed request travels
+                // beside the netlist (`ParsedDeck::measurements`) and the card
+                // carries no scope-local index. C collects `.meas` lines into
+                // `ft_curckt->ci_meas` in `inp_spsource()`; body-local
+                // measurement scope is not defined yet in this port.
+                reject_in_body(
+                    card,
+                    opening,
+                    ".measure",
+                    "src/frontend/inp.c (inp_spsource), src/frontend/measure.c (do_measure)",
+                )?;
+                result.measurements.push(measure);
+                ScopedCardKind::Measure
             }
             ParsedCard::Include(mut i) => {
                 i.resolved_path = entry.resolved_path.clone();
