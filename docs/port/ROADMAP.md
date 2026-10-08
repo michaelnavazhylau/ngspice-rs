@@ -199,12 +199,22 @@ Wave 1 merged on `main`:
 - ✅ binary rawfile read/write (#45), so binary C rawfiles can be consumed
   ([RAWFILES.md](RAWFILES.md))
 
-`cargo xtask golden verify` now reports **26 verified fixtures with no
-exclusions**, so `subckt_divider` no longer blocks the milestone. Still open:
+Wave 2 merged on `main`:
 
-- `.save`/`.print` output selection (#42, in progress on a parallel lane)
-- `.measure` (#43)
-- `.four` (#44)
+- ✅ bounded `.save`/`.print` output selection (#42): typed positioned requests
+  projected into the written rawfile in C `dbs` order with first-wins dedup, a
+  `.print` text table and pre-publish failure for unsupported/unresolvable
+  requests; `.plot` remains unported ([OUTPUT_SELECTION.md](OUTPUT_SELECTION.md))
+- ✅ bounded `.measure`/`.meas` measurements (#43): `FIND <operand> AT=`,
+  `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) with `FROM`/`TO`, and
+  `TRIG … TARG …`, evaluated over the full plot before output selection narrows
+  the rawfile ([MEASURE.md](MEASURE.md))
+
+`cargo xtask golden verify` now reports **26 verified fixtures with no
+exclusions**, so `subckt_divider` no longer blocks the milestone. **M5 is not
+complete.** Still open:
+
+- `.four` (#44, in progress on a parallel lane)
 
 ## Deliberately out of scope (initially)
 

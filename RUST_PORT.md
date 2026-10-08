@@ -46,6 +46,13 @@ hierarchical names, scoped parameters/models and `.global`; see
 and the remaining numparam surface remain unported. D/Q/M AST/schema
 success alone does not imply the requested physics is implemented: M4's bounded
 allowlists are validated by the model-aware factories.
+**M5 wave 2** adds bounded `.save`/`.print` output selection (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
+and bounded `.measure`/`.meas` measurements (#43, [MEASURE.md](docs/port/MEASURE.md)):
+`.save`/`.print` cards parse into positioned typed requests and project the full
+plot into the written rawfile in C's `dbs` order with first-wins dedup (`.print`
+also renders a text table), a bounded `.measure` subset evaluates over the full
+plot before output selection narrows the rawfile, and unresolvable requests fail
+before anything is published. `.four` (#44) and `.plot` remain unported.
 Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
 LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
 an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
@@ -76,6 +83,8 @@ What already works for real:
 | Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
 | Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | Rawfile read *and* write: ASCII and binary | `spice-analysis` | `src/frontend/rawfile.c` layout; binary real/complex read/write with explicit byte order, validated payload lengths and rejected variants documented in [RAWFILES.md](docs/port/RAWFILES.md) |
+| Output selection (`.save`/`.print`) | `spice-netlist`, `spice-analysis`, `spice-cli` | bounded typed request parsing and projection into the written rawfile in C `dbs` order with first-wins dedup; `.print` text table; unresolvable/unsupported requests fail before publishing; `.plot` unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
+| Measurements (`.measure`/`.meas`) | `spice-netlist`, `spice-analysis`, `spice-cli` | bounded `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` and `TRIG … TARG …` subset evaluated over the full plot before output selection narrows it; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
 | Rust-engine numerical verify | `xtask` | 26 verified fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients, nonlinear and flattened-subcircuit decks); no exclusions, no C invocation |
@@ -109,7 +118,9 @@ build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 Parsing succeeds for all eight (the M1 round-trip gate is
 `crates/spice-netlist/tests/m1_gate.rs`, #22). **`spice-rs simulate --output
 <path> <deck>` runs the deck's single analysis through the production runner and
-writes an ASCII rawfile** ([CLI.md](docs/port/CLI.md)); the same APIs remain
+writes an ASCII rawfile** ([CLI.md](docs/port/CLI.md)); it honours the bounded
+`.save`/`.print` output selection ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
+and reports the bounded `.measure`/`.meas` measurements ([MEASURE.md](docs/port/MEASURE.md)). The same APIs remain
 available directly, e.g. `cargo run -p spice-analysis --example rc_diffsol`.
 
 ```sh
