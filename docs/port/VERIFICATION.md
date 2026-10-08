@@ -1,6 +1,38 @@
 # Verification
 
-## Bounded M5 gate (#18, #6, #45, #42, #43, #44)
+## Bounded numerical follow-up gate (#46, #47, #29)
+
+Parent validation of the integrated candidate tree reports **824 passed, 0 failed,
+37 ignored** on stable (rustc 1.99.0) and Rust 1.89.0; combined maths **72/0/0**.
+Workspace/all-target Clippy `--locked -- -D warnings` passes on both toolchains;
+formatting and whitespace checks are clean. `cargo xtask golden verify` remains
+**26 verified / 0 unsupported / 0 failures**; all **37 ignored live-C** checks
+pass with absolute `NGSPICE_BIN`, and `golden check` reproduces all **26** C
+fixtures. Existing goldens, 110 parser snapshots, dependencies and `Cargo.lock`
+are unchanged.
+
+- #46: **8** production-interface analytic scaling tests; independent physical
+  values/residual bounds, snapshots, symbolic-pattern/rank/range errors and
+  measured acceptance/overhead probes ([EQUILIBRATION.md](EQUILIBRATION.md)).
+- #47: **6** guard tests, backend audit and example-only benchmark comparing
+  actual production classification at widths 1/8/16. Parent reruns retain all
+  **42 cases per width (24 accept / 18 reject)** and failed probes. Timing/RSS
+  limitations and the aggregate-contraction proof caveat are explicit
+  ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)); formal certificate
+  gate #68 remains unresolved. Numeric policy/thresholds are unchanged.
+- #29: **11** analytic/error/residual/prototype tests plus unchanged index-one
+  regressions. This is a numeric-only smooth constrained-RLC formulation gate,
+  **not production enablement** ([HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md));
+  separate waveform/topology/integration/event gates are #69–#72.
+
+A fresh fourth read-only agent inspected exact candidates and actual logs:
+no candidate-caused P0/P1/P2; all three **OK with notes**. Parent corrected
+certification wording and carried inherited/prototype limits into capability
+summaries before revalidation. Finite tests are not a universal uniqueness proof,
+and normwise backward checks do not promise componentwise/forward accuracy.
+The slice counts below are historical delivery evidence, not current totals.
+
+## Historical bounded M5 gate (#18, #6, #45, #42, #43, #44)
 
 `cargo xtask golden verify` reports **26 verified fixture(s), 0 unsupported
 fixture(s), 0 failure(s)**: `EXCLUDED` in `xtask/src/verify.rs` is empty, so

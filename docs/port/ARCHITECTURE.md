@@ -56,6 +56,22 @@ examples, not a CLI simulation command.
    `float`; the port uses `Real = f64` and records any place where the C code
    loses precision in `float` as a documented divergence risk.
 
+## Numerical follow-up contracts
+
+`spice-maths::equilibration` (#46) owns explicit dense/sparse/complex scaling
+wrappers and original-unit diagnostics, not device semantics or a new default
+analysis policy ([EQUILIBRATION.md](EQUILIBRATION.md)). The existing sparse/complex
+rank policy is unchanged by #47's audit; its aggregate-certification proof
+limitation is explicit and tracked separately in #68
+([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)). Preserve the current
+guards without representing finite regression coverage as a universal proof.
+
+`spice-maths::diffsol::higher_index` (#29) is an experimental numeric prototype
+with supplied smooth forcing jets and a bounded constrained-RLC class. It is not
+selected by `LinearDae`/the analysis runner. Production topology/waveform/error
+control/accepted-state/event semantics require the separate #69–#72 gates
+([HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md)).
+
 ## Graph representations: prefer petgraph
 
 Use petgraph 0.8.3 for graph storage and algorithms rather than maintaining

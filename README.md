@@ -39,6 +39,8 @@ table, formulas, temperatures and deliberately rejected forms.
 | Model resolver and scalar schemas | Top-level families/levels/defaults; bounded passive and D/Q/M model-aware factories |
 | Model-backed passives | Bounded R sheet/C area-perimeter geometry, L model value, TC1/TC2, scale and multiplicity |
 | Scalar R/C/L/V/I simulation and real/complex LU | Implemented using faer |
+| Opt-in equilibration | Maths-library owned dense/sparse/complex wrappers with bounded power-of-two scaling, physical RHS/solution transforms and original-unit residuals; no deck/driver default change (#46, [EQUILIBRATION.md](docs/port/EQUILIBRATION.md)) |
+| Higher-index formulation | Tested numeric constrained-RLC reduction/reconstruction and ADR only; production BDF still rejects these pencils (#29, [HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)) |
 | `.op`, typed/nested V/I/R/TEMP `.dc`, bias-linearized `.ac` | Linear and bounded nonlinear devices; configurable bounded DC bias continuation |
 | Transient | Ordinary `.tran`: adaptive trap/Gear-2 with bounded nonlinear charge; explicit diffsol BDF remains linear-only |
 | Nonlinear D/Q/M equations | Bounded diode / Ebers-Moll BJT / MOS1; see M4 support table and explicit exclusions |
@@ -58,7 +60,8 @@ selects the adaptive BDF backend, which is
 **not ngspice trapezoidal or fixed Gear-2**. M3's RC/RL/RLC, PWL, floating/coupled
 capacitor and AC exit gates against C goldens are closed for the linear decks
 (`cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`); M3 is not
-complete: higher-index constraints (#29) remain unsupported.
+complete: runtime higher-index constraints remain unsupported. #29 now delivers
+a prototype/ADR, not enabling; the separate runtime gates are #69–#72.
 M4 adds bounded nonlinear charge to the companion path, not general MNA DAE support. The BDF backend currently
 accepts index-one DAEs, including floating/coupled capacitor networks; higher-index
 constraints, nonlinear charge and `.ic`/`uic` remain unsupported. Numeric PULSE/PWL V/I setters elaborate into
@@ -78,7 +81,8 @@ Remaining work is tracked only in [TODO.md](TODO.md):
 4. **Transient (M3):** the adaptive trap/Gear-2 companion driver exists for linear
    circuits (#26) and its RC/RL/RLC/floating-capacitor/AC conformance gates pass
    (#48, including the `.ic`/`uic`/`ic=` fixtures of #27); more waveforms,
-   higher-index DAEs (#29) and nonlinear initialization remain; bounded nonlinear
+   higher-index runtime enabling (#69–#72) and nonlinear initialization remain;
+   #29's formulation/prototype is delivered; bounded nonlinear
    charge is now provided by M4.
 5. **Nonlinear devices (M4):** bounded equations, Newton/damping/continuation,
    typed nested sweeps and nonlinear DC/AC/charge-companion gate implemented;
@@ -93,6 +97,15 @@ Remaining work is tracked only in [TODO.md](TODO.md):
    [FOURIER.md](docs/port/FOURIER.md)) completes M5's six deliverables. This is
    bounded usability coverage, not full SPICE parity; `.plot` and the documented
    extended output/measurement/Fourier forms remain unported.
+
+7. **Numerical follow-up:** the bounded milestone delivers opt-in library
+   equilibration (#46), a measured sparse-rank audit/retain outcome (#47,
+   [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md)) and #29's
+   unenabled prototype/ADR. Production rank policy and default simulation remain
+   unchanged. The existing sparse guard has an aggregate-certification proof
+   caveat (#68); no formal uniqueness theorem or enabled batching speedup is
+   claimed. Higher-index runtime gates remain #69–#72. Current stable/MSRV gate:
+   **824 passed / 37 ignored**, golden verify **26/0/0**, **37 live-C** passed.
 
 Advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, Tcl, full numparam
 compatibility and the interactive interpreter are outside the initial scope.

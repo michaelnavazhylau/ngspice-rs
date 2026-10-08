@@ -15,6 +15,19 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
 
+**Bounded numerical follow-up delivered:** #46 adds explicit maths-library
+`EquilibratedDenseLu`/`EquilibratedSparseLu`/`EquilibratedComplexLu` wrappers with
+bounded transforms and original-unit residual checks
+([EQUILIBRATION.md](docs/port/EQUILIBRATION.md)); simulation defaults are unchanged.
+#47 delivers a backend audit, guard regressions and measured example-only batching,
+retaining production rank policy ([SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md)).
+Its aggregate-certification proof limitation remains tracked in #68, not hidden
+behind a speedup or formal uniqueness claim. #29 supplies a tested constrained-RLC
+prototype/ADR ([HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)), not
+production higher-index support; separate enabling gates are #69–#72. Final
+stable/MSRV workspace validation: **824 passed / 0 failed / 37 ignored**;
+golden verify **26/0/0**, **37 live-C** checks passed.
+
 **Branch-local M4 update:** bounded diode/Ebers-Moll BJT/MOS1 DC, AC and
 charge-companion transient, reusable Newton/continuation and typed nested
 source/temperature sweeps are implemented. Local #34/#35 follow-ups add bounded
