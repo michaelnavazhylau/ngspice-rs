@@ -117,6 +117,20 @@ fn run_diffsol(
     let mut system = circuit.linear_system_with_context(&context.model_context())?;
     // C resolves PULSE TR/TF/PW/PER defaults from CKTstep and CKTfinalTime.
     system.bind_transient_timing(&TransientTiming::new(dt, end)?)?;
+    // DaeSegment interpolates the forcing linearly between breakpoints, which
+    // is exact only for piecewise-linear sources; never approximate SIN/EXP/
+    // SFFM/AM that way.
+    if let Some(source) = system
+        .sources
+        .iter()
+        .find(|s| !s.waveform.is_piecewise_linear())
+    {
+        return Err(unsupported(format!(
+            "{}: SIN/EXP/SFFM/AM forcing is implemented only by the companion driver \
+             (omit backend=diffsol); the diffsol BDF backend needs piecewise-linear sources",
+            source.name
+        )));
+    }
     if system.has_initial_conditions {
         return Err(unsupported(
             "device ic= is implemented only by the companion driver (omit backend=diffsol); \

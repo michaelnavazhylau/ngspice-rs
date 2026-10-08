@@ -1,5 +1,6 @@
 //! Immutable linear MNA assembly, distinct from timestep-dependent companions.
 use crate::MnaUnknowns;
+use crate::functions::{FunctionSpec, PwlSource, SourceFunction};
 use crate::pulse::{Pulse, PulseSpec, TransientTiming};
 use spice_core::{Complex, NodeId, Real, SpiceError, SpiceResult};
 use spice_maths::{SparseMatrix, Vector};
@@ -58,6 +59,13 @@ pub enum Waveform {
     /// [`LinearSystem::bind_transient_timing`] (or [`Waveform::resolve`]) turns
     /// it into [`Waveform::Pulse`]; evaluating it earlier is an error.
     PulseDefaults(PulseSpec),
+    /// PWL with C's `td=` delay and optional `r=` repetition; see [`PwlSource`].
+    PwlSource(PwlSource),
+    /// A fully specified SIN/EXP/SFFM/AM; see [`SourceFunction`].
+    Function(SourceFunction),
+    /// SIN/EXP/SFFM/AM as written, with C's analysis-dependent defaults
+    /// pending; resolved like [`Waveform::PulseDefaults`].
+    FunctionDefaults(FunctionSpec),
 }
 impl Waveform {
     /// Checks finite values and strictly increasing nonnegative knot times.
@@ -85,6 +93,12 @@ impl Waveform {
                 spec.resolve(&TransientTiming::new(1., 1.)?)?;
                 true
             }
+            // Both are only constructed through validating constructors.
+            Self::PwlSource(_) | Self::Function(_) => true,
+            Self::FunctionDefaults(spec) => {
+                spec.validate()?;
+                true
+            }
         };
         if !valid {
             return Err(SpiceError::circuit("invalid source waveform"));
@@ -99,7 +113,34 @@ impl Waveform {
     pub fn resolve(&self, timing: &TransientTiming) -> SpiceResult<Self> {
         match self {
             Self::PulseDefaults(spec) => Ok(Self::Pulse(spec.resolve(timing)?)),
+            Self::FunctionDefaults(spec) => Ok(Self::Function(spec.resolve(timing)?)),
             other => Ok(other.clone()),
+        }
+    }
+
+    /// True when the forcing is linear between consecutive
+    /// [`Waveform::breakpoints_in`] times (constant, step, PWL and PULSE
+    /// forms), so a segment's end values determine it exactly. SIN/EXP/SFFM/AM
+    /// are not.
+    #[must_use]
+    pub const fn is_piecewise_linear(&self) -> bool {
+        !matches!(self, Self::Function(_) | Self::FunctionDefaults(_))
+    }
+
+    /// The value C loads in OP/DC analyses when the source has no explicit DC
+    /// value: the transient function at `time = 0` (`vsrcload.c`, `MODEDC`),
+    /// which is the left limit at zero. Needs no analysis timing.
+    ///
+    /// # Errors
+    /// The waveform is invalid.
+    pub fn time_zero(&self) -> SpiceResult<Real> {
+        match self {
+            Self::PulseDefaults(spec) => {
+                self.validate()?;
+                Ok(spec.initial)
+            }
+            Self::FunctionDefaults(spec) => spec.time_zero(),
+            other => other.value_at(0., Limit::Left),
         }
     }
 
@@ -143,9 +184,16 @@ impl Waveform {
                 p.last().map_or(0., |p| p.1)
             }
             Self::Pulse(pulse) => return pulse.value_at(t, limit),
+            Self::PwlSource(pwl) => return pwl.value_at(t, limit),
+            Self::Function(function) => return function.value_at(t, limit),
             Self::PulseDefaults(_) => {
                 return Err(SpiceError::circuit(
                     "PULSE defaults (TR/TF/PW/PER) are unresolved; bind transient timing first",
+                ));
+            }
+            Self::FunctionDefaults(_) => {
+                return Err(SpiceError::circuit(
+                    "SIN/EXP/SFFM/AM defaults are unresolved; bind transient timing first",
                 ));
             }
         })
@@ -164,6 +212,7 @@ impl Waveform {
     ) -> SpiceResult<Real> {
         match self {
             Self::PulseDefaults(spec) => spec.resolve(timing)?.value_at(t, limit),
+            Self::FunctionDefaults(spec) => spec.resolve(timing)?.value_at(t, limit),
             other => other.value_at(t, limit),
         }
     }
@@ -204,9 +253,13 @@ impl Waveform {
                     pulse.breakpoints_in(t0, t1)?,
                 )));
             }
-            Self::PulseDefaults(_) => {
+            Self::PwlSource(pwl) => {
+                return Ok(WaveformBreakpoints(Inner::Pwl(pwl.breakpoints_in(t0, t1)?)));
+            }
+            Self::Function(function) => function.corners(),
+            Self::PulseDefaults(_) | Self::FunctionDefaults(_) => {
                 return Err(SpiceError::circuit(
-                    "PULSE defaults are unresolved; bind transient timing before enumerating breakpoints",
+                    "source defaults are unresolved; bind transient timing before enumerating breakpoints",
                 ));
             }
         };
@@ -227,6 +280,7 @@ pub struct WaveformBreakpoints(Inner);
 enum Inner {
     Fixed(std::vec::IntoIter<Real>),
     Pulse(crate::pulse::PulseBreakpoints),
+    Pwl(crate::functions::PwlBreakpoints),
 }
 impl Iterator for WaveformBreakpoints {
     type Item = Real;
@@ -234,6 +288,7 @@ impl Iterator for WaveformBreakpoints {
         match &mut self.0 {
             Inner::Fixed(it) => it.next(),
             Inner::Pulse(it) => it.next(),
+            Inner::Pwl(it) => it.next(),
         }
     }
 }

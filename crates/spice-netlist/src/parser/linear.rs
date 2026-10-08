@@ -184,6 +184,7 @@ fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> 
             dc_parameters,
             ac_parameters,
             super::waveform::parameters,
+            super::waveform::pwl_options,
             invalid_source,
         )),
     )

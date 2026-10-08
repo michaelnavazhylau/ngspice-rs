@@ -549,3 +549,52 @@ fn scopes_crossing_include_boundaries_are_refused() {
     let netlist = Parser::new().parse_file(temp.0.join("main.cir")).unwrap();
     refused(&netlist, "closed by `.ends` in the file that opened it");
 }
+
+#[test]
+fn source_functions_pulse_count_and_pwl_options_round_trip() {
+    // #94/#95: SIN (and its `sine` alias), EXP, SFFM, AM, the PULSE eighth
+    // field and PWL `r=`/`td=` keep spelling, omissions and setter order.
+    let (written, _, second) = round_trip(
+        "t\nv1 a 0 SIN(0 1 1k)\ni1 a 0 sine 0, 1m\nv2 b 0 exp(1 2 1u 2u 3u 4u)\n\
+         i2 b 0 sffm(0 1m 10k 2 1k 0 90 45)\nv3 c 0 AM(0 1 0.5)\nv4 d 0 pulse(0 1 0 1n 1n 1u 2u 5)\n\
+         i3 e 0 td=1u pwl(0 0 1u 1m 2u 0) r 0\nr1 a 0 1\nr2 b 0 1\nr3 c 0 1\nr4 d 0 1\nr5 e 0 1\n.end\n",
+    );
+    for line in [
+        "v1 a 0 sin(0 1 1k)\n",
+        "i1 a 0 sine(0 1m)\n",
+        "v2 b 0 exp(1 2 1u 2u 3u 4u)\n",
+        "i2 b 0 sffm(0 1m 10k 2 1k 0 90 45)\n",
+        "v3 c 0 am(0 1 0.5)\n",
+        "v4 d 0 pulse(0 1 0 1n 1n 1u 2u 5)\n",
+        "i3 e 0 td=1u pwl(0 0 1u 1m 2u 0) r=0\n",
+    ] {
+        assert!(written.contains(line), "{line}\n{written}");
+    }
+    let ParameterKind::Waveform(SourceWaveform::Pulse(pulse)) =
+        &second.devices[5].parameters[0].kind
+    else {
+        panic!("PULSE AST")
+    };
+    assert_eq!(pulse.count.as_ref().unwrap().text, "5");
+    let names: Vec<_> = second.devices[6]
+        .parameters
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    assert_eq!(names, ["td", "pwl", "r"]);
+}
+
+#[test]
+fn malformed_function_asts_are_refused() {
+    let base = parse("t\nv1 a 0 sin(0 1 1k)\nr1 a 0 1\n.end\n");
+    let mut n = base.clone();
+    if let ParameterKind::Waveform(SourceWaveform::Function(f)) =
+        &mut n.devices[0].parameters[0].kind
+    {
+        f.values.truncate(1);
+    }
+    refused(&n, "fields");
+    let mut n = base.clone();
+    n.devices[0].parameters[0].name = "exp".into();
+    refused(&n, "holds a sin");
+}

@@ -838,6 +838,16 @@ fn write_parameters(
                     indent + 3,
                     format!("period: {}", optional(ctx, pulse.period.as_ref())),
                 );
+                // Only printed when supplied, so seven-field snapshots are stable.
+                if let Some(count) = &pulse.count {
+                    out.line(indent + 3, format!("count: {}", positioned(ctx, count)));
+                }
+            }
+            ParameterKind::Waveform(SourceWaveform::Function(function)) => {
+                out.line(indent + 2, function.function.keyword());
+                for (name, value) in function.function.fields().iter().zip(&function.values) {
+                    out.line(indent + 3, format!("{name}: {}", positioned(ctx, value)));
+                }
             }
             ParameterKind::Waveform(SourceWaveform::Pwl(points)) => {
                 out.line(indent + 2, "pwl");

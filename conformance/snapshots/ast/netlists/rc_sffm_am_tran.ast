@@ -1,0 +1,65 @@
+# ngspice-rs ast-dump v1
+file: netlists/rc_sffm_am_tran.cir
+title: "RC loads driven by SFFM (voltage) and AM (current) sources" @netlists/rc_sffm_am_tran.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/rc_sffm_am_tran.cir:4:1 "v1 in 0 sffm(0 1 5k 1 500)"
+    [1] device[1] @netlists/rc_sffm_am_tran.cir:5:1 "r1 in out 1k"
+    [2] device[2] @netlists/rc_sffm_am_tran.cir:6:1 "c1 out 0 10n"
+    [3] device[3] @netlists/rc_sffm_am_tran.cir:7:1 "i1 0 x am(0 1m 0.5m 500 5k)"
+    [4] device[4] @netlists/rc_sffm_am_tran.cir:8:1 "r2 x 0 1k"
+    [5] device[5] @netlists/rc_sffm_am_tran.cir:9:1 "c2 x 0 10n"
+    [6] analysis[0] @netlists/rc_sffm_am_tran.cir:10:1 ".tran 1u 2m"
+    [7] end @netlists/rc_sffm_am_tran.cir:11:1 ".end"
+  devices (6):
+    device [0] name="v1" designator=v @netlists/rc_sffm_am_tran.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="sffm" kind=waveform value="(0 1 5k 1 500)" @netlists/rc_sffm_am_tran.cir:4:9
+          sffm
+            vo: "0"@netlists/rc_sffm_am_tran.cir:4:14
+            va: "1"@netlists/rc_sffm_am_tran.cir:4:16
+            fc: "5k"@netlists/rc_sffm_am_tran.cir:4:18
+            mdi: "1"@netlists/rc_sffm_am_tran.cir:4:21
+            fm: "500"@netlists/rc_sffm_am_tran.cir:4:23
+    device [1] name="r1" designator=r @netlists/rc_sffm_am_tran.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/rc_sffm_am_tran.cir:5:11
+    device [2] name="c1" designator=c @netlists/rc_sffm_am_tran.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10n" @netlists/rc_sffm_am_tran.cir:6:10
+    device [3] name="i1" designator=i @netlists/rc_sffm_am_tran.cir:7:1
+      nodes: "0" "x"
+      model: none
+      parameters (1):
+        [0] name="am" kind=waveform value="(0 1m 0.5m 500 5k)" @netlists/rc_sffm_am_tran.cir:7:8
+          am
+            vo: "0"@netlists/rc_sffm_am_tran.cir:7:11
+            vmo: "1m"@netlists/rc_sffm_am_tran.cir:7:13
+            vma: "0.5m"@netlists/rc_sffm_am_tran.cir:7:16
+            fm: "500"@netlists/rc_sffm_am_tran.cir:7:21
+            fc: "5k"@netlists/rc_sffm_am_tran.cir:7:25
+    device [4] name="r2" designator=r @netlists/rc_sffm_am_tran.cir:8:1
+      nodes: "x" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/rc_sffm_am_tran.cir:8:8
+    device [5] name="c2" designator=c @netlists/rc_sffm_am_tran.cir:9:1
+      nodes: "x" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10n" @netlists/rc_sffm_am_tran.cir:9:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/rc_sffm_am_tran.cir:10:1
+      arguments: "1u" "2m"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

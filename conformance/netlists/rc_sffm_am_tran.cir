@@ -1,0 +1,11 @@
+RC loads driven by SFFM (voltage) and AM (current) sources
+* SFFM(VO=0 VA=1 FC=5k MDI=1 FM=500): zero offset and phases, so continuous at t = 0.
+* AM(VO=0 VMO=1m VMA=0.5m FM=500 FC=5k) current into node x (R || C).
+v1 in 0 sffm(0 1 5k 1 500)
+r1 in out 1k
+c1 out 0 10n
+i1 0 x am(0 1m 0.5m 500 5k)
+r2 x 0 1k
+c2 x 0 10n
+.tran 1u 2m
+.end

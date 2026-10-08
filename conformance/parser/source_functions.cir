@@ -1,0 +1,15 @@
+Transient source functions, PULSE count and PWL r=/td= (syntax/setup only)
+vsin a 0 SIN(0.5 2 1k 0.1m 20 30)
+isine a 0 dc 1m sine(0 1m)
+vexp b 0 EXP(1, 3, 0.2m, 0.1m, 0.6m, 0.2m)
+isffm b 0 SFFM 0 1m 10k 2 1k 0 90 45
+vam c 0 AM(0.1 1 0.5 1k 20k 0.1m 45 60) AC 1
+vcount e 0 PULSE(0 1 0.1m 10u 10u 0.2m 0.5m 3)
+ipwl d 0 PWL(0 0 1m 1m 2m 0.5m) r=1m td=0.5m
+r1 a 0 1k
+r2 b 0 1k
+r3 c 0 1k
+r4 d 0 1k
+r5 e 0 1k
+.op
+.end

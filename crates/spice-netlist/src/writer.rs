@@ -37,8 +37,9 @@
 //!   last) is kept last. Likewise D/Q's leading area is written as `area=...`
 //!   at its stored (last) position, and V/I's leading DC as `dc <value>`.
 //! - V/I: `dc v`, `ac mag phase` (explicit defaults written out),
-//!   `pulse(...)`/`pwl(...)` in stored order. PULSE/PWL optional fields that
-//!   were omitted stay omitted; PWL pairs and PULSE fields are space separated
+//!   `pulse(...)`/`pwl(...)`/`sin(...)` (or `sine`)/`exp(...)`/`sffm(...)`/
+//!   `am(...)` and PWL `td=`/`r=` in stored order. Optional fields that
+//!   were omitted stay omitted; PWL pairs and other fields are space separated
 //!   inside one pair of parentheses (the stored vector text is re-spelled, so
 //!   it is excluded from semantic comparison).
 //! - D/Q/M: bare flags (`off`), `name=value` scalars, `ic=(a,b[,c])` vectors
@@ -100,7 +101,7 @@ use crate::Parser;
 use crate::ast::{
     AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
     NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind, PositionedValue,
-    ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
+    ScopedCard, ScopedCardKind, SourceFunction, SourceWaveform, Subcircuit,
 };
 use crate::expr::ParameterExpression;
 use crate::semantic::expr_form;
@@ -946,6 +947,10 @@ fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceR
             (ParameterKind::Waveform(waveform), name) => {
                 parts.push(waveform_text(waveform, name, location)?);
             }
+            // PWL delay/repeat setters stay separate ordered scalars (vsrc.c).
+            (ParameterKind::Scalar | ParameterKind::Expression(_), name @ ("r" | "td")) => {
+                parts.push(format!("{name}={}", value_text(parameter, false)?));
+            }
             _ => {
                 return Err(refuse(
                     format!("source parameter {:?}", parameter.name),
@@ -970,6 +975,7 @@ fn waveform_text(
                 &pulse.fall,
                 &pulse.width,
                 &pulse.period,
+                &pulse.count,
             ];
             let mut fields = vec![&pulse.initial, &pulse.pulsed];
             let mut omitted = false;
@@ -995,6 +1001,22 @@ fn waveform_text(
                 "pwl",
                 points.iter().flat_map(|p| [&p.time, &p.value]).collect(),
             )
+        }
+        SourceWaveform::Function(function) => {
+            let fields = function.function.fields().len();
+            if function.values.len() < 2 || function.values.len() > fields {
+                return Err(refuse(
+                    format!("{} needs 2 to {fields} fields", function.function.keyword()),
+                    Some(location),
+                ));
+            }
+            // `sine` is C's alias of `sin`; keep the spelling that was parsed.
+            let keyword = if function.function == SourceFunction::Sin && name == "sine" {
+                "sine"
+            } else {
+                function.function.keyword()
+            };
+            (keyword, function.values.iter().collect())
         }
     };
     if name != keyword {

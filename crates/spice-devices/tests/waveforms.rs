@@ -2,6 +2,7 @@
 //! through the production deck -> circuit -> linear-system path (#9).
 use spice_devices::{Circuit, Limit, LinearSystem, TransientTiming, Waveform};
 use spice_netlist::{Parser, source::parse_deck_text};
+use std::f64::consts::PI;
 use std::path::Path;
 
 fn system(body: &str) -> LinearSystem {
@@ -125,4 +126,124 @@ fn invalid_decks_and_timing_are_explicit_errors() {
     }
     assert!(s.transient_rhs(f64::NAN, Limit::Right).is_err());
     assert!(matches!(s.sources[0].waveform, Waveform::PulseDefaults(_)));
+}
+
+fn build_error(body: &str) -> String {
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(
+            Path::new("w.cir"),
+            &format!("w\n{body}\n.end\n"),
+        ))
+        .unwrap();
+    match Circuit::from_netlist(&netlist) {
+        Ok(_) => panic!("{body}: accepted"),
+        Err(error) => error.to_string(),
+    }
+}
+
+#[test]
+fn source_functions_bind_with_c_defaults_and_signs() {
+    // #94. Rows: v(a)=0, v(b)=1, i(v1)=2, i(v2)=3.
+    let mut s = system(
+        "v1 a 0 sin(1 2)\nv2 b 0 exp(0 1)\ni1 a b sffm(0 1m)\ni2 b 0 am(0 1m 0.5 1k 10k)\nr1 a b 1k\nr2 b 0 1k",
+    );
+    // Unbound defaults are refused, never guessed.
+    assert!(s.transient_rhs(0.1, Limit::Right).is_err());
+    assert!(s.breakpoints_in(0., 1.).is_err());
+    s.bind_transient_timing(&timing(1e-3, 1.)).unwrap();
+    // SIN: FREQ = 1/stop = 1 Hz.
+    let t = 0.125;
+    let rhs = rhs(&s, t, Limit::Right);
+    assert!((rhs[2] - (1. + 2. * (2. * PI * t).sin())).abs() < 1e-12);
+    // EXP: TD1 = TAU1 = step, TD2 = 2*step, TAU2 = step.
+    let exp = |t: f64| (1. - (-(t - 1e-3) / 1e-3).exp()) - (1. - (-(t - 2e-3) / 1e-3).exp());
+    assert!((rhs[3] - exp(t)).abs() < 1e-12);
+    // SFFM: FC = 5 Hz, FM = 500 Hz, MDI limited to 0.01; I1 flows a -> b.
+    let sffm = 1e-3 * ((2. * PI * 5. * t) + 0.01 * (2. * PI * 500. * t).sin()).sin();
+    let am = (1e-3 + 0.5 * (2. * PI * 1e3 * t).sin()) * (2. * PI * 1e4 * t).sin();
+    assert!((rhs[0] + sffm).abs() < 1e-15);
+    assert!((rhs[1] - sffm + am).abs() < 1e-15);
+    // Corners the port lands on: EXP TD1/TD2; SIN/SFFM/AM delays are zero.
+    let corners: Vec<_> = s.breakpoints_in(0., 1.).unwrap().collect();
+    assert_eq!(corners, [0., 1e-3, 2e-3]);
+}
+
+#[test]
+fn dc_levels_are_the_c_time_zero_values() {
+    // vsrcload.c evaluates the function at time 0 when no DC value is given:
+    // SIN gives VO + VA sin(PHASE), EXP gives V1 and SFFM/AM give zero.
+    let s = system(
+        "v1 a 0 sin(1 2 1k 0 0 30)\nv2 b 0 exp(3 4 1m)\nv3 c 0 sffm(5 1)\nv4 d 0 am(6 1)\n\
+         v5 e 0 dc 7 sin(1 2)\nv6 f 0 pwl(0 1 1m 2) td=-0.5m\nr1 a 0 1\nr2 b 0 1\nr3 c 0 1\nr4 d 0 1\nr5 e 0 1\nr6 f 0 1",
+    );
+    let dc = s.dc_rhs(None).unwrap();
+    let dc = &dc.as_slice()[6..];
+    assert!((dc[0] - 2.).abs() < 1e-12, "{dc:?}");
+    assert_eq!(&dc[1..], [3., 0., 0., 7., 1.5]);
+}
+
+#[test]
+fn pulse_count_and_pwl_repeat_from_decks() {
+    // #95: three pulses, then V1; repeated PWL with a delay.
+    let mut s = system(
+        "v1 a 0 pulse(0 1 1m 1m 1m 2m 10m 3)\ni1 b 0 pwl(0 0 1m 1m 2m 0) r=0 td=0.5m\nr1 a 0 1\nr2 b 0 1",
+    );
+    s.bind_transient_timing(&timing(1e-4, 50e-3)).unwrap();
+    assert_eq!(rhs(&s, 23e-3, Limit::Right)[2], 1.);
+    assert_eq!(rhs(&s, 32e-3, Limit::Right)[2], 0.);
+    // I1 is a 2 ms triangle starting at 0.5 ms, pulled out of node b.
+    assert!((rhs(&s, 1e-3, Limit::Right)[1] + 0.5e-3).abs() < 1e-15);
+    assert!((rhs(&s, 10.5e-3 + 1e-3, Limit::Right)[1] + 1e-3).abs() < 1e-15);
+    let close = |got: Vec<f64>, want: &[f64]| {
+        assert_eq!(got.len(), want.len(), "{got:?}");
+        for (g, w) in got.iter().zip(want) {
+            assert!((g - w).abs() < 1e-15, "{got:?}");
+        }
+    };
+    close(
+        s.breakpoints_in(0., 8e-3).unwrap().collect(),
+        &[
+            0.5e-3, 1e-3, 1.5e-3, 2e-3, 2.5e-3, 3.5e-3, 4e-3, 4.5e-3, 5e-3, 5.5e-3, 6.5e-3, 7.5e-3,
+        ],
+    );
+    // Past the third pulse only its final boundary (31 ms) and C's last
+    // request (the end of the next rise, 32 ms) remain.
+    close(
+        s.breakpoints_in(29.6e-3, 33e-3).unwrap().collect(),
+        &[30.5e-3, 31e-3, 31.5e-3, 32e-3, 32.5e-3],
+    );
+    close(
+        s.breakpoints_in(33e-3, 40e-3).unwrap().collect(),
+        &[
+            33.5e-3, 34.5e-3, 35.5e-3, 36.5e-3, 37.5e-3, 38.5e-3, 39.5e-3,
+        ],
+    );
+}
+
+#[test]
+fn unsupported_source_options_are_explicit() {
+    for (body, needle) in [
+        (
+            "v1 a 0 pwl(0 0 1m 1) r=0.5m\nr1 a 0 1",
+            "matches no time point",
+        ),
+        (
+            "v1 a 0 pwl(0 0 1m 1) r=1m\nr1 a 0 1",
+            "smaller than the last",
+        ),
+        (
+            "v1 a 0 r=0 pwl(0 0 1m 1)\nr1 a 0 1",
+            "without a preceding PWL",
+        ),
+        (
+            "v1 a 0 pwl(0 0 1m 1) r=0 pwl(0 0 2m 1)\nr1 a 0 1",
+            "after r=",
+        ),
+        ("v1 a 0 sin(0 1) td=1m\nr1 a 0 1", "without a PWL"),
+        ("v1 a 0 sin(0 1 1k -1m)\nr1 a 0 1", "negative TD"),
+        ("v1 a 0 exp(0 1 1m 1m -1m)\nr1 a 0 1", "negative TD2"),
+    ] {
+        let error = build_error(body);
+        assert!(error.contains(needle), "{body}: {error}");
+    }
 }

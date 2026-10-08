@@ -256,7 +256,7 @@ fn unsupported_semantics_never_get_silently_dropped() {
         ("R1 a 0 4k7", "inp2r.c"),
         ("R1 a 0 1k sens_resist", "inp2r.c"),
         ("C1 a 0 1u bad=2", "inp2c.c"),
-        ("V1 a 0 sin(0 5 1k)", "inp2v.c"),
+        ("V1 a 0 trnoise(0 1n)", "inp2v.c"),
         ("I1 a 0 dc 'ival'", "inp2i.c"),
         ("V1 a 0 ac 'gain'", "inp2v.c"),
         (".control\nquit\n.endc", "frontend/inp.c"),

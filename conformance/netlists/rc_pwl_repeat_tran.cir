@@ -1,0 +1,7 @@
+RC driven by a delayed, repeating PWL triangle
+* pwl(0 0 0.5m 1 1m 0) r=0 td=0.2m: a 1 ms triangle wave from 0.2 ms, corners on the 10 us grid.
+v1 in 0 pwl(0 0 0.5m 1 1m 0) r=0 td=0.2m
+r1 in out 1k
+c1 out 0 0.1u
+.tran 10u 4m
+.end

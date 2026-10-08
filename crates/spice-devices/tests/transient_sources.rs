@@ -103,6 +103,7 @@ fn unresolved_pulse_defaults_are_bound_by_the_forcing_timing() {
         fall: None,
         width: None,
         period: None,
+        count: None,
     };
     let source = circuit(true, Waveform::PulseDefaults(spec));
     let (mode, forcing) = at(5e-7, Limit::Right);

@@ -24,11 +24,11 @@ use std::path::PathBuf;
 use spice_core::SourceLoc;
 
 use crate::ast::{
-    AnalysisCard, ArgumentExpression, DeviceInstance, GlobalCard, GlobalNode, IncludeDirective,
-    InitialCondition, LibrarySection, ModelCard, Netlist, NodeHint, NodeHintCard, NodeHintValue,
-    OptionCard, OptionSetting, ParamAssignment, ParamCard, ParameterAssignment, ParameterKind,
-    PositionedValue, PulseWaveform, PwlPoint, ScopedCard, ScopedCardKind, SourceWaveform,
-    Subcircuit,
+    AnalysisCard, ArgumentExpression, DeviceInstance, FunctionWaveform, GlobalCard, GlobalNode,
+    IncludeDirective, InitialCondition, LibrarySection, ModelCard, Netlist, NodeHint, NodeHintCard,
+    NodeHintValue, OptionCard, OptionSetting, ParamAssignment, ParamCard, ParameterAssignment,
+    ParameterKind, PositionedValue, PulseWaveform, PwlPoint, ScopedCard, ScopedCardKind,
+    SourceWaveform, Subcircuit,
 };
 use crate::card::{CardKind, RawCard};
 use crate::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
@@ -111,6 +111,13 @@ fn waveform(waveform: &SourceWaveform) -> SourceWaveform {
                 fall: optional(&pulse.fall),
                 width: optional(&pulse.width),
                 period: optional(&pulse.period),
+                count: optional(&pulse.count),
+            }))
+        }
+        SourceWaveform::Function(function) => {
+            SourceWaveform::Function(Box::new(FunctionWaveform {
+                function: function.function,
+                values: function.values.iter().map(positioned).collect(),
             }))
         }
         SourceWaveform::Pwl(points) => SourceWaveform::Pwl(
