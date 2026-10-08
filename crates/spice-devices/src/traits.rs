@@ -452,6 +452,19 @@ pub trait Device: fmt::Debug {
         Ok(())
     }
 
+    /// An upper bound on the next transient step from this device's discrete
+    /// state (C `DEVtrunc` of devices without charge storage, e.g.
+    /// `swtrunc.c`), or `None` (the default) for no bound. Called for an
+    /// accepted-candidate trial alongside the charge/flux truncation estimate;
+    /// a bound at or below `0.9 dt` rejects the trial.
+    ///
+    /// # Errors
+    ///
+    /// Device-specific failures.
+    fn timestep_limit(&self, _context: &TruncationContext<'_>) -> SpiceResult<Option<Real>> {
+        Ok(None)
+    }
+
     /// Physical metadata when this device is a two-terminal resistor a typed
     /// `.dc` sweep may target; `None` (the default) for everything else. This is
     /// the only way a sweep identifies a resistor: never the instance-name prefix.
@@ -476,6 +489,17 @@ pub trait Device: fmt::Debug {
             self.name()
         )))
     }
+}
+
+/// What [`Device::timestep_limit`] sees for one converged trial step.
+#[derive(Debug, Clone, Copy)]
+pub struct TruncationContext<'a> {
+    /// This device's slots of the converged trial (C `CKTstate0`).
+    pub trial: &'a [Real],
+    /// This device's slots of the latest accepted point (C `CKTstate1`).
+    pub accepted: Option<&'a [Real]>,
+    /// The step just taken (C `CKTdeltaOld[0]`).
+    pub dt: Real,
 }
 
 /// What [`Device::accept`] sees for one accepted point.

@@ -82,7 +82,7 @@ pub(crate) fn run(
         seed.as_mut_slice()[hint.row] = hint.value;
     }
     // AC is linearized only after a valid physical DC solution, never at zero.
-    let bias = crate::bias::solve_dc_with(
+    let solved = crate::bias::solve_dc_with(
         circuit,
         &context.model_context(),
         &settings,
@@ -90,9 +90,14 @@ pub(crate) fn run(
         Some(&seed),
         None,
     )?
-    .solution
-    .values;
-    let system = circuit.small_signal_system(&context.model_context(), &bias)?;
+    .solution;
+    // Devices with discrete state (switches) linearize at the operating
+    // point's converged state, not a reload from their initial flags.
+    let system = circuit.small_signal_system_at(
+        &context.model_context(),
+        &solved.values,
+        Some(&solved.trial),
+    )?;
     let mut plot = plot(
         circuit,
         "ac1",

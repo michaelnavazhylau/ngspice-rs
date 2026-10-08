@@ -54,6 +54,9 @@ pub(crate) fn instantiate_with_models(
             crate::models::ModelFamily::Nmos | crate::models::ModelFamily::Pmos => {
                 return crate::transistors::Mos1::instantiate(instance, nodes, &model, context);
             }
+            crate::models::ModelFamily::Switch | crate::models::ModelFamily::CurrentSwitch => {
+                return crate::switch::Switch::instantiate(instance, nodes, &model, context);
+            }
             _ => {}
         }
         let reference = match model.family().designator() {

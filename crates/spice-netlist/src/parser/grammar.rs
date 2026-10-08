@@ -22,7 +22,7 @@ use crate::token::Token;
 
 use super::{
     controlled, diode, expression, fourier, func, hints, linear, measure, model, options, param,
-    save, structure, transistor,
+    save, structure, switch, transistor,
 };
 
 pub(super) enum ParsedCard {
@@ -130,6 +130,7 @@ pub(super) fn parse_card(
             controlled::controlled_card,
             diode::diode_card,
             transistor::transistor_card,
+            switch::switch_card,
         )),
         unported_card,
         unknown_card,

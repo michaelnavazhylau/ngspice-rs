@@ -1,0 +1,39 @@
+Voltage and current controlled switches operating point
+* S1/S2: hysteresis band 1.5 +- 0.5 V with the control at 1.5 V (inside
+* the band): the instance flag decides (S1 off by default, S2 on).
+* S3: control above the band, S4 below it (flags overridden). S5 omits RON
+* and ROFF (1 S on, gmin off). W1/W2 sense the current of vsense (2 mA):
+* W1 above IT+IH, W2 inside its band with ON, which C nevertheless opens
+* (CSWload keeps CKTstate1, still zero, in the band). W3 sits in a loop: its
+* own closing raises the sensed current (a latch held on by the ON flag).
+vc ctrl 0 dc 1.5
+vhi hi 0 dc 3
+vdd vdd 0 dc 1
+r1 vdd a 1k
+s1 a 0 ctrl 0 swh
+r2 vdd b 1k
+s2 b 0 ctrl 0 swh on
+r3 vdd c 1k
+s3 c 0 hi 0 swh off
+r4 vdd d 1k
+s4 d 0 0 hi swh on
+r5 vdd e 1k
+s5 e 0 hi 0 swd
+vi src 0 dc 2
+rs src sx 1k
+vsense sx 0 dc 0
+r6 vdd f 1k
+w1 f 0 vsense wh
+r7 vdd g 1k
+w2 g 0 vsense wb on
+vl vl 0 dc 1
+rl1 vl l1 1k
+vsl l1 l2 dc 0
+w3 l2 0 vsl wl on
+.model swh sw(vt=1.5 vh=0.5 ron=10 roff=1meg)
+.model swd sw(vt=1)
+.model wh csw(it=1m ih=0.5m ron=20 roff=500k)
+.model wb csw(it=1.8m ih=0.4m ron=30 roff=2meg)
+.model wl csw(it=0.4m ih=0.2m ron=100 roff=10meg)
+.op
+.end

@@ -1,0 +1,198 @@
+# ngspice-rs token-dump v1
+file: netlists/switch_tran.cir
+title: "Voltage controlled switches in a transient" @netlists/switch_tran.cir:1:1
+card 1 @netlists/switch_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "vdd vdd 0 dc 2"
+  kind: device(v)
+  token 1 9:1 word "vdd"
+  token 2 9:5 word "vdd"
+  token 3 9:9 number "0" value=0e0
+  token 4 9:11 word "dc"
+  token 5 9:14 number "2" value=2e0
+card 2 @netlists/switch_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "vp p 0 pulse(0 2 50u 40u 40u 200u 500u)"
+  kind: device(v)
+  token 1 10:1 word "vp"
+  token 2 10:4 word "p"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 word "pulse"
+  token 5 10:13 lparen "("
+  token 6 10:14 number "0" value=0e0
+  token 7 10:16 number "2" value=2e0
+  token 8 10:18 number "50u" value=4.9999999999999996e-5
+  token 9 10:22 number "40u" value=3.9999999999999996e-5
+  token 10 10:26 number "40u" value=3.9999999999999996e-5
+  token 11 10:30 number "200u" value=1.9999999999999998e-4
+  token 12 10:35 number "500u" value=5e-4
+  token 13 10:39 rparen ")"
+card 3 @netlists/switch_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "r1 vdd c1 2k"
+  kind: device(r)
+  token 1 11:1 word "r1"
+  token 2 11:4 word "vdd"
+  token 3 11:8 word "c1"
+  token 4 11:11 number "2k" value=2e3
+card 4 @netlists/switch_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "c1 c1 0 100n"
+  kind: device(c)
+  token 1 12:1 word "c1"
+  token 2 12:4 word "c1"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 number "100n" value=1.0000000000000001e-7
+card 5 @netlists/switch_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "s1 c1 c2 p 0 swp"
+  kind: device(s)
+  token 1 13:1 word "s1"
+  token 2 13:4 word "c1"
+  token 3 13:7 word "c2"
+  token 4 13:10 word "p"
+  token 5 13:12 number "0" value=0e0
+  token 6 13:14 word "swp"
+card 6 @netlists/switch_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "c2 c2 0 100n"
+  kind: device(c)
+  token 1 14:1 word "c2"
+  token 2 14:4 word "c2"
+  token 3 14:7 number "0" value=0e0
+  token 4 14:9 number "100n" value=1.0000000000000001e-7
+card 7 @netlists/switch_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "r2 c2 0 20k"
+  kind: device(r)
+  token 1 15:1 word "r2"
+  token 2 15:4 word "c2"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "20k" value=2e4
+card 8 @netlists/switch_tran.cir:16:1 lines=16-16 continuations=0
+  raw: "vs s 0 sin(0 1.5 4k)"
+  kind: device(v)
+  token 1 16:1 word "vs"
+  token 2 16:4 word "s"
+  token 3 16:6 number "0" value=0e0
+  token 4 16:8 word "sin"
+  token 5 16:11 lparen "("
+  token 6 16:12 number "0" value=0e0
+  token 7 16:14 number "1.5" value=1.5e0
+  token 8 16:18 number "4k" value=4e3
+  token 9 16:20 rparen ")"
+card 9 @netlists/switch_tran.cir:17:1 lines=17-17 continuations=0
+  raw: "r3 vdd c3 5k"
+  kind: device(r)
+  token 1 17:1 word "r3"
+  token 2 17:4 word "vdd"
+  token 3 17:8 word "c3"
+  token 4 17:11 number "5k" value=5e3
+card 10 @netlists/switch_tran.cir:18:1 lines=18-18 continuations=0
+  raw: "c3 c3 0 20n"
+  kind: device(c)
+  token 1 18:1 word "c3"
+  token 2 18:4 word "c3"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 number "20n" value=2e-8
+card 11 @netlists/switch_tran.cir:19:1 lines=19-19 continuations=0
+  raw: "s2 c3 0 s 0 sws"
+  kind: device(s)
+  token 1 19:1 word "s2"
+  token 2 19:4 word "c3"
+  token 3 19:7 number "0" value=0e0
+  token 4 19:9 word "s"
+  token 5 19:11 number "0" value=0e0
+  token 6 19:13 word "sws"
+card 12 @netlists/switch_tran.cir:20:1 lines=20-20 continuations=0
+  raw: "i1 0 c4 pulse(0 1m 10u 1u)"
+  kind: device(i)
+  token 1 20:1 word "i1"
+  token 2 20:4 number "0" value=0e0
+  token 3 20:6 word "c4"
+  token 4 20:9 word "pulse"
+  token 5 20:14 lparen "("
+  token 6 20:15 number "0" value=0e0
+  token 7 20:17 number "1m" value=1e-3
+  token 8 20:20 number "10u" value=9.999999999999999e-6
+  token 9 20:24 number "1u" value=1e-6
+  token 10 20:26 rparen ")"
+card 13 @netlists/switch_tran.cir:21:1 lines=21-21 continuations=0
+  raw: "c4 c4 0 100n"
+  kind: device(c)
+  token 1 21:1 word "c4"
+  token 2 21:4 word "c4"
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 number "100n" value=1.0000000000000001e-7
+card 14 @netlists/switch_tran.cir:22:1 lines=22-22 continuations=0
+  raw: "s3 c4 0 c4 0 swr"
+  kind: device(s)
+  token 1 22:1 word "s3"
+  token 2 22:4 word "c4"
+  token 3 22:7 number "0" value=0e0
+  token 4 22:9 word "c4"
+  token 5 22:12 number "0" value=0e0
+  token 6 22:14 word "swr"
+card 15 @netlists/switch_tran.cir:23:1 lines=23-23 continuations=0
+  raw: ".model swp sw(vt=1 vh=0.3 ron=1k roff=1g)"
+  kind: dot(.model)
+  token 1 23:1 word ".model"
+  token 2 23:8 word "swp"
+  token 3 23:12 word "sw"
+  token 4 23:14 lparen "("
+  token 5 23:15 word "vt"
+  token 6 23:17 equals "="
+  token 7 23:18 number "1" value=1e0
+  token 8 23:20 word "vh"
+  token 9 23:22 equals "="
+  token 10 23:23 number "0.3" value=3e-1
+  token 11 23:27 word "ron"
+  token 12 23:30 equals "="
+  token 13 23:31 number "1k" value=1e3
+  token 14 23:34 word "roff"
+  token 15 23:38 equals "="
+  token 16 23:39 number "1g" value=1e9
+  token 17 23:41 rparen ")"
+card 16 @netlists/switch_tran.cir:24:1 lines=24-24 continuations=0
+  raw: ".model sws sw(vt=0.5 vh=0.2 ron=100 roff=10meg)"
+  kind: dot(.model)
+  token 1 24:1 word ".model"
+  token 2 24:8 word "sws"
+  token 3 24:12 word "sw"
+  token 4 24:14 lparen "("
+  token 5 24:15 word "vt"
+  token 6 24:17 equals "="
+  token 7 24:18 number "0.5" value=5e-1
+  token 8 24:22 word "vh"
+  token 9 24:24 equals "="
+  token 10 24:25 number "0.2" value=2e-1
+  token 11 24:29 word "ron"
+  token 12 24:32 equals "="
+  token 13 24:33 number "100" value=1e2
+  token 14 24:37 word "roff"
+  token 15 24:41 equals "="
+  token 16 24:42 number "10meg" value=1e7
+  token 17 24:47 rparen ")"
+card 17 @netlists/switch_tran.cir:25:1 lines=25-25 continuations=0
+  raw: ".model swr sw(vt=1 vh=0.5 ron=50 roff=1meg)"
+  kind: dot(.model)
+  token 1 25:1 word ".model"
+  token 2 25:8 word "swr"
+  token 3 25:12 word "sw"
+  token 4 25:14 lparen "("
+  token 5 25:15 word "vt"
+  token 6 25:17 equals "="
+  token 7 25:18 number "1" value=1e0
+  token 8 25:20 word "vh"
+  token 9 25:22 equals "="
+  token 10 25:23 number "0.5" value=5e-1
+  token 11 25:27 word "ron"
+  token 12 25:30 equals "="
+  token 13 25:31 number "50" value=5e1
+  token 14 25:34 word "roff"
+  token 15 25:38 equals "="
+  token 16 25:39 number "1meg" value=1e6
+  token 17 25:43 rparen ")"
+card 18 @netlists/switch_tran.cir:26:1 lines=26-26 continuations=0
+  raw: ".tran 1u 1m"
+  kind: dot(.tran)
+  token 1 26:1 word ".tran"
+  token 2 26:7 number "1u" value=1e-6
+  token 3 26:10 number "1m" value=1e-3
+card 19 @netlists/switch_tran.cir:27:1 lines=27-27 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 27:1 word ".end"

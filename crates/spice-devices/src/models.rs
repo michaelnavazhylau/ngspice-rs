@@ -52,6 +52,10 @@ pub enum ModelFamily {
     Nmos,
     /// PMOS (bounded selector for level 1).
     Pmos,
+    /// Voltage-controlled switch (`sw`, `sw/sw.c`).
+    Switch,
+    /// Current-controlled switch (`csw`, `csw/csw.c`).
+    CurrentSwitch,
 }
 
 impl ModelFamily {
@@ -67,6 +71,8 @@ impl ModelFamily {
             "pnp" => Some(Self::Pnp),
             "nmos" => Some(Self::Nmos),
             "pmos" => Some(Self::Pmos),
+            "sw" => Some(Self::Switch),
+            "csw" => Some(Self::CurrentSwitch),
             _ => None,
         }
     }
@@ -82,6 +88,8 @@ impl ModelFamily {
             Self::Diode => 'd',
             Self::Npn | Self::Pnp => 'q',
             Self::Nmos | Self::Pmos => 'm',
+            Self::Switch => 's',
+            Self::CurrentSwitch => 'w',
         }
     }
 }
@@ -142,7 +150,10 @@ impl<'a> ModelResolver<'a> {
     /// Diagnostics retain the instance/card/setter location as appropriate.
     pub fn resolve(&self, instance: &DeviceInstance) -> SpiceResult<Option<ResolvedModel<'a>>> {
         let Some(name) = &instance.model else {
-            if matches!(instance.designator.to_ascii_lowercase(), 'd' | 'q' | 'm') {
+            if matches!(
+                instance.designator.to_ascii_lowercase(),
+                'd' | 'q' | 'm' | 's' | 'w'
+            ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),
                     format!("device {} requires a model", instance.name),

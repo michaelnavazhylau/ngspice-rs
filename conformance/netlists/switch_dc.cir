@@ -1,0 +1,28 @@
+Switch hysteresis in a DC sweep
+* vc sweeps down from 3 V to -3 V. S1 (band 1 +- 0.5 V, OFF flag) closes
+* at the first point and stays closed through the band until vc < 0.5 V:
+* each point continues the previous point's accepted state. S2 has negative
+* hysteresis (band 0.9 .. 1.5 V) and ON; S3 has VH = 0 and reversed control.
+* W1/W2 sense the current of vsense (vc/1k) with positive and negative
+* hysteresis.
+vc ctrl 0 dc 0
+vdd vdd 0 dc 1
+r1 vdd a 1k
+s1 a 0 ctrl 0 swh
+r2 vdd b 1k
+s2 b 0 ctrl 0 swn on
+r3 vdd c 1k
+s3 c 0 0 ctrl swz
+rsense ctrl sx 1k
+vsense sx 0 dc 0
+r4 vdd d 1k
+w1 d 0 vsense wh
+r5 vdd e 1k
+w2 e 0 vsense wn
+.model swh sw(vt=1 vh=0.5 ron=10 roff=1meg)
+.model swn sw(vt=1.2 vh=-0.3 ron=20 roff=100k)
+.model swz sw(vt=-2 ron=1 roff=10meg)
+.model wh csw(it=1m ih=0.6m ron=50 roff=2meg)
+.model wn csw(it=-1m ih=-0.4m ron=40 roff=3meg)
+.dc vc 3 -3 -0.125
+.end

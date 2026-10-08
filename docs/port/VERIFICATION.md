@@ -1,5 +1,17 @@
 # Verification
 
+## M6 switches S/W (#81, `work/m6-switches`)
+
+On top of the Wave 1 tree this slice adds four C goldens (`switch_op`,
+`switch_dc`, `switch_tran`, `switch_w_tran`, each captured individually; no
+existing golden recaptured): `cargo xtask golden verify` reports **42
+verified / 0 unsupported / 0 failures** and `golden check` reproduces the four
+new fixtures. `cargo test --workspace --locked` reports **960 passed, 0
+failed, 61 ignored**; all **61 ignored live-C** checks pass with absolute
+`NGSPICE_BIN`, including the six new `c_switches` tests. Eight new parser
+snapshots were blessed; existing snapshots are unchanged. See
+[SWITCHES.md](SWITCHES.md).
+
 ## M6 Wave 1 integration (#78, #94, #95, #96, #107, #110)
 
 The integrated `work/m6-common-decks` tree (source functions, `.func`/quoted

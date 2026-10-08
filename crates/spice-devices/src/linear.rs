@@ -453,6 +453,10 @@ pub struct LinearContext<'a> {
     /// Branch rows of the devices this one senses
     /// ([`crate::Device::controlling_sources`]), in order.
     pub controls: &'a [usize],
+    /// This device's slots of the bias point's converged state, for
+    /// small-signal assemblies built from a solved operating point
+    /// ([`crate::Circuit::small_signal_system_at`]); `None` otherwise.
+    pub states: Option<&'a [Real]>,
 }
 impl LinearContext<'_> {
     /// Stamps a two-terminal nodal operator into A or E.

@@ -356,6 +356,10 @@ pub(crate) fn run(
     };
     let lu = system.as_ref().map(|s| s.a.factorize()).transpose()?;
     let mut previous = Vector::zeros(circuit.unknown_count());
+    // dctrcurv.c rotates the state vectors before every point, so a point's
+    // CKTstate1 is the previous point's state (the first point's own state is
+    // copied in after it). Only devices with discrete state (switches) read it.
+    let mut history = circuit.state_history();
     let mut first = true;
     for hint in hints.nodesets {
         previous.as_mut_slice()[hint.row] = hint.value;
@@ -376,6 +380,7 @@ pub(crate) fn run(
                     }
                 }
             }
+            let mut solved_state = None;
             let x = if let (Some(system), Some(lu)) = (&system, &lu) {
                 let mut rhs = system.dc_rhs(None)?;
                 for (name, value) in &overrides {
@@ -403,15 +408,16 @@ pub(crate) fn run(
                             },
                             continuation: crate::bias::ContinuationPolicy::disabled(),
                         };
-                        match crate::bias::solve_dc_with(
+                        match crate::bias::solve_dc_from(
                             circuit,
                             &model,
                             &direct,
                             &overrides,
                             Some(&previous),
-                            None,
+                            &history,
+                            crate::newton::PhasePolicy::Predicted,
                         ) {
-                            Ok(solved) => Some(solved.solution.values),
+                            Ok(solved) => Some(solved.solution),
                             Err(failure)
                                 if matches!(
                                     failure.report.outcome,
@@ -425,26 +431,39 @@ pub(crate) fn run(
                         }
                     }
                 };
-                match warm {
-                    Some(values) => values,
+                let solution = match warm {
+                    Some(solution) => solution,
                     None => {
-                        crate::bias::solve_dc_with(
+                        crate::bias::solve_dc_from(
                             circuit,
                             &model,
                             &settings,
                             &overrides,
                             Some(&previous),
-                            None,
+                            &history,
+                            // Without a warm-start limit the full solve's
+                            // direct attempt is the predicted point; after a
+                            // failed warm start it restarts like CKTop.
+                            if first || point_iterations.is_some() {
+                                crate::newton::PhasePolicy::OperatingPoint
+                            } else {
+                                crate::newton::PhasePolicy::Predicted
+                            },
                         )?
                         .solution
-                        .values
                     }
-                }
+                };
+                solved_state = Some(solution.trial);
+                solution.values
             };
             first = false;
             // Only a solved point is accepted; a failure above returns before
-            // any accept hook runs for it.
-            circuit.accept_solution(&x, None)?;
+            // any accept hook runs for it. A nonlinear point's state becomes the
+            // accepted history of the next one.
+            match solved_state {
+                Some(trial) => circuit.accept_point(&x, None, &mut history, trial)?,
+                None => circuit.accept_solution(&x, None)?,
+            }
             let mut point = vec![Complex::real(*inner_value)];
             point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
             if axes.len() == 2 {

@@ -128,7 +128,11 @@ additional point, and a 1k/1k divider swept over `r1` must not return 1 V at eve
 point, which detects a stale factor). Nonlinear circuits keep seeding each Newton
 solve with the previous accepted point (and `.nodeset` for the first); that
 threading is pinned by a ramp that converges under a per-solve budget too small
-for a cold solve of its own final point.
+for a cold solve of its own final point. Each nonlinear point's converged state
+is accepted into a history the next point continues (`dctrcurv.c` rotates its
+state vectors), starting in `MODEINITPRED`; only devices with discrete state
+read it, so S/W switches keep their hysteresis across a sweep
+([SWITCHES.md](SWITCHES.md)).
 
 ## Limits and non-goals
 

@@ -618,6 +618,7 @@ impl Circuit {
                 unknowns: &self.unknowns,
                 branch: (!range.is_empty()).then_some(range.start),
                 controls: self.controls(index)?,
+                states: None,
             })?;
         }
         system.a.fold_duplicates();
@@ -634,7 +635,26 @@ impl Circuit {
         context: &ModelContext,
         bias: &Vector,
     ) -> SpiceResult<crate::linear::LinearSystem> {
+        self.small_signal_system_at(context, bias, None)
+    }
+
+    /// [`Self::small_signal_system`] at a solved operating point whose
+    /// converged trial `state` devices with discrete state (switches) read
+    /// through [`crate::LinearContext::states`].
+    /// # Errors
+    /// As [`Self::small_signal_system`], or a state of the wrong length.
+    pub fn small_signal_system_at(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&TrialState>,
+    ) -> SpiceResult<crate::linear::LinearSystem> {
         self.check_numbering()?;
+        if state.is_some_and(|state| state.values().len() != self.state_len) {
+            return Err(SpiceError::circuit(
+                "small-signal bias state does not match the circuit numbering",
+            ));
+        }
         context.validate(&spice_core::SourceLoc::new(
             std::path::PathBuf::from("<model-context>"),
             1,
@@ -660,6 +680,14 @@ impl Circuit {
                     unknowns: &self.unknowns,
                     branch: (!range.is_empty()).then_some(range.start),
                     controls: self.controls(index)?,
+                    states: match state {
+                        Some(state) => Some(
+                            state
+                                .slice(self.state_rows[index].clone())
+                                .ok_or_else(|| SpiceError::circuit("bias state is too short"))?,
+                        ),
+                        None => None,
+                    },
                 },
                 bias,
             )?;
