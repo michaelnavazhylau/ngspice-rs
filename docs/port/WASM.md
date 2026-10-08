@@ -1,4 +1,4 @@
-# WebAssembly feasibility spike (2026-10-07, synced to main 803fcb5)
+# WebAssembly feasibility spike (2026-10-07, synced to main 3379cb2 on 2026-10-08)
 
 Question: can the Rust port run a circuit simulator inside a web page?
 
@@ -94,6 +94,13 @@ inside `compare::TRAN` (1e-3).
    solves. A cheaper certificate (a condition *estimate* such as Hager/Higham
    1-norm, or a pivot-growth test) would keep the guardrail at O(nnz). That
    decision belongs to the solver guardrails, so the spike does not change it.
+   Main has since audited the guard and **retained it unchanged** (#73,
+   [SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)): the n-solve cost
+   stands, and the measurements above still apply. Re-run after syncing with
+   main 3379cb2, the native benchmark outputs are byte-identical to the earlier
+   runs and the timings are unchanged. Equilibration (#46,
+   [EQUILIBRATION.md](EQUILIBRATION.md)) is opt-in and off by default, so it does
+   not affect the WASM path.
 
 2. **`Circuit::add_instance` clones the node table for every device**
    (`spice-devices/src/circuit.rs`, `let mut nodes = self.nodes.clone()`) so it
