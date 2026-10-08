@@ -1519,3 +1519,56 @@ fn a_four_card_in_a_run_that_is_not_transient_is_refused_at_evaluation() {
     assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn m6_features_combine_in_one_multi_analysis_deck() {
+    // Integration of the M6 slices: `.func` and quoted/braced values feeding
+    // E/G/H gains, a SIN source, DC-only options (`itl1`/`itl2`/`srcsteps`/
+    // `gminsteps`) that also bound the companion `.tran` initial bias, and two
+    // analyses in one rawfile. ngspice-47 batch mode gives the same `op1 tran1`
+    // plots, v(o) = v(p) = 6, v(q) = 3, v(s) = -1, i(e1) = -6e-3 and
+    // i(h1) = 1e-3 for this deck.
+    let dir = scratch("m6-combined");
+    let deck = write_deck(
+        &dir,
+        "m6 combined\n.func g(x) {x*2}\n.param k=3\n\
+         v1 a 0 dc 1 sin(0 1 1k)\nr0 a 0 1k\n\
+         e1 o 0 a 0 {g(k)}\ne2 p 0 a 0 'k*2'\ng1 0 q a 0 '1m*k'\nrq q 0 1k\n\
+         h1 s 0 v1 {g(500)}\nrs s 0 1k\nrp p 0 1k\nro o 0 1k\n\
+         .options itl1=60 itl2=70 srcsteps=3 gminsteps=5\n\
+         .tran 20u 1m\n.op\n.end\n",
+    );
+    let output = dir.join("combined.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    assert!(
+        stdout(&run).contains("plots:     op1 tran1 (ngspice batch order)"),
+        "{}",
+        stdout(&run)
+    );
+    let written = RawFile::load(&output).expect("parses");
+    assert_eq!(
+        plotnames(&written),
+        ["Operating Point", "Transient Analysis"]
+    );
+    let op = &written.plots[0].plot;
+    for (name, expected) in [
+        ("v(o)", 6.0),
+        ("v(p)", 6.0),
+        ("v(q)", 3.0),
+        ("v(s)", -1.0),
+        ("i(e1)", -6e-3),
+        ("i(h1)", 1e-3),
+    ] {
+        let value = op.value(name, 0).expect(name).re;
+        assert!(
+            (value - expected).abs() <= 1e-12 * expected.abs(),
+            "{name}: {value} versus C {expected}"
+        );
+    }
+    let tran = &written.plots[1].plot;
+    let last = tran.point_count() - 1;
+    assert_eq!(tran.value("time", last).unwrap().re, 1e-3);
+    assert!(tran.value("v(o)", last).unwrap().re.abs() < 1e-9);
+    fs::remove_dir_all(&dir).unwrap();
+}

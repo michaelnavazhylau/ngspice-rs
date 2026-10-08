@@ -141,9 +141,9 @@ in one job; the scheduling rules live in `spice_analysis::batch`:
   left untouched.
 * **Deck options apply to every request.** `RunConfig::request` adds the deck's
   `.option` settings to each analysis exactly as for a single-analysis deck, so
-  a DC-only option (`itl1`, `srcsteps`, `gminsteps`, `gminfactor`) in a deck that
-  also runs `.tran` is still rejected for the `.tran` request (it would not be
-  honoured there).
+  a DC continuation option (`itl1`, `itl2`, `srcsteps`, `gminsteps`,
+  `gminfactor`) in a deck that also runs `.tran` bounds the companion `.tran`
+  initial bias as well (#110); `backend=diffsol` still rejects them explicitly.
 
 Divergences from C, all deliberate:
 

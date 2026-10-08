@@ -1,5 +1,19 @@
 # Verification
 
+## M6 Wave 1 integration (#78, #94, #95, #96, #107, #110)
+
+The integrated `work/m6-common-decks` tree (source functions, `.func`/quoted
+expressions, `.option` coverage, multi-analysis decks and linear E/F/G/H
+controlled sources) reports **38 verified / 0 unsupported / 0 failures** in
+`cargo xtask golden verify`; `golden check` reproduces all **38** C fixtures and
+144 parser snapshots are unchanged by the merges. `cargo test --workspace
+--locked` reports **931 passed, 0 failed, 55 ignored**, and all **55 ignored
+live-C** checks pass with absolute `NGSPICE_BIN`. Per-slice counts in the
+sections below record each slice's own state. A cross-slice CLI test
+(`m6_features_combine_in_one_multi_analysis_deck`) runs `.func`/quoted gains on
+E/G/H, a SIN source and DC-only options in an `.op` + `.tran` deck and checks
+the operating point against values measured with ngspice-47.
+
 ## Bounded numerical follow-up gate (#46, #47, #29)
 
 Parent validation of the integrated candidate tree reports **824 passed, 0 failed,
@@ -64,8 +78,8 @@ transfer characteristic`, `Operating Point`, `Transient Analysis`.
   within 1e-9 relative + 1e-12 absolute. This ties the `.control` capture route
   to the batch-mode output it stands in for.
 
-`cargo xtask golden verify` reports **27 verified fixture(s), 0 unsupported
-fixture(s), 0 failure(s)** on this branch.
+`cargo xtask golden verify` reported **27 verified fixture(s), 0 unsupported
+fixture(s), 0 failure(s)** on the multi-analysis slice branch.
 
 ## Historical bounded M5 gate (#18, #6, #45, #42, #43, #44)
 
