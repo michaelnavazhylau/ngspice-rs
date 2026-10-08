@@ -5,8 +5,9 @@
 //! | [`traits`] | the [`Device`] trait, [`StampContext`] and the unknown map | real stamping and immutable equation-assembly contracts |
 //! | [`state`] | trial versus accepted device state ([`StateHistory`], [`TrialState`]) | rotating accepted history, atomic commits |
 //! | [`circuit`] | node/device container, petgraph incidence topology and unknown numbering | ported |
-//! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I factories |
+//! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I and linear E/F/G/H factories |
 //! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE/SIN/EXP/SFFM/AM waveforms |
+//! | [`controlled`] | linear E/F/G/H controlled sources | VCVS/CCCS/VCCS/CCVS gain stamps; F/H controlling branches resolved by [`circuit`] |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
@@ -21,8 +22,9 @@
 //! is 464k lines of the C tree's 723k, so the registry is designed to be the
 //! extension point that keeps the core small — see `docs/port/ROADMAP.md`.
 //!
-//! `Circuit::from_netlist` accepts literal R/C/L/V/I and bounded model-backed
-//! R/C/L and the explicitly bounded M4 diode/Ebers-Moll BJT/MOS1 subset.
+//! `Circuit::from_netlist` accepts literal R/C/L/V/I, linear E/F/G/H controlled
+//! sources, bounded model-backed R/C/L and the explicitly bounded M4
+//! diode/Ebers-Moll BJT/MOS1 subset.
 //! Parsing alone never enables unsupported physics; model-aware schemas reject it.
 //! Constant/Step/Pwl/Pulse forcing is available both through the device API and
 //! from numeric `PULSE(...)`/`PWL(...)` source setters; `SIN`/`EXP`/`SFFM`/`AM`
@@ -32,6 +34,7 @@
 #![warn(missing_docs)]
 
 pub mod circuit;
+pub mod controlled;
 mod factory;
 pub mod functions;
 pub mod linear;
@@ -66,12 +69,14 @@ pub mod transistors;
 
 pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
+pub use controlled::{ControlledKind, ControlledSource};
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, StateHistory, TrialState};
 pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};
 pub use traits::{
-    AcceptContext, AnalysisMode, Device, MnaUnknowns, StampContext, StorageElement, StorageKind,
+    AcceptContext, AnalysisMode, ControlReference, Device, MnaUnknowns, StampContext,
+    StorageElement, StorageKind,
 };
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.

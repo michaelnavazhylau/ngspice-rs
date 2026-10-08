@@ -1,0 +1,19 @@
+Linear controlled sources transient
+* A PULSE drives an RC low-pass (tau = 100 us); E buffers it with gain 2, G
+* converts it into a current charging C2 (tau = 100 us); vs senses that
+* current for an F and an H.
+vin in 0 pulse(0 1 20u 1u 1u 200u 500u)
+r1 in a 1k
+c1 a 0 100n
+e1 b 0 a 0 2
+rb b 0 1k
+g1 0 c b 0 1m
+r2 c d 1k
+vs d 0 0
+c2 c 0 100n
+f1 0 o4 vs 2
+r4 o4 0 1k
+h1 o5 0 vs 100
+r5 o5 0 1k
+.tran 1u 600u
+.end

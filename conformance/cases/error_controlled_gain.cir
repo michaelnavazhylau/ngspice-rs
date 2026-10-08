@@ -1,0 +1,6 @@
+Controlled source without a gain
+vin in 0 dc 1
+g1 0 out in 0
+r1 out 0 1k
+.op
+.end

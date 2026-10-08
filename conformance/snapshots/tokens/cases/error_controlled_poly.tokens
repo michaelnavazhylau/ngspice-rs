@@ -1,0 +1,40 @@
+# ngspice-rs token-dump v1
+file: cases/error_controlled_poly.cir
+title: "POLY controlled source is not yet ported" @cases/error_controlled_poly.cir:1:1
+card 1 @cases/error_controlled_poly.cir:2:1 lines=2-2 continuations=0
+  raw: "vin in 0 dc 1"
+  kind: device(v)
+  token 1 2:1 word "vin"
+  token 2 2:5 word "in"
+  token 3 2:8 number "0" value=0e0
+  token 4 2:10 word "dc"
+  token 5 2:13 number "1" value=1e0
+card 2 @cases/error_controlled_poly.cir:4:1 lines=4-4 continuations=0
+  raw: "e1 out 0 poly(1) in 0 0 2"
+  kind: device(e)
+  token 1 4:1 word "e1"
+  token 2 4:4 word "out"
+  token 3 4:8 number "0" value=0e0
+  token 4 4:10 word "poly"
+  token 5 4:14 lparen "("
+  token 6 4:15 number "1" value=1e0
+  token 7 4:16 rparen ")"
+  token 8 4:18 word "in"
+  token 9 4:21 number "0" value=0e0
+  token 10 4:23 number "0" value=0e0
+  token 11 4:25 number "2" value=2e0
+card 3 @cases/error_controlled_poly.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 out 0 1k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "out"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "1k" value=1e3
+card 4 @cases/error_controlled_poly.cir:6:1 lines=6-6 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 6:1 word ".op"
+card 5 @cases/error_controlled_poly.cir:7:1 lines=7-7 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 7:1 word ".end"

@@ -75,6 +75,13 @@ pub enum ParameterKind {
     InitialConditions(Vec<InitialCondition>),
     /// A source waveform; analysis-dependent defaults are resolved by device elaboration.
     Waveform(SourceWaveform),
+    /// A reference to another device instance by name (C `IF_INSTANCE`), such
+    /// as the controlling voltage source of an F/H card (`control`, set by
+    /// `INP2F`/`INP2H` before `INPdevParse`). [`ParameterAssignment::value`]
+    /// holds the lowercased instance name as written; it is resolved to a
+    /// branch row only after elaboration, and subcircuit expansion renames it
+    /// like an instance name (`subckt.c`, `translate_inst_name`).
+    Instance,
 }
 
 /// One finite textual waveform/IC value and its byte-column position.

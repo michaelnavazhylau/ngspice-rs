@@ -19,7 +19,9 @@
 //! is the dotted chain of instance names from the root (`xout`, then
 //! `xout.x1`). Devices are renamed `<designator>.<instance-path>.<name>`
 //! (`r.xout.r2`, `r.xout.x1.r1`); an `X` instance's own name drops the
-//! duplicated designator. Two instances of the same definition therefore never
+//! duplicated designator. An F/H controlling-source reference is renamed the
+//! same way (`vin` inside `x1` becomes `v.x1.vin`), so it always names a device
+//! of the same instance, as in C. Two instances of the same definition therefore never
 //! share a node, a device or a branch current, whatever the values of their
 //! internal nodes.
 //!
@@ -391,6 +393,20 @@ impl Expander<'_> {
                 ));
             }
             self.rewrite_model(&mut instance, locals);
+            // F/H controlling sources are translated like instance names
+            // (`translate()` calls `translate_inst_name` for them), so they
+            // always name a device of the same instance.
+            for parameter in &mut instance.parameters {
+                if parameter.kind == ParameterKind::Instance {
+                    let designator = parameter
+                        .value
+                        .chars()
+                        .next()
+                        .unwrap_or_default()
+                        .to_ascii_lowercase();
+                    parameter.value = device_name(&parameter.value, designator, path);
+                }
+            }
             instance.name = device_name(&instance.name, instance.designator, path);
             self.devices.push(instance);
         }

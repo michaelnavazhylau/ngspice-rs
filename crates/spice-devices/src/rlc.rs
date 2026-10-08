@@ -527,6 +527,7 @@ mod tests {
             gmin: crate::DEFAULT_GMIN,
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
             branches: 0..0,
+            controls: &[],
             integration: None,
             states: crate::state::DeviceState::none(),
             forcing: None,

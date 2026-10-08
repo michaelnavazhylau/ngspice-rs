@@ -654,7 +654,7 @@ r2 out 0 1k
         assert!(text.contains("dot commands:     3"), "{text}");
         assert!(text.contains("by designator:    r(2) v(1)"), "{text}");
         assert!(text.contains("analyses: .tran"), "{text}");
-        assert!(text.contains("port:     5 of"), "{text}");
+        assert!(text.contains("port:     9 of"), "{text}");
     }
 
     #[test]

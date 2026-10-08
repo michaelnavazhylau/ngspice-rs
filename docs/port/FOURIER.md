@@ -26,7 +26,7 @@ are never treated as a uniform grid, and the port never transforms internal time
 <fundamental-frequency> := a finite numeric literal greater than zero (1k, 2.5e3)
 <n>                     := a whole number of harmonics in 1..=100
                            (DEFAULT_HARMONICS = 9 when HARMONICS= is absent)
-<vector>                := v(<node>) | v(<first>,<second>) | i(<source|inductor>)
+<vector>                := v(<node>) | v(<first>,<second>) | i(<source|inductor|E|H>)
 ```
 
 * `HARMONICS=` may appear anywhere after the frequency, once. `DEFAULT_HARMONICS = 9` gives the

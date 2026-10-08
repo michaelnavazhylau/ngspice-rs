@@ -20,6 +20,7 @@ const PASSIVES: &str = include_str!("../../../conformance/parser/passive_models.
 const FLAGS_IC: &str = include_str!("../../../conformance/parser/flags_ic.cir");
 const WAVEFORMS: &str = include_str!("../../../conformance/parser/source_waveforms.cir");
 const FUNCTIONS: &str = include_str!("../../../conformance/parser/source_functions.cir");
+const CONTROLLED: &str = include_str!("../../../conformance/parser/controlled_sources.cir");
 
 struct Scratch(PathBuf);
 
@@ -61,6 +62,42 @@ fn parsed_scalars_match_live_c_instance_parameters() {
     assert!(netlist.device("i2").unwrap().parameters.is_empty());
     expected.insert("@i2[dc]".to_owned(), 0.0);
     assert_reference("linear", LINEAR, expected);
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_controlled_source_setters_match_live_c_gains() {
+    let netlist = parse(CONTROLLED);
+    let mut expected = BTreeMap::new();
+    for device in &netlist.devices {
+        if !matches!(device.designator, 'e' | 'f' | 'g' | 'h') {
+            continue;
+        }
+        // VCCSparam/CCCSparam: a gain is scaled by an m given *before* it.
+        let (mut gain, mut multiplier) = (None, None::<f64>);
+        for parameter in &device.parameters {
+            match (&parameter.kind, parameter.name.as_str()) {
+                (ParameterKind::Instance, "control") => {}
+                (ParameterKind::Scalar, "gain") => {
+                    let value = parse_spice_number(&parameter.value).unwrap();
+                    gain = Some(value * multiplier.unwrap_or(1.0));
+                }
+                (ParameterKind::Scalar, "m") => {
+                    multiplier = parse_spice_number(&parameter.value);
+                }
+                // e3's {2*5} is evaluated by numparam in C; literal here.
+                (ParameterKind::Expression(_), "gain") => gain = Some(10.0),
+                other => panic!("unexpected setter {other:?}"),
+            }
+        }
+        expected.insert(format!("@{}[gain]", device.name), gain.unwrap());
+    }
+    // Independent hand-checked setter-order expectations.
+    assert_eq!(expected["@g2[gain]"], 6e-3);
+    assert_eq!(expected["@g3[gain]"], 2e-3);
+    assert_eq!(expected["@f2[gain]"], 2.0);
+    assert_eq!(expected.len(), 13);
+    assert_reference("controlled", CONTROLLED, expected);
 }
 
 #[test]
@@ -211,6 +248,7 @@ fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
                 }
                 ParameterKind::Waveform(_)
                 | ParameterKind::Textual
+                | ParameterKind::Instance
                 | ParameterKind::Expression(_) => panic!("not a scalar probe"),
             }
         }

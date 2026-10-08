@@ -1,0 +1,119 @@
+# ngspice-rs token-dump v1
+file: netlists/controlled_tran.cir
+title: "Linear controlled sources transient" @netlists/controlled_tran.cir:1:1
+card 1 @netlists/controlled_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "vin in 0 pulse(0 1 20u 1u 1u 200u 500u)"
+  kind: device(v)
+  token 1 5:1 word "vin"
+  token 2 5:5 word "in"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 word "pulse"
+  token 5 5:15 lparen "("
+  token 6 5:16 number "0" value=0e0
+  token 7 5:18 number "1" value=1e0
+  token 8 5:20 number "20u" value=1.9999999999999998e-5
+  token 9 5:24 number "1u" value=1e-6
+  token 10 5:27 number "1u" value=1e-6
+  token 11 5:30 number "200u" value=1.9999999999999998e-4
+  token 12 5:35 number "500u" value=5e-4
+  token 13 5:39 rparen ")"
+card 2 @netlists/controlled_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "a"
+  token 4 6:9 number "1k" value=1e3
+card 3 @netlists/controlled_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 a 0 100n"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "a"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "100n" value=1.0000000000000001e-7
+card 4 @netlists/controlled_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "e1 b 0 a 0 2"
+  kind: device(e)
+  token 1 8:1 word "e1"
+  token 2 8:4 word "b"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "a"
+  token 5 8:10 number "0" value=0e0
+  token 6 8:12 number "2" value=2e0
+card 5 @netlists/controlled_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "rb b 0 1k"
+  kind: device(r)
+  token 1 9:1 word "rb"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1k" value=1e3
+card 6 @netlists/controlled_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "g1 0 c b 0 1m"
+  kind: device(g)
+  token 1 10:1 word "g1"
+  token 2 10:4 number "0" value=0e0
+  token 3 10:6 word "c"
+  token 4 10:8 word "b"
+  token 5 10:10 number "0" value=0e0
+  token 6 10:12 number "1m" value=1e-3
+card 7 @netlists/controlled_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "r2 c d 1k"
+  kind: device(r)
+  token 1 11:1 word "r2"
+  token 2 11:4 word "c"
+  token 3 11:6 word "d"
+  token 4 11:8 number "1k" value=1e3
+card 8 @netlists/controlled_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "vs d 0 0"
+  kind: device(v)
+  token 1 12:1 word "vs"
+  token 2 12:4 word "d"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 number "0" value=0e0
+card 9 @netlists/controlled_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "c2 c 0 100n"
+  kind: device(c)
+  token 1 13:1 word "c2"
+  token 2 13:4 word "c"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "100n" value=1.0000000000000001e-7
+card 10 @netlists/controlled_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "f1 0 o4 vs 2"
+  kind: device(f)
+  token 1 14:1 word "f1"
+  token 2 14:4 number "0" value=0e0
+  token 3 14:6 word "o4"
+  token 4 14:9 word "vs"
+  token 5 14:12 number "2" value=2e0
+card 11 @netlists/controlled_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "r4 o4 0 1k"
+  kind: device(r)
+  token 1 15:1 word "r4"
+  token 2 15:4 word "o4"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "1k" value=1e3
+card 12 @netlists/controlled_tran.cir:16:1 lines=16-16 continuations=0
+  raw: "h1 o5 0 vs 100"
+  kind: device(h)
+  token 1 16:1 word "h1"
+  token 2 16:4 word "o5"
+  token 3 16:7 number "0" value=0e0
+  token 4 16:9 word "vs"
+  token 5 16:12 number "100" value=1e2
+card 13 @netlists/controlled_tran.cir:17:1 lines=17-17 continuations=0
+  raw: "r5 o5 0 1k"
+  kind: device(r)
+  token 1 17:1 word "r5"
+  token 2 17:4 word "o5"
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 number "1k" value=1e3
+card 14 @netlists/controlled_tran.cir:18:1 lines=18-18 continuations=0
+  raw: ".tran 1u 600u"
+  kind: dot(.tran)
+  token 1 18:1 word ".tran"
+  token 2 18:7 number "1u" value=1e-6
+  token 3 18:10 number "600u" value=6e-4
+card 15 @netlists/controlled_tran.cir:19:1 lines=19-19 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 19:1 word ".end"

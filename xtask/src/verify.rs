@@ -244,6 +244,33 @@ const SUPPORTED: &[Supported] = &[
     // Trapezoidal `xmu=0.2` and `itl4` on the companion driver. No BDF variant:
     // backend=diffsol rejects both options explicitly.
     tran("options_xmu_tran", &[]),
+    // Linear controlled sources (#78): E/F/G/H in an operating point (with an
+    // F/H controlled by an E branch and by a voltage source inside a
+    // subcircuit), an AC sweep and a PULSE transient. All four devices are
+    // linear, so the decks keep the linear DC/AC bounds and `compare::TRAN`.
+    Supported {
+        name: "controlled_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "controlled_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    // Its PULSE corners lie on the output grid like `rl_pulse_tran`, and like
+    // that deck C's backward-Euler restart after each corner exceeds the plain
+    // `compare::TRAN` floor at small values (about 1e-8 A on the sub-uA
+    // currents right after the 20 us edge), so the BDF run is peak-scaled.
+    tran("controlled_tran", &[DIFFSOL_BDF_RESTART]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -692,7 +719,7 @@ mod tests {
                 assert!(!deck.to_ascii_lowercase().contains("method"), "{deck}");
             }
         }
-        assert_eq!(with_variants, 5);
+        assert_eq!(with_variants, 6);
         // The same deck with a deck-level Gear selection and the BDF tokens is an
         // explicit error, never a silent downgrade.
         let temp = Temp::with(&["rc_gear_tran"]);

@@ -83,6 +83,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
+| `controlled_op` | `.op` | E/F/G/H signs, E op-amp loop (gain 1e4), F sensing an E branch, H inside a subcircuit, HSPICE keyword, `(a,b)` controls, G `m=` |
+| `controlled_ac` | `.ac` | E integrator (gain 1e4), G into an RC, F/H sensing a load current (`lin`) |
+| `controlled_tran` | `.tran` | PULSE RC buffered by E, G charging a second RC, F/H sensing its current |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -94,3 +97,7 @@ captured individually the same way; no existing golden was recaptured.
 
 The two `options_*` decks (#110/#107) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+
+The three `controlled_*` decks (#78) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [CONTROLLED_SOURCES.md](../../docs/port/CONTROLLED_SOURCES.md).

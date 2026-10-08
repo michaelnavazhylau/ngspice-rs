@@ -53,6 +53,9 @@ pub struct Circuit {
     unknowns: MnaUnknowns,
     devices: Vec<Box<dyn Device>>,
     branch_rows: Vec<std::ops::Range<usize>>,
+    /// Per device, the branch rows of its controlling sources, or why they
+    /// could not be resolved (reported by `finalize` and every load).
+    control_rows: Vec<Result<Vec<usize>, SpiceError>>,
     state_rows: Vec<std::ops::Range<usize>>,
     state_len: usize,
 }
@@ -160,6 +163,75 @@ impl Circuit {
                 .push(self.state_len..self.state_len + states);
             self.state_len += states;
         }
+        self.control_rows = self
+            .devices
+            .iter()
+            .map(|device| self.resolve_controls(device.as_ref()))
+            .collect();
+    }
+
+    /// Branch rows of the devices `device` senses (C `CKTfndBranch`, called
+    /// from `CCCSsetup`/`CCVSsetup`): looked up by instance name after every
+    /// device is known, so a controlling source may follow its user in the
+    /// deck. Only devices with a [`Device::findable_branch`] qualify: C finds
+    /// V, E, H (and B) branches, but not inductor currents.
+    fn resolve_controls(&self, device: &dyn Device) -> Result<Vec<usize>, SpiceError> {
+        device
+            .controlling_sources()
+            .iter()
+            .map(|control| {
+                let failure = |message: String| match &control.location {
+                    Some(location) => SpiceError::parse(location.clone(), message),
+                    None => SpiceError::circuit(message),
+                };
+                let Some(index) = self
+                    .devices
+                    .iter()
+                    .position(|other| other.name().eq_ignore_ascii_case(&control.name))
+                else {
+                    return Err(failure(format!(
+                        "{}: unknown controlling source {}",
+                        device.name(),
+                        control.name
+                    )));
+                };
+                let target = &self.devices[index];
+                let Some(branch) = target.findable_branch() else {
+                    return Err(failure(format!(
+                        "{}: controlling source {} has no findable branch current (only \
+                         independent voltage sources and E/H sources can be sensed, as by \
+                         CKTfndBranch)",
+                        device.name(),
+                        target.name()
+                    )));
+                };
+                self.branch_rows[index]
+                    .clone()
+                    .nth(branch)
+                    .ok_or_else(|| failure(format!("{}: missing branch row", target.name())))
+            })
+            .collect()
+    }
+
+    /// The resolved controlling-branch rows of device `index`.
+    fn controls(&self, index: usize) -> SpiceResult<&[usize]> {
+        match self.control_rows.get(index) {
+            Some(Ok(rows)) => Ok(rows),
+            Some(Err(error)) => Err(error.clone()),
+            None => Err(SpiceError::circuit(
+                "circuit numbering is stale; finalize after adding devices",
+            )),
+        }
+    }
+
+    /// Controlling-branch rows by device ordinal, after finalization (empty for
+    /// devices that sense no branch current).
+    ///
+    /// # Errors
+    /// Stale numbering, or the device's controlling source is unknown or has no
+    /// findable branch current.
+    pub fn control_rows(&self, index: usize) -> SpiceResult<Vec<usize>> {
+        self.controls(index).map(<[usize]>::to_vec)
     }
 
     /// Validates the graph and renumbers the unknowns.
@@ -168,10 +240,15 @@ impl Circuit {
     ///
     /// [`SpiceError::Circuit`] if a device refers to a node that is not in the
     /// table, or if two devices share an instance name — ngspice rejects the
-    /// latter too, in `INP2dot`/`CKTcrtElt`.
+    /// latter too, in `INP2dot`/`CKTcrtElt`. A controlling source (F/H) that
+    /// names no device, or a device without a findable branch current, is a
+    /// [`SpiceError::Parse`] at the reference (C: "unknown controlling source").
     pub fn finalize(&mut self) -> SpiceResult<()> {
         self.topology()?;
         self.rebuild_unknowns();
+        for index in 0..self.devices.len() {
+            self.controls(index)?;
+        }
         Ok(())
     }
 
@@ -274,6 +351,7 @@ impl Circuit {
     fn check_numbering(&self) -> SpiceResult<()> {
         if self.branch_rows.len() != self.devices.len()
             || self.state_rows.len() != self.devices.len()
+            || self.control_rows.len() != self.devices.len()
         {
             return Err(SpiceError::circuit(
                 "circuit numbering is stale; finalize after adding devices",
@@ -427,6 +505,7 @@ impl Circuit {
                 gmin: request.model_context.gmin,
                 mode: request.mode,
                 branches: self.branch_rows[index].clone(),
+                controls: self.controls(index)?,
                 integration: request.integration,
                 states,
                 forcing: request.forcing,
@@ -538,6 +617,7 @@ impl Circuit {
                 system: &mut system,
                 unknowns: &self.unknowns,
                 branch: (!range.is_empty()).then_some(range.start),
+                controls: self.controls(index)?,
             })?;
         }
         system.a.fold_duplicates();
@@ -579,6 +659,7 @@ impl Circuit {
                     system: &mut system,
                     unknowns: &self.unknowns,
                     branch: (!range.is_empty()).then_some(range.start),
+                    controls: self.controls(index)?,
                 },
                 bias,
             )?;
