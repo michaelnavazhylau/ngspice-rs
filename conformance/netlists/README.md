@@ -61,6 +61,11 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `rlc_ic_uic_tran` | `.tran ... uic` | series RLC free decay from inductor `ic=20m` and capacitor `ic=1` |
 | `rc_ic_node_tran` | `.tran` + `.ic v(out)=0.25` | `.ic` enforced in the initial bias only (no `uic`), then released |
 | `floating_cap_ic_tran` | `.tran ... uic` | floating capacitor with initial plate charge (`ic=2`), ramp drive |
+| `rc_sin_tran` | `.tran` | delayed, damped, phase-shifted SIN (#94); constant PWL marker lands C on `TD` |
+| `rc_exp_tran` | `.tran` | EXP rise and fall (#94); constant PWL marker lands C on `TD1`/`TD2` |
+| `rc_sffm_am_tran` | `.tran` | SFFM voltage source and AM current source (#94), continuous at `t = 0` |
+| `rc_pwl_repeat_tran` | `.tran` | PWL `r=0 td=0.2m` triangle (#95), repeated knots are C breakpoints |
+| `rc_pulse_count_tran` | `.tran` | PULSE eighth field `NP = 3` (#95): three pulses, then V1 |
 | `diode_dc` | `.dc` | nonlinear device, source sweep |
 | `bjt_ce` | `.op` | BJT with a `.model` card |
 | `mos_inverter` | `.op` | MOSFET with instance parameters (`w=`, `l=`) |
@@ -76,3 +81,6 @@ The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
 for the demonstrated local #41 gate, physics allowlists and justified tolerances.
 Only the subcircuit fixture remains excluded by Rust-engine verification.
+
+The five M6 source decks (`rc_sin_tran` ... `rc_pulse_count_tran`, #94/#95) were
+captured individually the same way; no existing golden was recaptured.

@@ -59,7 +59,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 | --- | --- | --- | --- |
 | `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution and bounded passive factories; nonlinear factories pending |
 | `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::{rlc,passive}` | scalar equations plus bounded model values, R sheet/C area-perimeter geometry, contextual TC1/TC2, scale/multiplicity; trap/Gear orders 1–2 C/L companion stamps from accepted charge/flux state (`capload.c`/`indload.c`); coil geometry, advanced setters, mutual inductance and companion `ic=`/`uic` pending |
-| `vsrc/`, `isrc/` | — | `spice-devices::sources` | DC/AC V/I stamps, Constant/Step/Pwl/Pulse forcing with left/right limits and lazy breakpoints; PULSE/PWL deck setters elaborate (no SIN/EXP/SFFM, PWL `r=`) |
+| `vsrc/`, `isrc/` | — | `spice-devices::sources` | DC/AC V/I stamps, Constant/Step/Pwl/Pulse forcing with left/right limits and lazy breakpoints; PULSE (with count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM deck setters elaborate (`functions.rs`); no TRNOISE/TRRANDOM/EXTERNAL |
 | `dio/` | 5,598 | `spice-devices::diode` (planned) | **not ported** |
 | `bjt/` | 9,482 | `spice-devices::bjt` (planned) | **not ported** |
 | `mos1/`…`mos9/`, `bsim*`, `hisim*`, `hfet*`, `vbic`, `soi*` | 218,897 | `spice-devices::mos` (planned) | **not ported** |

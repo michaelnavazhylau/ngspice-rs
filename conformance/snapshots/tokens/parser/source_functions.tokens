@@ -1,0 +1,166 @@
+# ngspice-rs token-dump v1
+file: parser/source_functions.cir
+title: "Transient source functions, PULSE count and PWL r=/td= (syntax/setup only)" @parser/source_functions.cir:1:1
+card 1 @parser/source_functions.cir:2:1 lines=2-2 continuations=0
+  raw: "vsin a 0 SIN(0.5 2 1k 0.1m 20 30)"
+  kind: device(v)
+  token 1 2:1 word "vsin"
+  token 2 2:6 word "a"
+  token 3 2:8 number "0" value=0e0
+  token 4 2:10 word "SIN"
+  token 5 2:13 lparen "("
+  token 6 2:14 number "0.5" value=5e-1
+  token 7 2:18 number "2" value=2e0
+  token 8 2:20 number "1k" value=1e3
+  token 9 2:23 number "0.1m" value=1e-4
+  token 10 2:28 number "20" value=2e1
+  token 11 2:31 number "30" value=3e1
+  token 12 2:33 rparen ")"
+card 2 @parser/source_functions.cir:3:1 lines=3-3 continuations=0
+  raw: "isine a 0 dc 1m sine(0 1m)"
+  kind: device(i)
+  token 1 3:1 word "isine"
+  token 2 3:7 word "a"
+  token 3 3:9 number "0" value=0e0
+  token 4 3:11 word "dc"
+  token 5 3:14 number "1m" value=1e-3
+  token 6 3:17 word "sine"
+  token 7 3:21 lparen "("
+  token 8 3:22 number "0" value=0e0
+  token 9 3:24 number "1m" value=1e-3
+  token 10 3:26 rparen ")"
+card 3 @parser/source_functions.cir:4:1 lines=4-4 continuations=0
+  raw: "vexp b 0 EXP(1, 3, 0.2m, 0.1m, 0.6m, 0.2m)"
+  kind: device(v)
+  token 1 4:1 word "vexp"
+  token 2 4:6 word "b"
+  token 3 4:8 number "0" value=0e0
+  token 4 4:10 word "EXP"
+  token 5 4:13 lparen "("
+  token 6 4:14 number "1" value=1e0
+  token 7 4:15 comma ","
+  token 8 4:17 number "3" value=3e0
+  token 9 4:18 comma ","
+  token 10 4:20 number "0.2m" value=2e-4
+  token 11 4:24 comma ","
+  token 12 4:26 number "0.1m" value=1e-4
+  token 13 4:30 comma ","
+  token 14 4:32 number "0.6m" value=6e-4
+  token 15 4:36 comma ","
+  token 16 4:38 number "0.2m" value=2e-4
+  token 17 4:42 rparen ")"
+card 4 @parser/source_functions.cir:5:1 lines=5-5 continuations=0
+  raw: "isffm b 0 SFFM 0 1m 10k 2 1k 0 90 45"
+  kind: device(i)
+  token 1 5:1 word "isffm"
+  token 2 5:7 word "b"
+  token 3 5:9 number "0" value=0e0
+  token 4 5:11 word "SFFM"
+  token 5 5:16 number "0" value=0e0
+  token 6 5:18 number "1m" value=1e-3
+  token 7 5:21 number "10k" value=1e4
+  token 8 5:25 number "2" value=2e0
+  token 9 5:27 number "1k" value=1e3
+  token 10 5:30 number "0" value=0e0
+  token 11 5:32 number "90" value=9e1
+  token 12 5:35 number "45" value=4.5e1
+card 5 @parser/source_functions.cir:6:1 lines=6-6 continuations=0
+  raw: "vam c 0 AM(0.1 1 0.5 1k 20k 0.1m 45 60) AC 1"
+  kind: device(v)
+  token 1 6:1 word "vam"
+  token 2 6:5 word "c"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 word "AM"
+  token 5 6:11 lparen "("
+  token 6 6:12 number "0.1" value=1e-1
+  token 7 6:16 number "1" value=1e0
+  token 8 6:18 number "0.5" value=5e-1
+  token 9 6:22 number "1k" value=1e3
+  token 10 6:25 number "20k" value=2e4
+  token 11 6:29 number "0.1m" value=1e-4
+  token 12 6:34 number "45" value=4.5e1
+  token 13 6:37 number "60" value=6e1
+  token 14 6:39 rparen ")"
+  token 15 6:41 word "AC"
+  token 16 6:44 number "1" value=1e0
+card 6 @parser/source_functions.cir:7:1 lines=7-7 continuations=0
+  raw: "vcount e 0 PULSE(0 1 0.1m 10u 10u 0.2m 0.5m 3)"
+  kind: device(v)
+  token 1 7:1 word "vcount"
+  token 2 7:8 word "e"
+  token 3 7:10 number "0" value=0e0
+  token 4 7:12 word "PULSE"
+  token 5 7:17 lparen "("
+  token 6 7:18 number "0" value=0e0
+  token 7 7:20 number "1" value=1e0
+  token 8 7:22 number "0.1m" value=1e-4
+  token 9 7:27 number "10u" value=9.999999999999999e-6
+  token 10 7:31 number "10u" value=9.999999999999999e-6
+  token 11 7:35 number "0.2m" value=2e-4
+  token 12 7:40 number "0.5m" value=5e-4
+  token 13 7:45 number "3" value=3e0
+  token 14 7:46 rparen ")"
+card 7 @parser/source_functions.cir:8:1 lines=8-8 continuations=0
+  raw: "ipwl d 0 PWL(0 0 1m 1m 2m 0.5m) r=1m td=0.5m"
+  kind: device(i)
+  token 1 8:1 word "ipwl"
+  token 2 8:6 word "d"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 word "PWL"
+  token 5 8:13 lparen "("
+  token 6 8:14 number "0" value=0e0
+  token 7 8:16 number "0" value=0e0
+  token 8 8:18 number "1m" value=1e-3
+  token 9 8:21 number "1m" value=1e-3
+  token 10 8:24 number "2m" value=2e-3
+  token 11 8:27 number "0.5m" value=5e-4
+  token 12 8:31 rparen ")"
+  token 13 8:33 word "r"
+  token 14 8:34 equals "="
+  token 15 8:35 number "1m" value=1e-3
+  token 16 8:38 word "td"
+  token 17 8:40 equals "="
+  token 18 8:41 number "0.5m" value=5e-4
+card 8 @parser/source_functions.cir:9:1 lines=9-9 continuations=0
+  raw: "r1 a 0 1k"
+  kind: device(r)
+  token 1 9:1 word "r1"
+  token 2 9:4 word "a"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1k" value=1e3
+card 9 @parser/source_functions.cir:10:1 lines=10-10 continuations=0
+  raw: "r2 b 0 1k"
+  kind: device(r)
+  token 1 10:1 word "r2"
+  token 2 10:4 word "b"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "1k" value=1e3
+card 10 @parser/source_functions.cir:11:1 lines=11-11 continuations=0
+  raw: "r3 c 0 1k"
+  kind: device(r)
+  token 1 11:1 word "r3"
+  token 2 11:4 word "c"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "1k" value=1e3
+card 11 @parser/source_functions.cir:12:1 lines=12-12 continuations=0
+  raw: "r4 d 0 1k"
+  kind: device(r)
+  token 1 12:1 word "r4"
+  token 2 12:4 word "d"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 number "1k" value=1e3
+card 12 @parser/source_functions.cir:13:1 lines=13-13 continuations=0
+  raw: "r5 e 0 1k"
+  kind: device(r)
+  token 1 13:1 word "r5"
+  token 2 13:4 word "e"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "1k" value=1e3
+card 13 @parser/source_functions.cir:14:1 lines=14-14 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 14:1 word ".op"
+card 14 @parser/source_functions.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

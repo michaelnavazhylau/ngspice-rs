@@ -4,27 +4,63 @@
 use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt};
 
-use crate::ast::{ParameterAssignment, ParameterKind, PulseWaveform, PwlPoint, SourceWaveform};
+use crate::ast::{
+    FunctionWaveform, ParameterAssignment, ParameterKind, PulseWaveform, PwlPoint, SourceFunction,
+    SourceWaveform,
+};
 
 use super::grammar::{Input, Result, keyword};
-use super::syntax::{equals, malformed};
+use super::syntax::{equals, malformed, named, value};
 use super::vector::{numeric, positioned};
 
+/// The vector-valued transient setters of `vsrc.c`/`isrc.c` (`IF_REALVEC`).
 pub(super) fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
-    let token = alt((keyword("pulse"), keyword("pwl"))).parse_next(input)?;
+    let token = alt((
+        keyword("pulse"),
+        keyword("pwl"),
+        keyword("sin"),
+        keyword("sine"),
+        keyword("exp"),
+        keyword("sffm"),
+        keyword("am"),
+    ))
+    .parse_next(input)?;
+    let name = token.text.to_ascii_lowercase();
+    let function = match name.as_str() {
+        "sin" | "sine" => Some(SourceFunction::Sin),
+        "exp" => Some(SourceFunction::Exp),
+        "sffm" => Some(SourceFunction::Sffm),
+        "am" => Some(SourceFunction::Am),
+        _ => None,
+    };
     cut_err(|input: &mut Input<'_>| {
         opt(equals).parse_next(input)?;
-        // The seven-field PULSE subset excludes NCYCLES; PWL is bounded to
-        // 2048 pairs. Runtime restrictions (times, slopes) are not syntax.
-        let pulse = token.is_keyword("pulse");
-        let vector = numeric(input, if pulse { 7 } else { 4096 })?;
+        // C reads at most eight PULSE coefficients, six SIN/EXP and eight
+        // SFFM/AM ones; more would be silently ignored there, so they are a
+        // syntax error here. PWL is bounded to 2048 pairs. Runtime
+        // restrictions (times, slopes, defaults) are not syntax.
+        let maximum = match (name.as_str(), function) {
+            (_, Some(function)) => function.fields().len(),
+            ("pulse", None) => 8,
+            _ => 4096,
+        };
+        let vector = numeric(input, maximum)?;
         if vector.values.len() < 2 {
             return Err(malformed(
                 input,
                 "waveform requires at least two numeric fields",
             ));
         }
-        let waveform = if pulse {
+        let waveform = if let Some(function) = function {
+            SourceWaveform::Function(Box::new(FunctionWaveform {
+                function,
+                values: vector
+                    .values
+                    .iter()
+                    .map(|&token| positioned(token))
+                    .collect(),
+            }))
+        } else if name == "pulse" {
             let value = |index: usize| vector.values.get(index).map(|&token| positioned(token));
             SourceWaveform::Pulse(Box::new(PulseWaveform {
                 initial: positioned(vector.values[0]),
@@ -34,6 +70,7 @@ pub(super) fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignmen
                 fall: value(4),
                 width: value(5),
                 period: value(6),
+                count: value(7),
             }))
         } else {
             if vector.values.len() % 2 != 0 {
@@ -56,11 +93,24 @@ pub(super) fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignmen
             )
         };
         Ok(vec![ParameterAssignment {
-            name: token.text.to_ascii_lowercase(),
+            name: name.clone(),
             value: vector.text,
             kind: ParameterKind::Waveform(waveform),
             location: token.location.clone(),
         }])
     })
     .parse_next(input)
+}
+
+/// PWL repeat/delay scalars (`IP("r", VSRC_R)`, `IP("td", VSRC_TD)` in
+/// `vsrc.c`/`isrc.c`). They stay ordered setters: whether they apply depends
+/// on the waveform set before them, which device elaboration checks.
+pub(super) fn pwl_options(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
+    let token = alt((keyword("r"), keyword("td"))).parse_next(input)?;
+    let (_, value) = cut_err((opt(equals), value)).parse_next(input)?;
+    Ok(vec![named(
+        &token.text.to_ascii_lowercase(),
+        token.location.clone(),
+        value,
+    )])
 }

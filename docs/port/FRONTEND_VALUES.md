@@ -54,10 +54,10 @@ promise of initialized states or transient support.
 References: `parser/inp2v.c`, `inp2i.c`, `inpgval.c`, and
 `devices/vsrc/vsrcpar.c::VSRCparam`, `isrc/isrcpar.c::ISRCparam`.
 
-- PULSE accepts **2–7** finite numeric fields:
-  `PULSE(V1 V2 [TD [TR [TF [PW [PER]]]]])`. Timing omissions remain `None`;
-  analysis-dependent defaults must be supplied later. NCYCLES/extended fields
-  are rejected. No timing/slope/period validation is inferred from a parse.
+- PULSE accepts **2–8** finite numeric fields:
+  `PULSE(V1 V2 [TD [TR [TF [PW [PER [NP]]]]]])`. Timing omissions remain `None`;
+  analysis-dependent defaults must be supplied later. More fields are
+  rejected (C would silently ignore them). No timing/slope/period validation is inferred from a parse.
 - PWL accepts **1–2048 pairs** of finite numeric time/level fields. Supplied
   order, duplicate/decreasing/negative times and raw numeric spelling survive;
   future runtime elaboration must validate the demonstrated waveform subset.
@@ -65,8 +65,13 @@ References: `parser/inp2v.c`, `inp2i.c`, `inpgval.c`, and
 - Parentheses and `=` are optional; comma/whitespace separators are accepted.
   Every comma requires a following numeric field. A bare vector ends at the
   next keyword. Recognized prefixes commit missing/overflow/malformed errors.
-- Expressions, file-backed/repeating/delayed PWL extensions and
-  SIN/EXP/SFFM/AM/random sources remain explicit gaps.
+- `SIN`/`SINE` (2–6 fields), `EXP` (2–6), `SFFM` (2–8) and `AM` (2–8) parse to
+  `SourceWaveform::Function` with positioned fields in C coefficient order
+  (`SourceFunction::fields`) (#94). PWL `td=`/`r=` (with or without `=`) are
+  ordered scalar setters, as C's `VSRC_TD`/`VSRC_R` (#95); elaboration checks
+  that they apply to a PWL. Runtime semantics: [TRANSIENT.md](TRANSIENT.md#source-functions-94-95).
+- Expressions in waveform fields, file-backed PWL and TRNOISE/TRRANDOM/EXTERNAL
+  sources remain explicit gaps.
 
 `ParameterKind::Waveform` lives in the **same ordered assignment vector** as
 DC/AC setters. Duplicate/mixed waveform setters remain visible. Leading source

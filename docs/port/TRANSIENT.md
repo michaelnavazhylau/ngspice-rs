@@ -158,6 +158,92 @@ series RLC with inductor and capacitor `ic`, 0.5 us: 1.0e-4 V, 3.3e-6 A. Against
 to better than 3.1e-9 of the bound, with identical point counts (the step
 sequences coincide again, including the `uic` step breakpoint).
 
+## Source functions (#94, #95)
+
+Independent V and I sources accept every standard ngspice transient function
+except the noise/random/external ones. Syntax lives in
+`crates/spice-netlist/src/parser/waveform.rs`; runtime semantics in
+`crates/spice-devices/src/functions.rs` (SIN/EXP/SFFM/AM, PWL `td=`/`r=`) and
+`pulse.rs` (PULSE count), following `vsrcload.c`/`isrcload.c`,
+`vsrcacct.c`/`isrcacct.c` and `vsrcpar.c`/`isrcpar.c`.
+
+| Form | Fields (C order) | Defaults resolved from `.tran` |
+| --- | --- | --- |
+| `SIN`/`SINE` | `VO VA [FREQ [TD [THETA [PHASE]]]]` | FREQ omitted or 0: `1/tstop`; others 0 |
+| `EXP` | `V1 V2 [TD1 [TAU1 [TD2 [TAU2]]]]` | TD1, TAU1, TAU2 omitted or 0: `tstep`; TD2 omitted or 0: `TD1 + tstep` |
+| `SFFM` | `VO VA [FC [MDI [FM [TD [PHASEM [PHASEC]]]]]]` | FC omitted: `5/tstop`; MDI omitted: 90, then limited to `[0, FC/FM]`; FM omitted or 0: `500/tstop` |
+| `AM` | `VO VMO [VMA [FM [FC [TD [PHASEM [PHASEC]]]]]]` | VMA omitted: 1; FM omitted: `5/tstop`; FC omitted: `500/tstop` |
+| `PULSE` 8th field | `NP` | positive: only `NP` periods, then V1; zero/negative/omitted: unlimited |
+| PWL `td=` / `r=` | ordered scalar setters | `td` shifts every knot; `r` (a knot time below the last) repeats `[r, t_last]`; `r < -0.5` disables repetition |
+
+Phases are degrees. Before its delay a SIN holds `VO + VA sin(PHASE)` and an
+EXP holds V1, but SFFM and AM hold **zero** (C returns 0 for `time <= TD`), so
+they jump at their delay unless `VO + VA sin(...)` vanishes there. A repeating
+PWL jumps at each repetition boundary when `v(r) != v(t_last)`. Every jump has
+distinct left/right limits (`Limit`), including every repeated-PWL boundary
+(left `v(t_last)`, right `v(r)`, also a few ulps either side of the port's own
+breakpoint times), so the step ending at a boundary integrates toward
+`v(t_last)` in the companion driver and the diffsol segments see the full ramp.
+This deliberately differs from C, which evaluates a boundary instant once: its
+next PWL breakpoint is accumulated from the previous landing time
+(`VSRCaccept`), and depending on which side of `t_last` that time's fold
+rounds, `vsrcload.c` loads `v(t_last)` or `v(r)` there. Bit-identical landing
+would require reproducing C's stateful breakpoint chain and its
+`CKTtime += CKTdelta` landing arithmetic, which the port does not do. The
+effect is bounded by one step of the jump: with tau = 0.1 ms and 7-10 us steps
+the worst RC `v(out)` difference from C is 0.024-0.036 V for a 1 V sawtooth
+(`pwl(0 0 1m 1) r=0`, `pwl(0 0 0.3m 1) r=0`, and a delayed partial repeat).
+OP/DC analyses without an explicit DC
+value use C's time-zero value (`Waveform::time_zero`); the transient initial
+point uses the left limit at `t = 0`, as C's `MODETRANOP` load does (an explicit
+`dc` value only affects OP/DC, as in C).
+
+Breakpoints are lazy (`Waveform::breakpoints_in`). PULSE/PWL corners are the
+ones `VSRCaccept` sets, including every repeated PWL knot; a count-limited
+PULSE stops after `TD + NP*PER` except for C's final request (the next corner)
+and, for a fractional count, the jump where the train is cut. C sets **no**
+breakpoints for SIN/EXP/SFFM/AM; the port deliberately lands on SIN/SFFM/AM
+`TD` and EXP `TD1`/`TD2` so it never integrates across a slope corner or the
+SFFM/AM delay jump. Measured on RC decks (tau = 0.1 ms) without marker
+sources, this changes the worst `v(out)` difference from C to 2e-5 V (SIN with
+`TD`), 8e-5 V (EXP), 1.1e-3 V (SFFM/AM delay jump), 9e-3 V (EXP with
+`TD2 < TD1`, a jump at `TD1`) and 1e-3 V (PULSE with a fractional count); the
+opt-in `unmarked_decks_diverge_from_c_only_within_documented_bounds` keeps
+these bounded. The diffsol BDF backend rejects SIN/EXP/SFFM/AM (its segments
+interpolate forcing linearly between breakpoints); PULSE counts and PWL
+`td=`/`r=` (including discontinuous repeats, segmented at every boundary) are
+piecewise linear and run there.
+
+Deliberate differences, all explicit errors rather than approximations:
+negative delays (SIN/SFFM/AM `TD`, EXP `TD1`/`TD2`, as for PULSE `TD`); `r=`
+that matches no knot or is not below the last knot (C's `E_PARMVAL`, checked
+for every `r=` setter in order, so an invalid earlier one fails even when a
+later one is valid); `r=`
+before any PWL, a waveform setter after `r=` (C would keep a stale repeat
+index) and `td=`/`r=` without a final PWL (C silently ignores them); more
+fields than C reads. SFFM's MDI limit is silent (C warns once). ngspice's `xs`
+compatibility mode, where the PULSE eighth field is a phase, is not modelled.
+TRNOISE, TRRANDOM, EXTERNAL, PWL `file=` and expression-valued fields remain
+`NotYetPorted`.
+
+Verification: analytic unit tests per form and default; deck-level tests
+(`crates/spice-devices/tests/waveforms.rs`,
+`crates/spice-analysis/tests/source_functions.rs`, including an analytic EXP RC
+response under trap and Gear-2 and a `.four` of a SIN-driven RC: fundamental
+gain/phase of the low-pass within 1e-3 and THD below 0.1 %). C goldens
+`rc_sin_tran`, `rc_exp_tran`, `rc_sffm_am_tran` (AM as a current source),
+`rc_pwl_repeat_tran` (continuous `r=` repeat) and `rc_pulse_count_tran`
+verify under `compare::TRAN` with worst error 0.000 of the bound. There is no
+golden for a discontinuous `r=` repeat because of the boundary difference
+above; `source_functions.rs` checks one against the analytic RC response under
+both backends instead. Because C sets no SIN/EXP breakpoints, the
+SIN and EXP decks carry a constant PWL marker source whose knots make C land on
+the corners too; otherwise the comparison would interpolate C's plot across a
+slope corner. Opt-in `c_source_functions.rs` compares 22 V/I sources (all forms
+and defaults) with C's node voltages at all of C's timepoints (1e-9 relative),
+their `.op` values, the `.four` THD and harmonics of a SIN-driven diode
+clipper, and the documented divergences on unmarked decks.
+
 ## Output policy
 
 The plot holds **every accepted time point with `time >= tstart`**, exactly like

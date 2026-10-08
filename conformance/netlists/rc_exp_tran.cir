@@ -1,0 +1,12 @@
+RC driven by an EXP source
+* EXP(V1=0 V2=1 TD1=0.2m TAU1=0.3m TD2=1.5m TAU2=0.5m); tau = 100 us.
+* C's VSRCaccept sets no breakpoints for EXP (the port lands on TD1/TD2). The
+* constant PWL marker v2 has knots at both corners, so C lands there as well and
+* the comparison never interpolates the C plot across a slope corner.
+v1 in 0 exp(0 1 0.2m 0.3m 1.5m 0.5m)
+r1 in out 1k
+c1 out 0 0.1u
+v2 mark 0 pwl(0 0 0.2m 0 1.5m 0)
+r2 mark 0 1k
+.tran 5u 4m
+.end

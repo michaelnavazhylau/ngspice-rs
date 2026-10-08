@@ -75,7 +75,7 @@ fn optional_and_repeated_branches_preserve_domain_errors() {
         ("I1 a 0 dc 2m ac 1 'phase'", "'phase'", "inp2i.c"),
         ("R1 a 0 1k tc1='tc'", "'tc'", "inp2r.c"),
         ("C1 a 0 1u unknown=2", "unknown", "inp2c.c"),
-        ("V1 a 0 dc 5 sin(0 1 1k)", "sin", "inp2v.c"),
+        ("V1 a 0 dc 5 trnoise(0 1n)", "trnoise", "inp2v.c"),
     ] {
         match parse(card).unwrap_err() {
             SpiceError::NotYetPorted { what, c_reference } => {

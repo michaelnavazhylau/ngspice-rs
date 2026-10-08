@@ -5,9 +5,14 @@
 //! depend on the analysis (`CKTstep`, `CKTfinalTime`) live in [`PulseSpec`] and are
 //! resolved by [`PulseSpec::resolve`]; [`Pulse`] itself is fully specified.
 //!
+//! The eighth field (`PHASE` in `vsrcload.c`) follows ngspice's default
+//! compatibility mode: a positive value `NP` limits the waveform to `NP` periods
+//! (`tmax = NP * PER` after the delay; non-integer counts cut a pulse short),
+//! after which the source holds V1. The `xs` compatibility mode, where the same
+//! field is a phase in degrees, is not modelled (the port has no `ngbehavior`).
+//!
 //! Deliberate differences from C: negative delay is rejected rather than shifting
-//! the pulse earlier; the 8th (`PHASE`/pulse-count) field is not representable;
-//! [`Pulse::new`] accepts zero-duration edges (C substitutes `CKTstep` for a
+//! the pulse earlier; [`Pulse::new`] accepts zero-duration edges (C substitutes `CKTstep` for a
 //! nonpositive rise/fall, which [`PulseSpec::resolve`] reproduces); and every
 //! boundary has a defined left and right limit instead of a single sampled value.
 
@@ -74,6 +79,9 @@ pub struct PulseSpec {
     pub width: Option<Real>,
     /// PER (nonpositive or omitted: `CKTfinalTime`).
     pub period: Option<Real>,
+    /// NP, the eighth field: a positive value is the number of pulses
+    /// (`tmax = NP * PER`); zero, negative or omitted means unlimited.
+    pub count: Option<Real>,
 }
 impl PulseSpec {
     /// Resolves C's defaults (`vsrcload.c`, `case PULSE`) for one transient run.
@@ -82,7 +90,14 @@ impl PulseSpec {
     /// Nonfinite fields, a gap in the supplied prefix, negative delay, or
     /// resolved timing that fails [`Pulse::new`].
     pub fn resolve(&self, timing: &TransientTiming) -> SpiceResult<Pulse> {
-        let optional = [self.delay, self.rise, self.fall, self.width, self.period];
+        let optional = [
+            self.delay,
+            self.rise,
+            self.fall,
+            self.width,
+            self.period,
+            self.count,
+        ];
         let given = optional.iter().take_while(|v| v.is_some()).count();
         if optional[given..].iter().any(Option::is_some) {
             return Err(invalid("optional fields must be a contiguous prefix"));
@@ -108,7 +123,8 @@ impl PulseSpec {
             positive_or(self.fall, timing.step),
             width,
             positive_or(self.period, timing.final_time),
-        )
+        )?
+        .with_count(self.count.unwrap_or(0.))
     }
 }
 
@@ -128,6 +144,8 @@ pub struct Pulse {
     fall: Real,
     width: Real,
     period: Real,
+    /// `NP * PER` (time after `delay` past which the source holds V1).
+    stop: Option<Real>,
 }
 impl Pulse {
     /// Creates a pulse.
@@ -164,7 +182,36 @@ impl Pulse {
             fall,
             width,
             period,
+            stop: None,
         })
+    }
+
+    /// Limits the pulse train to `count` periods (the eighth PULSE field in
+    /// ngspice's default compatibility mode, `vsrcload.c`): past
+    /// `delay + count * period` the value is V1. Zero or negative means
+    /// unlimited, as in C.
+    ///
+    /// # Errors
+    /// `count` nonfinite or `count * period` overflows.
+    pub fn with_count(mut self, count: Real) -> SpiceResult<Self> {
+        if !count.is_finite() {
+            return Err(invalid("nonfinite pulse count"));
+        }
+        self.stop = if count > 0. {
+            let stop = count * self.period;
+            if !stop.is_finite() {
+                return Err(invalid("pulse count times period overflows"));
+            }
+            Some(stop)
+        } else {
+            None
+        };
+        Ok(self)
+    }
+    /// The time after `delay` past which the source holds V1, if limited.
+    #[must_use]
+    pub const fn stop(&self) -> Option<Real> {
+        self.stop
     }
     /// V1.
     #[must_use]
@@ -254,6 +301,13 @@ impl Pulse {
         if s < 0. || (s == 0. && limit == Limit::Left) {
             return Ok(self.initial);
         }
+        // C: `time > tmax` holds V1; at `tmax` itself the shape is still used,
+        // so V1 is the right limit there.
+        if let Some(stop) = self.stop
+            && (s > stop || (s == stop && limit == Limit::Right))
+        {
+            return Ok(self.initial);
+        }
         let mut cycle = (s / self.period).floor();
         if !cycle.is_finite() || cycle >= MAX_CYCLE {
             return Err(invalid(
@@ -303,6 +357,11 @@ pub struct PulseBreakpoints {
     index: usize,
     last: Option<Real>,
     done: bool,
+    /// A count-limited train's cut time, when it truncates an edge or the
+    /// plateau (a jump to V1 that is not already a corner).
+    cut: Option<Real>,
+    /// The remaining breakpoints once the count is exhausted.
+    tail: Option<[Option<Real>; 2]>,
 }
 impl PulseBreakpoints {
     fn new(pulse: Pulse, t0: Real, t1: Real) -> SpiceResult<Self> {
@@ -323,6 +382,11 @@ impl PulseBreakpoints {
                 count += 1;
             }
         }
+        let cut = pulse.stop.and_then(|stop| {
+            let active = (pulse.rise + pulse.width + pulse.fall).min(pulse.period);
+            let offset = stop - pulse.period * (stop / pulse.period).floor();
+            (offset > 0. && offset < active).then_some(pulse.delay + stop)
+        });
         let last_cycle = ((t1 - pulse.delay) / pulse.period).floor();
         if !last_cycle.is_finite() || last_cycle >= MAX_CYCLE {
             return Err(invalid("breakpoint window spans too many periods"));
@@ -340,6 +404,8 @@ impl PulseBreakpoints {
             index: 0,
             last: None,
             done: false,
+            cut,
+            tail: None,
         })
     }
 }
@@ -347,13 +413,33 @@ impl Iterator for PulseBreakpoints {
     type Item = Real;
     fn next(&mut self) -> Option<Real> {
         while !self.done {
+            if let Some(tail) = &mut self.tail {
+                // After `tmax`: the cut (if any), then C's last request.
+                let Some(t) = tail.iter_mut().find_map(Option::take) else {
+                    self.done = true;
+                    break;
+                };
+                if t >= self.t0 && t <= self.t1 && self.last.is_none_or(|last| t > last) {
+                    self.last = Some(t);
+                    return Some(t);
+                }
+                continue;
+            }
             if self.index >= self.count {
                 self.index = 0;
                 self.cycle += 1.;
             }
-            let t = self.pulse.delay + self.pulse.period * self.cycle + self.offsets[self.index];
+            let local = self.pulse.period * self.cycle + self.offsets[self.index];
+            let t = self.pulse.delay + local;
             self.index += 1;
-            if !t.is_finite() || t > self.t1 {
+            if !t.is_finite() {
+                self.done = true;
+            } else if self.pulse.stop.is_some_and(|stop| local > stop) {
+                // C's VSRCaccept stops once `time > tmax`, but the request it
+                // made at its last step before that is the first corner after
+                // `tmax`; landing there too keeps the step sequence C's.
+                self.tail = Some([self.cut.take(), Some(t)]);
+            } else if t > self.t1 {
                 self.done = true;
             } else if t >= self.t0 && self.last.is_none_or(|last| t > last) {
                 self.last = Some(t);
@@ -501,6 +587,7 @@ mod tests {
             fall: fields[2],
             width: fields[3],
             period: fields[4],
+            count: None,
         };
         // Two fields: TD=0, TR=TF=step, PW=PER=final.
         let p = spec([None; 5]).resolve(&timing).unwrap();
@@ -543,6 +630,7 @@ mod tests {
             fall: None,
             width: None,
             period: None,
+            count: None,
         };
         let gap = PulseSpec {
             rise: Some(1.),
@@ -559,8 +647,67 @@ mod tests {
             ..base
         };
         assert!(nonfinite.resolve(&timing).is_err());
+        let count_gap = PulseSpec {
+            count: Some(2.),
+            ..base
+        };
+        assert!(count_gap.resolve(&timing).is_err());
+        assert!(pulse(1., 1., 1., 10.).with_count(f64::INFINITY).is_err());
+        assert!(pulse(1., 1., 1., 1e300).with_count(1e300).is_err());
         assert!(TransientTiming::new(0., 1.).is_err());
         assert!(TransientTiming::new(1., f64::INFINITY).is_err());
         assert!(TransientTiming::new(f64::NAN, 1.).is_err());
+    }
+
+    #[test]
+    fn pulse_count_holds_v1_after_count_periods() {
+        // Three pulses: delay 2, period 10, high on [3, 6], fall to 1 at 8.
+        let p = pulse(1., 2., 3., 10.).with_count(3.).unwrap();
+        assert_eq!(p.stop(), Some(30.));
+        assert_eq!(v(&p, 25., R), 5.);
+        assert_eq!(v(&p, 32., R), 1.);
+        assert_eq!(v(&p, 32.5, R), 1.);
+        assert_eq!(v(&p, 1e6, L), 1.);
+        // Integer counts end at a cycle boundary (continuous). After it only
+        // C's last request remains: the next corner (end of the next rise).
+        let corners: Vec<_> = p.breakpoints_in(0., 100.).unwrap().collect();
+        assert_eq!(
+            corners,
+            [
+                2., 3., 6., 8., 12., 13., 16., 18., 22., 23., 26., 28., 32., 33.
+            ]
+        );
+        // Zero and negative counts are unlimited, as in C (`PHASE > 0`).
+        for count in [0., -2.] {
+            let q = pulse(1., 2., 3., 10.).with_count(count).unwrap();
+            assert_eq!(q.stop(), None);
+            assert_eq!(v(&q, 43., R), 5.);
+        }
+        // A fractional count cuts the plateau: a jump to V1 at 2 + 1.4 * 10.
+        let cut = pulse(1., 2., 3., 10.).with_count(1.4).unwrap();
+        assert_eq!(v(&cut, 15., R), 5.);
+        assert_eq!((v(&cut, 16., L), v(&cut, 16., R)), (5., 1.));
+        let corners: Vec<_> = cut.breakpoints_in(0., 100.).unwrap().collect();
+        assert_eq!(corners, [2., 3., 6., 8., 12., 13., 16., 18.]);
+        // A cut in the idle part is no corner.
+        let idle = pulse(1., 2., 3., 10.).with_count(1.9).unwrap();
+        let corners: Vec<_> = idle.breakpoints_in(0., 100.).unwrap().collect();
+        assert_eq!(corners, [2., 3., 6., 8., 12., 13., 16., 18., 22.]);
+        assert_eq!(v(&idle, 19.5, R), 1.);
+        // Through the spec's eighth field.
+        let timing = TransientTiming::new(1e-3, 1.).unwrap();
+        let spec = PulseSpec {
+            initial: 0.,
+            pulsed: 1.,
+            delay: Some(0.),
+            rise: Some(0.1),
+            fall: Some(0.1),
+            width: Some(0.1),
+            period: Some(0.5),
+            count: Some(1.),
+        };
+        let p = spec.resolve(&timing).unwrap();
+        assert_eq!(p.stop(), Some(0.5));
+        assert_eq!(p.value_at(0.65, R).unwrap(), 0.);
     }
 }

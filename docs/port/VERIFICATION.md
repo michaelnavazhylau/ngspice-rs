@@ -54,6 +54,43 @@ and `Cargo.lock` are unchanged by the Fourier slice.
 The historical per-slice counts below record the state at each
 delivery; they are not the current totals.
 
+## M6 source functions (#94, #95)
+
+Five new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured or tolerance changed), are
+registered in `golden verify` with `compare::TRAN`: `rc_sin_tran`,
+`rc_exp_tran`, `rc_sffm_am_tran`, `rc_pwl_repeat_tran` and
+`rc_pulse_count_tran` (31 verified fixtures in this slice, each worst error
+0.000 of the bound). A discontinuous repeated PWL has no golden: at its
+repetition boundaries C's single loaded value depends on ulp-level rounding of
+its landing time, while the port always takes the left limit (see
+[TRANSIENT.md](TRANSIENT.md#source-functions-94-95)). `tran::breakpoints` follows C's `VSRCaccept`: PULSE
+corners up to `TD + NP*PER`, delayed and repeated PWL knots, none for
+SIN/EXP/SFFM/AM. The SIN and EXP decks therefore add a constant PWL marker whose
+knots make C land on the function's corners; without it the comparator would
+interpolate C's plot across a slope corner that only the port lands on.
+
+Opt-in live checks (`NGSPICE_BIN` absolute):
+
+```sh
+NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_source_functions --locked -- --ignored
+NGSPICE_BIN=/abs/ngspice cargo test -p spice-netlist --test c_reference --locked -- --ignored
+```
+
+`c_source_functions` compares 22 V/I sources (every form and C default) with
+C's node voltages at C's own timepoints (1e-9 relative; either limit at a jump
+instant), the `.op` time-zero values, and the `.four` THD/harmonics of a
+SIN-driven diode clipper (1 % + 0.05 points THD, 1 % + 1e-4 magnitudes).
+`unmarked_decks_diverge_from_c_only_within_documented_bounds` runs RC decks
+without marker sources in both engines and bounds the worst `v(out)` difference
+(measured: discontinuous repeated PWL 0.024-0.036 V; SIN/EXP delay 2e-5/8e-5 V;
+SFFM/AM delay jump 1.1e-3 V; EXP with `TD2 < TD1` 9e-3 V; fractional PULSE
+count 1e-3 V).
+`parsed_source_functions_match_live_c_coefficients` checks function codes and
+coefficient vectors (`@dev[function]`, `@dev[coeffs]`) of
+`conformance/parser/source_functions.cir`. Details:
+[TRANSIENT.md](TRANSIENT.md#source-functions-94-95).
+
 ## Branch-local M4 gate (#41)
 
 The nonlinear support/gate is documented in [M4_NONLINEAR.md](M4_NONLINEAR.md).

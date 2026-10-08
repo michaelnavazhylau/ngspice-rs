@@ -167,8 +167,20 @@ fn malformed_waveforms_are_committed_parse_errors() {
         "pulse(0 1,)",
         "pulse(,0 1)",
         "pulse(0,,1)",
-        "pulse(0 1 2 3 4 5 6 7)",
-        "pulse 0 1 2 3 4 5 6 7",
+        "pulse(0 1 2 3 4 5 6 7 8)",
+        "pulse 0 1 2 3 4 5 6 7 8",
+        "sin(0)",
+        "sin(0 1 2 3 4 5 6)",
+        "sine 0 1 2 3 4 5 6",
+        "exp(0 1 2 3 4 5 6)",
+        "sffm(0 1 2 3 4 5 6 7 8)",
+        "am(0 1 2 3 4 5 6 7 8)",
+        "am(0 1e999)",
+        "sin(0 1",
+        "exp(,0 1)",
+        "pwl(0 1) r",
+        "pwl(0 1) r=",
+        "pwl(0 1) td=1e999",
         "pulse(0 1e999)",
         "pulse 0 1e999",
         "pulse(0 1 1e999)",
@@ -194,15 +206,13 @@ fn unsupported_waveform_extensions_never_partially_succeed() {
         "pulse({low} 1)",
         "pulse(0 {high})",
         "pulse(0 '1')",
-        "pwl(0 1) r=0",
-        "pwl(0 1) td=1u",
         "pwl file=\"values.txt\"",
         "pwl(0 {value})",
-        "sin(0 1)",
-        "exp(0 1)",
-        "sffm(0 1)",
-        "am(0 1)",
+        "sin(0 {amplitude})",
+        "exp(0 'v2')",
         "trnoise(0 1)",
+        "trrandom(1 1n)",
+        "external",
         "pulse(0 1) junk",
     ] {
         let error = parse(&format!("I1 a 0 {body}\n")).unwrap_err();
@@ -226,4 +236,88 @@ fn vector_work_limit_is_explicit() {
         parse(&format!("V1 a 0 pwl({fields})")),
         Err(SpiceError::Parse { .. })
     ));
+}
+
+#[test]
+fn source_functions_keep_positioned_fields_and_omissions() {
+    use spice_netlist::ast::SourceFunction;
+    for (card, function, keyword, count) in [
+        (
+            "V1 a 0 SIN(0.5 2 1k 0.1m 20 30)",
+            SourceFunction::Sin,
+            "sin",
+            6,
+        ),
+        ("I1 a 0 sine 0 1m", SourceFunction::Sin, "sine", 2),
+        (
+            "V1 a 0 exp(1, 3, 0.2m, 0.1m, 0.6m, 0.2m)",
+            SourceFunction::Exp,
+            "exp",
+            6,
+        ),
+        ("V1 a 0 exp=(1 3 0.2m)", SourceFunction::Exp, "exp", 3),
+        (
+            "I1 a 0 SFFM 0 1m 10k 2 1k 0 90 45",
+            SourceFunction::Sffm,
+            "sffm",
+            8,
+        ),
+        ("V1 a 0 am(0.1 1 0.5 1k)", SourceFunction::Am, "am", 4),
+    ] {
+        let netlist = parse(card).unwrap();
+        let setter = &netlist.devices[0].parameters[0];
+        assert_eq!(setter.name, keyword, "{card}");
+        assert_eq!(
+            setter.location.column as usize,
+            card.to_ascii_lowercase().find(keyword).unwrap() + 1
+        );
+        let ParameterKind::Waveform(SourceWaveform::Function(wave)) = &setter.kind else {
+            panic!("{card}: function AST")
+        };
+        assert_eq!(wave.function, function, "{card}");
+        assert_eq!(wave.values.len(), count, "{card}");
+        assert!(count <= function.fields().len());
+        // Every field keeps its spelling and byte column.
+        for value in &wave.values {
+            let column = value.location.column as usize;
+            assert_eq!(&card[column - 1..column - 1 + value.text.len()], value.text);
+        }
+    }
+}
+
+#[test]
+fn pulse_count_and_pwl_options_are_ordered_positioned_setters() {
+    let netlist = parse("V1 a 0 PULSE(0 1 0 1n 1n 1u 2u 3)\n").unwrap();
+    let ParameterKind::Waveform(SourceWaveform::Pulse(pulse)) =
+        &netlist.devices[0].parameters[0].kind
+    else {
+        panic!("PULSE AST")
+    };
+    let count = pulse.count.as_ref().unwrap();
+    assert_eq!((count.text.as_str(), count.location.column), ("3", 32));
+    // Seven fields leave the count omitted.
+    let netlist = parse("V1 a 0 PULSE(0 1 0 1n 1n 1u 2u)\n").unwrap();
+    let ParameterKind::Waveform(SourceWaveform::Pulse(pulse)) =
+        &netlist.devices[0].parameters[0].kind
+    else {
+        panic!("PULSE AST")
+    };
+    assert!(pulse.count.is_none());
+    // r=/td= are scalar setters in card order (C applies them in order), with
+    // or without '=' (INPgetTok gobbles it), including expressions.
+    let netlist = parse("I1 a 0 td=1u PWL(0 0 1u 1) R 0 td {d}\n").unwrap();
+    let p = &netlist.devices[0].parameters;
+    assert_eq!(
+        p.iter()
+            .map(|p| (p.name.as_str(), p.value.as_str(), p.location.column))
+            .collect::<Vec<_>>(),
+        [
+            ("td", "1u", 8),
+            ("pwl", "(0 0 1u 1)", 14),
+            ("r", "0", 28),
+            ("td", "{d}", 32)
+        ]
+    );
+    assert_eq!(p[0].kind, ParameterKind::Scalar);
+    assert!(matches!(p[3].kind, ParameterKind::Expression(_)));
 }

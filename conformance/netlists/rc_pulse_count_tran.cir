@@ -1,0 +1,7 @@
+RC driven by a PULSE limited to three pulses
+* Eighth field NP=3: pulses start at 0.1, 0.6 and 1.1 ms; from 1.6 ms the source holds V1.
+v1 in 0 pulse(0 1 0.1m 20u 20u 0.2m 0.5m 3)
+r1 in out 1k
+c1 out 0 0.1u
+.tran 10u 3m
+.end

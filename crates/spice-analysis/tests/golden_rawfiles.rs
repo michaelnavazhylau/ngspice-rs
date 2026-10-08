@@ -507,6 +507,24 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rc_exp_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 817,
+        variables: &["time", "v(in)", "v(mark)", "v(out)", "i(v1)", "i(v2)"],
+        // EXP(0 1 0.2m 0.3m 1.5m 0.5m): at 4 ms v(in) = (1 - e^-(3.8/0.3))
+        // - (1 - e^-(2.5/0.5)) = e^-5 - e^-12.67 = 6.7348e-3; the marker is 0.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 816, 4.000000000000000e-03, 0.0),
+            ("v(in)", 816, 6.734792455280303e-03, 0.0),
+            ("v(mark)", 816, 0.0, 0.0),
+            ("v(out)", 816, 8.417684883876841e-03, 0.0),
+            ("i(v1)", 816, 1.682892428596538e-06, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_gear_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -577,6 +595,40 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rc_pulse_count_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 353,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // Three pulses (NP = 3) end by 1.6 ms; at 3 ms the source holds V1 = 0
+        // and the capacitor has decayed for 14 time constants.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 352, 3.000000000000000e-03, 0.0),
+            ("v(in)", 352, 0.0, 0.0),
+            ("v(out)", 352, 4.945681909430162e-08, 0.0),
+            ("i(v1)", 352, 4.945681909430162e-11, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_pwl_repeat_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 435,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // A 1 ms triangle repeated from 0.2 ms: at 4 ms it is 0.8 ms into a
+        // cycle, on the falling edge at 1 - 0.3/0.5 = 0.4 V.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 434, 4.000000000000000e-03, 0.0),
+            ("v(in)", 434, 4.000000000000001e-01, 0.0),
+            ("v(out)", 434, 5.802638284670004e-01, 0.0),
+            ("i(v1)", 434, 1.802638284670003e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_pwl_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -591,6 +643,43 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(in)", 822, 2.500000000000000e-01, 0.0),
             ("v(out)", 822, 2.543555791170526e-01, 0.0),
             ("i(v1)", 822, 4.355579117052644e-06, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_sffm_am_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2012,
+        variables: &["time", "v(in)", "v(out)", "i(v1)", "v(x)"],
+        // At 2 ms both carriers complete whole cycles: sin(20 pi + sin(2 pi)) is
+        // zero up to rounding; the filtered outputs lag behind.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("v(x)", 0, 0.0, 0.0),
+            ("time", 2011, 2.000000000000000e-03, 0.0),
+            ("v(in)", 2011, -2.449293598294707e-15, 0.0),
+            ("v(out)", 2011, -3.087246188813056e-01, 0.0),
+            ("i(v1)", 2011, -3.087246188813032e-04, 0.0),
+            ("v(x)", 2011, -2.777895339201290e-01, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_sin_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1511,
+        variables: &["time", "v(in)", "v(mark)", "v(out)", "i(v1)", "i(v2)"],
+        // Before TD the source holds 0.5 + sin(30 deg) = 1 V (the bias point);
+        // at 3 ms, 0.5 + sin(5.6 pi + pi/6) e^-0.56 = 0.1178 V.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 1.000000000000000e+00, 0.0),
+            ("v(out)", 0, 1.000000000000000e+00, 0.0),
+            ("time", 1510, 3.000000000000000e-03, 0.0),
+            ("v(in)", 1510, 1.177865327491662e-01, 0.0),
+            ("v(out)", 1510, 2.679214278175245e-02, 0.0),
+            ("i(v1)", 1510, -9.099438996741378e-05, 0.0),
         ],
     },
     Expectation {

@@ -1,0 +1,12 @@
+RC driven by a delayed, damped, phase-shifted sine
+* SIN(VO=0.5 VA=1 FREQ=1k TD=0.2m THETA=200 PHASE=30): v(in) holds
+* 0.5 + sin(30 deg) = 1 until TD. tau = 100 us; tstep = 2 us.
+* C sets no breakpoint at TD (the port does); the constant PWL marker v2 has a
+* knot there so both engines land on the corner.
+v1 in 0 sin(0.5 1 1k 0.2m 200 30)
+r1 in out 1k
+c1 out 0 0.1u
+v2 mark 0 pwl(0 0 0.2m 0)
+r2 mark 0 1k
+.tran 2u 3m
+.end

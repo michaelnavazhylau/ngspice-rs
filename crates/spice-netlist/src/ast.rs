@@ -2,8 +2,8 @@
 //!
 //! The parser, device registry and analyses share these types. The parser
 //! constructs linear-device netlists, model cards, bounded D/Q/M flags/ICs and
-//! numeric PULSE/PWL syntax, scoped subcircuits and resolved sources. ngspice's parsing quirks
-//! are encoded at that boundary:
+//! numeric PULSE/PWL/SIN/EXP/SFFM/AM syntax, scoped subcircuits and resolved
+//! sources. ngspice's parsing quirks are encoded at that boundary:
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
@@ -95,15 +95,71 @@ pub struct InitialCondition {
 
 /// Numeric source syntax from VSRCparam/ISRCparam. Runtime validation and
 /// analysis-dependent defaults belong to elaboration, not this AST.
+///
+/// PWL `td=`/`r=` are separate ordered scalar setters (`VSRC_TD`/`VSRC_R` in
+/// `vsrc.c`), not part of this value, exactly as C applies them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceWaveform {
-    /// Two required levels and up to five optional timing fields.
+    /// Two required levels and up to six optional fields.
     Pulse(Box<PulseWaveform>),
     /// Strictly paired time/value arguments. No sorting or time repair occurs.
     Pwl(Vec<PwlPoint>),
+    /// SIN/EXP/SFFM/AM: two required fields and a bounded optional prefix.
+    Function(Box<FunctionWaveform>),
 }
 
-/// `PULSE(V1 V2 [TD [TR [TF [PW [PER]]]]])`; omissions stay explicit.
+/// The analytic transient functions of `vsrcload.c`/`isrcload.c` that share
+/// one "required pair plus optional prefix" vector shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceFunction {
+    /// `SIN(VO VA [FREQ [TD [THETA [PHASE]]]])` (keyword `sin` or `sine`).
+    Sin,
+    /// `EXP(V1 V2 [TD1 [TAU1 [TD2 [TAU2]]]])`.
+    Exp,
+    /// `SFFM(VO VA [FC [MDI [FM [TD [PHASEM [PHASEC]]]]]])`.
+    Sffm,
+    /// `AM(VO VMO [VMA [FM [FC [TD [PHASEM [PHASEC]]]]]])`, in the
+    /// coefficient order `vsrcload.c` reads (`case AM`).
+    Am,
+}
+
+impl SourceFunction {
+    /// Field names in C coefficient order; the length is the maximum the
+    /// runtime reads (extra fields are a parse error, not silently dropped).
+    #[must_use]
+    pub const fn fields(self) -> &'static [&'static str] {
+        match self {
+            Self::Sin => &["vo", "va", "freq", "td", "theta", "phase"],
+            Self::Exp => &["v1", "v2", "td1", "tau1", "td2", "tau2"],
+            Self::Sffm => &["vo", "va", "fc", "mdi", "fm", "td", "phasem", "phasec"],
+            Self::Am => &["vo", "vmo", "vma", "fm", "fc", "td", "phasem", "phasec"],
+        }
+    }
+
+    /// Canonical keyword (`sine` is an accepted alias of `sin`).
+    #[must_use]
+    pub const fn keyword(self) -> &'static str {
+        match self {
+            Self::Sin => "sin",
+            Self::Exp => "exp",
+            Self::Sffm => "sffm",
+            Self::Am => "am",
+        }
+    }
+}
+
+/// One SIN/EXP/SFFM/AM setter: its function and the supplied fields in C
+/// coefficient order. Omitted trailing fields are simply absent; defaults that
+/// depend on `.tran` (`CKTstep`, `CKTfinalTime`) belong to elaboration.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionWaveform {
+    /// Which function.
+    pub function: SourceFunction,
+    /// Two to `function.fields().len()` positioned values.
+    pub values: Vec<PositionedValue>,
+}
+
+/// `PULSE(V1 V2 [TD [TR [TF [PW [PER [NP]]]]]])`; omissions stay explicit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PulseWaveform {
     /// Initial level (volts for V, amperes for I).
@@ -120,6 +176,9 @@ pub struct PulseWaveform {
     pub width: Option<PositionedValue>,
     /// Period in seconds.
     pub period: Option<PositionedValue>,
+    /// The eighth field (`PHASE` in `vsrcload.c`): in ngspice's default
+    /// compatibility mode a positive value is the number of pulses.
+    pub count: Option<PositionedValue>,
 }
 
 /// One PWL knot, retained in supplied order (syntax is not runtime validation).

@@ -9,7 +9,7 @@
 //!
 //! The implemented subset is M1a (scalar R/C/L, DC/AC sources, analysis cards)
 //! plus M1b model cards, two-terminal D, three/four-terminal Q and
-//! four-terminal M instances, bounded flags/IC vectors and numeric PULSE/PWL. Q/M use declared names for terminal disambiguation;
+//! four-terminal M instances, bounded flags/IC vectors and numeric PULSE/PWL/SIN/EXP/SFFM/AM. Q/M use declared names for terminal disambiguation;
 //! scoped subcircuits/X and source-relative include/library resolution. Model
 //! types/backend availability and parameter validity are not checked yet.
 //! Other constructs fail explicitly, never silently dropping cards. Values stay

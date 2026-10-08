@@ -199,6 +199,15 @@ const SUPPORTED: &[Supported] = &[
     tran("rlc_ic_uic_tran", &[]),
     tran("rc_ic_node_tran", &[]),
     tran("floating_cap_ic_tran", &[]),
+    // M6 source waveforms (#94, #95), companion trap driver under `compare::TRAN`.
+    // C sets no breakpoints for SIN/EXP/SFFM/AM, so those decks are compared on
+    // the grid only (`tran::breakpoints`); PULSE count and repeated PWL corners
+    // are C breakpoints.
+    tran("rc_sin_tran", &[]),
+    tran("rc_exp_tran", &[]),
+    tran("rc_sffm_am_tran", &[]),
+    tran("rc_pwl_repeat_tran", &[]),
+    tran("rc_pulse_count_tran", &[]),
     Supported {
         name: "rlc_series_ac",
         kind: AnalysisKind::Ac,
