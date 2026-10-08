@@ -20,13 +20,13 @@ cargo run -p spice-cli -- simulate --output rc.raw conformance/netlists/rc_trans
 | Netlists | Scalar R/C/L/V/I, `.model`, D/Q/M instances, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
 | Devices | Linear R/C/L/V/I; model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Ebers–Moll BJT and MOS1 (level 1) |
 | Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` |
-| Output | ASCII rawfiles from the CLI, ASCII and binary rawfile read/write in the library, `.save`/`.print` selection |
+| Output | ASCII rawfiles from the CLI (one plot per analysis for multi-analysis decks, in ngspice batch order), ASCII and binary rawfile read/write in the library, per-analysis `.save`/`.print` selection |
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
 Each area has documented limits; see [the feature guides](#documentation).
 Notable gaps include advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, `.plot`,
-multiple analyses per deck, nonlinear transient initialization, higher-index DAEs
-and the interactive interpreter. Remaining work is tracked in [TODO.md](TODO.md);
+nonlinear transient initialization, higher-index DAEs and the interactive
+interpreter. Remaining work is tracked in [TODO.md](TODO.md);
 milestones are in [ROADMAP.md](docs/port/ROADMAP.md).
 
 ## Getting started
@@ -51,7 +51,7 @@ cargo test --workspace --locked --offline
 ## Command line
 
 ```sh
-spice-rs simulate --output out.raw deck.cir   # run the deck's analysis, write a rawfile
+spice-rs simulate --output out.raw deck.cir   # run the deck's analyses, write a rawfile
 spice-rs parse deck.cir                       # parse and report unported constructs
 spice-rs cards deck.cir                       # classify every card
 spice-rs tokens deck.cir                      # dump the token stream
@@ -59,7 +59,9 @@ spice-rs devices                             # list supported device designators
 spice-rs analyses                            # list analyses and their status
 ```
 
-`simulate` runs exactly one `.op`, `.dc`, `.ac` or `.tran` per deck. Exit status
+`simulate` runs every `.op`, `.dc`, `.ac` and `.tran` card of a deck in ngspice
+batch order (`.ac`, `.dc`, `.op`, `.tran`) and writes one plot per analysis;
+a failure in any analysis publishes nothing. Exit status
 is `0` on success, `1` for a bad command line, `2` for a bad deck or failed run,
 and `3` when the deck needs something the port does not support yet. Details are
 in [CLI.md](docs/port/CLI.md).
@@ -89,7 +91,8 @@ cargo xtask golden verify                            # Rust engine vs committed 
 NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-`golden verify` currently verifies all 26 golden fixtures with no exclusions.
+`golden verify` currently verifies all 27 golden fixtures (one of them a
+four-plot multi-analysis deck) with no exclusions.
 [VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
 and its limits.
 

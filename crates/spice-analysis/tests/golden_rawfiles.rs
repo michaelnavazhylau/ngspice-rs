@@ -872,13 +872,123 @@ const EXPECTATIONS: &[Expectation] = &[
     },
 ];
 
+/// Multi-analysis fixtures (#96): one [`Expectation`] per plot, in rawfile
+/// order, which is ngspice's batch order (`.ac`, `.dc`, `.op`, `.tran`), not
+/// the deck order.
+#[allow(clippy::excessive_precision)]
+const MULTI_EXPECTATIONS: &[&[Expectation]] = &[&[
+    // Thevenin source of the 1k/2k divider: 2/3 of the drive behind 2/3 k, so
+    // the corner is 1/(2 pi 666.7 ohm 100 nF) = 2.39 kHz; at 100 Hz the
+    // response is (2/3) / (1 + j 0.041888).
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 5,
+        variables: &["frequency", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("frequency", 0, 100.0, 0.0),
+            ("v(out)", 0, 6.654989845853894e-01, -2.787635627926568e-02),
+            ("i(v1)", 0, -3.345010154146106e-04, -2.787635627926568e-05),
+        ],
+    },
+    // The sweep scales the divider: v(out) = 2/3 v1, i(v1) = -v1 / 3 k.
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 5,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("v(v-sweep)", 3, 1.5, 0.0),
+            ("v(out)", 3, 1.0, 0.0),
+            ("i(v1)", 3, -5.0e-4, 0.0),
+        ],
+    },
+    // The operating point uses the source's `dc 2`, not the pulse's t = 0 value.
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("v(in)", 0, 2.0, 0.0),
+            ("v(out)", 0, 1.333333333333333e+00, 0.0),
+            ("i(v1)", 0, -6.666666666666668e-04, 0.0),
+        ],
+    },
+    // The transient starts from the pulse's 0 V and, 480 us after the pulse
+    // ended, has decayed by about exp(-480/66.7) toward zero.
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 124,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 123, 1.0e-3, 0.0),
+            ("v(out)", 123, 4.549183592268200e-04, 0.0),
+            ("i(v1)", 123, 4.549183592268200e-07, 0.0),
+        ],
+    },
+]];
+
+fn check_plot(expectation: &Expectation, plot: &spice_analysis::Plot) {
+    assert_eq!(
+        plot.plotname, expectation.plotname,
+        "{}: plot name",
+        expectation.fixture
+    );
+    assert_eq!(
+        plot.flags, expectation.flags,
+        "{}: flags",
+        expectation.fixture
+    );
+    assert_eq!(
+        plot.point_count(),
+        expectation.points,
+        "{}: point count",
+        expectation.fixture
+    );
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .collect();
+    assert_eq!(
+        names, expectation.variables,
+        "{}: variables, in rawfile order",
+        expectation.fixture
+    );
+
+    for &(variable, point, re, im) in expectation.values {
+        let actual = plot
+            .value(variable, point)
+            .unwrap_or_else(|| panic!("{}: no '{variable}'", expectation.fixture));
+        let expected = Complex::new(re, im);
+        assert!(
+            approx_eq(actual.re, expected.re, 1e-15) && approx_eq(actual.im, expected.im, 1e-15),
+            "{}: {variable}[{point}] is {actual}, expected {expected}",
+            expectation.fixture
+        );
+    }
+}
+
 #[test]
 fn fixtures_have_the_expected_shape_and_values() {
     let discovered = fixture_names();
-    let documented: Vec<String> = EXPECTATIONS
+    let mut documented: Vec<String> = EXPECTATIONS
         .iter()
         .map(|expectation| expectation.fixture.to_owned())
+        .chain(
+            MULTI_EXPECTATIONS
+                .iter()
+                .map(|plots| plots[0].fixture.to_owned()),
+        )
         .collect();
+    documented.sort();
     assert_eq!(
         discovered, documented,
         "every fixture must be documented here, so that new goldens get read by a human"
@@ -892,46 +1002,45 @@ fn fixtures_have_the_expected_shape_and_values() {
             "{}: expected a single plot",
             expectation.fixture
         );
-        let plot = &rawfile.plots[0].plot;
+        check_plot(expectation, &rawfile.plots[0].plot);
+    }
+    for plots in MULTI_EXPECTATIONS {
+        let fixture = plots[0].fixture;
+        let rawfile = RawFile::parse(&golden_text(fixture)).expect("parses");
+        assert_eq!(rawfile.len(), plots.len(), "{fixture}: plot count");
+        for (expectation, raw_plot) in plots.iter().zip(&rawfile.plots) {
+            assert_eq!(expectation.fixture, fixture);
+            check_plot(expectation, &raw_plot.plot);
+        }
+    }
+}
 
-        assert_eq!(
-            plot.plotname, expectation.plotname,
-            "{}: plot name",
-            expectation.fixture
-        );
-        assert_eq!(
-            plot.flags, expectation.flags,
-            "{}: flags",
-            expectation.fixture
-        );
-        assert_eq!(
-            plot.point_count(),
-            expectation.points,
-            "{}: point count",
-            expectation.fixture
-        );
-        let names: Vec<&str> = plot
-            .variables
-            .iter()
-            .map(|variable| variable.name.as_str())
-            .collect();
-        assert_eq!(
-            names, expectation.variables,
-            "{}: variables, in rawfile order",
-            expectation.fixture
-        );
-
-        for &(variable, point, re, im) in expectation.values {
-            let actual = plot
-                .value(variable, point)
-                .unwrap_or_else(|| panic!("{}: no '{variable}'", expectation.fixture));
-            let expected = Complex::new(re, im);
-            assert!(
-                approx_eq(actual.re, expected.re, 1e-15)
-                    && approx_eq(actual.im, expected.im, 1e-15),
-                "{}: {variable}[{point}] is {actual}, expected {expected}",
-                expectation.fixture
-            );
+/// A multi-plot golden survives the ASCII and binary writers with its plot
+/// order, headers and every value intact.
+#[test]
+fn multi_plot_goldens_round_trip_through_both_encodings() {
+    for plots in MULTI_EXPECTATIONS {
+        let fixture = plots[0].fixture;
+        let rawfile = RawFile::parse(&golden_text(fixture)).expect("parses");
+        let ascii = RawFile::parse(&rawfile.to_ascii()).expect("the ASCII form parses");
+        assert_eq!(ascii, rawfile, "{fixture}: ASCII round trip");
+        let binary = RawFile::parse_bytes(&rawfile.to_binary().expect("binary encodes"))
+            .expect("the binary form parses");
+        assert_eq!(binary.len(), rawfile.len(), "{fixture}: binary plot count");
+        for (got, want) in binary.plots.iter().zip(&rawfile.plots) {
+            assert_eq!(got.title, want.title, "{fixture}");
+            assert_eq!(got.command, want.command, "{fixture}");
+            assert_eq!(got.plot.plotname, want.plot.plotname, "{fixture}");
+            assert_eq!(got.plot.flags, want.plot.flags, "{fixture}");
+            assert_eq!(got.plot.point_count(), want.plot.point_count());
+            for variable in &want.plot.variables {
+                assert_eq!(
+                    got.plot.column(&variable.name),
+                    want.plot.column(&variable.name),
+                    "{fixture}: '{}' survives the binary round trip bit for bit",
+                    variable.name
+                );
+            }
         }
     }
 }

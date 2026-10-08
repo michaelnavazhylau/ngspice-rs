@@ -196,10 +196,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "m4_mos1_ac",
         "m4_mos1_tran",
     ];
-    // M6 common-deck fixtures (#94, #95, #107, #110) are gated by `xtask golden verify`
-    // and their own feature tests.
+    // M6 common-deck fixtures (#94, #95, #96, #107, #110) are gated by
+    // `xtask golden verify` (multi-analysis decks plot by plot) and their own
+    // feature tests.
     let m6 = [
         "func_quotes",
+        "multi_analysis_rc",
         "options_gmin_dc",
         "options_xmu_tran",
         "rc_exp_tran",

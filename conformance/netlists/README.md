@@ -1,7 +1,8 @@
 # Conformance fixtures
 
-Every `*.cir` file here is a **pure deck**: no `.control` section, exactly one
-analysis card, and no file I/O. `cargo xtask golden capture` instruments each one
+Every `*.cir` file here is a **pure deck**: no `.control` section and no file
+I/O. Most have exactly one analysis card; `multi_analysis_rc` deliberately has
+four (see below). `cargo xtask golden capture` instruments each one
 by inserting
 
 ```spice
@@ -17,9 +18,11 @@ stores the resulting ASCII rawfile in `../golden/<fixture>.raw`.
 
 Why these rules:
 
-- **One analysis per deck.** `write` writes the *current* plot, so a deck with
-  two analyses would need per-plot names. When multi-analysis fixtures are
-  wanted, `xtask` should write each plot by name.
+- **One analysis per deck, unless multi-analysis is the point.** `write` writes
+  the *current* plot, so a deck with several analyses is instrumented to write
+  each plot by its C name (`write <fixture>.raw ac1.all dc1.all ...`, in batch
+  order, then `quit`) and is registered in the `BATCH` verification registry
+  (#96).
 - **No `.control` section.** `xtask` refuses to instrument a deck that already
   has one; a fixture's behaviour must come from its `.` cards, not from a
   command script, so that the port has something well-defined to reproduce.
@@ -79,6 +82,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
+| `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)

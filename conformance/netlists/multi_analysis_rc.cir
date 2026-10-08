@@ -1,0 +1,10 @@
+Multi-analysis RC low-pass with load
+v1 in 0 dc 2 ac 1 pulse(0 1 100u 10u 10u 400u 1m)
+r1 in out 1k
+r2 out 0 2k
+c1 out 0 100n
+.tran 10u 1m
+.ac lin 5 100 10k
+.op
+.dc v1 0 2 0.5
+.end

@@ -1,0 +1,61 @@
+# ngspice-rs ast-dump v1
+file: netlists/multi_analysis_rc.cir
+title: "Multi-analysis RC low-pass with load" @netlists/multi_analysis_rc.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/multi_analysis_rc.cir:2:1 "v1 in 0 dc 2 ac 1 pulse(0 1 100u 10u 10u 400u 1m)"
+    [1] device[1] @netlists/multi_analysis_rc.cir:3:1 "r1 in out 1k"
+    [2] device[2] @netlists/multi_analysis_rc.cir:4:1 "r2 out 0 2k"
+    [3] device[3] @netlists/multi_analysis_rc.cir:5:1 "c1 out 0 100n"
+    [4] analysis[0] @netlists/multi_analysis_rc.cir:6:1 ".tran 10u 1m"
+    [5] analysis[1] @netlists/multi_analysis_rc.cir:7:1 ".ac lin 5 100 10k"
+    [6] analysis[2] @netlists/multi_analysis_rc.cir:8:1 ".op"
+    [7] analysis[3] @netlists/multi_analysis_rc.cir:9:1 ".dc v1 0 2 0.5"
+    [8] end @netlists/multi_analysis_rc.cir:10:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/multi_analysis_rc.cir:2:1
+      nodes: "in" "0"
+      model: none
+      parameters (4):
+        [0] name="dc" kind=scalar value="2" @netlists/multi_analysis_rc.cir:2:9
+        [1] name="acmag" kind=scalar value="1" @netlists/multi_analysis_rc.cir:2:17
+        [2] name="acphase" kind=scalar value="0" @netlists/multi_analysis_rc.cir:2:14
+        [3] name="pulse" kind=waveform value="(0 1 100u 10u 10u 400u 1m)" @netlists/multi_analysis_rc.cir:2:19
+          pulse
+            initial: "0"@netlists/multi_analysis_rc.cir:2:25
+            pulsed: "1"@netlists/multi_analysis_rc.cir:2:27
+            delay: "100u"@netlists/multi_analysis_rc.cir:2:29
+            rise: "10u"@netlists/multi_analysis_rc.cir:2:34
+            fall: "10u"@netlists/multi_analysis_rc.cir:2:38
+            width: "400u"@netlists/multi_analysis_rc.cir:2:42
+            period: "1m"@netlists/multi_analysis_rc.cir:2:47
+    device [1] name="r1" designator=r @netlists/multi_analysis_rc.cir:3:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/multi_analysis_rc.cir:3:11
+    device [2] name="r2" designator=r @netlists/multi_analysis_rc.cir:4:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/multi_analysis_rc.cir:4:10
+    device [3] name="c1" designator=c @netlists/multi_analysis_rc.cir:5:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/multi_analysis_rc.cir:5:10
+  models (0):
+  subcircuits (0):
+  analyses (4):
+    analysis [0] kind=tran @netlists/multi_analysis_rc.cir:6:1
+      arguments: "10u" "1m"
+    analysis [1] kind=ac @netlists/multi_analysis_rc.cir:7:1
+      arguments: "lin" "5" "100" "10k"
+    analysis [2] kind=op @netlists/multi_analysis_rc.cir:8:1
+      arguments:
+    analysis [3] kind=dc @netlists/multi_analysis_rc.cir:9:1
+      arguments: "v1" "0" "2" "0.5"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

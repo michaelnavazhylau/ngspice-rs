@@ -1,5 +1,5 @@
 //! Process-level checks for `spice-rs simulate`: the exit-code contract, the
-//! exactly-one-analysis rule, the ASCII rawfile the command writes and the
+//! multi-analysis batch order and per-analysis output cards, the ASCII rawfile the command writes and the
 //! temporary-file/rename guarantee that a failed run never leaves or destroys
 //! the destination.
 //!
@@ -93,7 +93,17 @@ fn cli(arguments: &[&str]) -> Output {
 /// flags and every variable's name, unit and real/complex flag must match
 /// exactly.
 fn assert_matches_golden(name: &str, written: &RawFile, relative: f64, absolute: f64) {
-    let committed = golden(name);
+    assert_plots_match(name, written, &golden(name), relative, absolute);
+}
+
+/// [`assert_matches_golden`] against an explicit single-plot rawfile.
+fn assert_plots_match(
+    name: &str,
+    written: &RawFile,
+    committed: &RawFile,
+    relative: f64,
+    absolute: f64,
+) {
     let want = committed.single_plot().expect("one golden plot");
     let got = written.single_plot().expect("one written plot");
     assert_eq!(got.plotname, want.plotname, "{name}: plot name");
@@ -374,24 +384,242 @@ fn an_unported_model_family_exits_three_and_writes_nothing() {
     fs::remove_dir_all(&dir).unwrap();
 }
 
+/// The plot names of a written rawfile, in file order.
+fn plotnames(rawfile: &RawFile) -> Vec<&str> {
+    rawfile
+        .plots
+        .iter()
+        .map(|raw_plot| raw_plot.plot.plotname.as_str())
+        .collect()
+}
+
+/// The variable names of one plot, in column order.
+fn variable_names(plot: &spice_analysis::Plot) -> Vec<&str> {
+    plot.variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .collect()
+}
+
 #[test]
-fn two_analysis_cards_are_rejected_and_the_destination_survives() {
-    let dir = scratch("two-analyses");
+fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
+    // The deck lists `.tran .ac .op .dc`; ngspice batch mode runs `.ac .dc .op
+    // .tran` (CKTdoJob walks analInfo[] in its fixed order), and so does the port.
+    let dir = scratch("multi");
+    let output = dir.join("multi.raw");
+    let run = simulate(&output, &fixture("multi_analysis_rc"));
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    assert!(
+        report.contains("plots:     ac1 dc1 op1 tran1 (ngspice batch order)"),
+        "{report}"
+    );
+    assert!(
+        report.contains("(ngspice ASCII rawfile with 4 plots, no binary support)"),
+        "{report}"
+    );
+    let sections: Vec<usize> = ["[ac1]", "[dc1]", "[op1]", "[tran1]"]
+        .iter()
+        .map(|section| report.find(section).expect("one section per plot"))
+        .collect();
+    assert!(
+        sections.windows(2).all(|pair| pair[0] < pair[1]),
+        "{report}"
+    );
+
+    let mut written = RawFile::load(&output).expect("parses");
+    let committed = golden("multi_analysis_rc");
+    assert_eq!(plotnames(&written), plotnames(&committed));
+    assert_eq!(
+        plotnames(&written),
+        [
+            "AC Analysis",
+            "DC transfer characteristic",
+            "Operating Point",
+            "Transient Analysis"
+        ]
+    );
+    for raw_plot in &written.plots {
+        assert_eq!(raw_plot.title, "Multi-analysis RC low-pass with load");
+        assert!(raw_plot.command.starts_with("spice-rs "), "{raw_plot:?}");
+    }
+    // The port names the DC scale `sweep`; C writes `v(v-sweep)` (CLI.md).
+    assert_eq!(written.plots[1].plot.variables[0].name, "sweep");
+    written.plots[1].plot.variables[0].name = "v(v-sweep)".to_owned();
+    for (index, (got, want)) in written.plots.iter().zip(&committed.plots).enumerate() {
+        let (relative, absolute) = if got.plot.flags == PlotFlags::Complex {
+            (1e-10, 1e-12)
+        } else {
+            (1e-12, 1e-15)
+        };
+        let single = |raw_plot: &spice_analysis::RawPlot| RawFile {
+            plots: vec![raw_plot.clone()],
+        };
+        assert_plots_match(
+            &format!("multi_analysis_rc plot {index}"),
+            &single(got),
+            &single(want),
+            relative,
+            absolute,
+        );
+    }
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn same_type_analyses_run_in_reverse_deck_order_with_c_plot_names() {
+    // Measured with ngspice-47: two `.dc` cards run last-card-first (the job
+    // list is built by prepending), and the plot counter that collision bumped
+    // to 2 stays there, so the deck below lists `dc1 dc2 op2 tran2`. C prints a
+    // `.print dc` table for both sweeps, and measures `.meas dc` on the plot
+    // that ran last (`plot_cur`), i.e. the first card's 0..1 V sweep:
+    // ngspice-47 reports `vmax = 5.00000e-01 at= 1.00000e+00` for this circuit.
+    let dir = scratch("multi-same-type");
     let deck = write_deck(
         &dir,
-        "two analyses\nv1 in 0 dc 1\nr1 out 0 1k\n.op\n.ac dec 2 1 10\n.end\n",
+        "two sweeps\nv1 in 0 dc 1 pulse(0 1 0 1u 1u 1m 2m)\nr1 in out 1k\nr2 out 0 1k\n\
+         .tran 0.1m 0.5m\n.dc v1 0 1 0.5\n.op\n.dc v1 0 4 2\n\
+         .print dc v(out)\n.meas dc vmax max v(out)\n.end\n",
     );
-    let output = dir.join("keep.raw");
-    fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+    let output = dir.join("same.raw");
     let run = simulate(&output, &deck);
-    assert_eq!(run.status.code(), Some(3), "{}", stderr(&run));
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
     assert!(
-        stderr(&run).contains("exactly one analysis"),
+        stdout(&run).contains("plots:     dc1 dc2 op2 tran2 (ngspice batch order)"),
         "{}",
-        stderr(&run)
+        stdout(&run)
     );
-    assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
-    assert_eq!(entries(&dir), ["deck.cir", "keep.raw"]);
+    let written = RawFile::load(&output).expect("parses");
+    assert_eq!(
+        plotnames(&written),
+        [
+            "DC transfer characteristic",
+            "DC transfer characteristic",
+            "Operating Point",
+            "Transient Analysis"
+        ]
+    );
+    let last_sweep = |plot: &spice_analysis::Plot| {
+        plot.value("sweep", plot.point_count() - 1)
+            .expect("a sweep column")
+            .re
+    };
+    assert_eq!(
+        last_sweep(&written.plots[0].plot),
+        4.0,
+        "the later card runs first"
+    );
+    assert_eq!(last_sweep(&written.plots[1].plot), 1.0);
+    let report = stdout(&run);
+    assert_eq!(
+        report.matches("print: 2 vector(s): sweep v(out)").count(),
+        2,
+        "one table per dc plot: {report}"
+    );
+    assert_eq!(report.matches("vmax").count(), 1, "{report}");
+    let measured = report.find("vmax").unwrap();
+    assert!(
+        report.find("[dc2]").unwrap() < measured && measured < report.find("[op2]").unwrap(),
+        "the measurement belongs to the last dc plot: {report}"
+    );
+    assert!(
+        report[measured..].contains("5.000000000000000e-1")
+            || report[measured..].contains("5.000000000000000e-01"),
+        "{report}"
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn output_cards_apply_per_analysis_type() {
+    let dir = scratch("multi-outputs");
+    // `.save` narrows every plot; `.print ac` adds `vm(out)` to (and prints) the
+    // ac plot only; `.measure` cards go to the plot of their own type and
+    // `.four` to the transient plot.
+    let deck = write_deck(
+        &dir,
+        "per-analysis outputs\nv1 in 0 dc 1 ac 1 pulse(0 1 0 10u 10u 490u 1m)\nr1 in out 1k\nc1 out 0 10n\n\
+         .tran 10u 3m\n.ac lin 3 100 1k\n.op\n\
+         .save v(out)\n.print ac vm(out)\n\
+         .meas tran tmax max v(out)\n.meas ac gain find vm(out) at=100\n\
+         .four 1k v(out)\n.end\n",
+    );
+    let output = dir.join("outputs.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let written = RawFile::load(&output).expect("parses");
+    assert_eq!(
+        plotnames(&written),
+        ["AC Analysis", "Operating Point", "Transient Analysis"]
+    );
+    assert_eq!(
+        variable_names(&written.plots[0].plot),
+        ["frequency", "v(out)", "vm(out)"]
+    );
+    assert_eq!(variable_names(&written.plots[1].plot), ["v(out)"]);
+    assert_eq!(variable_names(&written.plots[2].plot), ["time", "v(out)"]);
+
+    let report = stdout(&run);
+    let ac = report.find("[ac1]").expect("the ac section");
+    let op = report.find("[op1]").expect("the op section");
+    let tran = report.find("[tran1]").expect("the tran section");
+    let only_in = |needle: &str, from: usize, to: usize| {
+        let at = report
+            .find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {report}"));
+        assert!(
+            from < at && at < to,
+            "{needle} belongs to its own plot: {report}"
+        );
+        assert_eq!(report.matches(needle).count(), 1, "{needle}: {report}");
+    };
+    only_in("print: 2 vector(s): frequency vm(out)", ac, op);
+    only_in("gain", ac, op);
+    only_in("tmax", tran, report.len());
+    only_in("four: 1 analysis(es)", tran, report.len());
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_failing_later_analysis_publishes_nothing_from_the_earlier_ones() {
+    let dir = scratch("multi-atomic");
+    let output = dir.join("keep.raw");
+    let base = "atomic\nv1 in 0 dc 1 ac 1 pulse(0 1 0 1u 1u 1m 2m)\nr1 in out 1k\nc1 out 0 1u\n\
+                .op\n.ac lin 3 100 1k\n";
+    for (extra, status, message) in [
+        // `.tran` runs last and exhausts its work budget after `.ac` and `.op`
+        // succeeded.
+        (".tran 1u 1m maxsteps=3\n", 2, "work limit"),
+        // A measurement of the last plot fails after every analysis ran.
+        (
+            ".tran 10u 1m\n.meas tran late find v(out) at=5\n",
+            2,
+            "outside the time range",
+        ),
+        // An analysis without a driver fails before anything runs.
+        (
+            ".noise v(out) v1 dec 10 1 1k\n",
+            2,
+            ".noise analysis has no driver",
+        ),
+        // Output cards naming an analysis the deck does not run.
+        (".print dc v(out)\n", 2, "names a different analysis"),
+        (
+            ".meas tran x max v(out)\n",
+            2,
+            "the card names a .tran measurement",
+        ),
+        (".four 1k v(out)\n", 2, "transforms a .tran result"),
+    ] {
+        fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+        let deck = write_deck(&dir, &format!("{base}{extra}.end\n"));
+        let run = simulate(&output, &deck);
+        assert_eq!(run.status.code(), Some(status), "{extra}: {}", stderr(&run));
+        assert!(stdout(&run).is_empty(), "{extra}: {}", stdout(&run));
+        assert!(stderr(&run).contains(message), "{extra}: {}", stderr(&run));
+        assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
+        assert_eq!(entries(&dir), ["deck.cir", "keep.raw"], "{extra}");
+    }
     fs::remove_dir_all(&dir).unwrap();
 }
 

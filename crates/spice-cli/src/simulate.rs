@@ -1,29 +1,36 @@
-//! `spice-rs simulate` — run one analysis of a deck and write an ASCII rawfile.
+//! `spice-rs simulate` — run every analysis of a deck and write an ASCII rawfile.
 //!
-//! C: the batch path of `src/ngspice.c` (`CKTdoJob()` through `ft_dotsim`/
-//! `ft_dorun`) plus the writer in `src/frontend/rawfile.c` (`raw_write`, ASCII
+//! C: the batch path of `src/ngspice.c` (`ngspice -b -r`: `ft_dorun()` →
+//! `CKTdoJob()`) plus the writer in `src/frontend/rawfile.c` (`raw_write`, ASCII
 //! only). The command is deliberately narrow:
 //!
 //! * the deck is loaded by the ordinary [`spice_netlist::Parser`] and elaborated
 //!   by the ordinary production runner, so no device or solver logic is
 //!   duplicated here;
-//! * **exactly one** analysis card is required (see [`run`]);
-//! * a deck's `.save`/`.print` cards select which vectors are written, through
+//! * **every** analysis card runs, in ngspice batch order (see
+//!   [`spice_analysis::batch`]: `.ac`, `.dc`, `.op`, `.tran`, same-type cards in
+//!   reverse deck order), each on a freshly elaborated circuit, and each result
+//!   becomes one plot of a single multi-plot rawfile in that order;
+//! * a deck's `.save` cards narrow every plot, and its `.print <type>` cards
+//!   narrow (and print a table for) the plots of that type only, through
 //!   [`spice_analysis::selection`]; the selection is resolved against the full
 //!   plot the driver produced, so an unresolvable request fails before anything
 //!   is written or printed;
 //! * a deck's `.measure`/`.meas` cards are evaluated through
-//!   [`spice_analysis::measure`] against that same **full** plot, so an operand
-//!   the output selection excluded is still measurable and a measurement never
-//!   changes the written rawfile. A deck with no `.measure` card prints exactly
-//!   what it printed before this work ([`Report`] carries only what was
-//!   written and measured);
+//!   [`spice_analysis::measure`] against the **full** last plot of their own
+//!   analysis type, so an operand the output selection excluded is still
+//!   measurable and a measurement never changes the written rawfile. A deck with
+//!   no `.measure` card prints exactly what it printed before this work
+//!   ([`Report`] carries only what was written and measured);
 //! * a deck's `.four` cards are evaluated through [`spice_analysis::fourier`]
-//!   against that same **full** plot as well, so a `.save`/`.print` selection
-//!   never hides a transformed vector. A deck with no `.four` card prints
-//!   exactly what it printed before this work, and a `.four` card never changes
-//!   the written rawfile (C registers the named vectors for the transient plot
-//!   instead);
+//!   against the same **full** last `.tran` plot, so a `.save`/`.print`
+//!   selection never hides a transformed vector. A deck with no `.four` card
+//!   prints exactly what it printed before this work, and a `.four` card never
+//!   changes the written rawfile (C registers the named vectors for the
+//!   transient plot instead);
+//! * publication is atomic: every analysis runs and every output card resolves
+//!   before anything is printed or written, so one failing analysis publishes
+//!   nothing (C would keep the plots that succeeded);
 //! * the rawfile is written through a temporary file in the destination's
 //!   directory and renamed into place, so a failed run never truncates,
 //!   replaces or removes an existing destination, and never leaves a partial
@@ -37,18 +44,14 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use spice_analysis::batch;
 use spice_analysis::fourier::{self, FourierAnalysis};
 use spice_analysis::measure::{self, Measurement};
-use spice_analysis::selection::{self, Selection};
-use spice_analysis::{Plot, RawFile, RawPlot, RunConfig, runner};
+use spice_analysis::{RawFile, RawPlot, RunConfig, runner};
 use spice_core::{AnalysisKind, SpiceError, SpiceResult};
 use spice_netlist::Parser;
-use spice_netlist::ast::{AnalysisCard, Netlist};
 
 use crate::cli::kind_name;
-
-/// The C files this command's contract comes from, quoted in "not ported" errors.
-const C_REFERENCE: &str = "src/ngspice.c (batch job control), src/frontend/rawfile.c (raw_write)";
 
 /// What one successful run produced, for the report printed afterwards.
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +60,18 @@ pub struct Report {
     pub deck: PathBuf,
     /// The deck's title line, as written to the rawfile.
     pub title: String,
+    /// The rawfile that was written.
+    pub output: PathBuf,
+    /// One entry per plot, in rawfile (ngspice batch) order.
+    pub plots: Vec<PlotReport>,
+}
+
+/// What one analysis of a run produced.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlotReport {
+    /// The name ngspice gives the plot in memory, e.g. `tran1` (not written to
+    /// the rawfile; see [`spice_analysis::batch`]).
+    pub name: String,
     /// The analysis that ran.
     pub analysis: AnalysisKind,
     /// The rawfile's `Plotname:` header, e.g. `Transient Analysis`.
@@ -66,25 +81,24 @@ pub struct Report {
     pub variables: Vec<String>,
     /// How many points the plot has.
     pub points: usize,
-    /// The rawfile that was written.
-    pub output: PathBuf,
-    /// The `.print` table, when the deck asked for one. `None` for a deck
-    /// without an applicable `.print` card, which keeps the report unchanged.
+    /// The `.print` table, when the deck asked for one for this analysis type.
+    /// `None` without an applicable `.print` card, which keeps the report
+    /// unchanged.
     pub printed: Option<String>,
-    /// The `.measure` results, when the deck asked for any. `None` for a deck
-    /// without a `.measure` card, which keeps the report unchanged.
+    /// The `.measure` results, when the deck asked for any of this analysis
+    /// type. `None` otherwise, which keeps the report unchanged.
     pub measured: Option<String>,
     /// The measurement results themselves, in card order.
     pub measurements: Vec<Measurement>,
-    /// The `.four` block, when the deck asked for one. `None` for a deck without
-    /// a `.four` card, which keeps the report unchanged.
+    /// The `.four` block, when the deck asked for one and this is the last
+    /// `.tran` plot. `None` otherwise, which keeps the report unchanged.
     pub fourier: Option<String>,
     /// The Fourier results themselves, in card order, one per transformed
     /// vector.
     pub fourier_results: Vec<FourierAnalysis>,
 }
 
-/// Simulates the deck's single analysis and writes it as an ASCII rawfile.
+/// Simulates every analysis of the deck and writes them as one ASCII rawfile.
 ///
 /// # Errors
 ///
@@ -92,138 +106,124 @@ pub struct Report {
 ///   written;
 /// * [`SpiceError::Parse`] when the deck cannot be understood, or requests no
 ///   analysis at all;
-/// * [`SpiceError::NotYetPorted`] when the deck requests more than one analysis,
-///   because this command runs one analysis per invocation;
-/// * [`SpiceError::Unsupported`] when a `.save`/`.print` request cannot be
-///   resolved against the run's result (an unknown vector, a `.print` card for
-///   another analysis, an AC component of a real plot), when a `.measure`
-///   request cannot be evaluated against it (an operand the plot lacks, a window
-///   that covers no data, a crossing that does not occur, …; see
-///   `docs/port/MEASURE.md`), or when a `.four` request cannot be evaluated
-///   (a run that is not `.tran`, a run shorter than one period, a period with
-///   too few samples for the requested harmonics, a harmonic count beyond the
-///   port's budget; see `docs/port/FOURIER.md`), and [`SpiceError::Numerical`]
-///   when a computed vector, measurement or Fourier value is not finite;
+/// * [`SpiceError::Unsupported`] when a `.print`, `.measure` or `.four` card
+///   names an analysis type the deck does not run, when a `.save`/`.print`
+///   request cannot be resolved against a plot (an unknown vector, an AC
+///   component of a real plot), when a `.measure` request cannot be evaluated
+///   against its plot (an operand the plot lacks, a window that covers no data,
+///   a crossing that does not occur, …; see `docs/port/MEASURE.md`), or when a
+///   `.four` request cannot be evaluated (a run shorter than one period, a
+///   period with too few samples for the requested harmonics, a harmonic count
+///   beyond the port's budget; see `docs/port/FOURIER.md`), and
+///   [`SpiceError::Numerical`] when a computed vector, measurement or Fourier
+///   value is not finite;
 /// * whatever the production runner reports for unsupported devices, analyses,
 ///   options or numerically failed runs ([`SpiceError::Unsupported`],
-///   [`SpiceError::NotYetPorted`], [`SpiceError::Numerical`], …).
+///   [`SpiceError::NotYetPorted`], [`SpiceError::Numerical`], …), for **any**
+///   of the deck's analyses.
 ///
-/// The destination is written only after the runner returned a plot, the
-/// selection resolved and every measurement was evaluated, and the `.print`
-/// table and measurement block are only returned with the report, so a failure
-/// publishes nothing at all.
+/// Every analysis request and driver is validated, and every output card is
+/// checked against the analysis types the deck runs, before the first analysis
+/// starts. The destination is written only after every analysis returned a
+/// plot, every selection resolved and every measurement and Fourier card was
+/// evaluated, and the `.print` tables and measurement blocks are only returned
+/// with the report, so a failure publishes nothing at all.
 pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
     let parsed = Parser::with_auto_gnd(auto_gnd).parse_file_with_output(deck)?;
     let netlist = &parsed.netlist;
-    let card = only_analysis(netlist)?;
+    if netlist.analyses.is_empty() {
+        return Err(SpiceError::parse(
+            netlist.location.clone(),
+            "the deck requests no analysis: 'simulate' needs at least one .op, .dc, .ac or \
+             .tran card",
+        ));
+    }
     // Options are validated before anything runs, exactly as `parse` does:
     // unknown or unsupported settings are errors, never ignored.
     let config = RunConfig::from_netlist(netlist)?;
-    let request = config.request_for(card)?;
-    let mut circuit = config.circuit(netlist)?;
-    let plot = runner(request.kind)?.run(&mut circuit, &request, &config.context())?;
+    let schedule = batch::schedule(&netlist.analyses);
+    // Every request and driver is validated before the first analysis runs, so
+    // an unsupported last analysis cannot waste the earlier ones.
+    let mut jobs = Vec::with_capacity(schedule.len());
+    for entry in &schedule {
+        let request = config.request_for(&netlist.analyses[entry.card_index])?;
+        let driver = runner(request.kind)?;
+        jobs.push((entry, request, driver));
+    }
+    let mut first_circuit = Some(config.circuit(netlist)?);
+    batch::check_targets(
+        &schedule,
+        &parsed.output,
+        &parsed.measurements,
+        &parsed.fourier,
+    )?;
 
-    // The selection is resolved against the **full** plot and before anything is
-    // written or printed: an unresolvable request leaves stdout empty and an
-    // existing destination untouched.
-    let requests = selection::write_requests(&parsed.output, card.kind)?;
-    let selection = Selection::resolve(&plot, card.kind, &requests)?;
-    let print_requests = selection::print_requests(&parsed.output, card.kind)?;
-    let printed = if print_requests.is_empty() {
-        None
-    } else {
-        Some(Selection::resolve(&plot, card.kind, &print_requests)?.to_text(&plot)?)
-    };
-    // Measurements resolve against the **full** plot, exactly like the
-    // selection, and before anything is written: a failed measurement publishes
-    // nothing, and an operand the selection dropped is still measurable.
-    let measurements = measure::resolve(&plot, card.kind, &parsed.measurements)?;
-    let measured = if measurements.is_empty() {
-        None
-    } else {
-        Some(measure::to_text(&measurements))
-    };
-    // Fourier results resolve against the same **full** plot, and before
-    // anything is written: a failed transform publishes nothing either.
-    let fourier_results = fourier::resolve(&plot, card.kind, &parsed.fourier)?;
-    let fourier = if fourier_results.is_empty() {
-        None
-    } else {
-        Some(fourier::to_text(&fourier_results))
-    };
-    let written = selection.apply(&plot)?;
+    let date = now_header();
+    let mut raw_plots = Vec::with_capacity(jobs.len());
+    let mut plots = Vec::with_capacity(jobs.len());
+    for (entry, request, driver) in jobs {
+        // Each analysis starts from a freshly elaborated circuit: no device
+        // state from an earlier analysis leaks into a later one.
+        let mut circuit = match first_circuit.take() {
+            Some(circuit) => circuit,
+            None => config.circuit(netlist)?,
+        };
+        let plot = driver.run(&mut circuit, &request, &config.context())?;
+        // The selection, the measurements and the Fourier cards are resolved
+        // against the **full** plot and before anything is written or printed:
+        // an unresolvable request leaves stdout empty and an existing
+        // destination untouched.
+        let outputs = batch::resolve_outputs(
+            &plot,
+            entry,
+            &parsed.output,
+            &parsed.measurements,
+            &parsed.fourier,
+        )?;
+        let raw_plot = raw_plot_for(&netlist.title, outputs.written, &date);
+        plots.push(PlotReport {
+            name: entry.plot_name.clone(),
+            analysis: entry.kind,
+            plotname: raw_plot.plot.plotname.clone(),
+            variables: raw_plot
+                .plot
+                .variables
+                .iter()
+                .map(|variable| variable.name.clone())
+                .collect(),
+            points: raw_plot.plot.point_count(),
+            printed: outputs.printed,
+            measured: (!outputs.measurements.is_empty())
+                .then(|| measure::to_text(&outputs.measurements)),
+            measurements: outputs.measurements,
+            fourier: (!outputs.fourier.is_empty()).then(|| fourier::to_text(&outputs.fourier)),
+            fourier_results: outputs.fourier,
+        });
+        raw_plots.push(raw_plot);
+    }
 
-    let rawfile = rawfile_for(netlist, written, &now_header());
-    let raw_plot = &rawfile.plots[0];
+    let rawfile = RawFile { plots: raw_plots };
     let report = Report {
         deck: netlist.path.clone(),
-        title: raw_plot.title.clone(),
-        analysis: card.kind,
-        plotname: raw_plot.plot.plotname.clone(),
-        variables: raw_plot
-            .plot
-            .variables
-            .iter()
-            .map(|variable| variable.name.clone())
-            .collect(),
-        points: raw_plot.plot.point_count(),
+        title: rawfile.plots[0].title.clone(),
         output: output.to_path_buf(),
-        printed,
-        measured,
-        measurements,
-        fourier,
-        fourier_results,
+        plots,
     };
     write_rawfile(&rawfile, output)?;
     Ok(report)
 }
 
-/// The deck's analysis card, requiring exactly one.
-///
-/// # Errors
-///
-/// [`SpiceError::Parse`] when the deck requests none, and
-/// [`SpiceError::NotYetPorted`] when it requests several: scheduling more than
-/// one analysis per invocation is a gap in this command, not an implicit
-/// success.
-fn only_analysis(netlist: &Netlist) -> SpiceResult<&AnalysisCard> {
-    match netlist.analyses.as_slice() {
-        [only] => Ok(only),
-        [] => Err(SpiceError::parse(
-            netlist.location.clone(),
-            "the deck requests no analysis: 'simulate' needs exactly one .op, .dc, .ac or .tran card",
-        )),
-        several => {
-            let kinds: Vec<String> = several
-                .iter()
-                .map(|card| format!(".{}", card.kind.as_str()))
-                .collect();
-            Err(SpiceError::not_yet_ported(
-                format!(
-                    "{} analysis cards in one deck ({}); 'simulate' runs exactly one analysis \
-                     per invocation (see docs/port/CLI.md)",
-                    several.len(),
-                    kinds.join(" "),
-                ),
-                C_REFERENCE,
-            ))
-        }
-    }
-}
-
-/// The rawfile holding one plot: ngspice's three headers, then the data.
+/// One rawfile plot: ngspice's three headers, then the data.
 ///
 /// `title` is the deck's title line and `command` names the writer, as
 /// `raw_write()` does for ngspice itself; `date` is the write time in UTC (see
-/// [`now_header`]).
-fn rawfile_for(netlist: &Netlist, plot: Plot, date: &str) -> RawFile {
-    RawFile {
-        plots: vec![RawPlot {
-            title: netlist.title.trim().to_owned(),
-            date: date.to_owned(),
-            command: format!("spice-rs {} (Rust port), Build", env!("CARGO_PKG_VERSION")),
-            plot,
-        }],
+/// [`now_header`]). Every plot of one run carries the same three headers.
+fn raw_plot_for(title: &str, plot: spice_analysis::Plot, date: &str) -> RawPlot {
+    RawPlot {
+        title: title.trim().to_owned(),
+        date: date.to_owned(),
+        command: format!("spice-rs {} (Rust port), Build", env!("CARGO_PKG_VERSION")),
+        plot,
     }
 }
 
@@ -353,6 +353,13 @@ fn civil_from_days(days: u64) -> (u64, usize, u64) {
 }
 
 /// Renders the report printed after a successful run.
+///
+/// A single-analysis deck prints exactly the report it printed before
+/// multi-analysis support: the analysis, plot and variable lines, the output
+/// line, then the `.print` table, the `.measure` block and the `.four` block.
+/// A multi-analysis deck prints the deck, title and output lines, the plot
+/// names in rawfile order, and then one section per plot (headed by its C plot
+/// name, e.g. `[tran1]`) with that plot's lines and blocks.
 #[must_use]
 pub fn report_text(report: &Report) -> String {
     use std::fmt::Write as _;
@@ -365,47 +372,95 @@ pub fn report_text(report: &Report) -> String {
     };
     let _ = writeln!(out, "deck:      {}", report.deck.display());
     let _ = writeln!(out, "title:     {title}");
-    let _ = writeln!(
-        out,
-        "analysis:  .{:<4} {}",
-        report.analysis.as_str(),
-        kind_name(report.analysis)
-    );
-    let _ = writeln!(
-        out,
-        "plot:      {} ({} variable(s), {} point(s))",
-        report.plotname,
-        report.variables.len(),
-        report.points
-    );
-    let _ = writeln!(out, "variables: {}", report.variables.join(" "));
-    let _ = writeln!(
-        out,
-        "output:    {} (ngspice ASCII rawfile, no binary support)",
-        report.output.display()
-    );
-    // Only a deck with an applicable `.print` card has a table, only a deck
-    // with a `.measure` card has a measurement block, and only a deck with a
-    // `.four` card has a Fourier block; a deck without any of them keeps today's
-    // report unchanged.
-    if let Some(printed) = &report.printed {
-        out.push_str(printed);
+    if let [plot] = report.plots.as_slice() {
+        plot_lines(&mut out, plot);
+        let _ = writeln!(
+            out,
+            "output:    {} (ngspice ASCII rawfile, no binary support)",
+            report.output.display()
+        );
+        plot_blocks(&mut out, plot);
+        return out;
     }
-    if let Some(measured) = &report.measured {
-        out.push_str(measured);
-    }
-    if let Some(fourier) = &report.fourier {
-        out.push_str(fourier);
+    let _ = writeln!(
+        out,
+        "output:    {} (ngspice ASCII rawfile with {} plots, no binary support)",
+        report.output.display(),
+        report.plots.len()
+    );
+    let names: Vec<&str> = report.plots.iter().map(|plot| plot.name.as_str()).collect();
+    let _ = writeln!(out, "plots:     {} (ngspice batch order)", names.join(" "));
+    for plot in &report.plots {
+        let _ = writeln!(out, "[{}]", plot.name);
+        plot_lines(&mut out, plot);
+        plot_blocks(&mut out, plot);
     }
     out
 }
 
+/// The analysis, plot and variable lines of one plot.
+fn plot_lines(out: &mut String, plot: &PlotReport) {
+    use std::fmt::Write as _;
+
+    let _ = writeln!(
+        out,
+        "analysis:  .{:<4} {}",
+        plot.analysis.as_str(),
+        kind_name(plot.analysis)
+    );
+    let _ = writeln!(
+        out,
+        "plot:      {} ({} variable(s), {} point(s))",
+        plot.plotname,
+        plot.variables.len(),
+        plot.points
+    );
+    let _ = writeln!(out, "variables: {}", plot.variables.join(" "));
+}
+
+/// The `.print`, `.measure` and `.four` blocks of one plot, in that order.
+///
+/// Only a plot with an applicable `.print` card has a table, only one with
+/// `.measure` results has a measurement block, and only one with `.four`
+/// results has a Fourier block; a deck without any of them keeps the report
+/// unchanged.
+fn plot_blocks(out: &mut String, plot: &PlotReport) {
+    for block in [&plot.printed, &plot.measured, &plot.fourier]
+        .into_iter()
+        .flatten()
+    {
+        out.push_str(block);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Report, civil_from_days, format_ctime, report_text};
+    use super::{PlotReport, Report, civil_from_days, format_ctime, report_text};
     use spice_core::AnalysisKind;
     use std::path::PathBuf;
     use std::time::{Duration, UNIX_EPOCH};
+
+    fn plot(
+        analysis: AnalysisKind,
+        plotname: String,
+        variables: Vec<String>,
+        points: usize,
+        printed: Option<String>,
+        measured: Option<String>,
+    ) -> PlotReport {
+        PlotReport {
+            name: format!("{}1", spice_analysis::batch::plot_abbreviation(analysis)),
+            analysis,
+            plotname,
+            variables,
+            points,
+            printed,
+            measured,
+            measurements: Vec::new(),
+            fourier: None,
+            fourier_results: Vec::new(),
+        }
+    }
 
     #[test]
     fn the_timestamp_is_a_ctime_style_utc_string() {
@@ -435,16 +490,15 @@ mod tests {
         let report = Report {
             deck: PathBuf::from("rc.cir"),
             title: "RC divider".to_owned(),
-            analysis: AnalysisKind::OperatingPoint,
-            plotname: "Operating Point".to_owned(),
-            variables: vec!["v(in)".to_owned(), "v(out)".to_owned()],
-            points: 1,
             output: PathBuf::from("out.raw"),
-            printed: None,
-            measured: None,
-            measurements: Vec::new(),
-            fourier: None,
-            fourier_results: Vec::new(),
+            plots: vec![plot(
+                AnalysisKind::OperatingPoint,
+                "Operating Point".to_owned(),
+                vec!["v(in)".to_owned(), "v(out)".to_owned()],
+                1,
+                None,
+                None,
+            )],
         };
         let text = report_text(&report);
         assert!(text.contains("deck:      rc.cir"), "{text}");
@@ -474,16 +528,15 @@ mod tests {
         let report = Report {
             deck: PathBuf::from("rc.cir"),
             title: "RC divider".to_owned(),
-            analysis: AnalysisKind::OperatingPoint,
-            plotname: "Operating Point".to_owned(),
-            variables: vec!["v(out)".to_owned()],
-            points: 1,
             output: PathBuf::from("out.raw"),
-            printed: Some("print: 1 vector(s): v(out)\nvalues: real\n".to_owned()),
-            measured: Some("measure: 1 result(s)\n".to_owned()),
-            measurements: Vec::new(),
-            fourier: None,
-            fourier_results: Vec::new(),
+            plots: vec![plot(
+                AnalysisKind::OperatingPoint,
+                "Operating Point".to_owned(),
+                vec!["v(out)".to_owned()],
+                1,
+                Some("print: 1 vector(s): v(out)\nvalues: real\n".to_owned()),
+                Some("measure: 1 result(s)\n".to_owned()),
+            )],
         };
         let text = report_text(&report);
         let report_end = text.find("output:    out.raw").expect("the report");
@@ -498,17 +551,60 @@ mod tests {
         let report = Report {
             deck: PathBuf::from("rc.cir"),
             title: String::new(),
-            analysis: AnalysisKind::Transient,
-            plotname: "Transient Analysis".to_owned(),
-            variables: Vec::new(),
-            points: 0,
             output: PathBuf::from("out.raw"),
-            printed: None,
-            measured: None,
-            measurements: Vec::new(),
-            fourier: None,
-            fourier_results: Vec::new(),
+            plots: vec![plot(
+                AnalysisKind::Transient,
+                "Transient Analysis".to_owned(),
+                Vec::new(),
+                0,
+                None,
+                None,
+            )],
         };
         assert!(report_text(&report).contains("title:     <empty title line>"));
+    }
+
+    #[test]
+    fn a_multi_plot_report_has_one_section_per_plot_in_rawfile_order() {
+        let mut tran = plot(
+            AnalysisKind::Transient,
+            "Transient Analysis".to_owned(),
+            vec!["time".to_owned(), "v(out)".to_owned()],
+            70,
+            None,
+            Some("measure: 1 result(s)\n".to_owned()),
+        );
+        tran.name = "tran2".to_owned();
+        let mut ac = plot(
+            AnalysisKind::Ac,
+            "AC Analysis".to_owned(),
+            vec!["frequency".to_owned(), "v(out)".to_owned()],
+            3,
+            Some("print: 1 vector(s): vm(out)\n".to_owned()),
+            None,
+        );
+        ac.name = "ac1".to_owned();
+        let report = Report {
+            deck: PathBuf::from("rc.cir"),
+            title: "RC".to_owned(),
+            output: PathBuf::from("out.raw"),
+            plots: vec![ac, tran],
+        };
+        let text = report_text(&report);
+        assert!(
+            text.contains("output:    out.raw (ngspice ASCII rawfile with 2 plots"),
+            "{text}"
+        );
+        assert!(
+            text.contains("plots:     ac1 tran2 (ngspice batch order)"),
+            "{text}"
+        );
+        let ac = text.find("[ac1]\nanalysis:  .ac ").expect("the ac section");
+        let table = text.find("print: 1 vector(s): vm(out)").expect("the table");
+        let tran = text
+            .find("[tran2]\nanalysis:  .tran")
+            .expect("the tran section");
+        let measured = text.find("measure: 1 result(s)").expect("the block");
+        assert!(ac < table && table < tran && tran < measured, "{text}");
     }
 }

@@ -74,8 +74,13 @@ card      := .measure | .meas
 
 * `<analysis>` is the analysis the measurement applies to, exactly as C's card
   spells it. The port requires it (C guesses `tran` when it is missing) and
-  requires it to match the run: `simulate` runs exactly one analysis, so a
-  `.measure ac …` card in a `.tran` run can never be honoured.
+  requires the deck to run that analysis type: a `.measure ac …` card in a deck
+  without `.ac` can never be honoured and is rejected before anything runs. In
+  a multi-analysis deck (#96) a card is evaluated against the **last executed**
+  plot of its own type (C's `plot_cur`); unlike C's `dosim()`, which evaluates
+  only the cards whose type matches the last analysis that ran and skips the
+  rest silently, the port evaluates every card. See
+  [CLI.md](CLI.md#multi-analysis-decks).
 * `<name>` is the result name; it must be a word (a bare number is rejected) and
   is kept as written. Names may repeat across cards: every card produces its own
   result, in card order, exactly as C prints one line per card — names are never

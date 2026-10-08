@@ -32,6 +32,41 @@ summaries before revalidation. Finite tests are not a universal uniqueness proof
 and normwise backward checks do not promise componentwise/forward accuracy.
 The slice counts below are historical delivery evidence, not current totals.
 
+## Multi-analysis batch decks (#96)
+
+`spice-rs simulate` runs every analysis card of a deck in ngspice batch order and
+writes one multi-plot rawfile ([CLI.md](CLI.md#multi-analysis-decks)). The C
+golden `conformance/golden/multi_analysis_rc.raw` (deck order `.tran .ac .op
+.dc`, captured with `cargo xtask golden capture --netlist multi_analysis_rc`; no
+other golden was recaptured) holds four plots in C's order `AC Analysis`, `DC
+transfer characteristic`, `Operating Point`, `Transient Analysis`.
+
+* **Capture.** `write` alone writes only the current plot, so `xtask` instruments
+  a deck with several analyses to `write <fixture>.raw ac1.all dc1.all op1.all
+  tran1.all` — the C plot names in batch order, computed by
+  `spice_analysis::batch::schedule` — followed by `quit` (without it, batch mode
+  re-runs the deck after `.endc` because of the `.op` card and fails). The
+  capture refuses a rawfile whose plot count differs from the schedule.
+  Single-analysis fixtures are instrumented exactly as before.
+* **Verify.** `xtask/src/verify.rs` has a `BATCH` registry beside `SUPPORTED`:
+  one `Stage` (analysis type and gate) per plot. The fixture's schedule, the
+  golden's plot count and the stage count must agree; each plot must carry the
+  same `Plotname:` as the C plot at its position, and is then compared under
+  the same gates and tolerances a single-analysis fixture of its type uses
+  (`compare::AC`, `compare::DC`, `compare::TRAN`). Single-plot checks are
+  unchanged and still require exactly one C plot. Unit tests show that
+  swapped, dropped and duplicated plots, a perturbed value and a deck whose
+  schedule changed all fail.
+* **C batch oracle.** `crates/spice-cli/tests/c_batch_reference.rs` (opt-in)
+  runs `ngspice -b -r` — genuine batch mode with a binary rawfile — and
+  `spice-rs simulate` on the fixture and on a deck with two `.dc` cards, and
+  requires identical plot count, order, names, flags and variables and values
+  within 1e-9 relative + 1e-12 absolute. This ties the `.control` capture route
+  to the batch-mode output it stands in for.
+
+`cargo xtask golden verify` reports **27 verified fixture(s), 0 unsupported
+fixture(s), 0 failure(s)** on this branch.
+
 ## Historical bounded M5 gate (#18, #6, #45, #42, #43, #44)
 
 `cargo xtask golden verify` reports **26 verified fixture(s), 0 unsupported
@@ -120,8 +155,9 @@ Two consequences worth stating plainly:
 
 ## Fixtures
 
-`conformance/netlists/*.cir` are **pure decks**: no `.control` section, exactly
-one analysis card, no file I/O. `conformance/netlists/README.md` explains why,
+`conformance/netlists/*.cir` are **pure decks**: no `.control` section, no
+file I/O, and exactly one analysis card except for the deliberate
+multi-analysis fixture `multi_analysis_rc` (#96). `conformance/netlists/README.md` explains why,
 and the table there says what each fixture exercises.
 
 ## Capturing
@@ -140,7 +176,9 @@ write <fixture>.raw
 
 immediately before the first `.end` card, runs `ngspice -b` on it with a scratch
 directory (`target/xtask/golden/<fixture>/`) as the working directory, and reads
-the ASCII rawfile that `write` produced. A fixture that already contains a
+the ASCII rawfile that `write` produced. A deck with several analysis cards
+writes every plot by name instead and ends the block with `quit` (see
+"Multi-analysis batch decks (#96)"). A fixture that already contains a
 `.control` section is rejected rather than instrumented.
 
 The scratch directory is also why `write` takes a bare file name: the path never
@@ -575,8 +613,9 @@ own (today `backend=diffsol method=bdf`, a syntax C rejects), each with its own
 tolerance. Variants never edit decks or goldens, and are refused by `RunConfig` if
 the deck selects `method=trap/gear` (no silent downgrade). Add an
 analysis kind, axis identity and comparison policy only after demonstrating
-production support, not merely parser support. Exactly one deck analysis and
-one C plot are required. `xtask/src/compare.rs` centralizes metadata, shape,
+production support, not merely parser support. A `SUPPORTED` entry requires
+exactly one deck analysis and one C plot; multi-analysis decks are registered in
+`BATCH` instead (see "Multi-analysis batch decks (#96)"). `xtask/src/compare.rs` centralizes metadata, shape,
 finite-value and numerical checks: plot name/flags, point count, unique variable
 names, units and real-vector flags must match. Internal plot IDs and rawfile
 Title/Date/Command headers are intentionally not numerical comparisons.

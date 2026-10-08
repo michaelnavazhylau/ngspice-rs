@@ -14,7 +14,7 @@ equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 | `spice-rs cards <netlist>` | lists every card with its classification |
 | `spice-rs tokens <netlist>` | dumps the token stream |
 | `spice-rs parse <netlist>` | builds the semantic netlist and reports unported gaps |
-| `spice-rs simulate --output <path> <netlist>` | runs the deck's single analysis and writes an ASCII rawfile |
+| `spice-rs simulate --output <path> <netlist>` | runs every analysis of the deck in ngspice batch order and writes one ASCII rawfile with a plot per analysis |
 | `spice-rs devices` | lists the device designators the registry knows |
 | `spice-rs analyses` | lists the analyses and their driver status |
 | `spice-rs help`, `spice-rs version` | usage and version |
@@ -37,17 +37,20 @@ The command, in order:
 
 1. loads and parses the deck (`Parser::with_auto_gnd`, so `--no-auto-gnd`
    reaches the parser);
-2. requires **exactly one** analysis card (`.op`, `.dc`, `.ac` or `.tran`) and
-   rejects zero or several requests explicitly. Zero analyses is an input
-   failure (exit 2); more than one is exit 3, because a deck with several
-   analyses is valid input that C runs and the port simply has no scheduler for
-   yet, so the missing capability is a documented port gap rather than a
-   malformed command line or deck;
+2. requires **at least one** analysis card; zero analyses is an input failure
+   (exit 2);
 3. resolves the deck's `.option` cards through `RunConfig::from_netlist`, which
    rejects unknown and not-yet-implemented settings before anything runs;
-4. elaborates the circuit at the configured temperatures and runs the production
-   driver for that analysis;
-5. only then writes the plot as an ASCII rawfile at `<path>`.
+4. schedules every analysis card in ngspice batch order
+   ([multi-analysis decks](#multi-analysis-decks)), builds and validates every
+   request and driver, elaborates the circuit at the configured temperatures and
+   checks that every `.print`/`.measure`/`.four` card targets an analysis the
+   deck runs — all before the first analysis starts;
+5. runs each analysis through the production driver on a freshly elaborated
+   circuit and resolves its `.save`/`.print`/`.measure`/`.four` outputs against
+   the full plot;
+6. only when every analysis and every output card succeeded, writes all plots as
+   one ASCII rawfile at `<path>`.
 
 An unadorned `.tran` runs the companion trapezoidal/Gear-2 driver the engine
 defaults to; `simulate` never injects `backend=diffsol`, and an explicit
@@ -69,6 +72,9 @@ The file is ngspice's ASCII form (`set filetype=ascii`), written by
 * a `.dc` plot's scale column is named `sweep` (C spells it `v(v-sweep)` or
   `i(i-sweep)`; `cargo xtask golden verify` maps the name when it compares
   against the committed C goldens);
+* a multi-analysis deck writes one plot per analysis, concatenated in batch
+  order, each with the same three headers (the layout `raw_write()` produces for
+  several plots, and what `RawFile::parse` reads back);
 * `simulate` always writes ASCII; it has no binary output. The rawfile library
   itself reads *and* writes binary real/complex files since #45
   ([RAWFILES.md](RAWFILES.md)); exposing a `simulate` format flag is future work.
@@ -93,7 +99,74 @@ The file is ngspice's ASCII form (`set filetype=ascii`), written by
 
 `simulate` never prints a partial success: on any error nothing is written to
 `<path>` and only a diagnostic goes to stderr. On success it reports the deck,
-title, analysis, plot, variable names and output path on stdout.
+title, analysis, plot, variable names and output path on stdout. A
+multi-analysis deck reports the deck, title and output, a `plots:` line with the
+C plot names in rawfile order, and one `[name]` section per plot with its
+analysis, plot and variable lines followed by that plot's `.print`, `.measure`
+and `.four` blocks. A single-analysis deck's report is unchanged.
+
+### Multi-analysis decks
+
+A deck may contain any number of `.op`, `.dc`, `.ac` and `.tran` cards (GitHub
+#96). `simulate` reproduces `ngspice -b -r <path> deck.cir`, which runs them all
+in one job; the scheduling rules live in `spice_analysis::batch`:
+
+* **Order.** `CKTdoJob()` (`src/spicelib/analysis/cktdojob.c`) walks the fixed
+  analysis table `analInfo[]` (`analysis.c`): `.ac`, then `.dc`, then `.op`, then
+  `.tran` — not deck order. Cards of one type run in **reverse deck order**,
+  because `CKTnewAnal()` prepends each job to the task's list. A deck written
+  `.tran .ac .dc a .op .dc b` therefore runs `.ac`, `.dc b`, `.dc a`, `.op`,
+  `.tran`, and the rawfile holds the plots in that order.
+* **Plot names.** The rawfile carries each plot's `Plotname:` (`AC Analysis`,
+  `DC transfer characteristic`, `Operating Point`, `Transient Analysis`) and the
+  deck title on every plot. The report also gives each plot the name C's
+  `plot_add()` (`src/frontend/vectors.c`) gives it in memory: the type
+  abbreviation plus the global `plot_num`, which a name collision bumps for good —
+  the deck above yields `ac1 dc1 dc2 op2 tran2`.
+* **Output cards per analysis type.** `.save` applies to every plot. `.print
+  <type>` narrows and prints a table for every plot of that type and no other;
+  a plot whose type has no `.print` and no `.save` is written whole. `.measure
+  <type>` cards are evaluated against the **last executed** plot of their type,
+  and `.four` against the last `.tran` plot (C's `plot_cur` and
+  `setcplot("tran")` after the run). A `.print`, `.measure` or `.four` card for
+  an analysis type the deck does not run is an explicit error before anything
+  runs.
+* **Independent analyses.** Each analysis starts from a freshly elaborated
+  circuit, so no device state carries from one analysis to the next. C reuses
+  one circuit (only its Newton starting guess carries over), which does not
+  change a converged result.
+* **Atomic publication.** Every analysis runs and every output card resolves
+  before anything is printed or written: one failing analysis, selection,
+  measurement or Fourier card publishes nothing, and an existing `<path>` is
+  left untouched.
+* **Deck options apply to every request.** `RunConfig::request` adds the deck's
+  `.option` settings to each analysis exactly as for a single-analysis deck, so
+  a DC-only option (`itl1`, `srcsteps`, `gminsteps`, `gminfactor`) in a deck that
+  also runs `.tran` is still rejected for the `.tran` request (it would not be
+  honoured there).
+
+Divergences from C, all deliberate:
+
+* C keeps running the remaining analyses after one fails and leaves the plots
+  that succeeded in the rawfile; the port publishes nothing.
+* C with `-r` ignores `.print`, `.four` and `.measure` entirely (see
+  [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md), [MEASURE.md](MEASURE.md),
+  [FOURIER.md](FOURIER.md)); without `-r`, `dosim()` evaluates only the
+  `.measure` cards whose type matches the **last** analysis that ran and skips
+  the others silently. The port evaluates every `.measure` card against the
+  last plot of its own type instead of dropping it.
+* C prints `Error: .print: no ac analysis found.` and carries on for a `.print`
+  card naming an analysis the deck does not run; the port rejects the card.
+
+`crates/spice-cli/tests/c_batch_reference.rs` is the opt-in check that ties
+these rules to real batch output: it runs `ngspice -b -r` (binary rawfile) and
+`spice-rs simulate` on the committed `multi_analysis_rc` fixture and on a deck
+with two `.dc` cards, and requires the same plot count, order, names, flags,
+variables and values:
+
+```sh
+NGSPICE_BIN=/abs/path/ngspice cargo test -p spice-cli --test c_batch_reference -- --ignored
+```
 
 ## Exit status
 
@@ -102,14 +175,13 @@ title, analysis, plot, variable names and output path on stdout.
 | 0 | success |
 | 1 | bad command line (unknown option, missing or empty `--output`, unexpected argument) |
 | 2 | the deck, the run or the output failed: unreadable/unparsable deck, no analysis requested, numerical failure, unsupported analysis kind or device, missing output directory |
-| 3 | the requested operation is a documented gap in the port (`SpiceError::NotYetPorted`): an option that is known but unimplemented, an unported model family or device grammar, more than one analysis card in one deck |
+| 3 | the requested operation is a documented gap in the port (`SpiceError::NotYetPorted`): an option that is known but unimplemented, an unported model family or device grammar |
 
 ## What is deliberately not implemented
 
 * waveform parsing and any post-processing of results other than `.measure`;
 * binary rawfile output (ASCII only);
-* an interactive interpreter;
-* more than one analysis per invocation.
+* an interactive interpreter (`run`/`resume`, `.control` sections).
 
 Output selection is implemented for the bounded `.save`/`.print` subset: a deck's
 `.save` (deck-wide) and `.print <analysis> …` (analysis-specific) cards narrow
@@ -133,7 +205,9 @@ grammar, the axis/interpolation/crossing/window rules and the failure modes.
 ## Covered by tests
 
 `crates/spice-cli/tests/simulate.rs` runs the binary and checks the exit
-contract, the exactly-one-analysis rule and the write/rename guarantee; it reads
+contract, the multi-analysis batch order, C plot names, per-analysis output
+cards and atomic failure (against the multi-plot golden `multi_analysis_rc`),
+and the write/rename guarantee; it reads
 the written rawfiles back with the production reader and compares them vector by
 vector, by name, with the committed C goldens in `conformance/golden/`
 (`.op`, both `.dc` sweep directions, complex `.ac`, plain `.tran` and a
