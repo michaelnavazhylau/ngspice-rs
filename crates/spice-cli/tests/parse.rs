@@ -207,13 +207,13 @@ fn unknown_and_unimplemented_options_fail_with_distinct_exits() {
 fn documented_no_op_options_are_named_by_parse() {
     let output = run_text(
         "noops",
-        "t\nr1 a 0 1k\n.param g=1u\n.options nopage noacct gmin={g} itl4=40 pivtol=1e-13\n.end\n",
+        "t\nr1 a 0 1k\n.param g=1u\n.options nopage noacct gmin={g} itl4=40 itl3=4\n.end\n",
     );
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("options: 2 setting(s)"), "{stdout}");
     assert!(
-        stdout.contains("options without effect (documented no-ops): nopage, noacct, pivtol"),
+        stdout.contains("options without effect (documented no-ops): nopage, noacct, itl3"),
         "{stdout}"
     );
     let plain = run_text("noops-plain", "t\nr1 a 0 1k\n.options reltol=1m\n.end\n");

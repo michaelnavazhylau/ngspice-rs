@@ -19,17 +19,27 @@
 //! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
 //! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
 //! | `xmu` | companion trapezoidal weighting (`nicomcof.c`, default 0.5, `0..=0.5`); **rejected with `backend=diffsol`** |
-//! | `itl1` | DC Newton iteration limit per stage (`maxiter`, 1..=10000) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (`dctran.c` calls `CKTop` with it) |
+//! | `itl1` | DC Newton iteration limit per stage (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (`dctran.c` calls `CKTop` with it) |
 //! | `itl2` | `.dc` only: Newton limit of the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`); a failure falls back to the full `itl1` solve |
-//! | `itl4` | companion `.tran` Newton iterations per timepoint (`tranmaxiter`, default 10 as in C) |
+//! | `itl4` | companion `.tran` Newton iterations per timepoint (`tranmaxiter`; effective default 100 as in C) |
+//!
+//! `itl1`/`itl2`/`itl4` take integers in `0..=10000` and are stored as C's
+//! *effective* limit `max(n, 100)`: `NIiter()` (`niiter.c`) raises every limit
+//! below 100 to 100, so smaller values change nothing in C or here (C's
+//! nominal `itl4` default of 10 is effectively 100 too). Unlike C's
+//! `IF_INTEGER` options, a non-integer (`itl4=2.5`) is rejected rather than
+//! rounded.
 //! | `srcsteps` (alias `itl6`) | DC source-stepping increments (`0` disables, else 1..=1000 equal steps) |
 //! | `gminsteps`, `gminfactor` | DC gmin-stepping stage count (`0` disables, else 1..=100) and ratio (1 < factor <= 1e6, default 10) from 1e-3 S |
 //!
 //! The DC options reach `.op`, `.dc`, `.ac` and the companion `.tran` initial
 //! bias; with `backend=diffsol` they (and `itl4`, `xmu`) are rejected.
 //! They are *not* C's `itl1`/`srcsteps`/`gminsteps` semantics verbatim
-//! (this port's schedules are fixed and deterministic, and the default `itl1`
-//! is 200, not 100); see `docs/port/DC_CONTINUATION.md`.
+//! (this port's schedules are fixed and deterministic, the default `itl1`
+//! is 200, not 100; the artificial gmin ladder starts at 1e-3 S and ends with
+//! a zero-artificial-gmin solve whatever `.option gmin` is, where C's
+//! `spice3_gmin` starts at `gmin * gminfactor^gminsteps` and `dynamic_gmin`
+//! stops at `max(gmin, gshunt)`); see `docs/port/DC_CONTINUATION.md`.
 //!
 //! # Documented no-ops
 //!
@@ -44,11 +54,7 @@
 //! * `post`, `ingold` (flag or value): plain front-end variables nothing in
 //!   ngspice reads;
 //! * `bypass=0`: C's default (`cktntask.c`); this port never bypasses device
-//!   evaluation. Any other `bypass` is `NotYetPorted`;
-//! * `pivtol`, `pivrel`: Sparse 1.3 pivot thresholds. This port factors with
-//!   faer's partial-pivoting LU plus its own rank diagnostics, which has no
-//!   equivalent knob; values are validated (`pivtol >= 0`, `0 < pivrel <= 1`)
-//!   and the divergence is documented in `docs/port/FRONTEND_STRUCTURE.md`.
+//!   evaluation. Any other `bypass` is `NotYetPorted`.
 //!
 //! Every other name from `cktsopt.c` (`gshunt`, `noopiter`, `minbreak`, ...)
 //! and the front-end variables with an effect (`filetype`, `numdgt`,
@@ -128,6 +134,10 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "ltetrtol",
     "newtrunc",
     "maxopalter",
+    // Sparse 1.3 pivot thresholds (TSKpivotAbsTol/TSKpivotRelTol); this port's
+    // faer partial-pivoting LU has no equivalent knob yet.
+    "pivtol",
+    "pivrel",
     "maxevtiter",
     "noopalter",
     "ramptime",
@@ -185,8 +195,6 @@ const IGNORED_BY_C_REASON: &str = "ignored by ngspice (OPTtbl entry without IF_S
 const UNREAD_REASON: &str = "plain ngspice front-end variable that nothing reads";
 const BYPASS_REASON: &str = "bypass=0 is ngspice's default (cktntask.c); this port never \
                              bypasses device evaluation";
-const PIVOT_REASON: &str = "Sparse 1.3 pivot threshold; this port's faer partial-pivoting LU \
-                            with rank diagnostics has no equivalent knob";
 
 /// Highest `maxord` ngspice accepts (`cktsopt.c` clamps to 1..=6).
 const MAX_ORD: u8 = 6;
@@ -214,11 +222,16 @@ pub struct TransientSettings {
     pub chgtol: Option<Real>,
     /// `trtol` → companion truncation-error overestimation factor.
     pub trtol: Option<Real>,
-    /// `itl4` → companion Newton iterations per timepoint (`tranmaxiter`).
+    /// `itl4` → companion Newton iterations per timepoint (`tranmaxiter`),
+    /// stored as C's effective `max(itl4, 100)` (see [`NIITER_MIN_ITERATIONS`]).
     pub itl4: Option<usize>,
     /// `xmu` → companion trapezoidal weighting.
     pub xmu: Option<Real>,
 }
+
+/// `NIiter()` (`niiter.c`) raises every Newton iteration limit below this to
+/// it; deck `itl1`/`itl2`/`itl4` values are stored as C's effective limit.
+pub const NIITER_MIN_ITERATIONS: usize = 100;
 
 /// Option names that configure the DC Newton/continuation solve, in no
 /// particular order (`itl6` is stored as `srcsteps`).
@@ -231,9 +244,11 @@ const COMPANION_ONLY: [&str; 2] = ["itl4", "xmu"];
 /// `Some(0)` disables source/gmin stepping.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct DcOptions {
-    /// `itl1` → Newton iteration limit per DC stage.
+    /// `itl1` → Newton iteration limit per DC stage, stored as C's effective
+    /// `max(itl1, 100)` (see [`NIITER_MIN_ITERATIONS`]).
     pub itl1: Option<usize>,
-    /// `itl2` → `.dc` warm-start Newton limit at points after the first.
+    /// `itl2` → `.dc` warm-start Newton limit at points after the first,
+    /// stored as C's effective `max(itl2, 100)`.
     pub itl2: Option<usize>,
     /// `srcsteps`/`itl6` → equal source-stepping increments.
     pub srcsteps: Option<usize>,
@@ -524,32 +539,6 @@ impl RunConfig {
                 self.ignore(setting, BYPASS_REASON);
                 return Ok(());
             }
-            "pivtol" | "pivrel" => {
-                if setting.value.is_none() {
-                    return Err(SpiceError::parse(
-                        location.clone(),
-                        format!("option '{name}' requires a value"),
-                    ));
-                }
-                let value = number("a finite number")?;
-                let valid = if name == "pivtol" {
-                    value >= 0.
-                } else {
-                    value > 0. && value <= 1.
-                };
-                if !valid {
-                    return Err(SpiceError::parse(
-                        value_location.clone(),
-                        if name == "pivtol" {
-                            format!("option 'pivtol' must be >= 0, not {value}")
-                        } else {
-                            format!("option 'pivrel' must be in (0, 1], not {value}")
-                        },
-                    ));
-                }
-                self.ignore(setting, PIVOT_REASON);
-                return Ok(());
-            }
             _ => {}
         }
         let supported = matches!(
@@ -634,7 +623,11 @@ impl RunConfig {
                 self.maxord = Some((order, location.clone()));
             }
             "itl1" | "itl2" | "itl4" => {
-                let count = whole(1, crate::newton::MAX_ITERATIONS as u32)?;
+                // niiter.c: `if (maxIter < 100) maxIter = 100;` applies to all
+                // three (CKTop, dctrcurv and dctran call NIiter with them), so
+                // C's effective limit is never below 100.
+                let count =
+                    whole(0, crate::newton::MAX_ITERATIONS as u32)?.max(NIITER_MIN_ITERATIONS);
                 match name {
                     "itl1" => self.dc.itl1 = Some(count),
                     "itl2" => self.dc.itl2 = Some(count),
@@ -920,8 +913,6 @@ fn accepted(name: &str) -> bool {
             "post"
                 | "ingold"
                 | "bypass"
-                | "pivtol"
-                | "pivrel"
                 | "temp"
                 | "tnom"
                 | "gmin"

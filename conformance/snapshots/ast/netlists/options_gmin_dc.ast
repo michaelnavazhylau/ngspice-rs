@@ -2,64 +2,70 @@
 file: netlists/options_gmin_dc.cir
 title: "Junction gmin and DC iteration options" @netlists/options_gmin_dc.cir:1:1
 scope root
-  cards (11):
-    [0] param[0] @netlists/options_gmin_dc.cir:5:1 ".param gj=1u"
-    [1] device[0] @netlists/options_gmin_dc.cir:6:1 "v1 in 0 dc 0"
-    [2] device[1] @netlists/options_gmin_dc.cir:7:1 "r1 in out 1k"
-    [3] device[2] @netlists/options_gmin_dc.cir:8:1 "d1 out 0 dmod"
-    [4] device[3] @netlists/options_gmin_dc.cir:9:1 "q1 out 0 0 qmod"
-    [5] model[0] @netlists/options_gmin_dc.cir:10:1 ".model dmod d(is=1e-14 n=1.0)"
-    [6] model[1] @netlists/options_gmin_dc.cir:11:1 ".model qmod pnp(is=1e-16)"
-    [7] options[0] @netlists/options_gmin_dc.cir:12:1 ".options gmin={gj} itl1=150 itl2=60"
-    [8] options[1] @netlists/options_gmin_dc.cir:14:1 ".options nopage noacct pivtol=1e-13"
-    [9] analysis[0] @netlists/options_gmin_dc.cir:15:1 ".dc v1 -10 0 1"
-    [10] end @netlists/options_gmin_dc.cir:16:1 ".end"
-  devices (4):
-    device [0] name="v1" designator=v @netlists/options_gmin_dc.cir:6:1
+  cards (12):
+    [0] param[0] @netlists/options_gmin_dc.cir:6:1 ".param gj=1u"
+    [1] device[0] @netlists/options_gmin_dc.cir:7:1 "v1 in 0 dc 0"
+    [2] device[1] @netlists/options_gmin_dc.cir:8:1 "r1 in out 1k"
+    [3] device[2] @netlists/options_gmin_dc.cir:9:1 "d1 out 0 dmod"
+    [4] device[3] @netlists/options_gmin_dc.cir:10:1 "q1 out 0 0 qmod"
+    [5] device[4] @netlists/options_gmin_dc.cir:11:1 "q2 out 0 0 qmod m=2 area=3"
+    [6] model[0] @netlists/options_gmin_dc.cir:12:1 ".model dmod d(is=1e-14 n=1.0)"
+    [7] model[1] @netlists/options_gmin_dc.cir:13:1 ".model qmod pnp(is=1e-16)"
+    [8] options[0] @netlists/options_gmin_dc.cir:14:1 ".options gmin={gj} itl1=150 itl2=60"
+    [9] options[1] @netlists/options_gmin_dc.cir:16:1 ".options nopage noacct"
+    [10] analysis[0] @netlists/options_gmin_dc.cir:17:1 ".dc v1 -10 0 1"
+    [11] end @netlists/options_gmin_dc.cir:18:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @netlists/options_gmin_dc.cir:7:1
       nodes: "in" "0"
       model: none
       parameters (1):
-        [0] name="dc" kind=scalar value="0" @netlists/options_gmin_dc.cir:6:9
-    device [1] name="r1" designator=r @netlists/options_gmin_dc.cir:7:1
+        [0] name="dc" kind=scalar value="0" @netlists/options_gmin_dc.cir:7:9
+    device [1] name="r1" designator=r @netlists/options_gmin_dc.cir:8:1
       nodes: "in" "out"
       model: none
       parameters (1):
-        [0] name="resistance" kind=scalar value="1k" @netlists/options_gmin_dc.cir:7:11
-    device [2] name="d1" designator=d @netlists/options_gmin_dc.cir:8:1
+        [0] name="resistance" kind=scalar value="1k" @netlists/options_gmin_dc.cir:8:11
+    device [2] name="d1" designator=d @netlists/options_gmin_dc.cir:9:1
       nodes: "out" "0"
       model: "dmod"
       parameters (0):
-    device [3] name="q1" designator=q @netlists/options_gmin_dc.cir:9:1
+    device [3] name="q1" designator=q @netlists/options_gmin_dc.cir:10:1
       nodes: "out" "0" "0"
       model: "qmod"
       parameters (0):
-  models (2):
-    model [0] name="dmod" base="d" level=none @netlists/options_gmin_dc.cir:10:1
+    device [4] name="q2" designator=q @netlists/options_gmin_dc.cir:11:1
+      nodes: "out" "0" "0"
+      model: "qmod"
       parameters (2):
-        [0] name="is" kind=scalar value="1e-14" @netlists/options_gmin_dc.cir:10:15
-        [1] name="n" kind=scalar value="1.0" @netlists/options_gmin_dc.cir:10:24
-    model [1] name="qmod" base="pnp" level=none @netlists/options_gmin_dc.cir:11:1
+        [0] name="m" kind=scalar value="2" @netlists/options_gmin_dc.cir:11:17
+        [1] name="area" kind=scalar value="3" @netlists/options_gmin_dc.cir:11:21
+  models (2):
+    model [0] name="dmod" base="d" level=none @netlists/options_gmin_dc.cir:12:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @netlists/options_gmin_dc.cir:12:15
+        [1] name="n" kind=scalar value="1.0" @netlists/options_gmin_dc.cir:12:24
+    model [1] name="qmod" base="pnp" level=none @netlists/options_gmin_dc.cir:13:1
       parameters (1):
-        [0] name="is" kind=scalar value="1e-16" @netlists/options_gmin_dc.cir:11:17
+        [0] name="is" kind=scalar value="1e-16" @netlists/options_gmin_dc.cir:13:17
   subcircuits (0):
   analyses (1):
-    analysis [0] kind=dc @netlists/options_gmin_dc.cir:15:1
+    analysis [0] kind=dc @netlists/options_gmin_dc.cir:17:1
       arguments: "v1" "-10" "0" "1"
   includes (0):
   params (1):
-    param-card [0] @netlists/options_gmin_dc.cir:5:1
-      assignment [0] name="gj" name_span=5:8..10
-        expression braced=false text="1u" span=5:11..13
-          number "1u" value=1e-6 span=5:11..13
+    param-card [0] @netlists/options_gmin_dc.cir:6:1
+      assignment [0] name="gj" name_span=6:8..10
+        expression braced=false text="1u" span=6:11..13
+          number "1u" value=1e-6 span=6:11..13
   options (2):
-    option-card [0] @netlists/options_gmin_dc.cir:12:1
-      setting [0] name="gmin" value="{gj}"@netlists/options_gmin_dc.cir:12:15 @netlists/options_gmin_dc.cir:12:10
-        expression braced=true text="gj" span=12:16..18
-          identifier "gj" span=12:16..18
-      setting [1] name="itl1" value="150"@netlists/options_gmin_dc.cir:12:25 @netlists/options_gmin_dc.cir:12:20
-      setting [2] name="itl2" value="60"@netlists/options_gmin_dc.cir:12:34 @netlists/options_gmin_dc.cir:12:29
-    option-card [1] @netlists/options_gmin_dc.cir:14:1
-      setting [0] name="nopage" value=flag @netlists/options_gmin_dc.cir:14:10
-      setting [1] name="noacct" value=flag @netlists/options_gmin_dc.cir:14:17
-      setting [2] name="pivtol" value="1e-13"@netlists/options_gmin_dc.cir:14:31 @netlists/options_gmin_dc.cir:14:24
+    option-card [0] @netlists/options_gmin_dc.cir:14:1
+      setting [0] name="gmin" value="{gj}"@netlists/options_gmin_dc.cir:14:15 @netlists/options_gmin_dc.cir:14:10
+        expression braced=true text="gj" span=14:16..18
+          identifier "gj" span=14:16..18
+      setting [1] name="itl1" value="150"@netlists/options_gmin_dc.cir:14:25 @netlists/options_gmin_dc.cir:14:20
+      setting [2] name="itl2" value="60"@netlists/options_gmin_dc.cir:14:34 @netlists/options_gmin_dc.cir:14:29
+    option-card [1] @netlists/options_gmin_dc.cir:16:1
+      setting [0] name="nopage" value=flag @netlists/options_gmin_dc.cir:16:10
+      setting [1] name="noacct" value=flag @netlists/options_gmin_dc.cir:16:17
   globals (0):

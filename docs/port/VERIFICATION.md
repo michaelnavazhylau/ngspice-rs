@@ -566,15 +566,18 @@ an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 
 `golden verify` registers `options_gmin_dc` (`.dc`, `compare::NONLINEAR`, junction
 `gmin` from a `{}` value) and `options_xmu_tran` (`compare::TRAN`, `xmu=0.2`,
-`itl4`), both captured individually. Opt-in live comparisons in
+`itl4`), both captured individually (`options_gmin_dc` includes a PNP with
+`m=2 area=3`, whose gmin terms scale with `m` only). Opt-in live comparisons in
 `crates/spice-analysis/tests/c_options_reference.rs` (`NGSPICE_BIN=... cargo test
 -p spice-analysis --test c_options_reference -- --ignored`) cover reverse-biased
 diode/NPN/PNP/4-terminal BJT/MOS1 junction `gmin` (`.op`, `.dc`, `.ac`), `xmu`
-on a common transient grid, `itl1`/`itl4` limits on the `m4_diode_tran` circuit
-and `{expr}`/`'expr'` `temp`/`tnom` values. Each numerical test also asserts that
-the option moves the C result beyond the bound, so agreement is not vacuous
-(iteration limits excepted: they only bound convergence work, and this port's
-damped Newton is not C's per-junction limiting).
+on a common transient grid, and `{expr}`/`'expr'` `temp`/`tnom` values. Each
+numerical test also asserts that the option moves the C result beyond the bound,
+so agreement is not vacuous. `iteration_limits_below_c_floor_match_c` asserts
+the opposite for `itl1`/`itl2`/`itl4` below 100: C's results are bit-identical
+with and without them (`niiter.c` floor), Rust's are bit-identical too, and both
+agree (`compare::TRAN` on the `m4_diode_tran` circuit; `.op`/`.dc` at the
+Newton tolerances, since two Newton runs stop at different iterates).
 
 ## Transient comparison tooling (#48 item 1)
 

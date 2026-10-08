@@ -1,16 +1,18 @@
 Junction gmin and DC iteration options
 * .options gmin={gj} (1 uS) sets the junction gmin of the diode and of the
-* reverse-biased PNP junctions; itl1/itl2 bound the Newton work; nopage/noacct
-* and pivtol are documented no-ops.
+* reverse-biased PNP junctions (q2's gmin terms scale with m=2, not area);
+* itl1/itl2 set the Newton limits (C's effective limit is max(n, 100));
+* nopage/noacct are documented no-ops.
 .param gj=1u
 v1 in 0 dc 0
 r1 in out 1k
 d1 out 0 dmod
 q1 out 0 0 qmod
+q2 out 0 0 qmod m=2 area=3
 .model dmod d(is=1e-14 n=1.0)
 .model qmod pnp(is=1e-16)
 .options gmin={gj} itl1=150 itl2=60
 * Separate card: C aborts when print flags share a card with a {} value.
-.options nopage noacct pivtol=1e-13
+.options nopage noacct
 .dc v1 -10 0 1
 .end

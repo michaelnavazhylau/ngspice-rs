@@ -134,28 +134,73 @@ fn gmin_is_the_junction_gmin_of_every_analysis() {
 
 #[test]
 fn itl1_reaches_dc_analyses_and_the_companion_initial_bias() {
+    // niiter.c raises any limit below 100 to 100: the deck value is stored and
+    // forwarded as C's effective limit.
     let c = config(".options itl1=37").unwrap();
-    assert_eq!(c.dc().itl1, Some(37));
+    assert_eq!(c.dc().itl1, Some(100));
     for kind in [AnalysisKind::OperatingPoint, AnalysisKind::Ac] {
         let request = c.request(AnalysisRequest::new(kind)).unwrap();
-        assert_eq!(request.named("maxiter"), Some("37"));
+        assert_eq!(request.named("maxiter"), Some("100"));
     }
-    assert_eq!(c.request(dc()).unwrap().named("maxiter"), Some("37"));
-    assert_eq!(c.request(tran()).unwrap().named("maxiter"), Some("37"));
+    assert_eq!(c.request(dc()).unwrap().named("maxiter"), Some("100"));
+    assert_eq!(c.request(tran()).unwrap().named("maxiter"), Some("100"));
     assert!(c.request(diffsol()).is_err());
-    // Too few iterations for the initial bias of a nonlinear transient fail
-    // with the bounded DC solve's diagnostics, not silently.
-    let deck = "v1 a 0 5\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.tran 1u 10u";
-    assert!(simulate(deck).is_ok());
-    let error = simulate(&format!("{deck}\n.options itl1=1 gminsteps=0 srcsteps=0")).unwrap_err();
+    let above = config(".options itl1=250").unwrap();
+    assert_eq!(above.request(dc()).unwrap().named("maxiter"), Some("250"));
+    for low in ["0", "1", "99", "100"] {
+        let c = config(&format!(".options itl1={low}")).unwrap();
+        assert_eq!(c.dc().itl1, Some(100), "itl1={low}");
+    }
+    // C converges this deck with `itl1=2 gminsteps=0 srcsteps=0` (v(b) =
+    // 0.69289, 5 iterations): so does the port, at the same bias.
+    let deck = "v1 a 0 5\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.op";
+    let plain = simulate(deck).unwrap();
+    let low = simulate(&format!("{deck}\n.options itl1=2 gminsteps=0 srcsteps=0")).unwrap();
+    close(
+        low.value("v(b)", 0).unwrap().re,
+        plain.value("v(b)", 0).unwrap().re,
+        1e-9,
+        1e-12,
+    );
+    close(low.value("v(b)", 0).unwrap().re, 0.69289, 1e-4, 0.);
+    // The same holds for the initial bias of a nonlinear transient.
+    let tran_deck = "v1 a 0 5\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.tran 1u 10u";
+    assert!(
+        simulate(&format!(
+            "{tran_deck}\n.options itl1=1 gminsteps=0 srcsteps=0"
+        ))
+        .is_ok()
+    );
+    // The forwarded limit is a real bound: the literal request budget of one
+    // iteration (below C's floor, so a port-only knob) fails with diagnostics.
+    let n = deck_with_request(deck, &["maxiter=1", "gminsteps=0", "srcsteps=0"]);
+    let error = n.unwrap_err();
     assert!(error.to_string().contains("Newton"), "{error}");
+}
+
+/// Run `body`'s first analysis with extra explicit request arguments.
+fn deck_with_request(body: &str, extra: &[&str]) -> Result<Plot, SpiceError> {
+    let n = deck(body);
+    let c = RunConfig::from_netlist(&n)?;
+    let mut request = AnalysisRequest::from(&n.analyses[0]);
+    request
+        .arguments
+        .extend(extra.iter().map(|a| (*a).to_owned()));
+    let request = c.request(request)?;
+    let mut circuit = c.circuit(&n)?;
+    runner(request.kind)?.run(&mut circuit, &request, &c.context())
 }
 
 #[test]
 fn itl2_bounds_the_warm_started_dc_sweep_points() {
     let c = config(".options itl2=7").unwrap();
-    assert_eq!(c.dc().itl2, Some(7));
-    assert_eq!(c.request(dc()).unwrap().named("trcvmaxiter"), Some("7"));
+    assert_eq!(c.dc().itl2, Some(100));
+    assert_eq!(c.request(dc()).unwrap().named("trcvmaxiter"), Some("100"));
+    let above = config(".options itl2=300").unwrap();
+    assert_eq!(
+        above.request(dc()).unwrap().named("trcvmaxiter"),
+        Some("300")
+    );
     // C reads it only for .dc points (and its dynamic stepping stages).
     for request in [
         AnalysisRequest::new(AnalysisKind::OperatingPoint),
@@ -164,29 +209,37 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
     ] {
         assert_eq!(c.request(request).unwrap().named("trcvmaxiter"), None);
     }
-    // A one-iteration warm start fails at most points and falls back to the
-    // full solve: the swept curve is unchanged.
-    let sweep = "v1 a 0 0\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.dc v1 0 5 0.5";
-    let plain = simulate(sweep).unwrap();
-    for itl2 in ["1", "3", "100"] {
-        let bounded = simulate(&format!("{sweep}\n.options itl2={itl2}")).unwrap();
-        assert_eq!(bounded.point_count(), plain.point_count());
-        for point in 0..plain.point_count() {
-            close(
-                bounded.value("v(b)", point).unwrap().re,
-                plain.value("v(b)", point).unwrap().re,
-                1e-6,
-                1e-9,
-            );
-        }
-    }
-    for bad in [
-        ".options itl2=0",
-        ".options itl2=1.5",
-        ".options itl2=10001",
-    ] {
+    // One large sweep step (0 V -> 5 V) on a diode: the first point is
+    // trivial, the second needs several damped Newton iterations from the
+    // previous point. With a three-iteration full-solve budget and no
+    // continuation, the point fails unless the warm start takes it.
+    let sweep = "v1 a 0 0\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.dc v1 0 5 5";
+    let tight = ["maxiter=3", "gminsteps=0", "srcsteps=0"];
+    let error = deck_with_request(sweep, &tight).unwrap_err();
+    assert!(error.to_string().contains("Newton"), "{error}");
+    // A warm-start bound of 2 is too small too: it fails, falls back to the
+    // three-iteration full solve, and that fails as well.
+    let mut bounded = tight.to_vec();
+    bounded.push("trcvmaxiter=2");
+    assert!(deck_with_request(sweep, &bounded).is_err());
+    // Deck itl2=5 is C's effective 100: the warm start converges the point,
+    // although a literal bound of 5 (or the full-solve budget of 3) would not.
+    let mut literal = tight.to_vec();
+    literal.push("trcvmaxiter=5");
+    assert!(deck_with_request(sweep, &literal).is_err());
+    let plot = deck_with_request(&format!("{sweep}\n.options itl2=5"), &tight).unwrap();
+    let reference = simulate(sweep).unwrap();
+    assert_eq!(plot.point_count(), 2);
+    close(
+        plot.value("v(b)", 1).unwrap().re,
+        reference.value("v(b)", 1).unwrap().re,
+        1e-6,
+        1e-9,
+    );
+    for bad in [".options itl2=1.5", ".options itl2=10001"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
     }
+    assert_eq!(config(".options itl2=0").unwrap().dc().itl2, Some(100));
     // The request key is validated by the sweep driver.
     let mut circuit = RunConfig::from_netlist(&deck(sweep))
         .unwrap()
@@ -205,9 +258,14 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
 
 #[test]
 fn itl4_is_the_companion_newton_limit_per_timepoint() {
-    let c = config(".options itl4=25").unwrap();
-    assert_eq!(c.transient().itl4, Some(25));
-    assert_eq!(c.request(tran()).unwrap().named("tranmaxiter"), Some("25"));
+    let c = config(".options itl4=250").unwrap();
+    assert_eq!(c.transient().itl4, Some(250));
+    assert_eq!(c.request(tran()).unwrap().named("tranmaxiter"), Some("250"));
+    // niiter.c: below 100 (including C's nominal default 10) means 100.
+    for low in ["0", "3", "10", "99"] {
+        let c = config(&format!(".options itl4={low}")).unwrap();
+        assert_eq!(c.transient().itl4, Some(100), "itl4={low}");
+    }
     assert_eq!(
         c.request(AnalysisRequest::new(AnalysisKind::OperatingPoint))
             .unwrap()
@@ -216,27 +274,36 @@ fn itl4_is_the_companion_newton_limit_per_timepoint() {
     );
     let error = c.request(diffsol()).unwrap_err();
     assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
-    // Fewer Newton iterations per timepoint force more rejected trials (C
-    // dctran.c cuts the step by 8 on non-convergence).
     let deck_text = "v1 a 0 pulse(0 5 1u 1u 1u 5u 20u)\nr1 a b 1k\nd1 b 0 dm\n\
                      .model dm d(is=1e-14)\n.tran 0.1u 3u";
-    let stats = |options: &str| {
+    let stats = |options: &str, extra: &[&str]| {
         let n = deck(&format!("{deck_text}\n{options}"));
         let c = RunConfig::from_netlist(&n).unwrap();
-        let request = c.request_for(&n.analyses[0]).unwrap();
+        let mut request = AnalysisRequest::from(&n.analyses[0]);
+        request
+            .arguments
+            .extend(extra.iter().map(|a| (*a).to_owned()));
+        let request = c.request(request).unwrap();
         let mut circuit = c.circuit(&n).unwrap();
         spice_analysis::companion_transient(&mut circuit, &request, &c.context())
             .unwrap()
             .1
     };
-    let default = stats("");
-    assert_eq!(stats(".options itl4=10"), default);
-    let starved = stats(".options itl4=3");
+    // As in C (identical iteration/timepoint/rejection counts for itl4 =
+    // 1/3/10/99), deck values below 100 change nothing.
+    let default = stats("", &[]);
+    for low in ["1", "3", "10", "99", "100"] {
+        assert_eq!(stats(&format!(".options itl4={low}"), &[]), default);
+    }
+    // The limit is a real per-timepoint bound: the literal request knob below
+    // C's floor forces more rejected trials (dctran.c cuts the step by 8 on
+    // non-convergence), and explicit request arguments beat the deck.
+    let starved = stats(".options itl4=200", &["tranmaxiter=3"]);
     assert!(
         starved.rejected > default.rejected,
         "{starved:?} vs {default:?}"
     );
-    for bad in [".options itl4=0", ".options itl4=2.5", ".options itl4"] {
+    for bad in [".options itl4=2.5", ".options itl4", ".options itl4=10001"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
     }
 }
@@ -378,7 +445,7 @@ fn options_c_ignores_are_documented_no_ops() {
 }
 
 #[test]
-fn unread_frontend_variables_bypass_and_pivots_are_documented_no_ops() {
+fn unread_frontend_variables_and_bypass_are_documented_no_ops() {
     for options in [
         ".options post",
         ".options post=2",
@@ -393,19 +460,21 @@ fn unread_frontend_variables_bypass_and_pivots_are_documented_no_ops() {
     assert!(c.ignored()[0].reason.contains("never bypasses"));
     assert!(config(".options bypass=1").unwrap_err().is_not_yet_ported());
     assert!(!config(".options bypass").unwrap_err().is_not_yet_ported());
-    let c = config(".options pivtol=1e-13 pivrel=1e-3").unwrap();
-    assert_eq!(c.ignored().len(), 2);
-    assert!(c.ignored()[1].reason.contains("pivot"));
-    assert!(config(".options pivtol=0 pivrel=1").is_ok());
-    for bad in [
-        ".options pivtol=-1",
-        ".options pivrel=0",
-        ".options pivrel=1.5",
-        ".options pivtol",
-        ".options pivrel=abc",
+}
+
+#[test]
+fn pivot_thresholds_are_not_yet_ported() {
+    // C sets Sparse's TSKpivotAbsTol/TSKpivotRelTol from them (cktsopt.c);
+    // this port's LU has no matching knob, so they are explicit gaps rather
+    // than no-ops.
+    for options in [
+        ".options pivtol=1e-13",
+        ".options pivrel=1e-3",
+        ".options pivtol={1e-13}",
     ] {
-        let error = config(bad).unwrap_err();
-        assert!(!error.is_not_yet_ported(), "{bad}: {error}");
+        let error = config(options).unwrap_err();
+        assert!(error.is_not_yet_ported(), "{options}: {error}");
+        assert!(error.to_string().contains("piv"), "{error}");
     }
 }
 
@@ -443,14 +512,14 @@ fn unknown_and_unported_options_still_fail() {
 fn braced_and_quoted_option_values_evaluate_against_params() {
     let c = config(
         ".param t=40 g=1u half=0.5\n.options temp={t+10} tnom='t-5' gmin={g/10} \
-         reltol={2*1m} itl1={10*5} xmu={half/2} pivrel='half'",
+         reltol={2*1m} itl1={10*15} xmu={half/2} cptime='half'",
     )
     .unwrap();
     assert_eq!(c.context().temperature, 50.);
     assert_eq!(c.context().nominal_temperature, 35.);
     close(c.context().gmin, 1e-7, 1e-12, 0.);
     close(c.transient().rtol.unwrap(), 2e-3, 1e-12, 0.);
-    assert_eq!(c.dc().itl1, Some(50));
+    assert_eq!(c.dc().itl1, Some(150));
     assert_eq!(c.transient().xmu, Some(0.25));
     assert_eq!(c.applied()[0].value, "{t+10}");
     assert_eq!(c.applied()[1].value, "'t-5'");

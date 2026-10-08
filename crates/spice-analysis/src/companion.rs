@@ -59,8 +59,9 @@
 //! A trial is an iteration `load -> solve -> converged?`. Linear circuits take
 //! exactly one solve per trial (followed by a state-only reload at the
 //! solution); circuits with nonlinear devices iterate with C's voltage/current
-//! tolerance test up to `itl4` times (request `tranmaxiter=`, default 10 as
-//! in C) and report non-convergence by shrinking the step by eight with order
+//! tolerance test up to `itl4` times (request `tranmaxiter=`, default 100:
+//! C's `NIiter()` raises its nominal default of 10, and any limit below 100,
+//! to 100) and report non-convergence by shrinking the step by eight with order
 //! 1, as `dctran.c` does.
 //!
 //! The nonlinear initial bias is the shared DC solve (`dctran.c` calls `CKTop`
@@ -84,9 +85,10 @@ use crate::initial::{self, Hints, VoltageTolerance};
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisContext, AnalysisRequest, Plot};
 
-/// C's default `CKTtranMaxIter` (`.option itl4`): Newton iterations per
-/// timepoint (`cktntask.c`).
-const TRAN_MAX_ITER: usize = 10;
+/// C's *effective* default `CKTtranMaxIter` (`.option itl4`): Newton
+/// iterations per timepoint. `cktntask.c` sets 10, but `NIiter()`
+/// (`niiter.c`) raises every limit below 100 to 100, so C iterates up to 100.
+const TRAN_MAX_ITER: usize = 100;
 /// Default whole-run limit on accepted + rejected steps.
 const DEFAULT_MAX_STEPS: usize = 1_000_000;
 /// Largest accepted `maxsteps=`.

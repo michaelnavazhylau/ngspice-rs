@@ -29,8 +29,11 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 the request already states them (explicit request > deck > defaults). With
 `backend=diffsol` a deck `method`/`maxord`/`chgtol`/`trtol` is an error, not
 silently ignored. `maxsteps=` bounds accepted + rejected steps.
-`.option itl4` (request `tranmaxiter=`, 1..=10000, default 10 as C's
-`CKTtranMaxIter`) bounds the Newton iterations of each nonlinear trial,
+`.option itl4` bounds the Newton iterations of each nonlinear trial: C's
+nominal `CKTtranMaxIter` default is 10, but `NIiter()` (`niiter.c`) raises any
+limit below 100 to 100, so the effective default is 100 and the deck value is
+forwarded as request `tranmaxiter=max(itl4, 100)` (the request key itself is a
+literal `1..=10000` port knob),
 `.option xmu` (request `xmu=`, `0..=0.5`, default 0.5) is the trapezoidal
 weighting of `nicomcof.c`, and `itl1`/`srcsteps`/`gminsteps`/`gminfactor`
 (requests `maxiter=` etc.) configure the nonlinear initial bias (#110). All of

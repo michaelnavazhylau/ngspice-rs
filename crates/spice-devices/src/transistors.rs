@@ -147,6 +147,10 @@ pub struct Bjt {
     tr: Real,
     temp: Option<Real>,
     tnom: Option<Real>,
+    /// Instance multiplier `m`. Area and `m` both scale `is`/`cje`/`cjc`, but
+    /// only `m` scales the `CKTgmin` junction terms (`bjtload.c` stamps every
+    /// conductance as `m * g`; area never touches `gmin`).
+    multiplier: Real,
 }
 impl Bjt {
     pub(crate) fn instantiate(
@@ -203,6 +207,7 @@ impl Bjt {
             tr: value(&m, "tr")?,
             temp: instance.get("temp").map(|v| v.value),
             tnom: m.get("tnom").map(|v| v.value),
+            multiplier: value(&instance, "m")?,
         };
         if device.mje >= 1. || device.mjc >= 1. || device.fc >= 1. || !scale.is_finite() {
             return Err(SpiceError::circuit(
@@ -287,6 +292,7 @@ impl Device for Bjt {
         let vbe = context.node_voltage(b) - context.node_voltage(e);
         let vbc = context.node_voltage(b) - context.node_voltage(c);
         let [(ibe, gbe, qbe), (ibc, gbc, qbc)] = self.points(vbe, vbc, &context.model_context())?;
+        let gmin = self.multiplier * context.gmin;
         stamp_current(
             context,
             [c, e],
@@ -311,8 +317,8 @@ impl Device for Bjt {
                 ports,
                 v,
                 JunctionPoint {
-                    current: context.gmin * v,
-                    conductance: context.gmin,
+                    current: gmin * v,
+                    conductance: gmin,
                     ..q
                 },
                 slot,
@@ -320,14 +326,14 @@ impl Device for Bjt {
         }
         // bjtload.c: without a substrate saturation current the substrate
         // junction is just CKTgmin between the substrate node and its
-        // connection node (see `substrate`).
+        // connection node (see `substrate`), scaled by `m` like every BJT term.
         let [substrate, connection] = self.substrate();
         let v = context.node_voltage(connection) - context.node_voltage(substrate);
         stamp_current(
             context,
             [connection, substrate],
-            context.gmin * v,
-            &[(connection, context.gmin), (substrate, -context.gmin)],
+            gmin * v,
+            &[(connection, gmin), (substrate, -gmin)],
         )?;
         Ok(())
     }
@@ -343,11 +349,12 @@ impl Device for Bjt {
         linear_current(context, [c, e], &[(b, gbe - gbc), (e, -gbe), (c, gbc)])?;
         linear_current(context, [b, e], &[(b, gbe / self.bf), (e, -gbe / self.bf)])?;
         linear_current(context, [b, c], &[(b, gbc / self.br), (c, -gbc / self.br)])?;
+        let gmin = self.multiplier * context.model_context.gmin;
         for (ports, q) in [([b, e], qbe), ([b, c], qbc)] {
-            context.nodal(ports, context.model_context.gmin, false)?;
+            context.nodal(ports, gmin, false)?;
             context.nodal(ports, q.capacitance, true)?;
         }
-        context.nodal(self.substrate(), context.model_context.gmin, false)?;
+        context.nodal(self.substrate(), gmin, false)?;
         Ok(())
     }
 }

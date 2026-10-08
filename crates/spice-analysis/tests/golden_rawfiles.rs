@@ -498,14 +498,15 @@ const EXPECTATIONS: &[Expectation] = &[
         flags: PlotFlags::Real,
         points: 11,
         variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
-        // `.options gmin={gj}` = 1 uS: at v1 = -10 V the reverse diode and the
-        // PNP base-collector junction each conduct gmin (the lateral PNP's
+        // `.options gmin={gj}` = 1 uS: at v1 = -10 V the reverse diode and
+        // q1's base-collector junction each conduct gmin, q2's (m=2, area=3)
+        // conducts m * gmin = 2 uS (area does not scale gmin; the lateral PNPs'
         // substrate gmin sits base-to-ground at 0 V), so the 1 k source
-        // resistor sees 2 uS: v(out) = -10 / (1 + 1k * 2u).
+        // resistor sees 4 uS: v(out) = -10 / (1 + 1k * 4u).
         values: &[
             ("v(v-sweep)", 0, -10.0, 0.0),
-            ("v(out)", 0, -9.980039920149501, 0.0),
-            ("i(v1)", 0, 1.996007985049886e-5, 0.0),
+            ("v(out)", 0, -9.960159362538445, 0.0),
+            ("i(v1)", 0, 3.984063746155542e-5, 0.0),
             ("v(v-sweep)", 10, 0.0, 0.0),
         ],
     },

@@ -116,7 +116,7 @@ Highest first, resolved **per name**:
 
 | Deck option | Request key | Meaning |
 | --- | --- | --- |
-| `itl1` | `maxiter` | Newton iterations per stage, 1..=10000 |
+| `itl1` | `maxiter` | Newton iterations per stage: deck `0..=10000` forwarded as `max(itl1, 100)` (C `niiter.c` raises any limit below 100 to 100); the request key is a literal `1..=10000` |
 | `srcsteps` | `srcsteps` | `0` disables source stepping, else `N` equal increments (1..=1000) |
 | `gminsteps` | `gminsteps` | `0` disables gmin stepping, else `N` stages (1..=100) from 1e-3 S |
 | `gminfactor` | `gminfactor` | ratio between stages, finite, `1 < f <= 1e6`, default 10 |
@@ -143,7 +143,8 @@ Propagation is honest:
   Newton tolerances. Linear circuits and `uic` runs perform no bias Newton solve
   (C skips `CKTop` under `uic` as well). With `backend=diffsol` a deck DC option
   is `Unsupported`.
-- `itl2` (#110) reaches `.dc` only, as `trcvmaxiter`: every point after the
+- `itl2` (#110) reaches `.dc` only, as `trcvmaxiter` (`max(itl2, 100)`, the
+  same `niiter.c` floor): every point after the
   first first tries a plain warm-started Newton bounded by it (continuation
   disabled, C `dctrcurv.c` `NIiter(CKTdcTrcvMaxIter)`); a numerical failure falls
   back to the full `itl1` solve with continuation from the same seed. Unset, the
@@ -172,7 +173,14 @@ are cited as parity facts.
   1e-8 S nodal gmin, then an unregularized solve; `gminsteps`/`gminfactor` build
   a decade-style ladder from a fixed 1e-3 S start. They are not C's schedule.
 - **`itl1` default is 200**, not C's 100, to keep this port's existing accuracy
-  and damping (global 0.2 V step limit, not per-junction PN/FET limiting).
+  and damping (global 0.2 V step limit, not per-junction PN/FET limiting). A
+  deck `itl1` follows C's effective value `max(itl1, 100)`, so `itl1=4` is 100
+  in both; tests that need a tiny budget use the literal request `maxiter=`.
+- **`.option gmin` does not move the artificial gmin ladder.** C's
+  `spice3_gmin` starts at `CKTgmin * gminfactor^gminsteps` and `dynamic_gmin`
+  stops at `max(CKTgmin, CKTgshunt)` (`cktop.c`); this port's ladder always
+  starts at 1e-3 S and finishes with a zero-artificial-gmin solve, whatever
+  `.option gmin` is.
 - **Success is always unregularized.** Each strategy must finish with full
   sources and zero artificial gmin; no regularized result is ever returned.
 - **Non-numerical errors are never retried**, and a total iteration budget

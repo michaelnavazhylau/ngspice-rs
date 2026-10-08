@@ -95,6 +95,31 @@ fn points_match(rust: &Plot, c: &Plot, names: &[&str]) -> Result<(), String> {
     Ok(())
 }
 
+/// DC comparison at ngspice's Newton convergence tolerances (`reltol` 1e-3,
+/// `vntol` 1 uV, `abstol` 1 pA): two Newton runs that stop at different
+/// iterates of the same solution differ by up to this, independent of the
+/// iteration limits under test.
+fn converged_match(rust: &Plot, c: &Plot, names: &[&str]) -> Result<(), String> {
+    if rust.point_count() != c.point_count() {
+        return Err("point counts differ".into());
+    }
+    for name in names {
+        for point in 0..c.point_count() {
+            let (ours, theirs) = (
+                rust.value(name, point).unwrap().re,
+                c.value(name, point).unwrap().re,
+            );
+            let bound = 1e-3 * theirs.abs() + floor(name);
+            if (ours - theirs).abs() > bound {
+                return Err(format!(
+                    "{name}[{point}]: Rust {ours:e}, C {theirs:e}, bound {bound:e}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// A plot's `name` column at time `t`, linearly interpolated.
 fn at(plot: &Plot, name: &str, t: f64) -> f64 {
     let time = plot.column("time").unwrap();
@@ -139,15 +164,16 @@ fn waveforms_match(
 
 const REVERSE_JUNCTIONS: &str = "options gmin\n.param gj=1u\nvd d 0 -10\nd1 d 0 dm\n\
     vc c 0 10\nq1 c 0 0 qm\nvp p 0 -10\nq2 p 0 0 qp\nvs s 0 10\nq3 s 0 0 x qm\nrx x 0 1k\n\
-    vm m 0 5\nm1 m 0 0 0 mm\n.model dm d(is=1e-14)\n\
+    vm m 0 5\nm1 m 0 0 0 mm\nvk k 0 10\nq4 k 0 0 qm m=2 area=3\n.model dm d(is=1e-14)\n\
     .model qm npn(is=1e-16)\n.model qp pnp(is=1e-16)\n.model mm nmos(vto=1)";
 
 #[test]
 #[ignore = "requires NGSPICE_BIN; junction gmin of diode/BJT/MOS1 against live C"]
 fn gmin_matches_c_for_reverse_junctions() {
     // NPN substrate gmin ties to the collector (vertical), PNP to the base
-    // (lateral); q3 has an explicit substrate node.
-    let names = ["i(vd)", "i(vc)", "i(vp)", "i(vs)", "v(x)", "i(vm)"];
+    // (lateral); q3 has an explicit substrate node; q4's gmin terms scale
+    // with m=2 but not with area=3 (bjtload.c).
+    let names = ["i(vd)", "i(vc)", "i(vp)", "i(vs)", "v(x)", "i(vm)", "i(vk)"];
     for options in [
         ".options gmin={gj}",
         ".options gmin='gj*10'",
@@ -204,33 +230,69 @@ fn xmu_matches_c_on_a_common_grid() {
     assert!(waveforms_match(&rust, &c, 5e-6, 1.2e-3, &breakpoints, &["v(out)", "i(v1)"]).is_err());
 }
 
+/// Exact equality of two plots (same points, same values).
+fn identical(a: &Plot, b: &Plot) -> bool {
+    a.point_count() == b.point_count() && a.points == b.points
+}
+
 #[test]
-#[ignore = "requires NGSPICE_BIN; iteration limits itl1/itl4 on a nonlinear transient"]
-fn iteration_limits_keep_c_parity_on_a_diode_transient() {
-    // The committed m4_diode_tran circuit (C parity at compare::TRAN) with
-    // tight limits. Iteration limits only bound convergence work: this port's
-    // Newton damping is not C's per-junction limiting, so iteration counts are
-    // not comparable, but with both runs converging the waveforms must agree.
-    // (Their Rust-side effect is asserted in tests/options_coverage.rs.)
+#[ignore = "requires NGSPICE_BIN; itl1/itl2/itl4 below 100 are no-ops in C and here"]
+fn iteration_limits_below_c_floor_match_c() {
+    // niiter.c raises every Newton limit below 100 to 100, so C's results are
+    // bit-identical with and without these options; the port stores the same
+    // effective limit and is bit-identical too, and both agree at compare::TRAN.
+    // (The m4_diode_tran circuit, C parity at compare::TRAN.)
     let base = "options itl\nv1 in 0 pulse(0.5 0.7 10n 10n 10n 30n 80n)\nr1 in out 1k\n\
                 d1 out 0 dm\n.model dm d(is=1e-14 n=1 rs=10 cjo=20p vj=0.7 m=0.5 tt=1n)";
-    let extra = ".options itl1=40 itl4=2 itl3=4 itl5=0";
-    let cards = format!("{base}\n{extra}");
-    let rust = run_rust(&cards, "tran 1n 100n 0 0.1n");
-    let c = run_c("itl", &cards, "tran 1n 100n 0 0.1n");
+    let low = format!("{base}\n.options itl1=2 itl4=3 itl3=4 itl5=0");
+    let analysis = "tran 1n 100n 0 0.1n";
+    let (c_base, c_low) = (
+        run_c("itl-base", base, analysis),
+        run_c("itl-low", &low, analysis),
+    );
+    assert!(identical(&c_base, &c_low), "C changed with itl below 100");
+    let (rust_base, rust_low) = (run_rust(base, analysis), run_rust(&low, analysis));
+    assert!(
+        identical(&rust_base, &rust_low),
+        "Rust changed with itl below 100"
+    );
     let worst = waveforms_match(
-        &rust,
-        &c,
+        &rust_low,
+        &c_low,
         1e-9,
         100e-9,
         &[10e-9, 20e-9, 50e-9, 60e-9, 90e-9],
         &["v(out)", "i(v1)"],
     )
     .unwrap();
-    println!(
-        "{extra}: worst error {worst:.3e} of bound, Rust {} C {} points",
-        rust.point_count(),
-        c.point_count()
+    println!("itl below 100: worst error {worst:.3e} of bound");
+
+    // DC: itl1=2 without continuation converges in C (v(b) = 0.69289) and here.
+    let op = "options itl1\nv1 a 0 5\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n\
+              .options itl1=2 gminsteps=0 srcsteps=0";
+    converged_match(
+        &run_rust(op, "op"),
+        &run_c("itl1-op", op, "op"),
+        &["v(b)", "i(v1)"],
+    )
+    .unwrap();
+
+    // .dc: a 0 -> 5 V jump the port's warm start needs more than 5 iterations
+    // for; itl2=5 is 100 in C and here, so the sweep agrees.
+    let sweep = "options itl2\nv1 a 0 0\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n\
+                 .options itl2=5 itl1=2";
+    let rust = run_rust(sweep, "dc v1 0 5 5");
+    let c = run_c("itl2-dc", sweep, "dc v1 0 5 5");
+    converged_match(&rust, &c, &["v(b)", "i(v1)"]).unwrap();
+    let c_plain = run_c(
+        "itl2-dc-plain",
+        "options itl2\nv1 a 0 0\nr1 a b 1k\nd1 b 0 dm\n\
+                         .model dm d(is=1e-14)",
+        "dc v1 0 5 5",
+    );
+    assert!(
+        identical(&c, &c_plain),
+        "C changed with itl1/itl2 below 100"
     );
 }
 
