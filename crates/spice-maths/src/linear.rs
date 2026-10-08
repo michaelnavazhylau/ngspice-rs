@@ -1,10 +1,11 @@
 //! Owned faer factors. Matrices remain plain, cloneable stamping storage.
 //!
-//! Sparse faer's high-level LU does not expose numeric pivots. We certify its
-//! rank by solving every basis RHS and checking `A * inverse(A) ≈ I`, rejecting
-//! non-finite results and numerically unresolved rank. This costs n sparse
-//! solves at factorization, but only O(n) extra storage; no dense fallback or
-//! custom LU is used. A future backend pivot API can replace this diagnostic.
+//! Sparse faer's high-level LU does not expose numeric pivots. The existing
+//! numerical guard checks every basis RHS, finite output, backward residuals
+//! and a computed inverse-norm conditioning cutoff. This costs n sparse solves
+//! and O(n) extra storage, with no dense fallback or custom LU. The per-column
+//! bounds do not establish a formal aggregate uniqueness certificate; see
+//! `docs/port/SPARSE_RANK_DIAGNOSTICS.md` for the proof caveat and backend audit.
 
 use crate::{Matrix, SparseMatrix, Vector};
 use faer::prelude::*;
@@ -143,10 +144,10 @@ impl SparseLu {
             factor,
             symbolic,
         };
-        // All basis vectors must be in the range, even when the user's RHS is zero.
-        // An exact singular LU usually returns NaNs here. A finite pseudoinverse
-        // cannot pass all basis residuals at resolvable conditioning.
-        // Reject rank that floating-point residual arithmetic cannot certify.
+        // Probe every basis RHS even when the user's RHS is zero. Retain the
+        // finite/residual/conditioning policy unchanged. Its per-column checks
+        // do not prove aggregate contraction; the documented proof limitation
+        // must not be confused with a demonstrated singular false acceptance.
         let mut inverse_rows = vec![0.0; n];
         for i in 0..n {
             let mut rhs = Vector::zeros(n);

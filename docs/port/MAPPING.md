@@ -43,6 +43,8 @@ therefore the central risk of this port — see
 | --- | --- | --- | --- |
 | `src/maths/dense/` | 1,742 | `spice-maths::dense` | row-major storage and owned faer pivoted LU with checked solves |
 | `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `spice-maths::sparse` | triplet storage, petgraph row-coupling projection and owned faer sparse LU; finite/rank/residual checks and exact-pattern symbolic reuse |
+| `src/maths/dense/`, `src/maths/sparse/` scaling (behavioral reference) | — | `spice-maths::equilibration` | bounded opt-in dense/sparse/complex wrappers (#46); independent power-of-two policy, original-unit residuals, unchanged defaults ([EQUILIBRATION.md](EQUILIBRATION.md)) |
+| `src/maths/sparse/` diagnostics (behavioral reference) | — | `spice-maths::linear`, `complex` | #47 audits locked faer APIs and retains numerical guards; example-only batching/benchmarks, formal aggregate-proof caveat tracked in #68 ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)) |
 | `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; faer supplies real/complex LU, see licensing below |
 | `src/maths/ni/` | 1,961 | `spice-maths::integrator`, separate `spice-maths::diffsol` | trap and Gear orders 1–2 coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history; orders 3–6 rejected; explicit adaptive BDF supports index-one DAEs including floating/coupled capacitor mass blocks (higher-index rejected), not ngspice trap/Gear parity |
 | `src/maths/cmaths/` | 4,054 | `spice-core::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
@@ -73,6 +75,12 @@ translate all of it; the roadmap targets a small, useful subset first.
 | ↳ `cktdojob.c`, `dctran.c`, `dcop.c`, `acan.c`, `cktload.c` | 2,060 | `spice-analysis::analysis` | bounded linear assembly/factor/solve/plot orchestration; no nonlinear Newton/stepping or SPICE trap/Gear driver |
 | `src/frontend/rawfile.c` | 863 | `spice-analysis::rawfile` | ASCII read **and** write ported, plus binary real/complex read **and** write with explicit byte order and validated payload lengths (#45); see [RAWFILES.md](RAWFILES.md) |
 | `src/frontend/plotting/` | 9,380 | `spice-analysis::results` | production result tables; interactive plotting not ported |
+
+The #29 experimental `spice-maths::diffsol::higher_index` module is an independent
+numeric constrained-RLC formulation, with `CAPload`/`INDload`/`DCtran` as read-only
+physical/event references, not a port of the C transient scheduler. Default
+index-one guards remain intact; prototype evidence and runtime enabling gates
+#69–#72 are recorded in [HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md).
 
 ## Licensing notes
 

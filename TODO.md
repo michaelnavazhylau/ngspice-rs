@@ -24,9 +24,10 @@ checkout, not a claim that all M2 slices have already merged.
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
-| Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps |
+| Linear equations | faer real/complex LU, scalar R/C/L/V/I elaboration and stamps; opt-in library equilibration wrappers, original-unit residuals and unchanged defaults (#46, [EQUILIBRATION.md](docs/port/EQUILIBRATION.md)) |
+| Numerical follow-up | #47 backend/rank audit retains production guards (no enabled optimization or formal certificate; proof follow-up #68); #29 constrained-RLC prototype/ADR is not production-enabled; runtime gates #69–#72 |
 | DC / AC | Linear and bounded nonlinear `.op`, typed/nested source/temperature `.dc`, bias-linearized `.ac` |
-| Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear circuits, `.ic`/`uic` rejected; explicit `backend=diffsol method=bdf` adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
+| Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear and bounded nonlinear charge paths, linear `.ic`/`uic` supported and nonlinear initialization rejected; explicit `backend=diffsol method=bdf` adaptive BDF for index-one DAEs, including floating/coupled capacitor mass blocks; higher-index pencils rejected |
 | Nonlinear devices | Bounded diode/Ebers-Moll BJT/MOS1 DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
 | CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): the deck's single `.op`/`.dc`/`.ac`/`.tran` through the production runner, ASCII rawfile written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
 | Output selection | `.save`/`.print` cards project the full plot into the written rawfile in C `dbs` order with first-wins dedup and bounded operand support (`v(n)`, `v(n1,n2)`, `i(source|inductor)`, `vm`/`vp`/`vr`/`vi`/`vdb`); `.print` also renders a text table; unsupported/unresolvable requests fail before publishing; `.plot` unported (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
@@ -36,9 +37,10 @@ checkout, not a claim that all M2 slices have already merged.
 **No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
 is not ngspice trapezoidal or fixed Gear-2. Numeric PULSE/PWL V/I
 setters (#8) elaborate to analytic Pulse/Pwl forcing (#9) with lazy breakpoints
-and left/right limits (Step is device-API only); higher-index constraints,
-nonlinear charge, `.ic` and `uic` remain unsupported. Floating/coupled capacitor
-index-one DAEs are supported by the BDF backend (#28).
+and left/right limits (Step is device-API only). The BDF backend still rejects
+higher-index constraints, nonlinear charge, `.ic` and `uic`; #29's numeric
+prototype does not widen it. Floating/coupled capacitor index-one DAEs are
+supported by that backend (#28).
 
 **M5's bounded scope is complete.** Wave 1 merged subcircuit instantiation
 (#18, [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `spice-rs simulate`
@@ -142,13 +144,13 @@ BDF does not close the following trap/Gear and general-transient requirements.
 - [x] Implement C/L trap/Gear-2 companion stamps from accepted charge/flux state without double-discretizing diffsol equation stamps (#25); independent sources stamp their time-`t` forcing (left/right limit) in companion loads (#26); mutual inductance is pending (`ic=`/`uic` landed with #27).
 - [x] Implement `.ic`, `.nodeset`, instance IC and `uic` semantics with consistent constraints (#27): `.ic`/`.nodeset`/`uic` flow from `RunConfig` into every `AnalysisRequest`; the companion `.tran` enforces `.ic` as exact row constraints in the initial bias (ideal-source conflicts are errors), starts `uic` runs from capacitor/inductor `ic=` charges and fluxes with an exact impulse-freedom check, treats `.nodeset` as a validated no-op for linear circuits (C quirk: used as node IC under `uic`), validates nodes in every analysis, and keeps `backend=diffsol` explicit-reject; analytic RC/RL/RLC tests and opt-in live C agreement ([TRANSIENT.md](docs/port/TRANSIENT.md)). Mutual inductors and nonlinear device initial conditions remain pending.
 - [x] Connect parsed PULSE/PWL source waveforms to time evaluation and breakpoint handling (#9): validated analytic `Pulse` with C defaults resolved from the `.tran` step/stop (`PulseSpec`/`TransientTiming`), `Waveform::value_at(t, Limit)` and lazy `breakpoints_in(t0, t1)`; diffsol BDF stops at every corner/jump (budget 100k segments) and starts from the t=0 forcing; the companion driver (#26) lands on every breakpoint lazily. PULSE `PHASE`/pulse-count (8th field), PWL `r=`/`td=` and SIN/EXP/SFFM remain unported.
-- [x] Demonstrate an index-one formulation for floating/coupled capacitor networks in the BDF backend: block-SVD `ker E`/`ker Eᵀ`, rank-certified `Wᵀ A N`, charge-preserving event projection and consistent derivatives, with analytic and opt-in C tests (#28).
-- [ ] Design and validate bounded higher-index source-constraint support (#29); such pencils remain rejected.
+- [x] Demonstrate an index-one formulation for floating/coupled capacitor networks in the BDF backend: block-SVD `ker E`/`ker Eᵀ`, rank-checked `Wᵀ A N`, charge-preserving event projection and consistent derivatives, with analytic and opt-in C tests (#28).
+- [x] Deliver the bounded higher-index formulation/prototype gate (#29): fallible fully voltage-constrained RLC reduction/reconstruction, original/differentiated residuals, IC/rank/impulse refusal and analytic tests; production pencils remain rejected. See [HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md); runtime enabling is separately gated by #69–#72.
 - [x] Define explicit trial-versus-accepted device state: `&self` trial loads into a disposable `TrialState`, rotating `StateHistory`, per-device branch/state ranges and integration context, atomic accept hooks before commit (#24).
 - [x] Accepted-state/trial-state separation, event left/right limits, distinct voltage/current tolerances and progress/work budgets in the companion driver (#26); tests show rejected trials never advance histories and accept-hook failures abort the run. Every future Newton/nonlinear driver must keep this.
 - [x] Complete RC/RLC transient and AC C-golden exit gates on common physical sample grids; do not require identical adaptive timesteps (#48). `xtask/src/tran.rs` event-aware comparator with `compare::TRAN`; twelve fixtures registered in `golden verify` at that point, sixteen with the initialized-state fixtures below (8 new: RL/RC-Gear/RC-PWL/RLC trap+Gear/floating/coupled `.tran`, RLC `.ac`), with Rust-only explicit-BDF variants against the same goldens (`TRAN`, or the peak-scaled `TRAN_RESTART` where C's backward-Euler restart error exceeds the pointwise bound); analytic closed-form, KCL, charge, energy and production-API gate tests in `crates/spice-analysis/tests/m3_gate.rs` ([VERIFICATION.md](docs/port/VERIFICATION.md)).
 - [x] Initialized-state (`.ic`/`uic`/instance `ic=`) conformance fixtures (#48 remainder): `rc_ic_uic_tran` (RC discharge from `ic=2`), `rlc_ic_uic_tran` (series RLC from inductor `ic=20m` and capacitor `ic=1`), `rc_ic_node_tran` (`.ic v(out)=0.25` without `uic`: constrained initial bias, then released) and `floating_cap_ic_tran` (floating capacitor with a 2 uC plate charge). New C goldens captured one at a time with `cargo xtask golden capture --netlist <name>` (no existing golden touched), registered in `golden verify` with `compare::TRAN` unchanged (16 verified, worst error 0.000 of the bound); no BDF variants because the diffsol backend rejects `.ic`/`uic`/`ic=` (a test asserts the rejection). The comparator's `tran::Grid` gained a `start` for `uic` runs (C writes no `t = 0` row; both plots must begin at the same first accepted step). Closed-form decay, conserved plate charge, `uic` first-row/step-breakpoint and `.ic`-release checks in `crates/spice-analysis/tests/m3_gate.rs`.
-- Still blocked / unsupported by the gate (do not claim M3 or universal MNA DAE support): higher-index source constraints (#29), nonlinear initialization and physics beyond the M4 support table, orders above 2.
+- Still blocked / unsupported by the gate (do not claim M3 or universal MNA DAE support): runtime higher-index source constraints (#69–#72), nonlinear initialization and physics beyond the M4 support table, orders above 2.
 
 ## 5. Nonlinear devices and convergence — M4
 
@@ -185,7 +187,10 @@ remain explicit, rather than implying complete ngspice output compatibility.
 - [x] Add `cargo xtask golden verify` for the three supported `.op`/`.ac` fixtures, comparing metadata and named real/complex components with the existing DC/AC bounds; explicit exclusions, failure diagnostics and process tests (GitHub #7).
 - [ ] Expand production C comparisons as parser/device/analysis support lands; keep ordinary tests independent of a C toolchain.
 - [ ] Preserve singular homogeneous/source-loop, disconnected valid block, mutation, pattern-change, finite/overflow and residual regression coverage.
-- [ ] Investigate equilibration for ill-scaled MNA and reduce the n-extra-solves sparse rank-diagnostic cost without weakening uniqueness checks.
+- [x] Add opt-in library equilibration (#46): bounded positive power-of-two factors, dense/sparse/complex snapshots and physical-unit residual checks; defaults unchanged. See [EQUILIBRATION.md](docs/port/EQUILIBRATION.md).
+- [x] Audit sparse rank-diagnostic cost (#47), retain unchanged production policy and document measured example-only complete-basis batching/guard regressions. No enabled optimization or formal uniqueness certificate. See [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md).
+- [ ] Prove and independently review an aggregate sparse uniqueness certificate, including real/complex rounding/range bounds and changed rejection/overhead policy (#68); current guard's proof caveat remains unresolved.
+- [ ] Gate higher-index runtime enabling separately: analytic waveform jets (#69), exact-class topology adapter (#70), reduced integration/reconstructed physical error control (#71), then nonimpulsive source corners (#72). No general DAE/default enablement follows from the prototype.
 - [ ] Keep this checklist authoritative; update branch status and capability summaries whenever functionality is integrated.
 
 ## Suggested sequence

@@ -55,7 +55,9 @@ impl ComplexMatrix {
                 .collect(),
         })
     }
-    /// Owned faer complex LU with a full-range rank diagnostic.
+    /// Owned faer complex LU with complete-basis numerical rank diagnostics.
+    /// The inherited guard is not a formal aggregate uniqueness certificate;
+    /// see `docs/port/SPARSE_RANK_DIAGNOSTICS.md`.
     /// # Errors
     /// Structural/numeric singularity or failed rank residual.
     pub fn factorize(&self) -> SpiceResult<ComplexLu> {

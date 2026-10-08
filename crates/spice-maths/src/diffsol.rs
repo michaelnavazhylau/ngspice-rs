@@ -20,14 +20,20 @@
 //!    [`MAX_MASS_BLOCK`] rows are rejected).
 //! 2. The null vectors give bases `N` of `ker E` and `W` of `ker Eᵀ`. The pencil
 //!    is index one exactly when `Wᵀ A N` is nonsingular; this is factored with
-//!    the rank-certified sparse LU, so higher-index source/capacitor loops and
+//!    the existing numerical sparse rank guard. Tested higher-index loops and
 //!    nonunique nullspaces are rejected rather than accepted on a zero residual.
+//!    The aggregate-certification proof caveat is documented separately in
+//!    `docs/port/SPARSE_RANK_DIAGNOSTICS.md`; this adapter does not resolve it.
 //! 3. Consistent states satisfy `Wᵀ (b - A x) = 0`. [`LinearDae::project`] moves
 //!    only along `N`, so `E x` — capacitor charges, inductor fluxes — is exactly
 //!    preserved across source events. Consistent derivatives use the block
 //!    pseudo-inverse of `E` plus the differentiated constraint.
 //!
 //! For diagonal `E` this reduces to the earlier algebraic-block formulation.
+/// Opt-in numeric formulation experiment; not used by the index-one adapter.
+/// Production higher-index pencils continue to fail the existing runtime guard.
+pub mod higher_index;
+
 use crate::linear::{numerical, square};
 use crate::{SparseLu, SparseMatrix, Vector};
 use diffsol::matrix::sparsity::MatrixSparsityRef;
