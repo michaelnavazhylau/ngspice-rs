@@ -1,0 +1,98 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_conv_latch_op.cir
+title: "BJT latch operating point (MODEINITJCT start, pnjlim, dynamic gmin)" @netlists/m7_conv_latch_op.cir:1:1
+card 1 @netlists/m7_conv_latch_op.cir:4:1 lines=4-4 continuations=0
+  raw: "vcc vcc 0 dc 5"
+  kind: device(v)
+  token 1 4:1 word "vcc"
+  token 2 4:5 word "vcc"
+  token 3 4:9 number "0" value=0e0
+  token 4 4:11 word "dc"
+  token 5 4:14 number "5" value=5e0
+card 2 @netlists/m7_conv_latch_op.cir:5:1 lines=5-5 continuations=0
+  raw: "rc1 vcc c1 1k"
+  kind: device(r)
+  token 1 5:1 word "rc1"
+  token 2 5:5 word "vcc"
+  token 3 5:9 word "c1"
+  token 4 5:12 number "1k" value=1e3
+card 3 @netlists/m7_conv_latch_op.cir:6:1 lines=6-6 continuations=0
+  raw: "rc2 vcc c2 1.2k"
+  kind: device(r)
+  token 1 6:1 word "rc2"
+  token 2 6:5 word "vcc"
+  token 3 6:9 word "c2"
+  token 4 6:12 number "1.2k" value=1.2e3
+card 4 @netlists/m7_conv_latch_op.cir:7:1 lines=7-7 continuations=0
+  raw: "rb1 c1 b2 10k"
+  kind: device(r)
+  token 1 7:1 word "rb1"
+  token 2 7:5 word "c1"
+  token 3 7:8 word "b2"
+  token 4 7:11 number "10k" value=1e4
+card 5 @netlists/m7_conv_latch_op.cir:8:1 lines=8-8 continuations=0
+  raw: "rb2 c2 b1 10k"
+  kind: device(r)
+  token 1 8:1 word "rb2"
+  token 2 8:5 word "c2"
+  token 3 8:8 word "b1"
+  token 4 8:11 number "10k" value=1e4
+card 6 @netlists/m7_conv_latch_op.cir:9:1 lines=9-9 continuations=0
+  raw: "rx1 b1 0 4.7k"
+  kind: device(r)
+  token 1 9:1 word "rx1"
+  token 2 9:5 word "b1"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 number "4.7k" value=4.7e3
+card 7 @netlists/m7_conv_latch_op.cir:10:1 lines=10-10 continuations=0
+  raw: "rx2 b2 0 4.7k"
+  kind: device(r)
+  token 1 10:1 word "rx2"
+  token 2 10:5 word "b2"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "4.7k" value=4.7e3
+card 8 @netlists/m7_conv_latch_op.cir:11:1 lines=11-11 continuations=0
+  raw: "q1 c1 b1 0 qmod"
+  kind: device(q)
+  token 1 11:1 word "q1"
+  token 2 11:4 word "c1"
+  token 3 11:7 word "b1"
+  token 4 11:10 number "0" value=0e0
+  token 5 11:12 word "qmod"
+card 9 @netlists/m7_conv_latch_op.cir:12:1 lines=12-12 continuations=0
+  raw: "q2 c2 b2 0 qmod"
+  kind: device(q)
+  token 1 12:1 word "q2"
+  token 2 12:4 word "c2"
+  token 3 12:7 word "b2"
+  token 4 12:10 number "0" value=0e0
+  token 5 12:12 word "qmod"
+card 10 @netlists/m7_conv_latch_op.cir:13:1 lines=13-13 continuations=0
+  raw: ".model qmod npn(is=1e-14 bf=100)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "qmod"
+  token 3 13:13 word "npn"
+  token 4 13:16 lparen "("
+  token 5 13:17 word "is"
+  token 6 13:19 equals "="
+  token 7 13:20 number "1e-14" value=1e-14
+  token 8 13:26 word "bf"
+  token 9 13:28 equals "="
+  token 10 13:29 number "100" value=1e2
+  token 11 13:32 rparen ")"
+card 11 @netlists/m7_conv_latch_op.cir:14:1 lines=14-14 continuations=0
+  raw: ".options reltol=1e-8"
+  kind: dot(.options)
+  token 1 14:1 word ".options"
+  token 2 14:10 word "reltol"
+  token 3 14:16 equals "="
+  token 4 14:17 number "1e-8" value=1e-8
+card 12 @netlists/m7_conv_latch_op.cir:15:1 lines=15-15 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 15:1 word ".op"
+card 13 @netlists/m7_conv_latch_op.cir:16:1 lines=16-16 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 16:1 word ".end"

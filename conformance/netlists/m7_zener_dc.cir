@@ -1,0 +1,9 @@
+Zener shunt regulator DC sweep through forward conduction and reverse breakdown
+.options reltol=1e-6 vntol=1e-9
+vin in 0 dc 0
+rs in out 100
+dz 0 out dz
+rl out 0 2k
+.model dz d(is=5e-14 n=1.05 rs=1.5 bv=5.1 ibv=5m nbv=1.3 cjo=80p)
+.dc vin -2 12 0.1
+.end

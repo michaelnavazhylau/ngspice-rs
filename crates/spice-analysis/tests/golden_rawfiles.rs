@@ -654,6 +654,271 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(coll)", 0, 4.982934701819048, 0.),
         ],
     },
+    // Gummel-Poon BJT (#87). At VBE = 1.1 V the IKF = 20 mA knee and the
+    // 21.5 ohm of RC + RE (plus RB) compress the forward gain to about 15
+    // (3.0 mA of base current for 46.6 mA of collector current).
+    Expectation {
+        fixture: "m7_bjt_gummel",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 41,
+        variables: &["v(v-sweep)", "v(b)", "v(c)", "i(vbe)", "i(vcb)"],
+        values: &[
+            ("v(v-sweep)", 40, 1.100000000000001, 0.),
+            ("i(vbe)", 40, -4.966010012111799e-2, 0.),
+            ("i(vcb)", 40, -4.664713816377888e-2, 0.),
+        ],
+    },
+    // Five 51-point VCE sweeps (IB = 5..25 uA); at 5 V and 25 uA the gain is
+    // about 110: BF = 150 lowered by ISE leakage and high injection, raised by
+    // the Early effect (VAF = 60 V).
+    Expectation {
+        fixture: "m7_bjt_output",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 255,
+        variables: &["v(v-sweep)", "v(b)", "v(c)", "i(vce)"],
+        values: &[
+            ("v(v-sweep)", 254, 4.999999999999998, 0.),
+            ("v(b)", 254, 8.017159997526093e-1, 0.),
+            ("i(vce)", 254, -2.739006031922822e-3, 0.),
+        ],
+    },
+    // -40..125 C: the NPN emitter rises as VBE falls with temperature; the
+    // PNP collector and the M=2 TLEV=3 follower follow their biasing.
+    Expectation {
+        fixture: "m7_bjt_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 12,
+        variables: &[
+            "temp-sweep",
+            "v(fb)",
+            "v(fe)",
+            "v(nb)",
+            "v(nc)",
+            "v(ne)",
+            "v(pb)",
+            "v(pc)",
+            "v(pe)",
+            "v(sub)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vsub)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -40., 0.),
+            ("v(ne)", 0, 7.446680380960549e-2, 0.),
+            ("v(pc)", 11, 1.077693071789567, 0.),
+            ("v(fe)", 11, 2.066642618251229, 0.),
+        ],
+    },
+    // A bypassed common-emitter stage: about -97 (gm times 3.3k || 10k) at
+    // 1 kHz, rolled off by the coupling capacitors and the junction charges.
+    Expectation {
+        fixture: "m7_bjt_amp_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 91,
+        variables: &[
+            "frequency",
+            "v(in)",
+            "v(nb)",
+            "v(nc)",
+            "v(ne)",
+            "v(ns)",
+            "v(out)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 10., 0.),
+            ("v(out)", 40, -9.708196298518708e1, 7.191525861659186),
+        ],
+    },
+    // The same stage's 10 mV input pulse; the first row is its bias point
+    // (1.26 V base from the 82k/15k divider, 3.6 V collector).
+    Expectation {
+        fixture: "m7_bjt_amp_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2623,
+        variables: &[
+            "time", "v(in)", "v(nb)", "v(nc)", "v(ne)", "v(ns)", "v(out)", "v(vcc)", "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(nc)", 0, 3.615525216417331, 0.),
+            ("v(nb)", 0, 1.257160102738815, 0.),
+        ],
+    },
+    // Convergence parity (#106). The cross-coupled BJT pair has two stable
+    // states and a metastable one between them; which one a solver returns is
+    // decided by its Newton path. ngspice's default start (MODEINITJCT at
+    // vcrit for both base-emitter junctions, pnjlim, then dynamic gmin)
+    // settles on the nearly balanced point: both collectors near 2.3 V, both
+    // bases near 0.68 V.
+    Expectation {
+        fixture: "m7_conv_latch_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vcc)", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "i(vcc)"],
+        values: &[
+            ("v(c1)", 0, 2.307312486503814e+00, 0.),
+            ("v(c2)", 0, 2.376980766869119e+00, 0.),
+            ("i(vcc)", 0, -4.878536874438588e-03, 0.),
+        ],
+    },
+    // `noopiter` with gillespie_src (srcsteps=1, no gmin stepping): the
+    // adaptive source ramp tracks the same balanced point, to C's RELTOL.
+    Expectation {
+        fixture: "m7_conv_latch_gillespie_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vcc)", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "i(vcc)"],
+        values: &[
+            ("v(c1)", 0, 2.307312497700058e+00, 0.),
+            ("v(c2)", 0, 2.376980774917631e+00, 0.),
+        ],
+    },
+    // `noopiter` with spice3_gmin (gminsteps=4): gmin 1e-8 .. 1e-12 S at full
+    // sources, again the balanced point.
+    Expectation {
+        fixture: "m7_conv_latch_spice3_gmin_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vcc)", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "i(vcc)"],
+        values: &[
+            ("v(c1)", 0, 2.307312486503806e+00, 0.),
+            ("v(c2)", 0, 2.376980766869156e+00, 0.),
+        ],
+    },
+    // `noopiter` with spice3_src (srcsteps=4): the quarter-supply steps tip
+    // the pair into a stable state, q1 saturated (c1 = 87 mV) and q2 off
+    // (c2 = 5 V less the RC2 drop of the current RB2 feeds into q1's base).
+    Expectation {
+        fixture: "m7_conv_latch_spice3_src_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vcc)", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "i(vcc)"],
+        values: &[
+            ("v(c1)", 0, 8.695128948953385e-02, 0.),
+            ("v(c2)", 0, 4.539084265598849e+00, 0.),
+            ("v(b2)", 0, 2.780076678812424e-02, 0.),
+        ],
+    },
+    // The pair with a 20k base resistor on q1 has a single DC state (q1
+    // conducting, q2 off); the 20 us set pulse saturates q1 and the 50 us
+    // reset pulse flips the pair, after which it relaxes back to the initial
+    // state, which the last sample reproduces.
+    Expectation {
+        fixture: "m7_conv_latch_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 8841,
+        variables: &[
+            "time", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "v(r)", "v(s)", "v(vcc)", "i(vcc)",
+            "i(vr)", "i(vs)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(c1)", 0, 2.776201169580282e+00, 0.),
+            ("v(c2)", 0, 4.571172043463810e+00, 0.),
+            ("time", 8840, 7.999999999999999e-05, 0.),
+            ("v(c1)", 8840, 2.776201169580682e+00, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_diode_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2037,
+        variables: &["time", "v(a)", "v(b)"],
+        values: &[
+            // uic: no t = 0 row; the first row is the first accepted step.
+            ("time", 0, 1e-9, 0.),
+            ("v(a)", 0, 1.993464826232599e+00, 0.),
+            ("v(b)", 0, 5.647869507232903e-01, 0.),
+            ("time", 2036, 4e-5, 0.),
+            ("v(b)", 2036, 5.154745850508444e-02, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_bjt_flipflop_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 6028,
+        variables: &[
+            "time", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "v(r)", "v(vcc)", "i(vcc)", "i(vr)",
+        ],
+        values: &[
+            // The .ic values are exact at t = 0; the reset pulse flips the pair.
+            ("v(c1)", 0, 2e-1, 0.),
+            ("v(c2)", 0, 4., 0.),
+            ("v(b1)", 0, 7.276538644059967e-01, 0.),
+            ("v(c1)", 6027, 4.608859901358739e+00, 0.),
+            ("v(c2)", 6027, 9.683877378445170e-02, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_bjt_off_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 6181,
+        variables: &[
+            "time", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "v(s)", "v(vcc)", "i(vcc)", "i(vs)",
+        ],
+        values: &[
+            ("v(c1)", 0, 9.683877378445103e-02, 0.),
+            ("v(c2)", 0, 4.608859901358740e+00, 0.),
+            ("v(c1)", 6180, 4.608926182116719e+00, 0.),
+            ("v(c2)", 6180, 8.607175092483089e-02, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_mos1_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 20036,
+        variables: &[
+            "time", "v(in)", "v(mid)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)",
+        ],
+        values: &[
+            ("time", 0, 2e-13, 0.),
+            ("v(mid)", 0, 2.146194135632362e+00, 0.),
+            ("v(out)", 0, 2.422129664440773e+00, 0.),
+            ("time", 20035, 4e-8, 0.),
+            ("v(out)", 20035, 2.999999986318057e+00, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_latch_nodeset_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vdd)", "v(q)", "v(qb)", "i(vdd)"],
+        values: &[
+            ("v(q)", 0, 2.999999986318182e+00, 0.),
+            ("v(qb)", 0, 1.090579700714479e-08, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_latch_mos1_ic_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vdd)", "v(q)", "v(qb)", "i(vdd)"],
+        values: &[
+            ("v(q)", 0, 2.999999986318182e+00, 0.),
+            ("v(qb)", 0, 1.090579709549613e-08, 0.),
+        ],
+    },
     Expectation {
         fixture: "m4_diode_ac",
         plotname: "AC Analysis",
@@ -701,6 +966,93 @@ const EXPECTATIONS: &[Expectation] = &[
             ("time", 0, 0., 0.),
             ("v(drain)", 0, 3.749999962400001, 0.),
             ("v(gate)", 0, 1.5, 0.),
+        ],
+    },
+    // MOS1 completion (#88). At t = 0 the input is low: the NMOS is off, the
+    // PMOS pulls the output to VDD, and the supply only feeds the reverse NMOS
+    // drain junction (gmin * 3.3 V plus JS * AD).
+    Expectation {
+        fixture: "m7_mos1_inverter_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10029,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 3.299999997161830, 0.),
+            ("i(vdd)", 0, -3.300190593273314e-12, 0.),
+        ],
+    },
+    // The operating point of a symmetric three-stage ring is metastable: every
+    // node sits at the same inverter switching voltage and each stage draws
+    // the same crowbar current until the current kick at 0.2 ns.
+    Expectation {
+        fixture: "m7_mos1_ring_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 12017,
+        variables: &["time", "v(n1)", "v(n2)", "v(n3)", "v(vdd)", "i(vdd)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(n1)", 0, 1.583269636740751, 0.),
+            ("v(n2)", 0, 1.583269636740767, 0.),
+            ("v(n3)", 0, 1.583269636740759, 0.),
+            ("i(vdd)", 0, -6.843983314869297e-4, 0.),
+        ],
+    },
+    // A common-source stage: the supply current is the load-resistor current,
+    // i(vdd) = v(drain) / 10 k (the drain is the only path from VDD).
+    Expectation {
+        fixture: "m7_mos1_meyer_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 36,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(drain)", 0, -2.642323147155134, 4.132728256333773e-6),
+            ("i(vdd)", 0, -2.642323147155135e-4, 4.132728256333773e-10),
+        ],
+    },
+    // Gate sweep with fixed body biases: the forward bulk-junction current
+    // i(vbs) of m1/m2 does not depend on the gate; at vgs = 0 the PMOS is off
+    // and i(vd3) is its reverse drain junction (gmin * 1.7 V plus IS).
+    Expectation {
+        fixture: "m7_mos1_process_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 31,
+        variables: &[
+            "v(v-sweep)",
+            "v(b)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "i(egp)",
+            "v(gp)",
+            "v(g)",
+            "i(vbp)",
+            "i(vbs)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbs)", 0, -1.024308251724379e-7, 0.),
+            ("i(vbs)", 30, -1.024308251724379e-7, 0.),
+            ("i(vd3)", 0, 1.710000042799543e-12, 0.),
+            ("i(vd1)", 30, -9.838819194962108e-4, 0.),
         ],
     },
     Expectation {
@@ -1634,6 +1986,85 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(c3)", 1037, 1.393870438628249e+00, 0.0),
             ("i(vsense2)", 1037, 2.000000000000000e-03, 0.0),
         ],
+    }, // Diode physics (#86). The regulator conducts forward at -2 V and holds
+    // its output a little above BV = 5.1 V (series resistance plus the
+    // breakdown exponential) at 12 V in.
+    Expectation {
+        fixture: "m7_zener_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 141,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(vin)"],
+        values: &[
+            ("v(out)", 0, -7.308665019568273e-01, 0.0),
+            ("v(out)", 140, 5.282797124103860e+00, 0.0),
+            ("i(vin)", 140, -6.717202875896115e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m7_diode_physics_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 205,
+        variables: &["v(v-sweep)", "v(a)", "v(k1)", "v(k2)", "v(k3)", "i(v1)"],
+        values: &[
+            ("v(k1)", 0, -6.205250986919840e+00, 0.0),
+            ("v(k2)", 0, -5.188330173225660e+00, 0.0),
+            ("v(k3)", 0, -7.431592663148733e+00, 0.0),
+            ("i(v1)", 204, -1.335006444774208e-02, 0.0),
+        ],
+    },
+    // C names the `.dc temp` scale `temp-sweep` (type `temp-sweep`). Forward
+    // voltages fall and the TCV-shifted breakdown knee drops when heated.
+    Expectation {
+        fixture: "m7_diode_temp_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 34,
+        variables: &["temp-sweep", "v(a)", "v(b)", "v(c)", "v(k)", "i(v3)"],
+        values: &[
+            ("temp-sweep", 0, -40.0, 0.0),
+            ("v(a)", 0, 8.105491866356285e-01, 0.0),
+            ("v(k)", 0, 5.795576367813973e+00, 0.0),
+            ("temp-sweep", 33, 125.0, 0.0),
+            ("v(a)", 33, 5.432783558641020e-01, 0.0),
+            ("v(k)", 33, 5.407655948379028e+00, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m7_diode_temp_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 31,
+        variables: &[
+            "frequency",
+            "v(b1)",
+            "v(b2)",
+            "v(b3)",
+            "v(k1)",
+            "v(k2)",
+            "v(k3)",
+            "i(vb1)",
+            "i(vb2)",
+            "i(vb3)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.0),
+            ("v(k1)", 0, 9.999771077537682e-01, -4.783484309209417e-03),
+            ("v(k3)", 0, 4.676800133344254e-01, -3.705732363331333e-05),
+        ],
+    },
+    Expectation {
+        fixture: "m7_zener_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 432,
+        variables: &["time", "v(in)", "v(out)", "i(vin)"],
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("time", 431, 1.8e-3, 0.0),
+            ("v(out)", 431, -8.215683334810343e-01, 0.0),
+        ],
     },
 ];
 
@@ -1838,6 +2269,141 @@ const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
                 ("v(out)", 326, 7.708097104984421e-02, 0.0),
                 ("v(lim)", 326, 7.704282914934442e-02, 0.0),
                 ("v(isense)", 326, 7.704282914934442e-03, 0.0),
+            ],
+        },
+    ],
+    &[
+        // Emitter-coupled BJT Schmitt trigger (#106). ngspice runs the later
+        // `.dc` card first: the downward sweep starts with q1 on and q2 off
+        // (out at VCC) and holds that state at 2.1 V ...
+        Expectation {
+            fixture: "m7_conv_bjt_schmitt",
+            plotname: "DC transfer characteristic",
+            flags: PlotFlags::Real,
+            points: 61,
+            variables: &[
+                "v(v-sweep)",
+                "v(b1)",
+                "v(b2)",
+                "v(c1)",
+                "v(e)",
+                "v(in)",
+                "v(out)",
+                "v(vcc)",
+                "i(vcc)",
+                "i(vin)",
+            ],
+            values: &[
+                ("v(v-sweep)", 0, 3.000000000000000e+00, 0.0),
+                ("v(out)", 0, 4.999999990809181e+00, 0.0),
+                ("v(v-sweep)", 18, 2.100000000000003e+00, 0.0),
+                ("v(out)", 18, 4.999999990670086e+00, 0.0),
+                ("v(out)", 60, 1.770312170849794e+00, 0.0),
+            ],
+        },
+        // ... while the upward sweep keeps q2 on (out = 1.77 V) through 2.1 V:
+        // the two sweeps differ inside the hysteresis band.
+        Expectation {
+            fixture: "m7_conv_bjt_schmitt",
+            plotname: "DC transfer characteristic",
+            flags: PlotFlags::Real,
+            points: 61,
+            variables: &[
+                "v(v-sweep)",
+                "v(b1)",
+                "v(b2)",
+                "v(c1)",
+                "v(e)",
+                "v(in)",
+                "v(out)",
+                "v(vcc)",
+                "i(vcc)",
+                "i(vin)",
+            ],
+            values: &[
+                ("v(v-sweep)", 0, 0.0, 0.0),
+                ("v(out)", 0, 1.770312170849776e+00, 0.0),
+                ("v(v-sweep)", 42, 2.100000000000001e+00, 0.0),
+                ("v(out)", 42, 1.770526226101157e+00, 0.0),
+                ("v(out)", 60, 4.999999990809181e+00, 0.0),
+            ],
+        },
+        // The operating point at vin = 2.1 V, reached by CKTop from
+        // MODEINITJCT with dynamic gmin, is the third (middle) solution.
+        Expectation {
+            fixture: "m7_conv_bjt_schmitt",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(vcc)", "v(b1)", "v(b2)", "v(c1)", "v(e)", "v(in)", "v(out)", "i(vcc)", "i(vin)",
+            ],
+            values: &[
+                ("v(in)", 0, 2.100000000000000e+00, 0.0),
+                ("v(out)", 0, 2.338543430598761e+00, 0.0),
+                ("v(e)", 0, 1.476806727682212e+00, 0.0),
+            ],
+        },
+    ],
+    &[
+        // CMOS Schmitt trigger (#106): downward from 5 V the output stays low
+        // through 2.5 V ...
+        Expectation {
+            fixture: "m7_conv_cmos_schmitt",
+            plotname: "DC transfer characteristic",
+            flags: PlotFlags::Real,
+            points: 51,
+            variables: &[
+                "v(v-sweep)",
+                "v(a)",
+                "v(b)",
+                "v(in)",
+                "v(out)",
+                "v(vdd)",
+                "i(vdd)",
+                "i(vin)",
+            ],
+            values: &[
+                ("v(v-sweep)", 0, 5.000000000000000e+00, 0.0),
+                ("v(v-sweep)", 25, 2.500000000000002e+00, 0.0),
+                ("v(out)", 25, 3.929411702970586e-08, 0.0),
+                ("v(out)", 50, 4.999999980914284e+00, 0.0),
+            ],
+        },
+        // ... and upward from 0 V it stays high there (hysteresis).
+        Expectation {
+            fixture: "m7_conv_cmos_schmitt",
+            plotname: "DC transfer characteristic",
+            flags: PlotFlags::Real,
+            points: 51,
+            variables: &[
+                "v(v-sweep)",
+                "v(a)",
+                "v(b)",
+                "v(in)",
+                "v(out)",
+                "v(vdd)",
+                "i(vdd)",
+                "i(vin)",
+            ],
+            values: &[
+                ("v(v-sweep)", 25, 2.500000000000001e+00, 0.0),
+                ("v(out)", 25, 4.999999952847062e+00, 0.0),
+                ("v(b)", 25, 2.499999927084873e+00, 0.0),
+            ],
+        },
+        // The operating point at vin = 2.5 V lands in the low-output state.
+        Expectation {
+            fixture: "m7_conv_cmos_schmitt",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(vdd)", "v(a)", "v(b)", "v(in)", "v(out)", "i(vdd)", "i(vin)",
+            ],
+            values: &[
+                ("v(out)", 0, 3.929411702970590e-08, 0.0),
+                ("v(a)", 0, 2.500000070751028e+00, 0.0),
             ],
         },
     ],

@@ -1,0 +1,15 @@
+BJT latch operating point by spice3_gmin (noopiter, gminsteps=4)
+* #106: noopiter skips direct Newton; spice3_gmin steps gmin 1e-8..1e-12 S.
+vcc vcc 0 dc 5
+rc1 vcc c1 1k
+rc2 vcc c2 1.2k
+rb1 c1 b2 10k
+rb2 c2 b1 10k
+rx1 b1 0 4.7k
+rx2 b2 0 4.7k
+q1 c1 b1 0 qmod
+q2 c2 b2 0 qmod
+.model qmod npn(is=1e-14 bf=100)
+.options reltol=1e-8 noopiter gminsteps=4 srcsteps=0
+.op
+.end

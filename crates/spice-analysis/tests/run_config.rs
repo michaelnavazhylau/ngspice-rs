@@ -122,11 +122,12 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
     for options in [
         ".options lteabstol=1e-6",
         // srcsteps/gminsteps/gminfactor/itl1 are implemented (tests/dc_continuation.rs);
-        // itl2/itl4/itl6/gmin/xmu and the documented no-ops in tests/options_coverage.rs.
+        // itl2/itl4/itl6/gmin/xmu and the documented no-ops in tests/options_coverage.rs;
+        // noopiter in tests/convergence.rs.
         ".options gshunt=1e-12",
         ".options bypass=1",
         ".options filetype=ascii",
-        ".options reltol=1m noopiter",
+        ".options reltol=1m minbreak=1n",
     ] {
         assert!(
             config(options).unwrap_err().is_not_yet_ported(),

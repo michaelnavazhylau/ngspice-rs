@@ -128,6 +128,32 @@ const SUPPORTED: &[Supported] = &[
     tran("m4_diode_tran", &[]),
     tran("m4_bjt_tran", &[]),
     tran("m4_mos1_tran", &[]),
+    // MOS1 completion (#88): Meyer gate charge (TOX), series resistance,
+    // junction geometry, process extraction and temperature. The transient
+    // decks bound the maximum step so that both simulators' discretization
+    // error sits well inside `compare::TRAN`; the DC deck tightens RELTOL so
+    // that C's own Newton stopping error does not exceed `NONLINEAR` (see
+    // docs/port/VERIFICATION.md).
+    tran("m7_mos1_inverter_tran", &[]),
+    tran("m7_mos1_ring_tran", &[]),
+    Supported {
+        name: "m7_mos1_meyer_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_mos1_process_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
@@ -430,6 +456,173 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("bsource_zero_tran", &[]),
+    // Diode physics (#86): a Zener regulator swept through forward conduction
+    // and reverse breakdown, recombination/tunnelling/knee/sidewall currents,
+    // a `.dc temp` sweep of the EG/XTI/TLEV/TCV/DTEMP temperature laws, the
+    // depletion-charge temperature laws and recombination small signal at
+    // `.options temp=100`, and a SIN-driven Zener clipper with junction,
+    // sidewall and diffusion charge. Newton-solved: the nonlinear 1 ppm bound;
+    // the transient keeps `compare::TRAN`.
+    Supported {
+        name: "m7_zener_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_diode_physics_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_diode_temp_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_diode_temp_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m7_zener_tran", &[]),
+    // Gummel-Poon BJT (#87): a Gummel plot (VBC = 0 sweep of VBE), nested
+    // output characteristics (VCE inner, IB outer), a temperature sweep of
+    // NPN/PNP/TLEV=3 devices with series resistances and a substrate junction,
+    // and a CE amplifier's AC response and transient with every charge. The
+    // DC/AC decks set `.option reltol=1e-8` so that C's convergence test (and
+    // bypass) leave a result within the nonlinear 1 ppm bound of the shared
+    // root; the transient keeps `compare::TRAN`. No BDF variant: the diffsol
+    // backend rejects nonlinear devices.
+    Supported {
+        name: "m7_bjt_gummel",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_bjt_output",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_bjt_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_bjt_amp_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m7_bjt_amp_tran", &[]),
+    // Convergence parity (#106): a BJT latch whose operating point depends on
+    // the Newton path (MODEINITJCT start, `DEVpnjlim`, `dynamic_gmin`), the
+    // same latch under `.options noopiter` with each of ngspice's other
+    // continuation strategies (`gillespie_src`, `spice3_gmin`, `spice3_src`;
+    // `spice3_src` and the default land in different states), and a set/reset
+    // transient through the regenerative switching. `.option reltol` is tight
+    // enough that C's own stopping error stays inside the nonlinear 1 ppm
+    // bound; the transient bounds the maximum step and keeps `compare::TRAN`.
+    Supported {
+        name: "m7_conv_latch_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_conv_latch_gillespie_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_conv_latch_spice3_gmin_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_conv_latch_spice3_src_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m7_conv_latch_tran", &[]),
+    // Nonlinear initial conditions (#99): a diode/RC `uic` start from the
+    // `.ic` node vector (the diode's own `ic=` has no effect in C), a BJT
+    // flip-flop whose `.ic` selects the state through the forced transient
+    // operating point, a BJT flip-flop with an OFF transistor (held through
+    // MODEINITJCT/MODEINITFIX until C's device convergence test hands over to
+    // dynamic gmin), a MOS1 inverter pair started under `uic` from its IC
+    // vectors, and a symmetric CMOS latch whose state a `.nodeset` or MOS1
+    // `ic=` start voltages select. The transients keep `compare::TRAN`, the
+    // operating points the nonlinear 1 ppm bound; decks tighten `reltol` (and
+    // the MOS1 deck uses Gear-2) where C's own step error would be close to
+    // the bound.
+    tran("m7_ic_diode_uic_tran", &[]),
+    tran("m7_ic_bjt_flipflop_tran", &[]),
+    tran("m7_ic_bjt_off_tran", &[]),
+    tran("m7_ic_mos1_uic_tran", &[]),
+    Supported {
+        name: "m7_ic_latch_nodeset_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_ic_latch_mos1_ic_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -511,6 +704,65 @@ const BATCH: &[Batch] = &[
             Stage {
                 kind: AnalysisKind::Transient,
                 gate: Gate::Transient(compare::TRAN),
+            },
+        ],
+    },
+    // Convergence parity (#106): Schmitt triggers swept up and down through
+    // their hysteresis (each `.dc` point warm-starts from the previous one,
+    // as `dctrcurv.c` does, so the two sweeps follow different branches) and
+    // an operating point inside the band, which C's (and the port's) CKTop
+    // continuation settles on the middle branch for the BJT deck. ngspice
+    // runs the sweeps before the operating point and the later `.dc` card
+    // first. Nonlinear 1 ppm bound with tightened RELTOL/VNTOL.
+    Batch {
+        name: "m7_conv_bjt_schmitt",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    Batch {
+        name: "m7_conv_cmos_schmitt",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
             },
         ],
     },
@@ -768,13 +1020,28 @@ fn run_card(
         && got.variables.first().is_some_and(|v| v.name == "sweep")
     {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
-        // independent-source scale in the voltage/current naming convention.
-        got.variables[0].name = if got.variables[0].unit == "voltage" {
-            "v(v-sweep)"
-        } else {
-            "i(i-sweep)"
+        // independent-source scale in the voltage/current naming convention,
+        // and names a temperature scale (and its unit) `temp-sweep`.
+        let (name, unit) = match got.variables[0].unit.as_str() {
+            "voltage" => ("v(v-sweep)", None),
+            "temperature" => ("temp-sweep", Some("temp-sweep")),
+            _ => ("i(i-sweep)", None),
+        };
+        got.variables[0].name = name.into();
+        if let Some(unit) = unit {
+            got.variables[0].unit = unit.into();
         }
-        .into();
+        // A nested sweep's outer value is a Rust-only `sweep(<name>)` column;
+        // C writes every point of a nested `.dc` without it (the outer source
+        // value is still checked through the node voltages and currents).
+        for column in (1..got.variables.len()).rev() {
+            if got.variables[column].name.starts_with("sweep(") {
+                got.variables.remove(column);
+                for row in &mut got.points {
+                    row.remove(column);
+                }
+            }
+        }
     }
     Ok((request, got))
 }

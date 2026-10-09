@@ -80,6 +80,15 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m4_bjt_tran` | `.tran` | independent BE/BC charge companions |
 | `m4_mos1_ac` | `.ac` | MOS1 square law, body junction and overlap charges, zero TOX |
 | `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
+| `m7_zener_dc` | `.dc` | Zener regulator from forward conduction through BV/IBV/NBV breakdown, `.options reltol=1e-6 vntol=1e-9` (#86) |
+| `m7_diode_physics_dc` | `.dc` | ISR/NR recombination, JTUN/JTUNSW tunnelling, NS sidewall with breakdown, IKF/IKR/IKP knees (#86) |
+| `m7_diode_temp_dc` | `.dc temp` | EG/XTI/TNOM, TLEV 2 band gap, DTEMP, TRS and TCV breakdown across -40..125 C (#86) |
+| `m7_diode_temp_ac` | `.ac` | `.options temp=100`: TLEVC 0/1 depletion laws, CJSW/PJ, ISR small signal, TTT1 (#86) |
+| `m7_zener_tran` | `.tran` | SIN-driven Zener clipper: breakdown, junction/sidewall/diffusion charge, `reltol=1e-5` (#86) |
+| `m7_mos1_inverter_tran` | `.tran` | CMOS inverter: Meyer gate charge (TOX), LD, RSH/NRD/NRS and RD/RS internal nodes, CJ/CJSW/JS geometry; `tmax` 2 ps (#88) |
+| `m7_mos1_ring_tran` | `.tran` | 3-stage CMOS ring oscillator with 50 fF loads and a current kick; `tmax` 0.5 ps (#88) |
+| `m7_mos1_meyer_ac` | `.ac` | Meyer and junction small-signal capacitance at 75 C, `M=2`, LD, RD/RS (#88) |
+| `m7_mos1_process_dc` | `.dc` | NSUB/TPG/NSS/UO extraction, forward body bias, TEMP/DTEMP/TNOM, PMOS RSH; tight RELTOL (#88) |
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
@@ -103,6 +112,24 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `bsource_zero_op` | `.op` | `1/x`, `sqrt`, `log`/`ln`/`log10` and divisions whose controlling nodes start Newton at 0 V (`1e32` slopes, `log(0) = -1e99`) |
 | `bsource_zero_dc` | `.dc` | the same singular slopes at the first sweep point's 0 V start |
 | `bsource_zero_tran` | `.tran` | the same at the initial operating point, then a 1–3 V `sin` input into resistive loads (1 us maximum step) |
+| `m7_bjt_gummel` | `.dc` | Gummel plot (VBC = 0) of a Gummel-Poon NPN: VAF/VAR, IKF/IKR, ISE/ISC leakage, RB/RBM/IRB, RC/RE internal nodes (#87) |
+| `m7_bjt_output` | `.dc` | nested output characteristics, VCE inner and IB outer (C writes no outer column) |
+| `m7_bjt_temp` | `.dc` | `temp` sweep -40..125 C: NPN (XTB/XTI/EG), lateral PNP with substrate ISS, TLEV=1 and polynomial tempcos, TNOM; TLEV=3/TLEVC=1 NPN with IBE/IBC, NKF, `dtemp`/`area`/`areab`/`m` |
+| `m7_bjt_amp_ac` | `.ac` | CE amplifier at 50 C: CJE/CJC with XCJC, CJS substrate (4th terminal), TF with XTF/VTF/ITF, TR |
+| `m7_bjt_amp_tran` | `.tran` | the same amplifier driven by a 10 mV PULSE: every charge companion |
+| `m7_conv_latch_op` | `.op` | cross-coupled BJT latch (#106): ngspice's MODEINITJCT start, `DEVpnjlim` and `dynamic_gmin` settle on the metastable point, `.option reltol=1e-8` |
+| `m7_conv_latch_gillespie_op` | `.op` | the same latch with `.options noopiter gminsteps=0 srcsteps=1`: `gillespie_src` only |
+| `m7_conv_latch_spice3_gmin_op` | `.op` | the same latch with `noopiter gminsteps=4`: `spice3_gmin` |
+| `m7_conv_latch_spice3_src_op` | `.op` | the same latch with `noopiter gminsteps=0 srcsteps=4`: `spice3_src`, which lands in a stable state |
+| `m7_conv_latch_tran` | `.tran` | a cross-coupled pair switched by set/reset PULSEs through junction charges (10 ns maximum step, `reltol=1e-7`) |
+| `m7_conv_bjt_schmitt` | `.dc` `.dc` `.op` | emitter-coupled BJT Schmitt trigger swept up and down through its hysteresis (warm-started `.dc` points) and an `.op` inside the band |
+| `m7_conv_cmos_schmitt` | `.dc` `.dc` `.op` | six-transistor MOS1 Schmitt trigger swept up and down and an `.op` inside the band (`reltol=1e-8 vntol=1e-12`) |
+| `m7_ic_diode_uic_tran` | `.tran` | `uic` diode/RC discharge (#99): capacitor `ic=2`, the other capacitor and the diode junction (CJO, TT, RS) from `.ic v(b)=0.5`; the diode's own `ic=0.4` has no effect in C (`reltol=1e-5`) |
+| `m7_ic_bjt_flipflop_tran` | `.tran` | symmetric BJT flip-flop whose `.ic` node voltages select the state through the forced transient operating point; a reset pulse flips it |
+| `m7_ic_bjt_off_tran` | `.tran` | BJT flip-flop with an `OFF` transistor: C's MODEINITFIX hold and device convergence test hand the operating point to dynamic gmin, which lands in a stable state; a negative pulse flips it (`reltol=1e-6`) |
+| `m7_ic_mos1_uic_tran` | `.tran` | MOS1 inverter pair started under `uic` from full and partial `ic=` vectors and the `.ic` node vector (Gear-2, `reltol=1e-5`, 2 ps maximum step) |
+| `m7_ic_latch_nodeset_op` | `.op` | symmetric CMOS latch whose `.nodeset` (forced in MODEINITJCT/MODEINITFIX only) selects the q-high state |
+| `m7_ic_latch_mos1_ic_op` | `.op` | the same latch whose MOS1 `ic=` vectors move the MODEINITJCT start (no `uic`) and select the q-high state |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -130,3 +157,27 @@ The ten behavioural-source decks (#79) were captured one at a time with
 through a scratch `.spiceinit` because their decks carry a
 `* xtask-codemodels:` comment. See
 [BEHAVIOURAL_SOURCES.md](../../docs/port/BEHAVIOURAL_SOURCES.md).
+
+The five M7 diode decks (#86) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md#diode).
+
+The five `m7_bjt_*` decks (#87) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+Each sets `.option reltol=1e-8`: at C's default `reltol` (with bypass) the
+Gummel-Poon sweeps stop about 4e-4 away from the converged root, outside the
+1 ppm nonlinear bound; see [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md).
+
+The seven `m7_conv_*` convergence decks (#106) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+
+The six `m7_ic_*` nonlinear initial-condition decks (#99) were captured one at
+a time with `cargo xtask golden capture --netlist <name>`; no existing golden
+was touched. Where a deck sets `reltol` (and Gear-2 for the MOS1 deck), C's
+own answer at its default tolerance is outside, or too close to, the
+transient bound: at the default `reltol` the diode deck's C `v(b)` at 0.1 us
+is 5.1e-3 V (about 4.6 times the bound) away from its own `reltol=1e-5`
+answer, the OFF flip-flop compares at 0.53 of the bound through its flip, and
+the MOS1 deck's trapezoidal gate currents ring from step to step on the flat
+input. The `.ic` flip-flop keeps every default. See
+[VERIFICATION.md](../../docs/port/VERIFICATION.md#m7-nonlinear-initial-conditions-99).

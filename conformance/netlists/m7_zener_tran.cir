@@ -1,0 +1,9 @@
+Zener clipper transient through breakdown with junction, sidewall and diffusion charge
+.options reltol=1e-5
+vin in 0 sin(0 8 1k)
+r1 in out 500
+d1 0 out dz pj=20
+rl out 0 10k
+.model dz d(is=1e-14 n=1.1 rs=2 bv=4.7 ibv=2m nbv=1.5 cjo=40p vj=0.7 m=0.4 tt=5n jsw=1e-16 ns=1.3 cjsw=0.5p vjsw=0.6 mjsw=0.3)
+.tran 5u 1.8m 0 5u
+.end

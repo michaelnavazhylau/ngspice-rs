@@ -15,7 +15,7 @@ fn default_and_selected_verification_need_no_c_binary() {
     let output = verify(&[]);
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("59 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
+    assert!(text.contains("86 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
     for name in [
         "rc_divider",
         "RC_LOWPASS_AC.cir",
@@ -44,6 +44,10 @@ fn default_and_selected_verification_need_no_c_binary() {
         "m4_bjt_tran",
         "m4_mos1_ac",
         "m4_mos1_tran",
+        "m7_mos1_inverter_tran",
+        "m7_mos1_ring_tran",
+        "m7_mos1_meyer_ac",
+        "m7_mos1_process_dc",
         "rc_sin_tran",
         "rc_exp_tran",
         "rc_sffm_am_tran",
@@ -76,6 +80,29 @@ fn default_and_selected_verification_need_no_c_binary() {
         "bsource_zero_op",
         "bsource_zero_dc",
         "bsource_zero_tran",
+        "m7_zener_dc",
+        "m7_zener_tran",
+        "m7_diode_physics_dc",
+        "m7_diode_temp_dc",
+        "m7_diode_temp_ac",
+        "m7_bjt_gummel",
+        "m7_bjt_output",
+        "m7_bjt_temp",
+        "m7_bjt_amp_ac",
+        "m7_bjt_amp_tran",
+        "m7_conv_latch_op",
+        "m7_conv_latch_gillespie_op",
+        "m7_conv_latch_spice3_gmin_op",
+        "m7_conv_latch_spice3_src_op",
+        "m7_conv_latch_tran",
+        "m7_conv_bjt_schmitt",
+        "m7_conv_cmos_schmitt",
+        "m7_ic_diode_uic_tran",
+        "m7_ic_bjt_flipflop_tran",
+        "m7_ic_bjt_off_tran",
+        "m7_ic_mos1_uic_tran",
+        "m7_ic_latch_nodeset_op",
+        "m7_ic_latch_mos1_ic_op",
     ] {
         let output = verify(&["--netlist", name]);
         assert!(output.status.success(), "{output:?}");

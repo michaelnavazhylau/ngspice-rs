@@ -1,0 +1,24 @@
+BJT flip-flop with an OFF transistor
+* #99: q2 is OFF. ngspice holds its junctions at 0 V through MODEINITJCT and
+* MODEINITFIX, but its device convergence test (BJTconvTest, NEWCONV) keeps
+* failing while the iterate's collector junction sits volts away from the
+* held 0 V, so the direct operating-point iteration never leaves MODEINITFIX
+* and dynamic gmin stepping settles in the q1-on state (without OFF the
+* default schedule returns the unstable equilibrium). A negative pulse on b1
+* at 30 us flips the pair. reltol=1e-6 keeps both step sequences tight
+* through the flip.
+vcc vcc 0 dc 5
+vs s 0 dc 0 pulse(0 -5 30u 1u 1u 5u 100u)
+rc1 vcc c1 1k
+rc2 vcc c2 1k
+rb1 c1 b2 10k
+rb2 c2 b1 10k
+rx1 b1 0 4.7k
+rx2 b2 0 4.7k
+rs s b1 10k
+q1 c1 b1 0 qmod
+q2 c2 b2 0 qmod off
+.model qmod npn(is=1e-14 bf=100 cje=2p cjc=1p tf=1n)
+.options reltol=1e-6
+.tran 0.5u 60u 0 10n
+.end

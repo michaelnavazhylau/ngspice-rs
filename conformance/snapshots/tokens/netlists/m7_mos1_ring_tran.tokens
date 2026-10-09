@@ -1,0 +1,333 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_mos1_ring_tran.cir
+title: "MOS1 3-stage CMOS ring oscillator with Meyer gate charge (TOX)" @netlists/m7_mos1_ring_tran.cir:1:1
+card 1 @netlists/m7_mos1_ring_tran.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd vdd 0 3.3"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 word "vdd"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 number "3.3" value=3.3e0
+card 2 @netlists/m7_mos1_ring_tran.cir:3:1 lines=3-3 continuations=0
+  raw: "ikick 0 n1 pulse(0 200u 0.2n 0.1n 0.1n 0.3n 1)"
+  kind: device(i)
+  token 1 3:1 word "ikick"
+  token 2 3:7 number "0" value=0e0
+  token 3 3:9 word "n1"
+  token 4 3:12 word "pulse"
+  token 5 3:17 lparen "("
+  token 6 3:18 number "0" value=0e0
+  token 7 3:20 number "200u" value=1.9999999999999998e-4
+  token 8 3:25 number "0.2n" value=2.0000000000000003e-10
+  token 9 3:30 number "0.1n" value=1.0000000000000002e-10
+  token 10 3:35 number "0.1n" value=1.0000000000000002e-10
+  token 11 3:40 number "0.3n" value=3e-10
+  token 12 3:45 number "1" value=1e0
+  token 13 3:46 rparen ")"
+card 3 @netlists/m7_mos1_ring_tran.cir:4:1 lines=4-4 continuations=0
+  raw: "mn1 n2 n1 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u"
+  kind: device(m)
+  token 1 4:1 word "mn1"
+  token 2 4:5 word "n2"
+  token 3 4:8 word "n1"
+  token 4 4:11 number "0" value=0e0
+  token 5 4:13 number "0" value=0e0
+  token 6 4:15 word "nch"
+  token 7 4:19 word "w"
+  token 8 4:20 equals "="
+  token 9 4:21 number "2u" value=2e-6
+  token 10 4:24 word "l"
+  token 11 4:25 equals "="
+  token 12 4:26 number "0.5u" value=5e-7
+  token 13 4:31 word "ad"
+  token 14 4:33 equals "="
+  token 15 4:34 number "2p" value=2e-12
+  token 16 4:37 word "as"
+  token 17 4:39 equals "="
+  token 18 4:40 number "2p" value=2e-12
+  token 19 4:43 word "pd"
+  token 20 4:45 equals "="
+  token 21 4:46 number "6u" value=6e-6
+  token 22 4:49 word "ps"
+  token 23 4:51 equals "="
+  token 24 4:52 number "6u" value=6e-6
+card 4 @netlists/m7_mos1_ring_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "mp1 n2 n1 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+  kind: device(m)
+  token 1 5:1 word "mp1"
+  token 2 5:5 word "n2"
+  token 3 5:8 word "n1"
+  token 4 5:11 word "vdd"
+  token 5 5:15 word "vdd"
+  token 6 5:19 word "pch"
+  token 7 5:23 word "w"
+  token 8 5:24 equals "="
+  token 9 5:25 number "5u" value=4.9999999999999996e-6
+  token 10 5:28 word "l"
+  token 11 5:29 equals "="
+  token 12 5:30 number "0.5u" value=5e-7
+  token 13 5:35 word "ad"
+  token 14 5:37 equals "="
+  token 15 5:38 number "5p" value=5e-12
+  token 16 5:41 word "as"
+  token 17 5:43 equals "="
+  token 18 5:44 number "5p" value=5e-12
+  token 19 5:47 word "pd"
+  token 20 5:49 equals "="
+  token 21 5:50 number "12u" value=1.2e-5
+  token 22 5:54 word "ps"
+  token 23 5:56 equals "="
+  token 24 5:57 number "12u" value=1.2e-5
+card 5 @netlists/m7_mos1_ring_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "c1 n2 0 50f"
+  kind: device(c)
+  token 1 6:1 word "c1"
+  token 2 6:4 word "n2"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 number "50f" value=5e-14
+card 6 @netlists/m7_mos1_ring_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "mn2 n3 n2 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u"
+  kind: device(m)
+  token 1 7:1 word "mn2"
+  token 2 7:5 word "n3"
+  token 3 7:8 word "n2"
+  token 4 7:11 number "0" value=0e0
+  token 5 7:13 number "0" value=0e0
+  token 6 7:15 word "nch"
+  token 7 7:19 word "w"
+  token 8 7:20 equals "="
+  token 9 7:21 number "2u" value=2e-6
+  token 10 7:24 word "l"
+  token 11 7:25 equals "="
+  token 12 7:26 number "0.5u" value=5e-7
+  token 13 7:31 word "ad"
+  token 14 7:33 equals "="
+  token 15 7:34 number "2p" value=2e-12
+  token 16 7:37 word "as"
+  token 17 7:39 equals "="
+  token 18 7:40 number "2p" value=2e-12
+  token 19 7:43 word "pd"
+  token 20 7:45 equals "="
+  token 21 7:46 number "6u" value=6e-6
+  token 22 7:49 word "ps"
+  token 23 7:51 equals "="
+  token 24 7:52 number "6u" value=6e-6
+card 7 @netlists/m7_mos1_ring_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "mp2 n3 n2 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+  kind: device(m)
+  token 1 8:1 word "mp2"
+  token 2 8:5 word "n3"
+  token 3 8:8 word "n2"
+  token 4 8:11 word "vdd"
+  token 5 8:15 word "vdd"
+  token 6 8:19 word "pch"
+  token 7 8:23 word "w"
+  token 8 8:24 equals "="
+  token 9 8:25 number "5u" value=4.9999999999999996e-6
+  token 10 8:28 word "l"
+  token 11 8:29 equals "="
+  token 12 8:30 number "0.5u" value=5e-7
+  token 13 8:35 word "ad"
+  token 14 8:37 equals "="
+  token 15 8:38 number "5p" value=5e-12
+  token 16 8:41 word "as"
+  token 17 8:43 equals "="
+  token 18 8:44 number "5p" value=5e-12
+  token 19 8:47 word "pd"
+  token 20 8:49 equals "="
+  token 21 8:50 number "12u" value=1.2e-5
+  token 22 8:54 word "ps"
+  token 23 8:56 equals "="
+  token 24 8:57 number "12u" value=1.2e-5
+card 8 @netlists/m7_mos1_ring_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "c2 n3 0 50f"
+  kind: device(c)
+  token 1 9:1 word "c2"
+  token 2 9:4 word "n3"
+  token 3 9:7 number "0" value=0e0
+  token 4 9:9 number "50f" value=5e-14
+card 9 @netlists/m7_mos1_ring_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "mn3 n1 n3 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u"
+  kind: device(m)
+  token 1 10:1 word "mn3"
+  token 2 10:5 word "n1"
+  token 3 10:8 word "n3"
+  token 4 10:11 number "0" value=0e0
+  token 5 10:13 number "0" value=0e0
+  token 6 10:15 word "nch"
+  token 7 10:19 word "w"
+  token 8 10:20 equals "="
+  token 9 10:21 number "2u" value=2e-6
+  token 10 10:24 word "l"
+  token 11 10:25 equals "="
+  token 12 10:26 number "0.5u" value=5e-7
+  token 13 10:31 word "ad"
+  token 14 10:33 equals "="
+  token 15 10:34 number "2p" value=2e-12
+  token 16 10:37 word "as"
+  token 17 10:39 equals "="
+  token 18 10:40 number "2p" value=2e-12
+  token 19 10:43 word "pd"
+  token 20 10:45 equals "="
+  token 21 10:46 number "6u" value=6e-6
+  token 22 10:49 word "ps"
+  token 23 10:51 equals "="
+  token 24 10:52 number "6u" value=6e-6
+card 10 @netlists/m7_mos1_ring_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "mp3 n1 n3 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+  kind: device(m)
+  token 1 11:1 word "mp3"
+  token 2 11:5 word "n1"
+  token 3 11:8 word "n3"
+  token 4 11:11 word "vdd"
+  token 5 11:15 word "vdd"
+  token 6 11:19 word "pch"
+  token 7 11:23 word "w"
+  token 8 11:24 equals "="
+  token 9 11:25 number "5u" value=4.9999999999999996e-6
+  token 10 11:28 word "l"
+  token 11 11:29 equals "="
+  token 12 11:30 number "0.5u" value=5e-7
+  token 13 11:35 word "ad"
+  token 14 11:37 equals "="
+  token 15 11:38 number "5p" value=5e-12
+  token 16 11:41 word "as"
+  token 17 11:43 equals "="
+  token 18 11:44 number "5p" value=5e-12
+  token 19 11:47 word "pd"
+  token 20 11:49 equals "="
+  token 21 11:50 number "12u" value=1.2e-5
+  token 22 11:54 word "ps"
+  token 23 11:56 equals "="
+  token 24 11:57 number "12u" value=1.2e-5
+card 11 @netlists/m7_mos1_ring_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "c3 n1 0 50f"
+  kind: device(c)
+  token 1 12:1 word "c3"
+  token 2 12:4 word "n1"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 number "50f" value=5e-14
+card 12 @netlists/m7_mos1_ring_tran.cir:13:1 lines=13-14 continuations=1
+  raw: ".model nch nmos(level=1 vto=0.7 kp=110u gamma=0.4 phi=0.7 lambda=0.04 tox=9n ld=0.05u cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n mjsw=0.33 pb=0.9)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "nch"
+  token 3 13:12 word "nmos"
+  token 4 13:16 lparen "("
+  token 5 13:17 word "level"
+  token 6 13:22 equals "="
+  token 7 13:23 number "1" value=1e0
+  token 8 13:25 word "vto"
+  token 9 13:28 equals "="
+  token 10 13:29 number "0.7" value=7e-1
+  token 11 13:33 word "kp"
+  token 12 13:35 equals "="
+  token 13 13:36 number "110u" value=1.0999999999999999e-4
+  token 14 13:41 word "gamma"
+  token 15 13:46 equals "="
+  token 16 13:47 number "0.4" value=4e-1
+  token 17 13:51 word "phi"
+  token 18 13:54 equals "="
+  token 19 13:55 number "0.7" value=7e-1
+  token 20 13:59 word "lambda"
+  token 21 13:65 equals "="
+  token 22 13:66 number "0.04" value=4e-2
+  token 23 13:71 word "tox"
+  token 24 13:74 equals "="
+  token 25 13:75 number "9n" value=9.000000000000001e-9
+  token 26 13:78 word "ld"
+  token 27 13:80 equals "="
+  token 28 13:81 number "0.05u" value=5e-8
+  token 29 13:87 word "cgso"
+  token 30 13:91 equals "="
+  token 31 13:92 number "0.3n" value=3e-10
+  token 32 13:97 word "cgdo"
+  token 33 13:101 equals "="
+  token 34 13:102 number "0.3n" value=3e-10
+  token 35 13:107 word "cgbo"
+  token 36 13:111 equals "="
+  token 37 13:112 number "0.1n" value=1.0000000000000002e-10
+  token 38 13:117 word "cj"
+  token 39 13:119 equals "="
+  token 40 13:120 number "0.9m" value=9.000000000000001e-4
+  token 41 13:125 word "mj"
+  token 42 13:127 equals "="
+  token 43 13:128 number "0.5" value=5e-1
+  token 44 13:132 word "cjsw"
+  token 45 13:136 equals "="
+  token 46 13:137 number "0.25n" value=2.5e-10
+  token 47 13:143 word "mjsw"
+  token 48 13:147 equals "="
+  token 49 13:148 number "0.33" value=3.3e-1
+  token 50 13:153 word "pb"
+  token 51 13:155 equals "="
+  token 52 13:156 number "0.9" value=9e-1
+  token 53 13:159 rparen ")"
+card 13 @netlists/m7_mos1_ring_tran.cir:15:1 lines=15-16 continuations=1
+  raw: ".model pch pmos(level=1 vto=-0.8 kp=40u gamma=0.5 phi=0.7 lambda=0.05 tox=9n ld=0.05u cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m mj=0.5 cjsw=0.3n mjsw=0.33 pb=0.9)"
+  kind: dot(.model)
+  token 1 15:1 word ".model"
+  token 2 15:8 word "pch"
+  token 3 15:12 word "pmos"
+  token 4 15:16 lparen "("
+  token 5 15:17 word "level"
+  token 6 15:22 equals "="
+  token 7 15:23 number "1" value=1e0
+  token 8 15:25 word "vto"
+  token 9 15:28 equals "="
+  token 10 15:29 number "-0.8" value=-8e-1
+  token 11 15:34 word "kp"
+  token 12 15:36 equals "="
+  token 13 15:37 number "40u" value=3.9999999999999996e-5
+  token 14 15:41 word "gamma"
+  token 15 15:46 equals "="
+  token 16 15:47 number "0.5" value=5e-1
+  token 17 15:51 word "phi"
+  token 18 15:54 equals "="
+  token 19 15:55 number "0.7" value=7e-1
+  token 20 15:59 word "lambda"
+  token 21 15:65 equals "="
+  token 22 15:66 number "0.05" value=5e-2
+  token 23 15:71 word "tox"
+  token 24 15:74 equals "="
+  token 25 15:75 number "9n" value=9.000000000000001e-9
+  token 26 15:78 word "ld"
+  token 27 15:80 equals "="
+  token 28 15:81 number "0.05u" value=5e-8
+  token 29 15:87 word "cgso"
+  token 30 15:91 equals "="
+  token 31 15:92 number "0.3n" value=3e-10
+  token 32 15:97 word "cgdo"
+  token 33 15:101 equals "="
+  token 34 15:102 number "0.3n" value=3e-10
+  token 35 15:107 word "cgbo"
+  token 36 15:111 equals "="
+  token 37 15:112 number "0.1n" value=1.0000000000000002e-10
+  token 38 15:117 word "cj"
+  token 39 15:119 equals "="
+  token 40 15:120 number "1m" value=1e-3
+  token 41 15:123 word "mj"
+  token 42 15:125 equals "="
+  token 43 15:126 number "0.5" value=5e-1
+  token 44 15:130 word "cjsw"
+  token 45 15:134 equals "="
+  token 46 15:135 number "0.3n" value=3e-10
+  token 47 15:140 word "mjsw"
+  token 48 15:144 equals "="
+  token 49 15:145 number "0.33" value=3.3e-1
+  token 50 15:150 word "pb"
+  token 51 15:152 equals "="
+  token 52 15:153 number "0.9" value=9e-1
+  token 53 15:156 rparen ")"
+card 14 @netlists/m7_mos1_ring_tran.cir:17:1 lines=17-17 continuations=0
+  raw: ".tran 0.02n 6n 0 0.5p"
+  kind: dot(.tran)
+  token 1 17:1 word ".tran"
+  token 2 17:7 number "0.02n" value=2.0000000000000002e-11
+  token 3 17:13 number "6n" value=6.000000000000001e-9
+  token 4 17:16 number "0" value=0e0
+  token 5 17:18 number "0.5p" value=5e-13
+card 15 @netlists/m7_mos1_ring_tran.cir:18:1 lines=18-18 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 18:1 word ".end"
