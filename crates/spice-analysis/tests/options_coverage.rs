@@ -217,7 +217,15 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
     // previous point. With a three-iteration full-solve budget and no
     // continuation, the point fails unless the warm start takes it.
     let sweep = "v1 a 0 0\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.dc v1 0 5 5";
-    let tight = ["maxiter=3", "gminsteps=0", "srcsteps=0"];
+    // `limiting=global continuation=ladder`: the legacy damped Newton and
+    // ladder policies this budget was chosen for.
+    let tight = [
+        "maxiter=3",
+        "gminsteps=0",
+        "srcsteps=0",
+        "limiting=global",
+        "continuation=ladder",
+    ];
     let error = deck_with_request(sweep, &tight).unwrap_err();
     assert!(error.to_string().contains("Newton"), "{error}");
     // A warm-start bound of 2 is too small too: it fails, falls back to the
@@ -317,7 +325,14 @@ fn itl2_bounds_every_continuation_stage_of_the_dc_bias() {
     // 100) gives the stages 100 and gmin stepping converges, in .op, .ac and
     // the .tran initial bias alike.
     let body = "v1 a 0 5 ac 1\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)";
-    let tight = ["maxiter=3", "srcsteps=0"];
+    // `limiting=global continuation=ladder`: the legacy damped Newton and
+    // ladder policies this budget was chosen for.
+    let tight = [
+        "maxiter=3",
+        "srcsteps=0",
+        "limiting=global",
+        "continuation=ladder",
+    ];
     let reference = simulate(&format!("{body}\n.op")).unwrap();
     let expected = reference.value("v(b)", 0).unwrap().re;
     for analysis in [".op", ".ac dec 1 1k 10k", ".tran 1u 2u"] {
@@ -344,7 +359,12 @@ fn stage_iteration_limit_is_separate_from_the_direct_limit() {
     let circuit = RunConfig::from_netlist(&n).unwrap().circuit(&n).unwrap();
     let settings = DcSettings::from_request(&AnalysisRequest::with_arguments(
         AnalysisKind::OperatingPoint,
-        ["maxiter=3", "stagemaxiter=40", "srcsteps=0"],
+        [
+            "maxiter=3",
+            "stagemaxiter=40",
+            "srcsteps=0",
+            "continuation=ladder",
+        ],
     ))
     .unwrap();
     assert_eq!(settings.newton.max_iterations, 3);
@@ -610,7 +630,6 @@ fn unknown_and_unported_options_still_fail() {
     for pending in [
         ".options gshunt=1e-12",
         ".options cshunt=1p",
-        ".options noopiter",
         ".options minbreak=1n",
         ".options numdgt=8",
         ".options filetype=ascii",

@@ -362,6 +362,16 @@ pub(crate) fn run(
     let hints = crate::initial::resolve(circuit, request)?;
     let axes = resolve(circuit, request, context)?;
     let (point_iterations, settings) = sweep_settings(request)?;
+    // dctrcurv.c always warm-starts every point after the first with
+    // `NIiter(CKTdcTrcvMaxIter)` (C's effective default 100) before falling
+    // back to a fresh `CKTop`; the port's legacy ladder schedule instead runs
+    // one full solve per point unless `itl2` is given.
+    let point_iterations = point_iterations.or(match settings.continuation.schedule {
+        crate::bias::ContinuationSchedule::Ngspice(_) => {
+            Some(crate::config::C_DEFAULT_ITL2_EFFECTIVE)
+        }
+        crate::bias::ContinuationSchedule::Ladder => None,
+    });
     // A switch control landing exactly on a threshold is decided by the last
     // bit of the swept value, so with discrete-state devices the sweep visits
     // C's accumulated values (`dctrcurv.c`) rather than `start + i step`.

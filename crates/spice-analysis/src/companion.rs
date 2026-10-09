@@ -100,7 +100,7 @@ const DEFAULT_ABSTOL: Real = 1e-12;
 const DEFAULT_CHGTOL: Real = 1e-14;
 const DEFAULT_TRTOL: Real = 7.0;
 /// Request keys the companion backend understands.
-const KEYS: [&str; 16] = [
+const KEYS: [&str; 20] = [
     "backend",
     "method",
     "maxord",
@@ -117,14 +117,23 @@ const KEYS: [&str; 16] = [
     "gminsteps",
     "gminfactor",
     "stagemaxiter",
+    "adaptiter",
+    "noopiter",
+    "continuation",
+    "limiting",
 ];
-/// Request keys forwarded to the initial-bias DC solve.
-const BIAS_KEYS: [&str; 5] = [
+/// Request keys forwarded to the initial-bias DC solve (`limiting` also
+/// selects the step control of every timepoint's Newton solve).
+const BIAS_KEYS: [&str; 9] = [
     "maxiter",
     "srcsteps",
     "gminsteps",
     "gminfactor",
     "stagemaxiter",
+    "adaptiter",
+    "noopiter",
+    "continuation",
+    "limiting",
 ];
 
 /// Counters describing one companion transient run.
@@ -804,12 +813,24 @@ impl Driver<'_> {
         previous: &Vector,
     ) -> SpiceResult<Trial> {
         let n = self.circuit.unknown_count();
+        let tolerance = &self.settings.tolerances;
+        let options = crate::newton::NewtonOptions {
+            max_iterations: self.settings.tran_max_iter,
+            reltol: tolerance.reltol,
+            vntol: tolerance.vntol,
+            abstol: tolerance.abstol,
+            limiting: self.bias.newton.limiting,
+            ..crate::newton::NewtonOptions::default()
+        };
         let load = |guess: &Vector,
                     matrix: &mut SparseMatrix,
                     rhs: &mut Vector,
                     phase: spice_devices::IterationPhase,
                     previous: Option<&TrialState>| {
-            let mut state = self.history.trial_in(phase, previous)?;
+            let mut state = self
+                .history
+                .trial_in(phase, previous)?
+                .with_device_limiting(options.limiting.is_device());
             self.circuit.load(
                 &LoadRequest {
                     mode: AnalysisMode::Transient {
@@ -832,14 +853,6 @@ impl Driver<'_> {
             Ok::<_, SpiceError>(state)
         };
         if self.nonlinear {
-            let tolerance = &self.settings.tolerances;
-            let options = crate::newton::NewtonOptions {
-                max_iterations: self.settings.tran_max_iter,
-                reltol: tolerance.reltol,
-                vntol: tolerance.vntol,
-                abstol: tolerance.abstol,
-                ..crate::newton::NewtonOptions::default()
-            };
             let limited = crate::bias::limited_rows(self.circuit);
             // dctran.c: MODEINITTRAN/MODEINITPRED for the first load of a
             // timepoint, MODEINITFLOAT afterwards.

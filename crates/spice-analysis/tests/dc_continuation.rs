@@ -4,11 +4,11 @@
 //! artificial nodal gmin); continuation never accepts device state, runs accept
 //! hooks or edits a source value. Transient/diffsol do not read these options.
 use spice_analysis::bias::{
-    AttemptOutcome, ContinuationPolicy, DEFAULT_GMIN_SCHEDULE, DcOutcome, DcReport, DcSettings,
-    DcStrategy, MAX_GMIN_STAGES, MAX_SOURCE_STEPS, MAX_TOTAL_ITERATIONS, SourceStepping, solve_dc,
-    solve_dc_with,
+    AttemptOutcome, ContinuationPolicy, ContinuationSchedule, DEFAULT_GMIN_SCHEDULE, DcOutcome,
+    DcReport, DcSettings, DcStrategy, MAX_GMIN_STAGES, MAX_SOURCE_STEPS, MAX_TOTAL_ITERATIONS,
+    NgspiceStepping, SourceStepping, solve_dc, solve_dc_with,
 };
-use spice_analysis::newton::NewtonOptions;
+use spice_analysis::newton::{NewtonOptions, StepLimiting};
 use spice_analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
 use spice_core::{AnalysisKind, SpiceError, SpiceResult};
 use spice_devices::{AnalysisMode, Circuit, LoadRequest, ModelContext};
@@ -42,9 +42,14 @@ fn close(a: f64, b: f64, relative: f64, absolute: f64) {
         "{a:e} != {b:e}"
     );
 }
+/// Four iterations under the port's legacy global voltage-step damping: the
+/// continuation-mechanics tests below were designed around that policy's
+/// iteration counts (with ngspice's per-device limiting, the default, the
+/// first `MODEINITJCT` stage alone spends more than four iterations).
 fn bounded() -> NewtonOptions {
     NewtonOptions {
         max_iterations: 4,
+        limiting: StepLimiting::Global,
         ..NewtonOptions::default()
     }
 }
@@ -203,9 +208,11 @@ fn structural_device_errors_are_not_retried_by_continuation() {
     assert_eq!(stage.strategy, DcStrategy::Direct);
     assert!(stage.is_unregularized(), "{stage:?}");
     assert_eq!(accepted.get(), 0);
-    let default_policy = ContinuationPolicy::default();
+    let ContinuationSchedule::Ngspice(stepping) = ContinuationPolicy::default().schedule else {
+        panic!("the default policy is ngspice's CKTop schedule");
+    };
     assert!(
-        default_policy.source_stepping.is_some() && !default_policy.gmin_schedule.is_empty(),
+        stepping.gmin_steps > 0 && stepping.source_steps > 0,
         "this test only proves skipping when the default policy would otherwise continue"
     );
 }
@@ -225,13 +232,17 @@ fn ac_bias_deck_continuation_options_use_last_set_wins_and_request_precedence() 
     // Deck continuation options with a four-iteration request budget (a deck
     // `itl1` below 100 is C's effective 100, see below): the same hard bias
     // that fails for `.op` fails here, with the same bounded diagnosis.
-    let error = run_ac(".options srcsteps=0 gminsteps=0", &["maxiter=4"]).unwrap_err();
+    let error = run_ac(
+        ".options srcsteps=0 gminsteps=0",
+        &["maxiter=4", "limiting=global"],
+    )
+    .unwrap_err();
     let message = error.to_string();
     assert!(message.contains("source stepping: disabled"), "{message}");
     assert!(message.contains("gmin stepping: disabled"), "{message}");
     // Deck source stepping alone rescues the budget, exactly as for `.op`, and
     // the AC point is linearized about the same physical full-source bias.
-    let solved = run_ac(".options gminsteps=0", &["maxiter=4"]).unwrap();
+    let solved = run_ac(".options gminsteps=0", &["maxiter=4", "limiting=global"]).unwrap();
     close(
         solved.value("v(a)", 0).unwrap().re,
         1. / (2. * (1e-3 / VT)),
@@ -242,12 +253,18 @@ fn ac_bias_deck_continuation_options_use_last_set_wins_and_request_precedence() 
     assert!(
         run_ac(
             ".options gminsteps=0 srcsteps=0 srcsteps=20",
-            &["maxiter=4"]
+            &["maxiter=4", "limiting=global"]
         )
         .is_ok()
     );
     // An explicit request argument outranks the deck value.
-    assert!(run_ac(".options gminsteps=0", &["maxiter=4", "srcsteps=0"]).is_err());
+    assert!(
+        run_ac(
+            ".options gminsteps=0",
+            &["maxiter=4", "limiting=global", "srcsteps=0"]
+        )
+        .is_err()
+    );
     // niiter.c raises a deck itl1=4 to 100, which the direct solve needs no
     // continuation for (C converges on this deck with itl1=4 as well).
     assert!(run_ac(".options itl1=4 srcsteps=0 gminsteps=0", &[]).is_ok());
@@ -290,7 +307,7 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
     // The gmin schedule alone cannot rescue it within the same iteration budget.
     let gmin_only = ContinuationPolicy {
         source_stepping: None,
-        ..ContinuationPolicy::default()
+        ..ContinuationPolicy::ladder()
     };
     let failure = run(gmin_only).unwrap_err();
     assert_eq!(failure.report.outcome, DcOutcome::Exhausted);
@@ -314,6 +331,7 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
         source_stepping: Some(SourceStepping::uniform(20, 1e-8).unwrap()),
         max_total_iterations: None,
         stage_max_iterations: None,
+        ..ContinuationPolicy::disabled()
     };
     let solved = run(source_only).unwrap();
     let report = &solved.report;
@@ -351,8 +369,8 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
     close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
     close(diode_residual(v) + 1e-3, 1e-3, 1e-7, 1e-12);
 
-    // The default policy tries gmin stepping first, then source stepping.
-    let defaults = run(ContinuationPolicy::default()).unwrap();
+    // The ladder policy tries gmin stepping first, then source stepping.
+    let defaults = run(ContinuationPolicy::ladder()).unwrap();
     assert_eq!(
         attempts(&defaults.report),
         [
@@ -362,11 +380,13 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
         ]
     );
     assert_original_equations_solved(&defaults.report);
-    // The compatible wrapper is the same solve with the default policy.
+    // The compatible wrapper is the same solve with the default (ngspice) policy.
+    let ngspice = run(ContinuationPolicy::default()).unwrap();
+    assert_original_equations_solved(&ngspice.report);
     let wrapped = solve_dc(&c, &context, &bounded(), &[], None, None).unwrap();
     assert_eq!(
         wrapped.values.as_slice(),
-        defaults.solution.values.as_slice()
+        ngspice.solution.values.as_slice()
     );
 }
 
@@ -377,7 +397,7 @@ fn configured_gmin_schedule_rescues_a_singular_jacobian_without_source_stepping(
     let context = ModelContext::default();
     let gmin_only = ContinuationPolicy {
         source_stepping: None,
-        ..ContinuationPolicy::default()
+        ..ContinuationPolicy::ladder()
     };
     let solved = solve_dc_with(
         &c,
@@ -412,6 +432,7 @@ fn configured_gmin_schedule_rescues_a_singular_jacobian_without_source_stepping(
         source_stepping: None,
         max_total_iterations: None,
         stage_max_iterations: None,
+        ..ContinuationPolicy::disabled()
     };
     let solved = solve_dc_with(
         &c,
@@ -449,7 +470,7 @@ fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
     // stage is cut short, the attempt stops and nothing further runs.
     let policy = ContinuationPolicy {
         max_total_iterations: Some(6),
-        ..ContinuationPolicy::default()
+        ..ContinuationPolicy::ladder()
     };
     let failure =
         solve_dc_with(&c, &context, &settings(bounded(), policy), &[], None, None).unwrap_err();
@@ -468,7 +489,7 @@ fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
     // A one-iteration budget leaves nothing for continuation.
     let policy = ContinuationPolicy {
         max_total_iterations: Some(1),
-        ..ContinuationPolicy::default()
+        ..ContinuationPolicy::ladder()
     };
     let failure =
         solve_dc_with(&c, &context, &settings(bounded(), policy), &[], None, None).unwrap_err();
@@ -489,7 +510,7 @@ fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
     let defaults = solve_dc_with(
         &c,
         &context,
-        &settings(bounded(), ContinuationPolicy::default()),
+        &settings(bounded(), ContinuationPolicy::ladder()),
         &[],
         None,
         None,
@@ -516,7 +537,7 @@ fn invalid_schedules_scales_and_budgets_are_rejected_before_any_load() {
         .into_iter()
         .map(|gmin_schedule| ContinuationPolicy {
             gmin_schedule,
-            ..ContinuationPolicy::default()
+            ..ContinuationPolicy::ladder()
         })
         .collect();
     let scales = |scales: &[f64], gmin: f64| ContinuationPolicy {
@@ -524,7 +545,7 @@ fn invalid_schedules_scales_and_budgets_are_rejected_before_any_load() {
             scales: scales.to_vec(),
             gmin,
         }),
-        ..ContinuationPolicy::default()
+        ..ContinuationPolicy::ladder()
     };
     let bad_scales: [&[f64]; 7] = [
         &[],
@@ -544,7 +565,7 @@ fn invalid_schedules_scales_and_budgets_are_rejected_before_any_load() {
     for total in [0, MAX_TOTAL_ITERATIONS + 1] {
         policies.push(ContinuationPolicy {
             max_total_iterations: Some(total),
-            ..ContinuationPolicy::default()
+            ..ContinuationPolicy::ladder()
         });
     }
     for (index, policy) in policies.into_iter().enumerate() {
@@ -586,8 +607,9 @@ fn invalid_schedules_scales_and_budgets_are_rejected_before_any_load() {
 }
 
 #[test]
-fn default_policy_is_the_historical_schedule_and_geometric_builders_are_exact() {
-    let default = ContinuationPolicy::default();
+fn ladder_policy_is_the_historical_schedule_and_geometric_builders_are_exact() {
+    let default = ContinuationPolicy::ladder();
+    assert_eq!(default.schedule, ContinuationSchedule::Ladder);
     assert_eq!(default.gmin_schedule, DEFAULT_GMIN_SCHEDULE);
     let source = default.source_stepping.as_ref().unwrap();
     assert_eq!(source.gmin, 1e-8);
@@ -630,6 +652,7 @@ fn impossible_ideal_source_loops_fail_boundedly_without_a_regularized_answer() {
     let c = circuit("v1 a 0 1\nv2 a 0 2\nd1 a 0 dm\n.model dm d");
     for continuation in [
         ContinuationPolicy::default(),
+        ContinuationPolicy::ladder(),
         ContinuationPolicy::disabled(),
     ] {
         let failure = solve_dc_with(
@@ -677,6 +700,7 @@ fn final_unregularized_physical_failure_is_never_masked_by_a_regularized_solve()
     // A floating diode has no DC reference: every gmin-regularized stage
     // converges (to zero), but the original equations are singular.
     let c = circuit("d1 a b dm\n.model dm d");
+    // ngspice's schedule: every strategy fails at its original-equation solve.
     let failure = solve_dc_with(
         &c,
         &ModelContext::default(),
@@ -686,6 +710,21 @@ fn final_unregularized_physical_failure_is_never_masked_by_a_regularized_solve()
         None,
     )
     .unwrap_err();
+    let report = &failure.report;
+    assert_eq!(report.outcome, DcOutcome::Exhausted);
+    assert!(report.stages.iter().any(|s| s.gmin > 0. && s.converged()));
+    assert!(
+        report
+            .stages
+            .iter()
+            .all(|s| !(s.is_unregularized() && s.converged()))
+    );
+    let ladder = DcSettings {
+        continuation: ContinuationPolicy::ladder(),
+        ..DcSettings::default()
+    };
+    let failure =
+        solve_dc_with(&c, &ModelContext::default(), &ladder, &[], None, None).unwrap_err();
     let report = &failure.report;
     assert_eq!(report.outcome, DcOutcome::Exhausted);
     let gmin: Vec<_> = report
@@ -752,6 +791,7 @@ fn easy_nonlinear_and_linear_solves_stay_direct_and_exact() {
         source_stepping: None,
         max_total_iterations: Some(1),
         stage_max_iterations: None,
+        ..ContinuationPolicy::disabled()
     };
     assert!(
         solve_dc_with(
@@ -881,6 +921,7 @@ fn request(arguments: &[&str]) -> AnalysisRequest {
 #[test]
 fn request_arguments_resolve_and_invalid_ones_fail() {
     let resolved = DcSettings::from_request(&request(&[
+        "continuation=ladder",
         "maxiter=4",
         "RTOL=1e-6",
         "srcsteps=5",
@@ -903,8 +944,33 @@ fn request_arguments_resolve_and_invalid_ones_fail() {
         resolved.continuation.source_stepping.unwrap().scales,
         [0., 0.2, 0.4, 0.6, 0.8, 1.]
     );
-    let off = DcSettings::from_request(&request(&["srcsteps=0", "gminsteps=0"])).unwrap();
+    let off = DcSettings::from_request(&request(&[
+        "srcsteps=0",
+        "gminsteps=0",
+        "continuation=LADDER",
+    ]))
+    .unwrap();
     assert_eq!(off.continuation, ContinuationPolicy::disabled());
+    // The default ngspice schedule takes C's counts.
+    let ngspice = DcSettings::from_request(&request(&[
+        "srcsteps=0",
+        "gminsteps=3",
+        "gminfactor=100",
+        "adaptiter=60",
+        "noopiter=1",
+    ]))
+    .unwrap();
+    assert_eq!(
+        ngspice.continuation.schedule,
+        ContinuationSchedule::Ngspice(NgspiceStepping {
+            gmin_steps: 3,
+            source_steps: 0,
+            gmin_factor: 100.,
+            adapt_iterations: 60,
+        })
+    );
+    assert!(ngspice.continuation.skip_direct);
+    assert!(ngspice.continuation.gmin_schedule.is_empty());
     assert_eq!(
         DcSettings::from_request(&request(&[])).unwrap(),
         DcSettings::default()
@@ -940,8 +1006,38 @@ fn request_arguments_resolve_and_invalid_ones_fail() {
             "{duplicate:?}"
         );
     }
-    // A factor/steps pair whose schedule underflows is invalid as a whole.
-    assert!(DcSettings::from_request(&request(&["gminfactor=1e6", "gminsteps=100"])).is_err());
+    // A factor/steps pair whose ladder underflows is invalid as a whole.
+    assert!(
+        DcSettings::from_request(&request(&[
+            "gminfactor=1e6",
+            "gminsteps=100",
+            "continuation=ladder"
+        ]))
+        .is_err()
+    );
+    // ngspice's spice3_gmin ladder starts at gmin * factor^steps, so it is
+    // checked against the circuit's junction gmin when the solve starts.
+    let overflowing = DcSettings::from_request(&request(&["gminfactor=1e6", "gminsteps=100"]));
+    let failure = solve_dc_with(
+        &circuit(DIFFICULT),
+        &ModelContext::default(),
+        &overflowing.unwrap(),
+        &[],
+        None,
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(failure.report.outcome, DcOutcome::Rejected);
+    assert!(failure.report.stages.is_empty());
+    for bad in [
+        "continuation=dynamic",
+        "adaptiter=0",
+        "noopiter=2",
+        "noopiter=0.5",
+    ] {
+        assert!(DcSettings::from_request(&request(&[bad])).is_err(), "{bad}");
+    }
+    assert!(DcSettings::from_request(&request(&["continuation=ladder", "adaptiter=50"])).is_err());
     // Newton-only resolution refuses (instead of silently dropping) continuation names.
     let error = NewtonOptions::from_request(&request(&["srcsteps=3"])).unwrap_err();
     assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
@@ -966,12 +1062,19 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     // A four-iteration budget (request `maxiter=4`; a deck `itl1` below 100 is
     // C's effective 100) with every deck continuation disabled fails and says
     // why.
-    let error = run_op(".options srcsteps=0 gminsteps=0", &["maxiter=4"]).unwrap_err();
+    let error = run_op(
+        ".options srcsteps=0 gminsteps=0",
+        &["maxiter=4", "limiting=global"],
+    )
+    .unwrap_err();
     let message = error.to_string();
     assert!(message.contains("source stepping: disabled"), "{message}");
     assert!(message.contains("gmin stepping: disabled"), "{message}");
     // Source stepping alone (gmin disabled) rescues the same bounded budget.
-    let v = ok(run_op(".options gminsteps=0", &["maxiter=4"]));
+    let v = ok(run_op(
+        ".options gminsteps=0",
+        &["maxiter=4", "limiting=global"],
+    ));
     close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
     // Deck default options (no DC options) use the default 200 iterations.
     close(ok(run_op("", &[])), VT * 2_f64.ln(), 1e-8, 1e-12);
@@ -979,12 +1082,12 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     // Duplicate setters: last wins, in deck order, across option cards.
     let off_then_on = run_op(
         ".options gminsteps=0 srcsteps=0\n.options srcsteps=20",
-        &["maxiter=4"],
+        &["maxiter=4", "limiting=global"],
     );
     close(ok(off_then_on), VT * 2_f64.ln(), 1e-8, 1e-12);
     let on_then_off = run_op(
         ".options gminsteps=0 srcsteps=20\n.options srcsteps=0",
-        &["maxiter=4"],
+        &["maxiter=4", "limiting=global"],
     );
     assert!(on_then_off.is_err());
     let netlist = parse(&format!(
@@ -999,9 +1102,12 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     // Explicit request arguments beat the deck.
     let deck = ".options itl1=100 gminsteps=0 srcsteps=0";
     close(ok(run_op(deck, &[])), VT * 2_f64.ln(), 1e-8, 1e-12);
-    assert!(run_op(deck, &["maxiter=4"]).is_err());
+    assert!(run_op(deck, &["maxiter=4", "limiting=global"]).is_err());
     close(
-        ok(run_op(deck, &["maxiter=4", "srcsteps=20"])),
+        ok(run_op(
+            deck,
+            &["maxiter=4", "limiting=global", "srcsteps=20"],
+        )),
         VT * 2_f64.ln(),
         1e-8,
         1e-12,
@@ -1015,9 +1121,15 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     assert_eq!(merged.named("gminsteps"), Some("0"));
     assert_eq!(merged.named("gminfactor"), Some("5e0"));
     // A request-only configuration (no deck) works the same way.
-    assert!(run_op("", &["maxiter=4", "srcsteps=0", "gminsteps=0"]).is_err());
+    assert!(
+        run_op(
+            "",
+            &["maxiter=4", "limiting=global", "srcsteps=0", "gminsteps=0"]
+        )
+        .is_err()
+    );
     close(
-        ok(run_op("", &["maxiter=4", "gminsteps=0"])),
+        ok(run_op("", &["maxiter=4", "limiting=global", "gminsteps=0"])),
         VT * 2_f64.ln(),
         1e-8,
         1e-12,
@@ -1052,15 +1164,26 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
     // Disabling is valid for the count options only.
     let off = config(".options srcsteps=0 gminsteps=0").unwrap();
     assert_eq!((off.dc().srcsteps, off.dc().gminsteps), (Some(0), Some(0)));
-    assert_eq!(off.dc().policy().unwrap(), ContinuationPolicy::disabled());
-    // Junction gmin, itl2 and itl4 are implemented (tests/run_config.rs);
-    // diagonal gshunt remains an explicit gap.
-    for pending in [".options gshunt=1e-12", ".options noopiter"] {
-        assert!(
-            config(pending).unwrap_err().is_not_yet_ported(),
-            "{pending}"
-        );
-    }
+    assert_eq!(
+        off.dc().policy().unwrap(),
+        ContinuationPolicy::from_ngspice_steps(Some(0), Some(0), None, None).unwrap()
+    );
+    // Junction gmin, itl2, itl4 and noopiter are implemented
+    // (tests/run_config.rs, tests/convergence.rs); diagonal gshunt remains an
+    // explicit gap.
+    assert!(
+        config(".options gshunt=1e-12")
+            .unwrap_err()
+            .is_not_yet_ported()
+    );
+    let skip = config(".options noopiter").unwrap();
+    assert!(skip.dc().noopiter);
+    assert!(skip.dc().policy().unwrap().skip_direct);
+    assert!(
+        !config(".options noopiter=1")
+            .unwrap_err()
+            .is_not_yet_ported()
+    );
     let error = config(".options itl1=5\n.options itl1").unwrap_err();
     assert!(!error.is_not_yet_ported(), "{error}");
 }
@@ -1120,7 +1243,7 @@ fn ac_bias_uses_the_configured_continuation() {
             &AnalysisContext::default(),
         )
     };
-    let solved = ac(&["maxiter=4", "gminsteps=0"]).unwrap();
+    let solved = ac(&["maxiter=4", "limiting=global", "gminsteps=0"]).unwrap();
     let conductance = 1e-3 / VT;
     close(
         solved.value("v(a)", 0).unwrap().re,
@@ -1128,7 +1251,16 @@ fn ac_bias_uses_the_configured_continuation() {
         1e-6,
         1e-9,
     );
-    assert!(ac(&["maxiter=4", "gminsteps=0", "srcsteps=0"]).is_err());
+    assert!(ac(&["maxiter=4", "limiting=global", "gminsteps=0", "srcsteps=0"]).is_err());
     assert!(ac(&["srcsteps=nan"]).is_err());
-    assert!(ac(&["maxiter=4", "gminsteps=0", "srcsteps=0", "srcsteps=5"]).is_err());
+    assert!(
+        ac(&[
+            "maxiter=4",
+            "limiting=global",
+            "gminsteps=0",
+            "srcsteps=0",
+            "srcsteps=5"
+        ])
+        .is_err()
+    );
 }

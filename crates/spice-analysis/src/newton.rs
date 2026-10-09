@@ -1,7 +1,13 @@
 //! Reusable, disposable Newton loads for DC and companion transient solves.
 //!
-//! C references: `niiter.c`, `niconv.c`, `cktop.c`. This bounded policy uses
-//! global voltage-step damping, not ngspice's per-junction PN/FET limiting.
+//! C references: `niiter.c`, `niconv.c`, `cktop.c`. Step control follows
+//! [`StepLimiting`]: by default ([`StepLimiting::Device`]) the phased solve
+//! leaves it to the devices, which limit their own junction/FET voltages as
+//! ngspice does (`DEVpnjlim`/`DEVfetlim`/`DEVlimvds`, see
+//! [`spice_devices::limiting`]) and mark limited loads nonconvergent; the
+//! port's earlier bounded global voltage-step damping remains available as
+//! the [`StepLimiting::Global`] fallback policy and is what the unphased
+//! [`solve`]/[`solve_counted`] apply (their loads cannot limit).
 //! No trial or continuation stage invokes device acceptance hooks.
 //!
 //! [`solve_phased`] additionally tags each load with C's `MODEINITF` phase
@@ -16,13 +22,66 @@ use spice_maths::{SparseMatrix, Vector};
 pub const MAX_ITERATIONS: usize = 10_000;
 
 /// Request names owned by [`crate::bias::ContinuationPolicy`], not by Newton.
-pub(crate) const CONTINUATION_KEYS: [&str; 4] =
-    ["srcsteps", "gminsteps", "gminfactor", STAGE_ITERATIONS_KEY];
+pub(crate) const CONTINUATION_KEYS: [&str; 7] = [
+    "srcsteps",
+    "gminsteps",
+    "gminfactor",
+    STAGE_ITERATIONS_KEY,
+    SCHEDULE_KEY,
+    SKIP_DIRECT_KEY,
+    ADAPT_ITERATIONS_KEY,
+];
+
+/// Request key selecting the continuation family: `continuation=ngspice`
+/// (the default, [`crate::bias::ContinuationSchedule::Ngspice`]) or
+/// `continuation=ladder` (the port's fixed ladders). Port-only.
+pub const SCHEDULE_KEY: &str = "continuation";
+
+/// Request key of C's `noopiter` (`noopiter=1` skips the direct Newton
+/// attempt, `0` keeps it; [`crate::bias::ContinuationPolicy::skip_direct`]).
+pub const SKIP_DIRECT_KEY: &str = "noopiter";
+
+/// Request key of the ngspice schedule's adaptation base, C's raw
+/// `CKTdcTrcvMaxIter` (deck `itl2` as written, default 50;
+/// [`crate::bias::NgspiceStepping::adapt_iterations`]).
+pub const ADAPT_ITERATIONS_KEY: &str = "adaptiter";
+
+/// Request key selecting [`NewtonOptions::limiting`]: `limiting=device`
+/// (ngspice's per-device junction limiting, the default) or `limiting=global`
+/// (the port's bounded global voltage-step damping). A port-only key: C has
+/// no such option.
+pub const LIMITING_KEY: &str = "limiting";
 
 /// Request key of the Newton limit per gmin/source-stepping stage (deck
 /// `itl2`, C `CKTdcTrcvMaxIter` in `cktop.c`); see
 /// [`crate::bias::ContinuationPolicy::stage_max_iterations`].
 pub(crate) const STAGE_ITERATIONS_KEY: &str = "stagemaxiter";
+
+/// How Newton bounds the step between iterates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StepLimiting {
+    /// ngspice's policy (`niiter.c` applies no global damping by default):
+    /// in [`solve_phased`] the devices limit their own controlling voltages
+    /// in every load ([`spice_devices::limiting`]) and the iterate is never
+    /// damped. Nonlinear devices without limiting in C (behavioural sources,
+    /// switches) take full steps, as in C.
+    #[default]
+    Device,
+    /// The port's original bounded policy, kept as a fallback: devices load
+    /// exactly at the iterate and the largest nodal step is scaled down to
+    /// [`NewtonOptions::voltage_step`] (on the rows of
+    /// [`crate::bias::limited_rows`]). Loads for this policy must forbid
+    /// device limiting ([`spice_devices::TrialState::with_device_limiting`]).
+    Global,
+}
+
+impl StepLimiting {
+    /// Whether devices limit their own voltages (trials allow it).
+    #[must_use]
+    pub const fn is_device(self) -> bool {
+        matches!(self, Self::Device)
+    }
+}
 
 /// Finite work and physical voltage/current tolerances for Newton iteration.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -35,22 +94,29 @@ pub struct NewtonOptions {
     pub vntol: Real,
     /// Absolute current tolerance (A).
     pub abstol: Real,
-    /// Maximum nodal voltage change per iteration (V); limits trial exponentials.
+    /// Maximum nodal voltage change per iteration (V) under
+    /// [`StepLimiting::Global`] (and in the unphased [`solve`]); limits trial
+    /// exponentials.
     pub voltage_step: Real,
+    /// Step control of [`solve_phased`]; see [`StepLimiting`].
+    pub limiting: StepLimiting,
 }
 impl Default for NewtonOptions {
     fn default() -> Self {
         Self {
-            max_iterations: 200,
+            max_iterations: 100,
             reltol: 1e-8,
             vntol: 1e-10,
             abstol: 1e-12,
             voltage_step: 0.2,
+            limiting: StepLimiting::Device,
         }
     }
 }
 impl NewtonOptions {
-    /// Resolve named `rtol`, `vntol`, `abstol`, `maxiter` arguments for DC/AC.
+    /// Resolve named `rtol`, `vntol`, `abstol`, `maxiter` arguments for DC/AC,
+    /// plus the port-only [`LIMITING_KEY`] (`limiting=device|global`, see
+    /// [`StepLimiting`]).
     /// Unknown and duplicate names fail instead of silently selecting defaults.
     /// Continuation names (`srcsteps`, `gminsteps`, `gminfactor`) also fail here:
     /// a Newton-only caller would silently drop them, so use
@@ -68,6 +134,18 @@ impl NewtonOptions {
             let key = key.trim().to_ascii_lowercase();
             if !seen.insert(key.clone()) {
                 return Err(failure("duplicate convergence option"));
+            }
+            if key == LIMITING_KEY {
+                options.limiting = match text.trim().to_ascii_lowercase().as_str() {
+                    "device" => StepLimiting::Device,
+                    "global" => StepLimiting::Global,
+                    other => {
+                        return Err(failure(format!(
+                            "{LIMITING_KEY} must be 'device' or 'global', not '{other}'"
+                        )));
+                    }
+                };
+                continue;
             }
             let value = spice_core::parse_spice_number(text.trim())
                 .filter(|v| v.is_finite())
@@ -195,6 +273,7 @@ pub fn solve_counted_limited<T>(
             first: IterationPhase::Junction,
             previous: None,
             nonconvergent: |_: &T| false,
+            damped: true,
         },
         |x: &Vector, _, _: Option<&T>| load(x),
         &mut iterations,
@@ -242,7 +321,7 @@ pub fn solve_phased(
     options: &NewtonOptions,
     policy: PhasePolicy,
     continued: Option<TrialState>,
-    load: impl FnMut(
+    mut load: impl FnMut(
         &Vector,
         IterationPhase,
         Option<&TrialState>,
@@ -263,8 +342,17 @@ pub fn solve_phased(
             first,
             previous: continued,
             nonconvergent: TrialState::is_nonconvergent,
+            damped: !options.limiting.is_device(),
         },
-        load,
+        |x: &Vector, phase, previous: Option<&TrialState>| {
+            let loaded = load(x, phase, previous)?;
+            if loaded.2.device_limiting() != options.limiting.is_device() {
+                return Err(failure(
+                    "Newton load trial does not match the step-limiting policy",
+                ));
+            }
+            Ok(loaded)
+        },
         &mut iterations,
     )
     .map_err(|error| NewtonFailure { error, iterations })
@@ -274,6 +362,8 @@ struct Phases<T, F> {
     first: IterationPhase,
     previous: Option<T>,
     nonconvergent: F,
+    /// Apply the global voltage-step damping ([`StepLimiting::Global`]).
+    damped: bool,
 }
 
 fn iterate<T, F: Fn(&T) -> bool>(
@@ -306,22 +396,14 @@ fn iterate<T, F: Fn(&T) -> bool>(
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
         let mut next = linearised_solve(&matrix, &rhs)?;
-        let largest_voltage_step = next
-            .as_slice()
-            .iter()
-            .zip(guess.as_slice())
-            .zip(branch_rows)
-            .enumerate()
-            .filter(|(row, (_, branch))| {
-                !**branch && limited_rows.is_none_or(|limited| limited[*row])
-            })
-            .map(|(_, ((new, old), _))| (new - old).abs())
-            .fold(0., Real::max);
-        let damping = (options.voltage_step / largest_voltage_step).min(1.);
-        if damping < 1. {
-            for (new, old) in next.as_mut_slice().iter_mut().zip(guess.as_slice()) {
-                *new = old + damping * (*new - old);
-            }
+        if phases.damped {
+            damp(
+                &mut next,
+                &guess,
+                branch_rows,
+                limited_rows,
+                options.voltage_step,
+            );
         }
         if !next.is_finite() {
             return Err(failure("nonfinite Newton iterate"));
@@ -354,6 +436,31 @@ fn iterate<T, F: Fn(&T) -> bool>(
         "Newton iteration limit ({}) reached",
         options.max_iterations
     )))
+}
+/// [`StepLimiting::Global`]: scale the step so no watched nodal voltage moves
+/// by more than `limit` (all non-branch rows when `limited_rows` is `None`).
+fn damp(
+    next: &mut Vector,
+    guess: &Vector,
+    branch_rows: &[bool],
+    limited_rows: Option<&[bool]>,
+    limit: Real,
+) {
+    let largest_voltage_step = next
+        .as_slice()
+        .iter()
+        .zip(guess.as_slice())
+        .zip(branch_rows)
+        .enumerate()
+        .filter(|(row, (_, branch))| !**branch && limited_rows.is_none_or(|limited| limited[*row]))
+        .map(|(_, ((new, old), _))| (new - old).abs())
+        .fold(0., Real::max);
+    let damping = (limit / largest_voltage_step).min(1.);
+    if damping < 1. {
+        for (new, old) in next.as_mut_slice().iter_mut().zip(guess.as_slice()) {
+            *new = old + damping * (*new - old);
+        }
+    }
 }
 /// Iterative-refinement rounds of the balanced fallback solve.
 const REFINEMENT_STEPS: usize = 3;

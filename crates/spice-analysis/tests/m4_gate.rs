@@ -406,8 +406,12 @@ fn source_stepping_rescues_a_bounded_iteration_budget_without_changing_physics()
     let context = ModelContext::default();
     let history = c.state_history();
     let zero = Vector::zeros(c.unknown_count());
+    // The legacy global-damping policy, whose iteration counts this bounded
+    // budget was designed around (and which the unphased `newton::solve`
+    // below always applies).
     let options = spice_analysis::newton::NewtonOptions {
         max_iterations: 4,
+        limiting: spice_analysis::newton::StepLimiting::Global,
         ..Default::default()
     };
     let load = |x: &Vector, gmin: f64| {

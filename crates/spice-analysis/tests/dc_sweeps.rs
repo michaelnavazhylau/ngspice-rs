@@ -722,7 +722,8 @@ fn sweep_points_are_seeded_from_the_previous_accepted_solution() {
     let ctx = AnalysisContext::default();
     // The request-argument spelling is `maxiter`; deck `.options itl1=N` maps to it
     // (see DC_CONTINUATION.md), and both continuations are explicitly disabled.
-    let tight = ["maxiter=10", "gminsteps=0", "srcsteps=0"];
+    // `limiting=global`: the legacy damped policy this budget was chosen for.
+    let tight = ["maxiter=10", "gminsteps=0", "srcsteps=0", "limiting=global"];
     let mut c = circuit(body);
     let mut args = vec!["v1", "0", "10", "0.5"];
     args.extend(tight);

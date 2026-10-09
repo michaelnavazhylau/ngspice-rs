@@ -112,7 +112,6 @@ const FRONTEND_REFERENCE: &str =
 const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "cshunt",
     "rshunt",
-    "noopiter",
     "gshunt",
     "oldlimit",
     "numdgt",
@@ -245,13 +244,14 @@ pub const NIITER_MIN_ITERATIONS: usize = 100;
 
 /// Option names that configure the DC Newton/continuation solve, in no
 /// particular order (`itl6` is stored as `srcsteps`).
-const DC_OPTIONS: [&str; 6] = [
+const DC_OPTIONS: [&str; 7] = [
     "itl1",
     "itl2",
     "srcsteps",
     "itl6",
     "gminsteps",
     "gminfactor",
+    "noopiter",
 ];
 
 /// C's default `itl2` (`cktntask.c`: `TSKdcTrcvMaxIter = 50`) as `NIiter()`
@@ -273,6 +273,12 @@ pub struct DcOptions {
     /// `CKTdcTrcvMaxIter` in `cktop.c`) and of the `.dc` warm start at points
     /// after the first (`dctrcurv.c`), stored as C's effective `max(itl2, 100)`.
     pub itl2: Option<usize>,
+    /// `itl2` as written: the adaptation base of the ngspice continuation
+    /// strategies (`iters <= itl2 / 4`, [`crate::bias::NgspiceStepping`]).
+    pub itl2_written: Option<usize>,
+    /// `noopiter` → skip the direct Newton attempt of every DC bias (C
+    /// `CKTnoOpIter`).
+    pub noopiter: bool,
     /// `srcsteps`/`itl6` → equal source-stepping increments.
     pub srcsteps: Option<usize>,
     /// `gminsteps` → gmin-stepping stages.
@@ -287,7 +293,14 @@ impl DcOptions {
     /// # Errors
     /// An invalid combination, e.g. a factor whose schedule underflows.
     pub fn policy(&self) -> SpiceResult<crate::bias::ContinuationPolicy> {
-        crate::bias::ContinuationPolicy::from_steps(self.srcsteps, self.gminsteps, self.gminfactor)
+        let mut policy = crate::bias::ContinuationPolicy::from_ngspice_steps(
+            self.srcsteps,
+            self.gminsteps,
+            self.gminfactor,
+            self.itl2_written,
+        )?;
+        policy.skip_direct = self.noopiter;
+        Ok(policy)
     }
 }
 
@@ -447,8 +460,14 @@ impl RunConfig {
             };
             config.apply(setting, evaluated)?;
         }
-        // The last-set counts and factor must form one valid schedule together.
-        if let Err(error) = config.dc.policy() {
+        // The last-set counts and factor must form one valid schedule together
+        // (with the deck's junction gmin, which seeds C's `spice3_gmin` ladder).
+        if let Err(error) = config.dc.policy().and_then(|policy| match policy.schedule {
+            crate::bias::ContinuationSchedule::Ngspice(stepping) if stepping.gmin_steps > 1 => {
+                stepping.spice3_ladder(config.context.gmin).map(|_| ())
+            }
+            _ => Ok(()),
+        }) {
             let location = config
                 .applied
                 .iter()
@@ -557,6 +576,21 @@ impl RunConfig {
                 self.ignore(setting, INDVERBOSITY_REASON);
                 return Ok(());
             }
+            "noopiter" => {
+                if setting.value.is_some() {
+                    return Err(SpiceError::parse(
+                        location.clone(),
+                        "option 'noopiter' is a flag and takes no value",
+                    ));
+                }
+                self.dc.noopiter = true;
+                self.applied.push(AppliedOption {
+                    name: setting.name.clone(),
+                    value: String::new(),
+                    location: location.clone(),
+                });
+                return Ok(());
+            }
             "bypass" => {
                 if setting.value.is_none() {
                     return Err(SpiceError::parse(
@@ -660,11 +694,16 @@ impl RunConfig {
                 // niiter.c: `if (maxIter < 100) maxIter = 100;` applies to all
                 // three (CKTop, dctrcurv and dctran call NIiter with them), so
                 // C's effective limit is never below 100.
-                let count =
-                    whole(0, crate::newton::MAX_ITERATIONS as u32)?.max(NIITER_MIN_ITERATIONS);
+                let written = whole(0, crate::newton::MAX_ITERATIONS as u32)?;
+                let count = written.max(NIITER_MIN_ITERATIONS);
                 match name {
                     "itl1" => self.dc.itl1 = Some(count),
-                    "itl2" => self.dc.itl2 = Some(count),
+                    "itl2" => {
+                        self.dc.itl2 = Some(count);
+                        // The adaptive strategies divide the written value
+                        // (`itl2 / 4`); a zero would make every stage "slow".
+                        self.dc.itl2_written = Some(written.max(1));
+                    }
                     _ => self.transient.itl4 = Some(count),
                 }
             }
@@ -946,6 +985,21 @@ impl RunConfig {
         push_count(request, "srcsteps", self.dc.srcsteps);
         push_count(request, "gminsteps", self.dc.gminsteps);
         push_real(request, "gminfactor", self.dc.gminfactor);
+        // The written itl2 steers only ngspice's adaptive strategies; a
+        // request that selects the port's fixed ladders has none to steer.
+        let ladder = request
+            .named(crate::newton::SCHEDULE_KEY)
+            .is_some_and(|schedule| schedule.trim().eq_ignore_ascii_case("ladder"));
+        if !ladder {
+            push_count(
+                request,
+                crate::newton::ADAPT_ITERATIONS_KEY,
+                self.dc.itl2_written,
+            );
+        }
+        if self.dc.noopiter {
+            push_count(request, crate::newton::SKIP_DIRECT_KEY, Some(1));
+        }
     }
 }
 
