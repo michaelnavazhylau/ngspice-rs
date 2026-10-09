@@ -80,6 +80,11 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m4_bjt_tran` | `.tran` | independent BE/BC charge companions |
 | `m4_mos1_ac` | `.ac` | MOS1 square law, body junction and overlap charges, zero TOX |
 | `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
+| `m7_zener_dc` | `.dc` | Zener regulator from forward conduction through BV/IBV/NBV breakdown, `.options reltol=1e-6 vntol=1e-9` (#86) |
+| `m7_diode_physics_dc` | `.dc` | ISR/NR recombination, JTUN/JTUNSW tunnelling, NS sidewall with breakdown, IKF/IKR/IKP knees (#86) |
+| `m7_diode_temp_dc` | `.dc temp` | EG/XTI/TNOM, TLEV 2 band gap, DTEMP, TRS and TCV breakdown across -40..125 C (#86) |
+| `m7_diode_temp_ac` | `.ac` | `.options temp=100`: TLEVC 0/1 depletion laws, CJSW/PJ, ISR small signal, TTT1 (#86) |
+| `m7_zener_tran` | `.tran` | SIN-driven Zener clipper: breakdown, junction/sidewall/diffusion charge, `reltol=1e-5` (#86) |
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
@@ -130,3 +135,7 @@ The ten behavioural-source decks (#79) were captured one at a time with
 through a scratch `.spiceinit` because their decks carry a
 `* xtask-codemodels:` comment. See
 [BEHAVIOURAL_SOURCES.md](../../docs/port/BEHAVIOURAL_SOURCES.md).
+
+The five M7 diode decks (#86) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md#diode).

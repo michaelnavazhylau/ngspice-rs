@@ -430,6 +430,50 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("bsource_zero_tran", &[]),
+    // Diode physics (#86): a Zener regulator swept through forward conduction
+    // and reverse breakdown, recombination/tunnelling/knee/sidewall currents,
+    // a `.dc temp` sweep of the EG/XTI/TLEV/TCV/DTEMP temperature laws, the
+    // depletion-charge temperature laws and recombination small signal at
+    // `.options temp=100`, and a SIN-driven Zener clipper with junction,
+    // sidewall and diffusion charge. Newton-solved: the nonlinear 1 ppm bound;
+    // the transient keeps `compare::TRAN`.
+    Supported {
+        name: "m7_zener_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_diode_physics_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_diode_temp_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_diode_temp_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m7_zener_tran", &[]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -768,13 +812,18 @@ fn run_card(
         && got.variables.first().is_some_and(|v| v.name == "sweep")
     {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
-        // independent-source scale in the voltage/current naming convention.
-        got.variables[0].name = if got.variables[0].unit == "voltage" {
-            "v(v-sweep)"
-        } else {
-            "i(i-sweep)"
+        // independent-source scale in the voltage/current naming convention
+        // and names a `.dc temp` scale `temp-sweep` of type `temp-sweep`
+        // (`dctrcurv.c`).
+        let scale = &mut got.variables[0];
+        match scale.unit.as_str() {
+            "voltage" => scale.name = "v(v-sweep)".into(),
+            "temperature" => {
+                scale.name = "temp-sweep".into();
+                scale.unit = "temp-sweep".into();
+            }
+            _ => scale.name = "i(i-sweep)".into(),
         }
-        .into();
     }
     Ok((request, got))
 }

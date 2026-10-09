@@ -216,6 +216,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
             && !m4.contains(&name.as_str())
             && !m6.contains(&name.as_str())
     });
+    // M7 diode-physics decks (#86) are gated by `xtask golden verify` and the
+    // diode unit/production tests.
+    on_disk.retain(|name| !name.starts_with("m7_"));
     // M6 controlled-source decks (#78) are gated by `xtask golden verify` and
     // `spice-analysis/tests/controlled_sources.rs`.
     on_disk.retain(|name| !name.starts_with("controlled_"));

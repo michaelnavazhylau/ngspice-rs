@@ -1634,6 +1634,85 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(c3)", 1037, 1.393870438628249e+00, 0.0),
             ("i(vsense2)", 1037, 2.000000000000000e-03, 0.0),
         ],
+    }, // Diode physics (#86). The regulator conducts forward at -2 V and holds
+    // its output a little above BV = 5.1 V (series resistance plus the
+    // breakdown exponential) at 12 V in.
+    Expectation {
+        fixture: "m7_zener_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 141,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(vin)"],
+        values: &[
+            ("v(out)", 0, -7.308665019568273e-01, 0.0),
+            ("v(out)", 140, 5.282797124103860e+00, 0.0),
+            ("i(vin)", 140, -6.717202875896115e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m7_diode_physics_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 205,
+        variables: &["v(v-sweep)", "v(a)", "v(k1)", "v(k2)", "v(k3)", "i(v1)"],
+        values: &[
+            ("v(k1)", 0, -6.205250986919840e+00, 0.0),
+            ("v(k2)", 0, -5.188330173225660e+00, 0.0),
+            ("v(k3)", 0, -7.431592663148733e+00, 0.0),
+            ("i(v1)", 204, -1.335006444774208e-02, 0.0),
+        ],
+    },
+    // C names the `.dc temp` scale `temp-sweep` (type `temp-sweep`). Forward
+    // voltages fall and the TCV-shifted breakdown knee drops when heated.
+    Expectation {
+        fixture: "m7_diode_temp_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 34,
+        variables: &["temp-sweep", "v(a)", "v(b)", "v(c)", "v(k)", "i(v3)"],
+        values: &[
+            ("temp-sweep", 0, -40.0, 0.0),
+            ("v(a)", 0, 8.105491866356285e-01, 0.0),
+            ("v(k)", 0, 5.795576367813973e+00, 0.0),
+            ("temp-sweep", 33, 125.0, 0.0),
+            ("v(a)", 33, 5.432783558641020e-01, 0.0),
+            ("v(k)", 33, 5.407655948379028e+00, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m7_diode_temp_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 31,
+        variables: &[
+            "frequency",
+            "v(b1)",
+            "v(b2)",
+            "v(b3)",
+            "v(k1)",
+            "v(k2)",
+            "v(k3)",
+            "i(vb1)",
+            "i(vb2)",
+            "i(vb3)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.0),
+            ("v(k1)", 0, 9.999771077537682e-01, -4.783484309209417e-03),
+            ("v(k3)", 0, 4.676800133344254e-01, -3.705732363331333e-05),
+        ],
+    },
+    Expectation {
+        fixture: "m7_zener_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 432,
+        variables: &["time", "v(in)", "v(out)", "i(vin)"],
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("time", 431, 1.8e-3, 0.0),
+            ("v(out)", 431, -8.215683334810343e-01, 0.0),
+        ],
     },
 ];
 
