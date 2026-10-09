@@ -197,6 +197,33 @@ pub fn check_targets(
     fourier: &[FourierCard],
 ) -> SpiceResult<()> {
     let runs = |kind: AnalysisKind| schedule.iter().any(|entry| entry.kind == kind);
+    // `.sens` perturbs C's device structures in place and leaves them
+    // perturbed-and-restored (given flags, setup-only values), and its name
+    // filter is a global of the last `.sens` card parsed (`Sens_filter`,
+    // `inp2dot.c`): a second `.sens`, or the `.sp` that C runs after it, would
+    // see that mutated circuit. The port refuses such decks.
+    if schedule
+        .iter()
+        .filter(|entry| entry.kind == AnalysisKind::Sensitivity)
+        .count()
+        > 1
+    {
+        return Err(SpiceError::Unsupported {
+            feature: "more than one .sens card in a deck (C shares one name filter between them \
+                      and runs the later ones on the circuit the first left perturbed; \
+                      docs/port/SENSITIVITY.md)"
+                .to_owned(),
+            location: None,
+        });
+    }
+    if runs(AnalysisKind::Sensitivity) && runs(AnalysisKind::SParameter) {
+        return Err(SpiceError::Unsupported {
+            feature: ".sp after .sens in one deck (C runs .sp on the device structures .sens \
+                      left perturbed and restored; docs/port/SENSITIVITY.md)"
+                .to_owned(),
+            location: None,
+        });
+    }
     let scheduled = || {
         let kinds: Vec<String> = schedule
             .iter()

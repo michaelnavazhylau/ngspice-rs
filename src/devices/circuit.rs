@@ -764,6 +764,114 @@ impl Circuit {
         Ok(InstanceOverride::new(index, parameter, value))
     }
 
+    /// The Newton load of the single device at ordinal `index`, with `device`
+    /// (the circuit's own or a stand-in with the same terminals, branch rows
+    /// and state layout) in its place: C's `DEVload` of one isolated instance,
+    /// as `.sens` performs it (`cktsens.c`). Contributions are added to
+    /// `matrix` and `rhs`; mutual-inductance terms are those of the circuit's
+    /// own devices.
+    ///
+    /// # Errors
+    /// Stale numbering, an ordinal out of range, mismatched dimensions or a
+    /// device failure.
+    pub fn load_device(
+        &self,
+        index: usize,
+        device: &dyn Device,
+        request: &LoadRequest<'_>,
+        matrix: &mut SparseMatrix,
+        rhs: &mut Vector,
+        trial: &mut TrialState,
+    ) -> SpiceResult<()> {
+        self.check_numbering()?;
+        let n = self.unknown_count();
+        if index >= self.devices.len()
+            || matrix.rows() != n
+            || matrix.cols() != n
+            || rhs.len() != n
+            || request.solution.len() != n
+            || request.history.len() != self.state_len
+            || trial.values().len() != self.state_len
+        {
+            return Err(SpiceError::circuit(
+                "single-device load does not match the circuit numbering",
+            ));
+        }
+        let mutual = self.mutual_terms(request.model_context)?;
+        let states = request
+            .history
+            .device(trial, self.state_rows[index].clone())?;
+        device.stamp(&mut StampContext {
+            matrix,
+            rhs,
+            unknowns: &self.unknowns,
+            nodes: &self.nodes,
+            solution: request.solution,
+            temperature: request.model_context.temperature,
+            nominal_temperature: request.model_context.nominal_temperature,
+            gmin: request.model_context.gmin,
+            frequency: request.model_context.frequency,
+            mode: request.mode,
+            branches: self.branch_rows[index].clone(),
+            controls: self.controls(index)?,
+            mutual: mutual.get(index).map_or(&[], Vec::as_slice),
+            integration: request.integration,
+            states,
+            forcing: request.forcing,
+        })
+    }
+
+    /// The small-signal assembly of the single device at ordinal `index`, with
+    /// `device` in its place, added to `system` (C's `DEVacLoad` of one
+    /// isolated instance, as `.sens` performs it). Mutual-inductance terms are
+    /// those of the circuit's own devices; `bias` and `state` are as for
+    /// [`Self::small_signal_system_at`].
+    ///
+    /// # Errors
+    /// Stale numbering, an ordinal out of range, mismatched dimensions or
+    /// unsupported device physics.
+    pub fn assemble_small_signal_device(
+        &self,
+        index: usize,
+        device: &dyn Device,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&[Real]>,
+        system: &mut crate::devices::linear::LinearSystem,
+    ) -> SpiceResult<()> {
+        self.check_numbering()?;
+        let n = self.unknown_count();
+        if index >= self.devices.len()
+            || bias.len() != n
+            || system.a.rows() != n
+            || system.e.rows() != n
+            || state.is_some_and(|state| state.len() != self.state_len)
+        {
+            return Err(SpiceError::circuit(
+                "single-device small-signal assembly does not match the circuit numbering",
+            ));
+        }
+        let mutual = self.mutual_terms(context)?;
+        let range = &self.branch_rows[index];
+        let mut linear = crate::devices::linear::LinearContext {
+            model_context: context,
+            system,
+            unknowns: &self.unknowns,
+            branch: (!range.is_empty()).then_some(range.start),
+            controls: self.controls(index)?,
+            mutual: mutual.get(index).map_or(&[], Vec::as_slice),
+            states: match state {
+                Some(state) => Some(
+                    state
+                        .get(self.state_rows[index].clone())
+                        .ok_or_else(|| SpiceError::circuit("bias state is too short"))?,
+                ),
+                None => None,
+            },
+        };
+        device.assemble_small_signal(&mut linear, bias)
+    }
+
     /// Disposable devices carrying the context's resistor and instance-parameter
     /// overrides, as `(device ordinal, replacement)`. The circuit's own devices
     /// are untouched; callers stamp the replacement instead of the original for

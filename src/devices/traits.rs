@@ -694,6 +694,27 @@ pub trait Device: fmt::Debug {
             self.name()
         )))
     }
+
+    /// The device as `.sens` perturbs it ([`crate::devices::sensitivity`],
+    /// C `cktsens.c`/`cktsgen.c`): C's parameter tables and records and the
+    /// setter/temperature/load routines replayed on them, evaluated under
+    /// `context`'s temperatures. The default is an explicit error, so a device
+    /// whose C parameters the port cannot reproduce is refused rather than
+    /// silently missing from the output.
+    ///
+    /// # Errors
+    /// [`SpiceError::NotYetPorted`] by default; device data the records cannot
+    /// represent.
+    fn sensitivity(
+        &self,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Err(crate::devices::sensitivity::not_ported(
+            self.name(),
+            self.designator(),
+            "",
+        ))
+    }
 }
 
 /// What [`Device::timestep_limit`] sees for one converged trial step.

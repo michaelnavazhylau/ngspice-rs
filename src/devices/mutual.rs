@@ -130,6 +130,16 @@ impl MutualInductance {
 }
 
 impl Device for MutualInductance {
+    /// `.sens`: the coupling `k` is C's only perturbable parameter and is
+    /// `IF_AC` ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        _context: &crate::devices::models::ModelContext,
+    ) -> crate::primitives::SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>>
+    {
+        Ok(Box::new(crate::devices::sensitivity::MutualSensitivity))
+    }
+
     /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
     /// `src/spicelib/devices/ind/indinit.c (mutual)`).
     fn noise(

@@ -150,6 +150,15 @@ impl Behavioural {
         &self.scale
     }
 
+    /// A copy with other output scaling setters, for a `.sens` load.
+    #[must_use]
+    pub(crate) fn with_scale(&self, scale: BehaviouralScale) -> Self {
+        Self {
+            scale,
+            ..self.clone()
+        }
+    }
+
     /// The compiled expression.
     #[must_use]
     pub const fn program(&self) -> &Program {
@@ -283,6 +292,26 @@ impl Behavioural {
 }
 
 impl Device for Behavioural {
+    /// `.sens`: a B source's `ASRCpTable` setters
+    /// ([`crate::devices::sensitivity`]). The XSPICE `spice2poly`/`pwl` code
+    /// models TABLE/POLY lower to are refused: their `MIF` parameters are not
+    /// ported.
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        if self.designator != 'b' {
+            return Err(crate::devices::sensitivity::not_ported(
+                &self.name,
+                self.designator,
+                " (an XSPICE code model)",
+            ));
+        }
+        Ok(Box::new(
+            crate::devices::sensitivity::BehaviouralSensitivity::new(self, context),
+        ))
+    }
+
     /// Noiseless: C gives B sources no noise routine (`DEVnoise = NULL`,
     /// `src/spicelib/devices/asrc/asrcinit.c`), and the XSPICE `spice2poly`/
     /// `pwl` code models that TABLE/POLY lower to declare none of the noise

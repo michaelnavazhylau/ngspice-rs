@@ -439,9 +439,36 @@ impl Analysis for SParameter {
     }
 }
 
+/// `.sens` — DC or AC sensitivity of one output to every perturbable device
+/// parameter, by C's finite-difference perturbation
+/// (`src/analysis/sens.rs`; see `docs/port/SENSITIVITY.md`).
+///
+/// C: `cktsens.c` (`sens_sens`), `cktsgen.c`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sensitivity;
+
+impl Analysis for Sensitivity {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::Sensitivity
+    }
+
+    fn name(&self) -> &'static str {
+        "sensitivity"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::sens::run(circuit, request, context)
+    }
+}
+
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 8] = [
+pub const DRIVERS: [AnalysisKind; 9] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
@@ -450,6 +477,7 @@ pub const DRIVERS: [AnalysisKind; 8] = [
     AnalysisKind::TransferFunction,
     AnalysisKind::SParameter,
     AnalysisKind::Noise,
+    AnalysisKind::Sensitivity,
 ];
 
 /// Whether an analysis has a driver.
@@ -491,8 +519,8 @@ pub fn support(kind: AnalysisKind) -> AnalysisSupport {
 ///
 /// # Errors
 ///
-/// [`SpiceError::Unsupported`] for the analyses without a driver (`.disto`,
-/// `.sens`) and for `.four`, which is not a driver but
+/// [`SpiceError::Unsupported`] for the analyses without a driver (`.disto`)
+/// and for `.four`, which is not a driver but
 /// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
@@ -505,6 +533,7 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::TransferFunction => Box::new(TransferFunction),
         AnalysisKind::SParameter => Box::new(SParameter),
         AnalysisKind::Noise => Box::new(Noise),
+        AnalysisKind::Sensitivity => Box::new(Sensitivity),
         other => {
             return Err(SpiceError::Unsupported {
                 feature: format!(
@@ -536,11 +565,7 @@ mod tests {
 
     #[test]
     fn analyses_off_the_roadmap_are_reported_as_unsupported() {
-        for kind in [
-            AnalysisKind::Distortion,
-            AnalysisKind::Sensitivity,
-            AnalysisKind::Fourier,
-        ] {
+        for kind in [AnalysisKind::Distortion, AnalysisKind::Fourier] {
             let error = runner(kind).expect_err("no driver");
             assert!(
                 !error.is_not_yet_ported(),
@@ -549,6 +574,7 @@ mod tests {
             assert!(error.to_string().contains(kind.as_str()));
         }
         assert!(super::has_driver(AnalysisKind::Noise));
+        assert!(super::has_driver(AnalysisKind::Sensitivity));
         assert!(!super::has_driver(AnalysisKind::Distortion));
         assert!(super::has_driver(AnalysisKind::OperatingPoint));
         assert!(super::has_driver(AnalysisKind::TransferFunction));

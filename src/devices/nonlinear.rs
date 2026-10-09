@@ -32,6 +32,8 @@ use crate::maths::Vector;
 use crate::netlist::ast::{DeviceInstance, ParameterAssignment};
 use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError, SpiceResult};
 
+mod sens;
+
 /// Diode state slot of the limited junction voltage (C `DIOvoltage`).
 const DIODE_VOLTAGE_SLOT: usize = 2;
 pub(crate) const K_OVER_Q: Real = 1.38064852e-23 / 1.6021766208e-19; // ngspice CONSTboltz/CHARGE
@@ -320,6 +322,13 @@ pub struct Diode {
     initial: crate::devices::initial::InstanceInitial,
     /// The instance card, for diagnostics of swept replacements.
     location: SourceLoc,
+    /// The validated model and instance setters as written, for `.sens`
+    /// ([`sens`]), shared by swept and perturbed copies.
+    written: std::rc::Rc<(ScalarValues, ScalarValues)>,
+    /// A `.sens` stand-in: the load keeps C's nonfinite values (a knee
+    /// current of zero divides by zero in `dioload.c`) instead of rejecting
+    /// them, so the analysis can propagate C's NaN.
+    lenient: bool,
 }
 /// Typed validated diode parameters as written (nominal temperature values,
 /// instance scale factors kept separate). Temperature-dependent quantities are
@@ -435,6 +444,8 @@ impl Diode {
             parameters: p,
             initial,
             location: instance.location.clone(),
+            written: std::rc::Rc::new((m, i)),
+            lenient: false,
         }))
     }
 }
@@ -848,6 +859,20 @@ impl Thermal {
     /// `dioload.c` currents and charges at junction voltage `vd` (no RSW, no
     /// soft recovery, no self-heating).
     fn point(&self, vd: Real, gmin: Real) -> SpiceResult<DiodePoint> {
+        let point = self.point_unchecked(vd, gmin)?;
+        point.junction.validate()?;
+        if !point.ac_conductance.is_finite() || !point.ac_capacitance.is_finite() {
+            return Err(SpiceError::Numerical {
+                context: "junction".into(),
+                message: "nonfinite small-signal junction values".into(),
+            });
+        }
+        Ok(point)
+    }
+
+    /// [`Self::point`] without the final finiteness checks, for a `.sens`
+    /// stand-in that must carry C's NaN.
+    fn point_unchecked(&self, vd: Real, gmin: Real) -> SpiceResult<DiodePoint> {
         let vte = self.n * self.vt;
         let vtebrk = self.nbv * self.vt;
         let breakdown = self.breakdown.map(|bv| (bv, vtebrk));
@@ -939,13 +964,6 @@ impl Thermal {
             ac_conductance,
             ac_capacitance: capacitance + capacitance_sw + self.tt * ac_conductance,
         };
-        point.junction.validate()?;
-        if !point.ac_conductance.is_finite() || !point.ac_capacitance.is_finite() {
-            return Err(SpiceError::Numerical {
-                context: "junction".into(),
-                message: "nonfinite small-signal junction values".into(),
-            });
-        }
         Ok(point)
     }
 }
@@ -1204,7 +1222,16 @@ impl Device for Diode {
             parameters: p,
             initial: self.initial.clone(),
             location: self.location.clone(),
+            written: self.written.clone(),
+            lenient: false,
         }))
+    }
+    /// `.sens`: C's diode records ([`sens`]).
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(sens::DiodeSensitivity::new(self, context)))
     }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
@@ -1220,7 +1247,16 @@ impl Device for Diode {
         let start =
             context.node_voltage(self.terminals[0]) - context.node_voltage(self.terminals[1]);
         let v = thermal.limit(&mut limiter, &context.states, raw, start, self.initial.off);
-        let p = thermal.point(v, model.gmin)?;
+        let mut p = if self.lenient {
+            thermal.point_unchecked(v, model.gmin)?
+        } else {
+            thermal.point(v, model.gmin)?
+        };
+        // C's DEVload matrix (`.tf`, `.sens`): dioload.c's junction
+        // conductance, which differs from the exact derivative only with ISR.
+        if context.states.c_jacobian() {
+            p.junction.conductance = p.ac_conductance;
+        }
         // DIOconvTest for an `off` diode held in MODEINITFIX.
         let held = p.junction.current;
         limiter.test_held(

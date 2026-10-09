@@ -124,6 +124,93 @@ impl Device for ModelPassive {
             .effective_value(context)
     }
 
+    /// `.sens`: C's resistor records from the card's model and instance
+    /// setters ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        use crate::devices::sensitivity::{ResistorInputs, ResistorSensitivity, written};
+        let (m, i) = (
+            self.parameters.model_values(),
+            self.parameters.instance_values(),
+        );
+        match self.parameters.family() {
+            ModelFamily::Resistor => Ok(Box::new(ResistorSensitivity::new(
+                &self.name,
+                Some(&self.model),
+                self.terminals,
+                ResistorInputs {
+                    resistance: written(i, "resistance"),
+                    temp: written(i, "temp"),
+                    length: written(i, "l"),
+                    width: written(i, "w"),
+                    m: written(i, "m"),
+                    scale: written(i, "scale"),
+                    tc1: written(i, "tc1"),
+                    tc2: written(i, "tc2"),
+                    model_r: written(m, "r"),
+                    rsh: written(m, "rsh"),
+                    defw: written(m, "defw"),
+                    defl: written(m, "l"),
+                    narrow: written(m, "narrow"),
+                    short: written(m, "short"),
+                    model_tc1: written(m, "tc1"),
+                    model_tc2: written(m, "tc2"),
+                    tnom: written(m, "tnom"),
+                    kf: written(m, "kf"),
+                    af: written(m, "af"),
+                    lf: written(m, "lf"),
+                    wf: written(m, "wf"),
+                    ef: written(m, "ef"),
+                },
+                context,
+            ))),
+            family => {
+                use crate::devices::sensitivity::{
+                    ReactiveInputs, ReactiveKind, ReactiveSensitivity,
+                };
+                type Keys = &'static [&'static str];
+                let (kind, value, instance_keys, model_keys): (_, _, Keys, Keys) = if family
+                    == ModelFamily::Capacitor
+                {
+                    (
+                        ReactiveKind::Capacitor,
+                        "capacitance",
+                        &["ic", "temp", "w", "l", "m", "tc1", "tc2", "scale"],
+                        &[
+                            "cap", "cj", "cjsw", "defw", "narrow", "short", "tc1", "tc2", "tnom",
+                        ],
+                    )
+                } else {
+                    (
+                        ReactiveKind::Inductor,
+                        "inductance",
+                        &["ic", "temp", "m", "tc1", "tc2", "scale"],
+                        &["ind", "tc1", "tc2", "tnom"],
+                    )
+                };
+                let mut instance: Vec<(&'static str, Real)> = Vec::new();
+                instance.extend(written(i, value).map(|v| (value, v)));
+                for key in instance_keys {
+                    instance.extend(written(i, key).map(|v| (*key, v)));
+                }
+                let mut model = Vec::new();
+                for key in model_keys {
+                    model.extend(written(m, key).map(|v| (*key, v)));
+                }
+                Ok(Box::new(ReactiveSensitivity::new(
+                    kind,
+                    &self.name,
+                    Some(&self.model),
+                    self.terminals,
+                    ReactiveInputs { instance, model },
+                    context,
+                )))
+            }
+        }
+    }
+
     /// Pole-zero load: C `respzld.c`, `cappzld.c`, `indpzld.c` equals the AC load with `s` for `j omega`.
     fn assemble_pole_zero(
         &self,

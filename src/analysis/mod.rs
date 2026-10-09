@@ -45,6 +45,7 @@ mod pz;
 pub mod rawfile;
 pub mod results;
 pub mod selection;
+mod sens;
 mod sparam;
 pub mod sweep;
 mod tf;
