@@ -29,6 +29,22 @@ repository.workspace = true
 readme = "README.md"
 keywords = ["spice", "circuit-simulation", "eda", "simulator", "netlist"]
 categories = ["simulation", "science", "command-line-utilities"]
+# The published crate carries the library, the `spice-rs` binary, the examples
+# and the licence/attribution files. The conformance fixtures and goldens
+# (~18 MB), integration tests and design docs stay in the repository: nothing
+# under `src/` embeds them, and `cargo package` verification only builds the
+# library and binary. Release procedure: docs/port/RELEASING.md.
+include = [
+    "/src/**",
+    "/examples/**",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/RUST_PORT.md",
+    "/COPYING",
+    "/NOTICE",
+    "/AUTHORS",
+]
 
 [workspace]
 resolver = "3"
