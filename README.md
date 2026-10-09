@@ -1,5 +1,9 @@
 # ngspice-rs
 
+[![crates.io](https://img.shields.io/crates/v/ngspice-rs.svg)](https://crates.io/crates/ngspice-rs)
+[![docs.rs](https://img.shields.io/docsrs/ngspice-rs)](https://docs.rs/ngspice-rs)
+[![License: BSD-3-Clause](https://img.shields.io/crates/l/ngspice-rs.svg)](COPYING)
+
 A from-scratch Rust implementation of [ngspice](https://ngspice.sourceforge.io/),
 the SPICE circuit simulator.
 
@@ -29,11 +33,25 @@ nonlinear transient initialization, higher-index DAEs and the interactive
 interpreter. Remaining work is tracked in [TODO.md](TODO.md);
 milestones are in [ROADMAP.md](docs/port/ROADMAP.md).
 
-## Getting started
+## Installation
 
-Rust **1.89** or newer is required (edition 2024); `rust-toolchain.toml` selects
-stable with clippy and rustfmt. No C toolchain or ngspice binary is needed to
-build or test.
+`ngspice-rs` is published on [crates.io](https://crates.io/crates/ngspice-rs) and
+needs Rust **1.89** or newer (edition 2024). No C toolchain or ngspice binary is
+required.
+
+```sh
+cargo install ngspice-rs     # installs the `spice-rs` command-line tool
+cargo add ngspice-rs         # use the library from your own crate
+```
+
+The library is organised as the modules `primitives`, `netlist`, `maths`,
+`devices`, `analysis` and `cli`; the API reference is on
+[docs.rs](https://docs.rs/ngspice-rs). The 0.x API is not yet stable.
+
+## Building from source
+
+`rust-toolchain.toml` selects stable with clippy and rustfmt. No C toolchain or
+ngspice binary is needed to build or test.
 
 ```sh
 cargo build --release                    # builds the `spice-rs` binary
