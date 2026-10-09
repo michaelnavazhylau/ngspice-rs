@@ -69,6 +69,14 @@ jobs:
         shell: bash
         run: rustup target add ${{ matrix.target }}
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          # A tag run cannot read caches saved by another tag, so only runs
+          # started by hand from main save; tag releases restore from those.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Install musl tools
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
