@@ -146,6 +146,7 @@ docs/port/           architecture, C-to-Rust mapping, roadmap and feature guides
   [EQUILIBRATION.md](docs/port/EQUILIBRATION.md),
   [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md),
   [HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)
+- Releases: [RELEASING.md](docs/port/RELEASING.md) (crates.io publish workflow)
 
 ## License
 
