@@ -29,6 +29,26 @@ pub(crate) const NONLINEAR: Tolerance = Tolerance {
     absolute: 1e-12,
 };
 
+/// `.noise` (#100), linear circuits: the AC bound relative to each value, with
+/// an absolute floor scaled to noise rather than to node voltages. Densities
+/// are about 1e-9 V/sqrt(Hz) and integrated totals 1e-7 V and up, so a 1e-12
+/// floor would hide whole generators; 1e-20 sits far below any physical
+/// density yet above the residue C's adjoint leaves for a generator whose
+/// transfer is exactly zero (e.g. about 2e-25 V/sqrt(Hz) for a resistor in
+/// series with the current-source input).
+pub(crate) const NOISE: Tolerance = Tolerance {
+    relative: 1e-10,
+    absolute: 1e-20,
+};
+
+/// `.noise` of nonlinear circuits: the nonlinear 1 ppm bias bound (the
+/// generators are evaluated at independently converged operating points)
+/// with the noise floor of [`NOISE`].
+pub(crate) const NOISE_NONLINEAR: Tolerance = Tolerance {
+    relative: 1e-6,
+    absolute: 1e-20,
+};
+
 /// The original diode sweep was captured at C's default nonlinear RELTOL
 /// (1e-3), including bypass. Independent junction/KCL checks establish that the
 /// more accurate Rust root, not its equations, causes the 0.062% last-point

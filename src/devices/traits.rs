@@ -597,6 +597,35 @@ pub trait Device: fmt::Debug {
             self.name()
         )))
     }
+
+    /// The device's `.noise` generators at the operating point
+    /// ([`crate::devices::noise`], C `DEVnoise`). Devices C gives no noise
+    /// routine return [`crate::devices::noise::DeviceNoise::Noiseless`]
+    /// explicitly; the default is an error, so a device whose noise is not
+    /// ported can never be silently omitted from the spectrum.
+    ///
+    /// # Errors
+    /// [`SpiceError::NotYetPorted`] by default; invalid bias physics.
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
+        Err(SpiceError::not_yet_ported(
+            format!(
+                "noise analysis of device {} (designator '{}')",
+                self.name(),
+                self.designator()
+            ),
+            "src/spicelib/devices/<dev>/<dev>noi*.c (DEVnoise)",
+        ))
+    }
+
+    /// When this device is an independent V/I source: its kind and whether an
+    /// `ac` value was given, as the `.noise` input reference needs them.
+    /// `None` (the default) for every other device.
+    fn input_source(&self) -> Option<crate::devices::noise::InputSource> {
+        None
+    }
 }
 
 /// What [`Device::timestep_limit`] sees for one converged trial step.

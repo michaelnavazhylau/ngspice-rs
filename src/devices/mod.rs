@@ -18,6 +18,7 @@
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
 //! | [`sweep`] | physical resistor metadata and immutable per-point resistor overrides | typed `.dc` resistor targets |
+//! | [`noise`] | `.noise` generators: the [`Device::noise`] hook, thermal/shot/flicker laws and C's instance order | R, D, Q, MOS1, S/W; explicit `Noiseless` for C's noise-free devices |
 //! | [`subckt`] | `X` instance expansion: port binding, hierarchical names, scoped parameters and models | top-level definitions, named overrides, `.global` nodes |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework
@@ -47,6 +48,7 @@ pub mod linear;
 pub mod models;
 pub mod mos1;
 pub mod mutual;
+pub mod noise;
 pub mod nonlinear;
 pub mod passive;
 pub mod pulse;
@@ -81,7 +83,7 @@ pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, DeviceSupport, Registry};
-pub use rlc::{Capacitor, Inductor, Resistor};
+pub use rlc::{Capacitor, Inductor, Resistor, ResistorNoise};
 pub use state::{ACCEPTED_DEPTH, DeviceState, IterationPhase, StateHistory, TrialState};
 pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};
 pub use switch::{Switch, SwitchKind, SwitchState};

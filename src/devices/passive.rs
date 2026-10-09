@@ -46,6 +46,12 @@ pub struct PassiveParameters {
     scale: Real,
     multiplicity: Real,
     initial_condition: Option<Real>,
+    /// Resistor `.noise` inputs (`resnoise.c`); the defaults for C and L.
+    noisy: bool,
+    kf: Real,
+    af: Real,
+    ef: Real,
+    noise_area: Real,
     location: SourceLoc,
 }
 
@@ -86,6 +92,22 @@ impl PassiveParameters {
     #[must_use]
     pub const fn initial_condition(&self) -> Option<Real> {
         self.initial_condition
+    }
+
+    /// The resistor's `.noise` description (`resnoise.c`; `ressetup.c`
+    /// defaults `KF = 0`, `AF = EF = LF = WF = 1`, `noisy = 1`), for `model`.
+    #[must_use]
+    pub fn resistor_noise(&self, model: &str) -> crate::devices::ResistorNoise {
+        crate::devices::ResistorNoise {
+            noisy: self.noisy,
+            kf: self.kf,
+            af: self.af,
+            ef: self.ef,
+            area: self.noise_area,
+            multiplicity: self.multiplicity,
+            temperature: self.temperature,
+            model: Some(model.to_owned()),
+        }
     }
 
     /// Effective value to pass to the existing scalar equation stamps.
@@ -203,6 +225,19 @@ impl ResolvedModel<'_> {
             model_value(family, &model, &instance_values, location)?
         };
         valid_value(family, base, location)?;
+        // ressetup.c: RESeffNoiseArea uses the instance geometry (L/W
+        // defaulting to the model's) only when the instance gives L or W.
+        let noise_area = if family == ModelFamily::Resistor
+            && (optional(&instance_values, "l").is_some()
+                || optional(&instance_values, "w").is_some())
+        {
+            let length = optional(&instance_values, "l").unwrap_or(value(&model, "l", 10e-6));
+            let width = optional(&instance_values, "w").unwrap_or(value(&model, "defw", 10e-6));
+            (length - 2.0 * value(&model, "short", 0.0)).powf(value(&model, "lf", 1.0))
+                * (width - 2.0 * value(&model, "narrow", 0.0)).powf(value(&model, "wf", 1.0))
+        } else {
+            1.0
+        };
         Ok(PassiveParameters {
             family,
             nominal_value: base,
@@ -213,6 +248,12 @@ impl ResolvedModel<'_> {
             scale: value(&instance_values, "scale", 1.0),
             multiplicity: value(&instance_values, "m", 1.0),
             initial_condition: optional(&instance_values, "ic"),
+            // `noisy` is an IF_INTEGER setter: floor(value + 0.5).
+            noisy: optional(&instance_values, "noisy").is_none_or(|v| (v + 0.5).floor() != 0.0),
+            kf: value(&model, "kf", 0.0),
+            af: value(&model, "af", 1.0),
+            ef: value(&model, "ef", 1.0),
+            noise_area,
             location: location.clone(),
         })
     }
@@ -277,6 +318,11 @@ fn model_schema(family: ModelFamily) -> ScalarSchema<'static> {
         p("tc1", U::InverseKelvin, D::Finite, Some(0.0)),
         p("tc2", U::InverseKelvinSquared, D::Finite, Some(0.0)),
         p("tnom", U::Celsius, D::Temperature, None),
+        p("kf", U::Dimensionless, D::Finite, Some(0.0)),
+        p("af", U::Dimensionless, D::Finite, Some(1.0)),
+        p("ef", U::Dimensionless, D::Finite, Some(1.0)),
+        p("lf", U::Dimensionless, D::Finite, Some(1.0)),
+        p("wf", U::Dimensionless, D::Finite, Some(1.0)),
     ];
     const C: &[ScalarParameter] = &[
         p("cap", U::Farad, D::Positive, None),
@@ -327,6 +373,9 @@ fn instance_schema(family: ModelFamily, primary: &'static str) -> Vec<ScalarPara
             p("l", U::Metre, D::Positive, None),
             p("w", U::Metre, D::Positive, None),
         ]);
+    }
+    if family == ModelFamily::Resistor {
+        definitions.push(p("noisy", U::Dimensionless, D::Finite, None));
     }
     if family != ModelFamily::Resistor {
         definitions.push(p(

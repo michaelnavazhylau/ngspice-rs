@@ -72,6 +72,7 @@ use crate::maths::Vector;
 use crate::netlist::ast::{DeviceInstance, ParameterKind};
 use crate::primitives::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::schema::{ScalarDomain, ScalarParameter, ScalarSchema, ScalarUnit};
 use crate::devices::state::IterationPhase;
 use crate::devices::traits::{ControlReference, Device, StampContext, TruncationContext};
@@ -223,6 +224,8 @@ const fn schema(kind: SwitchKind) -> ScalarSchema<'static> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Switch {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model_name: String,
     kind: SwitchKind,
     /// `[n+, n-]`, then `[nc+, nc-]` for S.
     terminals: Vec<NodeId>,
@@ -361,6 +364,7 @@ impl Switch {
         *nodes = staged;
         Ok(Box::new(Self {
             name: instance.name.clone(),
+            model_name: card.name.clone(),
             kind,
             terminals,
             control,
@@ -610,6 +614,58 @@ impl Device for Switch {
         context.nodal([self.terminals[0], self.terminals[1]], g, false)
     }
 
+    /// `swnoise.c`/`cswnoise.c`: one thermal generator (C's empty suffix, no
+    /// separate total) of the on or off conductance at the circuit
+    /// temperature, decided like the small-signal stamp: from the supplied
+    /// small-signal state (any non-zero code is on, as `(int) CKTstate0` in
+    /// C), or from the instance flag's `MODEINITJCT` state without one.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let closed = match context.states {
+            Some(states) => {
+                self.stored(states.get(STATE).copied(), "noise")?
+                    .ok_or_else(|| {
+                        SpiceError::circuit(format!("{}: missing noise state", self.name))
+                    })?
+                    != SwitchState::ReallyOff
+            }
+            None => {
+                let control = self.control_value(
+                    |node| context.voltage(node),
+                    |row| {
+                        context.bias.get(row).ok_or_else(|| {
+                            SpiceError::circuit("bias row out of range for a switch control")
+                        })
+                    },
+                    context.controls,
+                )?;
+                self.flag_state(control).is_closed()
+            }
+        };
+        let conductance = if closed {
+            self.model.on_conductance
+        } else {
+            self.model
+                .off_conductance
+                .unwrap_or(context.model_context.gmin)
+        };
+        Ok(DeviceNoise::Sources {
+            family: match self.kind {
+                SwitchKind::Voltage => NoiseFamily::VoltageSwitch,
+                SwitchKind::Current => NoiseFamily::CurrentSwitch,
+            },
+            model: Some(self.model_name.clone()),
+            total: false,
+            sources: vec![NoiseSource::new(
+                "",
+                [self.terminals[0], self.terminals[1]],
+                NoiseKind::Thermal {
+                    conductance,
+                    temperature: context.circuit_kelvin(),
+                },
+            )],
+        })
+    }
+
     fn timestep_limit(&self, context: &TruncationContext<'_>) -> SpiceResult<Option<Real>> {
         if self.kind == SwitchKind::Current {
             // cswtrunc.c reads a control slot CSWload never writes.
@@ -655,6 +711,7 @@ mod tests {
     fn switch(kind: SwitchKind, threshold: f64, hysteresis: f64, on: bool) -> Switch {
         Switch {
             name: "s1".into(),
+            model_name: "sw".into(),
             kind,
             terminals: vec![NodeId::GROUND; 4],
             control: Vec::new(),

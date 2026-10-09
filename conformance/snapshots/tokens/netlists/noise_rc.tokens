@@ -1,0 +1,128 @@
+# ngspice-rs token-dump v1
+file: netlists/noise_rc.cir
+title: "Noise of an RC divider: literal, model-backed flicker and noiseless resistors" @netlists/noise_rc.cir:1:1
+card 1 @netlists/noise_rc.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc 1 ac 1"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "1" value=1e0
+  token 6 5:14 word "ac"
+  token 7 5:17 number "1" value=1e0
+card 2 @netlists/noise_rc.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "out"
+  token 4 6:11 number "1k" value=1e3
+card 3 @netlists/noise_rc.cir:7:1 lines=7-7 continuations=0
+  raw: "r2 out 0 rflick l=20u w=2u"
+  kind: device(r)
+  token 1 7:1 word "r2"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "rflick"
+  token 5 7:17 word "l"
+  token 6 7:18 equals "="
+  token 7 7:19 number "20u" value=1.9999999999999998e-5
+  token 8 7:23 word "w"
+  token 9 7:24 equals "="
+  token 10 7:25 number "2u" value=2e-6
+card 4 @netlists/noise_rc.cir:8:1 lines=8-8 continuations=0
+  raw: "r3 out 0 3k noisy=0"
+  kind: device(r)
+  token 1 8:1 word "r3"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "3k" value=3e3
+  token 5 8:13 word "noisy"
+  token 6 8:18 equals "="
+  token 7 8:19 number "0" value=0e0
+card 5 @netlists/noise_rc.cir:9:1 lines=9-9 continuations=0
+  raw: "r4 out mid rhot temp=80"
+  kind: device(r)
+  token 1 9:1 word "r4"
+  token 2 9:4 word "out"
+  token 3 9:8 word "mid"
+  token 4 9:12 word "rhot"
+  token 5 9:17 word "temp"
+  token 6 9:21 equals "="
+  token 7 9:22 number "80" value=8e1
+card 6 @netlists/noise_rc.cir:10:1 lines=10-10 continuations=0
+  raw: "r5 mid 0 500"
+  kind: device(r)
+  token 1 10:1 word "r5"
+  token 2 10:4 word "mid"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "500" value=5e2
+card 7 @netlists/noise_rc.cir:11:1 lines=11-11 continuations=0
+  raw: "c1 out 0 1n"
+  kind: device(c)
+  token 1 11:1 word "c1"
+  token 2 11:4 word "out"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 number "1n" value=1e-9
+card 8 @netlists/noise_rc.cir:12:1 lines=12-12 continuations=0
+  raw: ".model rflick r(r=2k kf=1e-20 af=1.5 ef=1.2 lf=1.1 wf=0.9 short=1u narrow=0.1u)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "rflick"
+  token 3 12:15 word "r"
+  token 4 12:16 lparen "("
+  token 5 12:17 word "r"
+  token 6 12:18 equals "="
+  token 7 12:19 number "2k" value=2e3
+  token 8 12:22 word "kf"
+  token 9 12:24 equals "="
+  token 10 12:25 number "1e-20" value=1e-20
+  token 11 12:31 word "af"
+  token 12 12:33 equals "="
+  token 13 12:34 number "1.5" value=1.5e0
+  token 14 12:38 word "ef"
+  token 15 12:40 equals "="
+  token 16 12:41 number "1.2" value=1.2e0
+  token 17 12:45 word "lf"
+  token 18 12:47 equals "="
+  token 19 12:48 number "1.1" value=1.1e0
+  token 20 12:52 word "wf"
+  token 21 12:54 equals "="
+  token 22 12:55 number "0.9" value=9e-1
+  token 23 12:59 word "short"
+  token 24 12:64 equals "="
+  token 25 12:65 number "1u" value=1e-6
+  token 26 12:68 word "narrow"
+  token 27 12:74 equals "="
+  token 28 12:75 number "0.1u" value=1e-7
+  token 29 12:79 rparen ")"
+card 9 @netlists/noise_rc.cir:13:1 lines=13-13 continuations=0
+  raw: ".model rhot r(r=1k)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "rhot"
+  token 3 13:13 word "r"
+  token 4 13:14 lparen "("
+  token 5 13:15 word "r"
+  token 6 13:16 equals "="
+  token 7 13:17 number "1k" value=1e3
+  token 8 13:19 rparen ")"
+card 10 @netlists/noise_rc.cir:14:1 lines=14-14 continuations=0
+  raw: ".noise v(out) v1 dec 4 10 10meg 2"
+  kind: dot(.noise)
+  token 1 14:1 word ".noise"
+  token 2 14:8 word "v"
+  token 3 14:9 lparen "("
+  token 4 14:10 word "out"
+  token 5 14:13 rparen ")"
+  token 6 14:15 word "v1"
+  token 7 14:18 word "dec"
+  token 8 14:22 number "4" value=4e0
+  token 9 14:24 number "10" value=1e1
+  token 10 14:27 number "10meg" value=1e7
+  token 11 14:33 number "2" value=2e0
+card 11 @netlists/noise_rc.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

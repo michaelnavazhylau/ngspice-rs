@@ -283,6 +283,17 @@ impl Behavioural {
 }
 
 impl Device for Behavioural {
+    /// Noiseless: C gives B sources no noise routine (`DEVnoise = NULL`,
+    /// `src/spicelib/devices/asrc/asrcinit.c`), and the XSPICE `spice2poly`/
+    /// `pwl` code models that TABLE/POLY lower to declare none of the noise
+    /// parameters `MIFnoise` looks for (`src/xspice/mif/mifnoise.c`).
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

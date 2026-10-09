@@ -34,11 +34,15 @@
 //! otherwise (except in the `uic` initial load, which keeps all-zero
 //! conditions); unset components are taken from the external terminals
 //! under `uic` (`mos1ic.c`) and are zero otherwise. An `off` instance starts
-//! at zero and is held there through `MODEINITFIX`. Noise (`mos1noi.c`) and
-//! sensitivity parameters are explicit `NotYetPorted` errors.
+//! at zero and is held there through `MODEINITFIX`. The `.noise` generators
+//! of `mos1noi.c` (RD/RS thermal noise, the NLEV channel thermal noise and
+//! the NLEV flicker laws with KF/AF/GDSNOI) are ported through
+//! [`Device::noise`]; C's SPICE3-compatibility flicker form is not
+//! selectable (no compatibility mode is ported).
 
 use crate::devices::limiting::{self, Limiter, Linearization};
 use crate::devices::linear::nodal_stamp;
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::nonlinear::{JunctionPoint, stamp_junction};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
@@ -47,7 +51,7 @@ use crate::devices::{
     Device, LinearContext, ModelContext, ModelFamily, ResolvedModel, StampContext,
 };
 use crate::maths::Vector;
-use crate::netlist::ast::{DeviceInstance, ParameterAssignment};
+use crate::netlist::ast::DeviceInstance;
 use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 
 /// C `CONSTboltz` (J/K).
@@ -128,6 +132,11 @@ const MODEL: &[P] = &[
     p("tpg", U::Dimensionless, D::Finite, None),
     p("nss", U::PerSquareCentimetre, D::Finite, None),
     p("tnom", U::Celsius, D::Temperature, None),
+    // mos1noi.c; mos1set.c defaults KF = 0, AF = 1, NLEV = 2, GDSNOI = 1.
+    p("kf", U::Dimensionless, D::Finite, Some(0.)),
+    p("af", U::Dimensionless, D::Finite, Some(1.)),
+    p("nlev", U::Dimensionless, D::Finite, Some(2.)),
+    p("gdsnoi", U::Dimensionless, D::Finite, Some(1.)),
 ];
 
 /// Instance setters (`mos1par.c`). Defaults are C's `CKTdefaultMos*` values,
@@ -147,34 +156,8 @@ const INSTANCE: &[P] = &[
     p("dtemp", U::Celsius, D::Finite, Some(0.)),
 ];
 
-/// Setters C accepts whose physics is not ported, with the C reference.
-const NOT_PORTED_MODEL: &[(&str, &str)] = &[
-    ("kf", "src/spicelib/devices/mos1/mos1noi.c"),
-    ("af", "src/spicelib/devices/mos1/mos1noi.c"),
-    ("nlev", "src/spicelib/devices/mos1/mos1noi.c"),
-    ("gdsnoi", "src/spicelib/devices/mos1/mos1noi.c"),
-];
 /// The `IC` vector components (`mos1par.c`): `ICVDS`, `ICVGS`, `ICVBS`.
 const IC_COMPONENTS: [&str; 3] = ["icvds", "icvgs", "icvbs"];
-
-fn reject_unported(
-    parameters: &[ParameterAssignment],
-    table: &[(&str, &str)],
-    owner: &str,
-) -> SpiceResult<()> {
-    for parameter in parameters {
-        if let Some((name, reference)) = table
-            .iter()
-            .find(|(name, _)| parameter.name.eq_ignore_ascii_case(name))
-        {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: MOS1 {owner} setter '{name}'", parameter.location),
-                *reference,
-            ));
-        }
-    }
-    Ok(())
-}
 
 fn required(values: &ScalarValues, name: &str) -> SpiceResult<Real> {
     values
@@ -223,6 +206,12 @@ struct Model {
     tpg: Option<Real>,
     nss: Option<Real>,
     tnom: Option<Real>,
+    /// Flicker coefficient/exponent, noise model selector (0..=3) and channel
+    /// thermal-noise coefficient (`mos1noi.c`).
+    kf: Real,
+    af: Real,
+    nlev: u8,
+    gdsnoi: Real,
 }
 
 /// Validated instance geometry.
@@ -486,6 +475,8 @@ struct Point {
 #[derive(Debug)]
 pub struct Mos1 {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model_name: String,
     /// External d, g, s, b followed by any internal drain/source nodes.
     terminals: Vec<NodeId>,
     /// d', g, s', b: the nodes the intrinsic device sees.
@@ -508,7 +499,6 @@ impl Mos1 {
         if resolved.levels().selector != 1 || i.nodes.len() != 4 {
             return Err(SpiceError::circuit("MOS1 needs level 1 and four terminals"));
         }
-        reject_unported(&resolved.card().parameters, NOT_PORTED_MODEL, "model")?;
         let (initial, setters) = crate::devices::initial::split(&i.parameters, &IC_COMPONENTS)?;
         let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
         let v = ScalarSchema {
@@ -553,6 +543,22 @@ impl Mos1 {
             tpg: get("tpg"),
             nss: get("nss"),
             tnom: get("tnom"),
+            kf: required(&m, "kf")?,
+            af: required(&m, "af")?,
+            nlev: {
+                // IF_INTEGER setter: floor(value + 0.5). C's switch has no
+                // case outside 0..=3 (the flicker density is then the bare
+                // gain), which the port rejects.
+                let raw = required(&m, "nlev")?;
+                let rounded = (raw + 0.5).floor();
+                if !(0. ..=3.).contains(&rounded) {
+                    return Err(SpiceError::circuit(format!(
+                        "MOS1 NLEV must round to 0..=3 (mos1noi.c), got {raw}"
+                    )));
+                }
+                rounded as u8
+            },
+            gdsnoi: required(&m, "gdsnoi")?,
         };
         if model.tpg.is_some_and(|tpg| tpg.fract() != 0.) {
             return Err(SpiceError::circuit("MOS1 TPG must be an integer"));
@@ -585,6 +591,7 @@ impl Mos1 {
         ];
         let mut device = Self {
             name: i.name.clone(),
+            model_name: resolved.card().name.clone(),
             terminals: vec![],
             inner: [NodeId::GROUND; 4],
             model,
@@ -1157,6 +1164,90 @@ impl Device for Mos1 {
             context.nodal(ports, 2. * point.half[k] + op.overlap[k], true)?;
         }
         Ok(())
+    }
+    /// `mos1noi.c` at the operating point: RD/RS thermal noise and the
+    /// channel thermal noise `Sid` at the instance temperature, and the
+    /// flicker law of NLEV between the internal drain and source. NLEV < 3
+    /// uses `Sid = 2/3 abs(gm)`; NLEV 3 the `GDSNOI`-scaled region formula.
+    /// Flicker: NLEV 0 `m KF abs(cd/m)^AF / (f Leff^2 Cox)`, NLEV 1
+    /// `m KF abs(cd/m)^AF / (f W Leff Cox)`, NLEV 2/3
+    /// `KF gm^2 / m / (f^AF W Leff Cox)`, with `cd` C's `MOS1cd` (channel
+    /// current in the device frame minus the bulk-drain junction current) and
+    /// `Cox` taken for `TOX = 1e-7 m` when the model has no oxide capacitance.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let (model, geometry) = (&self.model, &self.geometry);
+        let op = self.operating(context.model_context)?;
+        let v = self.inner.map(|node| context.voltage(node));
+        let point = self.point(&op, v, context.model_context.gmin)?;
+        let channel = point.channel;
+        let pol = model.pol;
+        let gm = channel.partials[1].1;
+        let sid = if model.nlev < 3 {
+            2.0 / 3.0 * gm.abs()
+        } else {
+            let (vd, vs) = if channel.normal {
+                (v[0], v[2])
+            } else {
+                (v[2], v[0])
+            };
+            let vds = pol * (vd - vs);
+            let vgst = pol * (v[1] - vs) - channel.von;
+            if vgst > 0. {
+                let alpha = if vgst <= vds {
+                    0.
+                } else {
+                    1. - vds / channel.vdsat
+                };
+                2.0 / 3.0 * op.beta * vgst * (1. + alpha + alpha * alpha) / (1. + alpha)
+                    * model.gdsnoi
+            } else {
+                0.
+            }
+        };
+        let mode = if channel.normal { 1. } else { -1. };
+        let cd = mode * (pol * channel.current) - pol * point.bd.current;
+        let cox = match model.tox.filter(|tox| *tox != 0.) {
+            Some(tox) => 3.9 * EPSILON_0 / tox,
+            None => 3.9 * 8.854214871e-12 / 1e-7,
+        };
+        let m = geometry.m;
+        let length = geometry.length;
+        let current_law = || m * model.kf * (model.af * (cd / m).abs().max(1e-38).ln()).exp();
+        let (coefficient, exponent) = match model.nlev {
+            0 => (current_law() / (length * length * cox), 1.),
+            1 => (current_law() / (geometry.w * length * cox), 1.),
+            _ => (
+                model.kf * gm * gm / m / (geometry.w * length * cox),
+                model.af,
+            ),
+        };
+        let temperature = geometry
+            .temp
+            .unwrap_or(context.model_context.temperature + geometry.dtemp)
+            + CELSIUS_TO_KELVIN;
+        let [d, _, s, _] = self.inner;
+        let thermal = |conductance: Real| NoiseKind::Thermal {
+            conductance,
+            temperature,
+        };
+        Ok(DeviceNoise::Sources {
+            family: NoiseFamily::Mos1,
+            model: Some(self.model_name.clone()),
+            total: true,
+            sources: vec![
+                NoiseSource::new("_rd", [d, self.terminals[0]], thermal(self.series[0])),
+                NoiseSource::new("_rs", [s, self.terminals[2]], thermal(self.series[1])),
+                NoiseSource::new("_id", [d, s], thermal(sid)),
+                NoiseSource::new(
+                    "_1overf",
+                    [d, s],
+                    NoiseKind::Flicker {
+                        coefficient,
+                        exponent,
+                    },
+                ),
+            ],
+        })
     }
 }
 

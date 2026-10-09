@@ -880,7 +880,10 @@ impl RunConfig {
         if request.kind != AnalysisKind::Transient {
             if matches!(
                 request.kind,
-                AnalysisKind::OperatingPoint | AnalysisKind::DcSweep | AnalysisKind::Ac
+                AnalysisKind::OperatingPoint
+                    | AnalysisKind::DcSweep
+                    | AnalysisKind::Ac
+                    | AnalysisKind::Noise
             ) {
                 for (key, value) in [
                     ("rtol", self.transient.rtol),

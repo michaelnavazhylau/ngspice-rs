@@ -6,8 +6,10 @@
 //! GAP1/GAP2, TLEV, TLEVC, DTEMP, TNOM), the sidewall junction (JSW, NS, CJSW,
 //! VJSW, MJSW, FCS, PJ), recombination (ISR/NR), tunnelling (JTUN/JTUNSW/NTUN),
 //! high-injection knees (IKF/IKR/IKP) and the transit-time/series-resistance
-//! temperature coefficients. Soft reverse recovery, a separate sidewall series
-//! resistance, self-heating, level-3 geometry and noise and SOA setters fail
+//! temperature coefficients, and the `.noise` generators of `dionoise.c`
+//! (series-resistance thermal, junction shot and KF/AF flicker noise).
+//! Soft reverse recovery, a separate sidewall series
+//! resistance, self-heating, level-3 geometry and SOA setters fail
 //! with [`SpiceError::NotYetPorted`] before node interning; unknown setters
 //! remain unsupported errors. The instance `off` flag follows `dioload.c`
 //! (`MODEINITJCT`/`MODEINITFIX` hold at 0 V). The `uic` initial load starts
@@ -20,6 +22,7 @@
 //! start at `tVcrit`, `DEVpnjlim`, reflected about BV in breakdown) through
 //! [`crate::devices::limiting`]; C's predictor and bypass are not ported.
 use crate::devices::limiting::{self, Limiter, Linearization};
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::schema::{
     ScalarDomain as Domain, ScalarParameter as Parameter, ScalarSchema, ScalarUnit as Unit,
     ScalarValues,
@@ -118,6 +121,9 @@ const MODEL: ScalarSchema<'static> = ScalarSchema {
         scalar("keg", Unit::Dimensionless, Domain::Finite, Some(1.)),
         scalar("area", Unit::Dimensionless, Domain::Positive, Some(1.)),
         scalar("pj", Unit::Dimensionless, Domain::NonNegative, Some(0.)),
+        // dionoise.c flicker law; diosetup.c defaults KF = 0, AF = 1.
+        scalar("kf", Unit::Dimensionless, Domain::Finite, Some(0.)),
+        scalar("af", Unit::Dimensionless, Domain::Finite, Some(1.)),
     ],
 };
 /// `dio.c::DIOmPTable` aliases (`IOPR` entries share the canonical setter id, so
@@ -159,8 +165,6 @@ const MODEL_PENDING: &[(&str, &str)] = &[
     ),
     ("rth0", "src/spicelib/devices/dio/dioload.c (self-heating)"),
     ("cth0", "src/spicelib/devices/dio/dioload.c (self-heating)"),
-    ("kf", "src/spicelib/devices/dio/dionoise.c"),
-    ("af", "src/spicelib/devices/dio/dionoise.c"),
     ("fv_max", "src/spicelib/devices/dio/diosoachk.c"),
     ("bv_max", "src/spicelib/devices/dio/diosoachk.c"),
     ("id_max", "src/spicelib/devices/dio/diosoachk.c"),
@@ -305,6 +309,8 @@ fn selector(values: &ScalarValues, name: &str, max: u8, owner: &DeviceInstance) 
 #[derive(Debug)]
 pub struct Diode {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model: String,
     terminals: Vec<NodeId>,
     junction: [NodeId; 2],
     parameters: DiodeParameters,
@@ -371,6 +377,9 @@ struct DiodeParameters {
     temperature: Option<Real>,
     dtemp: Real,
     nominal: Option<Real>,
+    /// Flicker-noise coefficient and exponent (`dionoise.c`).
+    kf: Real,
+    af: Real,
 }
 impl Diode {
     pub(crate) fn instantiate(
@@ -418,6 +427,7 @@ impl Diode {
         *nodes = staged;
         Ok(Box::new(Self {
             name: instance.name.clone(),
+            model: card.name.clone(),
             terminals,
             junction: [positive, external[1]],
             parameters: p,
@@ -485,6 +495,8 @@ impl DiodeParameters {
             temperature: i.get("temp").map(|v| v.value),
             dtemp: i.get("dtemp").map_or(0., |v| v.value),
             nominal: m.get("tnom").map(|v| v.value),
+            kf: value(m, "kf")?,
+            af: value(m, "af")?,
         };
         let location = || instance.location.clone();
         if p.grading >= 1. || p.fc >= 1. || p.mjsw >= 1. || p.fcs >= 1. {
@@ -1161,6 +1173,69 @@ impl Device for Diode {
         context.nodal(self.junction, p.ac_conductance, false)?;
         context.nodal(self.junction, p.ac_capacitance, true)
     }
+    /// `dionoise.c`: thermal noise of the series resistance at the instance
+    /// temperature, shot noise `2 q abs(cd)` of the junction current (gmin
+    /// current included, as C's `DIOcurrent`) and the flicker law
+    /// `KF abs(cd/m)^AF m / f`. The `_rsw`/`_idsw`/`_1overfsw` generators of
+    /// a separate sidewall (RSW, not ported) are zero, as C's are without RSW.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let p = &self.parameters;
+        let thermal = p.thermal(context.model_context)?;
+        let vd = context.voltage(self.junction[0]) - context.voltage(self.junction[1]);
+        let cd = thermal
+            .point(vd, context.model_context.gmin)?
+            .junction
+            .current;
+        let temperature = p
+            .temperature
+            .unwrap_or(context.model_context.temperature + p.dtemp)
+            + 273.15;
+        let m = p.multiplier;
+        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp() * m;
+        let [anode, cathode] = self.junction;
+        let external = self.terminals[0];
+        Ok(DeviceNoise::Sources {
+            family: NoiseFamily::Diode,
+            model: Some(self.model.clone()),
+            total: true,
+            sources: vec![
+                NoiseSource::new(
+                    "_rs",
+                    [anode, external],
+                    NoiseKind::Thermal {
+                        conductance: thermal.conductance,
+                        temperature,
+                    },
+                ),
+                NoiseSource::new("_id", self.junction, NoiseKind::Shot { current: cd }),
+                NoiseSource::new(
+                    "_1overf",
+                    self.junction,
+                    NoiseKind::Flicker {
+                        coefficient: flicker,
+                        exponent: 1.,
+                    },
+                ),
+                NoiseSource::new(
+                    "_rsw",
+                    [anode, external],
+                    NoiseKind::Thermal {
+                        conductance: 0.,
+                        temperature,
+                    },
+                ),
+                NoiseSource::new("_idsw", [anode, cathode], NoiseKind::Shot { current: 0. }),
+                NoiseSource::new(
+                    "_1overfsw",
+                    [anode, cathode],
+                    NoiseKind::Flicker {
+                        coefficient: 0.,
+                        exponent: 1.,
+                    },
+                ),
+            ],
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1439,7 +1514,6 @@ mod tests {
             ("rsw=1", ""),
             ("vp=1 tt=1n", ""),
             ("rth0=10", ""),
-            ("kf=1e-16", ""),
             ("bv_max=10", ""),
             ("xom=1e4", ""),
             ("", "w=1u l=1u"),

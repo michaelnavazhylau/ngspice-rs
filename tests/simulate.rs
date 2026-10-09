@@ -347,18 +347,18 @@ fn an_explicit_diffsol_selection_is_honoured() {
 
 #[test]
 fn an_analysis_without_a_driver_fails_without_writing_a_rawfile() {
-    let dir = scratch("noise");
+    let dir = scratch("disto");
     let deck = write_deck(
         &dir,
-        "noise deck\nv1 in 0 dc 1 ac 1\nr1 in out 1k\nc1 out 0 1u\n\
-         .noise v(out) v1 dec 10 1 1k\n.end\n",
+        "disto deck\nv1 in 0 dc 1 ac 1\nr1 in out 1k\nc1 out 0 1u\n\
+         .disto dec 10 1 1k\n.end\n",
     );
-    let output = dir.join("noise.raw");
+    let output = dir.join("disto.raw");
     let run = simulate(&output, &deck);
     assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
     assert!(run.stdout.is_empty(), "{}", stdout(&run));
     assert!(
-        stderr(&run).contains(".noise analysis has no driver"),
+        stderr(&run).contains(".disto analysis has no driver"),
         "{}",
         stderr(&run)
     );
@@ -597,11 +597,7 @@ fn a_failing_later_analysis_publishes_nothing_from_the_earlier_ones() {
             "outside the time range",
         ),
         // An analysis without a driver fails before anything runs.
-        (
-            ".noise v(out) v1 dec 10 1 1k\n",
-            2,
-            ".noise analysis has no driver",
-        ),
+        (".disto dec 10 1 1k\n", 2, ".disto analysis has no driver"),
         // Output cards naming an analysis the deck does not run.
         (".print dc v(out)\n", 2, "names a different analysis"),
         (

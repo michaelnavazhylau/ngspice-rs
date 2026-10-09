@@ -11,6 +11,8 @@ pub struct IndependentSource {
     dc: Real,
     ac: Complex,
     waveform: Waveform,
+    /// Whether the card gave an `ac` value (C `VSRCacGiven`/`ISRCacGiven`).
+    ac_given: bool,
 }
 impl IndependentSource {
     /// Creates an independent source. `voltage=false` selects a current source.
@@ -35,10 +37,44 @@ impl IndependentSource {
             dc,
             ac,
             waveform,
+            ac_given: false,
         })
+    }
+
+    /// The same source, recording whether its card gave an `ac` value (even
+    /// `ac 0`), which a `.noise` input reference requires (`noisean.c`).
+    #[must_use]
+    pub fn with_ac_given(self, ac_given: bool) -> Self {
+        Self { ac_given, ..self }
+    }
+
+    /// Whether the card gave an `ac` value.
+    #[must_use]
+    pub const fn ac_given(&self) -> bool {
+        self.ac_given
     }
 }
 impl Device for IndependentSource {
+    /// Noiseless: C's VSRC/ISRC have no noise routine (`DEVnoise = NULL`); the
+    /// transient noise sources (`trnoise`/`trrandom`) are not ported.
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
+    fn input_source(&self) -> Option<crate::devices::noise::InputSource> {
+        Some(crate::devices::noise::InputSource {
+            kind: if self.voltage {
+                crate::devices::linear::SourceKind::Voltage
+            } else {
+                crate::devices::linear::SourceKind::Current
+            },
+            ac_given: self.ac_given,
+        })
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

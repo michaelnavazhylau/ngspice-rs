@@ -1,0 +1,137 @@
+# ngspice-rs token-dump v1
+file: netlists/noise_bjt.cir
+title: "Noise of a common-emitter BJT stage driven by a current source" @netlists/noise_bjt.cir:1:1
+card 1 @netlists/noise_bjt.cir:6:1 lines=6-6 continuations=0
+  raw: "vcc vcc 0 5"
+  kind: device(v)
+  token 1 6:1 word "vcc"
+  token 2 6:5 word "vcc"
+  token 3 6:9 number "0" value=0e0
+  token 4 6:11 number "5" value=5e0
+card 2 @netlists/noise_bjt.cir:7:1 lines=7-7 continuations=0
+  raw: "i1 0 b dc 10u ac 1"
+  kind: device(i)
+  token 1 7:1 word "i1"
+  token 2 7:4 number "0" value=0e0
+  token 3 7:6 word "b"
+  token 4 7:8 word "dc"
+  token 5 7:11 number "10u" value=9.999999999999999e-6
+  token 6 7:15 word "ac"
+  token 7 7:18 number "1" value=1e0
+card 3 @netlists/noise_bjt.cir:8:1 lines=8-8 continuations=0
+  raw: "rbias vcc b 470k"
+  kind: device(r)
+  token 1 8:1 word "rbias"
+  token 2 8:7 word "vcc"
+  token 3 8:11 word "b"
+  token 4 8:13 number "470k" value=4.7e5
+card 4 @netlists/noise_bjt.cir:9:1 lines=9-9 continuations=0
+  raw: "q1 c b e qflick area=2"
+  kind: device(q)
+  token 1 9:1 word "q1"
+  token 2 9:4 word "c"
+  token 3 9:6 word "b"
+  token 4 9:8 word "e"
+  token 5 9:10 word "qflick"
+  token 6 9:17 word "area"
+  token 7 9:21 equals "="
+  token 8 9:22 number "2" value=2e0
+card 5 @netlists/noise_bjt.cir:10:1 lines=10-10 continuations=0
+  raw: "re e 0 100"
+  kind: device(r)
+  token 1 10:1 word "re"
+  token 2 10:4 word "e"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "100" value=1e2
+card 6 @netlists/noise_bjt.cir:11:1 lines=11-11 continuations=0
+  raw: "ce e 0 1n"
+  kind: device(c)
+  token 1 11:1 word "ce"
+  token 2 11:4 word "e"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "1n" value=1e-9
+card 7 @netlists/noise_bjt.cir:12:1 lines=12-12 continuations=0
+  raw: "rc vcc c 2k"
+  kind: device(r)
+  token 1 12:1 word "rc"
+  token 2 12:4 word "vcc"
+  token 3 12:8 word "c"
+  token 4 12:10 number "2k" value=2e3
+card 8 @netlists/noise_bjt.cir:13:1 lines=13-13 continuations=0
+  raw: ".model qflick npn(is=1e-16 bf=120 vaf=60 ikf=20m ise=1e-14 rb=200 rbm=20 irb=1m rc=10 re=1 cje=2p cjc=1p tf=0.3n kf=1e-15 af=1.2)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "qflick"
+  token 3 13:15 word "npn"
+  token 4 13:18 lparen "("
+  token 5 13:19 word "is"
+  token 6 13:21 equals "="
+  token 7 13:22 number "1e-16" value=1e-16
+  token 8 13:28 word "bf"
+  token 9 13:30 equals "="
+  token 10 13:31 number "120" value=1.2e2
+  token 11 13:35 word "vaf"
+  token 12 13:38 equals "="
+  token 13 13:39 number "60" value=6e1
+  token 14 13:42 word "ikf"
+  token 15 13:45 equals "="
+  token 16 13:46 number "20m" value=2e-2
+  token 17 13:50 word "ise"
+  token 18 13:53 equals "="
+  token 19 13:54 number "1e-14" value=1e-14
+  token 20 13:60 word "rb"
+  token 21 13:62 equals "="
+  token 22 13:63 number "200" value=2e2
+  token 23 13:67 word "rbm"
+  token 24 13:70 equals "="
+  token 25 13:71 number "20" value=2e1
+  token 26 13:74 word "irb"
+  token 27 13:77 equals "="
+  token 28 13:78 number "1m" value=1e-3
+  token 29 13:81 word "rc"
+  token 30 13:83 equals "="
+  token 31 13:84 number "10" value=1e1
+  token 32 13:87 word "re"
+  token 33 13:89 equals "="
+  token 34 13:90 number "1" value=1e0
+  token 35 13:92 word "cje"
+  token 36 13:95 equals "="
+  token 37 13:96 number "2p" value=2e-12
+  token 38 13:99 word "cjc"
+  token 39 13:102 equals "="
+  token 40 13:103 number "1p" value=1e-12
+  token 41 13:106 word "tf"
+  token 42 13:108 equals "="
+  token 43 13:109 number "0.3n" value=3e-10
+  token 44 13:114 word "kf"
+  token 45 13:116 equals "="
+  token 46 13:117 number "1e-15" value=1e-15
+  token 47 13:123 word "af"
+  token 48 13:125 equals "="
+  token 49 13:126 number "1.2" value=1.2e0
+  token 50 13:129 rparen ")"
+card 9 @netlists/noise_bjt.cir:14:1 lines=14-14 continuations=0
+  raw: ".option reltol=1e-6"
+  kind: dot(.options)
+  token 1 14:1 word ".option"
+  token 2 14:9 word "reltol"
+  token 3 14:15 equals "="
+  token 4 14:16 number "1e-6" value=1e-6
+card 10 @netlists/noise_bjt.cir:15:1 lines=15-15 continuations=0
+  raw: ".noise v(c) i1 dec 4 10 100meg 3"
+  kind: dot(.noise)
+  token 1 15:1 word ".noise"
+  token 2 15:8 word "v"
+  token 3 15:9 lparen "("
+  token 4 15:10 word "c"
+  token 5 15:11 rparen ")"
+  token 6 15:13 word "i1"
+  token 7 15:16 word "dec"
+  token 8 15:20 number "4" value=4e0
+  token 9 15:22 number "10" value=1e1
+  token 10 15:25 number "100meg" value=1e8
+  token 11 15:32 number "3" value=3e0
+card 11 @netlists/noise_bjt.cir:16:1 lines=16-16 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 16:1 word ".end"

@@ -1019,7 +1019,7 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
     let allowed = |name: &str| match (designator, name) {
         (_, "temp" | "dtemp" | "m" | "tc1" | "tc2" | "scale") => true,
         ('r' | 'c', "w" | "l" | "bv_max") => true,
-        ('r', "ac" | "tc" | "tce") => true,
+        ('r', "ac" | "tc" | "tce" | "noisy") => true,
         ('c' | 'l', "ic") => true,
         ('l', "nt") => true,
         (_, name) => name == primary,

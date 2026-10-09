@@ -1,0 +1,139 @@
+# ngspice-rs token-dump v1
+file: netlists/noise_multi.cir
+title: "Noise in a multi-analysis deck with switches" @netlists/noise_multi.cir:1:1
+card 1 @netlists/noise_multi.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 2 ac 1"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "2" value=2e0
+  token 6 4:14 word "ac"
+  token 7 4:17 number "1" value=1e0
+card 2 @netlists/noise_multi.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "out"
+  token 4 5:11 number "1k" value=1e3
+card 3 @netlists/noise_multi.cir:6:1 lines=6-6 continuations=0
+  raw: "r2 out 0 2k"
+  kind: device(r)
+  token 1 6:1 word "r2"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "2k" value=2e3
+card 4 @netlists/noise_multi.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 out 0 10n"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "10n" value=1e-8
+card 5 @netlists/noise_multi.cir:8:1 lines=8-8 continuations=0
+  raw: "s1 out x in 0 sw1"
+  kind: device(s)
+  token 1 8:1 word "s1"
+  token 2 8:4 word "out"
+  token 3 8:8 word "x"
+  token 4 8:10 word "in"
+  token 5 8:13 number "0" value=0e0
+  token 6 8:15 word "sw1"
+card 6 @netlists/noise_multi.cir:9:1 lines=9-9 continuations=0
+  raw: "r3 x 0 1k"
+  kind: device(r)
+  token 1 9:1 word "r3"
+  token 2 9:4 word "x"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1k" value=1e3
+card 7 @netlists/noise_multi.cir:10:1 lines=10-10 continuations=0
+  raw: "vs y 0 0"
+  kind: device(v)
+  token 1 10:1 word "vs"
+  token 2 10:4 word "y"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "0" value=0e0
+card 8 @netlists/noise_multi.cir:11:1 lines=11-11 continuations=0
+  raw: "w1 out y vs csw1"
+  kind: device(w)
+  token 1 11:1 word "w1"
+  token 2 11:4 word "out"
+  token 3 11:8 word "y"
+  token 4 11:10 word "vs"
+  token 5 11:13 word "csw1"
+card 9 @netlists/noise_multi.cir:12:1 lines=12-12 continuations=0
+  raw: ".model sw1 sw(vt=1 ron=100 roff=1e6)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "sw1"
+  token 3 12:12 word "sw"
+  token 4 12:14 lparen "("
+  token 5 12:15 word "vt"
+  token 6 12:17 equals "="
+  token 7 12:18 number "1" value=1e0
+  token 8 12:20 word "ron"
+  token 9 12:23 equals "="
+  token 10 12:24 number "100" value=1e2
+  token 11 12:28 word "roff"
+  token 12 12:32 equals "="
+  token 13 12:33 number "1e6" value=1e6
+  token 14 12:36 rparen ")"
+card 10 @netlists/noise_multi.cir:13:1 lines=13-13 continuations=0
+  raw: ".model csw1 csw(it=1m ron=50)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "csw1"
+  token 3 13:13 word "csw"
+  token 4 13:16 lparen "("
+  token 5 13:17 word "it"
+  token 6 13:19 equals "="
+  token 7 13:20 number "1m" value=1e-3
+  token 8 13:23 word "ron"
+  token 9 13:26 equals "="
+  token 10 13:27 number "50" value=5e1
+  token 11 13:29 rparen ")"
+card 11 @netlists/noise_multi.cir:14:1 lines=14-14 continuations=0
+  raw: ".noise v(out) v1 dec 3 100 1meg"
+  kind: dot(.noise)
+  token 1 14:1 word ".noise"
+  token 2 14:8 word "v"
+  token 3 14:9 lparen "("
+  token 4 14:10 word "out"
+  token 5 14:13 rparen ")"
+  token 6 14:15 word "v1"
+  token 7 14:18 word "dec"
+  token 8 14:22 number "3" value=3e0
+  token 9 14:24 number "100" value=1e2
+  token 10 14:28 number "1meg" value=1e6
+card 12 @netlists/noise_multi.cir:15:1 lines=15-15 continuations=0
+  raw: ".ac dec 2 100 10k"
+  kind: dot(.ac)
+  token 1 15:1 word ".ac"
+  token 2 15:5 word "dec"
+  token 3 15:9 number "2" value=2e0
+  token 4 15:11 number "100" value=1e2
+  token 5 15:15 number "10k" value=1e4
+card 13 @netlists/noise_multi.cir:16:1 lines=16-16 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 16:1 word ".op"
+card 14 @netlists/noise_multi.cir:17:1 lines=17-17 continuations=0
+  raw: ".noise v(out) v1 lin 1 10k 20k 1"
+  kind: dot(.noise)
+  token 1 17:1 word ".noise"
+  token 2 17:8 word "v"
+  token 3 17:9 lparen "("
+  token 4 17:10 word "out"
+  token 5 17:13 rparen ")"
+  token 6 17:15 word "v1"
+  token 7 17:18 word "lin"
+  token 8 17:22 number "1" value=1e0
+  token 9 17:24 number "10k" value=1e4
+  token 10 17:28 number "20k" value=2e4
+  token 11 17:32 number "1" value=1e0
+card 15 @netlists/noise_multi.cir:18:1 lines=18-18 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 18:1 word ".end"

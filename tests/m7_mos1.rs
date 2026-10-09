@@ -9,7 +9,7 @@ use ngspice_rs::devices::{
 use ngspice_rs::maths::integrator::{Coefficients, DEFAULT_XMU, IntegrationMethod, StepHistory};
 use ngspice_rs::maths::{SparseMatrix, Vector};
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use ngspice_rs::primitives::{AnalysisKind, NodeKind, SpiceError};
+use ngspice_rs::primitives::{AnalysisKind, NodeKind};
 use std::path::Path;
 
 const BOLTZMANN: f64 = 1.38064852e-23;
@@ -452,15 +452,10 @@ fn only_the_meyer_gate_charges_control_the_timestep() {
 
 #[test]
 fn unported_and_invalid_mos1_inputs_fail_explicitly() {
-    let body = "m1 d g 0 0 mm\n.model mm nmos(kf=1e-25)";
-    match Circuit::from_netlist(&deck(body)) {
-        Err(SpiceError::NotYetPorted { c_reference, .. }) => {
-            assert!(c_reference.contains("mos1noi.c"), "{body}: {c_reference}");
-        }
-        other => panic!("{body}: {other:?}"),
-    }
-    // OFF and the IC vector are ported (#99, mos1load.c/mos1ic.c).
+    // OFF and the IC vector are ported (#99, mos1load.c/mos1ic.c), and so are
+    // the noise parameters (#100, mos1noi.c).
     for body in [
+        "m1 d g 0 0 mm\n.model mm nmos(kf=1e-25 af=1.2 nlev=3 gdsnoi=2)",
         "m1 d g 0 0 mm off\n.model mm nmos",
         "m1 d g 0 0 mm ic=1,2,3 icvds=1\n.model mm nmos",
     ] {

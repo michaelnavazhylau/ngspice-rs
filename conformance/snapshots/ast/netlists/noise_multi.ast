@@ -1,0 +1,86 @@
+# ngspice-rs ast-dump v1
+file: netlists/noise_multi.cir
+title: "Noise in a multi-analysis deck with switches" @netlists/noise_multi.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/noise_multi.cir:4:1 "v1 in 0 dc 2 ac 1"
+    [1] device[1] @netlists/noise_multi.cir:5:1 "r1 in out 1k"
+    [2] device[2] @netlists/noise_multi.cir:6:1 "r2 out 0 2k"
+    [3] device[3] @netlists/noise_multi.cir:7:1 "c1 out 0 10n"
+    [4] device[4] @netlists/noise_multi.cir:8:1 "s1 out x in 0 sw1"
+    [5] device[5] @netlists/noise_multi.cir:9:1 "r3 x 0 1k"
+    [6] device[6] @netlists/noise_multi.cir:10:1 "vs y 0 0"
+    [7] device[7] @netlists/noise_multi.cir:11:1 "w1 out y vs csw1"
+    [8] model[0] @netlists/noise_multi.cir:12:1 ".model sw1 sw(vt=1 ron=100 roff=1e6)"
+    [9] model[1] @netlists/noise_multi.cir:13:1 ".model csw1 csw(it=1m ron=50)"
+    [10] analysis[0] @netlists/noise_multi.cir:14:1 ".noise v(out) v1 dec 3 100 1meg"
+    [11] analysis[1] @netlists/noise_multi.cir:15:1 ".ac dec 2 100 10k"
+    [12] analysis[2] @netlists/noise_multi.cir:16:1 ".op"
+    [13] analysis[3] @netlists/noise_multi.cir:17:1 ".noise v(out) v1 lin 1 10k 20k 1"
+    [14] end @netlists/noise_multi.cir:18:1 ".end"
+  devices (8):
+    device [0] name="v1" designator=v @netlists/noise_multi.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/noise_multi.cir:4:9
+        [1] name="acmag" kind=scalar value="1" @netlists/noise_multi.cir:4:17
+        [2] name="acphase" kind=scalar value="0" @netlists/noise_multi.cir:4:14
+    device [1] name="r1" designator=r @netlists/noise_multi.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/noise_multi.cir:5:11
+    device [2] name="r2" designator=r @netlists/noise_multi.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/noise_multi.cir:6:10
+    device [3] name="c1" designator=c @netlists/noise_multi.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10n" @netlists/noise_multi.cir:7:10
+    device [4] name="s1" designator=s @netlists/noise_multi.cir:8:1
+      nodes: "out" "x" "in" "0"
+      model: "sw1"
+      parameters (0):
+    device [5] name="r3" designator=r @netlists/noise_multi.cir:9:1
+      nodes: "x" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/noise_multi.cir:9:8
+    device [6] name="vs" designator=v @netlists/noise_multi.cir:10:1
+      nodes: "y" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/noise_multi.cir:10:8
+    device [7] name="w1" designator=w @netlists/noise_multi.cir:11:1
+      nodes: "out" "y"
+      model: "csw1"
+      parameters (1):
+        [0] name="control" kind=instance value="vs" @netlists/noise_multi.cir:11:10
+  models (2):
+    model [0] name="sw1" base="sw" level=none @netlists/noise_multi.cir:12:1
+      parameters (3):
+        [0] name="vt" kind=scalar value="1" @netlists/noise_multi.cir:12:15
+        [1] name="ron" kind=scalar value="100" @netlists/noise_multi.cir:12:20
+        [2] name="roff" kind=scalar value="1e6" @netlists/noise_multi.cir:12:28
+    model [1] name="csw1" base="csw" level=none @netlists/noise_multi.cir:13:1
+      parameters (2):
+        [0] name="it" kind=scalar value="1m" @netlists/noise_multi.cir:13:17
+        [1] name="ron" kind=scalar value="50" @netlists/noise_multi.cir:13:23
+  subcircuits (0):
+  analyses (4):
+    analysis [0] kind=noise @netlists/noise_multi.cir:14:1
+      arguments: "v" "(" "out" ")" "v1" "dec" "3" "100" "1meg"
+    analysis [1] kind=ac @netlists/noise_multi.cir:15:1
+      arguments: "dec" "2" "100" "10k"
+    analysis [2] kind=op @netlists/noise_multi.cir:16:1
+      arguments:
+    analysis [3] kind=noise @netlists/noise_multi.cir:17:1
+      arguments: "v" "(" "out" ")" "v1" "lin" "1" "10k" "20k" "1"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,0 +1,78 @@
+# ngspice-rs ast-dump v1
+file: netlists/noise_rc.cir
+title: "Noise of an RC divider: literal, model-backed flicker and noiseless resistors" @netlists/noise_rc.cir:1:1
+scope root
+  cards (11):
+    [0] device[0] @netlists/noise_rc.cir:5:1 "v1 in 0 dc 1 ac 1"
+    [1] device[1] @netlists/noise_rc.cir:6:1 "r1 in out 1k"
+    [2] device[2] @netlists/noise_rc.cir:7:1 "r2 out 0 rflick l=20u w=2u"
+    [3] device[3] @netlists/noise_rc.cir:8:1 "r3 out 0 3k noisy=0"
+    [4] device[4] @netlists/noise_rc.cir:9:1 "r4 out mid rhot temp=80"
+    [5] device[5] @netlists/noise_rc.cir:10:1 "r5 mid 0 500"
+    [6] device[6] @netlists/noise_rc.cir:11:1 "c1 out 0 1n"
+    [7] model[0] @netlists/noise_rc.cir:12:1 ".model rflick r(r=2k kf=1e-20 af=1.5 ef=1.2 lf=1.1 wf=0.9 short=1u narrow=0.1u)"
+    [8] model[1] @netlists/noise_rc.cir:13:1 ".model rhot r(r=1k)"
+    [9] analysis[0] @netlists/noise_rc.cir:14:1 ".noise v(out) v1 dec 4 10 10meg 2"
+    [10] end @netlists/noise_rc.cir:15:1 ".end"
+  devices (7):
+    device [0] name="v1" designator=v @netlists/noise_rc.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="1" @netlists/noise_rc.cir:5:9
+        [1] name="acmag" kind=scalar value="1" @netlists/noise_rc.cir:5:17
+        [2] name="acphase" kind=scalar value="0" @netlists/noise_rc.cir:5:14
+    device [1] name="r1" designator=r @netlists/noise_rc.cir:6:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/noise_rc.cir:6:11
+    device [2] name="r2" designator=r @netlists/noise_rc.cir:7:1
+      nodes: "out" "0"
+      model: "rflick"
+      parameters (2):
+        [0] name="l" kind=scalar value="20u" @netlists/noise_rc.cir:7:17
+        [1] name="w" kind=scalar value="2u" @netlists/noise_rc.cir:7:23
+    device [3] name="r3" designator=r @netlists/noise_rc.cir:8:1
+      nodes: "out" "0"
+      model: none
+      parameters (2):
+        [0] name="resistance" kind=scalar value="3k" @netlists/noise_rc.cir:8:10
+        [1] name="noisy" kind=scalar value="0" @netlists/noise_rc.cir:8:13
+    device [4] name="r4" designator=r @netlists/noise_rc.cir:9:1
+      nodes: "out" "mid"
+      model: "rhot"
+      parameters (1):
+        [0] name="temp" kind=scalar value="80" @netlists/noise_rc.cir:9:17
+    device [5] name="r5" designator=r @netlists/noise_rc.cir:10:1
+      nodes: "mid" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/noise_rc.cir:10:10
+    device [6] name="c1" designator=c @netlists/noise_rc.cir:11:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/noise_rc.cir:11:10
+  models (2):
+    model [0] name="rflick" base="r" level=none @netlists/noise_rc.cir:12:1
+      parameters (8):
+        [0] name="r" kind=scalar value="2k" @netlists/noise_rc.cir:12:17
+        [1] name="kf" kind=scalar value="1e-20" @netlists/noise_rc.cir:12:22
+        [2] name="af" kind=scalar value="1.5" @netlists/noise_rc.cir:12:31
+        [3] name="ef" kind=scalar value="1.2" @netlists/noise_rc.cir:12:38
+        [4] name="lf" kind=scalar value="1.1" @netlists/noise_rc.cir:12:45
+        [5] name="wf" kind=scalar value="0.9" @netlists/noise_rc.cir:12:52
+        [6] name="short" kind=scalar value="1u" @netlists/noise_rc.cir:12:59
+        [7] name="narrow" kind=scalar value="0.1u" @netlists/noise_rc.cir:12:68
+    model [1] name="rhot" base="r" level=none @netlists/noise_rc.cir:13:1
+      parameters (1):
+        [0] name="r" kind=scalar value="1k" @netlists/noise_rc.cir:13:15
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=noise @netlists/noise_rc.cir:14:1
+      arguments: "v" "(" "out" ")" "v1" "dec" "4" "10" "10meg" "2"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
