@@ -1,4 +1,4 @@
-//! Adaptive trapezoidal / Gear-2 companion-model transient driver.
+//! Adaptive trapezoidal / Gear companion-model transient driver.
 //!
 //! This is the SPICE-compatible `.tran` backend: capacitors and inductors are
 //! and M4's bounded nonlinear device charges are stamped as companion models
@@ -29,12 +29,16 @@
 //!   spacing.
 //! * **Order policy**: the first step and the first step after every source
 //!   breakpoint use order 1 (backward Euler). After an accepted order-1 step the
-//!   order is raised to the method's `maxord` (at most 2) when the order-2
-//!   truncation estimate allows a step more than 5 % larger. Like `dctran.c`
+//!   order is raised to 2 when `maxord > 1` and the order-2 truncation estimate
+//!   allows a step more than 5 % larger. Like `dctran.c`
 //!   (`CKTdeltaOld` is filled with `CKTmaxStep`) the estimate may already be
 //!   probed on the second step, using the maximum step as the placeholder for
 //!   the not-yet-existing older step ([`crate::maths::StepHistory::with_fill`]).
-//!   `maxord=1` keeps backward Euler throughout.
+//!   `maxord=1` keeps backward Euler throughout. `dctran.c` has no other order
+//!   change: it never raises the order above 2, so `maxord` 3 to 6 (accepted
+//!   for both methods, as in C) run exactly like `maxord=2`; the Gear order
+//!   3–6 coefficients of [`crate::maths::integrator`] are not reached from
+//!   here (#98, verified bit-identical in the C reference binary).
 //! * **Truncation error**: per capacitor/inductor divided differences of the
 //!   charge/flux ([`crate::maths::Coefficients::truncation_timestep`], `CKTterr`)
 //!   bound the next step to `min(2 dt, limit)`. A trial whose bound is not
@@ -224,21 +228,20 @@ impl Settings {
         } else {
             step.min((stop - start) / 50.)
         };
+        // cktsopt.c clamps maxord to 1..=6 with a warning; out-of-range or
+        // non-integer values are explicit errors here.
         let max_order = match request.named("maxord") {
             None => 2,
-            Some(text) => match text.parse::<u8>() {
-                Ok(order @ 1..=2) => order,
-                Ok(order @ 3..=6) => {
-                    return Err(unsupported(format!(
-                        "maxord={order}: only integration orders 1 and 2 are implemented"
-                    )));
-                }
-                _ => {
-                    return Err(unsupported(format!(
-                        "maxord must be an integer in 1..=2, not '{text}'"
-                    )));
-                }
-            },
+            Some(text) => text
+                .parse::<u8>()
+                .ok()
+                .filter(|order| (1..=IntegrationMethod::MAX_GEAR_ORDER).contains(order))
+                .ok_or_else(|| {
+                    unsupported(format!(
+                        "maxord must be an integer in 1..={}, not '{text}'",
+                        IntegrationMethod::MAX_GEAR_ORDER
+                    ))
+                })?,
         };
         let method = match request.named("method") {
             None => IntegrationMethod::Trapezoidal,
@@ -468,14 +471,14 @@ struct Driver<'a> {
 ///
 /// `request` uses the same positional `tstep tstop [tstart [tmax]]` arguments
 /// as C plus named `method` (`trap` default, `trapezoidal`, `gear`), `maxord`
-/// (1 or 2), `rtol`, `vntol`, `abstol`, `chgtol`, `trtol`, `maxsteps`,
+/// (1 to 6; only 1 versus more than 1 matters, as in `dctran.c`), `rtol`, `vntol`, `abstol`, `chgtol`, `trtol`, `maxsteps`,
 /// `tranmaxiter` (Newton iterations per timepoint, `itl4`), `xmu` (trapezoidal
 /// weighting) and the initial-bias `maxiter`, `srcsteps`, `gminsteps`,
 /// `gminfactor`.
 ///
 /// # Errors
 ///
-/// Invalid or unsupported requests (`maxord > 2`, unknown options), `.ic` or
+/// Invalid or unsupported requests (`maxord` outside 1..=6, unknown options), `.ic` or
 /// `.nodeset` entries naming unknown nodes, an `.ic` contradicting ideal
 /// sources, `uic` initial conditions that would need an impulse at `t = 0+`,
 /// structural or singular systems, a failing accept hook, an exceeded
@@ -618,7 +621,9 @@ impl Driver<'_> {
                                 next = bound;
                                 if coefficients.order() == 1 && max_order > 1 {
                                     // Probe order 2; C overwrites the step with
-                                    // this estimate either way.
+                                    // this estimate either way. dctran.c never
+                                    // probes or raises beyond order 2, whatever
+                                    // maxord (3..=6) allows.
                                     let probe =
                                         self.steps.trial(method, 2, delta, self.settings.xmu)?;
                                     next = (2. * delta).min(self.truncation_limit(&probe, &state)?);
@@ -789,7 +794,9 @@ impl Driver<'_> {
             };
             (x, trial)
         };
-        // C copies CKTstate0 into CKTstate1..3; the derivative is zero.
+        // C copies CKTstate0 into CKTstate1..3; the derivative is zero. The
+        // port fills every retained vector (ACCEPTED_DEPTH, sized for Gear
+        // order 6); dctran.c's orders 1-2 never read beyond CKTstate3.
         self.circuit
             .accept_point(&x, Some(0.), &mut self.history, trial.clone())?;
         for _ in 1..crate::devices::ACCEPTED_DEPTH {

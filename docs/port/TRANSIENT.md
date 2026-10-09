@@ -15,9 +15,10 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 | --- | --- |
 | no `backend=` (or `backend=companion`) | companion driver, trapezoidal rule |
 | `method=trap` / `trapezoidal` | trapezoidal (order 2, backward Euler at startup and after breakpoints) |
-| `method=gear` | Gear order 2 (same order policy; `maxord` 1 or 2) |
+| `method=gear` | Gear order 2 (same order policy) |
 | `maxord=1` | backward Euler throughout (C: `CKTmaxOrder > 1` is required to raise the order) |
-| `maxord=3..6`, `0`, non-integer | explicit `Unsupported` error (orders above 2 are not implemented) |
+| `maxord=2..6` (gear or trap) | identical runs: `dctran.c` only raises the order from 1 to 2, see [Gear `maxord` 3–6](#gear-maxord-36-98) |
+| `maxord=0`, `7` and above, non-integer | explicit `Unsupported` error (C clamps to `1..=6` with a warning) |
 | `backend=diffsol method=bdf` | explicit diffsol BDF, unchanged |
 | `backend=diffsol` without `method=bdf`, `method=bdf` without the backend, unknown backend/method, unknown or duplicate options | explicit errors |
 | `uic`, `.ic`, instance `ic=` with `backend=diffsol` | explicit `Unsupported` errors (the BDF backend has no IC formulation; `.nodeset` is validated and otherwise a no-op) |
@@ -76,7 +77,8 @@ the run with an error; no partial plot is returned.
 * **Order policy.** Order 1 (backward Euler) for the first step and the first
   step after every breakpoint; after an accepted order-1 step the order-2
   estimate is probed and order 2 is kept if it allows more than `1.05 dt`
-  (C overwrites the step with the probe either way). Like C, the probe on the
+  (C overwrites the step with the probe either way); no order above 2 is ever
+  probed, whatever `maxord` allows. Like C, the probe on the
   second step uses `maxstep` placeholders for the not-yet-existing older steps
   (`StepHistory::with_fill`). Non-convergence of a nonlinear trial divides the
   step by eight and returns to order 1.
@@ -296,6 +298,33 @@ and defaults) with C's node voltages at all of C's timepoints (1e-9 relative),
 their `.op` values, the `.four` THD and harmonics of a SIN-driven diode
 clipper, and the documented divergences on unmarked decks.
 
+## Gear `maxord` 3–6 (#98)
+
+C references: `cktsopt.c` (`maxord` clamped to `1..=6`), `nicomcof.c`,
+`niinteg.c`, `nipred.c`, `cktterr.c`, `dctran.c`, `cktsetup.c`.
+
+**Order policy.** `dctran.c` has exactly one order change upwards: after an
+accepted order-1 step with `CKTmaxOrder > 1` it probes order 2 and keeps it
+when the estimate allows more than `1.05 dt`. Breakpoints and Newton failures
+return to order 1. Nothing raises the order to 3 or beyond, for either method,
+so in ngspice `maxord` only distinguishes 1 from "more than 1" (the reference
+binary writes byte-identical rawfiles for `method=gear maxord=2`, `3` and `6`).
+The companion driver follows the same policy: `maxord` 3–6 are accepted for
+`gear` and `trap` and run exactly like `maxord=2`. An order-raising policy
+beyond ngspice (SPICE2 or Xyce style) would diverge from C and is not
+implemented.
+
+**Integrator operations.** `maths::integrator` implements every Gear order
+1–6 for direct use: the variable-step corrector (`nicomcof.c`'s normalized
+Vandermonde system, evaluated in closed Lagrange form; order 2 keeps its
+original closed form so Gear-2 runs are bit-identical to before), the
+predictor (`CKTagp`, Lagrange extrapolation), `NIintegrate` and the `CKTterr`
+estimate with `gearCoeff` and the `k`-th root (`sqrt`, `cbrt`,
+`exp(ln(del)/k)`). `StepHistory` keeps six accepted steps (C
+`CKTdeltaOld[1..=6]`) and `StateHistory` seven accepted state vectors
+(`devices::ACCEPTED_DEPTH`, C allocates `max(2, maxord) + 2`). Verification is
+in [VERIFICATION.md](VERIFICATION.md#gear-maxord-36-98).
+
 ## Output policy
 
 The plot holds **every accepted time point with `time >= tstart`**, exactly like
@@ -353,7 +382,8 @@ both limits of the single in-run breakpoint; worst error 0.000 of the bound).
 * Devices: those `spice-rs devices` lists as `ported` or `bounded`; each
   device guide states its transient limits (the diffsol BDF backend rejects
   nonlinear devices and switches).
-* Orders above 2 are rejected; `.ic`/`uic`/instance `ic=` exist only on this
+* No order above 2 is ever used (as in C; `maxord` 3–6 are accepted and run
+  as 2); `.ic`/`uic`/instance `ic=` exist only on this
   driver (explicit errors with `backend=diffsol`).
 * No predictor (`PREDICTOR` is optional in C); the previous solution seeds Newton.
 * No `gmin`/source stepping: a floating or source-looped DC bias is an error.

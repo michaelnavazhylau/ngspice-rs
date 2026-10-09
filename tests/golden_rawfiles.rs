@@ -1386,6 +1386,22 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rlc_series_gear_maxord6_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1030,
+        variables: &["time", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // rlc_series_gear_tran with maxord=6: dctran.c only ever raises the
+        // order from 1 to 2, so these are exactly the Gear-2 values below.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 1029, 1.000000000000000e-03, 0.0),
+            ("v(out)", 1029, -6.380437251083911e-02, 0.0),
+            ("i(l1)", 1029, 9.117920253419437e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rlc_series_gear_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -2575,4 +2591,15 @@ fn the_diode_golden_is_self_consistent() {
             "i(v1) = {current}, expected {expected_current} at {swept} V"
         );
     }
+}
+
+/// `maxord` 3..=6 cannot change ngspice's transient (#98): `dctran.c` only
+/// ever raises the integration order from 1 to 2, so the C rawfile of the
+/// Gear `maxord=6` deck holds exactly the values of the default (`maxord=2`)
+/// deck, digit for digit.
+#[test]
+fn gear_maxord6_golden_is_the_gear2_golden() {
+    let maxord6 = RawFile::parse(&golden_text("rlc_series_gear_maxord6_tran")).expect("parses");
+    let gear2 = RawFile::parse(&golden_text("rlc_series_gear_tran")).expect("parses");
+    assert_eq!(maxord6.plots[0].plot, gear2.plots[0].plot);
 }

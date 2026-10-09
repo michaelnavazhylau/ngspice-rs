@@ -219,8 +219,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "rc_sffm_am_tran",
         "rc_sin_tran",
     ];
+    // Gear maxord deck (#98), gated by `xtask golden verify` and
+    // `tests/golden_rawfiles.rs`.
+    let gear_maxord = ["rlc_series_gear_maxord6_tran"];
     on_disk.retain(|name| {
-        !M3_GATE_DECKS.contains(&name.as_str())
+        !gear_maxord.contains(&name.as_str())
+            && !M3_GATE_DECKS.contains(&name.as_str())
             && !m4.contains(&name.as_str())
             && !m7.contains(&name.as_str())
             && !m6.contains(&name.as_str())

@@ -175,6 +175,43 @@ fn pulse_series_rlc_matches_c_for_both_methods() {
 }
 
 #[test]
+#[ignore = "requires NGSPICE_BIN; compares maxord 3..=6 (gear and trap) against C"]
+fn pulse_series_rlc_with_high_maxord_matches_c() {
+    // dctran.c only raises the order from 1 to 2, so every maxord above 1
+    // must reproduce C's (order <= 2) run, for both methods (#98).
+    for (tag, method) in [("gear", "gear"), ("trap", "trap")] {
+        for order in 3..=6 {
+            compare(
+                &format!("rlc-{tag}-maxord{order}"),
+                &format!(
+                    "t\nv1 in 0 pulse(0 1 100u 5u 5u 400u 1m)\nr1 in a 10\nl1 a out 1m\nc1 out 0 1u\n.options method={method} maxord={order}\n.tran 2u 1.5m 0 0.5u\n.end\n"
+                ),
+                2e-6,
+                1.5e-3,
+                &[100e-6, 105e-6, 505e-6, 510e-6, 1.1e-3],
+                &["v(in)", "v(out)", "i(l1)", "i(v1)"],
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; the maxord=6 conformance deck against live C"]
+fn conformance_rlc_gear_maxord6_matches_c() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("conformance/netlists/rlc_series_gear_maxord6_tran.cir");
+    let deck = fs::read_to_string(path).unwrap();
+    compare(
+        "rlc_series_gear_maxord6_tran",
+        &deck,
+        1e-6,
+        1e-3,
+        &[50e-6, 70e-6, 470e-6, 490e-6],
+        &["v(in)", "v(out)", "i(l1)", "i(v1)"],
+    );
+}
+
+#[test]
 #[ignore = "requires NGSPICE_BIN; the committed conformance deck against live C"]
 fn conformance_rc_transient_matches_c() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("conformance/netlists/rc_transient.cir");

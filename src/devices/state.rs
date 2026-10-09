@@ -57,9 +57,11 @@ use std::ops::Range;
 
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
-/// Number of accepted state vectors retained (C `CKTstate1..CKTstate3`):
-/// enough for order-2 integration and truncation-error estimates.
-pub const ACCEPTED_DEPTH: usize = 3;
+/// Number of accepted state vectors retained (C `CKTstate1..CKTstate7` for
+/// `maxord=6`; `cktsetup.c` allocates `max(2, maxord) + 2` vectors): enough
+/// for Gear order-6 integration (six accepted charges) and its
+/// truncation-error estimate (seven).
+pub const ACCEPTED_DEPTH: usize = crate::maths::IntegrationMethod::MAX_GEAR_ORDER as usize + 1;
 
 fn state_error(message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {
@@ -492,7 +494,7 @@ mod tests {
         let mut history = StateHistory::new(2);
         assert_eq!(history.depth(), 0);
         assert_eq!(history.accepted(1), None);
-        for step in 0_u32..5 {
+        for step in 0_u32..9 {
             let mut trial = history.trial();
             let mut device = history.device(&mut trial, 0..2).unwrap();
             assert_eq!(device.depth(), (step as usize).min(ACCEPTED_DEPTH));
@@ -503,11 +505,16 @@ mod tests {
             device.set(1, -f64::from(step)).unwrap();
             history.commit(trial).unwrap();
         }
+        assert_eq!(
+            ACCEPTED_DEPTH, 7,
+            "Gear order 6 needs seven accepted vectors"
+        );
         assert_eq!(history.depth(), ACCEPTED_DEPTH);
-        assert_eq!(history.accepted(1), Some(&[4.0, -4.0][..]));
-        assert_eq!(history.accepted(3), Some(&[2.0, -2.0][..]));
+        assert_eq!(history.accepted(1), Some(&[8.0, -8.0][..]));
+        assert_eq!(history.accepted(3), Some(&[6.0, -6.0][..]));
+        assert_eq!(history.accepted(7), Some(&[2.0, -2.0][..]));
         assert_eq!(history.accepted(0), None);
-        assert_eq!(history.accepted(4), None);
+        assert_eq!(history.accepted(8), None);
         history.clear();
         assert_eq!(history.depth(), 0);
     }

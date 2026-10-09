@@ -1189,10 +1189,38 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 (`source_waveforms.rs`).
 
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
-charge and devices (M4), orders above 2 and
+charge and devices (M4), integration above order 2 (`dctran.c` never selects
+it; `maxord` 3–6 run as 2, see the Gear `maxord` section below) and
 nonlinear device initial conditions on the BDF backend (the companion driver
 gained them with #99, above), and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
+
+## Gear `maxord` 3–6 (#98)
+
+`maxord` 3–6 are accepted for `method=gear` and `method=trap`. ngspice's
+`dctran.c` only ever raises the order from 1 to 2 (`CKTmaxOrder > 1`), so the
+reference binary writes byte-identical rawfiles for `maxord` 2, 3 and 6 on the
+series RLC deck; the port reproduces that policy. Golden
+`rlc_series_gear_maxord6_tran` (`method=gear maxord=6`, captured once with
+`cargo xtask golden capture --netlist`; no existing golden recaptured, no
+tolerance changed; `golden verify` now reports 87 fixtures) verifies under
+`compare::TRAN` with worst error 0.000 of the bound, and
+`golden_rawfiles.rs::gear_maxord6_golden_is_the_gear2_golden` pins that its C
+data equal `rlc_series_gear_tran`'s. Opt-in `c_companion_reference.rs`
+(`pulse_series_rlc_with_high_maxord_matches_c`,
+`conformance_rlc_gear_maxord6_matches_c`) compares gear and trap `maxord`
+3..=6 with live C on a common physical grid: identical point counts, worst
+error 1.8e-7 (gear) and 1.7e-7 (trap) of the `1e-3 |C| + 1 uV / 1 pA` bound.
+
+The order 3–6 Gear operations themselves (`maths::integrator`) are checked
+without C: exact derivatives and predictions for polynomials of degree `k` on
+nonuniform steps (and a detectable error at degree `k + 1`), the fixed-step BDF
+tables, agreement with an independent pivoted solve of `nicomcof.c`'s
+normalized Vandermonde system, the closed-form `CKTterr` bound
+`(trtol tol / max(abstol, c_k |a|))^(1/k)` on degree-`k + 1` polynomials, and
+fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
+(error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
+orders 1-6, asserted within 0.75-1.35 times `2^k`).
 
 ## Not yet verified
 
