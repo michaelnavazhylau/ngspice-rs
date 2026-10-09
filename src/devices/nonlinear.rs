@@ -27,7 +27,7 @@ use crate::devices::schema::{
 use crate::devices::{Device, LinearContext, ModelContext, ResolvedModel, StampContext};
 use crate::maths::Vector;
 use crate::netlist::ast::{DeviceInstance, ParameterAssignment};
-use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
+use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError, SpiceResult};
 
 /// Diode state slot of the limited junction voltage (C `DIOvoltage`).
 const DIODE_VOLTAGE_SLOT: usize = 2;
@@ -312,6 +312,8 @@ pub struct Diode {
     /// value is validated and kept but, exactly as in C, never used: see
     /// the `uic` start in `stamp`.
     initial: crate::devices::initial::InstanceInitial,
+    /// The instance card, for diagnostics of swept replacements.
+    location: SourceLoc,
 }
 /// Typed validated diode parameters as written (nominal temperature values,
 /// instance scale factors kept separate). Temperature-dependent quantities are
@@ -422,6 +424,7 @@ impl Diode {
             junction: [positive, external[1]],
             parameters: p,
             initial,
+            location: instance.location.clone(),
         }))
     }
 }
@@ -486,7 +489,21 @@ impl DiodeParameters {
             dtemp: i.get("dtemp").map_or(0., |v| v.value),
             nominal: m.get("tnom").map(|v| v.value),
         };
-        let location = || instance.location.clone();
+        p.check(&instance.location)?;
+        if p.temperature.is_some() && i.get("dtemp").is_some() {
+            return Err(SpiceError::parse(
+                instance.location.clone(),
+                "diode has both temp= and dtemp= (C ignores dtemp); give one",
+            ));
+        }
+        Ok(p)
+    }
+
+    /// The instance-independent consistency checks of [`Self::new`], shared
+    /// with swept replacements ([`Diode::with_instance_parameter`]).
+    fn check(&self, location: &SourceLoc) -> SpiceResult<()> {
+        let p = self;
+        let location = || location.clone();
         if p.grading >= 1. || p.fc >= 1. || p.mjsw >= 1. || p.fcs >= 1. {
             return Err(SpiceError::parse(
                 location(),
@@ -499,12 +516,6 @@ impl DiodeParameters {
                 "diode needs finite area*m, pj*m",
             ));
         }
-        if p.temperature.is_some() && i.get("dtemp").is_some() {
-            return Err(SpiceError::parse(
-                location(),
-                "diode has both temp= and dtemp= (C ignores dtemp); give one",
-            ));
-        }
         // dioload.c evaluates the common-characteristic sidewall breakdown with
         // `vdsw`, which is only assigned for a separate sidewall (RSW), so C's
         // value there depends on stale solver state rather than on the junction.
@@ -513,7 +524,7 @@ impl DiodeParameters {
                 format!(
                     "{}: diode sidewall current (JSW*PJ > 0) sharing the bottom characteristic \
                      (NS not given) in breakdown (BV given)",
-                    instance.location
+                    location()
                 ),
                 "src/spicelib/devices/dio/dioload.c (common-characteristic sidewall breakdown)",
             ));
@@ -525,12 +536,12 @@ impl DiodeParameters {
                 format!(
                     "{}: diode sidewall depletion charge with grading temperature \
                      coefficients TM1/TM2",
-                    instance.location
+                    location()
                 ),
                 "src/spicelib/devices/dio/diotemp.c, dioload.c (DIOtGradingCoeffSW)",
             ));
         }
-        Ok(p)
+        Ok(())
     }
 
     /// `diotemp.c::DIOtempUpdate` at this run's instance temperature.
@@ -1099,6 +1110,88 @@ impl Device for Diode {
     }
     fn truncation_slot(&self) -> Option<usize> {
         Some(0)
+    }
+    /// `dio.c` `DIOpTable`: AREA, PJ (alias PERIM), M, TEMP and DTEMP, which
+    /// `diotemp.c` re-derives completely (`dctrcurv.c` `DCTsetInstParam`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        match keyword.to_ascii_lowercase().as_str() {
+            "area" => Some("area"),
+            "pj" | "perim" => Some("pj"),
+            "m" => Some("m"),
+            "temp" => Some("temp"),
+            "dtemp" => Some("dtemp"),
+            _ => None,
+        }
+    }
+    /// `DIOparam` then `DIOtemp`: the swept setter replaces the instance value
+    /// (AREA/PJ outrank the model's), every temperature-dependent quantity is
+    /// re-derived from it, and the instance schema domains still apply. A
+    /// swept DTEMP on a diode with an instance TEMP is rejected: C silently
+    /// ignores DTEMP there (`diotemp.c`), as the card-level rule says.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        let mut p = self.parameters;
+        let domain = |ok: bool, what: &str| {
+            if ok && value.is_finite() {
+                Ok(())
+            } else {
+                Err(SpiceError::circuit(format!(
+                    "{}: swept {parameter}={value} must be {what}",
+                    self.name
+                )))
+            }
+        };
+        match parameter {
+            "area" => {
+                domain(value > 0., "positive")?;
+                p.area = value;
+            }
+            "pj" => {
+                domain(value >= 0., "nonnegative")?;
+                p.perimeter = value;
+            }
+            "m" => {
+                domain(value > 0., "positive")?;
+                p.multiplier = value;
+            }
+            "temp" => {
+                domain(value + 273.15 > 0., "above absolute zero")?;
+                p.temperature = Some(value);
+            }
+            "dtemp" if p.temperature.is_some() => {
+                return Err(SpiceError::Unsupported {
+                    feature: format!(
+                        "{}: swept dtemp on a diode with an instance temp (C ignores dtemp)",
+                        self.name
+                    ),
+                    location: Some(self.location.clone()),
+                });
+            }
+            "dtemp" => {
+                domain(true, "finite")?;
+                p.dtemp = value;
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "{}: diode parameter {parameter} cannot be swept",
+                    self.name
+                )));
+            }
+        }
+        p.check(&self.location)?;
+        p.thermal(context)?.point(0., context.gmin)?;
+        Ok(Box::new(Self {
+            name: self.name.clone(),
+            terminals: self.terminals.clone(),
+            junction: self.junction,
+            parameters: p,
+            initial: self.initial.clone(),
+            location: self.location.clone(),
+        }))
     }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {

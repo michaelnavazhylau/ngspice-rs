@@ -1,0 +1,64 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_dc_param_mos1.cir
+title: "MOS1 instance-parameter sweep: @m1[w] nested with @m1[l], sheet-resistance drain/source" @netlists/m8_dc_param_mos1.cir:1:1
+scope root
+  cards (8):
+    [0] options[0] @netlists/m8_dc_param_mos1.cir:2:1 ".options reltol=1e-8"
+    [1] device[0] @netlists/m8_dc_param_mos1.cir:3:1 "vdd d 0 3"
+    [2] device[1] @netlists/m8_dc_param_mos1.cir:4:1 "vg g 0 1.5"
+    [3] device[2] @netlists/m8_dc_param_mos1.cir:5:1 "rd d dd 1k"
+    [4] device[3] @netlists/m8_dc_param_mos1.cir:6:1 "m1 dd g 0 0 nx w=10u l=2u nrd=2 nrs=1 ad=10p as=10p pd=12u ps=12u"
+    [5] model[0] @netlists/m8_dc_param_mos1.cir:7:1 ".model nx nmos(level=1 vto=0.7 kp=50u gamma=0.4 phi=0.6 lambda=0.02 rsh=20 cj=1e-4 cjsw=1e-10 ld=0.1u)"
+    [6] analysis[0] @netlists/m8_dc_param_mos1.cir:8:1 ".dc @m1[w] 5u 25u 5u @m1[l] 1u 3u 1u"
+    [7] end @netlists/m8_dc_param_mos1.cir:9:1 ".end"
+  devices (4):
+    device [0] name="vdd" designator=v @netlists/m8_dc_param_mos1.cir:3:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/m8_dc_param_mos1.cir:3:9
+    device [1] name="vg" designator=v @netlists/m8_dc_param_mos1.cir:4:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.5" @netlists/m8_dc_param_mos1.cir:4:8
+    device [2] name="rd" designator=r @netlists/m8_dc_param_mos1.cir:5:1
+      nodes: "d" "dd"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_dc_param_mos1.cir:5:9
+    device [3] name="m1" designator=m @netlists/m8_dc_param_mos1.cir:6:1
+      nodes: "dd" "g" "0" "0"
+      model: "nx"
+      parameters (8):
+        [0] name="w" kind=scalar value="10u" @netlists/m8_dc_param_mos1.cir:6:16
+        [1] name="l" kind=scalar value="2u" @netlists/m8_dc_param_mos1.cir:6:22
+        [2] name="nrd" kind=scalar value="2" @netlists/m8_dc_param_mos1.cir:6:27
+        [3] name="nrs" kind=scalar value="1" @netlists/m8_dc_param_mos1.cir:6:33
+        [4] name="ad" kind=scalar value="10p" @netlists/m8_dc_param_mos1.cir:6:39
+        [5] name="as" kind=scalar value="10p" @netlists/m8_dc_param_mos1.cir:6:46
+        [6] name="pd" kind=scalar value="12u" @netlists/m8_dc_param_mos1.cir:6:53
+        [7] name="ps" kind=scalar value="12u" @netlists/m8_dc_param_mos1.cir:6:60
+  models (1):
+    model [0] name="nx" base="nmos" level=1e0 @netlists/m8_dc_param_mos1.cir:7:1
+      parameters (10):
+        [0] name="level" kind=scalar value="1" @netlists/m8_dc_param_mos1.cir:7:16
+        [1] name="vto" kind=scalar value="0.7" @netlists/m8_dc_param_mos1.cir:7:24
+        [2] name="kp" kind=scalar value="50u" @netlists/m8_dc_param_mos1.cir:7:32
+        [3] name="gamma" kind=scalar value="0.4" @netlists/m8_dc_param_mos1.cir:7:39
+        [4] name="phi" kind=scalar value="0.6" @netlists/m8_dc_param_mos1.cir:7:49
+        [5] name="lambda" kind=scalar value="0.02" @netlists/m8_dc_param_mos1.cir:7:57
+        [6] name="rsh" kind=scalar value="20" @netlists/m8_dc_param_mos1.cir:7:69
+        [7] name="cj" kind=scalar value="1e-4" @netlists/m8_dc_param_mos1.cir:7:76
+        [8] name="cjsw" kind=scalar value="1e-10" @netlists/m8_dc_param_mos1.cir:7:84
+        [9] name="ld" kind=scalar value="0.1u" @netlists/m8_dc_param_mos1.cir:7:95
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m8_dc_param_mos1.cir:8:1
+      arguments: "@m1[w]" "5u" "25u" "5u" "@m1[l]" "1u" "3u" "1u"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m8_dc_param_mos1.cir:2:1
+      setting [0] name="reltol" value="1e-8"@netlists/m8_dc_param_mos1.cir:2:17 @netlists/m8_dc_param_mos1.cir:2:10
+  globals (0):

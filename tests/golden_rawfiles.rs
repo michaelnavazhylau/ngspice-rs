@@ -2050,6 +2050,87 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(k)", 33, 5.407655948379028e+00, 0.0),
         ],
     },
+    // #97: C names an `@inst[param]` scale `param-sweep` and writes it as a
+    // voltage. The diode's AREA (inner, 0.5..4) multiplies IS, so v(a) falls
+    // by about N Vt ln(8) = 66 mV across it at -20 C; heating (outer -20, 30,
+    // 80 C) lowers it further. The 1 k resistor carries (2 - v(a)) / 1 k.
+    Expectation {
+        fixture: "m8_dc_param_diode",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 24,
+        variables: &["v(param-sweep)", "v(a)", "v(in)", "i(v1)"],
+        values: &[
+            ("v(param-sweep)", 0, 5.000000000000000e-01, 0.0),
+            ("v(a)", 0, 8.362909664457829e-01, 0.0),
+            ("i(v1)", 0, -1.163709033554217e-03, 0.0),
+            ("v(param-sweep)", 7, 4.000000000000000e+00, 0.0),
+            ("v(a)", 7, 7.675757347799221e-01, 0.0),
+            ("v(param-sweep)", 16, 5.000000000000000e-01, 0.0),
+            ("v(a)", 23, 6.052476121547538e-01, 0.0),
+        ],
+    },
+    // E's gain (outer -2, 0, 2) sets v(eo) = gain * 1 V; G's swept gain is
+    // multiplied by the card's m=3 (`VCCSparam`), so v(go) = gain * 3 *
+    // v(eo) * 1 k: -6 V at 1 mS and v(eo) = -2 V, zero while v(eo) = 0.
+    Expectation {
+        fixture: "m8_dc_param_gain",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 15,
+        variables: &[
+            "v(param-sweep)",
+            "i(e1)",
+            "v(eo)",
+            "v(go)",
+            "v(in)",
+            "i(v1)",
+        ],
+        values: &[
+            ("v(param-sweep)", 0, 1.000000000000000e-03, 0.0),
+            ("v(eo)", 0, -2.000000000000000e+00, 0.0),
+            ("v(go)", 0, -6.000000000000000e+00, 0.0),
+            ("v(go)", 7, 0.0, 0.0),
+            ("v(go)", 14, 1.800000000000000e+01, 0.0),
+            ("i(e1)", 14, -2.000000000000000e-03, 0.0),
+        ],
+    },
+    // Saturated NMOS: Id = KP/2 W/(L - 2 LD) (Vgs - VTO)^2 (1 + LAMBDA Vds),
+    // about 0.105 mA at W = 5u, L = 1u, roughly proportional to W (inner) and
+    // inversely to the effective length (outer 1u, 2u, 3u); RSH*NRS slightly
+    // degenerates the source.
+    Expectation {
+        fixture: "m8_dc_param_mos1",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 15,
+        variables: &["v(param-sweep)", "v(d)", "v(dd)", "v(g)", "i(vdd)", "i(vg)"],
+        values: &[
+            ("v(param-sweep)", 0, 5.000000000000000e-06, 0.0),
+            ("i(vdd)", 0, -1.050792717875804e-04, 0.0),
+            ("i(vdd)", 4, -5.079976774109523e-04, 0.0),
+            ("i(vdd)", 14, -1.495588365521305e-04, 0.0),
+            ("v(dd)", 14, 2.850441163447869e+00, 0.0),
+            ("i(vg)", 14, 0.0, 0.0),
+        ],
+    },
+    // C names a resistor scale `res-sweep` (type `res-sweep`). The swept
+    // supplied value is scaled by scale/m = 1/2 and TC1 = 0.01: 500 ohm at
+    // 27 C gives v(out) = 2 * 1k / 1.5k; at 47 C 600 ohm gives 1.25 V.
+    Expectation {
+        fixture: "m8_dc_res_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 6,
+        variables: &["res-sweep", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("res-sweep", 0, 1.000000000000000e+03, 0.0),
+            ("v(out)", 0, 1.333333333333333e+00, 0.0),
+            ("v(out)", 3, 1.250000000000000e+00, 0.0),
+            ("res-sweep", 5, 2.000000000000000e+03, 0.0),
+            ("v(out)", 5, 9.090909090909091e-01, 0.0),
+        ],
+    },
     Expectation {
         fixture: "m7_diode_temp_ac",
         plotname: "AC Analysis",

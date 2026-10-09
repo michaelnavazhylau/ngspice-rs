@@ -1,0 +1,9 @@
+MOS1 instance-parameter sweep: @m1[w] nested with @m1[l], sheet-resistance drain/source
+.options reltol=1e-8
+vdd d 0 3
+vg g 0 1.5
+rd d dd 1k
+m1 dd g 0 0 nx w=10u l=2u nrd=2 nrs=1 ad=10p as=10p pd=12u ps=12u
+.model nx nmos(level=1 vto=0.7 kp=50u gamma=0.4 phi=0.6 lambda=0.02 rsh=20 cj=1e-4 cjsw=1e-10 ld=0.1u)
+.dc @m1[w] 5u 25u 5u @m1[l] 1u 3u 1u
+.end

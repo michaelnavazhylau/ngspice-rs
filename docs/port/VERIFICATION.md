@@ -78,6 +78,41 @@ relative, well inside the 1e-6 nonlinear bound the test enforces.
 - With `NGSPICE_BIN` set, all **75** opt-in live-C tests pass, including the five
   new `c_tf_reference` tests.
 
+## M8 DC parameter sweeps (#97)
+
+What the reference binary sweeps was established first (see
+[DC_SWEEPS.md](DC_SWEEPS.md#what-c-sweeps-97)): two nesting levels, sources,
+resistors, `temp` and settable real *instance* parameters `@inst[param]`;
+model parameters and `.param` names are rejected by C. Four new C goldens, each
+captured once with `cargo xtask golden capture --netlist <name>` after the deck
+had been checked against the same binary in a scratch copy; no existing golden
+was recaptured and no tolerance changed. `golden verify` now reports 90
+fixtures.
+
+| Fixture | Gate | Covers |
+| --- | --- | --- |
+| `m8_dc_param_diode` | `compare::NONLINEAR` | `@d1[area]` (RS internal node) x circuit `temp`, 24 points |
+| `m8_dc_param_mos1` | `compare::NONLINEAR` | `@m1[w]` x `@m1[l]`, RSH drain/source nodes, 15 points |
+| `m8_dc_param_gain` | `compare::DC` | `@g1[gain]` scaled by the card's `m` x `@e1[gain]`, 15 points |
+| `m8_dc_res_temp` | `compare::DC` | `.dc r1` x `temp` on a model-backed resistor (`res-sweep` scale), 6 points |
+
+The nonlinear decks set `.options reltol=1e-8`: at C's default the
+warm-started diode points stop ~3e-4 V short of the root. `golden verify` now
+also projects C's `res-sweep` (type `res-sweep`) and `v(param-sweep)` (type
+voltage) scales onto the Rust `sweep` column. The opt-in
+`c_dc_param_sweep_reference` runs 15 further decks against the live binary
+(linear at `1e-12 |C| + 1e-15`, nonlinear at the `NONLINEAR` bound); it also
+detects C's BJT AREAB quirk (a variant that rescaled AREAB with AREA failed at
+`v(cc)`, 0.122 V versus C's 0.106 V).
+
+- `cargo test --workspace --locked`: **1119 passed / 0 failed / 73 ignored**;
+  fmt and Clippy (`-D warnings`) clean.
+- `cargo xtask golden verify`: **90 verified / 0 unsupported / 0 failures**;
+  `golden check` reproduces all 90 fixtures; `cargo xtask snapshots`: 258
+  snapshots, 8 created for the new decks.
+- With an absolute `NGSPICE_BIN`, all **73** opt-in live-C checks pass,
+  including the existing `c_dc_sweep_reference`.
+
 ## M7 nonlinear initial conditions (#99)
 
 Six new C goldens, each captured once with `cargo xtask golden capture
