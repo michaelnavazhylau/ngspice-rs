@@ -474,6 +474,51 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m7_zener_tran", &[]),
+    // Gummel-Poon BJT (#87): a Gummel plot (VBC = 0 sweep of VBE), nested
+    // output characteristics (VCE inner, IB outer), a temperature sweep of
+    // NPN/PNP/TLEV=3 devices with series resistances and a substrate junction,
+    // and a CE amplifier's AC response and transient with every charge. The
+    // DC/AC decks set `.option reltol=1e-8` so that C's convergence test (and
+    // bypass) leave a result within the nonlinear 1 ppm bound of the shared
+    // root; the transient keeps `compare::TRAN`. No BDF variant: the diffsol
+    // backend rejects nonlinear devices.
+    Supported {
+        name: "m7_bjt_gummel",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_bjt_output",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_bjt_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_bjt_amp_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m7_bjt_amp_tran", &[]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -812,17 +857,27 @@ fn run_card(
         && got.variables.first().is_some_and(|v| v.name == "sweep")
     {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
-        // independent-source scale in the voltage/current naming convention
-        // and names a `.dc temp` scale `temp-sweep` of type `temp-sweep`
-        // (`dctrcurv.c`).
-        let scale = &mut got.variables[0];
-        match scale.unit.as_str() {
-            "voltage" => scale.name = "v(v-sweep)".into(),
-            "temperature" => {
-                scale.name = "temp-sweep".into();
-                scale.unit = "temp-sweep".into();
+        // independent-source scale in the voltage/current naming convention,
+        // and names a temperature scale (and its unit) `temp-sweep`.
+        let (name, unit) = match got.variables[0].unit.as_str() {
+            "voltage" => ("v(v-sweep)", None),
+            "temperature" => ("temp-sweep", Some("temp-sweep")),
+            _ => ("i(i-sweep)", None),
+        };
+        got.variables[0].name = name.into();
+        if let Some(unit) = unit {
+            got.variables[0].unit = unit.into();
+        }
+        // A nested sweep's outer value is a Rust-only `sweep(<name>)` column;
+        // C writes every point of a nested `.dc` without it (the outer source
+        // value is still checked through the node voltages and currents).
+        for column in (1..got.variables.len()).rev() {
+            if got.variables[column].name.starts_with("sweep(") {
+                got.variables.remove(column);
+                for row in &mut got.points {
+                    row.remove(column);
+                }
             }
-            _ => scale.name = "i(i-sweep)".into(),
         }
     }
     Ok((request, got))

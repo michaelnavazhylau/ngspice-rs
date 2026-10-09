@@ -1,10 +1,29 @@
 # Verification
 
+## M7 Gummel-Poon BJT (#87)
+
+Five new C goldens, each captured individually with `cargo xtask golden
+capture --netlist <name>` (no existing golden recaptured, no tolerance
+changed): `m7_bjt_gummel` (VBC = 0 Gummel plot), `m7_bjt_output` (nested VCE/IB
+output characteristics), `m7_bjt_temp` (`.dc temp` over NPN, lateral PNP with
+substrate, TLEV=3/TLEVC=1), `m7_bjt_amp_ac` and `m7_bjt_amp_tran` (CE amplifier
+at 50 C with every charge). They set `.option reltol=1e-8` because C's default
+reltol with bypass stops these sweeps about 4e-4 from the converged root, far
+outside the 1 ppm `compare::NONLINEAR` bound; with it the worst DC/AC errors are
+below 0.1 of that bound and the transient's 0.039 of `compare::TRAN`.
+
+`golden verify` projects two C naming conventions onto the Rust plot: a
+temperature scale becomes `temp-sweep` (name and unit), and the Rust-only
+`sweep(<outer>)` column of a nested sweep is dropped (C writes the points
+without it; the outer value is still visible through the circuit's voltages).
+The three new `c_bjt_reference` live-C comparisons are opt-in via `NGSPICE_BIN`. Ten new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#bjt).
+
 ## M7 diode physics (#86)
 
 Five new C goldens, each captured individually with `cargo xtask golden
 capture --netlist <name>` (no existing golden recaptured or tolerance changed),
-are registered in `golden verify` (64 verified fixtures): `m7_zener_dc` (a Zener
+are registered in `golden verify`: `m7_zener_dc` (a Zener
 shunt regulator swept from forward conduction through reverse breakdown),
 `m7_diode_physics_dc` (recombination, tunnelling, IKF/IKR/IKP knees, NS-sidewall
 breakdown), `m7_diode_temp_dc` (`.dc temp -40 125 5`: EG/XTI/TNOM, TLEV 2,

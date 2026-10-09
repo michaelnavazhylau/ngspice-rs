@@ -1,0 +1,22 @@
+Gummel-Poon BJT temperature sweep
+vcc vcc 0 5
+rb1 vcc nb 47k
+rb2 nb 0 10k
+rc1 vcc nc 2.2k
+re1 ne 0 470
+q1 nc nb ne qn
+rb3 0 pb 47k
+rb4 pb vcc 10k
+rc2 pc 0 2.2k
+re2 vcc pe 470
+q2 pc pb pe sub qp
+vsub sub 0 0
+rb5 vcc fb 100k
+re3 fe 0 1k
+q3 vcc fb fe qt dtemp=10 area=2 areab=1.5 m=2
+.options reltol=1e-8
+.model qn npn(is=1e-15 bf=120 vaf=80 ikf=50m ise=2e-14 ne=1.6 rb=50 re=0.5 rc=5 xtb=1.6 xti=3.5 eg=1.12)
+.model qp pnp(is=5e-16 bf=60 br=3 vaf=40 ikf=10m isc=1e-14 nc=1.7 rb=80 rbm=20 irb=1m re=1 rc=10 tlev=1 xtb=0.004 trb1=2m tre1=1m trc1=3m tvaf1=-1m tbr1=1m iss=1e-17 ns=1.1 tnom=35)
+.model qt npn(is=1e-15 ibe=2e-15 ibc=3e-15 bf=90 ikf=5m nkf=0.6 ise=1e-14 tlev=3 tis1=-5e-4 tise1=-2e-4 tbf1=3m tnf1=1e-4 tlevc=1 cje=1p cte=1m)
+.dc temp -40 125 15
+.end
