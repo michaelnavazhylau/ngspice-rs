@@ -7,10 +7,9 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use spice_analysis::DRIVERS;
-use spice_analysis::has_driver;
+use spice_analysis::{AnalysisSupport, DRIVERS};
 use spice_core::{AnalysisKind as Kind, SpiceResult};
-use spice_devices::Registry;
+use spice_devices::{DeviceSupport, Registry};
 use spice_netlist::{Deck, RawCard, classify_deck, load};
 
 /// Process exit codes. See the crate documentation.
@@ -429,8 +428,9 @@ pub fn summary_text(deck: &Deck, cards: &[RawCard], auto_gnd: bool) -> String {
     );
     let _ = writeln!(
         out,
-        "port:     {} of {} device designators implemented; {} of {} analysis drivers present",
+        "port:     {} ported and {} bounded of {} device designators; {} of {} analysis drivers present",
         registry.ported_count(),
+        registry.bounded_count(),
         registry.len(),
         DRIVERS.len(),
         Kind::ALL.len()
@@ -472,25 +472,37 @@ pub fn tokens_text(cards: &[RawCard]) -> String {
     out
 }
 
-/// Renders the device registry.
+/// Renders the device registry: `ported` devices build from their card,
+/// `bounded` ones only from a deck (with the subset built), `pending` ones are
+/// refused with their C reference.
 #[must_use]
 pub fn devices_text(registry: &Registry) -> String {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "{} device designator(s), {} implemented",
+        "{} device designator(s): {} ported, {} bounded, {} pending",
         registry.len(),
-        registry.ported_count()
+        registry.ported_count(),
+        registry.bounded_count(),
+        registry.len() - registry.ported_count() - registry.bounded_count()
     );
+    let width = registry
+        .entries()
+        .map(|entry| entry.description.chars().count())
+        .max()
+        .unwrap_or(0);
     for entry in registry.entries() {
         let _ = writeln!(
             out,
-            "  {}  {:<42} {:<9} {}",
+            "  {}  {:<width$}  {:<7}  {}",
             entry.designator,
             entry.description,
-            if entry.ported { "ported" } else { "pending" },
+            entry.support.label(),
             entry.c_reference
         );
+        if let DeviceSupport::Bounded { scope } = entry.support {
+            let _ = writeln!(out, "     {:<width$}  {:<7}  built: {scope}", "", "");
+        }
     }
     out
 }
@@ -501,21 +513,26 @@ pub fn analyses_text() -> String {
     let mut out = String::new();
     let _ = writeln!(out, "{} analysis kind(s)", Kind::ALL.len());
     for kind in Kind::ALL {
+        let status = match spice_analysis::support(kind) {
+            AnalysisSupport::Driver => "driver (bounded subset)".to_owned(),
+            AnalysisSupport::PostProcessor { of } => {
+                format!("post-processes the .{} plot", of.as_str())
+            }
+            AnalysisSupport::Missing => "no driver".to_owned(),
+        };
         let _ = writeln!(
             out,
-            "  .{:<8} {:<24} {}",
+            "  .{:<8} {:<24} {status}",
             kind.as_str(),
-            kind_name(kind),
-            if has_driver(kind) {
-                "linear driver (bounded subset)"
-            } else {
-                "no driver"
-            }
+            kind_name(kind)
         );
     }
     let _ = writeln!(
         out,
-        "\nLinear R/C/L/V/I only; .tran runs the trap/Gear companion driver (backend=diffsol method=bdf selects BDF). See docs/port/TRANSIENT.md."
+        "\nDevices: see `spice-rs devices` (linear, controlled, behavioural, K, switches and bounded \
+         diode/BJT/MOS1). Every analysis card of a deck runs, in ngspice batch order. \
+         .tran runs the trap/Gear companion driver (backend=diffsol method=bdf selects BDF \
+         for linear decks). See docs/port/CLI.md and docs/port/TRANSIENT.md."
     );
     out
 }
@@ -654,7 +671,10 @@ r2 out 0 1k
         assert!(text.contains("dot commands:     3"), "{text}");
         assert!(text.contains("by designator:    r(2) v(1)"), "{text}");
         assert!(text.contains("analyses: .tran"), "{text}");
-        assert!(text.contains("port:     11 of"), "{text}");
+        assert!(
+            text.contains("port:     11 ported and 6 bounded of 26 device designators"),
+            "{text}"
+        );
     }
 
     #[test]
@@ -674,11 +694,33 @@ r2 out 0 1k
     }
 
     #[test]
-    fn the_device_list_distinguishes_ported_from_pending() {
+    fn the_device_list_distinguishes_ported_bounded_and_pending() {
         let text = devices_text(&Registry::with_builtins());
-        assert!(text.contains("pending"), "{text}");
+        assert!(
+            text.starts_with("26 device designator(s): 11 ported, 6 bounded, 9 pending"),
+            "{text}"
+        );
+        let status = |letter: char| {
+            text.lines()
+                .find(|line| line.starts_with(&format!("  {letter}  ")))
+                .and_then(|line| {
+                    line.split_whitespace()
+                        .find(|word| matches!(*word, "ported" | "bounded" | "pending"))
+                })
+                .unwrap_or_else(|| panic!("no status for {letter}\n{text}"))
+        };
+        for letter in ['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k'] {
+            assert_eq!(status(letter), "ported", "{letter}");
+        }
+        for letter in ['d', 'q', 'm', 's', 'w', 'x'] {
+            assert_eq!(status(letter), "bounded", "{letter}");
+        }
+        for letter in ['j', 'z', 't', 'o', 'y', 'u', 'n', 'p', 'a'] {
+            assert_eq!(status(letter), "pending", "{letter}");
+        }
+        assert!(text.contains("built: MOS1 (level 1)"), "{text}");
         assert!(text.contains("inp2r.c"), "{text}");
-        assert!(text.contains("ported"), "{text}");
+        assert!(text.contains("devices/ind/mutsetup.c"), "{text}");
     }
 
     #[test]
@@ -687,7 +729,21 @@ r2 out 0 1k
         for kind in spice_core::AnalysisKind::ALL {
             assert!(text.contains(kind.as_str()), "missing {kind:?}\n{text}");
         }
-        assert!(text.contains("linear driver (bounded subset)"), "{text}");
-        assert!(text.contains("no driver"), "{text}");
+        let line = |name: &str| {
+            text.lines()
+                .find(|line| line.trim_start().starts_with(name))
+                .unwrap_or_else(|| panic!("{name}\n{text}"))
+        };
+        for name in [".op ", ".dc ", ".ac ", ".tran "] {
+            assert!(line(name).ends_with("driver (bounded subset)"), "{text}");
+        }
+        assert!(
+            line(".four ").ends_with("post-processes the .tran plot"),
+            "{text}"
+        );
+        for name in [".noise ", ".disto ", ".pz ", ".sens ", ".tf "] {
+            assert!(line(name).ends_with("no driver"), "{text}");
+        }
+        assert!(!text.contains("Linear R/C/L/V/I only"), "{text}");
     }
 }

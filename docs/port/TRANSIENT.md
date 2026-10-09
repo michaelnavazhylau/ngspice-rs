@@ -311,7 +311,9 @@ both limits of the single in-run breakpoint; worst error 0.000 of the bound).
 
 ## Limits
 
-* Linear R/C/L/V/I only; nonlinear charge and devices arrive with M4.
+* Devices: those `spice-rs devices` lists as `ported` or `bounded`; each
+  device guide states its transient limits (the diffsol BDF backend rejects
+  nonlinear devices and switches).
 * Orders above 2 are rejected; `.ic`/`uic`/instance `ic=` exist only on this
   driver (explicit errors with `backend=diffsol`).
 * No predictor (`PREDICTOR` is optional in C); the previous solution seeds Newton.

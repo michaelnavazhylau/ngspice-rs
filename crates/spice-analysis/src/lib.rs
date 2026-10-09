@@ -45,7 +45,8 @@ pub mod sweep;
 mod transient;
 
 pub use analysis::{
-    Analysis, AnalysisContext, AnalysisRequest, DRIVERS, NodeCondition, has_driver, runner,
+    Analysis, AnalysisContext, AnalysisRequest, AnalysisSupport, DRIVERS, NodeCondition,
+    has_driver, runner, support,
 };
 pub use companion::{TransientStats, companion_transient};
 pub use config::{

@@ -302,7 +302,8 @@ impl Analysis for Transient {
     }
 }
 
-/// Analyses with production drivers for the documented bounded linear subset.
+/// Analyses with production drivers, for the devices and options documented
+/// under `docs/port/`.
 pub const DRIVERS: [AnalysisKind; 4] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
@@ -316,12 +317,42 @@ pub fn has_driver(kind: AnalysisKind) -> bool {
     DRIVERS.contains(&kind)
 }
 
+/// What the port does with an analysis card (`spice-rs analyses`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalysisSupport {
+    /// A production driver ([`runner`]).
+    Driver,
+    /// Not an analysis of its own: evaluated over the plot of `of`, as
+    /// `.four` is over the final `.tran` plot ([`crate::fourier`]).
+    PostProcessor {
+        /// The analysis whose plot is post-processed.
+        of: AnalysisKind,
+    },
+    /// No driver: the card is refused.
+    Missing,
+}
+
+/// The port's support for an analysis kind.
+#[must_use]
+pub fn support(kind: AnalysisKind) -> AnalysisSupport {
+    if has_driver(kind) {
+        AnalysisSupport::Driver
+    } else if kind == AnalysisKind::Fourier {
+        AnalysisSupport::PostProcessor {
+            of: AnalysisKind::Transient,
+        }
+    } else {
+        AnalysisSupport::Missing
+    }
+}
+
 /// The driver for an analysis.
 ///
 /// # Errors
 ///
-/// [`SpiceError::Unsupported`] for the analyses that are not on the roadmap yet
-/// (`.noise`, `.disto`, `.pz`, `.sens`, `.tf`, `.four`). See
+/// [`SpiceError::Unsupported`] for the analyses without a driver (`.noise`,
+/// `.disto`, `.pz`, `.sens`, `.tf`) and for `.four`, which is not a driver but
+/// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
     let driver: Box<dyn Analysis> = match kind {

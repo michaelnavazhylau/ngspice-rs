@@ -10,6 +10,23 @@ use spice_netlist::{
     ast::{DeviceInstance, ParameterKind, PositionedValue, SourceFunction, SourceWaveform},
 };
 
+/// Designators [`instantiate`] builds from the card alone (the registry's
+/// `ported` entries). `tests/registry_support.rs` elaborates one instance of
+/// every designator to keep this list and [`ELABORATED`] honest.
+pub(crate) const CARD_FACTORY: &[char] = &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k'];
+
+/// Designators built only while elaborating a deck, with the subset built:
+/// D/Q/M/S/W from a resolved `.model` card ([`instantiate_with_models`]) and X
+/// by subcircuit expansion (`crate::subckt`). The registry's `bounded` entries.
+pub(crate) const ELABORATED: &[(char, &str)] = &[
+    ('d', "junction diode (dioload.c subset)"),
+    ('q', "Ebers-Moll BJT (bjtload.c subset)"),
+    ('m', "MOS1 (level 1)"),
+    ('s', "voltage-controlled switch (companion .tran, no BDF)"),
+    ('w', "current-controlled switch (companion .tran, no BDF)"),
+    ('x', "expanded before device elaboration"),
+];
+
 pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Box<dyn Device>> {
     let deck = Deck {
         path: card.location.path().to_path_buf(),

@@ -345,7 +345,11 @@ fn programmatic_construction_validates_kinds_and_gains() {
 fn the_registry_builds_all_four_from_cards() {
     let registry = Registry::with_builtins();
     for designator in ['e', 'f', 'g', 'h'] {
-        assert!(registry.get(designator).unwrap().ported, "{designator}");
+        assert_eq!(
+            registry.get(designator).unwrap().support,
+            spice_devices::DeviceSupport::Ported,
+            "{designator}"
+        );
     }
     let card = |text: &str| {
         let deck = parse_deck_text(Path::new("card.cir"), &format!("title\n{text}\n"));

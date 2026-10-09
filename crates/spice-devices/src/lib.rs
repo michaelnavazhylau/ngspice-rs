@@ -78,7 +78,7 @@ pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
-pub use registry::{DeviceEntry, Registry};
+pub use registry::{DeviceEntry, DeviceSupport, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, IterationPhase, StateHistory, TrialState};
 pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};

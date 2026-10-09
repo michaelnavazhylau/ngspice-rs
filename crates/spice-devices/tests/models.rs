@@ -571,7 +571,10 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
     }
     for d in ['d', 'q', 'm'] {
         let registry = Registry::with_builtins();
-        assert!(!registry.get(d).unwrap().ported);
+        assert!(matches!(
+            registry.get(d).unwrap().support,
+            spice_devices::DeviceSupport::Bounded { .. }
+        ));
         let n = deck(&format!(
             "{}\n.model mdl {}",
             instance(d),
@@ -588,12 +591,12 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
         )
         .unwrap();
         let mut table = NodeTable::new();
-        assert!(
-            registry
-                .instantiate(&raw, &mut table)
-                .unwrap_err()
-                .is_not_yet_ported()
-        );
+        // The card alone has no model: the registry points at deck
+        // elaboration, which builds the device.
+        assert!(matches!(
+            registry.instantiate(&raw, &mut table).unwrap_err(),
+            SpiceError::Unsupported { feature, .. } if feature.contains("from_netlist")
+        ));
         assert!(table.is_empty());
         assert!(Circuit::from_netlist(&n).is_ok());
     }

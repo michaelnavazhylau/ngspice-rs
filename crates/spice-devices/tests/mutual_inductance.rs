@@ -37,7 +37,7 @@ const PAIR: &str = "r1 a 0 1\nr2 b 0 1\nl1 a 0 1m\nl2 b 0 4m";
 fn the_registry_ports_k_with_the_ind_references() {
     let registry = Registry::with_builtins();
     let entry = registry.get('K').unwrap();
-    assert!(entry.ported);
+    assert_eq!(entry.support, spice_devices::DeviceSupport::Ported);
     assert!(entry.c_reference.contains("inp2k.c"), "{entry:?}");
     assert!(entry.c_reference.contains("ind/mutsetup.c"), "{entry:?}");
     assert!(!entry.c_reference.contains("cpl"), "{entry:?}");

@@ -473,7 +473,11 @@ fn invalid_instances_are_explicit_errors() {
 #[test]
 fn the_registry_builds_b_sources_from_cards() {
     let registry = Registry::with_builtins();
-    assert!(registry.get('b').is_some_and(|entry| entry.ported));
+    assert!(
+        registry
+            .get('b')
+            .is_some_and(|entry| entry.support == spice_devices::DeviceSupport::Ported)
+    );
     let deck = parse_deck_text(Path::new("b.cir"), "t\nb1 a 0 v=2*v(c)+i(v1)\n");
     let card = RawCard::parse(&deck.lines[0]).unwrap();
     let mut nodes = spice_core::NodeTable::new();
