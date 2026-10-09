@@ -271,6 +271,80 @@ const SUPPORTED: &[Supported] = &[
     // `compare::TRAN` floor at small values (about 1e-8 A on the sub-uA
     // currents right after the 20 us edge), so the BDF run is peak-scaled.
     tran("controlled_tran", &[DIFFSOL_BDF_RESTART]),
+    // K mutual inductance (#80): a 1:2 transformer, a three-winding K inside a
+    // subcircuit and a negative coupling in AC; a PULSE transformer transient
+    // (trapezoidal companions on the coupled flux); and coupled `ic=` free
+    // decay under `uic` with Gear-2. All linear: the linear AC bound and
+    // `compare::TRAN`. No BDF variant for `transformer_tran`: the k = 0.99
+    // leakage time constant (about 0.6 us) is shorter than C's backward-Euler
+    // restart step after each pulse corner, and C's resulting error (1 % of
+    // i(l1) at t = 2 us, measured against a reltol = 1e-7 companion run that
+    // the BDF result matches to 1e-6) exceeds even `compare::TRAN_RESTART`.
+    // The BDF backend's coupled mass matrix is instead checked against that
+    // tight reference in `spice-analysis/tests/mutual_inductance.rs`.
+    Supported {
+        name: "transformer_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    tran("transformer_tran", &[]),
+    tran("transformer_ic_uic_tran", &[]),
+    tran("transformer_model_uic_tran", &[]),
+    // S/W switches (#81): hysteresis bands, ON/OFF flags, gmin off conductance
+    // and a W latch at an operating point, and a downward `.dc` sweep whose
+    // points continue the previous point's accepted switch state. Switches
+    // are nonlinear devices, so the nonlinear 1 ppm bound applies.
+    Supported {
+        name: "switch_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "switch_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // PULSE/SIN-controlled S, a self-controlled relaxation oscillator and W
+    // switches sensing SIN/PULSE currents. Every plotted node is a source or
+    // capacitor node, so no plotted value jumps between samples where a switch
+    // flips. No BDF variant: the diffsol backend rejects switches (no
+    // immutable linear assembly).
+    tran("switch_tran", &[]),
+    tran("switch_w_tran", &[]),
+    // A `.dc` with a decimal step: C's accumulated sweep values decide
+    // switches at their thresholds (`dctrcurv.c` `value += step`).
+    Supported {
+        name: "switch_dc_decimal",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // AC uses C's MODEINITSMSIG switch state (the zero CKTstate1: open), not
+    // the operating point's.
+    Supported {
+        name: "switch_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
     // Behavioural sources (#79): B sources over node voltages, branch
     // currents, time and temper in OP, a DC sweep, the AC linearisation at the
     // bias point and a time-dependent transient; E/G VALUE= lowered onto B
@@ -333,7 +407,8 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::NONLINEAR,
         },
         variants: &[],
-    }, // B sources whose sqrt/log/reciprocal/division slopes are ~1e32 (or whose
+    },
+    // B sources whose sqrt/log/reciprocal/division slopes are ~1e32 (or whose
     // log() is -1e99) at the 0 V Newton start, in OP, a DC sweep and a
     // transient's initial point (#79); the Newton solve's balanced fallback.
     Supported {

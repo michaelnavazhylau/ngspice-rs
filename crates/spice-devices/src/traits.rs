@@ -71,6 +71,48 @@ pub struct ControlReference {
     pub location: Option<SourceLoc>,
 }
 
+/// One mutual-inductance term of an inductor's branch equation: the branch
+/// row of a coupled inductor and the mutual inductance `M` in henries.
+///
+/// [`crate::Circuit`] derives these from the K devices that name the
+/// inductor (C `MUTtemp`: `M = k sqrt(|L1 L2|)`) and passes them to the
+/// inductor in [`StampContext::mutual`] and [`crate::LinearContext::mutual`].
+/// The inductor's flux is then `L i + sum(M i_other)` (`indload.c` adds the
+/// mutual flux to `INDflux`), so its companion model, its truncation error
+/// and its `uic` initial flux all see the coupled flux. Duplicate couplings
+/// of one pair are summed, as C's loads sum them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MutualTerm {
+    /// Branch-current row of the coupled inductor.
+    pub row: usize,
+    /// Mutual inductance in henries (may be negative).
+    pub inductance: Real,
+}
+
+/// The inductance of an inductor, as mutual coupling sees it
+/// ([`Device::inductance`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InductanceValue {
+    /// The self inductance the inductor stamps (C `INDinduct / INDm`).
+    pub effective: Real,
+    /// The inductance `MUTtemp` uses in `M = k sqrt(|L1 L2|)` (C
+    /// `INDinduct`, after temperature and scale but before dividing by the
+    /// multiplicity `m`).
+    pub coupling_base: Real,
+}
+
+/// What a K (mutual inductance) device couples: every pair of the named
+/// inductors with the same coefficient ([`Device::mutual_coupling`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MutualCoupling<'a> {
+    /// The coupled inductors' instance names (after subcircuit renaming).
+    pub inductors: &'a [ControlReference],
+    /// The coupling coefficient `k`.
+    pub coefficient: Real,
+    /// Where the K card was written, for diagnostics.
+    pub location: Option<&'a SourceLoc>,
+}
+
 /// Which analysis is currently loading the matrix.
 ///
 /// Devices branch on this the way the C `CKTmode` bitmask does: a capacitor
@@ -243,6 +285,9 @@ pub struct StampContext<'a> {
     /// Branch rows of the devices named by [`Device::controlling_sources`], in
     /// that order (empty for devices that sense no branch current).
     pub controls: &'a [usize],
+    /// Mutual-inductance terms of this device's branch equation (empty except
+    /// for inductors named by a K device); see [`MutualTerm`].
+    pub mutual: &'a [MutualTerm],
     /// Companion integration coefficients for this trial step; `None` outside
     /// companion transient loads.
     pub integration: Option<&'a Coefficients>,
@@ -393,6 +438,13 @@ pub trait Device: fmt::Debug {
         false
     }
 
+    /// True when the device holds a discrete state (a switch position) that
+    /// a last-bit change of its control can flip, so drivers must reproduce
+    /// C's exact control values (e.g. `dctrcurv.c`'s accumulated sweep values).
+    fn has_discrete_state(&self) -> bool {
+        false
+    }
+
     /// How many state slots (C `CKTnumStates`) the device owns. Slots are
     /// allocated after the branch rows, in device order.
     fn state_count(&self) -> usize {
@@ -414,11 +466,33 @@ pub trait Device: fmt::Debug {
         self.truncation_slot().into_iter().collect()
     }
 
+    /// The coupling a K (mutual inductance) device describes; `None` (the
+    /// default) for every other device. [`crate::Circuit`] resolves the names
+    /// to inductors and hands each one its [`MutualTerm`]s.
+    fn mutual_coupling(&self) -> Option<MutualCoupling<'_>> {
+        None
+    }
+
+    /// The inductance under `context` when this device is an inductor that a
+    /// K device may couple (C `CKTfndDev` on an inductor instance); `None`
+    /// (the default) for everything else.
+    fn inductance(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<InductanceValue>> {
+        None
+    }
+
     /// The charge/flux-storage description used to seed initial conditions
     /// (`CAPgetic`/`INDgetic`-style `ic=` handling, see `capload.c`/`indload.c`).
     /// `None` (the default) for devices that store no charge or flux in the
-    /// state slots named by [`Self::truncation_slot`].
-    fn storage_element(&self) -> Option<StorageElement> {
+    /// state slots named by [`Self::truncation_slot`]. The value is evaluated
+    /// under `context` (model-backed C/L depend on temperature, TC, scale and
+    /// `m`).
+    fn storage_element(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<StorageElement>> {
         None
     }
 
@@ -473,6 +547,19 @@ pub trait Device: fmt::Debug {
         Ok(())
     }
 
+    /// An upper bound on the next transient step from this device's discrete
+    /// state (C `DEVtrunc` of devices without charge storage, e.g.
+    /// `swtrunc.c`), or `None` (the default) for no bound. Called for an
+    /// accepted-candidate trial alongside the charge/flux truncation estimate;
+    /// a bound at or below `0.9 dt` rejects the trial.
+    ///
+    /// # Errors
+    ///
+    /// Device-specific failures.
+    fn timestep_limit(&self, _context: &TruncationContext<'_>) -> SpiceResult<Option<Real>> {
+        Ok(None)
+    }
+
     /// Physical metadata when this device is a two-terminal resistor a typed
     /// `.dc` sweep may target; `None` (the default) for everything else. This is
     /// the only way a sweep identifies a resistor: never the instance-name prefix.
@@ -497,6 +584,17 @@ pub trait Device: fmt::Debug {
             self.name()
         )))
     }
+}
+
+/// What [`Device::timestep_limit`] sees for one converged trial step.
+#[derive(Debug, Clone, Copy)]
+pub struct TruncationContext<'a> {
+    /// This device's slots of the converged trial (C `CKTstate0`).
+    pub trial: &'a [Real],
+    /// This device's slots of the latest accepted point (C `CKTstate1`).
+    pub accepted: Option<&'a [Real]>,
+    /// The step just taken (C `CKTdeltaOld[0]`).
+    pub dt: Real,
 }
 
 /// What [`Device::accept`] sees for one accepted point.

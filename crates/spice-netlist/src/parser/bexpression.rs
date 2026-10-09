@@ -59,6 +59,7 @@ pub(super) fn parse_prefix(
             column,
             total: prepared.len(),
             depth: 0,
+            shadowing: &[],
         },
     };
     let options = Options { verbatim, auto_gnd };

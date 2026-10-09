@@ -54,6 +54,9 @@ pub(crate) fn instantiate_with_models(
             crate::models::ModelFamily::Nmos | crate::models::ModelFamily::Pmos => {
                 return crate::transistors::Mos1::instantiate(instance, nodes, &model, context);
             }
+            crate::models::ModelFamily::Switch | crate::models::ModelFamily::CurrentSwitch => {
+                return crate::switch::Switch::instantiate(instance, nodes, &model, context);
+            }
             _ => {}
         }
         let reference = match model.family().designator() {
@@ -83,6 +86,9 @@ pub(crate) fn instantiate(
 ) -> SpiceResult<Box<dyn Device>> {
     if matches!(instance.designator, 'e' | 'f' | 'g' | 'h') {
         return crate::controlled::instantiate(instance, nodes);
+    }
+    if instance.designator == 'k' {
+        return crate::mutual::instantiate(instance);
     }
     // `a` instances only come from the front end's TABLE/POLY lowering
     // (spice_netlist::behavioural); user XSPICE cards are not parsed.

@@ -98,7 +98,12 @@ fn malformed_func_cards_are_positioned_errors() {
         (".func f(x)", 11, "expected a body"),
         (".func f(x) {x*}", 15, "expected an operand"),
         (".func f(x) {x+{1}}", 15, "nested braces"),
-        (".func f(max) {1}", 9, "name of a built-in function"),
+        (
+            ".func f(exp, x) {exp(x)+exp}",
+            18,
+            "'exp' is a parameter of this function",
+        ),
+        (".func f(max) {max(1,5)}", 15, "'max' is a parameter"),
         (".param f(x", 11, "expected ',' or ')'"),
         (".param f(x)=", 13, "expected a body"),
         (
@@ -269,6 +274,25 @@ fn calls_bind_formals_by_value_and_free_names_at_the_call_site() {
         6.0
     );
     assert_eq!(probe(".func g(y) {y+x}\n.param x=100", "g(1)"), 101.0);
+}
+
+#[test]
+fn formals_may_reuse_built_in_function_names() {
+    // C's numparam binds a bare use to the formal (values checked against
+    // the C binary; see c_func_eval.rs).
+    assert_eq!(probe(".func f(max) {max*2}", "f(3)"), 6.0);
+    assert_eq!(probe(".func f(exp) {exp*2}", "f(3)"), 6.0);
+    assert_eq!(probe(".func f(limit) {limit+1}", "f(4)"), 5.0);
+    assert_eq!(probe(".func f(sin, x) {sin+x}", "f(4,1)"), 5.0);
+    assert_eq!(probe(".func f(agauss) {agauss*2}", "f(3)"), 6.0);
+    // Unused definitions are fine; outside the body the built-in is intact.
+    assert_eq!(probe(".func u(sin) {sin}", "7"), 7.0);
+    assert_eq!(probe(".func f(max) {max*2}", "max(f(1),5)"), 5.0);
+    let written = round_trip("t\n.func f(MAX, x) {max*x}\n.param p={f(2,3)}\n.end\n");
+    assert_eq!(
+        written,
+        "t\n.func f(max,x) {max*x}\n.param p={f(2,3)}\n.end\n"
+    );
 }
 
 #[test]

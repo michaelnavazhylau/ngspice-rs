@@ -361,8 +361,16 @@ fn stage_iteration_limit_is_separate_from_the_direct_limit() {
     );
     assert!(stages[1..].iter().all(|s| s.iterations <= 40));
     assert!(stages[1..].iter().any(|s| s.iterations > 3), "{stages:?}");
-    // Budget: direct limit plus stage limit per continuation stage.
-    assert_eq!(solved.report.budget, 3 + (stages.len() - 1) * 40);
+    // Gmin stepping's closing zero-gmin solve is bounded by the direct limit
+    // (itl1), not the stage limit: C's `spice3_gmin`/`dynamic_gmin`/`new_gmin`
+    // end with `NIiter(ckt, iterlim)` (`cktop.c`).
+    let closing = stages.last().unwrap();
+    assert_eq!(closing.strategy, DcStrategy::GminStepping);
+    assert_eq!(closing.gmin, 0.);
+    assert!(closing.iterations <= 3, "{closing:?}");
+    // Budget: the direct limit for the direct and closing solves, plus the
+    // stage limit for every gmin stage in between.
+    assert_eq!(solved.report.budget, 2 * 3 + (stages.len() - 2) * 40);
     for bad in ["stagemaxiter=0", "stagemaxiter=10001", "stagemaxiter=2.5"] {
         let request = AnalysisRequest::with_arguments(AnalysisKind::OperatingPoint, [bad]);
         assert!(DcSettings::from_request(&request).is_err(), "{bad}");

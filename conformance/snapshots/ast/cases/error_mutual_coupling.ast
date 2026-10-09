@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_mutual_coupling.cir
+error parse @cases/error_mutual_coupling.cir:6:9
+  message: "expected the coupling coefficient after the inductor names (C silently uses 0 when it is missing)"

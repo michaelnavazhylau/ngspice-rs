@@ -1,0 +1,201 @@
+# ngspice-rs token-dump v1
+file: netlists/switch_dc_decimal.cir
+title: "Switches in a DC sweep with a decimal step" @netlists/switch_dc_decimal.cir:1:1
+card 1 @netlists/switch_dc_decimal.cir:10:1 lines=10-10 continuations=0
+  raw: "vc ctrl 0 dc 0"
+  kind: device(v)
+  token 1 10:1 word "vc"
+  token 2 10:4 word "ctrl"
+  token 3 10:9 number "0" value=0e0
+  token 4 10:11 word "dc"
+  token 5 10:14 number "0" value=0e0
+card 2 @netlists/switch_dc_decimal.cir:11:1 lines=11-11 continuations=0
+  raw: "vdd vdd 0 dc 1"
+  kind: device(v)
+  token 1 11:1 word "vdd"
+  token 2 11:5 word "vdd"
+  token 3 11:9 number "0" value=0e0
+  token 4 11:11 word "dc"
+  token 5 11:14 number "1" value=1e0
+card 3 @netlists/switch_dc_decimal.cir:12:1 lines=12-12 continuations=0
+  raw: "r1 vdd a 1k"
+  kind: device(r)
+  token 1 12:1 word "r1"
+  token 2 12:4 word "vdd"
+  token 3 12:8 word "a"
+  token 4 12:10 number "1k" value=1e3
+card 4 @netlists/switch_dc_decimal.cir:13:1 lines=13-13 continuations=0
+  raw: "s1 a 0 ctrl 0 sm"
+  kind: device(s)
+  token 1 13:1 word "s1"
+  token 2 13:4 word "a"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 word "ctrl"
+  token 5 13:13 number "0" value=0e0
+  token 6 13:15 word "sm"
+card 5 @netlists/switch_dc_decimal.cir:14:1 lines=14-14 continuations=0
+  raw: "r2 vdd b 1k"
+  kind: device(r)
+  token 1 14:1 word "r2"
+  token 2 14:4 word "vdd"
+  token 3 14:8 word "b"
+  token 4 14:10 number "1k" value=1e3
+card 6 @netlists/switch_dc_decimal.cir:15:1 lines=15-15 continuations=0
+  raw: "s2 b 0 ctrl 0 sh"
+  kind: device(s)
+  token 1 15:1 word "s2"
+  token 2 15:4 word "b"
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 word "ctrl"
+  token 5 15:13 number "0" value=0e0
+  token 6 15:15 word "sh"
+card 7 @netlists/switch_dc_decimal.cir:16:1 lines=16-16 continuations=0
+  raw: "r3 vdd c 1k"
+  kind: device(r)
+  token 1 16:1 word "r3"
+  token 2 16:4 word "vdd"
+  token 3 16:8 word "c"
+  token 4 16:10 number "1k" value=1e3
+card 8 @netlists/switch_dc_decimal.cir:17:1 lines=17-17 continuations=0
+  raw: "s3 c 0 ctrl 0 sb off"
+  kind: device(s)
+  token 1 17:1 word "s3"
+  token 2 17:4 word "c"
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 word "ctrl"
+  token 5 17:13 number "0" value=0e0
+  token 6 17:15 word "sb"
+  token 7 17:18 word "off"
+card 9 @netlists/switch_dc_decimal.cir:18:1 lines=18-18 continuations=0
+  raw: "r4 vdd d 1k"
+  kind: device(r)
+  token 1 18:1 word "r4"
+  token 2 18:4 word "vdd"
+  token 3 18:8 word "d"
+  token 4 18:10 number "1k" value=1e3
+card 10 @netlists/switch_dc_decimal.cir:19:1 lines=19-19 continuations=0
+  raw: "s4 d 0 ctrl 0 sb on"
+  kind: device(s)
+  token 1 19:1 word "s4"
+  token 2 19:4 word "d"
+  token 3 19:6 number "0" value=0e0
+  token 4 19:8 word "ctrl"
+  token 5 19:13 number "0" value=0e0
+  token 6 19:15 word "sb"
+  token 7 19:18 word "on"
+card 11 @netlists/switch_dc_decimal.cir:20:1 lines=20-20 continuations=0
+  raw: "rsense ctrl sx 1k"
+  kind: device(r)
+  token 1 20:1 word "rsense"
+  token 2 20:8 word "ctrl"
+  token 3 20:13 word "sx"
+  token 4 20:16 number "1k" value=1e3
+card 12 @netlists/switch_dc_decimal.cir:21:1 lines=21-21 continuations=0
+  raw: "vsense sx 0 dc 0"
+  kind: device(v)
+  token 1 21:1 word "vsense"
+  token 2 21:8 word "sx"
+  token 3 21:11 number "0" value=0e0
+  token 4 21:13 word "dc"
+  token 5 21:16 number "0" value=0e0
+card 13 @netlists/switch_dc_decimal.cir:22:1 lines=22-22 continuations=0
+  raw: "r5 vdd e 1k"
+  kind: device(r)
+  token 1 22:1 word "r5"
+  token 2 22:4 word "vdd"
+  token 3 22:8 word "e"
+  token 4 22:10 number "1k" value=1e3
+card 14 @netlists/switch_dc_decimal.cir:23:1 lines=23-23 continuations=0
+  raw: "w1 e 0 vsense wm"
+  kind: device(w)
+  token 1 23:1 word "w1"
+  token 2 23:4 word "e"
+  token 3 23:6 number "0" value=0e0
+  token 4 23:8 word "vsense"
+  token 5 23:15 word "wm"
+card 15 @netlists/switch_dc_decimal.cir:24:1 lines=24-24 continuations=0
+  raw: ".model sm sw(vt=1 ron=10 roff=1meg)"
+  kind: dot(.model)
+  token 1 24:1 word ".model"
+  token 2 24:8 word "sm"
+  token 3 24:11 word "sw"
+  token 4 24:13 lparen "("
+  token 5 24:14 word "vt"
+  token 6 24:16 equals "="
+  token 7 24:17 number "1" value=1e0
+  token 8 24:19 word "ron"
+  token 9 24:22 equals "="
+  token 10 24:23 number "10" value=1e1
+  token 11 24:26 word "roff"
+  token 12 24:30 equals "="
+  token 13 24:31 number "1meg" value=1e6
+  token 14 24:35 rparen ")"
+card 16 @netlists/switch_dc_decimal.cir:25:1 lines=25-25 continuations=0
+  raw: ".model sh sw(vt=1 vh=0.5 ron=10 roff=1meg)"
+  kind: dot(.model)
+  token 1 25:1 word ".model"
+  token 2 25:8 word "sh"
+  token 3 25:11 word "sw"
+  token 4 25:13 lparen "("
+  token 5 25:14 word "vt"
+  token 6 25:16 equals "="
+  token 7 25:17 number "1" value=1e0
+  token 8 25:19 word "vh"
+  token 9 25:21 equals "="
+  token 10 25:22 number "0.5" value=5e-1
+  token 11 25:26 word "ron"
+  token 12 25:29 equals "="
+  token 13 25:30 number "10" value=1e1
+  token 14 25:33 word "roff"
+  token 15 25:37 equals "="
+  token 16 25:38 number "1meg" value=1e6
+  token 17 25:42 rparen ")"
+card 17 @netlists/switch_dc_decimal.cir:26:1 lines=26-26 continuations=0
+  raw: ".model sb sw(vt=1.2 vh=0.85 ron=20 roff=2meg)"
+  kind: dot(.model)
+  token 1 26:1 word ".model"
+  token 2 26:8 word "sb"
+  token 3 26:11 word "sw"
+  token 4 26:13 lparen "("
+  token 5 26:14 word "vt"
+  token 6 26:16 equals "="
+  token 7 26:17 number "1.2" value=1.2e0
+  token 8 26:21 word "vh"
+  token 9 26:23 equals "="
+  token 10 26:24 number "0.85" value=8.5e-1
+  token 11 26:29 word "ron"
+  token 12 26:32 equals "="
+  token 13 26:33 number "20" value=2e1
+  token 14 26:36 word "roff"
+  token 15 26:40 equals "="
+  token 16 26:41 number "2meg" value=2e6
+  token 17 26:45 rparen ")"
+card 18 @netlists/switch_dc_decimal.cir:27:1 lines=27-27 continuations=0
+  raw: ".model wm csw(it=1.5m ron=30 roff=3meg)"
+  kind: dot(.model)
+  token 1 27:1 word ".model"
+  token 2 27:8 word "wm"
+  token 3 27:11 word "csw"
+  token 4 27:14 lparen "("
+  token 5 27:15 word "it"
+  token 6 27:17 equals "="
+  token 7 27:18 number "1.5m" value=1.5e-3
+  token 8 27:23 word "ron"
+  token 9 27:26 equals "="
+  token 10 27:27 number "30" value=3e1
+  token 11 27:30 word "roff"
+  token 12 27:34 equals "="
+  token 13 27:35 number "3meg" value=3e6
+  token 14 27:39 rparen ")"
+card 19 @netlists/switch_dc_decimal.cir:28:1 lines=28-28 continuations=0
+  raw: ".dc vc 0.5 2.2 0.1"
+  kind: dot(.dc)
+  token 1 28:1 word ".dc"
+  token 2 28:5 word "vc"
+  token 3 28:8 number "0.5" value=5e-1
+  token 4 28:12 number "2.2" value=2.2e0
+  token 5 28:16 number "0.1" value=1e-1
+card 20 @netlists/switch_dc_decimal.cir:29:1 lines=29-29 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 29:1 word ".end"

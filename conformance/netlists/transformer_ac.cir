@@ -1,0 +1,26 @@
+Coupled-inductor transformers, AC sweep
+* A 1:2 transformer (k=0.98) from a 50 ohm source into 1k, and a
+* three-winding coupling inside a subcircuit: kabc couples every pair of
+* la/lb/lc (inp_compat expands it per pair) through hierarchical names, and
+* kn adds a negative coupling to the top-level primary.
+vin in 0 dc 0 ac 1
+rs in p 50
+l1 p 0 10m
+l2 s 0 40m
+k1 l1 l2 0.98
+rl s 0 1k
+.subckt tri a b c
+la a 0 1m
+lb b 0 2m
+lc c 0 4m
+kabc la lb lc k=0.6
+.ends
+r3 in q 10
+x1 q t1 t2 tri
+r4 t1 0 100
+r5 t2 0 200
+l3 in u 5m
+ru u 0 30
+kn l3 l1 coefficient=-0.15
+.ac dec 10 10 100k
+.end

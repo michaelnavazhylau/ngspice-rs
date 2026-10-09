@@ -82,7 +82,7 @@ pub(crate) fn run(
         seed.as_mut_slice()[hint.row] = hint.value;
     }
     // AC is linearized only after a valid physical DC solution, never at zero.
-    let bias = crate::bias::solve_dc_with(
+    let solved = crate::bias::solve_dc_with(
         circuit,
         &context.model_context(),
         &settings,
@@ -90,9 +90,19 @@ pub(crate) fn run(
         Some(&seed),
         None,
     )?
-    .solution
-    .values;
-    let system = circuit.small_signal_system(&context.model_context(), &bias)?;
+    .solution;
+    // acan.c reloads with MODEINITSMSIG after CKTop, and SWload/CSWload then
+    // copy CKTstate1 into CKTstate0. CKTop never accepts or rotates states, so
+    // CKTstate1 is still the zero ("really off") vector: the AC conductance of
+    // a switch is that of the accepted history, not of the converged
+    // operating point (`swacload.c`/`cswacld.c`). The operating point's own
+    // trial state is therefore deliberately not used here.
+    let history = circuit.state_history();
+    let state1 = history
+        .accepted(1)
+        .map_or_else(|| vec![0.; history.len()], <[spice_core::Real]>::to_vec);
+    let system =
+        circuit.small_signal_system_at(&context.model_context(), &solved.values, Some(&state1))?;
     let mut plot = plot(
         circuit,
         "ac1",
@@ -106,7 +116,7 @@ pub(crate) fn run(
         .devices()
         .iter()
         .any(|device| device.depends_on_frequency());
-    let mut previous = bias;
+    let mut previous = solved.values.clone();
     for f in grid {
         let local;
         let system = if varies {
@@ -115,7 +125,7 @@ pub(crate) fn run(
                 crate::bias::solve_dc_with(circuit, &model, &settings, &[], Some(&previous), None)?
                     .solution
                     .values;
-            local = circuit.small_signal_system(&model, &previous)?;
+            local = circuit.small_signal_system_at(&model, &previous, Some(&state1))?;
             &local
         } else {
             &system

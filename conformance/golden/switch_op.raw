@@ -1,0 +1,54 @@
+Title: voltage and current controlled switches operating point
+Date: Thu Oct  8 14:40:53  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 22
+No. Points: 1
+Variables:
+	0	v(ctrl)	voltage
+	1	v(a)	voltage
+	2	v(b)	voltage
+	3	v(c)	voltage
+	4	v(d)	voltage
+	5	v(e)	voltage
+	6	v(f)	voltage
+	7	v(g)	voltage
+	8	v(hi)	voltage
+	9	v(l1)	voltage
+	10	v(l2)	voltage
+	11	v(src)	voltage
+	12	v(sx)	voltage
+	13	i(vc)	current
+	14	v(vdd)	voltage
+	15	i(vdd)	current
+	16	i(vhi)	current
+	17	i(vi)	current
+	18	v(vl)	voltage
+	19	i(vl)	current
+	20	i(vsense)	current
+	21	i(vsl)	current
+Values:
+ 0	1.500000000000000e+00
+	9.990009990009990e-01
+	9.900990099009901e-03
+	9.900990099009901e-03
+	9.990009990009990e-01
+	9.990009990009992e-04
+	1.960784313725490e-02
+	9.995002498750625e-01
+	3.000000000000000e+00
+	9.090909090909091e-02
+	9.090909090909091e-02
+	2.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	1.000000000000000e+00
+	-3.962088927788663e-03
+	0.000000000000000e+00
+	-2.000000000000000e-03
+	1.000000000000000e+00
+	-9.090909090909091e-04
+	2.000000000000000e-03
+	9.090909090909091e-04
+

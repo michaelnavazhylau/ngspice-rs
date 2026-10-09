@@ -482,7 +482,15 @@ impl Writer {
     /// `.param`, the card is verified to re-parse to the same definition.
     fn func(&mut self, card: &FuncCard, depth: usize) -> SpiceResult<()> {
         let location = &card.location;
-        check_expression(&card.body, location)?;
+        // A formal named like a built-in only parses inside its own card;
+        // the whole-card re-parse below still compares the tree.
+        let shadows = card.parameters.iter().any(|p| {
+            crate::expr::Function::from_name(&p.name).is_some()
+                || crate::expr::EXCLUDED_FUNCTIONS.contains(&p.name.as_str())
+        });
+        if !shadows {
+            check_expression(&card.body, location)?;
+        }
         let formals: Vec<&str> = card.parameters.iter().map(|p| p.name.as_str()).collect();
         let text = match card.spelling {
             FuncSpelling::Func => format!(
@@ -636,7 +644,7 @@ impl Writer {
         let base = model.base.as_str();
         if !matches!(
             base,
-            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l"
+            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -651,6 +659,8 @@ impl Writer {
                         "d" => &["d"],
                         "npn" | "pnp" => &["npn", "pnp"],
                         "nmos" | "pmos" => &["nmos", "pmos"],
+                        "sw" => &["sw"],
+                        "csw" => &["csw"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {
@@ -699,10 +709,11 @@ impl Writer {
         let mut parts = vec![node(&device.name, location)?];
         let count = device.nodes.len();
         let count_ok = match designator {
-            'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' => count == 2,
+            'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
-            'm' | 'e' | 'g' => count == 4,
+            'm' | 'e' | 'g' | 's' => count == 4,
             'x' => true,
+            'k' => count == 0,
             _ => {
                 return Err(refuse(
                     format!("device designator '{designator}' has no writer"),
@@ -719,11 +730,29 @@ impl Writer {
         for n in &device.nodes {
             parts.push(node(n, location)?);
         }
+        let mut setters = device.parameters.as_slice();
+        if designator == 'w' {
+            // INP2W reads the controlling source before the model name.
+            match setters.split_first() {
+                Some((control, rest))
+                    if control.name == "control" && control.kind == ParameterKind::Instance =>
+                {
+                    parts.push(node(&control.value, &control.location)?);
+                    setters = rest;
+                }
+                _ => {
+                    return Err(refuse(
+                        "'w' instance without a leading controlling source",
+                        Some(location),
+                    ));
+                }
+            }
+        }
         match (designator, &device.model) {
-            ('v' | 'i' | 'e' | 'f' | 'g' | 'h', Some(_)) => {
+            ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
-            ('d' | 'q' | 'm' | 'x', None) => {
+            ('d' | 'q' | 'm' | 'x' | 's' | 'w', None) => {
                 return Err(refuse("device without a model/target", Some(location)));
             }
             (_, Some(model)) => {
@@ -747,6 +776,8 @@ impl Writer {
             'r' | 'c' | 'l' => passive_parameters(device, &mut parts)?,
             'v' | 'i' => source_parameters(device, &mut parts)?,
             'e' | 'f' | 'g' | 'h' => controlled_parameters(device, &mut parts)?,
+            'k' => mutual_parameters(device, &mut parts)?,
+            's' | 'w' => switch_parameters(setters, designator, &mut parts)?,
             'x' => {
                 for parameter in &device.parameters {
                     parts.push(named_value(parameter, true)?);
@@ -1018,6 +1049,28 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
         } else {
             parts.push(named_value(parameter, false)?);
         }
+    }
+    Ok(())
+}
+
+/// S/W (`parser/switch.rs`): only bare `on`/`off` flags follow the model, in
+/// their written order; W's `control` was already written before the model.
+fn switch_parameters(
+    setters: &[ParameterAssignment],
+    designator: char,
+    parts: &mut Vec<String>,
+) -> SpiceResult<()> {
+    for parameter in setters {
+        if parameter.kind != ParameterKind::Flag
+            || !matches!(parameter.name.as_str(), "on" | "off")
+            || !parameter.value.is_empty()
+        {
+            return Err(refuse(
+                format!("parameter {:?} on '{designator}' instance", parameter.name),
+                Some(&parameter.location),
+            ));
+        }
+        parts.push(parameter.name.clone());
     }
     Ok(())
 }
@@ -1310,6 +1363,54 @@ fn behavioural_card(device: &DeviceInstance) -> SpiceResult<String> {
         }
     }
     Ok(parts.join(" "))
+}
+
+/// K (`parser/mutual.rs`): the inductor references `inductor1`, `inductor2`,
+/// … in order, then exactly one `coefficient`, written positionally (a named
+/// `k=`/`coefficient=` setter re-parses to the same setter).
+fn mutual_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
+    let Some((coupling, inductors)) = device.parameters.split_last() else {
+        return Err(refuse(
+            "'k' instance without inductors and a coupling",
+            Some(&device.location),
+        ));
+    };
+    if inductors.len() < 2 {
+        return Err(refuse(
+            "'k' instance with fewer than two inductors",
+            Some(&device.location),
+        ));
+    }
+    for (index, inductor) in inductors.iter().enumerate() {
+        if inductor.kind != ParameterKind::Instance
+            || inductor.name != format!("inductor{}", index + 1)
+        {
+            return Err(refuse(
+                format!("parameter {:?} on 'k' instance", inductor.name),
+                Some(&inductor.location),
+            ));
+        }
+        if parse_spice_number(&inductor.value).is_some() {
+            return Err(refuse(
+                "numeric-looking inductor name on a 'k' instance",
+                Some(&inductor.location),
+            ));
+        }
+        parts.push(node(&inductor.value, &inductor.location)?);
+    }
+    if coupling.name != "coefficient"
+        || !matches!(
+            coupling.kind,
+            ParameterKind::Scalar | ParameterKind::Expression(_)
+        )
+    {
+        return Err(refuse(
+            format!("parameter {:?} on 'k' instance", coupling.name),
+            Some(&coupling.location),
+        ));
+    }
+    parts.push(value_text(coupling, false)?);
+    Ok(())
 }
 
 fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {

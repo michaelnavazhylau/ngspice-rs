@@ -686,7 +686,7 @@ impl Driver<'_> {
     fn initialize(&mut self) -> SpiceResult<Vector> {
         let rhs = self.system.transient_rhs(0., spice_devices::Limit::Left)?;
         let (x, trial) = if self.uic {
-            let start = initial::uic_start(self.circuit, &self.hints)?;
+            let start = initial::uic_start(self.circuit, &self.hints, &self.model_context)?;
             let trial = self.initial_state(&start.x, &start.charges)?;
             let tolerances = &self.settings.tolerances;
             initial::check_impulse_free(
@@ -699,6 +699,7 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                     abstol: tolerances.abstol,
                 },
+                &self.model_context,
             )?;
             (start.x, trial)
         } else {
@@ -712,12 +713,12 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                 },
             )?;
-            let x = if self.nonlinear {
+            let (x, solved) = if self.nonlinear {
                 let mut seed = Vector::zeros(self.circuit.unknown_count());
                 for hint in &self.hints.nodesets {
                     seed.as_mut_slice()[hint.row] = hint.value;
                 }
-                crate::bias::solve_dc_with(
+                let solution = crate::bias::solve_dc_with(
                     self.circuit,
                     &self.model_context,
                     &self.bias,
@@ -725,12 +726,15 @@ impl Driver<'_> {
                     Some(&seed),
                     Some(&rhs),
                 )?
-                .solution
-                .values
+                .solution;
+                (solution.values, Some(solution.trial))
             } else if constraints.is_unconstrained() {
-                self.system.a.solve(&rhs)?
+                (self.system.a.solve(&rhs)?, None)
             } else {
-                initial::constrained_bias(&self.system.a, &rhs, &constraints.imposed)?
+                (
+                    initial::constrained_bias(&self.system.a, &rhs, &constraints.imposed)?,
+                    None,
+                )
             };
             initial::check_implied(
                 &x,
@@ -740,7 +744,14 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                 },
             )?;
-            let trial = self.initial_state(&x, &[])?;
+            // A nonlinear bias's converged trial is the DC-mode load at `x`
+            // (charges, zero derivatives) and also carries the operating
+            // point's discrete switch states, which a fresh reload in the
+            // initial phase would re-derive from the instance flags.
+            let trial = match solved {
+                Some(trial) => trial,
+                None => self.initial_state(&x, &[])?,
+            };
             (x, trial)
         };
         // C copies CKTstate0 into CKTstate1..3; the derivative is zero.
@@ -793,8 +804,12 @@ impl Driver<'_> {
         previous: &Vector,
     ) -> SpiceResult<Trial> {
         let n = self.circuit.unknown_count();
-        let load = |guess: &Vector, matrix: &mut SparseMatrix, rhs: &mut Vector| {
-            let mut state = self.history.trial();
+        let load = |guess: &Vector,
+                    matrix: &mut SparseMatrix,
+                    rhs: &mut Vector,
+                    phase: spice_devices::IterationPhase,
+                    previous: Option<&TrialState>| {
+            let mut state = self.history.trial_in(phase, previous)?;
             self.circuit.load(
                 &LoadRequest {
                     mode: AnalysisMode::Transient {
@@ -826,15 +841,19 @@ impl Driver<'_> {
                 ..crate::newton::NewtonOptions::default()
             };
             let limited = crate::bias::limited_rows(self.circuit);
-            return match crate::newton::solve_counted_limited(
+            // dctran.c: MODEINITTRAN/MODEINITPRED for the first load of a
+            // timepoint, MODEINITFLOAT afterwards.
+            return match crate::newton::solve_phased(
                 previous,
                 &self.branch_row,
                 limited.as_deref(),
                 &options,
-                |x| {
+                crate::newton::PhasePolicy::Predicted,
+                None,
+                |x, phase, last| {
                     let mut matrix = SparseMatrix::new(n, n);
                     let mut rhs = Vector::zeros(n);
-                    let state = load(x, &mut matrix, &mut rhs)?;
+                    let state = load(x, &mut matrix, &mut rhs, phase, last)?;
                     Ok((matrix, rhs, state))
                 },
             )
@@ -856,16 +875,24 @@ impl Driver<'_> {
         // charge/flux at the solved point, with no Newton iteration loop.
         let mut matrix = SparseMatrix::new(n, n);
         let mut rhs = Vector::zeros(n);
-        load(previous, &mut matrix, &mut rhs)?;
+        let phase = spice_devices::IterationPhase::Predict;
+        load(previous, &mut matrix, &mut rhs, phase, None)?;
         matrix.fold_duplicates();
         let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
         let x = matrix.solve(&rhs)?;
-        let state = load(&x, &mut SparseMatrix::new(n, n), &mut Vector::zeros(n))?;
+        let state = load(
+            &x,
+            &mut SparseMatrix::new(n, n),
+            &mut Vector::zeros(n),
+            phase,
+            None,
+        )?;
         Ok(Trial::Converged { x, state })
     }
 
-    /// C `CKTtrunc`: the smallest step bound over every charge-storage element,
-    /// from the trial point and the accepted history.
+    /// C `CKTtrunc`: the smallest step bound over every charge-storage element
+    /// and every discrete-state device ([`spice_devices::Device::timestep_limit`],
+    /// `swtrunc.c`), from the trial point and the accepted history.
     fn truncation_limit(
         &self,
         coefficients: &Coefficients,
@@ -905,6 +932,29 @@ impl Driver<'_> {
                     derivative,
                     &tolerances,
                 )?);
+            }
+            // Discrete-state bounds (`swtrunc.c`), from the same trial.
+            let rows = self
+                .circuit
+                .state_rows(index)
+                .ok_or_else(|| failure("missing state range"))?;
+            if !rows.is_empty() {
+                let bound = device.timestep_limit(&spice_devices::TruncationContext {
+                    trial: trial
+                        .slice(rows.clone())
+                        .ok_or_else(|| failure("trial state is too short"))?,
+                    accepted: self.history.accepted(1).and_then(|vector| vector.get(rows)),
+                    dt: coefficients.dt(),
+                })?;
+                if let Some(bound) = bound {
+                    if !bound.is_finite() {
+                        return Err(failure(format!(
+                            "{}: nonfinite timestep limit",
+                            device.name()
+                        )));
+                    }
+                    limit = limit.min(bound);
+                }
             }
         }
         Ok(limit)

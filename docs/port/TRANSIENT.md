@@ -70,6 +70,9 @@ the run with an error; no partial plot is returned.
   with `reltol`, `abstol` (on the charge/flux derivative), `chgtol`, `trtol`.
   The next step is `min(2 dt, bound)`. A trial with a bound of at most `0.9 dt`
   is rejected and retried with the bound; the first step is never checked.
+  Devices without charge storage add their own bound through
+  `Device::timestep_limit` (S switches: `swtrunc.c`, see
+  [SWITCHES.md](SWITCHES.md#timestep-control)).
 * **Order policy.** Order 1 (backward Euler) for the first step and the first
   step after every breakpoint; after an accepted order-1 step the order-2
   estimate is probed and order 2 is kept if it allows more than `1.05 dt`
@@ -156,7 +159,8 @@ Numerical consequences and divergences from C: no `1e10` scaling anywhere; `i(v1
 at `t = 0` is exact where C's artifact differs (compared after `t = 0` in the
 opt-in test); `.ic` entries contradicting a source and impulsive `uic` states are
 errors where C produces garbage or a first-step spike; unknown nodes are errors.
-Not covered: mutual inductors, nonlinear device initial conditions
+Coupled inductors (K, #80) start from the coupled fluxes `L ic + sum(M ic_k)`;
+see [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md). Not covered: nonlinear device initial conditions
 (`off`/`ic=` of diodes/transistors), `.ic` inside subcircuits and `.nodeset all=`
 (`NotYetPorted` in the parser), `.op`-only `.ic` use.
 

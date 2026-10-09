@@ -1,0 +1,8 @@
+Mutual inductance without a coupling coefficient
+v1 a 0 dc 1
+l1 a 0 1m
+l2 b 0 1m
+r2 b 0 1
+k1 l1 l2
+.op
+.end

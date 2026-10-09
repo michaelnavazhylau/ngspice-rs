@@ -9,6 +9,8 @@
 //! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE/SIN/EXP/SFFM/AM waveforms |
 //! | [`controlled`] | linear E/F/G/H controlled sources | VCVS/CCCS/VCCS/CCVS gain stamps; F/H controlling branches resolved by [`circuit`] |
 //! | [`behavioural`] | B sources and the lowered E/G/F/H VALUE/TABLE/POLY forms | `inpptree.c` function set with C's derivative rules; Newton, AC and transient loads |
+//! | [`mutual`] | K mutual inductance | coupled flux in DC/AC/companion/BDF; inductors and inductive-system checks resolved by [`circuit`] |
+//! | [`switch`] | S/W voltage- and current-controlled switches | hysteresis, accepted switch state, Newton phases, `swtrunc.c` step control |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
@@ -24,7 +26,7 @@
 //! extension point that keeps the core small — see `docs/port/ROADMAP.md`.
 //!
 //! `Circuit::from_netlist` accepts literal R/C/L/V/I, linear E/F/G/H controlled
-//! sources, bounded model-backed R/C/L and the explicitly bounded M4
+//! sources, K mutual inductance, bounded model-backed R/C/L and the explicitly bounded M4
 //! diode/Ebers-Moll BJT/MOS1 subset.
 //! Parsing alone never enables unsupported physics; model-aware schemas reject it.
 //! Constant/Step/Pwl/Pulse forcing is available both through the device API and
@@ -41,6 +43,7 @@ mod factory;
 pub mod functions;
 pub mod linear;
 pub mod models;
+pub mod mutual;
 pub mod nonlinear;
 pub mod passive;
 pub mod pulse;
@@ -54,6 +57,7 @@ pub mod registry;
 pub mod sources;
 pub mod subckt;
 pub mod sweep;
+pub mod switch;
 pub use functions::{
     AmSpec, ExpSpec, FunctionSpec, PwlBreakpoints, PwlSource, SffmSpec, SineSpec, SourceFunction,
 };
@@ -73,13 +77,15 @@ pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
 pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use controlled::{ControlledKind, ControlledSource};
+pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
-pub use state::{ACCEPTED_DEPTH, DeviceState, StateHistory, TrialState};
+pub use state::{ACCEPTED_DEPTH, DeviceState, IterationPhase, StateHistory, TrialState};
 pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};
+pub use switch::{Switch, SwitchKind, SwitchState};
 pub use traits::{
-    AcceptContext, AnalysisMode, ControlReference, Device, MnaUnknowns, StampContext,
-    StorageElement, StorageKind,
+    AcceptContext, AnalysisMode, ControlReference, Device, InductanceValue, MnaUnknowns,
+    MutualCoupling, MutualTerm, StampContext, StorageElement, StorageKind, TruncationContext,
 };
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.

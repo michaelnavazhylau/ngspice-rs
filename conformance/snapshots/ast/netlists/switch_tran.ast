@@ -1,0 +1,139 @@
+# ngspice-rs ast-dump v1
+file: netlists/switch_tran.cir
+title: "Voltage controlled switches in a transient" @netlists/switch_tran.cir:1:1
+scope root
+  cards (19):
+    [0] device[0] @netlists/switch_tran.cir:9:1 "vdd vdd 0 dc 2"
+    [1] device[1] @netlists/switch_tran.cir:10:1 "vp p 0 pulse(0 2 50u 40u 40u 200u 500u)"
+    [2] device[2] @netlists/switch_tran.cir:11:1 "r1 vdd c1 2k"
+    [3] device[3] @netlists/switch_tran.cir:12:1 "c1 c1 0 100n"
+    [4] device[4] @netlists/switch_tran.cir:13:1 "s1 c1 c2 p 0 swp"
+    [5] device[5] @netlists/switch_tran.cir:14:1 "c2 c2 0 100n"
+    [6] device[6] @netlists/switch_tran.cir:15:1 "r2 c2 0 20k"
+    [7] device[7] @netlists/switch_tran.cir:16:1 "vs s 0 sin(0 1.5 4k)"
+    [8] device[8] @netlists/switch_tran.cir:17:1 "r3 vdd c3 5k"
+    [9] device[9] @netlists/switch_tran.cir:18:1 "c3 c3 0 20n"
+    [10] device[10] @netlists/switch_tran.cir:19:1 "s2 c3 0 s 0 sws"
+    [11] device[11] @netlists/switch_tran.cir:20:1 "i1 0 c4 pulse(0 1m 10u 1u)"
+    [12] device[12] @netlists/switch_tran.cir:21:1 "c4 c4 0 100n"
+    [13] device[13] @netlists/switch_tran.cir:22:1 "s3 c4 0 c4 0 swr"
+    [14] model[0] @netlists/switch_tran.cir:23:1 ".model swp sw(vt=1 vh=0.3 ron=1k roff=1g)"
+    [15] model[1] @netlists/switch_tran.cir:24:1 ".model sws sw(vt=0.5 vh=0.2 ron=100 roff=10meg)"
+    [16] model[2] @netlists/switch_tran.cir:25:1 ".model swr sw(vt=1 vh=0.5 ron=50 roff=1meg)"
+    [17] analysis[0] @netlists/switch_tran.cir:26:1 ".tran 1u 1m"
+    [18] end @netlists/switch_tran.cir:27:1 ".end"
+  devices (14):
+    device [0] name="vdd" designator=v @netlists/switch_tran.cir:9:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/switch_tran.cir:9:11
+    device [1] name="vp" designator=v @netlists/switch_tran.cir:10:1
+      nodes: "p" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 2 50u 40u 40u 200u 500u)" @netlists/switch_tran.cir:10:8
+          pulse
+            initial: "0"@netlists/switch_tran.cir:10:14
+            pulsed: "2"@netlists/switch_tran.cir:10:16
+            delay: "50u"@netlists/switch_tran.cir:10:18
+            rise: "40u"@netlists/switch_tran.cir:10:22
+            fall: "40u"@netlists/switch_tran.cir:10:26
+            width: "200u"@netlists/switch_tran.cir:10:30
+            period: "500u"@netlists/switch_tran.cir:10:35
+    device [2] name="r1" designator=r @netlists/switch_tran.cir:11:1
+      nodes: "vdd" "c1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/switch_tran.cir:11:11
+    device [3] name="c1" designator=c @netlists/switch_tran.cir:12:1
+      nodes: "c1" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/switch_tran.cir:12:9
+    device [4] name="s1" designator=s @netlists/switch_tran.cir:13:1
+      nodes: "c1" "c2" "p" "0"
+      model: "swp"
+      parameters (0):
+    device [5] name="c2" designator=c @netlists/switch_tran.cir:14:1
+      nodes: "c2" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/switch_tran.cir:14:9
+    device [6] name="r2" designator=r @netlists/switch_tran.cir:15:1
+      nodes: "c2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/switch_tran.cir:15:9
+    device [7] name="vs" designator=v @netlists/switch_tran.cir:16:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="sin" kind=waveform value="(0 1.5 4k)" @netlists/switch_tran.cir:16:8
+          sin
+            vo: "0"@netlists/switch_tran.cir:16:12
+            va: "1.5"@netlists/switch_tran.cir:16:14
+            freq: "4k"@netlists/switch_tran.cir:16:18
+    device [8] name="r3" designator=r @netlists/switch_tran.cir:17:1
+      nodes: "vdd" "c3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="5k" @netlists/switch_tran.cir:17:11
+    device [9] name="c3" designator=c @netlists/switch_tran.cir:18:1
+      nodes: "c3" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="20n" @netlists/switch_tran.cir:18:9
+    device [10] name="s2" designator=s @netlists/switch_tran.cir:19:1
+      nodes: "c3" "0" "s" "0"
+      model: "sws"
+      parameters (0):
+    device [11] name="i1" designator=i @netlists/switch_tran.cir:20:1
+      nodes: "0" "c4"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1m 10u 1u)" @netlists/switch_tran.cir:20:9
+          pulse
+            initial: "0"@netlists/switch_tran.cir:20:15
+            pulsed: "1m"@netlists/switch_tran.cir:20:17
+            delay: "10u"@netlists/switch_tran.cir:20:20
+            rise: "1u"@netlists/switch_tran.cir:20:24
+            fall: none
+            width: none
+            period: none
+    device [12] name="c4" designator=c @netlists/switch_tran.cir:21:1
+      nodes: "c4" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/switch_tran.cir:21:9
+    device [13] name="s3" designator=s @netlists/switch_tran.cir:22:1
+      nodes: "c4" "0" "c4" "0"
+      model: "swr"
+      parameters (0):
+  models (3):
+    model [0] name="swp" base="sw" level=none @netlists/switch_tran.cir:23:1
+      parameters (4):
+        [0] name="vt" kind=scalar value="1" @netlists/switch_tran.cir:23:15
+        [1] name="vh" kind=scalar value="0.3" @netlists/switch_tran.cir:23:20
+        [2] name="ron" kind=scalar value="1k" @netlists/switch_tran.cir:23:27
+        [3] name="roff" kind=scalar value="1g" @netlists/switch_tran.cir:23:34
+    model [1] name="sws" base="sw" level=none @netlists/switch_tran.cir:24:1
+      parameters (4):
+        [0] name="vt" kind=scalar value="0.5" @netlists/switch_tran.cir:24:15
+        [1] name="vh" kind=scalar value="0.2" @netlists/switch_tran.cir:24:22
+        [2] name="ron" kind=scalar value="100" @netlists/switch_tran.cir:24:29
+        [3] name="roff" kind=scalar value="10meg" @netlists/switch_tran.cir:24:37
+    model [2] name="swr" base="sw" level=none @netlists/switch_tran.cir:25:1
+      parameters (4):
+        [0] name="vt" kind=scalar value="1" @netlists/switch_tran.cir:25:15
+        [1] name="vh" kind=scalar value="0.5" @netlists/switch_tran.cir:25:20
+        [2] name="ron" kind=scalar value="50" @netlists/switch_tran.cir:25:27
+        [3] name="roff" kind=scalar value="1meg" @netlists/switch_tran.cir:25:34
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/switch_tran.cir:26:1
+      arguments: "1u" "1m"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

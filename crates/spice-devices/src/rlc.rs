@@ -279,12 +279,15 @@ impl Device for Capacitor {
         Some(QUANTITY)
     }
 
-    fn storage_element(&self) -> Option<crate::traits::StorageElement> {
-        Some(crate::traits::StorageElement {
+    fn storage_element(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<crate::traits::StorageElement>> {
+        Some(Ok(crate::traits::StorageElement {
             kind: crate::traits::StorageKind::Capacitor,
             value: self.capacitance,
             initial: self.initial_voltage,
-        })
+        }))
     }
 
     /// `capload.c`: an open circuit at DC (recording `q = C v` when state
@@ -402,21 +405,44 @@ impl Device for Inductor {
         Some(QUANTITY)
     }
 
-    fn storage_element(&self) -> Option<crate::traits::StorageElement> {
-        Some(crate::traits::StorageElement {
+    fn storage_element(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<crate::traits::StorageElement>> {
+        Some(Ok(crate::traits::StorageElement {
             kind: crate::traits::StorageKind::Inductor,
             value: self.inductance,
             initial: self.initial_current,
-        })
+        }))
+    }
+
+    fn inductance(
+        &self,
+        _context: &crate::models::ModelContext,
+    ) -> Option<SpiceResult<crate::traits::InductanceValue>> {
+        Some(Ok(crate::traits::InductanceValue {
+            effective: self.inductance,
+            coupling_base: self.inductance,
+        }))
     }
 
     /// `indload.c`: a short at DC (recording `flux = L i` when state is
     /// tracked); in transient, the branch row `v+ - v- - req i = veq` with
     /// `i` positive from the first terminal to the second. `ic=` is not
     /// applied here; initial-condition policy belongs to the analysis.
+    ///
+    /// With mutual coupling ([`StampContext::mutual`]) the flux is
+    /// `L i + sum(M i_k)`, as `indload.c` accumulates it in `INDflux`, and
+    /// the companion row gains `-ag0 M` in each coupled branch column (C
+    /// `MUTbr1br2Ptr`/`MUTbr2br1Ptr`): `v+ - v- - ag0 (L i + sum(M i_k)) =
+    /// veq`, with `veq` from the integrated coupled flux. At DC the coupled
+    /// inductors stay shorts.
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         let row = context.branch(0)?;
-        let flux = self.inductance * context.row_value(row)?;
+        let mut flux = self.inductance * context.row_value(row)?;
+        for term in context.mutual {
+            flux += term.inductance * context.row_value(term.row)?;
+        }
         if context.mode.is_dc() {
             record_dc_state(context, flux)?;
             return crate::linear::branch_stamp(
@@ -435,12 +461,22 @@ impl Device for Inductor {
         context.states.set(DERIVATIVE, companion.derivative)?;
         crate::linear::branch_stamp(context.matrix, context.unknowns, self.terminals, row)?;
         context.matrix.add(row, row, -companion.conductance)?;
+        let ag0 = coefficients.ag()[0];
+        for term in context.mutual {
+            context.matrix.add(row, term.row, -ag0 * term.inductance)?;
+        }
         context.rhs.add_to(row, companion.current)
     }
+    /// `v+ - v- - L di/dt - sum(M di_k/dt) = 0`: the mutual terms are
+    /// off-diagonal `E` entries between branch rows (`mutacld.c` stamps
+    /// `-j omega M` there in AC).
     fn assemble_linear(&self, context: &mut crate::linear::LinearContext<'_>) -> SpiceResult<()> {
         let branch = context.branch(self.terminals)?;
         // v+ - v- - L di/dt = 0, i positive from + to -.
         context.system.e.add(branch, branch, -self.inductance)?;
+        for term in context.mutual {
+            context.system.e.add(branch, term.row, -term.inductance)?;
+        }
         context.system.has_initial_conditions |= self.initial_current.is_some();
         Ok(())
     }
@@ -529,6 +565,7 @@ mod tests {
             mode: crate::traits::AnalysisMode::Transient { time: 0., dt: 1e-6 },
             branches: 0..0,
             controls: &[],
+            mutual: &[],
             integration: None,
             states: crate::state::DeviceState::none(),
             forcing: None,

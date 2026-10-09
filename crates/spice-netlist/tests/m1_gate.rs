@@ -218,6 +218,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M6 controlled-source decks (#78) are gated by `xtask golden verify` and
     // `spice-analysis/tests/controlled_sources.rs`.
     on_disk.retain(|name| !name.starts_with("controlled_"));
+    // M6 mutual-inductance decks (#80) are gated by `xtask golden verify` and
+    // `spice-analysis/tests/mutual_inductance.rs`.
+    on_disk.retain(|name| !name.starts_with("transformer_"));
+    // M6 switch decks (#81) are gated by `xtask golden verify` and
+    // `spice-analysis/tests/switches.rs`.
+    on_disk.retain(|name| !name.starts_with("switch_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `spice-analysis/tests/behavioural_sources.rs`.
     on_disk.retain(|name| {

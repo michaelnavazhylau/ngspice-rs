@@ -15,7 +15,7 @@ fn default_and_selected_verification_need_no_c_binary() {
     let output = verify(&[]);
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("48 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
+    assert!(text.contains("58 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
     for name in [
         "rc_divider",
         "RC_LOWPASS_AC.cir",
@@ -55,6 +55,16 @@ fn default_and_selected_verification_need_no_c_binary() {
         "controlled_op",
         "controlled_ac",
         "controlled_tran",
+        "transformer_ac",
+        "transformer_tran",
+        "transformer_ic_uic_tran",
+        "transformer_model_uic_tran",
+        "switch_op",
+        "switch_dc",
+        "switch_tran",
+        "switch_w_tran",
+        "switch_dc_decimal",
+        "switch_ac",
         "bsource_op",
         "bsource_dc",
         "bsource_ac",

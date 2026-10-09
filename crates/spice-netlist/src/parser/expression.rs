@@ -36,6 +36,9 @@ pub(super) struct Ctx<'a> {
     /// Byte length of the parsed text.
     pub total: usize,
     pub depth: usize,
+    /// `.func` formals named like a built-in function: a bare use binds to
+    /// the formal, a call is an error (as in C's numparam). Empty elsewhere.
+    pub shadowing: &'a [String],
 }
 
 impl Ctx<'_> {
@@ -120,6 +123,7 @@ pub(super) fn into_error(
         column,
         total,
         depth: 0,
+        shadowing: &[],
     }
     .location(fail.remaining);
     if fail.unsupported {
@@ -407,6 +411,12 @@ fn close(input: &mut In<'_>, open: usize) -> Res<()> {
     }
 }
 
+/// Whether `name` (lower case) is a built-in numparam function name, allowlisted
+/// or excluded.
+pub(super) fn is_builtin_name(name: &str) -> bool {
+    Function::from_name(name).is_some() || EXCLUDED_FUNCTIONS.contains(&name)
+}
+
 fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
     let start = input.eof_offset();
     let name: &str = (one_of(is_ident_start), take_while(0.., is_ident_continue))
@@ -415,9 +425,25 @@ fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
     let after = input.eof_offset();
     let call = peek((ws, opt(literal("(")))).parse_next(input)?.1.is_some();
     let lowered = name.to_ascii_lowercase();
+    if input.state.shadowing.contains(&lowered) {
+        if call {
+            // C's numparam substitutes the formal into the call and the
+            // deck fails ("Formula() error"; checked against the C binary).
+            return Err(cut(
+                start,
+                format!(
+                    "'{name}' is a parameter of this function, so the built-in of that \
+                     name cannot be called in its body"
+                ),
+            ));
+        }
+        return Ok(Expr {
+            kind: ExprKind::Identifier(lowered),
+            span: span(input, start, after),
+        });
+    }
     if !call {
-        if Function::from_name(&lowered).is_some() || EXCLUDED_FUNCTIONS.contains(&lowered.as_str())
-        {
+        if is_builtin_name(&lowered) {
             return Err(cut(
                 start,
                 format!("function name '{name}' requires an argument list"),
@@ -504,6 +530,19 @@ pub(super) fn parse_delimited(
     braced: bool,
     quoted: bool,
 ) -> SpiceResult<ParameterExpression> {
+    parse_func_body(text, origin, column, braced, quoted, &[])
+}
+
+/// As [`parse_delimited`] for a `.func` body whose formals in `shadowing`
+/// reuse built-in function names.
+pub(super) fn parse_func_body(
+    text: &str,
+    origin: &SourceLoc,
+    column: u32,
+    braced: bool,
+    quoted: bool,
+    shadowing: &[String],
+) -> SpiceResult<ParameterExpression> {
     let mut input = In {
         input: text,
         state: Ctx {
@@ -511,6 +550,7 @@ pub(super) fn parse_delimited(
             column,
             total: text.len(),
             depth: 0,
+            shadowing,
         },
     };
     let run = |input: &mut In<'_>| -> Res<Expr> {

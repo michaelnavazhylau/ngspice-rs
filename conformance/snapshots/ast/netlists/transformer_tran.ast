@@ -1,0 +1,63 @@
+# ngspice-rs ast-dump v1
+file: netlists/transformer_tran.cir
+title: "Coupled-inductor transformer, PULSE transient (trapezoidal)" @netlists/transformer_tran.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/transformer_tran.cir:5:1 "vin in 0 pulse(0 1 0 1u 1u 100u 200u)"
+    [1] device[1] @netlists/transformer_tran.cir:6:1 "rs in p 10"
+    [2] device[2] @netlists/transformer_tran.cir:7:1 "l1 p 0 1m"
+    [3] device[3] @netlists/transformer_tran.cir:8:1 "l2 s 0 4m"
+    [4] device[4] @netlists/transformer_tran.cir:9:1 "k1 l1 l2 0.99"
+    [5] device[5] @netlists/transformer_tran.cir:10:1 "rl s 0 100"
+    [6] analysis[0] @netlists/transformer_tran.cir:11:1 ".tran 1u 400u"
+    [7] end @netlists/transformer_tran.cir:12:1 ".end"
+  devices (6):
+    device [0] name="vin" designator=v @netlists/transformer_tran.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1 0 1u 1u 100u 200u)" @netlists/transformer_tran.cir:5:10
+          pulse
+            initial: "0"@netlists/transformer_tran.cir:5:16
+            pulsed: "1"@netlists/transformer_tran.cir:5:18
+            delay: "0"@netlists/transformer_tran.cir:5:20
+            rise: "1u"@netlists/transformer_tran.cir:5:22
+            fall: "1u"@netlists/transformer_tran.cir:5:25
+            width: "100u"@netlists/transformer_tran.cir:5:28
+            period: "200u"@netlists/transformer_tran.cir:5:33
+    device [1] name="rs" designator=r @netlists/transformer_tran.cir:6:1
+      nodes: "in" "p"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10" @netlists/transformer_tran.cir:6:9
+    device [2] name="l1" designator=l @netlists/transformer_tran.cir:7:1
+      nodes: "p" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/transformer_tran.cir:7:8
+    device [3] name="l2" designator=l @netlists/transformer_tran.cir:8:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="4m" @netlists/transformer_tran.cir:8:8
+    device [4] name="k1" designator=k @netlists/transformer_tran.cir:9:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/transformer_tran.cir:9:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/transformer_tran.cir:9:7
+        [2] name="coefficient" kind=scalar value="0.99" @netlists/transformer_tran.cir:9:10
+    device [5] name="rl" designator=r @netlists/transformer_tran.cir:10:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/transformer_tran.cir:10:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/transformer_tran.cir:11:1
+      arguments: "1u" "400u"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -38,7 +38,7 @@ use petgraph::graph::{NodeIndex, UnGraph};
 use petgraph::unionfind::UnionFind;
 use petgraph::visit::{Control, DfsEvent, depth_first_search};
 use spice_core::{Real, SourceLoc, SpiceError, SpiceResult};
-use spice_devices::{Circuit, StorageKind};
+use spice_devices::{Circuit, ModelContext, StorageKind};
 use spice_maths::{SparseMatrix, Vector};
 
 use crate::{AnalysisRequest, NodeCondition};
@@ -419,17 +419,23 @@ pub(crate) struct UicStart {
 ///
 /// # Errors
 /// Missing state or branch bindings.
-pub(crate) fn uic_start(circuit: &Circuit, hints: &Hints) -> SpiceResult<UicStart> {
+pub(crate) fn uic_start(
+    circuit: &Circuit,
+    hints: &Hints,
+    context: &ModelContext,
+) -> SpiceResult<UicStart> {
     let mut x = Vector::zeros(circuit.unknown_count());
     for hint in hints.nodesets.iter().chain(&hints.initial) {
         x.as_mut_slice()[hint.row] = hint.value;
     }
     let mut charges = Vec::new();
     for (index, device) in circuit.devices().iter().enumerate() {
-        let (Some(element), Some(slot)) = (device.storage_element(), device.truncation_slot())
+        let (Some(element), Some(slot)) =
+            (device.storage_element(context), device.truncation_slot())
         else {
             continue;
         };
+        let element = element?;
         match element.kind {
             StorageKind::Capacitor => {
                 if let Some(voltage) = element.initial {
@@ -487,6 +493,7 @@ pub(crate) fn check_impulse_free(
     rhs: &Vector,
     x: &Vector,
     tolerances: Tolerances,
+    context: &ModelContext,
 ) -> SpiceResult<()> {
     let n = circuit.unknown_count();
     let node_row = |node| circuit.unknowns().node_row(node);
@@ -496,7 +503,7 @@ pub(crate) fn check_impulse_free(
     let mut inductors = Vec::new();
     let mut capacitors = Vec::new();
     for (index, device) in circuit.devices().iter().enumerate() {
-        let Some(element) = device.storage_element() else {
+        let Some(element) = device.storage_element(context).transpose()? else {
             continue;
         };
         let [p, q] = device.terminals() else {
