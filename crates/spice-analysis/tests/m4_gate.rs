@@ -299,7 +299,7 @@ fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamp
         "d1 a 0 dm\n.model dm d(bv=20)",
         "q1 c b 0 qm\n.model qm npn(vaf=100)",
         "q1 c b 0 qm\n.model qm npn(ikf=1m)",
-        "m1 d g 0 0 mm\n.model mm nmos(tox=10n)",
+        "m1 d g 0 0 mm\n.model mm nmos(kf=1e-25)",
         "m1 d g 0 0 mm\n.model mm nmos(level=49)",
     ] {
         let n = Parser::new()

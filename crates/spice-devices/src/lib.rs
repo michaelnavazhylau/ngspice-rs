@@ -43,6 +43,7 @@ mod factory;
 pub mod functions;
 pub mod linear;
 pub mod models;
+pub mod mos1;
 pub mod mutual;
 pub mod nonlinear;
 pub mod passive;

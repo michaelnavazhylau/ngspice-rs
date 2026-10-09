@@ -31,6 +31,16 @@ pub enum ScalarUnit {
     FaradPerSquareMetre,
     /// Perimeter capacitance density in farads per metre.
     FaradPerMetre,
+    /// Area in square metres (MOS drain/source diffusion area).
+    SquareMetre,
+    /// Area current density in amperes per square metre (MOS `JS`).
+    AmperePerSquareMetre,
+    /// Carrier mobility in cm^2/(V s), as SPICE writes MOS `U0`.
+    SquareCentimetrePerVoltSecond,
+    /// Doping density per cubic centimetre (MOS `NSUB`).
+    PerCubicCentimetre,
+    /// Surface-state density per square centimetre (MOS `NSS`).
+    PerSquareCentimetre,
     /// First-order temperature coefficient, per Kelvin.
     InverseKelvin,
     /// Second-order temperature coefficient, per Kelvin squared.

@@ -528,7 +528,7 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
         "d1 new 0 mdl temp=-300\n.model mdl d",
         "d1 new 0 mdl\n.model mdl d(bv=20)",
         "q1 new base emitter mdl\n.model mdl npn(vaf=100)",
-        "m1 new gate source bulk mdl\n.model mdl nmos(tox=10n)",
+        "m1 new gate source bulk mdl\n.model mdl nmos(kf=1e-25)",
         "m1 new gate source bulk mdl\n.model mdl nmos(level=49)",
         "q1 new base emitter mdl\n.model mdl npn(level=3)",
         "d1 new 0 mdl\n.model mdl d(level=2)",
