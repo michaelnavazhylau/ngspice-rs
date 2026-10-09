@@ -45,6 +45,14 @@ pub enum ScalarUnit {
     InverseVolt,
     /// Body-effect coefficient, square root of volts.
     SquareRootVolt,
+    /// Activation (band-gap) energy in electron-volts.
+    ElectronVolt,
+    /// First-order band-gap correction, electron-volts per Kelvin.
+    ElectronVoltPerKelvin,
+    /// Voltage temperature coefficient, volts per Kelvin.
+    VoltPerKelvin,
+    /// Absolute temperature offset or scale in Kelvin (not converted).
+    Kelvin,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.

@@ -342,8 +342,9 @@ fn diode_schema_rejects_unknown_and_invalid_setters_even_if_overwritten() {
             "{setter}"
         );
         // The legacy IS/N/RS input projection stays deliberately narrow;
-        // the M4 factory additionally implements CJO charge.
-        if setter == "cjo=1p" {
+        // the diode factory additionally implements CJO charge and C's
+        // `dio.c` aliases such as JS for IS.
+        if setter == "cjo=1p" || setter == "js=1e-14" {
             assert!(Circuit::from_netlist(&n).is_ok());
         } else {
             assert!(Circuit::from_netlist(&n).is_err());
@@ -526,7 +527,7 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
         "d1 new 0 mdl\n.model mdl r",
         "d1 new 0 mdl\n.model mdl d(is=-1)",
         "d1 new 0 mdl temp=-300\n.model mdl d",
-        "d1 new 0 mdl\n.model mdl d(bv=20)",
+        "d1 new 0 mdl\n.model mdl d(rsw=1)",
         "q1 new base emitter mdl\n.model mdl npn(vaf=100)",
         "m1 new gate source bulk mdl\n.model mdl nmos(tox=10n)",
         "m1 new gate source bulk mdl\n.model mdl nmos(level=49)",
