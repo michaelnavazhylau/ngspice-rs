@@ -80,6 +80,10 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m4_bjt_tran` | `.tran` | independent BE/BC charge companions |
 | `m4_mos1_ac` | `.ac` | MOS1 square law, body junction and overlap charges, zero TOX |
 | `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
+| `m7_mos1_inverter_tran` | `.tran` | CMOS inverter: Meyer gate charge (TOX), LD, RSH/NRD/NRS and RD/RS internal nodes, CJ/CJSW/JS geometry; `tmax` 2 ps |
+| `m7_mos1_ring_tran` | `.tran` | 3-stage CMOS ring oscillator with 50 fF loads and a current kick; `tmax` 0.5 ps |
+| `m7_mos1_meyer_ac` | `.ac` | Meyer and junction small-signal capacitance at 75 C, `M=2`, LD, RD/RS |
+| `m7_mos1_process_dc` | `.dc` | NSUB/TPG/NSS/UO extraction, forward body bias, TEMP/DTEMP/TNOM, PMOS RSH; tight RELTOL |
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |

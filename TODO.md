@@ -169,7 +169,8 @@ Exact schemas, physics exclusions and #41 evidence: [M4_NONLINEAR.md](docs/port/
 - [x] Implement bias-linearized AC and actual nonlinear Q-based trap/Gear-2 companions, multi-charge LTE and disposable trial/atomic accepted history.
 - [x] Demonstrate diode DC, BJT bias and MOS1 operating point against existing C data; add six C AC/charge-transient decks, physical/Jacobian/conservation/continuation checks and explicit tolerances for local #41 subset.
 - [x] Reject unimplemented parsed physics; BSIM/CIDER/XSPICE and full SPICE parity remain outside scope.
-- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT/MOS temperatures, BJT Early/high-injection/substrate/series physics, MOS intrinsic channel charge (nonzero TOX), nonlinear .ic/uic, arbitrary model-setter sweeps and full C dynamic convergence/limiting parity.
+- [x] Complete MOS1 (#88, `spice-devices::mos1`): Meyer gate charge with C's state-averaging formulation (nonzero TOX, CGSO/CGDO/CGBO), RD/RS/RSH+NRD/NRS internal drain/source nodes, AD/AS/PD/PS junction geometry with CJ/MJ/CJSW/MJSW/JS, TOX/UO/NSUB/TPG/NSS process extraction, LD, `mos1temp.c` temperature scaling (TEMP/DTEMP/TNOM), forward body bias with GAMMA > 0, `mos1acld.c` AC and `mos1trun.c` truncation (gate charges only). Four C goldens (CMOS inverter and 3-stage ring-oscillator transients, Meyer AC at 75 C, process/temperature DC) plus charge and finite-difference Jacobian tests; see [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md#mos1). MOS1 OFF/IC/ICVDS/ICVGS/ICVBS (#99) and noise parameters remain `NotYetPorted`.
+- [ ] Expand beyond this demonstrated subset only with new production conformance: non-nominal junction charge/BJT temperatures, BJT Early/high-injection/substrate/series physics, nonlinear .ic/uic, arbitrary model-setter sweeps and full C dynamic convergence/limiting parity.
 
 ## 6. Usability and output — M5
 

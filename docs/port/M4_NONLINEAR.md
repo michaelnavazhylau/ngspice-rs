@@ -17,7 +17,8 @@ files: symlinking editable files between branches would violate isolation.
 - `spice-devices::models` / `schema`: existing first-declaration family/level
   resolution, ordered last-set scalar projection, units, provenance and domains.
 - `spice-devices::nonlinear`: diode factory, junction equations and nonlinear
-  charge integration. `transistors`: Ebers-Moll BJT and MOS1 factories/equations.
+  charge integration. `transistors`: Ebers-Moll BJT factory/equations.
+  `mos1`: the MOS level-1 factory/equations (completed by #88, see [MOS1](#mos1)).
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
   and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
 - `spice-analysis::newton`: disposable load/solve/reload, physical iterate and
@@ -78,23 +79,89 @@ adjustment. They are errors, never silently discarded Gummel-Poon parameters.
 
 ### MOS1
 
-Level 1 NMOS/PMOS. `KP` (2e-5 A/V²), `VTO` (0 V), `LAMBDA/GAMMA` (0), `PHI`
-(0.6 V), `IS` (1e-14 A), `CBD/CBS` (0 F), `PB` (0.8 V), `MJ/FC` (0.5),
-`CGSO/CGDO/CGBO` (0 F/m), `TNOM`, `TOX` (absent/zero only). Instance `W/L`
-(100 um each), `M` (1), `TEMP`. Temperature must equal nominal.
+Level 1 NMOS/PMOS in `spice-devices::mos1` (#88). C references, read as
+behaviour only: `mos1/mos1set.c`, `mos1temp.c`, `mos1load.c`, `mos1acld.c`,
+`mos1trun.c` and `devices/devsup.c` (`DEVqmeyer`).
 
-Cutoff, triode and saturation square-law equations, channel-length modulation,
-drain/source reversal and reverse-body-bias threshold effect. Analytic physical
-Jacobian includes gm/gds/gmb. Bulk-source/drain depletion charges and three
-constant overlap charges have **five** separate LTE-controlled state pairs.
-MOS1's reverse junction current is constant below -3 Vt (not the diode/BJT law).
+Model setters (C defaults; *derived* means C's `...Given` logic applies):
+`VTO`/`VT0` (0 V or derived), `KP` (2e-5 A/V² or derived), `GAMMA` (0 or
+derived), `PHI` (0.6 V or derived), `LAMBDA` (0), `RD`/`RS`/`RSH` (0 ohm),
+`CBD`/`CBS`, `IS` (1e-14 A), `JS` (0 A/m²), `PB` (0.8 V), `CGSO`/`CGDO`/`CGBO`
+(0 F/m), `CJ` (F/m²), `MJ` (0.5), `CJSW` (F/m), `MJSW` (0.5), `FC` (0.5), `TOX`,
+`LD` (0 m), `U0`/`UO` (600 cm²/Vs when KP is derived), `NSUB` (cm⁻³), `TPG` (1),
+`NSS` (0 cm⁻²) and `TNOM`. Aliases apply in card order. Instance setters: `L`/`W`
+(100 um), `M` (1), `AD`/`AS` (0 m²), `PD`/`PS` (0 m), `NRD`/`NRS` (1), `TEMP` and
+`DTEMP` (0). `MJ`, `MJSW` and `FC` must be below 1.
 
-References: `mos1/mos1load.c`, `mos1temp.c`. In C, absent or zero TOX gives zero
-oxide-capacitance factor. This is the bounded subset deliberately exercised here;
-nonzero TOX/Meyer intrinsic channel charge is rejected, not approximated with a
-constant capacitor. Forward-body-bias threshold/limiting with GAMMA > 0,
-series resistance, area/sidewall geometry, process extraction and thermal laws
-are unsupported. BSIM/CIDER/XSPICE remain outside M4.
+- **Channel** (`mos1load.c`): cutoff/triode/saturation square law with
+  `LAMBDA`, drain/source reversal, and the body effect for reverse *and forward*
+  body bias, including C's clamp of `sarg` at zero beyond `2 PHI`. Effective
+  length is `L - 2 LD`. The Jacobian (gm, gds, gmb) is the exact derivative; in
+  forward bias C stamps `gm * GAMMA / (2 sarg)` instead, which changes only the
+  Newton path.
+- **Series resistance** (`mos1set.c`, `mos1temp.c`): `RD`/`RS` win over
+  `RSH * NRD`/`RSH * NRS`, scaled by `M`; a nonzero conductance creates an
+  internal node `<name>#drain` / `<name>#source` (`NodeKind::Internal`) that
+  the channel, junctions and gate charges see. Combinations C leaves infinite
+  (RSH with zero squares) or floating (explicit `RD=0` beside RSH) are errors.
+- **Junctions**: constant reverse saturation current below `-3 Vt`; `IS * M` on
+  both sides unless `JS`, `AD` and `AS` are all nonzero (then `JS * AD * M`,
+  `JS * AS * M`). Depletion charge sums a bottom part (`CBD`/`CBS` if given, else
+  `CJ * AD`/`CJ * AS`) and a sidewall part (`CJSW * PD`/`CJSW * PS`), with
+  `MJ`/`MJSW`, and the linear `f2/f3/f4` continuation above `FC * PB`.
+- **Meyer gate charge** (`mos1load.c`, `DEVqmeyer`): `Cox = 3.9 eps0 / TOX * Leff
+  * W * M` (zero for absent/zero TOX). Each load stores the half capacitances and
+  the gate voltages; at an operating point `q = v (2 half + overlap)`, in
+  transient `q = q1 + (v - v1)(half + half1 + overlap)` with Jacobian `a0 (half +
+  half1 + overlap)`, exactly C's state-averaging formulation. AC uses `2 half +
+  overlap` at the bias (`mos1acld.c`).
+- **Process extraction** (`mos1temp.c`, only with nonzero TOX): KP from U0;
+  with NSUB (> 1.45e10 cm⁻³, else an error), PHI, GAMMA and VTO from NSUB, TPG,
+  NSS and the band gap at TNOM, each only when not given. Without TOX these
+  setters have no effect, as in C.
+- **Temperature** (`mos1temp.c`): device temperature `TEMP`, else circuit
+  temperature plus `DTEMP`; `KP` scales with `(T/TNOM)^-1.5`; `PHI`, `VBI`, `PB`
+  follow the band-gap laws; `IS`/`JS` scale by `exp(-Eg/Vt + Eg1/Vtnom)`;
+  `CBD`/`CBS`/`CJ`/`CJSW` use C's two-step capacitance factor. Every load
+  re-evaluates these from the analysis temperature, so `.options temp`, TEMP
+  sweeps and instance `TEMP`/`DTEMP` all apply.
+- **State and truncation**: 16 state slots (bulk-drain/bulk-source and three
+  gate charge/derivative pairs, three gate voltages, three half capacitances).
+  Only the three gate charges control the timestep, as in `mos1trun.c`; the
+  bulk junction charges are integrated but do not enter LTE control.
+
+Deliberate divergences: C's Newton phases (`MODEINITJCT` seeding,
+`MODEINITPRED`/`MODEINITTRAN` extrapolation and the zero gate-charge stamp of the
+first `MODEINITTRAN` iteration), FET/PN voltage limiting (`DEVfetlim`,
+`DEVlimvds`, `DEVpnjlim`; #106) and bypass are not part of the device: every
+load evaluates the equations at the present iterate, which changes the Newton
+path but not the converged point. C warns and continues for `L - 2 LD <= 0`;
+here it is an error, as are nonfinite/nonpositive PHI, PB, KP or IS after
+temperature scaling.
+
+`NotYetPorted` (naming the C reference): instance `OFF`, `IC`, `ICVDS`, `ICVGS`,
+`ICVBS` (`mos1ic.c`, `MODEINITJCT`; #99) and the noise parameters `KF`, `AF`,
+`NLEV`, `GDSNOI` (`mos1noi.c`). Other MOS levels, BSIM/CIDER/XSPICE remain
+outside scope.
+
+Evidence: `spice-analysis/tests/m7_mos1.rs` (operating-point and transient
+Meyer charge recurrences, AC capacitances, process-extraction and temperature
+laws restated from `mos1temp.c`, internal-node series resistance KCL, exact
+transient companion Jacobian where the Meyer halves are constant, DC Jacobian
+finite differences with series resistance, forward/reverse body bias, PMOS
+inverse mode, geometry and temperature, explicit unported inputs) and four C
+goldens verified by `cargo xtask golden verify`:
+
+| Fixture | Exercises | Worst error |
+| --- | --- | --- |
+| `m7_mos1_inverter_tran` | CMOS inverter, TOX, LD, RSH/NRD/NRS and RD/RS, CJ/CJSW/JS geometry | 0.438 of `TRAN` bound |
+| `m7_mos1_ring_tran` | 3-stage CMOS ring oscillator (50 fF loads), current kick, TOX | 0.523 of `TRAN` bound |
+| `m7_mos1_meyer_ac` | Meyer + junction AC at 75 C, `M=2`, LD, RD/RS | within `NONLINEAR` |
+| `m7_mos1_process_dc` | NSUB/TPG/NSS/UO extraction, forward body bias, TEMP/DTEMP/TNOM, PMOS RSH | within `NONLINEAR` |
+
+See [VERIFICATION.md](VERIFICATION.md#mos1-completion-88) for why the transient
+decks bound the maximum step, why the ring oscillator is three stages, and why
+the DC deck tightens RELTOL.
 
 ## Solvers, sweeps and state
 
