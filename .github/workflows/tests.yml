@@ -36,6 +36,10 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          # Caches saved on main are readable from every branch, PR and tag;
+          # caches saved elsewhere are readable only from that ref.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Run workspace tests and doctests
         run: cargo test --workspace --locked
