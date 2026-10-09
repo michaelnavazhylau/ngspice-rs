@@ -60,6 +60,31 @@ until they are done.
    run also creates it) and add required reviewers if publishes should need
    approval.
 
+## Prebuilt binaries and cargo-binstall
+
+The same tag also triggers
+[`.github/workflows/release.yml`](../../.github/workflows/release.yml). It
+builds `spice-rs` in release mode for `x86_64-unknown-linux-musl`,
+`aarch64-unknown-linux-musl`, `x86_64-apple-darwin`, `aarch64-apple-darwin`
+and `x86_64-pc-windows-msvc`. It then creates the GitHub release for the tag
+(with generated notes) and attaches the archives and a `SHA256SUMS` file:
+
+```
+ngspice-rs-<target>-v<version>.tar.gz      (.zip for Windows)
+└── ngspice-rs-<target>-v<version>/
+    ├── spice-rs                            (spice-rs.exe on Windows)
+    └── README.md, COPYING, NOTICE, AUTHORS
+```
+
+`[package.metadata.binstall]` in `Cargo.toml` points `cargo binstall
+ngspice-rs` at these archives; glibc Linux hosts are mapped to the static musl
+builds. binstall reads that metadata from the version published on crates.io,
+so the names in the workflow and the manifest must change together. The
+binaries job is independent of the crates.io publish job and needs no approval.
+
+To rebuild or backfill the binaries for an existing tag, run *Release
+binaries* by hand with that tag; existing assets are replaced.
+
 ## Cutting a release
 
 1. Bump `version` in `Cargo.toml`, run `cargo update --workspace` so
@@ -67,7 +92,9 @@ until they are done.
    `NGSPICE_BIN` live-C checks.
 2. Merge the bump to `main`.
 3. Optionally run the workflow by hand with `dry-run` checked.
-4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Tag the merge commit on `main` and push: `git tag -a vX.Y.Z -m "ngspice-rs X.Y.Z"
+   && git push origin vX.Y.Z`. This starts both the crates.io publish (approve
+   it in the `crates-io` environment) and the binary release.
 
 crates.io versions are permanent. A bad release can be yanked
 (`cargo yank --version X.Y.Z`), but the version number cannot be reused.

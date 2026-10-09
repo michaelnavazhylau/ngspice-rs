@@ -22,16 +22,35 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 | Area | Supported |
 | --- | --- |
 | Netlists | Scalar R/C/L/V/I, linear E/F/G/H controlled sources, B behavioural sources and E/G/F/H `VALUE`/`TABLE`/`POLY` forms, K mutual inductance, `.model`, D/Q/M instances, S/W switches with `sw`/`csw` models, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
-| Devices | Linear R/C/L/V/I; linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Gummel-Poon BJT and MOS1 (level 1: Meyer gate charge, series resistance, junction geometry, process extraction and temperature); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only) |
-| Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` (linear and nonlinear, including D/Q/M `off` and `ic=`); `.nodeset` as C's `MODEINITJCT`/`MODEINITFIX` hint |
+| Devices | Linear R/C/L/V/I; linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode (breakdown, sidewall junctions, recombination and tunnelling currents, temperature); Gummel-Poon BJT (base charge, leakage, series resistances, transit time, substrate junction, temperature); MOS1 (level 1: Meyer gate charge, series resistance, junction geometry, process extraction and temperature); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only) |
+| Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` (linear and nonlinear, including D/Q/M `off` and `ic=`); `.nodeset` as C's `MODEINITJCT`/`MODEINITFIX` hint; nonlinear operating points use ngspice's continuation (dynamic and stepped gmin, Gillespie and spice3 source stepping, `noopiter`) and its PN-junction/FET voltage limiting |
 | Output | ASCII rawfiles from the CLI (one plot per analysis for multi-analysis decks, in ngspice batch order), ASCII and binary rawfile read/write in the library, per-analysis `.save`/`.print` selection |
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
 Each area has documented limits; see [the feature guides](#documentation).
-Notable gaps include advanced BSIM models, XSPICE, OSDI/Verilog-A, CIDER, `.plot`,
-nonlinear transient initialization, higher-index DAEs and the interactive
-interpreter. Remaining work is tracked in [TODO.md](TODO.md);
-milestones are in [ROADMAP.md](docs/port/ROADMAP.md).
+Not yet supported: the `.noise`, `.tf`, `.sens`, `.pz`, `.disto` and `.sp`
+analyses; JFETs, MESFETs, transmission lines, MOSFET levels above 1 and BSIM;
+`.plot`, binary rawfiles from the CLI and device currents in `.save`/`.print`;
+XSPICE, OSDI/Verilog-A and CIDER; higher-index DAEs; and the interactive
+`.control` interpreter. See [Status and roadmap](#status-and-roadmap).
+
+## Status and roadmap
+
+| Milestone | Scope | Status |
+| --- | --- | --- |
+| M1–M5 | Netlist front end, linear core, transient and index-one DAEs, diode/BJT/MOS1, CLI, subcircuits, `.measure`/`.four`, rawfiles | Done |
+| M6 | Common decks: E/F/G/H, B sources, K coupling, S/W switches, SIN/EXP/SFFM/AM sources, `.func`, broader `.option`, multiple analyses per deck | Done |
+| M7 | Diode physics, Gummel-Poon BJT, complete MOS1, ngspice convergence parity, nonlinear `.ic`/`uic` | Done |
+| M8 | Additional analyses: `.noise`, `.tf`, `.sens`, `.pz`, `.disto`, `.sp`, Gear orders 3–6, wider `.dc` sweeps | Planned |
+| M9 | Output and front end: `.plot`, binary CLI rawfiles, device currents, full `.measure`/`.four`, cards inside `.subckt` | Planned |
+| M10 | Device library: JFET, MESFET, transmission lines, MOSFET levels 2/3/6/9, BSIM3/4, model binning | Planned |
+
+Each milestone is tracked as a
+[GitHub milestone](https://github.com/michaelnavazhylau/ngspice-rs/milestones)
+with one issue per feature. XSPICE, OSDI/Verilog-A, CIDER and the `.control`
+interpreter are out of the initial scope and tracked as design follow-ups.
+Detailed progress is in [TODO.md](TODO.md); [ROADMAP.md](docs/port/ROADMAP.md)
+records the design of the earlier milestones.
 
 ## Installation
 
@@ -39,9 +58,25 @@ milestones are in [ROADMAP.md](docs/port/ROADMAP.md).
 needs Rust **1.89** or newer (edition 2024). No C toolchain or ngspice binary is
 required.
 
+The `spice-rs` command-line tool can be installed as a prebuilt binary with
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall), or compiled
+from source with `cargo install`:
+
 ```sh
-cargo install ngspice-rs     # installs the `spice-rs` command-line tool
-cargo add ngspice-rs         # use the library from your own crate
+cargo binstall ngspice-rs    # prebuilt binary, no compilation
+cargo install ngspice-rs     # build from crates.io source
+spice-rs simulate --output out.raw deck.cir
+```
+
+Prebuilt binaries are attached to each
+[GitHub release](https://github.com/michaelnavazhylau/ngspice-rs/releases) for
+Linux (x86_64 and aarch64, static musl), macOS (Intel and Apple silicon) and
+Windows (x86_64); they can also be downloaded directly.
+
+To use the simulator as a library:
+
+```sh
+cargo add ngspice-rs
 ```
 
 The library is organised as the modules `primitives`, `netlist`, `maths`,
