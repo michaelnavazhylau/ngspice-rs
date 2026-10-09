@@ -280,6 +280,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M8 pole-zero decks (#103) are gated by `xtask golden verify` and
     // `tests/pole_zero.rs`.
     on_disk.retain(|name| !name.starts_with("pz_") && name != "multi_analysis_pz");
+    // M8 sensitivity decks (#102) are gated by `xtask golden verify`,
+    // `tests/sensitivity_analysis.rs` and the opt-in `tests/c_sens_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("sens_"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

@@ -1,0 +1,20 @@
+DC sensitivity of a divider with controlled sources
+* #102: every perturbable parameter of literal and model-backed resistors,
+* V and I sources and E/F/G/H sources (C cktsens.c finite differences, sgen
+* order and names), read on a node voltage.
+v1 in 0 dc 10
+i1 0 b dc 1m
+r1 in a 1k
+r2 a 0 rm 2k m=2
+.model rm r tc1=1e-3 tnom=20
+r3 a b 3k
+rb b 0 1k
+e1 e 0 a 0 2
+re e c 1k
+g1 0 c b 0 1m m=3
+f1 0 c v1 0.5
+h1 h 0 v1 100
+rh h c 2k
+rc c 0 500
+.sens v(c)
+.end

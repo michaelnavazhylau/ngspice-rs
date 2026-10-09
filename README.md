@@ -23,13 +23,13 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 | --- | --- |
 | Netlists | Scalar R/C/L/V/I, linear E/F/G/H controlled sources, B behavioural sources and E/G/F/H `VALUE`/`TABLE`/`POLY` forms, K mutual inductance, `.model`, D/Q/M instances, S/W switches with `sw`/`csw` models, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
 | Devices | Linear R/C/L/V/I, V sources as RF ports (`portnum`/`z0`); linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode (breakdown, sidewall junctions, recombination and tunnelling currents, temperature); Gummel-Poon BJT (base charge, leakage, series resistances, transit time, substrate junction, temperature); MOS1 (level 1: Meyer gate charge, series resistance, junction geometry, process extraction and temperature); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only) |
-| Analyses | `.op`; `.dc` over V/I sources, resistors, temperature and settable instance parameters (`@inst[param]`), including nested sweeps; small-signal `.ac`; `.pz` poles and zeros at the operating point; `.tf` DC gain and input/output resistance; `.sp` S-parameters (S/Y/Z over RF ports, no `donoise`); `.disto` harmonic and intermodulation distortion (`distof1`/`distof2` inputs; D, Gummel-Poon Q and MOS1 nonlinearities); `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` (linear and nonlinear, including D/Q/M `off` and `ic=`); `.nodeset` as C's `MODEINITJCT`/`MODEINITFIX` hint; nonlinear operating points use ngspice's continuation (dynamic and stepped gmin, Gillespie and spice3 source stepping, `noopiter`) and its PN-junction/FET voltage limiting |
+| Analyses | `.op`; `.dc` over V/I sources, resistors, temperature and settable instance parameters (`@inst[param]`), including nested sweeps; small-signal `.ac`; `.pz` poles and zeros at the operating point; `.tf` DC gain and input/output resistance; `.sp` S-parameters (S/Y/Z over RF ports, no `donoise`); `.disto` harmonic and intermodulation distortion (`distof1`/`distof2` inputs; D, Gummel-Poon Q and MOS1 nonlinearities); `.sens` DC and AC sensitivities by C's finite-difference perturbation (R/C/L/K/V/I/E/F/G/H, and in DC also B, S/W and D); `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` (linear and nonlinear, including D/Q/M `off` and `ic=`); `.nodeset` as C's `MODEINITJCT`/`MODEINITFIX` hint; nonlinear operating points use ngspice's continuation (dynamic and stepped gmin, Gillespie and spice3 source stepping, `noopiter`) and its PN-junction/FET voltage limiting |
 | Output | ASCII rawfiles from the CLI (one plot per analysis for multi-analysis decks, in ngspice batch order), ASCII and binary rawfile read/write in the library, per-analysis `.save`/`.print` selection |
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
 Each area has documented limits; see [the feature guides](#documentation).
-Not yet supported: the `.sens` analysis and
-`.sp` noise parameters; JFETs, MESFETs, transmission lines, MOSFET levels above 1 and BSIM;
+Not yet supported: `.sens` of BJTs and MOSFETs (and AC `.sens` of nonlinear
+devices), `.sp` noise parameters; JFETs, MESFETs, transmission lines, MOSFET levels above 1 and BSIM;
 `.plot`, binary rawfiles from the CLI and device currents in `.save`/`.print`;
 XSPICE, OSDI/Verilog-A and CIDER; higher-index DAEs; and the interactive
 `.control` interpreter. See [Status and roadmap](#status-and-roadmap).
@@ -193,7 +193,8 @@ docs/port/           architecture, C-to-Rust mapping, roadmap and feature guides
   [DC_CONTINUATION.md](docs/port/DC_CONTINUATION.md),
   [TRANSIENT.md](docs/port/TRANSIENT.md),
   [TRANSFER_FUNCTION.md](docs/port/TRANSFER_FUNCTION.md),
-  [SPARAM.md](docs/port/SPARAM.md)
+  [SPARAM.md](docs/port/SPARAM.md),
+  [SENSITIVITY.md](docs/port/SENSITIVITY.md)
 - Output: [CLI.md](docs/port/CLI.md), [RAWFILES.md](docs/port/RAWFILES.md),
   [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md),
   [MEASURE.md](docs/port/MEASURE.md), [FOURIER.md](docs/port/FOURIER.md)

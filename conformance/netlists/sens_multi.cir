@@ -1,0 +1,10 @@
+Sensitivity in a multi-analysis deck with a name filter
+* #102: .op, .ac and a filtered .sens (C runs .sens after .ac and .op).
+v1 in 0 dc 10 ac 1
+r1 in out 1k
+r2 out 0 2k
+c1 out 0 1u
+.op
+.ac dec 2 10 1k
+.sens v(out) r* v1 dc
+.end

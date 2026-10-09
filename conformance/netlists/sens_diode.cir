@@ -1,0 +1,15 @@
+DC sensitivity of a diode bias network
+* #102: the 57 model and 11 instance diode parameters C perturbs, including
+* the series resistance and knee current C's setup alone derives (zero
+* sensitivity), and ISR/JTUN perturbed from their unset defaults. Tightened
+* RELTOL keeps C's operating point within the nonlinear bound.
+.options reltol=1e-9
+v1 in 0 dc 5
+r1 in a 1k
+d1 a 0 dmod area=2
+d2 a b dmod2 m=2
+rb b 0 500
+.model dmod d is=1e-14 rs=10 n=1.5 ikf=0.1 bv=10 tnom=40 trs=1e-3 xti=2
+.model dmod2 d is=1e-15 eg=1.2 ikf=1
+.sens v(a)
+.end

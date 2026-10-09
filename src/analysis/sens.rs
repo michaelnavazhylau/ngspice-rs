@@ -532,9 +532,34 @@ fn stand_in<'d>(circuit: &'d Circuit, index: usize, load: &'d SensitivityLoad) -
     }
 }
 
+/// The connected block of every unknown of `matrix` (union-find over its
+/// entries).
+fn blocks(matrix: &SparseMatrix) -> Vec<usize> {
+    let mut parent: Vec<usize> = (0..matrix.rows()).collect();
+    fn root(parent: &mut [usize], mut x: usize) -> usize {
+        while parent[x] != x {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        x
+    }
+    for triplet in matrix.triplets() {
+        let (a, b) = (
+            root(&mut parent, triplet.row),
+            root(&mut parent, triplet.col),
+        );
+        if a != b {
+            parent[a] = b;
+        }
+    }
+    (0..parent.len()).map(|x| root(&mut parent, x)).collect()
+}
+
 /// The DC state of the analysis: the operating-point factors and solution.
 struct DcState<'a> {
     factors: crate::maths::linear::SparseLu,
+    /// The connected block of every unknown in `Y`'s coupling.
+    blocks: Vec<usize>,
     solution: Vector,
     model: crate::devices::ModelContext,
     history: crate::devices::StateHistory,
@@ -589,11 +614,27 @@ impl DcState<'_> {
             *value -= product;
         }
         // A nonfinite load difference (C's division by a zero knee current
-        // in `dioload.c`) propagates through C's solve as NaN.
-        if rhs.iter().any(|value| !value.is_finite()) {
-            return Ok(vec![Real::NAN; n]);
+        // in `dioload.c`) propagates through C's solve as NaN, through the
+        // block of `Y` it sits in; other blocks keep their (zero) values.
+        let tainted: Vec<usize> = (0..n)
+            .filter(|&row| !rhs[row].is_finite())
+            .map(|row| self.blocks[row])
+            .collect();
+        for value in &mut rhs {
+            if !value.is_finite() {
+                *value = 0.;
+            }
         }
         let solved = self.factors.solve(&Vector::from_slice(&rhs))?;
+        if !tainted.is_empty() {
+            let mut x = solved.as_slice().to_vec();
+            for (row, value) in x.iter_mut().enumerate() {
+                if tainted.contains(&self.blocks[row]) {
+                    *value = Real::NAN;
+                }
+            }
+            return Ok(x);
+        }
         Ok(solved.as_slice().to_vec())
     }
 }
@@ -664,22 +705,21 @@ pub(crate) fn run(
     let model = context.model_context();
 
     let (members, mut records) = members(circuit, &model)?;
-    if ac {
-        if let Some(device) = circuit
+    if ac
+        && let Some(device) = circuit
             .devices()
             .iter()
             .find(|device| device.is_nonlinear() || device.designator() == 'k')
-        {
-            return Err(unsupported(format!(
-                ".sens ac with {} (designator '{}'): C's AC sensitivity re-runs CKTsetup and a \
+    {
+        return Err(unsupported(format!(
+            ".sens ac with {} (designator '{}'): C's AC sensitivity re-runs CKTsetup and a \
                  DC load before every frequency, which resets device state, so nonlinear and \
                  switch devices are linearized at a reset state rather than at the operating \
                  point (and the K coupling acts through the inductors' loads); the port refuses \
                  instead of reproducing that (docs/port/SENSITIVITY.md)",
-                device.name(),
-                device.designator()
-            )));
-        }
+            device.name(),
+            device.designator()
+        )));
     }
     let entries = entries(&members, ac, &card.filters);
     if entries.iter().all(|entry| entry.name.is_none()) {
@@ -817,6 +857,7 @@ pub(crate) fn run(
         jacobian.fold_duplicates();
         let at = DcState {
             factors: jacobian.factorize()?,
+            blocks: blocks(&jacobian),
             solution: solved.values.clone(),
             model,
             history,

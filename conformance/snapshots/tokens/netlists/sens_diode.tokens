@@ -1,0 +1,109 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_diode.cir
+title: "DC sensitivity of a diode bias network" @netlists/sens_diode.cir:1:1
+card 1 @netlists/sens_diode.cir:6:1 lines=6-6 continuations=0
+  raw: ".options reltol=1e-9"
+  kind: dot(.options)
+  token 1 6:1 word ".options"
+  token 2 6:10 word "reltol"
+  token 3 6:16 equals "="
+  token 4 6:17 number "1e-9" value=1e-9
+card 2 @netlists/sens_diode.cir:7:1 lines=7-7 continuations=0
+  raw: "v1 in 0 dc 5"
+  kind: device(v)
+  token 1 7:1 word "v1"
+  token 2 7:4 word "in"
+  token 3 7:7 number "0" value=0e0
+  token 4 7:9 word "dc"
+  token 5 7:12 number "5" value=5e0
+card 3 @netlists/sens_diode.cir:8:1 lines=8-8 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 8:1 word "r1"
+  token 2 8:4 word "in"
+  token 3 8:7 word "a"
+  token 4 8:9 number "1k" value=1e3
+card 4 @netlists/sens_diode.cir:9:1 lines=9-9 continuations=0
+  raw: "d1 a 0 dmod area=2"
+  kind: device(d)
+  token 1 9:1 word "d1"
+  token 2 9:4 word "a"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 word "dmod"
+  token 5 9:13 word "area"
+  token 6 9:17 equals "="
+  token 7 9:18 number "2" value=2e0
+card 5 @netlists/sens_diode.cir:10:1 lines=10-10 continuations=0
+  raw: "d2 a b dmod2 m=2"
+  kind: device(d)
+  token 1 10:1 word "d2"
+  token 2 10:4 word "a"
+  token 3 10:6 word "b"
+  token 4 10:8 word "dmod2"
+  token 5 10:14 word "m"
+  token 6 10:15 equals "="
+  token 7 10:16 number "2" value=2e0
+card 6 @netlists/sens_diode.cir:11:1 lines=11-11 continuations=0
+  raw: "rb b 0 500"
+  kind: device(r)
+  token 1 11:1 word "rb"
+  token 2 11:4 word "b"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "500" value=5e2
+card 7 @netlists/sens_diode.cir:12:1 lines=12-12 continuations=0
+  raw: ".model dmod d is=1e-14 rs=10 n=1.5 ikf=0.1 bv=10 tnom=40 trs=1e-3 xti=2"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "dmod"
+  token 3 12:13 word "d"
+  token 4 12:15 word "is"
+  token 5 12:17 equals "="
+  token 6 12:18 number "1e-14" value=1e-14
+  token 7 12:24 word "rs"
+  token 8 12:26 equals "="
+  token 9 12:27 number "10" value=1e1
+  token 10 12:30 word "n"
+  token 11 12:31 equals "="
+  token 12 12:32 number "1.5" value=1.5e0
+  token 13 12:36 word "ikf"
+  token 14 12:39 equals "="
+  token 15 12:40 number "0.1" value=1e-1
+  token 16 12:44 word "bv"
+  token 17 12:46 equals "="
+  token 18 12:47 number "10" value=1e1
+  token 19 12:50 word "tnom"
+  token 20 12:54 equals "="
+  token 21 12:55 number "40" value=4e1
+  token 22 12:58 word "trs"
+  token 23 12:61 equals "="
+  token 24 12:62 number "1e-3" value=1e-3
+  token 25 12:67 word "xti"
+  token 26 12:70 equals "="
+  token 27 12:71 number "2" value=2e0
+card 8 @netlists/sens_diode.cir:13:1 lines=13-13 continuations=0
+  raw: ".model dmod2 d is=1e-15 eg=1.2 ikf=1"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "dmod2"
+  token 3 13:14 word "d"
+  token 4 13:16 word "is"
+  token 5 13:18 equals "="
+  token 6 13:19 number "1e-15" value=1e-15
+  token 7 13:25 word "eg"
+  token 8 13:27 equals "="
+  token 9 13:28 number "1.2" value=1.2e0
+  token 10 13:32 word "ikf"
+  token 11 13:35 equals "="
+  token 12 13:36 number "1" value=1e0
+card 9 @netlists/sens_diode.cir:14:1 lines=14-14 continuations=0
+  raw: ".sens v(a)"
+  kind: dot(.sens)
+  token 1 14:1 word ".sens"
+  token 2 14:7 word "v"
+  token 3 14:8 lparen "("
+  token 4 14:9 word "a"
+  token 5 14:10 rparen ")"
+card 10 @netlists/sens_diode.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

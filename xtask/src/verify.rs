@@ -711,6 +711,47 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // `.sens` (#102): C's finite-difference sensitivities, every parameter
+    // `sgen` perturbs. Linear decks (DC, a hot deck with C's in-place
+    // perturbation side effects, AC) under `compare::SENSITIVITY`; the diode
+    // deck, at a tightened-RELTOL operating point, under
+    // `compare::SENSITIVITY_NONLINEAR`.
+    Supported {
+        name: "sens_divider",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sens_hot",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sens_diode",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sens_ac",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY,
+        },
+        variants: &[],
+    },
     // `.sp` (#105): linear port decks, so the AC bound applies to every
     // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
     // resistor so no Z/Y component is a rounding-level real part.
@@ -782,6 +823,33 @@ const DISTORTION_IM_AND_HARMONIC_STAGES: [Stage; 5] = [
 ];
 
 const BATCH: &[Batch] = &[
+    // `.sens` (#102) after `.ac` and `.op`, with a name filter.
+    Batch {
+        name: "sens_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Sensitivity,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::SENSITIVITY,
+                },
+            },
+        ],
+    },
     // `.noise` (#100): every `.noise` card writes a spectrum and an
     // integrated-noise plot, so the fixtures are batch fixtures. The RC deck
     // is linear (the AC-type bound with the noise floor); the diode, BJT and

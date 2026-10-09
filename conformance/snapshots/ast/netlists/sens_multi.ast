@@ -1,0 +1,49 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_multi.cir
+title: "Sensitivity in a multi-analysis deck with a name filter" @netlists/sens_multi.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/sens_multi.cir:3:1 "v1 in 0 dc 10 ac 1"
+    [1] device[1] @netlists/sens_multi.cir:4:1 "r1 in out 1k"
+    [2] device[2] @netlists/sens_multi.cir:5:1 "r2 out 0 2k"
+    [3] device[3] @netlists/sens_multi.cir:6:1 "c1 out 0 1u"
+    [4] analysis[0] @netlists/sens_multi.cir:7:1 ".op"
+    [5] analysis[1] @netlists/sens_multi.cir:8:1 ".ac dec 2 10 1k"
+    [6] analysis[2] @netlists/sens_multi.cir:9:1 ".sens v(out) r* v1 dc"
+    [7] end @netlists/sens_multi.cir:10:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/sens_multi.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="10" @netlists/sens_multi.cir:3:9
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_multi.cir:3:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_multi.cir:3:15
+    device [1] name="r1" designator=r @netlists/sens_multi.cir:4:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_multi.cir:4:11
+    device [2] name="r2" designator=r @netlists/sens_multi.cir:5:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/sens_multi.cir:5:10
+    device [3] name="c1" designator=c @netlists/sens_multi.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/sens_multi.cir:6:10
+  models (0):
+  subcircuits (0):
+  analyses (3):
+    analysis [0] kind=op @netlists/sens_multi.cir:7:1
+      arguments:
+    analysis [1] kind=ac @netlists/sens_multi.cir:8:1
+      arguments: "dec" "2" "10" "1k"
+    analysis [2] kind=sens @netlists/sens_multi.cir:9:1
+      arguments: "v" "(" "out" ")" "r*" "v1" "dc"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

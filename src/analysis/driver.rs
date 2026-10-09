@@ -605,14 +605,13 @@ mod tests {
 
     #[test]
     fn analyses_off_the_roadmap_are_reported_as_unsupported() {
-        for kind in [AnalysisKind::Fourier] {
-            let error = runner(kind).expect_err("no driver");
-            assert!(
-                !error.is_not_yet_ported(),
-                "{kind:?} is out of scope, not pending"
-            );
-            assert!(error.to_string().contains(kind.as_str()));
-        }
+        let kind = AnalysisKind::Fourier;
+        let error = runner(kind).expect_err("no driver");
+        assert!(
+            !error.is_not_yet_ported(),
+            "{kind:?} is out of scope, not pending"
+        );
+        assert!(error.to_string().contains(kind.as_str()));
         assert!(super::has_driver(AnalysisKind::Noise));
         assert!(super::has_driver(AnalysisKind::Sensitivity));
         assert!(super::has_driver(AnalysisKind::Distortion));

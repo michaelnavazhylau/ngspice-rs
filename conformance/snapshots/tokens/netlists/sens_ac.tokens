@@ -1,0 +1,204 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_ac.cir
+title: "AC sensitivity of a linear filter" @netlists/sens_ac.cir:1:1
+card 1 @netlists/sens_ac.cir:5:1 lines=5-5 continuations=0
+  raw: ".options temp=40"
+  kind: dot(.options)
+  token 1 5:1 word ".options"
+  token 2 5:10 word "temp"
+  token 3 5:14 equals "="
+  token 4 5:15 number "40" value=4e1
+card 2 @netlists/sens_ac.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 in 0 dc 1 ac 1 30"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 word "in"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 word "dc"
+  token 5 6:12 number "1" value=1e0
+  token 6 6:14 word "ac"
+  token 7 6:17 number "1" value=1e0
+  token 8 6:19 number "30" value=3e1
+card 3 @netlists/sens_ac.cir:7:1 lines=7-7 continuations=0
+  raw: "i1 0 n2 ac 0.5"
+  kind: device(i)
+  token 1 7:1 word "i1"
+  token 2 7:4 number "0" value=0e0
+  token 3 7:6 word "n2"
+  token 4 7:9 word "ac"
+  token 5 7:12 number "0.5" value=5e-1
+card 4 @netlists/sens_ac.cir:8:1 lines=8-8 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 8:1 word "r1"
+  token 2 8:4 word "in"
+  token 3 8:7 word "a"
+  token 4 8:9 number "1k" value=1e3
+card 5 @netlists/sens_ac.cir:9:1 lines=9-9 continuations=0
+  raw: "c1 a 0 1n"
+  kind: device(c)
+  token 1 9:1 word "c1"
+  token 2 9:4 word "a"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1n" value=1e-9
+card 6 @netlists/sens_ac.cir:10:1 lines=10-10 continuations=0
+  raw: "r2 a b rm 2k tc1=1e-3"
+  kind: device(r)
+  token 1 10:1 word "r2"
+  token 2 10:4 word "a"
+  token 3 10:6 word "b"
+  token 4 10:8 word "rm"
+  token 5 10:11 number "2k" value=2e3
+  token 6 10:14 word "tc1"
+  token 7 10:17 equals "="
+  token 8 10:18 number "1e-3" value=1e-3
+card 7 @netlists/sens_ac.cir:11:1 lines=11-11 continuations=0
+  raw: ".model rm r tc1=1e-3"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "rm"
+  token 3 11:11 word "r"
+  token 4 11:13 word "tc1"
+  token 5 11:16 equals "="
+  token 6 11:17 number "1e-3" value=1e-3
+card 8 @netlists/sens_ac.cir:12:1 lines=12-12 continuations=0
+  raw: "l1 b 0 10u"
+  kind: device(l)
+  token 1 12:1 word "l1"
+  token 2 12:4 word "b"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 number "10u" value=9.999999999999999e-6
+card 9 @netlists/sens_ac.cir:13:1 lines=13-13 continuations=0
+  raw: "c2 b 0 cm 2n m=2 scale=1.2"
+  kind: device(c)
+  token 1 13:1 word "c2"
+  token 2 13:4 word "b"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 word "cm"
+  token 5 13:11 number "2n" value=2e-9
+  token 6 13:14 word "m"
+  token 7 13:15 equals "="
+  token 8 13:16 number "2" value=2e0
+  token 9 13:18 word "scale"
+  token 10 13:23 equals "="
+  token 11 13:24 number "1.2" value=1.2e0
+card 10 @netlists/sens_ac.cir:14:1 lines=14-14 continuations=0
+  raw: ".model cm c tc1=1e-3 tnom=30"
+  kind: dot(.model)
+  token 1 14:1 word ".model"
+  token 2 14:8 word "cm"
+  token 3 14:11 word "c"
+  token 4 14:13 word "tc1"
+  token 5 14:16 equals "="
+  token 6 14:17 number "1e-3" value=1e-3
+  token 7 14:22 word "tnom"
+  token 8 14:26 equals "="
+  token 9 14:27 number "30" value=3e1
+card 11 @netlists/sens_ac.cir:15:1 lines=15-15 continuations=0
+  raw: "l2 n2 0 lm 1m"
+  kind: device(l)
+  token 1 15:1 word "l2"
+  token 2 15:4 word "n2"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 word "lm"
+  token 5 15:12 number "1m" value=1e-3
+card 12 @netlists/sens_ac.cir:16:1 lines=16-16 continuations=0
+  raw: ".model lm l tc1=2e-3"
+  kind: dot(.model)
+  token 1 16:1 word ".model"
+  token 2 16:8 word "lm"
+  token 3 16:11 word "l"
+  token 4 16:13 word "tc1"
+  token 5 16:16 equals "="
+  token 6 16:17 number "2e-3" value=2e-3
+card 13 @netlists/sens_ac.cir:17:1 lines=17-17 continuations=0
+  raw: "rl2 n2 0 1k"
+  kind: device(r)
+  token 1 17:1 word "rl2"
+  token 2 17:5 word "n2"
+  token 3 17:8 number "0" value=0e0
+  token 4 17:10 number "1k" value=1e3
+card 14 @netlists/sens_ac.cir:18:1 lines=18-18 continuations=0
+  raw: "e1 e 0 a 0 2"
+  kind: device(e)
+  token 1 18:1 word "e1"
+  token 2 18:4 word "e"
+  token 3 18:6 number "0" value=0e0
+  token 4 18:8 word "a"
+  token 5 18:10 number "0" value=0e0
+  token 6 18:12 number "2" value=2e0
+card 15 @netlists/sens_ac.cir:19:1 lines=19-19 continuations=0
+  raw: "re e 0 1k"
+  kind: device(r)
+  token 1 19:1 word "re"
+  token 2 19:4 word "e"
+  token 3 19:6 number "0" value=0e0
+  token 4 19:8 number "1k" value=1e3
+card 16 @netlists/sens_ac.cir:20:1 lines=20-20 continuations=0
+  raw: "g1 0 g a 0 1m m=3"
+  kind: device(g)
+  token 1 20:1 word "g1"
+  token 2 20:4 number "0" value=0e0
+  token 3 20:6 word "g"
+  token 4 20:8 word "a"
+  token 5 20:10 number "0" value=0e0
+  token 6 20:12 number "1m" value=1e-3
+  token 7 20:15 word "m"
+  token 8 20:16 equals "="
+  token 9 20:17 number "3" value=3e0
+card 17 @netlists/sens_ac.cir:21:1 lines=21-21 continuations=0
+  raw: "rg g b 1k"
+  kind: device(r)
+  token 1 21:1 word "rg"
+  token 2 21:4 word "g"
+  token 3 21:6 word "b"
+  token 4 21:8 number "1k" value=1e3
+card 18 @netlists/sens_ac.cir:22:1 lines=22-22 continuations=0
+  raw: "f1 0 f v1 2"
+  kind: device(f)
+  token 1 22:1 word "f1"
+  token 2 22:4 number "0" value=0e0
+  token 3 22:6 word "f"
+  token 4 22:8 word "v1"
+  token 5 22:11 number "2" value=2e0
+card 19 @netlists/sens_ac.cir:23:1 lines=23-23 continuations=0
+  raw: "rf f b 1k"
+  kind: device(r)
+  token 1 23:1 word "rf"
+  token 2 23:4 word "f"
+  token 3 23:6 word "b"
+  token 4 23:8 number "1k" value=1e3
+card 20 @netlists/sens_ac.cir:24:1 lines=24-24 continuations=0
+  raw: "h1 h 0 v1 100"
+  kind: device(h)
+  token 1 24:1 word "h1"
+  token 2 24:4 word "h"
+  token 3 24:6 number "0" value=0e0
+  token 4 24:8 word "v1"
+  token 5 24:11 number "100" value=1e2
+card 21 @netlists/sens_ac.cir:25:1 lines=25-25 continuations=0
+  raw: "rh h b 1k"
+  kind: device(r)
+  token 1 25:1 word "rh"
+  token 2 25:4 word "h"
+  token 3 25:6 word "b"
+  token 4 25:8 number "1k" value=1e3
+card 22 @netlists/sens_ac.cir:26:1 lines=26-26 continuations=0
+  raw: ".sens v(a,b) ac dec 2 1k 100k"
+  kind: dot(.sens)
+  token 1 26:1 word ".sens"
+  token 2 26:7 word "v"
+  token 3 26:8 lparen "("
+  token 4 26:9 word "a"
+  token 5 26:10 comma ","
+  token 6 26:11 word "b"
+  token 7 26:12 rparen ")"
+  token 8 26:14 word "ac"
+  token 9 26:17 word "dec"
+  token 10 26:21 number "2" value=2e0
+  token 11 26:23 number "1k" value=1e3
+  token 12 26:26 number "100k" value=1e5
+card 23 @netlists/sens_ac.cir:27:1 lines=27-27 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 27:1 word ".end"

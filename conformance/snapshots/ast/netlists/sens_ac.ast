@@ -1,0 +1,144 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac.cir
+title: "AC sensitivity of a linear filter" @netlists/sens_ac.cir:1:1
+scope root
+  cards (23):
+    [0] options[0] @netlists/sens_ac.cir:5:1 ".options temp=40"
+    [1] device[0] @netlists/sens_ac.cir:6:1 "v1 in 0 dc 1 ac 1 30"
+    [2] device[1] @netlists/sens_ac.cir:7:1 "i1 0 n2 ac 0.5"
+    [3] device[2] @netlists/sens_ac.cir:8:1 "r1 in a 1k"
+    [4] device[3] @netlists/sens_ac.cir:9:1 "c1 a 0 1n"
+    [5] device[4] @netlists/sens_ac.cir:10:1 "r2 a b rm 2k tc1=1e-3"
+    [6] model[0] @netlists/sens_ac.cir:11:1 ".model rm r tc1=1e-3"
+    [7] device[5] @netlists/sens_ac.cir:12:1 "l1 b 0 10u"
+    [8] device[6] @netlists/sens_ac.cir:13:1 "c2 b 0 cm 2n m=2 scale=1.2"
+    [9] model[1] @netlists/sens_ac.cir:14:1 ".model cm c tc1=1e-3 tnom=30"
+    [10] device[7] @netlists/sens_ac.cir:15:1 "l2 n2 0 lm 1m"
+    [11] model[2] @netlists/sens_ac.cir:16:1 ".model lm l tc1=2e-3"
+    [12] device[8] @netlists/sens_ac.cir:17:1 "rl2 n2 0 1k"
+    [13] device[9] @netlists/sens_ac.cir:18:1 "e1 e 0 a 0 2"
+    [14] device[10] @netlists/sens_ac.cir:19:1 "re e 0 1k"
+    [15] device[11] @netlists/sens_ac.cir:20:1 "g1 0 g a 0 1m m=3"
+    [16] device[12] @netlists/sens_ac.cir:21:1 "rg g b 1k"
+    [17] device[13] @netlists/sens_ac.cir:22:1 "f1 0 f v1 2"
+    [18] device[14] @netlists/sens_ac.cir:23:1 "rf f b 1k"
+    [19] device[15] @netlists/sens_ac.cir:24:1 "h1 h 0 v1 100"
+    [20] device[16] @netlists/sens_ac.cir:25:1 "rh h b 1k"
+    [21] analysis[0] @netlists/sens_ac.cir:26:1 ".sens v(a,b) ac dec 2 1k 100k"
+    [22] end @netlists/sens_ac.cir:27:1 ".end"
+  devices (17):
+    device [0] name="v1" designator=v @netlists/sens_ac.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="1" @netlists/sens_ac.cir:6:9
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac.cir:6:17
+        [2] name="acphase" kind=scalar value="30" @netlists/sens_ac.cir:6:19
+    device [1] name="i1" designator=i @netlists/sens_ac.cir:7:1
+      nodes: "0" "n2"
+      model: none
+      parameters (2):
+        [0] name="acmag" kind=scalar value="0.5" @netlists/sens_ac.cir:7:12
+        [1] name="acphase" kind=scalar value="0" @netlists/sens_ac.cir:7:9
+    device [2] name="r1" designator=r @netlists/sens_ac.cir:8:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac.cir:8:9
+    device [3] name="c1" designator=c @netlists/sens_ac.cir:9:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/sens_ac.cir:9:8
+    device [4] name="r2" designator=r @netlists/sens_ac.cir:10:1
+      nodes: "a" "b"
+      model: "rm"
+      parameters (2):
+        [0] name="tc1" kind=scalar value="1e-3" @netlists/sens_ac.cir:10:14
+        [1] name="resistance" kind=scalar value="2k" @netlists/sens_ac.cir:10:11
+    device [5] name="l1" designator=l @netlists/sens_ac.cir:12:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="10u" @netlists/sens_ac.cir:12:8
+    device [6] name="c2" designator=c @netlists/sens_ac.cir:13:1
+      nodes: "b" "0"
+      model: "cm"
+      parameters (3):
+        [0] name="m" kind=scalar value="2" @netlists/sens_ac.cir:13:14
+        [1] name="scale" kind=scalar value="1.2" @netlists/sens_ac.cir:13:18
+        [2] name="capacitance" kind=scalar value="2n" @netlists/sens_ac.cir:13:11
+    device [7] name="l2" designator=l @netlists/sens_ac.cir:15:1
+      nodes: "n2" "0"
+      model: "lm"
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/sens_ac.cir:15:12
+    device [8] name="rl2" designator=r @netlists/sens_ac.cir:17:1
+      nodes: "n2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac.cir:17:10
+    device [9] name="e1" designator=e @netlists/sens_ac.cir:18:1
+      nodes: "e" "0" "a" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="2" @netlists/sens_ac.cir:18:12
+    device [10] name="re" designator=r @netlists/sens_ac.cir:19:1
+      nodes: "e" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac.cir:19:8
+    device [11] name="g1" designator=g @netlists/sens_ac.cir:20:1
+      nodes: "0" "g" "a" "0"
+      model: none
+      parameters (2):
+        [0] name="m" kind=scalar value="3" @netlists/sens_ac.cir:20:15
+        [1] name="gain" kind=scalar value="1m" @netlists/sens_ac.cir:20:12
+    device [12] name="rg" designator=r @netlists/sens_ac.cir:21:1
+      nodes: "g" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac.cir:21:8
+    device [13] name="f1" designator=f @netlists/sens_ac.cir:22:1
+      nodes: "0" "f"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="v1" @netlists/sens_ac.cir:22:8
+        [1] name="gain" kind=scalar value="2" @netlists/sens_ac.cir:22:11
+    device [14] name="rf" designator=r @netlists/sens_ac.cir:23:1
+      nodes: "f" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac.cir:23:8
+    device [15] name="h1" designator=h @netlists/sens_ac.cir:24:1
+      nodes: "h" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="v1" @netlists/sens_ac.cir:24:8
+        [1] name="gain" kind=scalar value="100" @netlists/sens_ac.cir:24:11
+    device [16] name="rh" designator=r @netlists/sens_ac.cir:25:1
+      nodes: "h" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac.cir:25:8
+  models (3):
+    model [0] name="rm" base="r" level=none @netlists/sens_ac.cir:11:1
+      parameters (1):
+        [0] name="tc1" kind=scalar value="1e-3" @netlists/sens_ac.cir:11:13
+    model [1] name="cm" base="c" level=none @netlists/sens_ac.cir:14:1
+      parameters (2):
+        [0] name="tc1" kind=scalar value="1e-3" @netlists/sens_ac.cir:14:13
+        [1] name="tnom" kind=scalar value="30" @netlists/sens_ac.cir:14:22
+    model [2] name="lm" base="l" level=none @netlists/sens_ac.cir:16:1
+      parameters (1):
+        [0] name="tc1" kind=scalar value="2e-3" @netlists/sens_ac.cir:16:13
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_ac.cir:26:1
+      arguments: "v" "(" "a" "," "b" ")" "ac" "dec" "2" "1k" "100k"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_ac.cir:5:1
+      setting [0] name="temp" value="40"@netlists/sens_ac.cir:5:15 @netlists/sens_ac.cir:5:10
+  globals (0):

@@ -426,9 +426,9 @@ impl DeviceSensitivity for DiodeSensitivity<'_> {
         }
         let (m, i) = (current.model, current.instance);
         let given = |keyword: &str| -> SpiceResult<Option<Real>> {
-            Ok(model_given(m, keyword)
+            model_given(m, keyword)
                 .then(|| m.value(keyword))
-                .transpose()?)
+                .transpose()
         };
         let selector = |keyword: &str| -> SpiceResult<u8> {
             let value = m.value(keyword)?;
