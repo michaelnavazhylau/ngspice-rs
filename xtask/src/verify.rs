@@ -128,6 +128,32 @@ const SUPPORTED: &[Supported] = &[
     tran("m4_diode_tran", &[]),
     tran("m4_bjt_tran", &[]),
     tran("m4_mos1_tran", &[]),
+    // MOS1 completion (#88): Meyer gate charge (TOX), series resistance,
+    // junction geometry, process extraction and temperature. The transient
+    // decks bound the maximum step so that both simulators' discretization
+    // error sits well inside `compare::TRAN`; the DC deck tightens RELTOL so
+    // that C's own Newton stopping error does not exceed `NONLINEAR` (see
+    // docs/port/VERIFICATION.md).
+    tran("m7_mos1_inverter_tran", &[]),
+    tran("m7_mos1_ring_tran", &[]),
+    Supported {
+        name: "m7_mos1_meyer_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_mos1_process_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,

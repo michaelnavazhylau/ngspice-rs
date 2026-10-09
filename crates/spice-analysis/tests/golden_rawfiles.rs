@@ -703,6 +703,93 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(gate)", 0, 1.5, 0.),
         ],
     },
+    // MOS1 completion (#88). At t = 0 the input is low: the NMOS is off, the
+    // PMOS pulls the output to VDD, and the supply only feeds the reverse NMOS
+    // drain junction (gmin * 3.3 V plus JS * AD).
+    Expectation {
+        fixture: "m7_mos1_inverter_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10029,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 3.299999997161830, 0.),
+            ("i(vdd)", 0, -3.300190593273314e-12, 0.),
+        ],
+    },
+    // The operating point of a symmetric three-stage ring is metastable: every
+    // node sits at the same inverter switching voltage and each stage draws
+    // the same crowbar current until the current kick at 0.2 ns.
+    Expectation {
+        fixture: "m7_mos1_ring_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 12017,
+        variables: &["time", "v(n1)", "v(n2)", "v(n3)", "v(vdd)", "i(vdd)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(n1)", 0, 1.583269636740751, 0.),
+            ("v(n2)", 0, 1.583269636740767, 0.),
+            ("v(n3)", 0, 1.583269636740759, 0.),
+            ("i(vdd)", 0, -6.843983314869297e-4, 0.),
+        ],
+    },
+    // A common-source stage: the supply current is the load-resistor current,
+    // i(vdd) = v(drain) / 10 k (the drain is the only path from VDD).
+    Expectation {
+        fixture: "m7_mos1_meyer_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 36,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(drain)", 0, -2.642323147155134, 4.132728256333773e-6),
+            ("i(vdd)", 0, -2.642323147155135e-4, 4.132728256333773e-10),
+        ],
+    },
+    // Gate sweep with fixed body biases: the forward bulk-junction current
+    // i(vbs) of m1/m2 does not depend on the gate; at vgs = 0 the PMOS is off
+    // and i(vd3) is its reverse drain junction (gmin * 1.7 V plus IS).
+    Expectation {
+        fixture: "m7_mos1_process_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 31,
+        variables: &[
+            "v(v-sweep)",
+            "v(b)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "i(egp)",
+            "v(gp)",
+            "v(g)",
+            "i(vbp)",
+            "i(vbs)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbs)", 0, -1.024308251724379e-7, 0.),
+            ("i(vbs)", 30, -1.024308251724379e-7, 0.),
+            ("i(vd3)", 0, 1.710000042799543e-12, 0.),
+            ("i(vd1)", 30, -9.838819194962108e-4, 0.),
+        ],
+    },
     Expectation {
         fixture: "mos_inverter",
         plotname: "Operating Point",

@@ -1,0 +1,10 @@
+MOS1 small signal: Meyer capacitance, series resistance and junction geometry at 75 C
+vdd vdd 0 5
+vin gate 0 dc 2 ac 1
+rl vdd drain 10k
+m1 drain gate 0 0 mm w=5u l=2.2u m=2 ad=20p as=20p pd=24u ps=24u
+.model mm nmos(level=1 vto=0.8 kp=50u gamma=0.5 phi=0.65 lambda=0.03 tox=20n ld=0.1u
++ cgso=0.4n cgdo=0.4n cgbo=0.2n cj=0.5m cjsw=0.4n mjsw=0.33 rd=50 rs=40)
+.options temp=75
+.ac dec 5 1k 10g
+.end

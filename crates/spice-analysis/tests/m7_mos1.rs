@@ -479,3 +479,26 @@ fn unported_and_invalid_mos1_inputs_fail_explicitly() {
         assert!(Circuit::from_netlist(&deck(body)).is_err(), "{body}");
     }
 }
+
+#[test]
+fn new_m7_fixtures_parse_write_parse_with_a_fixed_point() {
+    for name in [
+        "m7_mos1_inverter_tran",
+        "m7_mos1_ring_tran",
+        "m7_mos1_meyer_ac",
+        "m7_mos1_process_dc",
+    ] {
+        let n = Parser::new()
+            .parse_file(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("../../conformance/netlists/{name}.cir")),
+            )
+            .unwrap();
+        let text = spice_netlist::write_netlist(&n).unwrap();
+        let round = Parser::new()
+            .parse_deck(&parse_deck_text(Path::new("round.cir"), &text))
+            .unwrap();
+        assert!(spice_netlist::semantic_eq(&n, &round));
+        assert_eq!(text, spice_netlist::write_netlist(&round).unwrap());
+    }
+}

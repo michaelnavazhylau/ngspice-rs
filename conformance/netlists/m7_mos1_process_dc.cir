@@ -1,0 +1,17 @@
+MOS1 process extraction (NSUB/TPG/NSS/UO), forward body bias and temperature
+vd1 d1 0 2
+vd2 d2 0 2
+vd3 d3 0 -2
+vgs g 0 0
+vbs b 0 0.3
+vbp bp 0 -0.3
+egp gp 0 g 0 -1
+m1 d1 g 0 b mn w=4u l=1u temp=60
+m2 d2 g 0 b mq w=4u l=1u dtemp=-30
+m3 d3 gp 0 bp mp w=8u l=1u nrd=3 nrs=3
+.model mn nmos(level=1 tox=25n nsub=2e16 tpg=1 nss=1e10 uo=550 lambda=0.02 tnom=20)
+.model mq nmos(level=1 tox=25n nsub=5e15 tpg=-1 uo=500 phi=0.6)
+.model mp pmos(level=1 tox=25n nsub=1e16 nss=2e10 u0=250 gamma=0.45 rsh=30)
+.options reltol=1e-7 vntol=1e-12 abstol=1e-18
+.dc vgs 0 3 0.1
+.end
