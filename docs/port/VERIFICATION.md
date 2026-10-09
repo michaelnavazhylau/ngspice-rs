@@ -1,5 +1,29 @@
 # Verification
 
+## M7 diode physics (#86)
+
+Five new C goldens, each captured individually with `cargo xtask golden
+capture --netlist <name>` (no existing golden recaptured or tolerance changed),
+are registered in `golden verify` (64 verified fixtures): `m7_zener_dc` (a Zener
+shunt regulator swept from forward conduction through reverse breakdown),
+`m7_diode_physics_dc` (recombination, tunnelling, IKF/IKR/IKP knees, NS-sidewall
+breakdown), `m7_diode_temp_dc` (`.dc temp -40 125 5`: EG/XTI/TNOM, TLEV 2,
+DTEMP, TRS and TCV-shifted breakdown) and `m7_diode_temp_ac` (`.options
+temp=100`: TLEVC 0/1 depletion laws, sidewall charge, recombination small
+signal) under the 1 ppm `compare::NONLINEAR` bound, and `m7_zener_tran` (a
+SIN-driven clipper through breakdown with junction, sidewall and diffusion
+charge) under `compare::TRAN` (worst 0.470 of the bound). The DC decks set
+`.options reltol=1e-6` (the regulator also `vntol=1e-9`): at C's default
+tolerances its forward points stopped up to 0.3 % (in current) short of the
+physical root, which the Rust point and an independent junction check satisfy
+to 1e-10. The transient deck sets `reltol=1e-5` so both integrators resolve the
+recovery at each zero crossing. These option lines were chosen before the
+goldens were committed; the first captures of the default-tolerance drafts were
+discarded, not committed. `golden verify` names C's `.dc temp` scale
+`temp-sweep` (type `temp-sweep`, `dctrcurv.c`). Using the exact recombination
+derivative in AC instead of C's stored conductance fails `m7_diode_temp_ac`
+(6.9e3 times the bound). Details: [M4_NONLINEAR.md](M4_NONLINEAR.md#diode).
+
 ## M6 switches S/W (#81, `work/m6-switches`)
 
 On top of the Wave 1 tree this slice adds six C goldens (`switch_op`,

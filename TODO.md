@@ -206,6 +206,10 @@ remain explicit, rather than implying complete ngspice output compatibility.
 - [x] `spice-rs devices`/`analyses` tables (#117): `DeviceSupport` (`ported`: built from the card; `bounded`: D/Q/M, S/W and X, built from a deck for a stated subset; `pending`) derived from the factory module's designator lists, pinned by `spice-devices/tests/registry_support.rs`, which elaborates one representative deck per designator; `.four` reported as a post-processor of `.tran` (`spice_analysis::support`), op/dc/ac/tran no longer described as linear-only; K cites `devices/ind/mut*.c`. See [CLI.md](docs/port/CLI.md).
 - [x] M6 exit gate: `m6_gate` (SIN-driven K transformer into a G/E op-amp subcircuit with `.param`/`.func`/`{expr}` values, a B limiter, an H sense and `.option reltol`) runs `.ac`/`.dc`/`.op`/`.tran` end to end; C golden verified plot by plot (`BATCH`, 59 verified) and circuit relations checked in `spice-cli/tests/simulate.rs`. See [VERIFICATION.md](docs/port/VERIFICATION.md#m6-exit-gate).
 
+## 9. Nonlinear physics and convergence parity — M7
+
+- [x] Diode physics (#86): reverse breakdown BV/IBV/NBV/TCV with `diotemp.c` matching; full `diotemp.c` temperature laws (EG/XTI, TLEV 0..2 with GAP1/GAP2, TLEVC 0/1 with CTA/CTP/TPB/TPHP, TM1/TM2, TTT1/TTT2, TRS/TRS2, DTEMP, TNOM); sidewall JSW/NS/CJSW/VJSW/MJSW/FCS with instance/model PJ and model AREA; ISR/NR recombination, JTUN/JTUNSW tunnelling, IKF/IKR/IKP knees; `dio.c` aliases; C's AC recombination conductance. C goldens `m7_zener_dc`/`m7_zener_tran`/`m7_diode_physics_dc`/`m7_diode_temp_dc`/`m7_diode_temp_ac` (64 verified), FD Jacobian/charge unit tests per slice and closed-form production checks (`diode_physics.rs`). Still `NotYetPorted`: soft recovery (VP), RSW, self-heating, level 3 geometry, noise/SOA setters, IC/OFF (#99), common-characteristic sidewall breakdown, TM1/TM2 with CJSW. Breakdown matching uses C's default RELTOL. See [M4_NONLINEAR.md](docs/port/M4_NONLINEAR.md#diode).
+
 ## Suggested sequence
 
 #12/#13 scoped/source syntax → #14–16 expressions/evaluation/options/globals →

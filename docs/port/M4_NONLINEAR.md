@@ -41,23 +41,78 @@ setup routines; the code's schema tables are the exact allowlists.
 
 ### Diode
 
-Model: `IS` (1e-14 A), `N` (1), `RS` (0 ohm), `TNOM` (context), `CJO` (0 F),
-`VJ` (1 V), `M` (0.5), `FC` (0.5), `TT` (0 s). Instance: `AREA` (1), `M` (1),
-`TEMP` (context). Grading and FC require `0 <= value < 1`; scale products and
-all derived values must remain finite.
+M4 delivered the bounded core; M7 (#86) extended it toward `dio` parity. The
+schema tables in `spice-devices/src/nonlinear.rs` are the exact allowlists;
+C's `dio.c` aliases (`js`, `isw`, `tref`, `trs1`, `cj0`/`cj`, `pb`, `mj`, `cjp`,
+`php`, `ik`, `nz`, `vb`/`vrb`/`var`, `ib`, `tbv1`, `ctc`, `tvj`) fold onto their
+canonical setter in order, so last-set precedence spans an alias and its name.
 
-- Exponential forward law and C's cubic reverse continuation below `-3 N Vt`.
-- A fixed 1e-12 S **junction** gmin, separate from artificial nodal continuation.
-- RS creates an internal anode, with conductance `AREA*M/RS`.
-- Depletion charge and capacitance, with a continuous quadratic continuation
-  above `FC*VJ`; diffusion charge `TT * I_junction` and its actual derivative.
-- Contextual saturation-current temperature scaling at fixed C defaults
-  EG=1.11 eV, XTI=3. Non-nominal depletion-charge temperature laws are rejected
-  when CJO > 0. No cumulative temperature adjustments.
+Model (defaults from `diosetup.c`): `IS` (1e-14 A, floored at CKTepsmin 1e-28),
+`N` (1), `RS` (0 ohm), `TRS`/`TRS2` (0), `TNOM` (context), `TT` (0 s),
+`TTT1`/`TTT2` (0), `CJO` (0 F), `VJ` (1 V), `M` (0.5), `TM1`/`TM2` (0), `FC` (0.5),
+`JSW` (given flag), `NS` (1; given flag), `CJSW` (0 F), `VJSW` (1 V), `MJSW` (0.33),
+`FCS` (0.5), `BV` (given flag), `IBV` (1 mA), `NBV` (= N), `TCV` (0), `TLEV` (0..2),
+`TLEVC` (0..1), `EG` (1.11 eV, 1.16 eV under TLEV 2), `GAP1` (7.02e-4), `GAP2`
+(1108), `XTI` (3), `CTA`/`CTP`/`TPB`/`TPHP` (0), `ISR` (given flag), `NR` (2),
+`IKF`/`IKR`/`IKP` (given flags; below 1e-28 disabled like C), `JTUN`/`JTUNSW`
+(given flags), `NTUN` (30), `XTITUN` (3), `KEG` (1), `AREA` (1), `PJ` (0).
+Instance: `AREA` and `PJ`/`PERIM` (default to the model's), `M` (1), `TEMP` or
+`DTEMP` (giving both is an error; C silently ignores DTEMP). Grading and FC
+coefficients require `0 <= value < 1`.
 
-References: `dio/dioload.c`, `diosetup.c`, `diotemp.c`.
-Unsupported: breakdown/recovery, sidewall/tunneling/recombination/self-heating,
-extra geometry, DTEMP and nonlinear initialization flags/vectors.
+- Exponential forward law, C's cubic reverse continuation below `-3 N Vt` and,
+  with BV, the reverse-breakdown exponential `-IS exp(-(xbv + V)/(NBV Vt))`
+  below `-xbv` (`dioload.c`). `xbv` is matched to IBV*M (level 1: not AREA)
+  at the TCV-adjusted BV exactly like `diotemp.c` (TLEV 0: `BV - TCV dT`,
+  otherwise `BV (1 - TCV dT)`; unmatched BV when IBV < ISAT BV/Vt).
+- Sidewall: JSW*PJ*M current sharing the bottom characteristic, or its own
+  NS characteristic (including breakdown) when NS is given; CJSW*PJ*M depletion
+  charge with VJSW/MJSW/FCS; IKP knee on the sidewall current.
+- Recombination ISR/NR with C's generation factor (constant at `-3 N Vt` in
+  reverse), tunnelling JTUN/JTUNSW/NTUN/XTITUN/KEG, IKF/IKR high-injection knees.
+- Temperature (`diotemp.c::DIOtempUpdate`): instance temperature TEMP, else the
+  circuit temperature plus DTEMP; every saturation current with EG/XTI (TLEV
+  0/1) or the GAP1/GAP2 band gap (TLEV 2); depletion capacitance/potential by
+  C's band-gap law (TLEVC 0) or the linear CTA/CTP/TPB/TPHP law about 27 C
+  (TLEVC 1); TM1/TM2 grading, TTT1/TTT2 transit time (clamped like C), TRS/TRS2
+  series resistance. Quantities are derived per evaluation, never cumulatively,
+  so `.dc temp` and `.options temp` sweeps are exact.
+- A fixed 1e-12 S junction gmin (`.option gmin`), separate from artificial nodal
+  continuation; diffusion charge `TT * I` includes the gmin current, as in C.
+- RS creates an internal anode, with conductance `AREA*M/RS(T)`.
+- Depletion charge with C's continuous quadratic continuation above `FC*VJ`.
+- Newton uses the exact derivative of every current. AC (`dioacld.c`) uses C's
+  stored small-signal conductance, which differs only for ISR: `dioload.c`
+  omits the generation factor's `1/VJ` and reapplies the factor to the scaled
+  recombination current. The DC root is unaffected; the AC golden
+  `m7_diode_temp_ac` fails if the exact derivative is used instead.
+
+Deliberate divergences: breakdown matching stops at C's default RELTOL (1e-3)
+because device temperature setup has no access to the run's RELTOL; a deck that
+changes `reltol` can see C's rapidly contracting match stop one iteration
+earlier or later (a knee shift within the matching tolerance).
+
+Not yet ported (`SpiceError::NotYetPorted`, naming the C file): soft reverse
+recovery (`VP`, `QPSCALE`), separate sidewall resistance (`RSW`), self-heating
+(`RTH0`, `CTH0`, instance `THERMAL`), level-3 geometry (`LM`/`LP`/`WM`/`WP`,
+`XOM`/`XOI`/`XM`/`XP`/`XW`, instance `W`/`L`), noise (`KF`/`AF`), SOA limits
+(`FV_MAX`, `BV_MAX`, `ID_MAX`, `TE_MAX`, `PD_MAX`), instance `IC`/`OFF`
+(nonlinear initialization, #99), C's common-characteristic sidewall current in
+breakdown (JSW*PJ > 0 with BV and without NS: `dioload.c` evaluates it with an
+unassigned `vdsw`), and TM1/TM2 with sidewall capacitance (C mixes adjusted and
+nominal sidewall grading). PN-junction voltage limiting (`DEVpnjlim`) belongs to
+#106. Unknown setters remain unsupported errors.
+
+References: `dio/dioload.c`, `diosetup.c`, `diotemp.c`, `dioacld.c`,
+`diompar.c`, `dioparam.c`, `dio.c`. Unit tests in `nonlinear.rs` check
+finite-difference current and charge Jacobians per slice (breakdown, sidewall,
+recombination, tunnelling, knees, TLEV/TLEVC laws at several temperatures);
+`spice-analysis/tests/diode_physics.rs` checks the production paths against
+closed forms (breakdown law of a Zener operating point, a `.dc temp` forward
+voltage, sidewall/bottom equivalence in AC, transient depletion-charge
+conservation at 77 C). C goldens: `m7_zener_dc`, `m7_zener_tran`,
+`m7_diode_physics_dc`, `m7_diode_temp_dc`, `m7_diode_temp_ac` (see
+[VERIFICATION.md](VERIFICATION.md#m7-diode-physics-86)).
 
 ### BJT
 

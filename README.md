@@ -97,7 +97,7 @@ cargo xtask golden verify                            # Rust engine vs committed 
 NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-`golden verify` currently verifies all 59 golden fixtures (two of them
+`golden verify` currently verifies all 64 golden fixtures (two of them
 four-plot multi-analysis decks) with no exclusions.
 [VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
 and its limits.
