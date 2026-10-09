@@ -1,0 +1,15 @@
+Noise of an RC divider: literal, model-backed flicker and noiseless resistors
+* #100: thermal noise 4kT/R, a model resistor with KF/AF/EF and LF/WF noise
+* area, a noisy=0 resistor (no columns), a resistor at its own temp=, and a
+* per-instance summary (pts_per_summary = 2: every second frequency).
+v1 in 0 dc 1 ac 1
+r1 in out 1k
+r2 out 0 rflick l=20u w=2u
+r3 out 0 3k noisy=0
+r4 out mid rhot temp=80
+r5 mid 0 500
+c1 out 0 1n
+.model rflick r(r=2k kf=1e-20 af=1.5 ef=1.2 lf=1.1 wf=0.9 short=1u narrow=0.1u)
+.model rhot r(r=1k)
+.noise v(out) v1 dec 4 10 10meg 2
+.end

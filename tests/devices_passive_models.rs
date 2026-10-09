@@ -170,7 +170,7 @@ fn all_raw_setters_are_validated_even_if_overwritten_or_unused_by_precedence() {
         "short=-1u",
         "narrow=-1u",
         "tnom=-273.15",
-        "kf=1",
+        "noisy=0",
         "res=2k",
         "tce=1",
         "w=1u",

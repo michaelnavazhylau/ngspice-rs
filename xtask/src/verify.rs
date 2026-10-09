@@ -760,7 +760,73 @@ struct Batch {
     stages: &'static [Stage],
 }
 
+const NOISE_LINEAR_STAGES: [Stage; 2] = noise_stages(compare::NOISE);
+const NOISE_NONLINEAR_STAGES: [Stage; 2] = noise_stages(compare::NOISE_NONLINEAR);
+
 const BATCH: &[Batch] = &[
+    // `.noise` (#100): every `.noise` card writes a spectrum and an
+    // integrated-noise plot, so the fixtures are batch fixtures. The RC deck
+    // is linear (the AC-type bound with the noise floor); the diode, BJT and
+    // MOS1 decks inherit the nonlinear 1 ppm operating-point bound.
+    Batch {
+        name: "noise_rc",
+        stages: &NOISE_LINEAR_STAGES,
+    },
+    Batch {
+        name: "noise_diode",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    Batch {
+        name: "noise_bjt",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    Batch {
+        name: "noise_mos1",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    // `.ac`, `.op` and two `.noise` cards with S/W switches: the later,
+    // single-frequency card runs first and writes only its spectrum (`noise1`),
+    // the decade card then writes `noise2` and `noise3`.
+    Batch {
+        name: "noise_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Noise,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NOISE_NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Noise,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NOISE_NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Noise,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NOISE_NONLINEAR,
+                },
+            },
+        ],
+    },
     Batch {
         name: "multi_analysis_rc",
         stages: &[
@@ -976,6 +1042,27 @@ const BATCH: &[Batch] = &[
     },
 ];
 
+/// The two plots of one `.noise` card (#100): the spectrum along `frequency`
+/// and the one-point integrated noise.
+const fn noise_stages(tolerance: compare::Tolerance) -> [Stage; 2] {
+    [
+        Stage {
+            kind: AnalysisKind::Noise,
+            gate: Gate::Points {
+                axis: Some("frequency"),
+                tolerance,
+            },
+        },
+        Stage {
+            kind: AnalysisKind::Noise,
+            gate: Gate::Points {
+                axis: None,
+                tolerance,
+            },
+        },
+    ]
+}
+
 /// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
 /// every committed deck, including `subckt_divider`, is verified through its
 /// own production path. A requested excluded fixture still fails the run, so a
@@ -1154,47 +1241,83 @@ fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>
     let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
     let schedule = ngspice_rs::analysis::batch::schedule(&netlist.analyses);
     let want = load_golden(root, fixture.name)?;
-    if schedule.len() != fixture.stages.len() || want.plots.len() != fixture.stages.len() {
+    let names: Vec<&str> = schedule
+        .iter()
+        .flat_map(ngspice_rs::analysis::batch::ScheduledAnalysis::plot_names)
+        .collect();
+    if names.len() != fixture.stages.len() || want.plots.len() != fixture.stages.len() {
         return Err(format!(
             "expected {} plots: the deck schedules {}, the C golden has {}",
             fixture.stages.len(),
-            schedule.len(),
+            names.len(),
             want.plots.len()
         ));
     }
-    let mut details = Vec::with_capacity(schedule.len());
-    for ((entry, stage), want) in schedule.iter().zip(fixture.stages).zip(&want.plots) {
+    let mut details = Vec::with_capacity(names.len());
+    let mut stages = fixture.stages.iter().zip(&want.plots);
+    for entry in &schedule {
         let card = &netlist.analyses[entry.card_index];
-        let (request, got) = run_card(&netlist, &config, card, &[])
+        let (request, plots) = run_card_plots(&netlist, &config, card, &[])
             .map_err(|error| format!("{}: {error}", entry.plot_name))?;
-        if request.kind != stage.kind {
+        let own: Vec<&str> = entry.plot_names().collect();
+        if plots.len() != own.len() {
             return Err(format!(
-                "{}: registry expects {:?}, the batch schedule runs {:?}",
-                entry.plot_name, stage.kind, request.kind
+                "{}: the driver produced {} plot(s), the schedule names {}",
+                entry.plot_name,
+                plots.len(),
+                own.len()
             ));
         }
-        if got.plotname != want.plot.plotname {
-            return Err(format!(
-                "{}: plot name '{}' where C wrote '{}' at this position",
-                entry.plot_name, got.plotname, want.plot.plotname
-            ));
+        for (got, name) in plots.iter().zip(own) {
+            let (stage, want) = stages.next().ok_or("more Rust plots than stages")?;
+            if request.kind != stage.kind {
+                return Err(format!(
+                    "{name}: registry expects {:?}, the batch schedule runs {:?}",
+                    stage.kind, request.kind
+                ));
+            }
+            if got.plotname != want.plot.plotname {
+                return Err(format!(
+                    "{name}: plot name '{}' where C wrote '{}' at this position",
+                    got.plotname, want.plot.plotname
+                ));
+            }
+            let detail = compare_plot(&stage.gate, &netlist, &request, got, &want.plot)
+                .map_err(|error| format!("{name}: {error}"))?;
+            details.push(format!("{name} ({}): {detail}", got.plotname));
         }
-        let detail = compare_plot(&stage.gate, &netlist, &request, &got, &want.plot)
-            .map_err(|error| format!("{}: {error}", entry.plot_name))?;
-        details.push(format!("{} ({}): {detail}", entry.plot_name, got.plotname));
     }
     Ok(details)
 }
 
-/// Runs one analysis card through the production driver and projects the plot
-/// onto C's default save set and naming. `extra` tokens are appended to the
-/// request after the deck's own settings.
+/// Runs one single-plot analysis card through [`run_card_plots`].
 fn run_card(
     netlist: &ngspice_rs::netlist::ast::Netlist,
     config: &RunConfig,
     card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
 ) -> Result<(AnalysisRequest, ngspice_rs::analysis::Plot), String> {
+    let (request, mut plots) = run_card_plots(netlist, config, card, extra)?;
+    if plots.len() != 1 {
+        return Err(format!(
+            "expected one Rust plot, the driver produced {} (register multi-plot analyses \
+             as batch fixtures)",
+            plots.len()
+        ));
+    }
+    Ok((request, plots.remove(0)))
+}
+
+/// Runs one analysis card through the production driver and projects every
+/// plot it produces (`.noise` produces two) onto C's default save set and
+/// naming. `extra` tokens are appended to the request after the deck's own
+/// settings.
+fn run_card_plots(
+    netlist: &ngspice_rs::netlist::ast::Netlist,
+    config: &RunConfig,
+    card: &ngspice_rs::netlist::ast::AnalysisCard,
+    extra: &[&str],
+) -> Result<(AnalysisRequest, Vec<ngspice_rs::analysis::Plot>), String> {
     if !card.expressions.is_empty() {
         return Err("braced analysis arguments are not supported in verification fixtures".into());
     }
@@ -1204,8 +1327,8 @@ fn run_card(
         .extend(extra.iter().map(|token| (*token).to_owned()));
     let request = config.request(request).map_err(|e| e.to_string())?;
     let mut circuit = config.circuit(netlist).map_err(|e| e.to_string())?;
-    let mut got = runner(request.kind)
-        .and_then(|driver| driver.run(&mut circuit, &request, &config.context()))
+    let plots = runner(request.kind)
+        .and_then(|driver| driver.run_plots(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
     // C's default save set omits simulator-created internal nodes (e.g. a
     // diode's series-resistance anode). Project only those known internal rows;
@@ -1221,6 +1344,20 @@ fn run_card(
         })
         .map(|node| format!("v({})", node.name))
         .collect();
+    let plots = plots
+        .into_iter()
+        .map(|plot| project(plot, request.kind, &internal))
+        .collect();
+    Ok((request, plots))
+}
+
+/// Projects one Rust plot onto C's default save set and naming (see
+/// [`run_card_plots`]).
+fn project(
+    mut got: ngspice_rs::analysis::Plot,
+    kind: AnalysisKind,
+    internal: &[String],
+) -> ngspice_rs::analysis::Plot {
     for column in (0..got.variables.len()).rev() {
         if internal.contains(&got.variables[column].name) {
             got.variables.remove(column);
@@ -1229,9 +1366,7 @@ fn run_card(
             }
         }
     }
-    if request.kind == AnalysisKind::DcSweep
-        && got.variables.first().is_some_and(|v| v.name == "sweep")
-    {
+    if kind == AnalysisKind::DcSweep && got.variables.first().is_some_and(|v| v.name == "sweep") {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
         // independent-source scale in the voltage/current naming convention,
         // and names a temperature scale (and its unit) `temp-sweep`, a
@@ -1261,7 +1396,7 @@ fn run_card(
             }
         }
     }
-    Ok((request, got))
+    got
 }
 
 /// The committed C golden of `name`.

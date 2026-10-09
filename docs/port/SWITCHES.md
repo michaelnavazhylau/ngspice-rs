@@ -165,6 +165,7 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
   ([DC_CONTINUATION.md](DC_CONTINUATION.md)); the converged states agree on
   the verified decks.
 * Pole-zero analysis uses the AC conductance (`swpzload.c`/`cswpzld.c` read
-  the same `MODEINITSMSIG` state). Not ported: switch noise (`swnoise.c`),
+  the same `MODEINITSMSIG` state). Switch noise (`swnoise.c`/`cswnoise.c`)
+  is ported for `.noise` (#100, [NOISE.md](NOISE.md)). Not ported:
   `@s1[i]`/`@s1[p]` queries (`swask.c`), C's `optran` fallback for operating
   points that do not converge, and the diffsol BDF backend.

@@ -269,6 +269,15 @@ impl ControlledSource {
 }
 
 impl Device for ControlledSource {
+    /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
+    /// `src/spicelib/devices/{vcvs,vccs,cccs,ccvs}/*init.c`).
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

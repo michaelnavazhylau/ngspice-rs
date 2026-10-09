@@ -1,0 +1,12 @@
+Noise of a forward-biased diode with series resistance and flicker noise
+* #100: dionoise.c rs thermal, id shot and KF/AF flicker generators (the
+* sidewall generators are zero without RSW), m=2, at the instance temperature.
+v1 in 0 dc 2 ac 1
+r1 in a 2k
+d1 a out dflick m=2 temp=40
+r2 out 0 1k
+d2 out 0 dplain
+.model dflick d(is=1e-14 n=1.05 rs=8 kf=1e-14 af=1.1 cjo=2p)
+.model dplain d(is=1e-15 rs=2)
+.noise v(out) v1 dec 5 1 100meg
+.end

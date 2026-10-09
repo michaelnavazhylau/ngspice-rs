@@ -1,0 +1,104 @@
+# ngspice-rs token-dump v1
+file: netlists/noise_diode.cir
+title: "Noise of a forward-biased diode with series resistance and flicker noise" @netlists/noise_diode.cir:1:1
+card 1 @netlists/noise_diode.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 2 ac 1"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "2" value=2e0
+  token 6 4:14 word "ac"
+  token 7 4:17 number "1" value=1e0
+card 2 @netlists/noise_diode.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in a 2k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "a"
+  token 4 5:9 number "2k" value=2e3
+card 3 @netlists/noise_diode.cir:6:1 lines=6-6 continuations=0
+  raw: "d1 a out dflick m=2 temp=40"
+  kind: device(d)
+  token 1 6:1 word "d1"
+  token 2 6:4 word "a"
+  token 3 6:6 word "out"
+  token 4 6:10 word "dflick"
+  token 5 6:17 word "m"
+  token 6 6:18 equals "="
+  token 7 6:19 number "2" value=2e0
+  token 8 6:21 word "temp"
+  token 9 6:25 equals "="
+  token 10 6:26 number "40" value=4e1
+card 4 @netlists/noise_diode.cir:7:1 lines=7-7 continuations=0
+  raw: "r2 out 0 1k"
+  kind: device(r)
+  token 1 7:1 word "r2"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "1k" value=1e3
+card 5 @netlists/noise_diode.cir:8:1 lines=8-8 continuations=0
+  raw: "d2 out 0 dplain"
+  kind: device(d)
+  token 1 8:1 word "d2"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 word "dplain"
+card 6 @netlists/noise_diode.cir:9:1 lines=9-9 continuations=0
+  raw: ".model dflick d(is=1e-14 n=1.05 rs=8 kf=1e-14 af=1.1 cjo=2p)"
+  kind: dot(.model)
+  token 1 9:1 word ".model"
+  token 2 9:8 word "dflick"
+  token 3 9:15 word "d"
+  token 4 9:16 lparen "("
+  token 5 9:17 word "is"
+  token 6 9:19 equals "="
+  token 7 9:20 number "1e-14" value=1e-14
+  token 8 9:26 word "n"
+  token 9 9:27 equals "="
+  token 10 9:28 number "1.05" value=1.05e0
+  token 11 9:33 word "rs"
+  token 12 9:35 equals "="
+  token 13 9:36 number "8" value=8e0
+  token 14 9:38 word "kf"
+  token 15 9:40 equals "="
+  token 16 9:41 number "1e-14" value=1e-14
+  token 17 9:47 word "af"
+  token 18 9:49 equals "="
+  token 19 9:50 number "1.1" value=1.1e0
+  token 20 9:54 word "cjo"
+  token 21 9:57 equals "="
+  token 22 9:58 number "2p" value=2e-12
+  token 23 9:60 rparen ")"
+card 7 @netlists/noise_diode.cir:10:1 lines=10-10 continuations=0
+  raw: ".model dplain d(is=1e-15 rs=2)"
+  kind: dot(.model)
+  token 1 10:1 word ".model"
+  token 2 10:8 word "dplain"
+  token 3 10:15 word "d"
+  token 4 10:16 lparen "("
+  token 5 10:17 word "is"
+  token 6 10:19 equals "="
+  token 7 10:20 number "1e-15" value=1e-15
+  token 8 10:26 word "rs"
+  token 9 10:28 equals "="
+  token 10 10:29 number "2" value=2e0
+  token 11 10:30 rparen ")"
+card 8 @netlists/noise_diode.cir:11:1 lines=11-11 continuations=0
+  raw: ".noise v(out) v1 dec 5 1 100meg"
+  kind: dot(.noise)
+  token 1 11:1 word ".noise"
+  token 2 11:8 word "v"
+  token 3 11:9 lparen "("
+  token 4 11:10 word "out"
+  token 5 11:13 rparen ")"
+  token 6 11:15 word "v1"
+  token 7 11:18 word "dec"
+  token 8 11:22 number "5" value=5e0
+  token 9 11:24 number "1" value=1e0
+  token 10 11:26 number "100meg" value=1e8
+card 9 @netlists/noise_diode.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"

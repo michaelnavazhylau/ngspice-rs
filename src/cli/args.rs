@@ -735,14 +735,14 @@ r2 out 0 1k
                 .find(|line| line.trim_start().starts_with(name))
                 .unwrap_or_else(|| panic!("{name}\n{text}"))
         };
-        for name in [".op ", ".dc ", ".ac ", ".tran ", ".pz ", ".tf "] {
+        for name in [".op ", ".dc ", ".ac ", ".tran ", ".pz ", ".tf ", ".noise "] {
             assert!(line(name).ends_with("driver (bounded subset)"), "{text}");
         }
         assert!(
             line(".four ").ends_with("post-processes the .tran plot"),
             "{text}"
         );
-        for name in [".noise ", ".disto ", ".sens "] {
+        for name in [".disto ", ".sens "] {
             assert!(line(name).ends_with("no driver"), "{text}");
         }
         assert!(!text.contains("Linear R/C/L/V/I only"), "{text}");

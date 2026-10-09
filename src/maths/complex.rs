@@ -110,12 +110,29 @@ impl ComplexLu {
     /// # Errors
     /// Wrong RHS size, non-finite RHS/solution or inaccurate solve.
     pub fn solve(&self, rhs: &[Complex]) -> SpiceResult<Vec<Complex>> {
+        self.solve_with(rhs, false)
+    }
+
+    /// Solves the transposed (not conjugated) system `A^T x = b` with the same
+    /// factors and checks the backward residual against `A^T`. This is the
+    /// adjoint solve of `.noise` (C `SMPcaSolve` in `NInzIter`).
+    /// # Errors
+    /// Wrong RHS size, non-finite RHS/solution or inaccurate solve.
+    pub fn solve_transposed(&self, rhs: &[Complex]) -> SpiceResult<Vec<Complex>> {
+        self.solve_with(rhs, true)
+    }
+
+    fn solve_with(&self, rhs: &[Complex], transposed: bool) -> SpiceResult<Vec<Complex>> {
         let n = self.matrix.n;
         if rhs.len() != n || rhs.iter().any(|v| !v.is_finite()) {
             return Err(numerical("complex solve", "invalid RHS"));
         }
         let mut x = Mat::from_fn(n, 1, |r, _| c64::new(rhs[r].re, rhs[r].im));
-        self.factor.solve_in_place(x.as_mut());
+        if transposed {
+            self.factor.solve_transpose_in_place(x.as_mut());
+        } else {
+            self.factor.solve_in_place(x.as_mut());
+        }
         let x: Vec<_> = (0..n)
             .map(|r| Complex::new(x[(r, 0)].re, x[(r, 0)].im))
             .collect();
@@ -129,8 +146,9 @@ impl ComplexLu {
         let mut ax = vec![Complex::ZERO; n];
         let mut scale: Vec<_> = rhs.iter().map(|v| v.magnitude()).collect();
         for (r, c, a) in &self.matrix.entries {
-            ax[*r] = ax[*r] + *a * x[*c];
-            scale[*r] += a.magnitude() * max_x;
+            let (r, c) = if transposed { (*c, *r) } else { (*r, *c) };
+            ax[r] = ax[r] + *a * x[c];
+            scale[r] += a.magnitude() * max_x;
         }
         for r in 0..n {
             let error = (ax[r] - rhs[r]).magnitude();

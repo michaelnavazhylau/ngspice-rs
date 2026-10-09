@@ -1,0 +1,82 @@
+# ngspice-rs ast-dump v1
+file: netlists/noise_bjt.cir
+title: "Noise of a common-emitter BJT stage driven by a current source" @netlists/noise_bjt.cir:1:1
+scope root
+  cards (11):
+    [0] device[0] @netlists/noise_bjt.cir:6:1 "vcc vcc 0 5"
+    [1] device[1] @netlists/noise_bjt.cir:7:1 "i1 0 b dc 10u ac 1"
+    [2] device[2] @netlists/noise_bjt.cir:8:1 "rbias vcc b 470k"
+    [3] device[3] @netlists/noise_bjt.cir:9:1 "q1 c b e qflick area=2"
+    [4] device[4] @netlists/noise_bjt.cir:10:1 "re e 0 100"
+    [5] device[5] @netlists/noise_bjt.cir:11:1 "ce e 0 1n"
+    [6] device[6] @netlists/noise_bjt.cir:12:1 "rc vcc c 2k"
+    [7] model[0] @netlists/noise_bjt.cir:13:1 ".model qflick npn(is=1e-16 bf=120 vaf=60 ikf=20m ise=1e-14 rb=200 rbm=20 irb=1m rc=10 re=1 cje=2p cjc=1p tf=0.3n kf=1e-15 af=1.2)"
+    [8] options[0] @netlists/noise_bjt.cir:14:1 ".option reltol=1e-6"
+    [9] analysis[0] @netlists/noise_bjt.cir:15:1 ".noise v(c) i1 dec 4 10 100meg 3"
+    [10] end @netlists/noise_bjt.cir:16:1 ".end"
+  devices (7):
+    device [0] name="vcc" designator=v @netlists/noise_bjt.cir:6:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/noise_bjt.cir:6:11
+    device [1] name="i1" designator=i @netlists/noise_bjt.cir:7:1
+      nodes: "0" "b"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="10u" @netlists/noise_bjt.cir:7:8
+        [1] name="acmag" kind=scalar value="1" @netlists/noise_bjt.cir:7:18
+        [2] name="acphase" kind=scalar value="0" @netlists/noise_bjt.cir:7:15
+    device [2] name="rbias" designator=r @netlists/noise_bjt.cir:8:1
+      nodes: "vcc" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="470k" @netlists/noise_bjt.cir:8:13
+    device [3] name="q1" designator=q @netlists/noise_bjt.cir:9:1
+      nodes: "c" "b" "e"
+      model: "qflick"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @netlists/noise_bjt.cir:9:17
+    device [4] name="re" designator=r @netlists/noise_bjt.cir:10:1
+      nodes: "e" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/noise_bjt.cir:10:8
+    device [5] name="ce" designator=c @netlists/noise_bjt.cir:11:1
+      nodes: "e" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/noise_bjt.cir:11:8
+    device [6] name="rc" designator=r @netlists/noise_bjt.cir:12:1
+      nodes: "vcc" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/noise_bjt.cir:12:10
+  models (1):
+    model [0] name="qflick" base="npn" level=none @netlists/noise_bjt.cir:13:1
+      parameters (15):
+        [0] name="is" kind=scalar value="1e-16" @netlists/noise_bjt.cir:13:19
+        [1] name="bf" kind=scalar value="120" @netlists/noise_bjt.cir:13:28
+        [2] name="vaf" kind=scalar value="60" @netlists/noise_bjt.cir:13:35
+        [3] name="ikf" kind=scalar value="20m" @netlists/noise_bjt.cir:13:42
+        [4] name="ise" kind=scalar value="1e-14" @netlists/noise_bjt.cir:13:50
+        [5] name="rb" kind=scalar value="200" @netlists/noise_bjt.cir:13:60
+        [6] name="rbm" kind=scalar value="20" @netlists/noise_bjt.cir:13:67
+        [7] name="irb" kind=scalar value="1m" @netlists/noise_bjt.cir:13:74
+        [8] name="rc" kind=scalar value="10" @netlists/noise_bjt.cir:13:81
+        [9] name="re" kind=scalar value="1" @netlists/noise_bjt.cir:13:87
+        [10] name="cje" kind=scalar value="2p" @netlists/noise_bjt.cir:13:92
+        [11] name="cjc" kind=scalar value="1p" @netlists/noise_bjt.cir:13:99
+        [12] name="tf" kind=scalar value="0.3n" @netlists/noise_bjt.cir:13:106
+        [13] name="kf" kind=scalar value="1e-15" @netlists/noise_bjt.cir:13:114
+        [14] name="af" kind=scalar value="1.2" @netlists/noise_bjt.cir:13:123
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=noise @netlists/noise_bjt.cir:15:1
+      arguments: "v" "(" "c" ")" "i1" "dec" "4" "10" "100meg" "3"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/noise_bjt.cir:14:1
+      setting [0] name="reltol" value="1e-6"@netlists/noise_bjt.cir:14:16 @netlists/noise_bjt.cir:14:9
+  globals (0):

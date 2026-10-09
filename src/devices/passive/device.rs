@@ -1,6 +1,7 @@
 //! Contextual input wrapper delegates effective values to existing R/C/L stamps.
 use super::PassiveParameters;
 use crate::devices::models::{ModelContext, ModelFamily, ResolvedModel};
+use crate::devices::noise::{DeviceNoise, NoiseContext};
 use crate::devices::{
     Capacitor, Device, InductanceValue, Inductor, LinearContext, Resistor, ResistorMetadata,
     ResistorOrigin, StampContext, StorageElement, StorageKind,
@@ -11,6 +12,8 @@ use crate::primitives::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 #[derive(Debug)]
 struct ModelPassive {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model: String,
     terminals: [NodeId; 2],
     parameters: PassiveParameters,
 }
@@ -29,7 +32,10 @@ impl ModelPassive {
         let value = self.parameters.effective_value(context)?;
         let ic = self.parameters.initial_condition();
         Ok(match self.parameters.family() {
-            ModelFamily::Resistor => Box::new(Resistor::new(&self.name, self.terminals, value)?),
+            ModelFamily::Resistor => Box::new(
+                Resistor::new(&self.name, self.terminals, value)?
+                    .with_noise(self.parameters.resistor_noise(&self.model)),
+            ),
             ModelFamily::Capacitor => {
                 Box::new(Capacitor::new(&self.name, self.terminals, value, ic)?)
             }
@@ -85,6 +91,12 @@ impl Device for ModelPassive {
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
         self.scalar(context.model_context)?.assemble_linear(context)
     }
+    /// The delegated scalar's noise: `resnoise.c` for a resistor (with the
+    /// model's KF/AF/EF, the instance noise area, `m`, `temp=` and `noisy`),
+    /// noiseless for C and L (`DEVnoise = NULL`).
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        self.scalar(context.model_context)?.noise(context)
+    }
     fn inductance(&self, context: &ModelContext) -> Option<SpiceResult<InductanceValue>> {
         (self.parameters.family() == ModelFamily::Inductor).then(|| {
             Ok(InductanceValue {
@@ -139,6 +151,7 @@ pub(crate) fn instantiate(
     ];
     let device = ModelPassive {
         name: instance.name.clone(),
+        model: model.card().name.clone(),
         terminals,
         parameters,
     };

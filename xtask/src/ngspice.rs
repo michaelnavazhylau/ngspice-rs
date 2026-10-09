@@ -15,7 +15,10 @@
 //! 3. **Multi-analysis decks.** `write` alone writes only the *current* plot.
 //!    A deck with several analysis cards is instrumented to write every plot by
 //!    its C name (`write f.raw ac1.all dc1.all op1.all tran1.all`), in batch
-//!    order, with the names and order computed by
+//!    order (a `.noise` card writes two plots, `noise1.all noise2.all`; a
+//!    single `.noise` card is therefore instrumented this way too, and C's
+//!    `write` then lists each plot's vectors in its own sorted order, which
+//!    the name-based comparators ignore), with the names and order computed by
 //!    [`ngspice_rs::analysis::batch::schedule`]; a wrong name or order makes ngspice
 //!    fail or the plot-count check below reject the capture. The block ends with
 //!    `quit`: without it, batch mode re-runs every analysis after `.endc` for a
@@ -341,14 +344,14 @@ fn write_codemodel_init(ngspice: &Ngspice, netlist: &str, directory: &Path) -> R
 }
 
 /// The C plot names of the fixture's analyses in batch order (one entry per
-/// analysis card).
+/// plot: a `.noise` card names its spectrum and its integrated-noise plot).
 fn batch_plot_names(netlist: &Path) -> Result<Vec<String>, String> {
     let parsed = ngspice_rs::netlist::Parser::new()
         .parse_file(netlist)
         .map_err(|error| format!("parsing {}: {error}", netlist.display()))?;
     Ok(ngspice_rs::analysis::batch::schedule(&parsed.analyses)
-        .into_iter()
-        .map(|entry| entry.plot_name)
+        .iter()
+        .flat_map(|entry| entry.plot_names().map(str::to_owned).collect::<Vec<_>>())
         .collect())
 }
 

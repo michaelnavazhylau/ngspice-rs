@@ -9,7 +9,8 @@
 //! | [`rawfile`] | ngspice rawfile reading **and** writing, ASCII and binary | ported for the bounded layouts in `docs/port/RAWFILES.md` |
 //! | [`batch`] | ngspice batch order, plot names and per-plot `.save`/`.print`/`.measure`/`.four` targeting for multi-analysis decks | ported (`docs/port/CLI.md`) |
 //! | `pz` | `.pz` poles and zeros at the operating point (`pzan.c`), roots from [`crate::maths::pencil`] | ported (`docs/port/POLE_ZERO_ADR.md`) |
-//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran`/`.pz`/`.tf`/`.sp` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
+//! | [`noise`] | `.noise`: adjoint small-signal noise spectra and integrated totals | resistor, diode, BJT, MOS1 and switch generators (`docs/port/NOISE.md`) |
+//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran`/`.pz`/`.tf`/`.sp`/`.noise` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
 //! | `tf` | `.tf` DC small-signal gain, input and output resistance at the bias point | ported (`tfanal.c`; see [`driver::TransferFunction`]) |
 //! | `sparam` | `.sp` S-parameter analysis over RF port sources (S, Y, Z) | ported without `donoise` (`docs/port/SPARAM.md`) |
 //!
@@ -39,6 +40,7 @@ mod initial;
 mod linear;
 pub mod measure;
 pub mod newton;
+pub mod noise;
 mod pz;
 pub mod rawfile;
 pub mod results;

@@ -91,8 +91,9 @@ impl IndependentSource {
     }
 
     /// Records whether the card wrote an AC value (`ac`, `acmag` or
-    /// `acphase`; C `VSRCacGiven`/`ISRCacGiven`), which decides how
-    /// pole-zero analysis treats a voltage source (`vsrcpzld.c`).
+    /// `acphase`; C `VSRCacGiven`/`ISRCacGiven`, even `ac 0`), which decides
+    /// how pole-zero analysis treats a voltage source (`vsrcpzld.c`) and
+    /// whether a `.noise` input reference is valid (`noisean.c`).
     #[must_use]
     pub fn with_ac_given(mut self, given: bool) -> Self {
         self.ac_given = given;
@@ -176,6 +177,26 @@ fn power_function_error(name: &str) -> SpiceError {
 }
 
 impl Device for IndependentSource {
+    /// Noiseless: C's VSRC/ISRC have no noise routine (`DEVnoise = NULL`); the
+    /// transient noise sources (`trnoise`/`trrandom`) are not ported.
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
+    fn input_source(&self) -> Option<crate::devices::noise::InputSource> {
+        Some(crate::devices::noise::InputSource {
+            kind: if self.voltage {
+                crate::devices::linear::SourceKind::Voltage
+            } else {
+                crate::devices::linear::SourceKind::Current
+            },
+            ac_given: self.ac_given,
+        })
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

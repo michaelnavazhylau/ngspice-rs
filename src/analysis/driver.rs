@@ -1,5 +1,8 @@
 //! Analysis drivers: `.op`, `.dc`, `.ac`, `.tran`, `.tf` and friends.
 //!
+//! `.noise` runs [`crate::analysis::noise`] (two plots, see
+//! [`Analysis::run_plots`]).
+//!
 //! Ported from `src/spicelib/analysis/`, which is where ngspice's job control
 //! lives: `CKTdoJob()` in `cktdojob.c` dispatches on the analysis, `dctran.c`
 //! drives DC sweeps and transient analysis, `dcop.c` the operating point,
@@ -192,6 +195,22 @@ pub trait Analysis: fmt::Debug {
         request: &AnalysisRequest,
         context: &AnalysisContext,
     ) -> SpiceResult<Plot>;
+
+    /// Runs the analysis and returns **every** plot it produces, in C's
+    /// order. Only `.noise` produces more than one (the spectrum and the
+    /// integrated noise); the default wraps [`Self::run`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`].
+    fn run_plots(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Vec<Plot>> {
+        Ok(vec![self.run(circuit, request, context)?])
+    }
 }
 
 /// `.op` — the DC operating point.
@@ -270,6 +289,44 @@ impl Analysis for AcSmallSignal {
         context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
         crate::analysis::ac::run(circuit, request, context)
+    }
+}
+
+/// `.noise` — small-signal noise spectra and integrated noise
+/// ([`crate::analysis::noise`], `docs/port/NOISE.md`).
+///
+/// C: `noisean.c`. [`Analysis::run_plots`] returns both of C's plots, the
+/// `Noise Spectral Density Curves` and (unless the sweep is one frequency)
+/// the `Integrated Noise`; [`Analysis::run`] returns the spectrum alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Noise;
+
+impl Analysis for Noise {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::Noise
+    }
+
+    fn name(&self) -> &'static str {
+        "noise"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        let mut plots = crate::analysis::noise::run(circuit, request, context)?;
+        Ok(plots.swap_remove(0))
+    }
+
+    fn run_plots(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Vec<Plot>> {
+        crate::analysis::noise::run(circuit, request, context)
     }
 }
 
@@ -384,7 +441,7 @@ impl Analysis for SParameter {
 
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 7] = [
+pub const DRIVERS: [AnalysisKind; 8] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
@@ -392,6 +449,7 @@ pub const DRIVERS: [AnalysisKind; 7] = [
     AnalysisKind::PoleZero,
     AnalysisKind::TransferFunction,
     AnalysisKind::SParameter,
+    AnalysisKind::Noise,
 ];
 
 /// Whether an analysis has a driver.
@@ -433,8 +491,8 @@ pub fn support(kind: AnalysisKind) -> AnalysisSupport {
 ///
 /// # Errors
 ///
-/// [`SpiceError::Unsupported`] for the analyses without a driver (`.noise`,
-/// `.disto`, `.sens`) and for `.four`, which is not a driver but
+/// [`SpiceError::Unsupported`] for the analyses without a driver (`.disto`,
+/// `.sens`) and for `.four`, which is not a driver but
 /// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
@@ -446,6 +504,7 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::PoleZero => Box::new(PoleZero),
         AnalysisKind::TransferFunction => Box::new(TransferFunction),
         AnalysisKind::SParameter => Box::new(SParameter),
+        AnalysisKind::Noise => Box::new(Noise),
         other => {
             return Err(SpiceError::Unsupported {
                 feature: format!(
@@ -478,7 +537,6 @@ mod tests {
     #[test]
     fn analyses_off_the_roadmap_are_reported_as_unsupported() {
         for kind in [
-            AnalysisKind::Noise,
             AnalysisKind::Distortion,
             AnalysisKind::Sensitivity,
             AnalysisKind::Fourier,
@@ -490,7 +548,8 @@ mod tests {
             );
             assert!(error.to_string().contains(kind.as_str()));
         }
-        assert!(!super::has_driver(AnalysisKind::Noise));
+        assert!(super::has_driver(AnalysisKind::Noise));
+        assert!(!super::has_driver(AnalysisKind::Distortion));
         assert!(super::has_driver(AnalysisKind::OperatingPoint));
         assert!(super::has_driver(AnalysisKind::TransferFunction));
     }

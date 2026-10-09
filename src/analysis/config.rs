@@ -883,6 +883,7 @@ impl RunConfig {
                 AnalysisKind::OperatingPoint
                     | AnalysisKind::DcSweep
                     | AnalysisKind::Ac
+                    | AnalysisKind::Noise
                     | AnalysisKind::TransferFunction
                     | AnalysisKind::SParameter
             ) {

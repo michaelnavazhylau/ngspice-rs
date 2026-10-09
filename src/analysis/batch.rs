@@ -18,7 +18,9 @@
 //!   global `plot_num`, which starts at 1 and is incremented — and stays
 //!   incremented — whenever the candidate name is already taken. A deck with
 //!   `.ac`, two `.dc`, `.op` and `.tran` therefore produces `ac1 dc1 dc2 op2
-//!   tran2`. The rawfile itself carries only the `Plotname:` header (`AC
+//!   tran2`. A `.noise` card writes two plots, the spectrum and the integrated
+//!   noise (`noise1 noise2`), unless its sweep is a single frequency
+//!   ([`ScheduledAnalysis::extra_plot_names`]). The rawfile itself carries only the `Plotname:` header (`AC
 //!   Analysis`, …), which each driver already writes;
 //! * **which output card applies to which plot** ([`check_targets`],
 //!   [`resolve_outputs`]): `.save` applies to every plot; `.print <type>`
@@ -65,6 +67,20 @@ pub struct ScheduledAnalysis {
     /// True for the last executed plot of this type: the plot `.measure` cards
     /// of this type (and `.four`, for `.tran`) are evaluated against.
     pub last_of_kind: bool,
+    /// The names of the further plots this card produces after
+    /// [`Self::plot_name`], in order: `.noise` writes its `Integrated Noise`
+    /// plot as a second plot (`noise2` after `noise1`) unless its sweep is a
+    /// single frequency ([`crate::analysis::noise::plot_count`]). Empty for
+    /// every other analysis.
+    pub extra_plot_names: Vec<String>,
+}
+
+impl ScheduledAnalysis {
+    /// Every plot name of this card, in rawfile order.
+    pub fn plot_names(&self) -> impl Iterator<Item = &str> {
+        std::iter::once(self.plot_name.as_str())
+            .chain(self.extra_plot_names.iter().map(String::as_str))
+    }
 }
 
 /// The position of `kind` in C's `analInfo[]` table, which is the order
@@ -131,17 +147,28 @@ pub fn schedule(cards: &[AnalysisCard]) -> Vec<ScheduledAnalysis> {
         .map(|&card_index| {
             let kind = cards[card_index].kind;
             let abbreviation = plot_abbreviation(kind);
-            let mut name = format!("{abbreviation}{plot_num}");
-            while names.iter().any(|taken| taken.eq_ignore_ascii_case(&name)) {
-                plot_num += 1;
-                name = format!("{abbreviation}{plot_num}");
+            let count = if kind == AnalysisKind::Noise {
+                crate::analysis::noise::plot_count(&cards[card_index].arguments)
+            } else {
+                1
+            };
+            let mut own = Vec::with_capacity(count);
+            for _ in 0..count {
+                let mut name = format!("{abbreviation}{plot_num}");
+                while names.iter().any(|taken| taken.eq_ignore_ascii_case(&name)) {
+                    plot_num += 1;
+                    name = format!("{abbreviation}{plot_num}");
+                }
+                names.push(name.clone());
+                own.push(name);
             }
-            names.push(name.clone());
+            let plot_name = own.remove(0);
             ScheduledAnalysis {
                 card_index,
                 kind,
-                plot_name: name,
+                plot_name,
                 last_of_kind: false,
+                extra_plot_names: own,
             }
         })
         .collect();
@@ -378,6 +405,34 @@ mod tests {
             [(0, "op1".to_owned(), true)]
         );
         assert!(schedule(&[]).is_empty());
+    }
+
+    #[test]
+    fn noise_cards_name_their_integrated_plot_too() {
+        // `.noise` (decade), `.op`, `.noise` (one linear point): the later
+        // card runs first and writes its spectrum only, so the plots are
+        // `op1 noise1 noise2 noise3` (the naming the `noise_multi` capture
+        // confirms against ngspice-47).
+        let noise = |line, arguments: &str| {
+            let mut card = card(AnalysisKind::Noise, line);
+            card.arguments = arguments.split_whitespace().map(str::to_owned).collect();
+            card
+        };
+        let cards = [
+            noise(2, "v ( out ) v1 dec 3 100 1meg"),
+            card(AnalysisKind::OperatingPoint, 3),
+            noise(4, "v ( out ) v1 lin 1 10k 20k 1"),
+        ];
+        let entries = schedule(&cards);
+        let names: Vec<Vec<&str>> = entries
+            .iter()
+            .map(|entry| entry.plot_names().collect())
+            .collect();
+        assert_eq!(
+            names,
+            [vec!["op1"], vec!["noise1"], vec!["noise2", "noise3"]]
+        );
+        assert!(!entries[1].last_of_kind && entries[2].last_of_kind);
     }
 
     #[test]

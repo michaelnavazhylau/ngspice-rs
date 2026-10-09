@@ -184,6 +184,23 @@ impl SmallSignal {
         &self.system
     }
 
+    /// The operating point the system is linearized at (re-solved at the last
+    /// requested frequency for a `hertz`-dependent circuit).
+    pub(crate) const fn bias(&self) -> &Vector {
+        &self.previous
+    }
+
+    /// The small-signal state (C's `CKTstate0` after the `MODEINITSMSIG`
+    /// load): the zero accepted state.
+    pub(crate) fn state(&self) -> &[Real] {
+        &self.state1
+    }
+
+    /// Whether the operating point is re-solved at every frequency.
+    pub(crate) const fn varies(&self) -> bool {
+        self.varies
+    }
+
     /// Calls `with` on the small-signal system valid at frequency `f`.
     pub(crate) fn at_frequency<R>(
         &mut self,

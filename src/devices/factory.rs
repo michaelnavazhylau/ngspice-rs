@@ -1,7 +1,7 @@
 //! Scalar linear-device elaboration; unsupported parameters never disappear.
 use crate::devices::{
     AmSpec, Capacitor, Device, ExpSpec, FunctionSpec, IndependentSource, Inductor, PulseSpec,
-    PwlSource, Resistor, SffmSpec, SineSpec, Waveform,
+    PwlSource, Resistor, SffmSpec, SineSpec, Waveform, rlc::ResistorNoise,
 };
 use crate::netlist::source::{Deck, LogicalLine};
 use crate::netlist::{
@@ -140,7 +140,10 @@ pub(crate) fn instantiate(
     let mut ic = None;
     let mut mag = 0.;
     let mut phase: f64 = 0.;
+    // C `VSRCacGiven`/`ISRCacGiven`: any AC setter, even `ac 0`.
     let mut ac_given = false;
+    // C `RESnoisy` (`noisy=` is an IF_INTEGER setter: `floor(value + 0.5)`).
+    let mut noisy = true;
     // C applies waveform setters in order, so the last one wins.
     let mut waveform = None;
     // PWL `td=` (any order) and `r=` (applies to the PWL already set), as the
@@ -180,6 +183,7 @@ pub(crate) fn instantiate(
             ));
         }
         let allowed = p.name == primary
+            || (instance.designator == 'r' && p.name == "noisy")
             || (matches!(instance.designator, 'c' | 'l') && p.name == "ic")
             || (matches!(instance.designator, 'v' | 'i')
                 && matches!(p.name.as_str(), "acmag" | "acphase" | "r" | "td"))
@@ -207,6 +211,7 @@ pub(crate) fn instantiate(
                 phase = number;
                 ac_given = true;
             }
+            "noisy" => noisy = (number + 0.5).floor() != 0.,
             "td" => pwl_delay = Some((number, p.location.clone())),
             "portnum" | "z0" | "pwr" | "freq" | "phase" => {
                 port.set(&p.name, number, &p.location)?
@@ -256,7 +261,12 @@ pub(crate) fn instantiate(
     ];
     let rf = port.finish(instance, dc_given, &mut new_nodes)?;
     let device: Box<dyn Device> = match instance.designator {
-        'r' => Box::new(Resistor::new(&instance.name, terminals, value)?),
+        'r' => Box::new(Resistor::new(&instance.name, terminals, value)?.with_noise(
+            ResistorNoise {
+                noisy,
+                ..ResistorNoise::default()
+            },
+        )),
         'c' => Box::new(Capacitor::new(&instance.name, terminals, value, ic)?),
         'l' => Box::new(Inductor::new(&instance.name, terminals, value, ic)?),
         _ => {

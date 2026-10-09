@@ -28,7 +28,7 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
 Each area has documented limits; see [the feature guides](#documentation).
-Not yet supported: the `.noise`, `.sens` and `.disto` analyses and
+Not yet supported: the `.sens` and `.disto` analyses and
 `.sp` noise parameters; JFETs, MESFETs, transmission lines, MOSFET levels above 1 and BSIM;
 `.plot`, binary rawfiles from the CLI and device currents in `.save`/`.print`;
 XSPICE, OSDI/Verilog-A and CIDER; higher-index DAEs; and the interactive

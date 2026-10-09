@@ -50,3 +50,36 @@ fn complex_assembly_nonfinite_overflow_and_singularity() {
     );
     assert!(ComplexMatrix::from_operators(&SparseMatrix::new(1, 2), &e, 1.).is_err());
 }
+#[test]
+fn transposed_solves_use_the_same_factors_without_conjugation() {
+    // A = [[1, 2], [0, 3]] + j [[0, 0], [1, 0]]: nonsymmetric and complex,
+    // so A^T, A^H and A all differ.
+    let mut a = SparseMatrix::new(2, 2);
+    a.add(0, 0, 1.).unwrap();
+    a.add(0, 1, 2.).unwrap();
+    a.add(1, 1, 3.).unwrap();
+    let mut e = SparseMatrix::new(2, 2);
+    e.add(1, 0, 1.).unwrap();
+    let lu = ComplexMatrix::from_operators(&a, &e, 1.)
+        .unwrap()
+        .factorize()
+        .unwrap();
+    let rhs = [Complex::real(1.), Complex::real(-1.)];
+    let x = lu.solve_transposed(&rhs).unwrap();
+    // A^T = [[1, j], [2, 3]].
+    let row0 = x[0] + Complex::imaginary(1.) * x[1];
+    let row1 = Complex::real(2.) * x[0] + Complex::real(3.) * x[1];
+    assert!((row0 - rhs[0]).magnitude() < 1e-14, "{row0}");
+    assert!((row1 - rhs[1]).magnitude() < 1e-14, "{row1}");
+    // The ordinary solve still solves A x = b with the same factors.
+    let y = lu.solve(&rhs).unwrap();
+    let row0 = y[0] + Complex::real(2.) * y[1];
+    let row1 = Complex::imaginary(1.) * y[0] + Complex::real(3.) * y[1];
+    assert!((row0 - rhs[0]).magnitude() < 1e-14);
+    assert!((row1 - rhs[1]).magnitude() < 1e-14);
+    assert!(lu.solve_transposed(&[Complex::ZERO]).is_err());
+    assert!(
+        lu.solve_transposed(&[Complex::real(f64::INFINITY), Complex::ZERO])
+            .is_err()
+    );
+}

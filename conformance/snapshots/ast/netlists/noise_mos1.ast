@@ -1,0 +1,128 @@
+# ngspice-rs ast-dump v1
+file: netlists/noise_mos1.cir
+title: "Noise of MOS1 stages with every NLEV flicker law" @netlists/noise_mos1.cir:1:1
+scope root
+  cards (16):
+    [0] device[0] @netlists/noise_mos1.cir:4:1 "vdd vdd 0 5"
+    [1] device[1] @netlists/noise_mos1.cir:5:1 "v1 in 0 dc 2 ac 1"
+    [2] device[2] @netlists/noise_mos1.cir:6:1 "m1 out in 0 0 nm0 w=10u l=2u"
+    [3] device[3] @netlists/noise_mos1.cir:7:1 "m2 out in vdd vdd pm3 w=20u l=2u temp=50"
+    [4] device[4] @netlists/noise_mos1.cir:8:1 "m3 o2 in 0 0 nm1 w=10u l=2u m=2"
+    [5] device[5] @netlists/noise_mos1.cir:9:1 "m4 o2 in 0 0 nm3 w=5u l=1u"
+    [6] device[6] @netlists/noise_mos1.cir:10:1 "m5 o2 in 0 0 nm2 w=4u l=1u"
+    [7] device[7] @netlists/noise_mos1.cir:11:1 "r1 vdd out 10k"
+    [8] device[8] @netlists/noise_mos1.cir:12:1 "r2 vdd o2 20k"
+    [9] model[0] @netlists/noise_mos1.cir:13:1 ".model nm0 nmos(vto=1 kp=1e-4 kf=1e-24 af=1.3 nlev=0)"
+    [10] model[1] @netlists/noise_mos1.cir:14:1 ".model nm1 nmos(vto=0.8 kp=1e-4 kf=1e-24 af=1.1 nlev=1 tox=1e-8)"
+    [11] model[2] @netlists/noise_mos1.cir:15:1 ".model nm2 nmos(vto=0.9 kp=1e-4 kf=1e-25 af=0.9 rd=20 rs=10 tox=2e-8 cgso=1n cgdo=1n)"
+    [12] model[3] @netlists/noise_mos1.cir:16:1 ".model nm3 nmos(vto=0.8 kp=1e-4 kf=1e-24 af=1.1 nlev=3 gdsnoi=2 lambda=0.01)"
+    [13] model[4] @netlists/noise_mos1.cir:17:1 ".model pm3 pmos(vto=-1 kp=5e-5 kf=1e-24 nlev=3 rd=20 rs=10)"
+    [14] analysis[0] @netlists/noise_mos1.cir:18:1 ".noise v(out,o2) v1 lin 6 1k 100k 1"
+    [15] end @netlists/noise_mos1.cir:19:1 ".end"
+  devices (9):
+    device [0] name="vdd" designator=v @netlists/noise_mos1.cir:4:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/noise_mos1.cir:4:11
+    device [1] name="v1" designator=v @netlists/noise_mos1.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/noise_mos1.cir:5:9
+        [1] name="acmag" kind=scalar value="1" @netlists/noise_mos1.cir:5:17
+        [2] name="acphase" kind=scalar value="0" @netlists/noise_mos1.cir:5:14
+    device [2] name="m1" designator=m @netlists/noise_mos1.cir:6:1
+      nodes: "out" "in" "0" "0"
+      model: "nm0"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/noise_mos1.cir:6:19
+        [1] name="l" kind=scalar value="2u" @netlists/noise_mos1.cir:6:25
+    device [3] name="m2" designator=m @netlists/noise_mos1.cir:7:1
+      nodes: "out" "in" "vdd" "vdd"
+      model: "pm3"
+      parameters (3):
+        [0] name="w" kind=scalar value="20u" @netlists/noise_mos1.cir:7:23
+        [1] name="l" kind=scalar value="2u" @netlists/noise_mos1.cir:7:29
+        [2] name="temp" kind=scalar value="50" @netlists/noise_mos1.cir:7:34
+    device [4] name="m3" designator=m @netlists/noise_mos1.cir:8:1
+      nodes: "o2" "in" "0" "0"
+      model: "nm1"
+      parameters (3):
+        [0] name="w" kind=scalar value="10u" @netlists/noise_mos1.cir:8:18
+        [1] name="l" kind=scalar value="2u" @netlists/noise_mos1.cir:8:24
+        [2] name="m" kind=scalar value="2" @netlists/noise_mos1.cir:8:29
+    device [5] name="m4" designator=m @netlists/noise_mos1.cir:9:1
+      nodes: "o2" "in" "0" "0"
+      model: "nm3"
+      parameters (2):
+        [0] name="w" kind=scalar value="5u" @netlists/noise_mos1.cir:9:18
+        [1] name="l" kind=scalar value="1u" @netlists/noise_mos1.cir:9:23
+    device [6] name="m5" designator=m @netlists/noise_mos1.cir:10:1
+      nodes: "o2" "in" "0" "0"
+      model: "nm2"
+      parameters (2):
+        [0] name="w" kind=scalar value="4u" @netlists/noise_mos1.cir:10:18
+        [1] name="l" kind=scalar value="1u" @netlists/noise_mos1.cir:10:23
+    device [7] name="r1" designator=r @netlists/noise_mos1.cir:11:1
+      nodes: "vdd" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/noise_mos1.cir:11:12
+    device [8] name="r2" designator=r @netlists/noise_mos1.cir:12:1
+      nodes: "vdd" "o2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/noise_mos1.cir:12:11
+  models (5):
+    model [0] name="nm0" base="nmos" level=none @netlists/noise_mos1.cir:13:1
+      parameters (5):
+        [0] name="vto" kind=scalar value="1" @netlists/noise_mos1.cir:13:17
+        [1] name="kp" kind=scalar value="1e-4" @netlists/noise_mos1.cir:13:23
+        [2] name="kf" kind=scalar value="1e-24" @netlists/noise_mos1.cir:13:31
+        [3] name="af" kind=scalar value="1.3" @netlists/noise_mos1.cir:13:40
+        [4] name="nlev" kind=scalar value="0" @netlists/noise_mos1.cir:13:47
+    model [1] name="nm1" base="nmos" level=none @netlists/noise_mos1.cir:14:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="0.8" @netlists/noise_mos1.cir:14:17
+        [1] name="kp" kind=scalar value="1e-4" @netlists/noise_mos1.cir:14:25
+        [2] name="kf" kind=scalar value="1e-24" @netlists/noise_mos1.cir:14:33
+        [3] name="af" kind=scalar value="1.1" @netlists/noise_mos1.cir:14:42
+        [4] name="nlev" kind=scalar value="1" @netlists/noise_mos1.cir:14:49
+        [5] name="tox" kind=scalar value="1e-8" @netlists/noise_mos1.cir:14:56
+    model [2] name="nm2" base="nmos" level=none @netlists/noise_mos1.cir:15:1
+      parameters (9):
+        [0] name="vto" kind=scalar value="0.9" @netlists/noise_mos1.cir:15:17
+        [1] name="kp" kind=scalar value="1e-4" @netlists/noise_mos1.cir:15:25
+        [2] name="kf" kind=scalar value="1e-25" @netlists/noise_mos1.cir:15:33
+        [3] name="af" kind=scalar value="0.9" @netlists/noise_mos1.cir:15:42
+        [4] name="rd" kind=scalar value="20" @netlists/noise_mos1.cir:15:49
+        [5] name="rs" kind=scalar value="10" @netlists/noise_mos1.cir:15:55
+        [6] name="tox" kind=scalar value="2e-8" @netlists/noise_mos1.cir:15:61
+        [7] name="cgso" kind=scalar value="1n" @netlists/noise_mos1.cir:15:70
+        [8] name="cgdo" kind=scalar value="1n" @netlists/noise_mos1.cir:15:78
+    model [3] name="nm3" base="nmos" level=none @netlists/noise_mos1.cir:16:1
+      parameters (7):
+        [0] name="vto" kind=scalar value="0.8" @netlists/noise_mos1.cir:16:17
+        [1] name="kp" kind=scalar value="1e-4" @netlists/noise_mos1.cir:16:25
+        [2] name="kf" kind=scalar value="1e-24" @netlists/noise_mos1.cir:16:33
+        [3] name="af" kind=scalar value="1.1" @netlists/noise_mos1.cir:16:42
+        [4] name="nlev" kind=scalar value="3" @netlists/noise_mos1.cir:16:49
+        [5] name="gdsnoi" kind=scalar value="2" @netlists/noise_mos1.cir:16:56
+        [6] name="lambda" kind=scalar value="0.01" @netlists/noise_mos1.cir:16:65
+    model [4] name="pm3" base="pmos" level=none @netlists/noise_mos1.cir:17:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="-1" @netlists/noise_mos1.cir:17:17
+        [1] name="kp" kind=scalar value="5e-5" @netlists/noise_mos1.cir:17:24
+        [2] name="kf" kind=scalar value="1e-24" @netlists/noise_mos1.cir:17:32
+        [3] name="nlev" kind=scalar value="3" @netlists/noise_mos1.cir:17:41
+        [4] name="rd" kind=scalar value="20" @netlists/noise_mos1.cir:17:48
+        [5] name="rs" kind=scalar value="10" @netlists/noise_mos1.cir:17:54
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=noise @netlists/noise_mos1.cir:18:1
+      arguments: "v" "(" "out" "," "o2" ")" "v1" "lin" "6" "1k" "100k" "1"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

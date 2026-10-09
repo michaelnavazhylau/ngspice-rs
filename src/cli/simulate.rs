@@ -8,9 +8,11 @@
 //!   by the ordinary production runner, so no device or solver logic is
 //!   duplicated here;
 //! * **every** analysis card runs, in ngspice batch order (see
-//!   [`crate::analysis::batch`]: `.ac`, `.dc`, `.op`, `.tran`, same-type cards in
-//!   reverse deck order), each on a freshly elaborated circuit, and each result
-//!   becomes one plot of a single multi-plot rawfile in that order;
+//!   [`crate::analysis::batch`]: `.ac`, `.dc`, `.op`, `.tran`, `.noise`,
+//!   same-type cards in reverse deck order), each on a freshly elaborated
+//!   circuit, and each result becomes one plot of a single multi-plot rawfile
+//!   in that order (`.noise` contributes its spectrum and, for a frequency
+//!   range, its integrated-noise plot);
 //! * a deck's `.save` cards narrow every plot, and its `.print <type>` cards
 //!   narrow (and print a table for) the plots of that type only, through
 //!   [`crate::analysis::selection`]; the selection is resolved against the full
@@ -135,7 +137,7 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
         return Err(SpiceError::parse(
             netlist.location.clone(),
             "the deck requests no analysis: 'simulate' needs at least one .op, .dc, .ac, \
-             .tran or .sp card",
+             .tran, .sp or .noise card",
         ));
     }
     // Options are validated before anything runs, exactly as `parse` does:
@@ -168,38 +170,51 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
             Some(circuit) => circuit,
             None => config.circuit(netlist)?,
         };
-        let plot = driver.run(&mut circuit, &request, &config.context())?;
-        // The selection, the measurements and the Fourier cards are resolved
-        // against the **full** plot and before anything is written or printed:
-        // an unresolvable request leaves stdout empty and an existing
-        // destination untouched.
-        let outputs = batch::resolve_outputs(
-            &plot,
-            entry,
-            &parsed.output,
-            &parsed.measurements,
-            &parsed.fourier,
-        )?;
-        let raw_plot = raw_plot_for(&netlist.title, outputs.written, &date);
-        plots.push(PlotReport {
-            name: entry.plot_name.clone(),
-            analysis: entry.kind,
-            plotname: raw_plot.plot.plotname.clone(),
-            variables: raw_plot
-                .plot
-                .variables
-                .iter()
-                .map(|variable| variable.name.clone())
-                .collect(),
-            points: raw_plot.plot.point_count(),
-            printed: outputs.printed,
-            measured: (!outputs.measurements.is_empty())
-                .then(|| measure::to_text(&outputs.measurements)),
-            measurements: outputs.measurements,
-            fourier: (!outputs.fourier.is_empty()).then(|| fourier::to_text(&outputs.fourier)),
-            fourier_results: outputs.fourier,
-        });
-        raw_plots.push(raw_plot);
+        let produced = driver.run_plots(&mut circuit, &request, &config.context())?;
+        let names: Vec<&str> = entry.plot_names().collect();
+        if produced.len() != names.len() {
+            return Err(SpiceError::Numerical {
+                context: format!(".{} analysis", entry.kind.as_str()),
+                message: format!(
+                    "the driver produced {} plot(s), the batch schedule names {}",
+                    produced.len(),
+                    names.len()
+                ),
+            });
+        }
+        for (plot, name) in produced.iter().zip(names) {
+            // The selection, the measurements and the Fourier cards are
+            // resolved against the **full** plot and before anything is
+            // written or printed: an unresolvable request leaves stdout empty
+            // and an existing destination untouched.
+            let outputs = batch::resolve_outputs(
+                plot,
+                entry,
+                &parsed.output,
+                &parsed.measurements,
+                &parsed.fourier,
+            )?;
+            let raw_plot = raw_plot_for(&netlist.title, outputs.written, &date);
+            plots.push(PlotReport {
+                name: name.to_owned(),
+                analysis: entry.kind,
+                plotname: raw_plot.plot.plotname.clone(),
+                variables: raw_plot
+                    .plot
+                    .variables
+                    .iter()
+                    .map(|variable| variable.name.clone())
+                    .collect(),
+                points: raw_plot.plot.point_count(),
+                printed: outputs.printed,
+                measured: (!outputs.measurements.is_empty())
+                    .then(|| measure::to_text(&outputs.measurements)),
+                measurements: outputs.measurements,
+                fourier: (!outputs.fourier.is_empty()).then(|| fourier::to_text(&outputs.fourier)),
+                fourier_results: outputs.fourier,
+            });
+            raw_plots.push(raw_plot);
+        }
     }
 
     let rawfile = RawFile { plots: raw_plots };

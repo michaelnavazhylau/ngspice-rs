@@ -1,0 +1,63 @@
+# ngspice-rs ast-dump v1
+file: netlists/noise_diode.cir
+title: "Noise of a forward-biased diode with series resistance and flicker noise" @netlists/noise_diode.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/noise_diode.cir:4:1 "v1 in 0 dc 2 ac 1"
+    [1] device[1] @netlists/noise_diode.cir:5:1 "r1 in a 2k"
+    [2] device[2] @netlists/noise_diode.cir:6:1 "d1 a out dflick m=2 temp=40"
+    [3] device[3] @netlists/noise_diode.cir:7:1 "r2 out 0 1k"
+    [4] device[4] @netlists/noise_diode.cir:8:1 "d2 out 0 dplain"
+    [5] model[0] @netlists/noise_diode.cir:9:1 ".model dflick d(is=1e-14 n=1.05 rs=8 kf=1e-14 af=1.1 cjo=2p)"
+    [6] model[1] @netlists/noise_diode.cir:10:1 ".model dplain d(is=1e-15 rs=2)"
+    [7] analysis[0] @netlists/noise_diode.cir:11:1 ".noise v(out) v1 dec 5 1 100meg"
+    [8] end @netlists/noise_diode.cir:12:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @netlists/noise_diode.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/noise_diode.cir:4:9
+        [1] name="acmag" kind=scalar value="1" @netlists/noise_diode.cir:4:17
+        [2] name="acphase" kind=scalar value="0" @netlists/noise_diode.cir:4:14
+    device [1] name="r1" designator=r @netlists/noise_diode.cir:5:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/noise_diode.cir:5:9
+    device [2] name="d1" designator=d @netlists/noise_diode.cir:6:1
+      nodes: "a" "out"
+      model: "dflick"
+      parameters (2):
+        [0] name="m" kind=scalar value="2" @netlists/noise_diode.cir:6:17
+        [1] name="temp" kind=scalar value="40" @netlists/noise_diode.cir:6:21
+    device [3] name="r2" designator=r @netlists/noise_diode.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/noise_diode.cir:7:10
+    device [4] name="d2" designator=d @netlists/noise_diode.cir:8:1
+      nodes: "out" "0"
+      model: "dplain"
+      parameters (0):
+  models (2):
+    model [0] name="dflick" base="d" level=none @netlists/noise_diode.cir:9:1
+      parameters (6):
+        [0] name="is" kind=scalar value="1e-14" @netlists/noise_diode.cir:9:17
+        [1] name="n" kind=scalar value="1.05" @netlists/noise_diode.cir:9:26
+        [2] name="rs" kind=scalar value="8" @netlists/noise_diode.cir:9:33
+        [3] name="kf" kind=scalar value="1e-14" @netlists/noise_diode.cir:9:38
+        [4] name="af" kind=scalar value="1.1" @netlists/noise_diode.cir:9:47
+        [5] name="cjo" kind=scalar value="2p" @netlists/noise_diode.cir:9:54
+    model [1] name="dplain" base="d" level=none @netlists/noise_diode.cir:10:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-15" @netlists/noise_diode.cir:10:17
+        [1] name="rs" kind=scalar value="2" @netlists/noise_diode.cir:10:26
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=noise @netlists/noise_diode.cir:11:1
+      arguments: "v" "(" "out" ")" "v1" "dec" "5" "1" "100meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
