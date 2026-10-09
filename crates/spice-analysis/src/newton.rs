@@ -70,7 +70,7 @@ pub enum StepLimiting {
     /// The port's original bounded policy, kept as a fallback: devices load
     /// exactly at the iterate and the largest nodal step is scaled down to
     /// [`NewtonOptions::voltage_step`] (on the rows of
-    /// [`crate::bias::limited_rows`]). Loads for this policy must forbid
+    /// `bias::limited_rows`). Loads for this policy must forbid
     /// device limiting ([`spice_devices::TrialState::with_device_limiting`]).
     Global,
 }

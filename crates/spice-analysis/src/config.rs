@@ -19,30 +19,30 @@
 //! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
 //! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
 //! | `xmu` | companion trapezoidal weighting (`nicomcof.c`, default 0.5, `0..=0.5`); **rejected with `backend=diffsol`** |
-//! | `itl1` | Newton iteration limit of the direct DC solve (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (C `CKTdcMaxIter`; `dcop.c`, `acan.c`, `dctran.c` call `CKTop`) |
-//! | `itl2` | Newton limit of every gmin/source-stepping stage of that DC bias (`stagemaxiter`, C `CKTdcTrcvMaxIter` in `cktop.c`); on `.dc` also the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`), whose failure falls back to the full bias |
+//! | `itl1` | Newton iteration limit of the direct DC solve and of the gmin strategies' closing solve (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (C `CKTdcMaxIter`; `dcop.c`, `acan.c`, `dctran.c` call `CKTop`); default 100 |
+//! | `itl2` | Newton limit of every other gmin/source-stepping stage of that DC bias (`stagemaxiter`, C `CKTdcTrcvMaxIter` in `cktop.c`); as written, the step adaptation of `dynamic_gmin`/`new_gmin`/`gillespie_src` (`adaptiter`, `iters <= itl2/4`); on `.dc` also the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`), whose failure falls back to the full bias |
 //! | `itl4` | companion `.tran` Newton iterations per timepoint (`tranmaxiter`; effective default 100 as in C) |
-//! | `srcsteps` (alias `itl6`) | DC source-stepping increments (`0` disables, else 1..=1000 equal steps) |
-//! | `gminsteps`, `gminfactor` | DC gmin-stepping stage count (`0` disables, else 1..=100) and ratio (1 < factor <= 1e6, default 10) from 1e-3 S |
+//! | `srcsteps` (alias `itl6`) | C's source stepping: `1` (default) `gillespie_src`, `n > 1` `spice3_src` with `n` equal increments, `0` disables (`0..=1000`) |
+//! | `gminsteps`, `gminfactor` | C's gmin stepping: `1` (default) `dynamic_gmin` then `new_gmin`, `n > 1` `spice3_gmin` from `gmin * gminfactor^n`, `0` disables (`0..=100`); ratio `1 < factor <= 1e6`, default 10 |
+//! | `noopiter` (flag) | skip the direct Newton attempt of every DC bias (C `CKTnoOpIter`) |
 //!
 //! `itl1`/`itl2`/`itl4` take integers in `0..=10000` and are stored as C's
 //! *effective* limit `max(n, 100)`: `NIiter()` (`niiter.c`) raises every limit
 //! below 100 to 100, so smaller values change nothing in C or here (C's
 //! nominal `itl4` default of 10 and `itl2` default of 50 are effectively 100
-//! too). When a deck sets `itl1` or `itl2`, the continuation stages use `itl2`
-//! (default 100) as in C; without either, every stage keeps the port's default
-//! limit (200). Unlike C's `IF_INTEGER` options, a non-integer (`itl4=2.5`) is
+//! too); the raw `itl2` is kept separately for the step adaptation. When a deck
+//! sets `itl1` or `itl2`, the continuation stages use `itl2` (default 100) as in
+//! C; without either, every stage uses `itl1`'s default 100, which is the same
+//! number. Unlike C's `IF_INTEGER` options, a non-integer (`itl4=2.5`) is
 //! rejected rather than rounded.
 //!
 //! The DC options reach `.op`, `.dc`, `.ac` and the companion `.tran` initial
-//! bias; with `backend=diffsol` they (and `itl4`, `xmu`) are rejected.
-//! They are *not* C's `itl1`/`itl2`/`srcsteps`/`gminsteps` semantics verbatim
-//! (this port's schedules are fixed and deterministic, so C's `dynamic_gmin`
-//! step adaptation from the raw `itl2` (`iters <= itl2/4`) has no counterpart;
-//! the default `itl1` is 200, not 100; the artificial gmin ladder starts at 1e-3 S and ends with
-//! a zero-artificial-gmin solve whatever `.option gmin` is, where C's
-//! `spice3_gmin` starts at `gmin * gminfactor^gminsteps` and `dynamic_gmin`
-//! stops at `max(gmin, gshunt)`); see `docs/port/DC_CONTINUATION.md`.
+//! bias; with `backend=diffsol` they (and `itl4`, `xmu`) are rejected. They
+//! follow C's `CKTop` strategies (#106); the port-only request keys
+//! `continuation=ladder` and `limiting=global` select the port's earlier fixed
+//! ladders and global damping instead. C's `OPtran` fallback, `gshunt`,
+//! `oldlimit`, predictor and bypass are not ported; see
+//! `docs/port/DC_CONTINUATION.md`.
 //!
 //! # Documented no-ops
 //!
@@ -63,7 +63,7 @@
 //! * `bypass=0`: C's default (`cktntask.c`); this port never bypasses device
 //!   evaluation. Any other `bypass` is `NotYetPorted`.
 //!
-//! Every other name from `cktsopt.c` (`gshunt`, `noopiter`, `minbreak`, ...)
+//! Every other name from `cktsopt.c` (`gshunt`, `oldlimit`, `minbreak`, ...)
 //! and the front-end variables with an effect (`filetype`, `numdgt`,
 //! `savecurrents`, `scale`, `seed`, ...) is [`SpiceError::NotYetPorted`]; names
 //! absent from both are parse errors. `no_auto_gnd` is a front-end variable in
@@ -85,8 +85,8 @@
 //! Highest first: explicit [`RunOverrides`] (temperatures) or explicit analysis
 //! request arguments (`rtol=`, `vntol=`, `abstol=`, `chgtol=`, `trtol=`, `method=`,
 //! `maxord=`, `xmu=`, `tranmaxiter=`, `maxsteps=`, `maxiter=`, `srcsteps=`,
-//! `gminsteps=`, `gminfactor=`, `trcvmaxiter=`), then the deck's options, then
-//! driver defaults (27 C). Each name is resolved independently, so a request
+//! `gminsteps=`, `gminfactor=`, `noopiter=`, `adaptiter=`, `trcvmaxiter=`),
+//! then the deck's options, then driver defaults (27 C). Each name is resolved independently, so a request
 //! `gminsteps=` combines with a deck `gminfactor`.
 //! Defaults are the backend's: the companion driver uses ngspice's (reltol 1e-3,
 //! vntol 1e-6, abstol 1e-12, chgtol 1e-14, trtol 7); diffsol BDF keeps rtol 1e-7,

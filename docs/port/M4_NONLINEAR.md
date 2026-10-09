@@ -21,9 +21,15 @@ files: symlinking editable files between branches would violate isolation.
   level-1 factory/equations (completed by #88, see [MOS1](#mos1)).
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
   and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
+- `spice-devices::limiting`: ngspice's junction/FET voltage limiting
+  (`DEVpnjlim`, `DEVfetlim`, `DEVlimvds`) and the `MODEINITJCT` start, used by
+  the diode, BJT and MOS1 loads (#106).
 - `spice-analysis::newton`: disposable load/solve/reload, physical iterate and
-  equation-residual convergence, row equilibration and bounded voltage damping.
-- `spice-analysis::bias`: direct DC solve, nodal-gmin and source continuation.
+  equation-residual convergence, row equilibration, device limiting by default
+  and the bounded global voltage damping as a fallback.
+- `spice-analysis::bias`: direct DC solve and ngspice's `CKTop` continuation
+  (`dynamic_gmin`, `new_gmin`, `spice3_gmin`, `gillespie_src`, `spice3_src`),
+  or the port's fixed gmin/source ladders.
 - `spice-analysis::sweep`: typed V/I/R/TEMP axes and bounded nested DC.
 - Companion transient consumes all `Device::truncation_slots` charge/derivative
   pairs. State remains owned by the existing M3 history, not the model object.
@@ -101,8 +107,9 @@ recovery (`VP`, `QPSCALE`), separate sidewall resistance (`RSW`), self-heating
 (nonlinear initialization, #99), C's common-characteristic sidewall current in
 breakdown (JSW*PJ > 0 with BV and without NS: `dioload.c` evaluates it with an
 unassigned `vdsw`), and TM1/TM2 with sidewall capacitance (C mixes adjusted and
-nominal sidewall grading). PN-junction voltage limiting (`DEVpnjlim`) belongs to
-#106. Unknown setters remain unsupported errors.
+nominal sidewall grading). Unknown setters remain unsupported errors. The
+junction voltage is limited as in `dioload.c` (`MODEINITJCT` start at `tVcrit`,
+`DEVpnjlim`, reflected about BV in breakdown; #106).
 
 References: `dio/dioload.c`, `diosetup.c`, `diotemp.c`, `dioacld.c`,
 `diompar.c`, `dioparam.c`, `dio.c`. Unit tests in `nonlinear.rs` check
@@ -162,8 +169,10 @@ with `TF != 0`: Weil's approximation in `bjtload.c` and the AC phase rotation in
 `bjtacld.c`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`, `QCO`,
 `QUASIMOD`, `VG`, `CN`, `D`), noise (`KF`/`AF`, `bjtnoise.c`), safe-operating-area
 limits (`*_MAX`, `RTH0`, `bjtsoachk.c`), `OFF`/`IC`/`ICVBE`/`ICVCE` initial
-conditions and C's `DEVpnjlim` junction limiting (the Newton driver's global
-damping is used). VBIC (level 4) is a non-goal.
+conditions. VBIC (level 4) is a non-goal. Newton limiting follows `bjtload.c`
+(#106): `MODEINITJCT` starts at `vbe = tVcrit`, and `DEVpnjlim` limits `vbe`,
+`vbc` and `vsub` (`VCRIT_DISABLED` without ISS); the quasi-saturation limits
+belong to the rejected quasi-saturation model.
 
 Gate: C goldens `m7_bjt_gummel` (VBC = 0 Gummel plot), `m7_bjt_output` (nested
 VCE/IB output characteristics), `m7_bjt_temp` (-40..125 C sweep of NPN, lateral
@@ -229,17 +238,21 @@ derived), `PHI` (0.6 V or derived), `LAMBDA` (0), `RD`/`RS`/`RSH` (0 ohm),
   `CBD`/`CBS`/`CJ`/`CJSW` use C's two-step capacitance factor. Every load
   re-evaluates these from the analysis temperature, so `.options temp`, TEMP
   sweeps and instance `TEMP`/`DTEMP` all apply.
-- **State and truncation**: 16 state slots (bulk-drain/bulk-source and three
-  gate charge/derivative pairs, three gate voltages, three half capacitances).
+- **State and truncation**: 20 state slots (bulk-drain/bulk-source and three
+  gate charge/derivative pairs, three gate voltages, three half capacitances,
+  and the limited `vbs`/`vgs`/`vds`/`von` of the load for #106 limiting).
   Only the three gate charges control the timestep, as in `mos1trun.c`; the
   bulk junction charges are integrated but do not enter LTE control.
 
-Deliberate divergences: C's Newton phases (`MODEINITJCT` seeding,
-`MODEINITPRED`/`MODEINITTRAN` extrapolation and the zero gate-charge stamp of the
-first `MODEINITTRAN` iteration), FET/PN voltage limiting (`DEVfetlim`,
-`DEVlimvds`, `DEVpnjlim`; #106) and bypass are not part of the device: every
-load evaluates the equations at the present iterate, which changes the Newton
-path but not the converged point. C warns and continues for `L - 2 LD <= 0`;
+Newton limiting follows `mos1load.c` (#106): `MODEINITJCT` starts at
+`vbs = -1`, `vgs = type * tVto`, `vds = 0`; later loads apply `DEVfetlim` to
+`vgs` (or `vgd` in reverse mode) against the previous `von`, `DEVlimvds` to
+`vds` and `DEVpnjlim` to the forward bulk junction, and the device evaluates
+and linearizes at the limited voltages. Deliberate divergences: C's
+`MODEINITPRED`/`MODEINITTRAN` extrapolation (a predicted load limits against
+the last accepted voltages instead), the zero gate-charge stamp of the first
+`MODEINITTRAN` iteration, `.options oldlimit` and bypass are not ported, which
+changes the Newton path but not the converged point. C warns and continues for `L - 2 LD <= 0`;
 here it is an error, as are nonfinite/nonpositive PHI, PB, KP or IS after
 temperature scaling.
 
@@ -269,25 +282,29 @@ the DC deck tightens RELTOL.
 
 ## Solvers, sweeps and state
 
-`NewtonOptions` defaults: 200 iterations per DC stage, reltol=1e-8, vntol=1e-10 V,
-abstol=1e-12 A, maximum global nodal voltage change 0.2 V per iteration.
-Global damping is a bounded policy, **not** full ngspice PN/FET limiting parity.
+`NewtonOptions` defaults: 100 iterations (C's `itl1`), reltol=1e-8,
+vntol=1e-10 V, abstol=1e-12 A and device limiting (`StepLimiting::Device`,
+#106); `limiting=global` selects the earlier policy, a maximum global nodal
+voltage change of 0.2 V per iteration with exact device loads.
 Unknown/duplicate/nonfinite named convergence arguments fail.
 
 DC/AC request options include `rtol`, `vntol`, `abstol`, `maxiter`/`itl1`
 (1..=10000), `gminsteps`, `srcsteps`, and `gminfactor`. Local #34 follow-ups add
 `DcSettings`/`ContinuationPolicy` schedules/budgets and `solve_dc_with` success/failure reports;
 OP/DC/AC bias use the same configured settings, with request > deck > defaults.
-`RunConfig` still forwards physical tolerances to transient, but explicit continuation
-controls reject there. See [DC_CONTINUATION.md](DC_CONTINUATION.md) for exact semantics
-and differences from C's dynamic continuation. `.nodeset` seeds nonlinear bias and
-is released; `.ic` is ignored in DC/AC after name validation, as in C. Configurable
-junction `gmin`, other `itl*` options and full C limiting parity remain unsupported.
+The companion transient initial bias reads the same DC options. See
+[DC_CONTINUATION.md](DC_CONTINUATION.md) for exact semantics and the remaining
+differences from C (no `OPtran` fallback, predictor, bypass or `gshunt`).
+`.nodeset` seeds nonlinear bias and is released; `.ic` is ignored in DC/AC after
+name validation, as in C. Junction `gmin` and `itl1`/`itl2`/`itl4` are
+configurable (#110).
 
-By default, on direct Numerical failure, DC tries nodal gmin 1e-3 down through
-1e-12 S, then twenty source increments with temporary 1e-8 S nodal gmin.
-Typed policies can disable or replace these schedules and bound total work. Every success
-ends with **full source values and zero artificial nodal gmin**. A regularized
+By default, on direct Numerical failure, DC runs ngspice's `dynamic_gmin`, then
+`new_gmin`, then `gillespie_src` (`gminsteps`/`srcsteps` select `spice3_gmin`/
+`spice3_src` or disable a family; `continuation=ladder` restores the earlier
+fixed nodal-gmin and source ladders). Typed policies can disable or replace
+these schedules and bound total work. Every success ends with **full source
+values, zero artificial nodal gmin and the configured junction gmin**. A regularized
 nonunique physical circuit still fails. Temporary stages never call accept hooks.
 Linear circuits retain exact solving and source-only sweeps reuse LU factors.
 

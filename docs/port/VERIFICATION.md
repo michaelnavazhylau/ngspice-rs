@@ -1,5 +1,61 @@
 # Verification
 
+## M7 convergence parity (#106)
+
+Seven new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was designed and checked against the same C
+binary in a scratch copy; no existing golden was recaptured and no tolerance
+changed. `golden verify` now reports 80 fixtures. The decks are circuits whose
+answer depends on the Newton path, so they test ngspice's algorithm (device
+limiting, `MODEINITJCT`, `CKTop` strategies) rather than device equations alone.
+
+| Fixture | Gate | Worst error |
+| --- | --- | --- |
+| `m7_conv_latch_op` | `compare::NONLINEAR` | 2.3e-8 of bound |
+| `m7_conv_latch_gillespie_op` | `compare::NONLINEAR` | 0.0057 of bound |
+| `m7_conv_latch_spice3_gmin_op` | `compare::NONLINEAR` | 3.3e-8 of bound |
+| `m7_conv_latch_spice3_src_op` | `compare::NONLINEAR` | 0.24 of bound |
+| `m7_conv_latch_tran` | `compare::TRAN` | 153 instants + 16 breakpoint limits, 0.016 of bound |
+| `m7_conv_bjt_schmitt` (`.dc` down, `.dc` up, `.op`) | `compare::NONLINEAR` per plot | 0.028 of bound |
+| `m7_conv_cmos_schmitt` (`.dc` down, `.dc` up, `.op`) | `compare::NONLINEAR` per plot | 0.0062 of bound |
+
+The DC worst errors were measured with an out-of-tree script applying the same
+`|Rust - C| <= 1e-6 |C| + 1e-12` bound to every value; `golden verify` prints
+only pass/fail for point plots.
+
+- **Latch.** The cross-coupled BJT pair has two stable states and a metastable
+  one. C's default path (both junctions start at `tVcrit`, `DEVpnjlim`, dynamic
+  gmin) and `gillespie_src`/`spice3_gmin` under `.options noopiter` all return
+  the nearly balanced point; `spice3_src` (`srcsteps=4`) lands in a stable
+  state. The Rust run reproduces each choice.
+- **Schmitt triggers.** Each deck sweeps the input up and down through the
+  hysteresis band (each `.dc` point warm-started from the previous one, as
+  `dctrcurv.c` does) and solves an `.op` inside the band. For the BJT trigger
+  C's `CKTop` lands on the middle (unstable) branch, which the port matches.
+- **Tolerances.** The decks set `.options reltol=1e-8` (the CMOS one also
+  `vntol=1e-12`; the transient `reltol=1e-7` with a 10 ns maximum step) so
+  that C's own Newton stopping error is inside the bound, as for the #87/#88
+  decks; even at `reltol=1e-6` the BJT trigger's sweeps differ by up to 1.3
+  times the bound from the same root.
+- **The new policies are load-bearing.** Running the decks with the port's
+  previous step control (`limiting=global` request key) fails the BJT trigger
+  by 7.2e5 times the bound and the CMOS trigger by 2.5e12 times (wrong
+  hysteresis branch); with the previous ladders as well, the CMOS operating
+  point does not converge at all. The pre-#106 build rejected `noopiter`. The
+  default latch operating point is reproduced by the previous policies too; it
+  pins the default path rather than discriminating between them.
+- **Not gated**: C's `OPtran` fallback, which ngspice runs when every `CKTop`
+  strategy fails (`.options noopiter gminsteps=0 srcsteps=5` on the BJT
+  trigger at vin = 1.8 V: C prints "source stepping failed", then "Transient op
+  finished successfully"), is not ported; the port's error names `optran.c`.
+
+C-free coverage: `crates/spice-analysis/tests/convergence.rs` (limiter
+functions, direct solve of an overdriven junction at an exact point, the
+`MODEINITJCT` load, `noopiter`, the stage sequences of each strategy, schedule-
+dependent latch states, the `optran.c` failure) and the `limiting.rs` unit
+tests. Fourteen new parser snapshots were blessed; existing snapshots are
+unchanged. See [DC_CONTINUATION.md](DC_CONTINUATION.md).
+
 ## M7 Gummel-Poon BJT (#87)
 
 Five new C goldens, each captured individually with `cargo xtask golden
