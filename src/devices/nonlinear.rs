@@ -1277,6 +1277,90 @@ impl Device for Diode {
         self.assemble_small_signal(context, bias)
     }
 
+    /// `diodset.c`/`diodisto.c`: the junction current's and charge's second-
+    /// and third-order Taylor coefficients in the junction voltage, from C's
+    /// own simplified distortion model rather than `dioload.c`: the ideal
+    /// exponential of the total (bottom plus sidewall) saturation current,
+    /// SPICE3's cubic reverse law below `-3 N Vt`, a breakdown exponential in
+    /// `Vt` (not `NBV Vt`) below `-BV`, no ISR/IKF/IKR/tunnelling/gmin terms,
+    /// the transit-time diffusion charge, and the depletion charges graded
+    /// against the model's **unadjusted** VJ/VJSW below the temperature-
+    /// adjusted `FC*VJ` (`DIOtDepCap`, which C applies to the sidewall too).
+    /// The charge term is omitted when its second-order coefficient is zero,
+    /// as `diodisto.c` skips it.
+    fn distortion(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        use crate::devices::distortion::{
+            Control, DeviceDistortion, DistortionTerm, Response, Taylor,
+        };
+        let p = &self.parameters;
+        let t = p.thermal(context.model_context)?;
+        let vd = context.voltage(self.junction[0]) - context.voltage(self.junction[1]);
+        let csat = t.csat + t.csatsw.unwrap_or(0.);
+        let vt = t.vt;
+        let vte = t.n * vt;
+        let tt = t.tt;
+        let breakdown = t.breakdown.filter(|bv| *bv != 0.);
+        let (g2, g3, cdiff2, cdiff3) = if vd >= -3. * vte {
+            let evd = (vd / vte).exp();
+            let gd = csat * evd / vte;
+            let g2 = 0.5 * gd / vte;
+            let g3 = g2 / 3. / vte;
+            (g2, g3, g2 * tt, g3 * tt)
+        } else if breakdown.is_none_or(|bv| vd >= -bv) {
+            let arg = 3. * vte / (vd * std::f64::consts::E);
+            let arg = arg * arg * arg;
+            let gd = csat * 3. * arg / vd;
+            let g2 = -4. * gd / vd;
+            (g2, 5. * g2 / vd, 0., 0.)
+        } else {
+            let bv = breakdown.unwrap_or(0.);
+            let evrev = (-(bv + vd) / vt).exp();
+            let gd = csat * evrev / vt;
+            let g2 = -gd / 2. / vt;
+            (g2, -g2 / 3. / vt, 0., 0.)
+        };
+        let depletion_cap = p.fc * t.vj;
+        // `diotemp.c`: DIOtF2 = exp((1 + M(T)) ln(1 - FC)).
+        let junction = |czero: Real, pot: Real, grading: Real, f2: Real| {
+            if czero == 0. {
+                (0., 0.)
+            } else if vd < depletion_cap {
+                let arg = 1. - vd / pot;
+                let sarg = (-grading * arg.ln()).exp();
+                let c1 = czero * sarg;
+                let c2 = c1 / 2. / pot * grading / arg;
+                let c3 = c2 / 3. / pot / arg * (grading + 1.);
+                (c2, c3)
+            } else {
+                (czero / f2 / 2. / pot * grading, 0.)
+            }
+        };
+        let f2 = ((1. + t.grading) * (1. - p.fc).ln()).exp();
+        let f2_sw = ((1. + p.mjsw) * (1. - p.fcs).ln()).exp();
+        let (cjunc2, cjunc3) = junction(t.cjo, p.vj, t.grading, f2);
+        let (sw2, sw3) = junction(t.cjsw, p.vjsw, p.mjsw, f2_sw);
+        let (cap2, cap3) = (cdiff2 + (cjunc2 + sw2), cdiff3 + (cjunc3 + sw3));
+        let control = || vec![Control::between(self.junction[0], self.junction[1])];
+        let mut terms = vec![DistortionTerm::new(
+            Response::Current,
+            self.junction,
+            control(),
+            Taylor::single(g2, g3),
+        )];
+        if cap2 != 0. {
+            terms.push(DistortionTerm::new(
+                Response::Charge,
+                self.junction,
+                control(),
+                Taylor::single(cap2, cap3),
+            ));
+        }
+        Ok(DeviceDistortion::Terms(terms))
+    }
+
     /// `dionoise.c`: thermal noise of the series resistance at the instance
     /// temperature, shot noise `2 q abs(cd)` of the junction current (gmin
     /// current included, as C's `DIOcurrent`) and the flicker law

@@ -59,6 +59,8 @@ pub struct IndependentSource {
     ac_given: bool,
     waveform: Waveform,
     port: Option<RfPort>,
+    /// `distof1`/`distof2` distortion inputs (C `VSRCdF1given`, ...).
+    distortion: [Option<crate::devices::distortion::DistortionInput>; 2],
 }
 impl IndependentSource {
     /// Creates an independent source. `voltage=false` selects a current source.
@@ -87,7 +89,32 @@ impl IndependentSource {
             ac_given: ac != Complex::ZERO,
             waveform,
             port: None,
+            distortion: [None, None],
         })
+    }
+
+    /// Records the `distof1` (`f1`) and `distof2` (`f2`) distortion inputs
+    /// (`vsrcpar.c`/`isrcpar.c` `VSRC_D_F1`/`VSRC_D_F2`), used only by
+    /// `.disto`.
+    /// # Errors
+    /// A nonfinite magnitude or phase.
+    pub fn with_distortion(
+        mut self,
+        f1: Option<crate::devices::distortion::DistortionInput>,
+        f2: Option<crate::devices::distortion::DistortionInput>,
+    ) -> SpiceResult<Self> {
+        if [f1, f2]
+            .iter()
+            .flatten()
+            .any(|i| !i.magnitude.is_finite() || !i.phase.is_finite())
+        {
+            return Err(SpiceError::circuit(format!(
+                "{}: non-finite distortion input",
+                self.name
+            )));
+        }
+        self.distortion = [f1, f2];
+        Ok(self)
     }
 
     /// Records whether the card wrote an AC value (`ac`, `acmag` or
@@ -184,6 +211,18 @@ impl Device for IndependentSource {
         _context: &crate::devices::noise::NoiseContext<'_>,
     ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
         Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
+    /// Linear, with its `distof1`/`distof2` inputs (`cktdisto.c` reads them
+    /// for the first-order `D_RHSF1`/`D_RHSF2` solves).
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(match self.distortion {
+            [None, None] => crate::devices::distortion::DeviceDistortion::Linear,
+            [f1, f2] => crate::devices::distortion::DeviceDistortion::Input { f1, f2 },
+        })
     }
 
     fn input_source(&self) -> Option<crate::devices::noise::InputSource> {

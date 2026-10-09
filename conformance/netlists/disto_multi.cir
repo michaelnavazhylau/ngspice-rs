@@ -1,0 +1,35 @@
+Distortion in a multi-analysis deck with linear devices and switches
+* #104: .disto composes with .op/.ac; linear devices (R, C, L, K, E, F, G, H,
+* S, W) enter only through their AC matrix, the diode pair distorts. A lin
+* sweep measures pts + 2 frequencies (distoan.c).
+v1 in 0 dc 0.7 ac 1 distof1 0.02
+r1 in a 500
+d1 a 0 dm
+l1 a b 1m
+l2 c 0 1m
+k1 l1 l2 0.5
+r2 b 0 1k
+r3 c 0 1k
+e1 e 0 a 0 2
+re e f 1k
+d2 f 0 dm
+g1 0 gx a 0 1m
+rg gx 0 1k
+vsense gx h 0
+h1 hx 0 vsense 100
+rh hx 0 1k
+f1 0 fx vsense 2
+rf fx 0 1k
+s1 a sx in 0 sw1
+rsx sx 0 10k
+w1 a wx vsense csw1
+rwx wx 0 10k
+c1 a 0 1n
+.model dm d(is=1e-14 cjo=1p tt=1n)
+.model sw1 sw(vt=0.5 ron=100 roff=1e6)
+.model csw1 csw(it=1m ron=50)
+.option reltol=1e-7
+.op
+.ac dec 2 100 10k
+.disto lin 3 1k 4k
+.end

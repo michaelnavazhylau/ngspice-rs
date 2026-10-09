@@ -763,6 +763,24 @@ struct Batch {
 const NOISE_LINEAR_STAGES: [Stage; 2] = noise_stages(compare::NOISE);
 const NOISE_NONLINEAR_STAGES: [Stage; 2] = noise_stages(compare::NOISE_NONLINEAR);
 
+/// One distortion plot (#104) along `frequency`.
+const DISTORTION_STAGE: Stage = Stage {
+    kind: AnalysisKind::Distortion,
+    gate: Gate::Points {
+        axis: Some("frequency"),
+        tolerance: compare::DISTORTION,
+    },
+};
+/// A deck with an intermodulation card (three plots, run first as the later
+/// card) and a harmonic card (two plots).
+const DISTORTION_IM_AND_HARMONIC_STAGES: [Stage; 5] = [
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+];
+
 const BATCH: &[Batch] = &[
     // `.noise` (#100): every `.noise` card writes a spectrum and an
     // integrated-noise plot, so the fixtures are batch fixtures. The RC deck
@@ -825,6 +843,43 @@ const BATCH: &[Batch] = &[
                     tolerance: compare::NOISE_NONLINEAR,
                 },
             },
+        ],
+    },
+    // `.disto` (#104): every card writes two harmonic or three
+    // intermodulation plots, so the fixtures are batch fixtures. Each deck's
+    // later IM card runs first (`disto1..3`), its harmonic card second
+    // (`disto4 disto5`); `disto_multi` runs `.ac`, `.op` and a `lin` sweep.
+    Batch {
+        name: "disto_diode",
+        stages: &DISTORTION_IM_AND_HARMONIC_STAGES,
+    },
+    Batch {
+        name: "disto_bjt",
+        stages: &DISTORTION_IM_AND_HARMONIC_STAGES,
+    },
+    Batch {
+        name: "disto_mos1",
+        stages: &DISTORTION_IM_AND_HARMONIC_STAGES,
+    },
+    Batch {
+        name: "disto_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            DISTORTION_STAGE,
+            DISTORTION_STAGE,
         ],
     },
     Batch {

@@ -1,0 +1,131 @@
+# ngspice-rs ast-dump v1
+file: netlists/disto_diode.cir
+title: "Harmonic and intermodulation distortion of diode stages" @netlists/disto_diode.cir:1:1
+scope root
+  cards (18):
+    [0] device[0] @netlists/disto_diode.cir:9:1 "v1 in 0 dc 0.65 ac 1 distof1 0.01 distof2 0.008 30"
+    [1] device[1] @netlists/disto_diode.cir:10:1 "r1 in a 1k"
+    [2] device[2] @netlists/disto_diode.cir:11:1 "d1 a 0 dfwd pj=2 temp=40"
+    [3] device[3] @netlists/disto_diode.cir:12:1 "i2 0 v dc 20u distof1 1u 45 distof2 0.5u"
+    [4] device[4] @netlists/disto_diode.cir:13:1 "r2 v 0 100k"
+    [5] device[5] @netlists/disto_diode.cir:14:1 "d2 0 v dvar"
+    [6] device[6] @netlists/disto_diode.cir:15:1 "v3 z 0 dc -6 distof1 0.05 distof2 0.04"
+    [7] device[7] @netlists/disto_diode.cir:16:1 "r3 z k 2k"
+    [8] device[8] @netlists/disto_diode.cir:17:1 "d3 k 0 dz"
+    [9] device[9] @netlists/disto_diode.cir:18:1 "r4 k 0 50k"
+    [10] device[10] @netlists/disto_diode.cir:19:1 "c4 k 0 1n"
+    [11] model[0] @netlists/disto_diode.cir:20:1 ".model dfwd d(is=1e-14 n=1.2 rs=5 cjo=2p vj=0.7 m=0.4 tt=2n jsw=1e-15 cjsw=0.5p vjsw=0.6 mjsw=0.3)"
+    [12] model[1] @netlists/disto_diode.cir:21:1 ".model dvar d(is=1e-15 cjo=10p vj=0.8 m=0.5 fc=0.5)"
+    [13] model[2] @netlists/disto_diode.cir:22:1 ".model dz d(is=1e-14 bv=5.1 ibv=1m cjo=5p)"
+    [14] options[0] @netlists/disto_diode.cir:23:1 ".option reltol=1e-7"
+    [15] analysis[0] @netlists/disto_diode.cir:24:1 ".disto dec 3 1k 10meg"
+    [16] analysis[1] @netlists/disto_diode.cir:25:1 ".disto oct 2 1k 64k 0.9"
+    [17] end @netlists/disto_diode.cir:26:1 ".end"
+  devices (11):
+    device [0] name="v1" designator=v @netlists/disto_diode.cir:9:1
+      nodes: "in" "0"
+      model: none
+      parameters (7):
+        [0] name="dc" kind=scalar value="0.65" @netlists/disto_diode.cir:9:9
+        [1] name="acmag" kind=scalar value="1" @netlists/disto_diode.cir:9:20
+        [2] name="acphase" kind=scalar value="0" @netlists/disto_diode.cir:9:17
+        [3] name="distof1mag" kind=scalar value="0.01" @netlists/disto_diode.cir:9:30
+        [4] name="distof1phase" kind=scalar value="0" @netlists/disto_diode.cir:9:22
+        [5] name="distof2mag" kind=scalar value="0.008" @netlists/disto_diode.cir:9:43
+        [6] name="distof2phase" kind=scalar value="30" @netlists/disto_diode.cir:9:49
+    device [1] name="r1" designator=r @netlists/disto_diode.cir:10:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_diode.cir:10:9
+    device [2] name="d1" designator=d @netlists/disto_diode.cir:11:1
+      nodes: "a" "0"
+      model: "dfwd"
+      parameters (2):
+        [0] name="pj" kind=scalar value="2" @netlists/disto_diode.cir:11:13
+        [1] name="temp" kind=scalar value="40" @netlists/disto_diode.cir:11:18
+    device [3] name="i2" designator=i @netlists/disto_diode.cir:12:1
+      nodes: "0" "v"
+      model: none
+      parameters (5):
+        [0] name="dc" kind=scalar value="20u" @netlists/disto_diode.cir:12:8
+        [1] name="distof1mag" kind=scalar value="1u" @netlists/disto_diode.cir:12:23
+        [2] name="distof1phase" kind=scalar value="45" @netlists/disto_diode.cir:12:26
+        [3] name="distof2mag" kind=scalar value="0.5u" @netlists/disto_diode.cir:12:37
+        [4] name="distof2phase" kind=scalar value="0" @netlists/disto_diode.cir:12:29
+    device [4] name="r2" designator=r @netlists/disto_diode.cir:13:1
+      nodes: "v" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100k" @netlists/disto_diode.cir:13:8
+    device [5] name="d2" designator=d @netlists/disto_diode.cir:14:1
+      nodes: "0" "v"
+      model: "dvar"
+      parameters (0):
+    device [6] name="v3" designator=v @netlists/disto_diode.cir:15:1
+      nodes: "z" "0"
+      model: none
+      parameters (5):
+        [0] name="dc" kind=scalar value="-6" @netlists/disto_diode.cir:15:8
+        [1] name="distof1mag" kind=scalar value="0.05" @netlists/disto_diode.cir:15:22
+        [2] name="distof1phase" kind=scalar value="0" @netlists/disto_diode.cir:15:14
+        [3] name="distof2mag" kind=scalar value="0.04" @netlists/disto_diode.cir:15:35
+        [4] name="distof2phase" kind=scalar value="0" @netlists/disto_diode.cir:15:27
+    device [7] name="r3" designator=r @netlists/disto_diode.cir:16:1
+      nodes: "z" "k"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/disto_diode.cir:16:8
+    device [8] name="d3" designator=d @netlists/disto_diode.cir:17:1
+      nodes: "k" "0"
+      model: "dz"
+      parameters (0):
+    device [9] name="r4" designator=r @netlists/disto_diode.cir:18:1
+      nodes: "k" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50k" @netlists/disto_diode.cir:18:8
+    device [10] name="c4" designator=c @netlists/disto_diode.cir:19:1
+      nodes: "k" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/disto_diode.cir:19:8
+  models (3):
+    model [0] name="dfwd" base="d" level=none @netlists/disto_diode.cir:20:1
+      parameters (11):
+        [0] name="is" kind=scalar value="1e-14" @netlists/disto_diode.cir:20:15
+        [1] name="n" kind=scalar value="1.2" @netlists/disto_diode.cir:20:24
+        [2] name="rs" kind=scalar value="5" @netlists/disto_diode.cir:20:30
+        [3] name="cjo" kind=scalar value="2p" @netlists/disto_diode.cir:20:35
+        [4] name="vj" kind=scalar value="0.7" @netlists/disto_diode.cir:20:42
+        [5] name="m" kind=scalar value="0.4" @netlists/disto_diode.cir:20:49
+        [6] name="tt" kind=scalar value="2n" @netlists/disto_diode.cir:20:55
+        [7] name="jsw" kind=scalar value="1e-15" @netlists/disto_diode.cir:20:61
+        [8] name="cjsw" kind=scalar value="0.5p" @netlists/disto_diode.cir:20:71
+        [9] name="vjsw" kind=scalar value="0.6" @netlists/disto_diode.cir:20:81
+        [10] name="mjsw" kind=scalar value="0.3" @netlists/disto_diode.cir:20:90
+    model [1] name="dvar" base="d" level=none @netlists/disto_diode.cir:21:1
+      parameters (5):
+        [0] name="is" kind=scalar value="1e-15" @netlists/disto_diode.cir:21:15
+        [1] name="cjo" kind=scalar value="10p" @netlists/disto_diode.cir:21:24
+        [2] name="vj" kind=scalar value="0.8" @netlists/disto_diode.cir:21:32
+        [3] name="m" kind=scalar value="0.5" @netlists/disto_diode.cir:21:39
+        [4] name="fc" kind=scalar value="0.5" @netlists/disto_diode.cir:21:45
+    model [2] name="dz" base="d" level=none @netlists/disto_diode.cir:22:1
+      parameters (4):
+        [0] name="is" kind=scalar value="1e-14" @netlists/disto_diode.cir:22:13
+        [1] name="bv" kind=scalar value="5.1" @netlists/disto_diode.cir:22:22
+        [2] name="ibv" kind=scalar value="1m" @netlists/disto_diode.cir:22:29
+        [3] name="cjo" kind=scalar value="5p" @netlists/disto_diode.cir:22:36
+  subcircuits (0):
+  analyses (2):
+    analysis [0] kind=disto @netlists/disto_diode.cir:24:1
+      arguments: "dec" "3" "1k" "10meg"
+    analysis [1] kind=disto @netlists/disto_diode.cir:25:1
+      arguments: "oct" "2" "1k" "64k" "0.9"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/disto_diode.cir:23:1
+      setting [0] name="reltol" value="1e-7"@netlists/disto_diode.cir:23:16 @netlists/disto_diode.cir:23:9
+  globals (0):

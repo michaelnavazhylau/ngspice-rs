@@ -1,0 +1,257 @@
+# ngspice-rs token-dump v1
+file: netlists/disto_multi.cir
+title: "Distortion in a multi-analysis deck with linear devices and switches" @netlists/disto_multi.cir:1:1
+card 1 @netlists/disto_multi.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc 0.7 ac 1 distof1 0.02"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "0.7" value=7e-1
+  token 6 5:16 word "ac"
+  token 7 5:19 number "1" value=1e0
+  token 8 5:21 word "distof1"
+  token 9 5:29 number "0.02" value=2e-2
+card 2 @netlists/disto_multi.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in a 500"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "a"
+  token 4 6:9 number "500" value=5e2
+card 3 @netlists/disto_multi.cir:7:1 lines=7-7 continuations=0
+  raw: "d1 a 0 dm"
+  kind: device(d)
+  token 1 7:1 word "d1"
+  token 2 7:4 word "a"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 word "dm"
+card 4 @netlists/disto_multi.cir:8:1 lines=8-8 continuations=0
+  raw: "l1 a b 1m"
+  kind: device(l)
+  token 1 8:1 word "l1"
+  token 2 8:4 word "a"
+  token 3 8:6 word "b"
+  token 4 8:8 number "1m" value=1e-3
+card 5 @netlists/disto_multi.cir:9:1 lines=9-9 continuations=0
+  raw: "l2 c 0 1m"
+  kind: device(l)
+  token 1 9:1 word "l2"
+  token 2 9:4 word "c"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1m" value=1e-3
+card 6 @netlists/disto_multi.cir:10:1 lines=10-10 continuations=0
+  raw: "k1 l1 l2 0.5"
+  kind: device(k)
+  token 1 10:1 word "k1"
+  token 2 10:4 word "l1"
+  token 3 10:7 word "l2"
+  token 4 10:10 number "0.5" value=5e-1
+card 7 @netlists/disto_multi.cir:11:1 lines=11-11 continuations=0
+  raw: "r2 b 0 1k"
+  kind: device(r)
+  token 1 11:1 word "r2"
+  token 2 11:4 word "b"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "1k" value=1e3
+card 8 @netlists/disto_multi.cir:12:1 lines=12-12 continuations=0
+  raw: "r3 c 0 1k"
+  kind: device(r)
+  token 1 12:1 word "r3"
+  token 2 12:4 word "c"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 number "1k" value=1e3
+card 9 @netlists/disto_multi.cir:13:1 lines=13-13 continuations=0
+  raw: "e1 e 0 a 0 2"
+  kind: device(e)
+  token 1 13:1 word "e1"
+  token 2 13:4 word "e"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 word "a"
+  token 5 13:10 number "0" value=0e0
+  token 6 13:12 number "2" value=2e0
+card 10 @netlists/disto_multi.cir:14:1 lines=14-14 continuations=0
+  raw: "re e f 1k"
+  kind: device(r)
+  token 1 14:1 word "re"
+  token 2 14:4 word "e"
+  token 3 14:6 word "f"
+  token 4 14:8 number "1k" value=1e3
+card 11 @netlists/disto_multi.cir:15:1 lines=15-15 continuations=0
+  raw: "d2 f 0 dm"
+  kind: device(d)
+  token 1 15:1 word "d2"
+  token 2 15:4 word "f"
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 word "dm"
+card 12 @netlists/disto_multi.cir:16:1 lines=16-16 continuations=0
+  raw: "g1 0 gx a 0 1m"
+  kind: device(g)
+  token 1 16:1 word "g1"
+  token 2 16:4 number "0" value=0e0
+  token 3 16:6 word "gx"
+  token 4 16:9 word "a"
+  token 5 16:11 number "0" value=0e0
+  token 6 16:13 number "1m" value=1e-3
+card 13 @netlists/disto_multi.cir:17:1 lines=17-17 continuations=0
+  raw: "rg gx 0 1k"
+  kind: device(r)
+  token 1 17:1 word "rg"
+  token 2 17:4 word "gx"
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 number "1k" value=1e3
+card 14 @netlists/disto_multi.cir:18:1 lines=18-18 continuations=0
+  raw: "vsense gx h 0"
+  kind: device(v)
+  token 1 18:1 word "vsense"
+  token 2 18:8 word "gx"
+  token 3 18:11 word "h"
+  token 4 18:13 number "0" value=0e0
+card 15 @netlists/disto_multi.cir:19:1 lines=19-19 continuations=0
+  raw: "h1 hx 0 vsense 100"
+  kind: device(h)
+  token 1 19:1 word "h1"
+  token 2 19:4 word "hx"
+  token 3 19:7 number "0" value=0e0
+  token 4 19:9 word "vsense"
+  token 5 19:16 number "100" value=1e2
+card 16 @netlists/disto_multi.cir:20:1 lines=20-20 continuations=0
+  raw: "rh hx 0 1k"
+  kind: device(r)
+  token 1 20:1 word "rh"
+  token 2 20:4 word "hx"
+  token 3 20:7 number "0" value=0e0
+  token 4 20:9 number "1k" value=1e3
+card 17 @netlists/disto_multi.cir:21:1 lines=21-21 continuations=0
+  raw: "f1 0 fx vsense 2"
+  kind: device(f)
+  token 1 21:1 word "f1"
+  token 2 21:4 number "0" value=0e0
+  token 3 21:6 word "fx"
+  token 4 21:9 word "vsense"
+  token 5 21:16 number "2" value=2e0
+card 18 @netlists/disto_multi.cir:22:1 lines=22-22 continuations=0
+  raw: "rf fx 0 1k"
+  kind: device(r)
+  token 1 22:1 word "rf"
+  token 2 22:4 word "fx"
+  token 3 22:7 number "0" value=0e0
+  token 4 22:9 number "1k" value=1e3
+card 19 @netlists/disto_multi.cir:23:1 lines=23-23 continuations=0
+  raw: "s1 a sx in 0 sw1"
+  kind: device(s)
+  token 1 23:1 word "s1"
+  token 2 23:4 word "a"
+  token 3 23:6 word "sx"
+  token 4 23:9 word "in"
+  token 5 23:12 number "0" value=0e0
+  token 6 23:14 word "sw1"
+card 20 @netlists/disto_multi.cir:24:1 lines=24-24 continuations=0
+  raw: "rsx sx 0 10k"
+  kind: device(r)
+  token 1 24:1 word "rsx"
+  token 2 24:5 word "sx"
+  token 3 24:8 number "0" value=0e0
+  token 4 24:10 number "10k" value=1e4
+card 21 @netlists/disto_multi.cir:25:1 lines=25-25 continuations=0
+  raw: "w1 a wx vsense csw1"
+  kind: device(w)
+  token 1 25:1 word "w1"
+  token 2 25:4 word "a"
+  token 3 25:6 word "wx"
+  token 4 25:9 word "vsense"
+  token 5 25:16 word "csw1"
+card 22 @netlists/disto_multi.cir:26:1 lines=26-26 continuations=0
+  raw: "rwx wx 0 10k"
+  kind: device(r)
+  token 1 26:1 word "rwx"
+  token 2 26:5 word "wx"
+  token 3 26:8 number "0" value=0e0
+  token 4 26:10 number "10k" value=1e4
+card 23 @netlists/disto_multi.cir:27:1 lines=27-27 continuations=0
+  raw: "c1 a 0 1n"
+  kind: device(c)
+  token 1 27:1 word "c1"
+  token 2 27:4 word "a"
+  token 3 27:6 number "0" value=0e0
+  token 4 27:8 number "1n" value=1e-9
+card 24 @netlists/disto_multi.cir:28:1 lines=28-28 continuations=0
+  raw: ".model dm d(is=1e-14 cjo=1p tt=1n)"
+  kind: dot(.model)
+  token 1 28:1 word ".model"
+  token 2 28:8 word "dm"
+  token 3 28:11 word "d"
+  token 4 28:12 lparen "("
+  token 5 28:13 word "is"
+  token 6 28:15 equals "="
+  token 7 28:16 number "1e-14" value=1e-14
+  token 8 28:22 word "cjo"
+  token 9 28:25 equals "="
+  token 10 28:26 number "1p" value=1e-12
+  token 11 28:29 word "tt"
+  token 12 28:31 equals "="
+  token 13 28:32 number "1n" value=1e-9
+  token 14 28:34 rparen ")"
+card 25 @netlists/disto_multi.cir:29:1 lines=29-29 continuations=0
+  raw: ".model sw1 sw(vt=0.5 ron=100 roff=1e6)"
+  kind: dot(.model)
+  token 1 29:1 word ".model"
+  token 2 29:8 word "sw1"
+  token 3 29:12 word "sw"
+  token 4 29:14 lparen "("
+  token 5 29:15 word "vt"
+  token 6 29:17 equals "="
+  token 7 29:18 number "0.5" value=5e-1
+  token 8 29:22 word "ron"
+  token 9 29:25 equals "="
+  token 10 29:26 number "100" value=1e2
+  token 11 29:30 word "roff"
+  token 12 29:34 equals "="
+  token 13 29:35 number "1e6" value=1e6
+  token 14 29:38 rparen ")"
+card 26 @netlists/disto_multi.cir:30:1 lines=30-30 continuations=0
+  raw: ".model csw1 csw(it=1m ron=50)"
+  kind: dot(.model)
+  token 1 30:1 word ".model"
+  token 2 30:8 word "csw1"
+  token 3 30:13 word "csw"
+  token 4 30:16 lparen "("
+  token 5 30:17 word "it"
+  token 6 30:19 equals "="
+  token 7 30:20 number "1m" value=1e-3
+  token 8 30:23 word "ron"
+  token 9 30:26 equals "="
+  token 10 30:27 number "50" value=5e1
+  token 11 30:29 rparen ")"
+card 27 @netlists/disto_multi.cir:31:1 lines=31-31 continuations=0
+  raw: ".option reltol=1e-7"
+  kind: dot(.options)
+  token 1 31:1 word ".option"
+  token 2 31:9 word "reltol"
+  token 3 31:15 equals "="
+  token 4 31:16 number "1e-7" value=1e-7
+card 28 @netlists/disto_multi.cir:32:1 lines=32-32 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 32:1 word ".op"
+card 29 @netlists/disto_multi.cir:33:1 lines=33-33 continuations=0
+  raw: ".ac dec 2 100 10k"
+  kind: dot(.ac)
+  token 1 33:1 word ".ac"
+  token 2 33:5 word "dec"
+  token 3 33:9 number "2" value=2e0
+  token 4 33:11 number "100" value=1e2
+  token 5 33:15 number "10k" value=1e4
+card 30 @netlists/disto_multi.cir:34:1 lines=34-34 continuations=0
+  raw: ".disto lin 3 1k 4k"
+  kind: dot(.disto)
+  token 1 34:1 word ".disto"
+  token 2 34:8 word "lin"
+  token 3 34:12 number "3" value=3e0
+  token 4 34:14 number "1k" value=1e3
+  token 5 34:17 number "4k" value=4e3
+card 31 @netlists/disto_multi.cir:35:1 lines=35-35 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 35:1 word ".end"

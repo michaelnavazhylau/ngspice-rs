@@ -1,0 +1,275 @@
+# ngspice-rs token-dump v1
+file: netlists/disto_mos1.cir
+title: "Harmonic and intermodulation distortion of MOS1 stages" @netlists/disto_mos1.cir:1:1
+card 1 @netlists/disto_mos1.cir:7:1 lines=7-7 continuations=0
+  raw: "vdd vdd 0 5"
+  kind: device(v)
+  token 1 7:1 word "vdd"
+  token 2 7:5 word "vdd"
+  token 3 7:9 number "0" value=0e0
+  token 4 7:11 number "5" value=5e0
+card 2 @netlists/disto_mos1.cir:8:1 lines=8-8 continuations=0
+  raw: "vin in 0 dc 0 ac 1 distof1 0.05 distof2 0.03 45"
+  kind: device(v)
+  token 1 8:1 word "vin"
+  token 2 8:5 word "in"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 word "dc"
+  token 5 8:13 number "0" value=0e0
+  token 6 8:15 word "ac"
+  token 7 8:18 number "1" value=1e0
+  token 8 8:20 word "distof1"
+  token 9 8:28 number "0.05" value=5e-2
+  token 10 8:33 word "distof2"
+  token 11 8:41 number "0.03" value=3e-2
+  token 12 8:46 number "45" value=4.5e1
+card 3 @netlists/disto_mos1.cir:9:1 lines=9-9 continuations=0
+  raw: "cin in g 10u"
+  kind: device(c)
+  token 1 9:1 word "cin"
+  token 2 9:5 word "in"
+  token 3 9:8 word "g"
+  token 4 9:10 number "10u" value=9.999999999999999e-6
+card 4 @netlists/disto_mos1.cir:10:1 lines=10-10 continuations=0
+  raw: "r1 vdd g 300k"
+  kind: device(r)
+  token 1 10:1 word "r1"
+  token 2 10:4 word "vdd"
+  token 3 10:8 word "g"
+  token 4 10:10 number "300k" value=3e5
+card 5 @netlists/disto_mos1.cir:11:1 lines=11-11 continuations=0
+  raw: "r2 g 0 200k"
+  kind: device(r)
+  token 1 11:1 word "r2"
+  token 2 11:4 word "g"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "200k" value=2e5
+card 6 @netlists/disto_mos1.cir:12:1 lines=12-12 continuations=0
+  raw: "rd vdd d 5k"
+  kind: device(r)
+  token 1 12:1 word "rd"
+  token 2 12:4 word "vdd"
+  token 3 12:8 word "d"
+  token 4 12:10 number "5k" value=5e3
+card 7 @netlists/disto_mos1.cir:13:1 lines=13-13 continuations=0
+  raw: "rs s 0 500"
+  kind: device(r)
+  token 1 13:1 word "rs"
+  token 2 13:4 word "s"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "500" value=5e2
+card 8 @netlists/disto_mos1.cir:14:1 lines=14-14 continuations=0
+  raw: "m1 d g s 0 nm w=20u l=2u ad=40p as=40p pd=24u ps=24u"
+  kind: device(m)
+  token 1 14:1 word "m1"
+  token 2 14:4 word "d"
+  token 3 14:6 word "g"
+  token 4 14:8 word "s"
+  token 5 14:10 number "0" value=0e0
+  token 6 14:12 word "nm"
+  token 7 14:15 word "w"
+  token 8 14:16 equals "="
+  token 9 14:17 number "20u" value=1.9999999999999998e-5
+  token 10 14:21 word "l"
+  token 11 14:22 equals "="
+  token 12 14:23 number "2u" value=2e-6
+  token 13 14:26 word "ad"
+  token 14 14:28 equals "="
+  token 15 14:29 number "40p" value=4e-11
+  token 16 14:33 word "as"
+  token 17 14:35 equals "="
+  token 18 14:36 number "40p" value=4e-11
+  token 19 14:40 word "pd"
+  token 20 14:42 equals "="
+  token 21 14:43 number "24u" value=2.4e-5
+  token 22 14:47 word "ps"
+  token 23 14:49 equals "="
+  token 24 14:50 number "24u" value=2.4e-5
+card 9 @netlists/disto_mos1.cir:15:1 lines=15-15 continuations=0
+  raw: "m2 d2 g s2 0 nm w=10u l=2u"
+  kind: device(m)
+  token 1 15:1 word "m2"
+  token 2 15:4 word "d2"
+  token 3 15:7 word "g"
+  token 4 15:9 word "s2"
+  token 5 15:12 number "0" value=0e0
+  token 6 15:14 word "nm"
+  token 7 15:17 word "w"
+  token 8 15:18 equals "="
+  token 9 15:19 number "10u" value=9.999999999999999e-6
+  token 10 15:23 word "l"
+  token 11 15:24 equals "="
+  token 12 15:25 number "2u" value=2e-6
+card 10 @netlists/disto_mos1.cir:16:1 lines=16-16 continuations=0
+  raw: "rd2 vdd d2 200k"
+  kind: device(r)
+  token 1 16:1 word "rd2"
+  token 2 16:5 word "vdd"
+  token 3 16:9 word "d2"
+  token 4 16:12 number "200k" value=2e5
+card 11 @netlists/disto_mos1.cir:17:1 lines=17-17 continuations=0
+  raw: "rs2 s2 0 1k"
+  kind: device(r)
+  token 1 17:1 word "rs2"
+  token 2 17:5 word "s2"
+  token 3 17:8 number "0" value=0e0
+  token 4 17:10 number "1k" value=1e3
+card 12 @netlists/disto_mos1.cir:18:1 lines=18-18 continuations=0
+  raw: "m3 d3 g vdd vdd pm w=10u l=2u"
+  kind: device(m)
+  token 1 18:1 word "m3"
+  token 2 18:4 word "d3"
+  token 3 18:7 word "g"
+  token 4 18:9 word "vdd"
+  token 5 18:13 word "vdd"
+  token 6 18:17 word "pm"
+  token 7 18:20 word "w"
+  token 8 18:21 equals "="
+  token 9 18:22 number "10u" value=9.999999999999999e-6
+  token 10 18:26 word "l"
+  token 11 18:27 equals "="
+  token 12 18:28 number "2u" value=2e-6
+card 13 @netlists/disto_mos1.cir:19:1 lines=19-19 continuations=0
+  raw: "rl3 d3 0 50k"
+  kind: device(r)
+  token 1 19:1 word "rl3"
+  token 2 19:5 word "d3"
+  token 3 19:8 number "0" value=0e0
+  token 4 19:10 number "50k" value=5e4
+card 14 @netlists/disto_mos1.cir:20:1 lines=20-21 continuations=1
+  raw: ".model nm nmos(level=1 vto=0.8 kp=50u gamma=0.5 phi=0.65 lambda=0.03 rd=10 rs=10 cbd=20f cbs=20f cj=1e-4 cjsw=1e-10 mj=0.4 mjsw=0.3 tox=20n cgso=1e-10 cgdo=1e-10 cgbo=1e-10 is=1e-14)"
+  kind: dot(.model)
+  token 1 20:1 word ".model"
+  token 2 20:8 word "nm"
+  token 3 20:11 word "nmos"
+  token 4 20:15 lparen "("
+  token 5 20:16 word "level"
+  token 6 20:21 equals "="
+  token 7 20:22 number "1" value=1e0
+  token 8 20:24 word "vto"
+  token 9 20:27 equals "="
+  token 10 20:28 number "0.8" value=8e-1
+  token 11 20:32 word "kp"
+  token 12 20:34 equals "="
+  token 13 20:35 number "50u" value=4.9999999999999996e-5
+  token 14 20:39 word "gamma"
+  token 15 20:44 equals "="
+  token 16 20:45 number "0.5" value=5e-1
+  token 17 20:49 word "phi"
+  token 18 20:52 equals "="
+  token 19 20:53 number "0.65" value=6.5e-1
+  token 20 20:58 word "lambda"
+  token 21 20:64 equals "="
+  token 22 20:65 number "0.03" value=3e-2
+  token 23 20:70 word "rd"
+  token 24 20:72 equals "="
+  token 25 20:73 number "10" value=1e1
+  token 26 20:76 word "rs"
+  token 27 20:78 equals "="
+  token 28 20:79 number "10" value=1e1
+  token 29 20:82 word "cbd"
+  token 30 20:85 equals "="
+  token 31 20:86 number "20f" value=2.0000000000000003e-14
+  token 32 20:90 word "cbs"
+  token 33 20:93 equals "="
+  token 34 20:94 number "20f" value=2.0000000000000003e-14
+  token 35 20:98 word "cj"
+  token 36 20:100 equals "="
+  token 37 20:101 number "1e-4" value=1e-4
+  token 38 20:106 word "cjsw"
+  token 39 20:110 equals "="
+  token 40 20:111 number "1e-10" value=1e-10
+  token 41 20:117 word "mj"
+  token 42 20:119 equals "="
+  token 43 20:120 number "0.4" value=4e-1
+  token 44 20:124 word "mjsw"
+  token 45 20:128 equals "="
+  token 46 20:129 number "0.3" value=3e-1
+  token 47 20:133 word "tox"
+  token 48 20:136 equals "="
+  token 49 20:137 number "20n" value=2e-8
+  token 50 20:141 word "cgso"
+  token 51 20:145 equals "="
+  token 52 20:146 number "1e-10" value=1e-10
+  token 53 20:152 word "cgdo"
+  token 54 20:156 equals "="
+  token 55 20:157 number "1e-10" value=1e-10
+  token 56 20:163 word "cgbo"
+  token 57 20:167 equals "="
+  token 58 20:168 number "1e-10" value=1e-10
+  token 59 20:174 word "is"
+  token 60 20:176 equals "="
+  token 61 20:177 number "1e-14" value=1e-14
+  token 62 20:182 rparen ")"
+card 15 @netlists/disto_mos1.cir:22:1 lines=22-22 continuations=0
+  raw: ".model pm pmos(level=1 vto=-0.8 kp=20u gamma=0.4 lambda=0.05 tox=20n cgso=1e-10 cgdo=1e-10 cj=1e-4 mj=0.5 mjsw=0.5 cjsw=1e-10)"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "pm"
+  token 3 22:11 word "pmos"
+  token 4 22:15 lparen "("
+  token 5 22:16 word "level"
+  token 6 22:21 equals "="
+  token 7 22:22 number "1" value=1e0
+  token 8 22:24 word "vto"
+  token 9 22:27 equals "="
+  token 10 22:28 number "-0.8" value=-8e-1
+  token 11 22:33 word "kp"
+  token 12 22:35 equals "="
+  token 13 22:36 number "20u" value=1.9999999999999998e-5
+  token 14 22:40 word "gamma"
+  token 15 22:45 equals "="
+  token 16 22:46 number "0.4" value=4e-1
+  token 17 22:50 word "lambda"
+  token 18 22:56 equals "="
+  token 19 22:57 number "0.05" value=5e-2
+  token 20 22:62 word "tox"
+  token 21 22:65 equals "="
+  token 22 22:66 number "20n" value=2e-8
+  token 23 22:70 word "cgso"
+  token 24 22:74 equals "="
+  token 25 22:75 number "1e-10" value=1e-10
+  token 26 22:81 word "cgdo"
+  token 27 22:85 equals "="
+  token 28 22:86 number "1e-10" value=1e-10
+  token 29 22:92 word "cj"
+  token 30 22:94 equals "="
+  token 31 22:95 number "1e-4" value=1e-4
+  token 32 22:100 word "mj"
+  token 33 22:102 equals "="
+  token 34 22:103 number "0.5" value=5e-1
+  token 35 22:107 word "mjsw"
+  token 36 22:111 equals "="
+  token 37 22:112 number "0.5" value=5e-1
+  token 38 22:116 word "cjsw"
+  token 39 22:120 equals "="
+  token 40 22:121 number "1e-10" value=1e-10
+  token 41 22:126 rparen ")"
+card 16 @netlists/disto_mos1.cir:23:1 lines=23-23 continuations=0
+  raw: ".option reltol=1e-7"
+  kind: dot(.options)
+  token 1 23:1 word ".option"
+  token 2 23:9 word "reltol"
+  token 3 23:15 equals "="
+  token 4 23:16 number "1e-7" value=1e-7
+card 17 @netlists/disto_mos1.cir:24:1 lines=24-24 continuations=0
+  raw: ".disto dec 2 1k 10meg"
+  kind: dot(.disto)
+  token 1 24:1 word ".disto"
+  token 2 24:8 word "dec"
+  token 3 24:12 number "2" value=2e0
+  token 4 24:14 number "1k" value=1e3
+  token 5 24:17 number "10meg" value=1e7
+card 18 @netlists/disto_mos1.cir:25:1 lines=25-25 continuations=0
+  raw: ".disto dec 2 1k 10meg 0.7"
+  kind: dot(.disto)
+  token 1 25:1 word ".disto"
+  token 2 25:8 word "dec"
+  token 3 25:12 number "2" value=2e0
+  token 4 25:14 number "1k" value=1e3
+  token 5 25:17 number "10meg" value=1e7
+  token 6 25:23 number "0.7" value=7e-1
+card 19 @netlists/disto_mos1.cir:26:1 lines=26-26 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 26:1 word ".end"

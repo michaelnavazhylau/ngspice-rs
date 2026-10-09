@@ -508,6 +508,16 @@ impl Switch {
 }
 
 impl Device for Switch {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `sw/swinit.c`, `csw/cswinit.c`; the switch enters through its small-signal on/off conductance), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

@@ -40,6 +40,8 @@
 //! [`Device::noise`]; C's SPICE3-compatibility flicker form is not
 //! selectable (no compatibility mode is ported).
 
+mod disto;
+
 use crate::devices::limiting::{self, Limiter, Linearization};
 use crate::devices::linear::nodal_stamp;
 use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
@@ -1284,6 +1286,15 @@ impl Device for Mos1 {
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+
+    /// `mos1dset.c`/`mos1dist.c` at the operating point (see the `disto`
+    /// submodule for C's distortion model).
+    fn distortion(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        self.distortion_terms(context)
     }
 
     /// `mos1noi.c` at the operating point: RD/RS thermal noise and the

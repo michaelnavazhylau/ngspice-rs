@@ -1,0 +1,39 @@
+Harmonic and intermodulation distortion of BJT stages
+* #104: bjtdset.c/bjtdisto.c. q1: NPN with Early, high injection, leakage,
+* bias-dependent base resistance (IRB), XTF/VTF/ITF transit time and a split
+* base-collector capacitance (XCJC). q2: NPN with RB but no IRB (rbb through
+* qb), a substrate terminal at -2 V, AREA, M and its own temperature. q3: PNP
+* without base resistance and XCJC < 1, where bjtdisto.c builds the B-C'
+* kernel from vbe + vbc. The later IM card runs first (disto1..3).
+vcc vcc 0 12
+vee vee 0 -12
+vsub sub 0 -2
+vin in 0 dc 0 ac 1 distof1 0.01 distof2 0.008 60
+cin in b 100n
+r1 vcc b 100k
+r2 b 0 20k
+rc vcc c 4.7k
+re e 0 1k
+q1 c b e qa
+cin2 in b2 100n
+r21 vcc b2 150k
+r22 b2 0 20k
+rc2 vcc c2 3k
+re2 e2 0 500
+q2 c2 b2 e2 sub qb area=1.5 m=2 temp=50
+cin3 in b3 100n
+r31 vee b3 100k
+r32 b3 0 20k
+rc3 vee c3 4.7k
+re3 e3 0 1k
+q3 c3 b3 e3 qp
+.model qa npn(is=1e-15 bf=150 vaf=60 var=20 ikf=20m ikr=5m ise=1e-14 ne=1.6 isc=1e-14 nc=1.8 br=3
++ rb=100 rbm=20 irb=1m re=1 rc=10 cje=2p vje=0.8 mje=0.4 tf=0.4n xtf=2 vtf=4 itf=50m
++ cjc=1p vjc=0.7 mjc=0.35 xcjc=0.6 tr=10n)
+.model qb npn(is=2e-15 bf=100 vaf=80 ikf=30m rb=200 re=2 rc=20 cje=1p tf=1n xtf=1 cjc=0.5p
++ cjs=0.8p vjs=0.6 mjs=0.4)
+.model qp pnp(is=1e-15 bf=80 vaf=50 ikf=10m cje=2p mje=0.4 tf=0.5n xtf=1 vtf=3 cjc=1p xcjc=0.5 cjs=0.3p)
+.option reltol=1e-7
+.disto dec 2 1k 10meg
+.disto dec 2 1k 10meg 0.85
+.end
