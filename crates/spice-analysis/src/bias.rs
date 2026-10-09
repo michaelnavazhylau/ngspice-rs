@@ -9,7 +9,9 @@
 //! for the remaining differences from ngspice.
 use crate::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution, PhasePolicy};
 use spice_core::{Real, SpiceError, SpiceResult};
-use spice_devices::{AnalysisMode, Circuit, LoadRequest, ModelContext, StateHistory, TrialState};
+use spice_devices::{
+    AnalysisMode, Circuit, IterationPhase, LoadRequest, ModelContext, StateHistory, TrialState,
+};
 use spice_maths::{SparseMatrix, Vector};
 
 /// Default nodal-gmin schedule (S): one decade per stage, 1e-3 down to 1e-12.
@@ -809,6 +811,80 @@ pub(crate) fn branch_rows(circuit: &Circuit) -> Vec<bool> {
     kinds
 }
 
+/// Node rows a DC solve forces in its loads, the exact form of `cktload.c`'s
+/// `.nodeset`/`.ic` stamping: each listed row's equation is replaced by
+/// `x[row] = value * scale`, where `scale` is the source-stepping factor
+/// (C multiplies both by `CKTsrcFact`).
+///
+/// * [`Self::initial`]: `.ic` rows, forced in **every** load of the solve
+///   (C: `MODETRANOP` without `MODEUIC`, the transient operating point).
+/// * [`Self::nodesets`]: `.nodeset` rows, forced only in the
+///   `MODEINITJCT`/`MODEINITFIX` loads ([`spice_devices::IterationPhase`]
+///   `Junction`/`Fix`) and released afterwards, so they select a solution
+///   without changing it. A row in both lists is forced to its `.ic` value.
+///
+/// Rows whose voltage ideal sources already fix must have been removed
+/// (C's `1e10` compromise for such rows is not reproduced; see
+/// `crate::initial`). Linear circuits ignore the nodesets (one solution).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NodeForcing {
+    /// `(row, value)` pairs of the `.ic` constraints.
+    pub initial: Vec<(usize, Real)>,
+    /// `(row, value)` pairs of the `.nodeset` hints.
+    pub nodesets: Vec<(usize, Real)>,
+}
+
+impl NodeForcing {
+    /// No forced rows.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.initial.is_empty() && self.nodesets.is_empty()
+    }
+
+    fn validate(&self, n: usize) -> SpiceResult<()> {
+        if self
+            .initial
+            .iter()
+            .chain(&self.nodesets)
+            .any(|(row, value)| *row >= n || !value.is_finite())
+        {
+            return Err(SpiceError::circuit("invalid forced DC node row"));
+        }
+        Ok(())
+    }
+
+    /// Replaces the forced rows of `a x = b` (see the type docs); `nodesets`
+    /// selects whether the `.nodeset` rows are forced in this load.
+    fn apply(
+        &self,
+        a: &mut SparseMatrix,
+        b: &mut Vector,
+        scale: Real,
+        nodesets: bool,
+    ) -> SpiceResult<()> {
+        let mut rows = std::collections::BTreeMap::new();
+        if nodesets {
+            rows.extend(self.nodesets.iter().copied());
+        }
+        rows.extend(self.initial.iter().copied());
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let mut forced = SparseMatrix::new(a.rows(), a.cols());
+        for t in a.triplets() {
+            if !rows.contains_key(&t.row) {
+                forced.add(t.row, t.col, t.value)?;
+            }
+        }
+        for (row, value) in rows {
+            forced.add(row, row, 1.)?;
+            b.as_mut_slice()[row] = value * scale;
+        }
+        *a = forced;
+        Ok(())
+    }
+}
+
 /// Solve a finalized circuit without committing device history or accept hooks,
 /// using the default [`ContinuationPolicy`]. Compatible wrapper over
 /// [`solve_dc_with`] that drops the report.
@@ -855,6 +931,33 @@ pub fn solve_dc_with(
     initial: Option<&Vector>,
     forcing: Option<&Vector>,
 ) -> Result<DcSolution, DcFailure> {
+    solve_dc_forced(
+        circuit,
+        context,
+        settings,
+        overrides,
+        initial,
+        forcing,
+        &NodeForcing::default(),
+    )
+}
+
+/// [`solve_dc_with`] with `.ic`/`.nodeset` row forcing ([`NodeForcing`]) in
+/// every Newton load of every strategy. The returned point satisfies the
+/// forced `.ic` rows and the physical equations of every other row; the
+/// `.nodeset` rows are released before convergence.
+///
+/// # Errors
+/// As [`solve_dc_with`], plus a forced row outside the system.
+pub fn solve_dc_forced(
+    circuit: &Circuit,
+    context: &ModelContext,
+    settings: &DcSettings,
+    overrides: &[(&str, f64)],
+    initial: Option<&Vector>,
+    forcing: Option<&Vector>,
+    nodes: &NodeForcing,
+) -> Result<DcSolution, DcFailure> {
     solve(
         circuit,
         context,
@@ -865,11 +968,12 @@ pub fn solve_dc_with(
             forcing,
             history: &circuit.state_history(),
             policy: PhasePolicy::OperatingPoint,
+            nodes,
         },
     )
 }
 
-/// [`solve_dc_with`] continuing an accepted state `history` (C `CKTstate1..`),
+/// [`solve_dc_forced`] continuing an accepted state `history` (C `CKTstate1..`),
 /// starting the direct Newton attempt in `policy`'s phase: a DC sweep point
 /// after the first runs [`PhasePolicy::Predicted`] (`dctrcurv.c` sets
 /// `MODEINITPRED`). Gmin/source-stepping strategies always restart in
@@ -880,6 +984,7 @@ pub fn solve_dc_with(
 ///
 /// # Errors
 /// As [`solve_dc_with`], or a history that does not match the circuit.
+#[allow(clippy::too_many_arguments)]
 pub fn solve_dc_from(
     circuit: &Circuit,
     context: &ModelContext,
@@ -888,6 +993,7 @@ pub fn solve_dc_from(
     initial: Option<&Vector>,
     history: &StateHistory,
     policy: PhasePolicy,
+    nodes: &NodeForcing,
 ) -> Result<DcSolution, DcFailure> {
     solve(
         circuit,
@@ -899,6 +1005,7 @@ pub fn solve_dc_from(
             forcing: None,
             history,
             policy,
+            nodes,
         },
     )
 }
@@ -910,6 +1017,7 @@ struct Start<'a> {
     forcing: Option<&'a Vector>,
     history: &'a StateHistory,
     policy: PhasePolicy,
+    nodes: &'a NodeForcing,
 }
 
 fn solve(
@@ -973,6 +1081,7 @@ struct Engine<'a> {
     limited: Option<Vec<bool>>,
     target: Vector,
     original: Vector,
+    nodes: &'a NodeForcing,
     newton: NewtonOptions,
     /// Per-stage limit of the gmin/source-stepping strategies.
     stage_limit: usize,
@@ -1047,6 +1156,7 @@ impl Engine<'_> {
         let reduced = options.max_iterations < limit;
         let history = self.history;
         let device_limiting = options.limiting.is_device();
+        let (reltol, abstol) = (options.reltol, options.abstol);
         let context = junction.map_or(*self.context, |junction| self.context.with_gmin(junction));
         let result = newton::solve_phased(
             guess,
@@ -1066,7 +1176,8 @@ impl Engine<'_> {
                 let mut b = Vector::zeros(n);
                 let mut trial = history
                     .trial_in(phase, previous)?
-                    .with_device_limiting(device_limiting);
+                    .with_device_limiting(device_limiting)
+                    .with_convergence_tolerances(reltol, abstol);
                 self.circuit.load(
                     &LoadRequest {
                         mode: AnalysisMode::OperatingPoint,
@@ -1089,6 +1200,10 @@ impl Engine<'_> {
                         a.add(row, row, gmin)?;
                     }
                 }
+                // cktload.c: .nodeset rows in MODEINITJCT/MODEINITFIX only,
+                // .ic rows in every load, both scaled by CKTsrcFact.
+                let hinted = matches!(phase, IterationPhase::Junction | IterationPhase::Fix);
+                self.nodes.apply(&mut a, &mut b, scale, hinted)?;
                 Ok((a, b, trial))
             },
         );
@@ -1400,8 +1515,22 @@ fn run(
         forcing,
         history,
         policy: phases,
+        nodes,
     } = start;
     settings.validate()?;
+    nodes.validate(circuit.unknown_count())?;
+    if !settings.newton.limiting.is_device()
+        && let Some(device) = circuit.devices().iter().find(|d| d.has_start_settings())
+    {
+        return Err(SpiceError::Unsupported {
+            feature: format!(
+                "{}: `off`/MOS1 `ic=` start voltages need ngspice's device limiting \
+                 (limiting=device, the default), not limiting=global",
+                device.name()
+            ),
+            location: None,
+        });
+    }
     if history.len() != circuit.state_len() {
         return Err(SpiceError::circuit(
             "DC state history does not match the circuit numbering",
@@ -1446,7 +1575,19 @@ fn run(
     // Preserve exact linear solving (no nonlinear damping or continuation).
     if !circuit.devices().iter().any(|device| device.is_nonlinear()) {
         let result = (|| {
-            let values = system.a.solve(&target)?;
+            // A linear point is unique: nodesets cannot change it, .ic rows can.
+            let values = if nodes.initial.is_empty() {
+                system.a.solve(&target)?
+            } else {
+                let (mut a, mut b) = (system.a.clone(), target.clone());
+                let initial = NodeForcing {
+                    initial: nodes.initial.clone(),
+                    nodesets: Vec::new(),
+                };
+                initial.apply(&mut a, &mut b, 1., false)?;
+                a.fold_duplicates();
+                a.solve(&b)?
+            };
             let mut trial = history.trial();
             circuit.load(
                 &LoadRequest {
@@ -1612,6 +1753,7 @@ fn run(
         limited: limited_rows(circuit),
         target,
         original,
+        nodes,
         newton: *options,
         stage_limit,
         remaining: budget,

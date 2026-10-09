@@ -360,6 +360,12 @@ pub(crate) fn run(
     let circuit: &Circuit = circuit;
     // Everything that can be rejected is rejected before the first sample.
     let hints = crate::initial::resolve(circuit, request)?;
+    // cktload.c forces .nodeset rows in the MODEINITJCT/MODEINITFIX loads
+    // (the first point of each inner sweep and every CKTop restart).
+    let nodes = crate::bias::NodeForcing {
+        initial: Vec::new(),
+        nodesets: crate::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+    };
     let axes = resolve(circuit, request, context)?;
     let (point_iterations, settings) = sweep_settings(request)?;
     // dctrcurv.c always warm-starts every point after the first with
@@ -496,6 +502,7 @@ pub(crate) fn run(
                             Some(&previous),
                             &history,
                             crate::newton::PhasePolicy::Predicted,
+                            &nodes,
                         ) {
                             Ok(solved) => Some(solved.solution),
                             Err(failure)
@@ -529,6 +536,7 @@ pub(crate) fn run(
                             } else {
                                 crate::newton::PhasePolicy::Predicted
                             },
+                            &nodes,
                         )?
                         .solution
                     }

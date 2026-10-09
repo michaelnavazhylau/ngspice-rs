@@ -321,14 +321,13 @@ fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamp
         .unwrap();
     let config = RunConfig::from_netlist(&n).unwrap();
     let request = config.request_for(&n.analyses[0]).unwrap();
-    assert!(
-        runner(request.kind)
-            .unwrap()
-            .run(&mut c, &request, &config.context())
-            .unwrap_err()
-            .to_string()
-            .contains("nonlinear companion .ic/uic")
-    );
+    // Nonlinear .ic (#99): the transient operating point forces v(a)=0.2
+    // against the source, an explicit contradiction (C: a 1e10 compromise).
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap_err();
+    assert!(error.to_string().contains(".ic V(a)=0.2"), "{error}");
     assert!(
         run(
             &mut c,

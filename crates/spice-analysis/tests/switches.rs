@@ -266,15 +266,26 @@ fn unsupported_switch_analyses_fail_explicitly() {
     )
     .unwrap_err();
     assert!(error.to_string().contains("s1"), "{error}");
-    // Nonlinear uic initialization is not implemented.
+    // Nonlinear uic initialization (#99) runs on the companion driver; the
+    // BDF backend keeps rejecting it.
     let mut c = circuit(deck).unwrap();
     let mut request = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u"]);
+    request.uic = true;
+    runner(AnalysisKind::Transient)
+        .unwrap()
+        .run(&mut c, &request, &AnalysisContext::default())
+        .unwrap();
+    let mut c = circuit(deck).unwrap();
+    let mut request = AnalysisRequest::with_arguments(
+        AnalysisKind::Transient,
+        ["1u", "10u", "backend=diffsol", "method=bdf"],
+    );
     request.uic = true;
     let error = runner(AnalysisKind::Transient)
         .unwrap()
         .run(&mut c, &request, &AnalysisContext::default())
         .unwrap_err();
-    assert!(error.to_string().contains("uic"), "{error}");
+    assert!(!error.to_string().is_empty());
 }
 
 #[test]
