@@ -17,7 +17,9 @@
 //! the bias dependence of the base resistance. C's `bjtload.c` stamps only the
 //! conductance `gx` there; both iterations share the same fixed point.
 //! [`Device::assemble_small_signal`] deliberately reproduces C's AC stamp,
-//! which omits the `d(gx)/dV` terms, because that is what `.ac` computes.
+//! which omits the `d(gx)/dV` terms, because that is what `.ac` computes; a
+//! load whose trial asks for C's matrix
+//! ([`crate::devices::DeviceState::c_jacobian`], used by `.tf`) omits them too.
 //!
 //! Not ported, and rejected with [`SpiceError::NotYetPorted`]: excess phase
 //! (`PTF` with `TF != 0`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`,
@@ -1681,7 +1683,10 @@ impl Device for Bjt {
             vbx: 0.,
             vsub: bias.vsub - raw.vsub,
         };
-        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, true, shift);
+        // The exact Jacobian unless the load asks for C's `bjtload.c` matrix
+        // (gx only), as `.tf` does.
+        let exact = !context.states.c_jacobian();
+        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, exact, shift);
         for flow in &flows {
             stamp_flow(context, flow)?;
         }

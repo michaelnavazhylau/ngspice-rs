@@ -2085,6 +2085,76 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(out)", 431, -8.215683334810343e-01, 0.0),
         ],
     },
+    // `.tf` (#101): the inductor shorts b to a and the capacitor is open, so
+    // v(b) = 5 V * (3k || 8k) / (1k + 3k || 8k) and v(out) = 3/4 v(b): gain
+    // 0.5142857 = 18/35; the source sees 1k + 3k || 8k = 3181.8 ohm and out
+    // sees 6k || (2k + 1k || 3k) = 1885.7 ohm.
+    Expectation {
+        fixture: "m8_tf_divider",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(output_impedance_at_v(out))",
+            "v(v1#input_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, 5.142857142857142e-01, 0.0),
+            (
+                "v(output_impedance_at_v(out))",
+                0,
+                1.885714285714286e+03,
+                0.0,
+            ),
+            ("v(v1#input_impedance)", 0, 3.181818181818182e+03, 0.0),
+        ],
+    },
+    // 1 A into `in` sees 5k || (1k + 4k) = 2.5k, so v(a) = 2 kV; e1 drives
+    // 40 kV behind 600 ohm and g1 injects 2 A, giving v(out) = 68.67 / (1/600
+    // + 1/2000) and i(vs) = v(out) / 2k = 15.846 A/A. A unit voltage in vs
+    // sees rl + ro = 2.6k (the sources are controlled by `a`, untouched).
+    Expectation {
+        fixture: "m8_tf_controlled",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(i1#input_impedance)",
+            "v(vs#output_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, 1.584615384615384e+01, 0.0),
+            ("v(i1#input_impedance)", 0, 2.5e+03, 0.0),
+            ("v(vs#output_impedance)", 0, 2.6e+03, 0.0),
+        ],
+    },
+    // A CE stage with 330 ohm emitter degeneration: gain about -rc/re = -10
+    // reduced by the 600 ohm source and the base network; the output
+    // resistance is slightly below rc (the Early effect); the input sees
+    // rs + rb1 || rb2 || (beta * re) = about 10 k.
+    Expectation {
+        fixture: "m8_tf_bjt",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(output_impedance_at_v(nc))",
+            "v(vin#input_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, -8.886149756533730e+00, 0.0),
+            (
+                "v(output_impedance_at_v(nc))",
+                0,
+                3.281273729423023e+03,
+                0.0,
+            ),
+            ("v(vin#input_impedance)", 0, 1.042663215494944e+04, 0.0),
+        ],
+    },
 ];
 
 /// Multi-analysis fixtures (#96): one [`Expectation`] per plot, in rawfile
@@ -2423,6 +2493,65 @@ const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
             values: &[
                 ("v(out)", 0, 3.929411702970590e-08, 0.0),
                 ("v(a)", 0, 2.500000070751028e+00, 0.0),
+            ],
+        },
+    ],
+    &[
+        // `.tf` in a batch (#101): `.op`, then the two `.tf` cards in reverse
+        // deck order. tf1 (MOS1): the supply current changes by
+        // -gm * ro / (ro + 10k) per gate volt, the supply sees 10k + ro =
+        // 241 k and the gate rg = 1 Mohm. tf2 (diode): at 1.2 mA the diode is
+        // rs + n Vt / Id = 30.8 ohm against rd = 1k (gain 0.0299, input
+        // 1030.8 ohm), and v(d, dm) looks into rd || 30.8 plus 10k || ro.
+        Expectation {
+            fixture: "m8_tf_batch",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(vdin)", "v(d)", "v(dm)", "v(g)", "i(vd)", "v(vdd)", "i(vdd)", "i(vg)",
+            ],
+            values: &[
+                ("v(d)", 0, 7.978661647232698e-01, 0.0),
+                ("v(dm)", 0, 2.722392611844397e+00, 0.0),
+                ("i(vg)", 0, -2.0e-06, 0.0),
+            ],
+        },
+        Expectation {
+            fixture: "m8_tf_batch",
+            plotname: "Transfer Function",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(transfer_function)",
+                "v(vdd#output_impedance)",
+                "v(vg#input_impedance)",
+            ],
+            values: &[
+                ("v(transfer_function)", 0, -3.638815406120247e-04, 0.0),
+                ("v(vdd#output_impedance)", 0, 2.414814278978181e+05, 0.0),
+                ("v(vg#input_impedance)", 0, 1.0e+06, 0.0),
+            ],
+        },
+        Expectation {
+            fixture: "m8_tf_batch",
+            plotname: "Transfer Function",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(transfer_function)",
+                "v(output_impedance_at_v(d,dm))",
+                "v(vd#input_impedance)",
+            ],
+            values: &[
+                ("v(transfer_function)", 0, 2.989759171726813e-02, 0.0),
+                (
+                    "v(output_impedance_at_v(d,dm))",
+                    0,
+                    9.615787070380138e+03,
+                    0.0,
+                ),
+                ("v(vd#input_impedance)", 0, 1.030819005768878e+03, 0.0),
             ],
         },
     ],

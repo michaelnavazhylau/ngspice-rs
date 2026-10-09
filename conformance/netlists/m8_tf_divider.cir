@@ -1,0 +1,12 @@
+Transfer function of a passive ladder
+* #101: .tf v(out) of a V-driven ladder; the inductor is a DC short and
+* the capacitor an open, so gain, input and output resistance are closed form.
+v1 in 0 dc 5 ac 1
+r1 in a 1k
+l1 a b 1m
+r2 b 0 3k
+r3 b out 2k
+r4 out 0 6k
+c1 out 0 1u
+.tf v(out) v1
+.end

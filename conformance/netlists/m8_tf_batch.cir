@@ -1,0 +1,19 @@
+Transfer functions in a multi-analysis deck
+* #101: a diode and a MOS1 stage; .op and two .tf cards run in ngspice batch
+* order (op1, then the .tf cards in reverse deck order: tf1 is the i(vdd)
+* card), each linearised at its own operating point.
+vd vdin 0 dc 2
+rd vdin d 1k
+d1 d 0 dmod
+vg g 0 dc 2
+rg g 0 1meg
+vdd vdd 0 5
+rdm vdd dm 10k
+m1 dm g 0 0 nmos w=10u l=2u
+.model dmod d(is=1e-14 n=1.2 rs=5)
+.model nmos nmos(level=1 vto=0.8 kp=60u lambda=0.02 gamma=0.4)
+.options reltol=1e-8
+.tf v(d, dm) vd
+.op
+.tf i(vdd) vg
+.end

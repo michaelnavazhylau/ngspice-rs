@@ -1,0 +1,68 @@
+# ngspice-rs token-dump v1
+file: netlists/m8_tf_divider.cir
+title: "Transfer function of a passive ladder" @netlists/m8_tf_divider.cir:1:1
+card 1 @netlists/m8_tf_divider.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 5 ac 1"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "5" value=5e0
+  token 6 4:14 word "ac"
+  token 7 4:17 number "1" value=1e0
+card 2 @netlists/m8_tf_divider.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "a"
+  token 4 5:9 number "1k" value=1e3
+card 3 @netlists/m8_tf_divider.cir:6:1 lines=6-6 continuations=0
+  raw: "l1 a b 1m"
+  kind: device(l)
+  token 1 6:1 word "l1"
+  token 2 6:4 word "a"
+  token 3 6:6 word "b"
+  token 4 6:8 number "1m" value=1e-3
+card 4 @netlists/m8_tf_divider.cir:7:1 lines=7-7 continuations=0
+  raw: "r2 b 0 3k"
+  kind: device(r)
+  token 1 7:1 word "r2"
+  token 2 7:4 word "b"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "3k" value=3e3
+card 5 @netlists/m8_tf_divider.cir:8:1 lines=8-8 continuations=0
+  raw: "r3 b out 2k"
+  kind: device(r)
+  token 1 8:1 word "r3"
+  token 2 8:4 word "b"
+  token 3 8:6 word "out"
+  token 4 8:10 number "2k" value=2e3
+card 6 @netlists/m8_tf_divider.cir:9:1 lines=9-9 continuations=0
+  raw: "r4 out 0 6k"
+  kind: device(r)
+  token 1 9:1 word "r4"
+  token 2 9:4 word "out"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 number "6k" value=6e3
+card 7 @netlists/m8_tf_divider.cir:10:1 lines=10-10 continuations=0
+  raw: "c1 out 0 1u"
+  kind: device(c)
+  token 1 10:1 word "c1"
+  token 2 10:4 word "out"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "1u" value=1e-6
+card 8 @netlists/m8_tf_divider.cir:11:1 lines=11-11 continuations=0
+  raw: ".tf v(out) v1"
+  kind: dot(.tf)
+  token 1 11:1 word ".tf"
+  token 2 11:5 word "v"
+  token 3 11:6 lparen "("
+  token 4 11:7 word "out"
+  token 5 11:10 rparen ")"
+  token 6 11:12 word "v1"
+card 9 @netlists/m8_tf_divider.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"

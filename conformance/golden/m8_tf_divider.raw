@@ -1,0 +1,16 @@
+Title: transfer function of a passive ladder
+Date: Fri Oct  9 16:32:48  2026
+Command: ngspice-47+, Build 
+Plotname: Transfer Function
+Flags: real
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(transfer_function)	voltage
+	1	v(output_impedance_at_v(out))	voltage
+	2	v(v1#input_impedance)	voltage
+Values:
+ 0	5.142857142857142e-01
+	1.885714285714286e+03
+	3.181818181818182e+03
+

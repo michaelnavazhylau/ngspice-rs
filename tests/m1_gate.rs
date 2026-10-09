@@ -245,6 +245,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M7 Gummel-Poon BJT decks (#87) are gated by `xtask golden verify`,
     // `tests/bjt_gummel_poon.rs` and the parser round trip there.
     on_disk.retain(|name| !name.starts_with("m7_bjt_"));
+    // M8 `.tf` decks (#101) are gated by `xtask golden verify`,
+    // `tests/analysis_tf.rs` and the opt-in `tests/c_tf_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("m8_tf_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `tests/behavioural_sources.rs`.
     on_disk.retain(|name| {

@@ -76,6 +76,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 | --- | --- | --- | --- |
 | `src/spicelib/analysis/` (whole directory) | 21,993 | `analysis::driver` | trait/runner, linear `.op`, single-independent-source `.dc`, complex `.ac`, the adaptive trap/Gear-2 companion `.tran` driver (`companion.rs`: `dctran.c`, `ckttrunc.c`, `cktterr.c` policy, linear circuits) and explicitly selected restricted diffsol BDF; nonlinear/other analyses pending |
 | ↳ `cktdojob.c`, `dctran.c`, `dcop.c`, `acan.c`, `cktload.c` | 2,060 | `analysis::driver` | bounded linear assembly/factor/solve/plot orchestration; no nonlinear Newton/stepping or SPICE trap/Gear driver |
+| ↳ `tfanal.c`, `tfsetp.c`; `parser/inp2dot.c` `dot_tf` | — | `analysis::tf` | `.tf` gain and input/output resistance from one reload of C's operating-point matrix (`TrialState::with_c_jacobian`), C's vector names and `1e20` open rule ([TRANSFER_FUNCTION.md](TRANSFER_FUNCTION.md)) |
 | `src/frontend/rawfile.c` | 863 | `analysis::rawfile` | ASCII read **and** write ported, plus binary real/complex read **and** write with explicit byte order and validated payload lengths (#45); see [RAWFILES.md](RAWFILES.md) |
 | `src/frontend/plotting/` | 9,380 | `analysis::results` | production result tables; interactive plotting not ported |
 
