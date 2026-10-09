@@ -45,6 +45,39 @@ now a review-enforced convention instead of a compiler-enforced one.
   `golden verify` **86 verified / 0 unsupported / 0 failures**, and the **70**
   opt-in `NGSPICE_BIN` live-C checks pass.
 
+## M8 transfer function (#101)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was checked against the same C binary in a
+scratch copy; no existing golden was recaptured and no tolerance changed.
+`golden verify` now reports **90 verified / 0 unsupported / 0 failures**, and
+`golden check` reproduces each new golden.
+
+| Fixture | Gate | Exercises |
+| --- | --- | --- |
+| `m8_tf_divider` | `compare::DC` | V input, `v(out)`, inductor short and capacitor open |
+| `m8_tf_controlled` | `compare::DC` | I input, E and G stages, `i(vs)` output |
+| `m8_tf_bjt` | `compare::NONLINEAR` | Gummel-Poon CE stage with RB/RBM/IRB, `reltol=1e-8` |
+| `m8_tf_batch` | `compare::NONLINEAR` per plot | `.op` + two `.tf` (diode `v(d,dm)`, MOS1 `i(vdd)`) in batch order |
+
+`m8_tf_bjt` first failed by 1.2e-4 relative with the port's exact Newton
+Jacobian: `bjtload.c` stamps the bias-dependent base resistance as `gx` only, so
+C's `.tf` (like its `.ac`) omits `d(gx)/dV`. `.tf` now reloads with
+`TrialState::with_c_jacobian` and matches C (see
+[TRANSFER_FUNCTION.md](TRANSFER_FUNCTION.md)); the Newton solves themselves are
+unchanged. The opt-in `tests/c_tf_reference.rs` compares `ngspice -b -r` with
+`spice-rs simulate` on 5 further decks (passive, current inputs, E/F/G/H,
+nonlinear with `.op`/`.ac`, S/W switches inside their hysteresis band with and
+without ON/OFF flags) with exact vector names; every value agreed within 1e-9
+relative, well inside the 1e-6 nonlinear bound the test enforces.
+
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets
+  --locked -- -D warnings` are clean.
+- `cargo test --workspace --locked`: **1128 passed / 0 failed / 75 ignored**
+  (`ngspice-rs` alone 1080 / 0 / 75).
+- With `NGSPICE_BIN` set, all **75** opt-in live-C tests pass, including the five
+  new `c_tf_reference` tests.
+
 ## M7 nonlinear initial conditions (#99)
 
 Six new C goldens, each captured once with `cargo xtask golden capture

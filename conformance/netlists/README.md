@@ -130,6 +130,10 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_ic_mos1_uic_tran` | `.tran` | MOS1 inverter pair started under `uic` from full and partial `ic=` vectors and the `.ic` node vector (Gear-2, `reltol=1e-5`, 2 ps maximum step) |
 | `m7_ic_latch_nodeset_op` | `.op` | symmetric CMOS latch whose `.nodeset` (forced in MODEINITJCT/MODEINITFIX only) selects the q-high state |
 | `m7_ic_latch_mos1_ic_op` | `.op` | the same latch whose MOS1 `ic=` vectors move the MODEINITJCT start (no `uic`) and select the q-high state |
+| `m8_tf_divider` | `.tf` | V-driven ladder, `v(out)`: gain and input/output resistance with an inductor short and a capacitor open (#101) |
+| `m8_tf_controlled` | `.tf` | current-source input, E/G amplifier, `i(vs)` output through a zero-volt sense source (#101) |
+| `m8_tf_bjt` | `.tf` | Gummel-Poon CE stage with bias-dependent base resistance, linearised with C's `gx`-only matrix (`reltol=1e-8`, #101) |
+| `m8_tf_batch` | `.op` + 2 `.tf` | diode `v(d,dm)` and MOS1 `i(vdd)` transfer functions in ngspice batch order (`op1 tf1 tf2`, #101) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)

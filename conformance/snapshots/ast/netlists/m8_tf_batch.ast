@@ -1,0 +1,88 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_tf_batch.cir
+title: "Transfer functions in a multi-analysis deck" @netlists/m8_tf_batch.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m8_tf_batch.cir:5:1 "vd vdin 0 dc 2"
+    [1] device[1] @netlists/m8_tf_batch.cir:6:1 "rd vdin d 1k"
+    [2] device[2] @netlists/m8_tf_batch.cir:7:1 "d1 d 0 dmod"
+    [3] device[3] @netlists/m8_tf_batch.cir:8:1 "vg g 0 dc 2"
+    [4] device[4] @netlists/m8_tf_batch.cir:9:1 "rg g 0 1meg"
+    [5] device[5] @netlists/m8_tf_batch.cir:10:1 "vdd vdd 0 5"
+    [6] device[6] @netlists/m8_tf_batch.cir:11:1 "rdm vdd dm 10k"
+    [7] device[7] @netlists/m8_tf_batch.cir:12:1 "m1 dm g 0 0 nmos w=10u l=2u"
+    [8] model[0] @netlists/m8_tf_batch.cir:13:1 ".model dmod d(is=1e-14 n=1.2 rs=5)"
+    [9] model[1] @netlists/m8_tf_batch.cir:14:1 ".model nmos nmos(level=1 vto=0.8 kp=60u lambda=0.02 gamma=0.4)"
+    [10] options[0] @netlists/m8_tf_batch.cir:15:1 ".options reltol=1e-8"
+    [11] analysis[0] @netlists/m8_tf_batch.cir:16:1 ".tf v(d, dm) vd"
+    [12] analysis[1] @netlists/m8_tf_batch.cir:17:1 ".op"
+    [13] analysis[2] @netlists/m8_tf_batch.cir:18:1 ".tf i(vdd) vg"
+    [14] end @netlists/m8_tf_batch.cir:19:1 ".end"
+  devices (8):
+    device [0] name="vd" designator=v @netlists/m8_tf_batch.cir:5:1
+      nodes: "vdin" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/m8_tf_batch.cir:5:11
+    device [1] name="rd" designator=r @netlists/m8_tf_batch.cir:6:1
+      nodes: "vdin" "d"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_tf_batch.cir:6:11
+    device [2] name="d1" designator=d @netlists/m8_tf_batch.cir:7:1
+      nodes: "d" "0"
+      model: "dmod"
+      parameters (0):
+    device [3] name="vg" designator=v @netlists/m8_tf_batch.cir:8:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/m8_tf_batch.cir:8:8
+    device [4] name="rg" designator=r @netlists/m8_tf_batch.cir:9:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1meg" @netlists/m8_tf_batch.cir:9:8
+    device [5] name="vdd" designator=v @netlists/m8_tf_batch.cir:10:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m8_tf_batch.cir:10:11
+    device [6] name="rdm" designator=r @netlists/m8_tf_batch.cir:11:1
+      nodes: "vdd" "dm"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m8_tf_batch.cir:11:12
+    device [7] name="m1" designator=m @netlists/m8_tf_batch.cir:12:1
+      nodes: "dm" "g" "0" "0"
+      model: "nmos"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m8_tf_batch.cir:12:18
+        [1] name="l" kind=scalar value="2u" @netlists/m8_tf_batch.cir:12:24
+  models (2):
+    model [0] name="dmod" base="d" level=none @netlists/m8_tf_batch.cir:13:1
+      parameters (3):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m8_tf_batch.cir:13:15
+        [1] name="n" kind=scalar value="1.2" @netlists/m8_tf_batch.cir:13:24
+        [2] name="rs" kind=scalar value="5" @netlists/m8_tf_batch.cir:13:30
+    model [1] name="nmos" base="nmos" level=1e0 @netlists/m8_tf_batch.cir:14:1
+      parameters (5):
+        [0] name="level" kind=scalar value="1" @netlists/m8_tf_batch.cir:14:18
+        [1] name="vto" kind=scalar value="0.8" @netlists/m8_tf_batch.cir:14:26
+        [2] name="kp" kind=scalar value="60u" @netlists/m8_tf_batch.cir:14:34
+        [3] name="lambda" kind=scalar value="0.02" @netlists/m8_tf_batch.cir:14:41
+        [4] name="gamma" kind=scalar value="0.4" @netlists/m8_tf_batch.cir:14:53
+  subcircuits (0):
+  analyses (3):
+    analysis [0] kind=tf @netlists/m8_tf_batch.cir:16:1
+      arguments: "v" "(" "d" "," "dm" ")" "vd"
+    analysis [1] kind=op @netlists/m8_tf_batch.cir:17:1
+      arguments:
+    analysis [2] kind=tf @netlists/m8_tf_batch.cir:18:1
+      arguments: "i" "(" "vdd" ")" "vg"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m8_tf_batch.cir:15:1
+      setting [0] name="reltol" value="1e-8"@netlists/m8_tf_batch.cir:15:17 @netlists/m8_tf_batch.cir:15:10
+  globals (0):

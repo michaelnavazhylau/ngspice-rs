@@ -124,6 +124,7 @@ impl StateHistory {
             nonconvergent: false,
             device_limiting: false,
             initial_conditions: false,
+            c_jacobian: false,
             tolerances: None,
         }
     }
@@ -152,6 +153,7 @@ impl StateHistory {
             nonconvergent: false,
             device_limiting: true,
             initial_conditions: false,
+            c_jacobian: false,
             tolerances: None,
         })
     }
@@ -220,6 +222,7 @@ impl StateHistory {
             nonconvergent,
             device_limiting,
             initial_conditions,
+            c_jacobian,
             tolerances,
         } = trial;
         let previous: Option<&'a [Real]> = match previous {
@@ -238,6 +241,7 @@ impl StateHistory {
             nonconvergent: Some(nonconvergent),
             device_limiting: *device_limiting,
             initial_conditions: *initial_conditions,
+            c_jacobian: *c_jacobian,
             tolerances: *tolerances,
         })
     }
@@ -274,6 +278,7 @@ pub struct TrialState {
     nonconvergent: bool,
     device_limiting: bool,
     initial_conditions: bool,
+    c_jacobian: bool,
     tolerances: Option<(Real, Real)>,
 }
 
@@ -299,6 +304,17 @@ impl TrialState {
     #[must_use]
     pub const fn initial_conditions(&self) -> bool {
         self.initial_conditions
+    }
+
+    /// The same trial asking devices to stamp C's own `DEVload` matrix where
+    /// the port's Newton Jacobian deliberately differs from it (see
+    /// [`DeviceState::c_jacobian`]). Newton solves leave it off; `.tf`
+    /// (`tfanal.c`), which solves with the matrix C's last `CKTop` load left,
+    /// turns it on.
+    #[must_use]
+    pub const fn with_c_jacobian(mut self, enabled: bool) -> Self {
+        self.c_jacobian = enabled;
+        self
     }
 
     /// The same trial with device limiting allowed or forbidden (see
@@ -354,6 +370,7 @@ pub struct DeviceState<'a> {
     nonconvergent: Option<&'a mut bool>,
     device_limiting: bool,
     initial_conditions: bool,
+    c_jacobian: bool,
     tolerances: Option<(Real, Real)>,
 }
 
@@ -370,6 +387,7 @@ impl DeviceState<'_> {
             nonconvergent: None,
             device_limiting: false,
             initial_conditions: false,
+            c_jacobian: false,
             tolerances: None,
         }
     }
@@ -403,6 +421,17 @@ impl DeviceState<'_> {
     #[must_use]
     pub const fn initial_conditions(&self) -> bool {
         self.initial_conditions
+    }
+
+    /// Whether the load must stamp C's `DEVload` matrix rather than the
+    /// port's exact Newton Jacobian where the two deliberately differ
+    /// ([`TrialState::with_c_jacobian`]). The equations, residual and fixed
+    /// point are unchanged; only the matrix differs. Today only the BJT reads
+    /// it (`bjtload.c` stamps the bias-dependent base resistance as the
+    /// conductance `gx` alone).
+    #[must_use]
+    pub const fn c_jacobian(&self) -> bool {
+        self.c_jacobian
     }
 
     /// The value of `slot` written by the previous load of the same Newton

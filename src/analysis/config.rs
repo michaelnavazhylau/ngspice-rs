@@ -851,7 +851,7 @@ impl RunConfig {
 
     /// Add deck settings to a request. Explicit request arguments win.
     ///
-    /// * `.op`, `.dc`, `.ac`: `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
+    /// * `.op`, `.dc`, `.ac`, `.tf`: `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
     ///   `abstol`), `itl1` (as `maxiter`), `srcsteps`, `gminsteps`,
     ///   `gminfactor` and, when the deck sets `itl1` or `itl2`, the
     ///   continuation stage limit `stagemaxiter` (`itl2`, else C's effective
@@ -880,7 +880,10 @@ impl RunConfig {
         if request.kind != AnalysisKind::Transient {
             if matches!(
                 request.kind,
-                AnalysisKind::OperatingPoint | AnalysisKind::DcSweep | AnalysisKind::Ac
+                AnalysisKind::OperatingPoint
+                    | AnalysisKind::DcSweep
+                    | AnalysisKind::Ac
+                    | AnalysisKind::TransferFunction
             ) {
                 for (key, value) in [
                     ("rtol", self.transient.rtol),

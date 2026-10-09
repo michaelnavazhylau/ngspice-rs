@@ -623,6 +623,37 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // `.tf` transfer function (#101): a passive ladder (inductor short,
+    // capacitor open) and a current-driven E/G amplifier with a sensed current
+    // output keep the linear DC bound; the Gummel-Poon stage, linearised at its
+    // tightened-RELTOL operating point, the nonlinear 1 ppm bound.
+    Supported {
+        name: "m8_tf_divider",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_tf_controlled",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_tf_bjt",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -759,6 +790,34 @@ const BATCH: &[Batch] = &[
             },
             Stage {
                 kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    // `.tf` in a batch (#101): `.op` then two `.tf` cards in reverse deck
+    // order, over a diode and a MOS1 stage; nonlinear 1 ppm bound.
+    Batch {
+        name: "m8_tf_batch",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::TransferFunction,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::TransferFunction,
                 gate: Gate::Points {
                     axis: None,
                     tolerance: compare::NONLINEAR,

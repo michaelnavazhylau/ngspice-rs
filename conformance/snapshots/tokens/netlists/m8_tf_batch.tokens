@@ -1,0 +1,144 @@
+# ngspice-rs token-dump v1
+file: netlists/m8_tf_batch.cir
+title: "Transfer functions in a multi-analysis deck" @netlists/m8_tf_batch.cir:1:1
+card 1 @netlists/m8_tf_batch.cir:5:1 lines=5-5 continuations=0
+  raw: "vd vdin 0 dc 2"
+  kind: device(v)
+  token 1 5:1 word "vd"
+  token 2 5:4 word "vdin"
+  token 3 5:9 number "0" value=0e0
+  token 4 5:11 word "dc"
+  token 5 5:14 number "2" value=2e0
+card 2 @netlists/m8_tf_batch.cir:6:1 lines=6-6 continuations=0
+  raw: "rd vdin d 1k"
+  kind: device(r)
+  token 1 6:1 word "rd"
+  token 2 6:4 word "vdin"
+  token 3 6:9 word "d"
+  token 4 6:11 number "1k" value=1e3
+card 3 @netlists/m8_tf_batch.cir:7:1 lines=7-7 continuations=0
+  raw: "d1 d 0 dmod"
+  kind: device(d)
+  token 1 7:1 word "d1"
+  token 2 7:4 word "d"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 word "dmod"
+card 4 @netlists/m8_tf_batch.cir:8:1 lines=8-8 continuations=0
+  raw: "vg g 0 dc 2"
+  kind: device(v)
+  token 1 8:1 word "vg"
+  token 2 8:4 word "g"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "dc"
+  token 5 8:11 number "2" value=2e0
+card 5 @netlists/m8_tf_batch.cir:9:1 lines=9-9 continuations=0
+  raw: "rg g 0 1meg"
+  kind: device(r)
+  token 1 9:1 word "rg"
+  token 2 9:4 word "g"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1meg" value=1e6
+card 6 @netlists/m8_tf_batch.cir:10:1 lines=10-10 continuations=0
+  raw: "vdd vdd 0 5"
+  kind: device(v)
+  token 1 10:1 word "vdd"
+  token 2 10:5 word "vdd"
+  token 3 10:9 number "0" value=0e0
+  token 4 10:11 number "5" value=5e0
+card 7 @netlists/m8_tf_batch.cir:11:1 lines=11-11 continuations=0
+  raw: "rdm vdd dm 10k"
+  kind: device(r)
+  token 1 11:1 word "rdm"
+  token 2 11:5 word "vdd"
+  token 3 11:9 word "dm"
+  token 4 11:12 number "10k" value=1e4
+card 8 @netlists/m8_tf_batch.cir:12:1 lines=12-12 continuations=0
+  raw: "m1 dm g 0 0 nmos w=10u l=2u"
+  kind: device(m)
+  token 1 12:1 word "m1"
+  token 2 12:4 word "dm"
+  token 3 12:7 word "g"
+  token 4 12:9 number "0" value=0e0
+  token 5 12:11 number "0" value=0e0
+  token 6 12:13 word "nmos"
+  token 7 12:18 word "w"
+  token 8 12:19 equals "="
+  token 9 12:20 number "10u" value=9.999999999999999e-6
+  token 10 12:24 word "l"
+  token 11 12:25 equals "="
+  token 12 12:26 number "2u" value=2e-6
+card 9 @netlists/m8_tf_batch.cir:13:1 lines=13-13 continuations=0
+  raw: ".model dmod d(is=1e-14 n=1.2 rs=5)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "dmod"
+  token 3 13:13 word "d"
+  token 4 13:14 lparen "("
+  token 5 13:15 word "is"
+  token 6 13:17 equals "="
+  token 7 13:18 number "1e-14" value=1e-14
+  token 8 13:24 word "n"
+  token 9 13:25 equals "="
+  token 10 13:26 number "1.2" value=1.2e0
+  token 11 13:30 word "rs"
+  token 12 13:32 equals "="
+  token 13 13:33 number "5" value=5e0
+  token 14 13:34 rparen ")"
+card 10 @netlists/m8_tf_batch.cir:14:1 lines=14-14 continuations=0
+  raw: ".model nmos nmos(level=1 vto=0.8 kp=60u lambda=0.02 gamma=0.4)"
+  kind: dot(.model)
+  token 1 14:1 word ".model"
+  token 2 14:8 word "nmos"
+  token 3 14:13 word "nmos"
+  token 4 14:17 lparen "("
+  token 5 14:18 word "level"
+  token 6 14:23 equals "="
+  token 7 14:24 number "1" value=1e0
+  token 8 14:26 word "vto"
+  token 9 14:29 equals "="
+  token 10 14:30 number "0.8" value=8e-1
+  token 11 14:34 word "kp"
+  token 12 14:36 equals "="
+  token 13 14:37 number "60u" value=5.9999999999999995e-5
+  token 14 14:41 word "lambda"
+  token 15 14:47 equals "="
+  token 16 14:48 number "0.02" value=2e-2
+  token 17 14:53 word "gamma"
+  token 18 14:58 equals "="
+  token 19 14:59 number "0.4" value=4e-1
+  token 20 14:62 rparen ")"
+card 11 @netlists/m8_tf_batch.cir:15:1 lines=15-15 continuations=0
+  raw: ".options reltol=1e-8"
+  kind: dot(.options)
+  token 1 15:1 word ".options"
+  token 2 15:10 word "reltol"
+  token 3 15:16 equals "="
+  token 4 15:17 number "1e-8" value=1e-8
+card 12 @netlists/m8_tf_batch.cir:16:1 lines=16-16 continuations=0
+  raw: ".tf v(d, dm) vd"
+  kind: dot(.tf)
+  token 1 16:1 word ".tf"
+  token 2 16:5 word "v"
+  token 3 16:6 lparen "("
+  token 4 16:7 word "d"
+  token 5 16:8 comma ","
+  token 6 16:10 word "dm"
+  token 7 16:12 rparen ")"
+  token 8 16:14 word "vd"
+card 13 @netlists/m8_tf_batch.cir:17:1 lines=17-17 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 17:1 word ".op"
+card 14 @netlists/m8_tf_batch.cir:18:1 lines=18-18 continuations=0
+  raw: ".tf i(vdd) vg"
+  kind: dot(.tf)
+  token 1 18:1 word ".tf"
+  token 2 18:5 word "i"
+  token 3 18:6 lparen "("
+  token 4 18:7 word "vdd"
+  token 5 18:10 rparen ")"
+  token 6 18:12 word "vg"
+card 15 @netlists/m8_tf_batch.cir:19:1 lines=19-19 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 19:1 word ".end"
