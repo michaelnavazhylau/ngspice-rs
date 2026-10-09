@@ -1,0 +1,14 @@
+B-source zero start: singular slopes in a transient
+* The initial operating point starts Newton at 0 V, where the 1/x, sqrt and
+* log slopes are about 1e32 (C's PTdivide fudge) or log() is -1e99 (#79);
+* the input then swings between 1 V and 3 V through the same expressions.
+* The loads are resistive, so the comparison is free of integration error;
+* the 1 us maximum step bounds both simulators' interpolation error.
+vin in 0 sin(2 1 2k)
+rin in 0 1k
+b1 o1 0 v=1/v(in) + sqrt(v(in))
+r1 o1 0 1k
+b2 0 o2 i=1m*log(v(in))/v(in)
+r2 o2 0 1k
+.tran 5u 1m 0 1u
+.end

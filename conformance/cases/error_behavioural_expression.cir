@@ -1,0 +1,7 @@
+Malformed behavioural expression is a positioned parse error
+vin in 0 dc 1
+* The '(' opened at column 14 is never closed.
+b1 out 0 v=2*(v(in)+1
+r1 out 0 1k
+.op
+.end

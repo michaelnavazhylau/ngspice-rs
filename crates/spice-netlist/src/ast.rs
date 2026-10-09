@@ -82,6 +82,13 @@ pub enum ParameterKind {
     /// branch row only after elaboration, and subcircuit expansion renames it
     /// like an instance name (`subckt.c`, `translate_inst_name`).
     Instance,
+    /// A behavioural-source expression (C `IF_PARSETREE`): a B source's
+    /// `v=`/`i=`, an E/G `VALUE=` (also spelled `vol=`/`cur=`) or the input
+    /// expression of a `TABLE`. [`ParameterAssignment::value`] keeps the
+    /// expression text; the box holds the syntax tree
+    /// ([`crate::bexpr`]). Front-end elaboration substitutes `.param` names
+    /// and expands `.func` calls but keeps this kind; the device evaluates it.
+    Behavioural(Box<crate::bexpr::BehaviouralExpression>),
 }
 
 /// One finite textual waveform/IC value and its byte-column position.

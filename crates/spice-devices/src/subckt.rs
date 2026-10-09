@@ -49,6 +49,7 @@ use spice_netlist::ast::{
     DeviceInstance, ModelCard, Netlist, ParamAssignment, ParamCard, ParameterAssignment,
     ParameterKind, Subcircuit,
 };
+use spice_netlist::bexpr::BExprKind;
 use spice_netlist::eval::{EvalBudget, FunctionScope, ParamBinding, ParamScope};
 use spice_netlist::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
 
@@ -397,6 +398,29 @@ impl Expander<'_> {
             // (`translate()` calls `translate_inst_name` for them), so they
             // always name a device of the same instance.
             for parameter in &mut instance.parameters {
+                if let ParameterKind::Behavioural(expression) = &mut parameter.kind {
+                    // Node and source names inside a behavioural expression are
+                    // translated like the card's own (C expands the B line
+                    // text, `translate()` renaming v(...)/i(...) operands).
+                    expression.root.visit_mut(&mut |node| match &mut node.kind {
+                        BExprKind::Voltage { positive, negative } => {
+                            *positive = self.rewrite_node(positive, terminals, path);
+                            if let Some(negative) = negative {
+                                *negative = self.rewrite_node(negative, terminals, path);
+                            }
+                        }
+                        BExprKind::Current(source) => {
+                            let designator = source
+                                .chars()
+                                .next()
+                                .unwrap_or_default()
+                                .to_ascii_lowercase();
+                            *source = device_name(source, designator, path);
+                        }
+                        _ => {}
+                    });
+                    continue;
+                }
                 if parameter.kind == ParameterKind::Instance {
                     let designator = parameter
                         .value

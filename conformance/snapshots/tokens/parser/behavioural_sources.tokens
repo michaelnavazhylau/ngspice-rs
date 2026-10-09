@@ -1,0 +1,482 @@
+# ngspice-rs token-dump v1
+file: parser/behavioural_sources.cir
+title: "Behavioural-source parser reference" @parser/behavioural_sources.cir:1:1
+card 1 @parser/behavioural_sources.cir:6:1 lines=6-6 continuations=0
+  raw: ".param gain=2 vt=0.025"
+  kind: dot(.param)
+  token 1 6:1 word ".param"
+  token 2 6:8 word "gain"
+  token 3 6:12 equals "="
+  token 4 6:13 number "2" value=2e0
+  token 5 6:15 word "vt"
+  token 6 6:17 equals "="
+  token 7 6:18 number "0.025" value=2.5e-2
+card 2 @parser/behavioural_sources.cir:7:1 lines=7-7 continuations=0
+  raw: ".func clip(x) {tanh(x)*1.5}"
+  kind: dot(.func)
+  token 1 7:1 word ".func"
+  token 2 7:7 word "clip"
+  token 3 7:11 lparen "("
+  token 4 7:12 word "x"
+  token 5 7:13 rparen ")"
+  token 6 7:15 expression "{tanh(x)*1.5}" inner="tanh(x)*1.5"
+card 3 @parser/behavioural_sources.cir:8:1 lines=8-8 continuations=0
+  raw: "vin in 0 dc 1"
+  kind: device(v)
+  token 1 8:1 word "vin"
+  token 2 8:5 word "in"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 word "dc"
+  token 5 8:13 number "1" value=1e0
+card 4 @parser/behavioural_sources.cir:9:1 lines=9-9 continuations=0
+  raw: "vb b 0 dc -0.5"
+  kind: device(v)
+  token 1 9:1 word "vb"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 word "dc"
+  token 5 9:11 number "-0.5" value=-5e-1
+card 5 @parser/behavioural_sources.cir:10:1 lines=10-10 continuations=0
+  raw: "rin in 0 1k"
+  kind: device(r)
+  token 1 10:1 word "rin"
+  token 2 10:5 word "in"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "1k" value=1e3
+card 6 @parser/behavioural_sources.cir:11:1 lines=11-11 continuations=0
+  raw: "b1 o1 0 v=gain*v(in)^2 - -3**2 + i(vin)"
+  kind: device(b)
+  token 1 11:1 word "b1"
+  token 2 11:4 word "o1"
+  token 3 11:7 number "0" value=0e0
+  token 4 11:9 word "v"
+  token 5 11:10 equals "="
+  token 6 11:11 word "gain*v"
+  token 7 11:17 lparen "("
+  token 8 11:18 word "in"
+  token 9 11:20 rparen ")"
+  token 10 11:21 word "^2"
+  token 11 11:24 word "-"
+  token 12 11:26 word "-3**2"
+  token 13 11:32 word "+"
+  token 14 11:34 word "i"
+  token 15 11:35 lparen "("
+  token 16 11:36 word "vin"
+  token 17 11:39 rparen ")"
+card 7 @parser/behavioural_sources.cir:12:1 lines=12-12 continuations=0
+  raw: "b2 0 o2 i = { v(in, b) > 0 ? 1m*exp(v(in)/vt/40) : 0 } m=2 tc1=1m"
+  kind: device(b)
+  token 1 12:1 word "b2"
+  token 2 12:4 number "0" value=0e0
+  token 3 12:6 word "o2"
+  token 4 12:9 word "i"
+  token 5 12:11 equals "="
+  token 6 12:13 expression "{ v(in, b) > 0 ? 1m*exp(v(in)/vt/40) : 0 }" inner="v(in, b) > 0 ? 1m*exp(v(in)/vt/40) : 0"
+  token 7 12:56 word "m"
+  token 8 12:57 equals "="
+  token 9 12:58 number "2" value=2e0
+  token 10 12:60 word "tc1"
+  token 11 12:63 equals "="
+  token 12 12:64 number "1m" value=1e-3
+card 8 @parser/behavioural_sources.cir:13:1 lines=13-13 continuations=0
+  raw: "b3 o3 0 v='clip(v(in)) + min(v(in), v(b)) * pwr(v(b), 2)'"
+  kind: device(b)
+  token 1 13:1 word "b3"
+  token 2 13:4 word "o3"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 word "v"
+  token 5 13:10 equals "="
+  token 6 13:11 quoted "'clip(v(in)) + min(v(in), v(b)) * pwr(v(b), 2)'" unquoted="clip(v(in)) + min(v(in), v(b)) * pwr(v(b), 2)"
+card 9 @parser/behavioural_sources.cir:14:1 lines=14-14 continuations=0
+  raw: "b4 o4 0 v=pwl(v(in), -1, -2, 0, 0, 1, {gain*1.5}) temp=50"
+  kind: device(b)
+  token 1 14:1 word "b4"
+  token 2 14:4 word "o4"
+  token 3 14:7 number "0" value=0e0
+  token 4 14:9 word "v"
+  token 5 14:10 equals "="
+  token 6 14:11 word "pwl"
+  token 7 14:14 lparen "("
+  token 8 14:15 word "v"
+  token 9 14:16 lparen "("
+  token 10 14:17 word "in"
+  token 11 14:19 rparen ")"
+  token 12 14:20 comma ","
+  token 13 14:22 number "-1" value=-1e0
+  token 14 14:24 comma ","
+  token 15 14:26 number "-2" value=-2e0
+  token 16 14:28 comma ","
+  token 17 14:30 number "0" value=0e0
+  token 18 14:31 comma ","
+  token 19 14:33 number "0" value=0e0
+  token 20 14:34 comma ","
+  token 21 14:36 number "1" value=1e0
+  token 22 14:37 comma ","
+  token 23 14:39 expression "{gain*1.5}" inner="gain*1.5"
+  token 24 14:49 rparen ")"
+  token 25 14:51 word "temp"
+  token 26 14:55 equals "="
+  token 27 14:56 number "50" value=5e1
+card 10 @parser/behavioural_sources.cir:15:1 lines=15-15 continuations=0
+  raw: "b5 o5 0 v=(v(in) <= 1 && v(b) != 0) || !(v(in) == 2) ? sin(2*pi*1k*time) : temper/27"
+  kind: device(b)
+  token 1 15:1 word "b5"
+  token 2 15:4 word "o5"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 word "v"
+  token 5 15:10 equals "="
+  token 6 15:11 lparen "("
+  token 7 15:12 word "v"
+  token 8 15:13 lparen "("
+  token 9 15:14 word "in"
+  token 10 15:16 rparen ")"
+  token 11 15:18 word "<"
+  token 12 15:19 equals "="
+  token 13 15:21 number "1" value=1e0
+  token 14 15:23 word "&&"
+  token 15 15:26 word "v"
+  token 16 15:27 lparen "("
+  token 17 15:28 word "b"
+  token 18 15:29 rparen ")"
+  token 19 15:31 word "!"
+  token 20 15:32 equals "="
+  token 21 15:34 number "0" value=0e0
+  token 22 15:35 rparen ")"
+  token 23 15:37 word "||"
+  token 24 15:40 word "!"
+  token 25 15:41 lparen "("
+  token 26 15:42 word "v"
+  token 27 15:43 lparen "("
+  token 28 15:44 word "in"
+  token 29 15:46 rparen ")"
+  token 30 15:48 equals "="
+  token 31 15:49 equals "="
+  token 32 15:51 number "2" value=2e0
+  token 33 15:52 rparen ")"
+  token 34 15:54 word "?"
+  token 35 15:56 word "sin"
+  token 36 15:59 lparen "("
+  token 37 15:60 word "2*pi*1k*time"
+  token 38 15:72 rparen ")"
+  token 39 15:74 word ":"
+  token 40 15:76 word "temper/27"
+card 11 @parser/behavioural_sources.cir:16:1 lines=16-16 continuations=0
+  raw: "e1 o6 0 value={v(in)*gain}"
+  kind: device(e)
+  token 1 16:1 word "e1"
+  token 2 16:4 word "o6"
+  token 3 16:7 number "0" value=0e0
+  token 4 16:9 word "value"
+  token 5 16:14 equals "="
+  token 6 16:15 expression "{v(in)*gain}" inner="v(in)*gain"
+card 12 @parser/behavioural_sources.cir:17:1 lines=17-17 continuations=0
+  raw: "e2 o7 0 vol='v(b)+1' m=2"
+  kind: device(e)
+  token 1 17:1 word "e2"
+  token 2 17:4 word "o7"
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 word "vol"
+  token 5 17:12 equals "="
+  token 6 17:13 quoted "'v(b)+1'" unquoted="v(b)+1"
+  token 7 17:22 word "m"
+  token 8 17:23 equals "="
+  token 9 17:24 number "2" value=2e0
+card 13 @parser/behavioural_sources.cir:18:1 lines=18-18 continuations=0
+  raw: "g1 0 o8 cur={v(in)*1m} m=3"
+  kind: device(g)
+  token 1 18:1 word "g1"
+  token 2 18:4 number "0" value=0e0
+  token 3 18:6 word "o8"
+  token 4 18:9 word "cur"
+  token 5 18:12 equals "="
+  token 6 18:13 expression "{v(in)*1m}" inner="v(in)*1m"
+  token 7 18:24 word "m"
+  token 8 18:25 equals "="
+  token 9 18:26 number "3" value=3e0
+card 14 @parser/behavioural_sources.cir:19:1 lines=19-19 continuations=0
+  raw: "g2 0 o9 value={1m*uramp(v(in))}"
+  kind: device(g)
+  token 1 19:1 word "g2"
+  token 2 19:4 number "0" value=0e0
+  token 3 19:6 word "o9"
+  token 4 19:9 word "value"
+  token 5 19:14 equals "="
+  token 6 19:15 expression "{1m*uramp(v(in))}" inner="1m*uramp(v(in))"
+card 15 @parser/behavioural_sources.cir:20:1 lines=20-20 continuations=0
+  raw: "e3 o10 0 table {v(in)} = (0, 0) (1, 2) (2, 3)"
+  kind: device(e)
+  token 1 20:1 word "e3"
+  token 2 20:4 word "o10"
+  token 3 20:8 number "0" value=0e0
+  token 4 20:10 word "table"
+  token 5 20:16 expression "{v(in)}" inner="v(in)"
+  token 6 20:24 equals "="
+  token 7 20:26 lparen "("
+  token 8 20:27 number "0" value=0e0
+  token 9 20:28 comma ","
+  token 10 20:30 number "0" value=0e0
+  token 11 20:31 rparen ")"
+  token 12 20:33 lparen "("
+  token 13 20:34 number "1" value=1e0
+  token 14 20:35 comma ","
+  token 15 20:37 number "2" value=2e0
+  token 16 20:38 rparen ")"
+  token 17 20:40 lparen "("
+  token 18 20:41 number "2" value=2e0
+  token 19 20:42 comma ","
+  token 20 20:44 number "3" value=3e0
+  token 21 20:45 rparen ")"
+card 16 @parser/behavioural_sources.cir:21:1 lines=21-21 continuations=0
+  raw: "g3 0 o11 TABLE {v(in) * 2} = (-1,-1m) (0,0) (2,{gain*1m}) m=2"
+  kind: device(g)
+  token 1 21:1 word "g3"
+  token 2 21:4 number "0" value=0e0
+  token 3 21:6 word "o11"
+  token 4 21:10 word "TABLE"
+  token 5 21:16 expression "{v(in) * 2}" inner="v(in) * 2"
+  token 6 21:28 equals "="
+  token 7 21:30 lparen "("
+  token 8 21:31 number "-1" value=-1e0
+  token 9 21:33 comma ","
+  token 10 21:34 number "-1m" value=-1e-3
+  token 11 21:37 rparen ")"
+  token 12 21:39 lparen "("
+  token 13 21:40 number "0" value=0e0
+  token 14 21:41 comma ","
+  token 15 21:42 number "0" value=0e0
+  token 16 21:43 rparen ")"
+  token 17 21:45 lparen "("
+  token 18 21:46 number "2" value=2e0
+  token 19 21:47 comma ","
+  token 20 21:48 expression "{gain*1m}" inner="gain*1m"
+  token 21 21:57 rparen ")"
+  token 22 21:59 word "m"
+  token 23 21:60 equals "="
+  token 24 21:61 number "2" value=2e0
+card 17 @parser/behavioural_sources.cir:22:1 lines=22-22 continuations=0
+  raw: "e4 o12 0 in b table=(0, 0, 1, 2, 2, 3)"
+  kind: device(e)
+  token 1 22:1 word "e4"
+  token 2 22:4 word "o12"
+  token 3 22:8 number "0" value=0e0
+  token 4 22:10 word "in"
+  token 5 22:13 word "b"
+  token 6 22:15 word "table"
+  token 7 22:20 equals "="
+  token 8 22:21 lparen "("
+  token 9 22:22 number "0" value=0e0
+  token 10 22:23 comma ","
+  token 11 22:25 number "0" value=0e0
+  token 12 22:26 comma ","
+  token 13 22:28 number "1" value=1e0
+  token 14 22:29 comma ","
+  token 15 22:31 number "2" value=2e0
+  token 16 22:32 comma ","
+  token 17 22:34 number "2" value=2e0
+  token 18 22:35 comma ","
+  token 19 22:37 number "3" value=3e0
+  token 20 22:38 rparen ")"
+card 18 @parser/behavioural_sources.cir:23:1 lines=23-23 continuations=0
+  raw: "e5 o13 0 poly(2) in 0 b 0 0 1 2 0.5 0.1 0.2"
+  kind: device(e)
+  token 1 23:1 word "e5"
+  token 2 23:4 word "o13"
+  token 3 23:8 number "0" value=0e0
+  token 4 23:10 word "poly"
+  token 5 23:14 lparen "("
+  token 6 23:15 number "2" value=2e0
+  token 7 23:16 rparen ")"
+  token 8 23:18 word "in"
+  token 9 23:21 number "0" value=0e0
+  token 10 23:23 word "b"
+  token 11 23:25 number "0" value=0e0
+  token 12 23:27 number "0" value=0e0
+  token 13 23:29 number "1" value=1e0
+  token 14 23:31 number "2" value=2e0
+  token 15 23:33 number "0.5" value=5e-1
+  token 16 23:37 number "0.1" value=1e-1
+  token 17 23:41 number "0.2" value=2e-1
+card 19 @parser/behavioural_sources.cir:24:1 lines=24-24 continuations=0
+  raw: "g4 0 o14 poly(1) in 0 0 1m 2m m=2"
+  kind: device(g)
+  token 1 24:1 word "g4"
+  token 2 24:4 number "0" value=0e0
+  token 3 24:6 word "o14"
+  token 4 24:10 word "poly"
+  token 5 24:14 lparen "("
+  token 6 24:15 number "1" value=1e0
+  token 7 24:16 rparen ")"
+  token 8 24:18 word "in"
+  token 9 24:21 number "0" value=0e0
+  token 10 24:23 number "0" value=0e0
+  token 11 24:25 number "1m" value=1e-3
+  token 12 24:28 number "2m" value=2e-3
+  token 13 24:31 word "m"
+  token 14 24:32 equals "="
+  token 15 24:33 number "2" value=2e0
+card 20 @parser/behavioural_sources.cir:25:1 lines=25-25 continuations=0
+  raw: "f1 0 o15 poly(1) vin 0 2"
+  kind: device(f)
+  token 1 25:1 word "f1"
+  token 2 25:4 number "0" value=0e0
+  token 3 25:6 word "o15"
+  token 4 25:10 word "poly"
+  token 5 25:14 lparen "("
+  token 6 25:15 number "1" value=1e0
+  token 7 25:16 rparen ")"
+  token 8 25:18 word "vin"
+  token 9 25:22 number "0" value=0e0
+  token 10 25:24 number "2" value=2e0
+card 21 @parser/behavioural_sources.cir:26:1 lines=26-26 continuations=0
+  raw: "h1 o16 0 poly(2) vin vb 1 2 3"
+  kind: device(h)
+  token 1 26:1 word "h1"
+  token 2 26:4 word "o16"
+  token 3 26:8 number "0" value=0e0
+  token 4 26:10 word "poly"
+  token 5 26:14 lparen "("
+  token 6 26:15 number "2" value=2e0
+  token 7 26:16 rparen ")"
+  token 8 26:18 word "vin"
+  token 9 26:22 word "vb"
+  token 10 26:25 number "1" value=1e0
+  token 11 26:27 number "2" value=2e0
+  token 12 26:29 number "3" value=3e0
+card 22 @parser/behavioural_sources.cir:27:1 lines=27-27 continuations=0
+  raw: "e6 o17 0 in 0 1 2 3"
+  kind: device(e)
+  token 1 27:1 word "e6"
+  token 2 27:4 word "o17"
+  token 3 27:8 number "0" value=0e0
+  token 4 27:10 word "in"
+  token 5 27:13 number "0" value=0e0
+  token 6 27:15 number "1" value=1e0
+  token 7 27:17 number "2" value=2e0
+  token 8 27:19 number "3" value=3e0
+card 23 @parser/behavioural_sources.cir:28:1 lines=28-28 continuations=0
+  raw: "ro1 o1 0 1k"
+  kind: device(r)
+  token 1 28:1 word "ro1"
+  token 2 28:5 word "o1"
+  token 3 28:8 number "0" value=0e0
+  token 4 28:10 number "1k" value=1e3
+card 24 @parser/behavioural_sources.cir:29:1 lines=29-29 continuations=0
+  raw: "ro2 o2 0 1k"
+  kind: device(r)
+  token 1 29:1 word "ro2"
+  token 2 29:5 word "o2"
+  token 3 29:8 number "0" value=0e0
+  token 4 29:10 number "1k" value=1e3
+card 25 @parser/behavioural_sources.cir:30:1 lines=30-30 continuations=0
+  raw: "ro3 o3 0 1k"
+  kind: device(r)
+  token 1 30:1 word "ro3"
+  token 2 30:5 word "o3"
+  token 3 30:8 number "0" value=0e0
+  token 4 30:10 number "1k" value=1e3
+card 26 @parser/behavioural_sources.cir:31:1 lines=31-31 continuations=0
+  raw: "ro4 o4 0 1k"
+  kind: device(r)
+  token 1 31:1 word "ro4"
+  token 2 31:5 word "o4"
+  token 3 31:8 number "0" value=0e0
+  token 4 31:10 number "1k" value=1e3
+card 27 @parser/behavioural_sources.cir:32:1 lines=32-32 continuations=0
+  raw: "ro5 o5 0 1k"
+  kind: device(r)
+  token 1 32:1 word "ro5"
+  token 2 32:5 word "o5"
+  token 3 32:8 number "0" value=0e0
+  token 4 32:10 number "1k" value=1e3
+card 28 @parser/behavioural_sources.cir:33:1 lines=33-33 continuations=0
+  raw: "ro6 o6 0 1k"
+  kind: device(r)
+  token 1 33:1 word "ro6"
+  token 2 33:5 word "o6"
+  token 3 33:8 number "0" value=0e0
+  token 4 33:10 number "1k" value=1e3
+card 29 @parser/behavioural_sources.cir:34:1 lines=34-34 continuations=0
+  raw: "ro7 o7 0 1k"
+  kind: device(r)
+  token 1 34:1 word "ro7"
+  token 2 34:5 word "o7"
+  token 3 34:8 number "0" value=0e0
+  token 4 34:10 number "1k" value=1e3
+card 30 @parser/behavioural_sources.cir:35:1 lines=35-35 continuations=0
+  raw: "ro8 o8 0 1k"
+  kind: device(r)
+  token 1 35:1 word "ro8"
+  token 2 35:5 word "o8"
+  token 3 35:8 number "0" value=0e0
+  token 4 35:10 number "1k" value=1e3
+card 31 @parser/behavioural_sources.cir:36:1 lines=36-36 continuations=0
+  raw: "ro9 o9 0 1k"
+  kind: device(r)
+  token 1 36:1 word "ro9"
+  token 2 36:5 word "o9"
+  token 3 36:8 number "0" value=0e0
+  token 4 36:10 number "1k" value=1e3
+card 32 @parser/behavioural_sources.cir:37:1 lines=37-37 continuations=0
+  raw: "ro10 o10 0 1k"
+  kind: device(r)
+  token 1 37:1 word "ro10"
+  token 2 37:6 word "o10"
+  token 3 37:10 number "0" value=0e0
+  token 4 37:12 number "1k" value=1e3
+card 33 @parser/behavioural_sources.cir:38:1 lines=38-38 continuations=0
+  raw: "ro11 o11 0 1k"
+  kind: device(r)
+  token 1 38:1 word "ro11"
+  token 2 38:6 word "o11"
+  token 3 38:10 number "0" value=0e0
+  token 4 38:12 number "1k" value=1e3
+card 34 @parser/behavioural_sources.cir:39:1 lines=39-39 continuations=0
+  raw: "ro12 o12 0 1k"
+  kind: device(r)
+  token 1 39:1 word "ro12"
+  token 2 39:6 word "o12"
+  token 3 39:10 number "0" value=0e0
+  token 4 39:12 number "1k" value=1e3
+card 35 @parser/behavioural_sources.cir:40:1 lines=40-40 continuations=0
+  raw: "ro13 o13 0 1k"
+  kind: device(r)
+  token 1 40:1 word "ro13"
+  token 2 40:6 word "o13"
+  token 3 40:10 number "0" value=0e0
+  token 4 40:12 number "1k" value=1e3
+card 36 @parser/behavioural_sources.cir:41:1 lines=41-41 continuations=0
+  raw: "ro14 o14 0 1k"
+  kind: device(r)
+  token 1 41:1 word "ro14"
+  token 2 41:6 word "o14"
+  token 3 41:10 number "0" value=0e0
+  token 4 41:12 number "1k" value=1e3
+card 37 @parser/behavioural_sources.cir:42:1 lines=42-42 continuations=0
+  raw: "ro15 o15 0 1k"
+  kind: device(r)
+  token 1 42:1 word "ro15"
+  token 2 42:6 word "o15"
+  token 3 42:10 number "0" value=0e0
+  token 4 42:12 number "1k" value=1e3
+card 38 @parser/behavioural_sources.cir:43:1 lines=43-43 continuations=0
+  raw: "ro16 o16 0 1k"
+  kind: device(r)
+  token 1 43:1 word "ro16"
+  token 2 43:6 word "o16"
+  token 3 43:10 number "0" value=0e0
+  token 4 43:12 number "1k" value=1e3
+card 39 @parser/behavioural_sources.cir:44:1 lines=44-44 continuations=0
+  raw: "ro17 o17 0 1k"
+  kind: device(r)
+  token 1 44:1 word "ro17"
+  token 2 44:6 word "o17"
+  token 3 44:10 number "0" value=0e0
+  token 4 44:12 number "1k" value=1e3
+card 40 @parser/behavioural_sources.cir:45:1 lines=45-45 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 45:1 word ".op"
+card 41 @parser/behavioural_sources.cir:46:1 lines=46-46 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 46:1 word ".end"

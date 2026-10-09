@@ -6,10 +6,13 @@
 //!
 //! For `M x = b`, factors solve `(R M C) y = R b` and return `x = C y`.
 //! Original assembled snapshots check residuals in physical units. This is a
-//! maths-library opt-in, not a new default or a device/driver scaling policy.
+//! maths-library opt-in, not a new default; its one production use is Newton's
+//! fallback after a failed row-equilibrated solve
+//! (`spice-analysis/src/newton.rs`, Curtis-Reid balancing plus refinement).
 //! `src/maths/sparse/sputils.c::spScale` is the read-only behavioral reference
-//! for row/RHS and column/solution transforms; the bounded max-based selection
-//! here is an independent policy, not a copied solver or C-option parity claim.
+//! for row/RHS and column/solution transforms; the bounded max-based and
+//! Curtis-Reid selections here are independent policies, not a copied solver
+//! or C-option parity claim.
 
 use crate::{
     DenseLu, Matrix, SparseLu, SparseMatrix, SparseSymbolic, Vector,
@@ -21,13 +24,19 @@ use spice_core::{Complex, SpiceResult};
 /// Largest absolute exponent of any row or column factor (`2^±512`).
 pub const MAX_SCALING_EXPONENT: i32 = 512;
 
+/// Extra conjugate-gradient steps, beyond `4 n`, of the Curtis-Reid balancing
+/// behind [`EquilibratedSparseLu::new_balanced`].
+pub const MAX_BALANCING_ITERATIONS: usize = 64;
+
 type Entry = (usize, usize, Complex);
 
 /// Immutable positive power-of-two factors for `R M C`.
 ///
-/// A single row-max pass followed by a column-max pass uses the largest absolute
-/// real/imaginary component, not a condition-number estimate. Factors are clamped
-/// independently to `2^-512 ..= 2^512`. No permutation or sparsity change occurs.
+/// The default selection is a single row-max pass followed by a column-max pass
+/// over the largest absolute real/imaginary component, not a condition-number
+/// estimate; [`EquilibratedSparseLu::new_balanced`] instead uses Curtis-Reid
+/// least-squares balancing. Factors are clamped independently to
+/// `2^-512 ..= 2^512`. No permutation or sparsity change occurs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Equilibration {
     rows: Vec<f64>,
@@ -60,6 +69,101 @@ impl Equilibration {
         Ok(Self {
             rows,
             columns: factors(&columns, "column")?,
+        })
+    }
+
+    /// Curtis-Reid power-of-two balancing: row and column exponents that
+    /// minimise `sum (log2|a_rc| + r_r + c_c)^2` over the stored entries.
+    ///
+    /// The least-squares normal equations form a bipartite graph Laplacian,
+    /// solved here by conjugate gradients (at most `4 n +`
+    /// [`MAX_BALANCING_ITERATIONS`] steps) and rounded to integer exponents.
+    /// Unlike the single row-then-column max pass of [`Equilibration::new`]
+    /// (or an infinity-norm Ruiz iteration, whose fixed points can keep it),
+    /// this balances a row whose large coefficient is coupled through a cycle
+    /// to a column dominated by a small one: a behavioural-source row
+    /// `v(out) - J v(in)` with `|J| ~ 1e32` next to a 1 mS conductance needs
+    /// both that row and the `v(out)` column scaled by about `J`. The method
+    /// is A. R. Curtis and J. K. Reid, "On the automatic scaling of matrices
+    /// for Gaussian elimination", J. Inst. Maths Applics 10 (1972); it is a
+    /// heuristic, so callers keep every rank and residual guard.
+    fn balanced(n: usize, entries: &[Entry]) -> SpiceResult<Self> {
+        let logs: Vec<(usize, usize, f64)> = entries
+            .iter()
+            .filter(|(_, _, v)| component_max(*v) != 0.0)
+            .map(|&(r, c, v)| Ok((r, c, f64::from(floor_log2(component_max(v), "entry")?))))
+            .collect::<SpiceResult<_>>()?;
+        let mut counts = vec![0_usize; 2 * n];
+        for &(r, c, _) in &logs {
+            counts[r] += 1;
+            counts[n + c] += 1;
+        }
+        if let Some(empty) = counts.iter().position(|&count| count == 0) {
+            let (namespace, index) = if empty < n {
+                ("row", empty)
+            } else {
+                ("column", empty - n)
+            };
+            return Err(numerical(
+                "equilibration",
+                format!("all-zero/non-finite {namespace} {index}"),
+            ));
+        }
+        // Unknowns: row exponents 0..n, then column exponents n..2n.
+        let laplacian = |x: &[f64]| {
+            let mut y = vec![0.0; 2 * n];
+            for &(r, c, _) in &logs {
+                let sum = x[r] + x[n + c];
+                y[r] += sum;
+                y[n + c] += sum;
+            }
+            y
+        };
+        let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
+        let mut rhs = vec![0.0; 2 * n];
+        for &(r, c, l) in &logs {
+            rhs[r] -= l;
+            rhs[n + c] -= l;
+        }
+        let mut x = vec![0.0; 2 * n];
+        let mut residual = rhs.clone();
+        let mut direction = residual.clone();
+        let mut norm = dot(&residual, &residual);
+        // Rounding to integer exponents needs far less than this accuracy.
+        let tolerance = 1e-12 * norm.max(1.0);
+        for _ in 0..4 * n + MAX_BALANCING_ITERATIONS {
+            if norm <= tolerance {
+                break;
+            }
+            let image = laplacian(&direction);
+            let curvature = dot(&direction, &image);
+            if !(curvature.is_finite() && curvature > 0.0) {
+                break;
+            }
+            let step = norm / curvature;
+            for ((x, r), (d, a)) in x
+                .iter_mut()
+                .zip(residual.iter_mut())
+                .zip(direction.iter().zip(&image))
+            {
+                *x += step * d;
+                *r -= step * a;
+            }
+            let next = dot(&residual, &residual);
+            let beta = next / norm;
+            for (d, r) in direction.iter_mut().zip(&residual) {
+                *d = r + beta * *d;
+            }
+            norm = next;
+        }
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(numerical("equilibration", "non-finite balancing exponent"));
+        }
+        let limit = f64::from(MAX_SCALING_EXPONENT);
+        let power = |e: &f64| 2.0_f64.powi(e.round().clamp(-limit, limit) as i32);
+        Ok(Self {
+            rows: x[..n].iter().map(power).collect(),
+            columns: x[n..].iter().map(power).collect(),
         })
     }
 
@@ -112,26 +216,30 @@ fn component_max(v: Complex) -> f64 {
     v.re.abs().max(v.im.abs())
 }
 
+/// Exact `floor(log2(v))` of a positive finite value, including subnormal
+/// inputs; no libm rounding near powers of two can alter the chosen factors.
+fn floor_log2(v: f64, what: &str) -> SpiceResult<i32> {
+    if v == 0.0 || !v.is_finite() {
+        return Err(numerical(
+            "equilibration",
+            format!("all-zero/non-finite {what}"),
+        ));
+    }
+    let bits = v.to_bits();
+    let biased = ((bits >> 52) & 0x7ff) as i32;
+    Ok(if biased == 0 {
+        63 - (bits.leading_zeros() as i32) - 1074
+    } else {
+        biased - 1023
+    })
+}
+
 fn factors(maxima: &[f64], namespace: &str) -> SpiceResult<Vec<f64>> {
     maxima
         .iter()
         .enumerate()
         .map(|(i, &v)| {
-            if v == 0.0 || !v.is_finite() {
-                return Err(numerical(
-                    "equilibration",
-                    format!("all-zero/non-finite {namespace} {i}"),
-                ));
-            }
-            // Extract floor(log2(v)) exactly, including subnormal inputs; no libm
-            // rounding near powers of two can alter the chosen factors.
-            let bits = v.to_bits();
-            let biased = ((bits >> 52) & 0x7ff) as i32;
-            let exponent = if biased == 0 {
-                63 - (bits.leading_zeros() as i32) - 1074
-            } else {
-                biased - 1023
-            };
+            let exponent = floor_log2(v, &format!("{namespace} {i}"))?;
             Ok(2.0_f64.powi((-exponent).clamp(-MAX_SCALING_EXPONENT, MAX_SCALING_EXPONENT)))
         })
         .collect()
@@ -349,9 +457,101 @@ impl EquilibratedSparseLu {
         })
     }
 
+    /// Like [`EquilibratedSparseLu::new`], but with power-of-two
+    /// row/column balancing (Curtis-Reid least squares in exponent space) instead of the single
+    /// row-then-column pass. The factor of the balanced `R M C` keeps every
+    /// existing guard: the numerical rank/conditioning check applies to the
+    /// scaled system, and every solve is checked against the original snapshot
+    /// in physical units.
+    /// # Errors
+    /// Invalid assembly, transforms, zero rows/columns, changed pattern or rank.
+    pub fn new_balanced(
+        matrix: &SparseMatrix,
+        reuse: Option<&SparseSymbolic>,
+    ) -> SpiceResult<Self> {
+        let snapshot = assembled(matrix)?;
+        let original = real_entries(&snapshot);
+        let scaling = Equilibration::balanced(snapshot.rows(), &original)?;
+        let (scaled, _) = operators(snapshot.rows(), &scaling.scale_entries(&original)?)?;
+        Ok(Self {
+            original,
+            scaling,
+            factor: SparseLu::new(&scaled, reuse)?,
+        })
+    }
+
     /// Immutable scaling metadata belonging to this factor snapshot.
     pub fn scaling(&self) -> &Equilibration {
         &self.scaling
+    }
+
+    /// [`EquilibratedSparseLu::solve`] followed by at most `steps` rounds of
+    /// iterative refinement in physical units. A correction `M dx = b - M x`
+    /// is kept only while it lowers the componentwise backward error
+    /// `max_r |b - M x|_r / (sum_c |M[r,c]| |x_c| + |b_r|)`.
+    ///
+    /// The normwise residual check of [`EquilibratedSparseLu::solve`] accepts
+    /// errors relative to the largest solution component; when the solution
+    /// spans tens of decades (a `1e99` unknown beside a `2 V` source), a small
+    /// component can be lost entirely within that bound. Refinement recovers
+    /// it without changing the factor or any guard.
+    /// # Errors
+    /// As [`EquilibratedSparseLu::solve`], for the first solve; failing
+    /// corrections end refinement and keep the best solution so far.
+    pub fn solve_refined(&self, rhs: &Vector, steps: usize) -> SpiceResult<Vector> {
+        let mut x = self.solve(rhs)?;
+        let mut error = self.componentwise_error(rhs, &x);
+        for _ in 0..steps {
+            if error == 0.0 {
+                break;
+            }
+            let mut residual = rhs.clone();
+            for &(r, c, v) in &self.original {
+                residual.as_mut_slice()[r] -= v.re * x.as_slice()[c];
+            }
+            if !residual.is_finite() {
+                break;
+            }
+            let Ok(correction) = self.solve(&residual) else {
+                break;
+            };
+            let mut candidate = x.clone();
+            for (value, delta) in candidate
+                .as_mut_slice()
+                .iter_mut()
+                .zip(correction.as_slice())
+            {
+                *value += delta;
+            }
+            let candidate_error = self.componentwise_error(rhs, &candidate);
+            let improves = candidate_error.partial_cmp(&error) == Some(std::cmp::Ordering::Less);
+            if !improves || self.check_residual(rhs, &candidate).is_err() {
+                break;
+            }
+            x = candidate;
+            error = candidate_error;
+        }
+        Ok(x)
+    }
+
+    fn componentwise_error(&self, rhs: &Vector, x: &Vector) -> f64 {
+        let b = rhs.as_slice();
+        let mut residual: Vec<f64> = b.to_vec();
+        let mut scale: Vec<f64> = b.iter().map(|v| v.abs()).collect();
+        for &(r, c, v) in &self.original {
+            let term = v.re * x.as_slice()[c];
+            residual[r] -= term;
+            scale[r] += term.abs();
+        }
+        residual
+            .iter()
+            .zip(&scale)
+            .map(|(r, s)| match (r.abs(), *s) {
+                (0.0, _) => 0.0,
+                (r, s) if s > 0.0 => r / s,
+                _ => f64::INFINITY,
+            })
+            .fold(0.0, f64::max)
     }
 
     /// Reusable symbolic factors for an identical assembled sparse pattern.

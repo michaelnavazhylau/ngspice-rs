@@ -1,8 +1,8 @@
 # Conformance fixtures
 
 Every `*.cir` file here is a **pure deck**: no `.control` section and no file
-I/O. Most have exactly one analysis card; `multi_analysis_rc` deliberately has
-four (see below). `cargo xtask golden capture` instruments each one
+I/O. Most have exactly one analysis card; `multi_analysis_rc` and the M6 exit
+gate `m6_gate` deliberately have four (see below). `cargo xtask golden capture` instruments each one
 by inserting
 
 ```spice
@@ -83,6 +83,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
+| `m6_gate` | `.tran` `.ac` `.op` `.dc` | M6 exit gate: SIN-driven K transformer (1:2, k = 0.98) into a G/E op-amp subcircuit (gain `{gain}` from `.param`), `.func` B limiter, H current sense, `.option reltol=1e-4` |
 | `controlled_op` | `.op` | E/F/G/H signs, E op-amp loop (gain 1e4), F sensing an E branch, H inside a subcircuit, HSPICE keyword, `(a,b)` controls, G `m=` |
 | `controlled_ac` | `.ac` | E integrator (gain 1e4), G into an RC, F/H sensing a load current (`lin`) |
 | `controlled_tran` | `.tran` | PULSE RC buffered by E, G charging a second RC, F/H sensing its current |
@@ -92,6 +93,16 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `switch_w_tran` | `.tran` | W switches sensing a SIN and a PULSE current (positive and negative hysteresis, ON flag) |
 | `switch_dc_decimal` | `.dc` | 0.1 V step: C's accumulated sweep values (`0.9999999999999999`, `1.5000000000000002`) decide S and W at their thresholds; ON/OFF flags at the first point |
 | `switch_ac` | `.ac` | C's `MODEINITSMSIG` switch state: every switch open in AC, including ones closed at the operating point |
+| `bsource_op` | `.op` | B sources: the `inpptree.c` functions, comparisons/logic/ternary, `.param`, `.func`, `m`/`tc1`/`tc2`/`temp`, `i(b1)` through the inserted `v_b1` |
+| `bsource_dc` | `.dc` | nonlinear B transfer curves (exponential current, tanh limiter, `pwl()`, power laws, ternary) |
+| `bsource_ac` | `.ac` | B sources linearised at the bias point, including a sensed source current |
+| `bsource_tran` | `.tran` | `time` in `sin()`/`pwl()`/`exp()` (no breakpoints, 1 us maximum step) driving an RC with nonlinear B loads |
+| `evalue_op` | `.op` | E `VALUE=`/`VOL=`, G `VALUE=`/`CUR=` with `m=`, a VALUE E inside a subcircuit, `i(e2)` sensing |
+| `gtable_dc` | `.dc` | E/G `TABLE` (XSPICE `pwl` map, `* xtask-codemodels: analog`), single-pair and LTspice four-node forms |
+| `epoly_dc` | `.dc` | E/G/F/H `POLY(n)` up to three dimensions and the implicit `POLY(1)` (`* xtask-codemodels: spice2poly`) |
+| `bsource_zero_op` | `.op` | `1/x`, `sqrt`, `log`/`ln`/`log10` and divisions whose controlling nodes start Newton at 0 V (`1e32` slopes, `log(0) = -1e99`) |
+| `bsource_zero_dc` | `.dc` | the same singular slopes at the first sweep point's 0 V start |
+| `bsource_zero_tran` | `.tran` | the same at the initial operating point, then a 1–3 V `sin` input into resistive loads (1 us maximum step) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -112,3 +123,10 @@ The six `switch_*` decks (#81) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 In the two transient decks every plotted node is a source or capacitor node,
 so no plotted value jumps between samples where a switch flips.
+
+The ten behavioural-source decks (#79) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+`gtable_dc` and `epoly_dc` need XSPICE code models, which the capture loads
+through a scratch `.spiceinit` because their decks carry a
+`* xtask-codemodels:` comment. See
+[BEHAVIOURAL_SOURCES.md](../../docs/port/BEHAVIOURAL_SOURCES.md).

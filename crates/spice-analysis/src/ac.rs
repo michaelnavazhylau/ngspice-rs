@@ -110,7 +110,26 @@ pub(crate) fn run(
         Some(("frequency", "frequency")),
         true,
     )?;
+    // acan.c: with a `hertz`-dependent device (CKTvarHertz) the operating
+    // point is re-solved at every frequency, warm-started from the previous.
+    let varies = circuit
+        .devices()
+        .iter()
+        .any(|device| device.depends_on_frequency());
+    let mut previous = solved.values.clone();
     for f in grid {
+        let local;
+        let system = if varies {
+            let model = context.model_context().with_frequency(f);
+            previous =
+                crate::bias::solve_dc_with(circuit, &model, &settings, &[], Some(&previous), None)?
+                    .solution
+                    .values;
+            local = circuit.small_signal_system_at(&model, &previous, Some(&state1))?;
+            &local
+        } else {
+            &system
+        };
         let matrix =
             ComplexMatrix::from_operators(&system.a, &system.e, 2. * std::f64::consts::PI * f)?;
         let x = matrix.factorize()?.solve(&system.ac_rhs())?;

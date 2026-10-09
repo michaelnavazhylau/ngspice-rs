@@ -59,6 +59,7 @@ use crate::ast::{
     Netlist, NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment,
     ParameterKind, PositionedValue, ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
 };
+use crate::bexpr::{BExpr, BExprKind, BUnaryOp};
 use crate::card::{CardKind, RawCard};
 use crate::expr::{BinaryOp, Expr, ExprKind, ParameterExpression, SourceSpan, UnaryOp};
 use crate::parser::Parser;
@@ -821,6 +822,7 @@ fn write_parameters(
             ParameterKind::InitialConditions(_) => "initial-conditions",
             ParameterKind::Waveform(_) => "waveform",
             ParameterKind::Instance => "instance",
+            ParameterKind::Behavioural(_) => "behavioural",
         };
         out.line(
             indent + 1,
@@ -834,6 +836,22 @@ fn write_parameters(
         match &parameter.kind {
             ParameterKind::Expression(expression) => {
                 write_expression(ctx, out, indent + 2, expression);
+            }
+            ParameterKind::Behavioural(expression) => {
+                out.line(
+                    indent + 2,
+                    format!(
+                        "behavioural{} text={} span={}",
+                        if expression.verbatim {
+                            " verbatim=true"
+                        } else {
+                            ""
+                        },
+                        quote(&expression.text),
+                        ctx.span(&expression.span)
+                    ),
+                );
+                write_bexpr(ctx, out, indent + 3, &expression.root);
             }
             ParameterKind::InitialConditions(components) => {
                 for component in components {
@@ -978,6 +996,83 @@ fn write_expr(ctx: &Ctx<'_>, out: &mut Out, indent: usize, expr: &Expr) {
             out.line(indent, format!("user-call {} span={span}", quote(name)));
             for argument in arguments {
                 write_expr(ctx, out, indent + 1, argument);
+            }
+        }
+    }
+}
+
+fn write_bexpr(ctx: &Ctx<'_>, out: &mut Out, indent: usize, expr: &BExpr) {
+    let span = ctx.span(&expr.span);
+    match &expr.kind {
+        BExprKind::Number { value, spelling } => out.line(
+            indent,
+            format!(
+                "number {} value={} span={span}",
+                quote(spelling),
+                real(*value)
+            ),
+        ),
+        BExprKind::Name(name) => out.line(indent, format!("name {} span={span}", quote(name))),
+        BExprKind::Voltage { positive, negative } => out.line(
+            indent,
+            format!(
+                "voltage {}{} span={span}",
+                quote(positive),
+                negative
+                    .as_ref()
+                    .map_or(String::new(), |negative| format!(" {}", quote(negative)))
+            ),
+        ),
+        BExprKind::Current(name) => {
+            out.line(indent, format!("current {} span={span}", quote(name)));
+        }
+        BExprKind::Unary { op, operand } => {
+            let op = match op {
+                BUnaryOp::Plus => "plus",
+                BUnaryOp::Minus => "minus",
+                BUnaryOp::Not => "not",
+            };
+            out.line(indent, format!("unary {op} span={span}"));
+            write_bexpr(ctx, out, indent + 1, operand);
+        }
+        BExprKind::Binary { op, lhs, rhs } => {
+            out.line(indent, format!("binary {} span={span}", quote(op.symbol())));
+            write_bexpr(ctx, out, indent + 1, lhs);
+            write_bexpr(ctx, out, indent + 1, rhs);
+        }
+        BExprKind::Ternary {
+            condition,
+            then,
+            otherwise,
+        } => {
+            out.line(indent, format!("ternary span={span}"));
+            write_bexpr(ctx, out, indent + 1, condition);
+            write_bexpr(ctx, out, indent + 1, then);
+            write_bexpr(ctx, out, indent + 1, otherwise);
+        }
+        BExprKind::Call { name, arguments } => {
+            out.line(indent, format!("call {} span={span}", quote(name)));
+            for argument in arguments {
+                write_bexpr(ctx, out, indent + 1, argument);
+            }
+        }
+        BExprKind::Group(inner) => {
+            out.line(indent, format!("group span={span}"));
+            write_bexpr(ctx, out, indent + 1, inner);
+        }
+        BExprKind::Value(value) => {
+            out.line(indent, format!("value span={span}"));
+            write_expression(ctx, out, indent + 1, value);
+        }
+        BExprKind::Table(table) => {
+            out.line(
+                indent,
+                format!("table domain={} span={span}", real(table.domain)),
+            );
+            write_bexpr(ctx, out, indent + 1, &table.input);
+            for (x, y) in &table.points {
+                write_bexpr(ctx, out, indent + 1, x);
+                write_bexpr(ctx, out, indent + 1, y);
             }
         }
     }

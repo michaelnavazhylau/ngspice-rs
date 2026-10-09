@@ -1,0 +1,107 @@
+# ngspice-rs ast-dump v1
+file: netlists/bsource_tran.cir
+title: "B-source transient: time-dependent and nonlinear behavioural sources" @netlists/bsource_tran.cir:1:1
+scope root
+  cards (9):
+    [0] param[0] @netlists/bsource_tran.cir:7:1 ".param f=2k"
+    [1] device[0] @netlists/bsource_tran.cir:8:1 "b1 drive 0 v=1.5*sin(2*pi*f*time)*(1-exp(-time/0.2m)) + pwl(time, 0,0, 0.3m,0.5, 0.6m,0.5, 1m,-0.25)"
+    [2] device[1] @netlists/bsource_tran.cir:9:1 "r1 drive out 1k"
+    [3] device[2] @netlists/bsource_tran.cir:10:1 "c1 out 0 1u"
+    [4] device[3] @netlists/bsource_tran.cir:11:1 "b2 out 0 i=0.4m*tanh(v(out)/0.3)"
+    [5] device[4] @netlists/bsource_tran.cir:12:1 "b3 sq 0 v=v(out)*v(drive) + 1 + time/1m"
+    [6] device[5] @netlists/bsource_tran.cir:13:1 "r3 sq 0 1k"
+    [7] analysis[0] @netlists/bsource_tran.cir:14:1 ".tran 10u 1m 0 1u"
+    [8] end @netlists/bsource_tran.cir:15:1 ".end"
+  devices (6):
+    device [0] name="b1" designator=b @netlists/bsource_tran.cir:8:1
+      nodes: "drive" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="1.5*sin(2*pi*f*time)*(1-exp(-time/0.2m)) + pwl(time, 0,0, 0.3m,0.5, 0.6m,0.5, 1m,-0.25)" @netlists/bsource_tran.cir:8:12
+          behavioural text="1.5*sin(2*pi*f*time)*(1-exp(-time/0.2m)) + pwl(time, 0,0, 0.3m,0.5, 0.6m,0.5, 1m,-0.25)" span=8:14..101
+            binary "+" span=8:14..101
+              binary "*" span=8:14..54
+                binary "*" span=8:14..34
+                  number "1.5" value=1.5e0 span=8:14..17
+                  call "sin" span=8:18..34
+                    binary "*" span=8:22..33
+                      binary "*" span=8:22..28
+                        binary "*" span=8:22..26
+                          number "2" value=2e0 span=8:22..23
+                          name "pi" span=8:24..26
+                        name "f" span=8:27..28
+                      name "time" span=8:29..33
+                group span=8:35..54
+                  binary "-" span=8:36..53
+                    number "1" value=1e0 span=8:36..37
+                    call "exp" span=8:38..53
+                      binary "/" span=8:42..52
+                        unary minus span=8:42..47
+                          name "time" span=8:43..47
+                        number "0.2m" value=2e-4 span=8:48..52
+              call "pwl" span=8:57..101
+                name "time" span=8:61..65
+                number "0" value=0e0 span=8:67..68
+                number "0" value=0e0 span=8:69..70
+                number "0.3m" value=3e-4 span=8:72..76
+                number "0.5" value=5e-1 span=8:77..80
+                number "0.6m" value=6e-4 span=8:82..86
+                number "0.5" value=5e-1 span=8:87..90
+                number "1m" value=1e-3 span=8:92..94
+                unary minus span=8:95..100
+                  number "0.25" value=2.5e-1 span=8:96..100
+    device [1] name="r1" designator=r @netlists/bsource_tran.cir:9:1
+      nodes: "drive" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_tran.cir:9:14
+    device [2] name="c1" designator=c @netlists/bsource_tran.cir:10:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/bsource_tran.cir:10:10
+    device [3] name="b2" designator=b @netlists/bsource_tran.cir:11:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="i" kind=behavioural value="0.4m*tanh(v(out)/0.3)" @netlists/bsource_tran.cir:11:10
+          behavioural text="0.4m*tanh(v(out)/0.3)" span=11:12..33
+            binary "*" span=11:12..33
+              number "0.4m" value=4e-4 span=11:12..16
+              call "tanh" span=11:17..33
+                binary "/" span=11:22..32
+                  voltage "out" span=11:22..28
+                  number "0.3" value=3e-1 span=11:29..32
+    device [4] name="b3" designator=b @netlists/bsource_tran.cir:12:1
+      nodes: "sq" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="v(out)*v(drive) + 1 + time/1m" @netlists/bsource_tran.cir:12:9
+          behavioural text="v(out)*v(drive) + 1 + time/1m" span=12:11..40
+            binary "+" span=12:11..40
+              binary "+" span=12:11..30
+                binary "*" span=12:11..26
+                  voltage "out" span=12:11..17
+                  voltage "drive" span=12:18..26
+                number "1" value=1e0 span=12:29..30
+              binary "/" span=12:33..40
+                name "time" span=12:33..37
+                number "1m" value=1e-3 span=12:38..40
+    device [5] name="r3" designator=r @netlists/bsource_tran.cir:13:1
+      nodes: "sq" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_tran.cir:13:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/bsource_tran.cir:14:1
+      arguments: "10u" "1m" "0" "1u"
+  includes (0):
+  params (1):
+    param-card [0] @netlists/bsource_tran.cir:7:1
+      assignment [0] name="f" name_span=7:8..9
+        expression braced=false text="2k" span=7:10..12
+          number "2k" value=2e3 span=7:10..12
+  options (0):
+  globals (0):

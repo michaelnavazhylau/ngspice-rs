@@ -288,6 +288,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
     let solved = solve_phased(
         &Vector::from_slice(&[1.9]),
         &[false],
+        None,
         &NewtonOptions::default(),
         PhasePolicy::OperatingPoint,
         None,
@@ -331,6 +332,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
     solve_phased(
         &Vector::zeros(1),
         &[false],
+        None,
         &NewtonOptions::default(),
         PhasePolicy::Predicted,
         None,

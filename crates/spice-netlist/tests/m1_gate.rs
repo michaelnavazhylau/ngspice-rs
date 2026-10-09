@@ -196,11 +196,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "m4_mos1_ac",
         "m4_mos1_tran",
     ];
-    // M6 common-deck fixtures (#94, #95, #96, #107, #110) are gated by
-    // `xtask golden verify` (multi-analysis decks plot by plot) and their own
-    // feature tests.
+    // M6 common-deck fixtures (#94, #95, #96, #107, #110) and the M6 exit gate
+    // are gated by `xtask golden verify` (multi-analysis decks plot by plot)
+    // and their own feature tests.
     let m6 = [
         "func_quotes",
+        "m6_gate",
         "multi_analysis_rc",
         "options_gmin_dc",
         "options_xmu_tran",
@@ -224,6 +225,23 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M6 switch decks (#81) are gated by `xtask golden verify` and
     // `spice-analysis/tests/switches.rs`.
     on_disk.retain(|name| !name.starts_with("switch_"));
+    // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
+    // `spice-analysis/tests/behavioural_sources.rs`.
+    on_disk.retain(|name| {
+        !matches!(
+            name.as_str(),
+            "bsource_op"
+                | "bsource_dc"
+                | "bsource_ac"
+                | "bsource_tran"
+                | "evalue_op"
+                | "gtable_dc"
+                | "epoly_dc"
+                | "bsource_zero_op"
+                | "bsource_zero_dc"
+                | "bsource_zero_tran"
+        )
+    });
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

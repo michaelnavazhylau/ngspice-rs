@@ -1,0 +1,21 @@
+B-source DC sweep: nonlinear transfer curves
+* A diode-like exponential current, a tanh limiter, a smooth pwl() shaper, a
+* power law and a ternary with a continuous blend, swept through the input
+* (#79). Discontinuities are kept off the sweep grid.
+.param is=1e-12 nvt=0.05
+vin in 0 dc 0
+rin in 0 1k
+b1 0 a i=is*(exp(v(in)/nvt)-1)
+ra a 0 100
+b2 lim 0 v=2*tanh(1.5*v(in)) + 0.1*v(in)
+rl lim 0 1k
+b3 sh 0 v=pwl(v(in), -2,-1, -0.5,0.25, 0.75,1.5, 2,1)*v(lim)
+rs sh 0 1k
+b4 pw 0 v=pwr(v(in),3) - pow(abs(v(in))+0.1,0.5) + uramp(v(in)-0.33)*2
+rp pw 0 1k
+b5 0 ter i=v(in)>0.17 ? 1m*v(in) : 1m*(0.34-v(in)) m=2
+rt ter 0 1k
+b6 sq 0 v=sqrt(v(in)^2+0.01)*sgn(v(in)+0.001)
+rq sq 0 1k
+.dc vin -1.5 1.5 0.1
+.end

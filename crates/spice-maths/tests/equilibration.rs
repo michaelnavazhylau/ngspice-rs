@@ -319,3 +319,62 @@ fn exponent_bounds_extremes_and_subnormal_input_are_deterministic() {
         assert_eq!(f.solve(&Vector::zeros(1)).unwrap(), Vector::zeros(1));
     }
 }
+
+/// The linearisation of `b o 0 v=log(v(in))` beside `vin in 0 dc 2` at a 0 V
+/// Newton start: a 1e32 slope (C's PTdivide fudge) and a -1e99 value.
+fn behavioural_zero_start() -> (SparseMatrix, Vector) {
+    let mut m = SparseMatrix::new(4, 4);
+    for (r, c, v) in [
+        (0, 0, 1e-3),
+        (0, 2, 1.0),
+        (1, 1, 1e-3),
+        (1, 3, 1.0),
+        (2, 0, 1.0),
+        (3, 0, -1e32),
+        (3, 1, 1.0),
+    ] {
+        m.add(r, c, v).unwrap();
+    }
+    (m, Vector::from_slice(&[0.0, 0.0, 2.0, -1e99]))
+}
+
+#[test]
+fn curtis_reid_balancing_resolves_a_cycle_that_max_scaling_cannot() {
+    let (m, rhs) = behavioural_zero_start();
+    // Both max-based selections leave the v(out) column 1e32 times weaker
+    // than its coupling and trip the conditioning guard.
+    assert!(m.factorize().is_err());
+    assert!(EquilibratedSparseLu::new(&m, None).is_err());
+    let balanced = EquilibratedSparseLu::new_balanced(&m, None).unwrap();
+    for factor in balanced
+        .scaling()
+        .row_factors()
+        .iter()
+        .chain(balanced.scaling().column_factors())
+    {
+        assert_eq!(factor.log2().fract(), 0.0, "power of two: {factor}");
+    }
+    // A plain solve passes the normwise residual check yet loses the 2 V
+    // source against the 1e99 unknown; refinement restores it exactly.
+    let plain = balanced.solve(&rhs).unwrap();
+    assert_ne!(plain.as_slice()[0], 2.0, "{plain:?}");
+    let x = balanced.solve_refined(&rhs, 3).unwrap();
+    assert_eq!(x.as_slice()[0], 2.0);
+    assert!((x.as_slice()[1] / (-1e99 + 1e32 * 2.0) - 1.0).abs() < 1e-15);
+    assert!((x.as_slice()[2] + 2e-3).abs() < 1e-18);
+    assert!((x.as_slice()[3] / 1e96 - 1.0).abs() < 1e-15);
+    balanced.check_residual(&rhs, &x).unwrap();
+}
+
+#[test]
+fn balancing_keeps_singular_and_empty_systems_rejected() {
+    let mut singular = SparseMatrix::new(2, 2);
+    for (r, c, v) in [(0, 0, 1.0), (0, 1, 2.0), (1, 0, 2.0), (1, 1, 4.0)] {
+        singular.add(r, c, v).unwrap();
+    }
+    assert!(EquilibratedSparseLu::new_balanced(&singular, None).is_err());
+    let mut empty_row = SparseMatrix::new(2, 2);
+    empty_row.add(0, 0, 1.0).unwrap();
+    empty_row.add(0, 1, 1.0).unwrap();
+    assert!(EquilibratedSparseLu::new_balanced(&empty_row, None).is_err());
+}

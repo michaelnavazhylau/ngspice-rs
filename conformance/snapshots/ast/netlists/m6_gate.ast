@@ -1,0 +1,191 @@
+# ngspice-rs ast-dump v1
+file: netlists/m6_gate.cir
+title: "M6 exit gate: SIN-driven transformer into an op-amp stage with a behavioural limiter" @netlists/m6_gate.cir:1:1
+scope root
+  cards (23):
+    [0] param[0] @netlists/m6_gate.cir:3:1 ".param gain=10 rg=1k"
+    [1] func[0] @netlists/m6_gate.cir:4:1 ".func half(x) {x/2}"
+    [2] options[0] @netlists/m6_gate.cir:5:1 ".option reltol=1e-4"
+    [3] device[0] @netlists/m6_gate.cir:6:1 "vin in 0 dc 0 ac 1 sin(0 0.1 1k)"
+    [4] device[1] @netlists/m6_gate.cir:7:1 "vref ref 0 dc 0"
+    [5] device[2] @netlists/m6_gate.cir:8:1 "rs in p1 50"
+    [6] device[3] @netlists/m6_gate.cir:9:1 "l1 p1 0 100m"
+    [7] device[4] @netlists/m6_gate.cir:10:1 "l2 s1 0 400m"
+    [8] device[5] @netlists/m6_gate.cir:11:1 "k1 l1 l2 0.98"
+    [9] device[6] @netlists/m6_gate.cir:12:1 "rload s1 0 10k"
+    [10] subcircuit[0] @netlists/m6_gate.cir:15:1 ".subckt opamp inp inn out"
+    [11] device[7] @netlists/m6_gate.cir:21:1 "xop s1 fb out opamp"
+    [12] device[8] @netlists/m6_gate.cir:22:1 "rf out fb {(gain-1)*rg}"
+    [13] device[9] @netlists/m6_gate.cir:23:1 "rg fb ref {rg}"
+    [14] device[10] @netlists/m6_gate.cir:25:1 "blim lim 0 v=2*tanh(half(v(out)))"
+    [15] device[11] @netlists/m6_gate.cir:26:1 "vsense lim sense 0"
+    [16] device[12] @netlists/m6_gate.cir:27:1 "rlim sense 0 1k"
+    [17] device[13] @netlists/m6_gate.cir:28:1 "hsense isense 0 vsense 100"
+    [18] analysis[0] @netlists/m6_gate.cir:29:1 ".tran 10u 3m"
+    [19] analysis[1] @netlists/m6_gate.cir:30:1 ".ac dec 5 10 100k"
+    [20] analysis[2] @netlists/m6_gate.cir:31:1 ".op"
+    [21] analysis[3] @netlists/m6_gate.cir:32:1 ".dc vref -0.5 0.5 0.1"
+    [22] end @netlists/m6_gate.cir:33:1 ".end"
+  devices (14):
+    device [0] name="vin" designator=v @netlists/m6_gate.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (4):
+        [0] name="dc" kind=scalar value="0" @netlists/m6_gate.cir:6:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m6_gate.cir:6:18
+        [2] name="acphase" kind=scalar value="0" @netlists/m6_gate.cir:6:15
+        [3] name="sin" kind=waveform value="(0 0.1 1k)" @netlists/m6_gate.cir:6:20
+          sin
+            vo: "0"@netlists/m6_gate.cir:6:24
+            va: "0.1"@netlists/m6_gate.cir:6:26
+            freq: "1k"@netlists/m6_gate.cir:6:30
+    device [1] name="vref" designator=v @netlists/m6_gate.cir:7:1
+      nodes: "ref" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m6_gate.cir:7:12
+    device [2] name="rs" designator=r @netlists/m6_gate.cir:8:1
+      nodes: "in" "p1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m6_gate.cir:8:10
+    device [3] name="l1" designator=l @netlists/m6_gate.cir:9:1
+      nodes: "p1" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="100m" @netlists/m6_gate.cir:9:9
+    device [4] name="l2" designator=l @netlists/m6_gate.cir:10:1
+      nodes: "s1" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="400m" @netlists/m6_gate.cir:10:9
+    device [5] name="k1" designator=k @netlists/m6_gate.cir:11:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/m6_gate.cir:11:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/m6_gate.cir:11:7
+        [2] name="coefficient" kind=scalar value="0.98" @netlists/m6_gate.cir:11:10
+    device [6] name="rload" designator=r @netlists/m6_gate.cir:12:1
+      nodes: "s1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m6_gate.cir:12:12
+    device [7] name="xop" designator=x @netlists/m6_gate.cir:21:1
+      nodes: "s1" "fb" "out"
+      model: "opamp"
+      parameters (0):
+    device [8] name="rf" designator=r @netlists/m6_gate.cir:22:1
+      nodes: "out" "fb"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{(gain-1)*rg}" @netlists/m6_gate.cir:22:11
+          expression braced=true text="(gain-1)*rg" span=22:12..23
+            binary mul span=22:12..23
+              group span=22:12..20
+                binary sub span=22:13..19
+                  identifier "gain" span=22:13..17
+                  number "1" value=1e0 span=22:18..19
+              identifier "rg" span=22:21..23
+    device [9] name="rg" designator=r @netlists/m6_gate.cir:23:1
+      nodes: "fb" "ref"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=expression value="{rg}" @netlists/m6_gate.cir:23:11
+          expression braced=true text="rg" span=23:12..14
+            identifier "rg" span=23:12..14
+    device [10] name="blim" designator=b @netlists/m6_gate.cir:25:1
+      nodes: "lim" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="2*tanh(half(v(out)))" @netlists/m6_gate.cir:25:12
+          behavioural text="2*tanh(half(v(out)))" span=25:14..34
+            binary "*" span=25:14..34
+              number "2" value=2e0 span=25:14..15
+              call "tanh" span=25:16..34
+                call "half" span=25:21..33
+                  voltage "out" span=25:26..32
+    device [11] name="vsense" designator=v @netlists/m6_gate.cir:26:1
+      nodes: "lim" "sense"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m6_gate.cir:26:18
+    device [12] name="rlim" designator=r @netlists/m6_gate.cir:27:1
+      nodes: "sense" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m6_gate.cir:27:14
+    device [13] name="hsense" designator=h @netlists/m6_gate.cir:28:1
+      nodes: "isense" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vsense" @netlists/m6_gate.cir:28:17
+        [1] name="gain" kind=scalar value="100" @netlists/m6_gate.cir:28:24
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="opamp" @netlists/m6_gate.cir:15:1 end=@netlists/m6_gate.cir:20:1
+      terminals: "inp" "inn" "out"
+      parameters (0):
+      scope body
+        cards (5):
+          [0] device[0] @netlists/m6_gate.cir:16:1 "g1 0 x inp inn 1m"
+          [1] device[1] @netlists/m6_gate.cir:17:1 "r1 x 0 100meg"
+          [2] device[2] @netlists/m6_gate.cir:18:1 "c1 x 0 159p"
+          [3] device[3] @netlists/m6_gate.cir:19:1 "e1 out 0 x 0 1"
+          [4] ends @netlists/m6_gate.cir:20:1 ".ends"
+        devices (4):
+          device [0] name="g1" designator=g @netlists/m6_gate.cir:16:1
+            nodes: "0" "x" "inp" "inn"
+            model: none
+            parameters (1):
+              [0] name="gain" kind=scalar value="1m" @netlists/m6_gate.cir:16:16
+          device [1] name="r1" designator=r @netlists/m6_gate.cir:17:1
+            nodes: "x" "0"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="100meg" @netlists/m6_gate.cir:17:8
+          device [2] name="c1" designator=c @netlists/m6_gate.cir:18:1
+            nodes: "x" "0"
+            model: none
+            parameters (1):
+              [0] name="capacitance" kind=scalar value="159p" @netlists/m6_gate.cir:18:8
+          device [3] name="e1" designator=e @netlists/m6_gate.cir:19:1
+            nodes: "out" "0" "x" "0"
+            model: none
+            parameters (1):
+              [0] name="gain" kind=scalar value="1" @netlists/m6_gate.cir:19:14
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (4):
+    analysis [0] kind=tran @netlists/m6_gate.cir:29:1
+      arguments: "10u" "3m"
+    analysis [1] kind=ac @netlists/m6_gate.cir:30:1
+      arguments: "dec" "5" "10" "100k"
+    analysis [2] kind=op @netlists/m6_gate.cir:31:1
+      arguments:
+    analysis [3] kind=dc @netlists/m6_gate.cir:32:1
+      arguments: "vref" "-0.5" "0.5" "0.1"
+  includes (0):
+  params (1):
+    param-card [0] @netlists/m6_gate.cir:3:1
+      assignment [0] name="gain" name_span=3:8..12
+        expression braced=false text="10" span=3:13..15
+          number "10" value=1e1 span=3:13..15
+      assignment [1] name="rg" name_span=3:16..18
+        expression braced=false text="1k" span=3:19..21
+          number "1k" value=1e3 span=3:19..21
+  functions (1):
+    func [0] name="half" name_span=4:7..11 parameters=["x"@4:12..13] @netlists/m6_gate.cir:4:1
+      expression braced=true text="x/2" span=4:16..19
+        binary div span=4:16..19
+          identifier "x" span=4:16..17
+          number "2" value=2e0 span=4:18..19
+  options (1):
+    option-card [0] @netlists/m6_gate.cir:5:1
+      setting [0] name="reltol" value="1e-4"@netlists/m6_gate.cir:5:16 @netlists/m6_gate.cir:5:9
+  globals (0):

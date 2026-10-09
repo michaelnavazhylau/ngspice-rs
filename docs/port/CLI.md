@@ -15,9 +15,16 @@ equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 | `spice-rs tokens <netlist>` | dumps the token stream |
 | `spice-rs parse <netlist>` | builds the semantic netlist and reports unported gaps |
 | `spice-rs simulate --output <path> <netlist>` | runs every analysis of the deck in ngspice batch order and writes one ASCII rawfile with a plot per analysis |
-| `spice-rs devices` | lists the device designators the registry knows |
-| `spice-rs analyses` | lists the analyses and their driver status |
+| `spice-rs devices` | lists every device designator as `ported` (built from its card), `bounded` (built from a deck for a stated subset: D/Q/M, S/W, X) or `pending` (`NotYetPorted` with its C reference) |
+| `spice-rs analyses` | lists the analyses: `.op`/`.dc`/`.ac`/`.tran` drivers, `.four` as a post-processor of the `.tran` plot, the rest without a driver |
 | `spice-rs help`, `spice-rs version` | usage and version |
+
+Both tables are derived, not hand-maintained (#117): a designator's status
+comes from the factory module's own designator lists (`DeviceSupport::of`), and
+`spice-devices/tests/registry_support.rs` elaborates a representative deck for
+every designator to check that `ported` and `bounded` devices build and
+`pending` ones fail with `NotYetPorted`. Analysis status comes from
+`spice_analysis::support`.
 
 `--no-auto-gnd` (treat `gnd` as an ordinary node, C's `no_auto_gnd` front-end
 variable) reaches the parser for every command that reads a deck. It does not

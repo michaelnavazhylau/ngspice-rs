@@ -276,6 +276,8 @@ pub struct StampContext<'a> {
     pub nominal_temperature: Real,
     /// Junction minimum conductance (S), [`crate::ModelContext::gmin`].
     pub gmin: Real,
+    /// The `hertz` frequency (Hz), [`crate::ModelContext::frequency`].
+    pub frequency: Real,
     /// Which analysis is loading the matrix.
     pub mode: AnalysisMode,
     /// Branch-current rows allocated to this device, in order (empty if none).
@@ -300,7 +302,9 @@ impl StampContext<'_> {
     /// (without resistor overrides, which [`crate::Circuit`] has already applied).
     #[must_use]
     pub const fn model_context(&self) -> crate::ModelContext {
-        crate::ModelContext::new(self.temperature, self.nominal_temperature).with_gmin(self.gmin)
+        crate::ModelContext::new(self.temperature, self.nominal_temperature)
+            .with_gmin(self.gmin)
+            .with_frequency(self.frequency)
     }
 
     /// The `index`-th branch row of this device.
@@ -414,6 +418,23 @@ pub trait Device: fmt::Debug {
     /// True when the device's contribution depends on the present solution, so
     /// the analysis has to iterate.
     fn is_nonlinear(&self) -> bool {
+        false
+    }
+
+    /// Whether Newton's global voltage-step damping (the port's stand-in for
+    /// C's junction limiting) should watch this device's terminals. Only
+    /// meaningful for [`Self::is_nonlinear`] devices; `true` by default.
+    /// Behavioural sources return `false`: `asrcload.c` applies no limiting,
+    /// and their outputs may legitimately move by kilovolts in one exact
+    /// step.
+    fn limits_voltage_steps(&self) -> bool {
+        true
+    }
+
+    /// True when the device's DC equations read the analysis frequency
+    /// (a behavioural source using `hertz`): AC then re-solves the operating
+    /// point at every frequency, as `acan.c` does when `CKTvarHertz` is set.
+    fn depends_on_frequency(&self) -> bool {
         false
     }
 

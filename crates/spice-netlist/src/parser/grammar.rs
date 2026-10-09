@@ -21,8 +21,8 @@ use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
 use super::{
-    controlled, diode, expression, fourier, func, hints, linear, measure, model, mutual, options,
-    param, save, structure, switch, transistor,
+    behavioural, controlled, diode, expression, fourier, func, hints, linear, measure, model,
+    mutual, options, param, save, structure, switch, transistor,
 };
 
 pub(super) enum ParsedCard {
@@ -128,6 +128,7 @@ pub(super) fn parse_card(
         alt((
             linear::device_card,
             controlled::controlled_card,
+            behavioural::behavioural_card,
             mutual::mutual_card,
             diode::diode_card,
             transistor::transistor_card,

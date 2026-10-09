@@ -1,0 +1,159 @@
+# ngspice-rs ast-dump v1
+file: netlists/epoly_dc.cir
+title: "E/G/F/H POLY sources: XSPICE spice2poly lowering (enhtrans.c)" @netlists/epoly_dc.cir:1:1
+scope root
+  cards (20):
+    [0] device[0] @netlists/epoly_dc.cir:6:1 "vin in 0 dc 0"
+    [1] device[1] @netlists/epoly_dc.cir:7:1 "rin in 0 1k"
+    [2] device[2] @netlists/epoly_dc.cir:8:1 "vb b 0 dc 0.5"
+    [3] device[3] @netlists/epoly_dc.cir:9:1 "rb b 0 2k"
+    [4] device[4] @netlists/epoly_dc.cir:10:1 "vc c 0 dc -0.2"
+    [5] device[5] @netlists/epoly_dc.cir:11:1 "rc c 0 1k"
+    [6] device[6] @netlists/epoly_dc.cir:12:1 "e1 o1 0 poly(2) in 0 b 0 0.1 1 2 0.5 -0.25 0.3"
+    [7] device[7] @netlists/epoly_dc.cir:13:1 "r1 o1 0 1k"
+    [8] device[8] @netlists/epoly_dc.cir:14:1 "g1 0 o2 poly(1) in 0 0 1m 0.5m 0.2m m=2"
+    [9] device[9] @netlists/epoly_dc.cir:15:1 "r2 o2 0 1k"
+    [10] device[10] @netlists/epoly_dc.cir:16:1 "f1 0 o3 poly(2) vin vb 0 1 -2 0.5"
+    [11] device[11] @netlists/epoly_dc.cir:17:1 "r3 o3 0 1k"
+    [12] device[12] @netlists/epoly_dc.cir:18:1 "h1 o4 0 poly(1) vin 0.2 100 1e4"
+    [13] device[13] @netlists/epoly_dc.cir:19:1 "r4 o4 0 1k"
+    [14] device[14] @netlists/epoly_dc.cir:20:1 "e2 o5 0 in b 0.5 1 0.25"
+    [15] device[15] @netlists/epoly_dc.cir:21:1 "r5 o5 0 1k"
+    [16] device[16] @netlists/epoly_dc.cir:22:1 "e3 o6 0 poly(3) in 0 b 0 c 0 0 1 -1 0.5 0.1 0.2 0.3 0.4 0.5 0.6"
+    [17] device[17] @netlists/epoly_dc.cir:23:1 "r6 o6 0 1k"
+    [18] analysis[0] @netlists/epoly_dc.cir:24:1 ".dc vin -1 1 0.1"
+    [19] end @netlists/epoly_dc.cir:25:1 ".end"
+  devices (18):
+    device [0] name="vin" designator=v @netlists/epoly_dc.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/epoly_dc.cir:6:10
+    device [1] name="rin" designator=r @netlists/epoly_dc.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:7:10
+    device [2] name="vb" designator=v @netlists/epoly_dc.cir:8:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/epoly_dc.cir:8:8
+    device [3] name="rb" designator=r @netlists/epoly_dc.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/epoly_dc.cir:9:8
+    device [4] name="vc" designator=v @netlists/epoly_dc.cir:10:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.2" @netlists/epoly_dc.cir:10:8
+    device [5] name="rc" designator=r @netlists/epoly_dc.cir:11:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:11:8
+    device [6] name="e1" designator=e @netlists/epoly_dc.cir:12:1
+      nodes: "o1" "0" "in" "0" "b" "0"
+      model: none
+      parameters (7):
+        [0] name="poly" kind=scalar value="2" @netlists/epoly_dc.cir:12:9
+        [1] name="coef" kind=scalar value="0.1" @netlists/epoly_dc.cir:12:26
+        [2] name="coef" kind=scalar value="1" @netlists/epoly_dc.cir:12:30
+        [3] name="coef" kind=scalar value="2" @netlists/epoly_dc.cir:12:32
+        [4] name="coef" kind=scalar value="0.5" @netlists/epoly_dc.cir:12:34
+        [5] name="coef" kind=scalar value="-0.25" @netlists/epoly_dc.cir:12:38
+        [6] name="coef" kind=scalar value="0.3" @netlists/epoly_dc.cir:12:44
+    device [7] name="r1" designator=r @netlists/epoly_dc.cir:13:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:13:9
+    device [8] name="g1" designator=g @netlists/epoly_dc.cir:14:1
+      nodes: "0" "o2" "in" "0"
+      model: none
+      parameters (6):
+        [0] name="poly" kind=scalar value="1" @netlists/epoly_dc.cir:14:9
+        [1] name="coef" kind=scalar value="0" @netlists/epoly_dc.cir:14:22
+        [2] name="coef" kind=scalar value="1m" @netlists/epoly_dc.cir:14:24
+        [3] name="coef" kind=scalar value="0.5m" @netlists/epoly_dc.cir:14:27
+        [4] name="coef" kind=scalar value="0.2m" @netlists/epoly_dc.cir:14:32
+        [5] name="m" kind=scalar value="2" @netlists/epoly_dc.cir:14:37
+    device [9] name="r2" designator=r @netlists/epoly_dc.cir:15:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:15:9
+    device [10] name="f1" designator=f @netlists/epoly_dc.cir:16:1
+      nodes: "0" "o3"
+      model: none
+      parameters (7):
+        [0] name="poly" kind=scalar value="2" @netlists/epoly_dc.cir:16:9
+        [1] name="control" kind=instance value="vin" @netlists/epoly_dc.cir:16:17
+        [2] name="control" kind=instance value="vb" @netlists/epoly_dc.cir:16:21
+        [3] name="coef" kind=scalar value="0" @netlists/epoly_dc.cir:16:24
+        [4] name="coef" kind=scalar value="1" @netlists/epoly_dc.cir:16:26
+        [5] name="coef" kind=scalar value="-2" @netlists/epoly_dc.cir:16:28
+        [6] name="coef" kind=scalar value="0.5" @netlists/epoly_dc.cir:16:31
+    device [11] name="r3" designator=r @netlists/epoly_dc.cir:17:1
+      nodes: "o3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:17:9
+    device [12] name="h1" designator=h @netlists/epoly_dc.cir:18:1
+      nodes: "o4" "0"
+      model: none
+      parameters (5):
+        [0] name="poly" kind=scalar value="1" @netlists/epoly_dc.cir:18:9
+        [1] name="control" kind=instance value="vin" @netlists/epoly_dc.cir:18:17
+        [2] name="coef" kind=scalar value="0.2" @netlists/epoly_dc.cir:18:21
+        [3] name="coef" kind=scalar value="100" @netlists/epoly_dc.cir:18:25
+        [4] name="coef" kind=scalar value="1e4" @netlists/epoly_dc.cir:18:29
+    device [13] name="r4" designator=r @netlists/epoly_dc.cir:19:1
+      nodes: "o4" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:19:9
+    device [14] name="e2" designator=e @netlists/epoly_dc.cir:20:1
+      nodes: "o5" "0" "in" "b"
+      model: none
+      parameters (4):
+        [0] name="poly" kind=scalar value="1" @netlists/epoly_dc.cir:20:14
+        [1] name="coef" kind=scalar value="0.5" @netlists/epoly_dc.cir:20:14
+        [2] name="coef" kind=scalar value="1" @netlists/epoly_dc.cir:20:18
+        [3] name="coef" kind=scalar value="0.25" @netlists/epoly_dc.cir:20:20
+    device [15] name="r5" designator=r @netlists/epoly_dc.cir:21:1
+      nodes: "o5" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:21:9
+    device [16] name="e3" designator=e @netlists/epoly_dc.cir:22:1
+      nodes: "o6" "0" "in" "0" "b" "0" "c" "0"
+      model: none
+      parameters (11):
+        [0] name="poly" kind=scalar value="3" @netlists/epoly_dc.cir:22:9
+        [1] name="coef" kind=scalar value="0" @netlists/epoly_dc.cir:22:30
+        [2] name="coef" kind=scalar value="1" @netlists/epoly_dc.cir:22:32
+        [3] name="coef" kind=scalar value="-1" @netlists/epoly_dc.cir:22:34
+        [4] name="coef" kind=scalar value="0.5" @netlists/epoly_dc.cir:22:37
+        [5] name="coef" kind=scalar value="0.1" @netlists/epoly_dc.cir:22:41
+        [6] name="coef" kind=scalar value="0.2" @netlists/epoly_dc.cir:22:45
+        [7] name="coef" kind=scalar value="0.3" @netlists/epoly_dc.cir:22:49
+        [8] name="coef" kind=scalar value="0.4" @netlists/epoly_dc.cir:22:53
+        [9] name="coef" kind=scalar value="0.5" @netlists/epoly_dc.cir:22:57
+        [10] name="coef" kind=scalar value="0.6" @netlists/epoly_dc.cir:22:61
+    device [17] name="r6" designator=r @netlists/epoly_dc.cir:23:1
+      nodes: "o6" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/epoly_dc.cir:23:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/epoly_dc.cir:24:1
+      arguments: "vin" "-1" "1" "0.1"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

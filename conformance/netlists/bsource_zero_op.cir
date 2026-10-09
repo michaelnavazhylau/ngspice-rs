@@ -1,0 +1,20 @@
+B-source zero start: singular slopes at the 0 V Newton start
+* Every controlling node starts the operating-point Newton at 0 V, where
+* 1/x, sqrt, log and division slopes are about 1e32 (C's PTdivide fudge)
+* or log() is -1e99 (#79). C's pivoting solves that first linearisation;
+* the port needs its balanced, refined fallback solve.
+vin in 0 dc 2
+rin in mid 1k
+rmid mid 0 3k
+b1 o1 0 v=1/v(in)
+r1 o1 0 1k
+b2 o2 0 v=sqrt(v(mid))
+r2 o2 0 1k
+b3 o3 0 v=log(v(in)) + ln(v(mid))
+r3 o3 0 1k
+b4 o4 0 v=2/v(in,0) - 1/v(mid)
+r4 o4 0 1k
+b5 0 o5 i=1m*log10(v(mid)) + 1m*sqrt(v(in))/v(mid)
+r5 o5 0 1k
+.op
+.end

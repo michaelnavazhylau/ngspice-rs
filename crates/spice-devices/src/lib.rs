@@ -8,6 +8,7 @@
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I and linear E/F/G/H factories |
 //! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE/SIN/EXP/SFFM/AM waveforms |
 //! | [`controlled`] | linear E/F/G/H controlled sources | VCVS/CCCS/VCCS/CCVS gain stamps; F/H controlling branches resolved by [`circuit`] |
+//! | [`behavioural`] | B sources and the lowered E/G/F/H VALUE/TABLE/POLY forms | `inpptree.c` function set with C's derivative rules; Newton, AC and transient loads |
 //! | [`mutual`] | K mutual inductance | coupled flux in DC/AC/companion/BDF; inductors and inductive-system checks resolved by [`circuit`] |
 //! | [`switch`] | S/W voltage- and current-controlled switches | hysteresis, accepted switch state, Newton phases, `swtrunc.c` step control |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
@@ -35,6 +36,7 @@
 
 #![warn(missing_docs)]
 
+pub mod behavioural;
 pub mod circuit;
 pub mod controlled;
 mod factory;
@@ -71,11 +73,12 @@ pub mod state;
 pub mod traits;
 pub mod transistors;
 
+pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
 pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
-pub use registry::{DeviceEntry, Registry};
+pub use registry::{DeviceEntry, DeviceSupport, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, IterationPhase, StateHistory, TrialState};
 pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};

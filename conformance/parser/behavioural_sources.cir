@@ -1,0 +1,46 @@
+Behavioural-source parser reference
+* B sources: v=/i= expressions over node voltages, branch currents, time and
+* temper; C's operator precedence; braces and quotes are transparent; setters
+* follow the expression. Nonlinear E/G/F/H forms: VALUE/VOL/CUR, TABLE (two-
+* and four-node), POLY(n) and the implicit spice2g6 POLY(1).
+.param gain=2 vt=0.025
+.func clip(x) {tanh(x)*1.5}
+vin in 0 dc 1
+vb b 0 dc -0.5
+rin in 0 1k
+b1 o1 0 v=gain*v(in)^2 - -3**2 + i(vin)
+b2 0 o2 i = { v(in, b) > 0 ? 1m*exp(v(in)/vt/40) : 0 } m=2 tc1=1m
+b3 o3 0 v='clip(v(in)) + min(v(in), v(b)) * pwr(v(b), 2)'
+b4 o4 0 v=pwl(v(in), -1, -2, 0, 0, 1, {gain*1.5}) temp=50
+b5 o5 0 v=(v(in) <= 1 && v(b) != 0) || !(v(in) == 2) ? sin(2*pi*1k*time) : temper/27
+e1 o6 0 value={v(in)*gain}
+e2 o7 0 vol='v(b)+1' m=2
+g1 0 o8 cur={v(in)*1m} m=3
+g2 0 o9 value={1m*uramp(v(in))}
+e3 o10 0 table {v(in)} = (0, 0) (1, 2) (2, 3)
+g3 0 o11 TABLE {v(in) * 2} = (-1,-1m) (0,0) (2,{gain*1m}) m=2
+e4 o12 0 in b table=(0, 0, 1, 2, 2, 3)
+e5 o13 0 poly(2) in 0 b 0 0 1 2 0.5 0.1 0.2
+g4 0 o14 poly(1) in 0 0 1m 2m m=2
+f1 0 o15 poly(1) vin 0 2
+h1 o16 0 poly(2) vin vb 1 2 3
+e6 o17 0 in 0 1 2 3
+ro1 o1 0 1k
+ro2 o2 0 1k
+ro3 o3 0 1k
+ro4 o4 0 1k
+ro5 o5 0 1k
+ro6 o6 0 1k
+ro7 o7 0 1k
+ro8 o8 0 1k
+ro9 o9 0 1k
+ro10 o10 0 1k
+ro11 o11 0 1k
+ro12 o12 0 1k
+ro13 o13 0 1k
+ro14 o14 0 1k
+ro15 o15 0 1k
+ro16 o16 0 1k
+ro17 o17 0 1k
+.op
+.end

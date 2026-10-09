@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_behavioural_expression.cir
+error parse @cases/error_behavioural_expression.cir:4:22
+  message: "expected ')' to close the '(' at column 14, found the end of the expression"

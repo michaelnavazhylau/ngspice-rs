@@ -306,6 +306,23 @@ fn literalize_parameters(
     kind: impl Fn(usize) -> SiteKind,
 ) -> SpiceResult<()> {
     for (index, parameter) in parameters.iter_mut().enumerate() {
+        if let ParameterKind::Behavioural(expression) = &parameter.kind {
+            // Behavioural expressions stay symbolic: only their `.param`
+            // names, `.func` calls and numparam values are resolved here.
+            let resolved = crate::behavioural::resolve_expression(expression, scope, budget)
+                .map_err(|error| match error {
+                    SpiceError::Parse { location, message } => SpiceError::parse(
+                        location,
+                        format!(
+                            "{message}\n  while resolving behavioural expression '{}' = {} at {}",
+                            parameter.name, parameter.value, parameter.location
+                        ),
+                    ),
+                    other => other,
+                })?;
+            parameter.kind = ParameterKind::Behavioural(Box::new(resolved));
+            continue;
+        }
         let ParameterKind::Expression(expression) = &parameter.kind else {
             continue;
         };

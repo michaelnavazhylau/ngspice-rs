@@ -1,0 +1,54 @@
+Title: b-source operating point: functions, operators, parameters, .func and i()
+Date: Thu Oct  8 15:04:33  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 22
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	i(b1)	current
+	2	i(b3)	current
+	3	i(b4)	current
+	4	i(b5)	current
+	5	v(b)	voltage
+	6	i(b6)	current
+	7	i(b8)	current
+	8	i(b9)	current
+	9	v(o1)	voltage
+	10	v(o1_vmeas_0)	voltage
+	11	v(o2)	voltage
+	12	v(o3)	voltage
+	13	v(o4)	voltage
+	14	v(o5)	voltage
+	15	v(o6)	voltage
+	16	v(o7)	voltage
+	17	v(o8)	voltage
+	18	v(o9)	voltage
+	19	i(v_b1)	current
+	20	i(vb)	current
+	21	i(vin)	current
+Values:
+ 0	8.000000000000000e-01
+	-4.056443466441267e-03
+	-1.175573329804238e-03
+	-2.900000000000000e-03
+	-4.401115029226786e-03
+	-3.000000000000000e-01
+	-8.353677384240369e-03
+	-1.093581824443042e-02
+	8.294541275689211e-04
+	4.056443466441268e+00
+	4.056443466441268e+00
+	-1.285207636379154e-01
+	1.175573329804238e+00
+	2.900000000000000e+00
+	4.401115029226785e+00
+	8.353677384240369e+00
+	2.075943762381582e+00
+	1.093581824443042e+01
+	-8.294541275689211e-01
+	-4.056443466441267e-03
+	1.500000000000000e-04
+	-8.000000000000000e-04
+

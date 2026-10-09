@@ -8,6 +8,8 @@
 //! | [`token`] | logical card → token stream | **ported** |
 //! | [`card`] | first token → [`card::CardKind`] classification | **ported** |
 //! | [`expr`] | unevaluated parameter-expression syntax tree (bounded numparam subset) | **#14** |
+//! | [`bexpr`] | behavioural-source (B, E/G VALUE/TABLE/POLY) expression syntax tree | **#79** |
+//! | [`behavioural`] | E/G/F/H nonlinear-form lowering and B-expression parameter/`.func` resolution | **#79** |
 //! | [`eval`] | bounded `.param` scope resolution and expression evaluation | **#15** |
 //! | [`elaborate`] | literalized netlist copy with evaluated numeric sites | **#15** |
 //! | [`ast`] | the semantic netlist model | bounded devices/models, ordered subcircuit scopes and source provenance |
@@ -28,6 +30,8 @@
 #![warn(missing_docs)]
 
 pub mod ast;
+pub mod behavioural;
+pub mod bexpr;
 pub mod card;
 pub mod dump;
 pub mod elaborate;

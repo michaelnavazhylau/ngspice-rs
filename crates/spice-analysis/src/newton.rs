@@ -165,12 +165,31 @@ pub fn solve_counted<T>(
     initial: &Vector,
     branch_rows: &[bool],
     options: &NewtonOptions,
+    load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
+) -> Result<NewtonSolution<T>, NewtonFailure> {
+    solve_counted_limited(initial, branch_rows, None, options, load)
+}
+
+/// [`solve_counted`] whose voltage-step damping watches only the rows marked
+/// in `limited_rows` (all non-branch rows when `None`). Devices that C never
+/// limits, such as behavioural sources (`asrcload.c` has no limiting), opt out
+/// through [`spice_devices::Device::limits_voltage_steps`]; see
+/// [`crate::bias::limited_rows`].
+///
+/// # Errors
+/// As [`solve_counted`], plus a `limited_rows` of the wrong length.
+pub fn solve_counted_limited<T>(
+    initial: &Vector,
+    branch_rows: &[bool],
+    limited_rows: Option<&[bool]>,
+    options: &NewtonOptions,
     mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
 ) -> Result<NewtonSolution<T>, NewtonFailure> {
     let mut iterations = 0;
     iterate(
         initial,
         branch_rows,
+        limited_rows,
         options,
         Phases {
             first: IterationPhase::Junction,
@@ -211,11 +230,15 @@ pub enum PhasePolicy {
 /// without discrete state load identically in every phase, so their solves
 /// and iteration counts match [`solve_counted`].
 ///
+/// `limited_rows` selects the rows watched by voltage-step damping, as in
+/// [`solve_counted_limited`].
+///
 /// # Errors
-/// As [`solve_counted`].
+/// As [`solve_counted_limited`].
 pub fn solve_phased(
     initial: &Vector,
     branch_rows: &[bool],
+    limited_rows: Option<&[bool]>,
     options: &NewtonOptions,
     policy: PhasePolicy,
     continued: Option<TrialState>,
@@ -234,6 +257,7 @@ pub fn solve_phased(
     iterate(
         initial,
         branch_rows,
+        limited_rows,
         options,
         Phases {
             first,
@@ -255,6 +279,7 @@ struct Phases<T, F> {
 fn iterate<T, F: Fn(&T) -> bool>(
     initial: &Vector,
     branch_rows: &[bool],
+    limited_rows: Option<&[bool]>,
     options: &NewtonOptions,
     phases: Phases<T, F>,
     mut load: impl FnMut(&Vector, IterationPhase, Option<&T>) -> SpiceResult<(SparseMatrix, Vector, T)>,
@@ -262,7 +287,11 @@ fn iterate<T, F: Fn(&T) -> bool>(
 ) -> SpiceResult<NewtonSolution<T>> {
     options.validate()?;
     let n = initial.len();
-    if n == 0 || n != branch_rows.len() || !initial.is_finite() {
+    if n == 0
+        || n != branch_rows.len()
+        || limited_rows.is_some_and(|rows| rows.len() != n)
+        || !initial.is_finite()
+    {
         return Err(failure(
             "Newton requires a nonempty square system, finite solution and matching row kinds",
         ));
@@ -276,15 +305,17 @@ fn iterate<T, F: Fn(&T) -> bool>(
         let flagged = (phases.nonconvergent)(&trial);
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
-        let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
-        let mut next = matrix.solve(&rhs)?;
+        let mut next = linearised_solve(&matrix, &rhs)?;
         let largest_voltage_step = next
             .as_slice()
             .iter()
             .zip(guess.as_slice())
             .zip(branch_rows)
-            .filter(|(_, branch)| !**branch)
-            .map(|((new, old), _)| (new - old).abs())
+            .enumerate()
+            .filter(|(row, (_, branch))| {
+                !**branch && limited_rows.is_none_or(|limited| limited[*row])
+            })
+            .map(|(_, ((new, old), _))| (new - old).abs())
             .fold(0., Real::max);
         let damping = (options.voltage_step / largest_voltage_step).min(1.);
         if damping < 1. {
@@ -324,6 +355,41 @@ fn iterate<T, F: Fn(&T) -> bool>(
         options.max_iterations
     )))
 }
+/// Iterative-refinement rounds of the balanced fallback solve.
+const REFINEMENT_STEPS: usize = 3;
+
+/// Solves one Newton linearisation: row-equilibrated first (the established
+/// path, unchanged for every system it accepts), then, only when that solve
+/// fails numerically, once more with Curtis-Reid row/column balancing and
+/// iterative refinement ([`spice_maths::EquilibratedSparseLu::new_balanced`],
+/// [`spice_maths::EquilibratedSparseLu::solve_refined`]).
+///
+/// The fallback exists for linearisations that are well posed but scaled
+/// across tens of decades through a coupling cycle. ngspice's `PTdivide`
+/// fudge gives `1/v(x)`, `sqrt(v(x))` or `log(v(x))` a slope of about `1e32`
+/// at a 0 V iterate (`src/spicelib/parser/ptfuncs.c`); SPARSE's threshold
+/// pivoting factors that matrix, whereas row scaling alone leaves the
+/// `v(out)` column `1e32` times weaker than its `v(in)` coupling and trips the
+/// conditioning guard. Balancing changes no equation: the factor is checked
+/// for rank/conditioning in scaled form and every solution is checked against
+/// the original snapshot in physical units; refinement then recovers small
+/// unknowns (a 2 V source beside a `-1e99` `log(0)` output) that the normwise
+/// residual bound alone would let the solve lose. When both attempts fail, the
+/// row-equilibrated error is reported, so diagnostics for genuinely singular
+/// systems are unchanged.
+fn linearised_solve(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<Vector> {
+    let (scaled, scaled_rhs) = equilibrated(matrix, rhs)?;
+    match scaled.solve(&scaled_rhs) {
+        Ok(solution) => Ok(solution),
+        Err(error @ SpiceError::Numerical { .. }) => {
+            spice_maths::EquilibratedSparseLu::new_balanced(matrix, None)
+                .and_then(|factor| factor.solve_refined(rhs, REFINEMENT_STEPS))
+                .map_err(|_| error)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 fn check(matrix: &SparseMatrix, rhs: &Vector, n: usize) -> SpiceResult<()> {
     if matrix.rows() != n || matrix.cols() != n || rhs.len() != n || !rhs.is_finite() {
         return Err(failure("invalid Newton load dimensions or nonfinite RHS"));

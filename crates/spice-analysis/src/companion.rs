@@ -840,11 +840,13 @@ impl Driver<'_> {
                 abstol: tolerance.abstol,
                 ..crate::newton::NewtonOptions::default()
             };
+            let limited = crate::bias::limited_rows(self.circuit);
             // dctran.c: MODEINITTRAN/MODEINITPRED for the first load of a
             // timepoint, MODEINITFLOAT afterwards.
             return match crate::newton::solve_phased(
                 previous,
                 &self.branch_row,
+                limited.as_deref(),
                 &options,
                 crate::newton::PhasePolicy::Predicted,
                 None,

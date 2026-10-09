@@ -27,6 +27,8 @@ use crate::source::{Deck, load};
 
 pub use resolution::SourceLimits;
 
+mod behavioural;
+mod bexpression;
 mod controlled;
 mod diode;
 mod expression;
@@ -175,6 +177,22 @@ impl Parser {
         location: &spice_core::SourceLoc,
     ) -> SpiceResult<crate::expr::ParameterExpression> {
         expression::parse_expression(text, location, location.column, false)
+    }
+
+    /// Parses `text` (whose first byte is at `location`) as one complete
+    /// behavioural-source expression ([`crate::bexpr`]). `verbatim` selects
+    /// the `=pwl(` line rules (numparam `{...}` values, no literal rounding).
+    ///
+    /// # Errors
+    ///
+    /// [`spice_core::SpiceError::Parse`] for malformed syntax or trailing text.
+    pub fn parse_behavioural_expression(
+        &self,
+        text: &str,
+        location: &spice_core::SourceLoc,
+        verbatim: bool,
+    ) -> SpiceResult<crate::bexpr::BehaviouralExpression> {
+        bexpression::parse_complete(text, location, location.column, verbatim, self.auto_gnd)
     }
 
     /// Loads `path`, resolves source-relative `.include`/`.lib` directives and

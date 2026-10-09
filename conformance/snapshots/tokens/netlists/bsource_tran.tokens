@@ -1,0 +1,119 @@
+# ngspice-rs token-dump v1
+file: netlists/bsource_tran.cir
+title: "B-source transient: time-dependent and nonlinear behavioural sources" @netlists/bsource_tran.cir:1:1
+card 1 @netlists/bsource_tran.cir:7:1 lines=7-7 continuations=0
+  raw: ".param f=2k"
+  kind: dot(.param)
+  token 1 7:1 word ".param"
+  token 2 7:8 word "f"
+  token 3 7:9 equals "="
+  token 4 7:10 number "2k" value=2e3
+card 2 @netlists/bsource_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "b1 drive 0 v=1.5*sin(2*pi*f*time)*(1-exp(-time/0.2m)) + pwl(time, 0,0, 0.3m,0.5, 0.6m,0.5, 1m,-0.25)"
+  kind: device(b)
+  token 1 8:1 word "b1"
+  token 2 8:4 word "drive"
+  token 3 8:10 number "0" value=0e0
+  token 4 8:12 word "v"
+  token 5 8:13 equals "="
+  token 6 8:14 word "1.5*sin"
+  token 7 8:21 lparen "("
+  token 8 8:22 word "2*pi*f*time"
+  token 9 8:33 rparen ")"
+  token 10 8:34 word "*"
+  token 11 8:35 lparen "("
+  token 12 8:36 word "1-exp"
+  token 13 8:41 lparen "("
+  token 14 8:42 word "-time/0.2m"
+  token 15 8:52 rparen ")"
+  token 16 8:53 rparen ")"
+  token 17 8:55 word "+"
+  token 18 8:57 word "pwl"
+  token 19 8:60 lparen "("
+  token 20 8:61 word "time"
+  token 21 8:65 comma ","
+  token 22 8:67 number "0" value=0e0
+  token 23 8:68 comma ","
+  token 24 8:69 number "0" value=0e0
+  token 25 8:70 comma ","
+  token 26 8:72 number "0.3m" value=3e-4
+  token 27 8:76 comma ","
+  token 28 8:77 number "0.5" value=5e-1
+  token 29 8:80 comma ","
+  token 30 8:82 number "0.6m" value=6e-4
+  token 31 8:86 comma ","
+  token 32 8:87 number "0.5" value=5e-1
+  token 33 8:90 comma ","
+  token 34 8:92 number "1m" value=1e-3
+  token 35 8:94 comma ","
+  token 36 8:95 number "-0.25" value=-2.5e-1
+  token 37 8:100 rparen ")"
+card 3 @netlists/bsource_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "r1 drive out 1k"
+  kind: device(r)
+  token 1 9:1 word "r1"
+  token 2 9:4 word "drive"
+  token 3 9:10 word "out"
+  token 4 9:14 number "1k" value=1e3
+card 4 @netlists/bsource_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "c1 out 0 1u"
+  kind: device(c)
+  token 1 10:1 word "c1"
+  token 2 10:4 word "out"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "1u" value=1e-6
+card 5 @netlists/bsource_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "b2 out 0 i=0.4m*tanh(v(out)/0.3)"
+  kind: device(b)
+  token 1 11:1 word "b2"
+  token 2 11:4 word "out"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 word "i"
+  token 5 11:11 equals "="
+  token 6 11:12 word "0.4m*tanh"
+  token 7 11:21 lparen "("
+  token 8 11:22 word "v"
+  token 9 11:23 lparen "("
+  token 10 11:24 word "out"
+  token 11 11:27 rparen ")"
+  token 12 11:28 word "/0.3"
+  token 13 11:32 rparen ")"
+card 6 @netlists/bsource_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "b3 sq 0 v=v(out)*v(drive) + 1 + time/1m"
+  kind: device(b)
+  token 1 12:1 word "b3"
+  token 2 12:4 word "sq"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 word "v"
+  token 5 12:10 equals "="
+  token 6 12:11 word "v"
+  token 7 12:12 lparen "("
+  token 8 12:13 word "out"
+  token 9 12:16 rparen ")"
+  token 10 12:17 word "*v"
+  token 11 12:19 lparen "("
+  token 12 12:20 word "drive"
+  token 13 12:25 rparen ")"
+  token 14 12:27 word "+"
+  token 15 12:29 number "1" value=1e0
+  token 16 12:31 word "+"
+  token 17 12:33 word "time/1m"
+card 7 @netlists/bsource_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "r3 sq 0 1k"
+  kind: device(r)
+  token 1 13:1 word "r3"
+  token 2 13:4 word "sq"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 number "1k" value=1e3
+card 8 @netlists/bsource_tran.cir:14:1 lines=14-14 continuations=0
+  raw: ".tran 10u 1m 0 1u"
+  kind: dot(.tran)
+  token 1 14:1 word ".tran"
+  token 2 14:7 number "10u" value=9.999999999999999e-6
+  token 3 14:11 number "1m" value=1e-3
+  token 4 14:14 number "0" value=0e0
+  token 5 14:16 number "1u" value=1e-6
+card 9 @netlists/bsource_tran.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

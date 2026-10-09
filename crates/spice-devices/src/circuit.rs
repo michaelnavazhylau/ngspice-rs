@@ -758,6 +758,7 @@ impl Circuit {
                 temperature: request.model_context.temperature,
                 nominal_temperature: request.model_context.nominal_temperature,
                 gmin: request.model_context.gmin,
+                frequency: request.model_context.frequency,
                 mode: request.mode,
                 branches: self.branch_rows[index].clone(),
                 controls: self.controls(index)?,
@@ -1063,9 +1064,13 @@ impl Circuit {
                 location: None,
             });
         }
+        // The nonlinear E/G/F/H forms become B sources and generated XSPICE
+        // instances first, as inpcom.c rewrites them before numparam and
+        // subcircuit expansion (#79).
+        let lowered = spice_netlist::behavioural::lower_nonlinear_sources(netlist)?;
         // Top-level `.param` values and `{expr}` sites are evaluated into a
         // literal copy before any factory sees them (#15).
-        let elaborated = spice_netlist::elaborate::literalize(netlist)?;
+        let elaborated = spice_netlist::elaborate::literalize(&lowered)?;
         let netlist = &elaborated.netlist;
         // `X` instances are expanded into a fresh device/model list before any
         // device is built, so a deck that fails to elaborate never leaves a

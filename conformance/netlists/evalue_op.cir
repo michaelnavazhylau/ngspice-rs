@@ -1,0 +1,25 @@
+E/G VALUE= sources: lowering onto B sources (inpcom.c inp_compat)
+* E VALUE/VOL and G VALUE/CUR become a linear E/G driven from an internal
+* node by a B source (e1 -> e1 e1_int1 0 1 and be1 e1_int1 0 v=...), at the
+* top level and inside a subcircuit, with G's m= as the controlled gain and a
+* sensed E branch current (#79).
+.param k=3
+.subckt sq a y
+e1 y 0 value={v(a)*v(a)/k}
+.ends
+vin in 0 dc 1.2
+rin in 0 1k
+e1 o1 0 value={k*v(in) - 0.5*v(in)**2}
+r1 o1 0 1k
+e2 o2 o1 vol='tanh(v(in))'
+r2 o2 0 2k
+g1 0 o3 value={1m*v(in)^3} m=2
+r3 o3 0 1k
+g2 o4 0 cur={0.5m*exp(v(in))}
+r4 o4 0 1k
+x1 in o5 sq
+r5 o5 0 1k
+b1 o6 0 v=i(e2)*1k + v(o5)
+r6 o6 0 1k
+.op
+.end

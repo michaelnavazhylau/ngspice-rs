@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_behavioural_setter.cir
+error parse @cases/error_behavioural_setter.cir:4:20
+  message: "unexpected '3' after the behavioural expression; expected one of m, tc1, tc2, temp, dtemp, reciproctc, reciprocm as name=value"

@@ -156,7 +156,9 @@ fn the_hspice_keyword_is_removed_only_where_inp_compat_removes_it() {
 }
 
 #[test]
-fn nonlinear_forms_are_explicitly_not_yet_ported() {
+fn nonlinear_forms_parse_and_the_remaining_gaps_are_not_yet_ported() {
+    // POLY/VALUE/TABLE and the implicit POLY(1) are behavioural forms (#79,
+    // tests/behavioural_sources.rs).
     for text in [
         "e1 o 0 poly(2) a 0 b 0 0 1 1",
         "g1 o 0 POLY(1) a 0 0 1m",
@@ -167,11 +169,22 @@ fn nonlinear_forms_are_explicitly_not_yet_ported() {
         "g1 o 0 cur={v(a)}",
         "e1 o 0 table {v(a)} = (0,0) (1,1)",
         "e1 o 0 a b table=(0,0,1,1)",
-        "e1 o 0 laplace {v(a)} = {1/(1+s)}",
-        // inp_check_syntax() turns extra values into an implicit POLY(1).
+        // inp_poly_2g6_compat() turns extra values into an implicit POLY(1).
         "e1 o 0 a b 1 2",
         "f1 o 0 v1 1 2",
         "g1 o 0 a b 1m 2m 3m",
+    ] {
+        let device = device(text);
+        assert!(
+            device
+                .parameters
+                .iter()
+                .any(|p| matches!(p.name.as_str(), "poly" | "value" | "table")),
+            "{text}"
+        );
+    }
+    for text in [
+        "e1 o 0 laplace {v(a)} = {1/(1+s)}",
         // Sensitivity flags and a named control= after the positional one.
         "g1 o 0 a b 1m m=1 sens_trans",
         "f1 o 0 v1 1 m=1 control=v2",

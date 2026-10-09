@@ -233,3 +233,17 @@ production batching decision remain separate follow-ups. The formal certificate
 gate is tracked in [#68](https://github.com/michaelnavazhylau/ngspice-rs/issues/68).
 Parent integration also corrects existing solver documentation's certification
 wording; numeric bodies, checks and thresholds remain unchanged.
+
+## Later change: Newton's balanced fallback (#79)
+
+The guard itself is still unchanged. Behavioural sources (#79) added one
+production caller of the opt-in equilibration: when Newton's row-equilibrated
+sparse solve fails numerically, `spice-analysis/src/newton.rs` retries it once
+with `EquilibratedSparseLu::new_balanced` (Curtis-Reid power-of-two row/column
+balancing) and `solve_refined` (at most three refinement rounds, each kept
+only if it lowers the componentwise backward error). The rank/conditioning
+guard runs on the balanced matrix and every result passes the original-unit
+residual check; if both attempts fail, the first error is reported. Systems
+the first path accepts are solved exactly as before. The motivating case is a
+B source's `~1e32` zero-start slope; see
+[BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md#singular-slopes-at-the-zero-start).

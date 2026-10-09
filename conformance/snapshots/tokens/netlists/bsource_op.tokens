@@ -1,0 +1,577 @@
+# ngspice-rs token-dump v1
+file: netlists/bsource_op.cir
+title: "B-source operating point: functions, operators, parameters, .func and i()" @netlists/bsource_op.cir:1:1
+card 1 @netlists/bsource_op.cir:5:1 lines=5-5 continuations=0
+  raw: ".param gain=2.5 vt=0.025"
+  kind: dot(.param)
+  token 1 5:1 word ".param"
+  token 2 5:8 word "gain"
+  token 3 5:12 equals "="
+  token 4 5:13 number "2.5" value=2.5e0
+  token 5 5:17 word "vt"
+  token 6 5:19 equals "="
+  token 7 5:20 number "0.025" value=2.5e-2
+card 2 @netlists/bsource_op.cir:6:1 lines=6-6 continuations=0
+  raw: ".func softclip(x) {tanh(x)*1.5}"
+  kind: dot(.func)
+  token 1 6:1 word ".func"
+  token 2 6:7 word "softclip"
+  token 3 6:15 lparen "("
+  token 4 6:16 word "x"
+  token 5 6:17 rparen ")"
+  token 6 6:19 expression "{tanh(x)*1.5}" inner="tanh(x)*1.5"
+card 3 @netlists/bsource_op.cir:7:1 lines=7-7 continuations=0
+  raw: "vin in 0 dc 0.8"
+  kind: device(v)
+  token 1 7:1 word "vin"
+  token 2 7:5 word "in"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "dc"
+  token 5 7:13 number "0.8" value=8e-1
+card 4 @netlists/bsource_op.cir:8:1 lines=8-8 continuations=0
+  raw: "rin in 0 1k"
+  kind: device(r)
+  token 1 8:1 word "rin"
+  token 2 8:5 word "in"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "1k" value=1e3
+card 5 @netlists/bsource_op.cir:9:1 lines=9-9 continuations=0
+  raw: "vb b 0 dc -0.3"
+  kind: device(v)
+  token 1 9:1 word "vb"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 word "dc"
+  token 5 9:11 number "-0.3" value=-3e-1
+card 6 @netlists/bsource_op.cir:10:1 lines=10-10 continuations=0
+  raw: "rb b 0 2k"
+  kind: device(r)
+  token 1 10:1 word "rb"
+  token 2 10:4 word "b"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "2k" value=2e3
+card 7 @netlists/bsource_op.cir:11:1 lines=11-11 continuations=0
+  raw: "b1 o1 0 v=gain*v(in)^2 - sqrt(abs(v(b))) + exp(v(in,b))"
+  kind: device(b)
+  token 1 11:1 word "b1"
+  token 2 11:4 word "o1"
+  token 3 11:7 number "0" value=0e0
+  token 4 11:9 word "v"
+  token 5 11:10 equals "="
+  token 6 11:11 word "gain*v"
+  token 7 11:17 lparen "("
+  token 8 11:18 word "in"
+  token 9 11:20 rparen ")"
+  token 10 11:21 word "^2"
+  token 11 11:24 word "-"
+  token 12 11:26 word "sqrt"
+  token 13 11:30 lparen "("
+  token 14 11:31 word "abs"
+  token 15 11:34 lparen "("
+  token 16 11:35 word "v"
+  token 17 11:36 lparen "("
+  token 18 11:37 word "b"
+  token 19 11:38 rparen ")"
+  token 20 11:39 rparen ")"
+  token 21 11:40 rparen ")"
+  token 22 11:42 word "+"
+  token 23 11:44 word "exp"
+  token 24 11:47 lparen "("
+  token 25 11:48 word "v"
+  token 26 11:49 lparen "("
+  token 27 11:50 word "in"
+  token 28 11:52 comma ","
+  token 29 11:53 word "b"
+  token 30 11:54 rparen ")"
+  token 31 11:55 rparen ")"
+card 8 @netlists/bsource_op.cir:12:1 lines=12-12 continuations=0
+  raw: "r1 o1 0 1k"
+  kind: device(r)
+  token 1 12:1 word "r1"
+  token 2 12:4 word "o1"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 number "1k" value=1e3
+card 9 @netlists/bsource_op.cir:13:1 lines=13-13 continuations=0
+  raw: "b2 o2 0 i=1m*softclip(v(in)/vt*0.01) + i(vin)*0.5"
+  kind: device(b)
+  token 1 13:1 word "b2"
+  token 2 13:4 word "o2"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 word "i"
+  token 5 13:10 equals "="
+  token 6 13:11 word "1m*softclip"
+  token 7 13:22 lparen "("
+  token 8 13:23 word "v"
+  token 9 13:24 lparen "("
+  token 10 13:25 word "in"
+  token 11 13:27 rparen ")"
+  token 12 13:28 word "/vt*0.01"
+  token 13 13:36 rparen ")"
+  token 14 13:38 word "+"
+  token 15 13:40 word "i"
+  token 16 13:41 lparen "("
+  token 17 13:42 word "vin"
+  token 18 13:45 rparen ")"
+  token 19 13:46 word "*0.5"
+card 10 @netlists/bsource_op.cir:14:1 lines=14-14 continuations=0
+  raw: "r2 o2 0 2k"
+  kind: device(r)
+  token 1 14:1 word "r2"
+  token 2 14:4 word "o2"
+  token 3 14:7 number "0" value=0e0
+  token 4 14:9 number "2k" value=2e3
+card 11 @netlists/bsource_op.cir:15:1 lines=15-15 continuations=0
+  raw: "b3 o3 0 v=v(in) > 0.5 ? log(1+v(in)) : atan(v(b)) m=2"
+  kind: device(b)
+  token 1 15:1 word "b3"
+  token 2 15:4 word "o3"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 word "v"
+  token 5 15:10 equals "="
+  token 6 15:11 word "v"
+  token 7 15:12 lparen "("
+  token 8 15:13 word "in"
+  token 9 15:15 rparen ")"
+  token 10 15:17 word ">"
+  token 11 15:19 number "0.5" value=5e-1
+  token 12 15:23 word "?"
+  token 13 15:25 word "log"
+  token 14 15:28 lparen "("
+  token 15 15:29 word "1+v"
+  token 16 15:32 lparen "("
+  token 17 15:33 word "in"
+  token 18 15:35 rparen ")"
+  token 19 15:36 rparen ")"
+  token 20 15:38 word ":"
+  token 21 15:40 word "atan"
+  token 22 15:44 lparen "("
+  token 23 15:45 word "v"
+  token 24 15:46 lparen "("
+  token 25 15:47 word "b"
+  token 26 15:48 rparen ")"
+  token 27 15:49 rparen ")"
+  token 28 15:51 word "m"
+  token 29 15:52 equals "="
+  token 30 15:53 number "2" value=2e0
+card 12 @netlists/bsource_op.cir:16:1 lines=16-16 continuations=0
+  raw: "r3 o3 0 1k"
+  kind: device(r)
+  token 1 16:1 word "r3"
+  token 2 16:4 word "o3"
+  token 3 16:7 number "0" value=0e0
+  token 4 16:9 number "1k" value=1e3
+card 13 @netlists/bsource_op.cir:17:1 lines=17-17 continuations=0
+  raw: "b4 o4 0 v=pwl(v(in), -1,-2, 0,0, 1,3, 2,3.5) + min(v(in),v(b)) + max(v(in), 2*v(b))"
+  kind: device(b)
+  token 1 17:1 word "b4"
+  token 2 17:4 word "o4"
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 word "v"
+  token 5 17:10 equals "="
+  token 6 17:11 word "pwl"
+  token 7 17:14 lparen "("
+  token 8 17:15 word "v"
+  token 9 17:16 lparen "("
+  token 10 17:17 word "in"
+  token 11 17:19 rparen ")"
+  token 12 17:20 comma ","
+  token 13 17:22 number "-1" value=-1e0
+  token 14 17:24 comma ","
+  token 15 17:25 number "-2" value=-2e0
+  token 16 17:27 comma ","
+  token 17 17:29 number "0" value=0e0
+  token 18 17:30 comma ","
+  token 19 17:31 number "0" value=0e0
+  token 20 17:32 comma ","
+  token 21 17:34 number "1" value=1e0
+  token 22 17:35 comma ","
+  token 23 17:36 number "3" value=3e0
+  token 24 17:37 comma ","
+  token 25 17:39 number "2" value=2e0
+  token 26 17:40 comma ","
+  token 27 17:41 number "3.5" value=3.5e0
+  token 28 17:44 rparen ")"
+  token 29 17:46 word "+"
+  token 30 17:48 word "min"
+  token 31 17:51 lparen "("
+  token 32 17:52 word "v"
+  token 33 17:53 lparen "("
+  token 34 17:54 word "in"
+  token 35 17:56 rparen ")"
+  token 36 17:57 comma ","
+  token 37 17:58 word "v"
+  token 38 17:59 lparen "("
+  token 39 17:60 word "b"
+  token 40 17:61 rparen ")"
+  token 41 17:62 rparen ")"
+  token 42 17:64 word "+"
+  token 43 17:66 word "max"
+  token 44 17:69 lparen "("
+  token 45 17:70 word "v"
+  token 46 17:71 lparen "("
+  token 47 17:72 word "in"
+  token 48 17:74 rparen ")"
+  token 49 17:75 comma ","
+  token 50 17:77 word "2*v"
+  token 51 17:80 lparen "("
+  token 52 17:81 word "b"
+  token 53 17:82 rparen ")"
+  token 54 17:83 rparen ")"
+card 14 @netlists/bsource_op.cir:18:1 lines=18-18 continuations=0
+  raw: "r4 o4 0 1k"
+  kind: device(r)
+  token 1 18:1 word "r4"
+  token 2 18:4 word "o4"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 number "1k" value=1e3
+card 15 @netlists/bsource_op.cir:19:1 lines=19-19 continuations=0
+  raw: "b5 o5 0 v=sin(v(in))*cos(v(b)) + sinh(v(b)) + cosh(v(in)/2) + tan(v(in)/3) + asinh(v(b)) + acos(v(b)) + asin(v(in)/2) + atan(v(in))"
+  kind: device(b)
+  token 1 19:1 word "b5"
+  token 2 19:4 word "o5"
+  token 3 19:7 number "0" value=0e0
+  token 4 19:9 word "v"
+  token 5 19:10 equals "="
+  token 6 19:11 word "sin"
+  token 7 19:14 lparen "("
+  token 8 19:15 word "v"
+  token 9 19:16 lparen "("
+  token 10 19:17 word "in"
+  token 11 19:19 rparen ")"
+  token 12 19:20 rparen ")"
+  token 13 19:21 word "*cos"
+  token 14 19:25 lparen "("
+  token 15 19:26 word "v"
+  token 16 19:27 lparen "("
+  token 17 19:28 word "b"
+  token 18 19:29 rparen ")"
+  token 19 19:30 rparen ")"
+  token 20 19:32 word "+"
+  token 21 19:34 word "sinh"
+  token 22 19:38 lparen "("
+  token 23 19:39 word "v"
+  token 24 19:40 lparen "("
+  token 25 19:41 word "b"
+  token 26 19:42 rparen ")"
+  token 27 19:43 rparen ")"
+  token 28 19:45 word "+"
+  token 29 19:47 word "cosh"
+  token 30 19:51 lparen "("
+  token 31 19:52 word "v"
+  token 32 19:53 lparen "("
+  token 33 19:54 word "in"
+  token 34 19:56 rparen ")"
+  token 35 19:57 word "/2"
+  token 36 19:59 rparen ")"
+  token 37 19:61 word "+"
+  token 38 19:63 word "tan"
+  token 39 19:66 lparen "("
+  token 40 19:67 word "v"
+  token 41 19:68 lparen "("
+  token 42 19:69 word "in"
+  token 43 19:71 rparen ")"
+  token 44 19:72 word "/3"
+  token 45 19:74 rparen ")"
+  token 46 19:76 word "+"
+  token 47 19:78 word "asinh"
+  token 48 19:83 lparen "("
+  token 49 19:84 word "v"
+  token 50 19:85 lparen "("
+  token 51 19:86 word "b"
+  token 52 19:87 rparen ")"
+  token 53 19:88 rparen ")"
+  token 54 19:90 word "+"
+  token 55 19:92 word "acos"
+  token 56 19:96 lparen "("
+  token 57 19:97 word "v"
+  token 58 19:98 lparen "("
+  token 59 19:99 word "b"
+  token 60 19:100 rparen ")"
+  token 61 19:101 rparen ")"
+  token 62 19:103 word "+"
+  token 63 19:105 word "asin"
+  token 64 19:109 lparen "("
+  token 65 19:110 word "v"
+  token 66 19:111 lparen "("
+  token 67 19:112 word "in"
+  token 68 19:114 rparen ")"
+  token 69 19:115 word "/2"
+  token 70 19:117 rparen ")"
+  token 71 19:119 word "+"
+  token 72 19:121 word "atan"
+  token 73 19:125 lparen "("
+  token 74 19:126 word "v"
+  token 75 19:127 lparen "("
+  token 76 19:128 word "in"
+  token 77 19:130 rparen ")"
+  token 78 19:131 rparen ")"
+card 16 @netlists/bsource_op.cir:20:1 lines=20-20 continuations=0
+  raw: "r5 o5 0 1k"
+  kind: device(r)
+  token 1 20:1 word "r5"
+  token 2 20:4 word "o5"
+  token 3 20:7 number "0" value=0e0
+  token 4 20:9 number "1k" value=1e3
+card 17 @netlists/bsource_op.cir:21:1 lines=21-21 continuations=0
+  raw: "b6 o6 0 v=u(v(in)-0.5) + uramp(v(in)-0.2) + u2(v(in)) + sgn(v(b)) + floor(3.7*v(in)) + ceil(v(b)) + nint(2.5) + pow(v(in),1.5) + pwr(v(b),2) + log10(v(in)+1) + ln(2) + acosh(2+v(in)) + atanh(v(b))"
+  kind: device(b)
+  token 1 21:1 word "b6"
+  token 2 21:4 word "o6"
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 word "v"
+  token 5 21:10 equals "="
+  token 6 21:11 word "u"
+  token 7 21:12 lparen "("
+  token 8 21:13 word "v"
+  token 9 21:14 lparen "("
+  token 10 21:15 word "in"
+  token 11 21:17 rparen ")"
+  token 12 21:18 number "-0.5" value=-5e-1
+  token 13 21:22 rparen ")"
+  token 14 21:24 word "+"
+  token 15 21:26 word "uramp"
+  token 16 21:31 lparen "("
+  token 17 21:32 word "v"
+  token 18 21:33 lparen "("
+  token 19 21:34 word "in"
+  token 20 21:36 rparen ")"
+  token 21 21:37 number "-0.2" value=-2e-1
+  token 22 21:41 rparen ")"
+  token 23 21:43 word "+"
+  token 24 21:45 word "u2"
+  token 25 21:47 lparen "("
+  token 26 21:48 word "v"
+  token 27 21:49 lparen "("
+  token 28 21:50 word "in"
+  token 29 21:52 rparen ")"
+  token 30 21:53 rparen ")"
+  token 31 21:55 word "+"
+  token 32 21:57 word "sgn"
+  token 33 21:60 lparen "("
+  token 34 21:61 word "v"
+  token 35 21:62 lparen "("
+  token 36 21:63 word "b"
+  token 37 21:64 rparen ")"
+  token 38 21:65 rparen ")"
+  token 39 21:67 word "+"
+  token 40 21:69 word "floor"
+  token 41 21:74 lparen "("
+  token 42 21:75 word "3.7*v"
+  token 43 21:80 lparen "("
+  token 44 21:81 word "in"
+  token 45 21:83 rparen ")"
+  token 46 21:84 rparen ")"
+  token 47 21:86 word "+"
+  token 48 21:88 word "ceil"
+  token 49 21:92 lparen "("
+  token 50 21:93 word "v"
+  token 51 21:94 lparen "("
+  token 52 21:95 word "b"
+  token 53 21:96 rparen ")"
+  token 54 21:97 rparen ")"
+  token 55 21:99 word "+"
+  token 56 21:101 word "nint"
+  token 57 21:105 lparen "("
+  token 58 21:106 number "2.5" value=2.5e0
+  token 59 21:109 rparen ")"
+  token 60 21:111 word "+"
+  token 61 21:113 word "pow"
+  token 62 21:116 lparen "("
+  token 63 21:117 word "v"
+  token 64 21:118 lparen "("
+  token 65 21:119 word "in"
+  token 66 21:121 rparen ")"
+  token 67 21:122 comma ","
+  token 68 21:123 number "1.5" value=1.5e0
+  token 69 21:126 rparen ")"
+  token 70 21:128 word "+"
+  token 71 21:130 word "pwr"
+  token 72 21:133 lparen "("
+  token 73 21:134 word "v"
+  token 74 21:135 lparen "("
+  token 75 21:136 word "b"
+  token 76 21:137 rparen ")"
+  token 77 21:138 comma ","
+  token 78 21:139 number "2" value=2e0
+  token 79 21:140 rparen ")"
+  token 80 21:142 word "+"
+  token 81 21:144 word "log10"
+  token 82 21:149 lparen "("
+  token 83 21:150 word "v"
+  token 84 21:151 lparen "("
+  token 85 21:152 word "in"
+  token 86 21:154 rparen ")"
+  token 87 21:155 number "+1" value=1e0
+  token 88 21:157 rparen ")"
+  token 89 21:159 word "+"
+  token 90 21:161 word "ln"
+  token 91 21:163 lparen "("
+  token 92 21:164 number "2" value=2e0
+  token 93 21:165 rparen ")"
+  token 94 21:167 word "+"
+  token 95 21:169 word "acosh"
+  token 96 21:174 lparen "("
+  token 97 21:175 word "2+v"
+  token 98 21:178 lparen "("
+  token 99 21:179 word "in"
+  token 100 21:181 rparen ")"
+  token 101 21:182 rparen ")"
+  token 102 21:184 word "+"
+  token 103 21:186 word "atanh"
+  token 104 21:191 lparen "("
+  token 105 21:192 word "v"
+  token 106 21:193 lparen "("
+  token 107 21:194 word "b"
+  token 108 21:195 rparen ")"
+  token 109 21:196 rparen ")"
+card 18 @netlists/bsource_op.cir:22:1 lines=22-22 continuations=0
+  raw: "r6 o6 0 1k"
+  kind: device(r)
+  token 1 22:1 word "r6"
+  token 2 22:4 word "o6"
+  token 3 22:7 number "0" value=0e0
+  token 4 22:9 number "1k" value=1e3
+card 19 @netlists/bsource_op.cir:23:1 lines=23-23 continuations=0
+  raw: "b7 0 o7 i=v(o1)/2k tc1=1m tc2=1e-6 temp=50"
+  kind: device(b)
+  token 1 23:1 word "b7"
+  token 2 23:4 number "0" value=0e0
+  token 3 23:6 word "o7"
+  token 4 23:9 word "i"
+  token 5 23:10 equals "="
+  token 6 23:11 word "v"
+  token 7 23:12 lparen "("
+  token 8 23:13 word "o1"
+  token 9 23:15 rparen ")"
+  token 10 23:16 word "/2k"
+  token 11 23:20 word "tc1"
+  token 12 23:23 equals "="
+  token 13 23:24 number "1m" value=1e-3
+  token 14 23:27 word "tc2"
+  token 15 23:30 equals "="
+  token 16 23:31 number "1e-6" value=1e-6
+  token 17 23:36 word "temp"
+  token 18 23:40 equals "="
+  token 19 23:41 number "50" value=5e1
+card 20 @netlists/bsource_op.cir:24:1 lines=24-24 continuations=0
+  raw: "r7 o7 0 1k"
+  kind: device(r)
+  token 1 24:1 word "r7"
+  token 2 24:4 word "o7"
+  token 3 24:7 number "0" value=0e0
+  token 4 24:9 number "1k" value=1e3
+card 21 @netlists/bsource_op.cir:25:1 lines=25-25 continuations=0
+  raw: "b8 o8 0 v=v(o7)*temper/27 + pi + e + (v(in)<1 && v(b)<0) + (v(b)>=0 || v(in)<=1) + (v(in)<>v(b))"
+  kind: device(b)
+  token 1 25:1 word "b8"
+  token 2 25:4 word "o8"
+  token 3 25:7 number "0" value=0e0
+  token 4 25:9 word "v"
+  token 5 25:10 equals "="
+  token 6 25:11 word "v"
+  token 7 25:12 lparen "("
+  token 8 25:13 word "o7"
+  token 9 25:15 rparen ")"
+  token 10 25:16 word "*temper/27"
+  token 11 25:27 word "+"
+  token 12 25:29 word "pi"
+  token 13 25:32 word "+"
+  token 14 25:34 word "e"
+  token 15 25:36 word "+"
+  token 16 25:38 lparen "("
+  token 17 25:39 word "v"
+  token 18 25:40 lparen "("
+  token 19 25:41 word "in"
+  token 20 25:43 rparen ")"
+  token 21 25:44 word "<1"
+  token 22 25:47 word "&&"
+  token 23 25:50 word "v"
+  token 24 25:51 lparen "("
+  token 25 25:52 word "b"
+  token 26 25:53 rparen ")"
+  token 27 25:54 word "<0"
+  token 28 25:56 rparen ")"
+  token 29 25:58 word "+"
+  token 30 25:60 lparen "("
+  token 31 25:61 word "v"
+  token 32 25:62 lparen "("
+  token 33 25:63 word "b"
+  token 34 25:64 rparen ")"
+  token 35 25:65 word ">"
+  token 36 25:66 equals "="
+  token 37 25:67 number "0" value=0e0
+  token 38 25:69 word "||"
+  token 39 25:72 word "v"
+  token 40 25:73 lparen "("
+  token 41 25:74 word "in"
+  token 42 25:76 rparen ")"
+  token 43 25:77 word "<"
+  token 44 25:78 equals "="
+  token 45 25:79 number "1" value=1e0
+  token 46 25:80 rparen ")"
+  token 47 25:82 word "+"
+  token 48 25:84 lparen "("
+  token 49 25:85 word "v"
+  token 50 25:86 lparen "("
+  token 51 25:87 word "in"
+  token 52 25:89 rparen ")"
+  token 53 25:90 word "<>v"
+  token 54 25:93 lparen "("
+  token 55 25:94 word "b"
+  token 56 25:95 rparen ")"
+  token 57 25:96 rparen ")"
+card 22 @netlists/bsource_op.cir:26:1 lines=26-26 continuations=0
+  raw: "r8 o8 0 1k"
+  kind: device(r)
+  token 1 26:1 word "r8"
+  token 2 26:4 word "o8"
+  token 3 26:7 number "0" value=0e0
+  token 4 26:9 number "1k" value=1e3
+card 23 @netlists/bsource_op.cir:27:1 lines=27-27 continuations=0
+  raw: "b9 o9 0 v=i(b1)*1k + v(o1)**2/10 + v(in)^v(o3) + 2^v(b)"
+  kind: device(b)
+  token 1 27:1 word "b9"
+  token 2 27:4 word "o9"
+  token 3 27:7 number "0" value=0e0
+  token 4 27:9 word "v"
+  token 5 27:10 equals "="
+  token 6 27:11 word "i"
+  token 7 27:12 lparen "("
+  token 8 27:13 word "b1"
+  token 9 27:15 rparen ")"
+  token 10 27:16 word "*1k"
+  token 11 27:20 word "+"
+  token 12 27:22 word "v"
+  token 13 27:23 lparen "("
+  token 14 27:24 word "o1"
+  token 15 27:26 rparen ")"
+  token 16 27:27 word "**2/10"
+  token 17 27:34 word "+"
+  token 18 27:36 word "v"
+  token 19 27:37 lparen "("
+  token 20 27:38 word "in"
+  token 21 27:40 rparen ")"
+  token 22 27:41 word "^v"
+  token 23 27:43 lparen "("
+  token 24 27:44 word "o3"
+  token 25 27:46 rparen ")"
+  token 26 27:48 word "+"
+  token 27 27:50 word "2^v"
+  token 28 27:53 lparen "("
+  token 29 27:54 word "b"
+  token 30 27:55 rparen ")"
+card 24 @netlists/bsource_op.cir:28:1 lines=28-28 continuations=0
+  raw: "r9 o9 0 1k"
+  kind: device(r)
+  token 1 28:1 word "r9"
+  token 2 28:4 word "o9"
+  token 3 28:7 number "0" value=0e0
+  token 4 28:9 number "1k" value=1e3
+card 25 @netlists/bsource_op.cir:29:1 lines=29-29 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 29:1 word ".op"
+card 26 @netlists/bsource_op.cir:30:1 lines=30-30 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 30:1 word ".end"

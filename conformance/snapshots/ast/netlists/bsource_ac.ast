@@ -1,0 +1,132 @@
+# ngspice-rs ast-dump v1
+file: netlists/bsource_ac.cir
+title: "B-source AC: small-signal linearisation at the bias point" @netlists/bsource_ac.cir:1:1
+scope root
+  cards (14):
+    [0] device[0] @netlists/bsource_ac.cir:8:1 "vin in 0 dc 0.6 ac 1"
+    [1] device[1] @netlists/bsource_ac.cir:9:1 "rin in 0 1k"
+    [2] device[2] @netlists/bsource_ac.cir:10:1 "b1 sq 0 v=v(in)^2*3 + 0.5*sin(v(in))"
+    [3] device[3] @netlists/bsource_ac.cir:11:1 "r1 sq out1 1k"
+    [4] device[4] @netlists/bsource_ac.cir:12:1 "c1 out1 0 100n"
+    [5] device[5] @netlists/bsource_ac.cir:13:1 "b2 0 out2 i=1e-6*exp(v(in)/0.1) + 2m*v(out1)"
+    [6] device[6] @netlists/bsource_ac.cir:14:1 "r2 out2 0 1k"
+    [7] device[7] @netlists/bsource_ac.cir:15:1 "c2 out2 0 47n"
+    [8] device[8] @netlists/bsource_ac.cir:16:1 "b3 cur 0 v=i(vin)*1k*v(in)"
+    [9] device[9] @netlists/bsource_ac.cir:17:1 "r3 cur 0 1k"
+    [10] device[10] @netlists/bsource_ac.cir:18:1 "b4 hz 0 v=v(in)*hertz/1k + v(in)^2*sqrt(hertz)"
+    [11] device[11] @netlists/bsource_ac.cir:19:1 "r4 hz 0 1k"
+    [12] analysis[0] @netlists/bsource_ac.cir:20:1 ".ac dec 5 10 1meg"
+    [13] end @netlists/bsource_ac.cir:21:1 ".end"
+  devices (12):
+    device [0] name="vin" designator=v @netlists/bsource_ac.cir:8:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.6" @netlists/bsource_ac.cir:8:10
+        [1] name="acmag" kind=scalar value="1" @netlists/bsource_ac.cir:8:20
+        [2] name="acphase" kind=scalar value="0" @netlists/bsource_ac.cir:8:17
+    device [1] name="rin" designator=r @netlists/bsource_ac.cir:9:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_ac.cir:9:10
+    device [2] name="b1" designator=b @netlists/bsource_ac.cir:10:1
+      nodes: "sq" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="v(in)^2*3 + 0.5*sin(v(in))" @netlists/bsource_ac.cir:10:9
+          behavioural text="v(in)^2*3 + 0.5*sin(v(in))" span=10:11..37
+            binary "+" span=10:11..37
+              binary "*" span=10:11..20
+                binary "^" span=10:11..18
+                  voltage "in" span=10:11..16
+                  number "2" value=2e0 span=10:17..18
+                number "3" value=3e0 span=10:19..20
+              binary "*" span=10:23..37
+                number "0.5" value=5e-1 span=10:23..26
+                call "sin" span=10:27..37
+                  voltage "in" span=10:31..36
+    device [3] name="r1" designator=r @netlists/bsource_ac.cir:11:1
+      nodes: "sq" "out1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_ac.cir:11:12
+    device [4] name="c1" designator=c @netlists/bsource_ac.cir:12:1
+      nodes: "out1" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/bsource_ac.cir:12:11
+    device [5] name="b2" designator=b @netlists/bsource_ac.cir:13:1
+      nodes: "0" "out2"
+      model: none
+      parameters (1):
+        [0] name="i" kind=behavioural value="1e-6*exp(v(in)/0.1) + 2m*v(out1)" @netlists/bsource_ac.cir:13:11
+          behavioural text="1e-6*exp(v(in)/0.1) + 2m*v(out1)" span=13:13..45
+            binary "+" span=13:13..45
+              binary "*" span=13:13..32
+                number "1e-6" value=1e-6 span=13:13..17
+                call "exp" span=13:18..32
+                  binary "/" span=13:22..31
+                    voltage "in" span=13:22..27
+                    number "0.1" value=1e-1 span=13:28..31
+              binary "*" span=13:35..45
+                number "2m" value=2e-3 span=13:35..37
+                voltage "out1" span=13:38..45
+    device [6] name="r2" designator=r @netlists/bsource_ac.cir:14:1
+      nodes: "out2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_ac.cir:14:11
+    device [7] name="c2" designator=c @netlists/bsource_ac.cir:15:1
+      nodes: "out2" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="47n" @netlists/bsource_ac.cir:15:11
+    device [8] name="b3" designator=b @netlists/bsource_ac.cir:16:1
+      nodes: "cur" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="i(vin)*1k*v(in)" @netlists/bsource_ac.cir:16:10
+          behavioural text="i(vin)*1k*v(in)" span=16:12..27
+            binary "*" span=16:12..27
+              binary "*" span=16:12..21
+                current "vin" span=16:12..18
+                number "1k" value=1e3 span=16:19..21
+              voltage "in" span=16:22..27
+    device [9] name="r3" designator=r @netlists/bsource_ac.cir:17:1
+      nodes: "cur" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_ac.cir:17:10
+    device [10] name="b4" designator=b @netlists/bsource_ac.cir:18:1
+      nodes: "hz" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="v(in)*hertz/1k + v(in)^2*sqrt(hertz)" @netlists/bsource_ac.cir:18:9
+          behavioural text="v(in)*hertz/1k + v(in)^2*sqrt(hertz)" span=18:11..47
+            binary "+" span=18:11..47
+              binary "/" span=18:11..25
+                binary "*" span=18:11..22
+                  voltage "in" span=18:11..16
+                  name "hertz" span=18:17..22
+                number "1k" value=1e3 span=18:23..25
+              binary "*" span=18:28..47
+                binary "^" span=18:28..35
+                  voltage "in" span=18:28..33
+                  number "2" value=2e0 span=18:34..35
+                call "sqrt" span=18:36..47
+                  name "hertz" span=18:41..46
+    device [11] name="r4" designator=r @netlists/bsource_ac.cir:19:1
+      nodes: "hz" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_ac.cir:19:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/bsource_ac.cir:20:1
+      arguments: "dec" "5" "10" "1meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

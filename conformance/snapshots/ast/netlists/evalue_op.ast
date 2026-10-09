@@ -1,0 +1,163 @@
+# ngspice-rs ast-dump v1
+file: netlists/evalue_op.cir
+title: "E/G VALUE= sources: lowering onto B sources (inpcom.c inp_compat)" @netlists/evalue_op.cir:1:1
+scope root
+  cards (18):
+    [0] param[0] @netlists/evalue_op.cir:6:1 ".param k=3"
+    [1] subcircuit[0] @netlists/evalue_op.cir:7:1 ".subckt sq a y"
+    [2] device[0] @netlists/evalue_op.cir:10:1 "vin in 0 dc 1.2"
+    [3] device[1] @netlists/evalue_op.cir:11:1 "rin in 0 1k"
+    [4] device[2] @netlists/evalue_op.cir:12:1 "e1 o1 0 value={k*v(in) - 0.5*v(in)**2}"
+    [5] device[3] @netlists/evalue_op.cir:13:1 "r1 o1 0 1k"
+    [6] device[4] @netlists/evalue_op.cir:14:1 "e2 o2 o1 vol='tanh(v(in))'"
+    [7] device[5] @netlists/evalue_op.cir:15:1 "r2 o2 0 2k"
+    [8] device[6] @netlists/evalue_op.cir:16:1 "g1 0 o3 value={1m*v(in)^3} m=2"
+    [9] device[7] @netlists/evalue_op.cir:17:1 "r3 o3 0 1k"
+    [10] device[8] @netlists/evalue_op.cir:18:1 "g2 o4 0 cur={0.5m*exp(v(in))}"
+    [11] device[9] @netlists/evalue_op.cir:19:1 "r4 o4 0 1k"
+    [12] device[10] @netlists/evalue_op.cir:20:1 "x1 in o5 sq"
+    [13] device[11] @netlists/evalue_op.cir:21:1 "r5 o5 0 1k"
+    [14] device[12] @netlists/evalue_op.cir:22:1 "b1 o6 0 v=i(e2)*1k + v(o5)"
+    [15] device[13] @netlists/evalue_op.cir:23:1 "r6 o6 0 1k"
+    [16] analysis[0] @netlists/evalue_op.cir:24:1 ".op"
+    [17] end @netlists/evalue_op.cir:25:1 ".end"
+  devices (14):
+    device [0] name="vin" designator=v @netlists/evalue_op.cir:10:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.2" @netlists/evalue_op.cir:10:10
+    device [1] name="rin" designator=r @netlists/evalue_op.cir:11:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/evalue_op.cir:11:10
+    device [2] name="e1" designator=e @netlists/evalue_op.cir:12:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="value" kind=behavioural value="{k*v(in) - 0.5*v(in)**2}" @netlists/evalue_op.cir:12:9
+          behavioural text="{k*v(in) - 0.5*v(in)**2}" span=12:15..39
+            binary "-" span=12:16..38
+              binary "*" span=12:16..23
+                name "k" span=12:16..17
+                voltage "in" span=12:18..23
+              binary "*" span=12:26..38
+                number "0.5" value=5e-1 span=12:26..29
+                binary "^" span=12:30..38
+                  voltage "in" span=12:30..35
+                  number "2" value=2e0 span=12:37..38
+    device [3] name="r1" designator=r @netlists/evalue_op.cir:13:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/evalue_op.cir:13:9
+    device [4] name="e2" designator=e @netlists/evalue_op.cir:14:1
+      nodes: "o2" "o1"
+      model: none
+      parameters (1):
+        [0] name="value" kind=behavioural value="'tanh(v(in))'" @netlists/evalue_op.cir:14:10
+          behavioural text="'tanh(v(in))'" span=14:14..27
+            call "tanh" span=14:15..26
+              voltage "in" span=14:20..25
+    device [5] name="r2" designator=r @netlists/evalue_op.cir:15:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/evalue_op.cir:15:9
+    device [6] name="g1" designator=g @netlists/evalue_op.cir:16:1
+      nodes: "0" "o3"
+      model: none
+      parameters (2):
+        [0] name="value" kind=behavioural value="{1m*v(in)^3}" @netlists/evalue_op.cir:16:9
+          behavioural text="{1m*v(in)^3}" span=16:15..27
+            binary "*" span=16:16..26
+              number "1m" value=1e-3 span=16:16..18
+              binary "^" span=16:19..26
+                voltage "in" span=16:19..24
+                number "3" value=3e0 span=16:25..26
+        [1] name="m" kind=scalar value="2" @netlists/evalue_op.cir:16:28
+    device [7] name="r3" designator=r @netlists/evalue_op.cir:17:1
+      nodes: "o3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/evalue_op.cir:17:9
+    device [8] name="g2" designator=g @netlists/evalue_op.cir:18:1
+      nodes: "o4" "0"
+      model: none
+      parameters (1):
+        [0] name="value" kind=behavioural value="{0.5m*exp(v(in))}" @netlists/evalue_op.cir:18:9
+          behavioural text="{0.5m*exp(v(in))}" span=18:13..30
+            binary "*" span=18:14..29
+              number "0.5m" value=5e-4 span=18:14..18
+              call "exp" span=18:19..29
+                voltage "in" span=18:23..28
+    device [9] name="r4" designator=r @netlists/evalue_op.cir:19:1
+      nodes: "o4" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/evalue_op.cir:19:9
+    device [10] name="x1" designator=x @netlists/evalue_op.cir:20:1
+      nodes: "in" "o5"
+      model: "sq"
+      parameters (0):
+    device [11] name="r5" designator=r @netlists/evalue_op.cir:21:1
+      nodes: "o5" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/evalue_op.cir:21:9
+    device [12] name="b1" designator=b @netlists/evalue_op.cir:22:1
+      nodes: "o6" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="i(e2)*1k + v(o5)" @netlists/evalue_op.cir:22:9
+          behavioural text="i(e2)*1k + v(o5)" span=22:11..27
+            binary "+" span=22:11..27
+              binary "*" span=22:11..19
+                current "e2" span=22:11..16
+                number "1k" value=1e3 span=22:17..19
+              voltage "o5" span=22:22..27
+    device [13] name="r6" designator=r @netlists/evalue_op.cir:23:1
+      nodes: "o6" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/evalue_op.cir:23:9
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="sq" @netlists/evalue_op.cir:7:1 end=@netlists/evalue_op.cir:9:1
+      terminals: "a" "y"
+      parameters (0):
+      scope body
+        cards (2):
+          [0] device[0] @netlists/evalue_op.cir:8:1 "e1 y 0 value={v(a)*v(a)/k}"
+          [1] ends @netlists/evalue_op.cir:9:1 ".ends"
+        devices (1):
+          device [0] name="e1" designator=e @netlists/evalue_op.cir:8:1
+            nodes: "y" "0"
+            model: none
+            parameters (1):
+              [0] name="value" kind=behavioural value="{v(a)*v(a)/k}" @netlists/evalue_op.cir:8:8
+                behavioural text="{v(a)*v(a)/k}" span=8:14..27
+                  binary "/" span=8:15..26
+                    binary "*" span=8:15..24
+                      voltage "a" span=8:15..19
+                      voltage "a" span=8:20..24
+                    name "k" span=8:25..26
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/evalue_op.cir:24:1
+      arguments:
+  includes (0):
+  params (1):
+    param-card [0] @netlists/evalue_op.cir:6:1
+      assignment [0] name="k" name_span=6:8..9
+        expression braced=false text="3" span=6:10..11
+          number "3" value=3e0 span=6:10..11
+  options (0):
+  globals (0):

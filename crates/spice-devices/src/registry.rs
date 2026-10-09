@@ -6,9 +6,19 @@
 //! explicit, so that the port's coverage can be reported programmatically
 //! instead of inferred from the presence of C files.
 //!
-//! Scalar R/C/L/V/I, linear E/F/G/H and K (mutual inductance) factories are
-//! implemented. Other built-in entries report
-//! `ported: false` and return explicit `NotYetPorted` errors with C references.
+//! Each entry's [`DeviceSupport`] is derived from the factory module's own
+//! designator lists (`factory::CARD_FACTORY`, `factory::ELABORATED`), so the table cannot claim more or less than
+//! the factories build:
+//!
+//! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural and K (mutual
+//!   inductance), built from the card alone by [`Registry::instantiate`];
+//! - **bounded**: D/Q/M (diode, Ebers–Moll BJT, MOS1), S/W switches and X
+//!   subcircuit instances, which need the deck (a `.model` card or a
+//!   `.subckt` definition) and are built by [`crate::Circuit::from_netlist`]
+//!   for a documented subset of C's models;
+//! - **pending**: everything else, an explicit `NotYetPorted` with the C
+//!   reference.
+//!
 //! Unsupported scalar-device parameters are rejected, never silently ignored.
 
 use std::collections::BTreeMap;
@@ -32,10 +42,74 @@ pub struct DeviceEntry {
     pub description: &'static str,
     /// The C code that must be ported to implement it.
     pub c_reference: &'static str,
-    /// Whether the factory actually builds the device.
-    pub ported: bool,
+    /// What the port builds for this designator.
+    pub support: DeviceSupport,
     /// The factory.
     pub factory: DeviceFactory,
+}
+
+/// How much of a designator the port builds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceSupport {
+    /// The entry's factory builds the device from its card.
+    Ported,
+    /// Built only while elaborating a deck (it needs a `.model` card or a
+    /// `.subckt` definition), for the subset of C's models named by `scope`.
+    Bounded {
+        /// What is built, e.g. the model levels.
+        scope: &'static str,
+    },
+    /// Not built: instances fail with `NotYetPorted` and the C reference.
+    Pending,
+}
+
+impl DeviceSupport {
+    /// `ported`, `bounded` or `pending`.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Ported => "ported",
+            Self::Bounded { .. } => "bounded",
+            Self::Pending => "pending",
+        }
+    }
+
+    /// Whether the port builds the device at all (ported or bounded).
+    #[must_use]
+    pub const fn is_implemented(self) -> bool {
+        !matches!(self, Self::Pending)
+    }
+
+    /// The support the factory module gives `designator`.
+    #[must_use]
+    pub fn of(designator: char) -> Self {
+        let designator = designator.to_ascii_lowercase();
+        if crate::factory::CARD_FACTORY.contains(&designator) {
+            Self::Ported
+        } else if let Some((_, scope)) = crate::factory::ELABORATED
+            .iter()
+            .find(|(letter, _)| *letter == designator)
+        {
+            Self::Bounded { scope }
+        } else {
+            Self::Pending
+        }
+    }
+}
+
+/// The card-only factory of a bounded entry: the device exists, but only a
+/// deck can supply its model or subcircuit definition.
+fn elaborated_factory(card: &RawCard, _nodes: &mut NodeTable) -> SpiceResult<Box<dyn Device>> {
+    let instance = card
+        .first_token()
+        .map_or("<unnamed>", |token| token.text.as_str());
+    Err(SpiceError::Unsupported {
+        feature: format!(
+            "device instance '{instance}' needs its deck (.model or .subckt); \
+             elaborate it with Circuit::from_netlist"
+        ),
+        location: Some(card.location.clone()),
+    })
 }
 
 /// The placeholder factory used by every unported device.
@@ -204,27 +278,22 @@ impl Registry {
         Self::default()
     }
 
-    /// Built-in registry with bounded scalar R/C/L/V/I, linear E/F/G/H and K
-    /// factories.
+    /// Built-in registry: every known designator with the support the
+    /// factory module gives it ([`DeviceSupport::of`]).
     #[must_use]
     pub fn with_builtins() -> Self {
         let mut registry = Self::new();
         for (designator, description, c_reference) in BUILTINS {
+            let support = DeviceSupport::of(*designator);
             registry.register(DeviceEntry {
                 designator: *designator,
                 description,
                 c_reference,
-                ported: matches!(
-                    designator,
-                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k'
-                ),
-                factory: if matches!(
-                    designator,
-                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k'
-                ) {
-                    crate::factory::from_card
-                } else {
-                    stub_factory
+                support,
+                factory: match support {
+                    DeviceSupport::Ported => crate::factory::from_card,
+                    DeviceSupport::Bounded { .. } => elaborated_factory,
+                    DeviceSupport::Pending => stub_factory,
                 },
             });
         }
@@ -260,10 +329,23 @@ impl Registry {
         self.entries.is_empty()
     }
 
-    /// How many known designators have a working factory.
+    /// How many known designators the entry's factory builds from the card.
     #[must_use]
     pub fn ported_count(&self) -> usize {
-        self.entries.values().filter(|entry| entry.ported).count()
+        self.count(|support| support == DeviceSupport::Ported)
+    }
+
+    /// How many known designators are built only during deck elaboration.
+    #[must_use]
+    pub fn bounded_count(&self) -> usize {
+        self.count(|support| matches!(support, DeviceSupport::Bounded { .. }))
+    }
+
+    fn count(&self, keep: impl Fn(DeviceSupport) -> bool) -> usize {
+        self.entries
+            .values()
+            .filter(|entry| keep(entry.support))
+            .count()
     }
 
     /// The designators, in ascending order.
@@ -318,7 +400,7 @@ impl Registry {
 
 #[cfg(test)]
 mod tests {
-    use super::{DeviceEntry, Registry};
+    use super::{DeviceEntry, DeviceSupport, Registry};
     use crate::traits::Device;
     use spice_netlist::{RawCard, source::parse_deck_text};
     use std::path::Path;
@@ -334,7 +416,8 @@ mod tests {
         for (designator, _, _) in super::BUILTINS {
             assert!(registry.contains(*designator), "missing {designator}");
         }
-        assert_eq!(registry.ported_count(), 10);
+        assert_eq!(registry.ported_count(), 11);
+        assert_eq!(registry.bounded_count(), 6);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
@@ -389,13 +472,13 @@ mod tests {
         let registry = Registry::with_builtins();
         let mut nodes = spice_core::NodeTable::new();
         let error = registry
-            .instantiate(&card("d1 in out dm"), &mut nodes)
+            .instantiate(&card("j1 d g s jm"), &mut nodes)
             .expect_err("not ported");
         assert!(error.is_not_yet_ported());
         let message = error.to_string();
-        assert!(message.contains("device instance 'd1'"), "{message}");
-        assert!(message.contains("inp2d.c"), "{message}");
-        assert!(message.contains("dio.c"), "{message}");
+        assert!(message.contains("device instance 'j1'"), "{message}");
+        assert!(message.contains("inp2j.c"), "{message}");
+        assert!(message.contains("jfet.c"), "{message}");
         assert!(nodes.is_empty(), "a stub factory must not intern nodes");
     }
 
@@ -460,11 +543,11 @@ mod tests {
             designator: 'r',
             description: "resistor",
             c_reference: "src/spicelib/parser/inp2r.c",
-            ported: true,
+            support: DeviceSupport::Ported,
             factory,
         });
-        assert!(replaced.is_some_and(|entry| entry.ported));
-        assert_eq!(registry.ported_count(), 10);
+        assert!(replaced.is_some_and(|entry| entry.support == DeviceSupport::Ported));
+        assert_eq!(registry.ported_count(), 11);
         let mut nodes = spice_core::NodeTable::new();
         assert_eq!(
             registry

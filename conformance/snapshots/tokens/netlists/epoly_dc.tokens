@@ -1,0 +1,208 @@
+# ngspice-rs token-dump v1
+file: netlists/epoly_dc.cir
+title: "E/G/F/H POLY sources: XSPICE spice2poly lowering (enhtrans.c)" @netlists/epoly_dc.cir:1:1
+card 1 @netlists/epoly_dc.cir:6:1 lines=6-6 continuations=0
+  raw: "vin in 0 dc 0"
+  kind: device(v)
+  token 1 6:1 word "vin"
+  token 2 6:5 word "in"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 word "dc"
+  token 5 6:13 number "0" value=0e0
+card 2 @netlists/epoly_dc.cir:7:1 lines=7-7 continuations=0
+  raw: "rin in 0 1k"
+  kind: device(r)
+  token 1 7:1 word "rin"
+  token 2 7:5 word "in"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "1k" value=1e3
+card 3 @netlists/epoly_dc.cir:8:1 lines=8-8 continuations=0
+  raw: "vb b 0 dc 0.5"
+  kind: device(v)
+  token 1 8:1 word "vb"
+  token 2 8:4 word "b"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "dc"
+  token 5 8:11 number "0.5" value=5e-1
+card 4 @netlists/epoly_dc.cir:9:1 lines=9-9 continuations=0
+  raw: "rb b 0 2k"
+  kind: device(r)
+  token 1 9:1 word "rb"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "2k" value=2e3
+card 5 @netlists/epoly_dc.cir:10:1 lines=10-10 continuations=0
+  raw: "vc c 0 dc -0.2"
+  kind: device(v)
+  token 1 10:1 word "vc"
+  token 2 10:4 word "c"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 word "dc"
+  token 5 10:11 number "-0.2" value=-2e-1
+card 6 @netlists/epoly_dc.cir:11:1 lines=11-11 continuations=0
+  raw: "rc c 0 1k"
+  kind: device(r)
+  token 1 11:1 word "rc"
+  token 2 11:4 word "c"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "1k" value=1e3
+card 7 @netlists/epoly_dc.cir:12:1 lines=12-12 continuations=0
+  raw: "e1 o1 0 poly(2) in 0 b 0 0.1 1 2 0.5 -0.25 0.3"
+  kind: device(e)
+  token 1 12:1 word "e1"
+  token 2 12:4 word "o1"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 word "poly"
+  token 5 12:13 lparen "("
+  token 6 12:14 number "2" value=2e0
+  token 7 12:15 rparen ")"
+  token 8 12:17 word "in"
+  token 9 12:20 number "0" value=0e0
+  token 10 12:22 word "b"
+  token 11 12:24 number "0" value=0e0
+  token 12 12:26 number "0.1" value=1e-1
+  token 13 12:30 number "1" value=1e0
+  token 14 12:32 number "2" value=2e0
+  token 15 12:34 number "0.5" value=5e-1
+  token 16 12:38 number "-0.25" value=-2.5e-1
+  token 17 12:44 number "0.3" value=3e-1
+card 8 @netlists/epoly_dc.cir:13:1 lines=13-13 continuations=0
+  raw: "r1 o1 0 1k"
+  kind: device(r)
+  token 1 13:1 word "r1"
+  token 2 13:4 word "o1"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 number "1k" value=1e3
+card 9 @netlists/epoly_dc.cir:14:1 lines=14-14 continuations=0
+  raw: "g1 0 o2 poly(1) in 0 0 1m 0.5m 0.2m m=2"
+  kind: device(g)
+  token 1 14:1 word "g1"
+  token 2 14:4 number "0" value=0e0
+  token 3 14:6 word "o2"
+  token 4 14:9 word "poly"
+  token 5 14:13 lparen "("
+  token 6 14:14 number "1" value=1e0
+  token 7 14:15 rparen ")"
+  token 8 14:17 word "in"
+  token 9 14:20 number "0" value=0e0
+  token 10 14:22 number "0" value=0e0
+  token 11 14:24 number "1m" value=1e-3
+  token 12 14:27 number "0.5m" value=5e-4
+  token 13 14:32 number "0.2m" value=2e-4
+  token 14 14:37 word "m"
+  token 15 14:38 equals "="
+  token 16 14:39 number "2" value=2e0
+card 10 @netlists/epoly_dc.cir:15:1 lines=15-15 continuations=0
+  raw: "r2 o2 0 1k"
+  kind: device(r)
+  token 1 15:1 word "r2"
+  token 2 15:4 word "o2"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "1k" value=1e3
+card 11 @netlists/epoly_dc.cir:16:1 lines=16-16 continuations=0
+  raw: "f1 0 o3 poly(2) vin vb 0 1 -2 0.5"
+  kind: device(f)
+  token 1 16:1 word "f1"
+  token 2 16:4 number "0" value=0e0
+  token 3 16:6 word "o3"
+  token 4 16:9 word "poly"
+  token 5 16:13 lparen "("
+  token 6 16:14 number "2" value=2e0
+  token 7 16:15 rparen ")"
+  token 8 16:17 word "vin"
+  token 9 16:21 word "vb"
+  token 10 16:24 number "0" value=0e0
+  token 11 16:26 number "1" value=1e0
+  token 12 16:28 number "-2" value=-2e0
+  token 13 16:31 number "0.5" value=5e-1
+card 12 @netlists/epoly_dc.cir:17:1 lines=17-17 continuations=0
+  raw: "r3 o3 0 1k"
+  kind: device(r)
+  token 1 17:1 word "r3"
+  token 2 17:4 word "o3"
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 number "1k" value=1e3
+card 13 @netlists/epoly_dc.cir:18:1 lines=18-18 continuations=0
+  raw: "h1 o4 0 poly(1) vin 0.2 100 1e4"
+  kind: device(h)
+  token 1 18:1 word "h1"
+  token 2 18:4 word "o4"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 word "poly"
+  token 5 18:13 lparen "("
+  token 6 18:14 number "1" value=1e0
+  token 7 18:15 rparen ")"
+  token 8 18:17 word "vin"
+  token 9 18:21 number "0.2" value=2e-1
+  token 10 18:25 number "100" value=1e2
+  token 11 18:29 number "1e4" value=1e4
+card 14 @netlists/epoly_dc.cir:19:1 lines=19-19 continuations=0
+  raw: "r4 o4 0 1k"
+  kind: device(r)
+  token 1 19:1 word "r4"
+  token 2 19:4 word "o4"
+  token 3 19:7 number "0" value=0e0
+  token 4 19:9 number "1k" value=1e3
+card 15 @netlists/epoly_dc.cir:20:1 lines=20-20 continuations=0
+  raw: "e2 o5 0 in b 0.5 1 0.25"
+  kind: device(e)
+  token 1 20:1 word "e2"
+  token 2 20:4 word "o5"
+  token 3 20:7 number "0" value=0e0
+  token 4 20:9 word "in"
+  token 5 20:12 word "b"
+  token 6 20:14 number "0.5" value=5e-1
+  token 7 20:18 number "1" value=1e0
+  token 8 20:20 number "0.25" value=2.5e-1
+card 16 @netlists/epoly_dc.cir:21:1 lines=21-21 continuations=0
+  raw: "r5 o5 0 1k"
+  kind: device(r)
+  token 1 21:1 word "r5"
+  token 2 21:4 word "o5"
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 number "1k" value=1e3
+card 17 @netlists/epoly_dc.cir:22:1 lines=22-22 continuations=0
+  raw: "e3 o6 0 poly(3) in 0 b 0 c 0 0 1 -1 0.5 0.1 0.2 0.3 0.4 0.5 0.6"
+  kind: device(e)
+  token 1 22:1 word "e3"
+  token 2 22:4 word "o6"
+  token 3 22:7 number "0" value=0e0
+  token 4 22:9 word "poly"
+  token 5 22:13 lparen "("
+  token 6 22:14 number "3" value=3e0
+  token 7 22:15 rparen ")"
+  token 8 22:17 word "in"
+  token 9 22:20 number "0" value=0e0
+  token 10 22:22 word "b"
+  token 11 22:24 number "0" value=0e0
+  token 12 22:26 word "c"
+  token 13 22:28 number "0" value=0e0
+  token 14 22:30 number "0" value=0e0
+  token 15 22:32 number "1" value=1e0
+  token 16 22:34 number "-1" value=-1e0
+  token 17 22:37 number "0.5" value=5e-1
+  token 18 22:41 number "0.1" value=1e-1
+  token 19 22:45 number "0.2" value=2e-1
+  token 20 22:49 number "0.3" value=3e-1
+  token 21 22:53 number "0.4" value=4e-1
+  token 22 22:57 number "0.5" value=5e-1
+  token 23 22:61 number "0.6" value=6e-1
+card 18 @netlists/epoly_dc.cir:23:1 lines=23-23 continuations=0
+  raw: "r6 o6 0 1k"
+  kind: device(r)
+  token 1 23:1 word "r6"
+  token 2 23:4 word "o6"
+  token 3 23:7 number "0" value=0e0
+  token 4 23:9 number "1k" value=1e3
+card 19 @netlists/epoly_dc.cir:24:1 lines=24-24 continuations=0
+  raw: ".dc vin -1 1 0.1"
+  kind: dot(.dc)
+  token 1 24:1 word ".dc"
+  token 2 24:5 word "vin"
+  token 3 24:9 number "-1" value=-1e0
+  token 4 24:12 number "1" value=1e0
+  token 5 24:14 number "0.1" value=1e-1
+card 20 @netlists/epoly_dc.cir:25:1 lines=25-25 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 25:1 word ".end"

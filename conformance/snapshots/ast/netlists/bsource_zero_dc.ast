@@ -1,0 +1,91 @@
+# ngspice-rs ast-dump v1
+file: netlists/bsource_zero_dc.cir
+title: "B-source zero start: singular slopes swept from a 0 V Newton start" @netlists/bsource_zero_dc.cir:1:1
+scope root
+  cards (11):
+    [0] device[0] @netlists/bsource_zero_dc.cir:5:1 "vin in 0 dc 1"
+    [1] device[1] @netlists/bsource_zero_dc.cir:6:1 "rin in mid 1k"
+    [2] device[2] @netlists/bsource_zero_dc.cir:7:1 "rmid mid 0 3k"
+    [3] device[3] @netlists/bsource_zero_dc.cir:8:1 "b1 o1 0 v=1/v(in)"
+    [4] device[4] @netlists/bsource_zero_dc.cir:9:1 "r1 o1 0 1k"
+    [5] device[5] @netlists/bsource_zero_dc.cir:10:1 "b2 o2 0 v=sqrt(v(mid))*log(v(in))"
+    [6] device[6] @netlists/bsource_zero_dc.cir:11:1 "r2 o2 0 1k"
+    [7] device[7] @netlists/bsource_zero_dc.cir:12:1 "b3 0 o3 i=1m*(v(in)/v(mid) + log10(v(mid)))"
+    [8] device[8] @netlists/bsource_zero_dc.cir:13:1 "r3 o3 0 1k"
+    [9] analysis[0] @netlists/bsource_zero_dc.cir:14:1 ".dc vin 0.5 3 0.25"
+    [10] end @netlists/bsource_zero_dc.cir:15:1 ".end"
+  devices (9):
+    device [0] name="vin" designator=v @netlists/bsource_zero_dc.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/bsource_zero_dc.cir:5:10
+    device [1] name="rin" designator=r @netlists/bsource_zero_dc.cir:6:1
+      nodes: "in" "mid"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_dc.cir:6:12
+    device [2] name="rmid" designator=r @netlists/bsource_zero_dc.cir:7:1
+      nodes: "mid" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="3k" @netlists/bsource_zero_dc.cir:7:12
+    device [3] name="b1" designator=b @netlists/bsource_zero_dc.cir:8:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="1/v(in)" @netlists/bsource_zero_dc.cir:8:9
+          behavioural text="1/v(in)" span=8:11..18
+            binary "/" span=8:11..18
+              number "1" value=1e0 span=8:11..12
+              voltage "in" span=8:13..18
+    device [4] name="r1" designator=r @netlists/bsource_zero_dc.cir:9:1
+      nodes: "o1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_dc.cir:9:9
+    device [5] name="b2" designator=b @netlists/bsource_zero_dc.cir:10:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="v" kind=behavioural value="sqrt(v(mid))*log(v(in))" @netlists/bsource_zero_dc.cir:10:9
+          behavioural text="sqrt(v(mid))*log(v(in))" span=10:11..34
+            binary "*" span=10:11..34
+              call "sqrt" span=10:11..23
+                voltage "mid" span=10:16..22
+              call "log" span=10:24..34
+                voltage "in" span=10:28..33
+    device [6] name="r2" designator=r @netlists/bsource_zero_dc.cir:11:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_dc.cir:11:9
+    device [7] name="b3" designator=b @netlists/bsource_zero_dc.cir:12:1
+      nodes: "0" "o3"
+      model: none
+      parameters (1):
+        [0] name="i" kind=behavioural value="1m*(v(in)/v(mid) + log10(v(mid)))" @netlists/bsource_zero_dc.cir:12:9
+          behavioural text="1m*(v(in)/v(mid) + log10(v(mid)))" span=12:11..44
+            binary "*" span=12:11..44
+              number "1m" value=1e-3 span=12:11..13
+              group span=12:14..44
+                binary "+" span=12:15..43
+                  binary "/" span=12:15..27
+                    voltage "in" span=12:15..20
+                    voltage "mid" span=12:21..27
+                  call "log10" span=12:30..43
+                    voltage "mid" span=12:36..42
+    device [8] name="r3" designator=r @netlists/bsource_zero_dc.cir:13:1
+      nodes: "o3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/bsource_zero_dc.cir:13:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/bsource_zero_dc.cir:14:1
+      arguments: "vin" "0.5" "3" "0.25"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
