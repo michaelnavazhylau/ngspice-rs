@@ -1,5 +1,32 @@
 # Verification
 
+## M8 distortion analysis (#104)
+
+`.disto` and the `distof1`/`distof2` source inputs ([DISTORTION.md](DISTORTION.md)).
+
+- Four new fixtures, each captured on its own (`cargo xtask golden capture
+  --netlist disto_diode|disto_bjt|disto_mos1|disto_multi`) after the deck was
+  compared with the same C binary in a scratch copy; no existing golden was
+  recaptured and no tolerance changed. All four are `BATCH` entries (an IM and
+  a harmonic card each; `disto_multi` with `.ac` and `.op`) under the new
+  `compare::DISTORTION` (1 ppm relative, 1e-18 absolute floor, justified in
+  `xtask/src/compare.rs`).
+- `cargo xtask golden verify`: **114 verified / 0 unsupported / 0 failures**;
+  `cargo xtask golden check --netlist <each new fixture>` reproduces all four;
+  `cargo xtask snapshots --bless` created only the eight token/AST snapshots
+  of the new decks.
+- C agreement while developing (scratch decks, `ngspice -b -r` against
+  `spice-rs simulate`): ~1e-13 relative for diode and MOS1 decks, ~1e-12 for
+  the BJT IM products and up to ~8e-8 for BJT harmonics of tiny branch currents at
+  `reltol = 1e-7`; each reproduced C defect in DISTORTION.md was found as an
+  exact sign or kernel mismatch and confirmed by the C source.
+- `tests/distortion_analysis.rs` checks closed forms independent of C (diode
+  exponential HD2/HD3/IM kernels to 1e-9); the opt-in
+  `tests/c_disto_reference.rs` (2 tests, 6 decks) compares C batch mode by
+  name.
+- Not verified: excess phase (`PTF`, refused), the `keepopinfo` plot, device
+  families without a port.
+
 ## M8 S-parameter analysis (#105)
 
 `.sp` and RF port sources ([SPARAM.md](SPARAM.md)). The reference binary is an

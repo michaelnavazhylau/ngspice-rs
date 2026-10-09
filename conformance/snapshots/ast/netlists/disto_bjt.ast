@@ -1,0 +1,224 @@
+# ngspice-rs ast-dump v1
+file: netlists/disto_bjt.cir
+title: "Harmonic and intermodulation distortion of BJT stages" @netlists/disto_bjt.cir:1:1
+scope root
+  cards (29):
+    [0] device[0] @netlists/disto_bjt.cir:8:1 "vcc vcc 0 12"
+    [1] device[1] @netlists/disto_bjt.cir:9:1 "vee vee 0 -12"
+    [2] device[2] @netlists/disto_bjt.cir:10:1 "vsub sub 0 -2"
+    [3] device[3] @netlists/disto_bjt.cir:11:1 "vin in 0 dc 0 ac 1 distof1 0.01 distof2 0.008 60"
+    [4] device[4] @netlists/disto_bjt.cir:12:1 "cin in b 100n"
+    [5] device[5] @netlists/disto_bjt.cir:13:1 "r1 vcc b 100k"
+    [6] device[6] @netlists/disto_bjt.cir:14:1 "r2 b 0 20k"
+    [7] device[7] @netlists/disto_bjt.cir:15:1 "rc vcc c 4.7k"
+    [8] device[8] @netlists/disto_bjt.cir:16:1 "re e 0 1k"
+    [9] device[9] @netlists/disto_bjt.cir:17:1 "q1 c b e qa"
+    [10] device[10] @netlists/disto_bjt.cir:18:1 "cin2 in b2 100n"
+    [11] device[11] @netlists/disto_bjt.cir:19:1 "r21 vcc b2 150k"
+    [12] device[12] @netlists/disto_bjt.cir:20:1 "r22 b2 0 20k"
+    [13] device[13] @netlists/disto_bjt.cir:21:1 "rc2 vcc c2 3k"
+    [14] device[14] @netlists/disto_bjt.cir:22:1 "re2 e2 0 500"
+    [15] device[15] @netlists/disto_bjt.cir:23:1 "q2 c2 b2 e2 sub qb area=1.5 m=2 temp=50"
+    [16] device[16] @netlists/disto_bjt.cir:24:1 "cin3 in b3 100n"
+    [17] device[17] @netlists/disto_bjt.cir:25:1 "r31 vee b3 100k"
+    [18] device[18] @netlists/disto_bjt.cir:26:1 "r32 b3 0 20k"
+    [19] device[19] @netlists/disto_bjt.cir:27:1 "rc3 vee c3 4.7k"
+    [20] device[20] @netlists/disto_bjt.cir:28:1 "re3 e3 0 1k"
+    [21] device[21] @netlists/disto_bjt.cir:29:1 "q3 c3 b3 e3 qp"
+    [22] model[0] @netlists/disto_bjt.cir:30:1 ".model qa npn(is=1e-15 bf=150 vaf=60 var=20 ikf=20m ikr=5m ise=1e-14 ne=1.6 isc=1e-14 nc=1.8 br=3 rb=100 rbm=20 irb=1m re=1 rc=10 cje=2p vje=0.8 mje=0.4 tf=0.4n xtf=2 vtf=4 itf=50m cjc=1p vjc=0.7 mjc=0.35 xcjc=0.6 tr=10n)"
+    [23] model[1] @netlists/disto_bjt.cir:33:1 ".model qb npn(is=2e-15 bf=100 vaf=80 ikf=30m rb=200 re=2 rc=20 cje=1p tf=1n xtf=1 cjc=0.5p cjs=0.8p vjs=0.6 mjs=0.4)"
+    [24] model[2] @netlists/disto_bjt.cir:35:1 ".model qp pnp(is=1e-15 bf=80 vaf=50 ikf=10m cje=2p mje=0.4 tf=0.5n xtf=1 vtf=3 cjc=1p xcjc=0.5 cjs=0.3p)"
+    [25] options[0] @netlists/disto_bjt.cir:36:1 ".option reltol=1e-7"
+    [26] analysis[0] @netlists/disto_bjt.cir:37:1 ".disto dec 2 1k 10meg"
+    [27] analysis[1] @netlists/disto_bjt.cir:38:1 ".disto dec 2 1k 10meg 0.85"
+    [28] end @netlists/disto_bjt.cir:39:1 ".end"
+  devices (22):
+    device [0] name="vcc" designator=v @netlists/disto_bjt.cir:8:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="12" @netlists/disto_bjt.cir:8:11
+    device [1] name="vee" designator=v @netlists/disto_bjt.cir:9:1
+      nodes: "vee" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-12" @netlists/disto_bjt.cir:9:11
+    device [2] name="vsub" designator=v @netlists/disto_bjt.cir:10:1
+      nodes: "sub" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-2" @netlists/disto_bjt.cir:10:12
+    device [3] name="vin" designator=v @netlists/disto_bjt.cir:11:1
+      nodes: "in" "0"
+      model: none
+      parameters (7):
+        [0] name="dc" kind=scalar value="0" @netlists/disto_bjt.cir:11:10
+        [1] name="acmag" kind=scalar value="1" @netlists/disto_bjt.cir:11:18
+        [2] name="acphase" kind=scalar value="0" @netlists/disto_bjt.cir:11:15
+        [3] name="distof1mag" kind=scalar value="0.01" @netlists/disto_bjt.cir:11:28
+        [4] name="distof1phase" kind=scalar value="0" @netlists/disto_bjt.cir:11:20
+        [5] name="distof2mag" kind=scalar value="0.008" @netlists/disto_bjt.cir:11:41
+        [6] name="distof2phase" kind=scalar value="60" @netlists/disto_bjt.cir:11:47
+    device [4] name="cin" designator=c @netlists/disto_bjt.cir:12:1
+      nodes: "in" "b"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/disto_bjt.cir:12:10
+    device [5] name="r1" designator=r @netlists/disto_bjt.cir:13:1
+      nodes: "vcc" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100k" @netlists/disto_bjt.cir:13:10
+    device [6] name="r2" designator=r @netlists/disto_bjt.cir:14:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/disto_bjt.cir:14:8
+    device [7] name="rc" designator=r @netlists/disto_bjt.cir:15:1
+      nodes: "vcc" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @netlists/disto_bjt.cir:15:10
+    device [8] name="re" designator=r @netlists/disto_bjt.cir:16:1
+      nodes: "e" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_bjt.cir:16:8
+    device [9] name="q1" designator=q @netlists/disto_bjt.cir:17:1
+      nodes: "c" "b" "e"
+      model: "qa"
+      parameters (0):
+    device [10] name="cin2" designator=c @netlists/disto_bjt.cir:18:1
+      nodes: "in" "b2"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/disto_bjt.cir:18:12
+    device [11] name="r21" designator=r @netlists/disto_bjt.cir:19:1
+      nodes: "vcc" "b2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="150k" @netlists/disto_bjt.cir:19:12
+    device [12] name="r22" designator=r @netlists/disto_bjt.cir:20:1
+      nodes: "b2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/disto_bjt.cir:20:10
+    device [13] name="rc2" designator=r @netlists/disto_bjt.cir:21:1
+      nodes: "vcc" "c2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="3k" @netlists/disto_bjt.cir:21:12
+    device [14] name="re2" designator=r @netlists/disto_bjt.cir:22:1
+      nodes: "e2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/disto_bjt.cir:22:10
+    device [15] name="q2" designator=q @netlists/disto_bjt.cir:23:1
+      nodes: "c2" "b2" "e2" "sub"
+      model: "qb"
+      parameters (3):
+        [0] name="area" kind=scalar value="1.5" @netlists/disto_bjt.cir:23:20
+        [1] name="m" kind=scalar value="2" @netlists/disto_bjt.cir:23:29
+        [2] name="temp" kind=scalar value="50" @netlists/disto_bjt.cir:23:33
+    device [16] name="cin3" designator=c @netlists/disto_bjt.cir:24:1
+      nodes: "in" "b3"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/disto_bjt.cir:24:12
+    device [17] name="r31" designator=r @netlists/disto_bjt.cir:25:1
+      nodes: "vee" "b3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100k" @netlists/disto_bjt.cir:25:12
+    device [18] name="r32" designator=r @netlists/disto_bjt.cir:26:1
+      nodes: "b3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/disto_bjt.cir:26:10
+    device [19] name="rc3" designator=r @netlists/disto_bjt.cir:27:1
+      nodes: "vee" "c3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @netlists/disto_bjt.cir:27:12
+    device [20] name="re3" designator=r @netlists/disto_bjt.cir:28:1
+      nodes: "e3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_bjt.cir:28:10
+    device [21] name="q3" designator=q @netlists/disto_bjt.cir:29:1
+      nodes: "c3" "b3" "e3"
+      model: "qp"
+      parameters (0):
+  models (3):
+    model [0] name="qa" base="npn" level=none @netlists/disto_bjt.cir:30:1
+      parameters (28):
+        [0] name="is" kind=scalar value="1e-15" @netlists/disto_bjt.cir:30:15
+        [1] name="bf" kind=scalar value="150" @netlists/disto_bjt.cir:30:24
+        [2] name="vaf" kind=scalar value="60" @netlists/disto_bjt.cir:30:31
+        [3] name="var" kind=scalar value="20" @netlists/disto_bjt.cir:30:38
+        [4] name="ikf" kind=scalar value="20m" @netlists/disto_bjt.cir:30:45
+        [5] name="ikr" kind=scalar value="5m" @netlists/disto_bjt.cir:30:53
+        [6] name="ise" kind=scalar value="1e-14" @netlists/disto_bjt.cir:30:60
+        [7] name="ne" kind=scalar value="1.6" @netlists/disto_bjt.cir:30:70
+        [8] name="isc" kind=scalar value="1e-14" @netlists/disto_bjt.cir:30:77
+        [9] name="nc" kind=scalar value="1.8" @netlists/disto_bjt.cir:30:87
+        [10] name="br" kind=scalar value="3" @netlists/disto_bjt.cir:30:94
+        [11] name="rb" kind=scalar value="100" @netlists/disto_bjt.cir:30:99
+        [12] name="rbm" kind=scalar value="20" @netlists/disto_bjt.cir:30:106
+        [13] name="irb" kind=scalar value="1m" @netlists/disto_bjt.cir:30:113
+        [14] name="re" kind=scalar value="1" @netlists/disto_bjt.cir:30:120
+        [15] name="rc" kind=scalar value="10" @netlists/disto_bjt.cir:30:125
+        [16] name="cje" kind=scalar value="2p" @netlists/disto_bjt.cir:30:131
+        [17] name="vje" kind=scalar value="0.8" @netlists/disto_bjt.cir:30:138
+        [18] name="mje" kind=scalar value="0.4" @netlists/disto_bjt.cir:30:146
+        [19] name="tf" kind=scalar value="0.4n" @netlists/disto_bjt.cir:30:154
+        [20] name="xtf" kind=scalar value="2" @netlists/disto_bjt.cir:30:162
+        [21] name="vtf" kind=scalar value="4" @netlists/disto_bjt.cir:30:168
+        [22] name="itf" kind=scalar value="50m" @netlists/disto_bjt.cir:30:174
+        [23] name="cjc" kind=scalar value="1p" @netlists/disto_bjt.cir:30:182
+        [24] name="vjc" kind=scalar value="0.7" @netlists/disto_bjt.cir:30:189
+        [25] name="mjc" kind=scalar value="0.35" @netlists/disto_bjt.cir:30:197
+        [26] name="xcjc" kind=scalar value="0.6" @netlists/disto_bjt.cir:30:206
+        [27] name="tr" kind=scalar value="10n" @netlists/disto_bjt.cir:30:215
+    model [1] name="qb" base="npn" level=none @netlists/disto_bjt.cir:33:1
+      parameters (14):
+        [0] name="is" kind=scalar value="2e-15" @netlists/disto_bjt.cir:33:15
+        [1] name="bf" kind=scalar value="100" @netlists/disto_bjt.cir:33:24
+        [2] name="vaf" kind=scalar value="80" @netlists/disto_bjt.cir:33:31
+        [3] name="ikf" kind=scalar value="30m" @netlists/disto_bjt.cir:33:38
+        [4] name="rb" kind=scalar value="200" @netlists/disto_bjt.cir:33:46
+        [5] name="re" kind=scalar value="2" @netlists/disto_bjt.cir:33:53
+        [6] name="rc" kind=scalar value="20" @netlists/disto_bjt.cir:33:58
+        [7] name="cje" kind=scalar value="1p" @netlists/disto_bjt.cir:33:64
+        [8] name="tf" kind=scalar value="1n" @netlists/disto_bjt.cir:33:71
+        [9] name="xtf" kind=scalar value="1" @netlists/disto_bjt.cir:33:77
+        [10] name="cjc" kind=scalar value="0.5p" @netlists/disto_bjt.cir:33:83
+        [11] name="cjs" kind=scalar value="0.8p" @netlists/disto_bjt.cir:33:92
+        [12] name="vjs" kind=scalar value="0.6" @netlists/disto_bjt.cir:33:101
+        [13] name="mjs" kind=scalar value="0.4" @netlists/disto_bjt.cir:33:109
+    model [2] name="qp" base="pnp" level=none @netlists/disto_bjt.cir:35:1
+      parameters (12):
+        [0] name="is" kind=scalar value="1e-15" @netlists/disto_bjt.cir:35:15
+        [1] name="bf" kind=scalar value="80" @netlists/disto_bjt.cir:35:24
+        [2] name="vaf" kind=scalar value="50" @netlists/disto_bjt.cir:35:30
+        [3] name="ikf" kind=scalar value="10m" @netlists/disto_bjt.cir:35:37
+        [4] name="cje" kind=scalar value="2p" @netlists/disto_bjt.cir:35:45
+        [5] name="mje" kind=scalar value="0.4" @netlists/disto_bjt.cir:35:52
+        [6] name="tf" kind=scalar value="0.5n" @netlists/disto_bjt.cir:35:60
+        [7] name="xtf" kind=scalar value="1" @netlists/disto_bjt.cir:35:68
+        [8] name="vtf" kind=scalar value="3" @netlists/disto_bjt.cir:35:74
+        [9] name="cjc" kind=scalar value="1p" @netlists/disto_bjt.cir:35:80
+        [10] name="xcjc" kind=scalar value="0.5" @netlists/disto_bjt.cir:35:87
+        [11] name="cjs" kind=scalar value="0.3p" @netlists/disto_bjt.cir:35:96
+  subcircuits (0):
+  analyses (2):
+    analysis [0] kind=disto @netlists/disto_bjt.cir:37:1
+      arguments: "dec" "2" "1k" "10meg"
+    analysis [1] kind=disto @netlists/disto_bjt.cir:38:1
+      arguments: "dec" "2" "1k" "10meg" "0.85"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/disto_bjt.cir:36:1
+      setting [0] name="reltol" value="1e-7"@netlists/disto_bjt.cir:36:16 @netlists/disto_bjt.cir:36:9
+  globals (0):

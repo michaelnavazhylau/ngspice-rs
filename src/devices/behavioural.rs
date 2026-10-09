@@ -323,6 +323,28 @@ impl Device for Behavioural {
         Ok(crate::devices::noise::DeviceNoise::Noiseless)
     }
 
+    /// Refused in `.disto`: neither C's B source (`asrcinit.c`) nor the XSPICE
+    /// code models that `POLY`/`TABLE` lower to have a distortion routine, so
+    /// C silently keeps only their small-signal linearization and drops their
+    /// nonlinearity. The port does not reproduce that partial result.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Err(SpiceError::Unsupported {
+            feature: format!(
+                "distortion analysis of {} ({}): C has no distortion routine for behavioural                  sources or XSPICE code models and would silently ignore their nonlinearity",
+                self.name,
+                if self.designator == 'a' {
+                    "XSPICE POLY/TABLE code model"
+                } else {
+                    "B source"
+                }
+            ),
+            location: None,
+        })
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

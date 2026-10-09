@@ -287,6 +287,16 @@ impl ControlledSource {
 }
 
 impl Device for ControlledSource {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `vcvs`/`vccs`/`cccs`/`ccvs` `*init.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
     /// `src/spicelib/devices/{vcvs,vccs,cccs,ccvs}/*init.c`).
     fn noise(

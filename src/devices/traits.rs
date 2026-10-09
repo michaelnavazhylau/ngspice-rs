@@ -664,6 +664,29 @@ pub trait Device: fmt::Debug {
     fn input_source(&self) -> Option<crate::devices::noise::InputSource> {
         None
     }
+
+    /// The device's `.disto` nonlinearities at the operating point
+    /// ([`crate::devices::distortion`], C `DEVdisto`). Devices C gives no
+    /// distortion routine but simulates through their AC load return
+    /// [`crate::devices::distortion::DeviceDistortion::Linear`] explicitly;
+    /// the default is an error, so a device whose distortion is not ported
+    /// can never be silently treated as linear.
+    ///
+    /// # Errors
+    /// [`SpiceError::NotYetPorted`] by default; invalid bias physics.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Err(SpiceError::not_yet_ported(
+            format!(
+                "distortion analysis of device {} (designator '{}')",
+                self.name(),
+                self.designator()
+            ),
+            "src/spicelib/devices/<dev>/<dev>disto.c (DEVdisto)",
+        ))
+    }
     /// The canonical (lowercase, alias-folded) keyword of a settable real
     /// instance parameter that a `.dc @inst[param]` sweep may replace on this
     /// device (C `dctrcurv.c` `DCTfindInstParam`), or `None` (the default)

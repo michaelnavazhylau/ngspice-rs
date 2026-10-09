@@ -19,8 +19,9 @@
 //!   incremented — whenever the candidate name is already taken. A deck with
 //!   `.ac`, two `.dc`, `.op` and `.tran` therefore produces `ac1 dc1 dc2 op2
 //!   tran2`. A `.noise` card writes two plots, the spectrum and the integrated
-//!   noise (`noise1 noise2`), unless its sweep is a single frequency
-//!   ([`ScheduledAnalysis::extra_plot_names`]). The rawfile itself carries only the `Plotname:` header (`AC
+//!   noise (`noise1 noise2`), unless its sweep is a single frequency, and a
+//!   `.disto` card writes two harmonic or three intermodulation plots
+//!   (`disto1 disto2 [disto3]`) ([`ScheduledAnalysis::extra_plot_names`]). The rawfile itself carries only the `Plotname:` header (`AC
 //!   Analysis`, …), which each driver already writes;
 //! * **which output card applies to which plot** ([`check_targets`],
 //!   [`resolve_outputs`]): `.save` applies to every plot; `.print <type>`
@@ -70,8 +71,10 @@ pub struct ScheduledAnalysis {
     /// The names of the further plots this card produces after
     /// [`Self::plot_name`], in order: `.noise` writes its `Integrated Noise`
     /// plot as a second plot (`noise2` after `noise1`) unless its sweep is a
-    /// single frequency ([`crate::analysis::noise::plot_count`]). Empty for
-    /// every other analysis.
+    /// single frequency ([`crate::analysis::noise::plot_count`]); `.disto`
+    /// writes its 3rd-harmonic plot after the 2nd, or its `f1-f2` and
+    /// `2f1-f2` products after `f1+f2` ([`crate::analysis::disto::plot_count`]).
+    /// Empty for every other analysis.
     pub extra_plot_names: Vec<String>,
 }
 
@@ -147,10 +150,14 @@ pub fn schedule(cards: &[AnalysisCard]) -> Vec<ScheduledAnalysis> {
         .map(|&card_index| {
             let kind = cards[card_index].kind;
             let abbreviation = plot_abbreviation(kind);
-            let count = if kind == AnalysisKind::Noise {
-                crate::analysis::noise::plot_count(&cards[card_index].arguments)
-            } else {
-                1
+            let count = match kind {
+                AnalysisKind::Noise => {
+                    crate::analysis::noise::plot_count(&cards[card_index].arguments)
+                }
+                AnalysisKind::Distortion => {
+                    crate::analysis::disto::plot_count(&cards[card_index].arguments)
+                }
+                _ => 1,
             };
             let mut own = Vec::with_capacity(count);
             for _ in 0..count {
@@ -460,6 +467,35 @@ mod tests {
             [vec!["op1"], vec!["noise1"], vec!["noise2", "noise3"]]
         );
         assert!(!entries[1].last_of_kind && entries[2].last_of_kind);
+    }
+
+    #[test]
+    fn disto_cards_name_every_plot() {
+        // `.disto` (harmonics), `.disto` (IM), `.ac`: ngspice-47 runs `ac1`,
+        // then the later IM card (`disto1..3`), then the harmonics
+        // (`disto4 disto5`), as its `setplot` listing shows.
+        let disto = |line, arguments: &str| {
+            let mut card = card(AnalysisKind::Distortion, line);
+            card.arguments = arguments.split_whitespace().map(str::to_owned).collect();
+            card
+        };
+        let cards = [
+            disto(2, "dec 2 1k 100k"),
+            disto(3, "dec 2 1k 100k 0.9"),
+            card(AnalysisKind::Ac, 4),
+        ];
+        let names: Vec<Vec<String>> = schedule(&cards)
+            .iter()
+            .map(|entry| entry.plot_names().map(str::to_owned).collect())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                vec!["ac1"],
+                vec!["disto1", "disto2", "disto3"],
+                vec!["disto4", "disto5"]
+            ]
+        );
     }
 
     #[test]

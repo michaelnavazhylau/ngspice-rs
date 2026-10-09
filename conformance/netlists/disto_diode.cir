@@ -1,0 +1,26 @@
+Harmonic and intermodulation distortion of diode stages
+* #104: diodset.c/diodisto.c. A forward-biased diode with RS, CJO, TT and a
+* sidewall (JSW/CJSW at the instance temperature), a varactor reverse-biased
+* by 2 V (SPICE3's cubic reverse law) and driven by a current-source input
+* with a phase, and a zener held in breakdown with its own voltage input.
+* The later IM card runs first (disto1..3), the harmonic card writes
+* disto4/disto5. RELTOL is tightened so the operating points agree to well
+* inside the 1 ppm bound.
+v1 in 0 dc 0.65 ac 1 distof1 0.01 distof2 0.008 30
+r1 in a 1k
+d1 a 0 dfwd pj=2 temp=40
+i2 0 v dc 20u distof1 1u 45 distof2 0.5u
+r2 v 0 100k
+d2 0 v dvar
+v3 z 0 dc -6 distof1 0.05 distof2 0.04
+r3 z k 2k
+d3 k 0 dz
+r4 k 0 50k
+c4 k 0 1n
+.model dfwd d(is=1e-14 n=1.2 rs=5 cjo=2p vj=0.7 m=0.4 tt=2n jsw=1e-15 cjsw=0.5p vjsw=0.6 mjsw=0.3)
+.model dvar d(is=1e-15 cjo=10p vj=0.8 m=0.5 fc=0.5)
+.model dz d(is=1e-14 bv=5.1 ibv=1m cjo=5p)
+.option reltol=1e-7
+.disto dec 3 1k 10meg
+.disto oct 2 1k 64k 0.9
+.end

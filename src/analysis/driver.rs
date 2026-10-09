@@ -1,7 +1,8 @@
 //! Analysis drivers: `.op`, `.dc`, `.ac`, `.tran`, `.tf` and friends.
 //!
 //! `.noise` runs [`crate::analysis::noise`] (two plots, see
-//! [`Analysis::run_plots`]).
+//! [`Analysis::run_plots`]); `.disto` runs [`crate::analysis::disto`] (two
+//! harmonic or three intermodulation plots).
 //!
 //! Ported from `src/spicelib/analysis/`, which is where ngspice's job control
 //! lives: `CKTdoJob()` in `cktdojob.c` dispatches on the analysis, `dctran.c`
@@ -330,6 +331,44 @@ impl Analysis for Noise {
     }
 }
 
+/// `.disto` — small-signal harmonic and intermodulation distortion
+/// ([`crate::analysis::disto`], `docs/port/DISTORTION.md`).
+///
+/// C: `distoan.c`. [`Analysis::run_plots`] returns every plot C writes (the
+/// 2nd and 3rd harmonics, or the three IM products with `f2overf1`);
+/// [`Analysis::run`] returns the first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Distortion;
+
+impl Analysis for Distortion {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::Distortion
+    }
+
+    fn name(&self) -> &'static str {
+        "distortion"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        let mut plots = crate::analysis::disto::run(circuit, request, context)?;
+        Ok(plots.swap_remove(0))
+    }
+
+    fn run_plots(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Vec<Plot>> {
+        crate::analysis::disto::run(circuit, request, context)
+    }
+}
+
 /// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
 /// ([`crate::analysis::companion_transient`]), or the explicitly selected bounded diffsol
 /// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
@@ -468,7 +507,7 @@ impl Analysis for Sensitivity {
 
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 9] = [
+pub const DRIVERS: [AnalysisKind; 10] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
@@ -477,6 +516,7 @@ pub const DRIVERS: [AnalysisKind; 9] = [
     AnalysisKind::TransferFunction,
     AnalysisKind::SParameter,
     AnalysisKind::Noise,
+    AnalysisKind::Distortion,
     AnalysisKind::Sensitivity,
 ];
 
@@ -519,8 +559,7 @@ pub fn support(kind: AnalysisKind) -> AnalysisSupport {
 ///
 /// # Errors
 ///
-/// [`SpiceError::Unsupported`] for the analyses without a driver (`.disto`)
-/// and for `.four`, which is not a driver but
+/// [`SpiceError::Unsupported`] for `.four`, which is not a driver but
 /// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
@@ -533,6 +572,7 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::TransferFunction => Box::new(TransferFunction),
         AnalysisKind::SParameter => Box::new(SParameter),
         AnalysisKind::Noise => Box::new(Noise),
+        AnalysisKind::Distortion => Box::new(Distortion),
         AnalysisKind::Sensitivity => Box::new(Sensitivity),
         other => {
             return Err(SpiceError::Unsupported {
@@ -565,7 +605,7 @@ mod tests {
 
     #[test]
     fn analyses_off_the_roadmap_are_reported_as_unsupported() {
-        for kind in [AnalysisKind::Distortion, AnalysisKind::Fourier] {
+        for kind in [AnalysisKind::Fourier] {
             let error = runner(kind).expect_err("no driver");
             assert!(
                 !error.is_not_yet_ported(),
@@ -575,7 +615,7 @@ mod tests {
         }
         assert!(super::has_driver(AnalysisKind::Noise));
         assert!(super::has_driver(AnalysisKind::Sensitivity));
-        assert!(!super::has_driver(AnalysisKind::Distortion));
+        assert!(super::has_driver(AnalysisKind::Distortion));
         assert!(super::has_driver(AnalysisKind::OperatingPoint));
         assert!(super::has_driver(AnalysisKind::TransferFunction));
     }

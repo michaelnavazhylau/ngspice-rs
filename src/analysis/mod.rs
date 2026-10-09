@@ -34,6 +34,7 @@ pub mod batch;
 pub mod bias;
 mod companion;
 pub mod config;
+pub mod disto;
 pub mod driver;
 pub mod fourier;
 mod initial;

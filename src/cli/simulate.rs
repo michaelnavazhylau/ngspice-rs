@@ -137,7 +137,7 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
         return Err(SpiceError::parse(
             netlist.location.clone(),
             "the deck requests no analysis: 'simulate' needs at least one .op, .dc, .ac, \
-             .tran, .sp or .noise card",
+             .tran, .sp, .noise or .disto card",
         ));
     }
     // Options are validated before anything runs, exactly as `parse` does:
