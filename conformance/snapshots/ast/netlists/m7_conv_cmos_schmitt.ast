@@ -1,0 +1,95 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_conv_cmos_schmitt.cir
+title: "CMOS Schmitt trigger: operating point and hysteresis sweeps" @netlists/m7_conv_cmos_schmitt.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m7_conv_cmos_schmitt.cir:4:1 "vdd vdd 0 dc 5"
+    [1] device[1] @netlists/m7_conv_cmos_schmitt.cir:5:1 "vin in 0 dc 2.5"
+    [2] device[2] @netlists/m7_conv_cmos_schmitt.cir:6:1 "mp1 a in vdd vdd pmod w=10u l=2u"
+    [3] device[3] @netlists/m7_conv_cmos_schmitt.cir:7:1 "mp2 out in a vdd pmod w=10u l=2u"
+    [4] device[4] @netlists/m7_conv_cmos_schmitt.cir:8:1 "mn1 out in b 0 nmod w=5u l=2u"
+    [5] device[5] @netlists/m7_conv_cmos_schmitt.cir:9:1 "mn2 b in 0 0 nmod w=5u l=2u"
+    [6] device[6] @netlists/m7_conv_cmos_schmitt.cir:10:1 "mp3 a out 0 vdd pmod w=10u l=2u"
+    [7] device[7] @netlists/m7_conv_cmos_schmitt.cir:11:1 "mn3 b out vdd 0 nmod w=5u l=2u"
+    [8] model[0] @netlists/m7_conv_cmos_schmitt.cir:12:1 ".model nmod nmos(level=1 vto=0.8 kp=60u lambda=0.02)"
+    [9] model[1] @netlists/m7_conv_cmos_schmitt.cir:13:1 ".model pmod pmos(level=1 vto=-0.8 kp=25u lambda=0.02)"
+    [10] options[0] @netlists/m7_conv_cmos_schmitt.cir:14:1 ".options reltol=1e-8 vntol=1e-12"
+    [11] analysis[0] @netlists/m7_conv_cmos_schmitt.cir:15:1 ".op"
+    [12] analysis[1] @netlists/m7_conv_cmos_schmitt.cir:16:1 ".dc vin 0 5 0.1"
+    [13] analysis[2] @netlists/m7_conv_cmos_schmitt.cir:17:1 ".dc vin 5 0 -0.1"
+    [14] end @netlists/m7_conv_cmos_schmitt.cir:18:1 ".end"
+  devices (8):
+    device [0] name="vdd" designator=v @netlists/m7_conv_cmos_schmitt.cir:4:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m7_conv_cmos_schmitt.cir:4:11
+    device [1] name="vin" designator=v @netlists/m7_conv_cmos_schmitt.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2.5" @netlists/m7_conv_cmos_schmitt.cir:5:10
+    device [2] name="mp1" designator=m @netlists/m7_conv_cmos_schmitt.cir:6:1
+      nodes: "a" "in" "vdd" "vdd"
+      model: "pmod"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m7_conv_cmos_schmitt.cir:6:23
+        [1] name="l" kind=scalar value="2u" @netlists/m7_conv_cmos_schmitt.cir:6:29
+    device [3] name="mp2" designator=m @netlists/m7_conv_cmos_schmitt.cir:7:1
+      nodes: "out" "in" "a" "vdd"
+      model: "pmod"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m7_conv_cmos_schmitt.cir:7:23
+        [1] name="l" kind=scalar value="2u" @netlists/m7_conv_cmos_schmitt.cir:7:29
+    device [4] name="mn1" designator=m @netlists/m7_conv_cmos_schmitt.cir:8:1
+      nodes: "out" "in" "b" "0"
+      model: "nmod"
+      parameters (2):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_conv_cmos_schmitt.cir:8:21
+        [1] name="l" kind=scalar value="2u" @netlists/m7_conv_cmos_schmitt.cir:8:26
+    device [5] name="mn2" designator=m @netlists/m7_conv_cmos_schmitt.cir:9:1
+      nodes: "b" "in" "0" "0"
+      model: "nmod"
+      parameters (2):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_conv_cmos_schmitt.cir:9:19
+        [1] name="l" kind=scalar value="2u" @netlists/m7_conv_cmos_schmitt.cir:9:24
+    device [6] name="mp3" designator=m @netlists/m7_conv_cmos_schmitt.cir:10:1
+      nodes: "a" "out" "0" "vdd"
+      model: "pmod"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m7_conv_cmos_schmitt.cir:10:22
+        [1] name="l" kind=scalar value="2u" @netlists/m7_conv_cmos_schmitt.cir:10:28
+    device [7] name="mn3" designator=m @netlists/m7_conv_cmos_schmitt.cir:11:1
+      nodes: "b" "out" "vdd" "0"
+      model: "nmod"
+      parameters (2):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_conv_cmos_schmitt.cir:11:22
+        [1] name="l" kind=scalar value="2u" @netlists/m7_conv_cmos_schmitt.cir:11:27
+  models (2):
+    model [0] name="nmod" base="nmos" level=1e0 @netlists/m7_conv_cmos_schmitt.cir:12:1
+      parameters (4):
+        [0] name="level" kind=scalar value="1" @netlists/m7_conv_cmos_schmitt.cir:12:18
+        [1] name="vto" kind=scalar value="0.8" @netlists/m7_conv_cmos_schmitt.cir:12:26
+        [2] name="kp" kind=scalar value="60u" @netlists/m7_conv_cmos_schmitt.cir:12:34
+        [3] name="lambda" kind=scalar value="0.02" @netlists/m7_conv_cmos_schmitt.cir:12:41
+    model [1] name="pmod" base="pmos" level=1e0 @netlists/m7_conv_cmos_schmitt.cir:13:1
+      parameters (4):
+        [0] name="level" kind=scalar value="1" @netlists/m7_conv_cmos_schmitt.cir:13:18
+        [1] name="vto" kind=scalar value="-0.8" @netlists/m7_conv_cmos_schmitt.cir:13:26
+        [2] name="kp" kind=scalar value="25u" @netlists/m7_conv_cmos_schmitt.cir:13:35
+        [3] name="lambda" kind=scalar value="0.02" @netlists/m7_conv_cmos_schmitt.cir:13:42
+  subcircuits (0):
+  analyses (3):
+    analysis [0] kind=op @netlists/m7_conv_cmos_schmitt.cir:15:1
+      arguments:
+    analysis [1] kind=dc @netlists/m7_conv_cmos_schmitt.cir:16:1
+      arguments: "vin" "0" "5" "0.1"
+    analysis [2] kind=dc @netlists/m7_conv_cmos_schmitt.cir:17:1
+      arguments: "vin" "5" "0" "-0.1"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_conv_cmos_schmitt.cir:14:1
+      setting [0] name="reltol" value="1e-8"@netlists/m7_conv_cmos_schmitt.cir:14:17 @netlists/m7_conv_cmos_schmitt.cir:14:10
+      setting [1] name="vntol" value="1e-12"@netlists/m7_conv_cmos_schmitt.cir:14:28 @netlists/m7_conv_cmos_schmitt.cir:14:22
+  globals (0):

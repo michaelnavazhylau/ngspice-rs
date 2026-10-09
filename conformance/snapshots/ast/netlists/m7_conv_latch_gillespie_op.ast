@@ -1,0 +1,80 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_conv_latch_gillespie_op.cir
+title: "BJT latch operating point by gillespie_src (noopiter, srcsteps=1)" @netlists/m7_conv_latch_gillespie_op.cir:1:1
+scope root
+  cards (13):
+    [0] device[0] @netlists/m7_conv_latch_gillespie_op.cir:3:1 "vcc vcc 0 dc 5"
+    [1] device[1] @netlists/m7_conv_latch_gillespie_op.cir:4:1 "rc1 vcc c1 1k"
+    [2] device[2] @netlists/m7_conv_latch_gillespie_op.cir:5:1 "rc2 vcc c2 1.2k"
+    [3] device[3] @netlists/m7_conv_latch_gillespie_op.cir:6:1 "rb1 c1 b2 10k"
+    [4] device[4] @netlists/m7_conv_latch_gillespie_op.cir:7:1 "rb2 c2 b1 10k"
+    [5] device[5] @netlists/m7_conv_latch_gillespie_op.cir:8:1 "rx1 b1 0 4.7k"
+    [6] device[6] @netlists/m7_conv_latch_gillespie_op.cir:9:1 "rx2 b2 0 4.7k"
+    [7] device[7] @netlists/m7_conv_latch_gillespie_op.cir:10:1 "q1 c1 b1 0 qmod"
+    [8] device[8] @netlists/m7_conv_latch_gillespie_op.cir:11:1 "q2 c2 b2 0 qmod"
+    [9] model[0] @netlists/m7_conv_latch_gillespie_op.cir:12:1 ".model qmod npn(is=1e-14 bf=100)"
+    [10] options[0] @netlists/m7_conv_latch_gillespie_op.cir:13:1 ".options reltol=1e-8 noopiter gminsteps=0 srcsteps=1"
+    [11] analysis[0] @netlists/m7_conv_latch_gillespie_op.cir:14:1 ".op"
+    [12] end @netlists/m7_conv_latch_gillespie_op.cir:15:1 ".end"
+  devices (9):
+    device [0] name="vcc" designator=v @netlists/m7_conv_latch_gillespie_op.cir:3:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m7_conv_latch_gillespie_op.cir:3:11
+    device [1] name="rc1" designator=r @netlists/m7_conv_latch_gillespie_op.cir:4:1
+      nodes: "vcc" "c1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_conv_latch_gillespie_op.cir:4:12
+    device [2] name="rc2" designator=r @netlists/m7_conv_latch_gillespie_op.cir:5:1
+      nodes: "vcc" "c2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1.2k" @netlists/m7_conv_latch_gillespie_op.cir:5:12
+    device [3] name="rb1" designator=r @netlists/m7_conv_latch_gillespie_op.cir:6:1
+      nodes: "c1" "b2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_conv_latch_gillespie_op.cir:6:11
+    device [4] name="rb2" designator=r @netlists/m7_conv_latch_gillespie_op.cir:7:1
+      nodes: "c2" "b1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_conv_latch_gillespie_op.cir:7:11
+    device [5] name="rx1" designator=r @netlists/m7_conv_latch_gillespie_op.cir:8:1
+      nodes: "b1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @netlists/m7_conv_latch_gillespie_op.cir:8:10
+    device [6] name="rx2" designator=r @netlists/m7_conv_latch_gillespie_op.cir:9:1
+      nodes: "b2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @netlists/m7_conv_latch_gillespie_op.cir:9:10
+    device [7] name="q1" designator=q @netlists/m7_conv_latch_gillespie_op.cir:10:1
+      nodes: "c1" "b1" "0"
+      model: "qmod"
+      parameters (0):
+    device [8] name="q2" designator=q @netlists/m7_conv_latch_gillespie_op.cir:11:1
+      nodes: "c2" "b2" "0"
+      model: "qmod"
+      parameters (0):
+  models (1):
+    model [0] name="qmod" base="npn" level=none @netlists/m7_conv_latch_gillespie_op.cir:12:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m7_conv_latch_gillespie_op.cir:12:17
+        [1] name="bf" kind=scalar value="100" @netlists/m7_conv_latch_gillespie_op.cir:12:26
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/m7_conv_latch_gillespie_op.cir:14:1
+      arguments:
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_conv_latch_gillespie_op.cir:13:1
+      setting [0] name="reltol" value="1e-8"@netlists/m7_conv_latch_gillespie_op.cir:13:17 @netlists/m7_conv_latch_gillespie_op.cir:13:10
+      setting [1] name="noopiter" value=flag @netlists/m7_conv_latch_gillespie_op.cir:13:22
+      setting [2] name="gminsteps" value="0"@netlists/m7_conv_latch_gillespie_op.cir:13:41 @netlists/m7_conv_latch_gillespie_op.cir:13:31
+      setting [3] name="srcsteps" value="1"@netlists/m7_conv_latch_gillespie_op.cir:13:52 @netlists/m7_conv_latch_gillespie_op.cir:13:43
+  globals (0):

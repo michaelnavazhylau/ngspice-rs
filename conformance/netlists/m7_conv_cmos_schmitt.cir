@@ -1,0 +1,18 @@
+CMOS Schmitt trigger: operating point and hysteresis sweeps
+* #106: the .dc sweeps run in opposite directions through the hysteresis band;
+* the .op at vin = 2.5 V lies inside it.
+vdd vdd 0 dc 5
+vin in 0 dc 2.5
+mp1 a in vdd vdd pmod w=10u l=2u
+mp2 out in a vdd pmod w=10u l=2u
+mn1 out in b 0 nmod w=5u l=2u
+mn2 b in 0 0 nmod w=5u l=2u
+mp3 a out 0 vdd pmod w=10u l=2u
+mn3 b out vdd 0 nmod w=5u l=2u
+.model nmod nmos(level=1 vto=0.8 kp=60u lambda=0.02)
+.model pmod pmos(level=1 vto=-0.8 kp=25u lambda=0.02)
+.options reltol=1e-8 vntol=1e-12
+.op
+.dc vin 0 5 0.1
+.dc vin 5 0 -0.1
+.end

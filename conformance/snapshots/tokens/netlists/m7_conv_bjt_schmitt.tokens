@@ -1,0 +1,122 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_conv_bjt_schmitt.cir
+title: "Emitter-coupled BJT Schmitt trigger: operating point and hysteresis sweeps" @netlists/m7_conv_bjt_schmitt.cir:1:1
+card 1 @netlists/m7_conv_bjt_schmitt.cir:4:1 lines=4-4 continuations=0
+  raw: "vcc vcc 0 dc 5"
+  kind: device(v)
+  token 1 4:1 word "vcc"
+  token 2 4:5 word "vcc"
+  token 3 4:9 number "0" value=0e0
+  token 4 4:11 word "dc"
+  token 5 4:14 number "5" value=5e0
+card 2 @netlists/m7_conv_bjt_schmitt.cir:5:1 lines=5-5 continuations=0
+  raw: "vin in 0 dc 2.1"
+  kind: device(v)
+  token 1 5:1 word "vin"
+  token 2 5:5 word "in"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 word "dc"
+  token 5 5:13 number "2.1" value=2.1e0
+card 3 @netlists/m7_conv_bjt_schmitt.cir:6:1 lines=6-6 continuations=0
+  raw: "rs in b1 1k"
+  kind: device(r)
+  token 1 6:1 word "rs"
+  token 2 6:4 word "in"
+  token 3 6:7 word "b1"
+  token 4 6:10 number "1k" value=1e3
+card 4 @netlists/m7_conv_bjt_schmitt.cir:7:1 lines=7-7 continuations=0
+  raw: "q1 c1 b1 e qmod"
+  kind: device(q)
+  token 1 7:1 word "q1"
+  token 2 7:4 word "c1"
+  token 3 7:7 word "b1"
+  token 4 7:10 word "e"
+  token 5 7:12 word "qmod"
+card 5 @netlists/m7_conv_bjt_schmitt.cir:8:1 lines=8-8 continuations=0
+  raw: "rc1 vcc c1 2k"
+  kind: device(r)
+  token 1 8:1 word "rc1"
+  token 2 8:5 word "vcc"
+  token 3 8:9 word "c1"
+  token 4 8:12 number "2k" value=2e3
+card 6 @netlists/m7_conv_bjt_schmitt.cir:9:1 lines=9-9 continuations=0
+  raw: "r1 c1 b2 4k"
+  kind: device(r)
+  token 1 9:1 word "r1"
+  token 2 9:4 word "c1"
+  token 3 9:7 word "b2"
+  token 4 9:10 number "4k" value=4e3
+card 7 @netlists/m7_conv_bjt_schmitt.cir:10:1 lines=10-10 continuations=0
+  raw: "r2 b2 0 6k"
+  kind: device(r)
+  token 1 10:1 word "r2"
+  token 2 10:4 word "b2"
+  token 3 10:7 number "0" value=0e0
+  token 4 10:9 number "6k" value=6e3
+card 8 @netlists/m7_conv_bjt_schmitt.cir:11:1 lines=11-11 continuations=0
+  raw: "q2 out b2 e qmod"
+  kind: device(q)
+  token 1 11:1 word "q2"
+  token 2 11:4 word "out"
+  token 3 11:8 word "b2"
+  token 4 11:11 word "e"
+  token 5 11:13 word "qmod"
+card 9 @netlists/m7_conv_bjt_schmitt.cir:12:1 lines=12-12 continuations=0
+  raw: "rc2 vcc out 1k"
+  kind: device(r)
+  token 1 12:1 word "rc2"
+  token 2 12:5 word "vcc"
+  token 3 12:9 word "out"
+  token 4 12:13 number "1k" value=1e3
+card 10 @netlists/m7_conv_bjt_schmitt.cir:13:1 lines=13-13 continuations=0
+  raw: "re e 0 500"
+  kind: device(r)
+  token 1 13:1 word "re"
+  token 2 13:4 word "e"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "500" value=5e2
+card 11 @netlists/m7_conv_bjt_schmitt.cir:14:1 lines=14-14 continuations=0
+  raw: ".model qmod npn(is=1e-14 bf=100)"
+  kind: dot(.model)
+  token 1 14:1 word ".model"
+  token 2 14:8 word "qmod"
+  token 3 14:13 word "npn"
+  token 4 14:16 lparen "("
+  token 5 14:17 word "is"
+  token 6 14:19 equals "="
+  token 7 14:20 number "1e-14" value=1e-14
+  token 8 14:26 word "bf"
+  token 9 14:28 equals "="
+  token 10 14:29 number "100" value=1e2
+  token 11 14:32 rparen ")"
+card 12 @netlists/m7_conv_bjt_schmitt.cir:15:1 lines=15-15 continuations=0
+  raw: ".options reltol=1e-8"
+  kind: dot(.options)
+  token 1 15:1 word ".options"
+  token 2 15:10 word "reltol"
+  token 3 15:16 equals "="
+  token 4 15:17 number "1e-8" value=1e-8
+card 13 @netlists/m7_conv_bjt_schmitt.cir:16:1 lines=16-16 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 16:1 word ".op"
+card 14 @netlists/m7_conv_bjt_schmitt.cir:17:1 lines=17-17 continuations=0
+  raw: ".dc vin 0 3 0.05"
+  kind: dot(.dc)
+  token 1 17:1 word ".dc"
+  token 2 17:5 word "vin"
+  token 3 17:9 number "0" value=0e0
+  token 4 17:11 number "3" value=3e0
+  token 5 17:13 number "0.05" value=5e-2
+card 15 @netlists/m7_conv_bjt_schmitt.cir:18:1 lines=18-18 continuations=0
+  raw: ".dc vin 3 0 -0.05"
+  kind: dot(.dc)
+  token 1 18:1 word ".dc"
+  token 2 18:5 word "vin"
+  token 3 18:9 number "3" value=3e0
+  token 4 18:11 number "0" value=0e0
+  token 5 18:13 number "-0.05" value=-5e-2
+card 16 @netlists/m7_conv_bjt_schmitt.cir:19:1 lines=19-19 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 19:1 word ".end"

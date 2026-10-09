@@ -545,6 +545,51 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m7_bjt_amp_tran", &[]),
+    // Convergence parity (#106): a BJT latch whose operating point depends on
+    // the Newton path (MODEINITJCT start, `DEVpnjlim`, `dynamic_gmin`), the
+    // same latch under `.options noopiter` with each of ngspice's other
+    // continuation strategies (`gillespie_src`, `spice3_gmin`, `spice3_src`;
+    // `spice3_src` and the default land in different states), and a set/reset
+    // transient through the regenerative switching. `.option reltol` is tight
+    // enough that C's own stopping error stays inside the nonlinear 1 ppm
+    // bound; the transient bounds the maximum step and keeps `compare::TRAN`.
+    Supported {
+        name: "m7_conv_latch_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_conv_latch_gillespie_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_conv_latch_spice3_gmin_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_conv_latch_spice3_src_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m7_conv_latch_tran", &[]),
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -626,6 +671,65 @@ const BATCH: &[Batch] = &[
             Stage {
                 kind: AnalysisKind::Transient,
                 gate: Gate::Transient(compare::TRAN),
+            },
+        ],
+    },
+    // Convergence parity (#106): Schmitt triggers swept up and down through
+    // their hysteresis (each `.dc` point warm-starts from the previous one,
+    // as `dctrcurv.c` does, so the two sweeps follow different branches) and
+    // an operating point inside the band, which C's (and the port's) CKTop
+    // continuation settles on the middle branch for the BJT deck. ngspice
+    // runs the sweeps before the operating point and the later `.dc` card
+    // first. Nonlinear 1 ppm bound with tightened RELTOL/VNTOL.
+    Batch {
+        name: "m7_conv_bjt_schmitt",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    Batch {
+        name: "m7_conv_cmos_schmitt",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
             },
         ],
     },

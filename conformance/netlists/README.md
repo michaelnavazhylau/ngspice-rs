@@ -117,6 +117,13 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_bjt_temp` | `.dc` | `temp` sweep -40..125 C: NPN (XTB/XTI/EG), lateral PNP with substrate ISS, TLEV=1 and polynomial tempcos, TNOM; TLEV=3/TLEVC=1 NPN with IBE/IBC, NKF, `dtemp`/`area`/`areab`/`m` |
 | `m7_bjt_amp_ac` | `.ac` | CE amplifier at 50 C: CJE/CJC with XCJC, CJS substrate (4th terminal), TF with XTF/VTF/ITF, TR |
 | `m7_bjt_amp_tran` | `.tran` | the same amplifier driven by a 10 mV PULSE: every charge companion |
+| `m7_conv_latch_op` | `.op` | cross-coupled BJT latch (#106): ngspice's MODEINITJCT start, `DEVpnjlim` and `dynamic_gmin` settle on the metastable point, `.option reltol=1e-8` |
+| `m7_conv_latch_gillespie_op` | `.op` | the same latch with `.options noopiter gminsteps=0 srcsteps=1`: `gillespie_src` only |
+| `m7_conv_latch_spice3_gmin_op` | `.op` | the same latch with `noopiter gminsteps=4`: `spice3_gmin` |
+| `m7_conv_latch_spice3_src_op` | `.op` | the same latch with `noopiter gminsteps=0 srcsteps=4`: `spice3_src`, which lands in a stable state |
+| `m7_conv_latch_tran` | `.tran` | a cross-coupled pair switched by set/reset PULSEs through junction charges (10 ns maximum step, `reltol=1e-7`) |
+| `m7_conv_bjt_schmitt` | `.dc` `.dc` `.op` | emitter-coupled BJT Schmitt trigger swept up and down through its hysteresis (warm-started `.dc` points) and an `.op` inside the band |
+| `m7_conv_cmos_schmitt` | `.dc` `.dc` `.op` | six-transistor MOS1 Schmitt trigger swept up and down and an `.op` inside the band (`reltol=1e-8 vntol=1e-12`) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -154,3 +161,6 @@ The five `m7_bjt_*` decks (#87) were captured one at a time with
 Each sets `.option reltol=1e-8`: at C's default `reltol` (with bypass) the
 Gummel-Poon sweeps stop about 4e-4 away from the converged root, outside the
 1 ppm nonlinear bound; see [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md).
+
+The seven `m7_conv_*` convergence decks (#106) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.

@@ -1,0 +1,19 @@
+Emitter-coupled BJT Schmitt trigger: operating point and hysteresis sweeps
+* #106: the .dc sweeps run in opposite directions through the hysteresis band;
+* the .op at vin = 2.1 V lies inside it.
+vcc vcc 0 dc 5
+vin in 0 dc 2.1
+rs in b1 1k
+q1 c1 b1 e qmod
+rc1 vcc c1 2k
+r1 c1 b2 4k
+r2 b2 0 6k
+q2 out b2 e qmod
+rc2 vcc out 1k
+re e 0 500
+.model qmod npn(is=1e-14 bf=100)
+.options reltol=1e-8
+.op
+.dc vin 0 3 0.05
+.dc vin 3 0 -0.05
+.end
