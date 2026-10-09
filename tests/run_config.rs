@@ -181,12 +181,17 @@ fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
         ["1u", "1m", "method=trap", "maxord=2"],
     );
     assert_eq!(c.request(explicit.clone()).unwrap(), explicit);
-    // Gear orders above the implemented 2 are rejected up front.
-    let error = config(".options method=gear maxord=4")
+    // Gear orders up to ngspice's 6 are forwarded (#98); the companion driver
+    // follows dctran.c, which never runs above order 2.
+    let request = config(".options method=gear maxord=4")
         .unwrap()
         .request(ordinary.clone())
-        .unwrap_err();
-    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+        .unwrap();
+    assert_eq!(
+        (request.named("method"), request.named("maxord")),
+        (Some("gear"), Some("4"))
+    );
+    assert!(config(".options method=gear maxord=7").is_err());
     // trtol/chgtol are companion truncation options.
     let c = config(".options trtol=3 chgtol=1e-13").unwrap();
     assert_eq!(

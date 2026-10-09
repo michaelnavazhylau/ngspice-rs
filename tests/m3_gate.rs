@@ -927,7 +927,7 @@ fn work_and_minimum_step_failures_are_explicit_on_a_gate_deck() {
         "{error}"
     );
     // Unsupported selections stay explicit errors rather than being ignored.
-    let error = fixture.tran(&["maxord=3"]).unwrap_err().to_string();
+    let error = fixture.tran(&["maxord=7"]).unwrap_err().to_string();
     assert!(error.to_lowercase().contains("maxord"), "{error}");
 }
 

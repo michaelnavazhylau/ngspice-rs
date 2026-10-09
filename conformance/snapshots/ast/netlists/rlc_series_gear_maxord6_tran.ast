@@ -1,0 +1,53 @@
+# ngspice-rs ast-dump v1
+file: netlists/rlc_series_gear_maxord6_tran.cir
+title: "Series RLC pulse transient, Gear maxord=6" @netlists/rlc_series_gear_maxord6_tran.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/rlc_series_gear_maxord6_tran.cir:5:1 "v1 in 0 pulse(0 1 50u 20u 20u 400u 1m)"
+    [1] device[1] @netlists/rlc_series_gear_maxord6_tran.cir:6:1 "r1 in a 10"
+    [2] device[2] @netlists/rlc_series_gear_maxord6_tran.cir:7:1 "l1 a out 1m"
+    [3] device[3] @netlists/rlc_series_gear_maxord6_tran.cir:8:1 "c1 out 0 1u"
+    [4] options[0] @netlists/rlc_series_gear_maxord6_tran.cir:9:1 ".options method=gear maxord=6"
+    [5] analysis[0] @netlists/rlc_series_gear_maxord6_tran.cir:10:1 ".tran 1u 1m"
+    [6] end @netlists/rlc_series_gear_maxord6_tran.cir:11:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/rlc_series_gear_maxord6_tran.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1 50u 20u 20u 400u 1m)" @netlists/rlc_series_gear_maxord6_tran.cir:5:9
+          pulse
+            initial: "0"@netlists/rlc_series_gear_maxord6_tran.cir:5:15
+            pulsed: "1"@netlists/rlc_series_gear_maxord6_tran.cir:5:17
+            delay: "50u"@netlists/rlc_series_gear_maxord6_tran.cir:5:19
+            rise: "20u"@netlists/rlc_series_gear_maxord6_tran.cir:5:23
+            fall: "20u"@netlists/rlc_series_gear_maxord6_tran.cir:5:27
+            width: "400u"@netlists/rlc_series_gear_maxord6_tran.cir:5:31
+            period: "1m"@netlists/rlc_series_gear_maxord6_tran.cir:5:36
+    device [1] name="r1" designator=r @netlists/rlc_series_gear_maxord6_tran.cir:6:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10" @netlists/rlc_series_gear_maxord6_tran.cir:6:9
+    device [2] name="l1" designator=l @netlists/rlc_series_gear_maxord6_tran.cir:7:1
+      nodes: "a" "out"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/rlc_series_gear_maxord6_tran.cir:7:10
+    device [3] name="c1" designator=c @netlists/rlc_series_gear_maxord6_tran.cir:8:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/rlc_series_gear_maxord6_tran.cir:8:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/rlc_series_gear_maxord6_tran.cir:10:1
+      arguments: "1u" "1m"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/rlc_series_gear_maxord6_tran.cir:9:1
+      setting [0] name="method" value="gear"@netlists/rlc_series_gear_maxord6_tran.cir:9:17 @netlists/rlc_series_gear_maxord6_tran.cir:9:10
+      setting [1] name="maxord" value="6"@netlists/rlc_series_gear_maxord6_tran.cir:9:29 @netlists/rlc_series_gear_maxord6_tran.cir:9:22
+  globals (0):

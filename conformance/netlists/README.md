@@ -57,6 +57,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `rc_pwl_tran` | `.tran` | PWL drive with corners on the output grid |
 | `rlc_series_tran` | `.tran` | underdamped series RLC (zeta = 0.158), PULSE, trapezoidal |
 | `rlc_series_gear_tran` | `.tran` | same circuit, Gear-2 |
+| `rlc_series_gear_maxord6_tran` | `.tran` | same circuit, `method=gear maxord=6` (#98): `dctran.c` never raises the order above 2, so C's data equal `rlc_series_gear_tran` |
 | `floating_cap_tran` | `.tran` | floating capacitor between two resistive nodes (rank-deficient mass, index one) |
 | `coupled_cap_tran` | `.tran` | coupled capacitances (nondiagonal, nonsingular mass block) |
 | `rlc_series_ac` | `.ac` | complex RLC low-pass sweep through resonance (`lin`) |

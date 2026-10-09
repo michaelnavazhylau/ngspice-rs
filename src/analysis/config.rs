@@ -17,7 +17,7 @@
 //! | `vntol` | voltage absolute tolerance (companion Newton test; diffsol BDF; DC/AC Newton) |
 //! | `abstol` | branch-current absolute tolerance (companion truncation/Newton test; diffsol BDF; DC/AC Newton) |
 //! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
-//! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 or 2); **rejected with `backend=diffsol`**, which is neither |
+//! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 to 6; `dctran.c` never runs above order 2, so 2 to 6 behave alike); **rejected with `backend=diffsol`**, which is neither |
 //! | `xmu` | companion trapezoidal weighting (`nicomcof.c`, default 0.5, `0..=0.5`); **rejected with `backend=diffsol`** |
 //! | `itl1` | Newton iteration limit of the direct DC solve and of the gmin strategies' closing solve (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (C `CKTdcMaxIter`; `dcop.c`, `acan.c`, `dctran.c` call `CKTop`); default 100 |
 //! | `itl2` | Newton limit of every other gmin/source-stepping stage of that DC bias (`stagemaxiter`, C `CKTdcTrcvMaxIter` in `cktop.c`); as written, the step adaptation of `dynamic_gmin`/`new_gmin`/`gillespie_src` (`adaptiter`, `iters <= itl2/4`); on `.dc` also the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`), whose failure falls back to the full bias |
@@ -865,7 +865,7 @@ impl RunConfig {
     /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord`,
     /// `chgtol`/`trtol`, `itl4`, `xmu` or a DC option and the transient request
     /// names `backend=diffsol`, which implements none of them, so the selection
-    /// cannot be honoured and is not silently ignored; also Gear orders above 2.
+    /// cannot be honoured and is not silently ignored.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
         // Deck-level hints travel with every request (explicit request entries
         // win); each driver validates them against its circuit.

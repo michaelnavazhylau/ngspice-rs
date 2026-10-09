@@ -1,0 +1,60 @@
+# ngspice-rs token-dump v1
+file: netlists/rlc_series_gear_maxord6_tran.cir
+title: "Series RLC pulse transient, Gear maxord=6" @netlists/rlc_series_gear_maxord6_tran.cir:1:1
+card 1 @netlists/rlc_series_gear_maxord6_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 pulse(0 1 50u 20u 20u 400u 1m)"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "pulse"
+  token 5 5:14 lparen "("
+  token 6 5:15 number "0" value=0e0
+  token 7 5:17 number "1" value=1e0
+  token 8 5:19 number "50u" value=4.9999999999999996e-5
+  token 9 5:23 number "20u" value=1.9999999999999998e-5
+  token 10 5:27 number "20u" value=1.9999999999999998e-5
+  token 11 5:31 number "400u" value=3.9999999999999996e-4
+  token 12 5:36 number "1m" value=1e-3
+  token 13 5:38 rparen ")"
+card 2 @netlists/rlc_series_gear_maxord6_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in a 10"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "a"
+  token 4 6:9 number "10" value=1e1
+card 3 @netlists/rlc_series_gear_maxord6_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "l1 a out 1m"
+  kind: device(l)
+  token 1 7:1 word "l1"
+  token 2 7:4 word "a"
+  token 3 7:6 word "out"
+  token 4 7:10 number "1m" value=1e-3
+card 4 @netlists/rlc_series_gear_maxord6_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "c1 out 0 1u"
+  kind: device(c)
+  token 1 8:1 word "c1"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "1u" value=1e-6
+card 5 @netlists/rlc_series_gear_maxord6_tran.cir:9:1 lines=9-9 continuations=0
+  raw: ".options method=gear maxord=6"
+  kind: dot(.options)
+  token 1 9:1 word ".options"
+  token 2 9:10 word "method"
+  token 3 9:16 equals "="
+  token 4 9:17 word "gear"
+  token 5 9:22 word "maxord"
+  token 6 9:28 equals "="
+  token 7 9:29 number "6" value=6e0
+card 6 @netlists/rlc_series_gear_maxord6_tran.cir:10:1 lines=10-10 continuations=0
+  raw: ".tran 1u 1m"
+  kind: dot(.tran)
+  token 1 10:1 word ".tran"
+  token 2 10:7 number "1u" value=1e-6
+  token 3 10:10 number "1m" value=1e-3
+card 7 @netlists/rlc_series_gear_maxord6_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 11:1 word ".end"

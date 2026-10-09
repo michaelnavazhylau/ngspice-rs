@@ -280,11 +280,17 @@ fn unsupported_and_incomplete_companion_loads_fail_explicitly() {
     let be = steps.trial(TRAP, 1, 1e-6, DEFAULT_XMU).unwrap();
     let error = load(&circuit, &history, &[0.5], Some(&be)).err().unwrap();
     assert!(error.to_string().contains("accepted point"), "{error}");
-    // Gear orders above 2 cannot even produce coefficients.
-    let error = IntegrationMethod::Gear { order: 3 }
+    // Gear orders 1 to 6 are implemented (#98); 7 cannot even produce
+    // coefficients.
+    assert!(
+        IntegrationMethod::Gear { order: 6 }
+            .validate_runtime()
+            .is_ok()
+    );
+    let error = IntegrationMethod::Gear { order: 7 }
         .validate_runtime()
         .unwrap_err();
-    assert!(error.to_string().contains("only orders 1 and 2"));
+    assert!(error.to_string().contains("orders 1 to 6"), "{error}");
     // Trap order 2 needs an accepted derivative, which a DC point provides.
     let dc = load(&circuit, &history, &[1.0], None).unwrap();
     accept(&circuit, &mut history, &[1.0], dc);

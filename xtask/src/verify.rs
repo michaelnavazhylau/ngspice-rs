@@ -225,6 +225,9 @@ const SUPPORTED: &[Supported] = &[
     // runs under `compare::TRAN_RESTART`.
     tran("rlc_series_tran", &[DIFFSOL_BDF_RESTART]),
     tran("rlc_series_gear_tran", &[]),
+    // `maxord=6` (#98): C's dctran.c only toggles orders 1 and 2, so this is
+    // the Gear-2 integration again (C data equal rlc_series_gear_tran).
+    tran("rlc_series_gear_maxord6_tran", &[]),
     tran("floating_cap_tran", &[DIFFSOL_BDF]),
     tran("coupled_cap_tran", &[DIFFSOL_BDF_RESTART]),
     // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. No
