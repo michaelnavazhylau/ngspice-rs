@@ -1,0 +1,22 @@
+MOS1 inverter pair started from uic and IC vectors
+* #99: uic skips the operating point. mp1 and mn1 start from their full
+* ic= vectors (ICVDS, ICVGS, ICVBS), mp2 from ICVDS with ICVGS/ICVBS taken
+* from the .ic node vector (mos1ic.c; vdd and in are 0 V there), mn2 from
+* the node vector alone; the bulk junction and Meyer gate charges start at
+* those voltages. Gear-2 avoids the trapezoidal ringing of the gate
+* currents on the flat input, and reltol=1e-5 keeps both step sequences
+* tight through the edges.
+vdd vdd 0 dc 3
+vin in 0 dc 0 pulse(0 3 5n 0.5n 0.5n 10n 30n)
+mp1 mid in vdd vdd pm w=4u l=1u ic=-1.5,-3,0
+mn1 mid in 0 0 nm w=2u l=1u ic=1.5,0,0
+mp2 out mid vdd vdd pm w=4u l=1u icvds=-0.5
+mn2 out mid 0 0 nm w=2u l=1u
+cmid mid 0 20f
+cout out 0 20f
+.ic v(mid)=1.5 v(out)=2.5
+.model nm nmos(vto=0.7 kp=60u lambda=0.02 gamma=0.4 phi=0.65 tox=20n cgso=0.2n cgdo=0.2n cj=0.2m cjsw=1n)
+.model pm pmos(vto=-0.8 kp=25u lambda=0.03 gamma=0.5 phi=0.65 tox=20n cgso=0.2n cgdo=0.2n cj=0.2m cjsw=1n)
+.options method=gear reltol=1e-5
+.tran 0.05n 40n 0 2p uic
+.end

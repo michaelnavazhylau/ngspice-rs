@@ -590,6 +590,39 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m7_conv_latch_tran", &[]),
+    // Nonlinear initial conditions (#99): a diode/RC `uic` start from the
+    // `.ic` node vector (the diode's own `ic=` has no effect in C), a BJT
+    // flip-flop whose `.ic` selects the state through the forced transient
+    // operating point, a BJT flip-flop with an OFF transistor (held through
+    // MODEINITJCT/MODEINITFIX until C's device convergence test hands over to
+    // dynamic gmin), a MOS1 inverter pair started under `uic` from its IC
+    // vectors, and a symmetric CMOS latch whose state a `.nodeset` or MOS1
+    // `ic=` start voltages select. The transients keep `compare::TRAN`, the
+    // operating points the nonlinear 1 ppm bound; decks tighten `reltol` (and
+    // the MOS1 deck uses Gear-2) where C's own step error would be close to
+    // the bound.
+    tran("m7_ic_diode_uic_tran", &[]),
+    tran("m7_ic_bjt_flipflop_tran", &[]),
+    tran("m7_ic_bjt_off_tran", &[]),
+    tran("m7_ic_mos1_uic_tran", &[]),
+    Supported {
+        name: "m7_ic_latch_nodeset_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m7_ic_latch_mos1_ic_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.

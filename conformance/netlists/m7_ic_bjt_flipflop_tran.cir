@@ -1,0 +1,21 @@
+BJT flip-flop state selected by .ic
+* #99: the symmetric cross-coupled pair has two stable states (and an
+* unstable equilibrium between them). The .ic node voltages are forced in
+* every Newton load of the transient operating point (MODETRANOP without
+* uic), which settles in the q1-on state, and released for the transient. A
+* reset pulse into b2 at 30 us flips the pair.
+vcc vcc 0 dc 5
+vr r 0 dc 0 pulse(0 5 30u 1u 1u 5u 100u)
+rc1 vcc c1 1k
+rc2 vcc c2 1k
+rb1 c1 b2 10k
+rb2 c2 b1 10k
+rx1 b1 0 4.7k
+rx2 b2 0 4.7k
+rr r b2 10k
+q1 c1 b1 0 qmod
+q2 c2 b2 0 qmod
+.model qmod npn(is=1e-14 bf=100 cje=2p cjc=1p tf=1n)
+.ic v(c1)=0.2 v(c2)=4
+.tran 0.5u 60u 0 10n
+.end

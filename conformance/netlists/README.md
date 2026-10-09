@@ -124,6 +124,12 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_conv_latch_tran` | `.tran` | a cross-coupled pair switched by set/reset PULSEs through junction charges (10 ns maximum step, `reltol=1e-7`) |
 | `m7_conv_bjt_schmitt` | `.dc` `.dc` `.op` | emitter-coupled BJT Schmitt trigger swept up and down through its hysteresis (warm-started `.dc` points) and an `.op` inside the band |
 | `m7_conv_cmos_schmitt` | `.dc` `.dc` `.op` | six-transistor MOS1 Schmitt trigger swept up and down and an `.op` inside the band (`reltol=1e-8 vntol=1e-12`) |
+| `m7_ic_diode_uic_tran` | `.tran` | `uic` diode/RC discharge (#99): capacitor `ic=2`, the other capacitor and the diode junction (CJO, TT, RS) from `.ic v(b)=0.5`; the diode's own `ic=0.4` has no effect in C (`reltol=1e-5`) |
+| `m7_ic_bjt_flipflop_tran` | `.tran` | symmetric BJT flip-flop whose `.ic` node voltages select the state through the forced transient operating point; a reset pulse flips it |
+| `m7_ic_bjt_off_tran` | `.tran` | BJT flip-flop with an `OFF` transistor: C's MODEINITFIX hold and device convergence test hand the operating point to dynamic gmin, which lands in a stable state; a negative pulse flips it (`reltol=1e-6`) |
+| `m7_ic_mos1_uic_tran` | `.tran` | MOS1 inverter pair started under `uic` from full and partial `ic=` vectors and the `.ic` node vector (Gear-2, `reltol=1e-5`, 2 ps maximum step) |
+| `m7_ic_latch_nodeset_op` | `.op` | symmetric CMOS latch whose `.nodeset` (forced in MODEINITJCT/MODEINITFIX only) selects the q-high state |
+| `m7_ic_latch_mos1_ic_op` | `.op` | the same latch whose MOS1 `ic=` vectors move the MODEINITJCT start (no `uic`) and select the q-high state |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -164,3 +170,14 @@ Gummel-Poon sweeps stop about 4e-4 away from the converged root, outside the
 
 The seven `m7_conv_*` convergence decks (#106) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+
+The six `m7_ic_*` nonlinear initial-condition decks (#99) were captured one at
+a time with `cargo xtask golden capture --netlist <name>`; no existing golden
+was touched. Where a deck sets `reltol` (and Gear-2 for the MOS1 deck), C's
+own answer at its default tolerance is outside, or too close to, the
+transient bound: at the default `reltol` the diode deck's C `v(b)` at 0.1 us
+is 5.1e-3 V (about 4.6 times the bound) away from its own `reltol=1e-5`
+answer, the OFF flip-flop compares at 0.53 of the bound through its flip, and
+the MOS1 deck's trapezoidal gate currents ring from step to step on the flat
+input. The `.ic` flip-flop keeps every default. See
+[VERIFICATION.md](../../docs/port/VERIFICATION.md#m7-nonlinear-initial-conditions-99).

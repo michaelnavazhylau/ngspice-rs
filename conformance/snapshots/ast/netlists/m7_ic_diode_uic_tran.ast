@@ -1,0 +1,59 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_ic_diode_uic_tran.cir
+title: "diode RC discharge from uic initial conditions" @netlists/m7_ic_diode_uic_tran.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m7_ic_diode_uic_tran.cir:7:1 "c1 a 0 10n ic=2"
+    [1] device[1] @netlists/m7_ic_diode_uic_tran.cir:8:1 "d1 a b dm ic=0.4"
+    [2] device[2] @netlists/m7_ic_diode_uic_tran.cir:9:1 "r1 b 0 1k"
+    [3] device[3] @netlists/m7_ic_diode_uic_tran.cir:10:1 "c2 b 0 1n"
+    [4] ic[0] @netlists/m7_ic_diode_uic_tran.cir:11:1 ".ic v(b)=0.5"
+    [5] model[0] @netlists/m7_ic_diode_uic_tran.cir:12:1 ".model dm d(is=1e-14 n=1.2 rs=10 cjo=20p tt=50n)"
+    [6] options[0] @netlists/m7_ic_diode_uic_tran.cir:13:1 ".options reltol=1e-5"
+    [7] analysis[0] @netlists/m7_ic_diode_uic_tran.cir:14:1 ".tran 0.1u 40u 0 20n uic"
+    [8] end @netlists/m7_ic_diode_uic_tran.cir:15:1 ".end"
+  devices (4):
+    device [0] name="c1" designator=c @netlists/m7_ic_diode_uic_tran.cir:7:1
+      nodes: "a" "0"
+      model: none
+      parameters (2):
+        [0] name="capacitance" kind=scalar value="10n" @netlists/m7_ic_diode_uic_tran.cir:7:8
+        [1] name="ic" kind=scalar value="2" @netlists/m7_ic_diode_uic_tran.cir:7:12
+    device [1] name="d1" designator=d @netlists/m7_ic_diode_uic_tran.cir:8:1
+      nodes: "a" "b"
+      model: "dm"
+      parameters (1):
+        [0] name="ic" kind=scalar value="0.4" @netlists/m7_ic_diode_uic_tran.cir:8:11
+    device [2] name="r1" designator=r @netlists/m7_ic_diode_uic_tran.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_ic_diode_uic_tran.cir:9:8
+    device [3] name="c2" designator=c @netlists/m7_ic_diode_uic_tran.cir:10:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/m7_ic_diode_uic_tran.cir:10:8
+  models (1):
+    model [0] name="dm" base="d" level=none @netlists/m7_ic_diode_uic_tran.cir:12:1
+      parameters (5):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m7_ic_diode_uic_tran.cir:12:13
+        [1] name="n" kind=scalar value="1.2" @netlists/m7_ic_diode_uic_tran.cir:12:22
+        [2] name="rs" kind=scalar value="10" @netlists/m7_ic_diode_uic_tran.cir:12:28
+        [3] name="cjo" kind=scalar value="20p" @netlists/m7_ic_diode_uic_tran.cir:12:34
+        [4] name="tt" kind=scalar value="50n" @netlists/m7_ic_diode_uic_tran.cir:12:42
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m7_ic_diode_uic_tran.cir:14:1
+      arguments: "0.1u" "40u" "0" "20n"
+      uic @netlists/m7_ic_diode_uic_tran.cir:14:22
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_ic_diode_uic_tran.cir:13:1
+      setting [0] name="reltol" value="1e-5"@netlists/m7_ic_diode_uic_tran.cir:13:17 @netlists/m7_ic_diode_uic_tran.cir:13:10
+  globals (0):
+  initial-conditions (1):
+    ic-card [0] @netlists/m7_ic_diode_uic_tran.cir:11:1
+      entry [0] node="b" node_at=netlists/m7_ic_diode_uic_tran.cir:11:7 @netlists/m7_ic_diode_uic_tran.cir:11:5
+        value literal "0.5" value=5e-1 @netlists/m7_ic_diode_uic_tran.cir:11:10

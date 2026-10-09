@@ -1,0 +1,75 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_ic_latch_mos1_ic_op.cir
+title: "CMOS latch state selected by MOS1 IC vectors" @netlists/m7_ic_latch_mos1_ic_op.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m7_ic_latch_mos1_ic_op.cir:7:1 "vdd vdd 0 dc 3"
+    [1] device[1] @netlists/m7_ic_latch_mos1_ic_op.cir:8:1 "mp1 q qb vdd vdd pm w=4u l=1u"
+    [2] device[2] @netlists/m7_ic_latch_mos1_ic_op.cir:9:1 "mn1 q qb 0 0 nm w=2u l=1u ic=3,0,0"
+    [3] device[3] @netlists/m7_ic_latch_mos1_ic_op.cir:10:1 "mp2 qb q vdd vdd pm w=4u l=1u"
+    [4] device[4] @netlists/m7_ic_latch_mos1_ic_op.cir:11:1 "mn2 qb q 0 0 nm w=2u l=1u ic=0,3,0"
+    [5] model[0] @netlists/m7_ic_latch_mos1_ic_op.cir:12:1 ".model nm nmos(vto=0.7 kp=60u lambda=0.02 gamma=0.4 phi=0.65)"
+    [6] model[1] @netlists/m7_ic_latch_mos1_ic_op.cir:13:1 ".model pm pmos(vto=-0.8 kp=25u lambda=0.03 gamma=0.5 phi=0.65)"
+    [7] analysis[0] @netlists/m7_ic_latch_mos1_ic_op.cir:14:1 ".op"
+    [8] end @netlists/m7_ic_latch_mos1_ic_op.cir:15:1 ".end"
+  devices (5):
+    device [0] name="vdd" designator=v @netlists/m7_ic_latch_mos1_ic_op.cir:7:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/m7_ic_latch_mos1_ic_op.cir:7:11
+    device [1] name="mp1" designator=m @netlists/m7_ic_latch_mos1_ic_op.cir:8:1
+      nodes: "q" "qb" "vdd" "vdd"
+      model: "pm"
+      parameters (2):
+        [0] name="w" kind=scalar value="4u" @netlists/m7_ic_latch_mos1_ic_op.cir:8:21
+        [1] name="l" kind=scalar value="1u" @netlists/m7_ic_latch_mos1_ic_op.cir:8:26
+    device [2] name="mn1" designator=m @netlists/m7_ic_latch_mos1_ic_op.cir:9:1
+      nodes: "q" "qb" "0" "0"
+      model: "nm"
+      parameters (3):
+        [0] name="w" kind=scalar value="2u" @netlists/m7_ic_latch_mos1_ic_op.cir:9:17
+        [1] name="l" kind=scalar value="1u" @netlists/m7_ic_latch_mos1_ic_op.cir:9:22
+        [2] name="ic" kind=initial-conditions value="3,0,0" @netlists/m7_ic_latch_mos1_ic_op.cir:9:27
+          component "icvds" = "3"@netlists/m7_ic_latch_mos1_ic_op.cir:9:30
+          component "icvgs" = "0"@netlists/m7_ic_latch_mos1_ic_op.cir:9:32
+          component "icvbs" = "0"@netlists/m7_ic_latch_mos1_ic_op.cir:9:34
+    device [3] name="mp2" designator=m @netlists/m7_ic_latch_mos1_ic_op.cir:10:1
+      nodes: "qb" "q" "vdd" "vdd"
+      model: "pm"
+      parameters (2):
+        [0] name="w" kind=scalar value="4u" @netlists/m7_ic_latch_mos1_ic_op.cir:10:21
+        [1] name="l" kind=scalar value="1u" @netlists/m7_ic_latch_mos1_ic_op.cir:10:26
+    device [4] name="mn2" designator=m @netlists/m7_ic_latch_mos1_ic_op.cir:11:1
+      nodes: "qb" "q" "0" "0"
+      model: "nm"
+      parameters (3):
+        [0] name="w" kind=scalar value="2u" @netlists/m7_ic_latch_mos1_ic_op.cir:11:17
+        [1] name="l" kind=scalar value="1u" @netlists/m7_ic_latch_mos1_ic_op.cir:11:22
+        [2] name="ic" kind=initial-conditions value="0,3,0" @netlists/m7_ic_latch_mos1_ic_op.cir:11:27
+          component "icvds" = "0"@netlists/m7_ic_latch_mos1_ic_op.cir:11:30
+          component "icvgs" = "3"@netlists/m7_ic_latch_mos1_ic_op.cir:11:32
+          component "icvbs" = "0"@netlists/m7_ic_latch_mos1_ic_op.cir:11:34
+  models (2):
+    model [0] name="nm" base="nmos" level=none @netlists/m7_ic_latch_mos1_ic_op.cir:12:1
+      parameters (5):
+        [0] name="vto" kind=scalar value="0.7" @netlists/m7_ic_latch_mos1_ic_op.cir:12:16
+        [1] name="kp" kind=scalar value="60u" @netlists/m7_ic_latch_mos1_ic_op.cir:12:24
+        [2] name="lambda" kind=scalar value="0.02" @netlists/m7_ic_latch_mos1_ic_op.cir:12:31
+        [3] name="gamma" kind=scalar value="0.4" @netlists/m7_ic_latch_mos1_ic_op.cir:12:43
+        [4] name="phi" kind=scalar value="0.65" @netlists/m7_ic_latch_mos1_ic_op.cir:12:53
+    model [1] name="pm" base="pmos" level=none @netlists/m7_ic_latch_mos1_ic_op.cir:13:1
+      parameters (5):
+        [0] name="vto" kind=scalar value="-0.8" @netlists/m7_ic_latch_mos1_ic_op.cir:13:16
+        [1] name="kp" kind=scalar value="25u" @netlists/m7_ic_latch_mos1_ic_op.cir:13:25
+        [2] name="lambda" kind=scalar value="0.03" @netlists/m7_ic_latch_mos1_ic_op.cir:13:32
+        [3] name="gamma" kind=scalar value="0.5" @netlists/m7_ic_latch_mos1_ic_op.cir:13:44
+        [4] name="phi" kind=scalar value="0.65" @netlists/m7_ic_latch_mos1_ic_op.cir:13:54
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/m7_ic_latch_mos1_ic_op.cir:14:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

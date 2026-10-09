@@ -835,6 +835,89 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "m7_ic_diode_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2037,
+        variables: &["time", "v(a)", "v(b)"],
+        values: &[
+            // uic: no t = 0 row; the first row is the first accepted step.
+            ("time", 0, 1e-9, 0.),
+            ("v(a)", 0, 1.993464826232599e+00, 0.),
+            ("v(b)", 0, 5.647869507232903e-01, 0.),
+            ("time", 2036, 4e-5, 0.),
+            ("v(b)", 2036, 5.154745850508444e-02, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_bjt_flipflop_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 6028,
+        variables: &[
+            "time", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "v(r)", "v(vcc)", "i(vcc)", "i(vr)",
+        ],
+        values: &[
+            // The .ic values are exact at t = 0; the reset pulse flips the pair.
+            ("v(c1)", 0, 2e-1, 0.),
+            ("v(c2)", 0, 4., 0.),
+            ("v(b1)", 0, 7.276538644059967e-01, 0.),
+            ("v(c1)", 6027, 4.608859901358739e+00, 0.),
+            ("v(c2)", 6027, 9.683877378445170e-02, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_bjt_off_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 6181,
+        variables: &[
+            "time", "v(b1)", "v(b2)", "v(c1)", "v(c2)", "v(s)", "v(vcc)", "i(vcc)", "i(vs)",
+        ],
+        values: &[
+            ("v(c1)", 0, 9.683877378445103e-02, 0.),
+            ("v(c2)", 0, 4.608859901358740e+00, 0.),
+            ("v(c1)", 6180, 4.608926182116719e+00, 0.),
+            ("v(c2)", 6180, 8.607175092483089e-02, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_mos1_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 20036,
+        variables: &["time", "v(in)", "v(mid)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 2e-13, 0.),
+            ("v(mid)", 0, 2.146194135632362e+00, 0.),
+            ("v(out)", 0, 2.422129664440773e+00, 0.),
+            ("time", 20035, 4e-8, 0.),
+            ("v(out)", 20035, 2.999999986318057e+00, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_latch_nodeset_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vdd)", "v(q)", "v(qb)", "i(vdd)"],
+        values: &[
+            ("v(q)", 0, 2.999999986318182e+00, 0.),
+            ("v(qb)", 0, 1.090579700714479e-08, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m7_ic_latch_mos1_ic_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(vdd)", "v(q)", "v(qb)", "i(vdd)"],
+        values: &[
+            ("v(q)", 0, 2.999999986318182e+00, 0.),
+            ("v(qb)", 0, 1.090579709549613e-08, 0.),
+        ],
+    },
+    Expectation {
         fixture: "m4_diode_ac",
         plotname: "AC Analysis",
         flags: PlotFlags::Complex,

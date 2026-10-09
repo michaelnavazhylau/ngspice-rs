@@ -1,0 +1,90 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_ic_diode_uic_tran.cir
+title: "diode RC discharge from uic initial conditions" @netlists/m7_ic_diode_uic_tran.cir:1:1
+card 1 @netlists/m7_ic_diode_uic_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 a 0 10n ic=2"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "a"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "10n" value=1e-8
+  token 5 7:12 word "ic"
+  token 6 7:14 equals "="
+  token 7 7:15 number "2" value=2e0
+card 2 @netlists/m7_ic_diode_uic_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "d1 a b dm ic=0.4"
+  kind: device(d)
+  token 1 8:1 word "d1"
+  token 2 8:4 word "a"
+  token 3 8:6 word "b"
+  token 4 8:8 word "dm"
+  token 5 8:11 word "ic"
+  token 6 8:13 equals "="
+  token 7 8:14 number "0.4" value=4e-1
+card 3 @netlists/m7_ic_diode_uic_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "r1 b 0 1k"
+  kind: device(r)
+  token 1 9:1 word "r1"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1k" value=1e3
+card 4 @netlists/m7_ic_diode_uic_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "c2 b 0 1n"
+  kind: device(c)
+  token 1 10:1 word "c2"
+  token 2 10:4 word "b"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "1n" value=1e-9
+card 5 @netlists/m7_ic_diode_uic_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".ic v(b)=0.5"
+  kind: dot(.ic)
+  token 1 11:1 word ".ic"
+  token 2 11:5 word "v"
+  token 3 11:6 lparen "("
+  token 4 11:7 word "b"
+  token 5 11:8 rparen ")"
+  token 6 11:9 equals "="
+  token 7 11:10 number "0.5" value=5e-1
+card 6 @netlists/m7_ic_diode_uic_tran.cir:12:1 lines=12-12 continuations=0
+  raw: ".model dm d(is=1e-14 n=1.2 rs=10 cjo=20p tt=50n)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "dm"
+  token 3 12:11 word "d"
+  token 4 12:12 lparen "("
+  token 5 12:13 word "is"
+  token 6 12:15 equals "="
+  token 7 12:16 number "1e-14" value=1e-14
+  token 8 12:22 word "n"
+  token 9 12:23 equals "="
+  token 10 12:24 number "1.2" value=1.2e0
+  token 11 12:28 word "rs"
+  token 12 12:30 equals "="
+  token 13 12:31 number "10" value=1e1
+  token 14 12:34 word "cjo"
+  token 15 12:37 equals "="
+  token 16 12:38 number "20p" value=2e-11
+  token 17 12:42 word "tt"
+  token 18 12:44 equals "="
+  token 19 12:45 number "50n" value=5.0000000000000004e-8
+  token 20 12:48 rparen ")"
+card 7 @netlists/m7_ic_diode_uic_tran.cir:13:1 lines=13-13 continuations=0
+  raw: ".options reltol=1e-5"
+  kind: dot(.options)
+  token 1 13:1 word ".options"
+  token 2 13:10 word "reltol"
+  token 3 13:16 equals "="
+  token 4 13:17 number "1e-5" value=1e-5
+card 8 @netlists/m7_ic_diode_uic_tran.cir:14:1 lines=14-14 continuations=0
+  raw: ".tran 0.1u 40u 0 20n uic"
+  kind: dot(.tran)
+  token 1 14:1 word ".tran"
+  token 2 14:7 number "0.1u" value=1e-7
+  token 3 14:12 number "40u" value=3.9999999999999996e-5
+  token 4 14:16 number "0" value=0e0
+  token 5 14:18 number "20n" value=2e-8
+  token 6 14:22 word "uic"
+card 9 @netlists/m7_ic_diode_uic_tran.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"
