@@ -42,10 +42,11 @@ via `rust-lang/crates-io-auth-action`. No API token is stored in the
 repository.
 
 Trusted Publishing can only be configured for a crate that already exists, so
-the first release is a one-off:
+the first release is a one-off. `0.1.0` was bootstrapped this way, published
+by hand from the commit that added this workflow; steps 3–5 below still apply
+until they are done.
 
-1. Bump `version` in `Cargo.toml` (it is `0.0.0` until the first release),
-   run the full local gate, and merge.
+1. Bump `version` in `Cargo.toml` and run the full local gate.
 2. From a clean checkout of that commit, publish once by hand:
    `cargo login` with a scoped API token, then `cargo publish --locked`.
    Tag the commit `vX.Y.Z` afterwards; the tag-triggered run will then fail at
