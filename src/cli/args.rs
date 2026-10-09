@@ -736,7 +736,7 @@ r2 out 0 1k
                 .unwrap_or_else(|| panic!("{name}\n{text}"))
         };
         for name in [
-            ".op ", ".dc ", ".ac ", ".tran ", ".pz ", ".tf ", ".noise ", ".disto ",
+            ".op ", ".dc ", ".ac ", ".tran ", ".pz ", ".tf ", ".noise ", ".disto ", ".sens ",
         ] {
             assert!(line(name).ends_with("driver (bounded subset)"), "{text}");
         }
@@ -744,7 +744,6 @@ r2 out 0 1k
             line(".four ").ends_with("post-processes the .tran plot"),
             "{text}"
         );
-        assert!(line(".sens ").ends_with("no driver"), "{text}");
         assert!(!text.contains("Linear R/C/L/V/I only"), "{text}");
     }
 }

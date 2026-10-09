@@ -1,5 +1,31 @@
 # Verification
 
+## M8 sensitivity analysis (#102)
+
+`.sens` DC and AC sensitivities ([SENSITIVITY.md](SENSITIVITY.md)).
+
+- Five new fixtures, each captured on its own (`cargo xtask golden capture
+  --netlist sens_divider|sens_hot|sens_diode|sens_ac|sens_multi`) after the
+  deck was compared with the same C binary in a scratch copy; no existing
+  golden was recaptured and no tolerance changed. `sens_multi` is a `BATCH`
+  entry (`.ac`, `.op`, filtered `.sens`); the others are single-analysis
+  entries under the new `compare::SENSITIVITY` (1e-8 relative, 1e-12
+  absolute) and `compare::SENSITIVITY_NONLINEAR` (1e-6 relative, 1e-9
+  absolute), justified in `xtask/src/compare.rs` by the `1/delta`
+  amplification of rounding in a forward difference.
+- `cargo xtask golden verify`: **119 verified / 0 unsupported / 0 failures**;
+  `cargo xtask golden check --netlist <each new fixture>` reproduces all five.
+- C agreement while developing (scratch decks, `ngspice -b -r` against
+  `spice-rs simulate`): linear DC and AC decks agree to 1e-8 relative or
+  better with every name in C's order; diode decks to about 4e-6 at C's
+  default RELTOL (its operating point) and 1e-7 at RELTOL 1e-9, NaN where C
+  reports NaN.
+- `tests/sensitivity_analysis.rs` checks closed forms independent of C;
+  the opt-in `tests/c_sens_reference.rs` (4 tests, 8 decks) compares C batch
+  mode with names in order.
+- Not verified: BJT, MOS1 and code-model sensitivities (refused), AC
+  sensitivities of nonlinear devices (refused).
+
 ## M8 distortion analysis (#104)
 
 `.disto` and the `distof1`/`distof2` source inputs ([DISTORTION.md](DISTORTION.md)).

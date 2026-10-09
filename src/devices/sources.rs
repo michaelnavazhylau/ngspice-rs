@@ -59,6 +59,9 @@ pub struct IndependentSource {
     ac_given: bool,
     waveform: Waveform,
     port: Option<RfPort>,
+    /// What the card gave, as `.sens` replays C's records
+    /// ([`crate::devices::sensitivity`]).
+    sensitivity: crate::devices::sensitivity::SourceInputs,
     /// `distof1`/`distof2` distortion inputs (C `VSRCdF1given`, ...).
     distortion: [Option<crate::devices::distortion::DistortionInput>; 2],
 }
@@ -87,9 +90,43 @@ impl IndependentSource {
             dc,
             ac,
             ac_given: ac != Complex::ZERO,
+            sensitivity: crate::devices::sensitivity::SourceInputs {
+                dc_given: true,
+                function_given: !matches!(waveform, Waveform::Constant(_)),
+                ac: (ac != Complex::ZERO)
+                    .then(|| (ac.magnitude(), ac.im.atan2(ac.re).to_degrees())),
+            },
             waveform,
             port: None,
             distortion: [None, None],
+        })
+    }
+
+    /// Records what the card wrote for `.sens`: an explicit DC value, a
+    /// transient function, and the AC magnitude and phase (degrees) when any
+    /// AC setter was written.
+    #[must_use]
+    pub fn with_sensitivity_inputs(
+        mut self,
+        inputs: crate::devices::sensitivity::SourceInputs,
+    ) -> Self {
+        self.sensitivity = inputs;
+        self
+    }
+
+    /// A copy driving `dc` in DC analyses and `ac` in AC analyses, for a
+    /// `.sens` load.
+    pub(crate) fn sensitivity_copy(&self, dc: Real, ac: Complex) -> SpiceResult<Self> {
+        if !dc.is_finite() || !ac.is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "{}: nonfinite perturbed source value",
+                self.name
+            )));
+        }
+        Ok(Self {
+            dc,
+            ac,
+            ..self.clone()
         })
     }
 
@@ -211,6 +248,30 @@ impl Device for IndependentSource {
         _context: &crate::devices::noise::NoiseContext<'_>,
     ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
         Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
+    /// `.sens`: C's VSRC/ISRC records ([`crate::devices::sensitivity`]). An
+    /// RF port is refused: `VSRCtemp` re-registers ports on every call and
+    /// the port's `z0`/`pwr`/`freq` perturbations are not ported.
+    fn sensitivity(
+        &self,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        if self.port.is_some() {
+            return Err(crate::devices::sensitivity::not_ported(
+                &self.name,
+                self.designator(),
+                " (an RF port source)",
+            ));
+        }
+        Ok(Box::new(
+            crate::devices::sensitivity::SourceSensitivity::new(
+                self,
+                self.voltage,
+                self.dc,
+                self.sensitivity,
+            ),
+        ))
     }
 
     /// Linear, with its `distof1`/`distof2` inputs (`cktdisto.c` reads them

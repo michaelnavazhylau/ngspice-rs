@@ -1,0 +1,23 @@
+DC sensitivity at 60 C with geometry resistors, a B source and switches
+* #102: temperature coefficients away from TNOM, sheet-resistance geometry,
+* a PULSE source without a DC value, current output through a sensing source,
+* and C's in-place perturbation side effects (sticky given flags, a model r
+* perturbed from 0, setup-only defaults).
+.options temp=60
+v1 in 0 pulse(2 5 1u 1u 1u 10u 20u)
+vm in2 0 dc 1
+r0 in2 x 500
+r1 in a 1k
+r2 a 0 rm 2k scale=1.5 tc1=2e-3
+r3 a c rm l=20u w=2u
+r4 c 0 rm2 temp=80
+.model rm r tc1=1e-3 tc2=1e-6 rsh=100 tnom=20
+.model rm2 r r=3k tc1=-1e-3
+e1 x 0 c 0 0.5
+b1 bb 0 i=v(a)*1m tc1=1e-3 m=2
+rbb bb a 1k
+s1 a s a 0 swm
+rs s 0 4k
+.model swm sw vt=1 vh=0.1 ron=10 roff=1meg
+.sens i(vm)
+.end

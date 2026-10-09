@@ -1,0 +1,27 @@
+AC sensitivity of a linear filter
+* #102: complex sensitivities over a decade sweep at 40 C, with literal and
+* model-backed R/C/L, AC phasors and controlled sources; C re-loads the
+* perturbed-and-restored circuit before every frequency.
+.options temp=40
+v1 in 0 dc 1 ac 1 30
+i1 0 n2 ac 0.5
+r1 in a 1k
+c1 a 0 1n
+r2 a b rm 2k tc1=1e-3
+.model rm r tc1=1e-3
+l1 b 0 10u
+c2 b 0 cm 2n m=2 scale=1.2
+.model cm c tc1=1e-3 tnom=30
+l2 n2 0 lm 1m
+.model lm l tc1=2e-3
+rl2 n2 0 1k
+e1 e 0 a 0 2
+re e 0 1k
+g1 0 g a 0 1m m=3
+rg g b 1k
+f1 0 f v1 2
+rf f b 1k
+h1 h 0 v1 100
+rh h b 1k
+.sens v(a,b) ac dec 2 1k 100k
+.end

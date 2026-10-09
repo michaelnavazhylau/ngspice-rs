@@ -195,6 +195,24 @@ impl ControlledSource {
         })
     }
 
+    /// A copy stamping the coefficient `coefficient` (C's stored
+    /// `VCVScoeff`, ...), for a `.sens` load.
+    ///
+    /// # Errors
+    /// A nonfinite coefficient.
+    pub(crate) fn with_coefficient(&self, coefficient: Real) -> SpiceResult<Self> {
+        if !coefficient.is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "{}: nonfinite perturbed gain {coefficient}",
+                self.name
+            )));
+        }
+        Ok(Self {
+            gain: coefficient,
+            ..self.clone()
+        })
+    }
+
     /// Which controlled source this is.
     #[must_use]
     pub const fn kind(&self) -> ControlledKind {
@@ -335,6 +353,21 @@ impl Device for ControlledSource {
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+
+    /// `.sens`: C's coefficient and `m` records
+    /// ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(
+            crate::devices::sensitivity::ControlledSensitivity::new(
+                self,
+                self.gain,
+                self.multiplier,
+            ),
+        ))
     }
 
     /// `gain` of E/F/G/H (`vcvs.c`, `cccs.c`, `vccs.c`, `ccvs.c`).

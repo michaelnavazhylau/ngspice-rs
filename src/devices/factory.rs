@@ -273,6 +273,7 @@ pub(crate) fn instantiate(
         waveform = Some(pwl_options(waveform, pwl_delay, pwl_repeat)?);
     }
     let dc_given = value.is_some();
+    let waveform_given = waveform.is_some();
     // An explicit DC value is kept apart from time forcing. Without one, DC
     // analyses see the waveform's time-zero level (vsrcload.c evaluates the
     // transient function at time 0 when DC is not given).
@@ -310,6 +311,11 @@ pub(crate) fn instantiate(
                 waveform.unwrap_or(Waveform::Constant(value)),
             )?
             .with_ac_given(ac_given)
+            .with_sensitivity_inputs(crate::devices::sensitivity::SourceInputs {
+                dc_given,
+                function_given: waveform_given,
+                ac: ac_given.then_some((mag, phase)),
+            })
             .with_distortion(distortion[0], distortion[1])?;
             // Only V cards accept port setters (parser and allow-list above).
             match rf {

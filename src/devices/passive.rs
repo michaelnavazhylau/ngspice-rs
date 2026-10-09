@@ -53,6 +53,11 @@ pub struct PassiveParameters {
     ef: Real,
     noise_area: Real,
     location: SourceLoc,
+    /// The validated model and instance setters as written (schema defaults
+    /// unlocated), for `.sens`, which replays C's own records
+    /// ([`crate::devices::sensitivity`]).
+    model_values: ScalarValues,
+    instance_values: ScalarValues,
 }
 
 impl PassiveParameters {
@@ -85,6 +90,16 @@ impl PassiveParameters {
             nominal_value: value,
             ..self.clone()
         })
+    }
+    /// The validated model setters (schema defaults have no location).
+    #[must_use]
+    pub const fn model_values(&self) -> &ScalarValues {
+        &self.model_values
+    }
+    /// The validated instance setters (schema defaults have no location).
+    #[must_use]
+    pub const fn instance_values(&self) -> &ScalarValues {
+        &self.instance_values
     }
     /// Capacitor initial volts or inductor initial amperes, if given.
     /// Applied by the companion transient under `uic` (see
@@ -255,6 +270,8 @@ impl ResolvedModel<'_> {
             ef: value(&model, "ef", 1.0),
             noise_area,
             location: location.clone(),
+            model_values: model,
+            instance_values,
         })
     }
 }

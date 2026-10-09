@@ -1,0 +1,372 @@
+Title: dc sensitivity of a divider with controlled sources
+Date: Fri Oct  9 17:50:23  2026
+Command: ngspice-47+, Build 
+Plotname: Sensitivity Analysis
+Flags: real
+No. Variables: 181
+No. Points: 1
+Variables:
+	0	v(f1_gain)	voltage
+	1	v(e1_gain)	voltage
+	2	v(f1_m)	voltage
+	3	v(g1_gain)	voltage
+	4	v(g1_m)	voltage
+	5	v(h1_gain)	voltage
+	6	v(i1)	voltage
+	7	v(i1_m)	voltage
+	8	v(r1:af)	voltage
+	9	v(r1:bv_max)	voltage
+	10	v(r1:ef)	voltage
+	11	v(r1:kf)	voltage
+	12	v(r1:lf)	voltage
+	13	v(r1:narrow)	voltage
+	14	v(r1:r)	voltage
+	15	v(r1:rsh)	voltage
+	16	v(r1:short)	voltage
+	17	v(r1:tc1)	voltage
+	18	v(r1:tc2)	voltage
+	19	v(r1:tce)	voltage
+	20	v(r1:wf)	voltage
+	21	v(r1_bv_max)	voltage
+	22	v(r1_dtemp)	voltage
+	23	v(r1_l)	voltage
+	24	v(r1_m)	voltage
+	25	v(r1_scale)	voltage
+	26	v(r1)	voltage
+	27	v(r1_tc)	voltage
+	28	v(r1_tc2)	voltage
+	29	v(r1_tce)	voltage
+	30	v(r1_temp)	voltage
+	31	v(r1_w)	voltage
+	32	v(r2:af)	voltage
+	33	v(r2:bv_max)	voltage
+	34	v(r2:ef)	voltage
+	35	v(r2:kf)	voltage
+	36	v(r2:lf)	voltage
+	37	v(r2:narrow)	voltage
+	38	v(r2:r)	voltage
+	39	v(r2:rsh)	voltage
+	40	v(r2:short)	voltage
+	41	v(r2:tc1)	voltage
+	42	v(r2:tc2)	voltage
+	43	v(r2:tce)	voltage
+	44	v(r2:wf)	voltage
+	45	v(r2_bv_max)	voltage
+	46	v(r2_dtemp)	voltage
+	47	v(r2_l)	voltage
+	48	v(r2)	voltage
+	49	v(r2_m)	voltage
+	50	v(r2_scale)	voltage
+	51	v(r2_tc)	voltage
+	52	v(r2_tc2)	voltage
+	53	v(r2_tce)	voltage
+	54	v(r2_temp)	voltage
+	55	v(r2_w)	voltage
+	56	v(r3:af)	voltage
+	57	v(r3:bv_max)	voltage
+	58	v(r3:ef)	voltage
+	59	v(r3:kf)	voltage
+	60	v(r3:lf)	voltage
+	61	v(r3:narrow)	voltage
+	62	v(r3:r)	voltage
+	63	v(r3:rsh)	voltage
+	64	v(r3:short)	voltage
+	65	v(r3:tc1)	voltage
+	66	v(r3:tc2)	voltage
+	67	v(r3:tce)	voltage
+	68	v(r3:wf)	voltage
+	69	v(r3)	voltage
+	70	v(r3_bv_max)	voltage
+	71	v(r3_dtemp)	voltage
+	72	v(r3_l)	voltage
+	73	v(r3_m)	voltage
+	74	v(r3_scale)	voltage
+	75	v(r3_tc)	voltage
+	76	v(r3_tc2)	voltage
+	77	v(r3_tce)	voltage
+	78	v(r3_temp)	voltage
+	79	v(r3_w)	voltage
+	80	v(rb:af)	voltage
+	81	v(rb:bv_max)	voltage
+	82	v(rb:ef)	voltage
+	83	v(rb:kf)	voltage
+	84	v(rb:lf)	voltage
+	85	v(rb:narrow)	voltage
+	86	v(rb:rsh)	voltage
+	87	v(rb:r)	voltage
+	88	v(rb:short)	voltage
+	89	v(rb:tc1)	voltage
+	90	v(rb:tc2)	voltage
+	91	v(rb:tce)	voltage
+	92	v(rb:wf)	voltage
+	93	v(rb_bv_max)	voltage
+	94	v(rb_dtemp)	voltage
+	95	v(rb_l)	voltage
+	96	v(rb)	voltage
+	97	v(rb_m)	voltage
+	98	v(rb_scale)	voltage
+	99	v(rb_tc)	voltage
+	100	v(rb_tc2)	voltage
+	101	v(rb_tce)	voltage
+	102	v(rb_temp)	voltage
+	103	v(rb_w)	voltage
+	104	v(rc:af)	voltage
+	105	v(rc:bv_max)	voltage
+	106	v(rc:ef)	voltage
+	107	v(rc:kf)	voltage
+	108	v(rc:lf)	voltage
+	109	v(rc:narrow)	voltage
+	110	v(rc:r)	voltage
+	111	v(rc:rsh)	voltage
+	112	v(rc:short)	voltage
+	113	v(rc:tc1)	voltage
+	114	v(rc:tc2)	voltage
+	115	v(rc:tce)	voltage
+	116	v(rc:wf)	voltage
+	117	v(rc_bv_max)	voltage
+	118	v(rc_dtemp)	voltage
+	119	v(rc_l)	voltage
+	120	v(rc_m)	voltage
+	121	v(rc_scale)	voltage
+	122	v(rc)	voltage
+	123	v(rc_tc)	voltage
+	124	v(rc_tc2)	voltage
+	125	v(rc_tce)	voltage
+	126	v(rc_temp)	voltage
+	127	v(rc_w)	voltage
+	128	v(re:af)	voltage
+	129	v(re)	voltage
+	130	v(re:bv_max)	voltage
+	131	v(re:ef)	voltage
+	132	v(re:kf)	voltage
+	133	v(re:lf)	voltage
+	134	v(re:narrow)	voltage
+	135	v(re:rsh)	voltage
+	136	v(re:r)	voltage
+	137	v(re:short)	voltage
+	138	v(re:tc1)	voltage
+	139	v(re:tc2)	voltage
+	140	v(re:tce)	voltage
+	141	v(re:wf)	voltage
+	142	v(re_bv_max)	voltage
+	143	v(re_dtemp)	voltage
+	144	v(re_l)	voltage
+	145	v(re_m)	voltage
+	146	v(re_scale)	voltage
+	147	v(re_tc2)	voltage
+	148	v(re_tce)	voltage
+	149	v(re_tc)	voltage
+	150	v(re_temp)	voltage
+	151	v(re_w)	voltage
+	152	v(rh:af)	voltage
+	153	v(rh:bv_max)	voltage
+	154	v(rh:ef)	voltage
+	155	v(rh:kf)	voltage
+	156	v(rh:lf)	voltage
+	157	v(rh:narrow)	voltage
+	158	v(rh:r)	voltage
+	159	v(rh:rsh)	voltage
+	160	v(rh:short)	voltage
+	161	v(rh:tc1)	voltage
+	162	v(rh:tc2)	voltage
+	163	v(rh:tce)	voltage
+	164	v(rh:wf)	voltage
+	165	v(rh_bv_max)	voltage
+	166	v(rh_dtemp)	voltage
+	167	v(rh_l)	voltage
+	168	v(rh_m)	voltage
+	169	v(rh_scale)	voltage
+	170	v(rh_tc)	voltage
+	171	v(rh)	voltage
+	172	v(rh_tc2)	voltage
+	173	v(rh_tce)	voltage
+	174	v(rh_temp)	voltage
+	175	v(rh_w)	voltage
+	176	v(v1)	voltage
+	177	v(v1_freq)	voltage
+	178	v(v1_phase)	voltage
+	179	v(v1_pwr)	voltage
+	180	v(v1_z0)	voltage
+Values:
+ 0	-1.551521859307890e+00
+	1.305620997599920e+00
+	-0.000000000000000e+00
+	1.081383549497984e+09
+	-0.000000000000000e+00
+	-7.757609297435170e-04
+	7.479437108959781e+02
+	7.479437109037631e-01
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	1.429280482917992e+00
+	-1.429279053540198e+00
+	-1.429279053850123e-03
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	1.325963220319096e+01
+	9.281290750629566e+01
+	-1.335231559309788e+04
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	9.604216489242742e-04
+	-9.604226092040143e-01
+	1.920843297432032e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	1.337913132170325e-01
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-9.745122690768077e-05
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	2.923539730810714e-01
+	-2.923536807230423e-01
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	1.415421005252929e-03
+	-1.415422420464796e+00
+	1.415421004946008e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-1.931415922028295e+00
+	1.931413990480875e+00
+	3.862827981799368e-03
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-1.645532388869263e-03
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	1.645534034158513e+00
+	-1.645532388512444e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-5.604300734716610e-01
+	5.604295130034311e-01
+	-0.000000000000000e+00
+	2.802147565624775e-04
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	2.632034152797820e-01
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+

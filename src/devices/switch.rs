@@ -234,6 +234,8 @@ pub struct Switch {
     model: SwitchModel,
     /// The last `on`/`off` flag (C `SWzero_stateGiven`): `true` for `on`.
     initially_on: bool,
+    /// The model setters as written, for `.sens`.
+    written: crate::devices::sensitivity::SwitchValues,
 }
 
 /// State slot of the switch state code.
@@ -312,6 +314,18 @@ impl Switch {
             }
             Ok(Some(g))
         };
+        let written_value = |name: &str| {
+            values
+                .get(name)
+                .filter(|value| value.location.is_some())
+                .map(|value| value.value)
+        };
+        let written = crate::devices::sensitivity::SwitchValues {
+            threshold: written_value(threshold),
+            hysteresis: written_value(hysteresis),
+            on: written_value("ron"),
+            off: written_value("roff"),
+        };
         let parameters = SwitchModel {
             threshold: get(threshold).unwrap_or(0.),
             hysteresis: get(hysteresis).unwrap_or(0.),
@@ -370,6 +384,7 @@ impl Switch {
             control,
             model: parameters,
             initially_on,
+            written,
         }))
     }
 
@@ -377,6 +392,49 @@ impl Switch {
     #[must_use]
     pub const fn kind(&self) -> SwitchKind {
         self.kind
+    }
+
+    /// The model card's name.
+    #[must_use]
+    pub fn model_name(&self) -> &str {
+        &self.model_name
+    }
+
+    /// The model setters as written (for `.sens`).
+    pub(crate) const fn model_values(&self) -> crate::devices::sensitivity::SwitchValues {
+        self.written
+    }
+
+    /// A copy with the given threshold, hysteresis and on/off conductances,
+    /// for a `.sens` load.
+    ///
+    /// # Errors
+    /// A nonfinite value.
+    pub(crate) fn with_model(
+        &self,
+        threshold: Real,
+        hysteresis: Real,
+        on: Real,
+        off: Real,
+    ) -> SpiceResult<Self> {
+        if ![threshold, hysteresis, on, off]
+            .iter()
+            .all(|v| v.is_finite())
+        {
+            return Err(SpiceError::circuit(format!(
+                "{}: nonfinite perturbed switch model",
+                self.name
+            )));
+        }
+        Ok(Self {
+            model: SwitchModel {
+                threshold,
+                hysteresis,
+                on_conductance: on,
+                off_conductance: Some(off),
+            },
+            ..self.clone()
+        })
     }
 
     /// The control value at `solution`: `v(nc+) - v(nc-)` or the controlling
@@ -578,6 +636,16 @@ impl Device for Switch {
         )
     }
 
+    /// `.sens`: C's switch model records ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(
+            crate::devices::sensitivity::SwitchSensitivity::new(self, context),
+        ))
+    }
+
     fn assemble_small_signal(
         &self,
         context: &mut LinearContext<'_>,
@@ -741,6 +809,7 @@ mod tests {
                 off_conductance: None,
             },
             initially_on: on,
+            written: crate::devices::sensitivity::SwitchValues::default(),
         }
     }
 

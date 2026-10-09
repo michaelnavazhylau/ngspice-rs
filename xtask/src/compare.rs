@@ -49,6 +49,29 @@ pub(crate) const NOISE_NONLINEAR: Tolerance = Tolerance {
     absolute: 1e-20,
 };
 
+/// `.sens` (#102), linear circuits. A sensitivity is a forward difference
+/// `dx/delta` with `delta = 1e-6 p` (C's `Sens_Delta`), so the rounding of the
+/// solution `x` reaches it amplified by `1/delta`: for a parameter with a
+/// strong effect that is about `1e-10` relative, which the 1e-8 bound covers
+/// with margin. Parameters C perturbs without effect read exactly 0 (or a
+/// rounding residue, e.g. about 4e-14 from the cosine of a 1e-6 degree AC
+/// phase), which the 1e-12 floor accepts.
+pub(crate) const SENSITIVITY: Tolerance = Tolerance {
+    relative: 1e-8,
+    absolute: 1e-12,
+};
+
+/// `.sens` of nonlinear circuits: the nonlinear 1 ppm bias bound, with an
+/// absolute floor for weak parameters, whose numerator `dx` is only a few
+/// ulps of the node voltage: `ulp(x)/delta` is about `1e-16/2e-6 = 5e-11`
+/// for an O(1) parameter of an O(1) V output (C's own result for a diode's
+/// `nr` moves by 3e-10 between RELTOL 1e-6 and 1e-9 for that reason), which a
+/// 1e-9 floor covers.
+pub(crate) const SENSITIVITY_NONLINEAR: Tolerance = Tolerance {
+    relative: 1e-6,
+    absolute: 1e-9,
+};
+
 /// `.disto` (#104): the nonlinear 1 ppm operating-point bound (every Taylor
 /// coefficient is evaluated at an independently converged bias), with an
 /// absolute floor scaled to distortion products rather than node voltages.

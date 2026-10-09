@@ -1,0 +1,67 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_diode.cir
+title: "DC sensitivity of a diode bias network" @netlists/sens_diode.cir:1:1
+scope root
+  cards (10):
+    [0] options[0] @netlists/sens_diode.cir:6:1 ".options reltol=1e-9"
+    [1] device[0] @netlists/sens_diode.cir:7:1 "v1 in 0 dc 5"
+    [2] device[1] @netlists/sens_diode.cir:8:1 "r1 in a 1k"
+    [3] device[2] @netlists/sens_diode.cir:9:1 "d1 a 0 dmod area=2"
+    [4] device[3] @netlists/sens_diode.cir:10:1 "d2 a b dmod2 m=2"
+    [5] device[4] @netlists/sens_diode.cir:11:1 "rb b 0 500"
+    [6] model[0] @netlists/sens_diode.cir:12:1 ".model dmod d is=1e-14 rs=10 n=1.5 ikf=0.1 bv=10 tnom=40 trs=1e-3 xti=2"
+    [7] model[1] @netlists/sens_diode.cir:13:1 ".model dmod2 d is=1e-15 eg=1.2 ikf=1"
+    [8] analysis[0] @netlists/sens_diode.cir:14:1 ".sens v(a)"
+    [9] end @netlists/sens_diode.cir:15:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @netlists/sens_diode.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/sens_diode.cir:7:9
+    device [1] name="r1" designator=r @netlists/sens_diode.cir:8:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_diode.cir:8:9
+    device [2] name="d1" designator=d @netlists/sens_diode.cir:9:1
+      nodes: "a" "0"
+      model: "dmod"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @netlists/sens_diode.cir:9:13
+    device [3] name="d2" designator=d @netlists/sens_diode.cir:10:1
+      nodes: "a" "b"
+      model: "dmod2"
+      parameters (1):
+        [0] name="m" kind=scalar value="2" @netlists/sens_diode.cir:10:14
+    device [4] name="rb" designator=r @netlists/sens_diode.cir:11:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/sens_diode.cir:11:8
+  models (2):
+    model [0] name="dmod" base="d" level=none @netlists/sens_diode.cir:12:1
+      parameters (8):
+        [0] name="is" kind=scalar value="1e-14" @netlists/sens_diode.cir:12:15
+        [1] name="rs" kind=scalar value="10" @netlists/sens_diode.cir:12:24
+        [2] name="n" kind=scalar value="1.5" @netlists/sens_diode.cir:12:30
+        [3] name="ikf" kind=scalar value="0.1" @netlists/sens_diode.cir:12:36
+        [4] name="bv" kind=scalar value="10" @netlists/sens_diode.cir:12:44
+        [5] name="tnom" kind=scalar value="40" @netlists/sens_diode.cir:12:50
+        [6] name="trs" kind=scalar value="1e-3" @netlists/sens_diode.cir:12:58
+        [7] name="xti" kind=scalar value="2" @netlists/sens_diode.cir:12:67
+    model [1] name="dmod2" base="d" level=none @netlists/sens_diode.cir:13:1
+      parameters (3):
+        [0] name="is" kind=scalar value="1e-15" @netlists/sens_diode.cir:13:16
+        [1] name="eg" kind=scalar value="1.2" @netlists/sens_diode.cir:13:25
+        [2] name="ikf" kind=scalar value="1" @netlists/sens_diode.cir:13:32
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_diode.cir:14:1
+      arguments: "v" "(" "a" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_diode.cir:6:1
+      setting [0] name="reltol" value="1e-9"@netlists/sens_diode.cir:6:17 @netlists/sens_diode.cir:6:10
+  globals (0):

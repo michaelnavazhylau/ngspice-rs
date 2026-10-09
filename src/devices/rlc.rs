@@ -269,6 +269,26 @@ impl Device for Resistor {
         Resistor::new(&self.name, self.terminals, supplied).map(|resistor| resistor.resistance())
     }
 
+    /// A literal resistor: C's default resistor model and the resistance
+    /// alone given ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(
+            crate::devices::sensitivity::ResistorSensitivity::new(
+                &self.name,
+                None,
+                self.terminals,
+                crate::devices::sensitivity::ResistorInputs {
+                    resistance: Some(self.resistance),
+                    ..Default::default()
+                },
+                context,
+            ),
+        ))
+    }
+
     /// Pole-zero load: C `respzld.c` (the `ac=` conductance when given, as `resacld.c`) equals the AC load with `s` for `j omega`.
     fn assemble_pole_zero(
         &self,
@@ -465,6 +485,28 @@ impl Device for Capacitor {
         context.nodal(self.terminals, self.capacitance, true)
     }
 
+    /// `.sens`: C's capacitor records with the default model
+    /// ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        use crate::devices::sensitivity::{ReactiveInputs, ReactiveKind, ReactiveSensitivity};
+        let mut instance = vec![("capacitance", self.capacitance)];
+        instance.extend(self.initial_voltage.map(|ic| ("ic", ic)));
+        Ok(Box::new(ReactiveSensitivity::new(
+            ReactiveKind::Capacitor,
+            &self.name,
+            None,
+            self.terminals,
+            ReactiveInputs {
+                instance,
+                model: Vec::new(),
+            },
+            context,
+        )))
+    }
+
     /// Pole-zero load: C `cappzld.c` equals the AC load with `s` for `j omega`.
     fn assemble_pole_zero(
         &self,
@@ -658,6 +700,28 @@ impl Device for Inductor {
         }
         context.system.has_initial_conditions |= self.initial_current.is_some();
         Ok(())
+    }
+
+    /// `.sens`: C's inductor records with the default model
+    /// ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        use crate::devices::sensitivity::{ReactiveInputs, ReactiveKind, ReactiveSensitivity};
+        let mut instance = vec![("inductance", self.inductance)];
+        instance.extend(self.initial_current.map(|ic| ("ic", ic)));
+        Ok(Box::new(ReactiveSensitivity::new(
+            ReactiveKind::Inductor,
+            &self.name,
+            None,
+            self.terminals,
+            ReactiveInputs {
+                instance,
+                model: Vec::new(),
+            },
+            context,
+        )))
     }
 
     /// Pole-zero load: C `indpzld.c` (with `mutpzld.c` mutual terms) equals the AC load with `s` for `j omega`.
