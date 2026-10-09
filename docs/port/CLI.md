@@ -1,8 +1,8 @@
 # The `spice-rs` command line
 
 The CLI is a thin front end over the production engine: it parses the deck with
-`spice_netlist::Parser`, elaborates it and runs the analysis with the
-`spice-analysis` drivers. No device, solver or rawfile logic lives here. The C
+`netlist::Parser`, elaborates it and runs the analysis with the
+`analysis` drivers. No device, solver or rawfile logic lives here. The C
 equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 (`CKTdoJob()`) and `raw_write()` in `src/frontend/rawfile.c`.
 
@@ -21,16 +21,16 @@ equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 
 Both tables are derived, not hand-maintained (#117): a designator's status
 comes from the factory module's own designator lists (`DeviceSupport::of`), and
-`spice-devices/tests/registry_support.rs` elaborates a representative deck for
+`tests/registry_support.rs` elaborates a representative deck for
 every designator to check that `ported` and `bounded` devices build and
 `pending` ones fail with `NotYetPorted`. Analysis status comes from
-`spice_analysis::support`.
+`analysis::support`.
 
 `--no-auto-gnd` (treat `gnd` as an ordinary node, C's `no_auto_gnd` front-end
 variable) reaches the parser for every command that reads a deck. It does not
 change the device node table: `Circuit` always builds its `NodeTable` with
 aliasing on, so a deck using `gnd` folds to `0` either way. That is pre-existing
-`spice-devices` behaviour, not something `simulate` chooses. `--output` is
+`devices` behaviour, not something `simulate` chooses. `--output` is
 accepted by `simulate` only, and is required there.
 
 ## `simulate`
@@ -68,7 +68,7 @@ where that backend does not apply, e.g. with `uic` or `.ic`). See
 ### The rawfile
 
 The file is ngspice's ASCII form (`set filetype=ascii`), written by
-`spice_analysis::RawFile::write`:
+`analysis::RawFile::write`:
 
 * `Title:` is the deck's title line, `Command:` is
   `spice-rs <version> (Rust port), Build`, `Date:` is the write time in UTC in
@@ -116,7 +116,7 @@ and `.four` blocks. A single-analysis deck's report is unchanged.
 
 A deck may contain any number of `.op`, `.dc`, `.ac` and `.tran` cards (GitHub
 #96). `simulate` reproduces `ngspice -b -r <path> deck.cir`, which runs them all
-in one job; the scheduling rules live in `spice_analysis::batch`:
+in one job; the scheduling rules live in `analysis::batch`:
 
 * **Order.** `CKTdoJob()` (`src/spicelib/analysis/cktdojob.c`) walks the fixed
   analysis table `analInfo[]` (`analysis.c`): `.ac`, then `.dc`, then `.op`, then
@@ -165,14 +165,14 @@ Divergences from C, all deliberate:
 * C prints `Error: .print: no ac analysis found.` and carries on for a `.print`
   card naming an analysis the deck does not run; the port rejects the card.
 
-`crates/spice-cli/tests/c_batch_reference.rs` is the opt-in check that ties
+`tests/c_batch_reference.rs` is the opt-in check that ties
 these rules to real batch output: it runs `ngspice -b -r` (binary rawfile) and
 `spice-rs simulate` on the committed `multi_analysis_rc` fixture and on a deck
 with two `.dc` cards, and requires the same plot count, order, names, flags,
 variables and values:
 
 ```sh
-NGSPICE_BIN=/abs/path/ngspice cargo test -p spice-cli --test c_batch_reference -- --ignored
+NGSPICE_BIN=/abs/path/ngspice cargo test -p ngspice-rs --test c_batch_reference -- --ignored
 ```
 
 ## Exit status
@@ -211,7 +211,7 @@ grammar, the axis/interpolation/crossing/window rules and the failure modes.
 
 ## Covered by tests
 
-`crates/spice-cli/tests/simulate.rs` runs the binary and checks the exit
+`tests/simulate.rs` runs the binary and checks the exit
 contract, the multi-analysis batch order, C plot names, per-analysis output
 cards and atomic failure (against the multi-plot golden `multi_analysis_rc`),
 and the write/rename guarantee; it reads
@@ -222,6 +222,6 @@ vector, by name, with the committed C goldens in `conformance/golden/`
 (see [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md)), `.measure` measurement
 blocks, hidden operands and failed measurements (see [MEASURE.md](MEASURE.md)), and
 `.four` Fourier/THD blocks (see [FOURIER.md](FOURIER.md)).
-`crates/spice-cli/tests/parse.rs`
+`tests/parse.rs`
 keeps the older inspection commands green. Nothing in these tests invokes C or
 re-captures a golden.

@@ -2,8 +2,8 @@
 
 **Syntax (#14) plus top-level evaluation (#15).** `.param` cards and `{...}`
 expressions are parsed into an AST with original text and byte spans; the
-evaluator in `spice_netlist::eval` and the literalizer in
-`spice_netlist::elaborate` resolve **top-level** values (see "Evaluation"
+evaluator in `netlist::eval` and the literalizer in
+`netlist::elaborate` resolve **top-level** values (see "Evaluation"
 below). Subcircuit `.param` cards and formals are evaluated per instance when
 `X` instantiates a definition; `Circuit` elaboration now expands subcircuits
 (#18, [SUBCIRCUITS.md](SUBCIRCUITS.md)) instead of rejecting them.
@@ -24,7 +24,7 @@ call    := function '(' sum { ',' sum } ')'
          | name '(' [ sum { ',' sum } ] ')'      user .func call (#107)
 ```
 
-Implemented in `crates/spice-netlist/src/parser/expression.rs` with winnow
+Implemented in `src/netlist/parser/expression.rs` with winnow
 `expression()` for the `^`/`*` levels and a fold for the additive level.
 
 | Behaviour (pinned against the C binary) | Example |
@@ -189,7 +189,7 @@ Remaining limits: no comparison/ternary operators or random functions.
 
 ## Public API for an evaluator
 
-`spice_netlist::expr`: `ParameterExpression { text, braced, span, root }`
+`netlist::expr`: `ParameterExpression { text, braced, span, root }`
 (`references()` lists names in source order), `Expr { kind, span }`,
 `ExprKind::{Number, Identifier, Unary, Binary, Call, Group}`, `UnaryOp`,
 `BinaryOp`, `Function`, `SourceSpan`, `MAX_NESTING`. Cards:
@@ -204,8 +204,8 @@ C references (read-only): `src/frontend/inpcom.c` `inp_change_quotes()`,
 `inp_expand_macros_in_func()`, `inp_expand_macro_in_str()`,
 `inp_do_macro_param_replace()` and `inp_expand_macros_in_deck()`. C works on
 the deck text before numparam runs; the port parses the same constructs into
-the AST and evaluates them in `spice_netlist::eval`, which is equivalent for
-everything below (pinned by `crates/spice-netlist/tests/c_func_eval.rs`, opt-in
+the AST and evaluates them in `netlist::eval`, which is equivalent for
+everything below (pinned by `tests/c_func_eval.rs`, opt-in
 `NGSPICE_BIN`, and the `func_quotes` golden).
 
 ### Single-quoted expressions

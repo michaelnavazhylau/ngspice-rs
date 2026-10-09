@@ -11,11 +11,11 @@ C references (read-only): `src/spicelib/parser/inp2k.c`, `src/frontend/inpcom.c`
 and `src/spicelib/devices/ind/`: `mutsetup.c` (lookup), `muttemp.c`
 (`M = k sqrt(|L1 L2|)`, inductive-system check), `indload.c` (coupled flux),
 `mutacld.c` (AC), `indtrunc.c` (truncation error), `mutparam.c` (setters). The
-Rust side is `crates/spice-netlist/src/parser/mutual.rs` (grammar),
-`crates/spice-devices/src/mutual.rs` (device), the coupling resolution and
-definiteness check in `crates/spice-devices/src/circuit.rs`
+Rust side is `src/netlist/parser/mutual.rs` (grammar),
+`src/devices/mutual.rs` (device), the coupling resolution and
+definiteness check in `src/devices/circuit.rs`
 (`Circuit::mutual_terms`) and the coupled inductor stamps in
-`crates/spice-devices/src/rlc.rs`.
+`src/devices/rlc.rs`.
 
 ## Syntax
 
@@ -95,21 +95,21 @@ The opt-in test `c_mutual_inductance` shows that C only warns for `k = 1.5`.
   corner (1 % of `i(l1)` at 2 us against a reltol = 1e-7 reference) exceeds
   even `compare::TRAN_RESTART`, while the BDF result matches that reference to
   1.2e-7 A (`the_bdf_backend_integrates_the_coupled_mass_matrix`).
-- `crates/spice-analysis/tests/mutual_inductance.rs`: DC shorts; AC against
+- `tests/analysis_mutual_inductance.rs`: DC shorts; AC against
   the two-loop closed form for positive, negative, ideal and duplicated
   couplings; a multi-inductor card equals one card per pair; an ideal (k = 1)
   transformer keeps `v(s) = 2 v(p)` to 1e-12 on trap, Gear-2 and BDF; coupled
   RL decays against the matrix exponential from `uic` `ic=` (2.7e-7 A trap,
   1.1e-6 A Gear-2) and from the operating point (2.1e-6 / 7.1e-6 A); explicit
   failures in `.op`/`.ac`/`.tran`.
-- `crates/spice-devices/tests/mutual_inductance.rs`: registry entry, name
+- `tests/devices_mutual_inductance.rs`: registry entry, name
   resolution, hierarchical names, the definiteness check, model-backed `m=`,
   and the exact DC/companion/linear stamps on the coupled flux.
-- `crates/spice-netlist/tests/mutual_inductance.rs` plus the snapshot decks
+- `tests/netlist_mutual_inductance.rs` plus the snapshot decks
   `conformance/parser/mutual_inductance.cir` and
   `conformance/cases/error_mutual_coupling.cir`: grammar, positions, errors and
   writer round trips.
-- Opt-in live C (`NGSPICE_BIN` absolute): `cargo test -p spice-analysis --test
+- Opt-in live C (`NGSPICE_BIN` absolute): `cargo test -p ngspice-rs --test
   c_mutual_inductance --locked -- --ignored` compares complex AC for duplicate
   K cards, model-backed inductors with `m=`/TC at 50 C and a `±1` three-winding
   system (1e-10 relative), checks C's warning-only behaviour, and checks that

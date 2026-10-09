@@ -7,34 +7,41 @@ applies to the locked workspace, not the historical dependency-free scaffold.
 
 ## Layering
 
-Crates may only depend on crates **below** them. `spice-core` has no
-dependencies at all; nothing depends on `spice-cli`.
+`ngspice-rs` is a single crate. The port was originally developed as six crates
+(`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
+`spice-analysis`, `spice-cli`) and was consolidated so that crates.io carries one
+name and one version; those boundaries are now the module tree under `src/`.
+
+Modules may only use modules **above** them in this list — that is, below them in
+dependency order. `primitives` has no dependencies at all; nothing uses `cli`.
+The compiler no longer enforces this direction, so reviews must.
 
 Internal production dependencies (arrows mean “depends on”; external backends
 are omitted):
 
 ```text
-spice-cli      -> spice-analysis, spice-devices, spice-netlist, spice-core
-spice-analysis -> spice-devices, spice-maths, spice-netlist, spice-core
-spice-devices  -> spice-maths, spice-netlist, spice-core
-spice-netlist  -> spice-core
-spice-maths    -> spice-core
+cli      -> analysis, devices, netlist, primitives
+analysis -> devices, maths, netlist, primitives
+devices  -> maths, netlist, primitives
+netlist  -> primitives
+maths    -> primitives
 ```
 
-`spice-maths` does not depend on the netlist or device layers. `xtask` is a
-separate development consumer of the analysis/device/netlist/core APIs. The CLI
+`maths` does not use the netlist or device layers. `xtask` is a
+separate, unpublished workspace member and a development consumer of the
+analysis/device/netlist/primitives modules. The CLI
 currently inspects/parses decks; results are produced through library APIs and
 examples, not a CLI simulation command.
 
-| Crate | Responsibility | Mirrors |
+| Module | Responsibility | Mirrors |
 | --- | --- | --- |
-| `spice-core` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
-| `spice-netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
-| `spice-maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF, trap/Gear coefficient/history/truncation APIs | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
-| `spice-devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch and state-slot binding, trial-versus-accepted state (`StateHistory`/`TrialState`, `&self` stamping, atomic `Circuit::accept_point`), immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver, bounded passive geometry/temperature recipes and diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
-| `spice-analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, adaptive trap/Gear-2 companion `.tran`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
-| `spice-cli` | Command-line entry point: `spice-rs <netlist>` | `src/frontend/main.c`, `src/ngspice.c` |
-| `xtask` | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
+| `primitives` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
+| `netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
+| `maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF, trap/Gear coefficient/history/truncation APIs | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
+| `devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch and state-slot binding, trial-versus-accepted state (`StateHistory`/`TrialState`, `&self` stamping, atomic `Circuit::accept_point`), immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver, bounded passive geometry/temperature recipes and diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
+| `analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, adaptive trap/Gear-2 companion `.tran`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
+| `cli` | CLI argument parsing, dispatch and reporting; the `spice-rs` binary is `src/bin/spice-rs.rs` | `src/frontend/main.c`, `src/ngspice.c` |
+| `xtask` (separate package) | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
 
 ## Design rules
 
@@ -43,7 +50,7 @@ examples, not a CLI simulation command.
    ambiguous, the doc comment says so instead of guessing.
 2. **Unimplemented means loud.** Stubs return
    `SpiceError::NotYetPorted { what, c_reference }`; `todo!()`/`unimplemented!()`
-   are denied by clippy at the workspace level. `spice-cli` maps that error to
+   are denied by clippy at the workspace level. `cli` maps that error to
    exit status `3`, so scripts can distinguish "not ported yet" from a real
    failure.
 3. **No FFI in the port.** The C library is only ever reached out-of-process, by
@@ -58,7 +65,7 @@ examples, not a CLI simulation command.
 
 ## Numerical follow-up contracts
 
-`spice-maths::equilibration` (#46) owns explicit dense/sparse/complex scaling
+`maths::equilibration` (#46) owns explicit dense/sparse/complex scaling
 wrappers and original-unit diagnostics, not device semantics or a new default
 analysis policy ([EQUILIBRATION.md](EQUILIBRATION.md)). The existing sparse/complex
 rank policy is unchanged by #47's audit; its aggregate-certification proof
@@ -66,7 +73,7 @@ limitation is explicit and tracked separately in #68
 ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)). Preserve the current
 guards without representing finite regression coverage as a universal proof.
 
-`spice-maths::diffsol::higher_index` (#29) is an experimental numeric prototype
+`maths::diffsol::higher_index` (#29) is an experimental numeric prototype
 with supplied smooth forcing jets and a bounded constrained-RLC class. It is not
 selected by `LinearDae`/the analysis runner. Production topology/waveform/error
 control/accepted-state/event semantics require the separate #69–#72 gates
@@ -76,7 +83,7 @@ control/accepted-state/event semantics require the separate #69–#72 gates
 
 Use petgraph 0.8.3 for graph storage and algorithms rather than maintaining
 custom adjacency lists, DFS/BFS, union-find, SCC or topological-sort code. It is
-already in the locked dependency graph; `spice-maths` and `spice-devices` now
+already in the locked dependency graph; `maths` and `devices` now
 use it directly in production APIs, not just dependency smoke tests.
 
 - `Circuit::topology()` returns a petgraph `UnGraph` incidence snapshot. Each
@@ -111,13 +118,13 @@ Snapshots rebuild on demand so mutations through `devices_mut()`, late nodes,
 new stamps or matrix clearing cannot leave a stale internal adjacency cache.
 Node-name interning, model-name sets, device-name lookup, ordered parameter
 vectors and numeric matrix entries are **not graph algorithms**: keep their
-purpose-built tables/order instead of forcing them into petgraph. `spice-core`
+purpose-built tables/order instead of forcing them into petgraph. `primitives`
 remains dependency-free and SPICE node IDs/ground aliasing remain unchanged.
 
 ## Winnow semantic parsing (`new-parsing`)
 
 The semantic parser is implemented with winnow 1.0.4 (MIT), replacing M1a's
-manual token cursor. Only `spice-netlist` directly depends on it; default
+manual token cursor. Only `netlist` directly depends on it; default
 features are disabled and only `std`/`parser` enabled. Its declared MSRV is 1.65,
 below this workspace's historical 1.85 requirement. The diffsol/faer integration
 raises the workspace MSRV to 1.89 because the locked diffsol-la/nalgebra graph
@@ -157,12 +164,12 @@ The initial backend rewrite preserved loader/tokenizer contracts. M1b's
 model/D/Q/M slices and M1c's ordered scoped/source storage extend that AST;
 `parse_deck` is syntax-only and `parse_file` now resolves sources. Subcircuit
 expansion is deliberately not part of this parser layer: it lives in
-`spice_devices::subckt` ([SUBCIRCUITS.md](SUBCIRCUITS.md), #18). The M1
+`devices::subckt` ([SUBCIRCUITS.md](SUBCIRCUITS.md), #18). The M1
 round-trip gate is closed by #22.
 
 ## Two data models for a netlist
 
-`spice-netlist` distinguishes:
+`netlist` distinguishes:
 
 - **`RawCard`** — a logical line plus its token stream and a coarse `CardKind`
   classification (`Device { designator }`, `DotCommand(..)`). Produced by the
@@ -175,7 +182,7 @@ round-trip gate is closed by #22.
   source-relative includes/library selections. Ordered `ScopedCard` entries
   refer to typed vectors in the owning scope and retain raw source/provenance.
   Parameter evaluation and flattening are still unported; a normalized raw-AST
-  deck writer exists (`spice_netlist::writer`, #20).
+  deck writer exists (`netlist::writer`, #20).
 
 Keeping both means the front-end can be ported incrementally: classification and
 tokenization are useful on their own (the CLI can report what a deck contains
@@ -196,7 +203,7 @@ consumer interprets them; AST success is not a promise of simulation support.
 Model cards retain lowercased parameter names, original scalar text and bounded
 bare family flags, without checking the scalar keyword schema or applying defaults. Their
 `level` field is the first explicit raw scalar; selector/default/range rules
-belong to the `spice-devices` model resolver, not this syntax layer.
+belong to the `devices` model resolver, not this syntax layer.
 D references can remain unresolved;
 Q/M require a declaration in their body or an ancestor before `.end` so port/model roles are not
 inferred from numbers or parameter keywords. Forward references work. The
@@ -233,13 +240,13 @@ model has the same name. This is not a claim about legality of wider C forms.
 
 ## Model resolution and schema boundary
 
-`spice-devices::models::ModelResolver` indexes one deck's top-level declarations
+`devices::models::ModelResolver` indexes one deck's top-level declarations
 case-insensitively, keeps the first definition and checks designator/family and
 family-specific levels. `ResolvedModel` borrows the raw card; syntax never applies
-model defaults. `spice-devices::schema::ScalarSchema` is an extensible ordered
+model defaults. `devices::schema::ScalarSchema` is an extensible ordered
 finite-scalar validator with units, ranges, defaults and last-set provenance.
 Initial typed diode inputs cover IS/N/RS/AREA/TEMP/TNOM. `ModelContext` passes
-Celsius temperatures explicitly, without depending on `spice-analysis`.
+Celsius temperatures explicitly, without depending on `analysis`.
 
 `Circuit::add_instance` stages node/device changes and rejects missing models,
 bad schema inputs and unavailable factories without changing existing numbering.

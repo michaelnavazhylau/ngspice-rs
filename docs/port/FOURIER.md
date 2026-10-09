@@ -12,10 +12,10 @@ are never treated as a uniform grid, and the port never transforms internal time
 
 | Piece | Where |
 | --- | --- |
-| Card grammar, typed requests, positioned errors | `crates/spice-netlist/src/parser/fourier.rs` |
-| Card type and bounds (`DEFAULT_HARMONICS`, `MAX_HARMONICS`) | `crates/spice-netlist/src/ast.rs` |
-| Evaluation, text block | `crates/spice-analysis/src/fourier.rs` |
-| Full-plot evaluation before the `.save`/`.print` narrowing, report block | `crates/spice-cli/src/simulate.rs` |
+| Card grammar, typed requests, positioned errors | `src/netlist/parser/fourier.rs` |
+| Card type and bounds (`DEFAULT_HARMONICS`, `MAX_HARMONICS`) | `src/netlist/ast.rs` |
+| Evaluation, text block | `src/analysis/fourier.rs` |
+| Full-plot evaluation before the `.save`/`.print` narrowing, report block | `src/cli/simulate.rs` |
 | C reference | `src/frontend/fourier.c` (`fourier()`, `CKTfour()`), reached from `ft_cktcoms()` in `src/frontend/dotcards.c` |
 
 ## The supported grammar
@@ -159,20 +159,20 @@ explicit non-goals.
 
 ## Validation
 
-* `crates/spice-analysis/src/fourier.rs` — unit tests over hand-built plots with analytic
+* `src/analysis/fourier.rs` — unit tests over hand-built plots with analytic
   results: a pure sine and a known two-harmonic signal recover their amplitudes and phases, a DC
   offset is its own mean, the window/endpoint rules are pinned, and every failure class above has
   a test. Refusals cover a descending axis, a one-point plot, a short run, a harmonic count
   outside the budget, a non-finite sample and a zero fundamental.
-* `crates/spice-netlist/tests/fourier_cards.rs` — the grammar, the positions, `DEFAULT_HARMONICS`
+* `tests/fourier_cards.rs` — the grammar, the positions, `DEFAULT_HARMONICS`
   and `MAX_HARMONICS`, the rejection classes, body-local cards, and the writer/semantic
   round-trip.
-* `crates/spice-cli/tests/simulate.rs` — process tests over a real PULSE square wave: the block
+* `tests/simulate.rs` — process tests over a real PULSE square wave: the block
   lists every card, the source's own harmonics match the analytic `2/(kπ)` series, the filtered
   output is scaled by the analytic lowpass `|H(f)|` and delayed by `-atan(2πfRC)`, a vector the
   output selection dropped is still transformed, a deck without `.four` prints exactly what it
   printed before and writes the same rawfile, and a failing card publishes nothing.
-* `crates/spice-analysis/tests/c_four_reference.rs` — the opt-in `#[ignore]`d comparison against
+* `tests/c_four_reference.rs` — the opt-in `#[ignore]`d comparison against
   the local C binary (`NGSPICE_BIN`), over the same deck for both engines: DC, THD and the
   harmonic table, for a filtered voltage, the unfiltered square wave and a branch current. It
   needs no C for ordinary runs.

@@ -1,5 +1,45 @@
 # Verification
 
+## Single-crate consolidation (`restructure/single-crate`, no functional change)
+
+The six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
+`spice-analysis`, `spice-cli`) are consolidated into one package, `ngspice-rs`, so
+that crates.io carries a single name and a single version. The former crate
+boundaries survive as the module tree under `src/` (`primitives`, `netlist`,
+`maths`, `devices`, `analysis`, `cli`); the CLI binary is `src/bin/spice-rs.rs`
+and integration tests moved to `tests/*.rs` at the package root. This changes
+layout, manifests and documentation only — no simulation path, tolerance, golden
+or capability claim — so this section records regression evidence rather than new
+coverage. Two inner modules were renamed to satisfy `clippy::module_inception`:
+`analysis::analysis` is now `analysis::driver` and `cli::cli` is now
+`cli::args` (`ngspice_rs::cli` still re-exports `Args`, `Command`, `exit_code`,
+`run`, `usage`). See [ARCHITECTURE.md](ARCHITECTURE.md): dependency direction is
+now a review-enforced convention instead of a compiler-enforced one.
+
+- `cargo test --workspace --locked` reports **1051 passed / 0 failed / 67
+  ignored** on stable (rustc 1.99.0) and on Rust **1.89.0**. That workspace total
+  includes `xtask`, which stays a separate unpublished workspace member and
+  contributes 48 tests; `ngspice-rs` alone reports **1003 passed / 0 failed / 67
+  ignored**. All **67** ignored tests are the opt-in `NGSPICE_BIN` live-C checks,
+  and none was rerun for a layout-only change.
+- `cargo clippy --workspace --all-targets --locked -- -D warnings` is clean on
+  both toolchains; `cargo fmt --all -- --check` is clean and `cargo xtask ci`
+  passes end to end.
+- `cargo xtask golden verify` reports **59 verified / 0 unsupported / 0
+  failures** with no exclusions, and `cargo xtask snapshots` reports **196
+  snapshot(s): 0 created, 0 changed, 0 removed**. Neither needs a C binary, so
+  together they re-establish that the moved tree still reproduces the committed
+  data.
+- Three doctests run (crate root, `devices::models`, `devices::passive`). The
+  two device doctests had addressed the library through `crate::`, which is
+  meaningless inside a doctest; they now use `ngspice_rs::`.
+- Packaging: `cargo package` builds a 603-file `.crate` (2.0 MiB compressed) and
+  the unpacked `.crate` runs its **own** suite — **1003 passed / 0 failed / 67
+  ignored** — because conformance fixtures are now package-relative
+  (`../conformance/...` from `tests/`). `cargo publish --dry-run` completes with
+  a single upload. Release automation itself is not written yet; it is tracked in
+  [TODO.md](../../TODO.md).
+
 ## M6 switches S/W (#81, `work/m6-switches`)
 
 On top of the Wave 1 tree this slice adds six C goldens (`switch_op`,
@@ -71,7 +111,7 @@ transfer characteristic`, `Operating Point`, `Transient Analysis`.
 * **Capture.** `write` alone writes only the current plot, so `xtask` instruments
   a deck with several analyses to `write <fixture>.raw ac1.all dc1.all op1.all
   tran1.all` — the C plot names in batch order, computed by
-  `spice_analysis::batch::schedule` — followed by `quit` (without it, batch mode
+  `analysis::batch::schedule` — followed by `quit` (without it, batch mode
   re-runs the deck after `.endc` because of the `.op` card and fails). The
   capture refuses a rawfile whose plot count differs from the schedule.
   Single-analysis fixtures are instrumented exactly as before.
@@ -84,7 +124,7 @@ transfer characteristic`, `Operating Point`, `Transient Analysis`.
   unchanged and still require exactly one C plot. Unit tests show that
   swapped, dropped and duplicated plots, a perturbed value and a deck whose
   schedule changed all fail.
-* **C batch oracle.** `crates/spice-cli/tests/c_batch_reference.rs` (opt-in)
+* **C batch oracle.** `tests/c_batch_reference.rs` (opt-in)
   runs `ngspice -b -r` — genuine batch mode with a binary rawfile — and
   `spice-rs simulate` on the fixture and on a deck with two `.dc` cards, and
   requires identical plot count, order, names, flags and variables and values
@@ -111,7 +151,7 @@ source senses; `.option reltol=1e-4` applies to every analysis. The deck lists
   instants, worst error 0.077 of the bound). The transient breakpoint
   enumerator now accepts subcircuits without V/I waveform sources (a
   macromodel adds no breakpoints) and still refuses ones that contain them.
-* **Circuit relations.** `spice-cli/tests/simulate.rs`
+* **Circuit relations.** `tests/simulate.rs`
   (`the_m6_gate_deck_runs_every_analysis_end_to_end`) runs `spice-rs
   simulate` and checks, independently of C: the batch order and the C vector
   set; AC closed-loop gain 10 at 10 Hz and the limiter's unit small-signal
@@ -162,7 +202,7 @@ truncation slot and `uic` storage element.
 Opt-in live C:
 
 ```sh
-NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_mutual_inductance --locked -- --ignored
+NGSPICE_BIN=/abs/ngspice cargo test -p ngspice-rs --test c_mutual_inductance --locked -- --ignored
 ```
 
 Details and measured analytic errors: [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md).
@@ -186,8 +226,8 @@ interpolate C's plot across a slope corner that only the port lands on.
 Opt-in live checks (`NGSPICE_BIN` absolute):
 
 ```sh
-NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_source_functions --locked -- --ignored
-NGSPICE_BIN=/abs/ngspice cargo test -p spice-netlist --test c_reference --locked -- --ignored
+NGSPICE_BIN=/abs/ngspice cargo test -p ngspice-rs --test c_source_functions --locked -- --ignored
+NGSPICE_BIN=/abs/ngspice cargo test -p ngspice-rs --test c_reference --locked -- --ignored
 ```
 
 `c_source_functions` compares 22 V/I sources (every form and C default) with
@@ -234,7 +274,7 @@ count is 48 verified fixtures.
 Opt-in live check (`NGSPICE_BIN` absolute):
 
 ```sh
-NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test c_behavioural_reference --locked -- --ignored
+NGSPICE_BIN=/abs/ngspice cargo test -p ngspice-rs --test c_behavioural_reference --locked -- --ignored
 ```
 
 It compares 47 B expressions (every `inpptree.c` function, operators, C's
@@ -249,7 +289,7 @@ The nonlinear support/gate is documented in [M4_NONLINEAR.md](M4_NONLINEAR.md).
 `subckt_divider` through the production `.op` path, with no exclusions. Six new C
 AC/charge-transient goldens and twelve
 parser snapshots were added without changing previous data. Physical/Jacobian/
-charge/continuation/ownership checks live in `spice-analysis/tests/m4_gate.rs`.
+charge/continuation/ownership checks live in `tests/m4_gate.rs`.
 The historical linear sections below describe their original M2/M3 delivery;
 they do not supersede M4's explicit supported-physics and tolerance table.
 
@@ -332,7 +372,7 @@ directory.
 
 ## What the tests check
 
-`crates/spice-analysis/tests/golden_rawfiles.rs`:
+`tests/golden_rawfiles.rs`:
 
 | Test | Claim |
 | --- | --- |
@@ -366,7 +406,7 @@ pinned by a test so that it cannot be lost.
 3. **A complex plot has two spellings for a zero imaginary part.** A vector
    ngspice has flagged real is written `re,0.0`; one it has not is written
    `re,0.000000000000000e+00`. `.ac` flags nothing real, so even `frequency` and
-   `v(in)` carry the long form — this is why `spice_analysis::Variable` has an
+   `v(in)` carry the long form — this is why `analysis::Variable` has an
    `is_real` flag rather than inferring it from the data.
 4. **`%.15e` is not always a round-trip.** A rawfile value carries 16
    significant digits, and two adjacent doubles can share one 16-digit spelling.
@@ -386,12 +426,12 @@ pinned by a test so that it cannot be lost.
 
 ## M1a parser verification
 
-`crates/spice-netlist/tests/linear_parser.rs` checks AST fields against the
+`tests/linear_parser.rs` checks AST fields against the
 committed divider, AC low-pass and RLC decks: terminal order, values, source
 locations, request arguments, case folding and ground aliasing. It also checks
 the unflattened `subckt_divider` AST (#12). `rc_transient` has a positioned
 waveform AST test; the three nonlinear fixtures have M1b tests. All eight
-fixtures parse without implying simulation or the M1 round-trip gate. `crates/spice-cli/tests/parse.rs` checks
+fixtures parse without implying simulation or the M1 round-trip gate. `tests/parse.rs` checks
 process exits: supported parse = 0, missing file = 2, unported syntax = 3.
 
 A separate opt-in oracle uses `conformance/parser/linear_sources.cir` to compare
@@ -399,7 +439,7 @@ parsed scalar parameters with C's `print @instance[parameter]` after an `.op`
 setup. It runs out of process in a unique temporary directory and uses no FFI:
 
 ```sh
-NGSPICE_BIN=/path/to/ngspice cargo test -p spice-netlist --test c_reference -- --ignored
+NGSPICE_BIN=/path/to/ngspice cargo test -p ngspice-rs --test c_reference -- --ignored
 ```
 
 This pins bare-AC defaults (magnitude 1, phase 0), implicit DC zero, source
@@ -413,18 +453,18 @@ It was run successfully against the local ngspice-47+ binary for M1a.
 `conformance/parser/` is **not** part of the rawfile fixture corpus; do not add
 `.raw` files there or confuse these instance-query checks with engine parity.
 Token/AST snapshots (#21) are committed under `conformance/snapshots/` and
-checked byte for byte by `crates/spice-netlist/tests/snapshots.rs`;
+checked byte for byte by `tests/snapshots.rs`;
 `cargo xtask snapshots` reports drift and `--bless` regenerates (Rust only, no C,
 fixed point, never touches goldens). Schema, layout, path/Windows rules and the
 schema-change procedure: `conformance/snapshots/README.md`. The eight-fixture
-round-trip gate is `crates/spice-netlist/tests/m1_gate.rs` (#22); ordinary tests
+round-trip gate is `tests/m1_gate.rs` (#22); ordinary tests
 never need C, and C parser oracles remain opt-in.
 
-`crates/spice-netlist/tests/c_param_reference.rs` is a further ignored oracle for
+`tests/c_param_reference.rs` is a further ignored oracle for
 the `.param`/expression grammar (#14): it folds parsed trees with a test-local
 evaluator and compares the values with C's numparam, pinning precedence,
 associativity and the leading-sign rules. Run it with
-`NGSPICE_BIN=/abs/path/ngspice cargo test -p spice-netlist --test c_param_reference -- --ignored`.
+`NGSPICE_BIN=/abs/path/ngspice cargo test -p ngspice-rs --test c_param_reference -- --ignored`.
 The fixture `conformance/parser/param_expressions.cir` is parsed by ordinary
 tests and the CLI without claiming any value is resolved.
 
@@ -432,7 +472,7 @@ tests and the CLI without claiming any value is resolved.
 
 The existing M1a contracts are retained; fixture/CLI expectations now also
 include the M1b diode/BJT/MOS decks, and the live oracle shares its runner across probes.
-`crates/spice-netlist/tests/winnow_parser.rs` adds checks that cuts preserve
+`tests/winnow_parser.rs` adds checks that cuts preserve
 terminal and missing-value diagnostics, optional slots cannot swallow overflow,
 repetition cannot hide unported expressions, AC lookahead leaves following
 keywords untouched, and trailing device tokens are never silently ignored.
@@ -450,7 +490,7 @@ they never contact GitHub and are not part of `cargo xtask ci`.
 
 ## M1b model/diode slice verification
 
-`crates/spice-netlist/tests/model_diode_parser.rs` covers the `diode_dc` AST,
+`tests/model_diode_parser.rs` covers the `diode_dc` AST,
 model families/forms, raw first level, ordered duplicates, numeric model names,
 forward/unresolved references, scalar geometry, ground aliasing, continuation
 provenance, committed malformed/overflow errors and specific unsupported gaps.
@@ -471,7 +511,7 @@ explicit in the AST and architecture docs.
 
 ## M1b BJT/MOS slice verification
 
-`crates/spice-netlist/tests/transistor_parser.rs` adds 18 regressions for Q/M
+`tests/transistor_parser.rs` adds 18 regressions for Q/M
 fixture ASTs, optional substrate vs earliest declared model, alpha model names
 with digits and numeric node names, forward declarations, raw ordered scalars,
 leading BJT area, MOS bulk/model collisions, omitted ports, overflow, unsupported
@@ -495,7 +535,7 @@ are not proven by these probes.
 
 PR #51 merged #11/#17. This section records their initial validation; the
 bounded passive elaboration section below records #19's additional checks.
-`passive_models.rs` adds 11 syntax regressions, and `spice-devices/tests/models.rs`
+`passive_models.rs` adds 11 syntax regressions, and `tests/models.rs`
 adds 13 production-interface checks for top-level first-wins lookup, raw AST
 immutability, missing/wrong families, model/node namespace collisions, first raw
 versus rounded/applied levels, unsupported backends, nonfinite/range/cache errors,
@@ -538,18 +578,18 @@ references; #19 now adds the explicitly bounded passive support below.
 ## Bounded passive elaboration verification
 
 The current checkout implements #19 on merged PR #51 (#11/#17), pending merge.
-`spice-devices/tests/passive_models.rs` adds **12** checks for model/instance
+`tests/devices_passive_models.rs` adds **12** checks for model/instance
 precedence, raw AST immutability, R sheet/C area-perimeter formulas, missing or
 invalid geometry, coefficient overrides, positive multiplicity/scale, sign and
 finite/range/overflow errors, explicit unsupported setters, real stamping,
 initial-condition retention and atomic failure across every circuit namespace.
-`spice-analysis/tests/passive_models.rs` adds **7** checks comparing model/literal
+`tests/analysis_passive_models.rs` adds **7** checks comparing model/literal
 DC, source sweeps and complex AC; repeated default/nondefault TEMP/TNOM runs;
 explicit TEMP/TNOM overrides; runtime errors; contextual RC BDF against its
 analytic step; and logarithmic-AC endpoint arithmetic. A new module doctest
 exercises contextual passive assembly.
 
-Two opt-in tests in `spice-analysis/tests/c_passive_models.rs` compare effective
+Two opt-in tests in `tests/c_passive_models.rs` compare effective
 values and production DC/complex AC against live C at both 27/27 and 77/22
 Celsius. `conformance/parser/passive_elaboration.cir` exercises R/C geometry,
 model/default/instance precedence, repeated setters, TC1/TC2, scale and
@@ -581,7 +621,7 @@ RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
 NGSPICE_BIN=/absolute/path/to/ngspice cargo test --workspace --locked -- --ignored
 cargo xtask golden verify
 cargo xtask golden verify --netlist rc_lowpass_ac
-cargo run -p spice-analysis --example rc_diffsol --locked
+cargo run -p ngspice-rs --example rc_diffsol --locked
 ```
 
 [PASSIVE_MODELS.md](PASSIVE_MODELS.md) lists the exhaustive setter/units/default/
@@ -599,13 +639,13 @@ inventory, base tokens versus model tail flags, Q 1–2/M 1–3 IC arities,
 component names/positions, scalar/vector duplicate order and leading area,
 malformed/overflow/advanced forms and first-error/.end behavior.
 
-#9 adds `spice-devices/tests/waveforms.rs` (deck binding, C defaults, limits,
-merged lazy breakpoints), `spice-analysis/tests/source_waveforms.rs` (parsed
+#9 adds `tests/waveforms.rs` (deck binding, C defaults, limits,
+merged lazy breakpoints), `tests/source_waveforms.rs` (parsed
 PWL/PULSE decks through diffsol BDF, jump sampling, budgets) and opt-in
 `parsed_pulse_rc_matches_c_on_requested_samples` / `parsed_pwl_rc_matches_c_on_requested_samples`
 in `c_linear_reference.rs`.
 
-`spice-devices/tests/parser_setters.rs` adds three tests proving invalid waveform and
+`tests/parser_setters.rs` adds three tests proving invalid waveform and
 nonlinear factory failures are atomic, that flags/IC vectors do not enable
 initialization, and that scalar factories/schemas reject non-scalar AST kinds
 even when forged with valid numeric text. Device API waveforms are unchanged.
@@ -619,7 +659,7 @@ solver tolerances changed. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md) for exac
 syntax, intentional stricter punctuation and observed C preprocessing limits.
 
 ```sh
-NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p spice-netlist --test c_reference --locked -- --ignored
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs --test c_reference --locked -- --ignored
 ```
 
 Local validation: **322 passed, 0 failed, 11 opt-in C tests ignored** on stable
@@ -641,7 +681,7 @@ includes/library selections, include-chain/section-boundary provenance,
 canonical cycles/symlink aliases, repeated/diamond includes, depth/file/byte/card
 limits and ordered failures/termination. `spice-rs parse` resolves the committed
 multi-file `conformance/parser/sources/main.cir` probe and all eight rawfile
-fixtures; `spice-devices/tests/structure_parser.rs` explicitly rejects simulation
+fixtures; `tests/structure_parser.rs` explicitly rejects simulation
 and checks atomic X factory failures. The new textual parameter kind is also
 rejected by scalar consumers. See [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md).
 
@@ -660,14 +700,14 @@ removed it (the fixture now verifies and `EXCLUDED` is empty).
 
 ## Petgraph topology verification
 
-`spice-devices::Circuit::topology()` is exercised by nine additional circuit
+`devices::Circuit::topology()` is exercised by nine additional circuit
 regressions: ground/unused nodes, separate node/device/row namespaces, port
 order and repeated multiport edges, disconnected structural components,
 zero-port devices, snapshot rebuilding after mutation, duplicate/dangling
 mutations with unchanged numbering on failure, and deterministic deck order.
 Existing device/container regressions remain in place.
 
-`crates/spice-maths/tests/mna_topology.rs` now calls the production
+`tests/mna_topology.rs` now calls the production
 `SparseMatrix::coupling_graph()` instead of a hardcoded test-only graph builder.
 Eight checks cover structural blocks, diagonal-only/empty rows, one ordinary
 row-0 unknown, the empty matrix, duplicate cancellations and input immutability,
@@ -760,8 +800,8 @@ an unavailable `NGSPICE_BIN` to verify that C is unnecessary.
 `gmin` from a `{}` value) and `options_xmu_tran` (`compare::TRAN`, `xmu=0.2`,
 `itl4`), both captured individually (`options_gmin_dc` includes a PNP with
 `m=2 area=3`, whose gmin terms scale with `m` only). Opt-in live comparisons in
-`crates/spice-analysis/tests/c_options_reference.rs` (`NGSPICE_BIN=... cargo test
--p spice-analysis --test c_options_reference -- --ignored`) cover reverse-biased
+`tests/c_options_reference.rs` (`NGSPICE_BIN=... cargo test
+-p ngspice-rs --test c_options_reference -- --ignored`) cover reverse-biased
 diode/NPN/PNP/4-terminal BJT/MOS1 junction `gmin` (`.op`, `.dc`, `.ac`), `xmu`
 on a common transient grid, and `{expr}`/`'expr'` `temp`/`tnom` values. Each
 numerical test also asserts that the option moves the C result beyond the bound,
@@ -780,7 +820,7 @@ the port-internal tests in `options_coverage.rs`.
 `xtask/src/tran.rs` is the event-aware comparator for the M3 transient exit gate.
 All twelve transient fixtures (`rc_transient`, seven gate decks, four initialized-state decks) are
 registered in `golden verify` against their committed goldens (see above). The opt-in live comparisons in
-`crates/spice-analysis/tests/c_companion_reference.rs` cover the PULSE/PWL RC and
+`tests/c_companion_reference.rs` cover the PULSE/PWL RC and
 series RLC decks for trap and Gear. C rejects `backend=diffsol method=bdf` tokens on `.tran`
 ("Cannot compute substitute"), so the BDF backend is compared with the committed
 goldens only through the registry's Rust-only `Variant`s (same deck text plus
@@ -881,7 +921,7 @@ breakpoint counts.
 
 ## M3 exit-gate analytic and conservation checks (#48)
 
-`crates/spice-analysis/tests/m3_gate.rs` runs the committed gate decks through
+`tests/m3_gate.rs` runs the committed gate decks through
 `Parser` -> `RunConfig` -> `companion_transient`/`runner` (no C needed) and checks
 them against exact closed forms (a state-space model advanced with a matrix
 exponential over the deck's piecewise-linear drive; the same model judges the

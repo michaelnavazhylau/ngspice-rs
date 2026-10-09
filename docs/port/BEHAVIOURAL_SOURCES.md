@@ -18,10 +18,10 @@ C references (read-only behaviour): `src/spicelib/parser/inp2b.c`,
 
 | Rust | Job |
 | --- | --- |
-| `spice_netlist::bexpr` | expression syntax tree (separate from numparam's [`expr`](PARAM_EXPRESSIONS.md): it references circuit quantities) |
-| `spice-netlist` `parser/bexpression.rs`, `parser/behavioural.rs` | winnow grammar over the raw card text; B card and nonlinear E/G/F/H forms |
-| `spice_netlist::behavioural` | `inpcom.c` lowering passes and `.param`/`.func`/numparam resolution |
-| `spice_devices::behavioural` | the device: compiled value/derivative evaluator, stamps, XSPICE `pwl` map |
+| `netlist::bexpr` | expression syntax tree (separate from numparam's [`expr`](PARAM_EXPRESSIONS.md): it references circuit quantities) |
+| `netlist` `parser/bexpression.rs`, `parser/behavioural.rs` | winnow grammar over the raw card text; B card and nonlinear E/G/F/H forms |
+| `netlist::behavioural` | `inpcom.c` lowering passes and `.param`/`.func`/numparam resolution |
+| `devices::behavioural` | the device: compiled value/derivative evaluator, stamps, XSPICE `pwl` map |
 
 ## Syntax
 
@@ -120,7 +120,7 @@ accidental quirks (all verified against the C binary's AC analysis):
 - divisions in derivative trees include the `gmin * 1e-20` fudge.
 
 Elsewhere the analytic gradient matches finite differences for every function
-and operator (`spice-devices/tests/behavioural_sources.rs`). Where C would
+and operator (`tests/devices_behavioural_sources.rs`). Where C would
 continue with a NaN or an infinity (`acos(2)`, `cosh(1000)`), the port stops
 with a numerical error naming the function and the non-finite value or
 derivative. This includes infinite *slopes* at an intermediate Newton iterate:
@@ -135,7 +135,7 @@ C's `PTdivide` fudge gives `1/v(x)`, `sqrt(v(x))`, `log(v(x))` and divisions a
 slope of about `1e32` at a 0 V iterate (and `log(0)` is `-1e99`). The first
 linearisation is well posed, but row scaling alone leaves the output column
 `1e32` times weaker than its coupling and trips the sparse LU conditioning
-guard. Newton (`spice-analysis/src/newton.rs` `linearised_solve`) therefore
+guard. Newton (`analysis/src/newton.rs` `linearised_solve`) therefore
 retries a numerically failed row-equilibrated solve once with Curtis-Reid
 power-of-two row/column balancing and up to three rounds of iterative
 refinement (`EquilibratedSparseLu::new_balanced`/`solve_refined`); the
@@ -190,7 +190,7 @@ converged solution.
 
 ## Front-end lowering (`inpcom.c`)
 
-`spice_netlist::behavioural::lower_nonlinear_sources` runs before `.param`
+`netlist::behavioural::lower_nonlinear_sources` runs before `.param`
 literalization and subcircuit expansion, like C's front end, so generated
 names are renamed per instance (`x1.e1_int1`, `b.x1.be1`, `i(v.x1.v_b1)`):
 
@@ -248,20 +248,20 @@ rewritten and must name a findable branch (V, E, H or voltage B).
   (sqrt/log/reciprocal/division started from the 0 V Newton iterate). Fixtures that need XSPICE code models name them on a
   `* xtask-codemodels:` comment; the capture then writes a scratch
   `.spiceinit` loading only those libraries (see VERIFICATION.md).
-- `crates/spice-devices/tests/behavioural_sources.rs`: finite-difference
+- `tests/devices_behavioural_sources.rs`: finite-difference
   checks of every function's derivative, C value/derivative quirks, Newton
   residual/Jacobian consistency of whole loads, `ASRCload`/`ASRCacLoad`
   stamps, the temperature factor and errors.
-- `crates/spice-netlist/tests/behavioural_sources.rs`: grammar, positions,
+- `tests/netlist_behavioural_sources.rs`: grammar, positions,
   writer round trips, resolution and the lowering passes;
   `conformance/parser/behavioural_sources.cir` and the
   `error_behavioural_*`/`error_controlled_poly` cases are snapshotted.
-- `crates/spice-analysis/tests/behavioural_sources.rs`: analytic OP/DC/AC/
+- `tests/analysis_behavioural_sources.rs`: analytic OP/DC/AC/
   transient results, `temper` sweeps, `hertz` in AC, undamped large steps,
   zero-start singular slopes in every analysis and the infinite-slope error.
-- `crates/spice-maths/tests/equilibration.rs`: Curtis-Reid balancing and
+- `tests/equilibration.rs`: Curtis-Reid balancing and
   refinement on the zero-start linearisation; singular systems stay rejected.
-- Opt-in: `NGSPICE_BIN=/abs/ngspice cargo test -p spice-analysis --test
+- Opt-in: `NGSPICE_BIN=/abs/ngspice cargo test -p ngspice-rs --test
   c_behavioural_reference -- --ignored` compares 47 expressions' values (OP)
   and derivatives (one-point AC) with the C binary at four bias points to
   `1e-12` relative.

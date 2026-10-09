@@ -1,7 +1,7 @@
 # Token and AST snapshots
 
 Deterministic text dumps that make parser changes reviewable (GitHub #21).
-They are produced by `spice_netlist::dump` (a library module; nothing here
+They are produced by `netlist::dump` (a library module; nothing here
 depends on the CLI). No C toolchain, sibling checkout or rawfile golden is
 involved, and `conformance/golden/*.raw` is never touched.
 
@@ -24,7 +24,7 @@ snapshotted as an `error` block, never as a partial AST.
 
 ## Schemas
 
-Documented in the module docs of `crates/spice-netlist/src/dump.rs`. The first
+Documented in the module docs of `src/netlist/dump.rs`. The first
 line is a version header (`# ngspice-rs token-dump v1`, `# ngspice-rs ast-dump v1`).
 Token spelling, kind, order and `line:column` (byte columns, relative to the
 joined logical card) are preserved; AST scopes list ordered cards with
@@ -46,7 +46,7 @@ indistinguishable from a separator and is not supported in fixture names.
 
 | Command | Effect |
 | --- | --- |
-| `cargo test -p spice-netlist --test snapshots` | compares byte for byte; never writes; failure prints the first differing line and the bless hint |
+| `cargo test -p ngspice-rs --test snapshots` | compares byte for byte; never writes; failure prints the first differing line and the bless hint |
 | `cargo xtask snapshots` | dry run: lists created/changed/removed files, exits non-zero on drift |
 | `cargo xtask snapshots --bless` | writes created/changed files, deletes orphans, reports each; a second run reports no changes |
 

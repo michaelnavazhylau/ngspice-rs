@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::Path;
 
-use spice_netlist::snapshot::{self, SNAPSHOT_DIR};
+use ngspice_rs::netlist::snapshot::{self, SNAPSHOT_DIR};
 
 use crate::workspace_root;
 

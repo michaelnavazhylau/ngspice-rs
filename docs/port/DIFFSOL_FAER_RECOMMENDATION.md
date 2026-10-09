@@ -24,7 +24,7 @@ This is an inspection and recommendation, not a solver implementation.
   published releases; both are already declared and locked in this workspace.
 - `cargo test --workspace --locked`: **221 passed, 4 ignored, 0 failed** on
   `rustc 1.99.0`. Ignored external-oracle tests were not run.
-- The two existing tests in `crates/spice-maths/tests/solver_crates.rs` pass:
+- The two existing tests in `tests/solver_crates.rs` pass:
   faer solves a stamped resistor network, and diffsol integrates exponential
   decay using BDF with `FaerSparseMat<f64>` / `FaerSparseLU<f64>`.
   These exercise dependencies directly, not the production solver interfaces.
@@ -35,8 +35,8 @@ This is an inspection and recommendation, not a solver implementation.
 selected, bounded transient backend second.** Do not claim that diffsol's
 methods implement ngspice's trapezoidal/Gear semantics.
 
-Keep circuit semantics in `spice-devices` and analysis orchestration in
-`spice-analysis`. Keep library-specific numeric adapters in `spice-maths`.
+Keep circuit semantics in `devices` and analysis orchestration in
+`analysis`. Keep library-specific numeric adapters in `maths`.
 Do not translate the C SPARSE/KLU implementations or rewrite their algorithms
 when faer already supplies the required factorization.
 
@@ -44,13 +44,13 @@ when faer already supplies the required factorization.
 
 | Location | Behavior at inspection baseline | Recommended action at that time |
 | --- | --- | --- |
-| `spice-maths/src/sparse.rs`: `factorize`, `solve` | Both return `NotYetPorted` | Implement real sparse LU with faer CSC storage and owned factors |
-| `spice-maths/src/dense.rs`: `lu_decompose`, `solve` | Both return `NotYetPorted` | Implement pivoted dense LU through faer; preserve row-major public storage |
-| `spice-maths/src/integrator.rs` | Method/history types; coefficient, integration and prediction stubs | Retain the companion-model contract; add a separate diffsol time-integration adapter |
-| `spice-devices/src/rlc.rs`, `registry.rs` | R/C/L stamps and all registered factories are stubs | Implement R/V/I and branch-row binding before claiming end-to-end DC; then C/L assembly |
-| `spice-devices/src/traits.rs`: `StampContext`, `Device` | Real matrix/RHS stamping and an accepted-point hook | Extend for dynamic equations and complex assembly without conflating trial evaluation with acceptance |
-| `spice-devices/src/circuit.rs`: `rebuild_unknowns` | Reserves branch rows but discards returned starts | Record per-device branch-row ranges so V sources and inductors can stamp their equations |
-| `spice-analysis/src/analysis.rs` | `.op`, `.dc`, `.ac`, `.tran` are all stubs | Implement drivers incrementally; preserve explicit errors for unsupported cases |
+| `maths/src/sparse.rs`: `factorize`, `solve` | Both return `NotYetPorted` | Implement real sparse LU with faer CSC storage and owned factors |
+| `maths/src/dense.rs`: `lu_decompose`, `solve` | Both return `NotYetPorted` | Implement pivoted dense LU through faer; preserve row-major public storage |
+| `maths/src/integrator.rs` | Method/history types; coefficient, integration and prediction stubs | Retain the companion-model contract; add a separate diffsol time-integration adapter |
+| `devices/src/rlc.rs`, `registry.rs` | R/C/L stamps and all registered factories are stubs | Implement R/V/I and branch-row binding before claiming end-to-end DC; then C/L assembly |
+| `devices/src/traits.rs`: `StampContext`, `Device` | Real matrix/RHS stamping and an accepted-point hook | Extend for dynamic equations and complex assembly without conflating trial evaluation with acceptance |
+| `devices/src/circuit.rs`: `rebuild_unknowns` | Reserves branch rows but discards returned starts | Record per-device branch-row ranges so V sources and inductors can stamp their equations |
+| `analysis/src/analysis.rs` | `.op`, `.dc`, `.ac`, `.tran` are all stubs | Implement drivers incrementally; preserve explicit errors for unsupported cases |
 
 At that baseline there was no completed Rust Newton loop or transient driver
 to replace. Today the bounded BDF driver exists, but a SPICE nonlinear DC Newton

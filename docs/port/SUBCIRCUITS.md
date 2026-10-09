@@ -3,16 +3,16 @@
 **Implemented: top-level `.subckt` definitions, `X` instances, formal defaults,
 instance overrides, `.global` nodes and body-local models.** `X` elaboration
 runs inside the production entry points — `Circuit::from_netlist`,
-`Circuit::from_netlist_with_context` and `spice_analysis::RunConfig::circuit` —
+`Circuit::from_netlist_with_context` and `analysis::RunConfig::circuit` —
 so a deck never reaches a device factory with an unexpanded instance.
 
 C references (read-only): `src/frontend/subckt.c` (`inp_subcktexpand()`,
 `translate()`, `translate_node_name()`, `translate_inst_name()`, `gettrans()`,
 `settrans()`, `collect_global_nodes()`) and `src/frontend/numparam/spicenum.c`
 for the parameter environment. The Rust side is
-`crates/spice-devices/src/subckt.rs` (expansion),
-`crates/spice-netlist/src/eval.rs` (`ParamScope::resolve_instance`) and the
-model resolver in `crates/spice-devices/src/models.rs`.
+`src/devices/subckt.rs` (expansion),
+`src/netlist/eval.rs` (`ParamScope::resolve_instance`) and the
+model resolver in `src/devices/models.rs`.
 
 ## Supported subset
 
@@ -169,11 +169,11 @@ declaration is reported, never dropped silently.
 - `cargo xtask golden verify` runs `subckt_divider` through the production `.op`
   path and matches the committed C golden (`conformance/golden/subckt_divider.raw`)
   by variable name; the fixture is no longer in the excluded list.
-- `crates/spice-analysis/tests/golden_rawfiles.rs` solves the same deck through
+- `tests/golden_rawfiles.rs` solves the same deck through
   `Circuit::from_netlist`.
-- `crates/spice-devices/tests/subcircuits.rs` covers port binding, hierarchical
+- `tests/devices_subcircuits.rs` covers port binding, hierarchical
   identity, nesting, overrides/defaults, body parameters, globals/ground,
   local-model shadowing and sibling isolation, expansion limits, purity,
   batch atomicity and every diagnostic above.
-- `crates/spice-netlist/tests/param_eval.rs` pins `resolve_instance`'s
+- `tests/param_eval.rs` pins `resolve_instance`'s
   override-beats-body-card rule.

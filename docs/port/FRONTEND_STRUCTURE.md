@@ -113,7 +113,7 @@ root directory.
 
 ## Verification and next gates
 
-`spice-netlist/tests/subcircuits.rs` and `sources.rs` exercise production AST/file
+`tests/netlist_subcircuits.rs` and `sources.rs` exercise production AST/file
 APIs: order/scope/forward names, nested definitions, textual duplicates,
 terminators, paths/section selection, provenance, symlinks/cycles, repeated work,
 limits and first-error/termination rules. The committed multi-file probe is
@@ -136,15 +136,15 @@ location. Order and duplicates are kept; syntax only. `.global` parses into
 always global, other names only if a top-level `.global` listed them. Options or
 globals inside a `.subckt` body return `NotYetPorted`.
 
-`spice_analysis::RunConfig` (docs in `config.rs`) resolves the settings. Repeats
+`analysis::RunConfig` (docs in `config.rs`) resolves the settings. Repeats
 override in order; a name used both as flag and value, unknown names (including
 `no_auto_gnd`, a front-end variable) and invalid values are errors. Every
 accepted name has real semantics or is a documented no-op; the remaining
 `cktsopt.c` names and front-end variables with an effect are `NotYetPorted`.
-Tests: `spice-netlist/tests/options_globals.rs`,
-`spice-analysis/tests/{run_config,options_coverage,dc_continuation}.rs`,
-`spice-cli/tests/parse.rs`; opt-in C comparisons in
-`spice-analysis/tests/c_options_reference.rs`; goldens `options_gmin_dc`,
+Tests: `tests/options_globals.rs`,
+`analysis/tests/{run_config,options_coverage,dc_continuation}.rs`,
+`tests/parse.rs`; opt-in C comparisons in
+`tests/c_options_reference.rs`; goldens `options_gmin_dc`,
 `options_xmu_tran`.
 
 ### Option coverage (#110)
@@ -233,16 +233,16 @@ attaches them, in deck order, to every `AnalysisRequest` as
 `initial_conditions`/`nodesets` (`NodeCondition { node, value, location }`); the
 last duplicate wins as in C. Semantics are in [TRANSIENT.md](TRANSIENT.md). AST dumps print
 `initial-conditions`/`nodesets` sections and the `uic @loc` line only when present, so existing snapshots are unchanged. Tests:
-`spice-netlist/tests/ic_nodeset_parser.rs`, opt-in `c_ic_nodeset.rs`,
-`spice-analysis/tests/run_config.rs`, `initial_conditions.rs`.
+`tests/ic_nodeset_parser.rs`, opt-in `c_ic_nodeset.rs`,
+`tests/run_config.rs`, `initial_conditions.rs`.
 
 ## Normalized deck writer (#20)
 
-`spice_netlist::write_netlist(&Netlist) -> SpiceResult<String>` serializes the
+`netlist::write_netlist(&Netlist) -> SpiceResult<String>` serializes the
 **raw, unevaluated, unflattened** AST. It is separate from debug dumps
 (`spice-rs parse`), from evaluated/expanded decks (#15 `elaborate::literalize`, #18 flattening) and from byte-exact
 source reproduction. The full contract is the module documentation of
-`crates/spice-netlist/src/writer.rs`; in short:
+`src/netlist/writer.rs`; in short:
 
 - One card per line (no continuations/comments/blank lines), title first, 2-space
   indentation per `.subckt` level. `Netlist::cards`/`Subcircuit::cards` fix the
@@ -274,14 +274,14 @@ source reproduction. The full contract is the module documentation of
   neutralise locations, `Netlist::path`, raw card text, `path_spelling` and the
   original text of waveform/`ic` vectors (their structured values are compared).
   Re-parse with the same `Parser` configuration (`auto_gnd`). Tests:
-  `crates/spice-netlist/tests/deck_writer.rs` (all `conformance/netlists/*.cir`,
+  `tests/deck_writer.rs` (all `conformance/netlists/*.cir`,
   `conformance/parser/*.cir` and the source-resolution fixture round-trip and
   reach a writer fixed point). The #22 gate (`m1_gate.rs`) builds on it.
 
 Done: **#15** top-level parameter evaluation over the #14 expression AST
 (`eval`, `elaborate`). **#21** adds `dump`/`snapshot` (versioned token/AST dumps, snapshots in
 `conformance/snapshots/`, `cargo xtask snapshots --bless`). **#22** closes the
-M1 eight-fixture round-trip gate in `crates/spice-netlist/tests/m1_gate.rs`
+M1 eight-fixture round-trip gate in `tests/m1_gate.rs`
 (per-deck counts, terminal/model roles and analyses; semantic round trip and writer
 fixed point; snapshot match; combined fixtures `conformance/parser/combined_*.cir`;
 negative cases). Scoped-name enforcement is structural: declarations stay in

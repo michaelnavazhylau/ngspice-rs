@@ -1,8 +1,8 @@
 # SPICE-compatible companion transient driver (#26)
 
 Ordinary `.tran tstep tstop [tstart [tmax]]` runs the adaptive trapezoidal /
-Gear-2 **companion-model** driver, `spice_analysis::companion_transient`
-(`crates/spice-analysis/src/companion.rs`). It is a separate implementation from
+Gear-2 **companion-model** driver, `analysis::companion_transient`
+(`src/analysis/companion.rs`). It is a separate implementation from
 the explicitly selected diffsol BDF backend (see
 [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md)); companion stamps
 are never handed to diffsol and diffsol equations are never discretized again.
@@ -108,7 +108,7 @@ C references (all behaviour below was read from the sources and re-checked with
 the reference binary): `inppas3.c`/`cktsetnp.c` (storing `.ic`/`.nodeset`),
 `cktic.c` (`CKTic`), `cktload.c` (constraint stamping), `niiter.c`
 (`MODETRANOP`/`MODEUIC` shortcut), `dctran.c`, `capload.c`, `capgetic.c`,
-`indload.c`. Code: `crates/spice-analysis/src/initial.rs` and
+`indload.c`. Code: `src/analysis/initial.rs` and
 `Driver::initialize` in `companion.rs`. Tests: `tests/initial_conditions.rs`
 (analytic) and opt-in `tests/c_initial_conditions.rs` (live C).
 
@@ -175,8 +175,8 @@ sequences coincide again, including the `uic` step breakpoint).
 
 Independent V and I sources accept every standard ngspice transient function
 except the noise/random/external ones. Syntax lives in
-`crates/spice-netlist/src/parser/waveform.rs`; runtime semantics in
-`crates/spice-devices/src/functions.rs` (SIN/EXP/SFFM/AM, PWL `td=`/`r=`) and
+`src/netlist/parser/waveform.rs`; runtime semantics in
+`src/devices/functions.rs` (SIN/EXP/SFFM/AM, PWL `td=`/`r=`) and
 `pulse.rs` (PULSE count), following `vsrcload.c`/`isrcload.c`,
 `vsrcacct.c`/`isrcacct.c` and `vsrcpar.c`/`isrcpar.c`.
 
@@ -240,8 +240,8 @@ TRNOISE, TRRANDOM, EXTERNAL, PWL `file=` and expression-valued fields remain
 `NotYetPorted`.
 
 Verification: analytic unit tests per form and default; deck-level tests
-(`crates/spice-devices/tests/waveforms.rs`,
-`crates/spice-analysis/tests/source_functions.rs`, including an analytic EXP RC
+(`tests/waveforms.rs`,
+`tests/source_functions.rs`, including an analytic EXP RC
 response under trap and Gear-2 and a `.four` of a SIN-driven RC: fundamental
 gain/phase of the low-pass within 1e-3 and THD below 0.1 %). C goldens
 `rc_sin_tran`, `rc_exp_tran`, `rc_sffm_am_tran` (AM as a current source),
@@ -274,7 +274,7 @@ suppresses earlier rows.
 
 ## Measured accuracy (physical-error limits)
 
-Analytic cases (`crates/spice-analysis/tests/companion_transient.rs`), unit step
+Analytic cases (`tests/companion_transient.rs`), unit step
 into RC / RL (tau = 1 ms) and the series RLC (R = 10, L = 1 mH, C = 1 uF, zeta =
 0.158), maximum step `h` set by `tmax` with truncation limiting disabled
 (`rtol=1`):

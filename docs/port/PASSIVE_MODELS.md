@@ -143,14 +143,14 @@ queried current verifies effective conductance instead.
 Example through the analysis API:
 
 ```rust
-let context = spice_analysis::AnalysisContext {
+let context = analysis::AnalysisContext {
     temperature: 77.0,
     nominal_temperature: 27.0,
 };
-let mut circuit = spice_devices::Circuit::from_netlist_with_context(
+let mut circuit = devices::Circuit::from_netlist_with_context(
     &netlist, &context.model_context(),
 )?;
-let plot = spice_analysis::runner(request.kind)?.run(&mut circuit, &request, &context)?;
+let plot = analysis::runner(request.kind)?.run(&mut circuit, &request, &context)?;
 ```
 
 ## Explicit limits and verification

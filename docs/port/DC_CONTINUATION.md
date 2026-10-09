@@ -2,9 +2,9 @@
 
 Bounded, typed and reported continuation for nonlinear DC bias solves
 (`.op`, `.ac` bias, and `.dc` points once the sweep runner reads the same
-settings). Code: `crates/spice-analysis/src/bias.rs` (policy, report, solve),
+settings). Code: `src/analysis/bias.rs` (policy, report, solve),
 `newton.rs` (iteration limit, counted failures), `config.rs` (deck options).
-Tests: `crates/spice-analysis/tests/dc_continuation.rs`.
+Tests: `tests/dc_continuation.rs`.
 
 This is a demonstrated, bounded policy, **not** ngspice parity: see
 [Deliberate differences from C](#deliberate-differences-from-c).
@@ -49,7 +49,7 @@ Order: direct Newton, then gmin stepping (seed start), then source stepping
 ## API
 
 ```rust
-use spice_analysis::bias::{ContinuationPolicy, DcSettings, SourceStepping, solve_dc_with};
+use analysis::bias::{ContinuationPolicy, DcSettings, SourceStepping, solve_dc_with};
 
 let settings = DcSettings {
     newton: NewtonOptions { max_iterations: 50, ..Default::default() },

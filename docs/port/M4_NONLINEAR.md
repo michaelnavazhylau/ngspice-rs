@@ -14,16 +14,16 @@ existing global dependency cache is reused. These links are local conveniences,
 not repository dependencies. Source, decks and goldens are independent worktree
 files: symlinking editable files between branches would violate isolation.
 
-- `spice-devices::models` / `schema`: existing first-declaration family/level
+- `devices::models` / `schema`: existing first-declaration family/level
   resolution, ordered last-set scalar projection, units, provenance and domains.
-- `spice-devices::nonlinear`: diode factory, junction equations and nonlinear
+- `devices::nonlinear`: diode factory, junction equations and nonlinear
   charge integration. `transistors`: Ebers-Moll BJT and MOS1 factories/equations.
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
   and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
-- `spice-analysis::newton`: disposable load/solve/reload, physical iterate and
+- `analysis::newton`: disposable load/solve/reload, physical iterate and
   equation-residual convergence, row equilibration and bounded voltage damping.
-- `spice-analysis::bias`: direct DC solve, nodal-gmin and source continuation.
-- `spice-analysis::sweep`: typed V/I/R/TEMP axes and bounded nested DC.
+- `analysis::bias`: direct DC solve, nodal-gmin and source continuation.
+- `analysis::sweep`: typed V/I/R/TEMP axes and bounded nested DC.
 - Companion transient consumes all `Device::truncation_slots` charge/derivative
   pairs. State remains owned by the existing M3 history, not the model object.
 
@@ -173,7 +173,7 @@ exact external variable-set/unit checks. The public Rust `sweep` scale name is
 normalized to C's `v(v-sweep)`/`i(i-sweep)` naming for verification only.
 No model quantities or external signals are excluded to hide an error.
 
-`spice-analysis/tests/m4_gate.rs` additionally pins polarity and finite gain,
+`tests/m4_gate.rs` additionally pins polarity and finite gain,
 MOS cutoff/triode/saturation/reversal square law, transistor DC Jacobian finite
 differences, diode junction/KCL residuals, physical integrated charge at a finer
 mesh, every state-pair's Q-based companion recurrence, discarded-trial/history

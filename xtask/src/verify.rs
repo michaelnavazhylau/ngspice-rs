@@ -3,9 +3,9 @@
 
 use std::{fs, path::Path};
 
-use spice_analysis::{AnalysisRequest, RawFile, RunConfig, runner};
-use spice_core::{AnalysisKind, parse_spice_number};
-use spice_netlist::Parser;
+use ngspice_rs::analysis::{AnalysisRequest, RawFile, RunConfig, runner};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::primitives::{AnalysisKind, parse_spice_number};
 
 use crate::{compare, golden, tran, workspace_root};
 
@@ -281,7 +281,7 @@ const SUPPORTED: &[Supported] = &[
     // i(l1) at t = 2 us, measured against a reltol = 1e-7 companion run that
     // the BDF result matches to 1e-6) exceeds even `compare::TRAN_RESTART`.
     // The BDF backend's coupled mass matrix is instead checked against that
-    // tight reference in `spice-analysis/tests/mutual_inductance.rs`.
+    // tight reference in `tests/mutual_inductance.rs`.
     Supported {
         name: "transformer_ac",
         kind: AnalysisKind::Ac,
@@ -439,7 +439,7 @@ struct Stage {
 }
 
 /// A multi-analysis fixture (#96): every analysis card of the deck runs in
-/// ngspice batch order (`spice_analysis::batch::schedule`) and plot `i` is
+/// ngspice batch order (`ngspice_rs::analysis::batch::schedule`) and plot `i` is
 /// compared with plot `i` of the multi-plot C golden under `stages[i]`. The
 /// plot count, the order and every plot name must match exactly; each stage
 /// keeps the very tolerance a single-analysis fixture of that type uses.
@@ -691,7 +691,7 @@ fn run_variant(
 fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>, String> {
     let netlist = Parser::new().parse_file(path).map_err(|e| e.to_string())?;
     let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
-    let schedule = spice_analysis::batch::schedule(&netlist.analyses);
+    let schedule = ngspice_rs::analysis::batch::schedule(&netlist.analyses);
     let want = load_golden(root, fixture.name)?;
     if schedule.len() != fixture.stages.len() || want.plots.len() != fixture.stages.len() {
         return Err(format!(
@@ -729,11 +729,11 @@ fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>
 /// onto C's default save set and naming. `extra` tokens are appended to the
 /// request after the deck's own settings.
 fn run_card(
-    netlist: &spice_netlist::ast::Netlist,
+    netlist: &ngspice_rs::netlist::ast::Netlist,
     config: &RunConfig,
-    card: &spice_netlist::ast::AnalysisCard,
+    card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
-) -> Result<(AnalysisRequest, spice_analysis::Plot), String> {
+) -> Result<(AnalysisRequest, ngspice_rs::analysis::Plot), String> {
     if !card.expressions.is_empty() {
         return Err("braced analysis arguments are not supported in verification fixtures".into());
     }
@@ -753,7 +753,7 @@ fn run_card(
         .nodes()
         .nodes()
         .iter()
-        .filter(|node| node.kind == spice_core::NodeKind::Internal)
+        .filter(|node| node.kind == ngspice_rs::primitives::NodeKind::Internal)
         .map(|node| format!("v({})", node.name))
         .collect();
     for column in (0..got.variables.len()).rev() {
@@ -790,10 +790,10 @@ fn load_golden(root: &Path, name: &str) -> Result<RawFile, String> {
 /// Compares one Rust plot with one C plot under `gate`.
 fn compare_plot(
     gate: &Gate,
-    netlist: &spice_netlist::ast::Netlist,
+    netlist: &ngspice_rs::netlist::ast::Netlist,
     request: &AnalysisRequest,
-    got: &spice_analysis::Plot,
-    want: &spice_analysis::Plot,
+    got: &ngspice_rs::analysis::Plot,
+    want: &ngspice_rs::analysis::Plot,
 ) -> Result<String, String> {
     match *gate {
         Gate::Points { axis, tolerance } => compare::plots(got, want, tolerance, axis)

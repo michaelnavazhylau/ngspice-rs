@@ -40,7 +40,7 @@ trap/Gear timestep policy. No C algorithm or KLU implementation is copied.
 
 ## Decision: fully voltage-constrained capacitive block plus free RL currents
 
-Explicit opt-in API: `spice_maths::diffsol::higher_index::ConstrainedPencil`.
+Explicit opt-in API: `maths::diffsol::higher_index::ConstrainedPencil`.
 Input is immutable numeric `A,E`, coordinate counts `n,k`, and explicit
 `ProjectionOptions`; it is not a topology detector or device callback. Coordinates
 and original rows are ordered `[q,z,lambda]`, with **ground omitted**:
@@ -156,7 +156,7 @@ restart, jump interpolation or state commitment.
 
 ## Acceptance and capability gate
 
-Source-named tests: `crates/spice-maths/tests/higher_index_prototype.rs`.
+Source-named tests: `tests/higher_index_prototype.rs`.
 Sine and ramp constraints check signed source currents, free RL dynamics,
 derivatives, original/differentiated/hidden residuals and IC handling. A two-node
 source tree tests coupled constraint coordinates and opposite terminal signs.

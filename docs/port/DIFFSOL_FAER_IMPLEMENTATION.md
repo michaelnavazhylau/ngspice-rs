@@ -16,7 +16,7 @@ The companion trap/Gear transient driver is documented separately in
 
 ## Production interfaces
 
-- `spice-maths::SparseMatrix::factorize(&self) -> SparseLu` and
+- `maths::SparseMatrix::factorize(&self) -> SparseLu` and
   `Matrix::lu_decompose(&self) -> DenseLu` return **owned snapshots**. Storage
   remains `Clone + PartialEq`, with no backend cache to invalidate. Mutating or
   clearing storage never changes existing factors. Retain factors for repeated RHSs.
@@ -43,8 +43,8 @@ The companion trap/Gear transient driver is documented separately in
   `|Ax-b|[r] <= 128 * epsilon * n * (sum_c |A[r,c]| * ||x||inf + |b[r]|)`.
   Residual/norm arithmetic overflow is an explicit numerical error. These are
   diagnostics, not a promise of forward accuracy for arbitrarily conditioned MNA.
-- `spice-maths::complex::{ComplexMatrix, ComplexLu}` assembles `A + j omega E`
-  and uses faer complex sparse LU with explicit `spice_core::Complex` conversions.
+- `maths::complex::{ComplexMatrix, ComplexLu}` assembles `A + j omega E`
+  and uses faer complex sparse LU with explicit `primitives::Complex` conversions.
   It never routes AC through a real matrix solve.
 
 ## Devices and analyses
@@ -82,10 +82,10 @@ companion stamps and complex stamps are not conflated with this interface.
 Analysis entry point:
 
 ```rust
-let mut circuit = spice_devices::Circuit::from_netlist(&netlist)?;
-let request = spice_analysis::AnalysisRequest::from(&netlist.analyses[0]);
-let plot = spice_analysis::runner(request.kind)?.run(
-    &mut circuit, &request, &spice_analysis::AnalysisContext::default(),
+let mut circuit = devices::Circuit::from_netlist(&netlist)?;
+let request = analysis::AnalysisRequest::from(&netlist.analyses[0]);
+let plot = analysis::runner(request.kind)?.run(
+    &mut circuit, &request, &analysis::AnalysisContext::default(),
 )?;
 ```
 
@@ -121,7 +121,7 @@ Driver/device coverage text reflects the bounded implementation. APIs above and
 this runnable example exercise production simulation:
 
 ```sh
-cargo run -p spice-analysis --example rc_diffsol --locked
+cargo run -p ngspice-rs --example rc_diffsol --locked
 ```
 
 ## Bounded transient support
@@ -205,7 +205,7 @@ step is enforced by stop times and no-progress/final-time checks. Default option
 Diffsol's own bounded Newton/rejection controls and minimum timestep (1e-13 s)
 remain in force; backend failures propagate as `SpiceError::Numerical`. Nonlinear
 charge/flux, limiting, DC convergence policies and general DAEs remain deferred.
-The separate trap/Gear companion integrator (`spice_maths::integrator`) provides
+The separate trap/Gear companion integrator (`maths::integrator`) provides
 order-1/2 coefficients and history operations for the companion driver
 ([TRANSIENT.md](TRANSIENT.md)); BDF never consumes them.
 
@@ -246,7 +246,7 @@ the floating/coupled-capacitor and PWL/pulse RC/RL/RLC transients on the explici
 `backend=diffsol method=bdf` tokens against the same C goldens: under the
 peak-scaled `TRAN_RESTART` bound where C's own backward-Euler restart error exceeds
 the pointwise bound, and against closed forms at 7e-7 of device scale in
-`crates/spice-analysis/tests/m3_gate.rs`.
+`tests/m3_gate.rs`.
 
 ```sh
 cargo test --workspace --locked
@@ -254,6 +254,6 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
 cargo +1.89.0 test --workspace --locked
 cargo +1.89.0 clippy --workspace --all-targets --locked -- -D warnings
-NGSPICE_BIN=/path/to/ngspice cargo test -p spice-analysis --test c_linear_reference --locked -- --ignored
-NGSPICE_BIN=/path/to/ngspice cargo test -p spice-netlist --test c_reference --locked -- --ignored
+NGSPICE_BIN=/path/to/ngspice cargo test -p ngspice-rs --test c_linear_reference --locked -- --ignored
+NGSPICE_BIN=/path/to/ngspice cargo test -p ngspice-rs --test c_reference --locked -- --ignored
 ```

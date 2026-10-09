@@ -16,7 +16,7 @@
 //!    A deck with several analysis cards is instrumented to write every plot by
 //!    its C name (`write f.raw ac1.all dc1.all op1.all tran1.all`), in batch
 //!    order, with the names and order computed by
-//!    [`spice_analysis::batch::schedule`]; a wrong name or order makes ngspice
+//!    [`ngspice_rs::analysis::batch::schedule`]; a wrong name or order makes ngspice
 //!    fail or the plot-count check below reject the capture. The block ends with
 //!    `quit`: without it, batch mode re-runs every analysis after `.endc` for a
 //!    deck with `.op` (`ft_savedotargs()` registers an op-only save list, so the
@@ -253,7 +253,7 @@ pub(crate) fn capture(
     }
 
     if plots.len() > 1 {
-        let parsed = spice_analysis::RawFile::parse(&rawfile)
+        let parsed = ngspice_rs::analysis::RawFile::parse(&rawfile)
             .map_err(|error| format!("{name}: the captured rawfile does not parse: {error}"))?;
         if parsed.len() != plots.len() {
             return Err(format!(
@@ -343,10 +343,10 @@ fn write_codemodel_init(ngspice: &Ngspice, netlist: &str, directory: &Path) -> R
 /// The C plot names of the fixture's analyses in batch order (one entry per
 /// analysis card).
 fn batch_plot_names(netlist: &Path) -> Result<Vec<String>, String> {
-    let parsed = spice_netlist::Parser::new()
+    let parsed = ngspice_rs::netlist::Parser::new()
         .parse_file(netlist)
         .map_err(|error| format!("parsing {}: {error}", netlist.display()))?;
-    Ok(spice_analysis::batch::schedule(&parsed.analyses)
+    Ok(ngspice_rs::analysis::batch::schedule(&parsed.analyses)
         .into_iter()
         .map(|entry| entry.plot_name)
         .collect())

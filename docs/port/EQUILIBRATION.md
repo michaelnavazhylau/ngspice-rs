@@ -121,14 +121,14 @@ range failures. Extremal/subnormal inputs pin finite bounded metadata.
 Executed with `CARGO_BUILD_JOBS=2` and private `CARGO_TARGET_DIR=$PWD/target/issue46`:
 
 ```sh
-cargo test -p spice-maths --locked
+cargo test -p ngspice-rs --locked
 cargo test --workspace --locked
 cargo +1.89.0 test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo +1.89.0 clippy --workspace --all-targets --locked -- -D warnings
 cargo fmt --all -- --check
 git diff --check
-cargo run --release -p spice-maths --example equilibration_bench --locked
+cargo run --release -p ngspice-rs --example equilibration_bench --locked
 ```
 
 Focused maths: **55 passed / 0 failed**. Workspace stable 1.99.0 and MSRV 1.89.0:

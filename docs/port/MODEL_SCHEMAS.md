@@ -35,7 +35,7 @@ The Rust-only tree contains references, not copies of those C sources.
 
 ## Resolver and typed APIs
 
-Public interfaces live in `spice-devices`, not the parser or maths crates:
+Public interfaces live in `devices`, not the parser or maths crates:
 
 - `ModelResolver::new(&netlist.models)` indexes one top-level deck without global
   state. Names are case-insensitive; the **first declaration wins**, as in
@@ -67,17 +67,17 @@ Public interfaces live in `spice-devices`, not the parser or maths crates:
 Example (also covered by module rustdoc and production-interface tests):
 
 ```rust
-let resolver = spice_devices::ModelResolver::new(&netlist.models)?;
+let resolver = devices::ModelResolver::new(&netlist.models)?;
 let model = resolver.resolve(&netlist.devices[0])?.expect("diode reference");
-let context = spice_devices::ModelContext::default(); // TEMP/TNOM = 27 Celsius
+let context = devices::ModelContext::default(); // TEMP/TNOM = 27 Celsius
 let model_inputs = model.diode_parameters(&context)?;
 let instance_inputs = model.diode_instance_parameters(&netlist.devices[0], &context)?;
 // Both records are validated inputs, not an available simulation factory.
 ```
 
-`ModelContext` avoids a lower-crate dependency on `spice-analysis`. Callers may
+`ModelContext` avoids a lower-crate dependency on `analysis`. Callers may
 explicitly pass circuit and nominal temperatures; `.option` cards are resolved by
-`spice_analysis::RunConfig` (see FRONTEND_STRUCTURE.md), whose context is passed here. All temperatures must be finite and exceed absolute zero.
+`analysis::RunConfig` (see FRONTEND_STRUCTURE.md), whose context is passed here. All temperatures must be finite and exceed absolute zero.
 
 ## Raw levels, backend selection and applied setters
 
@@ -141,16 +141,16 @@ to existing R/C/L stamps, as documented in [PASSIVE_MODELS.md](PASSIVE_MODELS.md
 inputs instead of disappearing from a successful scalar simulation. Registry
 ported flags are unchanged.
 
-Ordinary tests: `spice-netlist/tests/passive_models.rs` and
-`spice-devices/tests/models.rs` cover syntax, scoping/order, raw AST preservation,
+Ordinary tests: `tests/netlist_passive_models.rs` and
+`tests/models.rs` cover syntax, scoping/order, raw AST preservation,
 missing/wrong models, namespace collisions, rounding/cache/range failures,
 defaults, provenance, invalid context and atomic failure. They need no C binary.
 
 Opt-in probes (unique temporary directories, no FFI or golden writes):
 
 ```sh
-NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p spice-netlist --test c_reference --locked -- --ignored
-NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p spice-devices --test model_c_reference --locked -- --ignored
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs --test c_reference --locked -- --ignored
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs --test model_c_reference --locked -- --ignored
 ```
 
 `passive_models.cir` pins setter order and geometry-based C setup values.

@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use spice_analysis::{Plot, PlotFlags};
+use ngspice_rs::analysis::{Plot, PlotFlags};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Tolerance {
@@ -90,7 +90,7 @@ pub(crate) const TRAN: TranTolerance = TranTolerance {
 /// adds `reltol` (1e-3, ngspice default, not fitted) times the signal peak.
 /// It applies only to Rust-only backend variants, never to the C-parity
 /// companion run; BDF accuracy itself is established by the tighter analytic
-/// tests in `crates/spice-analysis/tests/`.
+/// tests in `tests/`.
 pub(crate) const TRAN_RESTART: TranTolerance = TranTolerance {
     peak_relative: 1e-3,
     ..TRAN
@@ -250,8 +250,8 @@ pub(crate) fn plots(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use spice_analysis::Variable;
-    use spice_core::Complex;
+    use ngspice_rs::analysis::Variable;
+    use ngspice_rs::primitives::Complex;
 
     fn plot() -> Plot {
         let mut plot = Plot::new("ac1", "AC Analysis", PlotFlags::Complex);

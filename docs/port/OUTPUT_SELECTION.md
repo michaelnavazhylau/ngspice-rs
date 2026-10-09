@@ -11,14 +11,14 @@ Route map:
 
 | Item | Where |
 | --- | --- |
-| `.save`/`.print` parsing (typed, positioned requests) | `crates/spice-netlist/src/parser/save.rs` |
-| Request AST (`SaveCard`, `PrintCard`, `RequestedVector`, `OutputCards`) | `crates/spice-netlist/src/ast.rs` |
-| Parser entry point that returns them | `Parser::parse_file_with_output`, `Parser::parse_deck_with_output` (`crates/spice-netlist/src/parser.rs`) |
-| Selection over a full `Plot`, and the text rendering | `crates/spice-analysis/src/selection.rs` |
-| CLI wiring (`simulate`) | `crates/spice-cli/src/simulate.rs` |
-| Unit tests over synthetic plots | `crates/spice-analysis/src/selection.rs` (`mod tests`) |
-| Parser tests | `crates/spice-netlist/tests/save_print.rs` |
-| Process tests (`.op`/`.dc`/`.ac`, text, failures) | `crates/spice-cli/tests/simulate.rs` |
+| `.save`/`.print` parsing (typed, positioned requests) | `src/netlist/parser/save.rs` |
+| Request AST (`SaveCard`, `PrintCard`, `RequestedVector`, `OutputCards`) | `src/netlist/ast.rs` |
+| Parser entry point that returns them | `Parser::parse_file_with_output`, `Parser::parse_deck_with_output` (`src/netlist/parser.rs`) |
+| Selection over a full `Plot`, and the text rendering | `src/analysis/selection.rs` |
+| CLI wiring (`simulate`) | `src/cli/simulate.rs` |
+| Unit tests over synthetic plots | `src/analysis/selection.rs` (`mod tests`) |
+| Parser tests | `tests/save_print.rs` |
+| Process tests (`.op`/`.dc`/`.ac`, text, failures) | `tests/simulate.rs` |
 
 ## What ngspice does
 
@@ -194,7 +194,7 @@ until after the rawfile is written).
 ## Public API
 
 ```rust
-// spice-netlist
+// netlist
 Parser::parse_file_with_output(path) -> SpiceResult<ParsedDeck>
 Parser::parse_deck_with_output(&deck) -> SpiceResult<ParsedDeck>
 pub struct ParsedDeck { pub netlist: Netlist, pub output: OutputCards }
@@ -209,7 +209,7 @@ pub enum RequestedVector { All, Voltage { positive: NodeName, negative: Option<N
                                        negative: Option<NodeName> } }
 pub enum VectorComponent { Magnitude, Phase, Real, Imaginary, Decibels }
 
-// spice-analysis
+// analysis
 selection::write_requests(&OutputCards, AnalysisKind) -> SpiceResult<Vec<VectorRequest>>
 selection::print_requests(&OutputCards, AnalysisKind) -> SpiceResult<Vec<VectorRequest>>
 Selection::resolve(&Plot, AnalysisKind, &[VectorRequest]) -> SpiceResult<Selection>
@@ -223,7 +223,7 @@ Selection::to_text(&self, &Plot) -> SpiceResult<String>
 and the text rendering are tested with hand-built `Plot`s, without a CLI or a
 solver. The output cards are returned beside the `Netlist` rather than inside
 it: they describe an analysis' output, not the circuit, and keeping them out of
-`Netlist` means no `spice-devices` or rawfile-layer change was needed and every
+`Netlist` means no `devices` or rawfile-layer change was needed and every
 existing consumer of `Netlist` is untouched.
 
 ## Known limits
