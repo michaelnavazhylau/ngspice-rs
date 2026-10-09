@@ -85,6 +85,10 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_diode_temp_dc` | `.dc temp` | EG/XTI/TNOM, TLEV 2 band gap, DTEMP, TRS and TCV breakdown across -40..125 C (#86) |
 | `m7_diode_temp_ac` | `.ac` | `.options temp=100`: TLEVC 0/1 depletion laws, CJSW/PJ, ISR small signal, TTT1 (#86) |
 | `m7_zener_tran` | `.tran` | SIN-driven Zener clipper: breakdown, junction/sidewall/diffusion charge, `reltol=1e-5` (#86) |
+| `m7_mos1_inverter_tran` | `.tran` | CMOS inverter: Meyer gate charge (TOX), LD, RSH/NRD/NRS and RD/RS internal nodes, CJ/CJSW/JS geometry; `tmax` 2 ps (#88) |
+| `m7_mos1_ring_tran` | `.tran` | 3-stage CMOS ring oscillator with 50 fF loads and a current kick; `tmax` 0.5 ps (#88) |
+| `m7_mos1_meyer_ac` | `.ac` | Meyer and junction small-signal capacitance at 75 C, `M=2`, LD, RD/RS (#88) |
+| `m7_mos1_process_dc` | `.dc` | NSUB/TPG/NSS/UO extraction, forward body bias, TEMP/DTEMP/TNOM, PMOS RSH; tight RELTOL (#88) |
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |

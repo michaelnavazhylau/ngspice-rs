@@ -44,6 +44,7 @@ mod factory;
 pub mod functions;
 pub mod linear;
 pub mod models;
+pub mod mos1;
 pub mod mutual;
 pub mod nonlinear;
 pub mod passive;
@@ -72,7 +73,6 @@ pub use subckt::{ExpandedNetlist, SubcircuitLimits, expand_subcircuits};
 pub mod rlc;
 pub mod state;
 pub mod traits;
-pub mod transistors;
 
 pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
 pub use circuit::LoadRequest;

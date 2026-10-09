@@ -43,6 +43,60 @@ discarded, not committed. `golden verify` names C's `.dc temp` scale
 derivative in AC instead of C's stored conductance fails `m7_diode_temp_ac`
 (6.9e3 times the bound). Details: [M4_NONLINEAR.md](M4_NONLINEAR.md#diode).
 
+## M7 MOS1 completion (#88)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>`; no existing golden was recaptured and no tolerance changed.
+The existing MOS fixtures (`mos_inverter`,
+`m4_mos1_ac`, `m4_mos1_tran`) verify unchanged (`m4_mos1_tran` still at 0.187
+of its bound, although only the gate charges now enter LTE control, as in
+`mos1trun.c`).
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m7_mos1_inverter_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.438 of bound |
+| `m7_mos1_ring_tran` | `compare::TRAN` | 297 instants + 8 breakpoint limits, worst 0.523 of bound |
+| `m7_mos1_meyer_ac` | `compare::NONLINEAR` | 36 points |
+| `m7_mos1_process_dc` | `compare::NONLINEAR` | 31 points |
+
+Deck design, measured before capture against the same C binary in a scratch
+copy (never in the committed tree):
+
+- **Bounded maximum step.** The Meyer charge `q1 + (v - v1) * average C` is a
+  trapezoidal quadrature of `C(v) dv` along the accepted voltage path, so its
+  error depends on the step sequence, which differs between the two adaptive
+  drivers. With the default maximum step (`tstep`) the inverter differs from C
+  by up to 1.09x the `TRAN` bound at a 22 nA supply-current sample; with
+  `tmax = 2 ps` it is 0.44x. The decks set `tmax` (2 ps inverter, 0.5 ps ring)
+  so the comparison measures model agreement, not each driver's discretization
+  error.
+- **Three-stage ring.** A free-running ring amplifies any per-step difference
+  into phase drift, and `compare::TRAN` compares values point by point with a
+  1e-3 relative bound and a 1 uV floor. Refining a five-stage unloaded ring
+  from `tmax = 2 ps` to `0.5 ps` moves **C's own** waveform by 8.4 mV (Rust's by
+  5.7 mV) at a 1.74 ns transition, more than the C-Rust difference at either
+  step (3.9 mV and 1.3 mV, shrinking with the step). Five-stage variants still
+  failed on sub-millivolt settling tails, where the bound is about 1 uV (worst
+  37x for 50 fF loads at 1 ps, 224x unloaded at 1 ps, 302x for 20 fF at 2 ps):
+  this is the two simulators' discretization error, not a model difference.
+  Three stages with 50 fF loads at 0.5 ps verify over 6 ns (about ten periods)
+  at 0.523x; the same deck at 1 ps fails at 1.34x, so the step bound is
+  load-bearing. The kick is a single 0.3 ns current pulse into `n1`, because
+  the ring's operating point is the metastable symmetric state.
+- **Tight DC RELTOL.** With RD/RS and forward body bias, C's default Newton
+  stopping test leaves its DC-sweep currents up to 2.2e-4 relative from the
+  physical root: for an NMOS with `RS=90` and 0.3 V forward body bias, C gives
+  -2.64450e-6 A at vgs = 0.2 V by default and -2.64508e-6 A with `.options
+  reltol=1e-7 vntol=1e-12 abstol=1e-18`; Rust gives -2.645078e-6 A either way.
+  The process deck therefore sets those options, which Rust also honours,
+  rather than loosening `NONLINEAR`.
+
+`spice-analysis/tests/m7_mos1.rs` adds ten C-free tests (charge recurrences,
+AC capacitances, temperature/process laws, series-resistance KCL, transient and
+DC finite-difference Jacobians, `NotYetPorted` inputs and fixture round trips);
+eight new parser snapshots were blessed and existing snapshots are unchanged.
+See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos1).
+
 ## M6 switches S/W (#81, `work/m6-switches`)
 
 On top of the Wave 1 tree this slice adds six C goldens (`switch_op`,

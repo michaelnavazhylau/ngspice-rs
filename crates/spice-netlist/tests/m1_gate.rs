@@ -196,6 +196,14 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "m4_mos1_ac",
         "m4_mos1_tran",
     ];
+    // MOS1 completion decks (#88), gated by `xtask golden verify` and
+    // `spice-analysis/tests/m7_mos1.rs`.
+    let m7 = [
+        "m7_mos1_inverter_tran",
+        "m7_mos1_meyer_ac",
+        "m7_mos1_process_dc",
+        "m7_mos1_ring_tran",
+    ];
     // M6 common-deck fixtures (#94, #95, #96, #107, #110) and the M6 exit gate
     // are gated by `xtask golden verify` (multi-analysis decks plot by plot)
     // and their own feature tests.
@@ -214,6 +222,7 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     on_disk.retain(|name| {
         !M3_GATE_DECKS.contains(&name.as_str())
             && !m4.contains(&name.as_str())
+            && !m7.contains(&name.as_str())
             && !m6.contains(&name.as_str())
     });
     // M7 diode-physics decks (#86) are gated by `xtask golden verify` and the

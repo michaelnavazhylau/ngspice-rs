@@ -69,7 +69,7 @@ pub(crate) fn instantiate_with_models(
                 return crate::bjt::Bjt::instantiate(instance, nodes, &model, context);
             }
             crate::models::ModelFamily::Nmos | crate::models::ModelFamily::Pmos => {
-                return crate::transistors::Mos1::instantiate(instance, nodes, &model, context);
+                return crate::mos1::Mos1::instantiate(instance, nodes, &model, context);
             }
             crate::models::ModelFamily::Switch | crate::models::ModelFamily::CurrentSwitch => {
                 return crate::switch::Switch::instantiate(instance, nodes, &model, context);

@@ -1,0 +1,159 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_mos1_ring_tran.cir
+title: "MOS1 3-stage CMOS ring oscillator with Meyer gate charge (TOX)" @netlists/m7_mos1_ring_tran.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m7_mos1_ring_tran.cir:2:1 "vdd vdd 0 3.3"
+    [1] device[1] @netlists/m7_mos1_ring_tran.cir:3:1 "ikick 0 n1 pulse(0 200u 0.2n 0.1n 0.1n 0.3n 1)"
+    [2] device[2] @netlists/m7_mos1_ring_tran.cir:4:1 "mn1 n2 n1 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u"
+    [3] device[3] @netlists/m7_mos1_ring_tran.cir:5:1 "mp1 n2 n1 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+    [4] device[4] @netlists/m7_mos1_ring_tran.cir:6:1 "c1 n2 0 50f"
+    [5] device[5] @netlists/m7_mos1_ring_tran.cir:7:1 "mn2 n3 n2 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u"
+    [6] device[6] @netlists/m7_mos1_ring_tran.cir:8:1 "mp2 n3 n2 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+    [7] device[7] @netlists/m7_mos1_ring_tran.cir:9:1 "c2 n3 0 50f"
+    [8] device[8] @netlists/m7_mos1_ring_tran.cir:10:1 "mn3 n1 n3 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u"
+    [9] device[9] @netlists/m7_mos1_ring_tran.cir:11:1 "mp3 n1 n3 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+    [10] device[10] @netlists/m7_mos1_ring_tran.cir:12:1 "c3 n1 0 50f"
+    [11] model[0] @netlists/m7_mos1_ring_tran.cir:13:1 ".model nch nmos(level=1 vto=0.7 kp=110u gamma=0.4 phi=0.7 lambda=0.04 tox=9n ld=0.05u cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n mjsw=0.33 pb=0.9)"
+    [12] model[1] @netlists/m7_mos1_ring_tran.cir:15:1 ".model pch pmos(level=1 vto=-0.8 kp=40u gamma=0.5 phi=0.7 lambda=0.05 tox=9n ld=0.05u cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m mj=0.5 cjsw=0.3n mjsw=0.33 pb=0.9)"
+    [13] analysis[0] @netlists/m7_mos1_ring_tran.cir:17:1 ".tran 0.02n 6n 0 0.5p"
+    [14] end @netlists/m7_mos1_ring_tran.cir:18:1 ".end"
+  devices (11):
+    device [0] name="vdd" designator=v @netlists/m7_mos1_ring_tran.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3.3" @netlists/m7_mos1_ring_tran.cir:2:11
+    device [1] name="ikick" designator=i @netlists/m7_mos1_ring_tran.cir:3:1
+      nodes: "0" "n1"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 200u 0.2n 0.1n 0.1n 0.3n 1)" @netlists/m7_mos1_ring_tran.cir:3:12
+          pulse
+            initial: "0"@netlists/m7_mos1_ring_tran.cir:3:18
+            pulsed: "200u"@netlists/m7_mos1_ring_tran.cir:3:20
+            delay: "0.2n"@netlists/m7_mos1_ring_tran.cir:3:25
+            rise: "0.1n"@netlists/m7_mos1_ring_tran.cir:3:30
+            fall: "0.1n"@netlists/m7_mos1_ring_tran.cir:3:35
+            width: "0.3n"@netlists/m7_mos1_ring_tran.cir:3:40
+            period: "1"@netlists/m7_mos1_ring_tran.cir:3:45
+    device [2] name="mn1" designator=m @netlists/m7_mos1_ring_tran.cir:4:1
+      nodes: "n2" "n1" "0" "0"
+      model: "nch"
+      parameters (6):
+        [0] name="w" kind=scalar value="2u" @netlists/m7_mos1_ring_tran.cir:4:19
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_ring_tran.cir:4:24
+        [2] name="ad" kind=scalar value="2p" @netlists/m7_mos1_ring_tran.cir:4:31
+        [3] name="as" kind=scalar value="2p" @netlists/m7_mos1_ring_tran.cir:4:37
+        [4] name="pd" kind=scalar value="6u" @netlists/m7_mos1_ring_tran.cir:4:43
+        [5] name="ps" kind=scalar value="6u" @netlists/m7_mos1_ring_tran.cir:4:49
+    device [3] name="mp1" designator=m @netlists/m7_mos1_ring_tran.cir:5:1
+      nodes: "n2" "n1" "vdd" "vdd"
+      model: "pch"
+      parameters (6):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_mos1_ring_tran.cir:5:23
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_ring_tran.cir:5:28
+        [2] name="ad" kind=scalar value="5p" @netlists/m7_mos1_ring_tran.cir:5:35
+        [3] name="as" kind=scalar value="5p" @netlists/m7_mos1_ring_tran.cir:5:41
+        [4] name="pd" kind=scalar value="12u" @netlists/m7_mos1_ring_tran.cir:5:47
+        [5] name="ps" kind=scalar value="12u" @netlists/m7_mos1_ring_tran.cir:5:54
+    device [4] name="c1" designator=c @netlists/m7_mos1_ring_tran.cir:6:1
+      nodes: "n2" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="50f" @netlists/m7_mos1_ring_tran.cir:6:9
+    device [5] name="mn2" designator=m @netlists/m7_mos1_ring_tran.cir:7:1
+      nodes: "n3" "n2" "0" "0"
+      model: "nch"
+      parameters (6):
+        [0] name="w" kind=scalar value="2u" @netlists/m7_mos1_ring_tran.cir:7:19
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_ring_tran.cir:7:24
+        [2] name="ad" kind=scalar value="2p" @netlists/m7_mos1_ring_tran.cir:7:31
+        [3] name="as" kind=scalar value="2p" @netlists/m7_mos1_ring_tran.cir:7:37
+        [4] name="pd" kind=scalar value="6u" @netlists/m7_mos1_ring_tran.cir:7:43
+        [5] name="ps" kind=scalar value="6u" @netlists/m7_mos1_ring_tran.cir:7:49
+    device [6] name="mp2" designator=m @netlists/m7_mos1_ring_tran.cir:8:1
+      nodes: "n3" "n2" "vdd" "vdd"
+      model: "pch"
+      parameters (6):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_mos1_ring_tran.cir:8:23
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_ring_tran.cir:8:28
+        [2] name="ad" kind=scalar value="5p" @netlists/m7_mos1_ring_tran.cir:8:35
+        [3] name="as" kind=scalar value="5p" @netlists/m7_mos1_ring_tran.cir:8:41
+        [4] name="pd" kind=scalar value="12u" @netlists/m7_mos1_ring_tran.cir:8:47
+        [5] name="ps" kind=scalar value="12u" @netlists/m7_mos1_ring_tran.cir:8:54
+    device [7] name="c2" designator=c @netlists/m7_mos1_ring_tran.cir:9:1
+      nodes: "n3" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="50f" @netlists/m7_mos1_ring_tran.cir:9:9
+    device [8] name="mn3" designator=m @netlists/m7_mos1_ring_tran.cir:10:1
+      nodes: "n1" "n3" "0" "0"
+      model: "nch"
+      parameters (6):
+        [0] name="w" kind=scalar value="2u" @netlists/m7_mos1_ring_tran.cir:10:19
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_ring_tran.cir:10:24
+        [2] name="ad" kind=scalar value="2p" @netlists/m7_mos1_ring_tran.cir:10:31
+        [3] name="as" kind=scalar value="2p" @netlists/m7_mos1_ring_tran.cir:10:37
+        [4] name="pd" kind=scalar value="6u" @netlists/m7_mos1_ring_tran.cir:10:43
+        [5] name="ps" kind=scalar value="6u" @netlists/m7_mos1_ring_tran.cir:10:49
+    device [9] name="mp3" designator=m @netlists/m7_mos1_ring_tran.cir:11:1
+      nodes: "n1" "n3" "vdd" "vdd"
+      model: "pch"
+      parameters (6):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_mos1_ring_tran.cir:11:23
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_ring_tran.cir:11:28
+        [2] name="ad" kind=scalar value="5p" @netlists/m7_mos1_ring_tran.cir:11:35
+        [3] name="as" kind=scalar value="5p" @netlists/m7_mos1_ring_tran.cir:11:41
+        [4] name="pd" kind=scalar value="12u" @netlists/m7_mos1_ring_tran.cir:11:47
+        [5] name="ps" kind=scalar value="12u" @netlists/m7_mos1_ring_tran.cir:11:54
+    device [10] name="c3" designator=c @netlists/m7_mos1_ring_tran.cir:12:1
+      nodes: "n1" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="50f" @netlists/m7_mos1_ring_tran.cir:12:9
+  models (2):
+    model [0] name="nch" base="nmos" level=1e0 @netlists/m7_mos1_ring_tran.cir:13:1
+      parameters (16):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_ring_tran.cir:13:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/m7_mos1_ring_tran.cir:13:25
+        [2] name="kp" kind=scalar value="110u" @netlists/m7_mos1_ring_tran.cir:13:33
+        [3] name="gamma" kind=scalar value="0.4" @netlists/m7_mos1_ring_tran.cir:13:41
+        [4] name="phi" kind=scalar value="0.7" @netlists/m7_mos1_ring_tran.cir:13:51
+        [5] name="lambda" kind=scalar value="0.04" @netlists/m7_mos1_ring_tran.cir:13:59
+        [6] name="tox" kind=scalar value="9n" @netlists/m7_mos1_ring_tran.cir:13:71
+        [7] name="ld" kind=scalar value="0.05u" @netlists/m7_mos1_ring_tran.cir:13:78
+        [8] name="cgso" kind=scalar value="0.3n" @netlists/m7_mos1_ring_tran.cir:13:87
+        [9] name="cgdo" kind=scalar value="0.3n" @netlists/m7_mos1_ring_tran.cir:13:97
+        [10] name="cgbo" kind=scalar value="0.1n" @netlists/m7_mos1_ring_tran.cir:13:107
+        [11] name="cj" kind=scalar value="0.9m" @netlists/m7_mos1_ring_tran.cir:13:117
+        [12] name="mj" kind=scalar value="0.5" @netlists/m7_mos1_ring_tran.cir:13:125
+        [13] name="cjsw" kind=scalar value="0.25n" @netlists/m7_mos1_ring_tran.cir:13:132
+        [14] name="mjsw" kind=scalar value="0.33" @netlists/m7_mos1_ring_tran.cir:13:143
+        [15] name="pb" kind=scalar value="0.9" @netlists/m7_mos1_ring_tran.cir:13:153
+    model [1] name="pch" base="pmos" level=1e0 @netlists/m7_mos1_ring_tran.cir:15:1
+      parameters (16):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_ring_tran.cir:15:17
+        [1] name="vto" kind=scalar value="-0.8" @netlists/m7_mos1_ring_tran.cir:15:25
+        [2] name="kp" kind=scalar value="40u" @netlists/m7_mos1_ring_tran.cir:15:34
+        [3] name="gamma" kind=scalar value="0.5" @netlists/m7_mos1_ring_tran.cir:15:41
+        [4] name="phi" kind=scalar value="0.7" @netlists/m7_mos1_ring_tran.cir:15:51
+        [5] name="lambda" kind=scalar value="0.05" @netlists/m7_mos1_ring_tran.cir:15:59
+        [6] name="tox" kind=scalar value="9n" @netlists/m7_mos1_ring_tran.cir:15:71
+        [7] name="ld" kind=scalar value="0.05u" @netlists/m7_mos1_ring_tran.cir:15:78
+        [8] name="cgso" kind=scalar value="0.3n" @netlists/m7_mos1_ring_tran.cir:15:87
+        [9] name="cgdo" kind=scalar value="0.3n" @netlists/m7_mos1_ring_tran.cir:15:97
+        [10] name="cgbo" kind=scalar value="0.1n" @netlists/m7_mos1_ring_tran.cir:15:107
+        [11] name="cj" kind=scalar value="1m" @netlists/m7_mos1_ring_tran.cir:15:117
+        [12] name="mj" kind=scalar value="0.5" @netlists/m7_mos1_ring_tran.cir:15:123
+        [13] name="cjsw" kind=scalar value="0.3n" @netlists/m7_mos1_ring_tran.cir:15:130
+        [14] name="mjsw" kind=scalar value="0.33" @netlists/m7_mos1_ring_tran.cir:15:140
+        [15] name="pb" kind=scalar value="0.9" @netlists/m7_mos1_ring_tran.cir:15:150
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m7_mos1_ring_tran.cir:17:1
+      arguments: "0.02n" "6n" "0" "0.5p"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
