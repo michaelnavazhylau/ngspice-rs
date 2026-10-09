@@ -31,7 +31,9 @@ use crate::devices::schema::{
     ScalarDomain, ScalarParameter, ScalarSchema, ScalarUnit, ScalarValues, finite_literal,
     temperature_kelvin,
 };
-use crate::devices::sweep::{MAX_RESISTOR_OVERRIDES, ResistorOverride};
+use crate::devices::sweep::{
+    InstanceOverride, MAX_INSTANCE_OVERRIDES, MAX_RESISTOR_OVERRIDES, ResistorOverride,
+};
 
 /// Parsed model family, including polarity without rewriting the raw AST.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -313,7 +315,7 @@ impl<'a> ResolvedModel<'a> {
 /// consumers can pass their temperature settings explicitly when factories land.
 ///
 /// The context is an immutable per-point value: a typed DC sweep carries its
-/// resistor overrides here (see [`crate::devices::sweep`]) instead of mutating devices.
+/// resistor and instance-parameter overrides here (see [`crate::devices::sweep`]) instead of mutating devices.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelContext {
     /// Circuit temperature, degrees Celsius (instance TEMP default).
@@ -323,6 +325,10 @@ pub struct ModelContext {
     /// Per-point replacements of resistors' supplied scalars, applied by
     /// [`crate::devices::Circuit`] when it assembles or loads. Empty slots are `None`.
     pub resistor_overrides: [Option<ResistorOverride>; MAX_RESISTOR_OVERRIDES],
+    /// Per-point replacements of device instance parameters (`.dc
+    /// @inst[param]`), applied by [`crate::devices::Circuit`] when it assembles
+    /// or loads. Empty slots are `None`.
+    pub instance_overrides: [Option<InstanceOverride>; MAX_INSTANCE_OVERRIDES],
     /// Junction minimum conductance in siemens (C `CKTgmin`, `.option gmin`),
     /// added in parallel with every diode, BJT and MOS1 junction. It is not the
     /// artificial nodal continuation conductance of DC gmin stepping. Default
@@ -350,6 +356,7 @@ impl ModelContext {
             temperature,
             nominal_temperature,
             resistor_overrides: [None; MAX_RESISTOR_OVERRIDES],
+            instance_overrides: [None; MAX_INSTANCE_OVERRIDES],
             gmin: DEFAULT_GMIN,
             frequency: 0.,
         }
@@ -389,6 +396,28 @@ impl ModelContext {
             .iter_mut()
             .find(|slot| slot.is_none())
             .ok_or_else(|| SpiceError::circuit("too many resistor overrides"))?;
+        *slot = Some(target);
+        Ok(self)
+    }
+
+    /// This context plus one instance-parameter override, in the first free
+    /// slot. Two overrides may name the same device with different parameters.
+    ///
+    /// # Errors
+    /// [`SpiceError::Circuit`] when the same parameter of the same device is
+    /// already overridden or every slot is used. The context itself is not
+    /// changed on failure.
+    pub fn with_instance_override(mut self, target: InstanceOverride) -> SpiceResult<Self> {
+        if self.instance_overrides.iter().flatten().any(|existing| {
+            existing.device() == target.device() && existing.parameter() == target.parameter()
+        }) {
+            return Err(SpiceError::circuit("duplicate instance parameter override"));
+        }
+        let slot = self
+            .instance_overrides
+            .iter_mut()
+            .find(|slot| slot.is_none())
+            .ok_or_else(|| SpiceError::circuit("too many instance parameter overrides"))?;
         *slot = Some(target);
         Ok(self)
     }

@@ -1,0 +1,8 @@
+Diode instance-parameter sweep: @d1[area] nested with the circuit temperature
+.options reltol=1e-8
+v1 in 0 2
+r1 in a 1k
+d1 a 0 dx area=2
+.model dx d(is=1e-14 rs=10 n=1.1 eg=1.11 xti=3)
+.dc @d1[area] 0.5 4 0.5 temp -20 80 50
+.end

@@ -1,0 +1,86 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_tf_bjt.cir
+title: "Transfer function of a Gummel-Poon common-emitter stage" @netlists/m8_tf_bjt.cir:1:1
+scope root
+  cards (12):
+    [0] device[0] @netlists/m8_tf_bjt.cir:5:1 "vin in 0 dc 1.4"
+    [1] device[1] @netlists/m8_tf_bjt.cir:6:1 "vcc vcc 0 9"
+    [2] device[2] @netlists/m8_tf_bjt.cir:7:1 "rs in nb 600"
+    [3] device[3] @netlists/m8_tf_bjt.cir:8:1 "rb1 vcc nb 82k"
+    [4] device[4] @netlists/m8_tf_bjt.cir:9:1 "rb2 nb 0 15k"
+    [5] device[5] @netlists/m8_tf_bjt.cir:10:1 "rc vcc nc 3.3k"
+    [6] device[6] @netlists/m8_tf_bjt.cir:11:1 "re ne 0 330"
+    [7] device[7] @netlists/m8_tf_bjt.cir:12:1 "q1 nc nb ne 0 qamp"
+    [8] model[0] @netlists/m8_tf_bjt.cir:13:1 ".model qamp npn(is=5e-16 bf=180 br=5 vaf=70 var=15 ikf=40m ikr=4m ise=1e-14 ne=1.5 isc=2e-14 nc=1.8 rb=120 rbm=12 irb=0.5m re=0.8 rc=15)"
+    [9] options[0] @netlists/m8_tf_bjt.cir:14:1 ".options reltol=1e-8"
+    [10] analysis[0] @netlists/m8_tf_bjt.cir:15:1 ".tf v(nc) vin"
+    [11] end @netlists/m8_tf_bjt.cir:16:1 ".end"
+  devices (8):
+    device [0] name="vin" designator=v @netlists/m8_tf_bjt.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.4" @netlists/m8_tf_bjt.cir:5:10
+    device [1] name="vcc" designator=v @netlists/m8_tf_bjt.cir:6:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="9" @netlists/m8_tf_bjt.cir:6:11
+    device [2] name="rs" designator=r @netlists/m8_tf_bjt.cir:7:1
+      nodes: "in" "nb"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="600" @netlists/m8_tf_bjt.cir:7:10
+    device [3] name="rb1" designator=r @netlists/m8_tf_bjt.cir:8:1
+      nodes: "vcc" "nb"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="82k" @netlists/m8_tf_bjt.cir:8:12
+    device [4] name="rb2" designator=r @netlists/m8_tf_bjt.cir:9:1
+      nodes: "nb" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="15k" @netlists/m8_tf_bjt.cir:9:10
+    device [5] name="rc" designator=r @netlists/m8_tf_bjt.cir:10:1
+      nodes: "vcc" "nc"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="3.3k" @netlists/m8_tf_bjt.cir:10:11
+    device [6] name="re" designator=r @netlists/m8_tf_bjt.cir:11:1
+      nodes: "ne" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="330" @netlists/m8_tf_bjt.cir:11:9
+    device [7] name="q1" designator=q @netlists/m8_tf_bjt.cir:12:1
+      nodes: "nc" "nb" "ne" "0"
+      model: "qamp"
+      parameters (0):
+  models (1):
+    model [0] name="qamp" base="npn" level=none @netlists/m8_tf_bjt.cir:13:1
+      parameters (16):
+        [0] name="is" kind=scalar value="5e-16" @netlists/m8_tf_bjt.cir:13:17
+        [1] name="bf" kind=scalar value="180" @netlists/m8_tf_bjt.cir:13:26
+        [2] name="br" kind=scalar value="5" @netlists/m8_tf_bjt.cir:13:33
+        [3] name="vaf" kind=scalar value="70" @netlists/m8_tf_bjt.cir:13:38
+        [4] name="var" kind=scalar value="15" @netlists/m8_tf_bjt.cir:13:45
+        [5] name="ikf" kind=scalar value="40m" @netlists/m8_tf_bjt.cir:13:52
+        [6] name="ikr" kind=scalar value="4m" @netlists/m8_tf_bjt.cir:13:60
+        [7] name="ise" kind=scalar value="1e-14" @netlists/m8_tf_bjt.cir:13:67
+        [8] name="ne" kind=scalar value="1.5" @netlists/m8_tf_bjt.cir:13:77
+        [9] name="isc" kind=scalar value="2e-14" @netlists/m8_tf_bjt.cir:13:84
+        [10] name="nc" kind=scalar value="1.8" @netlists/m8_tf_bjt.cir:13:94
+        [11] name="rb" kind=scalar value="120" @netlists/m8_tf_bjt.cir:13:101
+        [12] name="rbm" kind=scalar value="12" @netlists/m8_tf_bjt.cir:13:108
+        [13] name="irb" kind=scalar value="0.5m" @netlists/m8_tf_bjt.cir:13:115
+        [14] name="re" kind=scalar value="0.8" @netlists/m8_tf_bjt.cir:13:124
+        [15] name="rc" kind=scalar value="15" @netlists/m8_tf_bjt.cir:13:131
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tf @netlists/m8_tf_bjt.cir:15:1
+      arguments: "v" "(" "nc" ")" "vin"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m8_tf_bjt.cir:14:1
+      setting [0] name="reltol" value="1e-8"@netlists/m8_tf_bjt.cir:14:17 @netlists/m8_tf_bjt.cir:14:10
+  globals (0):

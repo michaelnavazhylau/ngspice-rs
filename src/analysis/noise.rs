@@ -413,44 +413,6 @@ fn input_rhs(system: &LinearSystem, input: &str) -> SpiceResult<Vec<Complex>> {
     Ok(rhs)
 }
 
-/// The operating point and small-signal system at `model`, as `.ac` builds
-/// them (`acan.c`/`noisean.c`: `CKTop`, then a `MODEINITSMSIG` load).
-fn bias_point(
-    circuit: &mut Circuit,
-    request: &AnalysisRequest,
-    context: &AnalysisContext,
-    settings: &crate::analysis::bias::DcSettings,
-) -> SpiceResult<(crate::maths::Vector, Vec<Real>)> {
-    circuit.finalize()?;
-    let hints = crate::analysis::initial::resolve(circuit, request)?;
-    let nodes = crate::analysis::bias::NodeForcing {
-        initial: Vec::new(),
-        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
-    };
-    let mut seed = crate::maths::Vector::zeros(circuit.unknown_count());
-    for hint in hints.nodesets {
-        seed.as_mut_slice()[hint.row] = hint.value;
-    }
-    let solved = crate::analysis::bias::solve_dc_forced(
-        circuit,
-        &context.model_context(),
-        settings,
-        &[],
-        Some(&seed),
-        None,
-        &nodes,
-    )?
-    .solution;
-    // As in `.ac`: the MODEINITSMSIG load copies CKTstate1, still the zero
-    // ("really off") vector after an operating point, into CKTstate0, which
-    // is what the switches' small-signal stamps and `swnoise.c` read.
-    let history = circuit.state_history();
-    let state1 = history
-        .accepted(1)
-        .map_or_else(|| vec![0.; history.len()], <[Real]>::to_vec);
-    Ok((solved.values, state1))
-}
-
 /// Runs `.noise` and returns its plots: the spectrum and, unless the sweep is
 /// a single frequency, the integrated noise.
 pub(crate) fn run(
@@ -486,18 +448,16 @@ pub(crate) fn run(
             card.input
         )));
     }
-    let (mut bias, state1) = bias_point(circuit, request, context, &settings)?;
+    // The operating point and small-signal system exactly as `.ac` builds
+    // them (`noisean.c`: `CKTop`, then a `MODEINITSMSIG` load; a
+    // `hertz`-dependent circuit is re-solved at every frequency).
+    let mut small = crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
     let model = context.model_context();
-    let mut system = circuit.small_signal_system_at(&model, &bias, Some(&state1))?;
-    let mut generators: Vec<Generators> = circuit_noise(circuit, &model, &bias, Some(&state1))?
-        .into_iter()
-        .map(Generators::new)
-        .collect();
-    // noisean.c: CKTvarHertz re-solves the operating point at every frequency.
-    let varies = circuit
-        .devices()
-        .iter()
-        .any(|device| device.depends_on_frequency());
+    let mut generators: Vec<Generators> =
+        circuit_noise(circuit, &model, small.bias(), Some(small.state()))?
+            .into_iter()
+            .map(Generators::new)
+            .collect();
 
     let (spectrum_variables, integrated_variables) =
         plot_names(&generators, input.kind, card.summary != 0);
@@ -534,20 +494,22 @@ pub(crate) fn run(
                 ".noise frequency loop exceeded {MAX_POINTS} points"
             )));
         }
-        if varies {
+        let input_name = card.input.as_str();
+        let (forward, adjoint) = small.at_frequency(circuit, context, freq, |system| {
+            let matrix = ComplexMatrix::from_operators(
+                &system.a,
+                &system.e,
+                2. * std::f64::consts::PI * freq,
+            )?;
+            let lu = matrix.factorize()?;
+            Ok((
+                lu.solve(&input_rhs(system, input_name)?)?,
+                lu.solve_transposed(&adjoint_rhs)?,
+            ))
+        })?;
+        if small.varies() {
             let local = model.with_frequency(freq);
-            bias = crate::analysis::bias::solve_dc_with(
-                circuit,
-                &local,
-                &settings,
-                &[],
-                Some(&bias),
-                None,
-            )?
-            .solution
-            .values;
-            system = circuit.small_signal_system_at(&local, &bias, Some(&state1))?;
-            let fresh = circuit_noise(circuit, &local, &bias, Some(&state1))?;
+            let fresh = circuit_noise(circuit, &local, small.bias(), Some(small.state()))?;
             if fresh.len() != generators.len() {
                 return Err(SpiceError::circuit(
                     "noise generators changed between frequencies",
@@ -557,13 +519,8 @@ pub(crate) fn run(
                 g.instance = instance;
             }
         }
-        let matrix =
-            ComplexMatrix::from_operators(&system.a, &system.e, 2. * std::f64::consts::PI * freq)?;
-        let lu = matrix.factorize()?;
-        let forward = lu.solve(&input_rhs(&system, &card.input)?)?;
         let gain_sq_inv = 1. / gain(circuit, &forward, output).max(N_MINGAIN);
         let ln_gain_inv = gain_sq_inv.ln();
-        let adjoint = lu.solve_transposed(&adjoint_rhs)?;
         let data = Step {
             del_freq: freq - last,
             ln_freq: freq.max(N_MINLOG).ln(),

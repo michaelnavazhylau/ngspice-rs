@@ -549,6 +549,7 @@ pub(crate) fn kind_name(kind: Kind) -> &'static str {
         Kind::Sensitivity => "sensitivity",
         Kind::TransferFunction => "transfer function",
         Kind::Fourier => "Fourier",
+        Kind::SParameter => "S-parameter",
     }
 }
 
@@ -734,14 +735,14 @@ r2 out 0 1k
                 .find(|line| line.trim_start().starts_with(name))
                 .unwrap_or_else(|| panic!("{name}\n{text}"))
         };
-        for name in [".op ", ".dc ", ".ac ", ".tran ", ".noise "] {
+        for name in [".op ", ".dc ", ".ac ", ".tran ", ".tf ", ".noise "] {
             assert!(line(name).ends_with("driver (bounded subset)"), "{text}");
         }
         assert!(
             line(".four ").ends_with("post-processes the .tran plot"),
             "{text}"
         );
-        for name in [".disto ", ".pz ", ".sens ", ".tf "] {
+        for name in [".disto ", ".pz ", ".sens "] {
             assert!(line(name).ends_with("no driver"), "{text}");
         }
         assert!(!text.contains("Linear R/C/L/V/I only"), "{text}");

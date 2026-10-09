@@ -1,4 +1,4 @@
-//! Analysis drivers: `.op`, `.dc`, `.ac`, `.tran` and friends.
+//! Analysis drivers: `.op`, `.dc`, `.ac`, `.tran`, `.tf` and friends.
 //!
 //! `.noise` runs [`crate::analysis::noise`] (two plots, see
 //! [`Analysis::run_plots`]).
@@ -359,13 +359,67 @@ impl Analysis for Transient {
     }
 }
 
+/// `.tf` — the DC small-signal transfer function, input and output resistance
+/// at the operating point (`src/analysis/tf.rs`; see `docs/port/TRANSFER_FUNCTION.md`).
+///
+/// C: `tfanal.c` (`TFanal`), reached through `CKTdoJob()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransferFunction;
+
+impl Analysis for TransferFunction {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::TransferFunction
+    }
+
+    fn name(&self) -> &'static str {
+        "transfer function"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::tf::run(circuit, request, context)
+    }
+}
+
+/// `.sp` — S-parameter analysis over the RF port sources (V sources with
+/// `portnum`), producing S, Y and Z matrices. `donoise` is not ported.
+///
+/// C: `span.c` (an `RFSPICE` build option); see `docs/port/SPARAM.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SParameter;
+
+impl Analysis for SParameter {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::SParameter
+    }
+
+    fn name(&self) -> &'static str {
+        "S-parameter"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::sparam::run(circuit, request, context)
+    }
+}
+
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 5] = [
+pub const DRIVERS: [AnalysisKind; 7] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
     AnalysisKind::Transient,
+    AnalysisKind::TransferFunction,
+    AnalysisKind::SParameter,
     AnalysisKind::Noise,
 ];
 
@@ -409,7 +463,7 @@ pub fn support(kind: AnalysisKind) -> AnalysisSupport {
 /// # Errors
 ///
 /// [`SpiceError::Unsupported`] for the analyses without a driver (`.disto`,
-/// `.pz`, `.sens`, `.tf`) and for `.four`, which is not a driver but
+/// `.pz`, `.sens`) and for `.four`, which is not a driver but
 /// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
@@ -418,6 +472,8 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::DcSweep => Box::new(DcSweep),
         AnalysisKind::Ac => Box::new(AcSmallSignal),
         AnalysisKind::Transient => Box::new(Transient),
+        AnalysisKind::TransferFunction => Box::new(TransferFunction),
+        AnalysisKind::SParameter => Box::new(SParameter),
         AnalysisKind::Noise => Box::new(Noise),
         other => {
             return Err(SpiceError::Unsupported {
@@ -454,7 +510,6 @@ mod tests {
             AnalysisKind::Distortion,
             AnalysisKind::PoleZero,
             AnalysisKind::Sensitivity,
-            AnalysisKind::TransferFunction,
             AnalysisKind::Fourier,
         ] {
             let error = runner(kind).expect_err("no driver");
@@ -467,6 +522,7 @@ mod tests {
         assert!(super::has_driver(AnalysisKind::Noise));
         assert!(!super::has_driver(AnalysisKind::Distortion));
         assert!(super::has_driver(AnalysisKind::OperatingPoint));
+        assert!(super::has_driver(AnalysisKind::TransferFunction));
     }
 
     #[test]

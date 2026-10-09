@@ -1386,6 +1386,22 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rlc_series_gear_maxord6_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1030,
+        variables: &["time", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+        // rlc_series_gear_tran with maxord=6: dctran.c only ever raises the
+        // order from 1 to 2, so these are exactly the Gear-2 values below.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 1029, 1.000000000000000e-03, 0.0),
+            ("v(out)", 1029, -6.380437251083911e-02, 0.0),
+            ("i(l1)", 1029, 9.117920253419437e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rlc_series_gear_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -2034,6 +2050,87 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(k)", 33, 5.407655948379028e+00, 0.0),
         ],
     },
+    // #97: C names an `@inst[param]` scale `param-sweep` and writes it as a
+    // voltage. The diode's AREA (inner, 0.5..4) multiplies IS, so v(a) falls
+    // by about N Vt ln(8) = 66 mV across it at -20 C; heating (outer -20, 30,
+    // 80 C) lowers it further. The 1 k resistor carries (2 - v(a)) / 1 k.
+    Expectation {
+        fixture: "m8_dc_param_diode",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 24,
+        variables: &["v(param-sweep)", "v(a)", "v(in)", "i(v1)"],
+        values: &[
+            ("v(param-sweep)", 0, 5.000000000000000e-01, 0.0),
+            ("v(a)", 0, 8.362909664457829e-01, 0.0),
+            ("i(v1)", 0, -1.163709033554217e-03, 0.0),
+            ("v(param-sweep)", 7, 4.000000000000000e+00, 0.0),
+            ("v(a)", 7, 7.675757347799221e-01, 0.0),
+            ("v(param-sweep)", 16, 5.000000000000000e-01, 0.0),
+            ("v(a)", 23, 6.052476121547538e-01, 0.0),
+        ],
+    },
+    // E's gain (outer -2, 0, 2) sets v(eo) = gain * 1 V; G's swept gain is
+    // multiplied by the card's m=3 (`VCCSparam`), so v(go) = gain * 3 *
+    // v(eo) * 1 k: -6 V at 1 mS and v(eo) = -2 V, zero while v(eo) = 0.
+    Expectation {
+        fixture: "m8_dc_param_gain",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 15,
+        variables: &[
+            "v(param-sweep)",
+            "i(e1)",
+            "v(eo)",
+            "v(go)",
+            "v(in)",
+            "i(v1)",
+        ],
+        values: &[
+            ("v(param-sweep)", 0, 1.000000000000000e-03, 0.0),
+            ("v(eo)", 0, -2.000000000000000e+00, 0.0),
+            ("v(go)", 0, -6.000000000000000e+00, 0.0),
+            ("v(go)", 7, 0.0, 0.0),
+            ("v(go)", 14, 1.800000000000000e+01, 0.0),
+            ("i(e1)", 14, -2.000000000000000e-03, 0.0),
+        ],
+    },
+    // Saturated NMOS: Id = KP/2 W/(L - 2 LD) (Vgs - VTO)^2 (1 + LAMBDA Vds),
+    // about 0.105 mA at W = 5u, L = 1u, roughly proportional to W (inner) and
+    // inversely to the effective length (outer 1u, 2u, 3u); RSH*NRS slightly
+    // degenerates the source.
+    Expectation {
+        fixture: "m8_dc_param_mos1",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 15,
+        variables: &["v(param-sweep)", "v(d)", "v(dd)", "v(g)", "i(vdd)", "i(vg)"],
+        values: &[
+            ("v(param-sweep)", 0, 5.000000000000000e-06, 0.0),
+            ("i(vdd)", 0, -1.050792717875804e-04, 0.0),
+            ("i(vdd)", 4, -5.079976774109523e-04, 0.0),
+            ("i(vdd)", 14, -1.495588365521305e-04, 0.0),
+            ("v(dd)", 14, 2.850441163447869e+00, 0.0),
+            ("i(vg)", 14, 0.0, 0.0),
+        ],
+    },
+    // C names a resistor scale `res-sweep` (type `res-sweep`). The swept
+    // supplied value is scaled by scale/m = 1/2 and TC1 = 0.01: 500 ohm at
+    // 27 C gives v(out) = 2 * 1k / 1.5k; at 47 C 600 ohm gives 1.25 V.
+    Expectation {
+        fixture: "m8_dc_res_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 6,
+        variables: &["res-sweep", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("res-sweep", 0, 1.000000000000000e+03, 0.0),
+            ("v(out)", 0, 1.333333333333333e+00, 0.0),
+            ("v(out)", 3, 1.250000000000000e+00, 0.0),
+            ("res-sweep", 5, 2.000000000000000e+03, 0.0),
+            ("v(out)", 5, 9.090909090909091e-01, 0.0),
+        ],
+    },
     Expectation {
         fixture: "m7_diode_temp_ac",
         plotname: "AC Analysis",
@@ -2067,6 +2164,167 @@ const EXPECTATIONS: &[Expectation] = &[
             ("time", 0, 0.0, 0.0),
             ("time", 431, 1.8e-3, 0.0),
             ("v(out)", 431, -8.215683334810343e-01, 0.0),
+        ],
+    },
+    // `.tf` (#101): the inductor shorts b to a and the capacitor is open, so
+    // v(b) = 5 V * (3k || 8k) / (1k + 3k || 8k) and v(out) = 3/4 v(b): gain
+    // 0.5142857 = 18/35; the source sees 1k + 3k || 8k = 3181.8 ohm and out
+    // sees 6k || (2k + 1k || 3k) = 1885.7 ohm.
+    Expectation {
+        fixture: "m8_tf_divider",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(output_impedance_at_v(out))",
+            "v(v1#input_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, 5.142857142857142e-01, 0.0),
+            (
+                "v(output_impedance_at_v(out))",
+                0,
+                1.885714285714286e+03,
+                0.0,
+            ),
+            ("v(v1#input_impedance)", 0, 3.181818181818182e+03, 0.0),
+        ],
+    },
+    // 1 A into `in` sees 5k || (1k + 4k) = 2.5k, so v(a) = 2 kV; e1 drives
+    // 40 kV behind 600 ohm and g1 injects 2 A, giving v(out) = 68.67 / (1/600
+    // + 1/2000) and i(vs) = v(out) / 2k = 15.846 A/A. A unit voltage in vs
+    // sees rl + ro = 2.6k (the sources are controlled by `a`, untouched).
+    Expectation {
+        fixture: "m8_tf_controlled",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(i1#input_impedance)",
+            "v(vs#output_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, 1.584615384615384e+01, 0.0),
+            ("v(i1#input_impedance)", 0, 2.5e+03, 0.0),
+            ("v(vs#output_impedance)", 0, 2.6e+03, 0.0),
+        ],
+    },
+    // A CE stage with 330 ohm emitter degeneration: gain about -rc/re = -10
+    // reduced by the 600 ohm source and the base network; the output
+    // resistance is slightly below rc (the Early effect); the input sees
+    // rs + rb1 || rb2 || (beta * re) = about 10 k.
+    Expectation {
+        fixture: "m8_tf_bjt",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(output_impedance_at_v(nc))",
+            "v(vin#input_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, -8.886149756533730e+00, 0.0),
+            (
+                "v(output_impedance_at_v(nc))",
+                0,
+                3.281273729423023e+03,
+                0.0,
+            ),
+            ("v(vin#input_impedance)", 0, 1.042663215494944e+04, 0.0),
+        ],
+    },
+    // `.sp` (#105). A K = 3 matched T pad between two 50 ohm ports (series
+    // arms 25, shunt 37.5): S11 = S22 = 0 (C prints 5e-16 rounding), S21 = 1/K;
+    // Z11 = 25 + 37.5, Z12 = 37.5, and Y = Z^-1 = [[0.025, -0.015], ...]. The
+    // node vectors are port 2's excitation, the last one C solves: 1 V behind
+    // 50 ohm into the 50 ohm match gives v(out) = 0.5 and i(v2) = -10 mA.
+    // `v(rbase)` is port 1's z0.
+    Expectation {
+        fixture: "sp_attenuator",
+        plotname: "SP Analysis",
+        flags: PlotFlags::Complex,
+        points: 3,
+        variables: &[
+            "frequency",
+            "v(rbase)",
+            "s_1_1",
+            "s_1_2",
+            "s_2_1",
+            "s_2_2",
+            "y_1_1",
+            "y_1_2",
+            "y_2_1",
+            "y_2_2",
+            "z_1_1",
+            "z_1_2",
+            "z_2_1",
+            "z_2_2",
+            "v(in)",
+            "v(mid)",
+            "v(out)",
+            "i(v1)",
+            "v(v1#res)",
+            "i(v2)",
+            "v(v2#res)",
+        ],
+        values: &[
+            ("frequency", 2, 1.0e6, 0.0),
+            ("v(rbase)", 0, 50.0, 0.0),
+            ("s_1_1", 0, 4.756033529969746e-16, 0.0),
+            ("s_2_1", 0, 3.333333333333335e-01, 0.0),
+            ("y_1_1", 0, 2.499999999999999e-02, 0.0),
+            ("y_1_2", 0, -1.5e-02, 0.0),
+            ("z_1_1", 0, 6.250000000000008e+01, 0.0),
+            ("z_1_2", 0, 3.750000000000007e+01, 0.0),
+            ("v(out)", 0, 5.000000000000002e-01, 0.0),
+            ("v(mid)", 0, 2.500000000000002e-01, 0.0),
+            ("i(v2)", 0, -9.999999999999995e-03, 0.0),
+        ],
+    },
+    // A lossy RC two-port (100 ohm, 1 nF || 1 k shunt, 20 ohm) between a 50 and
+    // a 75 ohm port. Z12 = Z21 = 1 k || 1/(j w 1 nF), 716.96 - j450.48 ohm at
+    // 100 kHz; the power-wave S21 = 2 sqrt(50 * 75) Z21 / ((Z11 + 50)(Z22 + 75)
+    // - Z12 Z21) equals S12 (reciprocal), 0.4719 - j0.0163 there.
+    Expectation {
+        fixture: "sp_rc",
+        plotname: "SP Analysis",
+        flags: PlotFlags::Complex,
+        points: 5,
+        variables: &[
+            "frequency",
+            "v(rbase)",
+            "s_1_1",
+            "s_1_2",
+            "s_2_1",
+            "s_2_2",
+            "y_1_1",
+            "y_1_2",
+            "y_2_1",
+            "y_2_2",
+            "z_1_1",
+            "z_1_2",
+            "z_2_1",
+            "z_2_2",
+            "v(in)",
+            "v(mid)",
+            "v(out)",
+            "i(v1)",
+            "v(v1#res)",
+            "i(v2)",
+            "v(v2#res)",
+        ],
+        values: &[
+            ("frequency", 4, 1.0e7, 0.0),
+            ("s_1_1", 0, 5.773367356802208e-01, -8.42697779885093e-03),
+            ("s_2_1", 0, 4.718556562522875e-01, -1.629615448495809e-02),
+            ("s_1_2", 0, 4.718556562522876e-01, -1.629615448495809e-02),
+            ("z_1_2", 0, 7.16956800324899e+02, -4.504772433683906e+02),
+            ("z_1_2", 4, 2.532388129651598e-01, -1.591146388830292e+01),
+            ("y_2_2", 4, 3.011433737141879e-02, 2.048283659859536e-02),
+            ("v(rbase)", 4, 50.0, 0.0),
         ],
     },
 ];
@@ -2407,6 +2665,170 @@ const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
             values: &[
                 ("v(out)", 0, 3.929411702970590e-08, 0.0),
                 ("v(a)", 0, 2.500000070751028e+00, 0.0),
+            ],
+        },
+    ],
+    &[
+        // `.tf` in a batch (#101): `.op`, then the two `.tf` cards in reverse
+        // deck order. tf1 (MOS1): the supply current changes by
+        // -gm * ro / (ro + 10k) per gate volt, the supply sees 10k + ro =
+        // 241 k and the gate rg = 1 Mohm. tf2 (diode): at 1.2 mA the diode is
+        // rs + n Vt / Id = 30.8 ohm against rd = 1k (gain 0.0299, input
+        // 1030.8 ohm), and v(d, dm) looks into rd || 30.8 plus 10k || ro.
+        Expectation {
+            fixture: "m8_tf_batch",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(vdin)", "v(d)", "v(dm)", "v(g)", "i(vd)", "v(vdd)", "i(vdd)", "i(vg)",
+            ],
+            values: &[
+                ("v(d)", 0, 7.978661647232698e-01, 0.0),
+                ("v(dm)", 0, 2.722392611844397e+00, 0.0),
+                ("i(vg)", 0, -2.0e-06, 0.0),
+            ],
+        },
+        Expectation {
+            fixture: "m8_tf_batch",
+            plotname: "Transfer Function",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(transfer_function)",
+                "v(vdd#output_impedance)",
+                "v(vg#input_impedance)",
+            ],
+            values: &[
+                ("v(transfer_function)", 0, -3.638815406120247e-04, 0.0),
+                ("v(vdd#output_impedance)", 0, 2.414814278978181e+05, 0.0),
+                ("v(vg#input_impedance)", 0, 1.0e+06, 0.0),
+            ],
+        },
+        Expectation {
+            fixture: "m8_tf_batch",
+            plotname: "Transfer Function",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(transfer_function)",
+                "v(output_impedance_at_v(d,dm))",
+                "v(vd#input_impedance)",
+            ],
+            values: &[
+                ("v(transfer_function)", 0, 2.989759171726813e-02, 0.0),
+                (
+                    "v(output_impedance_at_v(d,dm))",
+                    0,
+                    9.615787070380138e+03,
+                    0.0,
+                ),
+                ("v(vd#input_impedance)", 0, 1.030819005768878e+03, 0.0),
+            ],
+        },
+    ],
+    // `.sp` (#105) with `.ac`, `.op` and `.tran` on the same RF ports (50 and
+    // 75 ohm). Every analysis keeps each port's z0 in series: the operating
+    // point is 1 V behind 50 + 50 ohm into 200 || 75, so v(out) = 0.35294 and
+    // v(in) = 0.67647. In `.ac` port 1 drives `ac 1`; because r1 = z0 = 50,
+    // its v(out) equals the `.sp` S11 = (Zin - 50)/(Zin + 50). The `.sp` node
+    // vectors are port 2's excitation (v(v1#res) = 0). The pulse/pwr setters
+    // are overridden by the final `sin(0 1 1meg)`, which is ~0 at 20 us.
+    &[
+        Expectation {
+            fixture: "sp_multi",
+            plotname: "AC Analysis",
+            flags: PlotFlags::Complex,
+            points: 3,
+            variables: &[
+                "frequency",
+                "v(in)",
+                "v(out)",
+                "i(v1)",
+                "v(v1#res)",
+                "i(v2)",
+                "v(v2#res)",
+            ],
+            values: &[
+                ("v(out)", 0, 3.527676949572184e-01, -7.822958109892253e-03),
+                ("v(v1#res)", 2, 1.0, 0.0),
+                ("i(v2)", 2, 7.952179178714906e-04, -1.763471130909209e-03),
+            ],
+        },
+        Expectation {
+            fixture: "sp_multi",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(in)",
+                "v(out)",
+                "i(v1)",
+                "v(v1#res)",
+                "i(v2)",
+                "v(v2#res)",
+            ],
+            values: &[
+                ("v(in)", 0, 6.764705882352942e-01, 0.0),
+                ("v(out)", 0, 3.529411764705882e-01, 0.0),
+                ("i(v1)", 0, -6.470588235294117e-03, 0.0),
+                ("i(v2)", 0, 4.705882352941176e-03, 0.0),
+            ],
+        },
+        Expectation {
+            fixture: "sp_multi",
+            plotname: "Transient Analysis",
+            flags: PlotFlags::Real,
+            points: 212,
+            variables: &[
+                "time",
+                "v(in)",
+                "v(out)",
+                "i(v1)",
+                "v(v1#res)",
+                "i(v2)",
+                "v(v2#res)",
+            ],
+            values: &[
+                ("v(out)", 0, 0.0, 0.0),
+                ("time", 211, 2.0e-05, 0.0),
+                ("v(out)", 211, -1.292445458038272e-01, 0.0),
+                ("i(v2)", 211, -1.723260610717697e-03, 0.0),
+            ],
+        },
+        Expectation {
+            fixture: "sp_multi",
+            plotname: "SP Analysis",
+            flags: PlotFlags::Complex,
+            points: 4,
+            variables: &[
+                "frequency",
+                "v(rbase)",
+                "s_1_1",
+                "s_1_2",
+                "s_2_1",
+                "s_2_2",
+                "y_1_1",
+                "y_1_2",
+                "y_2_1",
+                "y_2_2",
+                "z_1_1",
+                "z_1_2",
+                "z_2_1",
+                "z_2_2",
+                "v(in)",
+                "v(out)",
+                "i(v1)",
+                "v(v1#res)",
+                "i(v2)",
+                "v(v2#res)",
+            ],
+            values: &[
+                ("s_1_1", 0, 3.527676949572185e-01, -7.822958109892253e-03),
+                ("s_2_1", 3, 9.739390665518058e-02, -2.159802223428179e-01),
+                ("v(v1#res)", 0, 0.0, 0.0),
+                ("v(out)", 0, 4.703569266096246e-01, -1.043061081318967e-02),
+                ("v(rbase)", 3, 50.0, 0.0),
             ],
         },
     ],
@@ -2983,4 +3405,15 @@ fn the_diode_golden_is_self_consistent() {
             "i(v1) = {current}, expected {expected_current} at {swept} V"
         );
     }
+}
+
+/// `maxord` 3..=6 cannot change ngspice's transient (#98): `dctran.c` only
+/// ever raises the integration order from 1 to 2, so the C rawfile of the
+/// Gear `maxord=6` deck holds exactly the values of the default (`maxord=2`)
+/// deck, digit for digit.
+#[test]
+fn gear_maxord6_golden_is_the_gear2_golden() {
+    let maxord6 = RawFile::parse(&golden_text("rlc_series_gear_maxord6_tran")).expect("parses");
+    let gear2 = RawFile::parse(&golden_text("rlc_series_gear_tran")).expect("parses");
+    assert_eq!(maxord6.plots[0].plot, gear2.plots[0].plot);
 }

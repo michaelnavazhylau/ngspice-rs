@@ -1027,6 +1027,117 @@ impl Device for Mos1 {
     fn truncation_slots(&self) -> Vec<usize> {
         slot::QG.to_vec()
     }
+    /// `mos1.c` `MOS1pTable`: M, L, W, AD, AS, PD, PS, NRD, NRS, TEMP and
+    /// DTEMP, which `mos1temp.c`/`mos1load.c` re-derive (`dctrcurv.c`
+    /// `DCTsetInstParam`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        [
+            "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "temp", "dtemp",
+        ]
+        .into_iter()
+        .find(|name| name.eq_ignore_ascii_case(keyword))
+    }
+    /// `MOS1param` then `MOS1temp`, with the instance schema domains. M, NRD
+    /// and NRS re-derive the drain/source series conductances; a value that
+    /// would create or remove an internal node (`mos1set.c` decides those once,
+    /// at setup) is rejected rather than changing the topology mid-sweep.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        use crate::devices::sweep::check_swept;
+        let mut geometry = self.geometry;
+        let check = |ok: bool, what: &str| check_swept(&self.name, parameter, value, ok, what);
+        match parameter {
+            "m" => {
+                check(value > 0., "positive")?;
+                geometry.m = value;
+            }
+            "l" => {
+                check(value > 0., "positive")?;
+                geometry.length = value - 2. * self.model.ld;
+            }
+            "w" => {
+                check(value > 0., "positive")?;
+                geometry.w = value;
+            }
+            "ad" | "as" | "pd" | "ps" | "nrd" | "nrs" => {
+                check(value >= 0., "nonnegative")?;
+                *match parameter {
+                    "ad" => &mut geometry.ad,
+                    "as" => &mut geometry.as_,
+                    "pd" => &mut geometry.pd,
+                    "ps" => &mut geometry.ps,
+                    "nrd" => &mut geometry.nrd,
+                    _ => &mut geometry.nrs,
+                } = value;
+            }
+            "temp" => {
+                check(value + CELSIUS_TO_KELVIN > 0., "above absolute zero")?;
+                geometry.temp = Some(value);
+            }
+            "dtemp" => {
+                check(true, "finite")?;
+                geometry.dtemp = value;
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "{}: MOS1 parameter {parameter} cannot be swept",
+                    self.name
+                )));
+            }
+        }
+        if geometry.length <= 0. || !geometry.length.is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "{}: MOS1 effective channel length L - 2*LD must be positive",
+                self.name
+            )));
+        }
+        let series = [
+            series_conductance(
+                self.model.rd,
+                self.model.rsh,
+                geometry.nrd,
+                geometry.m,
+                "drain",
+            )?,
+            series_conductance(
+                self.model.rs,
+                self.model.rsh,
+                geometry.nrs,
+                geometry.m,
+                "source",
+            )?,
+        ];
+        if series
+            .iter()
+            .zip(self.series)
+            .any(|(new, old)| (*new > 0.) != (old > 0.))
+        {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "{}: swept {parameter}={value} would add or remove a MOS1 internal \
+                     drain/source node",
+                    self.name
+                ),
+                location: None,
+            });
+        }
+        let device = Self {
+            name: self.name.clone(),
+            model_name: self.model_name.clone(),
+            terminals: self.terminals.clone(),
+            inner: self.inner,
+            model: self.model,
+            geometry,
+            series,
+            initial: self.initial.clone(),
+        };
+        device.operating(context)?;
+        Ok(Box::new(device))
+    }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("MOS1 AC needs small-signal assembly"));

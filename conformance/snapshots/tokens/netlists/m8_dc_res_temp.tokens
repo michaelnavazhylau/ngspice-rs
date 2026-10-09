@@ -1,0 +1,63 @@
+# ngspice-rs token-dump v1
+file: netlists/m8_dc_res_temp.cir
+title: "Model-backed resistor sweep nested with the circuit temperature (res-sweep scale)" @netlists/m8_dc_res_temp.cir:1:1
+card 1 @netlists/m8_dc_res_temp.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 in 0 2"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "in"
+  token 3 2:7 number "0" value=0e0
+  token 4 2:9 number "2" value=2e0
+card 2 @netlists/m8_dc_res_temp.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 in out rm scale=2 m=4"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "in"
+  token 3 3:7 word "out"
+  token 4 3:11 word "rm"
+  token 5 3:14 word "scale"
+  token 6 3:19 equals "="
+  token 7 3:20 number "2" value=2e0
+  token 8 3:22 word "m"
+  token 9 3:23 equals "="
+  token 10 3:24 number "4" value=4e0
+card 3 @netlists/m8_dc_res_temp.cir:4:1 lines=4-4 continuations=0
+  raw: "r2 out 0 1k"
+  kind: device(r)
+  token 1 4:1 word "r2"
+  token 2 4:4 word "out"
+  token 3 4:8 number "0" value=0e0
+  token 4 4:10 number "1k" value=1e3
+card 4 @netlists/m8_dc_res_temp.cir:5:1 lines=5-5 continuations=0
+  raw: ".model rm r(r=1k tc1=0.01 tnom=27)"
+  kind: dot(.model)
+  token 1 5:1 word ".model"
+  token 2 5:8 word "rm"
+  token 3 5:11 word "r"
+  token 4 5:12 lparen "("
+  token 5 5:13 word "r"
+  token 6 5:14 equals "="
+  token 7 5:15 number "1k" value=1e3
+  token 8 5:18 word "tc1"
+  token 9 5:21 equals "="
+  token 10 5:22 number "0.01" value=1e-2
+  token 11 5:27 word "tnom"
+  token 12 5:31 equals "="
+  token 13 5:32 number "27" value=2.7e1
+  token 14 5:34 rparen ")"
+card 5 @netlists/m8_dc_res_temp.cir:6:1 lines=6-6 continuations=0
+  raw: ".dc r1 1k 2k 500 temp 27 47 20"
+  kind: dot(.dc)
+  token 1 6:1 word ".dc"
+  token 2 6:5 word "r1"
+  token 3 6:8 number "1k" value=1e3
+  token 4 6:11 number "2k" value=2e3
+  token 5 6:14 number "500" value=5e2
+  token 6 6:18 word "temp"
+  token 7 6:23 number "27" value=2.7e1
+  token 8 6:26 number "47" value=4.7e1
+  token 9 6:29 number "20" value=2e1
+card 6 @netlists/m8_dc_res_temp.cir:7:1 lines=7-7 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 7:1 word ".end"

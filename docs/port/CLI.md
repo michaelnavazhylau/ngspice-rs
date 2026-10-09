@@ -16,7 +16,7 @@ equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 | `spice-rs parse <netlist>` | builds the semantic netlist and reports unported gaps |
 | `spice-rs simulate --output <path> <netlist>` | runs every analysis of the deck in ngspice batch order and writes one ASCII rawfile with a plot per analysis |
 | `spice-rs devices` | lists every device designator as `ported` (built from its card), `bounded` (built from a deck for a stated subset: D/Q/M, S/W, X) or `pending` (`NotYetPorted` with its C reference) |
-| `spice-rs analyses` | lists the analyses: `.op`/`.dc`/`.ac`/`.tran` drivers, `.four` as a post-processor of the `.tran` plot, the rest without a driver |
+| `spice-rs analyses` | lists the analyses: `.op`/`.dc`/`.ac`/`.tran`/`.tf` drivers, `.four` as a post-processor of the `.tran` plot, the rest without a driver |
 | `spice-rs help`, `spice-rs version` | usage and version |
 
 Both tables are derived, not hand-maintained (#117): a designator's status
@@ -114,18 +114,20 @@ and `.four` blocks. A single-analysis deck's report is unchanged.
 
 ### Multi-analysis decks
 
-A deck may contain any number of `.op`, `.dc`, `.ac` and `.tran` cards (GitHub
-#96). `simulate` reproduces `ngspice -b -r <path> deck.cir`, which runs them all
+A deck may contain any number of `.op`, `.dc`, `.ac`, `.tran` and `.tf` cards
+(GitHub #96, #101). `simulate` reproduces `ngspice -b -r <path> deck.cir`, which runs them all
 in one job; the scheduling rules live in `analysis::batch`:
 
 * **Order.** `CKTdoJob()` (`src/spicelib/analysis/cktdojob.c`) walks the fixed
   analysis table `analInfo[]` (`analysis.c`): `.ac`, then `.dc`, then `.op`, then
-  `.tran` — not deck order. Cards of one type run in **reverse deck order**,
+  `.tran`, then `.tf`, and `.sp` (`SPinfo`, an `RFSPICE` entry) after every
+  other type — not deck order. Cards of one type run in **reverse deck order**,
   because `CKTnewAnal()` prepends each job to the task's list. A deck written
   `.tran .ac .dc a .op .dc b` therefore runs `.ac`, `.dc b`, `.dc a`, `.op`,
   `.tran`, and the rawfile holds the plots in that order.
 * **Plot names.** The rawfile carries each plot's `Plotname:` (`AC Analysis`,
-  `DC transfer characteristic`, `Operating Point`, `Transient Analysis`) and the
+  `DC transfer characteristic`, `Operating Point`, `Transient Analysis`,
+  `Transfer Function`, `SP Analysis`) and the
   deck title on every plot. The report also gives each plot the name C's
   `plot_add()` (`src/frontend/vectors.c`) gives it in memory: the type
   abbreviation plus the global `plot_num`, which a name collision bumps for good —

@@ -6,8 +6,9 @@
 //! | [`sparse`] | sparse triplet storage and petgraph coupling topology | owned faer sparse LU, symbolic reuse and checked solves |
 //! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; floating/coupled mass blocks via block-SVD nullspaces; higher-index pencils rejected |
 //! | [`complex`] | complex sparse operators for AC | owned faer LU |
+//! | [`dense_complex`] | small dense complex port matrices for `.sp` S/Y/Z conversion | Gauss-Jordan inverse with a rounding-aware singularity test |
 //! | [`equilibration`] | explicit bounded row/column scaling | owned LU wrappers with original-unit residuals |
-//! | [`integrator`] | trapezoidal and Gear companion coefficients, integration, prediction and truncation estimates | orders 1–2; trial coefficients separate from accepted step history |
+//! | [`integrator`] | trapezoidal and Gear companion coefficients, integration, prediction and truncation estimates | trapezoidal orders 1–2, variable-step Gear orders 1–6; trial coefficients separate from accepted step history |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`
 //! (SPARSE 1.3, MIT licensed), `src/maths/KLU/` (LGPLv2 — see the licensing note
@@ -19,6 +20,7 @@
 
 pub mod complex;
 pub mod dense;
+pub mod dense_complex;
 pub mod diffsol;
 pub mod equilibration;
 pub mod integrator;

@@ -1,0 +1,42 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_dc_res_temp.cir
+title: "Model-backed resistor sweep nested with the circuit temperature (res-sweep scale)" @netlists/m8_dc_res_temp.cir:1:1
+scope root
+  cards (6):
+    [0] device[0] @netlists/m8_dc_res_temp.cir:2:1 "v1 in 0 2"
+    [1] device[1] @netlists/m8_dc_res_temp.cir:3:1 "r1 in out rm scale=2 m=4"
+    [2] device[2] @netlists/m8_dc_res_temp.cir:4:1 "r2 out 0 1k"
+    [3] model[0] @netlists/m8_dc_res_temp.cir:5:1 ".model rm r(r=1k tc1=0.01 tnom=27)"
+    [4] analysis[0] @netlists/m8_dc_res_temp.cir:6:1 ".dc r1 1k 2k 500 temp 27 47 20"
+    [5] end @netlists/m8_dc_res_temp.cir:7:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/m8_dc_res_temp.cir:2:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/m8_dc_res_temp.cir:2:9
+    device [1] name="r1" designator=r @netlists/m8_dc_res_temp.cir:3:1
+      nodes: "in" "out"
+      model: "rm"
+      parameters (2):
+        [0] name="scale" kind=scalar value="2" @netlists/m8_dc_res_temp.cir:3:14
+        [1] name="m" kind=scalar value="4" @netlists/m8_dc_res_temp.cir:3:22
+    device [2] name="r2" designator=r @netlists/m8_dc_res_temp.cir:4:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_dc_res_temp.cir:4:10
+  models (1):
+    model [0] name="rm" base="r" level=none @netlists/m8_dc_res_temp.cir:5:1
+      parameters (3):
+        [0] name="r" kind=scalar value="1k" @netlists/m8_dc_res_temp.cir:5:13
+        [1] name="tc1" kind=scalar value="0.01" @netlists/m8_dc_res_temp.cir:5:18
+        [2] name="tnom" kind=scalar value="27" @netlists/m8_dc_res_temp.cir:5:27
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m8_dc_res_temp.cir:6:1
+      arguments: "r1" "1k" "2k" "500" "temp" "27" "47" "20"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

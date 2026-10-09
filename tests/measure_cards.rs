@@ -208,7 +208,7 @@ fn unsupported_operations_and_parameters_are_not_yet_ported() {
         ),
         (
             ".meas sp x avg v(out)\n",
-            "S-parameter analysis has no driver",
+            "measurements over an S-parameter plot",
         ),
     ];
     for (body, expected) in not_ported {

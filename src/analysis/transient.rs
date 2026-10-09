@@ -115,6 +115,7 @@ fn run_diffsol(
         return Err(unsupported("transient sample grid makes no progress"));
     }
     let mut system = circuit.linear_system_with_context(&context.model_context())?;
+    crate::devices::sources::reject_transient_power_ports(circuit)?;
     // C resolves PULSE TR/TF/PW/PER defaults from CKTstep and CKTfinalTime.
     system.bind_transient_timing(&TransientTiming::new(dt, end)?)?;
     // DaeSegment interpolates the forcing linearly between breakpoints, which

@@ -14,7 +14,8 @@ behaviour only: `src/spicelib/analysis/noisean.c` (`NOISEan`), `cktnoise.c`
 
 ## Method
 
-1. The operating point is solved exactly as for `.ac` (`CKTop`, `.nodeset`
+1. The operating point is solved exactly as for `.ac`, through the shared
+   `analysis::ac::SmallSignal` (`CKTop`, `.nodeset`
    hints, the same Newton/continuation settings and `.option` tolerances), and
    the bias-linearized operators `A` (conductance) and `E` (charge) are
    assembled through `Device::assemble_small_signal` with C's
@@ -115,7 +116,10 @@ analysis owns gains, frequencies, integration history and naming. The trait
 default is `NotYetPorted`, so a device without a noise port is refused rather
 than treated as noiseless. Devices C gives no `DEVnoise` (C, L, V, I, E/F/G/H,
 K, B, and the `spice2poly`/`pwl` code models TABLE/POLY lower to) return
-`Noiseless` explicitly. `Device::input_source` reports an independent source's
+`Noiseless` explicitly. That includes RF port sources (`portnum`/`z0`, #105):
+C's VSRC has no noise routine, so a port's `z0` termination is noiseless in
+`.noise` (verified against C by `c_noise_reference`), and a port can be the
+input reference like any V source. `Device::input_source` reports an independent source's
 kind and whether its card gave an `ac` value.
 
 | Device | Port of | Generators at the bias |

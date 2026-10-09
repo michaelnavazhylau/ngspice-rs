@@ -24,7 +24,7 @@ use crate::devices::linear::Forcing;
 use crate::devices::models::ModelContext;
 use crate::devices::rlc::Resistor;
 use crate::devices::state::{StateHistory, TrialState};
-use crate::devices::sweep::{ResistorMetadata, ResistorOverride};
+use crate::devices::sweep::{InstanceOverride, ResistorMetadata, ResistorOverride};
 use crate::devices::traits::{
     AcceptContext, AnalysisMode, Device, InductanceValue, MnaUnknowns, MutualTerm, StampContext,
 };
@@ -503,6 +503,34 @@ impl Circuit {
         if let Some(error) = &self.mutual.error {
             return Err(error.clone());
         }
+        self.check_port_numbering()
+    }
+
+    /// `vsrctemp.c` (`VSRCtemp`, run before every analysis): the RF port
+    /// numbers must be exactly `1..=N` for `N` ports. A number above `N` is
+    /// "incorrect port ordering" (a gap or an out-of-range index), a repeated
+    /// one a "duplicate port Index"; both are fatal in C.
+    fn check_port_numbering(&self) -> SpiceResult<()> {
+        let ports: Vec<_> = self
+            .devices
+            .iter()
+            .filter_map(|device| device.rf_port().map(|port| (device.name(), port.number)))
+            .collect();
+        let mut seen = BTreeSet::new();
+        for (name, number) in &ports {
+            if *number > ports.len() {
+                return Err(SpiceError::circuit(format!(
+                    "{name}: incorrect port ordering (portnum {number} with {} port(s); \
+                     ports must be numbered 1..=N)",
+                    ports.len()
+                )));
+            }
+            if !seen.insert(*number) {
+                return Err(SpiceError::circuit(format!(
+                    "{name}: duplicate port Index {number}"
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -670,11 +698,79 @@ impl Circuit {
         device.resistor_effective(target.supplied(), context)
     }
 
-    /// Disposable resistors carrying the context's overrides' effective values,
-    /// as `(device ordinal, resistor)`. The circuit's own devices are untouched;
-    /// callers stamp the replacement instead of the original for that ordinal.
-    fn resistor_replacements(&self, context: &ModelContext) -> SpiceResult<Vec<(usize, Resistor)>> {
-        let mut replacements: Vec<(usize, Resistor)> = Vec::new();
+    /// The device named `name` (case-insensitive) and its ordinal, with the
+    /// canonical keyword of its swept instance parameter `keyword`
+    /// ([`Device::instance_parameter`]), the target of `.dc @name[keyword]`.
+    ///
+    /// # Errors
+    /// [`SpiceError::Unsupported`] when no device is named `name` or C has no
+    /// settable real instance parameter `keyword` on it (C `dctrcurv.c`
+    /// rejects both); [`SpiceError::NotYetPorted`] when C sweeps it but this
+    /// port does not yet.
+    pub fn instance_parameter(
+        &self,
+        name: &str,
+        keyword: &str,
+    ) -> SpiceResult<(usize, &'static str)> {
+        let Some((index, device)) = self
+            .devices
+            .iter()
+            .enumerate()
+            .find(|(_, device)| device.name().eq_ignore_ascii_case(name))
+        else {
+            return Err(SpiceError::Unsupported {
+                feature: format!("DC sweep parameter target: no instance named {name}"),
+                location: None,
+            });
+        };
+        if let Some(parameter) = device.instance_parameter(keyword) {
+            return Ok((index, parameter));
+        }
+        if crate::devices::sweep::c_instance_parameter_known(device.designator(), keyword) {
+            return Err(SpiceError::not_yet_ported(
+                format!(
+                    "DC sweep of instance parameter {keyword} of {}",
+                    device.name()
+                ),
+                "src/spicelib/analysis/dctrcurv.c (DCTfindInstParam, DCTsetInstParam)",
+            ));
+        }
+        Err(SpiceError::Unsupported {
+            feature: format!(
+                "DC sweep parameter target: {} has no settable real instance parameter {keyword}",
+                device.name()
+            ),
+            location: None,
+        })
+    }
+
+    /// An immutable per-point override giving instance `name`'s parameter
+    /// `keyword` the value `value` (`.dc @name[keyword]`). Carry it in a
+    /// [`ModelContext`] ([`ModelContext::with_instance_override`]); no device
+    /// changes. The value is validated by building the replacement once at
+    /// `context`.
+    ///
+    /// # Errors
+    /// As [`Self::instance_parameter`], or an invalid value.
+    pub fn instance_override(
+        &self,
+        name: &str,
+        keyword: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<InstanceOverride> {
+        let (index, parameter) = self.instance_parameter(name, keyword)?;
+        self.devices[index].with_instance_parameter(parameter, value, context)?;
+        Ok(InstanceOverride::new(index, parameter, value))
+    }
+
+    /// Disposable devices carrying the context's resistor and instance-parameter
+    /// overrides, as `(device ordinal, replacement)`. The circuit's own devices
+    /// are untouched; callers stamp the replacement instead of the original for
+    /// that ordinal. Several instance overrides of one device are applied in
+    /// slot order to the same replacement.
+    fn replacements(&self, context: &ModelContext) -> SpiceResult<Vec<(usize, Box<dyn Device>)>> {
+        let mut replacements: Vec<(usize, Box<dyn Device>)> = Vec::new();
         for target in context.resistor_overrides.iter().flatten() {
             let device = self
                 .devices
@@ -695,24 +791,57 @@ impl Circuit {
             let effective = device.resistor_effective(target.supplied(), context)?;
             replacements.push((
                 target.device(),
-                Resistor::new(device.name(), terminals, effective)?,
+                Box::new(Resistor::new(device.name(), terminals, effective)?),
             ));
+        }
+        let resistors = replacements.len();
+        for target in context.instance_overrides.iter().flatten() {
+            let original = self
+                .devices
+                .get(target.device())
+                .ok_or_else(|| SpiceError::circuit("stale instance parameter override"))?;
+            if replacements[..resistors]
+                .iter()
+                .any(|(i, _)| *i == target.device())
+            {
+                return Err(SpiceError::circuit(format!(
+                    "{} has both a resistor and an instance parameter override",
+                    original.name()
+                )));
+            }
+            match replacements.iter_mut().find(|(i, _)| *i == target.device()) {
+                Some((_, replacement)) => {
+                    *replacement = replacement.with_instance_parameter(
+                        target.parameter(),
+                        target.value(),
+                        context,
+                    )?;
+                }
+                None => replacements.push((
+                    target.device(),
+                    original.with_instance_parameter(
+                        target.parameter(),
+                        target.value(),
+                        context,
+                    )?,
+                )),
+            }
         }
         Ok(replacements)
     }
 
     /// Loads every device for one trial into `matrix`, `rhs` and `trial`.
     ///
-    /// The accepted history is read-only here. Resistors named by the model
-    /// context's overrides stamp their per-point effective value; no device is
-    /// modified. On error, `matrix`, `rhs` and
+    /// The accepted history is read-only here. Resistors and instance
+    /// parameters named by the model context's overrides stamp their per-point
+    /// replacement; no device is modified. On error, `matrix`, `rhs` and
     /// `trial` hold a partial load and must be discarded; nothing the circuit
     /// or history owns has changed.
     ///
     /// # Errors
     ///
     /// Stale numbering, mismatched dimensions/nonfinite solution, device
-    /// failures, or an invalid resistor override.
+    /// failures, or an invalid resistor or instance-parameter override.
     pub fn load(
         &self,
         request: &LoadRequest<'_>,
@@ -741,11 +870,11 @@ impl Circuit {
                 1,
                 1,
             ))?;
-        let replacements = self.resistor_replacements(request.model_context)?;
+        let replacements = self.replacements(request.model_context)?;
         let mutual = self.mutual_terms(request.model_context)?;
         for (index, device) in self.devices.iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
-                Some((_, resistor)) => resistor,
+                Some((_, replacement)) => &**replacement,
                 None => &**device,
             };
             let states = request
@@ -863,12 +992,12 @@ impl Circuit {
             1,
         ))?;
         self.finalize()?;
-        let replacements = self.resistor_replacements(context)?;
+        let replacements = self.replacements(context)?;
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
-                Some((_, resistor)) => resistor,
+                Some((_, replacement)) => &**replacement,
                 None => &**device,
             };
             let range = &self.branch_rows[index];
@@ -926,12 +1055,12 @@ impl Circuit {
                 "invalid small-signal bias dimensions/values",
             ));
         }
-        let replacements = self.resistor_replacements(context)?;
+        let replacements = self.replacements(context)?;
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
         for (index, device) in self.devices.iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
-                Some((_, resistor)) => resistor,
+                Some((_, replacement)) => &**replacement,
                 None => &**device,
             };
             let range = &self.branch_rows[index];

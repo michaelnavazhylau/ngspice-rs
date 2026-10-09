@@ -28,7 +28,7 @@
 //! `MAX_AT`, `PP`, `DERIV`, `ERR*`, the margin measurements) are
 //! [`SpiceError::NotYetPorted`], `TD=` is [`SpiceError::NotYetPorted`], and
 //! malformed or unknown words are [`SpiceError::Parse`]. `sp`, an analysis
-//! whose C measurement implementation exists but whose port driver does not, is
+//! the port runs and C measures but whose measurement axis is not ported, is
 //! [`SpiceError::NotYetPorted`]; an analysis the port runs but no measurement
 //! can be taken on (`op`, `noise`, …) is [`SpiceError::Unsupported`].
 
@@ -146,6 +146,11 @@ fn analysis(input: &mut Input<'_>) -> Result<(AnalysisKind, SourceLoc)> {
         Some(AnalysisKind::Transient) => Ok((AnalysisKind::Transient, token.location)),
         Some(AnalysisKind::Ac) => Ok((AnalysisKind::Ac, token.location)),
         Some(AnalysisKind::DcSweep) => Ok((AnalysisKind::DcSweep, token.location)),
+        // C measures `.sp` plots too; the port's measurement axis code does not.
+        Some(AnalysisKind::SParameter) => Err(gap(
+            &token.location,
+            format!(".measure {spelling}: measurements over an S-parameter plot"),
+        )),
         Some(kind) => Err(ErrMode::Cut(Failure(SpiceError::Unsupported {
             feature: format!(
                 ".measure {}: C measures tran, dc, sp and ac only, and a .{} result has no \
@@ -155,9 +160,9 @@ fn analysis(input: &mut Input<'_>) -> Result<(AnalysisKind, SourceLoc)> {
             ),
             location: Some(token.location),
         }))),
-        None if spelling == "sp" || spelling == "sparam" => Err(gap(
+        None if spelling == "sparam" => Err(gap(
             &token.location,
-            format!(".measure {spelling}: S-parameter analysis has no driver in this port"),
+            format!(".measure {spelling}: measurements over an S-parameter plot"),
         )),
         None => Err(fail(
             &token.location,

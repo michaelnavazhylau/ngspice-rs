@@ -302,6 +302,13 @@ fn backend_and_method_dispatch_is_explicit() {
     let gear = ok(&["method=gear"]).unwrap();
     assert_ne!(gear, trap);
     assert_eq!(ok(&["method=gear", "maxord=2"]).unwrap(), gear);
+    // maxord 3..=6 are accepted for both methods and, as in dctran.c (which
+    // only ever raises the order from 1 to 2), run exactly like maxord=2.
+    for order in 3..=6 {
+        let maxord = format!("maxord={order}");
+        assert_eq!(ok(&["method=gear", &maxord]).unwrap(), gear, "{maxord}");
+        assert_eq!(ok(&["method=trap", &maxord]).unwrap(), trap, "{maxord}");
+    }
     // diffsol BDF remains explicit.
     let bdf = ok(&["backend=diffsol", "method=bdf"]).unwrap();
     assert_ne!(times(&bdf), times(&trap));
@@ -311,8 +318,8 @@ fn backend_and_method_dispatch_is_explicit() {
         &["backend=diffsol", "method=gear"][..],
         &["method=bdf"][..],
         &["method=euler"][..],
-        &["method=gear", "maxord=3"][..],
-        &["method=trap", "maxord=6"][..],
+        &["method=gear", "maxord=7"][..],
+        &["method=trap", "maxord=7"][..],
         &["maxord=0"][..],
         &["maxord=two"][..],
         &["method=gear", "method=trap"][..],

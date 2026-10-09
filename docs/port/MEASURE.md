@@ -101,7 +101,7 @@ card      := .measure | .meas
 | Input | Result |
 | --- | --- |
 | missing/invalid analysis word (`.measure`, `.measure 2 …`) | `SpiceError::Parse` (exit 2), positioned |
-| an analysis with no driver for measurement (`sp`, `sparam`) | `SpiceError::NotYetPorted` (exit 3) |
+| a measurement over an S-parameter plot (`sp`, `sparam`; the `.sp` driver exists, its measurement axis is not ported) | `SpiceError::NotYetPorted` (exit 3) |
 | an analysis no measurement can be taken on (`op`, `noise`, `disto`, `pz`, `sens`, `tf`, `four`) | `SpiceError::Unsupported` (exit 2) |
 | a C operation the port does not implement (`WHEN`, `MIN_AT`, `MAX_AT`, `PP`, `DERIV[ATIVE]`, `ERR*`, `PHASE_MARGIN`, `GAIN_MARGIN`) | `SpiceError::NotYetPorted` (exit 3) |
 | an unknown operation word | `SpiceError::Parse` (exit 2) |

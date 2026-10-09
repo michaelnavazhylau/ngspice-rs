@@ -177,6 +177,21 @@ rd vcc out 10k
 .end
 ",
     );
+    // RF port sources (#105): C's VSRC has no noise routine, so the z0
+    // terminations are noiseless; a port can be the input reference.
+    compare(
+        "ports",
+        "port noise
+v1 in 0 dc 0 ac 1 portnum 1 z0 50
+r1 in out 100
+r2 out 0 200
+c1 out 0 1n
+v2 out2 0 dc 0 ac 0 portnum 2 z0 75
+r3 out out2 1k
+.noise v(out) v1 dec 2 1k 10meg 1
+.end
+",
+    );
     compare(
         "pnp_current",
         "pnp current input

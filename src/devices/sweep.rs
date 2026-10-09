@@ -88,3 +88,147 @@ impl ResistorOverride {
         self.supplied
     }
 }
+
+/// Largest number of instance parameters one [`crate::devices::ModelContext`]
+/// can override at once (a two-axis `.dc` can sweep two `@inst[param]` targets).
+pub const MAX_INSTANCE_OVERRIDES: usize = 2;
+
+/// One per-point replacement of a device instance parameter, the immutable
+/// form of C's `.dc @inst[param] ...` (`dctrcurv.c` `DCTsetInstParam`: the
+/// device's `DEVparam` setter followed by `DEVtemperature`).
+///
+/// Created by [`crate::devices::Circuit::instance_override`], which resolves
+/// the instance and the parameter through [`crate::devices::Device::instance_parameter`]
+/// and validates the value by building the replacement once. Like
+/// [`ResistorOverride`] it names the device by its ordinal in
+/// [`crate::devices::Circuit::devices`] and is only meaningful for the circuit
+/// that made it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InstanceOverride {
+    device: usize,
+    parameter: &'static str,
+    value: Real,
+}
+
+impl InstanceOverride {
+    pub(crate) const fn new(device: usize, parameter: &'static str, value: Real) -> Self {
+        Self {
+            device,
+            parameter,
+            value,
+        }
+    }
+
+    /// The overridden device's ordinal in [`crate::devices::Circuit::devices`].
+    #[must_use]
+    pub const fn device(&self) -> usize {
+        self.device
+    }
+
+    /// The canonical (lowercase, alias-folded) parameter keyword.
+    #[must_use]
+    pub const fn parameter(&self) -> &'static str {
+        self.parameter
+    }
+
+    /// The value given to the parameter, in the setter's own unit (Celsius for
+    /// `temp`, as on the instance card).
+    #[must_use]
+    pub const fn value(&self) -> Real {
+        self.value
+    }
+}
+
+/// Settable real instance parameters of the C devices this port elaborates,
+/// as `DCTfindInstParam` (`dctrcurv.c`) accepts them: `IF_SET | IF_REAL`
+/// entries of each device's `*pTable` (`res.c`, `cap.c`, `ind.c`, `vsrc.c`,
+/// `isrc.c`, `vcvs.c`, `vccs.c`, `cccs.c`, `ccvs.c`, `asrc.c`, `dio.c`,
+/// `bjt.c`, `mos1.c`; K couplings live in `ind.c`'s `MUTpTable`; the S/W
+/// switches have none). Aliases are listed separately.
+///
+/// Only used to tell a parameter C would sweep but this port does not yet
+/// (`NotYetPorted`) from one C rejects as well (`Unsupported`).
+#[must_use]
+pub fn c_instance_parameter_known(designator: char, keyword: &str) -> bool {
+    let keywords: &[&str] = match designator.to_ascii_lowercase() {
+        'r' => &[
+            "resistance",
+            "r",
+            "ac",
+            "temp",
+            "dtemp",
+            "l",
+            "w",
+            "m",
+            "tc",
+            "tc1",
+            "tc2",
+            "tce",
+            "bv_max",
+            "scale",
+        ],
+        'c' => &[
+            "capacitance",
+            "cap",
+            "c",
+            "ic",
+            "temp",
+            "dtemp",
+            "w",
+            "l",
+            "m",
+            "tc1",
+            "tc2",
+            "bv_max",
+            "scale",
+        ],
+        'l' => &[
+            "inductance",
+            "ic",
+            "temp",
+            "dtemp",
+            "m",
+            "tc1",
+            "tc2",
+            "scale",
+            "nt",
+        ],
+        'k' => &["k", "coefficient"],
+        'v' => &["dc", "acmag", "acphase", "z0", "pwr", "freq", "phase"],
+        'i' => &["dc", "c", "m", "acmag", "acphase"],
+        'e' | 'h' => &["gain"],
+        'g' | 'f' => &["gain", "m"],
+        'b' => &["temp", "dtemp", "tc1", "tc2", "m"],
+        'd' => &[
+            "temp", "dtemp", "ic", "area", "pj", "perim", "w", "l", "m", "lm", "lp", "wm", "wp",
+        ],
+        'q' => &[
+            "icvbe", "icvce", "area", "areab", "areac", "m", "temp", "dtemp",
+        ],
+        'm' => &[
+            "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
+            "dtemp",
+        ],
+        _ => &[],
+    };
+    keywords.iter().any(|k| k.eq_ignore_ascii_case(keyword))
+}
+
+/// Domain check of a swept instance-parameter value: finite and `ok`,
+/// otherwise a [`crate::primitives::SpiceError::Circuit`] naming the owner and
+/// the requirement `what`.
+pub(crate) fn check_swept(
+    owner: &str,
+    parameter: &str,
+    value: Real,
+    ok: bool,
+    what: &str,
+) -> crate::primitives::SpiceResult<()> {
+    if ok && value.is_finite() {
+        Ok(())
+    } else {
+        Err(crate::primitives::SpiceError::circuit(format!(
+            "{owner}: swept {parameter}={value} must be {what}"
+        )))
+    }
+}

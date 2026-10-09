@@ -1,0 +1,12 @@
+Port sources in AC, OP, transient and S-parameter analyses
+* Ports keep their z0 in series in every analysis; .sp drives them in turn.
+v1 in 0 dc 1 ac 1 pulse(0 1 1u 1u 1u 5u 20u) portnum 1 z0 50 pwr 0.001 sin(0 1 1meg)
+r1 in out 50
+c1 out 0 10n
+r2 out 0 200
+v2 out 0 dc 0 ac 0 portnum 2 z0 75
+.sp lin 4 10k 1meg
+.tran 0.1u 20u
+.ac lin 3 10k 1meg
+.op
+.end
