@@ -1644,8 +1644,14 @@ fn run(
     Err(SpiceError::Numerical {
         context: "DC continuation".into(),
         message: format!(
-            "direct Newton and every enabled continuation strategy failed: {}",
+            "direct Newton and every enabled continuation strategy failed: {}; \
+             {OPTRAN_NOT_PORTED}",
             report.summary()
         ),
     })
 }
+
+/// Appended to an exhausted continuation's error: ngspice's `CKTop` would
+/// next run its transient operating-point fallback, which is not ported.
+pub const OPTRAN_NOT_PORTED: &str = "ngspice's next fallback, the transient operating point \
+     (src/spicelib/analysis/optran.c, OPtran), is not ported";
