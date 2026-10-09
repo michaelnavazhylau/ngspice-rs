@@ -37,6 +37,7 @@
 #![warn(missing_docs)]
 
 pub mod behavioural;
+pub mod bjt;
 pub mod circuit;
 pub mod controlled;
 mod factory;

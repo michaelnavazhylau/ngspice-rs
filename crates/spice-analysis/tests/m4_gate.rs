@@ -297,8 +297,10 @@ fn typed_nested_source_and_temperature_sweeps_are_bounded_and_nonmutating() {
 fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamps() {
     for body in [
         "d1 a 0 dm\n.model dm d(bv=20)",
-        "q1 c b 0 qm\n.model qm npn(vaf=100)",
-        "q1 c b 0 qm\n.model qm npn(ikf=1m)",
+        // Gummel-Poon physics is ported (#87); quasi-saturation and excess
+        // phase are not.
+        "q1 c b 0 qm\n.model qm npn(rco=10)",
+        "q1 c b 0 qm\n.model qm npn(tf=1n ptf=30)",
         "m1 d g 0 0 mm\n.model mm nmos(tox=10n)",
         "m1 d g 0 0 mm\n.model mm nmos(level=49)",
     ] {
