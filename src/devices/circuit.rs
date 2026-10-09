@@ -503,6 +503,34 @@ impl Circuit {
         if let Some(error) = &self.mutual.error {
             return Err(error.clone());
         }
+        self.check_port_numbering()
+    }
+
+    /// `vsrctemp.c` (`VSRCtemp`, run before every analysis): the RF port
+    /// numbers must be exactly `1..=N` for `N` ports. A number above `N` is
+    /// "incorrect port ordering" (a gap or an out-of-range index), a repeated
+    /// one a "duplicate port Index"; both are fatal in C.
+    fn check_port_numbering(&self) -> SpiceResult<()> {
+        let ports: Vec<_> = self
+            .devices
+            .iter()
+            .filter_map(|device| device.rf_port().map(|port| (device.name(), port.number)))
+            .collect();
+        let mut seen = BTreeSet::new();
+        for (name, number) in &ports {
+            if *number > ports.len() {
+                return Err(SpiceError::circuit(format!(
+                    "{name}: incorrect port ordering (portnum {number} with {} port(s); \
+                     ports must be numbered 1..=N)",
+                    ports.len()
+                )));
+            }
+            if !seen.insert(*number) {
+                return Err(SpiceError::circuit(format!(
+                    "{name}: duplicate port Index {number}"
+                )));
+            }
+        }
         Ok(())
     }
 

@@ -69,7 +69,7 @@ pub use linear::{
     Waveform, WaveformBreakpoints,
 };
 pub use pulse::{Pulse, PulseBreakpoints, PulseSpec, TransientTiming};
-pub use sources::IndependentSource;
+pub use sources::{IndependentSource, RfPort};
 pub use subckt::{ExpandedNetlist, SubcircuitLimits, expand_subcircuits};
 pub mod rlc;
 pub mod state;

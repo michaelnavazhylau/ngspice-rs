@@ -695,6 +695,27 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // `.sp` (#105): linear port decks, so the AC bound applies to every
+    // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
+    // resistor so no Z/Y component is a rounding-level real part.
+    Supported {
+        name: "sp_attenuator",
+        kind: AnalysisKind::SParameter,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sp_rc",
+        kind: AnalysisKind::SParameter,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
 ];
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
@@ -862,6 +883,38 @@ const BATCH: &[Batch] = &[
                 gate: Gate::Points {
                     axis: None,
                     tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    // `.sp` (#105) beside `.ac`, `.op` and `.tran` on the same RF ports: the
+    // series z0 of each port in every analysis, and `sp1` last in batch order.
+    Batch {
+        name: "sp_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Transient,
+                gate: Gate::Transient(compare::TRAN),
+            },
+            Stage {
+                kind: AnalysisKind::SParameter,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
                 },
             },
         ],
@@ -1101,11 +1154,15 @@ fn run_card(
     // C's default save set omits simulator-created internal nodes (e.g. a
     // diode's series-resistance anode). Project only those known internal rows;
     // every externally visible variable still goes through exact set checks.
+    // An RF port's `#res` node is not on `outitf.c`'s exclusion list, so C
+    // saves it and it stays compared.
     let internal: Vec<_> = circuit
         .nodes()
         .nodes()
         .iter()
-        .filter(|node| node.kind == ngspice_rs::primitives::NodeKind::Internal)
+        .filter(|node| {
+            node.kind == ngspice_rs::primitives::NodeKind::Internal && !node.name.ends_with("#res")
+        })
         .map(|node| format!("v({})", node.name))
         .collect();
     for column in (0..got.variables.len()).rev() {

@@ -216,8 +216,12 @@ fn source_relations(
     for (index, device) in circuit.devices().iter().enumerate() {
         let designator = device.designator();
         let rows = circuit.branch_rows(index).unwrap_or(0..0);
-        let [positive, negative] = device.terminals() else {
-            continue;
+        // An RF port's ideal source sits between its internal `#res` node and
+        // the negative terminal; `z0` separates it from the positive one.
+        let (positive, negative) = match (device.terminals(), device.rf_port()) {
+            ([_, negative, _], Some(port)) => (&port.internal, negative),
+            ([positive, negative], None) => (positive, negative),
+            _ => continue,
         };
         if rows.len() != 1 {
             continue;

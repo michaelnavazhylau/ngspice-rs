@@ -1437,6 +1437,13 @@ fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceR
             (ParameterKind::Scalar | ParameterKind::Expression(_), name @ ("r" | "td")) => {
                 parts.push(format!("{name}={}", value_text(parameter, false)?));
             }
+            // RFSPICE port setters of a V source, ordered like the PWL ones.
+            (
+                ParameterKind::Scalar | ParameterKind::Expression(_),
+                name @ ("portnum" | "z0" | "pwr" | "freq" | "phase"),
+            ) if device.designator == 'v' => {
+                parts.push(format!("{name}={}", value_text(parameter, false)?));
+            }
             _ => {
                 return Err(refuse(
                     format!("source parameter {:?}", parameter.name),

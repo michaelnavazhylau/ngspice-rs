@@ -1,0 +1,10 @@
+Lossy RC two-port with unequal port impedances, S-parameters
+* Series 100 ohm, shunt 1 nF || 1 k, series 20 ohm; port 1 is 50 ohm, port 2 is 75 ohm.
+v1 in 0 dc 0 ac 1 portnum 1 z0 50
+r1 in mid 100
+c1 mid 0 1n
+rp mid 0 1k
+r2 mid out 20
+v2 out 0 dc 0 ac 0 portnum 2 z0 75
+.sp lin 5 100k 10meg
+.end

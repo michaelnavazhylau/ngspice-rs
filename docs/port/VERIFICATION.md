@@ -1,5 +1,32 @@
 # Verification
 
+## M8 S-parameter analysis (#105)
+
+`.sp` and RF port sources ([SPARAM.md](SPARAM.md)). The reference binary is an
+`RFSPICE` build, so C data exists for every claim below.
+
+- Three new fixtures were captured one at a time (`cargo xtask golden capture
+  --netlist sp_attenuator|sp_rc|sp_multi`); no existing golden was recaptured.
+  `sp_attenuator` and `sp_rc` are single-analysis `.sp` entries in `SUPPORTED`,
+  `sp_multi` a `BATCH` entry (`.ac`, `.op`, `.tran`, `.sp`); all keep the
+  existing bounds (`compare::AC`, `compare::DC`, `compare::TRAN`). The verify
+  projection, which drops C-unsaved internal nodes, keeps the ports' `#res`
+  nodes because C's `outitf.c` saves them. `sp_rc` has a shunt resistor so that
+  no Z/Y component is a rounding-level real part.
+- `cargo xtask golden verify`: **89 verified / 0 unsupported / 0 failures**;
+  `cargo xtask golden check`: **89 fixture(s) reproduce the committed goldens**;
+  `cargo xtask snapshots` created only the six token/AST snapshots of the new
+  decks.
+- `cargo test --workspace --locked`: **1124 passed / 0 failed / 75 ignored**;
+  with `NGSPICE_BIN` and `-- --ignored` all **75** opt-in live-C tests pass,
+  including the five of `tests/c_sparam_reference.rs` (C batch mode against
+  `spice-rs simulate` by name, `1e-9 |C| + 1e-12`, on 10 decks).
+- `tests/sparam.rs` (14 tests) checks closed forms independent of C; see
+  [SPARAM.md](SPARAM.md#verification).
+- Not verified: `donoise`, the transient `PORT` function and `.measure sp`
+  (all `NotYetPorted`); the zero Y/Z block of a nonexistent matrix is a
+  documented divergence from C's rounding-dependent values.
+
 ## Single-crate consolidation (`restructure/single-crate`, no functional change)
 
 The six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,

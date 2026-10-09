@@ -7,7 +7,7 @@
 //! * **order** ([`schedule`]): C's `CKTdoJob()` (`src/spicelib/analysis/
 //!   cktdojob.c`) walks the analysis table `analInfo[]`
 //!   (`src/spicelib/analysis/analysis.c`) in its fixed order — options, `.ac`,
-//!   `.dc`, `.op`, `.tran`, `.pz`, `.tf`, `.disto`, `.noise`, `.sens` — and for
+//!   `.dc`, `.op`, `.tran`, `.pz`, `.tf`, `.disto`, `.noise`, `.sens`, `.sp` — and for
 //!   each type runs every job of that type. Jobs are *prepended* to the task's
 //!   job list by `CKTnewAnal()` (`cktnewan.c`), so two cards of the same type run
 //!   in **reverse deck order**. Deck order between different types is
@@ -84,7 +84,10 @@ pub const fn job_order(kind: AnalysisKind) -> usize {
         AnalysisKind::Distortion => 7,
         AnalysisKind::Noise => 8,
         AnalysisKind::Sensitivity => 9,
-        AnalysisKind::Fourier => 10,
+        // RFSPICE appends SPinfo after SENSinfo (and the PSS/SENSE2 entries,
+        // which have no card here).
+        AnalysisKind::SParameter => 10,
+        AnalysisKind::Fourier => 11,
     }
 }
 
@@ -103,6 +106,8 @@ pub const fn plot_abbreviation(kind: AnalysisKind) -> &'static str {
         AnalysisKind::Sensitivity => "sens",
         AnalysisKind::TransferFunction => "tf",
         AnalysisKind::Fourier => "four",
+        // typesdef.c maps the "SP Analysis" plot name to "sp".
+        AnalysisKind::SParameter => "sp",
     }
 }
 
@@ -391,6 +396,7 @@ mod tests {
                 AnalysisKind::Distortion,
                 AnalysisKind::Noise,
                 AnalysisKind::Sensitivity,
+                AnalysisKind::SParameter,
                 AnalysisKind::Fourier,
             ]
         );

@@ -549,6 +549,7 @@ pub(crate) fn kind_name(kind: Kind) -> &'static str {
         Kind::Sensitivity => "sensitivity",
         Kind::TransferFunction => "transfer function",
         Kind::Fourier => "Fourier",
+        Kind::SParameter => "S-parameter",
     }
 }
 
