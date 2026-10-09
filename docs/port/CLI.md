@@ -120,12 +120,14 @@ in one job; the scheduling rules live in `analysis::batch`:
 
 * **Order.** `CKTdoJob()` (`src/spicelib/analysis/cktdojob.c`) walks the fixed
   analysis table `analInfo[]` (`analysis.c`): `.ac`, then `.dc`, then `.op`, then
-  `.tran` — not deck order. Cards of one type run in **reverse deck order**,
+  `.tran`, and `.sp` (`SPinfo`, an `RFSPICE` entry) after every other type —
+  not deck order. Cards of one type run in **reverse deck order**,
   because `CKTnewAnal()` prepends each job to the task's list. A deck written
   `.tran .ac .dc a .op .dc b` therefore runs `.ac`, `.dc b`, `.dc a`, `.op`,
   `.tran`, and the rawfile holds the plots in that order.
 * **Plot names.** The rawfile carries each plot's `Plotname:` (`AC Analysis`,
-  `DC transfer characteristic`, `Operating Point`, `Transient Analysis`) and the
+  `DC transfer characteristic`, `Operating Point`, `Transient Analysis`,
+  `SP Analysis`) and the
   deck title on every plot. The report also gives each plot the name C's
   `plot_add()` (`src/frontend/vectors.c`) gives it in memory: the type
   abbreviation plus the global `plot_num`, which a name collision bumps for good —

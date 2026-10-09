@@ -1,8 +1,8 @@
 # Conformance fixtures
 
 Every `*.cir` file here is a **pure deck**: no `.control` section and no file
-I/O. Most have exactly one analysis card; `multi_analysis_rc` and the M6 exit
-gate `m6_gate` deliberately have four (see below). `cargo xtask golden capture` instruments each one
+I/O. Most have exactly one analysis card; `multi_analysis_rc`, the M6 exit
+gate `m6_gate` and the RF-port deck `sp_multi` deliberately have four (see below). `cargo xtask golden capture` instruments each one
 by inserting
 
 ```spice
@@ -130,6 +130,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_ic_mos1_uic_tran` | `.tran` | MOS1 inverter pair started under `uic` from full and partial `ic=` vectors and the `.ic` node vector (Gear-2, `reltol=1e-5`, 2 ps maximum step) |
 | `m7_ic_latch_nodeset_op` | `.op` | symmetric CMOS latch whose `.nodeset` (forced in MODEINITJCT/MODEINITFIX only) selects the q-high state |
 | `m7_ic_latch_mos1_ic_op` | `.op` | the same latch whose MOS1 `ic=` vectors move the MODEINITJCT start (no `uic`) and select the q-high state |
+| `sp_attenuator` | `.sp` | matched K = 3 T pad between 50 ohm ports: S11 = 0, S21 = 1/3, closed-form Y/Z, port `#res` nodes, `v(rbase)` (#105) |
+| `sp_rc` | `.sp` | lossy RC two-port between 50 and 75 ohm ports: unequal power-wave normalisation, reciprocal S12 = S21, complex Y/Z (#105) |
+| `sp_multi` | `.sp` `.tran` `.ac` `.op` | RF ports in every analysis (series z0), a later `sin()` overriding `pwr`, batch order `.ac .op .tran .sp` (#105) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)

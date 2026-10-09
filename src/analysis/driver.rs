@@ -302,13 +302,40 @@ impl Analysis for Transient {
     }
 }
 
+/// `.sp` — S-parameter analysis over the RF port sources (V sources with
+/// `portnum`), producing S, Y and Z matrices. `donoise` is not ported.
+///
+/// C: `span.c` (an `RFSPICE` build option); see `docs/port/SPARAM.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SParameter;
+
+impl Analysis for SParameter {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::SParameter
+    }
+
+    fn name(&self) -> &'static str {
+        "S-parameter"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::sparam::run(circuit, request, context)
+    }
+}
+
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 4] = [
+pub const DRIVERS: [AnalysisKind; 5] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
     AnalysisKind::Transient,
+    AnalysisKind::SParameter,
 ];
 
 /// Whether an analysis has a driver.
@@ -360,6 +387,7 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::DcSweep => Box::new(DcSweep),
         AnalysisKind::Ac => Box::new(AcSmallSignal),
         AnalysisKind::Transient => Box::new(Transient),
+        AnalysisKind::SParameter => Box::new(SParameter),
         other => {
             return Err(SpiceError::Unsupported {
                 feature: format!(

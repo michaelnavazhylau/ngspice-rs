@@ -415,6 +415,12 @@ pub trait Device: fmt::Debug {
         None
     }
 
+    /// The RFSPICE port data of a voltage source that is an S-parameter port
+    /// (`VSRCisPort`); `None` (the default) for every other device.
+    fn rf_port(&self) -> Option<&crate::devices::sources::RfPort> {
+        None
+    }
+
     /// True when the device's contribution depends on the present solution, so
     /// the analysis has to iterate.
     fn is_nonlinear(&self) -> bool {

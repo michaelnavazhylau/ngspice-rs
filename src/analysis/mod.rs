@@ -8,7 +8,8 @@
 //! | [`fourier`] | `.four` Fourier/THD evaluation over the final complete period of a transient plot and its text rendering | ported for the bounded card subset in `docs/port/FOURIER.md` |
 //! | [`rawfile`] | ngspice rawfile reading **and** writing, ASCII and binary | ported for the bounded layouts in `docs/port/RAWFILES.md` |
 //! | [`batch`] | ngspice batch order, plot names and per-plot `.save`/`.print`/`.measure`/`.four` targeting for multi-analysis decks | ported (`docs/port/CLI.md`) |
-//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
+//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran`/`.sp` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
+//! | `sparam` | `.sp` S-parameter analysis over RF port sources (S, Y, Z) | ported without `donoise` (`docs/port/SPARAM.md`) |
 //!
 //! The C equivalent is `src/spicelib/analysis/` (21,993 lines: the `CKT*`
 //! job-control, loading and iteration machinery) and `src/frontend/rawfile.c`.
@@ -39,6 +40,7 @@ pub mod newton;
 pub mod rawfile;
 pub mod results;
 pub mod selection;
+mod sparam;
 pub mod sweep;
 mod transient;
 

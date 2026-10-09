@@ -600,3 +600,17 @@ fn malformed_function_asts_are_refused() {
     n.devices[0].parameters[0].name = "exp".into();
     refused(&n, "holds a sin");
 }
+
+#[test]
+fn rf_port_setters_and_the_sp_card_round_trip_in_order() {
+    let (written, _, _) = round_trip(
+        "ports\nv1 a 0 dc 0 ac 1 z0 0 portnum 1 pwr 1m freq 2.4G phase 30\nr1 a b 50\n\
+         v2 b 0 portnum=2 z0=75\n.sp dec 10 1k 1g 0\n.end\n",
+    );
+    assert!(
+        written.contains("v1 a 0 dc 0 ac 1 0 z0=0 portnum=1 pwr=1m freq=2.4G phase=30"),
+        "{written}"
+    );
+    assert!(written.contains("v2 b 0 portnum=2 z0=75"), "{written}");
+    assert!(written.contains(".sp dec 10 1k 1g 0"), "{written}");
+}
