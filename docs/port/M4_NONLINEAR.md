@@ -17,7 +17,8 @@ files: symlinking editable files between branches would violate isolation.
 - `spice-devices::models` / `schema`: existing first-declaration family/level
   resolution, ordered last-set scalar projection, units, provenance and domains.
 - `spice-devices::nonlinear`: diode factory, junction equations and nonlinear
-  charge integration. `transistors`: Ebers-Moll BJT and MOS1 factories/equations.
+  charge integration. `bjt`: the Gummel-Poon BJT (#87). `transistors`: MOS1
+  factories/equations.
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
   and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
 - `spice-analysis::newton`: disposable load/solve/reload, physical iterate and
@@ -61,20 +62,69 @@ extra geometry, DTEMP and nonlinear initialization flags/vectors.
 
 ### BJT
 
-Level 1 NPN/PNP, preserving three versus explicitly four terminals. No substrate
-charge/current is enabled (CJS and associated physics are rejected).
-Model: `IS` (1e-16 A), `BF` (100), `BR` (1), `NF/NR` (1), `TNOM`, `CJE/CJC`
-(0 F), `VJE/VJC` (0.75 V), `MJE/MJC` (0.33), `FC` (0.5), `TF/TR` (0 s).
-Instance: `AREA/M` (1), `TEMP`. Temperature must equal nominal.
+Gummel-Poon level 1 (#87, `spice-devices::bjt`), NPN/PNP, three or explicitly
+four terminals. References: `bjt/bjt.c` and `bjtmpar.c` (setters and aliases),
+`bjtsetup.c` (defaults, internal nodes), `bjttemp.c`, `bjtload.c`, `bjtacld.c`,
+`bjttrunc.c`.
 
-Ebers-Moll forward/reverse transport, finite gain, both junction gmins, analytic
-multi-terminal Jacobians and conserved terminal-current signs. BE/BC depletion
-and diffusion charges each own a charge/derivative pair and participate in LTE.
+Model: `IS` (1e-16 A), `IBE`/`IBC` (used when both are given), `BF` (100),
+`NF` (1), `VAF`/`VA`, `IKF`/`IK`, `NKF`/`NK` (sqrt law unless given; clamped to
+1), `ISE`/`C2` and `ISC`/`C4` (a value above 1e-4 is a multiple of `IS`, as in
+C), `NE` (1.5), `BR` (1), `NR` (1), `VAR`/`VB`, `IKR`, `NC` (2), `RB`, `IRB`,
+`RBM` (default `RB`), `RE`, `RC`, `CJE`, `VJE`/`PE` (0.75), `MJE`/`ME` (0.33),
+`TF`, `XTF`, `VTF`, `ITF`, `PTF` (only without `TF`, see below), `CJC`,
+`VJC`/`PC` (0.75), `MJC`/`MC` (0.33), `XCJC` (1, clamped to [0, 1]), `TR`,
+`CJS`/`CSUB`/`CCS`, `VJS`/`PS` (0.75), `MJS`/`MS` (0), `ISS`, `NS` (1), `SUBS`
+(vertical NPN / lateral PNP by default), `XTB`, `EG` (1.11), `XTI` (3), `FC`
+(0.5, limited to 0.9999), `TNOM`/`TREF`, `TLEV` (0, 1, 3), `TLEVC` (0, 1) and
+every first/second-order temperature coefficient of `bjt.c` (`TBF1` ...
+`TISS2`, `CTC`/`CTE`/`CTS`, `TVJC`/`TVJE`/`TVJS`, `TRB`/`TRC`/`TRE` aliases).
+Instance: `AREA`, `AREAB`, `AREAC` (default `AREA`), `M`, `TEMP`, `DTEMP`.
+Raw `MJE`/`MJC`/`MJS`/`FC` of 1 or more are rejected; `TLEV`/`TLEVC` outside the
+C selectors are errors rather than C's warning-and-reset.
 
-References: `bjt/bjtload.c`, `bjtsetup.c`.
-Unsupported: Early effect (`VAF/VAR`), high injection (`IKF/IKR`), leakage/bias-
-dependent transit time, series resistances, substrate charge, VBIC and temperature
-adjustment. They are errors, never silently discarded Gummel-Poon parameters.
+- Base charge `qb` from `q1` (Early) and `q2` (high injection), C's transport
+  current `(cbe - cbc)/qb`, ideal and leakage base currents, junction gmin on
+  both base currents and the substrate junction; `m` multiplies every stamp.
+- `RC`/`RB`/`RE` create the internal nodes `<q>#collCX`, `<q>#base`,
+  `<q>#emitter` in C's order; `gx` follows `RBM + (RB - RBM)/qb` or the `IRB`
+  current-crowding law. `.save`/rawfiles omit these internal nodes as C does.
+- Charges: `qbe` with the bias-dependent transit time (`XTF`/`VTF`/`ITF`,
+  including the `d qbe / d vbc` cross capacitance), `qbc` with `TR`, the
+  external-base `qbx` (`XCJC < 1`) and the substrate `qsub` (C's linear
+  forward-bias form). Four charge/current state pairs; `qbe`, `qbc`, `qsub` and,
+  when `XCJC < 1`, `qbx` take part in truncation control (`bjttrunc.c`).
+- `bjttemp.c` temperature and area scaling, including `pbfact` built-in
+  potentials, `TLEVC=0` capacitance laws and the `TLEV` 0/1/3 saturation-current
+  and beta laws. Every load re-evaluates at its context temperature, so `.temp`,
+  `.options temp`, `TEMP`/`DTEMP` and `.dc temp` sweeps all apply.
+- Newton loads stamp the exact Jacobian, including `d gx / dV`; C stamps only
+  `gx` there, so both converge to the same root. The AC assembly reproduces
+  `bjtacld.c` (conductance `gx` only, charge Jacobians including the cross term).
+
+Not ported (`SpiceError::NotYetPorted` naming the C file): excess phase (`PTF`
+with `TF != 0`: Weil's approximation in `bjtload.c` and the AC phase rotation in
+`bjtacld.c`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`, `QCO`,
+`QUASIMOD`, `VG`, `CN`, `D`), noise (`KF`/`AF`, `bjtnoise.c`), safe-operating-area
+limits (`*_MAX`, `RTH0`, `bjtsoachk.c`), `OFF`/`IC`/`ICVBE`/`ICVCE` initial
+conditions and C's `DEVpnjlim` junction limiting (the Newton driver's global
+damping is used). VBIC (level 4) is a non-goal.
+
+Gate: C goldens `m7_bjt_gummel` (VBC = 0 Gummel plot), `m7_bjt_output` (nested
+VCE/IB output characteristics), `m7_bjt_temp` (-40..125 C sweep of NPN, lateral
+PNP with substrate and TLEV=3/TLEVC=1 devices), `m7_bjt_amp_ac` and
+`m7_bjt_amp_tran` (CE amplifier at 50 C with every charge). They set
+`.option reltol=1e-8`: at C's default reltol, with bypass, these sweeps stop
+about 4e-4 from the converged root, outside the unchanged 1 ppm `NONLINEAR`
+bound; at 1e-8 the worst DC/AC errors are below 0.1 of the bound and the
+transient's 0.04 of `compare::TRAN`. `spice-devices` unit tests check every
+slice's analytic derivatives by finite differences at nominal and 85 C and the
+`bjttemp.c` laws; `spice-analysis/tests/bjt_gummel_poon.rs` checks independent
+Gummel-Poon/KCL equations, exact Newton and companion Jacobians of the whole
+circuit, small-signal operators, disposable charge state, transient terminal-
+current conservation and the explicit errors; the opt-in `c_bjt_reference`
+compares substrate forward bias, reverse/saturation, `TLEV`/`TLEVC` variants
+and AC charges with live C at the same bound.
 
 ### MOS1
 
