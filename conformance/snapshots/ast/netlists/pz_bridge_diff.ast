@@ -1,0 +1,55 @@
+# ngspice-rs ast-dump v1
+file: netlists/pz_bridge_diff.cir
+title: "Pole-zero: RC bridge with a differential output" @netlists/pz_bridge_diff.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/pz_bridge_diff.cir:6:1 "v1 in 0 dc 0 ac 1"
+    [1] device[1] @netlists/pz_bridge_diff.cir:7:1 "r1 in a 1k"
+    [2] device[2] @netlists/pz_bridge_diff.cir:8:1 "c1 a 0 1u"
+    [3] device[3] @netlists/pz_bridge_diff.cir:9:1 "r2 in b 2k"
+    [4] device[4] @netlists/pz_bridge_diff.cir:10:1 "c2 b 0 3u"
+    [5] device[5] @netlists/pz_bridge_diff.cir:11:1 "r3 a b 5k"
+    [6] analysis[0] @netlists/pz_bridge_diff.cir:12:1 ".pz in 0 a b vol pz"
+    [7] end @netlists/pz_bridge_diff.cir:13:1 ".end"
+  devices (6):
+    device [0] name="v1" designator=v @netlists/pz_bridge_diff.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/pz_bridge_diff.cir:6:9
+        [1] name="acmag" kind=scalar value="1" @netlists/pz_bridge_diff.cir:6:17
+        [2] name="acphase" kind=scalar value="0" @netlists/pz_bridge_diff.cir:6:14
+    device [1] name="r1" designator=r @netlists/pz_bridge_diff.cir:7:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/pz_bridge_diff.cir:7:9
+    device [2] name="c1" designator=c @netlists/pz_bridge_diff.cir:8:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/pz_bridge_diff.cir:8:8
+    device [3] name="r2" designator=r @netlists/pz_bridge_diff.cir:9:1
+      nodes: "in" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/pz_bridge_diff.cir:9:9
+    device [4] name="c2" designator=c @netlists/pz_bridge_diff.cir:10:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="3u" @netlists/pz_bridge_diff.cir:10:8
+    device [5] name="r3" designator=r @netlists/pz_bridge_diff.cir:11:1
+      nodes: "a" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="5k" @netlists/pz_bridge_diff.cir:11:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=pz @netlists/pz_bridge_diff.cir:12:1
+      arguments: "in" "0" "a" "b" "vol" "pz"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

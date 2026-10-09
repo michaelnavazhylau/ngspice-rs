@@ -55,11 +55,15 @@ pub struct IndependentSource {
     voltage: bool,
     dc: Real,
     ac: Complex,
+    /// Whether an AC value was written (C `VSRCacGiven`), even `ac 0`.
+    ac_given: bool,
     waveform: Waveform,
     port: Option<RfPort>,
 }
 impl IndependentSource {
     /// Creates an independent source. `voltage=false` selects a current source.
+    /// The source counts as having an AC value ([`Self::ac_given`]) when `ac`
+    /// is nonzero; [`Self::with_ac_given`] records an explicit `ac 0`.
     /// # Errors
     /// Non-finite excitation or invalid waveform.
     pub fn new(
@@ -80,9 +84,25 @@ impl IndependentSource {
             voltage,
             dc,
             ac,
+            ac_given: ac != Complex::ZERO,
             waveform,
             port: None,
         })
+    }
+
+    /// Records whether the card wrote an AC value (`ac`, `acmag` or
+    /// `acphase`; C `VSRCacGiven`/`ISRCacGiven`), which decides how
+    /// pole-zero analysis treats a voltage source (`vsrcpzld.c`).
+    #[must_use]
+    pub fn with_ac_given(mut self, given: bool) -> Self {
+        self.ac_given = given;
+        self
+    }
+
+    /// Whether the card wrote an AC value (C `VSRCacGiven`).
+    #[must_use]
+    pub const fn ac_given(&self) -> bool {
+        self.ac_given
     }
 
     /// Makes this voltage source an RF port (see the module documentation);
@@ -248,5 +268,46 @@ impl Device for IndependentSource {
             waveform: self.waveform.clone(),
         });
         Ok(())
+    }
+    /// `VSRCpzLoad` (`vsrcpzld.c`): a voltage source without an AC value
+    /// shorts its terminals as in AC; one with an AC value is removed (the
+    /// KCL couplings of its current stay, its branch row becomes
+    /// `i = 0`), since the pole-zero drive replaces the input. A current
+    /// source has no pole-zero load in C and contributes nothing (open), as
+    /// in the AC matrix. An RF port is refused: `vsrcpzld.c` stamps only the
+    /// ideal source between `<name>#res` and the negative terminal and omits
+    /// the port's `1/z0` (which `vsrcload.c`/`vsrcacld.c` stamp), leaving the
+    /// positive terminal disconnected in C's pole-zero matrix.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut LinearContext<'_>,
+        _bias: &crate::maths::Vector,
+    ) -> SpiceResult<()> {
+        if !self.voltage {
+            return Ok(());
+        }
+        if self.port.is_some() {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "pole-zero analysis of RF port {}: C's vsrcpzld.c omits the port's z0",
+                    self.name
+                ),
+                location: None,
+            });
+        }
+        if !self.ac_given {
+            context.branch(self.ideal())?;
+            return Ok(());
+        }
+        let branch = context
+            .branch
+            .ok_or_else(|| SpiceError::circuit("missing branch-row binding"))?;
+        let [positive, negative] = self.ideal();
+        for (node, sign) in [(positive, 1.), (negative, -1.)] {
+            if let Some(row) = context.unknowns.node_row(node) {
+                context.system.a.add(row, branch, sign)?;
+            }
+        }
+        context.system.a.add(branch, branch, 1.)
     }
 }

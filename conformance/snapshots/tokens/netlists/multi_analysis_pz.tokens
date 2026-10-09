@@ -1,0 +1,91 @@
+# ngspice-rs token-dump v1
+file: netlists/multi_analysis_pz.cir
+title: "Pole-zero with other analyses in one batch run" @netlists/multi_analysis_pz.cir:1:1
+card 1 @netlists/multi_analysis_pz.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 1 ac 1"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "1" value=1e0
+  token 6 4:14 word "ac"
+  token 7 4:17 number "1" value=1e0
+card 2 @netlists/multi_analysis_pz.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "a"
+  token 4 5:9 number "1k" value=1e3
+card 3 @netlists/multi_analysis_pz.cir:6:1 lines=6-6 continuations=0
+  raw: "c1 a 0 1u"
+  kind: device(c)
+  token 1 6:1 word "c1"
+  token 2 6:4 word "a"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 number "1u" value=1e-6
+card 4 @netlists/multi_analysis_pz.cir:7:1 lines=7-7 continuations=0
+  raw: "l1 a out 10m"
+  kind: device(l)
+  token 1 7:1 word "l1"
+  token 2 7:4 word "a"
+  token 3 7:6 word "out"
+  token 4 7:10 number "10m" value=1e-2
+card 5 @netlists/multi_analysis_pz.cir:8:1 lines=8-8 continuations=0
+  raw: "r2 out 0 100"
+  kind: device(r)
+  token 1 8:1 word "r2"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "100" value=1e2
+card 6 @netlists/multi_analysis_pz.cir:9:1 lines=9-9 continuations=0
+  raw: "c2 out 0 100n"
+  kind: device(c)
+  token 1 9:1 word "c2"
+  token 2 9:4 word "out"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 number "100n" value=1.0000000000000001e-7
+card 7 @netlists/multi_analysis_pz.cir:10:1 lines=10-10 continuations=0
+  raw: "c3 in out 10n"
+  kind: device(c)
+  token 1 10:1 word "c3"
+  token 2 10:4 word "in"
+  token 3 10:7 word "out"
+  token 4 10:11 number "10n" value=1e-8
+card 8 @netlists/multi_analysis_pz.cir:11:1 lines=11-11 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 11:1 word ".op"
+card 9 @netlists/multi_analysis_pz.cir:12:1 lines=12-12 continuations=0
+  raw: ".pz in 0 out 0 vol pol"
+  kind: dot(.pz)
+  token 1 12:1 word ".pz"
+  token 2 12:5 word "in"
+  token 3 12:8 number "0" value=0e0
+  token 4 12:10 word "out"
+  token 5 12:14 number "0" value=0e0
+  token 6 12:16 word "vol"
+  token 7 12:20 word "pol"
+card 10 @netlists/multi_analysis_pz.cir:13:1 lines=13-13 continuations=0
+  raw: ".ac lin 3 100 1k"
+  kind: dot(.ac)
+  token 1 13:1 word ".ac"
+  token 2 13:5 word "lin"
+  token 3 13:9 number "3" value=3e0
+  token 4 13:11 number "100" value=1e2
+  token 5 13:15 number "1k" value=1e3
+card 11 @netlists/multi_analysis_pz.cir:14:1 lines=14-14 continuations=0
+  raw: ".pz in 0 out 0 vol zer"
+  kind: dot(.pz)
+  token 1 14:1 word ".pz"
+  token 2 14:5 word "in"
+  token 3 14:8 number "0" value=0e0
+  token 4 14:10 word "out"
+  token 5 14:14 number "0" value=0e0
+  token 6 14:16 word "vol"
+  token 7 14:20 word "zer"
+card 12 @netlists/multi_analysis_pz.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

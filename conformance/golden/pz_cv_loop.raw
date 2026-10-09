@@ -1,0 +1,14 @@
+Title: pole-zero: decoupling capacitor across an ideal supply
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 2
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+Values:
+ 0	-1.596419413859206e+06,0.000000000000000e+00
+	-2.035805861407940e+05,0.000000000000000e+00
+

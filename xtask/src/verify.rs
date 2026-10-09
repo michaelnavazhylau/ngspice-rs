@@ -18,6 +18,9 @@ enum Gate {
     },
     /// Event-aware comparison on a shared physical time grid (`tran.rs`).
     Transient(compare::TranTolerance),
+    /// Pole-zero plots: poles and zeros as unordered root sets
+    /// (`compare::roots`).
+    Roots(compare::RootTolerance),
 }
 
 /// An additional Rust-only run of the same deck against the same C golden.
@@ -664,6 +667,19 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // Pole-zero analysis (#103): C's Muller search against the port's
+    // generalized eigenvalues, compared as unordered root sets under
+    // `compare::POLE_ZERO`. Decks: a current-driven RLC ladder read on the
+    // negative output node (swapped drive), a differential output (C's
+    // column addition) with a zero at the origin, coupled inductors, a
+    // capacitor across an ideal supply (an index-two block the port deflates),
+    // and diode/MOS1 operating-point linearizations.
+    pole_zero("pz_ladder_cur"),
+    pole_zero("pz_bridge_diff"),
+    pole_zero("pz_transformer"),
+    pole_zero("pz_cv_loop"),
+    pole_zero("pz_diode"),
+    pole_zero("pz_mos1"),
     // `.tf` transfer function (#101): a passive ladder (inductor short,
     // capacitor open) and a current-driven E/G amplifier with a sensed current
     // output keep the linear DC bound; the Gummel-Poon stage, linearised at its
@@ -717,6 +733,16 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
 ];
+
+/// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.
+const fn pole_zero(name: &'static str) -> Supported {
+    Supported {
+        name,
+        kind: AnalysisKind::PoleZero,
+        gate: Gate::Roots(compare::POLE_ZERO),
+        variants: &[],
+    }
+}
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
 struct Stage {
@@ -919,6 +945,35 @@ const BATCH: &[Batch] = &[
             },
         ],
     },
+    // `.op`, `.ac` and two `.pz` cards (#103): ngspice runs the later `.pz`
+    // (zeros) first, so `pz1` holds the zeros and `pz2` the poles.
+    Batch {
+        name: "multi_analysis_pz",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::PoleZero,
+                gate: Gate::Roots(compare::POLE_ZERO),
+            },
+            Stage {
+                kind: AnalysisKind::PoleZero,
+                gate: Gate::Roots(compare::POLE_ZERO),
+            },
+        ],
+    },
 ];
 
 /// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
@@ -1086,6 +1141,7 @@ fn run_variant(
             axis: *axis,
             tolerance: *tolerance,
         },
+        (Gate::Roots(tolerance), _) => Gate::Roots(*tolerance),
     };
     compare_plot(&gate, &netlist, &request, &got, &want.plots[0].plot)
 }
@@ -1227,6 +1283,7 @@ fn compare_plot(
     match *gate {
         Gate::Points { axis, tolerance } => compare::plots(got, want, tolerance, axis)
             .map(|()| format!("{} point(s)", got.point_count())),
+        Gate::Roots(tolerance) => compare::roots(got, want, tolerance),
         Gate::Transient(tolerance) => {
             let time = |index: usize, what: &str| {
                 request

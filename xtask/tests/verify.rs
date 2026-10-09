@@ -15,7 +15,7 @@ fn default_and_selected_verification_need_no_c_binary() {
     let output = verify(&[]);
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains("98 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
+    assert!(text.contains("105 verified fixture(s), 0 unsupported fixture(s), 0 failure(s)"));
     // The default run above already verifies every fixture. Selection is
     // checked on a few representatives (exact name, case-insensitive name with
     // extension, a multi-analysis batch deck, an initial-condition deck), so

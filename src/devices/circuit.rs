@@ -1039,6 +1039,33 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
+        self.bias_linearized_system(context, bias, state, false)
+    }
+
+    /// The pole-zero pencil `A + s E` at a solved bias point: every device's
+    /// [`Device::assemble_pole_zero`] (C `CKTpzLoad` without the drive and
+    /// column operations, which belong to the analysis). The same bias and
+    /// state rules as [`Self::small_signal_system_at`] apply; no source
+    /// forcing is assembled.
+    /// # Errors
+    /// As [`Self::small_signal_system_at`], and an explicit error for any
+    /// device without a pole-zero load.
+    pub fn pole_zero_system_at(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&[Real]>,
+    ) -> SpiceResult<crate::devices::linear::LinearSystem> {
+        self.bias_linearized_system(context, bias, state, true)
+    }
+
+    fn bias_linearized_system(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&[Real]>,
+        pole_zero: bool,
+    ) -> SpiceResult<crate::devices::linear::LinearSystem> {
         self.check_numbering()?;
         if state.is_some_and(|state| state.len() != self.state_len) {
             return Err(SpiceError::circuit(
@@ -1064,25 +1091,27 @@ impl Circuit {
                 None => &**device,
             };
             let range = &self.branch_rows[index];
-            device.assemble_small_signal(
-                &mut crate::devices::linear::LinearContext {
-                    model_context: context,
-                    system: &mut system,
-                    unknowns: &self.unknowns,
-                    branch: (!range.is_empty()).then_some(range.start),
-                    controls: self.controls(index)?,
-                    mutual: mutual.get(index).map_or(&[], Vec::as_slice),
-                    states: match state {
-                        Some(state) => Some(
-                            state
-                                .get(self.state_rows[index].clone())
-                                .ok_or_else(|| SpiceError::circuit("bias state is too short"))?,
-                        ),
-                        None => None,
-                    },
+            let mut linear = crate::devices::linear::LinearContext {
+                model_context: context,
+                system: &mut system,
+                unknowns: &self.unknowns,
+                branch: (!range.is_empty()).then_some(range.start),
+                controls: self.controls(index)?,
+                mutual: mutual.get(index).map_or(&[], Vec::as_slice),
+                states: match state {
+                    Some(state) => Some(
+                        state
+                            .get(self.state_rows[index].clone())
+                            .ok_or_else(|| SpiceError::circuit("bias state is too short"))?,
+                    ),
+                    None => None,
                 },
-                bias,
-            )?;
+            };
+            if pole_zero {
+                device.assemble_pole_zero(&mut linear, bias)?;
+            } else {
+                device.assemble_small_signal(&mut linear, bias)?;
+            }
         }
         system.a.fold_duplicates();
         system.e.fold_duplicates();

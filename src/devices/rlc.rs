@@ -200,6 +200,15 @@ impl Device for Resistor {
     ) -> SpiceResult<Real> {
         Resistor::new(&self.name, self.terminals, supplied).map(|resistor| resistor.resistance())
     }
+
+    /// Pole-zero load: C `respzld.c` (the `ac=` conductance when given, as `resacld.c`) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 /// A capacitor, `c1 n1 n2 <value> [ic=…]`.
@@ -326,6 +335,15 @@ impl Device for Capacitor {
     ) -> SpiceResult<()> {
         context.system.has_initial_conditions |= self.initial_voltage.is_some();
         context.nodal(self.terminals, self.capacitance, true)
+    }
+
+    /// Pole-zero load: C `cappzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
     }
 }
 
@@ -493,6 +511,15 @@ impl Device for Inductor {
         }
         context.system.has_initial_conditions |= self.initial_current.is_some();
         Ok(())
+    }
+
+    /// Pole-zero load: C `indpzld.c` (with `mutpzld.c` mutual terms) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
     }
 }
 

@@ -27,6 +27,48 @@
   (all `NotYetPorted`); the zero Y/Z block of a nonexistent matrix is a
   documented divergence from C's rounding-dependent values.
 
+## M8 pole-zero analysis (#103)
+
+Seven new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was checked against the same C binary in a
+scratch copy; no existing golden was recaptured and no tolerance changed.
+`golden verify` compares pole-zero plots as unordered root sets under
+`compare::POLE_ZERO` (`|Rust - C| <= 1e-6 |C| + 1e-9 max|C root|`, justified in
+`xtask/src/compare.rs` and [POLE_ZERO_ADR.md](POLE_ZERO_ADR.md)); the plot name,
+flags, variable names, units and root counts must match exactly.
+
+| Fixture | Exercises | Worst error |
+| --- | --- | --- |
+| `pz_ladder_cur` | `cur pz`, grounded positive output (swapped drive), complex pair | 1.0e-9 of bound |
+| `pz_bridge_diff` | differential output (column addition), zero at the origin | 6.4e-10 of bound |
+| `pz_transformer` | K coupling, complex pair, zero at the origin | 7.2e-9 of bound |
+| `pz_cv_loop` | capacitor across an ideal supply (index-two block) | 1.5e-10 of bound |
+| `pz_diode` | junction linearized at the operating point, `rs` internal node | 1.3e-3 of bound |
+| `pz_mos1` | MOS1 Meyer/overlap charge, pole at the origin, RHP zero | 5.3e-7 of bound |
+| `multi_analysis_pz` | `.ac`, `.op`, two `.pz` (`pz1` zeros, `pz2` poles) in batch order | 7.0e-10 of bound |
+
+`cargo xtask golden check` reproduces all seven with the C binary. After merging
+`work/m8` (`.tf`, `.sp`, Gear 3-6, instance sweeps): `cargo test --workspace
+--locked` **1185 passed / 0 failed / 90 ignored** (stable), `golden verify`
+**105 verified / 0 unsupported / 0 failures**, **288** snapshots unchanged
+(14 new parser snapshots of the decks were blessed), fmt and Clippy clean.
+The five new opt-in `c_pole_zero` checks pass against ngspice-47+ (current input
+at the output, a switch with a B source and a subcircuit, `zer`-only and
+`pol`-only cards with a model resistor at 60 C, a Gummel-Poon stage, a
+differential input through a subcircuit inductor, and the CCVS sign divergence:
+the port matches C's result for the H gain negated).
+
+Rust-only evidence: `tests/pole_zero.rs` (closed-form RC, series RLC, two-pole
+ladder, highpass, input impedance, a notch whose three poles C's search does not
+find, a CV loop without spurious poles, `ac 0` versus DC-only sources, empty
+plots, bias-dependent diode poles, `PZinit`/card/singular/unsupported-device
+errors, CLI layout and batch composition, `.save` refusal) and the unit tests of
+`maths::pencil` and `analysis::pz`. Checked out of tree against LAPACK
+(`scipy.linalg.eigvals` on dumped pencils): the port's roots agree to `1e-10`
+relative or better; C stops at its own search tolerances (up to `1.5e-9`
+relative on the goldens), and on a Gummel-Poon amplifier and a notch filter C
+gives up with an iteration-limit warning and omits roots.
+
 ## Single-crate consolidation (`restructure/single-crate`, no functional change)
 
 The six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,

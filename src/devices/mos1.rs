@@ -1268,6 +1268,15 @@ impl Device for Mos1 {
         }
         Ok(())
     }
+
+    /// Pole-zero load: C `mos1pzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 #[cfg(test)]

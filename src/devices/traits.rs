@@ -552,6 +552,37 @@ pub trait Device: fmt::Debug {
         self.assemble_linear(context)
     }
 
+    /// Assemble the device's pole-zero load at the bias point: its part of
+    /// the s-domain pencil `A + s E` (C `DEVpzLoad`, called by `CKTpzLoad`
+    /// in `cktpzld.c`). Every C pole-zero load is affine in `s` and equals
+    /// the AC load with `j omega` replaced by `s`, except an independent
+    /// voltage source with an AC value, which `vsrcpzld.c` removes from the
+    /// circuit (its current is forced to zero) because the pole-zero drive
+    /// takes its place.
+    ///
+    /// Opt-in: the default is an explicit error, so a device whose C model
+    /// has no `DEVpzLoad` (or whose pole-zero load the port has not
+    /// reviewed) can never contribute nothing silently. Devices whose C
+    /// pole-zero load equals their small-signal load delegate to
+    /// [`Self::assemble_small_signal`].
+    ///
+    /// # Errors
+    /// Unsupported devices, or the small-signal assembly's errors.
+    fn assemble_pole_zero(
+        &self,
+        _context: &mut crate::devices::linear::LinearContext<'_>,
+        _bias: &Vector,
+    ) -> SpiceResult<()> {
+        Err(SpiceError::Unsupported {
+            feature: format!(
+                "pole-zero analysis of {} (no pole-zero load; C devices without DEVpzLoad, \
+                 e.g. transmission lines and XSPICE code models, are not supported)",
+                self.name()
+            ),
+            location: None,
+        })
+    }
+
     /// Observes an accepted solution point before its state is committed.
     ///
     /// Called by [`crate::devices::Circuit::accept_point`] for the accepted initial

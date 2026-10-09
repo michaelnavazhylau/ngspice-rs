@@ -161,6 +161,15 @@ impl Device for MutualInductance {
     fn assemble_linear(&self, _context: &mut LinearContext<'_>) -> SpiceResult<()> {
         Ok(())
     }
+
+    /// Pole-zero load: C `mutpzld.c`, whose terms the coupled inductors stamp equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 /// Builds a K device from its parsed (and literalized) AST instance.

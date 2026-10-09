@@ -2166,6 +2166,117 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(out)", 431, -8.215683334810343e-01, 0.0),
         ],
     },
+    // Pole-zero analysis (#103). C lists poles then zeros, ascending real
+    // part, each complex root followed by its conjugate.
+    //
+    // Current into `in`, read on b (the positive output node is ground, so C
+    // swaps the drive): c3 at the input gives -1/(r1 c3) = -1e6; l1 and r2
+    // with c1 give the pair -r2/(2 l1) = -2.5e4 +- j sqrt(1/(l1 c1) - 6.25e8).
+    Expectation {
+        fixture: "pz_ladder_cur",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(pole(2))", "v(pole(3))"],
+        values: &[
+            ("v(pole(1))", 0, -1.000998950625846e+06, 0.0),
+            (
+                "v(pole(2))",
+                0,
+                -2.500052468707703e+04,
+                1.933845422083931e+04,
+            ),
+            (
+                "v(pole(3))",
+                0,
+                -2.500052468707703e+04,
+                -1.933845422083931e+04,
+            ),
+        ],
+    },
+    // The bridge's two RC arms balance at DC (both nodes follow v1), so the
+    // differential output has a zero at the origin; C's determinant is singular
+    // there and the zero is exact.
+    Expectation {
+        fixture: "pz_bridge_diff",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(pole(2))", "v(zero(1))"],
+        values: &[
+            ("v(pole(1))", 0, -1.213601717195853e+03, 0.0),
+            ("v(pole(2))", 0, -2.197316161374808e+02, 0.0),
+            ("v(zero(1))", 0, 0.0, 0.0),
+        ],
+    },
+    // A transformer passes no DC: zero at the origin. Three energy stores
+    // (two coupled windings, the load capacitor) give three poles.
+    Expectation {
+        fixture: "pz_transformer",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(pole(2))", "v(pole(3))", "v(zero(1))"],
+        values: &[
+            (
+                "v(pole(1))",
+                0,
+                -6.587015879976568e+04,
+                5.139172478027967e+04,
+            ),
+            (
+                "v(pole(2))",
+                0,
+                -6.587015879976568e+04,
+                -5.139172478027967e+04,
+            ),
+            ("v(pole(3))", 0, -4.522308663094482e+03, 0.0),
+            ("v(zero(1))", 0, 0.0, 0.0),
+        ],
+    },
+    // With vdd an AC ground, the two nodes a, b give
+    // 2e-18 s^2 + 3.6e-12 s + 6.5e-7: poles summing to -1.8e6 with product
+    // 3.25e11. cdec across vdd adds no pole.
+    Expectation {
+        fixture: "pz_cv_loop",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(pole(2))"],
+        values: &[
+            ("v(pole(1))", 0, -1.596419413859206e+06, 0.0),
+            ("v(pole(2))", 0, -2.035805861407940e+05, 0.0),
+        ],
+    },
+    // The junction's diffusion and depletion charge and c1 behind r1 and the
+    // diode's rs: two poles, one zero, all real and in the left half-plane.
+    Expectation {
+        fixture: "pz_diode",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(pole(2))", "v(zero(1))"],
+        values: &[
+            ("v(pole(1))", 0, -1.257597815812064e+10, 0.0),
+            ("v(pole(2))", 0, -6.983243413825105e+07, 0.0),
+            ("v(zero(1))", 0, -2.545810592258894e+09, 0.0),
+        ],
+    },
+    // The gate floats behind rs once the AC source is removed (an exact pole
+    // at the origin in C); the gate-drain overlap capacitance gives the
+    // right-half-plane zero gm/Cgd.
+    Expectation {
+        fixture: "pz_mos1",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(pole(2))", "v(zero(1))"],
+        values: &[
+            ("v(pole(1))", 0, -6.871243749912874e+07, 0.0),
+            ("v(pole(2))", 0, 0.0, 0.0),
+            ("v(zero(1))", 0, 3.208712145408839e+08, 0.0),
+        ],
+    },
     // `.tf` (#101): the inductor shorts b to a and the capacitor is open, so
     // v(b) = 5 V * (3k || 8k) / (1k + 3k || 8k) and v(out) = 3/4 v(b): gain
     // 0.5142857 = 18/35; the source sees 1k + 3k || 8k = 3181.8 ohm and out
@@ -2665,6 +2776,78 @@ const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
             values: &[
                 ("v(out)", 0, 3.929411702970590e-08, 0.0),
                 ("v(a)", 0, 2.500000070751028e+00, 0.0),
+            ],
+        },
+    ],
+    &[
+        // `.op`, `.ac` and two `.pz` cards: ngspice runs `.ac`, `.op`, then the
+        // later `.pz` (zeros) before the earlier (poles). The operating point
+        // divides 1 V by r1 + r2 = 1.1 k into the 100 ohm r2.
+        Expectation {
+            fixture: "multi_analysis_pz",
+            plotname: "AC Analysis",
+            flags: PlotFlags::Complex,
+            points: 3,
+            variables: &["frequency", "v(a)", "v(in)", "i(l1)", "v(out)", "i(v1)"],
+            values: &[
+                ("frequency", 0, 100.0, 0.0),
+                ("v(out)", 0, 9.083936024383166e-02, -5.727952383288644e-03),
+            ],
+        },
+        Expectation {
+            fixture: "multi_analysis_pz",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &["v(in)", "v(a)", "i(l1)", "v(out)", "i(v1)"],
+            values: &[
+                ("v(out)", 0, 9.090909090909093e-02, 0.0),
+                ("i(v1)", 0, -9.090909090909091e-04, 0.0),
+            ],
+        },
+        // c3 bridges the input to the output: two right-half-plane zeros.
+        Expectation {
+            fixture: "multi_analysis_pz",
+            plotname: "Pole-Zero Analysis",
+            flags: PlotFlags::Complex,
+            points: 1,
+            variables: &["v(zero(1))", "v(zero(2))", "v(zero(3))"],
+            values: &[
+                ("v(zero(1))", 0, -2.031285288892326e+04, 0.0),
+                (
+                    "v(zero(2))",
+                    0,
+                    9.656426444461636e+03,
+                    1.997630015595523e+04,
+                ),
+                (
+                    "v(zero(3))",
+                    0,
+                    9.656426444461636e+03,
+                    -1.997630015595523e+04,
+                ),
+            ],
+        },
+        Expectation {
+            fixture: "multi_analysis_pz",
+            plotname: "Pole-Zero Analysis",
+            flags: PlotFlags::Complex,
+            points: 1,
+            variables: &["v(pole(1))", "v(pole(2))", "v(pole(3))"],
+            values: &[
+                ("v(pole(1))", 0, -7.967878263548421e+04, 0.0),
+                (
+                    "v(pole(2))",
+                    0,
+                    -6.115154136803343e+03,
+                    9.386629607343893e+03,
+                ),
+                (
+                    "v(pole(3))",
+                    0,
+                    -6.115154136803343e+03,
+                    -9.386629607343893e+03,
+                ),
             ],
         },
     ],

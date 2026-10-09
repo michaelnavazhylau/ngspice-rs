@@ -1,0 +1,62 @@
+# ngspice-rs token-dump v1
+file: netlists/pz_ladder_cur.cir
+title: "Pole-zero: current-driven RLC ladder read on the negative output node" @netlists/pz_ladder_cur.cir:1:1
+card 1 @netlists/pz_ladder_cur.cir:5:1 lines=5-5 continuations=0
+  raw: "i1 0 in dc 0 ac 1"
+  kind: device(i)
+  token 1 5:1 word "i1"
+  token 2 5:4 number "0" value=0e0
+  token 3 5:6 word "in"
+  token 4 5:9 word "dc"
+  token 5 5:12 number "0" value=0e0
+  token 6 5:14 word "ac"
+  token 7 5:17 number "1" value=1e0
+card 2 @netlists/pz_ladder_cur.cir:6:1 lines=6-6 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 6:1 word "r1"
+  token 2 6:4 word "in"
+  token 3 6:7 word "a"
+  token 4 6:9 number "1k" value=1e3
+card 3 @netlists/pz_ladder_cur.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 a 0 1u"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "a"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "1u" value=1e-6
+card 4 @netlists/pz_ladder_cur.cir:8:1 lines=8-8 continuations=0
+  raw: "l1 a b 1m"
+  kind: device(l)
+  token 1 8:1 word "l1"
+  token 2 8:4 word "a"
+  token 3 8:6 word "b"
+  token 4 8:8 number "1m" value=1e-3
+card 5 @netlists/pz_ladder_cur.cir:9:1 lines=9-9 continuations=0
+  raw: "r2 b 0 50"
+  kind: device(r)
+  token 1 9:1 word "r2"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "50" value=5e1
+card 6 @netlists/pz_ladder_cur.cir:10:1 lines=10-10 continuations=0
+  raw: "c3 in 0 1n"
+  kind: device(c)
+  token 1 10:1 word "c3"
+  token 2 10:4 word "in"
+  token 3 10:7 number "0" value=0e0
+  token 4 10:9 number "1n" value=1e-9
+card 7 @netlists/pz_ladder_cur.cir:11:1 lines=11-11 continuations=0
+  raw: ".pz in 0 0 b cur pz"
+  kind: dot(.pz)
+  token 1 11:1 word ".pz"
+  token 2 11:5 word "in"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 number "0" value=0e0
+  token 5 11:12 word "b"
+  token 6 11:14 word "cur"
+  token 7 11:18 word "pz"
+card 8 @netlists/pz_ladder_cur.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"

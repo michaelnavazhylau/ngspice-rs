@@ -140,6 +140,7 @@ pub(crate) fn instantiate(
     let mut ic = None;
     let mut mag = 0.;
     let mut phase: f64 = 0.;
+    let mut ac_given = false;
     // C applies waveform setters in order, so the last one wins.
     let mut waveform = None;
     // PWL `td=` (any order) and `r=` (applies to the PWL already set), as the
@@ -198,8 +199,14 @@ pub(crate) fn instantiate(
             })?;
         match p.name.as_str() {
             "ic" => ic = Some(number),
-            "acmag" => mag = number,
-            "acphase" => phase = number,
+            "acmag" => {
+                mag = number;
+                ac_given = true;
+            }
+            "acphase" => {
+                phase = number;
+                ac_given = true;
+            }
             "td" => pwl_delay = Some((number, p.location.clone())),
             "portnum" | "z0" | "pwr" | "freq" | "phase" => {
                 port.set(&p.name, number, &p.location)?
@@ -263,7 +270,8 @@ pub(crate) fn instantiate(
                     mag * phase.to_radians().sin(),
                 ),
                 waveform.unwrap_or(Waveform::Constant(value)),
-            )?;
+            )?
+            .with_ac_given(ac_given);
             // Only V cards accept port setters (parser and allow-list above).
             match rf {
                 Some(rf) => Box::new(source.with_port(rf)?),

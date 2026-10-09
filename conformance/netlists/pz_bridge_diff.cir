@@ -1,0 +1,13 @@
+Pole-zero: RC bridge with a differential output
+* vol pz across two non-ground nodes: CKTpzLoad adds the solution column to
+* the balance column (SMPcAddCol) before replacing it. The AC input source is
+* removed (vsrcpzld.c) and the bridge is balanced at DC, so the transfer has
+* a zero at the origin.
+v1 in 0 dc 0 ac 1
+r1 in a 1k
+c1 a 0 1u
+r2 in b 2k
+c2 b 0 3u
+r3 a b 5k
+.pz in 0 a b vol pz
+.end

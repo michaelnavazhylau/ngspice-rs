@@ -1,0 +1,12 @@
+Pole-zero: coupled-inductor transformer
+* A 1:2 transformer (k=0.98) from a 50 ohm source into an RC load: a complex
+* pole pair, a real pole and a transformer zero at the origin.
+vin in 0 dc 0 ac 1
+rs in p 50
+l1 p 0 10m
+l2 s 0 40m
+k1 l1 l2 0.98
+rl s 0 1k
+cl s 0 100n
+.pz in 0 s 0 vol pz
+.end

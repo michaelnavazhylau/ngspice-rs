@@ -309,6 +309,15 @@ impl Device for ControlledSource {
         )
     }
 
+    /// Pole-zero load: C `vcvspzld.c`, `vccspzld.c`, `cccspzld.c`, `ccvspzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
+
     /// `gain` of E/F/G/H (`vcvs.c`, `cccs.c`, `vccs.c`, `ccvs.c`).
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         keyword.eq_ignore_ascii_case("gain").then_some("gain")

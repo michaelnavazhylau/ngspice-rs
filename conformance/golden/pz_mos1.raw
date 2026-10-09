@@ -1,0 +1,16 @@
+Title: pole-zero: mos1 common-source stage, current drive at the gate
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(zero(1))	voltage
+Values:
+ 0	-6.871243749912874e+07,0.000000000000000e+00
+	0.000000000000000e+00,0.000000000000000e+00
+	3.208712145408839e+08,0.000000000000000e+00
+

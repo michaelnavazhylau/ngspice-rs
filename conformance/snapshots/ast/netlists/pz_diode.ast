@@ -1,0 +1,52 @@
+# ngspice-rs ast-dump v1
+file: netlists/pz_diode.cir
+title: "Pole-zero: forward-biased diode with series resistance and junction charge" @netlists/pz_diode.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/pz_diode.cir:4:1 "v1 in 0 dc 0.65 ac 1"
+    [1] device[1] @netlists/pz_diode.cir:5:1 "r1 in out 1k"
+    [2] device[2] @netlists/pz_diode.cir:6:1 "d1 out 0 dm"
+    [3] device[3] @netlists/pz_diode.cir:7:1 "c1 out 0 10p"
+    [4] model[0] @netlists/pz_diode.cir:8:1 ".model dm d(is=1e-14 n=1 rs=10 cjo=20p vj=0.7 m=0.5 tt=1n)"
+    [5] analysis[0] @netlists/pz_diode.cir:9:1 ".pz in 0 out 0 vol pz"
+    [6] end @netlists/pz_diode.cir:10:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/pz_diode.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.65" @netlists/pz_diode.cir:4:9
+        [1] name="acmag" kind=scalar value="1" @netlists/pz_diode.cir:4:20
+        [2] name="acphase" kind=scalar value="0" @netlists/pz_diode.cir:4:17
+    device [1] name="r1" designator=r @netlists/pz_diode.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/pz_diode.cir:5:11
+    device [2] name="d1" designator=d @netlists/pz_diode.cir:6:1
+      nodes: "out" "0"
+      model: "dm"
+      parameters (0):
+    device [3] name="c1" designator=c @netlists/pz_diode.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10p" @netlists/pz_diode.cir:7:10
+  models (1):
+    model [0] name="dm" base="d" level=none @netlists/pz_diode.cir:8:1
+      parameters (7):
+        [0] name="is" kind=scalar value="1e-14" @netlists/pz_diode.cir:8:13
+        [1] name="n" kind=scalar value="1" @netlists/pz_diode.cir:8:22
+        [2] name="rs" kind=scalar value="10" @netlists/pz_diode.cir:8:26
+        [3] name="cjo" kind=scalar value="20p" @netlists/pz_diode.cir:8:32
+        [4] name="vj" kind=scalar value="0.7" @netlists/pz_diode.cir:8:40
+        [5] name="m" kind=scalar value="0.5" @netlists/pz_diode.cir:8:47
+        [6] name="tt" kind=scalar value="1n" @netlists/pz_diode.cir:8:53
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=pz @netlists/pz_diode.cir:9:1
+      arguments: "in" "0" "out" "0" "vol" "pz"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

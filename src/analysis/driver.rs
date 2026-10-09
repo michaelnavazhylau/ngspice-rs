@@ -302,6 +302,34 @@ impl Analysis for Transient {
     }
 }
 
+/// `.pz` — poles and zeros of the small-signal transfer function at the
+/// operating point, as the finite eigenvalues of the drive-modified pencil
+/// `A + s E` (`docs/port/POLE_ZERO_ADR.md`).
+///
+/// C: `pzan.c`, `cktpzset.c`, `cktpzld.c` (C searches with Muller's method,
+/// `cktpzstr.c`; the port does not).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PoleZero;
+
+impl Analysis for PoleZero {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::PoleZero
+    }
+
+    fn name(&self) -> &'static str {
+        "pole-zero"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::pz::run(circuit, request, context)
+    }
+}
+
 /// `.tf` — the DC small-signal transfer function, input and output resistance
 /// at the operating point (`src/analysis/tf.rs`; see `docs/port/TRANSFER_FUNCTION.md`).
 ///
@@ -356,11 +384,12 @@ impl Analysis for SParameter {
 
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 6] = [
+pub const DRIVERS: [AnalysisKind; 7] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
     AnalysisKind::Transient,
+    AnalysisKind::PoleZero,
     AnalysisKind::TransferFunction,
     AnalysisKind::SParameter,
 ];
@@ -405,7 +434,7 @@ pub fn support(kind: AnalysisKind) -> AnalysisSupport {
 /// # Errors
 ///
 /// [`SpiceError::Unsupported`] for the analyses without a driver (`.noise`,
-/// `.disto`, `.pz`, `.sens`) and for `.four`, which is not a driver but
+/// `.disto`, `.sens`) and for `.four`, which is not a driver but
 /// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
@@ -414,6 +443,7 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::DcSweep => Box::new(DcSweep),
         AnalysisKind::Ac => Box::new(AcSmallSignal),
         AnalysisKind::Transient => Box::new(Transient),
+        AnalysisKind::PoleZero => Box::new(PoleZero),
         AnalysisKind::TransferFunction => Box::new(TransferFunction),
         AnalysisKind::SParameter => Box::new(SParameter),
         other => {
@@ -450,7 +480,6 @@ mod tests {
         for kind in [
             AnalysisKind::Noise,
             AnalysisKind::Distortion,
-            AnalysisKind::PoleZero,
             AnalysisKind::Sensitivity,
             AnalysisKind::Fourier,
         ] {

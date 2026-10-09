@@ -111,6 +111,15 @@ impl Device for ModelPassive {
             .with_nominal_value(supplied)?
             .effective_value(context)
     }
+
+    /// Pole-zero load: C `respzld.c`, `cappzld.c`, `indpzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 pub(crate) fn instantiate(

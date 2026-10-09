@@ -1,0 +1,70 @@
+# ngspice-rs ast-dump v1
+file: netlists/multi_analysis_pz.cir
+title: "Pole-zero with other analyses in one batch run" @netlists/multi_analysis_pz.cir:1:1
+scope root
+  cards (12):
+    [0] device[0] @netlists/multi_analysis_pz.cir:4:1 "v1 in 0 dc 1 ac 1"
+    [1] device[1] @netlists/multi_analysis_pz.cir:5:1 "r1 in a 1k"
+    [2] device[2] @netlists/multi_analysis_pz.cir:6:1 "c1 a 0 1u"
+    [3] device[3] @netlists/multi_analysis_pz.cir:7:1 "l1 a out 10m"
+    [4] device[4] @netlists/multi_analysis_pz.cir:8:1 "r2 out 0 100"
+    [5] device[5] @netlists/multi_analysis_pz.cir:9:1 "c2 out 0 100n"
+    [6] device[6] @netlists/multi_analysis_pz.cir:10:1 "c3 in out 10n"
+    [7] analysis[0] @netlists/multi_analysis_pz.cir:11:1 ".op"
+    [8] analysis[1] @netlists/multi_analysis_pz.cir:12:1 ".pz in 0 out 0 vol pol"
+    [9] analysis[2] @netlists/multi_analysis_pz.cir:13:1 ".ac lin 3 100 1k"
+    [10] analysis[3] @netlists/multi_analysis_pz.cir:14:1 ".pz in 0 out 0 vol zer"
+    [11] end @netlists/multi_analysis_pz.cir:15:1 ".end"
+  devices (7):
+    device [0] name="v1" designator=v @netlists/multi_analysis_pz.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="1" @netlists/multi_analysis_pz.cir:4:9
+        [1] name="acmag" kind=scalar value="1" @netlists/multi_analysis_pz.cir:4:17
+        [2] name="acphase" kind=scalar value="0" @netlists/multi_analysis_pz.cir:4:14
+    device [1] name="r1" designator=r @netlists/multi_analysis_pz.cir:5:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/multi_analysis_pz.cir:5:9
+    device [2] name="c1" designator=c @netlists/multi_analysis_pz.cir:6:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/multi_analysis_pz.cir:6:8
+    device [3] name="l1" designator=l @netlists/multi_analysis_pz.cir:7:1
+      nodes: "a" "out"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="10m" @netlists/multi_analysis_pz.cir:7:10
+    device [4] name="r2" designator=r @netlists/multi_analysis_pz.cir:8:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/multi_analysis_pz.cir:8:10
+    device [5] name="c2" designator=c @netlists/multi_analysis_pz.cir:9:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/multi_analysis_pz.cir:9:10
+    device [6] name="c3" designator=c @netlists/multi_analysis_pz.cir:10:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10n" @netlists/multi_analysis_pz.cir:10:11
+  models (0):
+  subcircuits (0):
+  analyses (4):
+    analysis [0] kind=op @netlists/multi_analysis_pz.cir:11:1
+      arguments:
+    analysis [1] kind=pz @netlists/multi_analysis_pz.cir:12:1
+      arguments: "in" "0" "out" "0" "vol" "pol"
+    analysis [2] kind=ac @netlists/multi_analysis_pz.cir:13:1
+      arguments: "lin" "3" "100" "1k"
+    analysis [3] kind=pz @netlists/multi_analysis_pz.cir:14:1
+      arguments: "in" "0" "out" "0" "vol" "zer"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

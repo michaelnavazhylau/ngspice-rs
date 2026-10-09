@@ -1,0 +1,69 @@
+# ngspice-rs token-dump v1
+file: netlists/pz_transformer.cir
+title: "Pole-zero: coupled-inductor transformer" @netlists/pz_transformer.cir:1:1
+card 1 @netlists/pz_transformer.cir:4:1 lines=4-4 continuations=0
+  raw: "vin in 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 4:1 word "vin"
+  token 2 4:5 word "in"
+  token 3 4:8 number "0" value=0e0
+  token 4 4:10 word "dc"
+  token 5 4:13 number "0" value=0e0
+  token 6 4:15 word "ac"
+  token 7 4:18 number "1" value=1e0
+card 2 @netlists/pz_transformer.cir:5:1 lines=5-5 continuations=0
+  raw: "rs in p 50"
+  kind: device(r)
+  token 1 5:1 word "rs"
+  token 2 5:4 word "in"
+  token 3 5:7 word "p"
+  token 4 5:9 number "50" value=5e1
+card 3 @netlists/pz_transformer.cir:6:1 lines=6-6 continuations=0
+  raw: "l1 p 0 10m"
+  kind: device(l)
+  token 1 6:1 word "l1"
+  token 2 6:4 word "p"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 number "10m" value=1e-2
+card 4 @netlists/pz_transformer.cir:7:1 lines=7-7 continuations=0
+  raw: "l2 s 0 40m"
+  kind: device(l)
+  token 1 7:1 word "l2"
+  token 2 7:4 word "s"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "40m" value=4e-2
+card 5 @netlists/pz_transformer.cir:8:1 lines=8-8 continuations=0
+  raw: "k1 l1 l2 0.98"
+  kind: device(k)
+  token 1 8:1 word "k1"
+  token 2 8:4 word "l1"
+  token 3 8:7 word "l2"
+  token 4 8:10 number "0.98" value=9.8e-1
+card 6 @netlists/pz_transformer.cir:9:1 lines=9-9 continuations=0
+  raw: "rl s 0 1k"
+  kind: device(r)
+  token 1 9:1 word "rl"
+  token 2 9:4 word "s"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "1k" value=1e3
+card 7 @netlists/pz_transformer.cir:10:1 lines=10-10 continuations=0
+  raw: "cl s 0 100n"
+  kind: device(c)
+  token 1 10:1 word "cl"
+  token 2 10:4 word "s"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "100n" value=1.0000000000000001e-7
+card 8 @netlists/pz_transformer.cir:11:1 lines=11-11 continuations=0
+  raw: ".pz in 0 s 0 vol pz"
+  kind: dot(.pz)
+  token 1 11:1 word ".pz"
+  token 2 11:5 word "in"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 word "s"
+  token 5 11:12 number "0" value=0e0
+  token 6 11:14 word "vol"
+  token 7 11:18 word "pz"
+card 9 @netlists/pz_transformer.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"
