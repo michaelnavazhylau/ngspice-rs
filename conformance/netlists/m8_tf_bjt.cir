@@ -1,0 +1,16 @@
+Transfer function of a Gummel-Poon common-emitter stage
+* #101: .tf linearises at the operating point; reltol is tightened so that C's
+* Newton stopping error and its one-iterate-old Jacobian stay inside the
+* nonlinear 1 ppm bound.
+vin in 0 dc 1.4
+vcc vcc 0 9
+rs in nb 600
+rb1 vcc nb 82k
+rb2 nb 0 15k
+rc vcc nc 3.3k
+re ne 0 330
+q1 nc nb ne 0 qamp
+.model qamp npn(is=5e-16 bf=180 br=5 vaf=70 var=15 ikf=40m ikr=4m ise=1e-14 ne=1.5 isc=2e-14 nc=1.8 rb=120 rbm=12 irb=0.5m re=0.8 rc=15)
+.options reltol=1e-8
+.tf v(nc) vin
+.end

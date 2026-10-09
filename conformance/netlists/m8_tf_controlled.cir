@@ -1,0 +1,15 @@
+Transfer function of a current-driven controlled-source amplifier
+* #101: a current-source input with a parallel resistor (input resistance
+* v(n-) - v(n+)), an E amplifier and a current output sensed by a zero-volt
+* source (output resistance -1/i under a unit branch voltage).
+i1 0 in dc 1m
+rp in 0 5k
+r1 in a 1k
+r2 a 0 4k
+e1 oi 0 a 0 20
+ro oi out 600
+g1 0 out a 0 1m
+rl out s 2k
+vs s 0 0
+.tf i(vs) i1
+.end

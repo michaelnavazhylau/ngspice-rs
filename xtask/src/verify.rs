@@ -228,6 +228,9 @@ const SUPPORTED: &[Supported] = &[
     // runs under `compare::TRAN_RESTART`.
     tran("rlc_series_tran", &[DIFFSOL_BDF_RESTART]),
     tran("rlc_series_gear_tran", &[]),
+    // `maxord=6` (#98): C's dctran.c only toggles orders 1 and 2, so this is
+    // the Gear-2 integration again (C data equal rlc_series_gear_tran).
+    tran("rlc_series_gear_maxord6_tran", &[]),
     tran("floating_cap_tran", &[DIFFSOL_BDF]),
     tran("coupled_cap_tran", &[DIFFSOL_BDF_RESTART]),
     // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. No
@@ -493,6 +496,44 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // #97: `.dc @instance[parameter]` (C `param-sweep`) and the `res-sweep`
+    // scale of a resistor target.
+    Supported {
+        name: "m8_dc_param_diode",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_param_mos1",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_param_gain",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_res_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     Supported {
         name: "m7_diode_temp_ac",
         kind: AnalysisKind::Ac,
@@ -639,6 +680,58 @@ const SUPPORTED: &[Supported] = &[
     pole_zero("pz_cv_loop"),
     pole_zero("pz_diode"),
     pole_zero("pz_mos1"),
+    // `.tf` transfer function (#101): a passive ladder (inductor short,
+    // capacitor open) and a current-driven E/G amplifier with a sensed current
+    // output keep the linear DC bound; the Gummel-Poon stage, linearised at its
+    // tightened-RELTOL operating point, the nonlinear 1 ppm bound.
+    Supported {
+        name: "m8_tf_divider",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_tf_controlled",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_tf_bjt",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // `.sp` (#105): linear port decks, so the AC bound applies to every
+    // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
+    // resistor so no Z/Y component is a rounding-level real part.
+    Supported {
+        name: "sp_attenuator",
+        kind: AnalysisKind::SParameter,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sp_rc",
+        kind: AnalysisKind::SParameter,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
 ];
 
 /// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.
@@ -788,6 +881,66 @@ const BATCH: &[Batch] = &[
                 gate: Gate::Points {
                     axis: None,
                     tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    // `.tf` in a batch (#101): `.op` then two `.tf` cards in reverse deck
+    // order, over a diode and a MOS1 stage; nonlinear 1 ppm bound.
+    Batch {
+        name: "m8_tf_batch",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::TransferFunction,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::TransferFunction,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    // `.sp` (#105) beside `.ac`, `.op` and `.tran` on the same RF ports: the
+    // series z0 of each port in every analysis, and `sp1` last in batch order.
+    Batch {
+        name: "sp_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Transient,
+                gate: Gate::Transient(compare::TRAN),
+            },
+            Stage {
+                kind: AnalysisKind::SParameter,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
                 },
             },
         ],
@@ -1057,11 +1210,15 @@ fn run_card(
     // C's default save set omits simulator-created internal nodes (e.g. a
     // diode's series-resistance anode). Project only those known internal rows;
     // every externally visible variable still goes through exact set checks.
+    // An RF port's `#res` node is not on `outitf.c`'s exclusion list, so C
+    // saves it and it stays compared.
     let internal: Vec<_> = circuit
         .nodes()
         .nodes()
         .iter()
-        .filter(|node| node.kind == ngspice_rs::primitives::NodeKind::Internal)
+        .filter(|node| {
+            node.kind == ngspice_rs::primitives::NodeKind::Internal && !node.name.ends_with("#res")
+        })
         .map(|node| format!("v({})", node.name))
         .collect();
     for column in (0..got.variables.len()).rev() {
@@ -1077,10 +1234,15 @@ fn run_card(
     {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
         // independent-source scale in the voltage/current naming convention,
-        // and names a temperature scale (and its unit) `temp-sweep`.
+        // and names a temperature scale (and its unit) `temp-sweep`, a
+        // resistance scale `res-sweep` and an `@inst[param]` scale
+        // `param-sweep`, which its rawfile writes as a voltage
+        // (`dctrcurv.c`).
         let (name, unit) = match got.variables[0].unit.as_str() {
             "voltage" => ("v(v-sweep)", None),
             "temperature" => ("temp-sweep", Some("temp-sweep")),
+            "resistance" => ("res-sweep", Some("res-sweep")),
+            "parameter" => ("v(param-sweep)", Some("voltage")),
             _ => ("i(i-sweep)", None),
         };
         got.variables[0].name = name.into();

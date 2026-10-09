@@ -1,0 +1,54 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_dc_param_gain.cir
+title: "Controlled-source gain sweep: @g1[gain] scaled by the card's m, nested with @e1[gain]" @netlists/m8_dc_param_gain.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/m8_dc_param_gain.cir:2:1 "v1 in 0 1"
+    [1] device[1] @netlists/m8_dc_param_gain.cir:3:1 "r1 in 0 1k"
+    [2] device[2] @netlists/m8_dc_param_gain.cir:4:1 "e1 eo 0 in 0 2"
+    [3] device[3] @netlists/m8_dc_param_gain.cir:5:1 "re eo 0 1k"
+    [4] device[4] @netlists/m8_dc_param_gain.cir:6:1 "g1 0 go eo 0 1m m=3"
+    [5] device[5] @netlists/m8_dc_param_gain.cir:7:1 "rg go 0 1k"
+    [6] analysis[0] @netlists/m8_dc_param_gain.cir:8:1 ".dc @g1[gain] 1m 3m 0.5m @e1[gain] -2 2 2"
+    [7] end @netlists/m8_dc_param_gain.cir:9:1 ".end"
+  devices (6):
+    device [0] name="v1" designator=v @netlists/m8_dc_param_gain.cir:2:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/m8_dc_param_gain.cir:2:9
+    device [1] name="r1" designator=r @netlists/m8_dc_param_gain.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_dc_param_gain.cir:3:9
+    device [2] name="e1" designator=e @netlists/m8_dc_param_gain.cir:4:1
+      nodes: "eo" "0" "in" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="2" @netlists/m8_dc_param_gain.cir:4:14
+    device [3] name="re" designator=r @netlists/m8_dc_param_gain.cir:5:1
+      nodes: "eo" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_dc_param_gain.cir:5:9
+    device [4] name="g1" designator=g @netlists/m8_dc_param_gain.cir:6:1
+      nodes: "0" "go" "eo" "0"
+      model: none
+      parameters (2):
+        [0] name="m" kind=scalar value="3" @netlists/m8_dc_param_gain.cir:6:17
+        [1] name="gain" kind=scalar value="1m" @netlists/m8_dc_param_gain.cir:6:14
+    device [5] name="rg" designator=r @netlists/m8_dc_param_gain.cir:7:1
+      nodes: "go" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_dc_param_gain.cir:7:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m8_dc_param_gain.cir:8:1
+      arguments: "@g1[gain]" "1m" "3m" "0.5m" "@e1[gain]" "-2" "2" "2"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

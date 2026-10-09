@@ -1,0 +1,68 @@
+# ngspice-rs token-dump v1
+file: netlists/m8_dc_param_gain.cir
+title: "Controlled-source gain sweep: @g1[gain] scaled by the card's m, nested with @e1[gain]" @netlists/m8_dc_param_gain.cir:1:1
+card 1 @netlists/m8_dc_param_gain.cir:2:1 lines=2-2 continuations=0
+  raw: "v1 in 0 1"
+  kind: device(v)
+  token 1 2:1 word "v1"
+  token 2 2:4 word "in"
+  token 3 2:7 number "0" value=0e0
+  token 4 2:9 number "1" value=1e0
+card 2 @netlists/m8_dc_param_gain.cir:3:1 lines=3-3 continuations=0
+  raw: "r1 in 0 1k"
+  kind: device(r)
+  token 1 3:1 word "r1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 number "1k" value=1e3
+card 3 @netlists/m8_dc_param_gain.cir:4:1 lines=4-4 continuations=0
+  raw: "e1 eo 0 in 0 2"
+  kind: device(e)
+  token 1 4:1 word "e1"
+  token 2 4:4 word "eo"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "in"
+  token 5 4:12 number "0" value=0e0
+  token 6 4:14 number "2" value=2e0
+card 4 @netlists/m8_dc_param_gain.cir:5:1 lines=5-5 continuations=0
+  raw: "re eo 0 1k"
+  kind: device(r)
+  token 1 5:1 word "re"
+  token 2 5:4 word "eo"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 number "1k" value=1e3
+card 5 @netlists/m8_dc_param_gain.cir:6:1 lines=6-6 continuations=0
+  raw: "g1 0 go eo 0 1m m=3"
+  kind: device(g)
+  token 1 6:1 word "g1"
+  token 2 6:4 number "0" value=0e0
+  token 3 6:6 word "go"
+  token 4 6:9 word "eo"
+  token 5 6:12 number "0" value=0e0
+  token 6 6:14 number "1m" value=1e-3
+  token 7 6:17 word "m"
+  token 8 6:18 equals "="
+  token 9 6:19 number "3" value=3e0
+card 6 @netlists/m8_dc_param_gain.cir:7:1 lines=7-7 continuations=0
+  raw: "rg go 0 1k"
+  kind: device(r)
+  token 1 7:1 word "rg"
+  token 2 7:4 word "go"
+  token 3 7:7 number "0" value=0e0
+  token 4 7:9 number "1k" value=1e3
+card 7 @netlists/m8_dc_param_gain.cir:8:1 lines=8-8 continuations=0
+  raw: ".dc @g1[gain] 1m 3m 0.5m @e1[gain] -2 2 2"
+  kind: dot(.dc)
+  token 1 8:1 word ".dc"
+  token 2 8:5 word "@g1[gain]"
+  token 3 8:15 number "1m" value=1e-3
+  token 4 8:18 number "3m" value=3e-3
+  token 5 8:21 number "0.5m" value=5e-4
+  token 6 8:26 word "@e1[gain]"
+  token 7 8:36 number "-2" value=-2e0
+  token 8 8:39 number "2" value=2e0
+  token 9 8:41 number "2" value=2e0
+card 8 @netlists/m8_dc_param_gain.cir:9:1 lines=9-9 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 9:1 word ".end"

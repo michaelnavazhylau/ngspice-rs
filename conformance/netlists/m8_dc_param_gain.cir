@@ -1,0 +1,9 @@
+Controlled-source gain sweep: @g1[gain] scaled by the card's m, nested with @e1[gain]
+v1 in 0 1
+r1 in 0 1k
+e1 eo 0 in 0 2
+re eo 0 1k
+g1 0 go eo 0 1m m=3
+rg go 0 1k
+.dc @g1[gain] 1m 3m 0.5m @e1[gain] -2 2 2
+.end

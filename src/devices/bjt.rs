@@ -17,7 +17,9 @@
 //! the bias dependence of the base resistance. C's `bjtload.c` stamps only the
 //! conductance `gx` there; both iterations share the same fixed point.
 //! [`Device::assemble_small_signal`] deliberately reproduces C's AC stamp,
-//! which omits the `d(gx)/dV` terms, because that is what `.ac` computes.
+//! which omits the `d(gx)/dV` terms, because that is what `.ac` computes; a
+//! load whose trial asks for C's matrix
+//! ([`crate::devices::DeviceState::c_jacobian`], used by `.tf`) omits them too.
 //!
 //! Not ported, and rejected with [`SpiceError::NotYetPorted`]: excess phase
 //! (`PTF` with `TF != 0`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`,
@@ -1639,6 +1641,85 @@ impl Device for Bjt {
             vec![0, 2, 4]
         }
     }
+    /// `bjt.c` `BJTpTable`: AREA, AREAB, AREAC, M, TEMP and DTEMP, which
+    /// `bjttemp.c`/`bjtload.c` re-derive (`dctrcurv.c` `DCTsetInstParam`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        ["area", "areab", "areac", "m", "temp", "dtemp"]
+            .into_iter()
+            .find(|name| name.eq_ignore_ascii_case(keyword))
+    }
+    /// `BJTparam` then `BJTtemp`. A swept AREA leaves AREAB/AREAC at the
+    /// values `bjtsetup.c` defaulted them to from the card's AREA, exactly as
+    /// C does: only `BJTsetup` copies AREA into an ungiven AREAB/AREAC.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        use crate::devices::sweep::check_swept;
+        let mut instance = self.instance;
+        let positive = || check_swept(&self.name, parameter, value, value > 0., "positive");
+        match parameter {
+            "area" => {
+                positive()?;
+                instance.area = value;
+            }
+            "areab" => {
+                positive()?;
+                instance.areab = value;
+            }
+            "areac" => {
+                positive()?;
+                instance.areac = value;
+            }
+            "m" => {
+                positive()?;
+                instance.multiplier = value;
+            }
+            "temp" => {
+                check_swept(
+                    &self.name,
+                    parameter,
+                    value,
+                    value + CELSIUS_TO_KELVIN > 0.,
+                    "above absolute zero",
+                )?;
+                instance.temp = Some(value + CELSIUS_TO_KELVIN);
+            }
+            "dtemp" => {
+                check_swept(&self.name, parameter, value, true, "finite")?;
+                instance.dtemp = value;
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "{}: BJT parameter {parameter} cannot be swept",
+                    self.name
+                )));
+            }
+        }
+        let device = Self {
+            name: self.name.clone(),
+            terminals: self.terminals.clone(),
+            nodes: self.nodes,
+            pol: self.pol,
+            subs: self.subs,
+            model: self.model,
+            instance,
+            initial: self.initial.clone(),
+        };
+        evaluate(
+            &device.thermal(context)?,
+            Bias {
+                vbe: 0.,
+                vbc: 0.,
+                vbx: 0.,
+                vsub: 0.,
+            },
+            context.gmin,
+        )?;
+        Ok(Box::new(device))
+    }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("BJT AC requires small-signal assembly"));
@@ -1681,7 +1762,10 @@ impl Device for Bjt {
             vbx: 0.,
             vsub: bias.vsub - raw.vsub,
         };
-        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, true, shift);
+        // The exact Jacobian unless the load asks for C's `bjtload.c` matrix
+        // (gx only), as `.tf` does.
+        let exact = !context.states.c_jacobian();
+        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, exact, shift);
         for flow in &flows {
             stamp_flow(context, flow)?;
         }

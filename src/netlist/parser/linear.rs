@@ -183,6 +183,7 @@ fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> 
         alt((
             dc_parameters,
             ac_parameters,
+            port_parameter,
             super::waveform::parameters,
             super::waveform::pwl_options,
             invalid_source,
@@ -243,6 +244,23 @@ fn ac_value<'a>(
             })
             .parse_next(input)
     }
+}
+
+/// The RFSPICE port setters of a voltage source (`vsrc.c`: `portnum`, `z0`,
+/// `pwr`, `freq`, `phase`), each `name [=] value`, kept as ordered scalar
+/// assignments: `vsrcpar.c` applies them in deck order and `portnum` reads the
+/// `z0` set so far. Current sources have no such parameters.
+fn port_parameter(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
+    let voltage = input.state.card.designator() == Some('v');
+    let (token, name) = any
+        .verify_map(move |token: &Token| {
+            let name = token.text.to_ascii_lowercase();
+            (voltage && matches!(name.as_str(), "portnum" | "z0" | "pwr" | "freq" | "phase"))
+                .then_some((token, name))
+        })
+        .parse_next(input)?;
+    let (_, value) = cut_err((opt(equals), value)).parse_next(input)?;
+    Ok(vec![named(&name, token.location.clone(), value)])
 }
 
 fn invalid_source(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {

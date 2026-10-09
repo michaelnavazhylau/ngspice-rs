@@ -1,0 +1,84 @@
+# ngspice-rs token-dump v1
+file: netlists/m8_tf_controlled.cir
+title: "Transfer function of a current-driven controlled-source amplifier" @netlists/m8_tf_controlled.cir:1:1
+card 1 @netlists/m8_tf_controlled.cir:5:1 lines=5-5 continuations=0
+  raw: "i1 0 in dc 1m"
+  kind: device(i)
+  token 1 5:1 word "i1"
+  token 2 5:4 number "0" value=0e0
+  token 3 5:6 word "in"
+  token 4 5:9 word "dc"
+  token 5 5:12 number "1m" value=1e-3
+card 2 @netlists/m8_tf_controlled.cir:6:1 lines=6-6 continuations=0
+  raw: "rp in 0 5k"
+  kind: device(r)
+  token 1 6:1 word "rp"
+  token 2 6:4 word "in"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 number "5k" value=5e3
+card 3 @netlists/m8_tf_controlled.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "in"
+  token 3 7:7 word "a"
+  token 4 7:9 number "1k" value=1e3
+card 4 @netlists/m8_tf_controlled.cir:8:1 lines=8-8 continuations=0
+  raw: "r2 a 0 4k"
+  kind: device(r)
+  token 1 8:1 word "r2"
+  token 2 8:4 word "a"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "4k" value=4e3
+card 5 @netlists/m8_tf_controlled.cir:9:1 lines=9-9 continuations=0
+  raw: "e1 oi 0 a 0 20"
+  kind: device(e)
+  token 1 9:1 word "e1"
+  token 2 9:4 word "oi"
+  token 3 9:7 number "0" value=0e0
+  token 4 9:9 word "a"
+  token 5 9:11 number "0" value=0e0
+  token 6 9:13 number "20" value=2e1
+card 6 @netlists/m8_tf_controlled.cir:10:1 lines=10-10 continuations=0
+  raw: "ro oi out 600"
+  kind: device(r)
+  token 1 10:1 word "ro"
+  token 2 10:4 word "oi"
+  token 3 10:7 word "out"
+  token 4 10:11 number "600" value=6e2
+card 7 @netlists/m8_tf_controlled.cir:11:1 lines=11-11 continuations=0
+  raw: "g1 0 out a 0 1m"
+  kind: device(g)
+  token 1 11:1 word "g1"
+  token 2 11:4 number "0" value=0e0
+  token 3 11:6 word "out"
+  token 4 11:10 word "a"
+  token 5 11:12 number "0" value=0e0
+  token 6 11:14 number "1m" value=1e-3
+card 8 @netlists/m8_tf_controlled.cir:12:1 lines=12-12 continuations=0
+  raw: "rl out s 2k"
+  kind: device(r)
+  token 1 12:1 word "rl"
+  token 2 12:4 word "out"
+  token 3 12:8 word "s"
+  token 4 12:10 number "2k" value=2e3
+card 9 @netlists/m8_tf_controlled.cir:13:1 lines=13-13 continuations=0
+  raw: "vs s 0 0"
+  kind: device(v)
+  token 1 13:1 word "vs"
+  token 2 13:4 word "s"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "0" value=0e0
+card 10 @netlists/m8_tf_controlled.cir:14:1 lines=14-14 continuations=0
+  raw: ".tf i(vs) i1"
+  kind: dot(.tf)
+  token 1 14:1 word ".tf"
+  token 2 14:5 word "i"
+  token 3 14:6 lparen "("
+  token 4 14:7 word "vs"
+  token 5 14:9 rparen ")"
+  token 6 14:11 word "i1"
+card 11 @netlists/m8_tf_controlled.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

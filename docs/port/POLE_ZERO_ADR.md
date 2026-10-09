@@ -141,7 +141,9 @@ rule), linear E/F/G/H, B sources, S/W switches (the `MODEINITSMSIG` state, as
 AC), diode, Gummel-Poon BJT and MOS1 — each delegating to its AC load. Refused:
 the XSPICE code-model instances the front end generates for `POLY`/`TABLE`
 (C has no pole-zero load for code models and drops them silently), B sources
-reading `hertz`, and every device without an implementation. Transmission lines
+reading `hertz`, RF port sources (`vsrcpzld.c` stamps the ideal source but
+omits the port's `z0`, unlike every other C analysis) and every device without
+an implementation. Transmission lines
 are not ported at all.
 
 ## Output

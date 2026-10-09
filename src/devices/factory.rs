@@ -9,7 +9,7 @@ use crate::netlist::{
     ast::{DeviceInstance, ParameterKind, PositionedValue, SourceFunction, SourceWaveform},
 };
 use crate::primitives::{
-    Complex, NodeTable, SourceLoc, SpiceError, SpiceResult, parse_spice_number,
+    Complex, NodeKind, NodeTable, Real, SourceLoc, SpiceError, SpiceResult, parse_spice_number,
 };
 
 /// Designators [`instantiate`] builds from the card alone (the registry's
@@ -147,6 +147,7 @@ pub(crate) fn instantiate(
     // ordered VSRC_TD/VSRC_R setters of vsrcpar.c/isrcpar.c.
     let mut pwl_delay: Option<(f64, SourceLoc)> = None;
     let mut pwl_repeat: Option<(f64, SourceLoc)> = None;
+    let mut port = PortSetters::default();
     for p in &instance.parameters {
         if let (ParameterKind::Waveform(source), 'v' | 'i') = (&p.kind, instance.designator) {
             if let Some((_, at)) = &pwl_repeat {
@@ -161,6 +162,8 @@ pub(crate) fn instantiate(
                 });
             }
             waveform = Some(source_waveform(&p.name, source, &p.location)?);
+            // A later waveform setter replaces C's PORT function type.
+            port.power_function = None;
             continue;
         }
         if p.kind != ParameterKind::Scalar {
@@ -179,7 +182,9 @@ pub(crate) fn instantiate(
         let allowed = p.name == primary
             || (matches!(instance.designator, 'c' | 'l') && p.name == "ic")
             || (matches!(instance.designator, 'v' | 'i')
-                && matches!(p.name.as_str(), "acmag" | "acphase" | "r" | "td"));
+                && matches!(p.name.as_str(), "acmag" | "acphase" | "r" | "td"))
+            || (instance.designator == 'v'
+                && matches!(p.name.as_str(), "portnum" | "z0" | "pwr" | "freq" | "phase"));
         if !allowed {
             return Err(SpiceError::Unsupported {
                 feature: format!("{} parameter {}", instance.name, p.name),
@@ -203,6 +208,9 @@ pub(crate) fn instantiate(
                 ac_given = true;
             }
             "td" => pwl_delay = Some((number, p.location.clone())),
+            "portnum" | "z0" | "pwr" | "freq" | "phase" => {
+                port.set(&p.name, number, &p.location)?
+            }
             "r" => {
                 // C silently ignores r= when no PWL coefficients exist yet.
                 let Some(Waveform::Pwl(knots)) = &waveform else {
@@ -231,6 +239,7 @@ pub(crate) fn instantiate(
     if pwl_delay.is_some() || pwl_repeat.is_some() {
         waveform = Some(pwl_options(waveform, pwl_delay, pwl_repeat)?);
     }
+    let dc_given = value.is_some();
     // An explicit DC value is kept apart from time forcing. Without one, DC
     // analyses see the waveform's time-zero level (vsrcload.c evaluates the
     // transient function at time 0 when DC is not given).
@@ -245,12 +254,13 @@ pub(crate) fn instantiate(
         new_nodes.intern(&instance.nodes[0]),
         new_nodes.intern(&instance.nodes[1]),
     ];
+    let rf = port.finish(instance, dc_given, &mut new_nodes)?;
     let device: Box<dyn Device> = match instance.designator {
         'r' => Box::new(Resistor::new(&instance.name, terminals, value)?),
         'c' => Box::new(Capacitor::new(&instance.name, terminals, value, ic)?),
         'l' => Box::new(Inductor::new(&instance.name, terminals, value, ic)?),
-        _ => Box::new(
-            IndependentSource::new(
+        _ => {
+            let source = IndependentSource::new(
                 &instance.name,
                 terminals,
                 instance.designator == 'v',
@@ -261,11 +271,143 @@ pub(crate) fn instantiate(
                 ),
                 waveform.unwrap_or(Waveform::Constant(value)),
             )?
-            .with_ac_given(ac_given),
-        ),
+            .with_ac_given(ac_given);
+            // Only V cards accept port setters (parser and allow-list above).
+            match rf {
+                Some(rf) => Box::new(source.with_port(rf)?),
+                None => Box::new(source),
+            }
+        }
     };
     *nodes = new_nodes;
     Ok(device)
+}
+
+/// The ordered RFSPICE port setters of one V card (`vsrcpar.c`), resolved by
+/// [`PortSetters::finish`] with `vsrctemp.c`'s rules.
+#[derive(Debug, Default)]
+struct PortSetters {
+    number: Option<(i64, SourceLoc)>,
+    z0: Real,
+    z0_given: bool,
+    power: Option<Real>,
+    frequency: Option<Real>,
+    phase: Option<Real>,
+    /// Where `pwr`/`freq` last selected the `PORT` function type, unless a
+    /// later waveform setter replaced it.
+    power_function: Option<SourceLoc>,
+    any: Option<SourceLoc>,
+}
+
+impl PortSetters {
+    fn set(&mut self, name: &str, number: Real, at: &SourceLoc) -> SpiceResult<()> {
+        self.any.get_or_insert_with(|| at.clone());
+        match name {
+            "portnum" => {
+                // INPgetValue(IF_INTEGER): (int) floor(0.5 + value).
+                let rounded = (number + 0.5).floor();
+                if !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&rounded) {
+                    return Err(SpiceError::Unsupported {
+                        feature: format!("portnum {number} is outside the C integer range"),
+                        location: Some(at.clone()),
+                    });
+                }
+                #[allow(clippy::cast_possible_truncation)]
+                let rounded = rounded as i64;
+                self.number = Some((rounded, at.clone()));
+                // VSRC_PORTNUM: a port needs an impedance; take 50 ohms
+                // unless a positive z0 was already set.
+                if self.z0 <= 0. {
+                    self.z0 = 50.;
+                }
+            }
+            "z0" => {
+                self.z0 = number;
+                self.z0_given = true;
+            }
+            "pwr" => {
+                self.power = Some(number);
+                self.power_function = Some(at.clone());
+            }
+            "freq" => {
+                self.frequency = Some(number);
+                self.power_function = Some(at.clone());
+            }
+            _ => self.phase = Some(number),
+        }
+        Ok(())
+    }
+
+    /// `vsrctemp.c`: a source is a port when `portnum` was given, is positive
+    /// and its `z0` (50 when not given) is positive. Creates the port's
+    /// internal `<name>#res` node in `nodes` (`vsrcset.c` `CKTmkVolt`).
+    fn finish(
+        self,
+        instance: &DeviceInstance,
+        dc_given: bool,
+        nodes: &mut NodeTable,
+    ) -> SpiceResult<Option<crate::devices::RfPort>> {
+        let Some(at) = self.any else {
+            return Ok(None);
+        };
+        let z0 = if self.z0_given { self.z0 } else { 50. };
+        let number = match &self.number {
+            Some((number, _)) if *number > 0 && z0 > 0. => usize::try_from(*number).ok(),
+            _ => None,
+        };
+        let Some(number) = number else {
+            // Not a port: portnum/z0/phase have no effect in C. pwr/freq would
+            // still switch the time function to PORT with an unset amplitude.
+            if let Some(location) = self.power_function {
+                return Err(SpiceError::not_yet_ported(
+                    format!(
+                        "{location}: {}: pwr=/freq= on a voltage source that is not an RF \
+                         port (the PORT time function without a port amplitude)",
+                        instance.name
+                    ),
+                    "src/spicelib/devices/vsrc/vsrcload.c (case PORT)",
+                ));
+            }
+            return Ok(None);
+        };
+        if !z0.is_finite() {
+            return Err(SpiceError::Unsupported {
+                feature: format!("{}: non-finite port impedance z0", instance.name),
+                location: Some(at),
+            });
+        }
+        if let Some(location) = &self.power_function
+            && !dc_given
+        {
+            // vsrcload.c: without a DC value even the operating point loads the
+            // PORT function, added to the previous instance's value.
+            return Err(SpiceError::not_yet_ported(
+                format!(
+                    "{location}: {}: an RF port with pwr=/freq= needs an explicit DC value \
+                     (without one C loads the PORT time function in the operating point)",
+                    instance.name
+                ),
+                "src/spicelib/devices/vsrc/vsrcload.c (case PORT)",
+            ));
+        }
+        let name = format!("{}#res", instance.name);
+        if nodes.get(&name).is_some() {
+            return Err(SpiceError::circuit(format!(
+                "RF port internal-node name collision: {name}"
+            )));
+        }
+        let internal = nodes.intern(&name);
+        nodes.set_kind(internal, NodeKind::Internal);
+        Ok(Some(crate::devices::RfPort {
+            number,
+            z0,
+            internal,
+            power: self.power.unwrap_or(1e-3),
+            frequency: self.frequency.unwrap_or(1e9),
+            phase: self.phase.unwrap_or(0.),
+            power_function: self.power_function.is_some(),
+        }))
+    }
 }
 
 /// Numeric text of a waveform field. `what` names the field in diagnostics.

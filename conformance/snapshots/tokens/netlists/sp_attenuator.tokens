@@ -1,0 +1,64 @@
+# ngspice-rs token-dump v1
+file: netlists/sp_attenuator.cir
+title: "Matched 50 ohm T attenuator, S-parameters" @netlists/sp_attenuator.cir:1:1
+card 1 @netlists/sp_attenuator.cir:3:1 lines=3-3 continuations=0
+  raw: "v1 in 0 dc 0 ac 1 portnum 1 z0 50"
+  kind: device(v)
+  token 1 3:1 word "v1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 word "dc"
+  token 5 3:12 number "0" value=0e0
+  token 6 3:14 word "ac"
+  token 7 3:17 number "1" value=1e0
+  token 8 3:19 word "portnum"
+  token 9 3:27 number "1" value=1e0
+  token 10 3:29 word "z0"
+  token 11 3:32 number "50" value=5e1
+card 2 @netlists/sp_attenuator.cir:4:1 lines=4-4 continuations=0
+  raw: "r1 in mid 25"
+  kind: device(r)
+  token 1 4:1 word "r1"
+  token 2 4:4 word "in"
+  token 3 4:7 word "mid"
+  token 4 4:11 number "25" value=2.5e1
+card 3 @netlists/sp_attenuator.cir:5:1 lines=5-5 continuations=0
+  raw: "r2 mid 0 37.5"
+  kind: device(r)
+  token 1 5:1 word "r2"
+  token 2 5:4 word "mid"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "37.5" value=3.75e1
+card 4 @netlists/sp_attenuator.cir:6:1 lines=6-6 continuations=0
+  raw: "r3 mid out 25"
+  kind: device(r)
+  token 1 6:1 word "r3"
+  token 2 6:4 word "mid"
+  token 3 6:8 word "out"
+  token 4 6:12 number "25" value=2.5e1
+card 5 @netlists/sp_attenuator.cir:7:1 lines=7-7 continuations=0
+  raw: "v2 out 0 dc 0 ac 0 portnum 2 z0 50"
+  kind: device(v)
+  token 1 7:1 word "v2"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "dc"
+  token 5 7:13 number "0" value=0e0
+  token 6 7:15 word "ac"
+  token 7 7:18 number "0" value=0e0
+  token 8 7:20 word "portnum"
+  token 9 7:28 number "2" value=2e0
+  token 10 7:30 word "z0"
+  token 11 7:33 number "50" value=5e1
+card 6 @netlists/sp_attenuator.cir:8:1 lines=8-8 continuations=0
+  raw: ".sp lin 3 1k 1meg"
+  kind: dot(.sp)
+  token 1 8:1 word ".sp"
+  token 2 8:5 word "lin"
+  token 3 8:9 number "3" value=3e0
+  token 4 8:11 number "1k" value=1e3
+  token 5 8:14 number "1meg" value=1e6
+card 7 @netlists/sp_attenuator.cir:9:1 lines=9-9 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 9:1 word ".end"

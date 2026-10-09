@@ -1,0 +1,100 @@
+# ngspice-rs token-dump v1
+file: netlists/sp_multi.cir
+title: "Port sources in AC, OP, transient and S-parameter analyses" @netlists/sp_multi.cir:1:1
+card 1 @netlists/sp_multi.cir:3:1 lines=3-3 continuations=0
+  raw: "v1 in 0 dc 1 ac 1 pulse(0 1 1u 1u 1u 5u 20u) portnum 1 z0 50 pwr 0.001 sin(0 1 1meg)"
+  kind: device(v)
+  token 1 3:1 word "v1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 word "dc"
+  token 5 3:12 number "1" value=1e0
+  token 6 3:14 word "ac"
+  token 7 3:17 number "1" value=1e0
+  token 8 3:19 word "pulse"
+  token 9 3:24 lparen "("
+  token 10 3:25 number "0" value=0e0
+  token 11 3:27 number "1" value=1e0
+  token 12 3:29 number "1u" value=1e-6
+  token 13 3:32 number "1u" value=1e-6
+  token 14 3:35 number "1u" value=1e-6
+  token 15 3:38 number "5u" value=4.9999999999999996e-6
+  token 16 3:41 number "20u" value=1.9999999999999998e-5
+  token 17 3:44 rparen ")"
+  token 18 3:46 word "portnum"
+  token 19 3:54 number "1" value=1e0
+  token 20 3:56 word "z0"
+  token 21 3:59 number "50" value=5e1
+  token 22 3:62 word "pwr"
+  token 23 3:66 number "0.001" value=1e-3
+  token 24 3:72 word "sin"
+  token 25 3:75 lparen "("
+  token 26 3:76 number "0" value=0e0
+  token 27 3:78 number "1" value=1e0
+  token 28 3:80 number "1meg" value=1e6
+  token 29 3:84 rparen ")"
+card 2 @netlists/sp_multi.cir:4:1 lines=4-4 continuations=0
+  raw: "r1 in out 50"
+  kind: device(r)
+  token 1 4:1 word "r1"
+  token 2 4:4 word "in"
+  token 3 4:7 word "out"
+  token 4 4:11 number "50" value=5e1
+card 3 @netlists/sp_multi.cir:5:1 lines=5-5 continuations=0
+  raw: "c1 out 0 10n"
+  kind: device(c)
+  token 1 5:1 word "c1"
+  token 2 5:4 word "out"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "10n" value=1e-8
+card 4 @netlists/sp_multi.cir:6:1 lines=6-6 continuations=0
+  raw: "r2 out 0 200"
+  kind: device(r)
+  token 1 6:1 word "r2"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "200" value=2e2
+card 5 @netlists/sp_multi.cir:7:1 lines=7-7 continuations=0
+  raw: "v2 out 0 dc 0 ac 0 portnum 2 z0 75"
+  kind: device(v)
+  token 1 7:1 word "v2"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "dc"
+  token 5 7:13 number "0" value=0e0
+  token 6 7:15 word "ac"
+  token 7 7:18 number "0" value=0e0
+  token 8 7:20 word "portnum"
+  token 9 7:28 number "2" value=2e0
+  token 10 7:30 word "z0"
+  token 11 7:33 number "75" value=7.5e1
+card 6 @netlists/sp_multi.cir:8:1 lines=8-8 continuations=0
+  raw: ".sp lin 4 10k 1meg"
+  kind: dot(.sp)
+  token 1 8:1 word ".sp"
+  token 2 8:5 word "lin"
+  token 3 8:9 number "4" value=4e0
+  token 4 8:11 number "10k" value=1e4
+  token 5 8:15 number "1meg" value=1e6
+card 7 @netlists/sp_multi.cir:9:1 lines=9-9 continuations=0
+  raw: ".tran 0.1u 20u"
+  kind: dot(.tran)
+  token 1 9:1 word ".tran"
+  token 2 9:7 number "0.1u" value=1e-7
+  token 3 9:12 number "20u" value=1.9999999999999998e-5
+card 8 @netlists/sp_multi.cir:10:1 lines=10-10 continuations=0
+  raw: ".ac lin 3 10k 1meg"
+  kind: dot(.ac)
+  token 1 10:1 word ".ac"
+  token 2 10:5 word "lin"
+  token 3 10:9 number "3" value=3e0
+  token 4 10:11 number "10k" value=1e4
+  token 5 10:15 number "1meg" value=1e6
+card 9 @netlists/sp_multi.cir:11:1 lines=11-11 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 11:1 word ".op"
+card 10 @netlists/sp_multi.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"

@@ -1,0 +1,61 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_tf_divider.cir
+title: "Transfer function of a passive ladder" @netlists/m8_tf_divider.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m8_tf_divider.cir:4:1 "v1 in 0 dc 5 ac 1"
+    [1] device[1] @netlists/m8_tf_divider.cir:5:1 "r1 in a 1k"
+    [2] device[2] @netlists/m8_tf_divider.cir:6:1 "l1 a b 1m"
+    [3] device[3] @netlists/m8_tf_divider.cir:7:1 "r2 b 0 3k"
+    [4] device[4] @netlists/m8_tf_divider.cir:8:1 "r3 b out 2k"
+    [5] device[5] @netlists/m8_tf_divider.cir:9:1 "r4 out 0 6k"
+    [6] device[6] @netlists/m8_tf_divider.cir:10:1 "c1 out 0 1u"
+    [7] analysis[0] @netlists/m8_tf_divider.cir:11:1 ".tf v(out) v1"
+    [8] end @netlists/m8_tf_divider.cir:12:1 ".end"
+  devices (7):
+    device [0] name="v1" designator=v @netlists/m8_tf_divider.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="5" @netlists/m8_tf_divider.cir:4:9
+        [1] name="acmag" kind=scalar value="1" @netlists/m8_tf_divider.cir:4:17
+        [2] name="acphase" kind=scalar value="0" @netlists/m8_tf_divider.cir:4:14
+    device [1] name="r1" designator=r @netlists/m8_tf_divider.cir:5:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_tf_divider.cir:5:9
+    device [2] name="l1" designator=l @netlists/m8_tf_divider.cir:6:1
+      nodes: "a" "b"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/m8_tf_divider.cir:6:8
+    device [3] name="r2" designator=r @netlists/m8_tf_divider.cir:7:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="3k" @netlists/m8_tf_divider.cir:7:8
+    device [4] name="r3" designator=r @netlists/m8_tf_divider.cir:8:1
+      nodes: "b" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m8_tf_divider.cir:8:10
+    device [5] name="r4" designator=r @netlists/m8_tf_divider.cir:9:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="6k" @netlists/m8_tf_divider.cir:9:10
+    device [6] name="c1" designator=c @netlists/m8_tf_divider.cir:10:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/m8_tf_divider.cir:10:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tf @netlists/m8_tf_divider.cir:11:1
+      arguments: "v" "(" "out" ")" "v1"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,5 +1,74 @@
 # Verification
 
+## M8 S-parameter analysis (#105)
+
+`.sp` and RF port sources ([SPARAM.md](SPARAM.md)). The reference binary is an
+`RFSPICE` build, so C data exists for every claim below.
+
+- Three new fixtures were captured one at a time (`cargo xtask golden capture
+  --netlist sp_attenuator|sp_rc|sp_multi`); no existing golden was recaptured.
+  `sp_attenuator` and `sp_rc` are single-analysis `.sp` entries in `SUPPORTED`,
+  `sp_multi` a `BATCH` entry (`.ac`, `.op`, `.tran`, `.sp`); all keep the
+  existing bounds (`compare::AC`, `compare::DC`, `compare::TRAN`). The verify
+  projection, which drops C-unsaved internal nodes, keeps the ports' `#res`
+  nodes because C's `outitf.c` saves them. `sp_rc` has a shunt resistor so that
+  no Z/Y component is a rounding-level real part.
+- `cargo xtask golden verify`: **89 verified / 0 unsupported / 0 failures**;
+  `cargo xtask golden check`: **89 fixture(s) reproduce the committed goldens**;
+  `cargo xtask snapshots` created only the six token/AST snapshots of the new
+  decks.
+- `cargo test --workspace --locked`: **1124 passed / 0 failed / 75 ignored**;
+  with `NGSPICE_BIN` and `-- --ignored` all **75** opt-in live-C tests pass,
+  including the five of `tests/c_sparam_reference.rs` (C batch mode against
+  `spice-rs simulate` by name, `1e-9 |C| + 1e-12`, on 10 decks).
+- `tests/sparam.rs` (14 tests) checks closed forms independent of C; see
+  [SPARAM.md](SPARAM.md#verification).
+- Not verified: `donoise`, the transient `PORT` function and `.measure sp`
+  (all `NotYetPorted`); the zero Y/Z block of a nonexistent matrix is a
+  documented divergence from C's rounding-dependent values.
+
+## M8 pole-zero analysis (#103)
+
+Seven new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was checked against the same C binary in a
+scratch copy; no existing golden was recaptured and no tolerance changed.
+`golden verify` compares pole-zero plots as unordered root sets under
+`compare::POLE_ZERO` (`|Rust - C| <= 1e-6 |C| + 1e-9 max|C root|`, justified in
+`xtask/src/compare.rs` and [POLE_ZERO_ADR.md](POLE_ZERO_ADR.md)); the plot name,
+flags, variable names, units and root counts must match exactly.
+
+| Fixture | Exercises | Worst error |
+| --- | --- | --- |
+| `pz_ladder_cur` | `cur pz`, grounded positive output (swapped drive), complex pair | 1.0e-9 of bound |
+| `pz_bridge_diff` | differential output (column addition), zero at the origin | 6.4e-10 of bound |
+| `pz_transformer` | K coupling, complex pair, zero at the origin | 7.2e-9 of bound |
+| `pz_cv_loop` | capacitor across an ideal supply (index-two block) | 1.5e-10 of bound |
+| `pz_diode` | junction linearized at the operating point, `rs` internal node | 1.3e-3 of bound |
+| `pz_mos1` | MOS1 Meyer/overlap charge, pole at the origin, RHP zero | 5.3e-7 of bound |
+| `multi_analysis_pz` | `.ac`, `.op`, two `.pz` (`pz1` zeros, `pz2` poles) in batch order | 7.0e-10 of bound |
+
+`cargo xtask golden check` reproduces all seven with the C binary. After merging
+`work/m8` (`.tf`, `.sp`, Gear 3-6, instance sweeps): `cargo test --workspace
+--locked` **1185 passed / 0 failed / 90 ignored** (stable), `golden verify`
+**105 verified / 0 unsupported / 0 failures**, **288** snapshots unchanged
+(14 new parser snapshots of the decks were blessed), fmt and Clippy clean.
+The five new opt-in `c_pole_zero` checks pass against ngspice-47+ (current input
+at the output, a switch with a B source and a subcircuit, `zer`-only and
+`pol`-only cards with a model resistor at 60 C, a Gummel-Poon stage, a
+differential input through a subcircuit inductor, and the CCVS sign divergence:
+the port matches C's result for the H gain negated).
+
+Rust-only evidence: `tests/pole_zero.rs` (closed-form RC, series RLC, two-pole
+ladder, highpass, input impedance, a notch whose three poles C's search does not
+find, a CV loop without spurious poles, `ac 0` versus DC-only sources, empty
+plots, bias-dependent diode poles, `PZinit`/card/singular/unsupported-device
+errors, CLI layout and batch composition, `.save` refusal) and the unit tests of
+`maths::pencil` and `analysis::pz`. Checked out of tree against LAPACK
+(`scipy.linalg.eigvals` on dumped pencils): the port's roots agree to `1e-10`
+relative or better; C stops at its own search tolerances (up to `1.5e-9`
+relative on the goldens), and on a Gummel-Poon amplifier and a notch filter C
+gives up with an iteration-limit warning and omits roots.
+
 ## Single-crate consolidation (`restructure/single-crate`, no functional change)
 
 The six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
@@ -44,6 +113,74 @@ now a review-enforced convention instead of a compiler-enforced one.
   is gone): **1110 passed / 0 failed / 70 ignored**, fmt and Clippy clean,
   `golden verify` **86 verified / 0 unsupported / 0 failures**, and the **70**
   opt-in `NGSPICE_BIN` live-C checks pass.
+
+## M8 transfer function (#101)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was checked against the same C binary in a
+scratch copy; no existing golden was recaptured and no tolerance changed.
+`golden verify` now reports **90 verified / 0 unsupported / 0 failures**, and
+`golden check` reproduces each new golden.
+
+| Fixture | Gate | Exercises |
+| --- | --- | --- |
+| `m8_tf_divider` | `compare::DC` | V input, `v(out)`, inductor short and capacitor open |
+| `m8_tf_controlled` | `compare::DC` | I input, E and G stages, `i(vs)` output |
+| `m8_tf_bjt` | `compare::NONLINEAR` | Gummel-Poon CE stage with RB/RBM/IRB, `reltol=1e-8` |
+| `m8_tf_batch` | `compare::NONLINEAR` per plot | `.op` + two `.tf` (diode `v(d,dm)`, MOS1 `i(vdd)`) in batch order |
+
+`m8_tf_bjt` first failed by 1.2e-4 relative with the port's exact Newton
+Jacobian: `bjtload.c` stamps the bias-dependent base resistance as `gx` only, so
+C's `.tf` (like its `.ac`) omits `d(gx)/dV`. `.tf` now reloads with
+`TrialState::with_c_jacobian` and matches C (see
+[TRANSFER_FUNCTION.md](TRANSFER_FUNCTION.md)); the Newton solves themselves are
+unchanged. The opt-in `tests/c_tf_reference.rs` compares `ngspice -b -r` with
+`spice-rs simulate` on 5 further decks (passive, current inputs, E/F/G/H,
+nonlinear with `.op`/`.ac`, S/W switches inside their hysteresis band with and
+without ON/OFF flags) with exact vector names; every value agreed within 1e-9
+relative, well inside the 1e-6 nonlinear bound the test enforces.
+
+- `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets
+  --locked -- -D warnings` are clean.
+- `cargo test --workspace --locked`: **1128 passed / 0 failed / 75 ignored**
+  (`ngspice-rs` alone 1080 / 0 / 75).
+- With `NGSPICE_BIN` set, all **75** opt-in live-C tests pass, including the five
+  new `c_tf_reference` tests.
+
+## M8 DC parameter sweeps (#97)
+
+What the reference binary sweeps was established first (see
+[DC_SWEEPS.md](DC_SWEEPS.md#what-c-sweeps-97)): two nesting levels, sources,
+resistors, `temp` and settable real *instance* parameters `@inst[param]`;
+model parameters and `.param` names are rejected by C. Four new C goldens, each
+captured once with `cargo xtask golden capture --netlist <name>` after the deck
+had been checked against the same binary in a scratch copy; no existing golden
+was recaptured and no tolerance changed. `golden verify` now reports 90
+fixtures.
+
+| Fixture | Gate | Covers |
+| --- | --- | --- |
+| `m8_dc_param_diode` | `compare::NONLINEAR` | `@d1[area]` (RS internal node) x circuit `temp`, 24 points |
+| `m8_dc_param_mos1` | `compare::NONLINEAR` | `@m1[w]` x `@m1[l]`, RSH drain/source nodes, 15 points |
+| `m8_dc_param_gain` | `compare::DC` | `@g1[gain]` scaled by the card's `m` x `@e1[gain]`, 15 points |
+| `m8_dc_res_temp` | `compare::DC` | `.dc r1` x `temp` on a model-backed resistor (`res-sweep` scale), 6 points |
+
+The nonlinear decks set `.options reltol=1e-8`: at C's default the
+warm-started diode points stop ~3e-4 V short of the root. `golden verify` now
+also projects C's `res-sweep` (type `res-sweep`) and `v(param-sweep)` (type
+voltage) scales onto the Rust `sweep` column. The opt-in
+`c_dc_param_sweep_reference` runs 15 further decks against the live binary
+(linear at `1e-12 |C| + 1e-15`, nonlinear at the `NONLINEAR` bound); it also
+detects C's BJT AREAB quirk (a variant that rescaled AREAB with AREA failed at
+`v(cc)`, 0.122 V versus C's 0.106 V).
+
+- `cargo test --workspace --locked`: **1119 passed / 0 failed / 73 ignored**;
+  fmt and Clippy (`-D warnings`) clean.
+- `cargo xtask golden verify`: **90 verified / 0 unsupported / 0 failures**;
+  `golden check` reproduces all 90 fixtures; `cargo xtask snapshots`: 258
+  snapshots, 8 created for the new decks.
+- With an absolute `NGSPICE_BIN`, all **73** opt-in live-C checks pass,
+  including the existing `c_dc_sweep_reference`.
 
 ## M7 nonlinear initial conditions (#99)
 
@@ -1189,10 +1326,38 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 (`source_waveforms.rs`).
 
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
-charge and devices (M4), orders above 2 and
+charge and devices (M4), integration above order 2 (`dctran.c` never selects
+it; `maxord` 3–6 run as 2, see the Gear `maxord` section below) and
 nonlinear device initial conditions on the BDF backend (the companion driver
 gained them with #99, above), and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
+
+## Gear `maxord` 3–6 (#98)
+
+`maxord` 3–6 are accepted for `method=gear` and `method=trap`. ngspice's
+`dctran.c` only ever raises the order from 1 to 2 (`CKTmaxOrder > 1`), so the
+reference binary writes byte-identical rawfiles for `maxord` 2, 3 and 6 on the
+series RLC deck; the port reproduces that policy. Golden
+`rlc_series_gear_maxord6_tran` (`method=gear maxord=6`, captured once with
+`cargo xtask golden capture --netlist`; no existing golden recaptured, no
+tolerance changed; `golden verify` now reports 87 fixtures) verifies under
+`compare::TRAN` with worst error 0.000 of the bound, and
+`golden_rawfiles.rs::gear_maxord6_golden_is_the_gear2_golden` pins that its C
+data equal `rlc_series_gear_tran`'s. Opt-in `c_companion_reference.rs`
+(`pulse_series_rlc_with_high_maxord_matches_c`,
+`conformance_rlc_gear_maxord6_matches_c`) compares gear and trap `maxord`
+3..=6 with live C on a common physical grid: identical point counts, worst
+error 1.8e-7 (gear) and 1.7e-7 (trap) of the `1e-3 |C| + 1 uV / 1 pA` bound.
+
+The order 3–6 Gear operations themselves (`maths::integrator`) are checked
+without C: exact derivatives and predictions for polynomials of degree `k` on
+nonuniform steps (and a detectable error at degree `k + 1`), the fixed-step BDF
+tables, agreement with an independent pivoted solve of `nicomcof.c`'s
+normalized Vandermonde system, the closed-form `CKTterr` bound
+`(trtol tol / max(abstol, c_k |a|))^(1/k)` on degree-`k + 1` polynomials, and
+fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
+(error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
+orders 1-6, asserted within 0.75-1.35 times `2^k`).
 
 ## Not yet verified
 

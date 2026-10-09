@@ -283,6 +283,12 @@ fn devices_without_a_c_pole_zero_load_are_refused() {
         ".pz in 0 b 0 vol pz",
     );
     assert!(message.contains("hertz"), "{message}");
+    // C's vsrcpzld.c stamps an RF port's ideal source but not its z0.
+    let message = error(
+        "v1 in 0 dc 0 ac 1 portnum 1 z0 50\nr1 in out 1k\nc1 out 0 1u\n",
+        ".pz in 0 out 0 vol pz",
+    );
+    assert!(message.contains("RF port"), "{message}");
 }
 
 #[test]

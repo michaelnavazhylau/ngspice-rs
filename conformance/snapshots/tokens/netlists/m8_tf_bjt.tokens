@@ -1,0 +1,138 @@
+# ngspice-rs token-dump v1
+file: netlists/m8_tf_bjt.cir
+title: "Transfer function of a Gummel-Poon common-emitter stage" @netlists/m8_tf_bjt.cir:1:1
+card 1 @netlists/m8_tf_bjt.cir:5:1 lines=5-5 continuations=0
+  raw: "vin in 0 dc 1.4"
+  kind: device(v)
+  token 1 5:1 word "vin"
+  token 2 5:5 word "in"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 word "dc"
+  token 5 5:13 number "1.4" value=1.4e0
+card 2 @netlists/m8_tf_bjt.cir:6:1 lines=6-6 continuations=0
+  raw: "vcc vcc 0 9"
+  kind: device(v)
+  token 1 6:1 word "vcc"
+  token 2 6:5 word "vcc"
+  token 3 6:9 number "0" value=0e0
+  token 4 6:11 number "9" value=9e0
+card 3 @netlists/m8_tf_bjt.cir:7:1 lines=7-7 continuations=0
+  raw: "rs in nb 600"
+  kind: device(r)
+  token 1 7:1 word "rs"
+  token 2 7:4 word "in"
+  token 3 7:7 word "nb"
+  token 4 7:10 number "600" value=6e2
+card 4 @netlists/m8_tf_bjt.cir:8:1 lines=8-8 continuations=0
+  raw: "rb1 vcc nb 82k"
+  kind: device(r)
+  token 1 8:1 word "rb1"
+  token 2 8:5 word "vcc"
+  token 3 8:9 word "nb"
+  token 4 8:12 number "82k" value=8.2e4
+card 5 @netlists/m8_tf_bjt.cir:9:1 lines=9-9 continuations=0
+  raw: "rb2 nb 0 15k"
+  kind: device(r)
+  token 1 9:1 word "rb2"
+  token 2 9:5 word "nb"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 number "15k" value=1.5e4
+card 6 @netlists/m8_tf_bjt.cir:10:1 lines=10-10 continuations=0
+  raw: "rc vcc nc 3.3k"
+  kind: device(r)
+  token 1 10:1 word "rc"
+  token 2 10:4 word "vcc"
+  token 3 10:8 word "nc"
+  token 4 10:11 number "3.3k" value=3.3e3
+card 7 @netlists/m8_tf_bjt.cir:11:1 lines=11-11 continuations=0
+  raw: "re ne 0 330"
+  kind: device(r)
+  token 1 11:1 word "re"
+  token 2 11:4 word "ne"
+  token 3 11:7 number "0" value=0e0
+  token 4 11:9 number "330" value=3.3e2
+card 8 @netlists/m8_tf_bjt.cir:12:1 lines=12-12 continuations=0
+  raw: "q1 nc nb ne 0 qamp"
+  kind: device(q)
+  token 1 12:1 word "q1"
+  token 2 12:4 word "nc"
+  token 3 12:7 word "nb"
+  token 4 12:10 word "ne"
+  token 5 12:13 number "0" value=0e0
+  token 6 12:15 word "qamp"
+card 9 @netlists/m8_tf_bjt.cir:13:1 lines=13-13 continuations=0
+  raw: ".model qamp npn(is=5e-16 bf=180 br=5 vaf=70 var=15 ikf=40m ikr=4m ise=1e-14 ne=1.5 isc=2e-14 nc=1.8 rb=120 rbm=12 irb=0.5m re=0.8 rc=15)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "qamp"
+  token 3 13:13 word "npn"
+  token 4 13:16 lparen "("
+  token 5 13:17 word "is"
+  token 6 13:19 equals "="
+  token 7 13:20 number "5e-16" value=5e-16
+  token 8 13:26 word "bf"
+  token 9 13:28 equals "="
+  token 10 13:29 number "180" value=1.8e2
+  token 11 13:33 word "br"
+  token 12 13:35 equals "="
+  token 13 13:36 number "5" value=5e0
+  token 14 13:38 word "vaf"
+  token 15 13:41 equals "="
+  token 16 13:42 number "70" value=7e1
+  token 17 13:45 word "var"
+  token 18 13:48 equals "="
+  token 19 13:49 number "15" value=1.5e1
+  token 20 13:52 word "ikf"
+  token 21 13:55 equals "="
+  token 22 13:56 number "40m" value=4e-2
+  token 23 13:60 word "ikr"
+  token 24 13:63 equals "="
+  token 25 13:64 number "4m" value=4e-3
+  token 26 13:67 word "ise"
+  token 27 13:70 equals "="
+  token 28 13:71 number "1e-14" value=1e-14
+  token 29 13:77 word "ne"
+  token 30 13:79 equals "="
+  token 31 13:80 number "1.5" value=1.5e0
+  token 32 13:84 word "isc"
+  token 33 13:87 equals "="
+  token 34 13:88 number "2e-14" value=2e-14
+  token 35 13:94 word "nc"
+  token 36 13:96 equals "="
+  token 37 13:97 number "1.8" value=1.8e0
+  token 38 13:101 word "rb"
+  token 39 13:103 equals "="
+  token 40 13:104 number "120" value=1.2e2
+  token 41 13:108 word "rbm"
+  token 42 13:111 equals "="
+  token 43 13:112 number "12" value=1.2e1
+  token 44 13:115 word "irb"
+  token 45 13:118 equals "="
+  token 46 13:119 number "0.5m" value=5e-4
+  token 47 13:124 word "re"
+  token 48 13:126 equals "="
+  token 49 13:127 number "0.8" value=8e-1
+  token 50 13:131 word "rc"
+  token 51 13:133 equals "="
+  token 52 13:134 number "15" value=1.5e1
+  token 53 13:136 rparen ")"
+card 10 @netlists/m8_tf_bjt.cir:14:1 lines=14-14 continuations=0
+  raw: ".options reltol=1e-8"
+  kind: dot(.options)
+  token 1 14:1 word ".options"
+  token 2 14:10 word "reltol"
+  token 3 14:16 equals "="
+  token 4 14:17 number "1e-8" value=1e-8
+card 11 @netlists/m8_tf_bjt.cir:15:1 lines=15-15 continuations=0
+  raw: ".tf v(nc) vin"
+  kind: dot(.tf)
+  token 1 15:1 word ".tf"
+  token 2 15:5 word "v"
+  token 3 15:6 lparen "("
+  token 4 15:7 word "nc"
+  token 5 15:9 rparen ")"
+  token 6 15:11 word "vin"
+card 12 @netlists/m8_tf_bjt.cir:16:1 lines=16-16 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 16:1 word ".end"

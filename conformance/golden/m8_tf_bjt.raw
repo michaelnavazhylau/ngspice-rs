@@ -1,0 +1,16 @@
+Title: transfer function of a gummel-poon common-emitter stage
+Date: Fri Oct  9 16:32:49  2026
+Command: ngspice-47+, Build 
+Plotname: Transfer Function
+Flags: real
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(transfer_function)	voltage
+	1	v(output_impedance_at_v(nc))	voltage
+	2	v(vin#input_impedance)	voltage
+Values:
+ 0	-8.886149756533730e+00
+	3.281273729423023e+03
+	1.042663215494944e+04
+

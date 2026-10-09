@@ -1,0 +1,58 @@
+Title: transfer functions in a multi-analysis deck
+Date: Fri Oct  9 16:32:49  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 8
+No. Points: 1
+Variables:
+	0	v(vdin)	voltage
+	1	v(d)	voltage
+	2	v(dm)	voltage
+	3	v(g)	voltage
+	4	i(vd)	current
+	5	v(vdd)	voltage
+	6	i(vdd)	current
+	7	i(vg)	current
+Values:
+ 0	2.000000000000000e+00
+	7.978661647232698e-01
+	2.722392611844397e+00
+	2.000000000000000e+00
+	-1.202133835276730e-03
+	5.000000000000000e+00
+	-2.277607388155603e-04
+	-2.000000000000000e-06
+
+Title: transfer functions in a multi-analysis deck
+Date: Fri Oct  9 16:32:49  2026
+Command: ngspice-47+, Build 
+Plotname: Transfer Function
+Flags: real
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(transfer_function)	voltage
+	1	v(vdd#output_impedance)	voltage
+	2	v(vg#input_impedance)	voltage
+Values:
+ 0	-3.638815406120247e-04
+	2.414814278978181e+05
+	1.000000000000000e+06
+
+Title: transfer functions in a multi-analysis deck
+Date: Fri Oct  9 16:32:49  2026
+Command: ngspice-47+, Build 
+Plotname: Transfer Function
+Flags: real
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(transfer_function)	voltage
+	1	v(output_impedance_at_v(d,dm))	voltage
+	2	v(vd#input_impedance)	voltage
+Values:
+ 0	2.989759171726813e-02
+	9.615787070380138e+03
+	1.030819005768878e+03
+
