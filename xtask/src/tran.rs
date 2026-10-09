@@ -25,11 +25,11 @@
 
 use std::collections::BTreeMap;
 
-use spice_analysis::{Plot, PlotFlags};
-use spice_core::parse_spice_number;
-use spice_netlist::ast::{
+use ngspice_rs::analysis::{Plot, PlotFlags};
+use ngspice_rs::netlist::ast::{
     DeviceInstance, Netlist, ParameterKind, PositionedValue, SourceWaveform, Subcircuit,
 };
+use ngspice_rs::primitives::parse_spice_number;
 
 use crate::compare::{self, TranTolerance};
 
@@ -517,9 +517,9 @@ fn collect(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use spice_analysis::Variable;
-    use spice_core::Complex;
-    use spice_netlist::{Parser, source::parse_deck_text};
+    use ngspice_rs::analysis::Variable;
+    use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+    use ngspice_rs::primitives::Complex;
     use std::path::Path;
 
     const STOP: f64 = 10.0;
@@ -931,9 +931,9 @@ mod tests {
     /// emit samples at every breakpoint (see the module docs).
     #[test]
     fn diffsol_bdf_rc_ramp_matches_analytic_on_a_common_grid() {
-        use spice_analysis::{AnalysisContext, AnalysisRequest, runner};
-        use spice_core::AnalysisKind;
-        use spice_devices::{Circuit, IndependentSource, Waveform};
+        use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, runner};
+        use ngspice_rs::devices::{Circuit, IndependentSource, Waveform};
+        use ngspice_rs::primitives::AnalysisKind;
 
         let (tau, stop, t0, tr, high) = (1e-3, 6e-3, 1e-3, 1e-4, 5.0);
         let pwl = deck("v1 in 0 pwl(0 0 1m 0 1.1m 5 6m 5)");

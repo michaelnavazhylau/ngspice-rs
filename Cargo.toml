@@ -1,31 +1,45 @@
-# Cargo workspace for the Rust port of ngspice.
+# ngspice-rs: a from-scratch Rust implementation of the ngspice circuit
+# simulator, published as a single crate.
 #
-# This standalone workspace does not require the optional upstream C checkout.
-# C is a read-only behavioral reference, queried out of process. See RUST_PORT.md
-# and docs/port/ for current production limits and historical design records.
+# This package sits at the root of the Rust-only checkout and does not require
+# the optional upstream C checkout. C is a read-only behavioral reference,
+# queried out of process. See RUST_PORT.md and docs/port/ for current production
+# limits and historical design records.
+#
+# The port was developed as six crates (`spice-core`, `spice-netlist`,
+# `spice-maths`, `spice-devices`, `spice-analysis`, `spice-cli`) and was
+# consolidated into one package so that crates.io carries a single name and a
+# single version. The old crate boundaries survive as the module tree under
+# `src/`: `primitives`, `netlist`, `maths`, `devices`, `analysis` and `cli`, in
+# dependency order. Keep that layering intact in the source layout even though
+# the compiler can no longer enforce it.
 #
 # M0/M1a started dependency-free. Semantic parsing now uses winnow; production
 # linear algebra/BDF use faer/diffsol, and topology uses petgraph. Cargo.lock
 # pins the graph, whose MSRV is 1.89. Offline builds require cached dependencies.
 
+[package]
+name = "ngspice-rs"
+description = "A from-scratch Rust implementation of the ngspice circuit simulator: deck parsing, MNA assembly and DC/AC/transient analysis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["spice", "circuit-simulation", "eda", "simulator", "netlist"]
+categories = ["simulation", "science", "command-line-utilities"]
+
 [workspace]
 resolver = "3"
-members = [
-    "crates/spice-core",
-    "crates/spice-netlist",
-    "crates/spice-maths",
-    "crates/spice-devices",
-    "crates/spice-analysis",
-    "crates/spice-cli",
-    "xtask",
-]
+members = ["xtask"]
 
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.89"
 license = "BSD-3-Clause"
-repository = "https://sourceforge.net/p/ngspice/ngspice/"
+repository = "https://github.com/michaelnavazhylau/ngspice-rs"
 
 [workspace.dependencies]
 # Token-stream combinators replace the manual semantic-parser cursor. No FFI,
@@ -45,26 +59,25 @@ winnow = { version = "1.0.4", default-features = false, features = ["std", "pars
 # `sundials` features stay off: they need an external KLU/SUNDIALS build.
 #
 # `faer` supplies the production sparse/complex and dense pivoted LU in
-# `spice-maths`. Its defaults (`std`, `rayon`, `sparse-linalg`) match what the
+# `src/maths`. Its defaults (`std`, `rayon`, `sparse-linalg`) match what the
 # diffsol `faer` backend already turns on, so the two agree on one feature set.
 diffsol = { version = "0.17.1", default-features = false, features = ["faer"] }
 faer = "0.24.4"
 
 # Prefer `petgraph` for graph representations/traversals instead of custom
-# adjacency lists, DFS, SCC or topological-sort implementations. `spice-maths`
-# exposes matrix-row coupling graphs; `spice-devices` exposes circuit incidence
+# adjacency lists, DFS, SCC or topological-sort implementations. `src/maths`
+# exposes matrix-row coupling graphs; `src/devices` exposes circuit incidence
 # graphs. These are different domains: MNA row 0 is not ground, structural
 # circuit connectivity need not be a DC path, and graph connectivity alone
 # does not establish solvability. Analysis-specific validation remains future
 # work. diffsol already brings in this same version and feature set.
 petgraph = "0.8.3"
 
-# Workspace-internal crates agree on one set of paths.
-spice-core = { path = "crates/spice-core" }
-spice-netlist = { path = "crates/spice-netlist" }
-spice-maths = { path = "crates/spice-maths" }
-spice-devices = { path = "crates/spice-devices" }
-spice-analysis = { path = "crates/spice-analysis" }
+[dependencies]
+winnow.workspace = true
+diffsol.workspace = true
+faer.workspace = true
+petgraph.workspace = true
 
 [workspace.lints.rust]
 missing_docs = "warn"
@@ -76,3 +89,6 @@ all = "warn"
 dbg_macro = "warn"
 todo = "warn"
 unimplemented = "warn"
+
+[lints]
+workspace = true

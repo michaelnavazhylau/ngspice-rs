@@ -10,7 +10,7 @@ drop-in replacement: coverage is deliberately bounded, and anything outside it
 fails with an explicit error instead of a partial or approximate result.
 
 ```sh
-cargo run -p spice-cli -- simulate --output rc.raw conformance/netlists/rc_transient.cir
+cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_transient.cir
 ```
 
 ## What works
@@ -72,7 +72,7 @@ is `0` on success, `1` for a bad command line, `2` for a bad deck or failed run,
 and `3` when the deck needs something the port does not support yet. Details are
 in [CLI.md](docs/port/CLI.md).
 
-The engine can also be used as a library; `crates/spice-analysis/examples/rc_diffsol.rs`
+The engine can also be used as a library; `examples/rc_diffsol.rs`
 shows the production simulation API.
 
 ## Transient solvers
@@ -105,15 +105,19 @@ and its limits.
 ## Repository layout
 
 ```
-crates/spice-core       numbers, units, nodes, errors, analysis taxonomy
-crates/spice-netlist    deck loading, tokenizer, winnow parser, AST, parameter evaluation
-crates/spice-maths      dense/sparse/complex LU (faer), BDF integration (diffsol)
-crates/spice-devices    device models, MNA stamping, device registry
-crates/spice-analysis   analysis drivers, plots, measurements, rawfile I/O
-crates/spice-cli        the `spice-rs` binary
-xtask                   golden capture/verification, snapshots, CI
-conformance/            fixture decks and captured ngspice output
-docs/port/              architecture, C-to-Rust mapping, roadmap and feature guides
+src/primitives       numbers, units, nodes, errors, analysis taxonomy
+src/netlist          deck loading, tokenizer, winnow parser, AST, parameter evaluation
+src/maths            dense/sparse/complex LU (faer), BDF integration (diffsol)
+src/devices          device models, MNA stamping, device registry
+src/analysis         analysis drivers, plots, measurements, rawfile I/O
+src/cli              CLI argument parsing, dispatch and reporting
+src/bin/spice-rs.rs  the `spice-rs` binary
+tests/               integration tests, one target per file
+examples/            library-level examples (diffsol transient, rank, equilibration)
+xtask/               golden capture/verification, snapshots, CI (unpublished
+                     workspace member, not part of the published package)
+conformance/         fixture decks and captured ngspice output
+docs/port/           architecture, C-to-Rust mapping, roadmap and feature guides
 ```
 
 ## Documentation

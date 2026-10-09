@@ -113,7 +113,7 @@ and any enabling/margin choice require explicit approval and mathematical review
 
 ## Deterministic tests
 
-`crates/spice-maths/tests/rank_diagnostics.rs` adds six production-interface
+`tests/rank_diagnostics.rs` adds six production-interface
 regressions:
 
 - homogeneous ideal-source loops and dependent full-pattern systems;
@@ -132,7 +132,7 @@ example/test style issues, both fixed before the final gates.
 
 ## Reproducible benchmark
 
-`crates/spice-maths/examples/rank_diagnostics_bench.rs` uses only locked faer and
+`examples/rank_diagnostics_bench.rs` uses only locked faer and
 existing public production APIs. It sets **example-only** sequential faer
 parallelism and reports medians of seven repetitions. Every column of the
 identity is still tested in increasing order, including final partial batches.
@@ -160,7 +160,7 @@ Replay from the assigned checkout, with a private target:
 
 ```sh
 export CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR="$PWD/target/issue47"
-cargo build -p spice-maths --example rank_diagnostics_bench --release --locked \
+cargo build -p ngspice-rs --example rank_diagnostics_bench --release --locked \
   > /tmp/followup/logs/issue47/bench-build-final.log 2>&1
 for width in 1 8 16; do
   /usr/bin/time -l target/issue47/release/examples/rank_diagnostics_bench "$width" 7 \
@@ -238,7 +238,7 @@ wording; numeric bodies, checks and thresholds remain unchanged.
 
 The guard itself is still unchanged. Behavioural sources (#79) added one
 production caller of the opt-in equilibration: when Newton's row-equilibrated
-sparse solve fails numerically, `spice-analysis/src/newton.rs` retries it once
+sparse solve fails numerically, `analysis/src/newton.rs` retries it once
 with `EquilibratedSparseLu::new_balanced` (Curtis-Reid power-of-two row/column
 balancing) and `solve_refined` (at most three refinement rounds, each kept
 only if it lowers the componentwise backward error). The rank/conditioning

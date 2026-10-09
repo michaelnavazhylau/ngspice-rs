@@ -13,9 +13,9 @@ C references (read-only): `src/spicelib/parser/inp2s.c`, `inp2w.c`;
 `cswsetup.c`, `cswmpar.c`, `cswparam.c`, `cswload.c`, `cswacld.c`,
 `cswtrunc.c`), `src/maths/ni/niiter.c` (`MODEINITF` phases),
 `src/spicelib/analysis/dctrcurv.c`, `dctran.c`, `acan.c`. The Rust side is
-`crates/spice-netlist/src/parser/switch.rs` (grammar),
-`crates/spice-devices/src/switch.rs` (device), the Newton phases in
-`crates/spice-devices/src/state.rs` and `crates/spice-analysis/src/newton.rs`.
+`src/netlist/parser/switch.rs` (grammar),
+`src/devices/switch.rs` (device), the Newton phases in
+`src/devices/state.rs` and `src/analysis/newton.rs`.
 
 ## Syntax
 
@@ -46,9 +46,9 @@ The writer emits `s1 n+ n- nc+ nc- model [flags]` and `w1 n+ n- vname model
 Each switch owns two state slots: the switch state with C's codes (0 really
 off, 1 really on, 2 off inside the band, 3 on inside the band; 1 and 3 stamp
 the on conductance) and the control value. Newton loads carry C's
-`MODEINITF` phase (`spice_devices::IterationPhase`) and the previous load's
+`MODEINITF` phase (`devices::IterationPhase`) and the previous load's
 trial (C's `CKTstate0` survives between iterations); see the module docs of
-`spice_devices::switch` for the full table. In short:
+`devices::switch` for the full table. In short:
 
 | Phase (C) | When | State |
 | --- | --- | --- |
@@ -130,14 +130,14 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
   thresholds) and `switch_ac` (C's `MODEINITSMSIG` state). The port
   reproduces C's accepted timepoints on these decks (identical point counts;
   worst error 0.000 of the `compare::TRAN` bound).
-* `spice-devices/tests/switches.rs`: elaboration errors, C defaults, trial
+* `tests/devices_switches.rs`: elaboration errors, C defaults, trial
   isolation (dropped trials never change the accepted state), hysteresis and
   threshold crossings, flag/band decisions, `Float` nonconvergence, W branch
   sensing, `swtrunc.c` limits and the `SWacLoad` small-signal rule.
-* `spice-analysis/tests/switches.rs`: production `.op`/`.dc`/`.ac`/`.tran`,
+* `tests/analysis_switches.rs`: production `.op`/`.dc`/`.ac`/`.tran`,
   step control on a resistive ramp, the phased Newton contract and explicit
   diffsol/`uic` failures.
-* Opt-in live C (`NGSPICE_BIN=... cargo test -p spice-analysis --test
+* Opt-in live C (`NGSPICE_BIN=... cargo test -p ngspice-rs --test
   c_switches -- --ignored`): a resistive ramp (identical steps), negative
   hysteresis with a PULSE and an ON-flagged W, switches in a subcircuit, up
   and down DC sweeps, decimal-step sweeps (`0.1`, `-0.1`, `-0.25m`), nested
@@ -150,7 +150,7 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
 * Numeric literals: C's `INPevaluate` builds a number from its digits and a
   power of ten and does not always return the nearest double (C reads `0.7`
   as `0.7000000000000001`), while the shared port parser
-  (`spice_core::parse_spice_number`) rounds correctly. A sweep start, step or
+  (`primitives::parse_spice_number`) rounds correctly. A sweep start, step or
   threshold literal that C reads one ulp off can still decide a control that
   lands exactly on a threshold differently. This is a parser-wide divergence,
   not specific to switches; the switch fixtures use literals both engines read

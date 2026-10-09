@@ -2,10 +2,10 @@
 
 Bounded, typed and reported continuation for nonlinear DC bias solves (`.op`,
 `.ac` bias, every `.dc` point and the companion `.tran` initial bias), and the
-Newton step control underneath it. Code: `crates/spice-analysis/src/bias.rs`
+Newton step control underneath it. Code: `src/analysis/bias.rs`
 (policy, report, solve), `newton.rs` (iteration limits, phases, step control),
-`config.rs` (deck options), `crates/spice-devices/src/limiting.rs` (device
-voltage limiting). Tests: `crates/spice-analysis/tests/dc_continuation.rs`,
+`config.rs` (deck options), `src/devices/limiting.rs` (device
+voltage limiting). Tests: `tests/dc_continuation.rs`,
 `tests/convergence.rs`, and the `m7_conv_*` C goldens.
 
 Since #106 the default is ngspice's own algorithm: per-device junction/FET
@@ -54,7 +54,7 @@ ported.
 
 - **`device` (default)**: C's policy. `niiter.c` damps nothing globally; each
   nonlinear device limits its own controlling voltages in its load through
-  `spice_devices::limiting::Limiter`:
+  `devices::limiting::Limiter`:
   - the first load of an operating point is C's `MODEINITJCT`: diodes at
     `tVcrit`, BJTs at `vbe = tVcrit`, `vbc = vsub = 0`, MOS1 at `vbs = -1`,
     `vgs = type * tVto`, `vds = 0`, independent of the seed; an `off`
@@ -119,7 +119,7 @@ Deterministic stage lists, kept for comparison; selecting `ladder` with
 ## API
 
 ```rust
-use spice_analysis::bias::{ContinuationPolicy, DcSettings, NgspiceStepping, solve_dc_with};
+use ngspice_rs::analysis::bias::{ContinuationPolicy, DcSettings, NgspiceStepping, solve_dc_with};
 
 let settings = DcSettings {
     newton: NewtonOptions::default(),                 // limiting: Device, itl1 = 100

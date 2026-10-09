@@ -10,8 +10,8 @@ where observable from a deck, production comparisons against C data.
 
 ## M0 — Scaffold ✅
 
-Cargo workspace, crate boundaries, error vocabulary, CI task, golden-data
-harness.
+Cargo workspace, module boundaries (initially six crates), error vocabulary, CI task,
+golden-data harness.
 
 Exit criteria met:
 
@@ -23,7 +23,7 @@ Exit criteria met:
 
 ## M1 — Netlist front end (fixture and round-trip gate closed by #22)
 
-Parse a deck into `spice-netlist::Netlist`: title, device instances, `.model`,
+Parse a deck into `netlist::Netlist`: title, device instances, `.model`,
 `.subckt`/`.ends`, `.include`/`.lib`, `.param`/`.option`, analysis cards.
 
 - winnow card-parser combinators over the existing tokenizer on `new-parsing`;
@@ -121,7 +121,7 @@ and [SUBCIRCUITS.md](SUBCIRCUITS.md).
    eight-fixture round-trip gate. Subcircuit circuit elaboration (#18) landed in
    M5 wave 1.
 
-Exit criteria (met by #22, `crates/spice-netlist/tests/m1_gate.rs`): every deck in
+Exit criteria (met by #22, `tests/m1_gate.rs`): every deck in
 `conformance/netlists/` round-trips AST -> normalised deck text -> AST with
 semantic equality and a writer fixed point, with committed token/AST snapshots,
 combined include/subcircuit/param/option fixtures and explicit negative cases.
@@ -160,7 +160,7 @@ Trap/Gear order-1/2 integration (#23), trial-versus-accepted device state (#24),
 C/L companion stamps (#25), PULSE/PWL evaluation (#9) and the adaptive companion
 driver for linear circuits (#26, [TRANSIENT.md](TRANSIENT.md)) exist. The
 **RC/RL/RLC/PWL, Gear-2, floating/coupled-capacitor, RLC AC and initialized-state
-(`.ic`/`uic`/`ic=`) exit gates against C goldens are closed** (#48; `cargo xtask golden verify`, `crates/spice-analysis/tests/m3_gate.rs`,
+(`.ic`/`uic`/`ic=`) exit gates against C goldens are closed** (#48; `cargo xtask golden verify`, `tests/m3_gate.rs`,
 [VERIFICATION.md](VERIFICATION.md)). Runtime higher-index constraints remain
 unsupported: #29's formulation/prototype gate is delivered, but enabling
 requires #69–#72. Nonlinear charge is bounded by the M4 support table, not

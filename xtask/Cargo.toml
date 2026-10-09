@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Workspace automation for the Rust ngspice port: golden capture, drift checks, Rust verification, CI"
+description = "Workspace automation for ngspice-rs: golden capture, drift checks, Rust verification, CI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,7 +12,4 @@ publish = false
 workspace = true
 
 [dependencies]
-spice-analysis.workspace = true
-spice-core.workspace = true
-spice-devices.workspace = true
-spice-netlist.workspace = true
+ngspice-rs = { path = ".." }

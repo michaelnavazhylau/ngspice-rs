@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use spice_analysis::RawFile;
+use ngspice_rs::analysis::RawFile;
 
 use crate::ngspice::{self, Ngspice};
 use crate::workspace_root;

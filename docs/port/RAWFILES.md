@@ -9,11 +9,11 @@ Route map:
 
 | Item | Where |
 | --- | --- |
-| ASCII parse/write (frozen behaviour) | `crates/spice-analysis/src/rawfile/mod.rs` |
-| Binary codec, format detection, byte order | `crates/spice-analysis/src/rawfile/binary.rs` |
-| Hand-built byte-buffer tests | `crates/spice-analysis/tests/binary_rawfiles.rs` |
-| Opt-in live-C cross-check (`#[ignore]`) | `crates/spice-analysis/tests/c_binary_rawfile_reference.rs` |
-| ASCII conformance against committed goldens | `crates/spice-analysis/tests/golden_rawfiles.rs`, `cargo xtask golden verify` |
+| ASCII parse/write (frozen behaviour) | `src/analysis/rawfile/mod.rs` |
+| Binary codec, format detection, byte order | `src/analysis/rawfile/binary.rs` |
+| Hand-built byte-buffer tests | `tests/binary_rawfiles.rs` |
+| Opt-in live-C cross-check (`#[ignore]`) | `tests/c_binary_rawfile_reference.rs` |
+| ASCII conformance against committed goldens | `tests/golden_rawfiles.rs`, `cargo xtask golden verify` |
 
 ## What ngspice writes
 
@@ -97,9 +97,9 @@ loop, so a file of many binary plots is what C expects too.
 
 That is also the layout of a multi-analysis batch run (`ngspice -b -r`, #96):
 one plot per analysis, in `CKTdoJob()` order. The opt-in
-`crates/spice-cli/tests/c_batch_reference.rs` reads such a C binary file with
+`tests/c_batch_reference.rs` reads such a C binary file with
 `RawFile::parse_bytes` and compares it plot by plot with `spice-rs simulate`;
-`crates/spice-analysis/tests/golden_rawfiles.rs`
+`tests/golden_rawfiles.rs`
 (`multi_plot_goldens_round_trip_through_both_encodings`) round-trips the
 committed four-plot golden `multi_analysis_rc.raw` through the ASCII and binary
 writers. C's incremental batch writer (`OUTpData()` → `fileAddComplexValue()`
@@ -206,7 +206,7 @@ Ordinary tests build the exact byte buffers in Rust and need no C toolchain and
 no committed binary blob:
 
 ```
-cargo test -p spice-analysis --test binary_rawfiles
+cargo test -p ngspice-rs --test binary_rawfiles
 ```
 
 They cover a hand-built real plot, a hand-built complex plot, multiple plots,
@@ -223,7 +223,7 @@ C's bytes exactly:
 
 ```
 NGSPICE_BIN=/Users/michaelnavazhylau/Code/electronics-work/spice-port/ngspice_test/build/src/ngspice \
-  cargo test -p spice-analysis --test c_binary_rawfile_reference -- --ignored
+  cargo test -p ngspice-rs --test c_binary_rawfile_reference -- --ignored
 ```
 
 ## Commands

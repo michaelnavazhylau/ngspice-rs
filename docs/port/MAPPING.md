@@ -1,4 +1,4 @@
-# C source tree → Rust crate mapping
+# C source tree → Rust module mapping
 
 Paths in the tables below are paths **in the upstream ngspice tree**, relative to
 its source root. The Rust port does not vendor the C sources; see
@@ -18,37 +18,37 @@ therefore the central risk of this port — see
 
 ## Front end
 
-| C | Lines | Rust crate | Status |
+| C | Lines | Rust module | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/parser/inpeval.c` | 1,139 | `spice-core::value` | numeric literals and scale factors ported |
-| `src/frontend/inpcom.c` | 10,237 | `spice-core::node` (`inp_fix_gnd_name`), `spice-netlist::source` (`inp_stripcomments_line`), `spice-netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, classification and bounded source-relative include/lib resolution ported; numparam preprocessing still missing |
-| `src/frontend/inp.c` | 2,967 | `spice-netlist::source` | title line, continuation folding ported |
-| `src/frontend/subckt.c`, `inpcom.c` subcircuit preprocessing | — | `spice-netlist::parser::{structure,scopes,resolution}`, `spice-devices::subckt`, `spice-netlist::eval::ParamScope::resolve_instance` | ordered nested definitions/X syntax, textual formals and source provenance; `X` expansion with hierarchical naming, per-instance parameters/models and `.global` ported (#18); see [SUBCIRCUITS.md](SUBCIRCUITS.md) |
+| `src/spicelib/parser/inpeval.c` | 1,139 | `primitives::value` | numeric literals and scale factors ported |
+| `src/frontend/inpcom.c` | 10,237 | `primitives::node` (`inp_fix_gnd_name`), `netlist::source` (`inp_stripcomments_line`), `netlist::card`, parser terminal canonicalization | ground aliasing, comment stripping, classification and bounded source-relative include/lib resolution ported; numparam preprocessing still missing |
+| `src/frontend/inp.c` | 2,967 | `netlist::source` | title line, continuation folding ported |
+| `src/frontend/subckt.c`, `inpcom.c` subcircuit preprocessing | — | `netlist::parser::{structure,scopes,resolution}`, `devices::subckt`, `netlist::eval::ParamScope::resolve_instance` | ordered nested definitions/X syntax, textual formals and source provenance; `X` expansion with hierarchical naming, per-instance parameters/models and `.global` ported (#18); see [SUBCIRCUITS.md](SUBCIRCUITS.md) |
 | `src/frontend/parse-bison.y` | 180 | future front-end expression parser | **not ported**; this is an expression grammar, not the netlist deck grammar |
-| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `spice-netlist::parser` | scalar/declared-model R/C/L, DC/AC/PULSE/PWL V/I and bounded D/Q/M flags/IC syntax; analysis arguments retained without validation; remaining grammars unported |
-| `src/spicelib/parser/{inpmkmod,inpdomod,inpgmod,inpfindl,inpgval}.c` | — | `spice-netlist::parser::model`, `spice-devices::{models,schema}` | raw scalar cards retained; top-level first-wins resolution, family/level checks and bounded diode input schemas; advanced backends/scopes pending |
-| `src/spicelib/parser/inppas*.c` (input passes: models, devices, IC/nodeset, shunts) | 667 | `spice-netlist::parser`, later circuit elaboration | card dispatch and model-name indexing partially ported; model elaboration/IC/shunt passes unported; these are **not** `.param` evaluators |
-| `src/frontend/numparam/{spicenum,xpressn}.c`, preprocessing in `inpcom.c` | — | `spice-netlist::expr`, `parser/{expression,param}.rs` | bounded `.param`/expression **syntax** ported (`formula()` precedence, `fetchnumber()`, `fmathS` subset, multi-assignment split); top-level evaluation (`spice-netlist::{eval,elaborate}`: `inp_sort_params` ordering/last-definition rule, `operate`/`mathfunction` semantics with finite-or-error) ported; per-instance subcircuit scoping ported (#18), the rest of numparam **not ported** |
+| `src/spicelib/parser/inp2*.c` (device and dot-card grammars) | 3,828 | `netlist::parser` | scalar/declared-model R/C/L, DC/AC/PULSE/PWL V/I and bounded D/Q/M flags/IC syntax; analysis arguments retained without validation; remaining grammars unported |
+| `src/spicelib/parser/{inpmkmod,inpdomod,inpgmod,inpfindl,inpgval}.c` | — | `netlist::parser::model`, `devices::{models,schema}` | raw scalar cards retained; top-level first-wins resolution, family/level checks and bounded diode input schemas; advanced backends/scopes pending |
+| `src/spicelib/parser/inppas*.c` (input passes: models, devices, IC/nodeset, shunts) | 667 | `netlist::parser`, later circuit elaboration | card dispatch and model-name indexing partially ported; model elaboration/IC/shunt passes unported; these are **not** `.param` evaluators |
+| `src/frontend/numparam/{spicenum,xpressn}.c`, preprocessing in `inpcom.c` | — | `netlist::expr`, `parser/{expression,param}.rs` | bounded `.param`/expression **syntax** ported (`formula()` precedence, `fetchnumber()`, `fmathS` subset, multi-assignment split); top-level evaluation (`netlist::{eval,elaborate}`: `inp_sort_params` ordering/last-definition rule, `operate`/`mathfunction` semantics with finite-or-error) ported; per-instance subcircuit scoping ported (#18), the rest of numparam **not ported** |
 | `src/spicelib/parser/ifeval.c` | 190 | future behavioural-device evaluator | **not ported**; evaluates IF parse trees, not numparam `.param` expressions |
-| `src/spicelib/parser/inpsymt.c` | 305 | `spice-netlist::symbols` (planned) | **not ported** |
-| `src/frontend/circuits.c`, `define.c` | 483 | `spice-devices::registry`, `spice-core::node` | registry with working scalar R/C/L/V/I factories; other designators explicitly unavailable |
-| `src/spicelib/parser/inp2dot.c` (dot-card grammar), `src/frontend/postcoms.c` (`com_print`) | 2,938 | `spice-netlist::parser::save`, `spice-analysis::selection` | bounded `.save`/`.print` output selection ported (#42): typed positioned requests, projection of the full plot into the written rawfile in C `dbs` order with first-wins dedup and a `.print` text table; `.plot` unported; the full C reference chain (`dotcards.c` `ft_dotsaves`, `breakp2.c` `dbs`, `outitf.c` `beginPlot`) is in [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md) |
-| `src/frontend/measure.c`, `src/frontend/com_measure2.c` | 3,246 | `spice-netlist::parser::measure`, `spice-analysis::measure` | bounded `.measure`/`.meas` measurements ported (#43): `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) and `TRIG … TARG …`; `WHEN`, `MIN_AT`/`MAX_AT`, `PP`, `DERIV`, `ERR*`, `TD=` and body-local cards unported; see [MEASURE.md](MEASURE.md) |
-| `src/frontend/fourier.c`, `dotcards.c` (`.four`) | 373 (fourier.c) | `spice-netlist::parser::fourier`, `spice-analysis::fourier` | bounded final-period transient Fourier/THD ported (#44): physical-grid resampling, DC/peak amplitude/window-referenced phase, 1–100 harmonics; interactive commands and other interpolation/window settings unported; see [FOURIER.md](FOURIER.md) |
+| `src/spicelib/parser/inpsymt.c` | 305 | `netlist::symbols` (planned) | **not ported** |
+| `src/frontend/circuits.c`, `define.c` | 483 | `devices::registry`, `primitives::node` | registry with working scalar R/C/L/V/I factories; other designators explicitly unavailable |
+| `src/spicelib/parser/inp2dot.c` (dot-card grammar), `src/frontend/postcoms.c` (`com_print`) | 2,938 | `netlist::parser::save`, `analysis::selection` | bounded `.save`/`.print` output selection ported (#42): typed positioned requests, projection of the full plot into the written rawfile in C `dbs` order with first-wins dedup and a `.print` text table; `.plot` unported; the full C reference chain (`dotcards.c` `ft_dotsaves`, `breakp2.c` `dbs`, `outitf.c` `beginPlot`) is in [OUTPUT_SELECTION.md](OUTPUT_SELECTION.md) |
+| `src/frontend/measure.c`, `src/frontend/com_measure2.c` | 3,246 | `netlist::parser::measure`, `analysis::measure` | bounded `.measure`/`.meas` measurements ported (#43): `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` (`/INTEGRAL`) and `TRIG … TARG …`; `WHEN`, `MIN_AT`/`MAX_AT`, `PP`, `DERIV`, `ERR*`, `TD=` and body-local cards unported; see [MEASURE.md](MEASURE.md) |
+| `src/frontend/fourier.c`, `dotcards.c` (`.four`) | 373 (fourier.c) | `netlist::parser::fourier`, `analysis::fourier` | bounded final-period transient Fourier/THD ported (#44): physical-grid resampling, DC/peak amplitude/window-referenced phase, 1–100 harmonics; interactive commands and other interpolation/window settings unported; see [FOURIER.md](FOURIER.md) |
 | `src/frontend/` (whole directory) | 88,452 | — | includes the command interpreter and interactive plotting; mostly deferred; the bounded `.measure`/`.meas` subset is ported ([MEASURE.md](MEASURE.md)) |
 
 ## Maths
 
-| C | Lines | Rust crate | Status |
+| C | Lines | Rust module | Status |
 | --- | --- | --- | --- |
-| `src/maths/dense/` | 1,742 | `spice-maths::dense` | row-major storage and owned faer pivoted LU with checked solves |
-| `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `spice-maths::sparse` | triplet storage, petgraph row-coupling projection and owned faer sparse LU; finite/rank/residual checks and exact-pattern symbolic reuse |
-| `src/maths/dense/`, `src/maths/sparse/` scaling (behavioral reference) | — | `spice-maths::equilibration` | bounded opt-in dense/sparse/complex wrappers (#46); independent power-of-two policy, original-unit residuals, unchanged defaults ([EQUILIBRATION.md](EQUILIBRATION.md)) |
-| `src/maths/sparse/` diagnostics (behavioral reference) | — | `spice-maths::linear`, `complex` | #47 audits locked faer APIs and retains numerical guards; example-only batching/benchmarks, formal aggregate-proof caveat tracked in #68 ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)) |
+| `src/maths/dense/` | 1,742 | `maths::dense` | row-major storage and owned faer pivoted LU with checked solves |
+| `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `maths::sparse` | triplet storage, petgraph row-coupling projection and owned faer sparse LU; finite/rank/residual checks and exact-pattern symbolic reuse |
+| `src/maths/dense/`, `src/maths/sparse/` scaling (behavioral reference) | — | `maths::equilibration` | bounded opt-in dense/sparse/complex wrappers (#46); independent power-of-two policy, original-unit residuals, unchanged defaults ([EQUILIBRATION.md](EQUILIBRATION.md)) |
+| `src/maths/sparse/` diagnostics (behavioral reference) | — | `maths::linear`, `complex` | #47 audits locked faer APIs and retains numerical guards; example-only batching/benchmarks, formal aggregate-proof caveat tracked in #68 ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)) |
 | `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; faer supplies real/complex LU, see licensing below |
-| `src/maths/ni/` | 1,961 | `spice-maths::integrator`, separate `spice-maths::diffsol` | trap and Gear orders 1–2 coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history; orders 3–6 rejected; explicit adaptive BDF supports index-one DAEs including floating/coupled capacitor mass blocks (higher-index rejected), not ngspice trap/Gear parity |
-| `src/maths/cmaths/` | 4,054 | `spice-core::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
-| `src/maths/poly/`, `deriv/`, `fft/`, `misc/` | 6,358 | `spice-maths` (planned modules) | **not ported** |
+| `src/maths/ni/` | 1,961 | `maths::integrator`, separate `maths::diffsol` | trap and Gear orders 1–2 coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history; orders 3–6 rejected; explicit adaptive BDF supports index-one DAEs including floating/coupled capacitor mass blocks (higher-index rejected), not ngspice trap/Gear parity |
+| `src/maths/cmaths/` | 4,054 | `primitives::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
+| `src/maths/poly/`, `deriv/`, `fft/`, `misc/` | 6,358 | `maths` (planned modules) | **not ported** |
 
 ## Devices
 
@@ -57,16 +57,16 @@ translate all of it; the roadmap targets a small, useful subset first.
 
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `spice-devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution and bounded passive factories; nonlinear factories pending |
-| `res/`, `cap/`, `ind/` | 5,326 | `spice-devices::{rlc,passive}` | scalar equations plus bounded model values, R sheet/C area-perimeter geometry, contextual TC1/TC2, scale/multiplicity; trap/Gear orders 1–2 C/L companion stamps from accepted charge/flux state (`capload.c`/`indload.c`); K mutual inductance (`mut*.c`, coupled flux in `indload.c`) ported with `spice-devices::mutual` and `parser/mutual.rs` ([MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md)); coil geometry, advanced setters and companion `ic=`/`uic` pending |
-| `vsrc/`, `isrc/` | — | `spice-devices::sources` | DC/AC V/I stamps, Constant/Step/Pwl/Pulse forcing with left/right limits and lazy breakpoints; PULSE (with count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM deck setters elaborate (`functions.rs`); no TRNOISE/TRRANDOM/EXTERNAL |
-| `vcvs/`, `vccs/`, `cccs/`, `ccvs/`; `parser/inp2{e,f,g,h}.c`; `analysis/cktfbran.c` | — | `spice-devices::controlled`, `spice-netlist` `parser/controlled.rs` | linear E/F/G/H gain stamps for OP/DC/AC/transient; F/H controlling V/E/H branches resolved by `Circuit` (hierarchical in subcircuits); POLY/VALUE/TABLE lowered onto behavioural sources (#79), LAPLACE pending ([CONTROLLED_SOURCES.md](CONTROLLED_SOURCES.md)) |
-| `asrc/`; `parser/inp2b.c`, `inpptree.c`, `ptfuncs.c`, `ifeval.c`; `frontend/inpcom.c` (`inp_compat`, `inp_meas_current`, `inp_bsource_compat`); `xspice/enh/enhtrans.c` | — | `spice-devices::behavioural`, `spice_netlist::{bexpr, behavioural}`, `parser/{bexpression,behavioural}.rs` | B sources with C's function set and derivative rules; E/G/F/H VALUE/TABLE/POLY lowering; `ddt`/`gauss`/LAPLACE pending ([BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md)) |
-| `sw/`, `csw/`; `parser/inp2{s,w}.c` | — | `spice-devices::switch`, `spice-netlist` `parser/switch.rs` | S/W conductance switches with C's hysteresis/flag rules, Newton `MODEINITF` phases, accepted switch state and `swtrunc.c` step control for OP/DC/AC/companion transient; W controls resolved like F/H; noise/pole-zero/`@` queries pending; AC uses the operating-point state ([SWITCHES.md](SWITCHES.md)) |
-| `dio/` | 5,598 | `spice-devices::diode` (planned) | **not ported** |
-| `bjt/` | 9,482 | `spice-devices::bjt` (planned) | **not ported** |
-| `mos1/`…`mos9/`, `bsim*`, `hisim*`, `hfet*`, `vbic`, `soi*` | 218,897 | `spice-devices::mos` (planned) | **not ported** |
-| `src/xspice/` (event-driven code models) | 28,373 | `spice-devices::xspice` (planned) | **not ported** |
+| `src/spicelib/devices/ckt*.c` (device framework) | 419 | `devices` | trait, scalar factories, `Circuit` incidence topology, node-before-branch binding and immutable linear equation assembly, atomic AST instance insertion and top-level typed model resolution and bounded passive factories; nonlinear factories pending |
+| `res/`, `cap/`, `ind/` | 5,326 | `devices::{rlc,passive}` | scalar equations plus bounded model values, R sheet/C area-perimeter geometry, contextual TC1/TC2, scale/multiplicity; trap/Gear orders 1–2 C/L companion stamps from accepted charge/flux state (`capload.c`/`indload.c`); K mutual inductance (`mut*.c`, coupled flux in `indload.c`) ported with `devices::mutual` and `parser/mutual.rs` ([MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md)); coil geometry, advanced setters and companion `ic=`/`uic` pending |
+| `vsrc/`, `isrc/` | — | `devices::sources` | DC/AC V/I stamps, Constant/Step/Pwl/Pulse forcing with left/right limits and lazy breakpoints; PULSE (with count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM deck setters elaborate (`functions.rs`); no TRNOISE/TRRANDOM/EXTERNAL |
+| `vcvs/`, `vccs/`, `cccs/`, `ccvs/`; `parser/inp2{e,f,g,h}.c`; `analysis/cktfbran.c` | — | `devices::controlled`, `netlist` `parser/controlled.rs` | linear E/F/G/H gain stamps for OP/DC/AC/transient; F/H controlling V/E/H branches resolved by `Circuit` (hierarchical in subcircuits); POLY/VALUE/TABLE lowered onto behavioural sources (#79), LAPLACE pending ([CONTROLLED_SOURCES.md](CONTROLLED_SOURCES.md)) |
+| `asrc/`; `parser/inp2b.c`, `inpptree.c`, `ptfuncs.c`, `ifeval.c`; `frontend/inpcom.c` (`inp_compat`, `inp_meas_current`, `inp_bsource_compat`); `xspice/enh/enhtrans.c` | — | `devices::behavioural`, `netlist::{bexpr, behavioural}`, `parser/{bexpression,behavioural}.rs` | B sources with C's function set and derivative rules; E/G/F/H VALUE/TABLE/POLY lowering; `ddt`/`gauss`/LAPLACE pending ([BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md)) |
+| `sw/`, `csw/`; `parser/inp2{s,w}.c` | — | `devices::switch`, `netlist` `parser/switch.rs` | S/W conductance switches with C's hysteresis/flag rules, Newton `MODEINITF` phases, accepted switch state and `swtrunc.c` step control for OP/DC/AC/companion transient; W controls resolved like F/H; noise/pole-zero/`@` queries pending; AC uses the operating-point state ([SWITCHES.md](SWITCHES.md)) |
+| `dio/` | 5,598 | `devices::diode` (planned) | **not ported** |
+| `bjt/` | 9,482 | `devices::bjt` (planned) | **not ported** |
+| `mos1/`…`mos9/`, `bsim*`, `hisim*`, `hfet*`, `vbic`, `soi*` | 218,897 | `devices::mos` (planned) | **not ported** |
+| `src/xspice/` (event-driven code models) | 28,373 | `devices::xspice` (planned) | **not ported** |
 | `src/osdi/` (Verilog-A / OSDI) | 3,372 | — | **not ported**; needs a Verilog-A compiler path, probably out of scope |
 | `src/ciderlib/` (numerical device simulator) | 28,342 | — | **not ported**; probably out of scope |
 
@@ -74,12 +74,12 @@ translate all of it; the roadmap targets a small, useful subset first.
 
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/analysis/` (whole directory) | 21,993 | `spice-analysis::analysis` | trait/runner, linear `.op`, single-independent-source `.dc`, complex `.ac`, the adaptive trap/Gear-2 companion `.tran` driver (`companion.rs`: `dctran.c`, `ckttrunc.c`, `cktterr.c` policy, linear circuits) and explicitly selected restricted diffsol BDF; nonlinear/other analyses pending |
-| ↳ `cktdojob.c`, `dctran.c`, `dcop.c`, `acan.c`, `cktload.c` | 2,060 | `spice-analysis::analysis` | bounded linear assembly/factor/solve/plot orchestration; no nonlinear Newton/stepping or SPICE trap/Gear driver |
-| `src/frontend/rawfile.c` | 863 | `spice-analysis::rawfile` | ASCII read **and** write ported, plus binary real/complex read **and** write with explicit byte order and validated payload lengths (#45); see [RAWFILES.md](RAWFILES.md) |
-| `src/frontend/plotting/` | 9,380 | `spice-analysis::results` | production result tables; interactive plotting not ported |
+| `src/spicelib/analysis/` (whole directory) | 21,993 | `analysis::driver` | trait/runner, linear `.op`, single-independent-source `.dc`, complex `.ac`, the adaptive trap/Gear-2 companion `.tran` driver (`companion.rs`: `dctran.c`, `ckttrunc.c`, `cktterr.c` policy, linear circuits) and explicitly selected restricted diffsol BDF; nonlinear/other analyses pending |
+| ↳ `cktdojob.c`, `dctran.c`, `dcop.c`, `acan.c`, `cktload.c` | 2,060 | `analysis::driver` | bounded linear assembly/factor/solve/plot orchestration; no nonlinear Newton/stepping or SPICE trap/Gear driver |
+| `src/frontend/rawfile.c` | 863 | `analysis::rawfile` | ASCII read **and** write ported, plus binary real/complex read **and** write with explicit byte order and validated payload lengths (#45); see [RAWFILES.md](RAWFILES.md) |
+| `src/frontend/plotting/` | 9,380 | `analysis::results` | production result tables; interactive plotting not ported |
 
-The #29 experimental `spice-maths::diffsol::higher_index` module is an independent
+The #29 experimental `maths::diffsol::higher_index` module is an independent
 numeric constrained-RLC formulation, with `CAPload`/`INDload`/`DCtran` as read-only
 physical/event references, not a port of the C transient scheduler. Default
 index-one guards remain intact; prototype evidence and runtime enabling gates

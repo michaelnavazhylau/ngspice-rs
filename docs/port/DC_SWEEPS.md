@@ -1,6 +1,6 @@
 # Typed scalar DC sweeps (#35)
 
-Scope: the bounded `.dc` driver in `spice-analysis::sweep` (C: `dctrcurv.c`).
+Scope: the bounded `.dc` driver in `analysis::sweep` (C: `dctrcurv.c`).
 It sweeps scalar targets over one inner axis and one optional outer axis. It is
 not a general parameter sweep, a model-parameter sweep or a `.step` analysis.
 No new parser exists: the `.dc` card's positional arguments come from the existing
@@ -51,7 +51,7 @@ instance resistance (`RESresist`, marked given), and `restemp.c` applies
 TC, scale and multiplicity. The opt-in live comparisons below validate this
 bounded mapping against the external reference binary. Tests also pin the
 Rust semantics analytically (`tests/dc_sweeps.rs`,
-`spice-devices/tests/resistor_overrides.rs`): scale 2, `m` 4, TC1 0.01, 47 C
+`tests/resistor_overrides.rs`): scale 2, `m` 4, TC1 0.01, 47 C
 against TNOM 27 C gives `Reffective = 0.6 * supplied`; at 27 C it is
 `0.5 * supplied`; a fixed instance `temp=77` does not move with the sweep.
 Negative nonzero scalars are legal (as for literal instances); zero, nonfinite
@@ -59,7 +59,7 @@ values and values with nonfinite conductance are not.
 
 ## Immutable per-point override
 
-Nothing is mutated and nothing is rolled back. `spice-devices::sweep` defines:
+Nothing is mutated and nothing is rolled back. `devices::sweep` defines:
 
 - `Device::resistor_metadata()` / `Device::resistor_effective(supplied, ctx)` -
   default `None` / error; implemented by the literal `Resistor` and by the
@@ -153,11 +153,11 @@ the same resistor twice is not. Convergence policy (`gmin`/source stepping, itl
 options) belongs to `bias.rs`/`newton.rs`; sweep requests use the same configured
 policy as OP/AC (see [DC_CONTINUATION.md](DC_CONTINUATION.md)).
 
-Tests: `crates/spice-analysis/tests/dc_sweeps.rs` (grids, nested V/I, R/TEMP and
+Tests: `tests/dc_sweeps.rs` (grids, nested V/I, R/TEMP and
 mixed source+resistor axes, analytic literal/model/nonlinear points, programmatic
 names, warm-seeded ramps, absolute factor-reuse counts, restoration, failure,
 rejection that is proven to happen before any solve rather than as a mid-run
-numerical failure, limits) and `crates/spice-devices/tests/resistor_overrides.rs`
+numerical failure, limits) and `tests/resistor_overrides.rs`
 (metadata, override construction, context capacity, all three assembly/load paths,
 invalid ordinals). `dc_followup_regressions` covers configured policy wiring and
 actual replacement context validation.
@@ -171,6 +171,6 @@ cases passed against the local read-only C build. No new golden was captured;
 existing goldens and bounds remain unchanged.
 
 ```sh
-NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p spice-analysis \
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs \
   --test c_dc_sweep_reference --locked -- --ignored
 ```

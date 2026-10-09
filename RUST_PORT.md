@@ -1,6 +1,7 @@
 # RUST_PORT.md — a Rust port of ngspice
 
-A Cargo workspace for a from-scratch Rust implementation of ngspice. The optional development
+A single-crate Cargo workspace for a from-scratch Rust implementation of ngspice. The
+optional development
 setup includes C-reference and solver-integration worktrees; the public standalone
 repository contains only the Rust port and its conformance data. These Git
 histories differ, and the local development mainline may lag public main.
@@ -14,6 +15,19 @@ The Rust port is a **derivative work of ngspice** and is distributed under the
 same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
+
+**Single-crate packaging:** the port is one package, `ngspice-rs`, not six crates
+(`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`, `spice-analysis`,
+`spice-cli`). Those boundaries are now the module tree under `src/`
+(`primitives`, `netlist`, `maths`, `devices`, `analysis`, `cli`), the CLI binary is
+`src/bin/spice-rs.rs` and integration tests live in `tests/`. No production
+behavior changed: stable and Rust 1.89.0 each report **1051 passed / 0 failed /
+67 ignored**, `golden verify` **59/0/0** and **196** snapshots unchanged.
+`cargo package` produces a 2.0 MiB `.crate` whose own test suite passes, because
+conformance fixtures are package-relative and a downloaded crate is therefore
+self-testable. Layering is now a review-enforced convention rather than a
+compiler-enforced one ([ARCHITECTURE.md](docs/port/ARCHITECTURE.md)), and crates.io
+release automation is still pending ([TODO.md](TODO.md)).
 
 **Bounded numerical follow-up delivered:** #46 adds explicit maths-library
 `EquilibratedDenseLu`/`EquilibratedSparseLu`/`EquilibratedComplexLu` wrappers with
@@ -79,7 +93,7 @@ This worktree extends the companion/DC/AC paths with M4's bounded D/Q/M equation
 `.ic`/`uic` on diffsol or nonlinear companion circuits, physics outside the M4
 allowlists, general DAEs and remaining usability work remain unimplemented. Unsupported cases
 fail explicitly; pending ports use
-[`SpiceError::NotYetPorted`](crates/spice-core/src/error.rs) naming a C reference.
+[`SpiceError::NotYetPorted`](src/primitives/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
 [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) for
 production APIs, numerical policies, recorded validation and limits.
@@ -88,21 +102,21 @@ What already works for real:
 
 | Area | Crate | Notes |
 | --- | --- | --- |
-| SPICE numeric literals and scale factors | `spice-core` | `INPevaluate()` table from `src/spicelib/parser/inpeval.c` |
-| Node table, ground aliasing | `spice-core` | `inp_fix_gnd_name()` from `src/frontend/inpcom.c` |
-| Deck loading: title, continuation, comments | `spice-netlist` | `inp_stripcomments_line()`, `inp_readall()` |
-| Card tokenizer and `.command` classification | `spice-netlist` | `inppas2.c` / `inp2dot.c` dispatch |
-| Winnow semantic parser | `spice-netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, opaque analyses, scoped subcircuits/X, resolved includes/libraries; 8/8 fixture parses, not simulation |
-| Opt-in live parser oracle | `spice-netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
-| Real/complex MNA storage and LU | `spice-maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
-| Model resolver and initial scalar schemas | `spice-devices` | first-declaration lookup, family/level checks, diode input projection plus bounded M4 model-aware D/Q/M factories |
-| Bounded model-backed passives | `spice-devices`, `spice-analysis` | R sheet/C area-perimeter geometry, model L, contextual TC1/TC2, scale/multiplicity; no coil geometry |
-| Scalar R/C/L/V/I elaboration and equations | `spice-devices` | ground elimination, branch binding, immutable linear operators |
-| Linear DC/AC and bounded transient | `spice-analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
-| Petgraph topology APIs | `spice-devices`, `spice-maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
-| Rawfile read *and* write: ASCII and binary | `spice-analysis` | `src/frontend/rawfile.c` layout; binary real/complex read/write with explicit byte order, validated payload lengths and rejected variants documented in [RAWFILES.md](docs/port/RAWFILES.md) |
-| Output selection (`.save`/`.print`) | `spice-netlist`, `spice-analysis`, `spice-cli` | bounded typed request parsing and projection into the written rawfile in C `dbs` order with first-wins dedup; `.print` text table; unresolvable/unsupported requests fail before publishing; `.plot` unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
-| Measurements (`.measure`/`.meas`) | `spice-netlist`, `spice-analysis`, `spice-cli` | bounded `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` and `TRIG … TARG …` subset evaluated over the full plot before output selection narrows it; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
+| SPICE numeric literals and scale factors | `primitives` | `INPevaluate()` table from `src/spicelib/parser/inpeval.c` |
+| Node table, ground aliasing | `primitives` | `inp_fix_gnd_name()` from `src/frontend/inpcom.c` |
+| Deck loading: title, continuation, comments | `netlist` | `inp_stripcomments_line()`, `inp_readall()` |
+| Card tokenizer and `.command` classification | `netlist` | `inppas2.c` / `inp2dot.c` dispatch |
+| Winnow semantic parser | `netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, opaque analyses, scoped subcircuits/X, resolved includes/libraries; 8/8 fixture parses, not simulation |
+| Opt-in live parser oracle | `netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
+| Real/complex MNA storage and LU | `maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
+| Model resolver and initial scalar schemas | `devices` | first-declaration lookup, family/level checks, diode input projection plus bounded M4 model-aware D/Q/M factories |
+| Bounded model-backed passives | `devices`, `analysis` | R sheet/C area-perimeter geometry, model L, contextual TC1/TC2, scale/multiplicity; no coil geometry |
+| Scalar R/C/L/V/I elaboration and equations | `devices` | ground elimination, branch binding, immutable linear operators |
+| Linear DC/AC and bounded transient | `analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
+| Petgraph topology APIs | `devices`, `maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
+| Rawfile read *and* write: ASCII and binary | `analysis` | `src/frontend/rawfile.c` layout; binary real/complex read/write with explicit byte order, validated payload lengths and rejected variants documented in [RAWFILES.md](docs/port/RAWFILES.md) |
+| Output selection (`.save`/`.print`) | `netlist`, `analysis`, `cli` | bounded typed request parsing and projection into the written rawfile in C `dbs` order with first-wins dedup; `.print` text table; unresolvable/unsupported requests fail before publishing; `.plot` unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
+| Measurements (`.measure`/`.meas`) | `netlist`, `analysis`, `cli` | bounded `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` and `TRIG … TARG …` subset evaluated over the full plot before output selection narrows it; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
 | Rust-engine numerical verify | `xtask` | 26 verified fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients, nonlinear and flattened-subcircuit decks); no exclusions, no C invocation |
@@ -134,25 +148,25 @@ build semantic netlists for supported syntax. `spice-rs parse` succeeds on
 `rc_divider`, `rc_lowpass_ac`, `rlc_series`, `diode_dc`, `bjt_ce` and
 `mos_inverter`, `rc_transient` and `subckt_divider` (all original eight fixtures; the later M3 gate decks parse and simulate as well).
 Parsing succeeds for all eight (the M1 round-trip gate is
-`crates/spice-netlist/tests/m1_gate.rs`, #22). **`spice-rs simulate --output
+`tests/m1_gate.rs`, #22). **`spice-rs simulate --output
 <path> <deck>` runs the deck's single analysis through the production runner and
 writes an ASCII rawfile** ([CLI.md](docs/port/CLI.md)); it honours the bounded
 `.save`/`.print` output selection ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
 and reports the bounded `.measure`/`.meas` measurements ([MEASURE.md](docs/port/MEASURE.md)). The same APIs remain
-available directly, e.g. `cargo run -p spice-analysis --example rc_diffsol`.
+available directly, e.g. `cargo run -p ngspice-rs --example rc_diffsol`.
 
 ```sh
-cargo run -p spice-cli -- conformance/netlists/rc_divider.cir    # deck summary
-cargo run -p spice-cli -- cards conformance/netlists/bjt_ce.cir  # classifications
-cargo run -p spice-cli -- parse conformance/netlists/rc_divider.cir # real AST
-cargo run -p spice-cli -- devices                                # device coverage
-cargo run -p spice-cli -- analyses                              # analysis coverage
+cargo run -p ngspice-rs -- conformance/netlists/rc_divider.cir    # deck summary
+cargo run -p ngspice-rs -- cards conformance/netlists/bjt_ce.cir  # classifications
+cargo run -p ngspice-rs -- parse conformance/netlists/rc_divider.cir # real AST
+cargo run -p ngspice-rs -- devices                                # device coverage
+cargo run -p ngspice-rs -- analyses                              # analysis coverage
 ```
 
 ## Documentation
 
-- [`docs/port/ARCHITECTURE.md`](docs/port/ARCHITECTURE.md) — crate layout, dependency direction, design rules
-- [`docs/port/MAPPING.md`](docs/port/MAPPING.md) — C source tree → Rust crate mapping
+- [`docs/port/ARCHITECTURE.md`](docs/port/ARCHITECTURE.md) — module layout, dependency direction, design rules
+- [`docs/port/MAPPING.md`](docs/port/MAPPING.md) — C source tree → Rust module mapping
 - [`docs/port/ROADMAP.md`](docs/port/ROADMAP.md) — milestones and current position
 - [`TODO.md`](TODO.md) — central branch-aware checklist, next tasks and completion gates
 - [`docs/port/VERIFICATION.md`](docs/port/VERIFICATION.md) — how parity with C is proven
@@ -169,7 +183,10 @@ tracked Rust files without C sources/history. Its publisher maps `rust-port` to
 public `main` and retains other named branches. Before a whole-tree export,
 ensure the source includes all newer public-side changes; current GitHub main
 already contains the solver merge. Focused documentation publication must
-preserve that implementation and keep the distinct histories separate.
+preserve that implementation and keep the distinct histories separate. A
+whole-tree export also carries the package layout, so an export from a checkout
+still using the six-crate `crates/spice-*` tree would revert the consolidated
+`src/` layout: treat a layout change as whole-tree, never as a cherry-pick.
 
 Nothing in the port depends on that setup: `cargo test` and `cargo xtask ci` run
 in any checkout. C capture/check and opt-in live oracles need an upstream

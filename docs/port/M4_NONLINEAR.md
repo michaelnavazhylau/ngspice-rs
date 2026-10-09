@@ -14,23 +14,23 @@ existing global dependency cache is reused. These links are local conveniences,
 not repository dependencies. Source, decks and goldens are independent worktree
 files: symlinking editable files between branches would violate isolation.
 
-- `spice-devices::models` / `schema`: existing first-declaration family/level
+- `devices::models` / `schema`: existing first-declaration family/level
   resolution, ordered last-set scalar projection, units, provenance and domains.
-- `spice-devices::nonlinear`: diode factory, junction equations and nonlinear
+- `devices::nonlinear`: diode factory, junction equations and nonlinear
   charge integration. `bjt`: the Gummel-Poon BJT (#87). `mos1`: the MOS
   level-1 factory/equations (completed by #88, see [MOS1](#mos1)).
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
   and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
-- `spice-devices::limiting`: ngspice's junction/FET voltage limiting
+- `devices::limiting`: ngspice's junction/FET voltage limiting
   (`DEVpnjlim`, `DEVfetlim`, `DEVlimvds`) and the `MODEINITJCT` start, used by
   the diode, BJT and MOS1 loads (#106).
-- `spice-analysis::newton`: disposable load/solve/reload, physical iterate and
+- `analysis::newton`: disposable load/solve/reload, physical iterate and
   equation-residual convergence, row equilibration, device limiting by default
   and the bounded global voltage damping as a fallback.
-- `spice-analysis::bias`: direct DC solve and ngspice's `CKTop` continuation
+- `analysis::bias`: direct DC solve and ngspice's `CKTop` continuation
   (`dynamic_gmin`, `new_gmin`, `spice3_gmin`, `gillespie_src`, `spice3_src`),
   or the port's fixed gmin/source ladders.
-- `spice-analysis::sweep`: typed V/I/R/TEMP axes and bounded nested DC.
+- `analysis::sweep`: typed V/I/R/TEMP axes and bounded nested DC.
 - Companion transient consumes all `Device::truncation_slots` charge/derivative
   pairs. State remains owned by the existing M3 history, not the model object.
 
@@ -49,7 +49,7 @@ setup routines; the code's schema tables are the exact allowlists.
 ### Diode
 
 M4 delivered the bounded core; M7 (#86) extended it toward `dio` parity. The
-schema tables in `spice-devices/src/nonlinear.rs` are the exact allowlists;
+schema tables in `src/devices/nonlinear.rs` are the exact allowlists;
 C's `dio.c` aliases (`js`, `isw`, `tref`, `trs1`, `cj0`/`cj`, `pb`, `mj`, `cjp`,
 `php`, `ik`, `nz`, `vb`/`vrb`/`var`, `ib`, `tbv1`, `ctc`, `tvj`) fold onto their
 canonical setter in order, so last-set precedence spans an alias and its name.
@@ -123,7 +123,7 @@ References: `dio/dioload.c`, `diosetup.c`, `diotemp.c`, `dioacld.c`,
 `diompar.c`, `dioparam.c`, `dio.c`. Unit tests in `nonlinear.rs` check
 finite-difference current and charge Jacobians per slice (breakdown, sidewall,
 recombination, tunnelling, knees, TLEV/TLEVC laws at several temperatures);
-`spice-analysis/tests/diode_physics.rs` checks the production paths against
+`tests/diode_physics.rs` checks the production paths against
 closed forms (breakdown law of a Zener operating point, a `.dc temp` forward
 voltage, sidewall/bottom equivalence in AC, transient depletion-charge
 conservation at 77 C). C goldens: `m7_zener_dc`, `m7_zener_tran`,
@@ -132,7 +132,7 @@ conservation at 77 C). C goldens: `m7_zener_dc`, `m7_zener_tran`,
 
 ### BJT
 
-Gummel-Poon level 1 (#87, `spice-devices::bjt`), NPN/PNP, three or explicitly
+Gummel-Poon level 1 (#87, `devices::bjt`), NPN/PNP, three or explicitly
 four terminals. References: `bjt/bjt.c` and `bjtmpar.c` (setters and aliases),
 `bjtsetup.c` (defaults, internal nodes), `bjttemp.c`, `bjtload.c`, `bjtacld.c`,
 `bjttrunc.c`.
@@ -192,9 +192,9 @@ PNP with substrate and TLEV=3/TLEVC=1 devices), `m7_bjt_amp_ac` and
 `.option reltol=1e-8`: at C's default reltol, with bypass, these sweeps stop
 about 4e-4 from the converged root, outside the unchanged 1 ppm `NONLINEAR`
 bound; at 1e-8 the worst DC/AC errors are below 0.1 of the bound and the
-transient's 0.04 of `compare::TRAN`. `spice-devices` unit tests check every
+transient's 0.04 of `compare::TRAN`. `devices` unit tests check every
 slice's analytic derivatives by finite differences at nominal and 85 C and the
-`bjttemp.c` laws; `spice-analysis/tests/bjt_gummel_poon.rs` checks independent
+`bjttemp.c` laws; `tests/bjt_gummel_poon.rs` checks independent
 Gummel-Poon/KCL equations, exact Newton and companion Jacobians of the whole
 circuit, small-signal operators, disposable charge state, transient terminal-
 current conservation and the explicit errors; the opt-in `c_bjt_reference`
@@ -203,7 +203,7 @@ and AC charges with live C at the same bound.
 
 ### MOS1
 
-Level 1 NMOS/PMOS in `spice-devices::mos1` (#88). C references, read as
+Level 1 NMOS/PMOS in `devices::mos1` (#88). C references, read as
 behaviour only: `mos1/mos1set.c`, `mos1temp.c`, `mos1load.c`, `mos1acld.c`,
 `mos1trun.c` and `devices/devsup.c` (`DEVqmeyer`).
 
@@ -277,7 +277,7 @@ zero; `OFF` starts and holds the device at zero (it wins over the `IC` vector).
 `NLEV`, `GDSNOI` (`mos1noi.c`). Other MOS levels, BSIM/CIDER/XSPICE remain
 outside scope.
 
-Evidence: `spice-analysis/tests/m7_mos1.rs` (operating-point and transient
+Evidence: `tests/m7_mos1.rs` (operating-point and transient
 Meyer charge recurrences, AC capacitances, process-extraction and temperature
 laws restated from `mos1temp.c`, internal-node series resistance KCL, exact
 transient companion Jacobian where the Meyer halves are constant, DC Jacobian
@@ -349,10 +349,10 @@ C references: `cktic.c`, `cktload.c` (`.nodeset`/`.ic` row stamping),
 `niiter.c` (`MODEUIC` shortcut, `MODEINITJCT`/`MODEINITFIX` phases),
 `niconv.c` with `DIOconvTest`/`BJTconvTest`/`MOS1convTest` (`NEWCONV`),
 `dctran.c`, `dioload.c`/`diogetic.c`, `bjtload.c`/`bjtgetic.c`,
-`mos1load.c`/`mos1ic.c`. Code: `spice_devices::limiting`
+`mos1load.c`/`mos1ic.c`. Code: `devices::limiting`
 (`Linearization::InitialConditions`, `Limiter::holds_off`,
-`Limiter::test_held`), `spice_analysis::bias::NodeForcing`,
-`spice_analysis::initial`, `companion.rs`.
+`Limiter::test_held`), `analysis::bias::NodeForcing`,
+`analysis::initial`, `companion.rs`.
 
 | Input | ngspice | This port |
 | --- | --- | --- |
@@ -374,7 +374,7 @@ vector holds the supply at 0 V) can make the first trial's Jacobian too
 ill-conditioned for the port's rank-checked sparse LU; the run then fails with
 the numerical error where C's pivoting factors on. Evidence: the six `m7_ic_*`
 goldens ([VERIFICATION.md](VERIFICATION.md#m7-nonlinear-initial-conditions-99))
-and `crates/spice-analysis/tests/nonlinear_initial.rs`.
+and `tests/nonlinear_initial.rs`.
 
 ## Demonstrated local gate (#41)
 
@@ -412,7 +412,7 @@ exact external variable-set/unit checks. The public Rust `sweep` scale name is
 normalized to C's `v(v-sweep)`/`i(i-sweep)` naming for verification only.
 No model quantities or external signals are excluded to hide an error.
 
-`spice-analysis/tests/m4_gate.rs` additionally pins polarity and finite gain,
+`tests/m4_gate.rs` additionally pins polarity and finite gain,
 MOS cutoff/triode/saturation/reversal square law, transistor DC Jacobian finite
 differences, diode junction/KCL residuals, physical integrated charge at a finer
 mesh, every state-pair's Q-based companion recurrence, discarded-trial/history

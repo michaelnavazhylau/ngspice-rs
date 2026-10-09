@@ -756,6 +756,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ngspice-rs"
+version = "0.0.0"
+dependencies = [
+ "diffsol",
+ "faer",
+ "petgraph",
+ "winnow",
+]
+
+[[package]]
 name = "npyz"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1230,60 +1240,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9395f0f0eee849a9b707b2f06bb92a6a422090e2123bb2ef8e87a0e61892a8e"
 
 [[package]]
-name = "spice-analysis"
-version = "0.0.0"
-dependencies = [
- "petgraph",
- "spice-core",
- "spice-devices",
- "spice-maths",
- "spice-netlist",
-]
-
-[[package]]
-name = "spice-cli"
-version = "0.0.0"
-dependencies = [
- "spice-analysis",
- "spice-core",
- "spice-devices",
- "spice-netlist",
-]
-
-[[package]]
-name = "spice-core"
-version = "0.0.0"
-
-[[package]]
-name = "spice-devices"
-version = "0.0.0"
-dependencies = [
- "petgraph",
- "spice-core",
- "spice-maths",
- "spice-netlist",
-]
-
-[[package]]
-name = "spice-maths"
-version = "0.0.0"
-dependencies = [
- "diffsol",
- "faer",
- "petgraph",
- "spice-core",
-]
-
-[[package]]
-name = "spice-netlist"
-version = "0.0.0"
-dependencies = [
- "petgraph",
- "spice-core",
- "winnow",
-]
-
-[[package]]
 name = "spindle"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1609,10 +1565,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 name = "xtask"
 version = "0.0.0"
 dependencies = [
- "spice-analysis",
- "spice-core",
- "spice-devices",
- "spice-netlist",
+ "ngspice-rs",
 ]
 
 [[package]]

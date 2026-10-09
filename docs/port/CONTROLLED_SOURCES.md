@@ -12,9 +12,9 @@ C references (read-only): `src/spicelib/parser/inp2e.c` … `inp2h.c`,
 `src/frontend/subckt.c` (`translate()`), `src/spicelib/devices/vcvs/`,
 `vccs/`, `cccs/`, `ccvs/` (`*set.c`, `*load.c`, `*par.c`) and
 `src/spicelib/analysis/cktfbran.c` (`CKTfndBranch`). The Rust side is
-`crates/spice-netlist/src/parser/controlled.rs` (grammar),
-`crates/spice-devices/src/controlled.rs` (device and stamps) and the
-controlling-branch resolution in `crates/spice-devices/src/circuit.rs`.
+`src/netlist/parser/controlled.rs` (grammar),
+`src/devices/controlled.rs` (device and stamps) and the
+controlling-branch resolution in `src/devices/circuit.rs`.
 
 ## Syntax
 
@@ -103,14 +103,14 @@ targets.
 
 ## Verification
 
-- Netlist: `crates/spice-netlist/tests/controlled_sources.rs` (forms, positions,
+- Netlist: `tests/netlist_controlled_sources.rs` (forms, positions,
   errors, writer round trip), `conformance/parser/controlled_sources.cir` and
   `conformance/cases/error_controlled_{poly,gain}.cir` snapshots, and the opt-in
   live C setter-order probe `parsed_controlled_source_setters_match_live_c_gains`.
-- Devices: `crates/spice-devices/tests/controlled_sources.rs` (C stamp entries,
+- Devices: `tests/devices_controlled_sources.rs` (C stamp entries,
   signs, mode independence, forward/E/H controls, hierarchical controls,
   errors, registry).
-- Analyses: `crates/spice-analysis/tests/controlled_sources.rs` (analytic OP
+- Analyses: `tests/analysis_controlled_sources.rs` (analytic OP
   signs, an ideal op-amp (gain 1e6) in inverting, non-inverting and follower
   loops, DC sweeps, frequency-independent AC, analytic second-order transient
   on both backends, `.save` and `.measure` of branch currents, singular ideal
@@ -157,7 +157,7 @@ check happens after the solve:
   is compared with the solved one; a mismatch is an impulse error naming the
   capacitor and the controlled sources.
 
-Both cases are pinned by `crates/spice-analysis/tests/controlled_sources.rs`
+Both cases are pinned by `tests/analysis_controlled_sources.rs`
 against values from the C binary.
 
 - `m=` scaling and `sens_*` sensitivity setters are limited to the forms above.

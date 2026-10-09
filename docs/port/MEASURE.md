@@ -13,16 +13,16 @@ Route map:
 
 | Item | Where |
 | --- | --- |
-| `.measure`/`.meas` parsing (typed, positioned requests) | `crates/spice-netlist/src/parser/measure.rs` |
-| Request AST (`MeasureCard`, `MeasureRequest`, `MeasureEvent`, `MeasureWindow`) | `crates/spice-netlist/src/ast.rs` |
+| `.measure`/`.meas` parsing (typed, positioned requests) | `src/netlist/parser/measure.rs` |
+| Request AST (`MeasureCard`, `MeasureRequest`, `MeasureEvent`, `MeasureWindow`) | `src/netlist/ast.rs` |
 | Parser entry point that returns them | `Parser::parse_deck_with_output` / `parse_file_with_output`, field `ParsedDeck::measurements` |
-| Evaluation over a full `Plot`, and the text rendering | `crates/spice-analysis/src/measure.rs` |
-| Shared operand resolution (`v(a,b)`, ground, AC components) | `crates/spice-analysis/src/selection.rs` (`resolve_request`, `Column`) |
-| CLI wiring (`simulate`) | `crates/spice-cli/src/simulate.rs` (`Report::measured`, `Report::measurements`) |
-| Unit tests over synthetic plots | `crates/spice-analysis/src/measure.rs` (`mod tests`) |
-| Parser tests | `crates/spice-netlist/tests/measure_cards.rs` |
-| Process tests (report, hidden operand, failures) | `crates/spice-cli/tests/simulate.rs` |
-| Opt-in live-C comparison (`#[ignore]`d, `NGSPICE_BIN`) | `crates/spice-analysis/tests/c_measure_reference.rs` |
+| Evaluation over a full `Plot`, and the text rendering | `src/analysis/measure.rs` |
+| Shared operand resolution (`v(a,b)`, ground, AC components) | `src/analysis/selection.rs` (`resolve_request`, `Column`) |
+| CLI wiring (`simulate`) | `src/cli/simulate.rs` (`Report::measured`, `Report::measurements`) |
+| Unit tests over synthetic plots | `src/analysis/measure.rs` (`mod tests`) |
+| Parser tests | `tests/measure_cards.rs` |
+| Process tests (report, hidden operand, failures) | `tests/simulate.rs` |
+| Opt-in live-C comparison (`#[ignore]`d, `NGSPICE_BIN`) | `tests/c_measure_reference.rs` |
 
 ## What ngspice does
 
@@ -148,13 +148,13 @@ discontinuity because the drivers guarantee a sample on every source breakpoint:
   accepted time point, so "no sample ever interpolates across a breakpoint and
   every breakpoint inside the run has a sample; ... the sample at a breakpoint is
   the left limit and the next sample is the first step of the right-hand
-  segment" (`crates/spice-analysis/src/companion.rs:50-56`);
+  segment" (`src/analysis/companion.rs:50-56`);
 * the diffsol segments likewise break at every source breakpoint and restart the
-  state from the right (`crates/spice-analysis/src/transient.rs`, the
+  state from the right (`src/analysis/transient.rs`, the
   `DaeSegment` loop);
 * the forcing rule itself never spans a jump: transient loads evaluate a step
   that ends at a breakpoint with `Limit::Left` and the next one with
-  `Limit::Right` (`crates/spice-devices/src/linear.rs:4-19`).
+  `Limit::Right` (`src/devices/linear.rs:4-19`).
 
 For a plot that did **not** come from these drivers (a hand-built or imported
 plot), the samples are the only evidence available, and the rule above is
@@ -260,10 +260,10 @@ pub struct Measurement {
     pub events: Option<MeasureEvents>,   // TRIG/TARG: both axis positions
 }
 
-pub fn spice_analysis::measure::resolve(
+pub fn analysis::measure::resolve(
     plot: &Plot, kind: AnalysisKind, cards: &[MeasureCard],
 ) -> SpiceResult<Vec<Measurement>>;
-pub fn spice_analysis::measure::to_text(results: &[Measurement]) -> String;
+pub fn analysis::measure::to_text(results: &[Measurement]) -> String;
 ```
 
 The CLI appends the block after the report (and after a `.print` table):
@@ -287,26 +287,26 @@ the `Date:` header).
 
 ## Testing
 
-* `crates/spice-analysis/src/measure.rs` unit-tests hand-built plots with
+* `src/analysis/measure.rs` unit-tests hand-built plots with
   analytic results: constants, ramps (with the trapezoid rule's own O(h²) error
   stated), sinusoids (RMS `1/√2`, zero mean, crossings at 7/12 and 11/12 of a
   period), crossing counts/`LAST`, window boundaries off the samples, empty and
   out-of-range windows, zero-width windows, duplicate times at jumps, missing
   operands and axes, descending axes, non-finite operands and results, and the
   exact text block.
-* `crates/spice-netlist/tests/measure_cards.rs` covers the grammar: every
+* `tests/measure_cards.rs` covers the grammar: every
   supported operation, both card spellings, positions, selectors, the rejection
   matrix, body-local cards, and the writer/`semantic_eq` round trip.
-* `crates/spice-cli/tests/simulate.rs` runs the binary: the measurement block,
+* `tests/simulate.rs` runs the binary: the measurement block,
   the unchanged rawfile/stdout without a card, an operand the selection dropped,
   and the "a failed measurement publishes nothing" contract (empty stdout, exit
   2 or 3, the destination untouched).
-* `crates/spice-analysis/tests/c_measure_reference.rs` is the opt-in live-C
+* `tests/c_measure_reference.rs` is the opt-in live-C
   comparison (`.tran` delay/rise/statistics, `.ac` magnitude/dB, `.dc` values and
   integrals). It is `#[ignore]`d and driven by `NGSPICE_BIN`:
 
   ```
-  NGSPICE_BIN=/path/to/ngspice cargo test -p spice-analysis \
+  NGSPICE_BIN=/path/to/ngspice cargo test -p ngspice-rs \
       --test c_measure_reference -- --ignored
   ```
 
