@@ -1,8 +1,8 @@
 # Conformance fixtures
 
 Every `*.cir` file here is a **pure deck**: no `.control` section and no file
-I/O. Most have exactly one analysis card; `multi_analysis_rc` deliberately has
-four (see below). `cargo xtask golden capture` instruments each one
+I/O. Most have exactly one analysis card; `multi_analysis_rc` and the M6 exit
+gate `m6_gate` deliberately have four (see below). `cargo xtask golden capture` instruments each one
 by inserting
 
 ```spice
@@ -83,6 +83,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
 | `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
 | `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
+| `m6_gate` | `.tran` `.ac` `.op` `.dc` | M6 exit gate: SIN-driven K transformer (1:2, k = 0.98) into a G/E op-amp subcircuit (gain `{gain}` from `.param`), `.func` B limiter, H current sense, `.option reltol=1e-4` |
 | `controlled_op` | `.op` | E/F/G/H signs, E op-amp loop (gain 1e4), F sensing an E branch, H inside a subcircuit, HSPICE keyword, `(a,b)` controls, G `m=` |
 | `controlled_ac` | `.ac` | E integrator (gain 1e4), G into an RC, F/H sensing a load current (`lin`) |
 | `controlled_tran` | `.tran` | PULSE RC buffered by E, G charging a second RC, F/H sensing its current |

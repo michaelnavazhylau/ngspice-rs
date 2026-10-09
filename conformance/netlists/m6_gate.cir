@@ -1,0 +1,33 @@
+M6 exit gate: SIN-driven transformer into an op-amp stage with a behavioural limiter
+* Every analysis card runs (ngspice batch order: .ac, .dc, .op, .tran).
+.param gain=10 rg=1k
+.func half(x) {x/2}
+.option reltol=1e-4
+vin in 0 dc 0 ac 1 sin(0 0.1 1k)
+vref ref 0 dc 0
+rs in p1 50
+l1 p1 0 100m
+l2 s1 0 400m
+k1 l1 l2 0.98
+rload s1 0 10k
+* Single-pole op-amp: 1 mS into 100 Meg || 159 pF (DC gain 1e5, GBW 1 MHz),
+* buffered by a unity VCVS.
+.subckt opamp inp inn out
+g1 0 x inp inn 1m
+r1 x 0 100meg
+c1 x 0 159p
+e1 out 0 x 0 1
+.ends
+xop s1 fb out opamp
+rf out fb {(gain-1)*rg}
+rg fb ref {rg}
+* Behavioural soft limiter and a current-sensing CCVS on its load.
+blim lim 0 v=2*tanh(half(v(out)))
+vsense lim sense 0
+rlim sense 0 1k
+hsense isense 0 vsense 100
+.tran 10u 3m
+.ac dec 5 10 100k
+.op
+.dc vref -0.5 0.5 0.1
+.end

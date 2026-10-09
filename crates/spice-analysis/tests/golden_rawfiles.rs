@@ -1641,64 +1641,207 @@ const EXPECTATIONS: &[Expectation] = &[
 /// order, which is ngspice's batch order (`.ac`, `.dc`, `.op`, `.tran`), not
 /// the deck order.
 #[allow(clippy::excessive_precision)]
-const MULTI_EXPECTATIONS: &[&[Expectation]] = &[&[
-    // Thevenin source of the 1k/2k divider: 2/3 of the drive behind 2/3 k, so
-    // the corner is 1/(2 pi 666.7 ohm 100 nF) = 2.39 kHz; at 100 Hz the
-    // response is (2/3) / (1 + j 0.041888).
-    Expectation {
-        fixture: "multi_analysis_rc",
-        plotname: "AC Analysis",
-        flags: PlotFlags::Complex,
-        points: 5,
-        variables: &["frequency", "v(in)", "v(out)", "i(v1)"],
-        values: &[
-            ("frequency", 0, 100.0, 0.0),
-            ("v(out)", 0, 6.654989845853894e-01, -2.787635627926568e-02),
-            ("i(v1)", 0, -3.345010154146106e-04, -2.787635627926568e-05),
-        ],
-    },
-    // The sweep scales the divider: v(out) = 2/3 v1, i(v1) = -v1 / 3 k.
-    Expectation {
-        fixture: "multi_analysis_rc",
-        plotname: "DC transfer characteristic",
-        flags: PlotFlags::Real,
-        points: 5,
-        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
-        values: &[
-            ("v(v-sweep)", 3, 1.5, 0.0),
-            ("v(out)", 3, 1.0, 0.0),
-            ("i(v1)", 3, -5.0e-4, 0.0),
-        ],
-    },
-    // The operating point uses the source's `dc 2`, not the pulse's t = 0 value.
-    Expectation {
-        fixture: "multi_analysis_rc",
-        plotname: "Operating Point",
-        flags: PlotFlags::Real,
-        points: 1,
-        variables: &["v(in)", "v(out)", "i(v1)"],
-        values: &[
-            ("v(in)", 0, 2.0, 0.0),
-            ("v(out)", 0, 1.333333333333333e+00, 0.0),
-            ("i(v1)", 0, -6.666666666666668e-04, 0.0),
-        ],
-    },
-    // The transient starts from the pulse's 0 V and, 480 us after the pulse
-    // ended, has decayed by about exp(-480/66.7) toward zero.
-    Expectation {
-        fixture: "multi_analysis_rc",
-        plotname: "Transient Analysis",
-        flags: PlotFlags::Real,
-        points: 124,
-        variables: &["time", "v(in)", "v(out)", "i(v1)"],
-        values: &[
-            ("v(out)", 0, 0.0, 0.0),
-            ("time", 123, 1.0e-3, 0.0),
-            ("v(out)", 123, 4.549183592268200e-04, 0.0),
-            ("i(v1)", 123, 4.549183592268200e-07, 0.0),
-        ],
-    },
-]];
+const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
+    &[
+        // Thevenin source of the 1k/2k divider: 2/3 of the drive behind 2/3 k, so
+        // the corner is 1/(2 pi 666.7 ohm 100 nF) = 2.39 kHz; at 100 Hz the
+        // response is (2/3) / (1 + j 0.041888).
+        Expectation {
+            fixture: "multi_analysis_rc",
+            plotname: "AC Analysis",
+            flags: PlotFlags::Complex,
+            points: 5,
+            variables: &["frequency", "v(in)", "v(out)", "i(v1)"],
+            values: &[
+                ("frequency", 0, 100.0, 0.0),
+                ("v(out)", 0, 6.654989845853894e-01, -2.787635627926568e-02),
+                ("i(v1)", 0, -3.345010154146106e-04, -2.787635627926568e-05),
+            ],
+        },
+        // The sweep scales the divider: v(out) = 2/3 v1, i(v1) = -v1 / 3 k.
+        Expectation {
+            fixture: "multi_analysis_rc",
+            plotname: "DC transfer characteristic",
+            flags: PlotFlags::Real,
+            points: 5,
+            variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
+            values: &[
+                ("v(v-sweep)", 3, 1.5, 0.0),
+                ("v(out)", 3, 1.0, 0.0),
+                ("i(v1)", 3, -5.0e-4, 0.0),
+            ],
+        },
+        // The operating point uses the source's `dc 2`, not the pulse's t = 0 value.
+        Expectation {
+            fixture: "multi_analysis_rc",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &["v(in)", "v(out)", "i(v1)"],
+            values: &[
+                ("v(in)", 0, 2.0, 0.0),
+                ("v(out)", 0, 1.333333333333333e+00, 0.0),
+                ("i(v1)", 0, -6.666666666666668e-04, 0.0),
+            ],
+        },
+        // The transient starts from the pulse's 0 V and, 480 us after the pulse
+        // ended, has decayed by about exp(-480/66.7) toward zero.
+        Expectation {
+            fixture: "multi_analysis_rc",
+            plotname: "Transient Analysis",
+            flags: PlotFlags::Real,
+            points: 124,
+            variables: &["time", "v(in)", "v(out)", "i(v1)"],
+            values: &[
+                ("v(out)", 0, 0.0, 0.0),
+                ("time", 123, 1.0e-3, 0.0),
+                ("v(out)", 123, 4.549183592268200e-04, 0.0),
+                ("i(v1)", 123, 4.549183592268200e-07, 0.0),
+            ],
+        },
+    ],
+    &[
+        // M6 exit gate. At 10 Hz the closed loop is 10 / (1 + 10/1e5) with
+        // the op-amp's 10 Hz pole already turning; the B limiter's slope at
+        // the 0 V bias is 1, so v(lim) = v(out), and the H sense is v(lim)/10.
+        Expectation {
+            fixture: "m6_gate",
+            plotname: "AC Analysis",
+            flags: PlotFlags::Complex,
+            points: 21,
+            variables: &[
+                "frequency",
+                "i(blim)",
+                "i(e.xop.e1)",
+                "v(fb)",
+                "i(hsense)",
+                "v(in)",
+                "v(isense)",
+                "i(l1)",
+                "i(l2)",
+                "v(lim)",
+                "v(out)",
+                "v(p1)",
+                "v(ref)",
+                "v(s1)",
+                "v(sense)",
+                "i(vin)",
+                "i(vref)",
+                "i(vsense)",
+                "v(xop.x)",
+            ],
+            values: &[
+                ("frequency", 0, 1.000000000000000e+01, 0.0),
+                ("v(s1)", 0, 3.106057325456545e-02, 2.423226442281318e-01),
+                ("v(out)", 0, 3.108167103009356e-01, 2.422953095559862e+00),
+                ("v(lim)", 0, 3.108167103009356e-01, 2.422953095559862e+00),
+                ("v(isense)", 0, 3.108167103009356e-02, 2.422953095559862e-01),
+            ],
+        },
+        // The secondary shorts s1 at DC: v(out) = -9 vref / (1 + 10/1e5)
+        // (4.49955 V at vref = -0.5), v(lim) = 2 tanh(v(out)/2).
+        Expectation {
+            fixture: "m6_gate",
+            plotname: "DC transfer characteristic",
+            flags: PlotFlags::Real,
+            points: 11,
+            variables: &[
+                "v(v-sweep)",
+                "i(blim)",
+                "i(e.xop.e1)",
+                "v(fb)",
+                "i(hsense)",
+                "v(in)",
+                "v(isense)",
+                "i(l1)",
+                "i(l2)",
+                "v(lim)",
+                "v(out)",
+                "v(p1)",
+                "v(ref)",
+                "v(s1)",
+                "v(sense)",
+                "i(vin)",
+                "i(vref)",
+                "i(vsense)",
+                "v(xop.x)",
+            ],
+            values: &[
+                ("v(v-sweep)", 0, -5.000000000000000e-01, 0.0),
+                ("v(s1)", 0, 0.0, 0.0),
+                ("v(out)", 0, 4.499550044995501e+00, 0.0),
+                ("v(lim)", 0, 1.956032667915977e+00, 0.0),
+                ("v(isense)", 0, 1.956032667915977e-01, 0.0),
+                ("v(out)", 10, -4.499550044995501e+00, 0.0),
+            ],
+        },
+        // Every source is 0 V at DC: the circuit rests at zero.
+        Expectation {
+            fixture: "m6_gate",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(in)",
+                "i(blim)",
+                "i(e.xop.e1)",
+                "v(fb)",
+                "i(hsense)",
+                "v(isense)",
+                "i(l1)",
+                "i(l2)",
+                "v(lim)",
+                "v(out)",
+                "v(p1)",
+                "v(ref)",
+                "v(s1)",
+                "v(sense)",
+                "i(vin)",
+                "i(vref)",
+                "i(vsense)",
+                "v(xop.x)",
+            ],
+            values: &[("v(out)", 0, 0.0, 0.0), ("v(lim)", 0, 0.0, 0.0)],
+        },
+        // From rest at t = 0; at 3 ms (three SIN periods) the drive is back
+        // at zero and the output small, where the limiter is nearly linear.
+        Expectation {
+            fixture: "m6_gate",
+            plotname: "Transient Analysis",
+            flags: PlotFlags::Real,
+            points: 327,
+            variables: &[
+                "time",
+                "i(blim)",
+                "i(e.xop.e1)",
+                "v(fb)",
+                "i(hsense)",
+                "v(in)",
+                "v(isense)",
+                "i(l1)",
+                "i(l2)",
+                "v(lim)",
+                "v(out)",
+                "v(p1)",
+                "v(ref)",
+                "v(s1)",
+                "v(sense)",
+                "i(vin)",
+                "i(vref)",
+                "i(vsense)",
+                "v(xop.x)",
+            ],
+            values: &[
+                ("time", 0, 0.0, 0.0),
+                ("v(out)", 0, 0.0, 0.0),
+                ("time", 326, 3.000000000000000e-03, 0.0),
+                ("v(out)", 326, 7.708097104984421e-02, 0.0),
+                ("v(lim)", 326, 7.704282914934442e-02, 0.0),
+                ("v(isense)", 326, 7.704282914934442e-03, 0.0),
+            ],
+        },
+    ],
+];
 
 fn check_plot(expectation: &Expectation, plot: &spice_analysis::Plot) {
     assert_eq!(

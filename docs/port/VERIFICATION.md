@@ -94,6 +94,35 @@ transfer characteristic`, `Operating Point`, `Transient Analysis`.
 `cargo xtask golden verify` reported **27 verified fixture(s), 0 unsupported
 fixture(s), 0 failure(s)** on the multi-analysis slice branch.
 
+## M6 exit gate
+
+The milestone's exit criterion is a representative deck that runs end to end
+with every analysis it contains. `conformance/netlists/m6_gate.cir` drives a
+1:2 K transformer (k = 0.98) with `SIN(0 0.1 1k)` into a non-inverting op-amp
+stage: a subcircuit macromodel (G into 100 Meg || 159 pF, buffered by E;
+DC gain 1e5, GBW 1 MHz) with `rf = {(gain-1)*rg}` from `.param`. Its output
+feeds a `.func`-based B limiter `2 tanh(half(v(out)))` whose load current an H
+source senses; `.option reltol=1e-4` applies to every analysis. The deck lists
+`.tran .ac .op .dc`; C batch order gives four plots.
+
+* **Golden.** Captured once with `cargo xtask golden capture --netlist
+  m6_gate`; no other golden was touched. Registered in `BATCH`: AC, DC and OP
+  under `compare::NONLINEAR`, the transient under `compare::TRAN` (301
+  instants, worst error 0.077 of the bound). The transient breakpoint
+  enumerator now accepts subcircuits without V/I waveform sources (a
+  macromodel adds no breakpoints) and still refuses ones that contain them.
+* **Circuit relations.** `spice-cli/tests/simulate.rs`
+  (`the_m6_gate_deck_runs_every_analysis_end_to_end`) runs `spice-rs
+  simulate` and checks, independently of C: the batch order and the C vector
+  set; AC closed-loop gain 10 at 10 Hz and the limiter's unit small-signal
+  slope; DC `v(out) = -9 vref` with the limiter and sense exact at every
+  point; an all-zero operating point; and in the transient a ~2 V peak that
+  the limiter compresses, with `v(lim) = 2 tanh(v(out)/2)` and
+  `v(isense) = v(lim)/10` at every timepoint.
+
+`cargo xtask golden verify` reports **59 verified fixture(s), 0 unsupported
+fixture(s), 0 failure(s)** with the gate.
+
 ## Historical bounded M5 gate (#18, #6, #45, #42, #43, #44)
 
 `cargo xtask golden verify` reports **26 verified fixture(s), 0 unsupported

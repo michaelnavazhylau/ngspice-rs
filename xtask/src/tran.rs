@@ -27,7 +27,9 @@ use std::collections::BTreeMap;
 
 use spice_analysis::{Plot, PlotFlags};
 use spice_core::parse_spice_number;
-use spice_netlist::ast::{DeviceInstance, Netlist, ParameterKind, PositionedValue, SourceWaveform};
+use spice_netlist::ast::{
+    DeviceInstance, Netlist, ParameterKind, PositionedValue, SourceWaveform, Subcircuit,
+};
 
 use crate::compare::{self, TranTolerance};
 
@@ -358,14 +360,16 @@ fn number(value: &PositionedValue, what: &str, device: &str) -> Result<f64, Stri
 /// * SIN/EXP/SFFM/AM: none (C sets no breakpoints for them); fields are still
 ///   checked to be numbers.
 ///
-/// Only top-level V/I sources are inspected; a deck with subcircuit definitions
-/// is rejected because waveforms inside them are not enumerated.
+/// Only top-level V/I sources are inspected; a deck whose subcircuit
+/// definitions (at any depth) contain a V/I waveform source is rejected because
+/// waveforms inside them are not enumerated. Subcircuits without such sources
+/// (e.g. an op-amp macromodel) add no breakpoints and are accepted.
 /// Expression-valued or non-numeric waveform fields are errors.
 pub(crate) fn breakpoints(netlist: &Netlist, tstep: f64, tstop: f64) -> Result<Vec<f64>, String> {
     if !(tstep.is_finite() && tstep > 0.0 && tstop.is_finite() && tstop > 0.0) {
         return Err("tstep and tstop must be finite and positive".into());
     }
-    if !netlist.subcircuits.is_empty() {
+    if netlist.subcircuits.iter().any(has_waveform_source) {
         return Err("breakpoints: subcircuit waveforms are not enumerated".into());
     }
     let eps = TIME_EPS_REL * tstop;
@@ -386,6 +390,18 @@ pub(crate) fn breakpoints(netlist: &Netlist, tstep: f64, tstop: f64) -> Result<V
     times.sort_by(f64::total_cmp);
     times.dedup_by(|b, a| (*b - *a).abs() <= eps);
     Ok(times)
+}
+
+/// Whether a subcircuit body, or one nested in it, defines a V/I source with a
+/// waveform setter.
+fn has_waveform_source(subcircuit: &Subcircuit) -> bool {
+    subcircuit.devices.iter().any(|device| {
+        matches!(device.designator, 'v' | 'i')
+            && device
+                .parameters
+                .iter()
+                .any(|p| matches!(p.kind, ParameterKind::Waveform(_)))
+    }) || subcircuit.subcircuits.iter().any(has_waveform_source)
 }
 
 /// The last scalar `name=` setter of `device`, if any.
@@ -815,6 +831,27 @@ mod tests {
         let found = breakpoints(&netlist, 1e-5, 8e-3).unwrap();
         assert_eq!(found, vec![1e-3, 1.01e-3, 6e-3]);
         assert!(breakpoints(&netlist, 0.0, 8e-3).is_err());
+    }
+
+    #[test]
+    fn only_subcircuits_holding_waveform_sources_are_refused() {
+        // A source-free macromodel (the M6 gate's op-amp) adds no breakpoints.
+        let netlist = deck(
+            "v1 in 0 pulse(0 1 1m 1u 1u 1m)\n.subckt amp a b\ne1 b 0 a 0 2\n.ends\nx1 in out amp",
+        );
+        assert_eq!(
+            breakpoints(&netlist, 1e-5, 4e-3).unwrap(),
+            vec![1e-3, 1.001e-3, 2.001e-3, 2.002e-3]
+        );
+        // A waveform source in a nested definition is not enumerated.
+        let netlist = deck(
+            ".subckt outer a\n.subckt inner b\nv1 b 0 pulse(0 1)\n.ends\nx1 a inner\n.ends\nx1 n outer",
+        );
+        assert!(
+            breakpoints(&netlist, 1e-5, 4e-3)
+                .unwrap_err()
+                .contains("not enumerated")
+        );
     }
 
     #[test]

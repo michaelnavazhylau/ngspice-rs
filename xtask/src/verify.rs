@@ -448,36 +448,73 @@ struct Batch {
     stages: &'static [Stage],
 }
 
-const BATCH: &[Batch] = &[Batch {
-    name: "multi_analysis_rc",
-    stages: &[
-        Stage {
-            kind: AnalysisKind::Ac,
-            gate: Gate::Points {
-                axis: Some("frequency"),
-                tolerance: compare::AC,
+const BATCH: &[Batch] = &[
+    Batch {
+        name: "multi_analysis_rc",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
             },
-        },
-        Stage {
-            kind: AnalysisKind::DcSweep,
-            gate: Gate::Points {
-                axis: None,
-                tolerance: compare::DC,
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
             },
-        },
-        Stage {
-            kind: AnalysisKind::OperatingPoint,
-            gate: Gate::Points {
-                axis: None,
-                tolerance: compare::DC,
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
             },
-        },
-        Stage {
-            kind: AnalysisKind::Transient,
-            gate: Gate::Transient(compare::TRAN),
-        },
-    ],
-}];
+            Stage {
+                kind: AnalysisKind::Transient,
+                gate: Gate::Transient(compare::TRAN),
+            },
+        ],
+    },
+    // The M6 exit gate: a SIN-driven K transformer into a G/E op-amp subcircuit
+    // with `.param`/`.func`/`{expr}` values, a B limiter, an H current sense and
+    // `.option reltol`, running every analysis card. Nonlinear (the B source), so
+    // the DC-type plots and AC keep the nonlinear 1 ppm bound and the transient
+    // `compare::TRAN`.
+    Batch {
+        name: "m6_gate",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::DcSweep,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Transient,
+                gate: Gate::Transient(compare::TRAN),
+            },
+        ],
+    },
+];
 
 /// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
 /// every committed deck, including `subckt_divider`, is verified through its

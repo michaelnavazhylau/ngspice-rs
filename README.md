@@ -59,9 +59,11 @@ spice-rs devices                             # list supported device designators
 spice-rs analyses                            # list analyses and their status
 ```
 
-`devices` reports the model-less card factories: model-backed families (D/Q/M,
-and S/W, which require an `sw`/`csw` model) are listed as pending there but
-elaborate through `.model` in `simulate`.
+`devices` marks each designator `ported` (built from its card), `bounded`
+(D/Q/M, S/W and X: built from the deck, through `.model` or `.subckt`, for the
+stated subset) or `pending` (`NotYetPorted`); `analyses` lists the four drivers
+and `.four` as a post-processor of `.tran`. Both are derived from the code and
+pinned by tests (#117).
 
 `simulate` runs every `.op`, `.dc`, `.ac` and `.tran` card of a deck in ngspice
 batch order (`.ac`, `.dc`, `.op`, `.tran`) and writes one plot per analysis;
@@ -95,8 +97,8 @@ cargo xtask golden verify                            # Rust engine vs committed 
 NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-`golden verify` currently verifies all 58 golden fixtures (one of them a
-four-plot multi-analysis deck) with no exclusions.
+`golden verify` currently verifies all 59 golden fixtures (two of them
+four-plot multi-analysis decks) with no exclusions.
 [VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
 and its limits.
 

@@ -1572,3 +1572,108 @@ fn m6_features_combine_in_one_multi_analysis_deck() {
     assert!(tran.value("v(o)", last).unwrap().re.abs() < 1e-9);
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
+    // The M6 exit gate: a SIN-driven 1:2 K transformer into a non-inverting
+    // G/E op-amp stage (gain {gain} = 10 from `.param`, rf = {(gain-1)*rg}),
+    // a `.func` B limiter v(lim) = 2 tanh(v(out)/2) and an H sense
+    // v(isense) = 100 i(vsense) = v(lim)/10. `golden verify` compares every
+    // plot with C; this checks the circuit relations the port must honour.
+    let dir = scratch("m6_gate");
+    let output = dir.join("gate.raw");
+    let run = simulate(&output, &fixture("m6_gate"));
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    assert!(
+        stdout(&run).contains("plots:     ac1 dc1 op1 tran1 (ngspice batch order)"),
+        "{}",
+        stdout(&run)
+    );
+    let written = RawFile::load(&output).expect("parses");
+    let committed = golden("m6_gate");
+    assert_eq!(plotnames(&written), plotnames(&committed));
+    // The same vectors as C (golden verify matches them by name; C's column
+    // order differs for this deck).
+    for (got, want) in written.plots.iter().zip(&committed.plots) {
+        let mut want_names = variable_names(&want.plot);
+        if want_names.first() == Some(&"v(v-sweep)") {
+            want_names[0] = "sweep";
+        }
+        let mut got_names = variable_names(&got.plot);
+        got_names.sort_unstable();
+        want_names.sort_unstable();
+        assert_eq!(got_names, want_names, "{}", got.plot.plotname);
+    }
+    let column = |plot: usize, name: &str| {
+        written.plots[plot]
+            .plot
+            .column(name)
+            .unwrap_or_else(|| panic!("plot {plot}: no {name}"))
+    };
+    let close = |what: &str, got: f64, want: f64, relative: f64| {
+        assert!(
+            (got - want).abs() <= relative * want.abs() + 1e-9,
+            "{what}: {got} != {want}"
+        );
+    };
+    // AC at 10 Hz: the closed-loop gain is 10 (the loop gain is about 1e4
+    // there), and the limiter's small-signal slope at the 0 V bias is 1.
+    let (s1, out, lim, isense) = (
+        column(0, "v(s1)")[0],
+        column(0, "v(out)")[0],
+        column(0, "v(lim)")[0],
+        column(0, "v(isense)")[0],
+    );
+    close("ac gain", (out / s1).magnitude(), 10., 1e-3);
+    close("ac limiter", (lim - out).magnitude(), 0., 1e-9);
+    close(
+        "ac sense",
+        (isense * spice_core::Complex::real(10.) - lim).magnitude(),
+        0.,
+        1e-9,
+    );
+    // DC: the secondary shorts v(s1) to ground, so v(out) = -9 vref, and the
+    // limiter and sense follow it exactly at every point.
+    let sweep = column(1, "sweep");
+    let (out, lim, isense) = (
+        column(1, "v(out)"),
+        column(1, "v(lim)"),
+        column(1, "v(isense)"),
+    );
+    for point in 0..sweep.len() {
+        let vref = sweep[point].re;
+        close("dc out", out[point].re, -9. * vref, 1e-3);
+        close(
+            "dc limiter",
+            lim[point].re,
+            2. * (out[point].re / 2.).tanh(),
+            1e-9,
+        );
+        close("dc sense", isense[point].re, lim[point].re / 10., 1e-9);
+    }
+    // The operating point is at rest: every source is 0 V at DC.
+    for value in &written.plots[2].plot.points[0] {
+        assert!(value.magnitude() < 1e-9, "{value}");
+    }
+    // Transient: the 0.1 V, 1 kHz drive reaches about 2 V at v(out), where
+    // the limiter visibly compresses; it stays algebraic at every point.
+    let (out, lim, isense) = (
+        column(3, "v(out)"),
+        column(3, "v(lim)"),
+        column(3, "v(isense)"),
+    );
+    let peak = out.iter().map(|value| value.re.abs()).fold(0., f64::max);
+    assert!((1.5..2.5).contains(&peak), "peak {peak}");
+    for point in 0..out.len() {
+        close(
+            "tran limiter",
+            lim[point].re,
+            2. * (out[point].re / 2.).tanh(),
+            1e-6,
+        );
+        close("tran sense", isense[point].re, lim[point].re / 10., 1e-6);
+    }
+    let lim_peak = lim.iter().map(|value| value.re.abs()).fold(0., f64::max);
+    assert!(lim_peak < 0.9 * peak, "limiter {lim_peak} vs {peak}");
+    fs::remove_dir_all(&dir).unwrap();
+}
