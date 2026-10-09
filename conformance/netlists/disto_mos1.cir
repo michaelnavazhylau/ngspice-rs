@@ -1,0 +1,26 @@
+Harmonic and intermodulation distortion of MOS1 stages
+* #104: mos1dset.c/mos1dist.c. m1: NMOS in saturation with RD/RS, body
+* effect, bottom/sidewall bulk junctions and Meyer/overlap capacitances; m2:
+* NMOS in the linear region; m3: a PMOS common-source stage. The 2f1-f2 product
+* reproduces mos1dist.c reading H1 where H2(f1,f1) is meant. The later IM
+* card runs first (disto1..3).
+vdd vdd 0 5
+vin in 0 dc 0 ac 1 distof1 0.05 distof2 0.03 45
+cin in g 10u
+r1 vdd g 300k
+r2 g 0 200k
+rd vdd d 5k
+rs s 0 500
+m1 d g s 0 nm w=20u l=2u ad=40p as=40p pd=24u ps=24u
+m2 d2 g s2 0 nm w=10u l=2u
+rd2 vdd d2 200k
+rs2 s2 0 1k
+m3 d3 g vdd vdd pm w=10u l=2u
+rl3 d3 0 50k
+.model nm nmos(level=1 vto=0.8 kp=50u gamma=0.5 phi=0.65 lambda=0.03 rd=10 rs=10 cbd=20f cbs=20f
++ cj=1e-4 cjsw=1e-10 mj=0.4 mjsw=0.3 tox=20n cgso=1e-10 cgdo=1e-10 cgbo=1e-10 is=1e-14)
+.model pm pmos(level=1 vto=-0.8 kp=20u gamma=0.4 lambda=0.05 tox=20n cgso=1e-10 cgdo=1e-10 cj=1e-4 mj=0.5 mjsw=0.5 cjsw=1e-10)
+.option reltol=1e-7
+.disto dec 2 1k 10meg
+.disto dec 2 1k 10meg 0.7
+.end

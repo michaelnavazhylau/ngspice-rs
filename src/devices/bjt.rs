@@ -35,6 +35,8 @@
 //! later loads apply `DEVpnjlim`
 //! to `vbe`, `vbc` and `vsub`. C's `MODEINITPRED` extrapolation, bypass and
 //! the quasi-saturation `vbcx`/`vrci` limits (a rejected model) are not ported.
+mod disto;
+
 use crate::devices::limiting::{self, Limiter, Linearization};
 use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::schema::{
@@ -1836,6 +1838,15 @@ impl Device for Bjt {
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+
+    /// `bjtdset.c`/`bjtdisto.c` at the operating point (see the `disto`
+    /// submodule for C's simplified distortion model).
+    fn distortion(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        self.distortion_terms(context)
     }
 
     /// `bjtnoise.c` at the operating point: thermal noise of RC, RB (the

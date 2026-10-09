@@ -40,6 +40,7 @@ pub mod behavioural;
 pub mod bjt;
 pub mod circuit;
 pub mod controlled;
+pub mod distortion;
 mod factory;
 pub mod functions;
 mod initial;

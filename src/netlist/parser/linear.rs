@@ -183,6 +183,7 @@ fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> 
         alt((
             dc_parameters,
             ac_parameters,
+            distortion_parameters,
             port_parameter,
             super::waveform::parameters,
             super::waveform::pwl_options,
@@ -212,6 +213,29 @@ fn ac_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
         opt(equals),
         ac_value("acmag", "1", &token.location),
         ac_value("acphase", "0", &token.location),
+    ))
+    .map(|(_, magnitude, phase)| vec![magnitude, phase])
+    .parse_next(input)
+}
+
+/// `distof1 [mag [phase]]` / `distof2 [mag [phase]]` (`vsrc.c`/`isrc.c`
+/// `IF_REALVEC` setters, `vsrcpar.c`: a missing magnitude is 1 and a missing
+/// phase 0), kept as the ordered pair `distof<k>mag`, `distof<k>phase`.
+fn distortion_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
+    let (token, which) = alt((
+        keyword("distof1").map(|token| (token, 1)),
+        keyword("distof2").map(|token| (token, 2)),
+    ))
+    .parse_next(input)?;
+    let (magnitude, phase) = if which == 1 {
+        ("distof1mag", "distof1phase")
+    } else {
+        ("distof2mag", "distof2phase")
+    };
+    cut_err((
+        opt(equals),
+        ac_value(magnitude, "1", &token.location),
+        ac_value(phase, "0", &token.location),
     ))
     .map(|(_, magnitude, phase)| vec![magnitude, phase])
     .parse_next(input)

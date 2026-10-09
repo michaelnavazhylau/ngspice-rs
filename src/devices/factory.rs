@@ -151,6 +151,8 @@ pub(crate) fn instantiate(
     let mut pwl_delay: Option<(f64, SourceLoc)> = None;
     let mut pwl_repeat: Option<(f64, SourceLoc)> = None;
     let mut port = PortSetters::default();
+    // `distof1`/`distof2` (magnitude, phase), each setter replacing both.
+    let mut distortion: [Option<crate::devices::distortion::DistortionInput>; 2] = [None, None];
     for p in &instance.parameters {
         if let (ParameterKind::Waveform(source), 'v' | 'i') = (&p.kind, instance.designator) {
             if let Some((_, at)) = &pwl_repeat {
@@ -186,7 +188,17 @@ pub(crate) fn instantiate(
             || (instance.designator == 'r' && p.name == "noisy")
             || (matches!(instance.designator, 'c' | 'l') && p.name == "ic")
             || (matches!(instance.designator, 'v' | 'i')
-                && matches!(p.name.as_str(), "acmag" | "acphase" | "r" | "td"))
+                && matches!(
+                    p.name.as_str(),
+                    "acmag"
+                        | "acphase"
+                        | "r"
+                        | "td"
+                        | "distof1mag"
+                        | "distof1phase"
+                        | "distof2mag"
+                        | "distof2phase"
+                ))
             || (instance.designator == 'v'
                 && matches!(p.name.as_str(), "portnum" | "z0" | "pwr" | "freq" | "phase"));
         if !allowed {
@@ -212,6 +224,22 @@ pub(crate) fn instantiate(
                 ac_given = true;
             }
             "noisy" => noisy = (number + 0.5).floor() != 0.,
+            "distof1mag" | "distof2mag" | "distof1phase" | "distof2phase" => {
+                let slot = &mut distortion[usize::from(p.name.starts_with("distof2"))];
+                let input = slot.get_or_insert(crate::devices::distortion::DistortionInput {
+                    magnitude: 1.,
+                    phase: 0.,
+                });
+                if p.name.ends_with("mag") {
+                    // A new setter replaces both values (`vsrcpar.c`).
+                    *input = crate::devices::distortion::DistortionInput {
+                        magnitude: number,
+                        phase: 0.,
+                    };
+                } else {
+                    input.phase = number;
+                }
+            }
             "td" => pwl_delay = Some((number, p.location.clone())),
             "portnum" | "z0" | "pwr" | "freq" | "phase" => {
                 port.set(&p.name, number, &p.location)?
@@ -281,7 +309,8 @@ pub(crate) fn instantiate(
                 ),
                 waveform.unwrap_or(Waveform::Constant(value)),
             )?
-            .with_ac_given(ac_given);
+            .with_ac_given(ac_given)
+            .with_distortion(distortion[0], distortion[1])?;
             // Only V cards accept port setters (parser and allow-list above).
             match rf {
                 Some(rf) => Box::new(source.with_port(rf)?),

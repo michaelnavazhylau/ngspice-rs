@@ -44,6 +44,16 @@ impl ModelPassive {
     }
 }
 impl Device for ModelPassive {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `res`/`cap`/`ind` `*init.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

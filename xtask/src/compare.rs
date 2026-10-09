@@ -49,6 +49,19 @@ pub(crate) const NOISE_NONLINEAR: Tolerance = Tolerance {
     absolute: 1e-20,
 };
 
+/// `.disto` (#104): the nonlinear 1 ppm operating-point bound (every Taylor
+/// coefficient is evaluated at an independently converged bias), with an
+/// absolute floor scaled to distortion products rather than node voltages.
+/// Harmonic and intermodulation responses reach down to about 1e-16 V/A for
+/// small branch currents, which a 1e-12 floor would hide entirely; 1e-18
+/// stays below every such response yet above the residue (about 1e-28) a
+/// node fixed by a voltage source keeps in the Rust LU solve where C writes
+/// an exact zero.
+pub(crate) const DISTORTION: Tolerance = Tolerance {
+    relative: 1e-6,
+    absolute: 1e-18,
+};
+
 /// The original diode sweep was captured at C's default nonlinear RELTOL
 /// (1e-3), including bypass. Independent junction/KCL checks establish that the
 /// more accurate Rust root, not its equations, causes the 0.062% last-point

@@ -1,0 +1,151 @@
+# ngspice-rs ast-dump v1
+file: netlists/disto_mos1.cir
+title: "Harmonic and intermodulation distortion of MOS1 stages" @netlists/disto_mos1.cir:1:1
+scope root
+  cards (19):
+    [0] device[0] @netlists/disto_mos1.cir:7:1 "vdd vdd 0 5"
+    [1] device[1] @netlists/disto_mos1.cir:8:1 "vin in 0 dc 0 ac 1 distof1 0.05 distof2 0.03 45"
+    [2] device[2] @netlists/disto_mos1.cir:9:1 "cin in g 10u"
+    [3] device[3] @netlists/disto_mos1.cir:10:1 "r1 vdd g 300k"
+    [4] device[4] @netlists/disto_mos1.cir:11:1 "r2 g 0 200k"
+    [5] device[5] @netlists/disto_mos1.cir:12:1 "rd vdd d 5k"
+    [6] device[6] @netlists/disto_mos1.cir:13:1 "rs s 0 500"
+    [7] device[7] @netlists/disto_mos1.cir:14:1 "m1 d g s 0 nm w=20u l=2u ad=40p as=40p pd=24u ps=24u"
+    [8] device[8] @netlists/disto_mos1.cir:15:1 "m2 d2 g s2 0 nm w=10u l=2u"
+    [9] device[9] @netlists/disto_mos1.cir:16:1 "rd2 vdd d2 200k"
+    [10] device[10] @netlists/disto_mos1.cir:17:1 "rs2 s2 0 1k"
+    [11] device[11] @netlists/disto_mos1.cir:18:1 "m3 d3 g vdd vdd pm w=10u l=2u"
+    [12] device[12] @netlists/disto_mos1.cir:19:1 "rl3 d3 0 50k"
+    [13] model[0] @netlists/disto_mos1.cir:20:1 ".model nm nmos(level=1 vto=0.8 kp=50u gamma=0.5 phi=0.65 lambda=0.03 rd=10 rs=10 cbd=20f cbs=20f cj=1e-4 cjsw=1e-10 mj=0.4 mjsw=0.3 tox=20n cgso=1e-10 cgdo=1e-10 cgbo=1e-10 is=1e-14)"
+    [14] model[1] @netlists/disto_mos1.cir:22:1 ".model pm pmos(level=1 vto=-0.8 kp=20u gamma=0.4 lambda=0.05 tox=20n cgso=1e-10 cgdo=1e-10 cj=1e-4 mj=0.5 mjsw=0.5 cjsw=1e-10)"
+    [15] options[0] @netlists/disto_mos1.cir:23:1 ".option reltol=1e-7"
+    [16] analysis[0] @netlists/disto_mos1.cir:24:1 ".disto dec 2 1k 10meg"
+    [17] analysis[1] @netlists/disto_mos1.cir:25:1 ".disto dec 2 1k 10meg 0.7"
+    [18] end @netlists/disto_mos1.cir:26:1 ".end"
+  devices (13):
+    device [0] name="vdd" designator=v @netlists/disto_mos1.cir:7:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/disto_mos1.cir:7:11
+    device [1] name="vin" designator=v @netlists/disto_mos1.cir:8:1
+      nodes: "in" "0"
+      model: none
+      parameters (7):
+        [0] name="dc" kind=scalar value="0" @netlists/disto_mos1.cir:8:10
+        [1] name="acmag" kind=scalar value="1" @netlists/disto_mos1.cir:8:18
+        [2] name="acphase" kind=scalar value="0" @netlists/disto_mos1.cir:8:15
+        [3] name="distof1mag" kind=scalar value="0.05" @netlists/disto_mos1.cir:8:28
+        [4] name="distof1phase" kind=scalar value="0" @netlists/disto_mos1.cir:8:20
+        [5] name="distof2mag" kind=scalar value="0.03" @netlists/disto_mos1.cir:8:41
+        [6] name="distof2phase" kind=scalar value="45" @netlists/disto_mos1.cir:8:46
+    device [2] name="cin" designator=c @netlists/disto_mos1.cir:9:1
+      nodes: "in" "g"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10u" @netlists/disto_mos1.cir:9:10
+    device [3] name="r1" designator=r @netlists/disto_mos1.cir:10:1
+      nodes: "vdd" "g"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="300k" @netlists/disto_mos1.cir:10:10
+    device [4] name="r2" designator=r @netlists/disto_mos1.cir:11:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="200k" @netlists/disto_mos1.cir:11:8
+    device [5] name="rd" designator=r @netlists/disto_mos1.cir:12:1
+      nodes: "vdd" "d"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="5k" @netlists/disto_mos1.cir:12:10
+    device [6] name="rs" designator=r @netlists/disto_mos1.cir:13:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/disto_mos1.cir:13:8
+    device [7] name="m1" designator=m @netlists/disto_mos1.cir:14:1
+      nodes: "d" "g" "s" "0"
+      model: "nm"
+      parameters (6):
+        [0] name="w" kind=scalar value="20u" @netlists/disto_mos1.cir:14:15
+        [1] name="l" kind=scalar value="2u" @netlists/disto_mos1.cir:14:21
+        [2] name="ad" kind=scalar value="40p" @netlists/disto_mos1.cir:14:26
+        [3] name="as" kind=scalar value="40p" @netlists/disto_mos1.cir:14:33
+        [4] name="pd" kind=scalar value="24u" @netlists/disto_mos1.cir:14:40
+        [5] name="ps" kind=scalar value="24u" @netlists/disto_mos1.cir:14:47
+    device [8] name="m2" designator=m @netlists/disto_mos1.cir:15:1
+      nodes: "d2" "g" "s2" "0"
+      model: "nm"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/disto_mos1.cir:15:17
+        [1] name="l" kind=scalar value="2u" @netlists/disto_mos1.cir:15:23
+    device [9] name="rd2" designator=r @netlists/disto_mos1.cir:16:1
+      nodes: "vdd" "d2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="200k" @netlists/disto_mos1.cir:16:12
+    device [10] name="rs2" designator=r @netlists/disto_mos1.cir:17:1
+      nodes: "s2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_mos1.cir:17:10
+    device [11] name="m3" designator=m @netlists/disto_mos1.cir:18:1
+      nodes: "d3" "g" "vdd" "vdd"
+      model: "pm"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/disto_mos1.cir:18:20
+        [1] name="l" kind=scalar value="2u" @netlists/disto_mos1.cir:18:26
+    device [12] name="rl3" designator=r @netlists/disto_mos1.cir:19:1
+      nodes: "d3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50k" @netlists/disto_mos1.cir:19:10
+  models (2):
+    model [0] name="nm" base="nmos" level=1e0 @netlists/disto_mos1.cir:20:1
+      parameters (19):
+        [0] name="level" kind=scalar value="1" @netlists/disto_mos1.cir:20:16
+        [1] name="vto" kind=scalar value="0.8" @netlists/disto_mos1.cir:20:24
+        [2] name="kp" kind=scalar value="50u" @netlists/disto_mos1.cir:20:32
+        [3] name="gamma" kind=scalar value="0.5" @netlists/disto_mos1.cir:20:39
+        [4] name="phi" kind=scalar value="0.65" @netlists/disto_mos1.cir:20:49
+        [5] name="lambda" kind=scalar value="0.03" @netlists/disto_mos1.cir:20:58
+        [6] name="rd" kind=scalar value="10" @netlists/disto_mos1.cir:20:70
+        [7] name="rs" kind=scalar value="10" @netlists/disto_mos1.cir:20:76
+        [8] name="cbd" kind=scalar value="20f" @netlists/disto_mos1.cir:20:82
+        [9] name="cbs" kind=scalar value="20f" @netlists/disto_mos1.cir:20:90
+        [10] name="cj" kind=scalar value="1e-4" @netlists/disto_mos1.cir:20:98
+        [11] name="cjsw" kind=scalar value="1e-10" @netlists/disto_mos1.cir:20:106
+        [12] name="mj" kind=scalar value="0.4" @netlists/disto_mos1.cir:20:117
+        [13] name="mjsw" kind=scalar value="0.3" @netlists/disto_mos1.cir:20:124
+        [14] name="tox" kind=scalar value="20n" @netlists/disto_mos1.cir:20:133
+        [15] name="cgso" kind=scalar value="1e-10" @netlists/disto_mos1.cir:20:141
+        [16] name="cgdo" kind=scalar value="1e-10" @netlists/disto_mos1.cir:20:152
+        [17] name="cgbo" kind=scalar value="1e-10" @netlists/disto_mos1.cir:20:163
+        [18] name="is" kind=scalar value="1e-14" @netlists/disto_mos1.cir:20:174
+    model [1] name="pm" base="pmos" level=1e0 @netlists/disto_mos1.cir:22:1
+      parameters (12):
+        [0] name="level" kind=scalar value="1" @netlists/disto_mos1.cir:22:16
+        [1] name="vto" kind=scalar value="-0.8" @netlists/disto_mos1.cir:22:24
+        [2] name="kp" kind=scalar value="20u" @netlists/disto_mos1.cir:22:33
+        [3] name="gamma" kind=scalar value="0.4" @netlists/disto_mos1.cir:22:40
+        [4] name="lambda" kind=scalar value="0.05" @netlists/disto_mos1.cir:22:50
+        [5] name="tox" kind=scalar value="20n" @netlists/disto_mos1.cir:22:62
+        [6] name="cgso" kind=scalar value="1e-10" @netlists/disto_mos1.cir:22:70
+        [7] name="cgdo" kind=scalar value="1e-10" @netlists/disto_mos1.cir:22:81
+        [8] name="cj" kind=scalar value="1e-4" @netlists/disto_mos1.cir:22:92
+        [9] name="mj" kind=scalar value="0.5" @netlists/disto_mos1.cir:22:100
+        [10] name="mjsw" kind=scalar value="0.5" @netlists/disto_mos1.cir:22:107
+        [11] name="cjsw" kind=scalar value="1e-10" @netlists/disto_mos1.cir:22:116
+  subcircuits (0):
+  analyses (2):
+    analysis [0] kind=disto @netlists/disto_mos1.cir:24:1
+      arguments: "dec" "2" "1k" "10meg"
+    analysis [1] kind=disto @netlists/disto_mos1.cir:25:1
+      arguments: "dec" "2" "1k" "10meg" "0.7"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/disto_mos1.cir:23:1
+      setting [0] name="reltol" value="1e-7"@netlists/disto_mos1.cir:23:16 @netlists/disto_mos1.cir:23:9
+  globals (0):

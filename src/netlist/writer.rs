@@ -1430,6 +1430,25 @@ fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceR
                 parts.push(value_text(parameter, false)?);
                 parts.push(value_text(phase, false)?);
             }
+            (
+                ParameterKind::Scalar | ParameterKind::Expression(_),
+                name @ ("distof1mag" | "distof2mag"),
+            ) => {
+                let phase_name = if name == "distof1mag" {
+                    "distof1phase"
+                } else {
+                    "distof2phase"
+                };
+                let Some(phase) = parameters.next_if(|next| next.name == phase_name) else {
+                    return Err(refuse(
+                        format!("{name} without {phase_name}"),
+                        Some(location),
+                    ));
+                };
+                parts.push(name.trim_end_matches("mag").to_owned());
+                parts.push(value_text(parameter, false)?);
+                parts.push(value_text(phase, false)?);
+            }
             (ParameterKind::Waveform(waveform), name) => {
                 parts.push(waveform_text(waveform, name, location)?);
             }

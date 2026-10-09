@@ -211,6 +211,16 @@ impl Resistor {
 }
 
 impl Device for Resistor {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `res/resinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -364,6 +374,16 @@ impl Capacitor {
 }
 
 impl Device for Capacitor {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `cap/capinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
     /// `src/spicelib/devices/cap/capinit.c`).
     fn noise(
@@ -512,6 +532,16 @@ impl Inductor {
 }
 
 impl Device for Inductor {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `ind/indinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
     /// `src/spicelib/devices/ind/indinit.c`).
     fn noise(

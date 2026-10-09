@@ -130,6 +130,16 @@ impl MutualInductance {
 }
 
 impl Device for MutualInductance {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `ind/mutinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
     /// `src/spicelib/devices/ind/indinit.c (mutual)`).
     fn noise(
