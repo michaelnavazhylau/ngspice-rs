@@ -103,13 +103,21 @@ Not yet ported (`SpiceError::NotYetPorted`, naming the C file): soft reverse
 recovery (`VP`, `QPSCALE`), separate sidewall resistance (`RSW`), self-heating
 (`RTH0`, `CTH0`, instance `THERMAL`), level-3 geometry (`LM`/`LP`/`WM`/`WP`,
 `XOM`/`XOI`/`XM`/`XP`/`XW`, instance `W`/`L`), noise (`KF`/`AF`), SOA limits
-(`FV_MAX`, `BV_MAX`, `ID_MAX`, `TE_MAX`, `PD_MAX`), instance `IC`/`OFF`
-(nonlinear initialization, #99), C's common-characteristic sidewall current in
+(`FV_MAX`, `BV_MAX`, `ID_MAX`, `TE_MAX`, `PD_MAX`), C's common-characteristic sidewall current in
 breakdown (JSW*PJ > 0 with BV and without NS: `dioload.c` evaluates it with an
 unassigned `vdsw`), and TM1/TM2 with sidewall capacitance (C mixes adjusted and
 nominal sidewall grading). Unknown setters remain unsupported errors. The
 junction voltage is limited as in `dioload.c` (`MODEINITJCT` start at `tVcrit`,
 `DEVpnjlim`, reflected about BV in breakdown; #106).
+
+Instance `OFF` and `IC` (#99, see [Initial conditions](#nonlinear-initial-conditions-99)):
+an `OFF` diode is held at 0 V in the `MODEINITJCT` and `MODEINITFIX` loads; the
+`uic` initial load starts the junction at the external terminal voltage of the
+`.ic`/`.nodeset` node vector. The instance `IC` is accepted and has **no
+effect**, exactly as in C: `dioparam.c` stores it without setting
+`DIOinitCondGiven`, so `diogetic.c` always overwrites it with the node
+difference (checked against the reference binary: `ic=0.4`, `ic=0.9` and no
+`ic` give bit-identical C rawfiles).
 
 References: `dio/dioload.c`, `diosetup.c`, `diotemp.c`, `dioacld.c`,
 `diompar.c`, `dioparam.c`, `dio.c`. Unit tests in `nonlinear.rs` check
@@ -168,8 +176,11 @@ Not ported (`SpiceError::NotYetPorted` naming the C file): excess phase (`PTF`
 with `TF != 0`: Weil's approximation in `bjtload.c` and the AC phase rotation in
 `bjtacld.c`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`, `QCO`,
 `QUASIMOD`, `VG`, `CN`, `D`), noise (`KF`/`AF`, `bjtnoise.c`), safe-operating-area
-limits (`*_MAX`, `RTH0`, `bjtsoachk.c`), `OFF`/`IC`/`ICVBE`/`ICVCE` initial
-conditions. VBIC (level 4) is a non-goal. Newton limiting follows `bjtload.c`
+limits (`*_MAX`, `RTH0`, `bjtsoachk.c`). `OFF` and `IC`/`ICVBE`/`ICVCE` follow
+`bjtload.c`/`bjtgetic.c` (#99): the `uic` initial load starts at
+`vbe = type * ICVBE`, `vbc = vbx = vbe - type * ICVCE`, `vsub = 0`, unset
+components from the external terminals of the node vector; `OFF` holds all
+junctions at zero in `MODEINITJCT`/`MODEINITFIX`. VBIC (level 4) is a non-goal. Newton limiting follows `bjtload.c`
 (#106): `MODEINITJCT` starts at `vbe = tVcrit`, and `DEVpnjlim` limits `vbe`,
 `vbc` and `vsub` (`VCRIT_DISABLED` without ISS); the quasi-saturation limits
 belong to the rejected quasi-saturation model.
@@ -256,8 +267,13 @@ changes the Newton path but not the converged point. C warns and continues for `
 here it is an error, as are nonfinite/nonpositive PHI, PB, KP or IS after
 temperature scaling.
 
-`NotYetPorted` (naming the C reference): instance `OFF`, `IC`, `ICVDS`, `ICVGS`,
-`ICVBS` (`mos1ic.c`, `MODEINITJCT`; #99) and the noise parameters `KF`, `AF`,
+Instance `OFF`, `IC`, `ICVDS`, `ICVGS`, `ICVBS` follow `mos1load.c`/`mos1ic.c`
+(#99): `MODEINITJCT` starts at the `IC` vector (`type * ICVDS/ICVGS/ICVBS`)
+whenever a component is nonzero, **also without `uic`** (C has no `MODEUIC`
+test there), at the default start otherwise; under `uic` unset components come
+from the external terminals of the node vector and an all-zero vector stays
+zero; `OFF` starts and holds the device at zero (it wins over the `IC` vector).
+`NotYetPorted` (naming the C reference): the noise parameters `KF`, `AF`,
 `NLEV`, `GDSNOI` (`mos1noi.c`). Other MOS levels, BSIM/CIDER/XSPICE remain
 outside scope.
 
@@ -295,8 +311,9 @@ OP/DC/AC bias use the same configured settings, with request > deck > defaults.
 The companion transient initial bias reads the same DC options. See
 [DC_CONTINUATION.md](DC_CONTINUATION.md) for exact semantics and the remaining
 differences from C (no `OPtran` fallback, predictor, bypass or `gshunt`).
-`.nodeset` seeds nonlinear bias and is released; `.ic` is ignored in DC/AC after
-name validation, as in C. Junction `gmin` and `itl1`/`itl2`/`itl4` are
+`.nodeset` seeds the nonlinear bias and is forced as an exact node-row
+constraint in its `MODEINITJCT`/`MODEINITFIX` loads, then released (#99,
+`cktload.c`); `.ic` is ignored in DC/AC after name validation, as in C. Junction `gmin` and `itl1`/`itl2`/`itl4` are
 configurable (#110).
 
 By default, on direct Numerical failure, DC runs ngspice's `dynamic_gmin`, then
@@ -322,8 +339,42 @@ AC solves G(bias)+j*w*dQ/dx(bias) after a valid nonlinear DC point.
 Companion transient uses the same Newton kernel, M3 breakpoint/order/work policy,
 actual nonlinear Q history and **a0*dQ/dV**, not a0*Q/V. Loads and residual reloads
 write only disposable trials; accept hooks run before atomic history commit.
-Nonlinear `.ic`/`uic`/instance IC and the explicit diffsol nonlinear backend are
-rejected. Trap/Gear orders above 2 and advanced DAE support remain unclaimed.
+Nonlinear `.ic`/`uic`/instance IC run on the companion driver (#99, below); the
+explicit diffsol nonlinear backend is rejected. Trap/Gear orders above 2 and
+advanced DAE support remain unclaimed.
+
+## Nonlinear initial conditions (#99)
+
+C references: `cktic.c`, `cktload.c` (`.nodeset`/`.ic` row stamping),
+`niiter.c` (`MODEUIC` shortcut, `MODEINITJCT`/`MODEINITFIX` phases),
+`niconv.c` with `DIOconvTest`/`BJTconvTest`/`MOS1convTest` (`NEWCONV`),
+`dctran.c`, `dioload.c`/`diogetic.c`, `bjtload.c`/`bjtgetic.c`,
+`mos1load.c`/`mos1ic.c`. Code: `spice_devices::limiting`
+(`Linearization::InitialConditions`, `Limiter::holds_off`,
+`Limiter::test_held`), `spice_analysis::bias::NodeForcing`,
+`spice_analysis::initial`, `companion.rs`.
+
+| Input | ngspice | This port |
+| --- | --- | --- |
+| `.ic`, no `uic`, nonlinear | row `v = ic * srcFact` (or a `1e10` conductance on branch rows) in every load of the `MODETRANOP` `CKTop`, released for the transient | exact row replacement in every Newton load of every continuation stage, scaled by the source factor; source-fixed nodes resolved structurally (agreeing entries dropped, contradictions errors) as for linear circuits |
+| `.nodeset`, nonlinear | row forced in `MODEINITJCT`/`MODEINITFIX` loads of every DC operating point (`.op`, `.dc` first points and restarts, `.ac` bias, transient bias), then released | same, after dropping hints on nodes ideal sources/E/H outputs/`.ic` rows already fix (C's `1e10` compromise there is not reproduced) |
+| `uic` | one `MODETRANOP + MODEUIC + MODEINITJCT` load, no solve: devices at their IC voltages, charges from them | one device-flagged initial load at the `uic` node vector; junction charges and limited voltages from it fill the accepted history |
+| D/Q/M `OFF` | junctions at 0 in `MODEINITJCT`/`MODEINITFIX`; the `MODEINITFIX` load skips its own noncon check but `NIconvTest` runs the device convergence test against the held state | same: the held `MODEINITFIX` load is nonconvergent exactly when C's test (`reltol`, `abstol` of the solve) fails, so an `OFF` device whose iterate voltages sit volts from zero keeps the direct iteration in `MODEINITFIX` until `itl1`, and continuation (dynamic gmin) decides the state, as in C |
+| MOS1 `ic=` without `uic` | `MODEINITJCT` start voltages | same |
+| D/Q `ic=` without `uic` | ignored | ignored |
+| diode `ic=` under `uic` | overwritten by the node difference (no effect) | same |
+
+`OFF` and MOS1 start voltages need the device-limited Newton loads: under the
+port's legacy `limiting=global` they are an explicit `Unsupported` error.
+The BDF backend keeps rejecting `.ic`/`uic`. The `uic` impulse check covers
+capacitors and inductors only; junction charges are not part of it (C checks
+nothing). A `uic` node vector that forward-biases a junction by volts (for
+example a MOS1 drain `.ic` above a supply node that has no `.ic`, so C's node
+vector holds the supply at 0 V) can make the first trial's Jacobian too
+ill-conditioned for the port's rank-checked sparse LU; the run then fails with
+the numerical error where C's pivoting factors on. Evidence: the six `m7_ic_*`
+goldens ([VERIFICATION.md](VERIFICATION.md#m7-nonlinear-initial-conditions-99))
+and `crates/spice-analysis/tests/nonlinear_initial.rs`.
 
 ## Demonstrated local gate (#41)
 

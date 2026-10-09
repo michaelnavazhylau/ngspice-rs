@@ -1,5 +1,73 @@
 # Verification
 
+## M7 nonlinear initial conditions (#99)
+
+Six new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was designed and checked against the same C
+binary in a scratch copy; no existing golden was recaptured and no tolerance
+changed. `golden verify` now reports 86 fixtures.
+
+| Fixture | Gate | Worst error |
+| --- | --- | --- |
+| `m7_ic_diode_uic_tran` | `compare::TRAN` | 401 instants, 0.047 of bound |
+| `m7_ic_bjt_flipflop_tran` | `compare::TRAN` | 117 instants + 8 breakpoint limits, 0.058 of bound |
+| `m7_ic_bjt_off_tran` | `compare::TRAN` | 117 instants + 8 breakpoint limits, 0.002 of bound |
+| `m7_ic_mos1_uic_tran` | `compare::TRAN` | 795 instants + 12 breakpoint limits, 0.245 of bound |
+| `m7_ic_latch_nodeset_op` | `compare::NONLINEAR` | 8.7e-5 of bound |
+| `m7_ic_latch_mos1_ic_op` | `compare::NONLINEAR` | 6.1e-8 of bound |
+
+The operating-point worst errors were measured with an out-of-tree script
+applying the same `|Rust - C| <= 1e-6 |C| + 1e-12` bound to every value.
+
+- **Diode `uic`.** C skips the operating point; the first row is the first
+  accepted step. Capacitor `c1` starts at its instance `ic=2`, `c2` and the
+  diode junction (CJO, TT and RS, so the junction sits on an internal node)
+  from the `.ic` node vector, which puts the junction at -0.5 V. The diode's
+  own `ic=0.4` has no effect in C: `dioparam.c` never sets `DIOinitCondGiven`,
+  so `diogetic.c` always replaces it with the node difference (the reference
+  binary writes bit-identical rawfiles with `ic=0.4`, `ic=0.9` and no `ic`;
+  `nonlinear_initial.rs` pins the same for the port). At C's default `reltol`
+  its own `v(b)` at 0.1 us is 5.1e-3 V (about 4.6 times the bound) away from
+  its `reltol=1e-5` answer, so the deck sets `reltol=1e-5`.
+- **`.ic` flip-flop.** The symmetric cross-coupled BJT pair has two stable
+  states and an unstable equilibrium; the `.ic` rows forced through the
+  transient operating point select the q1-on state (`v(c1) = 0.2`,
+  `v(c2) = 4` exactly at `t = 0`), then a reset pulse flips the pair. Default
+  options.
+- **`OFF` flip-flop.** A single-trigger pair with `q2 off`. C holds q2's
+  junctions at 0 V through `MODEINITJCT`/`MODEINITFIX`, but `BJTconvTest` (run
+  by `NIconvTest` under `NEWCONV`) keeps failing while the iterate's
+  collector junction sits volts from the held 0 V, so the direct iteration
+  exhausts `itl1` and dynamic gmin stepping lands in the q1-on state (without
+  `OFF` the default schedule returns the unstable equilibrium). Reproducing
+  the held-state convergence test is what makes the port take the same path;
+  without it the direct iteration converged to the opposite state. A negative
+  pulse on b1 flips the pair; `reltol=1e-6` keeps both step sequences tight
+  through the flip (at the default the comparison is 0.53 of the bound).
+- **MOS1 `uic`.** An inverter pair started from full and partial MOS1 `ic=`
+  vectors and the `.ic` node vector: the bulk-junction and Meyer gate charges
+  start at those voltages (C's first point moves from 1.78 V to 2.15 V with the
+  vectors). Gear-2, because trapezoidal gate currents ring from step to step on
+  the flat input (sign-alternating samples that no pointwise comparison can
+  match), and `reltol=1e-5` with a 2 ps maximum step.
+- **Latch operating points.** The symmetric CMOS latch's default point is the
+  unstable equilibrium (`v(q) = v(qb) = 1.419 V`) in C and the port. A
+  `.nodeset` forced in the `MODEINITJCT`/`MODEINITFIX` loads, or MOS1 `ic=`
+  vectors that move the `MODEINITJCT` start (no `uic`), select the q-high
+  state.
+
+Opt-in live checks (`NGSPICE_BIN`) were not extended; the same scratch
+comparisons also matched C for a forward-biased `OFF` diode (direct failure,
+dynamic gmin, 0.6929 V), an `OFF` BJT driver, `.nodeset v(q)=1.6` (falls to
+the q-low state) and an `OFF` CMOS latch (C's convergence test sends it to the
+unstable equilibrium, which the port reproduces to 1e-8 of the bound).
+
+Rust-only evidence: `crates/spice-analysis/tests/nonlinear_initial.rs`
+(state selection by `.nodeset` and MOS1 `ic=`, exact forced `.ic` rows and
+their release, explicit `.ic` contradictions, `uic` starts of D/Q/M and the
+diode `ic=` quirk, `OFF` through dynamic gmin, `limiting=global` and BDF
+rejections) and the `Limiter` unit tests in `spice_devices::limiting`.
+
 ## M7 convergence parity (#106)
 
 Seven new C goldens, each captured once with `cargo xtask golden capture
@@ -1077,7 +1145,8 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
 charge and devices (M4), orders above 2 and
-nonlinear device initial conditions, and general MNA DAEs: only the index-one
+nonlinear device initial conditions on the BDF backend (the companion driver
+gained them with #99, above), and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
 
 ## Not yet verified

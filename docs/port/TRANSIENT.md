@@ -21,7 +21,7 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 | `backend=diffsol method=bdf` | explicit diffsol BDF, unchanged |
 | `backend=diffsol` without `method=bdf`, `method=bdf` without the backend, unknown backend/method, unknown or duplicate options | explicit errors |
 | `uic`, `.ic`, instance `ic=` with `backend=diffsol` | explicit `Unsupported` errors (the BDF backend has no IC formulation; `.nodeset` is validated and otherwise a no-op) |
-| `uic`, `.ic`, `.nodeset`, instance `ic=` on the companion driver | implemented, see [Initial conditions](#initial-conditions-27) |
+| `uic`, `.ic`, `.nodeset`, instance `ic=` on the companion driver | implemented for linear and nonlinear circuits, see [Initial conditions](#initial-conditions-27) and [Nonlinear initial conditions](#nonlinear-initial-conditions-99) |
 
 `.option method=`, `maxord=`, `reltol=`, `vntol=`, `abstol=`, `chgtol=` and
 `trtol=` are forwarded by `RunConfig::request_for` as the request arguments
@@ -160,9 +160,12 @@ at `t = 0` is exact where C's artifact differs (compared after `t = 0` in the
 opt-in test); `.ic` entries contradicting a source and impulsive `uic` states are
 errors where C produces garbage or a first-step spike; unknown nodes are errors.
 Coupled inductors (K, #80) start from the coupled fluxes `L ic + sum(M ic_k)`;
-see [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md). Not covered: nonlinear device initial conditions
-(`off`/`ic=` of diodes/transistors), `.ic` inside subcircuits and `.nodeset all=`
-(`NotYetPorted` in the parser), `.op`-only `.ic` use.
+see [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md). Nonlinear circuits and the
+`off`/`ic=` of diodes and transistors follow in the next section (#99). Not
+covered: `.ic` inside subcircuits and `.nodeset all=` (`NotYetPorted` in the
+parser), `.op`-only `.ic` use (C copies `.ic` values into the `.op` Newton
+guess, where `MODEINITJCT` overrides them for junction devices; the port does
+not seed `.op` with them).
 
 Measured against analytic solutions (trap, `tstep` = max step): `uic` RC discharge
 from `ic=2`, 10 us step: 5.9e-6 V; `uic` RL (`ic=0.5 A`), 10 us: 1.2e-6 A; `uic`
@@ -170,6 +173,42 @@ series RLC with inductor and capacitor `ic`, 0.5 us: 1.0e-4 V, 3.3e-6 A. Against
 (same decks, common 1e-3 relative / 1 uV / 1 pA bound): all 11 opt-in cases agree
 to better than 3.1e-9 of the bound, with identical point counts (the step
 sequences coincide again, including the `uic` step breakpoint).
+
+## Nonlinear initial conditions (#99)
+
+The same cards work when the circuit holds diodes, BJTs, MOS1 devices,
+switches or behavioural sources. Exact C behaviour and its sources are tabled
+in [M4_NONLINEAR.md](M4_NONLINEAR.md#nonlinear-initial-conditions-99); in short:
+
+* **`.ic` without `uic`.** The transient operating point is the nonlinear DC
+  solve (`CKTop`) with the `.ic` rows forced in **every** Newton load of every
+  continuation stage (`bias::NodeForcing`, scaled by the source-stepping
+  factor as `CKTsrcFact` scales them), after `initial::irredundant_constraints`
+  resolved nodes ideal sources already fix. The Newton guess holds the
+  `.nodeset` then the `.ic` values (`CKTic`). The point's trial state (charges,
+  limited junction voltages, switch states) fills the accepted history; the
+  constraint is released for the first step.
+* **`.nodeset`.** Forced only in the `MODEINITJCT`/`MODEINITFIX` loads of the
+  bias (and of `.op`, `.ac` and the first `.dc` points) and then released, so a
+  multistable circuit lands in the hinted state (golden
+  `m7_ic_latch_nodeset_op`). Under `uic` it remains a node initial condition.
+* **`uic`.** No solve: C performs one `MODETRANOP | MODEUIC | MODEINITJCT`
+  load. The port loads once with `TrialState::with_initial_conditions`, so each
+  nonlinear device evaluates, and stores its charges and junction voltages, at
+  its instance initial conditions: BJT `ICVBE`/`ICVCE`, MOS1
+  `ICVDS`/`ICVGS`/`ICVBS`, unset components (and every diode) taken across the
+  external terminals of the `uic` node vector, which holds only `.nodeset`/`.ic`
+  values (so supply nodes read 0 V unless given). The diode's own `ic=` has no
+  effect in C (see M4_NONLINEAR.md) and none here.
+* **`off`.** Junctions held at zero in `MODEINITJCT`/`MODEINITFIX`, with C's
+  device convergence test deciding when `MODEINITFIX` may end. In practice an
+  `off` device that is not near zero volts makes C's direct operating point
+  exhaust `itl1`, and dynamic gmin stepping chooses the state (golden
+  `m7_ic_bjt_off_tran`).
+
+Goldens: `m7_ic_diode_uic_tran`, `m7_ic_bjt_flipflop_tran`, `m7_ic_bjt_off_tran`,
+`m7_ic_mos1_uic_tran` (transient) and the two latch operating points; see
+[VERIFICATION.md](VERIFICATION.md#m7-nonlinear-initial-conditions-99).
 
 ## Source functions (#94, #95)
 

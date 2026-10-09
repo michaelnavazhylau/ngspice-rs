@@ -57,7 +57,11 @@ ported.
   `spice_devices::limiting::Limiter`:
   - the first load of an operating point is C's `MODEINITJCT`: diodes at
     `tVcrit`, BJTs at `vbe = tVcrit`, `vbc = vsub = 0`, MOS1 at `vbs = -1`,
-    `vgs = type * tVto`, `vds = 0`, independent of the seed;
+    `vgs = type * tVto`, `vds = 0`, independent of the seed; an `off`
+    instance starts at zero and is held there through `MODEINITFIX`, where
+    C's device convergence test (`DIO`/`BJT`/`MOS1convTest`) against the
+    held state decides when the phase may end, and a MOS1 with a nonzero
+    `ic=` vector starts at it (#99);
   - later loads limit against the voltages the device stored in the previous
     load (C `CKTstate0`), or, in a predicted load (transient timepoint or
     warm-started `.dc` point), against the last accepted ones;
