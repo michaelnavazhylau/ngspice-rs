@@ -3,6 +3,7 @@
 //! Advanced charge, temperature, series-node and high-injection parameters
 //! are explicit errors, not ignored setters. MOS intrinsic Meyer capacitance
 //! (`tox > 0`) is not implemented; absent/zero TOX matches C's zero oxide cap.
+use crate::limiting::{self, Limiter, Linearization};
 use crate::nonlinear::{
     JunctionPoint, K_OVER_Q, depletion_charge, junction_current, stamp_junction, value,
 };
@@ -14,7 +15,19 @@ use spice_core::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 use spice_maths::Vector;
 use spice_netlist::ast::DeviceInstance;
 
-type ChannelPoint = ([NodeId; 2], Real, [(NodeId, Real); 4]);
+/// Effective drain/source, channel current, its terminal partials and the
+/// linearization offset `sum(partial * voltage)` at the evaluated voltages.
+/// First BJT state slot of the limited `vbe`, `vbc`, `vsub` (C `BJTvbe`,
+/// `BJTvbc`, `BJTvsub`).
+const BJT_LIMITED_SLOTS: usize = 4;
+/// `bjtdefs.h` `VCRIT_DISABLED`: the critical voltage of a substrate junction
+/// without a saturation current.
+const BJT_SUBSTRATE_VCRIT: Real = 50.;
+/// First MOS1 state slot of the limited `vbs`, `vgs`, `vds` and the previous
+/// load's threshold `von` (C `MOS1vbs`, `MOS1vgs`, `MOS1vds`, `MOS1von`).
+const MOS1_LIMITED_SLOTS: usize = 10;
+
+type ChannelPoint = ([NodeId; 2], Real, [(NodeId, Real); 4], Real);
 
 fn scalar(name: &'static str, unit: U, domain: D, default: Option<Real>) -> P {
     P {
@@ -72,17 +85,17 @@ fn bias_voltage(context: &LinearContext<'_>, bias: &Vector, node: NodeId) -> Rea
         .unwrap_or(0.)
 }
 /// Arbitrary terminal-current Jacobian: current leaving `output[0]` and
-/// entering `output[1]`. `partials` are actual physical voltage derivatives.
+/// entering `output[1]`. `partials` are actual physical voltage derivatives;
+/// `linearized` is `sum(partial * voltage)` at the (possibly limited) voltages
+/// the current was evaluated at ([`node_linearization`] for the solution).
 fn stamp_current(
     context: &mut StampContext<'_>,
     output: [NodeId; 2],
     current: Real,
     partials: &[(NodeId, Real)],
+    linearized: Real,
 ) -> SpiceResult<()> {
-    let mut equivalent = current;
-    for (node, derivative) in partials {
-        equivalent -= derivative * context.node_voltage(*node);
-    }
+    let equivalent = current - linearized;
     for (row, sign) in [(output[0], 1.), (output[1], -1.)] {
         for (col, derivative) in partials {
             context.stamp(row, *col, sign * derivative)?;
@@ -90,6 +103,13 @@ fn stamp_current(
         context.stamp_rhs(row, -sign * equivalent)?;
     }
     Ok(())
+}
+/// `sum(partial * node voltage)` at the present solution.
+fn node_linearization(context: &StampContext<'_>, partials: &[(NodeId, Real)]) -> Real {
+    partials
+        .iter()
+        .map(|(node, derivative)| derivative * context.node_voltage(*node))
+        .sum()
 }
 fn linear_current(
     context: &mut LinearContext<'_>,
@@ -251,6 +271,32 @@ impl Bjt {
     }
 }
 impl Bjt {
+    /// `bjtload.c`'s junction voltages for this load in the device frame
+    /// (`type * v`): `[vbe, vbc, vsub]`, `vsub` measured from the substrate's
+    /// connection node to the substrate. `MODEINITJCT` starts at
+    /// `vbe = tVcrit`, `vbc = vsub = 0`; later loads apply `DEVpnjlim` with
+    /// `vt = kT/q` (no emission coefficient) and `tVcrit` from the area-scaled
+    /// saturation current (`bjttemp.c`; `m` scales the stamps, not `tSatCur`);
+    /// the gmin-only substrate junction uses `VCRIT_DISABLED` (50 V).
+    fn limit_junctions(
+        &self,
+        limiter: &mut Limiter,
+        states: &crate::DeviceState<'_>,
+        raw: [Real; 3],
+        vt: Real,
+    ) -> [Real; 3] {
+        let vcrit = limiting::critical_voltage(vt, self.is / self.multiplier);
+        if limiter.mode() == Linearization::Initial {
+            return [vcrit, 0., 0.];
+        }
+        let mut limited = raw;
+        for (index, critical) in [vcrit, vcrit, BJT_SUBSTRATE_VCRIT].into_iter().enumerate() {
+            let previous = limiter.previous(states, BJT_LIMITED_SLOTS + index);
+            limited[index] = limiter.pn_junction(raw[index], previous, vt, critical);
+        }
+        limited
+    }
+
     /// The substrate node (the optional fourth terminal, else ground) and the
     /// node its junction connects to: the collector for NPN (default vertical
     /// geometry), the base for PNP (default lateral), as `bjtsetup.c` chooses
@@ -279,7 +325,8 @@ impl Device for Bjt {
         true
     }
     fn state_count(&self) -> usize {
-        4
+        // BE/BC charge-derivative pairs, then the limited vbe, vbc and vsub.
+        7
     }
     fn truncation_slots(&self) -> Vec<usize> {
         vec![0, 2]
@@ -289,8 +336,16 @@ impl Device for Bjt {
             return Err(SpiceError::circuit("BJT AC requires small-signal assembly"));
         }
         let (c, b, e) = (self.nodes[0], self.nodes[1], self.nodes[2]);
-        let vbe = context.node_voltage(b) - context.node_voltage(e);
-        let vbc = context.node_voltage(b) - context.node_voltage(c);
+        let [substrate, connection] = self.substrate();
+        let raw = [
+            self.pol * (context.node_voltage(b) - context.node_voltage(e)),
+            self.pol * (context.node_voltage(b) - context.node_voltage(c)),
+            context.node_voltage(substrate) - context.node_voltage(connection),
+        ];
+        let vt = nominal(&context.model_context(), self.temp, self.tnom)?;
+        let mut limiter = Limiter::new(&context.states);
+        let limited = self.limit_junctions(&mut limiter, &context.states, raw, vt);
+        let (vbe, vbc) = (self.pol * limited[0], self.pol * limited[1]);
         let [(ibe, gbe, qbe), (ibc, gbc, qbc)] = self.points(vbe, vbc, &context.model_context())?;
         let gmin = self.multiplier * context.gmin;
         stamp_current(
@@ -298,18 +353,21 @@ impl Device for Bjt {
             [c, e],
             ibe - ibc,
             &[(b, gbe - gbc), (e, -gbe), (c, gbc)],
+            gbe * vbe - gbc * vbc,
         )?;
         stamp_current(
             context,
             [b, e],
             ibe / self.bf,
             &[(b, gbe / self.bf), (e, -gbe / self.bf)],
+            gbe / self.bf * vbe,
         )?;
         stamp_current(
             context,
             [b, c],
             ibc / self.br,
             &[(b, gbc / self.br), (c, -gbc / self.br)],
+            gbc / self.br * vbc,
         )?;
         for (slot, ports, v, q) in [(0, [b, e], vbe, qbe), (2, [b, c], vbc, qbc)] {
             stamp_junction(
@@ -327,15 +385,26 @@ impl Device for Bjt {
         // bjtload.c: without a substrate saturation current the substrate
         // junction is just CKTgmin between the substrate node and its
         // connection node (see `substrate`), scaled by `m` like every BJT term.
-        let [substrate, connection] = self.substrate();
+        // Its (limited) voltage only decides convergence: a linear current's
+        // stamp does not depend on the linearization point.
         let v = context.node_voltage(connection) - context.node_voltage(substrate);
+        let partials = [(connection, gmin), (substrate, -gmin)];
+        let linearized = node_linearization(context, &partials);
         stamp_current(
             context,
             [connection, substrate],
             gmin * v,
-            &[(connection, gmin), (substrate, -gmin)],
+            &partials,
+            linearized,
         )?;
-        Ok(())
+        limiter.finish(
+            &mut context.states,
+            &[
+                (BJT_LIMITED_SLOTS, limited[0]),
+                (BJT_LIMITED_SLOTS + 1, limited[1]),
+                (BJT_LIMITED_SLOTS + 2, limited[2]),
+            ],
+        )
     }
     fn assemble_small_signal(
         &self,
@@ -521,7 +590,61 @@ impl Mos1 {
             [drain, source],
             self.pol * current,
             [(drain, gds), (g, gm), (source, -gds - gm - gmb), (b, gmb)],
+            gds * vd + gm * v[1] - (gds + gm + gmb) * vs + gmb * v[3],
         ))
+    }
+    /// The threshold `von` (device frame) at bulk voltage `vb` (`vbs`, or
+    /// `vbd` in reverse mode), as `mos1load.c` stores it for the next load's
+    /// `DEVfetlim`: `type * vto + gamma * (sarg - sqrt(phi))`.
+    fn threshold(&self, vb: Real) -> Real {
+        let root = self.phi.sqrt();
+        let sarg = if vb <= 0. {
+            (self.phi - vb).sqrt()
+        } else {
+            (root - vb / (2. * root)).max(0.)
+        };
+        self.pol * self.vto + self.gamma * (sarg - root)
+    }
+    /// `mos1load.c`'s `[vbs, vgs, vds]` (device frame) for this load:
+    /// `MODEINITJCT` starts at `vbs = -1`, `vgs = type * vto`, `vds = 0`;
+    /// later loads limit the gate voltage with `DEVfetlim` (against the
+    /// previous `von`, through `vgs` or `vgd` as the previous `vds` was
+    /// forward or reverse), `vds` with `DEVlimvds` and the forward-biased
+    /// bulk junction with `DEVpnjlim` (`vt = kT/q`, `vcrit` from `m * is`).
+    fn limit_voltages(
+        &self,
+        limiter: &mut Limiter,
+        states: &crate::DeviceState<'_>,
+        raw: [Real; 3],
+        vt: Real,
+    ) -> [Real; 3] {
+        if limiter.mode() == Linearization::Initial {
+            return [-1., self.pol * self.vto, 0.];
+        }
+        let previous: Vec<_> = (0..4)
+            .map(|index| limiter.previous(states, MOS1_LIMITED_SLOTS + index))
+            .collect();
+        let [Some(vbs_old), Some(vgs_old), Some(vds_old), Some(von)] = previous[..] else {
+            return raw;
+        };
+        let [mut vbs, mut vgs, mut vds] = raw;
+        let vgd = vgs - vds;
+        if vds_old >= 0. {
+            vgs = limiter.fet_gate(vgs, vgs_old, von);
+            vds = limiter.drain_source(vgs - vgd, vds_old);
+        } else {
+            let vgd = limiter.fet_gate(vgd, vgs_old - vds_old, von);
+            vds = -limiter.drain_source(-(vgs - vgd), -vds_old);
+            vgs = vgd + vds;
+        }
+        let vcrit = limiting::critical_voltage(vt, self.is);
+        if vds >= 0. {
+            vbs = limiter.pn_junction(vbs, Some(vbs_old), vt, vcrit);
+        } else {
+            let vbd = limiter.pn_junction(vbs - vds, Some(vbs_old - vds_old), vt, vcrit);
+            vbs = vbd + vds;
+        }
+        [vbs, vgs, vds]
     }
     fn junction(&self, v: Real, c: Real, vt: Real, gmin: Real) -> SpiceResult<JunctionPoint> {
         // MOS1 uses a constant reverse saturation current below -3*Vt,
@@ -552,7 +675,8 @@ impl Device for Mos1 {
         true
     }
     fn state_count(&self) -> usize {
-        10
+        // Five charge-derivative pairs, then the limited vbs, vgs, vds and von.
+        14
     }
     fn truncation_slots(&self) -> Vec<usize> {
         vec![0, 2, 4, 6, 8]
@@ -562,12 +686,20 @@ impl Device for Mos1 {
             return Err(SpiceError::circuit("MOS1 AC needs small-signal assembly"));
         }
         let v = self.nodes.map(|n| context.node_voltage(n));
-        let (ports, i, partials) = self.channel(v)?;
-        stamp_current(context, ports, i, &partials)?;
         let vt = nominal(&context.model_context(), self.temp, self.tnom)?;
+        let raw = [v[3] - v[2], v[1] - v[2], v[0] - v[2]].map(|x| self.pol * x);
+        let mut limiter = Limiter::new(&context.states);
+        let [vbs, vgs, vds] = self.limit_voltages(&mut limiter, &context.states, raw, vt);
+        // The channel at the limited voltages, relative to the source terminal.
+        let local = [vds, vgs, 0., vbs].map(|x| self.pol * x);
+        let (ports, i, partials, linearized) = self.channel(local)?;
+        stamp_current(context, ports, i, &partials, linearized)?;
+        let von = self.threshold(if vds >= 0. { vbs } else { vbs - vds });
         let [d, g, s, b] = self.nodes;
-        for (slot, node, c) in [(0, d, self.cbd), (2, s, self.cbs)] {
-            let voltage = context.node_voltage(b) - context.node_voltage(node);
+        for (slot, node, c, voltage) in [
+            (0, d, self.cbd, self.pol * (vbs - vds)),
+            (2, s, self.cbs, self.pol * vbs),
+        ] {
             stamp_junction(
                 context,
                 [b, node],
@@ -595,7 +727,15 @@ impl Device for Mos1 {
                 slot,
             )?;
         }
-        Ok(())
+        limiter.finish(
+            &mut context.states,
+            &[
+                (MOS1_LIMITED_SLOTS, vbs),
+                (MOS1_LIMITED_SLOTS + 1, vgs),
+                (MOS1_LIMITED_SLOTS + 2, vds),
+                (MOS1_LIMITED_SLOTS + 3, von),
+            ],
+        )
     }
     fn assemble_small_signal(
         &self,
@@ -603,7 +743,7 @@ impl Device for Mos1 {
         bias: &Vector,
     ) -> SpiceResult<()> {
         let v = self.nodes.map(|n| bias_voltage(context, bias, n));
-        let (ports, _, partials) = self.channel(v)?;
+        let (ports, _, partials, _) = self.channel(v)?;
         linear_current(context, ports, &partials)?;
         let vt = nominal(context.model_context, self.temp, self.tnom)?;
         let [d, g, s, b] = self.nodes;

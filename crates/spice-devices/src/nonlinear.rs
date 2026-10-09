@@ -3,6 +3,7 @@
 //! C references: `dio/dioload.c`, `diosetup.c`, `diotemp.c`, `NIintegrate`.
 //! No breakdown, sidewall, tunneling, recombination or self-heating physics is
 //! inferred from syntax: unsupported setters fail before node interning.
+use crate::limiting::{self, Limiter, Linearization};
 use crate::schema::{
     ScalarDomain as Domain, ScalarParameter as Parameter, ScalarSchema, ScalarUnit as Unit,
     ScalarValues,
@@ -12,6 +13,8 @@ use spice_core::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 use spice_maths::Vector;
 use spice_netlist::ast::DeviceInstance;
 
+/// Diode state slot of the limited junction voltage (C `DIOvoltage`).
+const DIODE_VOLTAGE_SLOT: usize = 2;
 pub(crate) const K_OVER_Q: Real = 1.38064852e-23 / 1.6021766208e-19; // ngspice CONSTboltz/CHARGE
 const MODEL: ScalarSchema<'static> = ScalarSchema {
     parameters: &[
@@ -185,7 +188,9 @@ impl Diode {
     }
 }
 impl DiodeParameters {
-    fn evaluate(self, voltage: Real, context: &ModelContext) -> SpiceResult<JunctionPoint> {
+    /// Emission-scaled thermal voltage `n k T / q` and saturation current at
+    /// the device temperature (`diotemp.c`).
+    fn thermal(self, context: &ModelContext) -> SpiceResult<(Real, Real)> {
         let temperature = self.temperature.unwrap_or(context.temperature) + 273.15;
         let nominal = self.nominal.unwrap_or(context.nominal_temperature) + 273.15;
         if !temperature.is_finite() || temperature <= 0. || !nominal.is_finite() || nominal <= 0. {
@@ -204,6 +209,11 @@ impl DiodeParameters {
             * (((temperature / nominal - 1.) * 1.11 / vt)
                 + 3. / self.n * (temperature / nominal).ln())
             .exp();
+        Ok((vt, is))
+    }
+
+    fn evaluate(self, voltage: Real, context: &ModelContext) -> SpiceResult<JunctionPoint> {
+        let (vt, is) = self.thermal(context)?;
         let (current, conductance) = junction_current(voltage, vt, is)?;
         let (charge, capacitance) = depletion_charge(
             voltage,
@@ -349,7 +359,8 @@ impl Device for Diode {
         true
     }
     fn state_count(&self) -> usize {
-        2
+        // Charge, its derivative and the limited junction voltage.
+        3
     }
     fn truncation_slot(&self) -> Option<usize> {
         Some(0)
@@ -358,7 +369,18 @@ impl Device for Diode {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("diode AC needs small-signal assembly"));
         }
-        let v = context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]);
+        let raw = context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]);
+        // dioload.c: MODEINITJCT starts at tVcrit; later loads limit the
+        // junction voltage with DEVpnjlim against the previous load's value.
+        let (vte, is) = self.parameters.thermal(&context.model_context())?;
+        let vcrit = limiting::critical_voltage(vte, is);
+        let mut limiter = Limiter::new(&context.states);
+        let v = if limiter.mode() == Linearization::Initial {
+            vcrit
+        } else {
+            let previous = limiter.previous(&context.states, DIODE_VOLTAGE_SLOT);
+            limiter.pn_junction(raw, previous, vte, vcrit)
+        };
         let p = self.parameters.evaluate(v, &context.model_context())?;
         if self.parameters.rs > 0. {
             crate::linear::nodal_stamp(
@@ -368,7 +390,8 @@ impl Device for Diode {
                 self.parameters.scale / self.parameters.rs,
             )?;
         }
-        stamp_junction(context, self.junction, v, p, 0)
+        stamp_junction(context, self.junction, v, p, 0)?;
+        limiter.finish(&mut context.states, &[(DIODE_VOLTAGE_SLOT, v)])
     }
     fn assemble_small_signal(
         &self,

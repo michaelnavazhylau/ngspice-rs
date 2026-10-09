@@ -4,6 +4,7 @@
 //! | --- | --- | --- |
 //! | [`traits`] | the [`Device`] trait, [`StampContext`] and the unknown map | real stamping and immutable equation-assembly contracts |
 //! | [`state`] | trial versus accepted device state ([`StateHistory`], [`TrialState`]) | rotating accepted history, atomic commits |
+//! | [`limiting`] | Newton junction/FET voltage limiting (`DEVpnjlim`, `DEVfetlim`, `DEVlimvds`) and the [`limiting::Limiter`] device hook | diode, BJT and MOS1 |
 //! | [`circuit`] | node/device container, petgraph incidence topology and unknown numbering | ported |
 //! | [`registry`] | designator letter → device factory | scalar R/C/L/V/I and linear E/F/G/H factories |
 //! | [`sources`] | independent DC/AC/transient sources | Constant/Step/PWL/PULSE/SIN/EXP/SFFM/AM waveforms |
@@ -41,6 +42,7 @@ pub mod circuit;
 pub mod controlled;
 mod factory;
 pub mod functions;
+pub mod limiting;
 pub mod linear;
 pub mod models;
 pub mod mutual;
