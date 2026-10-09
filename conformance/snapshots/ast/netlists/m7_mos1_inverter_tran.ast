@@ -1,0 +1,109 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_mos1_inverter_tran.cir
+title: "MOS1 CMOS inverter: Meyer gate charge (TOX), series resistance, junction geometry" @netlists/m7_mos1_inverter_tran.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m7_mos1_inverter_tran.cir:2:1 "vdd vdd 0 3.3"
+    [1] device[1] @netlists/m7_mos1_inverter_tran.cir:3:1 "vin in 0 pulse(0 3.3 1n 0.5n 0.5n 4n 10n)"
+    [2] device[2] @netlists/m7_mos1_inverter_tran.cir:4:1 "mn out in 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u nrd=2 nrs=2"
+    [3] device[3] @netlists/m7_mos1_inverter_tran.cir:5:1 "mp out in vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+    [4] device[4] @netlists/m7_mos1_inverter_tran.cir:6:1 "cl out 0 20f"
+    [5] model[0] @netlists/m7_mos1_inverter_tran.cir:7:1 ".model nch nmos(level=1 vto=0.7 kp=110u gamma=0.4 phi=0.7 lambda=0.04 tox=9n ld=0.05u cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n mjsw=0.33 pb=0.9 rsh=20 js=1e-4)"
+    [6] model[1] @netlists/m7_mos1_inverter_tran.cir:9:1 ".model pch pmos(level=1 vto=-0.8 kp=40u gamma=0.5 phi=0.7 lambda=0.05 tox=9n ld=0.05u cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m mj=0.5 cjsw=0.3n mjsw=0.33 pb=0.9 rd=30 rs=30)"
+    [7] analysis[0] @netlists/m7_mos1_inverter_tran.cir:11:1 ".tran 0.05n 20n 0 2p"
+    [8] end @netlists/m7_mos1_inverter_tran.cir:12:1 ".end"
+  devices (5):
+    device [0] name="vdd" designator=v @netlists/m7_mos1_inverter_tran.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3.3" @netlists/m7_mos1_inverter_tran.cir:2:11
+    device [1] name="vin" designator=v @netlists/m7_mos1_inverter_tran.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 3.3 1n 0.5n 0.5n 4n 10n)" @netlists/m7_mos1_inverter_tran.cir:3:10
+          pulse
+            initial: "0"@netlists/m7_mos1_inverter_tran.cir:3:16
+            pulsed: "3.3"@netlists/m7_mos1_inverter_tran.cir:3:18
+            delay: "1n"@netlists/m7_mos1_inverter_tran.cir:3:22
+            rise: "0.5n"@netlists/m7_mos1_inverter_tran.cir:3:25
+            fall: "0.5n"@netlists/m7_mos1_inverter_tran.cir:3:30
+            width: "4n"@netlists/m7_mos1_inverter_tran.cir:3:35
+            period: "10n"@netlists/m7_mos1_inverter_tran.cir:3:38
+    device [2] name="mn" designator=m @netlists/m7_mos1_inverter_tran.cir:4:1
+      nodes: "out" "in" "0" "0"
+      model: "nch"
+      parameters (8):
+        [0] name="w" kind=scalar value="2u" @netlists/m7_mos1_inverter_tran.cir:4:19
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_inverter_tran.cir:4:24
+        [2] name="ad" kind=scalar value="2p" @netlists/m7_mos1_inverter_tran.cir:4:31
+        [3] name="as" kind=scalar value="2p" @netlists/m7_mos1_inverter_tran.cir:4:37
+        [4] name="pd" kind=scalar value="6u" @netlists/m7_mos1_inverter_tran.cir:4:43
+        [5] name="ps" kind=scalar value="6u" @netlists/m7_mos1_inverter_tran.cir:4:49
+        [6] name="nrd" kind=scalar value="2" @netlists/m7_mos1_inverter_tran.cir:4:55
+        [7] name="nrs" kind=scalar value="2" @netlists/m7_mos1_inverter_tran.cir:4:61
+    device [3] name="mp" designator=m @netlists/m7_mos1_inverter_tran.cir:5:1
+      nodes: "out" "in" "vdd" "vdd"
+      model: "pch"
+      parameters (6):
+        [0] name="w" kind=scalar value="5u" @netlists/m7_mos1_inverter_tran.cir:5:23
+        [1] name="l" kind=scalar value="0.5u" @netlists/m7_mos1_inverter_tran.cir:5:28
+        [2] name="ad" kind=scalar value="5p" @netlists/m7_mos1_inverter_tran.cir:5:35
+        [3] name="as" kind=scalar value="5p" @netlists/m7_mos1_inverter_tran.cir:5:41
+        [4] name="pd" kind=scalar value="12u" @netlists/m7_mos1_inverter_tran.cir:5:47
+        [5] name="ps" kind=scalar value="12u" @netlists/m7_mos1_inverter_tran.cir:5:54
+    device [4] name="cl" designator=c @netlists/m7_mos1_inverter_tran.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="20f" @netlists/m7_mos1_inverter_tran.cir:6:10
+  models (2):
+    model [0] name="nch" base="nmos" level=1e0 @netlists/m7_mos1_inverter_tran.cir:7:1
+      parameters (18):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_inverter_tran.cir:7:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/m7_mos1_inverter_tran.cir:7:25
+        [2] name="kp" kind=scalar value="110u" @netlists/m7_mos1_inverter_tran.cir:7:33
+        [3] name="gamma" kind=scalar value="0.4" @netlists/m7_mos1_inverter_tran.cir:7:41
+        [4] name="phi" kind=scalar value="0.7" @netlists/m7_mos1_inverter_tran.cir:7:51
+        [5] name="lambda" kind=scalar value="0.04" @netlists/m7_mos1_inverter_tran.cir:7:59
+        [6] name="tox" kind=scalar value="9n" @netlists/m7_mos1_inverter_tran.cir:7:71
+        [7] name="ld" kind=scalar value="0.05u" @netlists/m7_mos1_inverter_tran.cir:7:78
+        [8] name="cgso" kind=scalar value="0.3n" @netlists/m7_mos1_inverter_tran.cir:7:87
+        [9] name="cgdo" kind=scalar value="0.3n" @netlists/m7_mos1_inverter_tran.cir:7:97
+        [10] name="cgbo" kind=scalar value="0.1n" @netlists/m7_mos1_inverter_tran.cir:7:107
+        [11] name="cj" kind=scalar value="0.9m" @netlists/m7_mos1_inverter_tran.cir:7:117
+        [12] name="mj" kind=scalar value="0.5" @netlists/m7_mos1_inverter_tran.cir:7:125
+        [13] name="cjsw" kind=scalar value="0.25n" @netlists/m7_mos1_inverter_tran.cir:7:132
+        [14] name="mjsw" kind=scalar value="0.33" @netlists/m7_mos1_inverter_tran.cir:7:143
+        [15] name="pb" kind=scalar value="0.9" @netlists/m7_mos1_inverter_tran.cir:7:153
+        [16] name="rsh" kind=scalar value="20" @netlists/m7_mos1_inverter_tran.cir:7:160
+        [17] name="js" kind=scalar value="1e-4" @netlists/m7_mos1_inverter_tran.cir:7:167
+    model [1] name="pch" base="pmos" level=1e0 @netlists/m7_mos1_inverter_tran.cir:9:1
+      parameters (18):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_inverter_tran.cir:9:17
+        [1] name="vto" kind=scalar value="-0.8" @netlists/m7_mos1_inverter_tran.cir:9:25
+        [2] name="kp" kind=scalar value="40u" @netlists/m7_mos1_inverter_tran.cir:9:34
+        [3] name="gamma" kind=scalar value="0.5" @netlists/m7_mos1_inverter_tran.cir:9:41
+        [4] name="phi" kind=scalar value="0.7" @netlists/m7_mos1_inverter_tran.cir:9:51
+        [5] name="lambda" kind=scalar value="0.05" @netlists/m7_mos1_inverter_tran.cir:9:59
+        [6] name="tox" kind=scalar value="9n" @netlists/m7_mos1_inverter_tran.cir:9:71
+        [7] name="ld" kind=scalar value="0.05u" @netlists/m7_mos1_inverter_tran.cir:9:78
+        [8] name="cgso" kind=scalar value="0.3n" @netlists/m7_mos1_inverter_tran.cir:9:87
+        [9] name="cgdo" kind=scalar value="0.3n" @netlists/m7_mos1_inverter_tran.cir:9:97
+        [10] name="cgbo" kind=scalar value="0.1n" @netlists/m7_mos1_inverter_tran.cir:9:107
+        [11] name="cj" kind=scalar value="1m" @netlists/m7_mos1_inverter_tran.cir:9:117
+        [12] name="mj" kind=scalar value="0.5" @netlists/m7_mos1_inverter_tran.cir:9:123
+        [13] name="cjsw" kind=scalar value="0.3n" @netlists/m7_mos1_inverter_tran.cir:9:130
+        [14] name="mjsw" kind=scalar value="0.33" @netlists/m7_mos1_inverter_tran.cir:9:140
+        [15] name="pb" kind=scalar value="0.9" @netlists/m7_mos1_inverter_tran.cir:9:150
+        [16] name="rd" kind=scalar value="30" @netlists/m7_mos1_inverter_tran.cir:9:157
+        [17] name="rs" kind=scalar value="30" @netlists/m7_mos1_inverter_tran.cir:9:163
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m7_mos1_inverter_tran.cir:11:1
+      arguments: "0.05n" "20n" "0" "2p"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

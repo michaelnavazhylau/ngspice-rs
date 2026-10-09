@@ -305,10 +305,12 @@ fn typed_nested_source_and_temperature_sweeps_are_bounded_and_nonmutating() {
 #[test]
 fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamps() {
     for body in [
-        "d1 a 0 dm\n.model dm d(bv=20)",
-        "q1 c b 0 qm\n.model qm npn(vaf=100)",
-        "q1 c b 0 qm\n.model qm npn(ikf=1m)",
-        "m1 d g 0 0 mm\n.model mm nmos(tox=10n)",
+        "d1 a 0 dm\n.model dm d(vp=1 tt=1n)",
+        // Gummel-Poon physics is ported (#87); quasi-saturation and excess
+        // phase are not.
+        "q1 c b 0 qm\n.model qm npn(rco=10)",
+        "q1 c b 0 qm\n.model qm npn(tf=1n ptf=30)",
+        "m1 d g 0 0 mm\n.model mm nmos(kf=1e-25)",
         "m1 d g 0 0 mm\n.model mm nmos(level=49)",
     ] {
         let n = Parser::new()
@@ -328,14 +330,13 @@ fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamp
         .unwrap();
     let config = RunConfig::from_netlist(&n).unwrap();
     let request = config.request_for(&n.analyses[0]).unwrap();
-    assert!(
-        runner(request.kind)
-            .unwrap()
-            .run(&mut c, &request, &config.context())
-            .unwrap_err()
-            .to_string()
-            .contains("nonlinear companion .ic/uic")
-    );
+    // Nonlinear .ic (#99): the transient operating point forces v(a)=0.2
+    // against the source, an explicit contradiction (C: a 1e10 compromise).
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap_err();
+    assert!(error.to_string().contains(".ic V(a)=0.2"), "{error}");
     assert!(
         run(
             &mut c,
@@ -421,8 +422,12 @@ fn source_stepping_rescues_a_bounded_iteration_budget_without_changing_physics()
     let context = ModelContext::default();
     let history = c.state_history();
     let zero = Vector::zeros(c.unknown_count());
+    // The legacy global-damping policy, whose iteration counts this bounded
+    // budget was designed around (and which the unphased `newton::solve`
+    // below always applies).
     let options = ngspice_rs::analysis::newton::NewtonOptions {
         max_iterations: 4,
+        limiting: ngspice_rs::analysis::newton::StepLimiting::Global,
         ..Default::default()
     };
     let load = |x: &Vector, gmin: f64| {

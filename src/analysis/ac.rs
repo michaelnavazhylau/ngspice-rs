@@ -77,18 +77,23 @@ pub(crate) fn run(
     }
     circuit.finalize()?;
     let hints = crate::analysis::initial::resolve(circuit, request)?;
+    let nodes = crate::analysis::bias::NodeForcing {
+        initial: Vec::new(),
+        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+    };
     let mut seed = crate::maths::Vector::zeros(circuit.unknown_count());
     for hint in hints.nodesets {
         seed.as_mut_slice()[hint.row] = hint.value;
     }
     // AC is linearized only after a valid physical DC solution, never at zero.
-    let solved = crate::analysis::bias::solve_dc_with(
+    let solved = crate::analysis::bias::solve_dc_forced(
         circuit,
         &context.model_context(),
         &settings,
         &[],
         Some(&seed),
         None,
+        &nodes,
     )?
     .solution;
     // acan.c reloads with MODEINITSMSIG after CKTop, and SWload/CSWload then

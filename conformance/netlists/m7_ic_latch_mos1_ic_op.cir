@@ -1,0 +1,15 @@
+CMOS latch state selected by MOS1 IC vectors
+* #99: without uic, mos1load.c still starts MODEINITJCT at a nonzero ic=
+* vector (type * ICVDS, ICVGS, ICVBS) instead of the default vbs=-1,
+* vgs=tVto, vds=0, so the direct Newton iteration of the symmetric latch
+* (whose default operating point is the unstable equilibrium) lands in the
+* q-high state.
+vdd vdd 0 dc 3
+mp1 q qb vdd vdd pm w=4u l=1u
+mn1 q qb 0 0 nm w=2u l=1u ic=3,0,0
+mp2 qb q vdd vdd pm w=4u l=1u
+mn2 qb q 0 0 nm w=2u l=1u ic=0,3,0
+.model nm nmos(vto=0.7 kp=60u lambda=0.02 gamma=0.4 phi=0.65)
+.model pm pmos(vto=-0.8 kp=25u lambda=0.03 gamma=0.5 phi=0.65)
+.op
+.end

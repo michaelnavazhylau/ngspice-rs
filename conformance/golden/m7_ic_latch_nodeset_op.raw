@@ -1,0 +1,18 @@
+Title: cmos latch state selected by .nodeset
+Date: Fri Oct  9 12:40:42  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 4
+No. Points: 1
+Variables:
+	0	v(vdd)	voltage
+	1	v(q)	voltage
+	2	v(qb)	voltage
+	3	i(vdd)	current
+Values:
+ 0	3.000000000000000e+00
+	2.999999986318182e+00
+	1.090579700714479e-08
+	-6.020000116491841e-12
+

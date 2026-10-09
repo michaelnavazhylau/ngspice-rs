@@ -73,21 +73,27 @@ pub(crate) fn op(
     {
         return Err(unsupported(".op arguments"));
     }
-    // .ic is a transient-only constraint in C (cktload.c, MODETRANOP) and a
-    // .nodeset cannot change a linear operating point; both are validated.
+    // .ic is a transient-only constraint in C (cktload.c, MODETRANOP); a
+    // .nodeset is forced in the MODEINITJCT/MODEINITFIX loads of a nonlinear
+    // solve and cannot change a linear operating point. Both are validated.
     circuit.finalize()?;
     let hints = crate::analysis::initial::resolve(circuit, request)?;
+    let nodes = crate::analysis::bias::NodeForcing {
+        initial: Vec::new(),
+        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+    };
     let mut seed = crate::maths::Vector::zeros(circuit.unknown_count());
     for hint in hints.nodesets {
         seed.as_mut_slice()[hint.row] = hint.value;
     }
-    let x = crate::analysis::bias::solve_dc_with(
+    let x = crate::analysis::bias::solve_dc_forced(
         circuit,
         &context.model_context(),
         &crate::analysis::bias::DcSettings::from_request(request)?,
         &[],
         Some(&seed),
         None,
+        &nodes,
     )?
     .solution
     .values;

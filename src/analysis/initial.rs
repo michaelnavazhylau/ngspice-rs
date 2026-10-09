@@ -23,6 +23,14 @@
 //! * `.nodeset` is stamped by `cktload.c` only in the first (`MODEINITJCT`,
 //!   `MODEINITFIX`) iterations of a DC iteration and then released; it can only
 //!   steer convergence, never change the unique solution of a linear circuit.
+//!   Nonlinear solves force it through [`crate::analysis::bias::NodeForcing`] after
+//!   [`forced_nodesets`] dropped the rows ideal relations already fix.
+//! * Nonlinear `.ic` without `uic` uses the same row replacement in every
+//!   Newton load of the transient operating point (C `CKTop` in
+//!   `MODETRANOP`), with [`irredundant_constraints`] applied first, and
+//!   instance `ic=`/`off` of D/Q/M devices act through their loads
+//!   (`crate::devices::limiting`). Under `uic` the one load C performs is the
+//!   device-flagged initial load of [`uic_start`]'s vector.
 //! * With `uic`, `NIiter()` returns right after one `CKTload` (no solve at all),
 //!   `CKTic()` first copies `.nodeset` and then `.ic` values into the node
 //!   vector, `CAPgetic()` derives an unset capacitor `ic` from those node values
@@ -371,6 +379,39 @@ pub(crate) fn irredundant_constraints(
         }
     }
     Ok(kept)
+}
+
+/// The `.nodeset` rows a nonlinear DC solve forces in its `MODEINITJCT`/
+/// `MODEINITFIX` loads ([`crate::analysis::bias::NodeForcing::nodesets`]).
+///
+/// A nodeset on a node whose voltage is already tied to ground by ideal
+/// relations (independent voltage sources, inductors as DC shorts, E/H
+/// outputs, the imposed `.ic` rows or an earlier kept nodeset) is dropped: it
+/// is only a hint, and the relation wins. C instead loads such a row with a
+/// `1e10` conductance (`cktload.c`) and enforces a compromise during those
+/// iterations. A nodeset on an `.ic` node is dropped too (C overwrites the
+/// row with the `.ic`).
+pub(crate) fn forced_nodesets(
+    circuit: &Circuit,
+    nodesets: &[RowHint],
+    imposed: &[RowHint],
+) -> Vec<(usize, Real)> {
+    let n = circuit.unknown_count();
+    let mut rigid = Rigid::new(n + 1, &controlled_output_edges(circuit));
+    for (p, q, _) in source_relations(circuit, &Vector::zeros(n), true) {
+        rigid.components.union(p, q);
+    }
+    for hint in imposed {
+        rigid.components.union(hint.row + 1, 0);
+    }
+    let mut kept = Vec::new();
+    for hint in nodesets {
+        if !rigid.components.equiv(hint.row + 1, 0) {
+            rigid.components.union(hint.row + 1, 0);
+            kept.push((hint.row, hint.value));
+        }
+    }
+    kept
 }
 
 /// Solves `A x = rhs` with every node row in `constraints` replaced by

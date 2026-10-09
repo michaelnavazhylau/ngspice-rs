@@ -14,9 +14,12 @@
 //!
 //! * **Initial point**: the DC bias (shared M4 Newton/continuation for nonlinear
 //!   circuits) with the sources at their `t = 0` left
-//!   limit and the `.ic` node voltages imposed, or, with `uic`, the charges and
-//!   fluxes of the capacitor/inductor initial conditions without any solve
-//!   (see [`crate::analysis::initial`] and `docs/port/TRANSIENT.md`). The charge/flux
+//!   limit and the `.ic` node voltages imposed (forced in every Newton load of
+//!   a nonlinear bias, with `.nodeset` forced in its `MODEINITJCT`/`MODEINITFIX`
+//!   loads), or, with `uic`, the charges and fluxes of the capacitor/inductor
+//!   initial conditions and of the nonlinear devices' instance initial
+//!   conditions without any solve (see [`crate::analysis::initial`] and
+//!   `docs/port/TRANSIENT.md`). The charge/flux
 //!   state fills the whole accepted history (C copies `CKTstate0` into
 //!   `CKTstate1..3`) with zero derivative.
 //! * **Step size**: first step `min(stop/100, tstep)/10`, cut at the `t = 0`
@@ -100,7 +103,7 @@ const DEFAULT_ABSTOL: Real = 1e-12;
 const DEFAULT_CHGTOL: Real = 1e-14;
 const DEFAULT_TRTOL: Real = 7.0;
 /// Request keys the companion backend understands.
-const KEYS: [&str; 16] = [
+const KEYS: [&str; 20] = [
     "backend",
     "method",
     "maxord",
@@ -117,14 +120,23 @@ const KEYS: [&str; 16] = [
     "gminsteps",
     "gminfactor",
     "stagemaxiter",
+    "adaptiter",
+    "noopiter",
+    "continuation",
+    "limiting",
 ];
-/// Request keys forwarded to the initial-bias DC solve.
-const BIAS_KEYS: [&str; 5] = [
+/// Request keys forwarded to the initial-bias DC solve (`limiting` also
+/// selects the step control of every timepoint's Newton solve).
+const BIAS_KEYS: [&str; 9] = [
     "maxiter",
     "srcsteps",
     "gminsteps",
     "gminfactor",
     "stagemaxiter",
+    "adaptiter",
+    "noopiter",
+    "continuation",
+    "limiting",
 ];
 
 /// Counters describing one companion transient run.
@@ -481,11 +493,6 @@ pub fn companion_transient(
     let model_context = context.model_context();
     circuit.finalize()?;
     let nonlinear = circuit.devices().iter().any(|d| d.is_nonlinear());
-    if nonlinear && (request.uic || !hints.initial.is_empty()) {
-        return Err(unsupported(
-            "nonlinear companion .ic/uic initialization is not implemented",
-        ));
-    }
     let mut system = if nonlinear {
         circuit.small_signal_system(&model_context, &Vector::zeros(circuit.unknown_count()))?
     } else {
@@ -677,12 +684,16 @@ impl Driver<'_> {
     ///
     /// * Ordinary run (C `CKTop` with `MODETRANOP`): `A x = b(0-)` with the
     ///   sources at their left limit; `.ic` node voltages are enforced as hard
-    ///   row constraints during this solve only ([`initial::constrained_bias`]),
-    ///   instance `ic=` is ignored and `.nodeset` cannot change a linear point.
+    ///   row constraints during this solve only ([`initial::constrained_bias`],
+    ///   or forced rows of the nonlinear bias, [`crate::analysis::bias::NodeForcing`]),
+    ///   instance `ic=` of C/L/D/Q is ignored (MOS1 `ic=` only moves its
+    ///   `MODEINITJCT` start) and `.nodeset` cannot change a linear point.
     /// * `uic` (C `NIiter` returns after one `CKTload`): no solve; charges and
     ///   fluxes come from the capacitor/inductor initial values (see
-    ///   [`initial::uic_start`]) and [`initial::check_impulse_free`] rejects
-    ///   initial conditions that would need an impulse.
+    ///   [`initial::uic_start`]), nonlinear devices load once at their
+    ///   instance initial conditions, and [`initial::check_impulse_free`]
+    ///   rejects capacitor/inductor initial conditions that would need an
+    ///   impulse (junction charges are not part of that check, as in C).
     ///
     /// Nothing is committed (no accept hook, no history) until every check has
     /// passed, so a failed initialization leaves no partial state.
@@ -690,7 +701,9 @@ impl Driver<'_> {
         let rhs = self.system.transient_rhs(0., crate::devices::Limit::Left)?;
         let (x, trial) = if self.uic {
             let start = initial::uic_start(self.circuit, &self.hints, &self.model_context)?;
-            let trial = self.initial_state(&start.x, &start.charges)?;
+            // C's single MODETRANOP|MODEUIC|MODEINITJCT load: nonlinear
+            // devices evaluate at their instance initial conditions.
+            let trial = self.initial_state(&start.x, &start.charges, true)?;
             let tolerances = &self.settings.tolerances;
             initial::check_impulse_free(
                 self.circuit,
@@ -719,17 +732,34 @@ impl Driver<'_> {
                 },
             )?;
             let (x, solved) = if self.nonlinear {
+                // CKTic: the Newton guess holds the .nodeset, then the .ic
+                // values; cktload.c forces the .ic rows in every load of the
+                // MODETRANOP solve and the .nodeset rows in its MODEINITJCT/
+                // MODEINITFIX loads.
                 let mut seed = Vector::zeros(self.circuit.unknown_count());
-                for hint in &self.hints.nodesets {
+                for hint in self.hints.nodesets.iter().chain(&self.hints.initial) {
                     seed.as_mut_slice()[hint.row] = hint.value;
                 }
-                let solution = crate::analysis::bias::solve_dc_with(
+                let nodes = crate::analysis::bias::NodeForcing {
+                    initial: constraints
+                        .imposed
+                        .iter()
+                        .map(|hint| (hint.row, hint.value))
+                        .collect(),
+                    nodesets: initial::forced_nodesets(
+                        self.circuit,
+                        &self.hints.nodesets,
+                        &self.hints.initial,
+                    ),
+                };
+                let solution = crate::analysis::bias::solve_dc_forced(
                     self.circuit,
                     &self.model_context,
                     &self.bias,
                     &[],
                     Some(&seed),
                     Some(&rhs),
+                    &nodes,
                 )?
                 .solution;
                 (solution.values, Some(solution.trial))
@@ -755,7 +785,7 @@ impl Driver<'_> {
             // initial phase would re-derive from the instance flags.
             let trial = match solved {
                 Some(trial) => trial,
-                None => self.initial_state(&x, &[])?,
+                None => self.initial_state(&x, &[], false)?,
             };
             (x, trial)
         };
@@ -770,10 +800,18 @@ impl Driver<'_> {
 
     /// The charge/flux state of the initial point: a DC-mode load at `x`
     /// (`q = C v`, `flux = L i`, zero derivative) with the listed absolute
-    /// state slots overwritten.
-    fn initial_state(&self, x: &Vector, overrides: &[(usize, Real)]) -> SpiceResult<TrialState> {
+    /// state slots overwritten. `uic` marks C's `uic` initial load, in which
+    /// nonlinear devices evaluate (and store their junction voltages and
+    /// charges) at their instance initial conditions
+    /// ([`crate::devices::TrialState::with_initial_conditions`]).
+    fn initial_state(
+        &self,
+        x: &Vector,
+        overrides: &[(usize, Real)],
+        uic: bool,
+    ) -> SpiceResult<TrialState> {
         let n = self.circuit.unknown_count();
-        let mut trial = self.history.trial();
+        let mut trial = self.history.trial().with_initial_conditions(uic);
         self.circuit.load(
             &LoadRequest {
                 mode: AnalysisMode::OperatingPoint,
@@ -809,12 +847,24 @@ impl Driver<'_> {
         previous: &Vector,
     ) -> SpiceResult<Trial> {
         let n = self.circuit.unknown_count();
+        let tolerance = &self.settings.tolerances;
+        let options = crate::analysis::newton::NewtonOptions {
+            max_iterations: self.settings.tran_max_iter,
+            reltol: tolerance.reltol,
+            vntol: tolerance.vntol,
+            abstol: tolerance.abstol,
+            limiting: self.bias.newton.limiting,
+            ..crate::analysis::newton::NewtonOptions::default()
+        };
         let load = |guess: &Vector,
                     matrix: &mut SparseMatrix,
                     rhs: &mut Vector,
                     phase: crate::devices::IterationPhase,
                     previous: Option<&TrialState>| {
-            let mut state = self.history.trial_in(phase, previous)?;
+            let mut state = self
+                .history
+                .trial_in(phase, previous)?
+                .with_device_limiting(options.limiting.is_device());
             self.circuit.load(
                 &LoadRequest {
                     mode: AnalysisMode::Transient {
@@ -837,14 +887,6 @@ impl Driver<'_> {
             Ok::<_, SpiceError>(state)
         };
         if self.nonlinear {
-            let tolerance = &self.settings.tolerances;
-            let options = crate::analysis::newton::NewtonOptions {
-                max_iterations: self.settings.tran_max_iter,
-                reltol: tolerance.reltol,
-                vntol: tolerance.vntol,
-                abstol: tolerance.abstol,
-                ..crate::analysis::newton::NewtonOptions::default()
-            };
             let limited = crate::analysis::bias::limited_rows(self.circuit);
             // dctran.c: MODEINITTRAN/MODEINITPRED for the first load of a
             // timepoint, MODEINITFLOAT afterwards.

@@ -1,0 +1,89 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_conv_bjt_schmitt.cir
+title: "Emitter-coupled BJT Schmitt trigger: operating point and hysteresis sweeps" @netlists/m7_conv_bjt_schmitt.cir:1:1
+scope root
+  cards (16):
+    [0] device[0] @netlists/m7_conv_bjt_schmitt.cir:4:1 "vcc vcc 0 dc 5"
+    [1] device[1] @netlists/m7_conv_bjt_schmitt.cir:5:1 "vin in 0 dc 2.1"
+    [2] device[2] @netlists/m7_conv_bjt_schmitt.cir:6:1 "rs in b1 1k"
+    [3] device[3] @netlists/m7_conv_bjt_schmitt.cir:7:1 "q1 c1 b1 e qmod"
+    [4] device[4] @netlists/m7_conv_bjt_schmitt.cir:8:1 "rc1 vcc c1 2k"
+    [5] device[5] @netlists/m7_conv_bjt_schmitt.cir:9:1 "r1 c1 b2 4k"
+    [6] device[6] @netlists/m7_conv_bjt_schmitt.cir:10:1 "r2 b2 0 6k"
+    [7] device[7] @netlists/m7_conv_bjt_schmitt.cir:11:1 "q2 out b2 e qmod"
+    [8] device[8] @netlists/m7_conv_bjt_schmitt.cir:12:1 "rc2 vcc out 1k"
+    [9] device[9] @netlists/m7_conv_bjt_schmitt.cir:13:1 "re e 0 500"
+    [10] model[0] @netlists/m7_conv_bjt_schmitt.cir:14:1 ".model qmod npn(is=1e-14 bf=100)"
+    [11] options[0] @netlists/m7_conv_bjt_schmitt.cir:15:1 ".options reltol=1e-8"
+    [12] analysis[0] @netlists/m7_conv_bjt_schmitt.cir:16:1 ".op"
+    [13] analysis[1] @netlists/m7_conv_bjt_schmitt.cir:17:1 ".dc vin 0 3 0.05"
+    [14] analysis[2] @netlists/m7_conv_bjt_schmitt.cir:18:1 ".dc vin 3 0 -0.05"
+    [15] end @netlists/m7_conv_bjt_schmitt.cir:19:1 ".end"
+  devices (10):
+    device [0] name="vcc" designator=v @netlists/m7_conv_bjt_schmitt.cir:4:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m7_conv_bjt_schmitt.cir:4:11
+    device [1] name="vin" designator=v @netlists/m7_conv_bjt_schmitt.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2.1" @netlists/m7_conv_bjt_schmitt.cir:5:10
+    device [2] name="rs" designator=r @netlists/m7_conv_bjt_schmitt.cir:6:1
+      nodes: "in" "b1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_conv_bjt_schmitt.cir:6:10
+    device [3] name="q1" designator=q @netlists/m7_conv_bjt_schmitt.cir:7:1
+      nodes: "c1" "b1" "e"
+      model: "qmod"
+      parameters (0):
+    device [4] name="rc1" designator=r @netlists/m7_conv_bjt_schmitt.cir:8:1
+      nodes: "vcc" "c1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m7_conv_bjt_schmitt.cir:8:12
+    device [5] name="r1" designator=r @netlists/m7_conv_bjt_schmitt.cir:9:1
+      nodes: "c1" "b2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4k" @netlists/m7_conv_bjt_schmitt.cir:9:10
+    device [6] name="r2" designator=r @netlists/m7_conv_bjt_schmitt.cir:10:1
+      nodes: "b2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="6k" @netlists/m7_conv_bjt_schmitt.cir:10:9
+    device [7] name="q2" designator=q @netlists/m7_conv_bjt_schmitt.cir:11:1
+      nodes: "out" "b2" "e"
+      model: "qmod"
+      parameters (0):
+    device [8] name="rc2" designator=r @netlists/m7_conv_bjt_schmitt.cir:12:1
+      nodes: "vcc" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_conv_bjt_schmitt.cir:12:13
+    device [9] name="re" designator=r @netlists/m7_conv_bjt_schmitt.cir:13:1
+      nodes: "e" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/m7_conv_bjt_schmitt.cir:13:8
+  models (1):
+    model [0] name="qmod" base="npn" level=none @netlists/m7_conv_bjt_schmitt.cir:14:1
+      parameters (2):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m7_conv_bjt_schmitt.cir:14:17
+        [1] name="bf" kind=scalar value="100" @netlists/m7_conv_bjt_schmitt.cir:14:26
+  subcircuits (0):
+  analyses (3):
+    analysis [0] kind=op @netlists/m7_conv_bjt_schmitt.cir:16:1
+      arguments:
+    analysis [1] kind=dc @netlists/m7_conv_bjt_schmitt.cir:17:1
+      arguments: "vin" "0" "3" "0.05"
+    analysis [2] kind=dc @netlists/m7_conv_bjt_schmitt.cir:18:1
+      arguments: "vin" "3" "0" "-0.05"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_conv_bjt_schmitt.cir:15:1
+      setting [0] name="reltol" value="1e-8"@netlists/m7_conv_bjt_schmitt.cir:15:17 @netlists/m7_conv_bjt_schmitt.cir:15:10
+  globals (0):

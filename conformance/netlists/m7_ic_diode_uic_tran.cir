@@ -1,0 +1,15 @@
+diode RC discharge from uic initial conditions
+* #99: uic skips the operating point. c1 starts at its instance ic=2 V, c2
+* and the diode junction from the .ic node vector (v(b) = 0.5 V, v(a) = 0):
+* the junction (CJO, TT, RS) starts at -0.5 V. The diode's own ic=0.4 has no
+* effect in ngspice (dioparam.c never sets DIOinitCondGiven, so diogetic.c
+* overwrites it with the node difference).
+c1 a 0 10n ic=2
+d1 a b dm ic=0.4
+r1 b 0 1k
+c2 b 0 1n
+.ic v(b)=0.5
+.model dm d(is=1e-14 n=1.2 rs=10 cjo=20p tt=50n)
+.options reltol=1e-5
+.tran 0.1u 40u 0 20n uic
+.end

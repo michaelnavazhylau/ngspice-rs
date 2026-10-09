@@ -1,0 +1,15 @@
+CMOS latch state selected by .nodeset
+* #99: the symmetric latch's default operating point is its unstable
+* equilibrium (dynamic gmin keeps the symmetry). The .nodeset rows are
+* forced in the MODEINITJCT/MODEINITFIX loads and released afterwards, so the
+* solve lands in the q-high state.
+vdd vdd 0 dc 3
+mp1 q qb vdd vdd pm w=4u l=1u
+mn1 q qb 0 0 nm w=2u l=1u
+mp2 qb q vdd vdd pm w=4u l=1u
+mn2 qb q 0 0 nm w=2u l=1u
+.model nm nmos(vto=0.7 kp=60u lambda=0.02 gamma=0.4 phi=0.65)
+.model pm pmos(vto=-0.8 kp=25u lambda=0.03 gamma=0.5 phi=0.65)
+.nodeset v(q)=3 v(qb)=0
+.op
+.end

@@ -132,7 +132,12 @@ for a cold solve of its own final point. Each nonlinear point's converged state
 is accepted into a history the next point continues (`dctrcurv.c` rotates its
 state vectors), starting in `MODEINITPRED`; only devices with discrete state
 read it, so S/W switches keep their hysteresis across a sweep
-([SWITCHES.md](SWITCHES.md)). In a nested sweep the first point of every inner
+([SWITCHES.md](SWITCHES.md)) and junction devices limit against the previous
+point's voltages. Under the default ngspice continuation every point after the
+first is first solved by a plain warm-started Newton bounded by C's effective
+`itl2` (100), falling back to the full `CKTop` sequence on a numerical failure
+(`dctrcurv.c`; #106), which is what lets Schmitt triggers follow different
+branches up and down (`m7_conv_*_schmitt` goldens). In a nested sweep the first point of every inner
 sweep restarts like the very first point (`dctrcurv.c` `firstTime`). Circuits
 with discrete-state devices sweep C's accumulated values
 (`SweepSpec::accumulated_grid`: `value += step`, absolute `1e3 DBL_EPSILON`

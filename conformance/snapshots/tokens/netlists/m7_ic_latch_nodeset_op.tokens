@@ -1,0 +1,141 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_ic_latch_nodeset_op.cir
+title: "CMOS latch state selected by .nodeset" @netlists/m7_ic_latch_nodeset_op.cir:1:1
+card 1 @netlists/m7_ic_latch_nodeset_op.cir:6:1 lines=6-6 continuations=0
+  raw: "vdd vdd 0 dc 3"
+  kind: device(v)
+  token 1 6:1 word "vdd"
+  token 2 6:5 word "vdd"
+  token 3 6:9 number "0" value=0e0
+  token 4 6:11 word "dc"
+  token 5 6:14 number "3" value=3e0
+card 2 @netlists/m7_ic_latch_nodeset_op.cir:7:1 lines=7-7 continuations=0
+  raw: "mp1 q qb vdd vdd pm w=4u l=1u"
+  kind: device(m)
+  token 1 7:1 word "mp1"
+  token 2 7:5 word "q"
+  token 3 7:7 word "qb"
+  token 4 7:10 word "vdd"
+  token 5 7:14 word "vdd"
+  token 6 7:18 word "pm"
+  token 7 7:21 word "w"
+  token 8 7:22 equals "="
+  token 9 7:23 number "4u" value=4e-6
+  token 10 7:26 word "l"
+  token 11 7:27 equals "="
+  token 12 7:28 number "1u" value=1e-6
+card 3 @netlists/m7_ic_latch_nodeset_op.cir:8:1 lines=8-8 continuations=0
+  raw: "mn1 q qb 0 0 nm w=2u l=1u"
+  kind: device(m)
+  token 1 8:1 word "mn1"
+  token 2 8:5 word "q"
+  token 3 8:7 word "qb"
+  token 4 8:10 number "0" value=0e0
+  token 5 8:12 number "0" value=0e0
+  token 6 8:14 word "nm"
+  token 7 8:17 word "w"
+  token 8 8:18 equals "="
+  token 9 8:19 number "2u" value=2e-6
+  token 10 8:22 word "l"
+  token 11 8:23 equals "="
+  token 12 8:24 number "1u" value=1e-6
+card 4 @netlists/m7_ic_latch_nodeset_op.cir:9:1 lines=9-9 continuations=0
+  raw: "mp2 qb q vdd vdd pm w=4u l=1u"
+  kind: device(m)
+  token 1 9:1 word "mp2"
+  token 2 9:5 word "qb"
+  token 3 9:8 word "q"
+  token 4 9:10 word "vdd"
+  token 5 9:14 word "vdd"
+  token 6 9:18 word "pm"
+  token 7 9:21 word "w"
+  token 8 9:22 equals "="
+  token 9 9:23 number "4u" value=4e-6
+  token 10 9:26 word "l"
+  token 11 9:27 equals "="
+  token 12 9:28 number "1u" value=1e-6
+card 5 @netlists/m7_ic_latch_nodeset_op.cir:10:1 lines=10-10 continuations=0
+  raw: "mn2 qb q 0 0 nm w=2u l=1u"
+  kind: device(m)
+  token 1 10:1 word "mn2"
+  token 2 10:5 word "qb"
+  token 3 10:8 word "q"
+  token 4 10:10 number "0" value=0e0
+  token 5 10:12 number "0" value=0e0
+  token 6 10:14 word "nm"
+  token 7 10:17 word "w"
+  token 8 10:18 equals "="
+  token 9 10:19 number "2u" value=2e-6
+  token 10 10:22 word "l"
+  token 11 10:23 equals "="
+  token 12 10:24 number "1u" value=1e-6
+card 6 @netlists/m7_ic_latch_nodeset_op.cir:11:1 lines=11-11 continuations=0
+  raw: ".model nm nmos(vto=0.7 kp=60u lambda=0.02 gamma=0.4 phi=0.65)"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "nm"
+  token 3 11:11 word "nmos"
+  token 4 11:15 lparen "("
+  token 5 11:16 word "vto"
+  token 6 11:19 equals "="
+  token 7 11:20 number "0.7" value=7e-1
+  token 8 11:24 word "kp"
+  token 9 11:26 equals "="
+  token 10 11:27 number "60u" value=5.9999999999999995e-5
+  token 11 11:31 word "lambda"
+  token 12 11:37 equals "="
+  token 13 11:38 number "0.02" value=2e-2
+  token 14 11:43 word "gamma"
+  token 15 11:48 equals "="
+  token 16 11:49 number "0.4" value=4e-1
+  token 17 11:53 word "phi"
+  token 18 11:56 equals "="
+  token 19 11:57 number "0.65" value=6.5e-1
+  token 20 11:61 rparen ")"
+card 7 @netlists/m7_ic_latch_nodeset_op.cir:12:1 lines=12-12 continuations=0
+  raw: ".model pm pmos(vto=-0.8 kp=25u lambda=0.03 gamma=0.5 phi=0.65)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "pm"
+  token 3 12:11 word "pmos"
+  token 4 12:15 lparen "("
+  token 5 12:16 word "vto"
+  token 6 12:19 equals "="
+  token 7 12:20 number "-0.8" value=-8e-1
+  token 8 12:25 word "kp"
+  token 9 12:27 equals "="
+  token 10 12:28 number "25u" value=2.4999999999999998e-5
+  token 11 12:32 word "lambda"
+  token 12 12:38 equals "="
+  token 13 12:39 number "0.03" value=3e-2
+  token 14 12:44 word "gamma"
+  token 15 12:49 equals "="
+  token 16 12:50 number "0.5" value=5e-1
+  token 17 12:54 word "phi"
+  token 18 12:57 equals "="
+  token 19 12:58 number "0.65" value=6.5e-1
+  token 20 12:62 rparen ")"
+card 8 @netlists/m7_ic_latch_nodeset_op.cir:13:1 lines=13-13 continuations=0
+  raw: ".nodeset v(q)=3 v(qb)=0"
+  kind: dot(.nodeset)
+  token 1 13:1 word ".nodeset"
+  token 2 13:10 word "v"
+  token 3 13:11 lparen "("
+  token 4 13:12 word "q"
+  token 5 13:13 rparen ")"
+  token 6 13:14 equals "="
+  token 7 13:15 number "3" value=3e0
+  token 8 13:17 word "v"
+  token 9 13:18 lparen "("
+  token 10 13:19 word "qb"
+  token 11 13:21 rparen ")"
+  token 12 13:22 equals "="
+  token 13 13:23 number "0" value=0e0
+card 9 @netlists/m7_ic_latch_nodeset_op.cir:14:1 lines=14-14 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 14:1 word ".op"
+card 10 @netlists/m7_ic_latch_nodeset_op.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

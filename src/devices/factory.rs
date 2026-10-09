@@ -22,7 +22,7 @@ pub(crate) const CARD_FACTORY: &[char] = &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g
 /// by subcircuit expansion (`crate::devices::subckt`). The registry's `bounded` entries.
 pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('d', "junction diode (dioload.c subset)"),
-    ('q', "Ebers-Moll BJT (bjtload.c subset)"),
+    ('q', "Gummel-Poon BJT level 1 (bjtload.c)"),
     ('m', "MOS1 (level 1)"),
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
@@ -68,15 +68,11 @@ pub(crate) fn instantiate_with_models(
         }
         match model.family() {
             crate::devices::models::ModelFamily::Npn | crate::devices::models::ModelFamily::Pnp => {
-                return crate::devices::transistors::Bjt::instantiate(
-                    instance, nodes, &model, context,
-                );
+                return crate::devices::bjt::Bjt::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Nmos
             | crate::devices::models::ModelFamily::Pmos => {
-                return crate::devices::transistors::Mos1::instantiate(
-                    instance, nodes, &model, context,
-                );
+                return crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Switch
             | crate::devices::models::ModelFamily::CurrentSwitch => {

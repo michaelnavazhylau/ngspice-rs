@@ -1,0 +1,119 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_mos1_process_dc.cir
+title: "MOS1 process extraction (NSUB/TPG/NSS/UO), forward body bias and temperature" @netlists/m7_mos1_process_dc.cir:1:1
+scope root
+  cards (16):
+    [0] device[0] @netlists/m7_mos1_process_dc.cir:2:1 "vd1 d1 0 2"
+    [1] device[1] @netlists/m7_mos1_process_dc.cir:3:1 "vd2 d2 0 2"
+    [2] device[2] @netlists/m7_mos1_process_dc.cir:4:1 "vd3 d3 0 -2"
+    [3] device[3] @netlists/m7_mos1_process_dc.cir:5:1 "vgs g 0 0"
+    [4] device[4] @netlists/m7_mos1_process_dc.cir:6:1 "vbs b 0 0.3"
+    [5] device[5] @netlists/m7_mos1_process_dc.cir:7:1 "vbp bp 0 -0.3"
+    [6] device[6] @netlists/m7_mos1_process_dc.cir:8:1 "egp gp 0 g 0 -1"
+    [7] device[7] @netlists/m7_mos1_process_dc.cir:9:1 "m1 d1 g 0 b mn w=4u l=1u temp=60"
+    [8] device[8] @netlists/m7_mos1_process_dc.cir:10:1 "m2 d2 g 0 b mq w=4u l=1u dtemp=-30"
+    [9] device[9] @netlists/m7_mos1_process_dc.cir:11:1 "m3 d3 gp 0 bp mp w=8u l=1u nrd=3 nrs=3"
+    [10] model[0] @netlists/m7_mos1_process_dc.cir:12:1 ".model mn nmos(level=1 tox=25n nsub=2e16 tpg=1 nss=1e10 uo=550 lambda=0.02 tnom=20)"
+    [11] model[1] @netlists/m7_mos1_process_dc.cir:13:1 ".model mq nmos(level=1 tox=25n nsub=5e15 tpg=-1 uo=500 phi=0.6)"
+    [12] model[2] @netlists/m7_mos1_process_dc.cir:14:1 ".model mp pmos(level=1 tox=25n nsub=1e16 nss=2e10 u0=250 gamma=0.45 rsh=30)"
+    [13] options[0] @netlists/m7_mos1_process_dc.cir:15:1 ".options reltol=1e-7 vntol=1e-12 abstol=1e-18"
+    [14] analysis[0] @netlists/m7_mos1_process_dc.cir:16:1 ".dc vgs 0 3 0.1"
+    [15] end @netlists/m7_mos1_process_dc.cir:17:1 ".end"
+  devices (10):
+    device [0] name="vd1" designator=v @netlists/m7_mos1_process_dc.cir:2:1
+      nodes: "d1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/m7_mos1_process_dc.cir:2:10
+    device [1] name="vd2" designator=v @netlists/m7_mos1_process_dc.cir:3:1
+      nodes: "d2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/m7_mos1_process_dc.cir:3:10
+    device [2] name="vd3" designator=v @netlists/m7_mos1_process_dc.cir:4:1
+      nodes: "d3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-2" @netlists/m7_mos1_process_dc.cir:4:10
+    device [3] name="vgs" designator=v @netlists/m7_mos1_process_dc.cir:5:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m7_mos1_process_dc.cir:5:9
+    device [4] name="vbs" designator=v @netlists/m7_mos1_process_dc.cir:6:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.3" @netlists/m7_mos1_process_dc.cir:6:9
+    device [5] name="vbp" designator=v @netlists/m7_mos1_process_dc.cir:7:1
+      nodes: "bp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.3" @netlists/m7_mos1_process_dc.cir:7:10
+    device [6] name="egp" designator=e @netlists/m7_mos1_process_dc.cir:8:1
+      nodes: "gp" "0" "g" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="-1" @netlists/m7_mos1_process_dc.cir:8:14
+    device [7] name="m1" designator=m @netlists/m7_mos1_process_dc.cir:9:1
+      nodes: "d1" "g" "0" "b"
+      model: "mn"
+      parameters (3):
+        [0] name="w" kind=scalar value="4u" @netlists/m7_mos1_process_dc.cir:9:16
+        [1] name="l" kind=scalar value="1u" @netlists/m7_mos1_process_dc.cir:9:21
+        [2] name="temp" kind=scalar value="60" @netlists/m7_mos1_process_dc.cir:9:26
+    device [8] name="m2" designator=m @netlists/m7_mos1_process_dc.cir:10:1
+      nodes: "d2" "g" "0" "b"
+      model: "mq"
+      parameters (3):
+        [0] name="w" kind=scalar value="4u" @netlists/m7_mos1_process_dc.cir:10:16
+        [1] name="l" kind=scalar value="1u" @netlists/m7_mos1_process_dc.cir:10:21
+        [2] name="dtemp" kind=scalar value="-30" @netlists/m7_mos1_process_dc.cir:10:26
+    device [9] name="m3" designator=m @netlists/m7_mos1_process_dc.cir:11:1
+      nodes: "d3" "gp" "0" "bp"
+      model: "mp"
+      parameters (4):
+        [0] name="w" kind=scalar value="8u" @netlists/m7_mos1_process_dc.cir:11:18
+        [1] name="l" kind=scalar value="1u" @netlists/m7_mos1_process_dc.cir:11:23
+        [2] name="nrd" kind=scalar value="3" @netlists/m7_mos1_process_dc.cir:11:28
+        [3] name="nrs" kind=scalar value="3" @netlists/m7_mos1_process_dc.cir:11:34
+  models (3):
+    model [0] name="mn" base="nmos" level=1e0 @netlists/m7_mos1_process_dc.cir:12:1
+      parameters (8):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_process_dc.cir:12:16
+        [1] name="tox" kind=scalar value="25n" @netlists/m7_mos1_process_dc.cir:12:24
+        [2] name="nsub" kind=scalar value="2e16" @netlists/m7_mos1_process_dc.cir:12:32
+        [3] name="tpg" kind=scalar value="1" @netlists/m7_mos1_process_dc.cir:12:42
+        [4] name="nss" kind=scalar value="1e10" @netlists/m7_mos1_process_dc.cir:12:48
+        [5] name="uo" kind=scalar value="550" @netlists/m7_mos1_process_dc.cir:12:57
+        [6] name="lambda" kind=scalar value="0.02" @netlists/m7_mos1_process_dc.cir:12:64
+        [7] name="tnom" kind=scalar value="20" @netlists/m7_mos1_process_dc.cir:12:76
+    model [1] name="mq" base="nmos" level=1e0 @netlists/m7_mos1_process_dc.cir:13:1
+      parameters (6):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_process_dc.cir:13:16
+        [1] name="tox" kind=scalar value="25n" @netlists/m7_mos1_process_dc.cir:13:24
+        [2] name="nsub" kind=scalar value="5e15" @netlists/m7_mos1_process_dc.cir:13:32
+        [3] name="tpg" kind=scalar value="-1" @netlists/m7_mos1_process_dc.cir:13:42
+        [4] name="uo" kind=scalar value="500" @netlists/m7_mos1_process_dc.cir:13:49
+        [5] name="phi" kind=scalar value="0.6" @netlists/m7_mos1_process_dc.cir:13:56
+    model [2] name="mp" base="pmos" level=1e0 @netlists/m7_mos1_process_dc.cir:14:1
+      parameters (7):
+        [0] name="level" kind=scalar value="1" @netlists/m7_mos1_process_dc.cir:14:16
+        [1] name="tox" kind=scalar value="25n" @netlists/m7_mos1_process_dc.cir:14:24
+        [2] name="nsub" kind=scalar value="1e16" @netlists/m7_mos1_process_dc.cir:14:32
+        [3] name="nss" kind=scalar value="2e10" @netlists/m7_mos1_process_dc.cir:14:42
+        [4] name="u0" kind=scalar value="250" @netlists/m7_mos1_process_dc.cir:14:51
+        [5] name="gamma" kind=scalar value="0.45" @netlists/m7_mos1_process_dc.cir:14:58
+        [6] name="rsh" kind=scalar value="30" @netlists/m7_mos1_process_dc.cir:14:69
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m7_mos1_process_dc.cir:16:1
+      arguments: "vgs" "0" "3" "0.1"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_mos1_process_dc.cir:15:1
+      setting [0] name="reltol" value="1e-7"@netlists/m7_mos1_process_dc.cir:15:17 @netlists/m7_mos1_process_dc.cir:15:10
+      setting [1] name="vntol" value="1e-12"@netlists/m7_mos1_process_dc.cir:15:28 @netlists/m7_mos1_process_dc.cir:15:22
+      setting [2] name="abstol" value="1e-18"@netlists/m7_mos1_process_dc.cir:15:41 @netlists/m7_mos1_process_dc.cir:15:34
+  globals (0):

@@ -1,0 +1,20 @@
+BJT latch set/reset transient
+* #106: set (20 us) and reset (50 us) pulses drive the cross-coupled pair
+* through regenerative switching; with RX1 = 20k it has a single DC state.
+vcc vcc 0 dc 5
+vs s 0 dc 0 pulse(0 3 20u 1u 1u 5u 100u)
+vr r 0 dc 0 pulse(0 3 50u 1u 1u 5u 100u)
+rc1 vcc c1 1k
+rc2 vcc c2 1.1k
+rb1 c1 b2 10k
+rb2 c2 b1 10k
+rx1 b1 0 20k
+rx2 b2 0 4.7k
+rs s b1 2k
+rr r b2 2k
+q1 c1 b1 0 qmod
+q2 c2 b2 0 qmod
+.model qmod npn(is=1e-14 bf=100 cje=2p cjc=1p tf=1n)
+.options reltol=1e-7
+.tran 0.5u 80u 0 10n
+.end

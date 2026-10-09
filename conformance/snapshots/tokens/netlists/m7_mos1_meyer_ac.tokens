@@ -1,0 +1,132 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_mos1_meyer_ac.cir
+title: "MOS1 small signal: Meyer capacitance, series resistance and junction geometry at 75 C" @netlists/m7_mos1_meyer_ac.cir:1:1
+card 1 @netlists/m7_mos1_meyer_ac.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd vdd 0 5"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 word "vdd"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 number "5" value=5e0
+card 2 @netlists/m7_mos1_meyer_ac.cir:3:1 lines=3-3 continuations=0
+  raw: "vin gate 0 dc 2 ac 1"
+  kind: device(v)
+  token 1 3:1 word "vin"
+  token 2 3:5 word "gate"
+  token 3 3:10 number "0" value=0e0
+  token 4 3:12 word "dc"
+  token 5 3:15 number "2" value=2e0
+  token 6 3:17 word "ac"
+  token 7 3:20 number "1" value=1e0
+card 3 @netlists/m7_mos1_meyer_ac.cir:4:1 lines=4-4 continuations=0
+  raw: "rl vdd drain 10k"
+  kind: device(r)
+  token 1 4:1 word "rl"
+  token 2 4:4 word "vdd"
+  token 3 4:8 word "drain"
+  token 4 4:14 number "10k" value=1e4
+card 4 @netlists/m7_mos1_meyer_ac.cir:5:1 lines=5-5 continuations=0
+  raw: "m1 drain gate 0 0 mm w=5u l=2.2u m=2 ad=20p as=20p pd=24u ps=24u"
+  kind: device(m)
+  token 1 5:1 word "m1"
+  token 2 5:4 word "drain"
+  token 3 5:10 word "gate"
+  token 4 5:15 number "0" value=0e0
+  token 5 5:17 number "0" value=0e0
+  token 6 5:19 word "mm"
+  token 7 5:22 word "w"
+  token 8 5:23 equals "="
+  token 9 5:24 number "5u" value=4.9999999999999996e-6
+  token 10 5:27 word "l"
+  token 11 5:28 equals "="
+  token 12 5:29 number "2.2u" value=2.2e-6
+  token 13 5:34 word "m"
+  token 14 5:35 equals "="
+  token 15 5:36 number "2" value=2e0
+  token 16 5:38 word "ad"
+  token 17 5:40 equals "="
+  token 18 5:41 number "20p" value=2e-11
+  token 19 5:45 word "as"
+  token 20 5:47 equals "="
+  token 21 5:48 number "20p" value=2e-11
+  token 22 5:52 word "pd"
+  token 23 5:54 equals "="
+  token 24 5:55 number "24u" value=2.4e-5
+  token 25 5:59 word "ps"
+  token 26 5:61 equals "="
+  token 27 5:62 number "24u" value=2.4e-5
+card 5 @netlists/m7_mos1_meyer_ac.cir:6:1 lines=6-7 continuations=1
+  raw: ".model mm nmos(level=1 vto=0.8 kp=50u gamma=0.5 phi=0.65 lambda=0.03 tox=20n ld=0.1u cgso=0.4n cgdo=0.4n cgbo=0.2n cj=0.5m cjsw=0.4n mjsw=0.33 rd=50 rs=40)"
+  kind: dot(.model)
+  token 1 6:1 word ".model"
+  token 2 6:8 word "mm"
+  token 3 6:11 word "nmos"
+  token 4 6:15 lparen "("
+  token 5 6:16 word "level"
+  token 6 6:21 equals "="
+  token 7 6:22 number "1" value=1e0
+  token 8 6:24 word "vto"
+  token 9 6:27 equals "="
+  token 10 6:28 number "0.8" value=8e-1
+  token 11 6:32 word "kp"
+  token 12 6:34 equals "="
+  token 13 6:35 number "50u" value=4.9999999999999996e-5
+  token 14 6:39 word "gamma"
+  token 15 6:44 equals "="
+  token 16 6:45 number "0.5" value=5e-1
+  token 17 6:49 word "phi"
+  token 18 6:52 equals "="
+  token 19 6:53 number "0.65" value=6.5e-1
+  token 20 6:58 word "lambda"
+  token 21 6:64 equals "="
+  token 22 6:65 number "0.03" value=3e-2
+  token 23 6:70 word "tox"
+  token 24 6:73 equals "="
+  token 25 6:74 number "20n" value=2e-8
+  token 26 6:78 word "ld"
+  token 27 6:80 equals "="
+  token 28 6:81 number "0.1u" value=1e-7
+  token 29 6:86 word "cgso"
+  token 30 6:90 equals "="
+  token 31 6:91 number "0.4n" value=4.0000000000000007e-10
+  token 32 6:96 word "cgdo"
+  token 33 6:100 equals "="
+  token 34 6:101 number "0.4n" value=4.0000000000000007e-10
+  token 35 6:106 word "cgbo"
+  token 36 6:110 equals "="
+  token 37 6:111 number "0.2n" value=2.0000000000000003e-10
+  token 38 6:116 word "cj"
+  token 39 6:118 equals "="
+  token 40 6:119 number "0.5m" value=5e-4
+  token 41 6:124 word "cjsw"
+  token 42 6:128 equals "="
+  token 43 6:129 number "0.4n" value=4.0000000000000007e-10
+  token 44 6:134 word "mjsw"
+  token 45 6:138 equals "="
+  token 46 6:139 number "0.33" value=3.3e-1
+  token 47 6:144 word "rd"
+  token 48 6:146 equals "="
+  token 49 6:147 number "50" value=5e1
+  token 50 6:150 word "rs"
+  token 51 6:152 equals "="
+  token 52 6:153 number "40" value=4e1
+  token 53 6:155 rparen ")"
+card 6 @netlists/m7_mos1_meyer_ac.cir:8:1 lines=8-8 continuations=0
+  raw: ".options temp=75"
+  kind: dot(.options)
+  token 1 8:1 word ".options"
+  token 2 8:10 word "temp"
+  token 3 8:14 equals "="
+  token 4 8:15 number "75" value=7.5e1
+card 7 @netlists/m7_mos1_meyer_ac.cir:9:1 lines=9-9 continuations=0
+  raw: ".ac dec 5 1k 10g"
+  kind: dot(.ac)
+  token 1 9:1 word ".ac"
+  token 2 9:5 word "dec"
+  token 3 9:9 number "5" value=5e0
+  token 4 9:11 number "1k" value=1e3
+  token 5 9:14 number "10g" value=1e10
+card 8 @netlists/m7_mos1_meyer_ac.cir:10:1 lines=10-10 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 10:1 word ".end"

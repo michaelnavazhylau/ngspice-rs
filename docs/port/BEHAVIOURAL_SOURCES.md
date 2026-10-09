@@ -176,12 +176,13 @@ Use a maximum step (`.tran tstep tstop 0 tmax`) to resolve fast time functions;
 `bsource_tran` does, because otherwise both simulators carry percent-level
 errors of their own.
 
-**Newton limiting:** `asrcload.c` applies no limiting. The port's Newton uses a
-global 0.2 V voltage-step damping in place of junction limiting; behavioural
-devices opt out (`Device::limits_voltage_steps`), and when any device opts out
-the damping watches only the nodes of the junction devices. A 1000x B gain on
-5 V therefore converges in one step instead of thousands. Circuits without
-behavioural sources keep the previous policy exactly.
+**Newton limiting:** `asrcload.c` applies no limiting. Since #106 the port's
+default is C's device limiting (junction devices limit their own voltages, B
+sources take full steps). Under the fallback `limiting=global` policy, a
+global 0.2 V voltage-step damping, behavioural devices opt out
+(`Device::limits_voltage_steps`), and when any device opts out the damping
+watches only the nodes of the junction devices, so a 1000x B gain on 5 V
+converges in one step instead of thousands.
 
 Not modelled: C scales B outputs by the source-stepping factor only in the
 transient operating point (`MODETRANOP`), and `ASRCconvTest` adds a

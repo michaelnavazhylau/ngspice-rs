@@ -1,0 +1,114 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_diode_temp_ac.cir
+title: "Diode small signal at 100 C: depletion temperature laws, sidewall charge and recombination" @netlists/m7_diode_temp_ac.cir:1:1
+scope root
+  cards (15):
+    [0] options[0] @netlists/m7_diode_temp_ac.cir:2:1 ".options temp=100"
+    [1] device[0] @netlists/m7_diode_temp_ac.cir:3:1 "vb1 b1 0 dc 2 ac 1"
+    [2] device[1] @netlists/m7_diode_temp_ac.cir:4:1 "r1 b1 k1 10k"
+    [3] device[2] @netlists/m7_diode_temp_ac.cir:5:1 "d1 0 k1 dc0 pj=50"
+    [4] device[3] @netlists/m7_diode_temp_ac.cir:6:1 "vb2 b2 0 dc 2 ac 1"
+    [5] device[4] @netlists/m7_diode_temp_ac.cir:7:1 "r2 b2 k2 10k"
+    [6] device[5] @netlists/m7_diode_temp_ac.cir:8:1 "d2 0 k2 dc1 dtemp=-30"
+    [7] device[6] @netlists/m7_diode_temp_ac.cir:9:1 "vb3 b3 0 dc 0.62 ac 1"
+    [8] device[7] @netlists/m7_diode_temp_ac.cir:10:1 "r3 b3 k3 1k"
+    [9] device[8] @netlists/m7_diode_temp_ac.cir:11:1 "d3 k3 0 dfw"
+    [10] model[0] @netlists/m7_diode_temp_ac.cir:12:1 ".model dc0 d(cjo=20p vj=0.75 m=0.45 cjsw=2p vjsw=0.6 mjsw=0.3 fcs=0.4 tnom=50)"
+    [11] model[1] @netlists/m7_diode_temp_ac.cir:13:1 ".model dc1 d(cjo=15p vj=0.8 m=0.5 tlevc=1 cta=1.5m tpb=1.8m)"
+    [12] model[2] @netlists/m7_diode_temp_ac.cir:14:1 ".model dfw d(is=1e-15 n=1.1 tt=5n cjo=10p isr=1e-11 nr=2 vj=0.7 m=0.4 ikf=5m jtun=1e-14 rs=3 ttt1=2m)"
+    [13] analysis[0] @netlists/m7_diode_temp_ac.cir:15:1 ".ac dec 5 1k 1g"
+    [14] end @netlists/m7_diode_temp_ac.cir:16:1 ".end"
+  devices (9):
+    device [0] name="vb1" designator=v @netlists/m7_diode_temp_ac.cir:3:1
+      nodes: "b1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/m7_diode_temp_ac.cir:3:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m7_diode_temp_ac.cir:3:18
+        [2] name="acphase" kind=scalar value="0" @netlists/m7_diode_temp_ac.cir:3:15
+    device [1] name="r1" designator=r @netlists/m7_diode_temp_ac.cir:4:1
+      nodes: "b1" "k1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_diode_temp_ac.cir:4:10
+    device [2] name="d1" designator=d @netlists/m7_diode_temp_ac.cir:5:1
+      nodes: "0" "k1"
+      model: "dc0"
+      parameters (1):
+        [0] name="pj" kind=scalar value="50" @netlists/m7_diode_temp_ac.cir:5:13
+    device [3] name="vb2" designator=v @netlists/m7_diode_temp_ac.cir:6:1
+      nodes: "b2" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/m7_diode_temp_ac.cir:6:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m7_diode_temp_ac.cir:6:18
+        [2] name="acphase" kind=scalar value="0" @netlists/m7_diode_temp_ac.cir:6:15
+    device [4] name="r2" designator=r @netlists/m7_diode_temp_ac.cir:7:1
+      nodes: "b2" "k2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_diode_temp_ac.cir:7:10
+    device [5] name="d2" designator=d @netlists/m7_diode_temp_ac.cir:8:1
+      nodes: "0" "k2"
+      model: "dc1"
+      parameters (1):
+        [0] name="dtemp" kind=scalar value="-30" @netlists/m7_diode_temp_ac.cir:8:13
+    device [6] name="vb3" designator=v @netlists/m7_diode_temp_ac.cir:9:1
+      nodes: "b3" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.62" @netlists/m7_diode_temp_ac.cir:9:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m7_diode_temp_ac.cir:9:21
+        [2] name="acphase" kind=scalar value="0" @netlists/m7_diode_temp_ac.cir:9:18
+    device [7] name="r3" designator=r @netlists/m7_diode_temp_ac.cir:10:1
+      nodes: "b3" "k3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_diode_temp_ac.cir:10:10
+    device [8] name="d3" designator=d @netlists/m7_diode_temp_ac.cir:11:1
+      nodes: "k3" "0"
+      model: "dfw"
+      parameters (0):
+  models (3):
+    model [0] name="dc0" base="d" level=none @netlists/m7_diode_temp_ac.cir:12:1
+      parameters (8):
+        [0] name="cjo" kind=scalar value="20p" @netlists/m7_diode_temp_ac.cir:12:14
+        [1] name="vj" kind=scalar value="0.75" @netlists/m7_diode_temp_ac.cir:12:22
+        [2] name="m" kind=scalar value="0.45" @netlists/m7_diode_temp_ac.cir:12:30
+        [3] name="cjsw" kind=scalar value="2p" @netlists/m7_diode_temp_ac.cir:12:37
+        [4] name="vjsw" kind=scalar value="0.6" @netlists/m7_diode_temp_ac.cir:12:45
+        [5] name="mjsw" kind=scalar value="0.3" @netlists/m7_diode_temp_ac.cir:12:54
+        [6] name="fcs" kind=scalar value="0.4" @netlists/m7_diode_temp_ac.cir:12:63
+        [7] name="tnom" kind=scalar value="50" @netlists/m7_diode_temp_ac.cir:12:71
+    model [1] name="dc1" base="d" level=none @netlists/m7_diode_temp_ac.cir:13:1
+      parameters (6):
+        [0] name="cjo" kind=scalar value="15p" @netlists/m7_diode_temp_ac.cir:13:14
+        [1] name="vj" kind=scalar value="0.8" @netlists/m7_diode_temp_ac.cir:13:22
+        [2] name="m" kind=scalar value="0.5" @netlists/m7_diode_temp_ac.cir:13:29
+        [3] name="tlevc" kind=scalar value="1" @netlists/m7_diode_temp_ac.cir:13:35
+        [4] name="cta" kind=scalar value="1.5m" @netlists/m7_diode_temp_ac.cir:13:43
+        [5] name="tpb" kind=scalar value="1.8m" @netlists/m7_diode_temp_ac.cir:13:52
+    model [2] name="dfw" base="d" level=none @netlists/m7_diode_temp_ac.cir:14:1
+      parameters (12):
+        [0] name="is" kind=scalar value="1e-15" @netlists/m7_diode_temp_ac.cir:14:14
+        [1] name="n" kind=scalar value="1.1" @netlists/m7_diode_temp_ac.cir:14:23
+        [2] name="tt" kind=scalar value="5n" @netlists/m7_diode_temp_ac.cir:14:29
+        [3] name="cjo" kind=scalar value="10p" @netlists/m7_diode_temp_ac.cir:14:35
+        [4] name="isr" kind=scalar value="1e-11" @netlists/m7_diode_temp_ac.cir:14:43
+        [5] name="nr" kind=scalar value="2" @netlists/m7_diode_temp_ac.cir:14:53
+        [6] name="vj" kind=scalar value="0.7" @netlists/m7_diode_temp_ac.cir:14:58
+        [7] name="m" kind=scalar value="0.4" @netlists/m7_diode_temp_ac.cir:14:65
+        [8] name="ikf" kind=scalar value="5m" @netlists/m7_diode_temp_ac.cir:14:71
+        [9] name="jtun" kind=scalar value="1e-14" @netlists/m7_diode_temp_ac.cir:14:78
+        [10] name="rs" kind=scalar value="3" @netlists/m7_diode_temp_ac.cir:14:89
+        [11] name="ttt1" kind=scalar value="2m" @netlists/m7_diode_temp_ac.cir:14:94
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m7_diode_temp_ac.cir:15:1
+      arguments: "dec" "5" "1k" "1g"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_diode_temp_ac.cir:2:1
+      setting [0] name="temp" value="100"@netlists/m7_diode_temp_ac.cir:2:15 @netlists/m7_diode_temp_ac.cir:2:10
+  globals (0):

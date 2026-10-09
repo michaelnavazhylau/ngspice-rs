@@ -1,0 +1,183 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_conv_cmos_schmitt.cir
+title: "CMOS Schmitt trigger: operating point and hysteresis sweeps" @netlists/m7_conv_cmos_schmitt.cir:1:1
+card 1 @netlists/m7_conv_cmos_schmitt.cir:4:1 lines=4-4 continuations=0
+  raw: "vdd vdd 0 dc 5"
+  kind: device(v)
+  token 1 4:1 word "vdd"
+  token 2 4:5 word "vdd"
+  token 3 4:9 number "0" value=0e0
+  token 4 4:11 word "dc"
+  token 5 4:14 number "5" value=5e0
+card 2 @netlists/m7_conv_cmos_schmitt.cir:5:1 lines=5-5 continuations=0
+  raw: "vin in 0 dc 2.5"
+  kind: device(v)
+  token 1 5:1 word "vin"
+  token 2 5:5 word "in"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 word "dc"
+  token 5 5:13 number "2.5" value=2.5e0
+card 3 @netlists/m7_conv_cmos_schmitt.cir:6:1 lines=6-6 continuations=0
+  raw: "mp1 a in vdd vdd pmod w=10u l=2u"
+  kind: device(m)
+  token 1 6:1 word "mp1"
+  token 2 6:5 word "a"
+  token 3 6:7 word "in"
+  token 4 6:10 word "vdd"
+  token 5 6:14 word "vdd"
+  token 6 6:18 word "pmod"
+  token 7 6:23 word "w"
+  token 8 6:24 equals "="
+  token 9 6:25 number "10u" value=9.999999999999999e-6
+  token 10 6:29 word "l"
+  token 11 6:30 equals "="
+  token 12 6:31 number "2u" value=2e-6
+card 4 @netlists/m7_conv_cmos_schmitt.cir:7:1 lines=7-7 continuations=0
+  raw: "mp2 out in a vdd pmod w=10u l=2u"
+  kind: device(m)
+  token 1 7:1 word "mp2"
+  token 2 7:5 word "out"
+  token 3 7:9 word "in"
+  token 4 7:12 word "a"
+  token 5 7:14 word "vdd"
+  token 6 7:18 word "pmod"
+  token 7 7:23 word "w"
+  token 8 7:24 equals "="
+  token 9 7:25 number "10u" value=9.999999999999999e-6
+  token 10 7:29 word "l"
+  token 11 7:30 equals "="
+  token 12 7:31 number "2u" value=2e-6
+card 5 @netlists/m7_conv_cmos_schmitt.cir:8:1 lines=8-8 continuations=0
+  raw: "mn1 out in b 0 nmod w=5u l=2u"
+  kind: device(m)
+  token 1 8:1 word "mn1"
+  token 2 8:5 word "out"
+  token 3 8:9 word "in"
+  token 4 8:12 word "b"
+  token 5 8:14 number "0" value=0e0
+  token 6 8:16 word "nmod"
+  token 7 8:21 word "w"
+  token 8 8:22 equals "="
+  token 9 8:23 number "5u" value=4.9999999999999996e-6
+  token 10 8:26 word "l"
+  token 11 8:27 equals "="
+  token 12 8:28 number "2u" value=2e-6
+card 6 @netlists/m7_conv_cmos_schmitt.cir:9:1 lines=9-9 continuations=0
+  raw: "mn2 b in 0 0 nmod w=5u l=2u"
+  kind: device(m)
+  token 1 9:1 word "mn2"
+  token 2 9:5 word "b"
+  token 3 9:7 word "in"
+  token 4 9:10 number "0" value=0e0
+  token 5 9:12 number "0" value=0e0
+  token 6 9:14 word "nmod"
+  token 7 9:19 word "w"
+  token 8 9:20 equals "="
+  token 9 9:21 number "5u" value=4.9999999999999996e-6
+  token 10 9:24 word "l"
+  token 11 9:25 equals "="
+  token 12 9:26 number "2u" value=2e-6
+card 7 @netlists/m7_conv_cmos_schmitt.cir:10:1 lines=10-10 continuations=0
+  raw: "mp3 a out 0 vdd pmod w=10u l=2u"
+  kind: device(m)
+  token 1 10:1 word "mp3"
+  token 2 10:5 word "a"
+  token 3 10:7 word "out"
+  token 4 10:11 number "0" value=0e0
+  token 5 10:13 word "vdd"
+  token 6 10:17 word "pmod"
+  token 7 10:22 word "w"
+  token 8 10:23 equals "="
+  token 9 10:24 number "10u" value=9.999999999999999e-6
+  token 10 10:28 word "l"
+  token 11 10:29 equals "="
+  token 12 10:30 number "2u" value=2e-6
+card 8 @netlists/m7_conv_cmos_schmitt.cir:11:1 lines=11-11 continuations=0
+  raw: "mn3 b out vdd 0 nmod w=5u l=2u"
+  kind: device(m)
+  token 1 11:1 word "mn3"
+  token 2 11:5 word "b"
+  token 3 11:7 word "out"
+  token 4 11:11 word "vdd"
+  token 5 11:15 number "0" value=0e0
+  token 6 11:17 word "nmod"
+  token 7 11:22 word "w"
+  token 8 11:23 equals "="
+  token 9 11:24 number "5u" value=4.9999999999999996e-6
+  token 10 11:27 word "l"
+  token 11 11:28 equals "="
+  token 12 11:29 number "2u" value=2e-6
+card 9 @netlists/m7_conv_cmos_schmitt.cir:12:1 lines=12-12 continuations=0
+  raw: ".model nmod nmos(level=1 vto=0.8 kp=60u lambda=0.02)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "nmod"
+  token 3 12:13 word "nmos"
+  token 4 12:17 lparen "("
+  token 5 12:18 word "level"
+  token 6 12:23 equals "="
+  token 7 12:24 number "1" value=1e0
+  token 8 12:26 word "vto"
+  token 9 12:29 equals "="
+  token 10 12:30 number "0.8" value=8e-1
+  token 11 12:34 word "kp"
+  token 12 12:36 equals "="
+  token 13 12:37 number "60u" value=5.9999999999999995e-5
+  token 14 12:41 word "lambda"
+  token 15 12:47 equals "="
+  token 16 12:48 number "0.02" value=2e-2
+  token 17 12:52 rparen ")"
+card 10 @netlists/m7_conv_cmos_schmitt.cir:13:1 lines=13-13 continuations=0
+  raw: ".model pmod pmos(level=1 vto=-0.8 kp=25u lambda=0.02)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "pmod"
+  token 3 13:13 word "pmos"
+  token 4 13:17 lparen "("
+  token 5 13:18 word "level"
+  token 6 13:23 equals "="
+  token 7 13:24 number "1" value=1e0
+  token 8 13:26 word "vto"
+  token 9 13:29 equals "="
+  token 10 13:30 number "-0.8" value=-8e-1
+  token 11 13:35 word "kp"
+  token 12 13:37 equals "="
+  token 13 13:38 number "25u" value=2.4999999999999998e-5
+  token 14 13:42 word "lambda"
+  token 15 13:48 equals "="
+  token 16 13:49 number "0.02" value=2e-2
+  token 17 13:53 rparen ")"
+card 11 @netlists/m7_conv_cmos_schmitt.cir:14:1 lines=14-14 continuations=0
+  raw: ".options reltol=1e-8 vntol=1e-12"
+  kind: dot(.options)
+  token 1 14:1 word ".options"
+  token 2 14:10 word "reltol"
+  token 3 14:16 equals "="
+  token 4 14:17 number "1e-8" value=1e-8
+  token 5 14:22 word "vntol"
+  token 6 14:27 equals "="
+  token 7 14:28 number "1e-12" value=1e-12
+card 12 @netlists/m7_conv_cmos_schmitt.cir:15:1 lines=15-15 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 15:1 word ".op"
+card 13 @netlists/m7_conv_cmos_schmitt.cir:16:1 lines=16-16 continuations=0
+  raw: ".dc vin 0 5 0.1"
+  kind: dot(.dc)
+  token 1 16:1 word ".dc"
+  token 2 16:5 word "vin"
+  token 3 16:9 number "0" value=0e0
+  token 4 16:11 number "5" value=5e0
+  token 5 16:13 number "0.1" value=1e-1
+card 14 @netlists/m7_conv_cmos_schmitt.cir:17:1 lines=17-17 continuations=0
+  raw: ".dc vin 5 0 -0.1"
+  kind: dot(.dc)
+  token 1 17:1 word ".dc"
+  token 2 17:5 word "vin"
+  token 3 17:9 number "5" value=5e0
+  token 4 17:11 number "0" value=0e0
+  token 5 17:13 number "-0.1" value=-1e-1
+card 15 @netlists/m7_conv_cmos_schmitt.cir:18:1 lines=18-18 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 18:1 word ".end"

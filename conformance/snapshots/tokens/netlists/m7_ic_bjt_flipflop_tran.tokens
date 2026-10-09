@@ -1,0 +1,145 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_ic_bjt_flipflop_tran.cir
+title: "BJT flip-flop state selected by .ic" @netlists/m7_ic_bjt_flipflop_tran.cir:1:1
+card 1 @netlists/m7_ic_bjt_flipflop_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "vcc vcc 0 dc 5"
+  kind: device(v)
+  token 1 7:1 word "vcc"
+  token 2 7:5 word "vcc"
+  token 3 7:9 number "0" value=0e0
+  token 4 7:11 word "dc"
+  token 5 7:14 number "5" value=5e0
+card 2 @netlists/m7_ic_bjt_flipflop_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "vr r 0 dc 0 pulse(0 5 30u 1u 1u 5u 100u)"
+  kind: device(v)
+  token 1 8:1 word "vr"
+  token 2 8:4 word "r"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "dc"
+  token 5 8:11 number "0" value=0e0
+  token 6 8:13 word "pulse"
+  token 7 8:18 lparen "("
+  token 8 8:19 number "0" value=0e0
+  token 9 8:21 number "5" value=5e0
+  token 10 8:23 number "30u" value=2.9999999999999997e-5
+  token 11 8:27 number "1u" value=1e-6
+  token 12 8:30 number "1u" value=1e-6
+  token 13 8:33 number "5u" value=4.9999999999999996e-6
+  token 14 8:36 number "100u" value=9.999999999999999e-5
+  token 15 8:40 rparen ")"
+card 3 @netlists/m7_ic_bjt_flipflop_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "rc1 vcc c1 1k"
+  kind: device(r)
+  token 1 9:1 word "rc1"
+  token 2 9:5 word "vcc"
+  token 3 9:9 word "c1"
+  token 4 9:12 number "1k" value=1e3
+card 4 @netlists/m7_ic_bjt_flipflop_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "rc2 vcc c2 1k"
+  kind: device(r)
+  token 1 10:1 word "rc2"
+  token 2 10:5 word "vcc"
+  token 3 10:9 word "c2"
+  token 4 10:12 number "1k" value=1e3
+card 5 @netlists/m7_ic_bjt_flipflop_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "rb1 c1 b2 10k"
+  kind: device(r)
+  token 1 11:1 word "rb1"
+  token 2 11:5 word "c1"
+  token 3 11:8 word "b2"
+  token 4 11:11 number "10k" value=1e4
+card 6 @netlists/m7_ic_bjt_flipflop_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "rb2 c2 b1 10k"
+  kind: device(r)
+  token 1 12:1 word "rb2"
+  token 2 12:5 word "c2"
+  token 3 12:8 word "b1"
+  token 4 12:11 number "10k" value=1e4
+card 7 @netlists/m7_ic_bjt_flipflop_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "rx1 b1 0 4.7k"
+  kind: device(r)
+  token 1 13:1 word "rx1"
+  token 2 13:5 word "b1"
+  token 3 13:8 number "0" value=0e0
+  token 4 13:10 number "4.7k" value=4.7e3
+card 8 @netlists/m7_ic_bjt_flipflop_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "rx2 b2 0 4.7k"
+  kind: device(r)
+  token 1 14:1 word "rx2"
+  token 2 14:5 word "b2"
+  token 3 14:8 number "0" value=0e0
+  token 4 14:10 number "4.7k" value=4.7e3
+card 9 @netlists/m7_ic_bjt_flipflop_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "rr r b2 10k"
+  kind: device(r)
+  token 1 15:1 word "rr"
+  token 2 15:4 word "r"
+  token 3 15:6 word "b2"
+  token 4 15:9 number "10k" value=1e4
+card 10 @netlists/m7_ic_bjt_flipflop_tran.cir:16:1 lines=16-16 continuations=0
+  raw: "q1 c1 b1 0 qmod"
+  kind: device(q)
+  token 1 16:1 word "q1"
+  token 2 16:4 word "c1"
+  token 3 16:7 word "b1"
+  token 4 16:10 number "0" value=0e0
+  token 5 16:12 word "qmod"
+card 11 @netlists/m7_ic_bjt_flipflop_tran.cir:17:1 lines=17-17 continuations=0
+  raw: "q2 c2 b2 0 qmod"
+  kind: device(q)
+  token 1 17:1 word "q2"
+  token 2 17:4 word "c2"
+  token 3 17:7 word "b2"
+  token 4 17:10 number "0" value=0e0
+  token 5 17:12 word "qmod"
+card 12 @netlists/m7_ic_bjt_flipflop_tran.cir:18:1 lines=18-18 continuations=0
+  raw: ".model qmod npn(is=1e-14 bf=100 cje=2p cjc=1p tf=1n)"
+  kind: dot(.model)
+  token 1 18:1 word ".model"
+  token 2 18:8 word "qmod"
+  token 3 18:13 word "npn"
+  token 4 18:16 lparen "("
+  token 5 18:17 word "is"
+  token 6 18:19 equals "="
+  token 7 18:20 number "1e-14" value=1e-14
+  token 8 18:26 word "bf"
+  token 9 18:28 equals "="
+  token 10 18:29 number "100" value=1e2
+  token 11 18:33 word "cje"
+  token 12 18:36 equals "="
+  token 13 18:37 number "2p" value=2e-12
+  token 14 18:40 word "cjc"
+  token 15 18:43 equals "="
+  token 16 18:44 number "1p" value=1e-12
+  token 17 18:47 word "tf"
+  token 18 18:49 equals "="
+  token 19 18:50 number "1n" value=1e-9
+  token 20 18:52 rparen ")"
+card 13 @netlists/m7_ic_bjt_flipflop_tran.cir:19:1 lines=19-19 continuations=0
+  raw: ".ic v(c1)=0.2 v(c2)=4"
+  kind: dot(.ic)
+  token 1 19:1 word ".ic"
+  token 2 19:5 word "v"
+  token 3 19:6 lparen "("
+  token 4 19:7 word "c1"
+  token 5 19:9 rparen ")"
+  token 6 19:10 equals "="
+  token 7 19:11 number "0.2" value=2e-1
+  token 8 19:15 word "v"
+  token 9 19:16 lparen "("
+  token 10 19:17 word "c2"
+  token 11 19:19 rparen ")"
+  token 12 19:20 equals "="
+  token 13 19:21 number "4" value=4e0
+card 14 @netlists/m7_ic_bjt_flipflop_tran.cir:20:1 lines=20-20 continuations=0
+  raw: ".tran 0.5u 60u 0 10n"
+  kind: dot(.tran)
+  token 1 20:1 word ".tran"
+  token 2 20:7 number "0.5u" value=5e-7
+  token 3 20:12 number "60u" value=5.9999999999999995e-5
+  token 4 20:16 number "0" value=0e0
+  token 5 20:18 number "10n" value=1e-8
+card 15 @netlists/m7_ic_bjt_flipflop_tran.cir:21:1 lines=21-21 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 21:1 word ".end"

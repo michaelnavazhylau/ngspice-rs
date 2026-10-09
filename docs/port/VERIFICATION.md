@@ -39,6 +39,232 @@ now a review-enforced convention instead of a compiler-enforced one.
   (`../conformance/...` from `tests/`). `cargo publish --dry-run` completes with
   a single upload. Release automation itself is not written yet; it is tracked in
   [TODO.md](../../TODO.md).
+- After merging M7 (#121) into the consolidated tree (M7's new modules land in
+  `src/devices/` and its tests in `tests/`; `transistors.rs`, which M7 emptied,
+  is gone): **1110 passed / 0 failed / 70 ignored**, fmt and Clippy clean,
+  `golden verify` **86 verified / 0 unsupported / 0 failures**, and the **70**
+  opt-in `NGSPICE_BIN` live-C checks pass.
+
+## M7 nonlinear initial conditions (#99)
+
+Six new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was designed and checked against the same C
+binary in a scratch copy; no existing golden was recaptured and no tolerance
+changed. `golden verify` now reports 86 fixtures.
+
+| Fixture | Gate | Worst error |
+| --- | --- | --- |
+| `m7_ic_diode_uic_tran` | `compare::TRAN` | 401 instants, 0.047 of bound |
+| `m7_ic_bjt_flipflop_tran` | `compare::TRAN` | 117 instants + 8 breakpoint limits, 0.058 of bound |
+| `m7_ic_bjt_off_tran` | `compare::TRAN` | 117 instants + 8 breakpoint limits, 0.002 of bound |
+| `m7_ic_mos1_uic_tran` | `compare::TRAN` | 795 instants + 12 breakpoint limits, 0.245 of bound |
+| `m7_ic_latch_nodeset_op` | `compare::NONLINEAR` | 8.7e-5 of bound |
+| `m7_ic_latch_mos1_ic_op` | `compare::NONLINEAR` | 6.1e-8 of bound |
+
+The operating-point worst errors were measured with an out-of-tree script
+applying the same `|Rust - C| <= 1e-6 |C| + 1e-12` bound to every value.
+
+- **Diode `uic`.** C skips the operating point; the first row is the first
+  accepted step. Capacitor `c1` starts at its instance `ic=2`, `c2` and the
+  diode junction (CJO, TT and RS, so the junction sits on an internal node)
+  from the `.ic` node vector, which puts the junction at -0.5 V. The diode's
+  own `ic=0.4` has no effect in C: `dioparam.c` never sets `DIOinitCondGiven`,
+  so `diogetic.c` always replaces it with the node difference (the reference
+  binary writes bit-identical rawfiles with `ic=0.4`, `ic=0.9` and no `ic`;
+  `nonlinear_initial.rs` pins the same for the port). At C's default `reltol`
+  its own `v(b)` at 0.1 us is 5.1e-3 V (about 4.6 times the bound) away from
+  its `reltol=1e-5` answer, so the deck sets `reltol=1e-5`.
+- **`.ic` flip-flop.** The symmetric cross-coupled BJT pair has two stable
+  states and an unstable equilibrium; the `.ic` rows forced through the
+  transient operating point select the q1-on state (`v(c1) = 0.2`,
+  `v(c2) = 4` exactly at `t = 0`), then a reset pulse flips the pair. Default
+  options.
+- **`OFF` flip-flop.** A single-trigger pair with `q2 off`. C holds q2's
+  junctions at 0 V through `MODEINITJCT`/`MODEINITFIX`, but `BJTconvTest` (run
+  by `NIconvTest` under `NEWCONV`) keeps failing while the iterate's
+  collector junction sits volts from the held 0 V, so the direct iteration
+  exhausts `itl1` and dynamic gmin stepping lands in the q1-on state (without
+  `OFF` the default schedule returns the unstable equilibrium). Reproducing
+  the held-state convergence test is what makes the port take the same path;
+  without it the direct iteration converged to the opposite state. A negative
+  pulse on b1 flips the pair; `reltol=1e-6` keeps both step sequences tight
+  through the flip (at the default the comparison is 0.53 of the bound).
+- **MOS1 `uic`.** An inverter pair started from full and partial MOS1 `ic=`
+  vectors and the `.ic` node vector: the bulk-junction and Meyer gate charges
+  start at those voltages (C's first point moves from 1.78 V to 2.15 V with the
+  vectors). Gear-2, because trapezoidal gate currents ring from step to step on
+  the flat input (sign-alternating samples that no pointwise comparison can
+  match), and `reltol=1e-5` with a 2 ps maximum step.
+- **Latch operating points.** The symmetric CMOS latch's default point is the
+  unstable equilibrium (`v(q) = v(qb) = 1.419 V`) in C and the port. A
+  `.nodeset` forced in the `MODEINITJCT`/`MODEINITFIX` loads, or MOS1 `ic=`
+  vectors that move the `MODEINITJCT` start (no `uic`), select the q-high
+  state.
+
+Opt-in live checks (`NGSPICE_BIN`) were not extended; the same scratch
+comparisons also matched C for a forward-biased `OFF` diode (direct failure,
+dynamic gmin, 0.6929 V), an `OFF` BJT driver, `.nodeset v(q)=1.6` (falls to
+the q-low state) and an `OFF` CMOS latch (C's convergence test sends it to the
+unstable equilibrium, which the port reproduces to 1e-8 of the bound).
+
+Rust-only evidence: `tests/nonlinear_initial.rs`
+(state selection by `.nodeset` and MOS1 `ic=`, exact forced `.ic` rows and
+their release, explicit `.ic` contradictions, `uic` starts of D/Q/M and the
+diode `ic=` quirk, `OFF` through dynamic gmin, `limiting=global` and BDF
+rejections) and the `Limiter` unit tests in `devices::limiting`.
+
+## M7 convergence parity (#106)
+
+Seven new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>` after the deck was designed and checked against the same C
+binary in a scratch copy; no existing golden was recaptured and no tolerance
+changed. `golden verify` now reports 80 fixtures. The decks are circuits whose
+answer depends on the Newton path, so they test ngspice's algorithm (device
+limiting, `MODEINITJCT`, `CKTop` strategies) rather than device equations alone.
+
+| Fixture | Gate | Worst error |
+| --- | --- | --- |
+| `m7_conv_latch_op` | `compare::NONLINEAR` | 2.3e-8 of bound |
+| `m7_conv_latch_gillespie_op` | `compare::NONLINEAR` | 0.0057 of bound |
+| `m7_conv_latch_spice3_gmin_op` | `compare::NONLINEAR` | 3.3e-8 of bound |
+| `m7_conv_latch_spice3_src_op` | `compare::NONLINEAR` | 0.24 of bound |
+| `m7_conv_latch_tran` | `compare::TRAN` | 153 instants + 16 breakpoint limits, 0.016 of bound |
+| `m7_conv_bjt_schmitt` (`.dc` down, `.dc` up, `.op`) | `compare::NONLINEAR` per plot | 0.028 of bound |
+| `m7_conv_cmos_schmitt` (`.dc` down, `.dc` up, `.op`) | `compare::NONLINEAR` per plot | 0.0062 of bound |
+
+The DC worst errors were measured with an out-of-tree script applying the same
+`|Rust - C| <= 1e-6 |C| + 1e-12` bound to every value; `golden verify` prints
+only pass/fail for point plots.
+
+- **Latch.** The cross-coupled BJT pair has two stable states and a metastable
+  one. C's default path (both junctions start at `tVcrit`, `DEVpnjlim`, dynamic
+  gmin) and `gillespie_src`/`spice3_gmin` under `.options noopiter` all return
+  the nearly balanced point; `spice3_src` (`srcsteps=4`) lands in a stable
+  state. The Rust run reproduces each choice.
+- **Schmitt triggers.** Each deck sweeps the input up and down through the
+  hysteresis band (each `.dc` point warm-started from the previous one, as
+  `dctrcurv.c` does) and solves an `.op` inside the band. For the BJT trigger
+  C's `CKTop` lands on the middle (unstable) branch, which the port matches.
+- **Tolerances.** The decks set `.options reltol=1e-8` (the CMOS one also
+  `vntol=1e-12`; the transient `reltol=1e-7` with a 10 ns maximum step) so
+  that C's own Newton stopping error is inside the bound, as for the #87/#88
+  decks; even at `reltol=1e-6` the BJT trigger's sweeps differ by up to 1.3
+  times the bound from the same root.
+- **The new policies are load-bearing.** Running the decks with the port's
+  previous step control (`limiting=global` request key) fails the BJT trigger
+  by 7.2e5 times the bound and the CMOS trigger by 2.5e12 times (wrong
+  hysteresis branch); with the previous ladders as well, the CMOS operating
+  point does not converge at all. The pre-#106 build rejected `noopiter`. The
+  default latch operating point is reproduced by the previous policies too; it
+  pins the default path rather than discriminating between them.
+- **Not gated**: C's `OPtran` fallback, which ngspice runs when every `CKTop`
+  strategy fails (`.options noopiter gminsteps=0 srcsteps=5` on the BJT
+  trigger at vin = 1.8 V: C prints "source stepping failed", then "Transient op
+  finished successfully"), is not ported; the port's error names `optran.c`.
+
+C-free coverage: `tests/convergence.rs` (limiter
+functions, direct solve of an overdriven junction at an exact point, the
+`MODEINITJCT` load, `noopiter`, the stage sequences of each strategy, schedule-
+dependent latch states, the `optran.c` failure) and the `limiting.rs` unit
+tests. Fourteen new parser snapshots were blessed; existing snapshots are
+unchanged. See [DC_CONTINUATION.md](DC_CONTINUATION.md).
+
+## M7 Gummel-Poon BJT (#87)
+
+Five new C goldens, each captured individually with `cargo xtask golden
+capture --netlist <name>` (no existing golden recaptured, no tolerance
+changed): `m7_bjt_gummel` (VBC = 0 Gummel plot), `m7_bjt_output` (nested VCE/IB
+output characteristics), `m7_bjt_temp` (`.dc temp` over NPN, lateral PNP with
+substrate, TLEV=3/TLEVC=1), `m7_bjt_amp_ac` and `m7_bjt_amp_tran` (CE amplifier
+at 50 C with every charge). They set `.option reltol=1e-8` because C's default
+reltol with bypass stops these sweeps about 4e-4 from the converged root, far
+outside the 1 ppm `compare::NONLINEAR` bound; with it the worst DC/AC errors are
+below 0.1 of that bound and the transient's 0.039 of `compare::TRAN`.
+
+`golden verify` projects two C naming conventions onto the Rust plot: a
+temperature scale becomes `temp-sweep` (name and unit), and the Rust-only
+`sweep(<outer>)` column of a nested sweep is dropped (C writes the points
+without it; the outer value is still visible through the circuit's voltages).
+The three new `c_bjt_reference` live-C comparisons are opt-in via `NGSPICE_BIN`. Ten new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#bjt).
+
+## M7 diode physics (#86)
+
+Five new C goldens, each captured individually with `cargo xtask golden
+capture --netlist <name>` (no existing golden recaptured or tolerance changed),
+are registered in `golden verify`: `m7_zener_dc` (a Zener
+shunt regulator swept from forward conduction through reverse breakdown),
+`m7_diode_physics_dc` (recombination, tunnelling, IKF/IKR/IKP knees, NS-sidewall
+breakdown), `m7_diode_temp_dc` (`.dc temp -40 125 5`: EG/XTI/TNOM, TLEV 2,
+DTEMP, TRS and TCV-shifted breakdown) and `m7_diode_temp_ac` (`.options
+temp=100`: TLEVC 0/1 depletion laws, sidewall charge, recombination small
+signal) under the 1 ppm `compare::NONLINEAR` bound, and `m7_zener_tran` (a
+SIN-driven clipper through breakdown with junction, sidewall and diffusion
+charge) under `compare::TRAN` (worst 0.470 of the bound). The DC decks set
+`.options reltol=1e-6` (the regulator also `vntol=1e-9`): at C's default
+tolerances its forward points stopped up to 0.3 % (in current) short of the
+physical root, which the Rust point and an independent junction check satisfy
+to 1e-10. The transient deck sets `reltol=1e-5` so both integrators resolve the
+recovery at each zero crossing. These option lines were chosen before the
+goldens were committed; the first captures of the default-tolerance drafts were
+discarded, not committed. `golden verify` names C's `.dc temp` scale
+`temp-sweep` (type `temp-sweep`, `dctrcurv.c`). Using the exact recombination
+derivative in AC instead of C's stored conductance fails `m7_diode_temp_ac`
+(6.9e3 times the bound). Details: [M4_NONLINEAR.md](M4_NONLINEAR.md#diode).
+
+## M7 MOS1 completion (#88)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>`; no existing golden was recaptured and no tolerance changed.
+The existing MOS fixtures (`mos_inverter`,
+`m4_mos1_ac`, `m4_mos1_tran`) verify unchanged (`m4_mos1_tran` still at 0.187
+of its bound, although only the gate charges now enter LTE control, as in
+`mos1trun.c`).
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m7_mos1_inverter_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.438 of bound |
+| `m7_mos1_ring_tran` | `compare::TRAN` | 297 instants + 8 breakpoint limits, worst 0.523 of bound |
+| `m7_mos1_meyer_ac` | `compare::NONLINEAR` | 36 points |
+| `m7_mos1_process_dc` | `compare::NONLINEAR` | 31 points |
+
+Deck design, measured before capture against the same C binary in a scratch
+copy (never in the committed tree):
+
+- **Bounded maximum step.** The Meyer charge `q1 + (v - v1) * average C` is a
+  trapezoidal quadrature of `C(v) dv` along the accepted voltage path, so its
+  error depends on the step sequence, which differs between the two adaptive
+  drivers. With the default maximum step (`tstep`) the inverter differs from C
+  by up to 1.09x the `TRAN` bound at a 22 nA supply-current sample; with
+  `tmax = 2 ps` it is 0.44x. The decks set `tmax` (2 ps inverter, 0.5 ps ring)
+  so the comparison measures model agreement, not each driver's discretization
+  error.
+- **Three-stage ring.** A free-running ring amplifies any per-step difference
+  into phase drift, and `compare::TRAN` compares values point by point with a
+  1e-3 relative bound and a 1 uV floor. Refining a five-stage unloaded ring
+  from `tmax = 2 ps` to `0.5 ps` moves **C's own** waveform by 8.4 mV (Rust's by
+  5.7 mV) at a 1.74 ns transition, more than the C-Rust difference at either
+  step (3.9 mV and 1.3 mV, shrinking with the step). Five-stage variants still
+  failed on sub-millivolt settling tails, where the bound is about 1 uV (worst
+  37x for 50 fF loads at 1 ps, 224x unloaded at 1 ps, 302x for 20 fF at 2 ps):
+  this is the two simulators' discretization error, not a model difference.
+  Three stages with 50 fF loads at 0.5 ps verify over 6 ns (about ten periods)
+  at 0.523x; the same deck at 1 ps fails at 1.34x, so the step bound is
+  load-bearing. The kick is a single 0.3 ns current pulse into `n1`, because
+  the ring's operating point is the metastable symmetric state.
+- **Tight DC RELTOL.** With RD/RS and forward body bias, C's default Newton
+  stopping test leaves its DC-sweep currents up to 2.2e-4 relative from the
+  physical root: for an NMOS with `RS=90` and 0.3 V forward body bias, C gives
+  -2.64450e-6 A at vgs = 0.2 V by default and -2.64508e-6 A with `.options
+  reltol=1e-7 vntol=1e-12 abstol=1e-18`; Rust gives -2.645078e-6 A either way.
+  The process deck therefore sets those options, which Rust also honours,
+  rather than loosening `NONLINEAR`.
+
+`tests/m7_mos1.rs` adds ten C-free tests (charge recurrences,
+AC capacitances, temperature/process laws, series-resistance KCL, transient and
+DC finite-difference Jacobians, `NotYetPorted` inputs and fixture round trips);
+eight new parser snapshots were blessed and existing snapshots are unchanged.
+See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos1).
 
 ## M6 switches S/W (#81, `work/m6-switches`)
 
@@ -964,7 +1190,8 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
 charge and devices (M4), orders above 2 and
-nonlinear device initial conditions, and general MNA DAEs: only the index-one
+nonlinear device initial conditions on the BDF backend (the companion driver
+gained them with #99, above), and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
 
 ## Not yet verified

@@ -18,8 +18,8 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 | Area | Supported |
 | --- | --- |
 | Netlists | Scalar R/C/L/V/I, linear E/F/G/H controlled sources, B behavioural sources and E/G/F/H `VALUE`/`TABLE`/`POLY` forms, K mutual inductance, `.model`, D/Q/M instances, S/W switches with `sw`/`csw` models, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
-| Devices | Linear R/C/L/V/I; linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Ebers–Moll BJT and MOS1 (level 1); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only) |
-| Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` |
+| Devices | Linear R/C/L/V/I; linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode, Gummel-Poon BJT and MOS1 (level 1: Meyer gate charge, series resistance, junction geometry, process extraction and temperature); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only) |
+| Analyses | `.op`; `.dc` over V/I sources, resistors and temperature, including nested sweeps; small-signal `.ac`; `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` (linear and nonlinear, including D/Q/M `off` and `ic=`); `.nodeset` as C's `MODEINITJCT`/`MODEINITFIX` hint |
 | Output | ASCII rawfiles from the CLI (one plot per analysis for multi-analysis decks, in ngspice batch order), ASCII and binary rawfile read/write in the library, per-analysis `.save`/`.print` selection |
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
@@ -97,8 +97,8 @@ cargo xtask golden verify                            # Rust engine vs committed 
 NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-`golden verify` currently verifies all 59 golden fixtures (two of them
-four-plot multi-analysis decks) with no exclusions.
+`golden verify` currently verifies all 86 golden fixtures (two of them
+four-plot and two three-plot multi-analysis decks) with no exclusions.
 [VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
 and its limits.
 

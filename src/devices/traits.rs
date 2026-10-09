@@ -431,6 +431,16 @@ pub trait Device: fmt::Debug {
         true
     }
 
+    /// True when the instance carries operating-point start settings that
+    /// only C's phased, device-limited Newton loads apply: an `off` flag
+    /// (`MODEINITJCT`/`MODEINITFIX`) or MOS1 `ic=` start voltages
+    /// (`MODEINITJCT`). Drivers running the port's legacy global damping
+    /// (`limiting=global`, exact loads) must reject such circuits instead of
+    /// ignoring the settings. `false` by default.
+    fn has_start_settings(&self) -> bool {
+        false
+    }
+
     /// True when the device's DC equations read the analysis frequency
     /// (a behavioural source using `hertz`): AC then re-solves the operating
     /// point at every frequency, as `acan.c` does when `CKTvarHertz` is set.

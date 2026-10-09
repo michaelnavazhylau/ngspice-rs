@@ -1,0 +1,12 @@
+MOS1 CMOS inverter: Meyer gate charge (TOX), series resistance, junction geometry
+vdd vdd 0 3.3
+vin in 0 pulse(0 3.3 1n 0.5n 0.5n 4n 10n)
+mn out in 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u nrd=2 nrs=2
+mp out in vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u
+cl out 0 20f
+.model nch nmos(level=1 vto=0.7 kp=110u gamma=0.4 phi=0.7 lambda=0.04 tox=9n ld=0.05u
++ cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n mjsw=0.33 pb=0.9 rsh=20 js=1e-4)
+.model pch pmos(level=1 vto=-0.8 kp=40u gamma=0.5 phi=0.7 lambda=0.05 tox=9n ld=0.05u
++ cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m mj=0.5 cjsw=0.3n mjsw=0.33 pb=0.9 rd=30 rs=30)
+.tran 0.05n 20n 0 2p
+.end

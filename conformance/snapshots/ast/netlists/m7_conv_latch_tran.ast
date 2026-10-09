@@ -1,0 +1,122 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_conv_latch_tran.cir
+title: "BJT latch set/reset transient" @netlists/m7_conv_latch_tran.cir:1:1
+scope root
+  cards (17):
+    [0] device[0] @netlists/m7_conv_latch_tran.cir:4:1 "vcc vcc 0 dc 5"
+    [1] device[1] @netlists/m7_conv_latch_tran.cir:5:1 "vs s 0 dc 0 pulse(0 3 20u 1u 1u 5u 100u)"
+    [2] device[2] @netlists/m7_conv_latch_tran.cir:6:1 "vr r 0 dc 0 pulse(0 3 50u 1u 1u 5u 100u)"
+    [3] device[3] @netlists/m7_conv_latch_tran.cir:7:1 "rc1 vcc c1 1k"
+    [4] device[4] @netlists/m7_conv_latch_tran.cir:8:1 "rc2 vcc c2 1.1k"
+    [5] device[5] @netlists/m7_conv_latch_tran.cir:9:1 "rb1 c1 b2 10k"
+    [6] device[6] @netlists/m7_conv_latch_tran.cir:10:1 "rb2 c2 b1 10k"
+    [7] device[7] @netlists/m7_conv_latch_tran.cir:11:1 "rx1 b1 0 20k"
+    [8] device[8] @netlists/m7_conv_latch_tran.cir:12:1 "rx2 b2 0 4.7k"
+    [9] device[9] @netlists/m7_conv_latch_tran.cir:13:1 "rs s b1 2k"
+    [10] device[10] @netlists/m7_conv_latch_tran.cir:14:1 "rr r b2 2k"
+    [11] device[11] @netlists/m7_conv_latch_tran.cir:15:1 "q1 c1 b1 0 qmod"
+    [12] device[12] @netlists/m7_conv_latch_tran.cir:16:1 "q2 c2 b2 0 qmod"
+    [13] model[0] @netlists/m7_conv_latch_tran.cir:17:1 ".model qmod npn(is=1e-14 bf=100 cje=2p cjc=1p tf=1n)"
+    [14] options[0] @netlists/m7_conv_latch_tran.cir:18:1 ".options reltol=1e-7"
+    [15] analysis[0] @netlists/m7_conv_latch_tran.cir:19:1 ".tran 0.5u 80u 0 10n"
+    [16] end @netlists/m7_conv_latch_tran.cir:20:1 ".end"
+  devices (13):
+    device [0] name="vcc" designator=v @netlists/m7_conv_latch_tran.cir:4:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m7_conv_latch_tran.cir:4:11
+    device [1] name="vs" designator=v @netlists/m7_conv_latch_tran.cir:5:1
+      nodes: "s" "0"
+      model: none
+      parameters (2):
+        [0] name="dc" kind=scalar value="0" @netlists/m7_conv_latch_tran.cir:5:8
+        [1] name="pulse" kind=waveform value="(0 3 20u 1u 1u 5u 100u)" @netlists/m7_conv_latch_tran.cir:5:13
+          pulse
+            initial: "0"@netlists/m7_conv_latch_tran.cir:5:19
+            pulsed: "3"@netlists/m7_conv_latch_tran.cir:5:21
+            delay: "20u"@netlists/m7_conv_latch_tran.cir:5:23
+            rise: "1u"@netlists/m7_conv_latch_tran.cir:5:27
+            fall: "1u"@netlists/m7_conv_latch_tran.cir:5:30
+            width: "5u"@netlists/m7_conv_latch_tran.cir:5:33
+            period: "100u"@netlists/m7_conv_latch_tran.cir:5:36
+    device [2] name="vr" designator=v @netlists/m7_conv_latch_tran.cir:6:1
+      nodes: "r" "0"
+      model: none
+      parameters (2):
+        [0] name="dc" kind=scalar value="0" @netlists/m7_conv_latch_tran.cir:6:8
+        [1] name="pulse" kind=waveform value="(0 3 50u 1u 1u 5u 100u)" @netlists/m7_conv_latch_tran.cir:6:13
+          pulse
+            initial: "0"@netlists/m7_conv_latch_tran.cir:6:19
+            pulsed: "3"@netlists/m7_conv_latch_tran.cir:6:21
+            delay: "50u"@netlists/m7_conv_latch_tran.cir:6:23
+            rise: "1u"@netlists/m7_conv_latch_tran.cir:6:27
+            fall: "1u"@netlists/m7_conv_latch_tran.cir:6:30
+            width: "5u"@netlists/m7_conv_latch_tran.cir:6:33
+            period: "100u"@netlists/m7_conv_latch_tran.cir:6:36
+    device [3] name="rc1" designator=r @netlists/m7_conv_latch_tran.cir:7:1
+      nodes: "vcc" "c1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_conv_latch_tran.cir:7:12
+    device [4] name="rc2" designator=r @netlists/m7_conv_latch_tran.cir:8:1
+      nodes: "vcc" "c2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1.1k" @netlists/m7_conv_latch_tran.cir:8:12
+    device [5] name="rb1" designator=r @netlists/m7_conv_latch_tran.cir:9:1
+      nodes: "c1" "b2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_conv_latch_tran.cir:9:11
+    device [6] name="rb2" designator=r @netlists/m7_conv_latch_tran.cir:10:1
+      nodes: "c2" "b1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_conv_latch_tran.cir:10:11
+    device [7] name="rx1" designator=r @netlists/m7_conv_latch_tran.cir:11:1
+      nodes: "b1" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/m7_conv_latch_tran.cir:11:10
+    device [8] name="rx2" designator=r @netlists/m7_conv_latch_tran.cir:12:1
+      nodes: "b2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @netlists/m7_conv_latch_tran.cir:12:10
+    device [9] name="rs" designator=r @netlists/m7_conv_latch_tran.cir:13:1
+      nodes: "s" "b1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m7_conv_latch_tran.cir:13:9
+    device [10] name="rr" designator=r @netlists/m7_conv_latch_tran.cir:14:1
+      nodes: "r" "b2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m7_conv_latch_tran.cir:14:9
+    device [11] name="q1" designator=q @netlists/m7_conv_latch_tran.cir:15:1
+      nodes: "c1" "b1" "0"
+      model: "qmod"
+      parameters (0):
+    device [12] name="q2" designator=q @netlists/m7_conv_latch_tran.cir:16:1
+      nodes: "c2" "b2" "0"
+      model: "qmod"
+      parameters (0):
+  models (1):
+    model [0] name="qmod" base="npn" level=none @netlists/m7_conv_latch_tran.cir:17:1
+      parameters (5):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m7_conv_latch_tran.cir:17:17
+        [1] name="bf" kind=scalar value="100" @netlists/m7_conv_latch_tran.cir:17:26
+        [2] name="cje" kind=scalar value="2p" @netlists/m7_conv_latch_tran.cir:17:33
+        [3] name="cjc" kind=scalar value="1p" @netlists/m7_conv_latch_tran.cir:17:40
+        [4] name="tf" kind=scalar value="1n" @netlists/m7_conv_latch_tran.cir:17:47
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m7_conv_latch_tran.cir:19:1
+      arguments: "0.5u" "80u" "0" "10n"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_conv_latch_tran.cir:18:1
+      setting [0] name="reltol" value="1e-7"@netlists/m7_conv_latch_tran.cir:18:17 @netlists/m7_conv_latch_tran.cir:18:10
+  globals (0):

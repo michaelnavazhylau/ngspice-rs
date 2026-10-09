@@ -363,8 +363,24 @@ pub(crate) fn run(
     let circuit: &Circuit = circuit;
     // Everything that can be rejected is rejected before the first sample.
     let hints = crate::analysis::initial::resolve(circuit, request)?;
+    // cktload.c forces .nodeset rows in the MODEINITJCT/MODEINITFIX loads
+    // (the first point of each inner sweep and every CKTop restart).
+    let nodes = crate::analysis::bias::NodeForcing {
+        initial: Vec::new(),
+        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+    };
     let axes = resolve(circuit, request, context)?;
     let (point_iterations, settings) = sweep_settings(request)?;
+    // dctrcurv.c always warm-starts every point after the first with
+    // `NIiter(CKTdcTrcvMaxIter)` (C's effective default 100) before falling
+    // back to a fresh `CKTop`; the port's legacy ladder schedule instead runs
+    // one full solve per point unless `itl2` is given.
+    let point_iterations = point_iterations.or(match settings.continuation.schedule {
+        crate::analysis::bias::ContinuationSchedule::Ngspice(_) => {
+            Some(crate::analysis::config::C_DEFAULT_ITL2_EFFECTIVE)
+        }
+        crate::analysis::bias::ContinuationSchedule::Ladder => None,
+    });
     // A switch control landing exactly on a threshold is decided by the last
     // bit of the swept value, so with discrete-state devices the sweep visits
     // C's accumulated values (`dctrcurv.c`) rather than `start + i step`.
@@ -489,6 +505,7 @@ pub(crate) fn run(
                             Some(&previous),
                             &history,
                             crate::analysis::newton::PhasePolicy::Predicted,
+                            &nodes,
                         ) {
                             Ok(solved) => Some(solved.solution),
                             Err(failure)
@@ -522,6 +539,7 @@ pub(crate) fn run(
                             } else {
                                 crate::analysis::newton::PhasePolicy::Predicted
                             },
+                            &nodes,
                         )?
                         .solution
                     }
