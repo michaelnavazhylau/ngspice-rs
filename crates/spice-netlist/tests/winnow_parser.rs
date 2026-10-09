@@ -71,11 +71,11 @@ fn optional_numeric_slots_commit_non_finite_values() {
 #[test]
 fn optional_and_repeated_branches_preserve_domain_errors() {
     for (card, text, reference) in [
-        ("V1 a 0 ac 'gain'", "'gain'", "inp2v.c"),
-        ("I1 a 0 dc 2m ac 1 'phase'", "'phase'", "inp2i.c"),
-        ("R1 a 0 1k tc1='tc'", "'tc'", "inp2r.c"),
+        ("V1 a 0 ac \"gain\"", "\"gain\"", "inp2v.c"),
+        ("I1 a 0 dc 2m ac 1 \"phase\"", "\"phase\"", "inp2i.c"),
+        ("R1 a 0 1k tc1=\"tc\"", "\"tc\"", "inp2r.c"),
         ("C1 a 0 1u unknown=2", "unknown", "inp2c.c"),
-        ("V1 a 0 dc 5 sin(0 1 1k)", "sin", "inp2v.c"),
+        ("V1 a 0 dc 5 trnoise(0 1n)", "trnoise", "inp2v.c"),
     ] {
         match parse(card).unwrap_err() {
             SpiceError::NotYetPorted { what, c_reference } => {
@@ -146,6 +146,6 @@ fn independent_calls_do_not_share_backtracking_state() {
     assert!(parser.parse_deck(&deck("R1 a 0 1k tc1=")).is_err());
     let valid = deck("V1 a 0 dc 5\nR1 a gnd 1k\n.op");
     let first = parser.parse_deck(&valid).unwrap();
-    assert!(parser.parse_deck(&deck("V1 a 0 ac 'gain'")).is_err());
+    assert!(parser.parse_deck(&deck("V1 a 0 ac \"gain\"")).is_err());
     assert_eq!(parser.parse_deck(&valid).unwrap(), first);
 }

@@ -21,8 +21,8 @@ use crate::card::{CardKind, DotCommand, RawCard};
 use crate::token::Token;
 
 use super::{
-    diode, expression, fourier, hints, linear, measure, model, options, param, save, structure,
-    transistor,
+    controlled, diode, expression, fourier, func, hints, linear, measure, model, mutual, options,
+    param, save, structure, switch, transistor,
 };
 
 pub(super) enum ParsedCard {
@@ -37,6 +37,7 @@ pub(super) enum ParsedCard {
     Ends(Option<String>),
     Include(IncludeDirective),
     Param(ParamCard),
+    Func(crate::ast::FuncCard),
     /// A `.save` or `.print` output card; see [`crate::ast::OutputCards`].
     Output(save::OutputCard),
     /// A `.measure`/`.meas` card; see [`crate::ast::MeasureCard`].
@@ -118,14 +119,20 @@ pub(super) fn parse_card(
         alt((
             model::model_card,
             param::param_card,
+            func::func_card,
             hints::hint_card,
             save::output_card,
             measure::measure_card,
         )),
         structure::structural_card,
-        linear::device_card,
-        diode::diode_card,
-        transistor::transistor_card,
+        alt((
+            linear::device_card,
+            controlled::controlled_card,
+            mutual::mutual_card,
+            diode::diode_card,
+            transistor::transistor_card,
+            switch::switch_card,
+        )),
         unported_card,
         unknown_card,
     ))
@@ -155,11 +162,11 @@ fn analysis_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     } else {
         (arguments.iter().collect(), None)
     };
-    // Braced arguments are validated and parsed (never evaluated here); the
+    // Braced (and single-quoted) arguments are validated and parsed (never evaluated here); the
     // remaining arguments stay opaque text for the analysis drivers.
     let mut expressions = Vec::new();
     for (index, token) in arguments.iter().enumerate() {
-        if matches!(token.kind, crate::token::TokenKind::Expression(_)) {
+        if expression::is_expression_token(token) {
             let expression = expression::from_brace_token(token)
                 .map_err(|error| ErrMode::Cut(Failure(error)))?;
             expressions.push(ArgumentExpression { index, expression });

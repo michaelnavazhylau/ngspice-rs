@@ -1,0 +1,14 @@
+Model-backed coupled inductors from instance ic=, uic, Gear-2
+* l1 is model-backed with tc1 and m=2 at 50 C, l2 model-backed; both start
+* from instance ic= under uic. The self-inductances stamp INDinduct/m while
+* M = k sqrt(|INDinduct1 INDinduct2|) uses INDinduct before /m (muttemp.c).
+l1 a 0 lm ic=10m m=2
+r1 a 0 10
+l2 b 0 lm2 ic=-5m
+r2 b 0 20
+k1 l1 l2 0.5
+.model lm l(ind=2m tc1=0.01)
+.model lm2 l(ind=2m)
+.options temp=50 method=gear indverbosity=2
+.tran 1u 300u uic
+.end

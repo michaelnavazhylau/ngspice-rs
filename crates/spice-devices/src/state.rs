@@ -18,6 +18,19 @@
 //! Devices stamp through `&self`, so a trial cannot mutate a device either.
 //! [`crate::Circuit::accept_point`] runs every device's accept hook before the
 //! commit, so a failing hook leaves the history untouched.
+//!
+//! # Newton phases
+//!
+//! C's `CKTstate0` also survives from one Newton iteration to the next, and
+//! `NIiter` (`niiter.c`) tags each load with an initialization phase
+//! (`MODEINITJCT`, `MODEINITFIX`, `MODEINITPRED`/`MODEINITTRAN`,
+//! `MODEINITFLOAT`). Devices whose discrete state depends on the previous
+//! iterate (the S/W switches, `swload.c`/`cswload.c`) need both. A trial
+//! therefore carries its [`IterationPhase`], an optional read-only copy of the
+//! previous load's trial values ([`DeviceState::iterate`]) and a
+//! nonconvergence flag ([`DeviceState::report_nonconvergence`], C
+//! `CKTnoncon++`) that the Newton driver reads. None of this is committed:
+//! [`StateHistory::commit`] keeps only the values.
 
 use std::ops::Range;
 
@@ -77,13 +90,40 @@ impl StateHistory {
             .map(Vec::as_slice)
     }
 
-    /// A fresh trial. Its slots start as NaN, so a device that forgets to
-    /// write one cannot have it committed.
+    /// A fresh trial in [`IterationPhase::Junction`] with no previous
+    /// iterate. Its slots start as NaN, so a device that forgets to write one
+    /// cannot have it committed.
     #[must_use]
     pub fn trial(&self) -> TrialState {
         TrialState {
             values: vec![Real::NAN; self.len],
+            phase: IterationPhase::Junction,
+            previous: None,
+            nonconvergent: false,
         }
+    }
+
+    /// A fresh trial for a Newton load in `phase`, seeing `previous` (the
+    /// trial of the preceding load of the same solve, C's `CKTstate0` before
+    /// this load) read-only. Slots still start as NaN.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] when `previous` does not match the history.
+    pub fn trial_in(
+        &self,
+        phase: IterationPhase,
+        previous: Option<&TrialState>,
+    ) -> SpiceResult<TrialState> {
+        if previous.is_some_and(|previous| previous.values.len() != self.len) {
+            return Err(state_error("previous iterate does not match the history"));
+        }
+        Ok(TrialState {
+            values: vec![Real::NAN; self.len],
+            phase,
+            previous: previous.map(|previous| previous.values.clone()),
+            nonconvergent: false,
+        })
     }
 
     /// Checks that `trial` could be committed.
@@ -143,21 +183,76 @@ impl StateHistory {
         for (slot, vector) in accepted.iter_mut().zip(&self.accepted) {
             *slot = &vector[range.clone()];
         }
+        let TrialState {
+            values,
+            phase,
+            previous,
+            nonconvergent,
+        } = trial;
+        let previous: Option<&'a [Real]> = match previous {
+            Some(vector) => {
+                let vector: &'a Vec<Real> = vector;
+                Some(&vector[range.clone()])
+            }
+            None => None,
+        };
         Ok(DeviceState {
-            trial: &mut trial.values[range],
+            previous,
+            trial: &mut values[range],
             accepted,
             depth: self.accepted.len(),
+            phase: *phase,
+            nonconvergent: Some(nonconvergent),
         })
     }
+}
+
+/// The Newton initialization phase of a load (C `MODEINITF` bits set by
+/// `NIiter` in `niiter.c`, `dctran.c` and `dctrcurv.c`).
+///
+/// Only devices with discrete, iterate-dependent state read it; everything
+/// else stamps identically in every phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum IterationPhase {
+    /// First load of a DC operating-point solve (`MODEINITJCT`); also the
+    /// phase of loads outside Newton iteration.
+    #[default]
+    Junction,
+    /// Later DC operating-point loads until the iterate first converges
+    /// (`MODEINITFIX`).
+    Fix,
+    /// First load of a transient timepoint or of a warm-started DC sweep
+    /// point (`MODEINITTRAN`/`MODEINITPRED`), where the accepted history holds
+    /// the previous point.
+    Predict,
+    /// Every other load (`MODEINITFLOAT`).
+    Float,
 }
 
 /// The trial state vector (C `CKTstate0`) for one load.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrialState {
     values: Vec<Real>,
+    phase: IterationPhase,
+    previous: Option<Vec<Real>>,
+    nonconvergent: bool,
 }
 
 impl TrialState {
+    /// The Newton phase this trial was loaded in.
+    #[must_use]
+    pub const fn phase(&self) -> IterationPhase {
+        self.phase
+    }
+
+    /// True when a device reported that this load changed a discrete state
+    /// relative to the previous iterate (C `CKTnoncon++`), so the solve must
+    /// not be declared converged on it.
+    #[must_use]
+    pub const fn is_nonconvergent(&self) -> bool {
+        self.nonconvergent
+    }
+
     /// The trial values; unset slots are NaN.
     #[must_use]
     pub fn values(&self) -> &[Real] {
@@ -177,6 +272,9 @@ pub struct DeviceState<'a> {
     trial: &'a mut [Real],
     accepted: [&'a [Real]; ACCEPTED_DEPTH],
     depth: usize,
+    phase: IterationPhase,
+    previous: Option<&'a [Real]>,
+    nonconvergent: Option<&'a mut bool>,
 }
 
 impl DeviceState<'_> {
@@ -187,7 +285,40 @@ impl DeviceState<'_> {
             trial: &mut [],
             accepted: [&[]; ACCEPTED_DEPTH],
             depth: 0,
+            phase: IterationPhase::Junction,
+            previous: None,
+            nonconvergent: None,
         }
+    }
+
+    /// The Newton phase of this load.
+    #[must_use]
+    pub const fn phase(&self) -> IterationPhase {
+        self.phase
+    }
+
+    /// The value of `slot` written by the previous load of the same Newton
+    /// solve (C `CKTstate0` before this load), or `None` for the first load.
+    #[must_use]
+    pub fn iterate(&self, slot: usize) -> Option<Real> {
+        self.previous
+            .and_then(|previous| previous.get(slot))
+            .copied()
+    }
+
+    /// Marks this load as not converged (C `CKTnoncon++`): a discrete state
+    /// changed since the previous iterate, so one more iteration is needed.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] for a window that tracks no trial.
+    pub fn report_nonconvergence(&mut self) -> SpiceResult<()> {
+        let flag = self
+            .nonconvergent
+            .as_deref_mut()
+            .ok_or_else(|| state_error("nonconvergence reported outside a trial"))?;
+        *flag = true;
+        Ok(())
     }
 
     /// Number of slots this device owns.
@@ -246,7 +377,7 @@ impl DeviceState<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ACCEPTED_DEPTH, DeviceState, StateHistory};
+    use super::{ACCEPTED_DEPTH, DeviceState, IterationPhase, StateHistory};
 
     #[test]
     fn commits_rotate_and_are_bounded() {
@@ -305,8 +436,48 @@ mod tests {
         device.set(1, 5.0).unwrap();
         assert_eq!(trial.values()[2], 5.0);
         assert_eq!(trial.slice(2..3), Some(&[5.0][..]));
-        let none = DeviceState::none();
+        let mut none = DeviceState::none();
         assert!(none.is_empty());
         assert_eq!(none.accepted(1, 0), None);
+        assert_eq!(none.iterate(0), None);
+        assert!(none.report_nonconvergence().is_err());
+    }
+
+    #[test]
+    fn iterates_are_read_only_and_never_committed() {
+        let mut history = StateHistory::new(2);
+        let mut first = history.trial();
+        assert_eq!(first.phase(), IterationPhase::Junction);
+        {
+            let mut device = history.device(&mut first, 0..2).unwrap();
+            assert_eq!(device.iterate(0), None);
+            device.set(0, 1.0).unwrap();
+            device.set(1, 2.0).unwrap();
+        }
+        assert!(!first.is_nonconvergent());
+        let mut second = history
+            .trial_in(IterationPhase::Float, Some(&first))
+            .unwrap();
+        {
+            let mut device = history.device(&mut second, 1..2).unwrap();
+            assert_eq!(device.phase(), IterationPhase::Float);
+            assert_eq!(device.iterate(0), Some(2.0));
+            assert!(device.trial(0).unwrap().is_nan());
+            device.report_nonconvergence().unwrap();
+            device.set(0, 3.0).unwrap();
+        }
+        assert!(second.is_nonconvergent());
+        history
+            .device(&mut second, 0..1)
+            .unwrap()
+            .set(0, 4.0)
+            .unwrap();
+        history.commit(second).unwrap();
+        assert_eq!(history.accepted(1), Some(&[4.0, 3.0][..]));
+        assert!(
+            history
+                .trial_in(IterationPhase::Fix, Some(&StateHistory::new(3).trial()))
+                .is_err()
+        );
     }
 }

@@ -15,6 +15,11 @@
 //!   performs the exact row replacement for every node and
 //!   [`irredundant_constraints`] first resolves the branch-attached cases
 //!   structurally, so no `1e10` scaling and no numerical compromise exists.
+//! * A node held by an E/H output (directly or through other ideal relations)
+//!   keeps the controlled-source relation in C as well (the `1e10`
+//!   conductance only loads the ideal output). Such `.ic` entries are not
+//!   imposed; [`check_implied`] compares them with the solved bias, and under
+//!   `uic` a capacitor across such an output is checked the same way.
 //! * `.nodeset` is stamped by `cktload.c` only in the first (`MODEINITJCT`,
 //!   `MODEINITFIX`) iterations of a DC iteration and then released; it can only
 //!   steer convergence, never change the unique solution of a linear circuit.
@@ -33,7 +38,7 @@ use petgraph::graph::{NodeIndex, UnGraph};
 use petgraph::unionfind::UnionFind;
 use petgraph::visit::{Control, DfsEvent, depth_first_search};
 use spice_core::{Real, SourceLoc, SpiceError, SpiceResult};
-use spice_devices::{Circuit, StorageKind};
+use spice_devices::{Circuit, ModelContext, StorageKind};
 use spice_maths::{SparseMatrix, Vector};
 
 use crate::{AnalysisRequest, NodeCondition};
@@ -219,6 +224,93 @@ fn source_relations(
     relations
 }
 
+/// The output terminal pairs of the voltage-type controlled sources (E and
+/// H) as vertex pairs. Each forces `v_p - v_n` to a value that depends on the
+/// rest of the solution, so it is a rigid relation of unknown value.
+fn controlled_output_edges(circuit: &Circuit) -> Vec<(usize, usize, String)> {
+    let vertex = |node| circuit.unknowns().node_row(node).map_or(0, |row| row + 1);
+    circuit
+        .devices()
+        .iter()
+        .filter(|device| matches!(device.designator(), 'e' | 'h'))
+        .filter_map(|device| match device.terminals() {
+            [positive, negative, ..] => Some((
+                vertex(*positive),
+                vertex(*negative),
+                device.name().to_owned(),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Structural rigidity: which vertices are tied together by ideal voltage
+/// relations of any value (independent sources, shorts, E/H outputs, kept
+/// constraints), and the E/H names involved.
+struct Rigid {
+    components: UnionFind<usize>,
+    controlled: Vec<String>,
+}
+
+impl Rigid {
+    fn new(vertices: usize, controlled: &[(usize, usize, String)]) -> Self {
+        let mut components = UnionFind::new(vertices);
+        for (p, n, _) in controlled {
+            components.union(*p, *n);
+        }
+        Self {
+            components,
+            controlled: controlled.iter().map(|(_, _, name)| name.clone()).collect(),
+        }
+    }
+
+    fn names(&self) -> String {
+        self.controlled.join(", ")
+    }
+}
+
+/// The `.ic` constraints of the initial bias, split by how they are handled.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct Constraints {
+    /// Rows replaced by `v = ic` in [`constrained_bias`].
+    pub imposed: Vec<RowHint>,
+    /// Nodes already fixed by an E/H output relation (whose value is only
+    /// known after the solve): C keeps the controlled source's relation (its
+    /// `1e10` conductance just loads the ideal output), so the entry is not
+    /// imposed and [`check_implied`] compares it with the solution instead.
+    pub implied: Vec<RowHint>,
+}
+
+impl Constraints {
+    /// No row replacement is needed.
+    pub(crate) fn is_unconstrained(&self) -> bool {
+        self.imposed.is_empty()
+    }
+}
+
+/// Checks each implied `.ic` entry against the bias solution `x`.
+///
+/// # Errors
+/// An entry that contradicts the value the controlled sources force.
+pub(crate) fn check_implied(
+    x: &Vector,
+    constraints: &Constraints,
+    tolerance: VoltageTolerance,
+) -> SpiceResult<()> {
+    for hint in &constraints.implied {
+        let value = x.as_slice()[hint.row];
+        if !tolerance.agree(value, hint.value) {
+            return Err(failure(format!(
+                ".ic V({})={} at {} contradicts the {value} V that an ideal controlled \
+                 source (E/H) output forces on this node, directly or through other ideal \
+                 relations; ngspice would return a meaningless 1e10-conductance compromise",
+                hint.node, hint.value, hint.location
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// The `.ic` constraints that actually have to be imposed on the operating
 /// point `A x = rhs`, in ascending row order.
 ///
@@ -229,6 +321,11 @@ fn source_relations(
 /// Every other entry is returned unchanged. `rhs` holds the source values at
 /// the `t = 0` left limit.
 ///
+/// A node tied to ground (or to a constrained node) through a chain that
+/// includes an E/H output is determined by the circuit too, but the value is
+/// only known after the solve: such entries are returned as
+/// [`Constraints::implied`] and checked by [`check_implied`].
+///
 /// # Errors
 /// An `.ic` value contradicting an ideal source (or two `.ic` values on nodes
 /// rigidly tied by sources). C produces a `1e10`-weighted compromise there.
@@ -237,19 +334,30 @@ pub(crate) fn irredundant_constraints(
     rhs: &Vector,
     hints: &[RowHint],
     tolerance: VoltageTolerance,
-) -> SpiceResult<Vec<RowHint>> {
+) -> SpiceResult<Constraints> {
     if hints.is_empty() {
-        return Ok(Vec::new());
+        return Ok(Constraints::default());
     }
-    let mut potentials = Potentials::new(circuit.unknown_count() + 1);
+    let vertices = circuit.unknown_count() + 1;
+    let mut potentials = Potentials::new(vertices);
+    let mut rigid = Rigid::new(vertices, &controlled_output_edges(circuit));
     // Source loops are the solver's business (a singular system error).
     for (p, n, value) in source_relations(circuit, rhs, true) {
         potentials.join(p, n, value);
+        rigid.components.union(p, n);
     }
-    let mut kept = Vec::new();
+    let mut kept = Constraints::default();
     for hint in hints {
-        match potentials.join(hint.row + 1, 0, hint.value) {
-            Join::Tree => kept.push(hint.clone()),
+        let vertex = hint.row + 1;
+        if !potentials.components.equiv(vertex, 0) && rigid.components.equiv(vertex, 0) {
+            kept.implied.push(hint.clone());
+            continue;
+        }
+        match potentials.join(vertex, 0, hint.value) {
+            Join::Tree => {
+                rigid.components.union(vertex, 0);
+                kept.imposed.push(hint.clone());
+            }
             Join::Cycle { expected } if tolerance.agree(expected, hint.value) => {}
             Join::Cycle { expected } => {
                 return Err(failure(format!(
@@ -311,17 +419,23 @@ pub(crate) struct UicStart {
 ///
 /// # Errors
 /// Missing state or branch bindings.
-pub(crate) fn uic_start(circuit: &Circuit, hints: &Hints) -> SpiceResult<UicStart> {
+pub(crate) fn uic_start(
+    circuit: &Circuit,
+    hints: &Hints,
+    context: &ModelContext,
+) -> SpiceResult<UicStart> {
     let mut x = Vector::zeros(circuit.unknown_count());
     for hint in hints.nodesets.iter().chain(&hints.initial) {
         x.as_mut_slice()[hint.row] = hint.value;
     }
     let mut charges = Vec::new();
     for (index, device) in circuit.devices().iter().enumerate() {
-        let (Some(element), Some(slot)) = (device.storage_element(), device.truncation_slot())
+        let (Some(element), Some(slot)) =
+            (device.storage_element(context), device.truncation_slot())
         else {
             continue;
         };
+        let element = element?;
         match element.kind {
             StorageKind::Capacitor => {
                 if let Some(voltage) = element.initial {
@@ -379,6 +493,7 @@ pub(crate) fn check_impulse_free(
     rhs: &Vector,
     x: &Vector,
     tolerances: Tolerances,
+    context: &ModelContext,
 ) -> SpiceResult<()> {
     let n = circuit.unknown_count();
     let node_row = |node| circuit.unknowns().node_row(node);
@@ -388,7 +503,7 @@ pub(crate) fn check_impulse_free(
     let mut inductors = Vec::new();
     let mut capacitors = Vec::new();
     for (index, device) in circuit.devices().iter().enumerate() {
-        let Some(element) = device.storage_element() else {
+        let Some(element) = device.storage_element(context).transpose()? else {
             continue;
         };
         let [p, q] = device.terminals() else {
@@ -415,17 +530,30 @@ pub(crate) fn check_impulse_free(
     }
     // Voltage-type relations: ideal sources first, then the capacitors.
     let mut potentials = Potentials::new(n + 1);
+    let mut rigid = Rigid::new(n + 1, &controlled_output_edges(circuit));
     for (p, q, value) in source_relations(circuit, rhs, false) {
         potentials.join(p, q, value);
+        rigid.components.union(p, q);
     }
     let voltage_tolerance = VoltageTolerance {
         reltol: tolerances.reltol,
         vntol: tolerances.vntol,
     };
     let mut kept = Vec::new();
+    // Capacitors in a loop closed by an E/H output: the controlled source
+    // fixes their voltage from the rest of the solution, so they leave the
+    // system and are compared with the solved voltages afterwards.
+    let mut implied = Vec::new();
     for (name, p, q, voltage) in &capacitors {
+        if !potentials.components.equiv(*p, *q) && rigid.components.equiv(*p, *q) {
+            implied.push((name, *p, *q, *voltage));
+            continue;
+        }
         match potentials.join(*p, *q, *voltage) {
-            Join::Tree => kept.push((*p, *q, *voltage)),
+            Join::Tree => {
+                rigid.components.union(*p, *q);
+                kept.push((*p, *q, *voltage));
+            }
             Join::Cycle { expected } if voltage_tolerance.agree(expected, *voltage) => {}
             Join::Cycle { expected } => {
                 return Err(failure(format!(
@@ -535,7 +663,15 @@ pub(crate) fn check_impulse_free(
         column_index[*c] = k;
     }
     if rows.is_empty() {
-        return Ok(());
+        return if implied.is_empty() {
+            Ok(())
+        } else {
+            Err(failure(format!(
+                "uic initial conditions cannot be shown consistent: capacitors across the \
+                 output of controlled sources {} are left without an instantaneous system",
+                rigid.names()
+            )))
+        };
     }
     let mut matrix = SparseMatrix::new(rows.len(), rows.len());
     for (r, c, v) in entries {
@@ -545,10 +681,40 @@ pub(crate) fn check_impulse_free(
     }
     matrix.fold_duplicates();
     let rhs = Vector::from_slice(&rows.iter().map(|r| b[*r]).collect::<Vec<_>>());
-    matrix.solve(&rhs).map(|_| ()).map_err(|error| {
+    let solution = matrix.solve(&rhs).map_err(|error| {
         failure(format!(
             "uic initial conditions are over-determined or contradictory at t = 0+ (the \
              instantaneous constraint system is singular): {error}"
         ))
-    })
+    })?;
+    // Node voltages of the instantaneous solution, by vertex (0 is ground).
+    let potential = |vertex: usize| -> Option<Real> {
+        if vertex == 0 {
+            return Some(0.);
+        }
+        let reduced = column_of[vertex - 1];
+        (reduced != usize::MAX && column_used[reduced])
+            .then(|| solution.as_slice()[column_index[reduced]])
+    };
+    for (name, p, q, voltage) in implied {
+        let (Some(vp), Some(vq)) = (potential(p), potential(q)) else {
+            return Err(failure(format!(
+                "uic initial conditions cannot be shown consistent: capacitor {name} is \
+                 across the output of controlled sources ({}) but its voltage is not \
+                 determined by the instantaneous system",
+                rigid.names()
+            )));
+        };
+        let expected = vp - vq;
+        if !voltage_tolerance.agree(expected, voltage) {
+            return Err(failure(format!(
+                "uic initial conditions are inconsistent with the circuit at t = 0+: \
+                 capacitor {name} starts at {voltage} V but ideal controlled sources ({}) \
+                 force {expected} V across it, an impulse; make the initial condition agree \
+                 or add series impedance",
+                rigid.names()
+            )));
+        }
+    }
+    Ok(())
 }

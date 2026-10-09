@@ -1,6 +1,7 @@
 //! Bounded `.model` grammar (`inpdomod.c`, `inpgmod.c`, `inpfindl.c`).
 //!
-//! Retains scalar assignments and bounded bare type flags for D/BJT/MOS/R/C/L.
+//! Retains scalar assignments and bounded bare type flags for D/BJT/MOS/R/C/L
+//! and the SW/CSW switch models (`sw.c`/`csw.c` `SWmPTable`/`CSWmPTable`).
 //! The base token remains distinct from ordered tail flag setters.
 //! Device parameter validity, default levels, selector rounding, model lookup
 //! and availability are elaboration concerns, not claims made by this grammar.
@@ -60,11 +61,11 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
     let base = input.input.first().expect("peek succeeded");
     if !matches!(
         base.text.to_ascii_lowercase().as_str(),
-        "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l"
+        "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
     ) {
         return Err(gap(
             input,
-            "model family outside D/BJT/MOS/R/C/L scalar syntax",
+            "model family outside D/BJT/MOS/R/C/L/SW/CSW scalar syntax",
         ));
     }
     any.parse_next(input)
@@ -102,6 +103,8 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             "pnp",
             "nmos",
             "pmos",
+            "sw",
+            "csw",
             "sens_area",
             "sens_l",
             "sens_w",
@@ -120,7 +123,7 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
         && input
             .input
             .first()
-            .is_some_and(|token| matches!(token.kind, TokenKind::Expression(_)))
+            .is_some_and(super::expression::is_expression_token)
     {
         // INPfindLev reads the literal level; ModelCard::level cannot carry an
         // unevaluated expression, so refuse instead of defaulting it.

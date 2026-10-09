@@ -19,7 +19,7 @@
 //! where `<fundamental-frequency>` is a finite, strictly positive literal
 //! (`1k`, `2.5e3`), `<n>` is a whole number of harmonics in
 //! `1..=`[`MAX_HARMONICS`], `<vector>` is the `.save`/`.print` spelling of one
-//! vector (`v(node)`, `v(first,second)`, `i(source|inductor)`) without `all`,
+//! vector (`v(node)`, `v(first,second)`, `i(source|inductor|E|H)`) without `all`,
 //! and `HARMONICS=` may be written anywhere after the frequency. Without
 //! `HARMONICS=` the card tabulates harmonics `1..=`[`DEFAULT_HARMONICS`].
 //!
@@ -52,7 +52,7 @@ const C_REFERENCE: &str = "src/frontend/inp.c (inp_spsource), src/frontend/dotca
      (ft_savedotargs, ft_cktcoms), src/frontend/fourier.c (fourier, CKTfour)";
 
 /// The vector spellings a `.four` card accepts.
-const VECTORS: &str = "v(node), v(first,second), i(source|inductor)";
+const VECTORS: &str = "v(node), v(first,second), i(source|inductor|E|H)";
 
 /// The parameter spellings a `.four` card accepts.
 const PARAMETERS: &str = "HARMONICS";
@@ -144,7 +144,7 @@ fn fundamental(input: &mut Input<'_>, card: &SourceLoc) -> Result<(Real, SourceL
                 token.text
             ),
         )),
-        TokenKind::Expression(_) => Err(gap(
+        _ if super::expression::is_expression_token(&token) => Err(gap(
             &token.location,
             "a {…} expression as the .four fundamental frequency",
         )),
@@ -226,7 +226,7 @@ fn harmonics_value(input: &mut Input<'_>, at: &SourceLoc) -> Result<u32> {
             }
             Ok(harmonics)
         }
-        TokenKind::Expression(_) => Err(gap(
+        _ if super::expression::is_expression_token(&value) => Err(gap(
             &value.location,
             "a {…} expression as the value of HARMONICS=",
         )),

@@ -1,0 +1,47 @@
+# ngspice-rs ast-dump v1
+file: netlists/options_xmu_tran.cir
+title: "RC pulse transient, trapezoidal xmu=0.2" @netlists/options_xmu_tran.cir:1:1
+scope root
+  cards (6):
+    [0] device[0] @netlists/options_xmu_tran.cir:4:1 "v1 in 0 pulse(0 10 100u 10u 10u 300u 800u)"
+    [1] device[1] @netlists/options_xmu_tran.cir:5:1 "r1 in out 1k"
+    [2] device[2] @netlists/options_xmu_tran.cir:6:1 "c1 out 0 0.1u"
+    [3] options[0] @netlists/options_xmu_tran.cir:7:1 ".options xmu=0.2 itl4=20"
+    [4] analysis[0] @netlists/options_xmu_tran.cir:8:1 ".tran 2u 1.2m"
+    [5] end @netlists/options_xmu_tran.cir:9:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/options_xmu_tran.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 10 100u 10u 10u 300u 800u)" @netlists/options_xmu_tran.cir:4:9
+          pulse
+            initial: "0"@netlists/options_xmu_tran.cir:4:15
+            pulsed: "10"@netlists/options_xmu_tran.cir:4:17
+            delay: "100u"@netlists/options_xmu_tran.cir:4:20
+            rise: "10u"@netlists/options_xmu_tran.cir:4:25
+            fall: "10u"@netlists/options_xmu_tran.cir:4:29
+            width: "300u"@netlists/options_xmu_tran.cir:4:33
+            period: "800u"@netlists/options_xmu_tran.cir:4:38
+    device [1] name="r1" designator=r @netlists/options_xmu_tran.cir:5:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/options_xmu_tran.cir:5:11
+    device [2] name="c1" designator=c @netlists/options_xmu_tran.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="0.1u" @netlists/options_xmu_tran.cir:6:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/options_xmu_tran.cir:8:1
+      arguments: "2u" "1.2m"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/options_xmu_tran.cir:7:1
+      setting [0] name="xmu" value="0.2"@netlists/options_xmu_tran.cir:7:14 @netlists/options_xmu_tran.cir:7:10
+      setting [1] name="itl4" value="20"@netlists/options_xmu_tran.cir:7:23 @netlists/options_xmu_tran.cir:7:18
+  globals (0):

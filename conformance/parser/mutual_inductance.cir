@@ -1,0 +1,31 @@
+Mutual-inductance parser reference
+* Positional, k= and coefficient= couplings, a braced expression, a
+* multi-inductor card (every pair, as inp_compat expands it), a negative
+* coupling, a hierarchical top-level reference and a K inside a subcircuit.
+.param kk=0.25
+v1 a 0 dc 0 ac 1
+r1 a b 1
+L1 b 0 1m
+l2 c 0 4m
+l3 d 0 2m ic=1m
+r2 c 0 10
+r3 d 0 5
+K1 L1 l2 0.5
+k2 l1 l3 k=0.2
+k3 l2 l3 coefficient = -0.1
+.subckt xf p s
+la p 0 1m
+lb s 0 4m
+lc t 0 2m
+rt t 0 7
+kab la lb {kk*2}
+kabc la lb lc 0.1
+.ends
+rx a g 10
+x1 g e xf
+re e 0 50
+l4 f 0 1m
+rf f 0 1
+kx l4 l.x1.la 0.3
+.ac lin 1 1k 1k
+.end

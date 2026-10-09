@@ -20,7 +20,7 @@
 //! where `<analysis>` is `tran`, `ac` or `dc`, and `<event>` is either
 //! `AT=<value>` or `<operand> VAL=<value> [RISE=<n>|FALL=<n>|CROSS=<n>|LAST]`,
 //! and `<operand>` is the `.save`/`.print` vector spelling (`v(node)`,
-//! `v(first,second)`, `i(source|inductor)`, `vm/vp/vr/vi/vdb(node[,second])`)
+//! `v(first,second)`, `i(source|inductor|E|H)`, `vm/vp/vr/vi/vdb(node[,second])`)
 //! without `all`.
 //!
 //! Everything else is a positioned failure rather than a dropped card: the
@@ -54,7 +54,7 @@ const C_REFERENCE: &str = "src/frontend/inp.c (inp_spsource), src/frontend/measu
 
 /// The vector spellings an operand accepts.
 const OPERANDS: &str =
-    "v(node), v(first,second), i(source|inductor), vm/vp/vr/vi/vdb(node[,second])";
+    "v(node), v(first,second), i(source|inductor|E|H), vm/vp/vr/vi/vdb(node[,second])";
 
 /// The parameter spellings a `.measure` request accepts.
 const PARAMETERS: &str = "AT, VAL, RISE, FALL, CROSS, LAST, FROM, TO";
@@ -478,7 +478,7 @@ fn number(input: &mut Input<'_>, name: &str, at: &SourceLoc) -> Result<Real> {
             any.parse_next(input)?;
             Ok(number)
         }
-        TokenKind::Expression(_) => Err(gap(
+        _ if super::expression::is_expression_token(&value) => Err(gap(
             &value.location,
             format!("a {{…}} expression as the value of {name}="),
         )),

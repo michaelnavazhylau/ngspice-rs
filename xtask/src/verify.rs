@@ -168,6 +168,18 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // `.func` definitions and single-quoted values (#107): top-level and
+    // body-local functions, quoted device/instance values, flattened through
+    // the production `.op` path. Purely resistive, so the linear DC bound.
+    Supported {
+        name: "func_quotes",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     // M3 exit-gate fixtures (#48). All use `compare::TRAN`; the physical bound is
     // the simulator's own default accuracy (see `compare.rs`), no fixture-specific
     // tolerance exists. The companion driver (trap, or Gear-2 via
@@ -199,6 +211,15 @@ const SUPPORTED: &[Supported] = &[
     tran("rlc_ic_uic_tran", &[]),
     tran("rc_ic_node_tran", &[]),
     tran("floating_cap_ic_tran", &[]),
+    // M6 source waveforms (#94, #95), companion trap driver under `compare::TRAN`.
+    // C sets no breakpoints for SIN/EXP/SFFM/AM, so those decks are compared on
+    // the grid only (`tran::breakpoints`); PULSE count and repeated PWL corners
+    // are C breakpoints.
+    tran("rc_sin_tran", &[]),
+    tran("rc_exp_tran", &[]),
+    tran("rc_sffm_am_tran", &[]),
+    tran("rc_pwl_repeat_tran", &[]),
+    tran("rc_pulse_count_tran", &[]),
     Supported {
         name: "rlc_series_ac",
         kind: AnalysisKind::Ac,
@@ -207,8 +228,172 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::AC,
         },
         variants: &[],
+    }, // `.option` coverage (#110/#107): `gmin={gj}` (evaluated against
+    // `.param`) is the junction gmin of the reverse-biased diode/BJT junctions,
+    // with itl1/itl2 and documented no-ops; the reverse region is nearly linear,
+    // so the 1 ppm NONLINEAR bound applies.
+    Supported {
+        name: "options_gmin_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // Trapezoidal `xmu=0.2` and `itl4` on the companion driver. No BDF variant:
+    // backend=diffsol rejects both options explicitly.
+    tran("options_xmu_tran", &[]),
+    // Linear controlled sources (#78): E/F/G/H in an operating point (with an
+    // F/H controlled by an E branch and by a voltage source inside a
+    // subcircuit), an AC sweep and a PULSE transient. All four devices are
+    // linear, so the decks keep the linear DC/AC bounds and `compare::TRAN`.
+    Supported {
+        name: "controlled_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "controlled_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    // Its PULSE corners lie on the output grid like `rl_pulse_tran`, and like
+    // that deck C's backward-Euler restart after each corner exceeds the plain
+    // `compare::TRAN` floor at small values (about 1e-8 A on the sub-uA
+    // currents right after the 20 us edge), so the BDF run is peak-scaled.
+    tran("controlled_tran", &[DIFFSOL_BDF_RESTART]),
+    // K mutual inductance (#80): a 1:2 transformer, a three-winding K inside a
+    // subcircuit and a negative coupling in AC; a PULSE transformer transient
+    // (trapezoidal companions on the coupled flux); and coupled `ic=` free
+    // decay under `uic` with Gear-2. All linear: the linear AC bound and
+    // `compare::TRAN`. No BDF variant for `transformer_tran`: the k = 0.99
+    // leakage time constant (about 0.6 us) is shorter than C's backward-Euler
+    // restart step after each pulse corner, and C's resulting error (1 % of
+    // i(l1) at t = 2 us, measured against a reltol = 1e-7 companion run that
+    // the BDF result matches to 1e-6) exceeds even `compare::TRAN_RESTART`.
+    // The BDF backend's coupled mass matrix is instead checked against that
+    // tight reference in `spice-analysis/tests/mutual_inductance.rs`.
+    Supported {
+        name: "transformer_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    tran("transformer_tran", &[]),
+    tran("transformer_ic_uic_tran", &[]),
+    tran("transformer_model_uic_tran", &[]),
+    // S/W switches (#81): hysteresis bands, ON/OFF flags, gmin off conductance
+    // and a W latch at an operating point, and a downward `.dc` sweep whose
+    // points continue the previous point's accepted switch state. Switches
+    // are nonlinear devices, so the nonlinear 1 ppm bound applies.
+    Supported {
+        name: "switch_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "switch_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // PULSE/SIN-controlled S, a self-controlled relaxation oscillator and W
+    // switches sensing SIN/PULSE currents. Every plotted node is a source or
+    // capacitor node, so no plotted value jumps between samples where a switch
+    // flips. No BDF variant: the diffsol backend rejects switches (no
+    // immutable linear assembly).
+    tran("switch_tran", &[]),
+    tran("switch_w_tran", &[]),
+    // A `.dc` with a decimal step: C's accumulated sweep values decide
+    // switches at their thresholds (`dctrcurv.c` `value += step`).
+    Supported {
+        name: "switch_dc_decimal",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // AC uses C's MODEINITSMSIG switch state (the zero CKTstate1: open), not
+    // the operating point's.
+    Supported {
+        name: "switch_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
     },
 ];
+/// One plot of a multi-analysis fixture: the analysis type expected at this
+/// position of the batch schedule and the gate its plot is compared under.
+struct Stage {
+    kind: AnalysisKind,
+    gate: Gate,
+}
+
+/// A multi-analysis fixture (#96): every analysis card of the deck runs in
+/// ngspice batch order (`spice_analysis::batch::schedule`) and plot `i` is
+/// compared with plot `i` of the multi-plot C golden under `stages[i]`. The
+/// plot count, the order and every plot name must match exactly; each stage
+/// keeps the very tolerance a single-analysis fixture of that type uses.
+struct Batch {
+    name: &'static str,
+    stages: &'static [Stage],
+}
+
+const BATCH: &[Batch] = &[Batch {
+    name: "multi_analysis_rc",
+    stages: &[
+        Stage {
+            kind: AnalysisKind::Ac,
+            gate: Gate::Points {
+                axis: Some("frequency"),
+                tolerance: compare::AC,
+            },
+        },
+        Stage {
+            kind: AnalysisKind::DcSweep,
+            gate: Gate::Points {
+                axis: None,
+                tolerance: compare::DC,
+            },
+        },
+        Stage {
+            kind: AnalysisKind::OperatingPoint,
+            gate: Gate::Points {
+                axis: None,
+                tolerance: compare::DC,
+            },
+        },
+        Stage {
+            kind: AnalysisKind::Transient,
+            gate: Gate::Transient(compare::TRAN),
+        },
+    ],
+}];
+
 /// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
 /// every committed deck, including `subckt_divider`, is verified through its
 /// own production path. A requested excluded fixture still fails the run, so a
@@ -225,7 +410,18 @@ pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
 }
 
 fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
-    run_with_registry(root, only, SUPPORTED, EXCLUDED)
+    run_with_registries(root, only, SUPPORTED, BATCH, EXCLUDED)
+}
+
+/// [`run_with_registries`] without multi-analysis fixtures.
+#[cfg(test)]
+fn run_with_registry(
+    root: &Path,
+    only: Option<&str>,
+    supported: &[Supported],
+    excluded: &[(&str, &str)],
+) -> Result<(), String> {
+    run_with_registries(root, only, supported, &[], excluded)
 }
 
 /// The verification loop, parameterized by the fixture registry.
@@ -234,10 +430,11 @@ fn run(root: &Path, only: Option<&str>) -> Result<(), String> {
 /// `requested unsupported fixture` path has no committed fixture to exercise it;
 /// this signature lets a unit test drive that branch with a synthetic entry
 /// instead of leaving it untested until an excluded fixture reappears.
-fn run_with_registry(
+fn run_with_registries(
     root: &Path,
     only: Option<&str>,
     supported: &[Supported],
+    batch: &[Batch],
     excluded: &[(&str, &str)],
 ) -> Result<(), String> {
     let paths = golden::netlist_paths_at(root, only)?;
@@ -245,12 +442,16 @@ fn run_with_registry(
     let mut unsupported = 0;
     let mut failures = Vec::new();
     if only.is_none() {
-        for fixture in supported {
+        for name in supported
+            .iter()
+            .map(|fixture| fixture.name)
+            .chain(batch.iter().map(|fixture| fixture.name))
+        {
             if !paths
                 .iter()
-                .any(|path| path.file_stem().is_some_and(|stem| stem == fixture.name))
+                .any(|path| path.file_stem().is_some_and(|stem| stem == name))
             {
-                failures.push(format!("missing supported fixture '{}'", fixture.name));
+                failures.push(format!("missing supported fixture '{name}'"));
             }
         }
     }
@@ -261,6 +462,20 @@ fn run_with_registry(
             .ok_or("invalid fixture name")?;
         if let Some(fixture) = supported.iter().find(|fixture| fixture.name == name) {
             match fixture_result(root, &path, fixture) {
+                Ok(details) => {
+                    verified += 1;
+                    println!("  verified   {name}");
+                    for detail in details {
+                        println!("             {detail}");
+                    }
+                }
+                Err(error) => {
+                    println!("  FAIL       {name}: {error}");
+                    failures.push(format!("{name}: {error}"));
+                }
+            }
+        } else if let Some(fixture) = batch.iter().find(|fixture| fixture.name == name) {
+            match batch_result(root, &path, fixture) {
                 Ok(details) => {
                     verified += 1;
                     println!("  verified   {name}");
@@ -324,24 +539,88 @@ fn run_variant(
             netlist.analyses.len()
         ));
     }
-    if !netlist.analyses[0].expressions.is_empty() {
-        return Err("braced analysis arguments are not supported in verification fixtures".into());
-    }
     let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
-    let mut request: AnalysisRequest = AnalysisRequest::from(&netlist.analyses[0]);
-    if let Some(variant) = variant {
-        request
-            .arguments
-            .extend(variant.extra.iter().map(|token| (*token).to_owned()));
-    }
-    let request = config.request(request).map_err(|e| e.to_string())?;
+    let extra = variant.map_or(&[][..], |variant| variant.extra);
+    let (request, got) = run_card(&netlist, &config, &netlist.analyses[0], extra)?;
     if request.kind != fixture.kind {
         return Err(format!(
             "registry expects {:?}, deck requests {:?}",
             fixture.kind, request.kind
         ));
     }
-    let mut circuit = config.circuit(&netlist).map_err(|e| e.to_string())?;
+    let want = load_golden(root, fixture.name)?;
+    if want.plots.len() != 1 {
+        return Err(format!("expected one C plot, found {}", want.plots.len()));
+    }
+    let gate = match (&fixture.gate, variant) {
+        (Gate::Transient(_), Some(variant)) => Gate::Transient(variant.tolerance),
+        (Gate::Transient(tolerance), None) => Gate::Transient(*tolerance),
+        (Gate::Points { axis, tolerance }, _) => Gate::Points {
+            axis: *axis,
+            tolerance: *tolerance,
+        },
+    };
+    compare_plot(&gate, &netlist, &request, &got, &want.plots[0].plot)
+}
+
+/// Every plot of a multi-analysis fixture, in batch order, against the
+/// multi-plot C golden. Each analysis runs on a freshly elaborated circuit, as
+/// `spice-rs simulate` does.
+fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>, String> {
+    let netlist = Parser::new().parse_file(path).map_err(|e| e.to_string())?;
+    let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
+    let schedule = spice_analysis::batch::schedule(&netlist.analyses);
+    let want = load_golden(root, fixture.name)?;
+    if schedule.len() != fixture.stages.len() || want.plots.len() != fixture.stages.len() {
+        return Err(format!(
+            "expected {} plots: the deck schedules {}, the C golden has {}",
+            fixture.stages.len(),
+            schedule.len(),
+            want.plots.len()
+        ));
+    }
+    let mut details = Vec::with_capacity(schedule.len());
+    for ((entry, stage), want) in schedule.iter().zip(fixture.stages).zip(&want.plots) {
+        let card = &netlist.analyses[entry.card_index];
+        let (request, got) = run_card(&netlist, &config, card, &[])
+            .map_err(|error| format!("{}: {error}", entry.plot_name))?;
+        if request.kind != stage.kind {
+            return Err(format!(
+                "{}: registry expects {:?}, the batch schedule runs {:?}",
+                entry.plot_name, stage.kind, request.kind
+            ));
+        }
+        if got.plotname != want.plot.plotname {
+            return Err(format!(
+                "{}: plot name '{}' where C wrote '{}' at this position",
+                entry.plot_name, got.plotname, want.plot.plotname
+            ));
+        }
+        let detail = compare_plot(&stage.gate, &netlist, &request, &got, &want.plot)
+            .map_err(|error| format!("{}: {error}", entry.plot_name))?;
+        details.push(format!("{} ({}): {detail}", entry.plot_name, got.plotname));
+    }
+    Ok(details)
+}
+
+/// Runs one analysis card through the production driver and projects the plot
+/// onto C's default save set and naming. `extra` tokens are appended to the
+/// request after the deck's own settings.
+fn run_card(
+    netlist: &spice_netlist::ast::Netlist,
+    config: &RunConfig,
+    card: &spice_netlist::ast::AnalysisCard,
+    extra: &[&str],
+) -> Result<(AnalysisRequest, spice_analysis::Plot), String> {
+    if !card.expressions.is_empty() {
+        return Err("braced analysis arguments are not supported in verification fixtures".into());
+    }
+    let mut request: AnalysisRequest = AnalysisRequest::from(card);
+    request
+        .arguments
+        .extend(extra.iter().map(|token| (*token).to_owned()));
+    let request = config.request(request).map_err(|e| e.to_string())?;
+    let mut circuit = config.circuit(netlist).map_err(|e| e.to_string())?;
     let mut got = runner(request.kind)
         .and_then(|driver| driver.run(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
@@ -375,22 +654,29 @@ fn run_variant(
         }
         .into();
     }
-    let target = root
-        .join(golden::GOLDEN_DIR)
-        .join(format!("{}.raw", fixture.name));
+    Ok((request, got))
+}
+
+/// The committed C golden of `name`.
+fn load_golden(root: &Path, name: &str) -> Result<RawFile, String> {
+    let target = root.join(golden::GOLDEN_DIR).join(format!("{name}.raw"));
     let text =
         fs::read_to_string(&target).map_err(|e| format!("reading {}: {e}", target.display()))?;
-    let want = RawFile::parse(&text).map_err(|e| format!("{}: {e}", target.display()))?;
-    if want.plots.len() != 1 {
-        return Err(format!("expected one C plot, found {}", want.plots.len()));
-    }
-    match fixture.gate {
-        Gate::Points { axis, tolerance } => {
-            compare::plots(&got, &want.plots[0].plot, tolerance, axis)
-                .map(|()| format!("{} point(s)", got.point_count()))
-        }
+    RawFile::parse(&text).map_err(|e| format!("{}: {e}", target.display()))
+}
+
+/// Compares one Rust plot with one C plot under `gate`.
+fn compare_plot(
+    gate: &Gate,
+    netlist: &spice_netlist::ast::Netlist,
+    request: &AnalysisRequest,
+    got: &spice_analysis::Plot,
+    want: &spice_analysis::Plot,
+) -> Result<String, String> {
+    match *gate {
+        Gate::Points { axis, tolerance } => compare::plots(got, want, tolerance, axis)
+            .map(|()| format!("{} point(s)", got.point_count())),
         Gate::Transient(tolerance) => {
-            let tolerance = variant.map_or(tolerance, |variant| variant.tolerance);
             let time = |index: usize, what: &str| {
                 request
                     .argument(index)
@@ -399,15 +685,13 @@ fn run_variant(
                     .ok_or_else(|| format!(".tran {what} is not a positive number"))
             };
             let (step, stop) = (time(0, "tstep")?, time(1, "tstop")?);
-            let breakpoints = tran::breakpoints(&netlist, step, stop)?;
+            let breakpoints = tran::breakpoints(netlist, step, stop)?;
             // With `uic` C writes no t = 0 row: its first row is the first
             // accepted step. The comparison then starts at that time, which the
             // Rust plot must reproduce (`tran::Series::new`); without `uic`
             // both plots start at 0 as always.
             let start = if request.uic {
-                want.plots[0]
-                    .plot
-                    .value("time", 0)
+                want.value("time", 0)
                     .map(|t| t.re)
                     .filter(|t| t.is_finite() && *t > 0.0)
                     .ok_or("uic golden has no positive first time")?
@@ -415,8 +699,8 @@ fn run_variant(
                 0.0
             };
             tran::transient(
-                &got,
-                &want.plots[0].plot,
+                got,
+                want,
                 tolerance,
                 &tran::Grid { start, stop, step },
                 &breakpoints,
@@ -484,6 +768,9 @@ mod tests {
         for fixture in SUPPORTED {
             run(&workspace_root(), Some(fixture.name)).unwrap();
         }
+        for fixture in BATCH {
+            run(&workspace_root(), Some(fixture.name)).unwrap();
+        }
         for (path, bytes) in paths.iter().zip(before) {
             assert_eq!(fs::read(path).unwrap(), bytes);
         }
@@ -506,7 +793,7 @@ mod tests {
                 assert!(!deck.to_ascii_lowercase().contains("method"), "{deck}");
             }
         }
-        assert_eq!(with_variants, 5);
+        assert_eq!(with_variants, 6);
         // The same deck with a deck-level Gear selection and the BDF tokens is an
         // explicit error, never a silent downgrade.
         let temp = Temp::with(&["rc_gear_tran"]);
@@ -672,5 +959,55 @@ mod tests {
                 .unwrap_err()
                 .contains("no verification registry")
         );
+    }
+
+    #[test]
+    fn multi_plot_goldens_are_verified_plot_by_plot_and_in_order() {
+        let temp = Temp::with(&["multi_analysis_rc"]);
+        let raw = temp.0.join("conformance/golden/multi_analysis_rc.raw");
+        let deck = temp.0.join("conformance/netlists/multi_analysis_rc.cir");
+        let original = fs::read_to_string(&raw).unwrap();
+        let original_deck = fs::read_to_string(&deck).unwrap();
+        run(&temp.0, Some("multi_analysis_rc")).unwrap();
+        // The C plots, split at their `Title:` headers.
+        let plots: Vec<String> =
+            original
+                .split_inclusive('\n')
+                .fold(Vec::<String>::new(), |mut plots, line| {
+                    if line.starts_with("Title:") || plots.is_empty() {
+                        plots.push(String::new());
+                    }
+                    plots.last_mut().unwrap().push_str(line);
+                    plots
+                });
+        assert_eq!(plots.len(), 4);
+        let swapped = [&plots[1], &plots[0], &plots[2], &plots[3]]
+            .map(String::as_str)
+            .concat();
+        let dropped = plots[..3].concat();
+        let doubled = format!("{original}{}", plots[3]);
+        // v(out) of the operating point: 4/3 V -> 1.4 V.
+        let op_value = original.replacen("\t1.333333333333333e+00", "\t1.400000000000000e+00", 1);
+        assert_ne!(op_value, original);
+        for (label, text) in [
+            ("swapped", swapped),
+            ("dropped", dropped),
+            ("doubled", doubled),
+            ("op value", op_value),
+        ] {
+            fs::write(&raw, text).unwrap();
+            let error = run(&temp.0, Some("multi_analysis_rc")).unwrap_err();
+            assert!(error.contains("multi_analysis_rc"), "{label}: {error}");
+        }
+        fs::write(&raw, &original).unwrap();
+        // A deck whose schedule no longer matches the registered stages fails
+        // too, rather than being compared against the wrong plots.
+        for text in [
+            original_deck.replace(".op\n", ""),
+            original_deck.replace(".op\n", ".op\n.op\n"),
+        ] {
+            fs::write(&deck, text).unwrap();
+            assert!(run(&temp.0, Some("multi_analysis_rc")).is_err());
+        }
     }
 }

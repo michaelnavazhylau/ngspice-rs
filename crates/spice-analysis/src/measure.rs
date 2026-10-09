@@ -109,8 +109,8 @@ pub fn resolve(
             return Err(unsupported(
                 card,
                 format!(
-                    ".measure {} {}: the card names a .{} measurement; this run is .{} \
-                     ('simulate' runs exactly one analysis, so the card can never be honoured)",
+                    ".measure {} {}: the card names a .{} measurement; this plot is .{}, \
+                     so the card can never be honoured against it",
                     card.analysis.as_str(),
                     card.name,
                     card.analysis.as_str(),

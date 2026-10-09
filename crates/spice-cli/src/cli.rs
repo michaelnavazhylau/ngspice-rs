@@ -36,7 +36,7 @@ pub enum Command {
     Tokens,
     /// Build a semantic netlist for supported syntax; report any unported gaps.
     Parse,
-    /// Run the deck's single analysis and write an ASCII rawfile.
+    /// Run every analysis of the deck and write one ASCII rawfile.
     Simulate,
     /// List the device designators the registry knows.
     Devices,
@@ -234,7 +234,7 @@ USAGE:
     spice-rs tokens [OPTIONS] <netlist>   dump the token stream
     spice-rs parse [OPTIONS] <netlist>    parse the deck into the netlist model
     spice-rs simulate (--output <path>) [OPTIONS] <netlist>
-                                          run the deck's one analysis and write an ASCII rawfile
+                                          run every analysis and write one ASCII rawfile
     spice-rs devices                      list the device designators known to the port
     spice-rs analyses                     list the analyses and their driver status
     spice-rs help | version
@@ -341,6 +341,18 @@ pub fn run(args: &Args) -> SpiceResult<()> {
                 context.nominal_temperature,
                 netlist.globals.len()
             );
+            // Accepted documented no-ops are named, never silently dropped.
+            if !config.ignored().is_empty() {
+                let names: Vec<_> = config
+                    .ignored()
+                    .iter()
+                    .map(|option| option.name.as_str())
+                    .collect();
+                println!(
+                    "options without effect (documented no-ops): {}",
+                    names.join(", ")
+                );
+            }
             Ok(())
         }
     }
@@ -642,7 +654,7 @@ r2 out 0 1k
         assert!(text.contains("dot commands:     3"), "{text}");
         assert!(text.contains("by designator:    r(2) v(1)"), "{text}");
         assert!(text.contains("analyses: .tran"), "{text}");
-        assert!(text.contains("port:     5 of"), "{text}");
+        assert!(text.contains("port:     10 of"), "{text}");
     }
 
     #[test]

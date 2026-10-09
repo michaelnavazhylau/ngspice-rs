@@ -2,14 +2,16 @@
 //!
 //! Dispatch follows `src/spicelib/parser/inppas2.c`, `INPpas2()`;
 //! device grammars follow `inp2r.c`, `inp2c.c`, `inp2l.c`, `inp2v.c`, and
-//! `inp2i.c`, plus `inp2d.c`, `inp2q.c` and `inp2m.c` for bounded D/Q/M forms.
+//! `inp2i.c`, plus `inp2d.c`, `inp2q.c` and `inp2m.c` for bounded D/Q/M forms,
+//! `inp2e.c`..`inp2h.c` for linear controlled sources, `inp2k.c` for mutual
+//! inductance and `inp2s.c`/`inp2w.c` for switches.
 //! Scalar model cards follow
 //! `inpdomod.c`/`inpgmod.c`. Dot-card dispatch follows `inp2dot.c`, not the front-end
 //! `parse-bison.y` expression grammar.
 //!
 //! The implemented subset is M1a (scalar R/C/L, DC/AC sources, analysis cards)
 //! plus M1b model cards, two-terminal D, three/four-terminal Q and
-//! four-terminal M instances, bounded flags/IC vectors and numeric PULSE/PWL. Q/M use declared names for terminal disambiguation;
+//! four-terminal M instances, bounded flags/IC vectors and numeric PULSE/PWL/SIN/EXP/SFFM/AM. Q/M use declared names for terminal disambiguation;
 //! scoped subcircuits/X and source-relative include/library resolution. Model
 //! types/backend availability and parameter validity are not checked yet.
 //! Other constructs fail explicitly, never silently dropping cards. Values stay
@@ -25,22 +27,26 @@ use crate::source::{Deck, load};
 
 pub use resolution::SourceLimits;
 
+mod controlled;
 mod diode;
 mod expression;
 mod flags;
 mod fourier;
+mod func;
 mod grammar;
 mod hints;
 mod ic;
 mod linear;
 mod measure;
 mod model;
+mod mutual;
 mod options;
 mod param;
 mod resolution;
 mod save;
 mod scopes;
 mod structure;
+mod switch;
 mod syntax;
 mod transistor;
 mod vector;

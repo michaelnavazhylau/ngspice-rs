@@ -1,0 +1,193 @@
+# ngspice-rs ast-dump v1
+file: netlists/switch_op.cir
+title: "Voltage and current controlled switches operating point" @netlists/switch_op.cir:1:1
+scope root
+  cards (31):
+    [0] device[0] @netlists/switch_op.cir:9:1 "vc ctrl 0 dc 1.5"
+    [1] device[1] @netlists/switch_op.cir:10:1 "vhi hi 0 dc 3"
+    [2] device[2] @netlists/switch_op.cir:11:1 "vdd vdd 0 dc 1"
+    [3] device[3] @netlists/switch_op.cir:12:1 "r1 vdd a 1k"
+    [4] device[4] @netlists/switch_op.cir:13:1 "s1 a 0 ctrl 0 swh"
+    [5] device[5] @netlists/switch_op.cir:14:1 "r2 vdd b 1k"
+    [6] device[6] @netlists/switch_op.cir:15:1 "s2 b 0 ctrl 0 swh on"
+    [7] device[7] @netlists/switch_op.cir:16:1 "r3 vdd c 1k"
+    [8] device[8] @netlists/switch_op.cir:17:1 "s3 c 0 hi 0 swh off"
+    [9] device[9] @netlists/switch_op.cir:18:1 "r4 vdd d 1k"
+    [10] device[10] @netlists/switch_op.cir:19:1 "s4 d 0 0 hi swh on"
+    [11] device[11] @netlists/switch_op.cir:20:1 "r5 vdd e 1k"
+    [12] device[12] @netlists/switch_op.cir:21:1 "s5 e 0 hi 0 swd"
+    [13] device[13] @netlists/switch_op.cir:22:1 "vi src 0 dc 2"
+    [14] device[14] @netlists/switch_op.cir:23:1 "rs src sx 1k"
+    [15] device[15] @netlists/switch_op.cir:24:1 "vsense sx 0 dc 0"
+    [16] device[16] @netlists/switch_op.cir:25:1 "r6 vdd f 1k"
+    [17] device[17] @netlists/switch_op.cir:26:1 "w1 f 0 vsense wh"
+    [18] device[18] @netlists/switch_op.cir:27:1 "r7 vdd g 1k"
+    [19] device[19] @netlists/switch_op.cir:28:1 "w2 g 0 vsense wb on"
+    [20] device[20] @netlists/switch_op.cir:29:1 "vl vl 0 dc 1"
+    [21] device[21] @netlists/switch_op.cir:30:1 "rl1 vl l1 1k"
+    [22] device[22] @netlists/switch_op.cir:31:1 "vsl l1 l2 dc 0"
+    [23] device[23] @netlists/switch_op.cir:32:1 "w3 l2 0 vsl wl on"
+    [24] model[0] @netlists/switch_op.cir:33:1 ".model swh sw(vt=1.5 vh=0.5 ron=10 roff=1meg)"
+    [25] model[1] @netlists/switch_op.cir:34:1 ".model swd sw(vt=1)"
+    [26] model[2] @netlists/switch_op.cir:35:1 ".model wh csw(it=1m ih=0.5m ron=20 roff=500k)"
+    [27] model[3] @netlists/switch_op.cir:36:1 ".model wb csw(it=1.8m ih=0.4m ron=30 roff=2meg)"
+    [28] model[4] @netlists/switch_op.cir:37:1 ".model wl csw(it=0.4m ih=0.2m ron=100 roff=10meg)"
+    [29] analysis[0] @netlists/switch_op.cir:38:1 ".op"
+    [30] end @netlists/switch_op.cir:39:1 ".end"
+  devices (24):
+    device [0] name="vc" designator=v @netlists/switch_op.cir:9:1
+      nodes: "ctrl" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.5" @netlists/switch_op.cir:9:11
+    device [1] name="vhi" designator=v @netlists/switch_op.cir:10:1
+      nodes: "hi" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/switch_op.cir:10:10
+    device [2] name="vdd" designator=v @netlists/switch_op.cir:11:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/switch_op.cir:11:11
+    device [3] name="r1" designator=r @netlists/switch_op.cir:12:1
+      nodes: "vdd" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:12:10
+    device [4] name="s1" designator=s @netlists/switch_op.cir:13:1
+      nodes: "a" "0" "ctrl" "0"
+      model: "swh"
+      parameters (0):
+    device [5] name="r2" designator=r @netlists/switch_op.cir:14:1
+      nodes: "vdd" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:14:10
+    device [6] name="s2" designator=s @netlists/switch_op.cir:15:1
+      nodes: "b" "0" "ctrl" "0"
+      model: "swh"
+      parameters (1):
+        [0] name="on" kind=flag value="" @netlists/switch_op.cir:15:19
+    device [7] name="r3" designator=r @netlists/switch_op.cir:16:1
+      nodes: "vdd" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:16:10
+    device [8] name="s3" designator=s @netlists/switch_op.cir:17:1
+      nodes: "c" "0" "hi" "0"
+      model: "swh"
+      parameters (1):
+        [0] name="off" kind=flag value="" @netlists/switch_op.cir:17:17
+    device [9] name="r4" designator=r @netlists/switch_op.cir:18:1
+      nodes: "vdd" "d"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:18:10
+    device [10] name="s4" designator=s @netlists/switch_op.cir:19:1
+      nodes: "d" "0" "0" "hi"
+      model: "swh"
+      parameters (1):
+        [0] name="on" kind=flag value="" @netlists/switch_op.cir:19:17
+    device [11] name="r5" designator=r @netlists/switch_op.cir:20:1
+      nodes: "vdd" "e"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:20:10
+    device [12] name="s5" designator=s @netlists/switch_op.cir:21:1
+      nodes: "e" "0" "hi" "0"
+      model: "swd"
+      parameters (0):
+    device [13] name="vi" designator=v @netlists/switch_op.cir:22:1
+      nodes: "src" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/switch_op.cir:22:10
+    device [14] name="rs" designator=r @netlists/switch_op.cir:23:1
+      nodes: "src" "sx"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:23:11
+    device [15] name="vsense" designator=v @netlists/switch_op.cir:24:1
+      nodes: "sx" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/switch_op.cir:24:13
+    device [16] name="r6" designator=r @netlists/switch_op.cir:25:1
+      nodes: "vdd" "f"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:25:10
+    device [17] name="w1" designator=w @netlists/switch_op.cir:26:1
+      nodes: "f" "0"
+      model: "wh"
+      parameters (1):
+        [0] name="control" kind=instance value="vsense" @netlists/switch_op.cir:26:8
+    device [18] name="r7" designator=r @netlists/switch_op.cir:27:1
+      nodes: "vdd" "g"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:27:10
+    device [19] name="w2" designator=w @netlists/switch_op.cir:28:1
+      nodes: "g" "0"
+      model: "wb"
+      parameters (2):
+        [0] name="control" kind=instance value="vsense" @netlists/switch_op.cir:28:8
+        [1] name="on" kind=flag value="" @netlists/switch_op.cir:28:18
+    device [20] name="vl" designator=v @netlists/switch_op.cir:29:1
+      nodes: "vl" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/switch_op.cir:29:9
+    device [21] name="rl1" designator=r @netlists/switch_op.cir:30:1
+      nodes: "vl" "l1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/switch_op.cir:30:11
+    device [22] name="vsl" designator=v @netlists/switch_op.cir:31:1
+      nodes: "l1" "l2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/switch_op.cir:31:11
+    device [23] name="w3" designator=w @netlists/switch_op.cir:32:1
+      nodes: "l2" "0"
+      model: "wl"
+      parameters (2):
+        [0] name="control" kind=instance value="vsl" @netlists/switch_op.cir:32:9
+        [1] name="on" kind=flag value="" @netlists/switch_op.cir:32:16
+  models (5):
+    model [0] name="swh" base="sw" level=none @netlists/switch_op.cir:33:1
+      parameters (4):
+        [0] name="vt" kind=scalar value="1.5" @netlists/switch_op.cir:33:15
+        [1] name="vh" kind=scalar value="0.5" @netlists/switch_op.cir:33:22
+        [2] name="ron" kind=scalar value="10" @netlists/switch_op.cir:33:29
+        [3] name="roff" kind=scalar value="1meg" @netlists/switch_op.cir:33:36
+    model [1] name="swd" base="sw" level=none @netlists/switch_op.cir:34:1
+      parameters (1):
+        [0] name="vt" kind=scalar value="1" @netlists/switch_op.cir:34:15
+    model [2] name="wh" base="csw" level=none @netlists/switch_op.cir:35:1
+      parameters (4):
+        [0] name="it" kind=scalar value="1m" @netlists/switch_op.cir:35:15
+        [1] name="ih" kind=scalar value="0.5m" @netlists/switch_op.cir:35:21
+        [2] name="ron" kind=scalar value="20" @netlists/switch_op.cir:35:29
+        [3] name="roff" kind=scalar value="500k" @netlists/switch_op.cir:35:36
+    model [3] name="wb" base="csw" level=none @netlists/switch_op.cir:36:1
+      parameters (4):
+        [0] name="it" kind=scalar value="1.8m" @netlists/switch_op.cir:36:15
+        [1] name="ih" kind=scalar value="0.4m" @netlists/switch_op.cir:36:23
+        [2] name="ron" kind=scalar value="30" @netlists/switch_op.cir:36:31
+        [3] name="roff" kind=scalar value="2meg" @netlists/switch_op.cir:36:38
+    model [4] name="wl" base="csw" level=none @netlists/switch_op.cir:37:1
+      parameters (4):
+        [0] name="it" kind=scalar value="0.4m" @netlists/switch_op.cir:37:15
+        [1] name="ih" kind=scalar value="0.2m" @netlists/switch_op.cir:37:23
+        [2] name="ron" kind=scalar value="100" @netlists/switch_op.cir:37:31
+        [3] name="roff" kind=scalar value="10meg" @netlists/switch_op.cir:37:39
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/switch_op.cir:38:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

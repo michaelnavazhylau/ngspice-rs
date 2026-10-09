@@ -1,0 +1,20 @@
+Title: function definitions and single-quoted values
+Date: Thu Oct  8 13:27:01  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 5
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	v(out)	voltage
+	2	i(v1)	current
+	3	v(x1.mid)	voltage
+	4	v(x2.mid)	voltage
+Values:
+ 0	1.000000000000000e+01
+	1.333333333333334e+00
+	-2.888888888888889e-03
+	4.444444444444446e-01
+	8.888888888888892e-01
+

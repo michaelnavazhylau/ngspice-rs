@@ -12,6 +12,15 @@
 //! 2. **A scratch directory per fixture.** The instrumented deck is written
 //!    into `target/xtask/golden/<name>/` together with the rawfile, so that the
 //!    `write` argument can be a bare file name and never needs quoting.
+//! 3. **Multi-analysis decks.** `write` alone writes only the *current* plot.
+//!    A deck with several analysis cards is instrumented to write every plot by
+//!    its C name (`write f.raw ac1.all dc1.all op1.all tran1.all`), in batch
+//!    order, with the names and order computed by
+//!    [`spice_analysis::batch::schedule`]; a wrong name or order makes ngspice
+//!    fail or the plot-count check below reject the capture. The block ends with
+//!    `quit`: without it, batch mode re-runs every analysis after `.endc` for a
+//!    deck with `.op` (`ft_savedotargs()` registers an op-only save list, so the
+//!    other analyses then fail with "no data saved").
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -113,6 +122,34 @@ pub(crate) struct Captured {
 /// A message when the fixture already contains a `.control` section, because
 /// golden fixtures must be pure decks.
 pub(crate) fn instrument(netlist: &str, plot_file: &str) -> Result<String, String> {
+    instrument_with(
+        netlist,
+        &format!(".control\nset filetype=ascii\nrun\nwrite {plot_file}\n.endc\n"),
+    )
+}
+
+/// Builds the instrumented deck for a multi-analysis fixture: every plot is
+/// written by name, in `plots` order, into one ASCII rawfile `plot_file`.
+///
+/// # Errors
+///
+/// As [`instrument`].
+pub(crate) fn instrument_plots(
+    netlist: &str,
+    plot_file: &str,
+    plots: &[String],
+) -> Result<String, String> {
+    let vectors: Vec<String> = plots.iter().map(|name| format!("{name}.all")).collect();
+    instrument_with(
+        netlist,
+        &format!(
+            ".control\nset filetype=ascii\nrun\nwrite {plot_file} {}\nquit\n.endc\n",
+            vectors.join(" ")
+        ),
+    )
+}
+
+fn instrument_with(netlist: &str, control: &str) -> Result<String, String> {
     if netlist
         .lines()
         .any(|line| line.trim().to_ascii_lowercase().starts_with(".control"))
@@ -122,19 +159,18 @@ pub(crate) fn instrument(netlist: &str, plot_file: &str) -> Result<String, Strin
         );
     }
 
-    let control = format!(".control\nset filetype=ascii\nrun\nwrite {plot_file}\n.endc\n");
     let mut out = String::with_capacity(netlist.len() + control.len());
     let mut inserted = false;
     for line in netlist.lines() {
         if !inserted && line.trim().eq_ignore_ascii_case(".end") {
-            out.push_str(&control);
+            out.push_str(control);
             inserted = true;
         }
         out.push_str(line);
         out.push('\n');
     }
     if !inserted {
-        out.push_str(&control);
+        out.push_str(control);
     }
     Ok(out)
 }
@@ -164,7 +200,12 @@ pub(crate) fn capture(
 
     let text = fs::read_to_string(netlist)
         .map_err(|error| format!("reading {}: {error}", netlist.display()))?;
-    let deck = instrument(&text, &plot_file)?;
+    let plots = batch_plot_names(netlist)?;
+    let deck = if plots.len() > 1 {
+        instrument_plots(&text, &plot_file, &plots)?
+    } else {
+        instrument(&text, &plot_file)?
+    };
     let deck_path = directory.join(format!("{name}.cir"));
     fs::write(&deck_path, &deck)
         .map_err(|error| format!("writing {}: {error}", deck_path.display()))?;
@@ -205,11 +246,36 @@ pub(crate) fn capture(
         ));
     }
 
+    if plots.len() > 1 {
+        let parsed = spice_analysis::RawFile::parse(&rawfile)
+            .map_err(|error| format!("{name}: the captured rawfile does not parse: {error}"))?;
+        if parsed.len() != plots.len() {
+            return Err(format!(
+                "{name}: expected {} plots ({}), ngspice wrote {}",
+                plots.len(),
+                plots.join(" "),
+                parsed.len()
+            ));
+        }
+    }
+
     Ok(Captured {
         rawfile,
         deck_path,
         log,
     })
+}
+
+/// The C plot names of the fixture's analyses in batch order (one entry per
+/// analysis card).
+fn batch_plot_names(netlist: &Path) -> Result<Vec<String>, String> {
+    let parsed = spice_netlist::Parser::new()
+        .parse_file(netlist)
+        .map_err(|error| format!("parsing {}: {error}", netlist.display()))?;
+    Ok(spice_analysis::batch::schedule(&parsed.analyses)
+        .into_iter()
+        .map(|entry| entry.plot_name)
+        .collect())
 }
 
 fn tail(text: &str, lines: usize) -> String {
@@ -256,7 +322,7 @@ pub(crate) fn first_difference(left: &str, right: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{first_difference, instrument, rawfiles_match};
+    use super::{first_difference, instrument, instrument_plots, rawfiles_match};
 
     const DECK: &str = "RC divider\nv1 in 0 dc 5\n.op\n.end\n";
 
@@ -273,6 +339,29 @@ mod tests {
         assert_eq!(lines[6], "write plot.raw");
         assert_eq!(lines[7], ".endc");
         assert_eq!(lines[8], ".end");
+    }
+
+    #[test]
+    fn multi_analysis_decks_write_every_plot_by_name_and_quit() {
+        let deck = instrument_plots(
+            "t\n.tran 1u 1m\n.op\n.end\n",
+            "plot.raw",
+            &["op1".to_owned(), "tran1".to_owned()],
+        )
+        .expect("instrumented");
+        let lines: Vec<&str> = deck.lines().collect();
+        assert_eq!(
+            lines[3..],
+            [
+                ".control",
+                "set filetype=ascii",
+                "run",
+                "write plot.raw op1.all tran1.all",
+                "quit",
+                ".endc",
+                ".end",
+            ]
+        );
     }
 
     #[test]

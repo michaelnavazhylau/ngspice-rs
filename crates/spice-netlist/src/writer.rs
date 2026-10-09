@@ -37,10 +37,16 @@
 //!   last) is kept last. Likewise D/Q's leading area is written as `area=...`
 //!   at its stored (last) position, and V/I's leading DC as `dc <value>`.
 //! - V/I: `dc v`, `ac mag phase` (explicit defaults written out),
-//!   `pulse(...)`/`pwl(...)` in stored order. PULSE/PWL optional fields that
-//!   were omitted stay omitted; PWL pairs and PULSE fields are space separated
+//!   `pulse(...)`/`pwl(...)`/`sin(...)` (or `sine`)/`exp(...)`/`sffm(...)`/
+//!   `am(...)` and PWL `td=`/`r=` in stored order. Optional fields that
+//!   were omitted stay omitted; PWL pairs and other fields are space separated
 //!   inside one pair of parentheses (the stored vector text is re-spelled, so
 //!   it is excluded from semantic comparison).
+//! - E/F/G/H (linear gain forms): `e1 n+ n- nc+ nc- <gain>`,
+//!   `f1 n+ n- vname <gain>`; parentheses and the HSPICE `vcvs`-style keyword
+//!   are not written. A gain stored last after `m=` setters (C's leading value,
+//!   applied after the named setters) is written positionally before them; a
+//!   gain stored first is written as `gain=`. Other orders are refused.
 //! - D/Q/M: bare flags (`off`), `name=value` scalars, `ic=(a,b[,c])` vectors
 //!   with omitted trailing components omitted. An omitted Q substrate stays
 //!   omitted.
@@ -54,6 +60,10 @@
 //!   stored syntax tree, and that each `.param` card re-parses to the same
 //!   assignments, instead of re-printing from the tree. Parentheses are
 //!   therefore exactly those of the source, which are always sufficient.
+//! - `.func name(p1,p2) body`: the body keeps its delimiters (`{...}`, `'...'`
+//!   or bare) and text, verified to re-parse like `.param`.
+//! - Single-quoted expressions (`'a*2'`) keep their quotes everywhere; C's
+//!   `inp_change_quotes()` makes them identical to braces.
 //! - Analysis cards: `.name` plus the stored argument tokens joined with single
 //!   spaces (no space around `(`, `)`, `=` or before `,`). A `.tran` `uic` flag
 //!   is written after the positional arguments, before any `name=value` options.
@@ -98,9 +108,10 @@ use spice_core::{AnalysisKind, SourceLoc, SpiceError, SpiceResult, parse_spice_n
 
 use crate::Parser;
 use crate::ast::{
-    AnalysisCard, DeviceInstance, GlobalCard, IncludeDirective, ModelCard, Netlist, NodeHintCard,
-    NodeHintValue, OptionCard, ParamCard, ParameterAssignment, ParameterKind, PositionedValue,
-    ScopedCard, ScopedCardKind, SourceWaveform, Subcircuit,
+    AnalysisCard, DeviceInstance, FuncCard, FuncSpelling, GlobalCard, IncludeDirective, ModelCard,
+    Netlist, NodeHintCard, NodeHintValue, OptionCard, ParamCard, ParameterAssignment,
+    ParameterKind, PositionedValue, ScopedCard, ScopedCardKind, SourceFunction, SourceWaveform,
+    Subcircuit,
 };
 use crate::expr::ParameterExpression;
 use crate::semantic::expr_form;
@@ -132,6 +143,7 @@ pub fn write_netlist(netlist: &Netlist) -> SpiceResult<String> {
             analyses: &netlist.analyses,
             includes: &netlist.includes,
             params: &netlist.params,
+            functions: &netlist.functions,
             options: &netlist.options,
             globals: &netlist.globals,
             initial_conditions: &netlist.initial_conditions,
@@ -159,6 +171,7 @@ struct Scope<'a> {
     analyses: &'a [AnalysisCard],
     includes: &'a [IncludeDirective],
     params: &'a [ParamCard],
+    functions: &'a [FuncCard],
     options: &'a [OptionCard],
     globals: &'a [GlobalCard],
     initial_conditions: &'a [NodeHintCard],
@@ -196,7 +209,7 @@ impl Writer {
     }
 
     fn scope(&mut self, scope: &Scope<'_>, depth: usize, body: bool) -> SpiceResult<()> {
-        let mut used = [0usize; 10];
+        let mut used = [0usize; 11];
         for card in scope.cards {
             // Cards read from an include/lib file are represented by their
             // directive; they are counted but not written.
@@ -244,6 +257,13 @@ impl Writer {
                     let param = entry(scope.params, i, "params")?;
                     if !skip {
                         self.param(param, depth)?;
+                    }
+                }
+                ScopedCardKind::Func(i) => {
+                    used[10] += 1;
+                    let function = entry(scope.functions, i, "functions")?;
+                    if !skip {
+                        self.func(function, depth)?;
                     }
                 }
                 ScopedCardKind::Options(i) => {
@@ -312,6 +332,7 @@ impl Writer {
             scope.globals.len(),
             scope.initial_conditions.len(),
             scope.nodesets.len(),
+            scope.functions.len(),
         ];
         if used != lengths {
             return Err(refuse(
@@ -343,6 +364,7 @@ impl Writer {
                 analyses: &sub.analyses,
                 includes: &sub.includes,
                 params: &sub.params,
+                functions: &sub.functions,
                 options: &[],
                 globals: &[],
                 initial_conditions: &[],
@@ -419,11 +441,7 @@ impl Writer {
         let mut text = ".param".to_owned();
         for assignment in &card.assignments {
             check_expression(&assignment.expression, location)?;
-            let value = if assignment.expression.braced {
-                format!("{{{}}}", assignment.expression.text)
-            } else {
-                assignment.expression.text.clone()
-            };
+            let value = assignment.expression.spelling();
             let _ = write!(text, " {}={value}", assignment.name);
         }
         if card.assignments.is_empty() {
@@ -447,12 +465,71 @@ impl Writer {
                 .all(|(a, b)| {
                     a.name == b.name
                         && a.expression.braced == b.expression.braced
+                        && a.expression.quoted == b.expression.quoted
                         && a.expression.text == b.expression.text
                         && expr_form(&a.expression.root) == expr_form(&b.expression.root)
                 });
         if !same {
             return Err(refuse(
                 "`.param` card does not re-parse to the same assignments",
+                Some(location),
+            ));
+        }
+        self.line(depth, &text, location)
+    }
+
+    /// `.func name(p1,p2) body`, the body in its original delimiters. Like
+    /// `.param`, the card is verified to re-parse to the same definition.
+    fn func(&mut self, card: &FuncCard, depth: usize) -> SpiceResult<()> {
+        let location = &card.location;
+        // A formal named like a built-in only parses inside its own card;
+        // the whole-card re-parse below still compares the tree.
+        let shadows = card.parameters.iter().any(|p| {
+            crate::expr::Function::from_name(&p.name).is_some()
+                || crate::expr::EXCLUDED_FUNCTIONS.contains(&p.name.as_str())
+        });
+        if !shadows {
+            check_expression(&card.body, location)?;
+        }
+        let formals: Vec<&str> = card.parameters.iter().map(|p| p.name.as_str()).collect();
+        let text = match card.spelling {
+            FuncSpelling::Func => format!(
+                ".func {}({}) {}",
+                card.name,
+                formals.join(","),
+                card.body.spelling()
+            ),
+            FuncSpelling::Param => format!(
+                ".param {}({})={}",
+                card.name,
+                formals.join(","),
+                card.body.spelling()
+            ),
+        };
+        let deck = parse_deck_text(location.path(), &format!("t\n{text}\n"));
+        let reparsed = Parser::new().parse_deck(&deck).map_err(|error| {
+            refuse(
+                format!("`.func` card does not re-parse: {error}"),
+                Some(location),
+            )
+        })?;
+        let same = reparsed.functions.len() == 1 && {
+            let other = &reparsed.functions[0];
+            other.name == card.name
+                && other.spelling == card.spelling
+                && other
+                    .parameters
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .eq(formals.iter().copied())
+                && other.body.braced == card.body.braced
+                && other.body.quoted == card.body.quoted
+                && other.body.text == card.body.text
+                && expr_form(&other.body.root) == expr_form(&card.body.root)
+        };
+        if !same {
+            return Err(refuse(
+                "`.func` card does not re-parse to the same definition",
                 Some(location),
             ));
         }
@@ -480,22 +557,37 @@ impl Writer {
             }
             text.push(' ');
             text.push_str(&setting.name);
+            if setting.expression.is_some() && setting.value.is_none() {
+                return Err(refuse(
+                    format!(
+                        "option {:?} has an expression but no value text",
+                        setting.name
+                    ),
+                    Some(location),
+                ));
+            }
             if let Some(value) = &setting.value {
+                let expression = setting.expression.is_some();
                 let ok = match single_token(&value.text, location) {
                     Some(Token {
                         kind: TokenKind::Word,
                         ..
-                    }) => true,
+                    }) => !expression,
                     Some(Token {
                         kind: TokenKind::Number(v),
                         ..
-                    }) => v.is_finite(),
+                    }) => v.is_finite() && !expression,
+                    Some(Token {
+                        kind: TokenKind::Expression(_) | TokenKind::Quoted(_),
+                        ..
+                    }) => expression,
                     _ => false,
                 };
                 if !ok {
                     return Err(refuse(
                         format!(
-                            "option value {:?} is not a word or finite number",
+                            "option value {:?} is not a word, finite number or parsed \
+                             expression",
                             value.text
                         ),
                         Some(location),
@@ -516,14 +608,10 @@ impl Writer {
         for hint in &card.entries {
             let (kind, value) = match &hint.value {
                 NodeHintValue::Literal { text, .. } => (ParameterKind::Scalar, text.clone()),
-                NodeHintValue::Expression(expression) => {
-                    let spelled = if expression.braced {
-                        format!("{{{}}}", expression.text)
-                    } else {
-                        expression.text.clone()
-                    };
-                    (ParameterKind::Expression(expression.clone()), spelled)
-                }
+                NodeHintValue::Expression(expression) => (
+                    ParameterKind::Expression(expression.clone()),
+                    expression.spelling(),
+                ),
             };
             let value = value_text(
                 &ParameterAssignment {
@@ -556,7 +644,7 @@ impl Writer {
         let base = model.base.as_str();
         if !matches!(
             base,
-            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l"
+            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -571,6 +659,8 @@ impl Writer {
                         "d" => &["d"],
                         "npn" | "pnp" => &["npn", "pnp"],
                         "nmos" | "pmos" => &["nmos", "pmos"],
+                        "sw" => &["sw"],
+                        "csw" => &["csw"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {
@@ -609,10 +699,11 @@ impl Writer {
         let mut parts = vec![node(&device.name, location)?];
         let count = device.nodes.len();
         let count_ok = match designator {
-            'r' | 'c' | 'l' | 'v' | 'i' | 'd' => count == 2,
+            'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
-            'm' => count == 4,
+            'm' | 'e' | 'g' | 's' => count == 4,
             'x' => true,
+            'k' => count == 0,
             _ => {
                 return Err(refuse(
                     format!("device designator '{designator}' has no writer"),
@@ -629,11 +720,29 @@ impl Writer {
         for n in &device.nodes {
             parts.push(node(n, location)?);
         }
+        let mut setters = device.parameters.as_slice();
+        if designator == 'w' {
+            // INP2W reads the controlling source before the model name.
+            match setters.split_first() {
+                Some((control, rest))
+                    if control.name == "control" && control.kind == ParameterKind::Instance =>
+                {
+                    parts.push(node(&control.value, &control.location)?);
+                    setters = rest;
+                }
+                _ => {
+                    return Err(refuse(
+                        "'w' instance without a leading controlling source",
+                        Some(location),
+                    ));
+                }
+            }
+        }
         match (designator, &device.model) {
-            ('v' | 'i', Some(_)) => {
+            ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
-            ('d' | 'q' | 'm' | 'x', None) => {
+            ('d' | 'q' | 'm' | 'x' | 's' | 'w', None) => {
                 return Err(refuse("device without a model/target", Some(location)));
             }
             (_, Some(model)) => {
@@ -656,6 +765,9 @@ impl Writer {
         match designator {
             'r' | 'c' | 'l' => passive_parameters(device, &mut parts)?,
             'v' | 'i' => source_parameters(device, &mut parts)?,
+            'e' | 'f' | 'g' | 'h' => controlled_parameters(device, &mut parts)?,
+            'k' => mutual_parameters(device, &mut parts)?,
+            's' | 'w' => switch_parameters(setters, designator, &mut parts)?,
             'x' => {
                 for parameter in &device.parameters {
                     parts.push(named_value(parameter, true)?);
@@ -815,24 +927,29 @@ fn value_text(parameter: &ParameterAssignment, text_ok: bool) -> SpiceResult<Str
         }
         ParameterKind::Expression(expression) => {
             check_expression(expression, location)?;
-            let consistent = if expression.braced {
-                parameter.value == format!("{{{}}}", expression.text)
-            } else {
-                parameter.value == expression.text
-            };
+            let consistent = parameter.value == expression.spelling();
             let kind_ok = matches!(
-                (&token, expression.braced),
+                (&token, expression.braced, expression.quoted),
                 (
                     Some(Token {
                         kind: TokenKind::Expression(_),
                         ..
                     }),
+                    true,
+                    false
+                ) | (
+                    Some(Token {
+                        kind: TokenKind::Quoted(_),
+                        ..
+                    }),
+                    true,
                     true
                 ) | (
                     Some(Token {
                         kind: TokenKind::Word,
                         ..
                     }),
+                    false,
                     false
                 )
             );
@@ -926,6 +1043,150 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
     Ok(())
 }
 
+/// S/W (`parser/switch.rs`): only bare `on`/`off` flags follow the model, in
+/// their written order; W's `control` was already written before the model.
+fn switch_parameters(
+    setters: &[ParameterAssignment],
+    designator: char,
+    parts: &mut Vec<String>,
+) -> SpiceResult<()> {
+    for parameter in setters {
+        if parameter.kind != ParameterKind::Flag
+            || !matches!(parameter.name.as_str(), "on" | "off")
+            || !parameter.value.is_empty()
+        {
+            return Err(refuse(
+                format!("parameter {:?} on '{designator}' instance", parameter.name),
+                Some(&parameter.location),
+            ));
+        }
+        parts.push(parameter.name.clone());
+    }
+    Ok(())
+}
+
+/// E/F/G/H (`parser/controlled.rs`): the F/H controlling source first, then
+/// the gain slot, then any `m=`/`gain=` tail. A gain stored last after other
+/// setters was C's leading value (applied after the named setters), so it is
+/// written positionally; a gain stored first is written as `gain=`. Any other
+/// order cannot be re-parsed to the same setter sequence and is refused.
+fn controlled_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
+    let designator = device.designator;
+    let mut setters = device.parameters.as_slice();
+    if matches!(designator, 'f' | 'h') {
+        match setters.split_first() {
+            Some((control, rest))
+                if control.name == "control" && control.kind == ParameterKind::Instance =>
+            {
+                parts.push(node(&control.value, &control.location)?);
+                setters = rest;
+            }
+            _ => {
+                return Err(refuse(
+                    format!("'{designator}' instance without a leading controlling source"),
+                    Some(&device.location),
+                ));
+            }
+        }
+    }
+    let multiplier = matches!(designator, 'f' | 'g');
+    for parameter in setters {
+        let allowed = parameter.name == "gain" || (multiplier && parameter.name == "m");
+        if !allowed
+            || !matches!(
+                parameter.kind,
+                ParameterKind::Scalar | ParameterKind::Expression(_)
+            )
+        {
+            return Err(refuse(
+                format!("parameter {:?} on '{designator}' instance", parameter.name),
+                Some(&parameter.location),
+            ));
+        }
+    }
+    let unrepresentable = || {
+        refuse(
+            format!("'{designator}' setter order cannot be written as a linear gain card"),
+            Some(&device.location),
+        )
+    };
+    match setters {
+        [gain] if gain.name == "gain" => parts.push(value_text(gain, false)?),
+        [first, rest @ ..] if first.name == "gain" => {
+            if rest.first().is_some_and(|next| next.name != "m") {
+                return Err(unrepresentable());
+            }
+            for parameter in setters {
+                parts.push(named_value(parameter, false)?);
+            }
+        }
+        [tail @ .., gain]
+            if gain.name == "gain" && tail.first().is_some_and(|first| first.name == "m") =>
+        {
+            parts.push(value_text(gain, false)?);
+            for parameter in tail {
+                parts.push(named_value(parameter, false)?);
+            }
+        }
+        _ if !setters.iter().any(|parameter| parameter.name == "gain") => {
+            return Err(refuse(
+                format!("'{designator}' instance without a gain"),
+                Some(&device.location),
+            ));
+        }
+        _ => return Err(unrepresentable()),
+    }
+    Ok(())
+}
+
+/// K (`parser/mutual.rs`): the inductor references `inductor1`, `inductor2`,
+/// … in order, then exactly one `coefficient`, written positionally (a named
+/// `k=`/`coefficient=` setter re-parses to the same setter).
+fn mutual_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
+    let Some((coupling, inductors)) = device.parameters.split_last() else {
+        return Err(refuse(
+            "'k' instance without inductors and a coupling",
+            Some(&device.location),
+        ));
+    };
+    if inductors.len() < 2 {
+        return Err(refuse(
+            "'k' instance with fewer than two inductors",
+            Some(&device.location),
+        ));
+    }
+    for (index, inductor) in inductors.iter().enumerate() {
+        if inductor.kind != ParameterKind::Instance
+            || inductor.name != format!("inductor{}", index + 1)
+        {
+            return Err(refuse(
+                format!("parameter {:?} on 'k' instance", inductor.name),
+                Some(&inductor.location),
+            ));
+        }
+        if parse_spice_number(&inductor.value).is_some() {
+            return Err(refuse(
+                "numeric-looking inductor name on a 'k' instance",
+                Some(&inductor.location),
+            ));
+        }
+        parts.push(node(&inductor.value, &inductor.location)?);
+    }
+    if coupling.name != "coefficient"
+        || !matches!(
+            coupling.kind,
+            ParameterKind::Scalar | ParameterKind::Expression(_)
+        )
+    {
+        return Err(refuse(
+            format!("parameter {:?} on 'k' instance", coupling.name),
+            Some(&coupling.location),
+        ));
+    }
+    parts.push(value_text(coupling, false)?);
+    Ok(())
+}
+
 fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
     let mut parameters = device.parameters.iter().peekable();
     while let Some(parameter) = parameters.next() {
@@ -945,6 +1206,10 @@ fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceR
             }
             (ParameterKind::Waveform(waveform), name) => {
                 parts.push(waveform_text(waveform, name, location)?);
+            }
+            // PWL delay/repeat setters stay separate ordered scalars (vsrc.c).
+            (ParameterKind::Scalar | ParameterKind::Expression(_), name @ ("r" | "td")) => {
+                parts.push(format!("{name}={}", value_text(parameter, false)?));
             }
             _ => {
                 return Err(refuse(
@@ -970,6 +1235,7 @@ fn waveform_text(
                 &pulse.fall,
                 &pulse.width,
                 &pulse.period,
+                &pulse.count,
             ];
             let mut fields = vec![&pulse.initial, &pulse.pulsed];
             let mut omitted = false;
@@ -995,6 +1261,22 @@ fn waveform_text(
                 "pwl",
                 points.iter().flat_map(|p| [&p.time, &p.value]).collect(),
             )
+        }
+        SourceWaveform::Function(function) => {
+            let fields = function.function.fields().len();
+            if function.values.len() < 2 || function.values.len() > fields {
+                return Err(refuse(
+                    format!("{} needs 2 to {fields} fields", function.function.keyword()),
+                    Some(location),
+                ));
+            }
+            // `sine` is C's alias of `sin`; keep the spelling that was parsed.
+            let keyword = if function.function == SourceFunction::Sin && name == "sine" {
+                "sine"
+            } else {
+                function.function.keyword()
+            };
+            (keyword, function.values.iter().collect())
         }
     };
     if name != keyword {

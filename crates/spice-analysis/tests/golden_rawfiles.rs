@@ -64,6 +64,7 @@ fn production_linear_drivers_match_c_goldens() {
         "rlc_series",
         "rc_lowpass_ac",
         "subckt_divider",
+        "func_quotes",
     ] {
         let deck = spice_netlist::source::parse_deck_text(Path::new(name), &netlist_text(name));
         let netlist = spice_netlist::Parser::new().parse_deck(&deck).unwrap();
@@ -321,6 +322,213 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "controlled_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 20,
+        variables: &[
+            "frequency",
+            "i(e1)",
+            "i(h1)",
+            "v(in)",
+            "v(inv)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(out)",
+            "i(vin)",
+            "i(vs)",
+        ],
+        // Inverting integrator with A = 1e4: v(out) = -A x with
+        // x = (1/R) / (1/R + (1 + A) jwC), about +j/(wRC) = 1.5914j at 100 Hz.
+        // G (1 mS) drives Y = jw 1u + 2 mS; i(vs) = v(o2)/1k, F gives
+        // v(o4) = 2 i(vs) 1k and H gives v(o5) = 100 i(vs) (C sign convention).
+        values: &[
+            ("frequency", 0, 1.000000000000000e+02, 0.0),
+            ("v(out)", 0, -2.532522996984260e-04, 1.591390251587439e+00),
+            ("v(o2)", 0, 2.274044503765859e-01, 7.242539107240491e-01),
+            ("i(vs)", 0, 2.274044503765859e-04, 7.242539107240491e-04),
+            ("v(o4)", 0, 4.548089007531717e-01, 1.448507821448098e+00),
+            ("v(o5)", 0, 2.274044503765859e-02, 7.242539107240491e-02),
+            ("i(h1)", 0, -2.274044503765859e-05, -7.242539107240491e-05),
+            ("frequency", 19, 2.000000000000000e+03, 0.0),
+            ("v(out)", 19, -6.331307652401620e-07, 7.956951458945044e-02),
+        ],
+    },
+    Expectation {
+        fixture: "controlled_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(in)",
+            "i(e1)",
+            "i(e2)",
+            "v(fb)",
+            "i(h.x1.h1)",
+            "i(h1)",
+            "v(o2)",
+            "v(o3)",
+            "v(o4)",
+            "v(o5)",
+            "v(o6)",
+            "v(o7)",
+            "v(out)",
+            "i(v.x1.vs)",
+            "i(vin)",
+            "i(vsense)",
+            "v(x1.hout)",
+            "v(x1.mid)",
+        ],
+        // E (A = 1e4) closes a 1 + 3k/1k loop: v(out) = 6/(1 + 4/A). The leading
+        // 2m of g1 follows m=2, so 4 mS x 1.5 V flows into 1k || 4k: 4.8 V and
+        // 1.2 mA through vsense; F x3 gives 3.6 V, H x500 gives 0.6 V (and
+        // i(h1) = -0.3 mA into its 2k load), e2 (vcvs keyword) -2 x 0.6 V.
+        // i(e1) = -v(out) (1/4k + 1/2k) feeds f2 x0.5 into 1k; inside x1, h1
+        // senses v.x1.vs (out/2k) through a hierarchical controlling name.
+        values: &[
+            ("v(out)", 0, 5.997600959615738e+00, 0.0),
+            ("i(e1)", 0, -4.498200719711768e-03, 0.0),
+            ("v(o2)", 0, 4.800000000000001e+00, 0.0),
+            ("i(vsense)", 0, 1.200000000000000e-03, 0.0),
+            ("v(o4)", 0, 3.600000000000001e+00, 0.0),
+            ("v(o5)", 0, 6.000000000000001e-01, 0.0),
+            ("i(h1)", 0, -3.000000000000000e-04, 0.0),
+            ("v(o6)", 0, 2.249100359855884e+00, 0.0),
+            ("v(o7)", 0, -1.200000000000000e+00, 0.0),
+            ("i(e2)", 0, 4.000000000000000e-04, 0.0),
+            ("i(v.x1.vs)", 0, 2.998800479807869e-03, 0.0),
+            ("v(x1.hout)", 0, 2.998800479807869e+00, 0.0),
+            ("i(h.x1.h1)", 0, -2.998800479807869e-04, 0.0),
+            ("i(vin)", 0, -1.500000000000000e-04, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "controlled_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 632,
+        variables: &[
+            "time", "v(a)", "v(b)", "v(c)", "v(d)", "i(e1)", "i(h1)", "v(in)", "v(o4)", "v(o5)",
+            "i(vin)", "i(vs)",
+        ],
+        // At 0.6 ms the second pulse is high: v(b) = 2 v(a) (E), i(e1) = -v(b)/1k,
+        // and the current the G charges through r2 into vs gives
+        // v(o4) = 2 i(vs) 1k (F) and v(o5) = 100 i(vs) (H).
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(b)", 0, 0.0, 0.0),
+            ("time", 631, 5.999999999999999e-04, 0.0),
+            ("v(a)", 631, 5.681063687010960e-01, 0.0),
+            ("v(b)", 631, 1.136212737402192e+00, 0.0),
+            ("i(e1)", 631, -1.136212737402192e-03, 0.0),
+            ("i(vs)", 631, 5.548169243707399e-04, 0.0),
+            ("v(o4)", 631, 1.109633848741480e+00, 0.0),
+            ("v(o5)", 631, 5.548169243707399e-02, 0.0),
+            ("i(h1)", 631, -5.548169243707399e-05, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "transformer_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 41,
+        variables: &[
+            "frequency",
+            "v(in)",
+            "i(l.x1.la)",
+            "i(l.x1.lb)",
+            "i(l.x1.lc)",
+            "i(l1)",
+            "i(l2)",
+            "i(l3)",
+            "v(p)",
+            "v(q)",
+            "v(s)",
+            "v(t1)",
+            "v(t2)",
+            "v(u)",
+            "i(vin)",
+        ],
+        // K mutual inductance (#80). At 1 kHz an independent complex MNA solve
+        // with -j w M between every coupled branch pair (k1 0.98, kn -0.15,
+        // and the three pairs of kabc at 0.6 inside x1) reproduces these values
+        // to 1e-15; v(s) = -1k i(l2) across the secondary load.
+        values: &[
+            ("frequency", 20, 1.000000000000001e+03, 0.0),
+            ("v(s)", 20, 1.179101980781495e+00, 9.663452185500626e-01),
+            ("i(l2)", 20, -1.179101980781495e-03, -9.663452185500627e-04),
+            ("v(t2)", 20, 4.024739519207775e-01, 4.515530188829902e-01),
+            (
+                "i(l.x1.la)",
+                20,
+                7.062171790396722e-02,
+                -4.133835192472151e-02,
+            ),
+            ("v(u)", 20, 5.352513910176180e-01, -4.921833025874221e-01),
+        ],
+    },
+    Expectation {
+        fixture: "transformer_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 437,
+        variables: &["time", "v(in)", "i(l1)", "i(l2)", "v(p)", "v(s)", "i(vin)"],
+        // A 1:2 transformer (k = 0.99) under a 1 V PULSE: the secondary current
+        // opposes the primary's (v(s) = -100 i(l2)); at 0.4 ms the source is low
+        // and the magnetizing current decays through both windings.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("i(l1)", 0, 0.0, 0.0),
+            ("time", 1, 1.000000000000000e-08, 0.0),
+            ("i(l2)", 1, -2.444441426615508e-06, 0.0),
+            ("v(s)", 1, 2.444441426615508e-04, 0.0),
+            ("time", 436, 4.000000000000000e-04, 0.0),
+            ("i(l1)", 436, 2.254497890661927e-02, 0.0),
+            ("i(l2)", 436, 4.489536564091304e-03, 0.0),
+            ("v(s)", 436, -4.489536564091304e-01, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "transformer_ic_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 511,
+        variables: &["time", "v(a)", "v(b)", "i(l1)", "i(l2)"],
+        // Coupled RL free decay from l1 ic=10m, l2 ic=-5m (k = 0.7, Gear-2,
+        // uic: no t = 0 row). The modes of L^-1 R decay at 5882 /s and
+        // 33333 /s; the analytic currents at 0.5 ms are 7.7330e-5 and
+        // 5.4680e-5 A, within Gear-2 truncation error of these values.
+        values: &[
+            ("time", 0, 1.000000000000000e-08, 0.0),
+            ("i(l1)", 0, 9.997069630110690e-03, 0.0),
+            ("i(l2)", 0, -4.998049735932326e-03, 0.0),
+            ("time", 510, 5.000000000000000e-04, 0.0),
+            ("v(a)", 510, -7.732693024550181e-04, 0.0),
+            ("i(l1)", 510, 7.732693024550182e-05, 0.0),
+            ("i(l2)", 510, 5.467770368085151e-05, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "transformer_model_uic_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 311,
+        variables: &["time", "v(a)", "v(b)", "i(l1)", "i(l2)"],
+        // Model-backed coupled inductors (l1: tc1 and m = 2 at 50 C) decay from
+        // their instance ic= under uic and Gear-2: the first point keeps the
+        // ic= currents, M uses INDinduct before /m (muttemp.c).
+        values: &[
+            ("time", 0, 1.000000000000000e-08, 0.0),
+            ("i(l1)", 0, 9.997473067814353e-03, 0.0),
+            ("i(l2)", 0, -4.998098938423450e-03, 0.0),
+            ("time", 310, 3.000000000000000e-04, 0.0),
+            ("i(l1)", 310, 4.628569432759175e-04, 0.0),
+            ("i(l2)", 310, 2.817878342905811e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "coupled_cap_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -392,6 +600,25 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(in)", 816, 1.000000000000000e+00, 0.0),
             ("v(a)", 816, 9.845175521824301e-01, 0.0),
             ("v(b)", 816, 1.548244781757727e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "func_quotes",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(in)", "v(out)", "i(v1)", "v(x1.mid)", "v(x2.mid)"],
+        // rtop = pll(3k, 6k) + gain(500) = 2k + 500*k(=2) = 3k and rload =
+        // twice(base()) = 2k. Each leg is gain(100) = 100*k(=3)*w plus
+        // pll(1k, 1k) + x = 600: 1.8k for x1 (w = twice(2) = 4), 0.9k for x2
+        // (w = 1). The load is 2k || 1.8k || 0.9k = 6k/13, so v(out) = 4/3 V,
+        // i(v1) = -(26/9) mA and the taps sit at 1/3 and 2/3 of v(out).
+        values: &[
+            ("v(in)", 0, 1.000000000000000e+01, 0.0),
+            ("v(out)", 0, 1.333333333333334e+00, 0.0),
+            ("i(v1)", 0, -2.888888888888889e-03, 0.0),
+            ("v(x1.mid)", 0, 4.444444444444446e-01, 0.0),
+            ("v(x2.mid)", 0, 8.888888888888892e-01, 0.0),
         ],
     },
     Expectation {
@@ -493,6 +720,40 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "options_gmin_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 11,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
+        // `.options gmin={gj}` = 1 uS: at v1 = -10 V the reverse diode and
+        // q1's base-collector junction each conduct gmin, q2's (m=2, area=3)
+        // conducts m * gmin = 2 uS (area does not scale gmin; the lateral PNPs'
+        // substrate gmin sits base-to-ground at 0 V), so the 1 k source
+        // resistor sees 4 uS: v(out) = -10 / (1 + 1k * 4u).
+        values: &[
+            ("v(v-sweep)", 0, -10.0, 0.0),
+            ("v(out)", 0, -9.960159362538445, 0.0),
+            ("i(v1)", 0, 3.984063746155542e-5, 0.0),
+            ("v(v-sweep)", 10, 0.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "options_xmu_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 629,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // RC (tau = 100 us) charging again 290 us after the second 10 V pulse
+        // edge at 910 us, integrated with trapezoidal xmu = 0.2.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("time", 628, 1.2e-3, 0.0),
+            ("v(in)", 628, 10.0, 0.0),
+            ("v(out)", 628, 9.473638039474475, 0.0),
+            ("i(v1)", 628, -5.263619605255255e-4, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_divider",
         plotname: "Operating Point",
         flags: PlotFlags::Real,
@@ -504,6 +765,24 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(in)", 0, 5.0, 0.0),
             ("v(out)", 0, 2.5, 0.0),
             ("i(v1)", 0, -2.5e-3, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_exp_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 817,
+        variables: &["time", "v(in)", "v(mark)", "v(out)", "i(v1)", "i(v2)"],
+        // EXP(0 1 0.2m 0.3m 1.5m 0.5m): at 4 ms v(in) = (1 - e^-(3.8/0.3))
+        // - (1 - e^-(2.5/0.5)) = e^-5 - e^-12.67 = 6.7348e-3; the marker is 0.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 816, 4.000000000000000e-03, 0.0),
+            ("v(in)", 816, 6.734792455280303e-03, 0.0),
+            ("v(mark)", 816, 0.0, 0.0),
+            ("v(out)", 816, 8.417684883876841e-03, 0.0),
+            ("i(v1)", 816, 1.682892428596538e-06, 0.0),
         ],
     },
     Expectation {
@@ -577,6 +856,40 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     Expectation {
+        fixture: "rc_pulse_count_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 353,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // Three pulses (NP = 3) end by 1.6 ms; at 3 ms the source holds V1 = 0
+        // and the capacitor has decayed for 14 time constants.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 352, 3.000000000000000e-03, 0.0),
+            ("v(in)", 352, 0.0, 0.0),
+            ("v(out)", 352, 4.945681909430162e-08, 0.0),
+            ("i(v1)", 352, 4.945681909430162e-11, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_pwl_repeat_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 435,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        // A 1 ms triangle repeated from 0.2 ms: at 4 ms it is 0.8 ms into a
+        // cycle, on the falling edge at 1 - 0.3/0.5 = 0.4 V.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("time", 434, 4.000000000000000e-03, 0.0),
+            ("v(in)", 434, 4.000000000000001e-01, 0.0),
+            ("v(out)", 434, 5.802638284670004e-01, 0.0),
+            ("i(v1)", 434, 1.802638284670003e-04, 0.0),
+        ],
+    },
+    Expectation {
         fixture: "rc_pwl_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
@@ -591,6 +904,43 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(in)", 822, 2.500000000000000e-01, 0.0),
             ("v(out)", 822, 2.543555791170526e-01, 0.0),
             ("i(v1)", 822, 4.355579117052644e-06, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_sffm_am_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2012,
+        variables: &["time", "v(in)", "v(out)", "i(v1)", "v(x)"],
+        // At 2 ms both carriers complete whole cycles: sin(20 pi + sin(2 pi)) is
+        // zero up to rounding; the filtered outputs lag behind.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 0.0, 0.0),
+            ("v(x)", 0, 0.0, 0.0),
+            ("time", 2011, 2.000000000000000e-03, 0.0),
+            ("v(in)", 2011, -2.449293598294707e-15, 0.0),
+            ("v(out)", 2011, -3.087246188813056e-01, 0.0),
+            ("i(v1)", 2011, -3.087246188813032e-04, 0.0),
+            ("v(x)", 2011, -2.777895339201290e-01, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "rc_sin_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1511,
+        variables: &["time", "v(in)", "v(mark)", "v(out)", "i(v1)", "i(v2)"],
+        // Before TD the source holds 0.5 + sin(30 deg) = 1 V (the bias point);
+        // at 3 ms, 0.5 + sin(5.6 pi + pi/6) e^-0.56 = 0.1178 V.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(in)", 0, 1.000000000000000e+00, 0.0),
+            ("v(out)", 0, 1.000000000000000e+00, 0.0),
+            ("time", 1510, 3.000000000000000e-03, 0.0),
+            ("v(in)", 1510, 1.177865327491662e-01, 0.0),
+            ("v(out)", 1510, 2.679214278175245e-02, 0.0),
+            ("i(v1)", 1510, -9.099438996741378e-05, 0.0),
         ],
     },
     Expectation {
@@ -727,15 +1077,346 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(v1)", 0, -5.0e-3, 0.0),
         ],
     },
+    Expectation {
+        fixture: "switch_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 5,
+        variables: &[
+            "frequency",
+            "v(a)",
+            "v(b)",
+            "v(ctrl)",
+            "v(e)",
+            "v(f)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vs)",
+            "v(x)",
+        ],
+        // ACan's MODEINITSMSIG load copies the zero CKTstate1 into CKTstate0,
+        // so every switch is open in the AC sweep although s2 (on in its band),
+        // s3 and w1 are closed at the operating point: v(b) = 2M/2.001M,
+        // v(f) = 1M/1.001M, and v(a)/v(e) are 1k into 1u with the open switch.
+        values: &[
+            ("frequency", 0, 1.000000000000000e+01, 0.0),
+            ("v(a)", 0, 9.950804240186061e-01, -6.246028670984753e-02),
+            ("v(b)", 0, 9.995002498750625e-01, 0.0),
+            ("v(e)", 0, 9.960676814189385e-01, -6.258477814589433e-02),
+            ("v(f)", 0, 9.990009990009990e-01, 0.0),
+            ("i(vs)", 0, 1.000000000000000e-03, 0.0),
+            ("frequency", 4, 1.000000000000000e+03, 0.0),
+            ("v(a)", 4, 2.472800515685005e-02, -1.552154232541272e-01),
+            ("i(vdd)", 4, -1.952066222911747e-03, -3.104385193811054e-04),
+        ],
+    },
+    Expectation {
+        fixture: "switch_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 49,
+        variables: &[
+            "v(v-sweep)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(ctrl)",
+            "v(d)",
+            "v(e)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vsense)",
+        ],
+        // vc falls from 3 V in 0.125 V steps. s1 (1 +- 0.5 V) closes at 3 V
+        // (10 ohm: 1/101) and stays closed through the band down to 0.5 V,
+        // opening at -0.25 V (1 Mohm: 0.999). w1 (1 +- 0.6 mA) stays closed
+        // (50 ohm: 1/21) until the sensed vc/1k drops below 0.4 mA. w2's
+        // negative band (-1.4 .. -0.6 mA) opens it at -0.75 mA (3 Mohm). s3
+        // (VT = -2, VH = 0) closes exactly at its threshold (vc = 2 V), where
+        // C maps the previous really-off state to on.
+        values: &[
+            ("v(a)", 0, 9.900990099009901e-03, 0.0),
+            ("v(c)", 0, 9.999000099990001e-01, 0.0),
+            ("v(d)", 0, 4.761904761904762e-02, 0.0),
+            ("v(e)", 0, 3.846153846153846e-02, 0.0),
+            ("v(c)", 8, 9.990009990009992e-04, 0.0),
+            ("v(b)", 12, 9.900990099009901e-01, 0.0),
+            ("v(a)", 20, 9.900990099009901e-03, 0.0),
+            ("v(d)", 20, 4.761904761904762e-02, 0.0),
+            ("v(a)", 26, 9.990009990009990e-01, 0.0),
+            ("v(d)", 26, 9.995002498750625e-01, 0.0),
+            ("v(e)", 26, 3.846153846153846e-02, 0.0),
+            ("v(e)", 30, 9.996667777407531e-01, 0.0),
+            ("i(vsense)", 48, -3.000000000000000e-03, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_dc_decimal",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 18,
+        variables: &[
+            "v(v-sweep)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(ctrl)",
+            "v(d)",
+            "v(e)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vsense)",
+        ],
+        // C accumulates vc += 0.1 from 0.5 V: the fifth step is
+        // 0.9999999999999999, so s1 (VT = 1, no band) is still open (0.999)
+        // and closes at 1.1 V (1/101); the tenth is 1.5000000000000002, above
+        // s2's band edge, so s2 and w1 (IT = 1.5 mA) close there. s4 (ON) is
+        // closed from the first point by its flag (20 ohm: 1/51), s3 (OFF)
+        // open until 2.1 V.
+        values: &[
+            ("v(a)", 5, 9.990009990009990e-01, 0.0),
+            ("v(a)", 6, 9.900990099009901e-03, 0.0),
+            ("v(b)", 9, 9.990009990009990e-01, 0.0),
+            ("v(b)", 10, 9.900990099009901e-03, 0.0),
+            ("v(e)", 9, 9.996667777407531e-01, 0.0),
+            ("v(e)", 10, 2.912621359223301e-02, 0.0),
+            ("v(c)", 15, 9.995002498750625e-01, 0.0),
+            ("v(c)", 16, 1.960784313725490e-02, 0.0),
+            ("v(d)", 0, 1.960784313725490e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(ctrl)",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(d)",
+            "v(e)",
+            "v(f)",
+            "v(g)",
+            "v(hi)",
+            "v(l1)",
+            "v(l2)",
+            "v(src)",
+            "v(sx)",
+            "i(vc)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vhi)",
+            "i(vi)",
+            "v(vl)",
+            "i(vl)",
+            "i(vsense)",
+            "i(vsl)",
+        ],
+        // 1 V through 1k into each switch: open (1 Mohm) gives 0.999, closed
+        // (10 ohm) 1/101. s1/s2 sit inside their band at 1.5 V, so the instance
+        // flag decides; s3/s4 follow a control outside it whatever the flag;
+        // s5 closes with the default 1 S (1/1001). w1 senses 2 mA > 1.5 mA
+        // (20 ohm: 1/51). w2 (ON, band 1.4 .. 2.2 mA) opens: in MODEINITFLOAT
+        // CSWload keeps CKTstate1, zero ("really off") at an operating point.
+        // w3 holds itself closed: 1 V across 1k + 100 ohm is 0.909 mA.
+        values: &[
+            ("v(a)", 0, 9.990009990009990e-01, 0.0),
+            ("v(b)", 0, 9.900990099009901e-03, 0.0),
+            ("v(c)", 0, 9.900990099009901e-03, 0.0),
+            ("v(d)", 0, 9.990009990009990e-01, 0.0),
+            ("v(e)", 0, 9.990009990009992e-04, 0.0),
+            ("v(f)", 0, 1.960784313725490e-02, 0.0),
+            ("v(g)", 0, 9.995002498750625e-01, 0.0),
+            ("v(l1)", 0, 9.090909090909091e-02, 0.0),
+            ("i(vsl)", 0, 9.090909090909091e-04, 0.0),
+            ("i(vsense)", 0, 2.000000000000000e-03, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1046,
+        variables: &[
+            "time", "v(c1)", "v(c2)", "v(c3)", "v(c4)", "v(p)", "v(s)", "v(vdd)", "i(vdd)",
+            "i(vp)", "i(vs)",
+        ],
+        // At t = 0 every switch is open (1 Gohm, 10 Mohm, 1 Mohm): c1 sits at
+        // 2 V less the 2k/(2k + 1G + 20k) divider, c3 at 2 x 10M/(10M + 5k).
+        // The controls draw no current.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(c1)", 0, 1.999996000087998e+00, 0.0),
+            ("v(c2)", 0, 3.999912001935957e-05, 0.0),
+            ("v(c3)", 0, 1.999000499750125e+00, 0.0),
+            ("v(c4)", 0, 0.0, 0.0),
+            ("time", 1045, 1.000000000000000e-03, 0.0),
+            ("v(c1)", 1045, 1.859214521122436e+00, 0.0),
+            ("v(c2)", 1045, 1.378613168658710e+00, 0.0),
+            ("v(c4)", 1045, 5.418052695450274e-01, 0.0),
+            ("i(vp)", 1045, 0.0, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "switch_w_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1038,
+        variables: &[
+            "time",
+            "v(a)",
+            "v(b)",
+            "v(c1)",
+            "v(c2)",
+            "v(c3)",
+            "v(p)",
+            "v(q)",
+            "i(va)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vp)",
+            "i(vsense)",
+            "i(vsense2)",
+        ],
+        // At t = 0 both switches are open: c1 = 2 x 1M/(1M + 4k), and w2 (100
+        // Mohm) leaves c3 at 2 x 10k/(3k + 100M + 10k). At 2 ms the PULSE is
+        // high and vsense2 carries 2 V / 1k.
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(c1)", 0, 1.992031872509960e+00, 0.0),
+            ("v(c3)", 0, 1.999740033795607e-04, 0.0),
+            ("time", 1037, 2.000000000000000e-03, 0.0),
+            ("v(c1)", 1037, 1.493033752313648e+00, 0.0),
+            ("v(c3)", 1037, 1.393870438628249e+00, 0.0),
+            ("i(vsense2)", 1037, 2.000000000000000e-03, 0.0),
+        ],
+    },
 ];
+
+/// Multi-analysis fixtures (#96): one [`Expectation`] per plot, in rawfile
+/// order, which is ngspice's batch order (`.ac`, `.dc`, `.op`, `.tran`), not
+/// the deck order.
+#[allow(clippy::excessive_precision)]
+const MULTI_EXPECTATIONS: &[&[Expectation]] = &[&[
+    // Thevenin source of the 1k/2k divider: 2/3 of the drive behind 2/3 k, so
+    // the corner is 1/(2 pi 666.7 ohm 100 nF) = 2.39 kHz; at 100 Hz the
+    // response is (2/3) / (1 + j 0.041888).
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 5,
+        variables: &["frequency", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("frequency", 0, 100.0, 0.0),
+            ("v(out)", 0, 6.654989845853894e-01, -2.787635627926568e-02),
+            ("i(v1)", 0, -3.345010154146106e-04, -2.787635627926568e-05),
+        ],
+    },
+    // The sweep scales the divider: v(out) = 2/3 v1, i(v1) = -v1 / 3 k.
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 5,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("v(v-sweep)", 3, 1.5, 0.0),
+            ("v(out)", 3, 1.0, 0.0),
+            ("i(v1)", 3, -5.0e-4, 0.0),
+        ],
+    },
+    // The operating point uses the source's `dc 2`, not the pulse's t = 0 value.
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("v(in)", 0, 2.0, 0.0),
+            ("v(out)", 0, 1.333333333333333e+00, 0.0),
+            ("i(v1)", 0, -6.666666666666668e-04, 0.0),
+        ],
+    },
+    // The transient starts from the pulse's 0 V and, 480 us after the pulse
+    // ended, has decayed by about exp(-480/66.7) toward zero.
+    Expectation {
+        fixture: "multi_analysis_rc",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 124,
+        variables: &["time", "v(in)", "v(out)", "i(v1)"],
+        values: &[
+            ("v(out)", 0, 0.0, 0.0),
+            ("time", 123, 1.0e-3, 0.0),
+            ("v(out)", 123, 4.549183592268200e-04, 0.0),
+            ("i(v1)", 123, 4.549183592268200e-07, 0.0),
+        ],
+    },
+]];
+
+fn check_plot(expectation: &Expectation, plot: &spice_analysis::Plot) {
+    assert_eq!(
+        plot.plotname, expectation.plotname,
+        "{}: plot name",
+        expectation.fixture
+    );
+    assert_eq!(
+        plot.flags, expectation.flags,
+        "{}: flags",
+        expectation.fixture
+    );
+    assert_eq!(
+        plot.point_count(),
+        expectation.points,
+        "{}: point count",
+        expectation.fixture
+    );
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .collect();
+    assert_eq!(
+        names, expectation.variables,
+        "{}: variables, in rawfile order",
+        expectation.fixture
+    );
+
+    for &(variable, point, re, im) in expectation.values {
+        let actual = plot
+            .value(variable, point)
+            .unwrap_or_else(|| panic!("{}: no '{variable}'", expectation.fixture));
+        let expected = Complex::new(re, im);
+        assert!(
+            approx_eq(actual.re, expected.re, 1e-15) && approx_eq(actual.im, expected.im, 1e-15),
+            "{}: {variable}[{point}] is {actual}, expected {expected}",
+            expectation.fixture
+        );
+    }
+}
 
 #[test]
 fn fixtures_have_the_expected_shape_and_values() {
     let discovered = fixture_names();
-    let documented: Vec<String> = EXPECTATIONS
+    let mut documented: Vec<String> = EXPECTATIONS
         .iter()
         .map(|expectation| expectation.fixture.to_owned())
+        .chain(
+            MULTI_EXPECTATIONS
+                .iter()
+                .map(|plots| plots[0].fixture.to_owned()),
+        )
         .collect();
+    documented.sort();
     assert_eq!(
         discovered, documented,
         "every fixture must be documented here, so that new goldens get read by a human"
@@ -749,46 +1430,45 @@ fn fixtures_have_the_expected_shape_and_values() {
             "{}: expected a single plot",
             expectation.fixture
         );
-        let plot = &rawfile.plots[0].plot;
+        check_plot(expectation, &rawfile.plots[0].plot);
+    }
+    for plots in MULTI_EXPECTATIONS {
+        let fixture = plots[0].fixture;
+        let rawfile = RawFile::parse(&golden_text(fixture)).expect("parses");
+        assert_eq!(rawfile.len(), plots.len(), "{fixture}: plot count");
+        for (expectation, raw_plot) in plots.iter().zip(&rawfile.plots) {
+            assert_eq!(expectation.fixture, fixture);
+            check_plot(expectation, &raw_plot.plot);
+        }
+    }
+}
 
-        assert_eq!(
-            plot.plotname, expectation.plotname,
-            "{}: plot name",
-            expectation.fixture
-        );
-        assert_eq!(
-            plot.flags, expectation.flags,
-            "{}: flags",
-            expectation.fixture
-        );
-        assert_eq!(
-            plot.point_count(),
-            expectation.points,
-            "{}: point count",
-            expectation.fixture
-        );
-        let names: Vec<&str> = plot
-            .variables
-            .iter()
-            .map(|variable| variable.name.as_str())
-            .collect();
-        assert_eq!(
-            names, expectation.variables,
-            "{}: variables, in rawfile order",
-            expectation.fixture
-        );
-
-        for &(variable, point, re, im) in expectation.values {
-            let actual = plot
-                .value(variable, point)
-                .unwrap_or_else(|| panic!("{}: no '{variable}'", expectation.fixture));
-            let expected = Complex::new(re, im);
-            assert!(
-                approx_eq(actual.re, expected.re, 1e-15)
-                    && approx_eq(actual.im, expected.im, 1e-15),
-                "{}: {variable}[{point}] is {actual}, expected {expected}",
-                expectation.fixture
-            );
+/// A multi-plot golden survives the ASCII and binary writers with its plot
+/// order, headers and every value intact.
+#[test]
+fn multi_plot_goldens_round_trip_through_both_encodings() {
+    for plots in MULTI_EXPECTATIONS {
+        let fixture = plots[0].fixture;
+        let rawfile = RawFile::parse(&golden_text(fixture)).expect("parses");
+        let ascii = RawFile::parse(&rawfile.to_ascii()).expect("the ASCII form parses");
+        assert_eq!(ascii, rawfile, "{fixture}: ASCII round trip");
+        let binary = RawFile::parse_bytes(&rawfile.to_binary().expect("binary encodes"))
+            .expect("the binary form parses");
+        assert_eq!(binary.len(), rawfile.len(), "{fixture}: binary plot count");
+        for (got, want) in binary.plots.iter().zip(&rawfile.plots) {
+            assert_eq!(got.title, want.title, "{fixture}");
+            assert_eq!(got.command, want.command, "{fixture}");
+            assert_eq!(got.plot.plotname, want.plot.plotname, "{fixture}");
+            assert_eq!(got.plot.flags, want.plot.flags, "{fixture}");
+            assert_eq!(got.plot.point_count(), want.plot.point_count());
+            for variable in &want.plot.variables {
+                assert_eq!(
+                    got.plot.column(&variable.name),
+                    want.plot.column(&variable.name),
+                    "{fixture}: '{}' survives the binary round trip bit for bit",
+                    variable.name
+                );
+            }
         }
     }
 }

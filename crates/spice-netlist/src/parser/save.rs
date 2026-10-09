@@ -103,7 +103,7 @@ fn requests(input: &mut Input<'_>, card: &str) -> Result<Vec<VectorRequest>> {
 
 /// The supported request spellings, quoted in diagnostics.
 const SUPPORTED: &str =
-    "all, v(node), v(first,second), i(source|inductor), vm/vp/vr/vi/vdb(node[,second])";
+    "all, v(node), v(first,second), i(source|inductor|E|H), vm/vp/vr/vi/vdb(node[,second])";
 
 /// One vector request. Shared with the `.measure` grammar
 /// (`super::measure`), whose operands use the same bounded spelling.
@@ -233,16 +233,18 @@ fn node(input: &mut Input<'_>, at: &SourceLoc, function: &str) -> Result<String>
     Ok(canonical_node(token, input.state.auto_gnd))
 }
 
-/// A device name for `i(...)`: only a source or inductor branch current is
-/// observable in this port.
+/// A device name for `i(...)`: only a branch-current unknown is observable in
+/// this port — voltage sources, inductors and the E/H controlled sources
+/// (`e.x1.e1` inside a subcircuit keeps its designator first).
 fn device(token: &Token) -> Result<String> {
     let name = token.text.to_ascii_lowercase();
     match name.chars().next() {
-        Some('v' | 'l') => Ok(name),
+        Some('v' | 'l' | 'e' | 'h') => Ok(name),
         Some(designator) if designator.is_ascii_alphabetic() => {
             Err(ErrMode::Cut(Failure(SpiceError::not_yet_ported(
                 format!(
-                    "{}: i({name}): only a voltage source or inductor branch current is observable; \
+                    "{}: i({name}): only a voltage source or inductor branch current (or an E/H \
+                     controlled-source branch current) is observable; \
                      an '{designator}' instance current needs a device observation API",
                     token.location
                 ),

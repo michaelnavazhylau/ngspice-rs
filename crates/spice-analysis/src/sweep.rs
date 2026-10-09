@@ -16,6 +16,8 @@ pub const MAX_SWEEP_POINTS: usize = 100_000;
 /// Relative slack, in steps, within which a grid is taken to reach its stop
 /// (`0..0.3 by 0.1` is `2.9999999999999996` steps in binary floating point).
 const ENDPOINT_TOLERANCE: Real = 32. * Real::EPSILON;
+/// C `CONSTCtoK`: `dctrcurv.c` accumulates a temperature sweep in kelvin.
+const CELSIUS_TO_KELVIN: Real = 273.15;
 
 /// A resolved sweep target, not an arbitrary parameter-name string.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +100,52 @@ impl SweepSpec {
         if steps > 0 && (ratio - steps as Real).abs() <= slack {
             values[steps] = stop;
         }
+        self.check_values(&values)?;
+        Ok(values)
+    }
+
+    /// The values C's `dctrcurv.c` visits: the swept quantity starts at
+    /// `start` and is advanced by `value += step`, and the sweep continues
+    /// while `sign(step) (value - stop) <= 1e3 DBL_EPSILON`. A temperature is
+    /// accumulated in kelvin (`CKTtemp`) and reported in Celsius.
+    ///
+    /// For steps that are not binary-exact (`0.1`) these differ from
+    /// [`Self::grid`] by an ulp or so, which is irrelevant for continuous
+    /// devices but decides a switch control that lands exactly on a
+    /// threshold, so DC sweeps of circuits with discrete-state devices use
+    /// these values. The stop test is C's absolute one, so the last value may
+    /// lie up to `1e3 DBL_EPSILON` beyond `stop` as it does in C.
+    /// # Errors
+    /// Everything [`Self::grid`] rejects, and the same point/progress/domain
+    /// limits applied to the accumulated values.
+    pub fn accumulated_grid(&self) -> SpiceResult<Vec<Real>> {
+        // The same input validation (finite, direction, budget) as the grid.
+        self.grid()?;
+        let offset = match self.target {
+            SweepTarget::Temperature => CELSIUS_TO_KELVIN,
+            _ => 0.,
+        };
+        let tolerance = 1e3 * Real::EPSILON;
+        let direction = self.step.signum();
+        let mut stored = self.start + offset;
+        let mut values = Vec::new();
+        loop {
+            let value = stored - offset;
+            if direction * (value - self.stop) > tolerance {
+                break;
+            }
+            if values.len() >= MAX_SWEEP_POINTS {
+                return Err(unsupported("DC sweep point limit exceeded"));
+            }
+            values.push(value);
+            stored += self.step;
+        }
+        self.check_values(&values)?;
+        Ok(values)
+    }
+
+    fn check_values(&self, values: &[Real]) -> SpiceResult<()> {
+        let step = self.step;
         if values.iter().any(|v| !v.is_finite()) {
             return Err(unsupported("DC sweep overflows"));
         }
@@ -120,7 +168,7 @@ impl SweepSpec {
             }
             _ => {}
         }
-        Ok(values)
+        Ok(())
     }
 }
 /// Parse and resolve one/two axes against actual independent sources and
@@ -250,7 +298,10 @@ fn preflight(
             continue;
         };
         for temperature in &temperatures {
-            let model = ModelContext::new(*temperature, context.nominal_temperature);
+            let model = ModelContext {
+                temperature: *temperature,
+                ..context.model_context()
+            };
             for value in grid {
                 let target = circuit.resistor_override(name, *value)?;
                 circuit.effective_resistance(&target, &model)?;
@@ -259,6 +310,47 @@ fn preflight(
     }
     Ok(())
 }
+/// Request key of the per-point warm-start Newton limit (deck `itl2`, C
+/// `CKTdcTrcvMaxIter`).
+pub(crate) const POINT_ITERATIONS_KEY: &str = "trcvmaxiter";
+
+/// Split the `.dc`-only `trcvmaxiter=` (1..=[`crate::newton::MAX_ITERATIONS`])
+/// from the DC Newton/continuation settings shared with `.op`.
+fn sweep_settings(
+    request: &AnalysisRequest,
+) -> SpiceResult<(Option<usize>, crate::bias::DcSettings)> {
+    let mut limit = None;
+    let mut rest = Vec::new();
+    for argument in &request.arguments {
+        match argument.split_once('=') {
+            Some((key, text)) if key.trim().eq_ignore_ascii_case(POINT_ITERATIONS_KEY) => {
+                if limit.is_some() {
+                    return Err(SpiceError::Unsupported {
+                        feature: format!("duplicate .dc option {POINT_ITERATIONS_KEY}"),
+                        location: None,
+                    });
+                }
+                let largest = crate::newton::MAX_ITERATIONS as Real;
+                let value = spice_core::parse_spice_number(text.trim())
+                    .filter(|v| v.fract() == 0. && (1. ..=largest).contains(v))
+                    .ok_or_else(|| SpiceError::Unsupported {
+                        feature: format!(
+                            "{POINT_ITERATIONS_KEY} must be an integer in 1..={}, not '{}'",
+                            crate::newton::MAX_ITERATIONS,
+                            text.trim()
+                        ),
+                        location: None,
+                    })?;
+                limit = Some(value as usize);
+            }
+            _ => rest.push(argument.clone()),
+        }
+    }
+    let mut stripped = request.clone();
+    stripped.arguments = rest;
+    Ok((limit, crate::bias::DcSettings::from_request(&stripped)?))
+}
+
 pub(crate) fn run(
     circuit: &mut Circuit,
     request: &AnalysisRequest,
@@ -269,11 +361,27 @@ pub(crate) fn run(
     // Everything that can be rejected is rejected before the first sample.
     let hints = crate::initial::resolve(circuit, request)?;
     let axes = resolve(circuit, request, context)?;
-    let settings = crate::bias::DcSettings::from_request(request)?;
+    let (point_iterations, settings) = sweep_settings(request)?;
+    // A switch control landing exactly on a threshold is decided by the last
+    // bit of the swept value, so with discrete-state devices the sweep visits
+    // C's accumulated values (`dctrcurv.c`) rather than `start + i step`.
+    let discrete = circuit.devices().iter().any(|d| d.has_discrete_state());
     let grids = axes
         .iter()
-        .map(SweepSpec::grid)
+        .map(|axis| {
+            if discrete {
+                axis.accumulated_grid()
+            } else {
+                axis.grid()
+            }
+        })
         .collect::<SpiceResult<Vec<_>>>()?;
+    // C's absolute stop test can add one point per axis to the checked budget.
+    grids
+        .iter()
+        .try_fold(1usize, |work, grid| work.checked_mul(grid.len()))
+        .filter(|n| *n <= MAX_SWEEP_POINTS)
+        .ok_or_else(|| unsupported("nested DC sweep point limit exceeded"))?;
     preflight(circuit, &axes, &grids, context)?;
     // C order: the first axis is the inner (fast) loop, the second the outer.
     let inner = &grids[0];
@@ -312,10 +420,21 @@ pub(crate) fn run(
     };
     let lu = system.as_ref().map(|s| s.a.factorize()).transpose()?;
     let mut previous = Vector::zeros(circuit.unknown_count());
+    // dctrcurv.c rotates the state vectors before every point, so a point's
+    // CKTstate1 is the previous point's state (the first point's own state is
+    // copied in after it). Only devices with discrete state (switches) read it.
+    let mut history = circuit.state_history();
+    let mut first;
     for hint in hints.nodesets {
         previous.as_mut_slice()[hint.row] = hint.value;
     }
     for outer_value in outer {
+        // dctrcurv.c: when the inner sweep wraps to its start for the next
+        // outer value, `firstTime` is set again and the mode is MODEINITJCT,
+        // so the first point of every inner sweep is decided from the
+        // instance flags like the very first point, and its converged state
+        // then becomes the accepted history (C's `firstTime` memcpy).
+        first = true;
         for inner_value in inner {
             let mut model = context.model_context();
             let mut overrides = vec![];
@@ -331,6 +450,7 @@ pub(crate) fn run(
                     }
                 }
             }
+            let mut solved_state = None;
             let x = if let (Some(system), Some(lu)) = (&system, &lu) {
                 let mut rhs = system.dc_rhs(None)?;
                 for (name, value) in &overrides {
@@ -345,20 +465,75 @@ pub(crate) fn run(
                 }
                 lu.solve(&rhs)?
             } else {
-                crate::bias::solve_dc_with(
-                    circuit,
-                    &model,
-                    &settings,
-                    &overrides,
-                    Some(&previous),
-                    None,
-                )?
-                .solution
-                .values
+                // dctrcurv.c: every point after the first first tries a plain
+                // warm-started Newton bounded by `itl2` (CKTdcTrcvMaxIter) and
+                // only on failure falls back to the full operating-point solve.
+                let warm = match point_iterations.filter(|_| !first) {
+                    None => None,
+                    Some(limit) => {
+                        let direct = crate::bias::DcSettings {
+                            newton: crate::newton::NewtonOptions {
+                                max_iterations: limit,
+                                ..settings.newton
+                            },
+                            continuation: crate::bias::ContinuationPolicy::disabled(),
+                        };
+                        match crate::bias::solve_dc_from(
+                            circuit,
+                            &model,
+                            &direct,
+                            &overrides,
+                            Some(&previous),
+                            &history,
+                            crate::newton::PhasePolicy::Predicted,
+                        ) {
+                            Ok(solved) => Some(solved.solution),
+                            Err(failure)
+                                if matches!(
+                                    failure.report.outcome,
+                                    crate::bias::DcOutcome::Exhausted
+                                        | crate::bias::DcOutcome::BudgetExhausted
+                                ) =>
+                            {
+                                None
+                            }
+                            Err(failure) => return Err(failure.error),
+                        }
+                    }
+                };
+                let solution = match warm {
+                    Some(solution) => solution,
+                    None => {
+                        crate::bias::solve_dc_from(
+                            circuit,
+                            &model,
+                            &settings,
+                            &overrides,
+                            Some(&previous),
+                            &history,
+                            // Without a warm-start limit the full solve's
+                            // direct attempt is the predicted point; after a
+                            // failed warm start it restarts like CKTop.
+                            if first || point_iterations.is_some() {
+                                crate::newton::PhasePolicy::OperatingPoint
+                            } else {
+                                crate::newton::PhasePolicy::Predicted
+                            },
+                        )?
+                        .solution
+                    }
+                };
+                solved_state = Some(solution.trial);
+                solution.values
             };
+            first = false;
             // Only a solved point is accepted; a failure above returns before
-            // any accept hook runs for it.
-            circuit.accept_solution(&x, None)?;
+            // any accept hook runs for it. A nonlinear point's state becomes the
+            // accepted history of the next one.
+            match solved_state {
+                Some(trial) => circuit.accept_point(&x, None, &mut history, trial)?,
+                None => circuit.accept_solution(&x, None)?,
+            }
             let mut point = vec![Complex::real(*inner_value)];
             point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
             if axes.len() == 2 {

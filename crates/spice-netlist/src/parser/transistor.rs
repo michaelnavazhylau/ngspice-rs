@@ -222,7 +222,7 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
 fn invalid_parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     let token = peek(any).parse_next(input)?;
     if input.state.card.designator() == Some('m')
-        && matches!(token.kind, TokenKind::Number(_) | TokenKind::Expression(_))
+        && (token.number().is_some() || super::expression::is_expression_token(token))
     {
         return Err(malformed(
             input,

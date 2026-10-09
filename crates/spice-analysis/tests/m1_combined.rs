@@ -53,6 +53,6 @@ fn param_cycles_and_unsupported_options_fail_before_any_result() {
     };
     let cyclic = parse(".param a={b} b={a}\nv1 x 0 {a}\nr1 x 0 1k");
     assert!(run_op(&cyclic).is_err());
-    let unsupported = parse(".option itl4=20\nv1 x 0 1\nr1 x 0 1k");
+    let unsupported = parse(".option gshunt=1e-12\nv1 x 0 1\nr1 x 0 1k");
     assert!(run_op(&unsupported).is_err());
 }

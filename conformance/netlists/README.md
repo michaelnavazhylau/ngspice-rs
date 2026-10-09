@@ -1,7 +1,8 @@
 # Conformance fixtures
 
-Every `*.cir` file here is a **pure deck**: no `.control` section, exactly one
-analysis card, and no file I/O. `cargo xtask golden capture` instruments each one
+Every `*.cir` file here is a **pure deck**: no `.control` section and no file
+I/O. Most have exactly one analysis card; `multi_analysis_rc` deliberately has
+four (see below). `cargo xtask golden capture` instruments each one
 by inserting
 
 ```spice
@@ -17,9 +18,11 @@ stores the resulting ASCII rawfile in `../golden/<fixture>.raw`.
 
 Why these rules:
 
-- **One analysis per deck.** `write` writes the *current* plot, so a deck with
-  two analyses would need per-plot names. When multi-analysis fixtures are
-  wanted, `xtask` should write each plot by name.
+- **One analysis per deck, unless multi-analysis is the point.** `write` writes
+  the *current* plot, so a deck with several analyses is instrumented to write
+  each plot by its C name (`write <fixture>.raw ac1.all dc1.all ...`, in batch
+  order, then `quit`) and is registered in the `BATCH` verification registry
+  (#96).
 - **No `.control` section.** `xtask` refuses to instrument a deck that already
   has one; a fixture's behaviour must come from its `.` cards, not from a
   command script, so that the port has something well-defined to reproduce.
@@ -61,18 +64,51 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `rlc_ic_uic_tran` | `.tran ... uic` | series RLC free decay from inductor `ic=20m` and capacitor `ic=1` |
 | `rc_ic_node_tran` | `.tran` + `.ic v(out)=0.25` | `.ic` enforced in the initial bias only (no `uic`), then released |
 | `floating_cap_ic_tran` | `.tran ... uic` | floating capacitor with initial plate charge (`ic=2`), ramp drive |
+| `rc_sin_tran` | `.tran` | delayed, damped, phase-shifted SIN (#94); constant PWL marker lands C on `TD` |
+| `rc_exp_tran` | `.tran` | EXP rise and fall (#94); constant PWL marker lands C on `TD1`/`TD2` |
+| `rc_sffm_am_tran` | `.tran` | SFFM voltage source and AM current source (#94), continuous at `t = 0` |
+| `rc_pwl_repeat_tran` | `.tran` | PWL `r=0 td=0.2m` triangle (#95), repeated knots are C breakpoints |
+| `rc_pulse_count_tran` | `.tran` | PULSE eighth field `NP = 3` (#95): three pulses, then V1 |
 | `diode_dc` | `.dc` | nonlinear device, source sweep |
 | `bjt_ce` | `.op` | BJT with a `.model` card |
 | `mos_inverter` | `.op` | MOSFET with instance parameters (`w=`, `l=`) |
 | `subckt_divider` | `.op` | `.subckt` / `.ends` and an `X` instance |
+| `func_quotes` | `.op` | `.func` (top-level and body-local, free names resolved at the call site) and single-quoted values (#107) |
 | `m4_diode_ac` | `.ac` | bias-linearized diode RS/CJO/TT and internal anode |
 | `m4_diode_tran` | `.tran` | junction depletion/diffusion charge, PULSE and KCL |
 | `m4_bjt_ac` | `.ac` | level-1 NPN forward/reverse transport, CJE/CJC/TF |
 | `m4_bjt_tran` | `.tran` | independent BE/BC charge companions |
 | `m4_mos1_ac` | `.ac` | MOS1 square law, body junction and overlap charges, zero TOX |
 | `m4_mos1_tran` | `.tran` | five MOS1 charge pairs and pulse bias |
+| `options_gmin_dc` | `.dc` | `.options gmin={gj}` (from `.param`) on reverse diode/PNP junctions, a PNP with `m=2 area=3` (gmin scales with `m` only), `itl1`/`itl2`, documented no-op options |
+| `options_xmu_tran` | `.tran` | `.options xmu=0.2 itl4=20` on a PULSE RC (trapezoidal weighting; `itl4=20` is C's effective 100) |
+| `multi_analysis_rc` | `.tran` `.ac` `.op` `.dc` | four analyses in one deck: C batch order (`.ac .dc .op .tran`), one plot each in a single rawfile (#96) |
+| `controlled_op` | `.op` | E/F/G/H signs, E op-amp loop (gain 1e4), F sensing an E branch, H inside a subcircuit, HSPICE keyword, `(a,b)` controls, G `m=` |
+| `controlled_ac` | `.ac` | E integrator (gain 1e4), G into an RC, F/H sensing a load current (`lin`) |
+| `controlled_tran` | `.tran` | PULSE RC buffered by E, G charging a second RC, F/H sensing its current |
+| `switch_op` | `.op` | S/W hysteresis bands decided by ON/OFF, controls outside the band, default RON/ROFF (gmin), W sensing a V branch, a W latch (#81) |
+| `switch_dc` | `.dc` | downward sweep through S/W bands (positive, negative and zero hysteresis): accepted switch state carried from point to point |
+| `switch_tran` | `.tran` | PULSE-controlled charge sharing, SIN-controlled discharge, a self-controlled relaxation oscillator (`swtrunc.c` step control) |
+| `switch_w_tran` | `.tran` | W switches sensing a SIN and a PULSE current (positive and negative hysteresis, ON flag) |
+| `switch_dc_decimal` | `.dc` | 0.1 V step: C's accumulated sweep values (`0.9999999999999999`, `1.5000000000000002`) decide S and W at their thresholds; ON/OFF flags at the first point |
+| `switch_ac` | `.ac` | C's `MODEINITSMSIG` switch state: every switch open in AC, including ones closed at the operating point |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
 for the demonstrated local #41 gate, physics allowlists and justified tolerances.
 Only the subcircuit fixture remains excluded by Rust-engine verification.
+
+The five M6 source decks (`rc_sin_tran` ... `rc_pulse_count_tran`, #94/#95) were
+captured individually the same way; no existing golden was recaptured.
+
+The two `options_*` decks (#110/#107) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+
+The three `controlled_*` decks (#78) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [CONTROLLED_SOURCES.md](../../docs/port/CONTROLLED_SOURCES.md).
+
+The six `switch_*` decks (#81) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+In the two transient decks every plotted node is a source or capacitor node,
+so no plotted value jumps between samples where a switch flips.

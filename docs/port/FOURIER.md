@@ -26,7 +26,7 @@ are never treated as a uniform grid, and the port never transforms internal time
 <fundamental-frequency> := a finite numeric literal greater than zero (1k, 2.5e3)
 <n>                     := a whole number of harmonics in 1..=100
                            (DEFAULT_HARMONICS = 9 when HARMONICS= is absent)
-<vector>                := v(<node>) | v(<first>,<second>) | i(<source|inductor>)
+<vector>                := v(<node>) | v(<first>,<second>) | i(<source|inductor|E|H>)
 ```
 
 * `HARMONICS=` may appear anywhere after the frequency, once. `DEFAULT_HARMONICS = 9` gives the
@@ -37,8 +37,11 @@ are never treated as a uniform grid, and the port never transforms internal time
   written vector cannot disagree about differences, ground or units.
 * `all` is not accepted (name one vector), and an AC component spelling (`vm(out)`, `vp`, `vr`,
   `vi`, `vdb`) is a parse error: those need a complex plot, and `.four` transforms a transient.
-* The card applies to a `.tran` run only. A card in a run that is not `.tran` is
-  `SpiceError::Unsupported` at evaluation, naming the analysis that ran.
+* The card applies to a `.tran` result only. A card in a deck that runs no
+  `.tran` is `SpiceError::Unsupported` before anything runs, naming the analyses
+  the deck does run. In a multi-analysis deck (#96) the cards are evaluated
+  against the last executed `.tran` plot, which is the plot C's
+  `setcplot("tran")` selects; see [CLI.md](CLI.md#multi-analysis-decks).
 * A `.four` card inside a `.subckt` body is rejected like `.save`/`.print`.
 
 ## The window

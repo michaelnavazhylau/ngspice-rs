@@ -25,9 +25,11 @@ use crate::results::{Plot, PlotFlags, Variable};
 /// The `.save` and `.print` requests that apply to `kind`.
 ///
 /// `.save` cards apply to every analysis; a `.print` card names exactly one and
-/// must name `kind`, because `simulate` runs one analysis per invocation. A
-/// `.print` card for another analysis can never be honoured, so it is an
-/// explicit [`SpiceError::Unsupported`] rather than a silently dropped request.
+/// must name `kind`: this is the single-plot form, so a `.print` card for
+/// another analysis can never be honoured against this plot and is an explicit
+/// [`SpiceError::Unsupported`] rather than a silently dropped request. A
+/// multi-analysis deck routes each `.print` card to the plots of its own type
+/// first ([`crate::batch::resolve_outputs`]).
 ///
 /// Order is C's `dbs` order: every `.save` request in card order, then every
 /// applicable `.print` request in card order. Duplicates stay visible here;
@@ -65,8 +67,8 @@ fn applicable(
         if print.analysis != kind {
             return Err(SpiceError::Unsupported {
                 feature: format!(
-                    ".print {} names a different analysis; this run is .{} ('simulate' runs \
-                     exactly one analysis, so the request can never be honoured)",
+                    ".print {} names a different analysis; this plot is .{}, so the request \
+                     can never be honoured against it",
                     print.analysis.as_str(),
                     kind.as_str()
                 ),

@@ -1,0 +1,64 @@
+# ngspice-rs token-dump v1
+file: netlists/rc_exp_tran.cir
+title: "RC driven by an EXP source" @netlists/rc_exp_tran.cir:1:1
+card 1 @netlists/rc_exp_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 in 0 exp(0 1 0.2m 0.3m 1.5m 0.5m)"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 word "in"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 word "exp"
+  token 5 6:12 lparen "("
+  token 6 6:13 number "0" value=0e0
+  token 7 6:15 number "1" value=1e0
+  token 8 6:17 number "0.2m" value=2e-4
+  token 9 6:22 number "0.3m" value=3e-4
+  token 10 6:27 number "1.5m" value=1.5e-3
+  token 11 6:32 number "0.5m" value=5e-4
+  token 12 6:36 rparen ")"
+card 2 @netlists/rc_exp_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "in"
+  token 3 7:7 word "out"
+  token 4 7:11 number "1k" value=1e3
+card 3 @netlists/rc_exp_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "c1 out 0 0.1u"
+  kind: device(c)
+  token 1 8:1 word "c1"
+  token 2 8:4 word "out"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "0.1u" value=1e-7
+card 4 @netlists/rc_exp_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "v2 mark 0 pwl(0 0 0.2m 0 1.5m 0)"
+  kind: device(v)
+  token 1 9:1 word "v2"
+  token 2 9:4 word "mark"
+  token 3 9:9 number "0" value=0e0
+  token 4 9:11 word "pwl"
+  token 5 9:14 lparen "("
+  token 6 9:15 number "0" value=0e0
+  token 7 9:17 number "0" value=0e0
+  token 8 9:19 number "0.2m" value=2e-4
+  token 9 9:24 number "0" value=0e0
+  token 10 9:26 number "1.5m" value=1.5e-3
+  token 11 9:31 number "0" value=0e0
+  token 12 9:32 rparen ")"
+card 5 @netlists/rc_exp_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "r2 mark 0 1k"
+  kind: device(r)
+  token 1 10:1 word "r2"
+  token 2 10:4 word "mark"
+  token 3 10:9 number "0" value=0e0
+  token 4 10:11 number "1k" value=1e3
+card 6 @netlists/rc_exp_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".tran 5u 4m"
+  kind: dot(.tran)
+  token 1 11:1 word ".tran"
+  token 2 11:7 number "5u" value=4.9999999999999996e-6
+  token 3 11:10 number "4m" value=4e-3
+card 7 @netlists/rc_exp_tran.cir:12:1 lines=12-12 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 12:1 word ".end"

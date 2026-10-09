@@ -6,7 +6,8 @@
 //! explicit, so that the port's coverage can be reported programmatically
 //! instead of inferred from the presence of C files.
 //!
-//! Scalar R/C/L/V/I factories are implemented. Other built-in entries report
+//! Scalar R/C/L/V/I, linear E/F/G/H and K (mutual inductance) factories are
+//! implemented. Other built-in entries report
 //! `ported: false` and return explicit `NotYetPorted` errors with C references.
 //! Unsupported scalar-device parameters are rejected, never silently ignored.
 
@@ -151,7 +152,7 @@ const BUILTINS: &[(char, &str, &str)] = &[
     (
         'k',
         "mutual inductance (transformer coupling)",
-        "src/spicelib/parser/inp2k.c; src/spicelib/devices/cpl/cpl.c",
+        "src/spicelib/parser/inp2k.c; src/spicelib/devices/ind/mutsetup.c, muttemp.c, mutacld.c, indload.c",
     ),
     (
         't',
@@ -203,7 +204,8 @@ impl Registry {
         Self::default()
     }
 
-    /// Built-in registry with bounded scalar R/C/L/V/I factories.
+    /// Built-in registry with bounded scalar R/C/L/V/I, linear E/F/G/H and K
+    /// factories.
     #[must_use]
     pub fn with_builtins() -> Self {
         let mut registry = Self::new();
@@ -212,8 +214,14 @@ impl Registry {
                 designator: *designator,
                 description,
                 c_reference,
-                ported: matches!(designator, 'r' | 'c' | 'l' | 'v' | 'i'),
-                factory: if matches!(designator, 'r' | 'c' | 'l' | 'v' | 'i') {
+                ported: matches!(
+                    designator,
+                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k'
+                ),
+                factory: if matches!(
+                    designator,
+                    'r' | 'c' | 'l' | 'v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k'
+                ) {
                     crate::factory::from_card
                 } else {
                     stub_factory
@@ -326,7 +334,7 @@ mod tests {
         for (designator, _, _) in super::BUILTINS {
             assert!(registry.contains(*designator), "missing {designator}");
         }
-        assert_eq!(registry.ported_count(), 5);
+        assert_eq!(registry.ported_count(), 10);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
@@ -456,7 +464,7 @@ mod tests {
             factory,
         });
         assert!(replaced.is_some_and(|entry| entry.ported));
-        assert_eq!(registry.ported_count(), 5);
+        assert_eq!(registry.ported_count(), 10);
         let mut nodes = spice_core::NodeTable::new();
         assert_eq!(
             registry

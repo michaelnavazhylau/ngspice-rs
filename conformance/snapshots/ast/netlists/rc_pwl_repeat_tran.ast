@@ -1,0 +1,41 @@
+# ngspice-rs ast-dump v1
+file: netlists/rc_pwl_repeat_tran.cir
+title: "RC driven by a delayed, repeating PWL triangle" @netlists/rc_pwl_repeat_tran.cir:1:1
+scope root
+  cards (5):
+    [0] device[0] @netlists/rc_pwl_repeat_tran.cir:3:1 "v1 in 0 pwl(0 0 0.5m 1 1m 0) r=0 td=0.2m"
+    [1] device[1] @netlists/rc_pwl_repeat_tran.cir:4:1 "r1 in out 1k"
+    [2] device[2] @netlists/rc_pwl_repeat_tran.cir:5:1 "c1 out 0 0.1u"
+    [3] analysis[0] @netlists/rc_pwl_repeat_tran.cir:6:1 ".tran 10u 4m"
+    [4] end @netlists/rc_pwl_repeat_tran.cir:7:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/rc_pwl_repeat_tran.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="pwl" kind=waveform value="(0 0 0.5m 1 1m 0)" @netlists/rc_pwl_repeat_tran.cir:3:9
+          pwl
+            point [0] time="0"@netlists/rc_pwl_repeat_tran.cir:3:13 value="0"@netlists/rc_pwl_repeat_tran.cir:3:15
+            point [1] time="0.5m"@netlists/rc_pwl_repeat_tran.cir:3:17 value="1"@netlists/rc_pwl_repeat_tran.cir:3:22
+            point [2] time="1m"@netlists/rc_pwl_repeat_tran.cir:3:24 value="0"@netlists/rc_pwl_repeat_tran.cir:3:27
+        [1] name="r" kind=scalar value="0" @netlists/rc_pwl_repeat_tran.cir:3:30
+        [2] name="td" kind=scalar value="0.2m" @netlists/rc_pwl_repeat_tran.cir:3:34
+    device [1] name="r1" designator=r @netlists/rc_pwl_repeat_tran.cir:4:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/rc_pwl_repeat_tran.cir:4:11
+    device [2] name="c1" designator=c @netlists/rc_pwl_repeat_tran.cir:5:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="0.1u" @netlists/rc_pwl_repeat_tran.cir:5:10
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/rc_pwl_repeat_tran.cir:6:1
+      arguments: "10u" "4m"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

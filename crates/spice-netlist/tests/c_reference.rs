@@ -19,6 +19,8 @@ const TRANSISTORS: &str = include_str!("../../../conformance/parser/transistor_s
 const PASSIVES: &str = include_str!("../../../conformance/parser/passive_models.cir");
 const FLAGS_IC: &str = include_str!("../../../conformance/parser/flags_ic.cir");
 const WAVEFORMS: &str = include_str!("../../../conformance/parser/source_waveforms.cir");
+const FUNCTIONS: &str = include_str!("../../../conformance/parser/source_functions.cir");
+const CONTROLLED: &str = include_str!("../../../conformance/parser/controlled_sources.cir");
 
 struct Scratch(PathBuf);
 
@@ -60,6 +62,42 @@ fn parsed_scalars_match_live_c_instance_parameters() {
     assert!(netlist.device("i2").unwrap().parameters.is_empty());
     expected.insert("@i2[dc]".to_owned(), 0.0);
     assert_reference("linear", LINEAR, expected);
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_controlled_source_setters_match_live_c_gains() {
+    let netlist = parse(CONTROLLED);
+    let mut expected = BTreeMap::new();
+    for device in &netlist.devices {
+        if !matches!(device.designator, 'e' | 'f' | 'g' | 'h') {
+            continue;
+        }
+        // VCCSparam/CCCSparam: a gain is scaled by an m given *before* it.
+        let (mut gain, mut multiplier) = (None, None::<f64>);
+        for parameter in &device.parameters {
+            match (&parameter.kind, parameter.name.as_str()) {
+                (ParameterKind::Instance, "control") => {}
+                (ParameterKind::Scalar, "gain") => {
+                    let value = parse_spice_number(&parameter.value).unwrap();
+                    gain = Some(value * multiplier.unwrap_or(1.0));
+                }
+                (ParameterKind::Scalar, "m") => {
+                    multiplier = parse_spice_number(&parameter.value);
+                }
+                // e3's {2*5} is evaluated by numparam in C; literal here.
+                (ParameterKind::Expression(_), "gain") => gain = Some(10.0),
+                other => panic!("unexpected setter {other:?}"),
+            }
+        }
+        expected.insert(format!("@{}[gain]", device.name), gain.unwrap());
+    }
+    // Independent hand-checked setter-order expectations.
+    assert_eq!(expected["@g2[gain]"], 6e-3);
+    assert_eq!(expected["@g3[gain]"], 2e-3);
+    assert_eq!(expected["@f2[gain]"], 2.0);
+    assert_eq!(expected.len(), 13);
+    assert_reference("controlled", CONTROLLED, expected);
 }
 
 #[test]
@@ -210,6 +248,7 @@ fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
                 }
                 ParameterKind::Waveform(_)
                 | ParameterKind::Textual
+                | ParameterKind::Instance
                 | ParameterKind::Expression(_) => panic!("not a scalar probe"),
             }
         }
@@ -229,18 +268,19 @@ fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
     assert_reference("flags-ic", FLAGS_IC, expected);
 }
 
-#[test]
-#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
-fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
-    use spice_netlist::ast::SourceWaveform;
-    let netlist = parse(WAVEFORMS);
+/// Expected `@dev[function]`, coefficient vectors and queryable scalars of
+/// every source's last waveform setter, plus the `let` commands that read C's
+/// coefficient vector. PWL `r=`/`td=` are input-only (`IP`) in C and cannot be
+/// queried; they are checked by the transient comparisons instead.
+fn waveform_expectations(netlist: &Netlist) -> (BTreeMap<String, f64>, String) {
+    use spice_netlist::ast::{SourceFunction, SourceWaveform};
     let mut expected = BTreeMap::new();
     let mut commands = String::new();
     for device in &netlist.devices {
         for parameter in device
             .parameters
             .iter()
-            .filter(|p| p.kind == ParameterKind::Scalar)
+            .filter(|p| p.kind == ParameterKind::Scalar && !matches!(p.name.as_str(), "r" | "td"))
         {
             assignments(&mut expected, &device.name, std::slice::from_ref(parameter));
         }
@@ -250,13 +290,14 @@ fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
         }) else {
             continue;
         };
+        // vsrcdefs.h: PULSE = 1, SINE, EXP, SFFM, PWL, AM.
         let (function, fields): (f64, Vec<&str>) = match waveform {
             SourceWaveform::Pulse(p) => (
                 1.0,
                 std::iter::once(p.initial.text.as_str())
                     .chain(std::iter::once(p.pulsed.text.as_str()))
                     .chain(
-                        [&p.delay, &p.rise, &p.fall, &p.width, &p.period]
+                        [&p.delay, &p.rise, &p.fall, &p.width, &p.period, &p.count]
                             .into_iter()
                             .filter_map(|v| v.as_ref().map(|v| v.text.as_str())),
                     )
@@ -269,6 +310,15 @@ fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
                     .flat_map(|p| [p.time.text.as_str(), p.value.text.as_str()])
                     .collect(),
             ),
+            SourceWaveform::Function(f) => (
+                match f.function {
+                    SourceFunction::Sin => 2.0,
+                    SourceFunction::Exp => 3.0,
+                    SourceFunction::Sffm => 4.0,
+                    SourceFunction::Am => 6.0,
+                },
+                f.values.iter().map(|v| v.text.as_str()).collect(),
+            ),
         };
         expected.insert(format!("@{}[function]", device.name), function);
         let count = format!("oracle_{}_count", device.name);
@@ -280,11 +330,36 @@ fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
             expected.insert(name, parse_spice_number(field).unwrap());
         }
     }
+    (expected, commands)
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_waveform_coefficients_omissions_and_setter_order_match_live_c() {
+    let netlist = parse(WAVEFORMS);
+    let (expected, commands) = waveform_expectations(&netlist);
     assert_eq!(expected["@vpulse[dc]"], 7.0);
     assert_eq!(expected["oracle_ipulse_count"], 2.0);
     assert_eq!(expected["@vpwl[function]"], 5.0);
     assert_eq!(expected["@ipwl[function]"], 1.0);
     assert_reference_commands("waveforms", WAVEFORMS, expected, &commands);
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; run cargo test -p spice-netlist --test c_reference -- --ignored"]
+fn parsed_source_functions_match_live_c_coefficients() {
+    // SIN/SINE/EXP/SFFM/AM, the PULSE eighth field and PWL with r=/td= (#94, #95).
+    let netlist = parse(FUNCTIONS);
+    let (expected, commands) = waveform_expectations(&netlist);
+    assert_eq!(expected["@vsin[function]"], 2.0);
+    assert_eq!(expected["oracle_vsin_count"], 6.0);
+    assert_eq!(expected["@isine[function]"], 2.0);
+    assert_eq!(expected["@vexp[function]"], 3.0);
+    assert_eq!(expected["@isffm[function]"], 4.0);
+    assert_eq!(expected["@vam[function]"], 6.0);
+    assert_eq!(expected["oracle_vcount_count"], 8.0);
+    assert_eq!(expected["@ipwl[function]"], 5.0);
+    assert_reference_commands("functions", FUNCTIONS, expected, &commands);
 }
 
 #[test]

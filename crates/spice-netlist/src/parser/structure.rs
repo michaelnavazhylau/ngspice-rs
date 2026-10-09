@@ -53,6 +53,7 @@ fn subckt(input: &mut Input<'_>) -> Result<ParsedCard> {
             analyses: Vec::new(),
             includes: Vec::new(),
             params: Vec::new(),
+            functions: Vec::new(),
             cards: Vec::new(),
             end_location: location.clone(),
             location,
@@ -106,11 +107,12 @@ fn parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     peek((opt(comma), name("parameter name"), equals)).parse_next(input)?;
     let (_, key, _, value) =
         cut_err((opt(comma), name("parameter name"), equals, value)).parse_next(input)?;
-    // Braced values and bare identifiers are parsed (never evaluated); other
-    // single tokens (quotes, extended numeric spellings) stay textual.
+    // Braced or single-quoted values and bare identifiers are parsed (never
+    // evaluated); other single tokens (double-quoted strings, extended numeric
+    // spellings) stay textual.
     let kind = match &value.kind {
         TokenKind::Number(_) => ParameterKind::Scalar,
-        TokenKind::Expression(_) => ParameterKind::Expression(Box::new(
+        _ if super::expression::is_expression_token(value) => ParameterKind::Expression(Box::new(
             super::expression::from_brace_token(value)
                 .map_err(|error| ErrMode::Cut(Failure(error)))?,
         )),

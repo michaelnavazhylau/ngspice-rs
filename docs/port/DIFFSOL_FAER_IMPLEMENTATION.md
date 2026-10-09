@@ -133,7 +133,9 @@ connected components of its petgraph coupling graph; each block is rank-revealed
 tolerance `64 m ε σ_max`, at most `MAX_MASS_BLOCK` = 512 unknowns). The null
 vectors give `N = ker E` and `W = ker Eᵀ`, and the pencil is accepted only when
 `Wᵀ A N` passes the numerical sparse rank guard described above. Grounded, floating and coupled
-capacitors and index-one RL/RLC/source equations are accepted; higher-index
+capacitors, index-one RL/RLC/source equations and K-coupled inductors
+(off-diagonal branch mass entries, including the rank-deficient ideal `k = 1`
+block; #80, [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md)) are accepted; higher-index
 ideal-source constraints (a source across a capacitor or a floating capacitor),
 singular pencils and nonunique nullspaces are rejected. For diagonal `E` this is
 exactly the earlier algebraic-block formulation. Integration stays in physical
@@ -159,8 +161,12 @@ enumerated lazily by `breakpoints_in(t0, t1)` (never expanded; the BDF driver
 consumes at most 100,000 segments). The initial operating point uses the forcing
 just before `t=0` (C's MODETRANOP evaluates the waveform, not the DC value), then
 projects from the right. Cycles shorter than TR+PW+TF are cut at the period
-boundary (a jump). Unsupported: PULSE PHASE/pulse count, PWL `r=`/`td=`,
-SIN/EXP/SFFM, `.param` expressions in waveforms. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md). Device-API knot
+boundary (a jump). PULSE counts and PWL `r=`/`td=` (#95) stay piecewise linear
+between their lazy breakpoints and are supported here (a discontinuous `r=`
+repeat is a left/right jump at every repetition boundary, so each repetition
+keeps its full ramp; regression-tested on a sawtooth); SIN/EXP/SFFM/AM (#94) are
+not piecewise linear and are rejected explicitly by this backend (use the
+companion driver). Unsupported: `.param` expressions in waveforms. See [FRONTEND_VALUES.md](FRONTEND_VALUES.md). Device-API knot
 times must be finite, nonnegative and strictly increasing. DC and AC source excitations remain distinct from the waveform.
 
 For each interval between knots, forcing is preassembled at both endpoints and

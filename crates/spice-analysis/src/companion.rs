@@ -59,8 +59,16 @@
 //! A trial is an iteration `load -> solve -> converged?`. Linear circuits take
 //! exactly one solve per trial (followed by a state-only reload at the
 //! solution); circuits with nonlinear devices iterate with C's voltage/current
-//! tolerance test up to `itl4` times and report non-convergence by shrinking the
-//! step by eight with order 1, as `dctran.c` does.
+//! tolerance test up to `itl4` times (request `tranmaxiter=`, default 100:
+//! C's `NIiter()` raises its nominal default of 10, and any limit below 100,
+//! to 100) and report non-convergence by shrinking the step by eight with order
+//! 1, as `dctran.c` does.
+//!
+//! The nonlinear initial bias is the shared DC solve (`dctran.c` calls `CKTop`
+//! with `CKTdcMaxIter`): request `maxiter=` (deck `itl1`), `srcsteps=`,
+//! `gminsteps=` and `gminfactor=` configure it exactly as they configure `.op`
+//! (see `docs/port/DC_CONTINUATION.md`). `xmu=` is the trapezoidal weighting of
+//! `nicomcof.c` (default 0.5).
 
 use std::collections::VecDeque;
 use std::iter::Peekable;
@@ -77,8 +85,10 @@ use crate::initial::{self, Hints, VoltageTolerance};
 use crate::linear::{number, plot, unsupported};
 use crate::{AnalysisContext, AnalysisRequest, Plot};
 
-/// C's `CKTtranMaxIter` (`.option itl4`): Newton iterations per timepoint.
-const TRAN_MAX_ITER: usize = 10;
+/// C's *effective* default `CKTtranMaxIter` (`.option itl4`): Newton
+/// iterations per timepoint. `cktntask.c` sets 10, but `NIiter()`
+/// (`niiter.c`) raises every limit below 100 to 100, so C iterates up to 100.
+const TRAN_MAX_ITER: usize = 100;
 /// Default whole-run limit on accepted + rejected steps.
 const DEFAULT_MAX_STEPS: usize = 1_000_000;
 /// Largest accepted `maxsteps=`.
@@ -90,8 +100,31 @@ const DEFAULT_ABSTOL: Real = 1e-12;
 const DEFAULT_CHGTOL: Real = 1e-14;
 const DEFAULT_TRTOL: Real = 7.0;
 /// Request keys the companion backend understands.
-const KEYS: [&str; 9] = [
-    "backend", "method", "maxord", "rtol", "vntol", "abstol", "chgtol", "trtol", "maxsteps",
+const KEYS: [&str; 16] = [
+    "backend",
+    "method",
+    "maxord",
+    "rtol",
+    "vntol",
+    "abstol",
+    "chgtol",
+    "trtol",
+    "maxsteps",
+    "tranmaxiter",
+    "xmu",
+    "maxiter",
+    "srcsteps",
+    "gminsteps",
+    "gminfactor",
+    "stagemaxiter",
+];
+/// Request keys forwarded to the initial-bias DC solve.
+const BIAS_KEYS: [&str; 5] = [
+    "maxiter",
+    "srcsteps",
+    "gminsteps",
+    "gminfactor",
+    "stagemaxiter",
 ];
 
 /// Counters describing one companion transient run.
@@ -132,6 +165,10 @@ struct Settings {
     max_order: u8,
     tolerances: Tolerances,
     max_steps: usize,
+    /// Newton iterations per timepoint (`itl4`, C `CKTtranMaxIter`).
+    tran_max_iter: usize,
+    /// Trapezoidal weighting (`.option xmu`, C `CKTxmu`), in `[0, 0.5]`.
+    xmu: Real,
 }
 
 impl Settings {
@@ -235,6 +272,26 @@ impl Settings {
                     ))
                 })?,
         };
+        let tran_max_iter = match request.named("tranmaxiter") {
+            None => TRAN_MAX_ITER,
+            Some(text) => spice_core::parse_spice_number(text)
+                .filter(|v| {
+                    v.fract() == 0. && (1. ..=crate::newton::MAX_ITERATIONS as Real).contains(v)
+                })
+                .map(|v| v as usize)
+                .ok_or_else(|| {
+                    unsupported(format!(
+                        "tranmaxiter must be an integer in 1..={}, not '{text}'",
+                        crate::newton::MAX_ITERATIONS
+                    ))
+                })?,
+        };
+        let xmu = match request.named("xmu") {
+            None => DEFAULT_XMU,
+            Some(text) => spice_core::parse_spice_number(text)
+                .filter(|v| (0. ..=0.5).contains(v))
+                .ok_or_else(|| unsupported(format!("xmu must be in [0, 0.5], not '{text}'")))?,
+        };
         Ok(Self {
             step,
             stop,
@@ -244,7 +301,28 @@ impl Settings {
             max_order,
             tolerances,
             max_steps,
+            tran_max_iter,
+            xmu,
         })
+    }
+
+    /// The initial-bias DC settings: `maxiter`/`srcsteps`/`gminsteps`/
+    /// `gminfactor` from the request (validated by
+    /// [`crate::bias::DcSettings::from_request`]) with this run's Newton
+    /// tolerances.
+    fn bias(&self, request: &AnalysisRequest) -> SpiceResult<crate::bias::DcSettings> {
+        let forwarded = request.arguments.iter().filter(|argument| {
+            argument.split_once('=').is_some_and(|(key, _)| {
+                BIAS_KEYS.contains(&key.trim().to_ascii_lowercase().as_str())
+            })
+        });
+        let mut settings = crate::bias::DcSettings::from_request(
+            &AnalysisRequest::with_arguments(spice_core::AnalysisKind::OperatingPoint, forwarded),
+        )?;
+        settings.newton.reltol = self.tolerances.reltol;
+        settings.newton.vntol = self.tolerances.vntol;
+        settings.newton.abstol = self.tolerances.abstol;
+        Ok(settings)
     }
 
     /// C `CKTdelmin`.
@@ -358,6 +436,8 @@ struct Driver<'a> {
     settings: Settings,
     timing: TransientTiming,
     model_context: spice_devices::ModelContext,
+    /// Newton/continuation settings of the nonlinear initial bias.
+    bias: crate::bias::DcSettings,
     history: spice_devices::StateHistory,
     steps: StepHistory,
     hints: Hints,
@@ -373,7 +453,10 @@ struct Driver<'a> {
 ///
 /// `request` uses the same positional `tstep tstop [tstart [tmax]]` arguments
 /// as C plus named `method` (`trap` default, `trapezoidal`, `gear`), `maxord`
-/// (1 or 2), `rtol`, `vntol`, `abstol`, `chgtol`, `trtol` and `maxsteps`.
+/// (1 or 2), `rtol`, `vntol`, `abstol`, `chgtol`, `trtol`, `maxsteps`,
+/// `tranmaxiter` (Newton iterations per timepoint, `itl4`), `xmu` (trapezoidal
+/// weighting) and the initial-bias `maxiter`, `srcsteps`, `gminsteps`,
+/// `gminfactor`.
 ///
 /// # Errors
 ///
@@ -389,6 +472,7 @@ pub fn companion_transient(
     context: &AnalysisContext,
 ) -> SpiceResult<(Plot, TransientStats)> {
     let settings = Settings::from_request(request)?;
+    let bias = settings.bias(request)?;
     // Unknown/ground nodes in .ic/.nodeset fail before anything is assembled.
     let hints = initial::resolve(circuit, request)?;
     let model_context = context.model_context();
@@ -419,6 +503,7 @@ pub fn companion_transient(
         settings,
         timing,
         model_context,
+        bias,
         history: circuit.state_history(),
         steps: StepHistory::with_fill(settings.max_step),
         hints,
@@ -492,7 +577,7 @@ impl Driver<'_> {
                         "work limit of {max_steps} accepted + rejected steps reached at t = {t:e}"
                     )));
                 }
-                let coefficients = self.steps.trial(method, order, delta, DEFAULT_XMU)?;
+                let coefficients = self.steps.trial(method, order, delta, self.settings.xmu)?;
                 let t_new = if forced { bp0 } else { t + delta };
                 if t_new <= t {
                     return Err(failure(format!(
@@ -524,7 +609,8 @@ impl Driver<'_> {
                                 if coefficients.order() == 1 && max_order > 1 {
                                     // Probe order 2; C overwrites the step with
                                     // this estimate either way.
-                                    let probe = self.steps.trial(method, 2, delta, DEFAULT_XMU)?;
+                                    let probe =
+                                        self.steps.trial(method, 2, delta, self.settings.xmu)?;
                                     next = (2. * delta).min(self.truncation_limit(&probe, &state)?);
                                     order = if next <= 1.05 * delta { 1 } else { 2 };
                                 }
@@ -600,7 +686,7 @@ impl Driver<'_> {
     fn initialize(&mut self) -> SpiceResult<Vector> {
         let rhs = self.system.transient_rhs(0., spice_devices::Limit::Left)?;
         let (x, trial) = if self.uic {
-            let start = initial::uic_start(self.circuit, &self.hints)?;
+            let start = initial::uic_start(self.circuit, &self.hints, &self.model_context)?;
             let trial = self.initial_state(&start.x, &start.charges)?;
             let tolerances = &self.settings.tolerances;
             initial::check_impulse_free(
@@ -613,6 +699,7 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                     abstol: tolerances.abstol,
                 },
+                &self.model_context,
             )?;
             (start.x, trial)
         } else {
@@ -626,31 +713,45 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                 },
             )?;
-            let x = if self.nonlinear {
+            let (x, solved) = if self.nonlinear {
                 let mut seed = Vector::zeros(self.circuit.unknown_count());
                 for hint in &self.hints.nodesets {
                     seed.as_mut_slice()[hint.row] = hint.value;
                 }
-                crate::bias::solve_dc(
+                let solution = crate::bias::solve_dc_with(
                     self.circuit,
                     &self.model_context,
-                    &crate::newton::NewtonOptions {
-                        reltol: tolerances.reltol,
-                        vntol: tolerances.vntol,
-                        abstol: tolerances.abstol,
-                        ..crate::newton::NewtonOptions::default()
-                    },
+                    &self.bias,
                     &[],
                     Some(&seed),
                     Some(&rhs),
                 )?
-                .values
-            } else if constraints.is_empty() {
-                self.system.a.solve(&rhs)?
+                .solution;
+                (solution.values, Some(solution.trial))
+            } else if constraints.is_unconstrained() {
+                (self.system.a.solve(&rhs)?, None)
             } else {
-                initial::constrained_bias(&self.system.a, &rhs, &constraints)?
+                (
+                    initial::constrained_bias(&self.system.a, &rhs, &constraints.imposed)?,
+                    None,
+                )
             };
-            let trial = self.initial_state(&x, &[])?;
+            initial::check_implied(
+                &x,
+                &constraints,
+                VoltageTolerance {
+                    reltol: tolerances.reltol,
+                    vntol: tolerances.vntol,
+                },
+            )?;
+            // A nonlinear bias's converged trial is the DC-mode load at `x`
+            // (charges, zero derivatives) and also carries the operating
+            // point's discrete switch states, which a fresh reload in the
+            // initial phase would re-derive from the instance flags.
+            let trial = match solved {
+                Some(trial) => trial,
+                None => self.initial_state(&x, &[])?,
+            };
             (x, trial)
         };
         // C copies CKTstate0 into CKTstate1..3; the derivative is zero.
@@ -703,8 +804,12 @@ impl Driver<'_> {
         previous: &Vector,
     ) -> SpiceResult<Trial> {
         let n = self.circuit.unknown_count();
-        let load = |guess: &Vector, matrix: &mut SparseMatrix, rhs: &mut Vector| {
-            let mut state = self.history.trial();
+        let load = |guess: &Vector,
+                    matrix: &mut SparseMatrix,
+                    rhs: &mut Vector,
+                    phase: spice_devices::IterationPhase,
+                    previous: Option<&TrialState>| {
+            let mut state = self.history.trial_in(phase, previous)?;
             self.circuit.load(
                 &LoadRequest {
                     mode: AnalysisMode::Transient {
@@ -729,18 +834,29 @@ impl Driver<'_> {
         if self.nonlinear {
             let tolerance = &self.settings.tolerances;
             let options = crate::newton::NewtonOptions {
-                max_iterations: TRAN_MAX_ITER,
+                max_iterations: self.settings.tran_max_iter,
                 reltol: tolerance.reltol,
                 vntol: tolerance.vntol,
                 abstol: tolerance.abstol,
                 ..crate::newton::NewtonOptions::default()
             };
-            return match crate::newton::solve(previous, &self.branch_row, &options, |x| {
-                let mut matrix = SparseMatrix::new(n, n);
-                let mut rhs = Vector::zeros(n);
-                let state = load(x, &mut matrix, &mut rhs)?;
-                Ok((matrix, rhs, state))
-            }) {
+            // dctran.c: MODEINITTRAN/MODEINITPRED for the first load of a
+            // timepoint, MODEINITFLOAT afterwards.
+            return match crate::newton::solve_phased(
+                previous,
+                &self.branch_row,
+                &options,
+                crate::newton::PhasePolicy::Predicted,
+                None,
+                |x, phase, last| {
+                    let mut matrix = SparseMatrix::new(n, n);
+                    let mut rhs = Vector::zeros(n);
+                    let state = load(x, &mut matrix, &mut rhs, phase, last)?;
+                    Ok((matrix, rhs, state))
+                },
+            )
+            .map_err(|failure| failure.error)
+            {
                 Ok(solved) => Ok(Trial::Converged {
                     x: solved.values,
                     state: solved.trial,
@@ -757,16 +873,24 @@ impl Driver<'_> {
         // charge/flux at the solved point, with no Newton iteration loop.
         let mut matrix = SparseMatrix::new(n, n);
         let mut rhs = Vector::zeros(n);
-        load(previous, &mut matrix, &mut rhs)?;
+        let phase = spice_devices::IterationPhase::Predict;
+        load(previous, &mut matrix, &mut rhs, phase, None)?;
         matrix.fold_duplicates();
         let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
         let x = matrix.solve(&rhs)?;
-        let state = load(&x, &mut SparseMatrix::new(n, n), &mut Vector::zeros(n))?;
+        let state = load(
+            &x,
+            &mut SparseMatrix::new(n, n),
+            &mut Vector::zeros(n),
+            phase,
+            None,
+        )?;
         Ok(Trial::Converged { x, state })
     }
 
-    /// C `CKTtrunc`: the smallest step bound over every charge-storage element,
-    /// from the trial point and the accepted history.
+    /// C `CKTtrunc`: the smallest step bound over every charge-storage element
+    /// and every discrete-state device ([`spice_devices::Device::timestep_limit`],
+    /// `swtrunc.c`), from the trial point and the accepted history.
     fn truncation_limit(
         &self,
         coefficients: &Coefficients,
@@ -806,6 +930,29 @@ impl Driver<'_> {
                     derivative,
                     &tolerances,
                 )?);
+            }
+            // Discrete-state bounds (`swtrunc.c`), from the same trial.
+            let rows = self
+                .circuit
+                .state_rows(index)
+                .ok_or_else(|| failure("missing state range"))?;
+            if !rows.is_empty() {
+                let bound = device.timestep_limit(&spice_devices::TruncationContext {
+                    trial: trial
+                        .slice(rows.clone())
+                        .ok_or_else(|| failure("trial state is too short"))?,
+                    accepted: self.history.accepted(1).and_then(|vector| vector.get(rows)),
+                    dt: coefficients.dt(),
+                })?;
+                if let Some(bound) = bound {
+                    if !bound.is_finite() {
+                        return Err(failure(format!(
+                            "{}: nonfinite timestep limit",
+                            device.name()
+                        )));
+                    }
+                    limit = limit.min(bound);
+                }
             }
         }
         Ok(limit)

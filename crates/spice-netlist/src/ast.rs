@@ -2,15 +2,16 @@
 //!
 //! The parser, device registry and analyses share these types. The parser
 //! constructs linear-device netlists, model cards, bounded D/Q/M flags/ICs and
-//! numeric PULSE/PWL syntax, scoped subcircuits and resolved sources. ngspice's parsing quirks
-//! are encoded at that boundary:
+//! numeric PULSE/PWL/SIN/EXP/SFFM/AM syntax, scoped subcircuits and resolved
+//! sources. ngspice's parsing quirks are encoded at that boundary:
 //!
 //! - Parameter values are kept as **text**, not numbers. ngspice evaluates them
 //!   with `INPevaluate()`/numparam and lets them depend on `.param` values and
 //!   on `temp`, so evaluation is a separate pass. Current parser values are
 //!   finite scalar literals, positioned waveform/IC/flag setters, and parsed
-//!   but unevaluated `{...}` expressions ([`crate::expr`]); quoted values,
-//!   waveform/IC-vector expressions and evaluation remain pending.
+//!   but unevaluated `{...}`/`'...'` expressions ([`crate::expr`]), evaluated
+//!   by [`crate::eval`]/[`crate::elaborate`]; waveform/IC-vector expressions
+//!   remain pending.
 //! - A device's connection nodes are not resolved to [`spice_core::NodeId`]s
 //!   here; that happens when the circuit is built, so that subcircuit
 //!   flattening can rewrite them.
@@ -57,12 +58,13 @@ pub enum ParameterKind {
     /// One finite numeric literal, retained in [`ParameterAssignment::value`].
     Scalar,
     /// Unevaluated single-token formal/X parameter text that is neither a
-    /// finite literal nor a parsed expression (for instance a quoted value or
-    /// an extended numeric spelling such as `4k7`).
+    /// finite literal nor a parsed expression (for instance a double-quoted
+    /// string or an extended numeric spelling such as `4k7`).
     Textual,
-    /// A `{...}` expression, or a bare parameter name at an `X`/`.subckt`
-    /// parameter site, parsed but **not evaluated**. [`ParameterAssignment::value`]
-    /// keeps the original token spelling (braces included); the box holds the
+    /// A `{...}` or single-quoted `'...'` expression, or a bare parameter name
+    /// at an `X`/`.subckt` parameter site, parsed but **not evaluated**.
+    /// [`ParameterAssignment::value`] keeps the original token spelling
+    /// (braces or quotes included); the box holds the
     /// syntax tree and spans. Scalar consumers must treat this like any other
     /// non-scalar kind until an evaluation pass resolves it.
     Expression(Box<crate::expr::ParameterExpression>),
@@ -73,6 +75,13 @@ pub enum ParameterKind {
     InitialConditions(Vec<InitialCondition>),
     /// A source waveform; analysis-dependent defaults are resolved by device elaboration.
     Waveform(SourceWaveform),
+    /// A reference to another device instance by name (C `IF_INSTANCE`), such
+    /// as the controlling voltage source of an F/H card (`control`, set by
+    /// `INP2F`/`INP2H` before `INPdevParse`). [`ParameterAssignment::value`]
+    /// holds the lowercased instance name as written; it is resolved to a
+    /// branch row only after elaboration, and subcircuit expansion renames it
+    /// like an instance name (`subckt.c`, `translate_inst_name`).
+    Instance,
 }
 
 /// One finite textual waveform/IC value and its byte-column position.
@@ -95,15 +104,71 @@ pub struct InitialCondition {
 
 /// Numeric source syntax from VSRCparam/ISRCparam. Runtime validation and
 /// analysis-dependent defaults belong to elaboration, not this AST.
+///
+/// PWL `td=`/`r=` are separate ordered scalar setters (`VSRC_TD`/`VSRC_R` in
+/// `vsrc.c`), not part of this value, exactly as C applies them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceWaveform {
-    /// Two required levels and up to five optional timing fields.
+    /// Two required levels and up to six optional fields.
     Pulse(Box<PulseWaveform>),
     /// Strictly paired time/value arguments. No sorting or time repair occurs.
     Pwl(Vec<PwlPoint>),
+    /// SIN/EXP/SFFM/AM: two required fields and a bounded optional prefix.
+    Function(Box<FunctionWaveform>),
 }
 
-/// `PULSE(V1 V2 [TD [TR [TF [PW [PER]]]]])`; omissions stay explicit.
+/// The analytic transient functions of `vsrcload.c`/`isrcload.c` that share
+/// one "required pair plus optional prefix" vector shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceFunction {
+    /// `SIN(VO VA [FREQ [TD [THETA [PHASE]]]])` (keyword `sin` or `sine`).
+    Sin,
+    /// `EXP(V1 V2 [TD1 [TAU1 [TD2 [TAU2]]]])`.
+    Exp,
+    /// `SFFM(VO VA [FC [MDI [FM [TD [PHASEM [PHASEC]]]]]])`.
+    Sffm,
+    /// `AM(VO VMO [VMA [FM [FC [TD [PHASEM [PHASEC]]]]]])`, in the
+    /// coefficient order `vsrcload.c` reads (`case AM`).
+    Am,
+}
+
+impl SourceFunction {
+    /// Field names in C coefficient order; the length is the maximum the
+    /// runtime reads (extra fields are a parse error, not silently dropped).
+    #[must_use]
+    pub const fn fields(self) -> &'static [&'static str] {
+        match self {
+            Self::Sin => &["vo", "va", "freq", "td", "theta", "phase"],
+            Self::Exp => &["v1", "v2", "td1", "tau1", "td2", "tau2"],
+            Self::Sffm => &["vo", "va", "fc", "mdi", "fm", "td", "phasem", "phasec"],
+            Self::Am => &["vo", "vmo", "vma", "fm", "fc", "td", "phasem", "phasec"],
+        }
+    }
+
+    /// Canonical keyword (`sine` is an accepted alias of `sin`).
+    #[must_use]
+    pub const fn keyword(self) -> &'static str {
+        match self {
+            Self::Sin => "sin",
+            Self::Exp => "exp",
+            Self::Sffm => "sffm",
+            Self::Am => "am",
+        }
+    }
+}
+
+/// One SIN/EXP/SFFM/AM setter: its function and the supplied fields in C
+/// coefficient order. Omitted trailing fields are simply absent; defaults that
+/// depend on `.tran` (`CKTstep`, `CKTfinalTime`) belong to elaboration.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionWaveform {
+    /// Which function.
+    pub function: SourceFunction,
+    /// Two to `function.fields().len()` positioned values.
+    pub values: Vec<PositionedValue>,
+}
+
+/// `PULSE(V1 V2 [TD [TR [TF [PW [PER [NP]]]]]])`; omissions stay explicit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PulseWaveform {
     /// Initial level (volts for V, amperes for I).
@@ -120,6 +185,9 @@ pub struct PulseWaveform {
     pub width: Option<PositionedValue>,
     /// Period in seconds.
     pub period: Option<PositionedValue>,
+    /// The eighth field (`PHASE` in `vsrcload.c`): in ngspice's default
+    /// compatibility mode a positive value is the number of pulses.
+    pub count: Option<PositionedValue>,
 }
 
 /// One PWL knot, retained in supplied order (syntax is not runtime validation).
@@ -189,6 +257,9 @@ pub struct Subcircuit {
     pub includes: Vec<IncludeDirective>,
     /// `.param` cards written in this body, unevaluated.
     pub params: Vec<ParamCard>,
+    /// `.func` definitions local to this body (visible to the body and to
+    /// nested definitions, not outside).
+    pub functions: Vec<FuncCard>,
     /// Ordered body cards, including the closing `.ends`.
     pub cards: Vec<ScopedCard>,
     /// Where the closing `.ends` was written.
@@ -249,6 +320,49 @@ pub struct ParamAssignment {
     pub expression: crate::expr::ParameterExpression,
 }
 
+/// A `.func name(p1, p2, ...) body` card: a user-defined numparam function.
+///
+/// C: `src/frontend/inpcom.c` (`inp_get_func_from_line()`,
+/// `inp_expand_macro_in_str()`). Nothing here is evaluated; the definitions
+/// of a scope are collected by [`crate::eval::FunctionScope`], which checks
+/// recursion and arity, and calls are resolved during evaluation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FuncCard {
+    /// Function name, lowercased (numparam names are case-insensitive).
+    pub name: String,
+    /// Byte span of the name as written.
+    pub name_span: crate::expr::SourceSpan,
+    /// Formal parameters in order; may be empty (`.func f() {1}`). Names are
+    /// distinct, lowercased and never a built-in function name.
+    pub parameters: Vec<FuncParameter>,
+    /// The unevaluated body (`{...}`, `'...'` or the bare rest of the card).
+    pub body: crate::expr::ParameterExpression,
+    /// Which card spelled the definition (kept for the writer only).
+    pub spelling: FuncSpelling,
+    /// Where the card was written.
+    pub location: SourceLoc,
+}
+
+/// How a [`FuncCard`] was written. Both spellings define the same function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FuncSpelling {
+    /// `.func name(p1, p2) body`.
+    #[default]
+    Func,
+    /// `.param name(p1, p2) = body`, which C rewrites to `.func`
+    /// unconditionally (`inpcom.c` `inp_fix_macro_param_func_paren_io()`).
+    Param,
+}
+
+/// One formal parameter of a [`FuncCard`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct FuncParameter {
+    /// Lowercased name.
+    pub name: String,
+    /// Byte span of the name as written.
+    pub span: crate::expr::SourceSpan,
+}
+
 /// An analysis request: which analysis, and its unparsed arguments.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnalysisCard {
@@ -298,9 +412,14 @@ pub struct OptionCard {
 pub struct OptionSetting {
     /// Option name, ASCII-lowercased (ngspice lowercases deck text).
     pub name: String,
-    /// The value as written (numeric spelling or a bare word such as `gear`);
-    /// `None` for a bare flag. Never evaluated or range-checked here.
+    /// The value as written (numeric spelling, a bare word such as `gear`, or
+    /// the full `{expr}` / `'expr'` text); `None` for a bare flag. Never
+    /// evaluated or range-checked here.
     pub value: Option<PositionedValue>,
+    /// The parsed, unevaluated expression when the value was written as
+    /// `{expr}` or `'expr'` (C: numparam substitutes both on `.option` lines);
+    /// the run-configuration consumer evaluates it against top-level `.param`.
+    pub expression: Option<Box<crate::expr::ParameterExpression>>,
     /// Where the option name was written.
     pub location: SourceLoc,
 }
@@ -814,6 +933,9 @@ pub enum ScopedCardKind {
     /// Index into this scope's `.param` cards (`Netlist::params` at the root,
     /// `Subcircuit::params` in a body).
     Param(usize),
+    /// Index into this scope's `.func` cards (`Netlist::functions` at the
+    /// root, `Subcircuit::functions` in a body).
+    Func(usize),
     /// Index into [`Netlist::initial_conditions`] (root scope only).
     InitialCondition(usize),
     /// Index into [`Netlist::nodesets`] (root scope only).
@@ -862,6 +984,8 @@ pub struct Netlist {
     pub includes: Vec<IncludeDirective>,
     /// Top-level `.param` cards in deck order, unevaluated.
     pub params: Vec<ParamCard>,
+    /// Top-level `.func` definitions in deck order, unevaluated.
+    pub functions: Vec<FuncCard>,
     /// `.option` cards in deck order (root scope only; inside `.subckt` bodies
     /// they are rejected as not yet ported).
     pub options: Vec<OptionCard>,

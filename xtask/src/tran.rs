@@ -346,12 +346,20 @@ fn number(value: &PositionedValue, what: &str, device: &str) -> Result<f64, Stri
 
 /// Source breakpoints in `(0, tstop)` from the deck AST, sorted and deduplicated.
 ///
-/// PWL: every knot time (a repeated time is one breakpoint with a jump).
-/// PULSE (C `VSRCaccept`, `vsrcacct.c`): `TD + n*PER + {0, TR, TR+PW, TR+PW+TF}`,
-/// with C's defaults: `TR`/`TF` <= 0 or omitted -> `tstep`; `PW` omitted ->
-/// `tstop`, except exactly five values given -> 0; `PER` <= 0 or omitted ->
-/// `tstop`. Only top-level V/I sources are inspected; a deck with subcircuit
-/// definitions is rejected because waveforms inside them are not enumerated.
+/// Only each source's last waveform setter counts (C applies setters in order).
+///
+/// * PWL (C `VSRCaccept`, `vsrcacct.c`): every knot time shifted by `td=`; with
+///   `r=` the knots after the repeat point recur every `t_last - r`.
+/// * PULSE: `TD + n*PER + {0, TR, TR+PW, TR+PW+TF}`, with C's defaults: `TR`/`TF`
+///   <= 0 or omitted -> `tstep`; `PW` omitted -> `tstop`, except exactly five
+///   values given -> 0; `PER` <= 0 or omitted -> `tstop`. A positive eighth
+///   field `NP` keeps only corners at or before `TD + NP*PER` (C sets none
+///   after it; its one extra request just past that time is not a corner).
+/// * SIN/EXP/SFFM/AM: none (C sets no breakpoints for them); fields are still
+///   checked to be numbers.
+///
+/// Only top-level V/I sources are inspected; a deck with subcircuit definitions
+/// is rejected because waveforms inside them are not enumerated.
 /// Expression-valued or non-numeric waveform fields are errors.
 pub(crate) fn breakpoints(netlist: &Netlist, tstep: f64, tstop: f64) -> Result<Vec<f64>, String> {
     if !(tstep.is_finite() && tstep > 0.0 && tstop.is_finite() && tstop > 0.0) {
@@ -366,16 +374,33 @@ pub(crate) fn breakpoints(netlist: &Netlist, tstep: f64, tstop: f64) -> Result<V
         if !matches!(device.designator, 'v' | 'i') {
             continue;
         }
-        for parameter in &device.parameters {
-            if let ParameterKind::Waveform(waveform) = &parameter.kind {
-                collect(device, waveform, tstep, tstop, &mut times)?;
-            }
+        let waveform = device.parameters.iter().rev().find_map(|p| match &p.kind {
+            ParameterKind::Waveform(waveform) => Some(waveform),
+            _ => None,
+        });
+        if let Some(waveform) = waveform {
+            collect(device, waveform, tstep, tstop, &mut times)?;
         }
     }
     times.retain(|&t| t > eps && t < tstop - eps);
     times.sort_by(f64::total_cmp);
     times.dedup_by(|b, a| (*b - *a).abs() <= eps);
     Ok(times)
+}
+
+/// The last scalar `name=` setter of `device`, if any.
+fn scalar(device: &DeviceInstance, name: &str) -> Result<Option<f64>, String> {
+    device
+        .parameters
+        .iter()
+        .rev()
+        .find(|p| p.name == name)
+        .map(|p| {
+            parse_spice_number(&p.value)
+                .filter(|v| v.is_finite())
+                .ok_or_else(|| format!("{}: {name}= '{}' is not a number", device.name, p.value))
+        })
+        .transpose()
 }
 
 fn collect(
@@ -388,8 +413,31 @@ fn collect(
     let name = device.name.as_str();
     match waveform {
         SourceWaveform::Pwl(points) => {
-            for point in points {
-                out.push(number(&point.time, "PWL time", name)?);
+            let delay = scalar(device, "td")?.unwrap_or(0.0);
+            let knots = points
+                .iter()
+                .map(|point| number(&point.time, "PWL time", name))
+                .collect::<Result<Vec<_>, _>>()?;
+            out.extend(knots.iter().map(|t| delay + t));
+            if let Some(r) = scalar(device, "r")?.filter(|&r| r >= -0.5) {
+                let start = knots
+                    .iter()
+                    .position(|&t| t == r)
+                    .ok_or_else(|| format!("{name}: r={r} matches no PWL time"))?;
+                let last = knots[knots.len() - 1];
+                let period = last - r;
+                if period <= 0.0 || (tstop - delay - last) / period > MAX_POINTS as f64 / 4.0 {
+                    return Err(format!(
+                        "{name}: repeated PWL would create too many breakpoints"
+                    ));
+                }
+                let mut cycle = 1.0;
+                while delay + last + (cycle - 1.0) * period < tstop {
+                    for &t in &knots[start + 1..] {
+                        out.push(delay + t + cycle * period);
+                    }
+                    cycle += 1.0;
+                }
             }
         }
         SourceWaveform::Pulse(pulse) => {
@@ -421,18 +469,29 @@ fn collect(
             let period = get(&pulse.period, "PULSE period")?
                 .filter(|&v| v > 0.0)
                 .unwrap_or(tstop);
+            let stop = get(&pulse.count, "PULSE count")?
+                .filter(|&v| v > 0.0)
+                .map(|count| count * period);
             // Validate level spellings too: an unparseable level is an error.
             number(&pulse.initial, "PULSE v1", name)?;
             number(&pulse.pulsed, "PULSE v2", name)?;
             if (tstop - delay) / period > MAX_POINTS as f64 / 4.0 {
                 return Err(format!("{name}: PULSE would create too many breakpoints"));
             }
-            let mut start = delay;
-            while start < tstop {
+            let mut cycle = 0.0;
+            while delay + cycle * period < tstop {
                 for corner in [0.0, rise, rise + width, rise + width + fall] {
-                    out.push(start + corner);
+                    let local = cycle * period + corner;
+                    if stop.is_none_or(|stop| local <= stop) {
+                        out.push(delay + local);
+                    }
                 }
-                start += period;
+                cycle += 1.0;
+            }
+        }
+        SourceWaveform::Function(function) => {
+            for (value, field) in function.values.iter().zip(function.function.fields()) {
+                number(value, field, name)?;
             }
         }
     }
@@ -772,6 +831,41 @@ mod tests {
         assert_eq!(breakpoints(&netlist, 0.5, 4.0).unwrap(), vec![0.5, 1.0]);
         let netlist = deck("i1 in 0 pulse(0 1)");
         assert_eq!(breakpoints(&netlist, 0.5, 4.0).unwrap(), vec![0.5]);
+    }
+
+    #[test]
+    fn m6_source_breakpoints_follow_c_vsrcaccept() {
+        // PULSE count: corners at or before td + np*per only.
+        let netlist = deck("v1 in 0 pulse(0 5 1 1 2 3 10 2)");
+        assert_eq!(
+            breakpoints(&netlist, 0.1, 40.0).unwrap(),
+            vec![1.0, 2.0, 5.0, 7.0, 11.0, 12.0, 15.0, 17.0, 21.0]
+        );
+        // PWL td=/r=: delayed knots, then the knots after r recur.
+        let netlist = deck("v1 in 0 pwl(0 0 1 1 2 0) r=1 td=0.5");
+        assert_eq!(
+            breakpoints(&netlist, 0.1, 5.0).unwrap(),
+            vec![0.5, 1.5, 2.5, 3.5, 4.5]
+        );
+        let netlist = deck("v1 in 0 pwl(0 0 1 1 2 0) r=-1 td=0.5");
+        assert_eq!(
+            breakpoints(&netlist, 0.1, 5.0).unwrap(),
+            vec![0.5, 1.5, 2.5]
+        );
+        assert!(breakpoints(&deck("v1 in 0 pwl(0 0 1 1) r=0.5"), 0.1, 5.0).is_err());
+        // C sets no breakpoints for SIN/EXP/SFFM/AM; only the last setter counts.
+        for card in [
+            "v1 in 0 sin(0 1 1 0.5)",
+            "v1 in 0 exp(0 1 1 1 2 1)",
+            "i1 in 0 sffm(0 1 1 1 1 0.5)",
+            "v1 in 0 am(0 1 1 1 1 0.5)",
+            "v1 in 0 pwl(0 0 1 1) sin(0 1)",
+        ] {
+            assert!(
+                breakpoints(&deck(card), 0.1, 5.0).unwrap().is_empty(),
+                "{card}"
+            );
+        }
     }
 
     #[test]

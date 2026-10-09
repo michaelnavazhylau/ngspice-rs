@@ -1,0 +1,24 @@
+Switches in an AC sweep
+* C's ACan reloads with MODEINITSMSIG, which copies the zero CKTstate1 into
+* CKTstate0, so every switch uses its off conductance in the AC sweep even
+* where the operating point closed it (S1 off in its band, S2 on in its band,
+* S3 and W1 really on at the operating point).
+vc ctrl 0 dc 2 ac 1
+vdd vdd 0 dc 1 ac 1
+r1 vdd a 1k
+s1 a 0 ctrl 0 sm off
+c1 a 0 1u
+r2 vdd b 1k
+s2 b 0 ctrl 0 sn on
+r3 vdd f 1k
+s3 f 0 ctrl 0 sm
+rc ctrl x 1k
+vs x 0 dc 0
+r4 vdd e 1k
+w1 e 0 vs wm
+c4 e 0 1u
+.model sm sw(vt=1 vh=0.2 ron=10 roff=1meg)
+.model sn sw(vt=2.5 vh=1 ron=20 roff=2meg)
+.model wm csw(it=1m ih=0.5m ron=30)
+.ac dec 2 10 1k
+.end

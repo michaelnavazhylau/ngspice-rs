@@ -64,6 +64,7 @@ fn evaluate(expr: &Expr, names: &BTreeMap<&str, f64>) -> f64 {
                 other => panic!("probe evaluator lacks {}", other.name()),
             }
         }
+        ExprKind::UserCall { name, .. } => panic!("probe evaluator lacks .func call {name}"),
     }
 }
 

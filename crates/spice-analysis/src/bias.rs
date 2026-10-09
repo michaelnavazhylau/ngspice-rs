@@ -6,7 +6,7 @@
 //! stage on success *and* failure. [`solve_dc`] is the compatible default
 //! wrapper. See `docs/port/DC_CONTINUATION.md` for the contract and for the
 //! deliberate differences from ngspice's dynamic gmin/source stepping.
-use crate::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution};
+use crate::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution, PhasePolicy};
 use spice_core::{Real, SpiceError, SpiceResult};
 use spice_devices::{AnalysisMode, Circuit, LoadRequest, ModelContext, StateHistory, TrialState};
 use spice_maths::{SparseMatrix, Vector};
@@ -125,9 +125,18 @@ pub struct ContinuationPolicy {
     /// Source schedule, or `None` to disable source stepping.
     pub source_stepping: Option<SourceStepping>,
     /// Total Newton iterations over *all* stages of one solve. `None` selects
-    /// `stages * NewtonOptions::max_iterations`, i.e. no tighter than the
-    /// per-stage limit already implies; `Some(n)` caps the work at `n`.
+    /// `NewtonOptions::max_iterations` for the direct solve plus the stage
+    /// limit for every continuation stage, i.e. no tighter than the per-stage
+    /// limits already imply; `Some(n)` caps the work at `n`.
     pub max_total_iterations: Option<usize>,
+    /// Newton iteration limit of every gmin/source-stepping stage, including
+    /// source stepping's final full-source solve (C: `NIiter(ckt,
+    /// CKTdcTrcvMaxIter)`, deck `itl2`). Gmin stepping's closing zero-gmin
+    /// solve is not a stage: like the direct solve it uses
+    /// `NewtonOptions::max_iterations` (C: `dynamic_gmin`, `spice3_gmin` and
+    /// `new_gmin` end with `NIiter(ckt, iterlim)`, i.e. `CKTdcMaxIter`, deck
+    /// `itl1`). `None` keeps `NewtonOptions::max_iterations` for the stages too.
+    pub stage_max_iterations: Option<usize>,
 }
 
 impl Default for ContinuationPolicy {
@@ -141,6 +150,7 @@ impl Default for ContinuationPolicy {
                 gmin: DEFAULT_SOURCE_GMIN,
             }),
             max_total_iterations: None,
+            stage_max_iterations: None,
         }
     }
 }
@@ -153,6 +163,7 @@ impl ContinuationPolicy {
             gmin_schedule: Vec::new(),
             source_stepping: None,
             max_total_iterations: None,
+            stage_max_iterations: None,
         }
     }
 
@@ -232,6 +243,14 @@ impl ContinuationPolicy {
                 "total iteration budget must be in 1..={MAX_TOTAL_ITERATIONS}, not {total}"
             )));
         }
+        if let Some(limit) = self.stage_max_iterations
+            && !(1..=newton::MAX_ITERATIONS).contains(&limit)
+        {
+            return Err(invalid(format!(
+                "continuation stage iteration limit must be in 1..={}, not {limit}",
+                newton::MAX_ITERATIONS
+            )));
+        }
         Ok(())
     }
 }
@@ -300,6 +319,7 @@ impl DcSettings {
     pub fn from_request(request: &crate::AnalysisRequest) -> SpiceResult<Self> {
         let mut forwarded = Vec::new();
         let (mut source, mut gmin_steps, mut gmin_factor) = (None, None, None);
+        let mut stage_limit = None;
         let mut seen = std::collections::BTreeSet::new();
         for argument in &request.arguments {
             let Some((key, text)) = argument.split_once('=') else {
@@ -320,28 +340,32 @@ impl DcSettings {
                 gmin_factor = Some(value);
                 continue;
             }
-            let limit = if key == "srcsteps" {
-                MAX_SOURCE_STEPS
-            } else {
-                MAX_GMIN_STAGES
+            let (lowest, limit) = match key.as_str() {
+                "srcsteps" => (0, MAX_SOURCE_STEPS),
+                newton::STAGE_ITERATIONS_KEY => (1, newton::MAX_ITERATIONS),
+                _ => (0, MAX_GMIN_STAGES),
             };
-            if value.fract() != 0. || !(0. ..=limit as Real).contains(&value) {
+            if value.fract() != 0. || !(lowest as Real..=limit as Real).contains(&value) {
                 return Err(invalid(format!(
-                    "option {key} must be an integer in 0..={limit}, not {text}"
+                    "option {key} must be an integer in {lowest}..={limit}, not {text}"
                 )));
             }
-            if key == "srcsteps" {
+            if key == newton::STAGE_ITERATIONS_KEY {
+                stage_limit = Some(value as usize);
+            } else if key == "srcsteps" {
                 source = Some(value as usize);
             } else {
                 gmin_steps = Some(value as usize);
             }
         }
+        let mut continuation = ContinuationPolicy::from_steps(source, gmin_steps, gmin_factor)?;
+        continuation.stage_max_iterations = stage_limit;
         Ok(Self {
             newton: NewtonOptions::from_request(&crate::AnalysisRequest::with_arguments(
                 request.kind,
                 forwarded,
             ))?,
-            continuation: ContinuationPolicy::from_steps(source, gmin_steps, gmin_factor)?,
+            continuation,
         })
     }
 }
@@ -567,16 +591,72 @@ pub fn solve_dc_with(
     initial: Option<&Vector>,
     forcing: Option<&Vector>,
 ) -> Result<DcSolution, DcFailure> {
-    let mut report = DcReport::default();
-    match run(
+    solve(
         circuit,
         context,
         settings,
         overrides,
-        initial,
-        forcing,
-        &mut report,
-    ) {
+        Start {
+            initial,
+            forcing,
+            history: &circuit.state_history(),
+            policy: PhasePolicy::OperatingPoint,
+        },
+    )
+}
+
+/// [`solve_dc_with`] continuing an accepted state `history` (C `CKTstate1..`),
+/// starting the direct Newton attempt in `policy`'s phase: a DC sweep point
+/// after the first runs [`PhasePolicy::Predicted`] (`dctrcurv.c` sets
+/// `MODEINITPRED`). Gmin/source-stepping strategies always restart in
+/// [`PhasePolicy::OperatingPoint`] against the same history (`CKTop` with
+/// `MODEINITJCT`; the rotated states are not cleared).
+/// Only devices with discrete state (switches) read the history; nothing is
+/// committed to it.
+///
+/// # Errors
+/// As [`solve_dc_with`], or a history that does not match the circuit.
+pub fn solve_dc_from(
+    circuit: &Circuit,
+    context: &ModelContext,
+    settings: &DcSettings,
+    overrides: &[(&str, f64)],
+    initial: Option<&Vector>,
+    history: &StateHistory,
+    policy: PhasePolicy,
+) -> Result<DcSolution, DcFailure> {
+    solve(
+        circuit,
+        context,
+        settings,
+        overrides,
+        Start {
+            initial,
+            forcing: None,
+            history,
+            policy,
+        },
+    )
+}
+
+/// Where a DC solve starts: seed, transient-bias forcing, accepted history and
+/// the direct attempt's Newton phase policy.
+struct Start<'a> {
+    initial: Option<&'a Vector>,
+    forcing: Option<&'a Vector>,
+    history: &'a StateHistory,
+    policy: PhasePolicy,
+}
+
+fn solve(
+    circuit: &Circuit,
+    context: &ModelContext,
+    settings: &DcSettings,
+    overrides: &[(&str, f64)],
+    start: Start<'_>,
+) -> Result<DcSolution, DcFailure> {
+    let mut report = DcReport::default();
+    match run(circuit, context, settings, overrides, start, &mut report) {
         Ok(solution) => Ok(DcSolution { solution, report }),
         Err(error) => Err(DcFailure {
             error,
@@ -598,11 +678,14 @@ enum Halt {
 struct Engine<'a> {
     circuit: &'a Circuit,
     context: &'a ModelContext,
-    history: StateHistory,
+    history: &'a StateHistory,
+    policy: PhasePolicy,
     branches: Vec<bool>,
     target: Vector,
     original: Vector,
     newton: NewtonOptions,
+    /// Per-stage limit of the gmin/source-stepping strategies.
+    stage_limit: usize,
     remaining: usize,
 }
 
@@ -610,12 +693,16 @@ type Stages<'a> = &'a [(Real, Real)];
 
 impl Engine<'_> {
     /// One disposable Newton solve at `(scale, gmin)`; charges the budget.
+    /// `continued` is the preceding stage's converged trial, if any; `closing`
+    /// marks a strategy's final full-source zero-gmin solve.
     fn stage(
         &mut self,
         report: &mut DcReport,
         strategy: DcStrategy,
         guess: &Vector,
+        continued: Option<TrialState>,
         (scale, gmin): (Real, Real),
+        closing: bool,
     ) -> Result<NewtonSolution<TrialState>, Halt> {
         if self.remaining == 0 {
             return Err(Halt::Budget(format!(
@@ -624,39 +711,62 @@ impl Engine<'_> {
             )));
         }
         let n = self.circuit.unknown_count();
+        // C bounds the direct solve and gmin stepping's closing solve by
+        // `iterlim` (itl1) and every other continuation solve by itl2
+        // (`cktop.c`: `spice3_gmin`/`dynamic_gmin`/`new_gmin` end with
+        // `NIiter(ckt, iterlim)`; `gillespie_src`/`spice3_src` ignore it).
+        let limit = match strategy {
+            DcStrategy::Direct => self.newton.max_iterations,
+            DcStrategy::GminStepping if closing => self.newton.max_iterations,
+            DcStrategy::GminStepping | DcStrategy::SourceStepping => self.stage_limit,
+        };
         let options = NewtonOptions {
-            max_iterations: self.newton.max_iterations.min(self.remaining),
+            max_iterations: limit.min(self.remaining),
             ..self.newton
         };
-        let reduced = options.max_iterations < self.newton.max_iterations;
-        let result = newton::solve_counted(guess, &self.branches, &options, |x| {
-            let mut a = SparseMatrix::new(n, n);
-            let mut b = Vector::zeros(n);
-            let mut trial = self.history.trial();
-            self.circuit.load(
-                &LoadRequest {
-                    mode: AnalysisMode::OperatingPoint,
-                    solution: x,
-                    model_context: self.context,
-                    integration: None,
-                    history: &self.history,
-                    forcing: None,
-                },
-                &mut a,
-                &mut b,
-                &mut trial,
-            )?;
-            for (row, branch) in self.branches.iter().enumerate() {
-                b.add_to(
-                    row,
-                    scale * self.target.as_slice()[row] - self.original.as_slice()[row],
+        let reduced = options.max_iterations < limit;
+        let history = self.history;
+        let result = newton::solve_phased(
+            guess,
+            &self.branches,
+            &options,
+            // Continuation strategies restart like `CKTop` (MODEINITJCT); only
+            // the direct attempt may continue a predicted point.
+            if strategy == DcStrategy::Direct {
+                self.policy
+            } else {
+                PhasePolicy::OperatingPoint
+            },
+            continued,
+            |x, phase, previous| {
+                let mut a = SparseMatrix::new(n, n);
+                let mut b = Vector::zeros(n);
+                let mut trial = history.trial_in(phase, previous)?;
+                self.circuit.load(
+                    &LoadRequest {
+                        mode: AnalysisMode::OperatingPoint,
+                        solution: x,
+                        model_context: self.context,
+                        integration: None,
+                        history,
+                        forcing: None,
+                    },
+                    &mut a,
+                    &mut b,
+                    &mut trial,
                 )?;
-                if !branch && gmin > 0. {
-                    a.add(row, row, gmin)?;
+                for (row, branch) in self.branches.iter().enumerate() {
+                    b.add_to(
+                        row,
+                        scale * self.target.as_slice()[row] - self.original.as_slice()[row],
+                    )?;
+                    if !branch && gmin > 0. {
+                        a.add(row, row, gmin)?;
+                    }
                 }
-            }
-            Ok((a, b, trial))
-        });
+                Ok((a, b, trial))
+            },
+        );
         let (iterations, error) = match &result {
             Ok(solved) => (solved.iterations, None),
             Err(NewtonFailure { error, iterations }) => (*iterations, Some(error)),
@@ -699,10 +809,13 @@ impl Engine<'_> {
         stages: Stages<'_>,
     ) -> Result<NewtonSolution<TrialState>, Halt> {
         let mut guess = start.clone();
+        let mut continued = None;
         for &point in stages {
-            guess = self.stage(report, strategy, &guess, point)?.values;
+            let solved = self.stage(report, strategy, &guess, continued, point, false)?;
+            guess = solved.values;
+            continued = Some(solved.trial);
         }
-        self.stage(report, strategy, &guess, (1., 0.))
+        self.stage(report, strategy, &guess, continued, (1., 0.), true)
     }
 
     /// [`Self::walk`] plus its entry in the report's attempt list.
@@ -735,11 +848,21 @@ fn run(
     context: &ModelContext,
     settings: &DcSettings,
     overrides: &[(&str, f64)],
-    initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    start: Start<'_>,
     report: &mut DcReport,
 ) -> SpiceResult<NewtonSolution<TrialState>> {
+    let Start {
+        initial,
+        forcing,
+        history,
+        policy: phases,
+    } = start;
     settings.validate()?;
+    if history.len() != circuit.state_len() {
+        return Err(SpiceError::circuit(
+            "DC state history does not match the circuit numbering",
+        ));
+    }
     let options = &settings.newton;
     let policy = &settings.continuation;
     let n = circuit.unknown_count();
@@ -776,7 +899,6 @@ fn run(
             target.add_to(*row, sign * (value - source.dc))?;
         }
     }
-    let history = circuit.state_history();
     // Preserve exact linear solving (no nonlinear damping or continuation).
     if !circuit.devices().iter().any(|device| device.is_nonlinear()) {
         let result = (|| {
@@ -788,7 +910,7 @@ fn run(
                     solution: &values,
                     model_context: context,
                     integration: None,
-                    history: &history,
+                    history,
                     forcing: None,
                 },
                 &mut SparseMatrix::new(n, n),
@@ -836,28 +958,34 @@ fn run(
         .unwrap_or_default();
     let gmin_enabled = !gmin_stages.is_empty();
     let source_enabled = policy.source_stepping.is_some();
-    let stage_count =
-        1 + if gmin_enabled {
-            gmin_stages.len() + 1
-        } else {
-            0
-        } + if source_enabled {
+    // Stage-limited solves; gmin stepping's closing solve is charged at the
+    // direct limit instead (see `Engine::stage`).
+    let stage_count = if gmin_enabled { gmin_stages.len() } else { 0 }
+        + if source_enabled {
             source_stages.len() + 1
         } else {
             0
         };
-    let budget = policy
-        .max_total_iterations
-        .unwrap_or_else(|| stage_count.saturating_mul(options.max_iterations));
+    let direct_count = 1 + usize::from(gmin_enabled);
+    let stage_limit = policy
+        .stage_max_iterations
+        .unwrap_or(options.max_iterations);
+    let budget = policy.max_total_iterations.unwrap_or_else(|| {
+        direct_count
+            .saturating_mul(options.max_iterations)
+            .saturating_add(stage_count.saturating_mul(stage_limit))
+    });
     report.budget = budget;
     let mut engine = Engine {
         circuit,
         context,
         history,
+        policy: phases,
         branches: branch_rows(circuit),
         target,
         original,
         newton: *options,
+        stage_limit,
         remaining: budget,
     };
     let no_stages: Stages<'_> = &[];

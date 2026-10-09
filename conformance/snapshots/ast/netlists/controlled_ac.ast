@@ -1,0 +1,99 @@
+# ngspice-rs ast-dump v1
+file: netlists/controlled_ac.cir
+title: "Linear controlled sources AC sweep" @netlists/controlled_ac.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/controlled_ac.cir:4:1 "vin in 0 dc 0 ac 1"
+    [1] device[1] @netlists/controlled_ac.cir:5:1 "r1 in inv 1k"
+    [2] device[2] @netlists/controlled_ac.cir:6:1 "c1 inv out 1u"
+    [3] device[3] @netlists/controlled_ac.cir:7:1 "e1 out 0 0 inv 1e4"
+    [4] device[4] @netlists/controlled_ac.cir:8:1 "g1 0 o2 out 0 1m"
+    [5] device[5] @netlists/controlled_ac.cir:9:1 "c2 o2 0 1u"
+    [6] device[6] @netlists/controlled_ac.cir:10:1 "r2 o2 0 1k"
+    [7] device[7] @netlists/controlled_ac.cir:11:1 "vs o2 o3 0"
+    [8] device[8] @netlists/controlled_ac.cir:12:1 "r3 o3 0 1k"
+    [9] device[9] @netlists/controlled_ac.cir:13:1 "f1 0 o4 vs 2"
+    [10] device[10] @netlists/controlled_ac.cir:14:1 "r4 o4 0 1k"
+    [11] device[11] @netlists/controlled_ac.cir:15:1 "h1 o5 0 vs 100"
+    [12] device[12] @netlists/controlled_ac.cir:16:1 "r5 o5 0 1k"
+    [13] analysis[0] @netlists/controlled_ac.cir:17:1 ".ac lin 20 100 2k"
+    [14] end @netlists/controlled_ac.cir:18:1 ".end"
+  devices (13):
+    device [0] name="vin" designator=v @netlists/controlled_ac.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/controlled_ac.cir:4:10
+        [1] name="acmag" kind=scalar value="1" @netlists/controlled_ac.cir:4:18
+        [2] name="acphase" kind=scalar value="0" @netlists/controlled_ac.cir:4:15
+    device [1] name="r1" designator=r @netlists/controlled_ac.cir:5:1
+      nodes: "in" "inv"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/controlled_ac.cir:5:11
+    device [2] name="c1" designator=c @netlists/controlled_ac.cir:6:1
+      nodes: "inv" "out"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/controlled_ac.cir:6:12
+    device [3] name="e1" designator=e @netlists/controlled_ac.cir:7:1
+      nodes: "out" "0" "0" "inv"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="1e4" @netlists/controlled_ac.cir:7:16
+    device [4] name="g1" designator=g @netlists/controlled_ac.cir:8:1
+      nodes: "0" "o2" "out" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="1m" @netlists/controlled_ac.cir:8:15
+    device [5] name="c2" designator=c @netlists/controlled_ac.cir:9:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/controlled_ac.cir:9:9
+    device [6] name="r2" designator=r @netlists/controlled_ac.cir:10:1
+      nodes: "o2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/controlled_ac.cir:10:9
+    device [7] name="vs" designator=v @netlists/controlled_ac.cir:11:1
+      nodes: "o2" "o3"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/controlled_ac.cir:11:10
+    device [8] name="r3" designator=r @netlists/controlled_ac.cir:12:1
+      nodes: "o3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/controlled_ac.cir:12:9
+    device [9] name="f1" designator=f @netlists/controlled_ac.cir:13:1
+      nodes: "0" "o4"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vs" @netlists/controlled_ac.cir:13:9
+        [1] name="gain" kind=scalar value="2" @netlists/controlled_ac.cir:13:12
+    device [10] name="r4" designator=r @netlists/controlled_ac.cir:14:1
+      nodes: "o4" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/controlled_ac.cir:14:9
+    device [11] name="h1" designator=h @netlists/controlled_ac.cir:15:1
+      nodes: "o5" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vs" @netlists/controlled_ac.cir:15:9
+        [1] name="gain" kind=scalar value="100" @netlists/controlled_ac.cir:15:12
+    device [12] name="r5" designator=r @netlists/controlled_ac.cir:16:1
+      nodes: "o5" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/controlled_ac.cir:16:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/controlled_ac.cir:17:1
+      arguments: "lin" "20" "100" "2k"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

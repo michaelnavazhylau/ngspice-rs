@@ -23,7 +23,7 @@ use crate::expr::{
     BinaryOp, EXCLUDED_FUNCTIONS, Expr, ExprKind, Function, MAX_NESTING, ParameterExpression,
     SourceSpan, UnaryOp,
 };
-use crate::token::Token;
+use crate::token::{Token, TokenKind};
 
 pub(super) const C_REFERENCE: &str = "src/frontend/numparam/xpressn.c";
 
@@ -36,6 +36,9 @@ pub(super) struct Ctx<'a> {
     /// Byte length of the parsed text.
     pub total: usize,
     pub depth: usize,
+    /// `.func` formals named like a built-in function: a bare use binds to
+    /// the formal, a call is an error (as in C's numparam). Empty elsewhere.
+    pub shadowing: &'a [String],
 }
 
 impl Ctx<'_> {
@@ -120,6 +123,7 @@ pub(super) fn into_error(
         column,
         total,
         depth: 0,
+        shadowing: &[],
     }
     .location(fail.remaining);
     if fail.unsupported {
@@ -157,7 +161,9 @@ fn describe(c: char) -> String {
             "operator '{c}' is outside the bounded subset (only + - * / ^ ** are parsed; \
              comparison, logical, ternary, '%' and '\\' operators are not)"
         ),
-        '\'' | '"' => "quoted expressions are outside the bounded subset".to_owned(),
+        '\'' | '"' => "quoted text inside an expression is outside the bounded subset \
+                        (single quotes may only delimit a whole value, like braces)"
+            .to_owned(),
         '{' => "nested '{' is not supported inside an expression".to_owned(),
         '}' => "unmatched '}'".to_owned(),
         ')' => "unmatched ')'".to_owned(),
@@ -405,6 +411,12 @@ fn close(input: &mut In<'_>, open: usize) -> Res<()> {
     }
 }
 
+/// Whether `name` (lower case) is a built-in numparam function name, allowlisted
+/// or excluded.
+pub(super) fn is_builtin_name(name: &str) -> bool {
+    Function::from_name(name).is_some() || EXCLUDED_FUNCTIONS.contains(&name)
+}
+
 fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
     let start = input.eof_offset();
     let name: &str = (one_of(is_ident_start), take_while(0.., is_ident_continue))
@@ -413,9 +425,25 @@ fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
     let after = input.eof_offset();
     let call = peek((ws, opt(literal("(")))).parse_next(input)?.1.is_some();
     let lowered = name.to_ascii_lowercase();
+    if input.state.shadowing.contains(&lowered) {
+        if call {
+            // C's numparam substitutes the formal into the call and the
+            // deck fails ("Formula() error"; checked against the C binary).
+            return Err(cut(
+                start,
+                format!(
+                    "'{name}' is a parameter of this function, so the built-in of that \
+                     name cannot be called in its body"
+                ),
+            ));
+        }
+        return Ok(Expr {
+            kind: ExprKind::Identifier(lowered),
+            span: span(input, start, after),
+        });
+    }
     if !call {
-        if Function::from_name(&lowered).is_some() || EXCLUDED_FUNCTIONS.contains(&lowered.as_str())
-        {
+        if is_builtin_name(&lowered) {
             return Err(cut(
                 start,
                 format!("function name '{name}' requires an argument list"),
@@ -427,12 +455,7 @@ fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
         });
     }
     let Some(function) = Function::from_name(&lowered) else {
-        let why = if EXCLUDED_FUNCTIONS.contains(&lowered.as_str()) {
-            "is a numparam function outside the bounded allowlist"
-        } else {
-            "is not in the bounded function allowlist"
-        };
-        return Err(cut_unsupported(start, format!("function '{name}' {why}")));
+        return user_call(input, start, lowered);
     };
     ws.parse_next(input)?;
     let open = input.eof_offset();
@@ -461,6 +484,27 @@ fn identifier_or_call(input: &mut In<'_>) -> Res<Expr> {
     })
 }
 
+/// `name(args)` for a name outside the allowlist: a user `.func` call
+/// (resolved during evaluation). Zero arguments are allowed (`f()`).
+fn user_call(input: &mut In<'_>, start: usize, name: String) -> Res<Expr> {
+    ws.parse_next(input)?;
+    let open = input.eof_offset();
+    literal("(").void().parse_next(input)?;
+    enter(input, open)?;
+    let empty = peek((ws, opt(literal(")")))).parse_next(input)?.1.is_some();
+    let arguments: Vec<Expr> = if empty {
+        Vec::new()
+    } else {
+        separated(1.., sum, (ws, literal(","))).parse_next(input)?
+    };
+    close(input, open)?;
+    leave(input);
+    Ok(Expr {
+        kind: ExprKind::UserCall { name, arguments },
+        span: span(input, start, input.eof_offset()),
+    })
+}
+
 /// Parses `text` (the content of a `{...}` expression, or an unbraced `.param`
 /// value / bare name) whose first byte is at `column` on `origin`'s line.
 ///
@@ -475,6 +519,30 @@ pub(super) fn parse_expression(
     column: u32,
     braced: bool,
 ) -> SpiceResult<ParameterExpression> {
+    parse_delimited(text, origin, column, braced, false)
+}
+
+/// As [`parse_expression`], recording whether the delimiters were quotes.
+pub(super) fn parse_delimited(
+    text: &str,
+    origin: &SourceLoc,
+    column: u32,
+    braced: bool,
+    quoted: bool,
+) -> SpiceResult<ParameterExpression> {
+    parse_func_body(text, origin, column, braced, quoted, &[])
+}
+
+/// As [`parse_delimited`] for a `.func` body whose formals in `shadowing`
+/// reuse built-in function names.
+pub(super) fn parse_func_body(
+    text: &str,
+    origin: &SourceLoc,
+    column: u32,
+    braced: bool,
+    quoted: bool,
+    shadowing: &[String],
+) -> SpiceResult<ParameterExpression> {
     let mut input = In {
         input: text,
         state: Ctx {
@@ -482,6 +550,7 @@ pub(super) fn parse_expression(
             column,
             total: text.len(),
             depth: 0,
+            shadowing,
         },
     };
     let run = |input: &mut In<'_>| -> Res<Expr> {
@@ -506,7 +575,8 @@ pub(super) fn parse_expression(
     match run(&mut input) {
         Ok(root) => Ok(ParameterExpression {
             text: text.to_owned(),
-            braced,
+            braced: braced || quoted,
+            quoted,
             span: SourceSpan {
                 start: origin.at_column(column),
                 end: origin.at_column(
@@ -522,12 +592,39 @@ pub(super) fn parse_expression(
     }
 }
 
-/// Parses the text of a `{...}` token (tokenizer-matched braces).
+/// True for a token that holds a delimited expression: a `{...}` token, or a
+/// single-quoted `'...'` token. C's `inp_change_quotes()` (`inpcom.c`) turns
+/// every single-quote pair into a brace pair before numparam runs, so both
+/// spellings mean the same expression. Double-quoted strings stay strings.
+pub(super) fn is_expression_token(token: &Token) -> bool {
+    match token.kind {
+        TokenKind::Expression(_) => true,
+        TokenKind::Quoted(_) => token.text.starts_with('\''),
+        _ => false,
+    }
+}
+
+/// Parses the text of a `{...}` token (tokenizer-matched braces) or of a
+/// single-quoted `'...'` token (see [`is_expression_token`]).
 ///
 /// # Errors
 ///
 /// As [`parse_expression`].
 pub(super) fn from_brace_token(token: &Token) -> SpiceResult<ParameterExpression> {
+    if let Some(inner) = token
+        .text
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+        .filter(|_| token.text.len() >= 2)
+    {
+        return parse_delimited(
+            inner,
+            &token.location,
+            token.location.column + 1,
+            true,
+            true,
+        );
+    }
     let inner = token
         .text
         .strip_prefix('{')

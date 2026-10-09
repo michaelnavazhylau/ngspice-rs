@@ -61,8 +61,9 @@ Route map:
   `0` under the default `auto_gnd` rule (`Parser::with_auto_gnd(false)` keeps it
   a plain node). Matching against the plot is case-insensitive.
 * device names are lowercased, so `.save i(V1)` matches the plot's `i(v1)`.
-* `i(…)` accepts a **voltage source or an inductor** only: those are the branch
-  currents the port's plots carry (`i(v1)`, `i(l1)`).
+* `i(…)` accepts a **voltage source, an inductor or an E/H controlled source**
+  only: those are the branch currents the port's plots carry (`i(v1)`, `i(l1)`,
+  `i(e1)`, `i(h.x1.h1)`; see [CONTROLLED_SOURCES.md](CONTROLLED_SOURCES.md)).
 * `vm` is the magnitude, `vp` the phase in radians in `(-pi, pi]` (C's `ph()`),
   `vr`/`vi` the real and imaginary parts, `vdb` `20*log10` of the magnitude.
 
@@ -71,7 +72,7 @@ synthesised request:
 
 | Input | Result |
 | --- | --- |
-| `i(r1)`, `i(q1)`, … | `SpiceError::NotYetPorted` (exit 3): only source/inductor branch currents are observable; a resistor or nonlinear instance current needs a device observation API |
+| `i(r1)`, `i(q1)`, `i(g1)`, `i(f1)`, … | `SpiceError::NotYetPorted` (exit 3): only source/inductor/E/H branch currents are observable; a resistor, G/F or nonlinear instance current needs a device observation API |
 | `@r1[resistance]`, any `@…` name | `SpiceError::NotYetPorted` (exit 3): instance parameters are not observable |
 | `power(v1)`, `im(v1)`, a bare `v`, `v(a,b,c)`, a missing `)`, an empty `v()` | `SpiceError::Parse` (exit 2) |
 | `v(a,a)`, `v(0,0)` | `SpiceError::Parse` (exit 2): identically zero, so there is nothing to write |
@@ -130,9 +131,11 @@ is still an error, because a request the user wrote is never silently dropped.
 * an AC component asked of a real plot (`vm(out)` on a `.op`/`.dc`/`.tran`
   result) is `SpiceError::Unsupported` (exit 2): the port does not pretend a
   real result has a phase;
-* a `.print` card naming an analysis other than the one running is
-  `SpiceError::Unsupported` (exit 2) rather than a silent no-op. `simulate` runs
-  exactly one analysis, so such a card can never be honoured;
+* a `.print` card naming an analysis type the deck does not run is
+  `SpiceError::Unsupported` (exit 2) rather than a silent no-op: such a card can
+  never be honoured. In a multi-analysis deck (#96) a `.print <type>` card
+  applies to every plot of that type and to no other plot, and `.save` applies
+  to every plot; see [CLI.md](CLI.md#multi-analysis-decks);
 * a computed vector that is not finite (`vdb` of a zero magnitude) is
   `SpiceError::Numerical` (exit 2), so a selection never puts `inf` or `NaN`
   into a rawfile.
@@ -175,9 +178,15 @@ until after the rawfile is written).
 * **`v(a,a)` and `v(0,0)` are errors.** C's `fixem` rewrites `v(0,0)` to `v(0)`
   and silently ignores `v(a,a)` (`dotcards.c:524-554`); the port reports both as
   identically-zero requests instead of writing a column that can only be zero.
-* **A `.print` card for another analysis is an error.** C silently does nothing
-  for an analysis that never runs; this port rejects the card, because a
-  dropped request is exactly the failure mode issue #42 is about.
+* **A `.print` card for an analysis the deck does not run is an error.** C
+  prints `Error: .print: no <type> analysis found.` and carries on; this port
+  rejects the card, because a dropped request is exactly the failure mode issue
+  #42 is about.
+* **A plot with no applicable request is written whole.** Without `-r`, C's
+  batch path also turns `.print`/`.op`/`.four`/`.measure` operands into
+  analysis-specific save entries, so a plot whose type none of them names keeps
+  only its scale (and `beginPlot()` reports "no data saved" for it). The port
+  narrows a plot only by `.save` and by `.print` cards of its own type (#96).
 * **`.save` inside a `.subckt` body is rejected.** C's handling of a body-local
   `.save` is not modelled here yet, so it is a documented gap rather than a
   guess.

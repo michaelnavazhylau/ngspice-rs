@@ -161,8 +161,9 @@ pub struct FourierAnalysis {
 /// # Errors
 ///
 /// * [`SpiceError::Unsupported`], positioned at the card, for a card that names
-///   another analysis than `kind` (`simulate` runs exactly one analysis, and C
-///   selects the `tran` plot), for every condition listed in the module's
+///   another analysis than `kind` (C selects the `tran` plot; a multi-analysis
+///   deck routes `.four` to its last `.tran` plot through
+///   [`crate::batch::resolve_outputs`]), for every condition listed in the module's
 ///   failure policy, and for a harmonic count outside this port's work budget;
 /// * [`SpiceError::Numerical`] for a non-finite axis, operand or result value,
 ///   or a zero fundamental amplitude;
@@ -182,9 +183,8 @@ pub fn resolve(
             return Err(unsupported(
                 card,
                 format!(
-                    ".four: the card transforms a .tran result (C selects the tran plot); this run \
-                     is .{} ('simulate' runs exactly one analysis, so the card can never be \
-                     honoured)",
+                    ".four: the card transforms a .tran result (C selects the tran plot); this plot \
+                     is .{}, so the card can never be honoured against it",
                     kind.as_str()
                 ),
             ));

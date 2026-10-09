@@ -188,6 +188,49 @@ impl Matrix {
     pub fn solve(&self, rhs: &Vector) -> SpiceResult<Vector> {
         self.lu_decompose()?.solve(rhs)
     }
+
+    /// Eigenvalues of a real symmetric matrix, in nondecreasing order (faer's
+    /// self-adjoint eigensolver). Used for definiteness checks of small
+    /// coupled-inductance matrices; it is not a general eigensolver API.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] for an empty or non-square matrix, nonfinite
+    /// entries, an asymmetric matrix (entries must agree exactly), or a
+    /// failed decomposition.
+    pub fn symmetric_eigenvalues(&self) -> SpiceResult<Vec<Real>> {
+        let error = |message: String| SpiceError::Numerical {
+            context: "dense symmetric eigenvalues".to_owned(),
+            message,
+        };
+        if self.rows != self.cols || self.rows == 0 {
+            return Err(error(format!(
+                "needs a nonempty square matrix, got {}x{}",
+                self.rows, self.cols
+            )));
+        }
+        if self.data.iter().any(|value| !value.is_finite()) {
+            return Err(error("nonfinite entry".to_owned()));
+        }
+        let n = self.rows;
+        for row in 0..n {
+            for col in 0..row {
+                if self.data[row * n + col] != self.data[col * n + row] {
+                    return Err(error(format!(
+                        "entries ({row}, {col}) and ({col}, {row}) differ"
+                    )));
+                }
+            }
+        }
+        let matrix = faer::Mat::<Real>::from_fn(n, n, |row, col| self.data[row * n + col]);
+        let values = matrix
+            .self_adjoint_eigenvalues(faer::Side::Lower)
+            .map_err(|e| error(format!("decomposition failed: {e:?}")))?;
+        if values.iter().any(|value| !value.is_finite()) {
+            return Err(error("nonfinite eigenvalue".to_owned()));
+        }
+        Ok(values)
+    }
 }
 
 /// A dense real vector, used for the MNA right-hand side and the solution.
@@ -324,6 +367,27 @@ impl Vector {
 #[cfg(test)]
 mod tests {
     use super::{Matrix, Vector};
+
+    #[test]
+    fn symmetric_eigenvalues_are_sorted_and_validated() {
+        let mut matrix = Matrix::zeros(2, 2);
+        for (row, col, value) in [(0, 0, 2.0), (0, 1, 1.0), (1, 0, 1.0), (1, 1, 2.0)] {
+            matrix.set(row, col, value).unwrap();
+        }
+        let values = matrix.symmetric_eigenvalues().unwrap();
+        assert!((values[0] - 1.0).abs() < 1e-14 && (values[1] - 3.0).abs() < 1e-14);
+        // An indefinite matrix has a negative eigenvalue.
+        matrix.set(0, 1, 3.0).unwrap();
+        matrix.set(1, 0, 3.0).unwrap();
+        assert!(matrix.symmetric_eigenvalues().unwrap()[0] < 0.0);
+        matrix.set(1, 0, 2.0).unwrap();
+        assert!(matrix.symmetric_eigenvalues().is_err());
+        assert!(Matrix::zeros(2, 3).symmetric_eigenvalues().is_err());
+        assert!(Matrix::zeros(0, 0).symmetric_eigenvalues().is_err());
+        let mut nonfinite = Matrix::zeros(1, 1);
+        nonfinite.data_mut()[0] = f64::NAN;
+        assert!(nonfinite.symmetric_eigenvalues().is_err());
+    }
 
     #[test]
     fn matrix_indexing_is_row_major() {

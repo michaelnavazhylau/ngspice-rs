@@ -1,0 +1,4 @@
+# ngspice-rs ast-dump v1
+file: cases/error_controlled_gain.cir
+error parse @cases/error_controlled_gain.cir:3:14
+  message: "expected the gain (C: not enough parameters)"

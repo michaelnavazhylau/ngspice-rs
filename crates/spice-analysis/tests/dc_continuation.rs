@@ -222,15 +222,16 @@ fn run_ac(options: &str, explicit: &[&str]) -> SpiceResult<Plot> {
 
 #[test]
 fn ac_bias_deck_continuation_options_use_last_set_wins_and_request_precedence() {
-    // Deck-only, both continuations disabled: the same hard bias that fails for
-    // `.op` fails here, with the same bounded diagnosis.
-    let error = run_ac(".options itl1=4 srcsteps=0 gminsteps=0", &[]).unwrap_err();
+    // Deck continuation options with a four-iteration request budget (a deck
+    // `itl1` below 100 is C's effective 100, see below): the same hard bias
+    // that fails for `.op` fails here, with the same bounded diagnosis.
+    let error = run_ac(".options srcsteps=0 gminsteps=0", &["maxiter=4"]).unwrap_err();
     let message = error.to_string();
     assert!(message.contains("source stepping: disabled"), "{message}");
     assert!(message.contains("gmin stepping: disabled"), "{message}");
     // Deck source stepping alone rescues the budget, exactly as for `.op`, and
     // the AC point is linearized about the same physical full-source bias.
-    let solved = run_ac(".options itl1=4 gminsteps=0", &[]).unwrap();
+    let solved = run_ac(".options gminsteps=0", &["maxiter=4"]).unwrap();
     close(
         solved.value("v(a)", 0).unwrap().re,
         1. / (2. * (1e-3 / VT)),
@@ -238,9 +239,18 @@ fn ac_bias_deck_continuation_options_use_last_set_wins_and_request_precedence() 
         1e-9,
     );
     // Last deck occurrence wins: the later `srcsteps=20` re-enables the strategy.
-    assert!(run_ac(".options itl1=4 gminsteps=0 srcsteps=0 srcsteps=20", &[]).is_ok());
+    assert!(
+        run_ac(
+            ".options gminsteps=0 srcsteps=0 srcsteps=20",
+            &["maxiter=4"]
+        )
+        .is_ok()
+    );
     // An explicit request argument outranks the deck value.
-    assert!(run_ac(".options itl1=4 gminsteps=0", &["srcsteps=0"]).is_err());
+    assert!(run_ac(".options gminsteps=0", &["maxiter=4", "srcsteps=0"]).is_err());
+    // niiter.c raises a deck itl1=4 to 100, which the direct solve needs no
+    // continuation for (C converges on this deck with itl1=4 as well).
+    assert!(run_ac(".options itl1=4 srcsteps=0 gminsteps=0", &[]).is_ok());
 }
 
 #[test]
@@ -303,6 +313,7 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
         gmin_schedule: Vec::new(),
         source_stepping: Some(SourceStepping::uniform(20, 1e-8).unwrap()),
         max_total_iterations: None,
+        stage_max_iterations: None,
     };
     let solved = run(source_only).unwrap();
     let report = &solved.report;
@@ -400,6 +411,7 @@ fn configured_gmin_schedule_rescues_a_singular_jacobian_without_source_stepping(
         gmin_schedule: vec![1e-2, 1e-6],
         source_stepping: None,
         max_total_iterations: None,
+        stage_max_iterations: None,
     };
     let solved = solve_dc_with(
         &c,
@@ -739,6 +751,7 @@ fn easy_nonlinear_and_linear_solves_stay_direct_and_exact() {
         gmin_schedule: Vec::new(),
         source_stepping: None,
         max_total_iterations: Some(1),
+        stage_max_iterations: None,
     };
     assert!(
         solve_dc_with(
@@ -950,48 +963,45 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     assert_eq!(plain.request(request(&[])).unwrap(), request(&[]));
     let ok = |plot: SpiceResult<Plot>| plot.unwrap().value("v(a)", 0).unwrap().re;
 
-    // Deck-only: itl1=4 with every continuation disabled fails and says why.
-    let error = run_op(".options itl1=4 srcsteps=0 gminsteps=0", &[]).unwrap_err();
+    // A four-iteration budget (request `maxiter=4`; a deck `itl1` below 100 is
+    // C's effective 100) with every deck continuation disabled fails and says
+    // why.
+    let error = run_op(".options srcsteps=0 gminsteps=0", &["maxiter=4"]).unwrap_err();
     let message = error.to_string();
     assert!(message.contains("source stepping: disabled"), "{message}");
     assert!(message.contains("gmin stepping: disabled"), "{message}");
     // Source stepping alone (gmin disabled) rescues the same bounded budget.
-    let v = ok(run_op(".options itl1=4 gminsteps=0", &[]));
+    let v = ok(run_op(".options gminsteps=0", &["maxiter=4"]));
     close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
     // Deck default options (no DC options) use the default 200 iterations.
     close(ok(run_op("", &[])), VT * 2_f64.ln(), 1e-8, 1e-12);
 
     // Duplicate setters: last wins, in deck order, across option cards.
     let off_then_on = run_op(
-        ".options itl1=4 gminsteps=0 srcsteps=0\n.options srcsteps=20",
-        &[],
+        ".options gminsteps=0 srcsteps=0\n.options srcsteps=20",
+        &["maxiter=4"],
     );
     close(ok(off_then_on), VT * 2_f64.ln(), 1e-8, 1e-12);
     let on_then_off = run_op(
-        ".options itl1=4 gminsteps=0 srcsteps=20\n.options srcsteps=0",
-        &[],
+        ".options gminsteps=0 srcsteps=20\n.options srcsteps=0",
+        &["maxiter=4"],
     );
     assert!(on_then_off.is_err());
     let netlist = parse(&format!(
-        "{DIFFICULT}\n.options srcsteps=0\n.options SRCSTEPS=7 itl1=9\n.options itl1=11"
+        "{DIFFICULT}\n.options srcsteps=0\n.options SRCSTEPS=7 itl1=150\n.options itl1=250"
     ));
     let config = RunConfig::from_netlist(&netlist).unwrap();
     assert_eq!(config.dc().srcsteps, Some(7));
-    assert_eq!(config.dc().itl1, Some(11));
+    assert_eq!(config.dc().itl1, Some(250));
     assert_eq!(config.dc().gminsteps, None);
     assert_eq!(config.applied().len(), 4);
 
     // Explicit request arguments beat the deck.
-    let deck = ".options itl1=4 gminsteps=0 srcsteps=0";
-    assert!(run_op(deck, &[]).is_err());
+    let deck = ".options itl1=100 gminsteps=0 srcsteps=0";
+    close(ok(run_op(deck, &[])), VT * 2_f64.ln(), 1e-8, 1e-12);
+    assert!(run_op(deck, &["maxiter=4"]).is_err());
     close(
-        ok(run_op(deck, &["srcsteps=20"])),
-        VT * 2_f64.ln(),
-        1e-8,
-        1e-12,
-    );
-    close(
-        ok(run_op(deck, &["maxiter=200"])),
+        ok(run_op(deck, &["maxiter=4", "srcsteps=20"])),
         VT * 2_f64.ln(),
         1e-8,
         1e-12,
@@ -1018,7 +1028,6 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
 fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
     let config = |options: &str| RunConfig::from_netlist(&parse(&format!("r1 a 0 1k\n{options}")));
     for bad in [
-        ".options itl1=0",
         ".options itl1=10001",
         ".options itl1=2.5",
         ".options itl1=abc",
@@ -1036,17 +1045,17 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
         let error = config(bad).expect_err(bad);
         assert!(!error.is_not_yet_ported(), "{bad}: {error}");
     }
+    // niiter.c raises any limit below 100 (including 0) to 100.
+    for low in [".options itl1=0", ".options itl1=1", ".options itl1=99"] {
+        assert_eq!(config(low).unwrap().dc().itl1, Some(100), "{low}");
+    }
     // Disabling is valid for the count options only.
     let off = config(".options srcsteps=0 gminsteps=0").unwrap();
     assert_eq!((off.dc().srcsteps, off.dc().gminsteps), (Some(0), Some(0)));
     assert_eq!(off.dc().policy().unwrap(), ContinuationPolicy::disabled());
-    // Junction gmin and the other iteration limits remain explicit gaps.
-    for pending in [
-        ".options gmin=1e-12",
-        ".options itl2=10",
-        ".options itl4=20",
-        ".options gshunt=1e-12",
-    ] {
+    // Junction gmin, itl2 and itl4 are implemented (tests/run_config.rs);
+    // diagonal gshunt remains an explicit gap.
+    for pending in [".options gshunt=1e-12", ".options noopiter"] {
         assert!(
             config(pending).unwrap_err().is_not_yet_ported(),
             "{pending}"
@@ -1057,26 +1066,42 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
 }
 
 #[test]
-fn transient_and_diffsol_do_not_silently_ignore_dc_options() {
-    let config = RunConfig::from_netlist(&parse("v1 a 0 1\nr1 a 0 1k\n.options itl1=50")).unwrap();
-    let tran = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u"]);
+fn companion_transient_reads_dc_options_and_diffsol_rejects_them() {
+    let config = RunConfig::from_netlist(&parse(
+        "v1 a 0 1\nr1 a 0 1k\n.options itl1=50 srcsteps=4 gminsteps=3 gminfactor=20",
+    ))
+    .unwrap();
+    // dctran.c computes the initial bias with CKTop(CKTdcMaxIter): the companion
+    // driver receives the same settings as .op.
+    let tran = config
+        .request(AnalysisRequest::with_arguments(
+            AnalysisKind::Transient,
+            ["1u", "10u"],
+        ))
+        .unwrap();
+    assert_eq!(tran.named("maxiter"), Some("100"));
+    assert_eq!(tran.named("srcsteps"), Some("4"));
+    assert_eq!(tran.named("gminsteps"), Some("3"));
+    assert_eq!(tran.named("gminfactor"), Some("2e1"));
+    let mut c = circuit("v1 a 0 1\nr1 a 0 1k");
+    runner(AnalysisKind::Transient)
+        .unwrap()
+        .run(&mut c, &tran, &AnalysisContext::default())
+        .unwrap();
     let diffsol = AnalysisRequest::with_arguments(
         AnalysisKind::Transient,
         ["1u", "10u", "backend=diffsol", "method=bdf"],
     );
-    for request in [tran, diffsol] {
-        let error = config.request(request).unwrap_err();
-        assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
-        assert!(error.to_string().contains("itl1"), "{error}");
-    }
-    // DC analyses accept them; an explicit continuation name is not a .tran key.
+    let error = config.request(diffsol).unwrap_err();
+    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+    assert!(error.to_string().contains("itl1"), "{error}");
+    // DC analyses accept them; invalid explicit .tran bias settings fail.
     assert!(config.request(request(&[])).is_ok());
-    let mut c = circuit("v1 a 0 1\nr1 a 0 1k");
     let error = runner(AnalysisKind::Transient)
         .unwrap()
         .run(
             &mut c,
-            &AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u", "srcsteps=5"]),
+            &AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u", "srcsteps=-5"]),
             &AnalysisContext::default(),
         )
         .unwrap_err();

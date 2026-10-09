@@ -1,0 +1,65 @@
+# ngspice-rs ast-dump v1
+file: netlists/transformer_model_uic_tran.cir
+title: "Model-backed coupled inductors from instance ic=, uic, Gear-2" @netlists/transformer_model_uic_tran.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/transformer_model_uic_tran.cir:5:1 "l1 a 0 lm ic=10m m=2"
+    [1] device[1] @netlists/transformer_model_uic_tran.cir:6:1 "r1 a 0 10"
+    [2] device[2] @netlists/transformer_model_uic_tran.cir:7:1 "l2 b 0 lm2 ic=-5m"
+    [3] device[3] @netlists/transformer_model_uic_tran.cir:8:1 "r2 b 0 20"
+    [4] device[4] @netlists/transformer_model_uic_tran.cir:9:1 "k1 l1 l2 0.5"
+    [5] model[0] @netlists/transformer_model_uic_tran.cir:10:1 ".model lm l(ind=2m tc1=0.01)"
+    [6] model[1] @netlists/transformer_model_uic_tran.cir:11:1 ".model lm2 l(ind=2m)"
+    [7] options[0] @netlists/transformer_model_uic_tran.cir:12:1 ".options temp=50 method=gear indverbosity=2"
+    [8] analysis[0] @netlists/transformer_model_uic_tran.cir:13:1 ".tran 1u 300u uic"
+    [9] end @netlists/transformer_model_uic_tran.cir:14:1 ".end"
+  devices (5):
+    device [0] name="l1" designator=l @netlists/transformer_model_uic_tran.cir:5:1
+      nodes: "a" "0"
+      model: "lm"
+      parameters (2):
+        [0] name="ic" kind=scalar value="10m" @netlists/transformer_model_uic_tran.cir:5:11
+        [1] name="m" kind=scalar value="2" @netlists/transformer_model_uic_tran.cir:5:18
+    device [1] name="r1" designator=r @netlists/transformer_model_uic_tran.cir:6:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10" @netlists/transformer_model_uic_tran.cir:6:8
+    device [2] name="l2" designator=l @netlists/transformer_model_uic_tran.cir:7:1
+      nodes: "b" "0"
+      model: "lm2"
+      parameters (1):
+        [0] name="ic" kind=scalar value="-5m" @netlists/transformer_model_uic_tran.cir:7:12
+    device [3] name="r2" designator=r @netlists/transformer_model_uic_tran.cir:8:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20" @netlists/transformer_model_uic_tran.cir:8:8
+    device [4] name="k1" designator=k @netlists/transformer_model_uic_tran.cir:9:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/transformer_model_uic_tran.cir:9:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/transformer_model_uic_tran.cir:9:7
+        [2] name="coefficient" kind=scalar value="0.5" @netlists/transformer_model_uic_tran.cir:9:10
+  models (2):
+    model [0] name="lm" base="l" level=none @netlists/transformer_model_uic_tran.cir:10:1
+      parameters (2):
+        [0] name="ind" kind=scalar value="2m" @netlists/transformer_model_uic_tran.cir:10:13
+        [1] name="tc1" kind=scalar value="0.01" @netlists/transformer_model_uic_tran.cir:10:20
+    model [1] name="lm2" base="l" level=none @netlists/transformer_model_uic_tran.cir:11:1
+      parameters (1):
+        [0] name="ind" kind=scalar value="2m" @netlists/transformer_model_uic_tran.cir:11:14
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/transformer_model_uic_tran.cir:13:1
+      arguments: "1u" "300u"
+      uic @netlists/transformer_model_uic_tran.cir:13:15
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/transformer_model_uic_tran.cir:12:1
+      setting [0] name="temp" value="50"@netlists/transformer_model_uic_tran.cir:12:15 @netlists/transformer_model_uic_tran.cir:12:10
+      setting [1] name="method" value="gear"@netlists/transformer_model_uic_tran.cir:12:25 @netlists/transformer_model_uic_tran.cir:12:18
+      setting [2] name="indverbosity" value="2"@netlists/transformer_model_uic_tran.cir:12:43 @netlists/transformer_model_uic_tran.cir:12:30
+  globals (0):

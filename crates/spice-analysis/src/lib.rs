@@ -7,6 +7,7 @@
 //! | [`measure`] | `.measure`/`.meas` evaluation over the full plot and its text rendering | ported for the bounded operation subset in `docs/port/MEASURE.md` |
 //! | [`fourier`] | `.four` Fourier/THD evaluation over the final complete period of a transient plot and its text rendering | ported for the bounded card subset in `docs/port/FOURIER.md` |
 //! | [`rawfile`] | ngspice rawfile reading **and** writing, ASCII and binary | ported for the bounded layouts in `docs/port/RAWFILES.md` |
+//! | [`batch`] | ngspice batch order, plot names and per-plot `.save`/`.print`/`.measure`/`.four` targeting for multi-analysis decks | ported (`docs/port/CLI.md`) |
 //! | [`analysis`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
 //!
 //! The C equivalent is `src/spicelib/analysis/` (21,993 lines: the `CKT*`
@@ -28,6 +29,7 @@
 
 mod ac;
 pub mod analysis;
+pub mod batch;
 pub mod bias;
 mod companion;
 pub mod config;
@@ -46,7 +48,9 @@ pub use analysis::{
     Analysis, AnalysisContext, AnalysisRequest, DRIVERS, NodeCondition, has_driver, runner,
 };
 pub use companion::{TransientStats, companion_transient};
-pub use config::{AppliedOption, DcOptions, RunConfig, RunOverrides, TransientSettings};
+pub use config::{
+    AppliedOption, DcOptions, IgnoredOption, RunConfig, RunOverrides, TransientSettings,
+};
 pub use fourier::{FourierAnalysis, FourierWindow, Harmonic};
 pub use measure::{MeasureEvents, MeasureSpan, Measurement};
 pub use rawfile::{BinaryByteOrder, RawFile, RawFileReader, RawFormat, RawPlot};

@@ -25,6 +25,9 @@ pub(super) fn model(input: &mut Input<'_>, base: &str) -> Result<ParameterAssign
                 "d" => key == "d",
                 "npn" | "pnp" => matches!(key.as_str(), "npn" | "pnp"),
                 "nmos" | "pmos" => matches!(key.as_str(), "nmos" | "pmos"),
+                // SW_MOD_SW / CSW_CSW: "just says that this is a switch".
+                "sw" => key == "sw",
+                "csw" => key == "csw",
                 _ => false,
             }
         })

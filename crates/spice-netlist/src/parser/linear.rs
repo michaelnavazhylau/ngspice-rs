@@ -184,6 +184,7 @@ fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> 
             dc_parameters,
             ac_parameters,
             super::waveform::parameters,
+            super::waveform::pwl_options,
             invalid_source,
         )),
     )
@@ -222,12 +223,11 @@ fn ac_value<'a>(
 ) -> impl winnow::Parser<Input<'a>, ParameterAssignment, ErrMode<Failure>> {
     let default_location = default_location.clone();
     move |input: &mut Input<'a>| {
-        if input
-            .input
-            .first()
-            .is_some_and(|token| matches!(token.kind, TokenKind::Quoted(_)))
-        {
-            return Err(gap(input, "quoted AC parameter expressions"));
+        if input.input.first().is_some_and(|token| {
+            matches!(token.kind, TokenKind::Quoted(_))
+                && !super::expression::is_expression_token(token)
+        }) {
+            return Err(gap(input, "double-quoted AC parameter strings"));
         }
         opt(leading_value)
             .map(|value| {

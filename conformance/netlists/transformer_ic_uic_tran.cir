@@ -1,0 +1,13 @@
+Coupled RL free decay from instance ic=, uic, Gear-2
+* Two RL loops coupled by k=0.7 start from l1 ic=10m and l2 ic=-5m (first to
+* second terminal) with no source: the initial coupled fluxes are
+* L1 ic1 + M ic2 and L2 ic2 + M ic1 (indload.c) and both currents decay with
+* the two eigen time constants of L^-1 R.
+l1 a 0 1m ic=10m
+r1 a 0 10
+l2 b 0 2m ic=-5m
+r2 b 0 20
+k1 l1 l2 0.7
+.options method=gear
+.tran 1u 500u uic
+.end

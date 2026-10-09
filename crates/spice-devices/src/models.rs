@@ -52,6 +52,10 @@ pub enum ModelFamily {
     Nmos,
     /// PMOS (bounded selector for level 1).
     Pmos,
+    /// Voltage-controlled switch (`sw`, `sw/sw.c`).
+    Switch,
+    /// Current-controlled switch (`csw`, `csw/csw.c`).
+    CurrentSwitch,
 }
 
 impl ModelFamily {
@@ -67,6 +71,8 @@ impl ModelFamily {
             "pnp" => Some(Self::Pnp),
             "nmos" => Some(Self::Nmos),
             "pmos" => Some(Self::Pmos),
+            "sw" => Some(Self::Switch),
+            "csw" => Some(Self::CurrentSwitch),
             _ => None,
         }
     }
@@ -82,6 +88,8 @@ impl ModelFamily {
             Self::Diode => 'd',
             Self::Npn | Self::Pnp => 'q',
             Self::Nmos | Self::Pmos => 'm',
+            Self::Switch => 's',
+            Self::CurrentSwitch => 'w',
         }
     }
 }
@@ -142,7 +150,10 @@ impl<'a> ModelResolver<'a> {
     /// Diagnostics retain the instance/card/setter location as appropriate.
     pub fn resolve(&self, instance: &DeviceInstance) -> SpiceResult<Option<ResolvedModel<'a>>> {
         let Some(name) = &instance.model else {
-            if matches!(instance.designator.to_ascii_lowercase(), 'd' | 'q' | 'm') {
+            if matches!(
+                instance.designator.to_ascii_lowercase(),
+                'd' | 'q' | 'm' | 's' | 'w'
+            ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),
                     format!("device {} requires a model", instance.name),
@@ -312,7 +323,16 @@ pub struct ModelContext {
     /// Per-point replacements of resistors' supplied scalars, applied by
     /// [`crate::Circuit`] when it assembles or loads. Empty slots are `None`.
     pub resistor_overrides: [Option<ResistorOverride>; MAX_RESISTOR_OVERRIDES],
+    /// Junction minimum conductance in siemens (C `CKTgmin`, `.option gmin`),
+    /// added in parallel with every diode, BJT and MOS1 junction. It is not the
+    /// artificial nodal continuation conductance of DC gmin stepping. Default
+    /// [`DEFAULT_GMIN`]; must be finite and nonnegative.
+    pub gmin: Real,
 }
+
+/// ngspice's default junction `gmin` (`cktntask.c`: `TSKgmin = 1e-12`).
+pub const DEFAULT_GMIN: Real = 1e-12;
+
 impl Default for ModelContext {
     fn default() -> Self {
         Self::new(27.0, 27.0)
@@ -326,7 +346,16 @@ impl ModelContext {
             temperature,
             nominal_temperature,
             resistor_overrides: [None; MAX_RESISTOR_OVERRIDES],
+            gmin: DEFAULT_GMIN,
         }
+    }
+
+    /// This context with junction `gmin` replaced (validated on use, see
+    /// [`Self::gmin`]).
+    #[must_use]
+    pub const fn with_gmin(mut self, gmin: Real) -> Self {
+        self.gmin = gmin;
+        self
     }
 
     /// This context plus one resistor override, in the first free slot.
@@ -355,6 +384,15 @@ impl ModelContext {
     pub(crate) fn validate(&self, location: &SourceLoc) -> SpiceResult<()> {
         temperature_kelvin(self.temperature, location)?;
         temperature_kelvin(self.nominal_temperature, location)?;
+        if !(self.gmin.is_finite() && self.gmin >= 0.) {
+            return Err(SpiceError::parse(
+                location.clone(),
+                format!(
+                    "junction gmin must be finite and nonnegative, got {}",
+                    self.gmin
+                ),
+            ));
+        }
         Ok(())
     }
 }
