@@ -24,6 +24,10 @@ jobs:
         rust: [stable, '1.89.0']
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # rust-toolchain.toml selects `stable` and takes precedence over the rustup
+    # default set below, so without this override every matrix entry ran stable.
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,6 +37,16 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
+
+      - name: Show toolchain
+        run: |
+          rustc --version
+          cargo --version
+          cargo clippy --version
+          if [[ "${{ matrix.rust }}" != stable ]]; then
+            rustc --version | grep -q "^rustc ${{ matrix.rust }} " \
+              || { echo "::error::expected rustc ${{ matrix.rust }}"; exit 1; }
+          fi
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
