@@ -1154,12 +1154,10 @@ mod tests {
             .collect();
         let before: Vec<_> = paths.iter().map(|p| fs::read(p).unwrap()).collect();
         run(&workspace_root(), None).unwrap();
-        for fixture in SUPPORTED {
-            run(&workspace_root(), Some(fixture.name)).unwrap();
-        }
-        for fixture in BATCH {
-            run(&workspace_root(), Some(fixture.name)).unwrap();
-        }
+        // The full run already verifies every fixture; a selected run per
+        // registry kind covers `--netlist` dispatch without a second pass.
+        run(&workspace_root(), Some(SUPPORTED[0].name)).unwrap();
+        run(&workspace_root(), Some(BATCH[0].name)).unwrap();
         for (path, bytes) in paths.iter().zip(before) {
             assert_eq!(fs::read(path).unwrap(), bytes);
         }
