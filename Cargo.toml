@@ -46,6 +46,26 @@ include = [
     "/AUTHORS",
 ]
 
+# `cargo binstall ngspice-rs` downloads the prebuilt `spice-rs` binary that
+# .github/workflows/release.yml attaches to each GitHub release; the archive
+# names below must match that workflow. Linux binaries are static musl builds.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }-v{ version }.tar.gz"
+bin-dir = "{ name }-{ target }-v{ version }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-unknown-linux-gnu]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-x86_64-unknown-linux-musl-v{ version }.tar.gz"
+bin-dir = "{ name }-x86_64-unknown-linux-musl-v{ version }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.aarch64-unknown-linux-gnu]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-aarch64-unknown-linux-musl-v{ version }.tar.gz"
+bin-dir = "{ name }-aarch64-unknown-linux-musl-v{ version }/{ bin }{ binary-ext }"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }-v{ version }.zip"
+pkg-fmt = "zip"
+
 [workspace]
 resolver = "3"
 members = ["xtask"]
