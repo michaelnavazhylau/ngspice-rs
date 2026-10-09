@@ -29,7 +29,17 @@
 //!    nonconvergent (C `CKTnoncon++`), so the Newton driver never declares
 //!    convergence on a load that was not evaluated at the iterate itself.
 //!
-//! The last rule is how limiting stays compatible with the port's
+//! Two C initialization rules ride on the same hook:
+//!
+//! * `off` instances ([`Limiter::holds_off`]): in the `MODEINITJCT` load and
+//!   in every `MODEINITFIX` load of a DC operating point the junction
+//!   voltages are zero (`dioload.c`, `bjtload.c`, `mos1load.c`); a held
+//!   `MODEINITFIX` load is exempt from the convergence test, as in C.
+//! * The `uic` initial load ([`Linearization::InitialConditions`],
+//!   `MODETRANOP | MODEUIC | MODEINITJCT`): the device evaluates at its
+//!   instance initial-condition voltages instead of any start voltage.
+//!
+//! The last rule of the numbered list is how limiting stays compatible with the port's
 //! physical-residual convergence test: a converged iterate is always reloaded
 //! with limiting inactive, i.e. exactly at the returned solution.
 use crate::{DeviceState, IterationPhase};
@@ -165,9 +175,16 @@ pub enum Linearization {
     /// solve (output reloads, AC bias, the legacy global-damping policy).
     Exact,
     /// The first load of a DC operating point (C `MODEINITJCT`): the device's
-    /// start voltages (`tVcrit` for forward junctions), independent of the
-    /// seed. The load is always nonconvergent.
+    /// start voltages (`tVcrit` for forward junctions, zero for an `off`
+    /// instance), independent of the seed. The load is always nonconvergent.
     Initial,
+    /// C's `uic` initial load (`MODETRANOP | MODEUIC | MODEINITJCT`, the one
+    /// load `NIiter` performs before returning without a solve): the device's
+    /// instance initial conditions, each defaulted from the node values of
+    /// the supplied solution (`diogetic.c`, `bjtgetic.c`, `mos1ic.c`). Chosen
+    /// by [`crate::TrialState::with_initial_conditions`] whatever the device
+    /// limiting; never nonconvergent.
+    InitialConditions,
     /// Every other Newton load: the solution's voltages, limited relative to
     /// [`Limiter::previous`].
     Limited,
@@ -178,13 +195,18 @@ pub enum Linearization {
 pub struct Limiter {
     mode: Linearization,
     nonconvergent: bool,
+    /// A held `off` instance in `MODEINITFIX`: exempt from the convergence
+    /// test (C skips its `CKTnoncon` check).
+    exempt: bool,
 }
 
 impl Limiter {
     /// The limiting mode of the load `states` belongs to.
     #[must_use]
     pub fn new(states: &DeviceState<'_>) -> Self {
-        let mode = if !states.device_limiting() {
+        let mode = if states.initial_conditions() {
+            Linearization::InitialConditions
+        } else if !states.device_limiting() {
             Linearization::Exact
         } else if states.phase() == IterationPhase::Junction {
             Linearization::Initial
@@ -194,6 +216,55 @@ impl Limiter {
         Self {
             mode,
             nonconvergent: mode == Linearization::Initial,
+            exempt: false,
+        }
+    }
+
+    /// C's device convergence test (`DIOconvTest`, `BJTconvTest`,
+    /// `MOS1convTest`, which `NIconvTest` runs under `NEWCONV`) for a load
+    /// held by [`Self::holds_off`] in `MODEINITFIX`: C skips the load's own
+    /// `CKTnoncon` check there but still compares, for each terminal
+    /// current, the value `held` at the zero junction voltages with its
+    /// linear prediction `predicted` at the iterate's voltages. A difference
+    /// above `reltol * max(|predicted|, |held|) + abstol` keeps the load
+    /// nonconvergent, so `MODEINITFIX` cannot end while an `off` device's
+    /// iterate voltages are far from zero (C's direct operating-point
+    /// iteration then fails and continuation takes over). Without solve
+    /// tolerances ([`DeviceState::convergence_tolerances`]) nothing is
+    /// tested.
+    pub fn test_held(&mut self, states: &DeviceState<'_>, currents: &[(Real, Real)]) {
+        if !self.exempt {
+            return;
+        }
+        let Some((reltol, abstol)) = states.convergence_tolerances() else {
+            return;
+        };
+        if currents.iter().any(|(held, predicted)| {
+            (predicted - held).abs() > reltol * predicted.abs().max(held.abs()) + abstol
+        }) {
+            self.exempt = false;
+            self.nonconvergent = true;
+        }
+    }
+
+    /// C's `off` instance rule: `true` when an `off` device must evaluate
+    /// all of its junction voltages at zero in this load, i.e. the
+    /// `MODEINITJCT` load ([`Linearization::Initial`], still nonconvergent)
+    /// and every `MODEINITFIX` load of a device-limited DC solve
+    /// ([`IterationPhase::Fix`]), which C exempts from the convergence test
+    /// (`if (!(MODEINITFIX) || !off)` around `CKTnoncon++`). Never in the
+    /// `uic` initial load, exact loads or later phases.
+    pub fn holds_off(&mut self, states: &DeviceState<'_>, off: bool) -> bool {
+        if !off {
+            return false;
+        }
+        match self.mode {
+            Linearization::Initial => true,
+            Linearization::Limited if states.phase() == IterationPhase::Fix => {
+                self.exempt = true;
+                true
+            }
+            _ => false,
         }
     }
 
@@ -272,7 +343,7 @@ impl Limiter {
         for (slot, value) in record {
             states.set(*slot, *value)?;
         }
-        if self.nonconvergent {
+        if self.nonconvergent && !self.exempt {
             states.report_nonconvergence()?;
         }
         Ok(())
@@ -366,6 +437,47 @@ mod tests {
         assert_eq!(limvds(20., 4.), 14.);
         assert_eq!(limvds(0., 4.), 2.);
         assert_eq!(limvds(3.6, 4.), 3.6);
+    }
+
+    #[test]
+    fn off_holds_and_uic_loads_follow_c() {
+        let history = StateHistory::new(1);
+        // MODEINITJCT: an off device is held and stays nonconvergent.
+        let mut jct = history.trial_in(IterationPhase::Junction, None).unwrap();
+        let mut states = history.device(&mut jct, 0..1).unwrap();
+        let mut limiter = Limiter::new(&states);
+        assert!(!limiter.holds_off(&states, false));
+        assert!(limiter.holds_off(&states, true));
+        limiter.finish(&mut states, &[(0, 0.)]).unwrap();
+        assert!(jct.is_nonconvergent());
+        // MODEINITFIX: held and exempt unless C's convergence test fails.
+        for (predicted, nonconvergent) in [(1e-13, false), (5e-12, true)] {
+            let mut fix = history
+                .trial_in(IterationPhase::Fix, Some(&jct))
+                .unwrap()
+                .with_convergence_tolerances(1e-3, 1e-12);
+            let mut states = history.device(&mut fix, 0..1).unwrap();
+            let mut limiter = Limiter::new(&states);
+            // A limited step would flag the load, the hold clears it.
+            let _ = limiter.pn_junction(5., Some(0.), VT, critical_voltage(VT, 1e-14));
+            assert!(limiter.holds_off(&states, true));
+            limiter.test_held(&states, &[(0., predicted)]);
+            limiter.finish(&mut states, &[(0, 0.)]).unwrap();
+            assert_eq!(fix.is_nonconvergent(), nonconvergent, "{predicted}");
+        }
+        // MODEINITFLOAT never holds.
+        let mut float = history.trial_in(IterationPhase::Float, Some(&jct)).unwrap();
+        let states = history.device(&mut float, 0..1).unwrap();
+        assert!(!Limiter::new(&states).holds_off(&states, true));
+        // The uic initial load: its own mode, never held, never flagged, even
+        // without device limiting.
+        let mut uic = history.trial().with_initial_conditions(true);
+        let mut states = history.device(&mut uic, 0..1).unwrap();
+        let mut limiter = Limiter::new(&states);
+        assert_eq!(limiter.mode(), Linearization::InitialConditions);
+        assert!(!limiter.holds_off(&states, true));
+        limiter.finish(&mut states, &[(0, 0.4)]).unwrap();
+        assert!(!uic.is_nonconvergent());
     }
 
     #[test]

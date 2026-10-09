@@ -43,6 +43,7 @@ pub mod circuit;
 pub mod controlled;
 mod factory;
 pub mod functions;
+mod initial;
 pub mod limiting;
 pub mod linear;
 pub mod models;

@@ -42,6 +42,16 @@
 //! nonconvergent (see [`crate::limiting`]). A plain [`StateHistory::trial`]
 //! (any load outside a device-limited Newton solve) never limits: the device
 //! is evaluated exactly at the supplied solution.
+//!
+//! # `uic` initial load
+//!
+//! [`TrialState::with_initial_conditions`] marks the single load C performs
+//! for a `.tran ... uic` start (`MODETRANOP | MODEUIC | MODEINITJCT`, after
+//! which `NIiter` returns without a solve): nonlinear devices then evaluate
+//! at their instance initial-condition voltages (`DIOinitCond`,
+//! `BJTicVBE`/`BJTicVCE`, `MOS1icVDS`/`VGS`/`VBS`), defaulted from the node
+//! values of the supplied solution as `diogetic.c`/`bjtgetic.c`/`mos1ic.c`
+//! do, independently of device limiting.
 
 use std::ops::Range;
 
@@ -113,6 +123,8 @@ impl StateHistory {
             previous: None,
             nonconvergent: false,
             device_limiting: false,
+            initial_conditions: false,
+            tolerances: None,
         }
     }
 
@@ -139,6 +151,8 @@ impl StateHistory {
             previous: previous.map(|previous| previous.values.clone()),
             nonconvergent: false,
             device_limiting: true,
+            initial_conditions: false,
+            tolerances: None,
         })
     }
 
@@ -205,6 +219,8 @@ impl StateHistory {
             previous,
             nonconvergent,
             device_limiting,
+            initial_conditions,
+            tolerances,
         } = trial;
         let previous: Option<&'a [Real]> = match previous {
             Some(vector) => {
@@ -221,6 +237,8 @@ impl StateHistory {
             phase: *phase,
             nonconvergent: Some(nonconvergent),
             device_limiting: *device_limiting,
+            initial_conditions: *initial_conditions,
+            tolerances: *tolerances,
         })
     }
 }
@@ -255,9 +273,34 @@ pub struct TrialState {
     previous: Option<Vec<Real>>,
     nonconvergent: bool,
     device_limiting: bool,
+    initial_conditions: bool,
+    tolerances: Option<(Real, Real)>,
 }
 
 impl TrialState {
+    /// The same trial carrying the Newton solve's `reltol` and current
+    /// `abstol`, which C's device convergence tests (`DEVconvTest`, run by
+    /// `NIconvTest`) use; see [`DeviceState::convergence_tolerances`].
+    #[must_use]
+    pub const fn with_convergence_tolerances(mut self, reltol: Real, abstol: Real) -> Self {
+        self.tolerances = Some((reltol, abstol));
+        self
+    }
+
+    /// The same trial marked (or unmarked) as C's `uic` initial load; see
+    /// the module documentation and [`DeviceState::initial_conditions`].
+    #[must_use]
+    pub const fn with_initial_conditions(mut self, enabled: bool) -> Self {
+        self.initial_conditions = enabled;
+        self
+    }
+
+    /// Whether this is the `uic` initial load.
+    #[must_use]
+    pub const fn initial_conditions(&self) -> bool {
+        self.initial_conditions
+    }
+
     /// The same trial with device limiting allowed or forbidden (see
     /// [`DeviceState::device_limiting`]). Newton drivers using the legacy
     /// global voltage-step damping forbid it so devices load exactly.
@@ -310,6 +353,8 @@ pub struct DeviceState<'a> {
     previous: Option<&'a [Real]>,
     nonconvergent: Option<&'a mut bool>,
     device_limiting: bool,
+    initial_conditions: bool,
+    tolerances: Option<(Real, Real)>,
 }
 
 impl DeviceState<'_> {
@@ -324,7 +369,17 @@ impl DeviceState<'_> {
             previous: None,
             nonconvergent: None,
             device_limiting: false,
+            initial_conditions: false,
+            tolerances: None,
         }
+    }
+
+    /// The `(reltol, abstol)` of the Newton solve this load belongs to, when
+    /// the driver supplied them
+    /// ([`TrialState::with_convergence_tolerances`]).
+    #[must_use]
+    pub const fn convergence_tolerances(&self) -> Option<(Real, Real)> {
+        self.tolerances
     }
 
     /// The Newton phase of this load.
@@ -340,6 +395,14 @@ impl DeviceState<'_> {
     #[must_use]
     pub const fn device_limiting(&self) -> bool {
         self.device_limiting
+    }
+
+    /// Whether this is C's `uic` initial load
+    /// ([`TrialState::with_initial_conditions`]): nonlinear devices evaluate
+    /// at their instance initial-condition voltages.
+    #[must_use]
+    pub const fn initial_conditions(&self) -> bool {
+        self.initial_conditions
     }
 
     /// The value of `slot` written by the previous load of the same Newton

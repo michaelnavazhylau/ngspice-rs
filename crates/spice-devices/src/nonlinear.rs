@@ -7,9 +7,14 @@
 //! VJSW, MJSW, FCS, PJ), recombination (ISR/NR), tunnelling (JTUN/JTUNSW/NTUN),
 //! high-injection knees (IKF/IKR/IKP) and the transit-time/series-resistance
 //! temperature coefficients. Soft reverse recovery, a separate sidewall series
-//! resistance, self-heating, level-3 geometry, noise and SOA setters, and
-//! nonlinear initial conditions fail with [`SpiceError::NotYetPorted`] before
-//! node interning; unknown setters remain unsupported errors.
+//! resistance, self-heating, level-3 geometry and noise and SOA setters fail
+//! with [`SpiceError::NotYetPorted`] before node interning; unknown setters
+//! remain unsupported errors. The instance `off` flag follows `dioload.c`
+//! (`MODEINITJCT`/`MODEINITFIX` hold at 0 V). The `uic` initial load starts
+//! the junction at the external terminal voltage of the `.ic`/`.nodeset`
+//! node vector (`diogetic.c`); the instance `ic=` is accepted but has no
+//! effect, because C's setter (`dioparam.c`) never sets `DIOinitCondGiven`
+//! and `diogetic.c` therefore always overwrites it.
 //!
 //! The diode limits its junction voltage as `dioload.c` does (`MODEINITJCT`
 //! start at `tVcrit`, `DEVpnjlim`, reflected about BV in breakdown) through
@@ -210,14 +215,6 @@ const INSTANCE: ScalarSchema<'static> = ScalarSchema {
 /// Recognised C instance setters whose behaviour is not ported yet.
 const INSTANCE_PENDING: &[(&str, &str)] = &[
     (
-        "ic",
-        "src/spicelib/devices/dio/dioload.c (MODEINITJCT/MODEUIC initial conditions)",
-    ),
-    (
-        "off",
-        "src/spicelib/devices/dio/dioload.c (MODEINITJCT/MODEINITFIX OFF)",
-    ),
-    (
         "thermal",
         "src/spicelib/devices/dio/dioload.c (self-heating)",
     ),
@@ -311,6 +308,10 @@ pub struct Diode {
     terminals: Vec<NodeId>,
     junction: [NodeId; 2],
     parameters: DiodeParameters,
+    /// `off` and the instance `ic` (C `DIOoff`, `DIOinitCond`). The `ic`
+    /// value is validated and kept but, exactly as in C, never used: see
+    /// the `uic` start in `stamp`.
+    initial: crate::initial::InstanceInitial,
 }
 /// Typed validated diode parameters as written (nominal temperature values,
 /// instance scale factors kept separate). Temperature-dependent quantities are
@@ -391,7 +392,8 @@ impl Diode {
             "model",
         )?;
         let m = MODEL.validate(&model_setters, &card.location)?;
-        let instance_setters = canonical(&instance.parameters, &[], INSTANCE_PENDING, "instance")?;
+        let (initial, setters) = crate::initial::split(&instance.parameters, &["ic"])?;
+        let instance_setters = canonical(&setters, &[], INSTANCE_PENDING, "instance")?;
         let i = INSTANCE.validate(&instance_setters, &instance.location)?;
         let p = DiodeParameters::new(&m, &i, instance)?;
         p.thermal(context)?.point(0., context.gmin)?; // validate before interning
@@ -419,6 +421,7 @@ impl Diode {
             terminals,
             junction: [positive, external[1]],
             parameters: p,
+            initial,
         }))
     }
 }
@@ -743,9 +746,26 @@ impl Thermal {
     /// the breakdown frame (`-(vd + BV)` with `nbv * vt`) when BV is given
     /// and `vd < min(0, -BV + 10 nbv vt)`. `tVcrit` uses the total (bottom
     /// plus sidewall) saturation current, as `diotemp.c` does without RSW.
-    fn limit(&self, limiter: &mut Limiter, states: &crate::DeviceState<'_>, raw: Real) -> Real {
+    ///
+    /// `start` is C's `uic` initial voltage (`DIOinitCond`) and `off` the
+    /// instance flag: the `uic` initial load evaluates at `start`, and an
+    /// `off` diode is held at zero in `MODEINITJCT` and `MODEINITFIX`.
+    fn limit(
+        &self,
+        limiter: &mut Limiter,
+        states: &crate::DeviceState<'_>,
+        raw: Real,
+        start: Real,
+        off: bool,
+    ) -> Real {
         let vte = self.n * self.vt;
         let vcrit = limiting::critical_voltage(vte, self.csat + self.csatsw.unwrap_or(0.));
+        if limiter.mode() == Linearization::InitialConditions {
+            return start;
+        }
+        if limiter.holds_off(states, off) {
+            return 0.;
+        }
         if limiter.mode() == Linearization::Initial {
             return vcrit;
         }
@@ -1070,6 +1090,9 @@ impl Device for Diode {
     fn is_nonlinear(&self) -> bool {
         true
     }
+    fn has_start_settings(&self) -> bool {
+        self.initial.off
+    }
     fn state_count(&self) -> usize {
         // Charge, its derivative and the limited junction voltage.
         3
@@ -1085,8 +1108,19 @@ impl Device for Diode {
         let model = context.model_context();
         let thermal = self.parameters.thermal(&model)?;
         let mut limiter = Limiter::new(&context.states);
-        let v = thermal.limit(&mut limiter, &context.states, raw);
+        // diogetic.c takes the uic start across the external terminals unless
+        // `DIOinitCondGiven`, which no C setter ever sets (`dioparam.c`
+        // stores `ic=` without it): the instance `ic=` never reaches the load.
+        let start =
+            context.node_voltage(self.terminals[0]) - context.node_voltage(self.terminals[1]);
+        let v = thermal.limit(&mut limiter, &context.states, raw, start, self.initial.off);
         let p = thermal.point(v, model.gmin)?;
+        // DIOconvTest for an `off` diode held in MODEINITFIX.
+        let held = p.junction.current;
+        limiter.test_held(
+            &context.states,
+            &[(held, held + p.junction.conductance * (raw - v))],
+        );
         if self.parameters.rs > 0. {
             crate::linear::nodal_stamp(
                 context.matrix,
@@ -1160,7 +1194,8 @@ mod tests {
             "model",
         )?;
         let m = MODEL.validate(&setters, &resolved.card().location)?;
-        let setters = canonical(&instance.parameters, &[], INSTANCE_PENDING, "instance")?;
+        let (_, setters) = crate::initial::split(&instance.parameters, &["ic"])?;
+        let setters = canonical(&setters, &[], INSTANCE_PENDING, "instance")?;
         let i = INSTANCE.validate(&setters, &instance.location)?;
         DiodeParameters::new(&m, &i, instance)
     }
@@ -1408,8 +1443,6 @@ mod tests {
             ("bv_max=10", ""),
             ("xom=1e4", ""),
             ("", "w=1u l=1u"),
-            ("", "off"),
-            ("", "ic=0.5"),
             ("jsw=1e-15 bv=5", "pj=1"),
             ("cjsw=1p tm1=1m", "pj=1"),
         ] {
@@ -1420,6 +1453,8 @@ mod tests {
         // harmless under a shared characteristic.
         assert!(instantiate("jsw=1e-15 ns=1 bv=5", "pj=1").is_ok());
         assert!(instantiate("jsw=1e-15 bv=5", "").is_ok());
+        // OFF and IC (#99) are ported.
+        assert!(instantiate("", "off ic=0.5").is_ok());
         for (model, instance) in [
             ("tlev=3", ""),
             ("tlevc=2", ""),

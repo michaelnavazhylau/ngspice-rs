@@ -59,14 +59,27 @@ fn invalid_source_waveforms_are_rejected_before_mutating_nodes_or_circuit() {
 }
 
 #[test]
+fn off_flags_and_initial_condition_vectors_build_nonlinear_devices() {
+    // #99: D/Q/M `off` and `ic` setters are consumed by their factories
+    // (dioload.c, bjtload.c/bjtgetic.c, mos1load.c/mos1ic.c).
+    for body in [
+        "Dnew fresh 0 mdl OFF IC=.5\n.model mdl d",
+        "Qnew c b e mdl OFF IC=.6,2 icvce=3\n.model mdl npn",
+        "Mnew drain gate source bulk mdl OFF IC=(1 2 3)\n.model mdl nmos",
+    ] {
+        let deck = parse_deck_text(Path::new("setters.cir"), &format!("Title\n{body}\n"));
+        let netlist = Parser::new().parse_deck(&deck).unwrap();
+        let circuit = Circuit::from_netlist(&netlist).unwrap();
+        assert_eq!(circuit.device_count(), 1, "{body}");
+        assert!(circuit.devices()[0].has_start_settings(), "{body}");
+    }
+}
+
+#[test]
 fn parsed_flags_vectors_and_model_flags_do_not_enable_nonlinear_factories() {
     for body in [
-        "Dnew fresh 0 mdl OFF\n.model mdl d",
-        "Dnew fresh 0 mdl IC=.5\n.model mdl d",
         "Dnew fresh 0 mdl\n.model mdl d(d)",
-        "Qnew c b e mdl OFF IC=.6,2\n.model mdl npn",
         "Qnew c b e mdl\n.model mdl npn(npn)",
-        "Mnew drain gate source bulk mdl OFF IC=(1 2 3)\n.model mdl nmos",
         "Mnew drain gate source bulk mdl\n.model mdl nmos(pmos)",
     ] {
         let deck = parse_deck_text(

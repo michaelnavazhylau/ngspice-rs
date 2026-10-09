@@ -28,8 +28,14 @@
 //!   adjusted PHI/PB, or RSH with zero drain squares (an infinite conductance).
 //!   Here they are explicit errors.
 //!
-//! Instance initial conditions and `off` (`mos1ic.c`, `MODEINITJCT`), noise
-//! (`mos1noi.c`) and sensitivity parameters are explicit `NotYetPorted` errors.
+//! Instance `off` and initial conditions follow `mos1load.c`: `MODEINITJCT`
+//! starts at the `IC` vector (`type * ICVDS/ICVGS/ICVBS`) whenever one
+//! component is nonzero, also without `uic`, and at the default start
+//! otherwise (except in the `uic` initial load, which keeps all-zero
+//! conditions); unset components are taken from the external terminals
+//! under `uic` (`mos1ic.c`) and are zero otherwise. An `off` instance starts
+//! at zero and is held there through `MODEINITFIX`. Noise (`mos1noi.c`) and
+//! sensitivity parameters are explicit `NotYetPorted` errors.
 
 use crate::limiting::{self, Limiter, Linearization};
 use crate::linear::nodal_stamp;
@@ -146,16 +152,8 @@ const NOT_PORTED_MODEL: &[(&str, &str)] = &[
     ("nlev", "src/spicelib/devices/mos1/mos1noi.c"),
     ("gdsnoi", "src/spicelib/devices/mos1/mos1noi.c"),
 ];
-const NOT_PORTED_INSTANCE: &[(&str, &str)] = &[
-    (
-        "off",
-        "src/spicelib/devices/mos1/mos1load.c (MODEINITJCT/MODEINITFIX)",
-    ),
-    ("ic", "src/spicelib/devices/mos1/mos1ic.c"),
-    ("icvds", "src/spicelib/devices/mos1/mos1ic.c"),
-    ("icvgs", "src/spicelib/devices/mos1/mos1ic.c"),
-    ("icvbs", "src/spicelib/devices/mos1/mos1ic.c"),
-];
+/// The `IC` vector components (`mos1par.c`): `ICVDS`, `ICVGS`, `ICVBS`.
+const IC_COMPONENTS: [&str; 3] = ["icvds", "icvgs", "icvbs"];
 
 fn reject_unported(
     parameters: &[ParameterAssignment],
@@ -494,6 +492,8 @@ pub struct Mos1 {
     geometry: Geometry,
     /// Drain/source series conductances (zero without an internal node).
     series: [Real; 2],
+    /// `OFF` and `ICVDS`/`ICVGS`/`ICVBS` (C `MOS1off`, `MOS1icV*`).
+    initial: crate::initial::InstanceInitial,
 }
 
 impl Mos1 {
@@ -507,12 +507,12 @@ impl Mos1 {
             return Err(SpiceError::circuit("MOS1 needs level 1 and four terminals"));
         }
         reject_unported(&resolved.card().parameters, NOT_PORTED_MODEL, "model")?;
-        reject_unported(&i.parameters, NOT_PORTED_INSTANCE, "instance")?;
+        let (initial, setters) = crate::initial::split(&i.parameters, &IC_COMPONENTS)?;
         let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
         let v = ScalarSchema {
             parameters: INSTANCE,
         }
-        .validate(&i.parameters, &i.location)?;
+        .validate(&setters, &i.location)?;
         let pol = if resolved.family() == ModelFamily::Pmos {
             -1.
         } else {
@@ -588,6 +588,7 @@ impl Mos1 {
             model,
             geometry,
             series,
+            initial,
         };
         // Validate every derivation before interning nodes.
         device.operating(context)?;
@@ -830,17 +831,36 @@ impl Mos1 {
     /// negative), `vds` with `DEVlimvds` and the forward-biased bulk junction
     /// with `DEVpnjlim` (`vt = kT/q`, source/drain `vcrit` from their
     /// saturation currents).
+    ///
+    /// The start voltages follow `mos1load.c`'s `MODEINITJCT` branch: an
+    /// `off` instance starts at zero (and is held there in `MODEINITFIX`);
+    /// otherwise the `IC` vector `type * [ICVBS, ICVGS, ICVDS]` (`ic`,
+    /// device frame `[vbs, vgs, vds]`), replaced by the default start when
+    /// all three are zero, except in the `uic` initial load.
     fn limit(
         &self,
         op: &Operating,
         limiter: &mut Limiter,
         states: &crate::DeviceState<'_>,
         raw: [Real; 3],
+        ic: [Real; 3],
     ) -> [Real; 3] {
         let pol = self.model.pol;
-        if limiter.mode() == Linearization::Initial {
-            let tvto = op.vbi + pol * op.gamma * op.phi.sqrt();
-            return [-1., pol * tvto, 0.];
+        let mode = limiter.mode();
+        if mode != Linearization::InitialConditions && limiter.holds_off(states, self.initial.off) {
+            return [0.; 3];
+        }
+        match mode {
+            Linearization::InitialConditions if self.initial.off => return [0.; 3],
+            Linearization::InitialConditions => return ic.map(|v| pol * v),
+            Linearization::Initial => {
+                if ic.iter().any(|v| *v != 0.) {
+                    return ic.map(|v| pol * v);
+                }
+                let tvto = op.vbi + pol * op.gamma * op.phi.sqrt();
+                return [-1., pol * tvto, 0.];
+            }
+            _ => {}
         }
         let previous: Vec<_> = (0..4)
             .map(|k| limiter.previous(states, slot::LIMITED + k))
@@ -867,6 +887,24 @@ impl Mos1 {
             vbs = vbd + vds;
         }
         [vbs, vgs, vds]
+    }
+
+    /// The instance initial conditions `[ICVBS, ICVGS, ICVDS]` for this
+    /// load: unset components are the external terminal voltages of the
+    /// solution in the `uic` initial load (`mos1ic.c`, called by `CKTic`
+    /// only under `MODEUIC`) and zero (C's unset default) otherwise.
+    fn start_conditions(&self, limiter: &Limiter, voltage: impl Fn(NodeId) -> Real) -> [Real; 3] {
+        let [vds, vgs, vbs] = [0, 1, 2].map(|k| self.initial.values[k]);
+        let [d, g, s, b] = [0, 1, 2, 3].map(|k| self.terminals[k]);
+        if limiter.mode() == Linearization::InitialConditions {
+            [
+                vbs.unwrap_or_else(|| voltage(b) - voltage(s)),
+                vgs.unwrap_or_else(|| voltage(g) - voltage(s)),
+                vds.unwrap_or_else(|| voltage(d) - voltage(s)),
+            ]
+        } else {
+            [vbs, vgs, vds].map(|v| v.unwrap_or(0.))
+        }
     }
 
     /// Nodes of the drain/source series resistors and the gate charges.
@@ -971,6 +1009,9 @@ impl Device for Mos1 {
     fn is_nonlinear(&self) -> bool {
         true
     }
+    fn has_start_settings(&self) -> bool {
+        self.initial.off || self.initial.values.iter().flatten().any(|v| *v != 0.)
+    }
     fn state_count(&self) -> usize {
         slot::COUNT
     }
@@ -988,11 +1029,39 @@ impl Device for Mos1 {
         let pol = self.model.pol;
         let raw = [node[3] - node[2], node[1] - node[2], node[0] - node[2]].map(|x| pol * x);
         let mut limiter = Limiter::new(&context.states);
-        let [vbs, vgs, vds] = self.limit(&op, &mut limiter, &context.states, raw);
+        let ic = self.start_conditions(&limiter, |n| context.node_voltage(n));
+        let [vbs, vgs, vds] = self.limit(&op, &mut limiter, &context.states, raw, ic);
         // The intrinsic d', g, s', b at the (limited) voltages, relative to
         // s'; every equation below depends on voltage differences only.
         let v = [vds, vgs, 0., vbs].map(|x| pol * x);
         let point = self.point(&op, v, context.gmin)?;
+        // MOS1convTest for an `off` instance held in MODEINITFIX: the drain
+        // (channel minus bulk-drain) and bulk currents at the held voltages
+        // against their linear prediction at the iterate's node voltages.
+        {
+            let node_voltage = |n: NodeId| context.node_voltage(n);
+            let [d, _, s, b] = self.inner;
+            let channel = &point.channel;
+            let channel_change: Real = channel
+                .partials
+                .iter()
+                .map(|(node, partial)| partial * node_voltage(*node))
+                .sum::<Real>()
+                - channel.linearized;
+            let bd_change =
+                point.bd.conductance * (node_voltage(b) - node_voltage(d) - (v[3] - v[0]));
+            let bs_change =
+                point.bs.conductance * (node_voltage(b) - node_voltage(s) - (v[3] - v[2]));
+            let drain = channel.current - point.bd.current;
+            let bulk = point.bd.current + point.bs.current;
+            limiter.test_held(
+                &context.states,
+                &[
+                    (drain, drain + channel_change - bd_change),
+                    (bulk, bulk + bd_change + bs_change),
+                ],
+            );
+        }
         for (ports, conductance) in self.series_ports().into_iter().zip(self.series) {
             if conductance > 0. {
                 nodal_stamp(context.matrix, context.unknowns, ports, conductance)?;

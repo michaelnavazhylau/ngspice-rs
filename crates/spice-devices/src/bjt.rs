@@ -22,10 +22,14 @@
 //! Not ported, and rejected with [`SpiceError::NotYetPorted`]: excess phase
 //! (`PTF` with `TF != 0`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`,
 //! `QCO`, ...), noise (`KF`/`AF`), safe-operating-area limits (`*_MAX`,
-//! `RTH0`) and `OFF`/`IC` initial conditions.
+//! `RTH0`).
 //!
 //! Newton limiting follows `bjtload.c` through [`crate::limiting`]:
-//! `MODEINITJCT` starts at `vbe = tVcrit`, and later loads apply `DEVpnjlim`
+//! `MODEINITJCT` starts at `vbe = tVcrit` (all zero for an `OFF` instance,
+//! which is also held at zero through `MODEINITFIX`); the `uic` initial load
+//! starts at `vbe = ICVBE`, `vbc = vbx = ICVBE - ICVCE`, `vsub = 0`, unset
+//! components defaulted from the external terminals as `bjtgetic.c` does;
+//! later loads apply `DEVpnjlim`
 //! to `vbe`, `vbc` and `vsub`. C's `MODEINITPRED` extrapolation, bypass and
 //! the quasi-saturation `vbcx`/`vrci` limits (a rejected model) are not ported.
 use crate::limiting::{self, Limiter, Linearization};
@@ -226,9 +230,8 @@ const INSTANCE: &[P] = &[
     p("dtemp", U::Celsius, D::Finite, Some(0.)),
 ];
 
-/// Instance setters for nonlinear initial conditions (`bjtgetic.c`, the
-/// `MODEINITJCT`/`MODEUIC` branches of `bjtload.c`), not yet ported.
-const UNPORTED_INSTANCE: &[&str] = &["off", "ic", "icvbe", "icvce"];
+/// The `IC` vector components (`bjtpar.c`): `ICVBE`, `ICVCE`.
+const IC_COMPONENTS: [&str; 2] = ["icvbe", "icvce"];
 
 fn canonical(parameter: &ParameterAssignment) -> ParameterAssignment {
     let mut parameter = parameter.clone();
@@ -730,8 +733,30 @@ impl Thermal {
     /// `vbe`, `vbc` (`tVcrit` from `area * IS`) and `vsub` (`tSubVcrit` from
     /// ISS, else `VCRIT_DISABLED`). `vbx` is never limited. `m` scales the
     /// stamps, not `tSatCur`. Quasi-saturation (`vbcx`, `vrci`) is not ported.
-    fn limit(&self, limiter: &mut Limiter, states: &crate::DeviceState<'_>, raw: Bias) -> Bias {
+    ///
+    /// `start` is the `uic` initial bias (from `ICVBE`/`ICVCE`) and `off` the
+    /// instance flag, which holds every junction at zero in `MODEINITJCT`
+    /// and `MODEINITFIX`.
+    fn limit(
+        &self,
+        limiter: &mut Limiter,
+        states: &crate::DeviceState<'_>,
+        raw: Bias,
+        start: Bias,
+        off: bool,
+    ) -> Bias {
         let vcrit = limiting::critical_voltage(self.vt, self.is);
+        if limiter.mode() == Linearization::InitialConditions {
+            return start;
+        }
+        if limiter.holds_off(states, off) {
+            return Bias {
+                vbe: 0.,
+                vbc: 0.,
+                vbx: 0.,
+                vsub: 0.,
+            };
+        }
         if limiter.mode() == Linearization::Initial {
             return Bias {
                 vbe: vcrit,
@@ -1193,12 +1218,11 @@ pub struct Bjt {
     subs: Real,
     model: Model,
     instance: Instance,
+    /// `OFF` and `ICVBE`/`ICVCE` (C `BJToff`, `BJTicVBE`, `BJTicVCE`).
+    initial: crate::initial::InstanceInitial,
 }
 
-fn reject_unported(
-    parameters: &[ParameterAssignment],
-    instance: &DeviceInstance,
-) -> SpiceResult<()> {
+fn reject_unported(parameters: &[ParameterAssignment]) -> SpiceResult<()> {
     for parameter in parameters {
         if let Some((_, reference)) = UNPORTED_MODEL
             .iter()
@@ -1210,20 +1234,6 @@ fn reject_unported(
                     parameter.location, parameter.name
                 ),
                 format!("src/spicelib/devices/{reference}"),
-            ));
-        }
-    }
-    for parameter in &instance.parameters {
-        if UNPORTED_INSTANCE
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(&parameter.name))
-        {
-            return Err(SpiceError::not_yet_ported(
-                format!(
-                    "{}: BJT initial condition '{}' of {}",
-                    parameter.location, parameter.name, instance.name
-                ),
-                "src/spicelib/devices/bjt/bjtgetic.c, bjtload.c (MODEINITJCT/MODEUIC)",
             ));
         }
     }
@@ -1244,7 +1254,7 @@ impl Bjt {
             });
         }
         let card = model.card();
-        reject_unported(&card.parameters, i)?;
+        reject_unported(&card.parameters)?;
         let assignments: Vec<_> = card
             .parameters
             .iter()
@@ -1260,10 +1270,11 @@ impl Bjt {
                 "src/spicelib/devices/bjt/bjtload.c (excess phase), bjtacld.c",
             ));
         }
+        let (initial, instance_setters) = crate::initial::split(&i.parameters, &IC_COMPONENTS)?;
         let instance_values = ScalarSchema {
             parameters: INSTANCE,
         }
-        .validate(&i.parameters, &i.location)?;
+        .validate(&instance_setters, &i.location)?;
         let area = get(&instance_values, "area")?;
         let instance = Instance {
             area,
@@ -1337,11 +1348,30 @@ impl Bjt {
             subs,
             model: parameters,
             instance,
+            initial,
         }))
     }
 
     fn thermal(&self, context: &ModelContext) -> SpiceResult<Thermal> {
         self.model.thermal(&self.instance, self.subs > 0., context)
+    }
+
+    /// `bjtload.c`'s `uic` initial bias (`MODEINITJCT` under `MODETRANOP |
+    /// MODEUIC`): `vbe = type * ICVBE`, `vbc = vbx = vbe - type * ICVCE`,
+    /// `vsub = 0`. An unset `ICVBE`/`ICVCE` is the external base-emitter /
+    /// collector-emitter voltage of the solution (`bjtgetic.c`).
+    fn uic_bias(&self, voltage: impl Fn(NodeId) -> Real) -> Bias {
+        let n = self.nodes;
+        let icvbe = self.initial.values[0].unwrap_or_else(|| voltage(n.b) - voltage(n.e));
+        let icvce = self.initial.values[1].unwrap_or_else(|| voltage(n.c) - voltage(n.e));
+        let vbe = self.pol * icvbe;
+        let vbc = vbe - self.pol * icvce;
+        Bias {
+            vbe,
+            vbc,
+            vbx: vbc,
+            vsub: 0.,
+        }
     }
 
     fn bias(&self, voltage: impl Fn(NodeId) -> Real) -> Bias {
@@ -1590,6 +1620,9 @@ impl Device for Bjt {
     fn is_nonlinear(&self) -> bool {
         true
     }
+    fn has_start_settings(&self) -> bool {
+        self.initial.off
+    }
     /// `qbe`, `qbc`, `qsub`, `qbx`, each followed by its current, then the
     /// limited `vbe`, `vbc`, `vsub`.
     fn state_count(&self) -> usize {
@@ -1612,8 +1645,33 @@ impl Device for Bjt {
         let voltage = |node| context.node_voltage(node);
         let raw = self.bias(voltage);
         let mut limiter = Limiter::new(&context.states);
-        let bias = thermal.limit(&mut limiter, &context.states, raw);
+        let bias = thermal.limit(
+            &mut limiter,
+            &context.states,
+            raw,
+            self.uic_bias(voltage),
+            self.initial.off,
+        );
         let evaluation = evaluate(&thermal, bias, context.gmin)?;
+        // BJTconvTest for an `off` instance held in MODEINITFIX: collector
+        // `cc = it - ibc` and base `cb = ibe + ibc` currents at the held bias
+        // against their linear prediction at the iterate's `vbe`, `vbc`.
+        {
+            let e = &evaluation;
+            let (dbe, dbc) = (raw.vbe - bias.vbe, raw.vbc - bias.vbc);
+            let predict = |d: [Dual; 2], sign: Real| {
+                (d[0].dvbe + sign * d[1].dvbe) * dbe + (d[0].dvbc + sign * d[1].dvbc) * dbc
+            };
+            let cc = e.transport.value - e.base_collector.value;
+            let cb = e.base_emitter.value + e.base_collector.value;
+            limiter.test_held(
+                &context.states,
+                &[
+                    (cc, cc + predict([e.transport, e.base_collector], -1.)),
+                    (cb, cb + predict([e.base_emitter, e.base_collector], 1.)),
+                ],
+            );
+        }
         let shift = Bias {
             vbe: bias.vbe - raw.vbe,
             vbc: bias.vbc - raw.vbc,

@@ -450,18 +450,19 @@ fn only_the_meyer_gate_charges_control_the_timestep() {
 
 #[test]
 fn unported_and_invalid_mos1_inputs_fail_explicitly() {
-    for (body, reference) in [
-        ("m1 d g 0 0 mm\n.model mm nmos(kf=1e-25)", "mos1noi.c"),
-        ("m1 d g 0 0 mm off\n.model mm nmos", "mos1load.c"),
-        ("m1 d g 0 0 mm ic=1,2,3\n.model mm nmos", "mos1ic.c"),
-        ("m1 d g 0 0 mm icvds=1\n.model mm nmos", "mos1ic.c"),
-    ] {
-        match Circuit::from_netlist(&deck(body)) {
-            Err(SpiceError::NotYetPorted { c_reference, .. }) => {
-                assert!(c_reference.contains(reference), "{body}: {c_reference}");
-            }
-            other => panic!("{body}: {other:?}"),
+    let body = "m1 d g 0 0 mm\n.model mm nmos(kf=1e-25)";
+    match Circuit::from_netlist(&deck(body)) {
+        Err(SpiceError::NotYetPorted { c_reference, .. }) => {
+            assert!(c_reference.contains("mos1noi.c"), "{body}: {c_reference}");
         }
+        other => panic!("{body}: {other:?}"),
+    }
+    // OFF and the IC vector are ported (#99, mos1load.c/mos1ic.c).
+    for body in [
+        "m1 d g 0 0 mm off\n.model mm nmos",
+        "m1 d g 0 0 mm ic=1,2,3 icvds=1\n.model mm nmos",
+    ] {
+        Circuit::from_netlist(&deck(body)).unwrap();
     }
     for body in [
         // NSUB below the intrinsic density (mos1temp.c "Nsub < Ni").

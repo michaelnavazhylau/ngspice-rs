@@ -318,11 +318,16 @@ fn unported_gummel_poon_physics_is_explicit() {
         "q1 c b 0 qm\n.model qm npn(tf=1n ptf=30)",
         "q1 c b 0 qm\n.model qm npn(kf=1e-16)",
         "q1 c b 0 qm\n.model qm npn(vbe_max=5)",
-        "q1 c b 0 qm off\n.model qm npn",
-        "q1 c b 0 qm icvbe=0.6\n.model qm npn",
     ] {
         let error = Circuit::from_netlist(&netlist(body)).unwrap_err();
         assert!(error.is_not_yet_ported(), "{body}: {error}");
+    }
+    // OFF and the IC vector are ported (#99, bjtload.c/bjtgetic.c).
+    for body in [
+        "q1 c b 0 qm off\n.model qm npn",
+        "q1 c b 0 qm icvbe=0.6 ic=0.7,2\n.model qm npn",
+    ] {
+        Circuit::from_netlist(&netlist(body)).unwrap();
     }
     // Excess phase has no effect without TF (bjttemp.c: PTF * TF).
     Circuit::from_netlist(&netlist("q1 c b 0 qm\n.model qm npn(ptf=30)")).unwrap();
