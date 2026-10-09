@@ -654,6 +654,106 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(coll)", 0, 4.982934701819048, 0.),
         ],
     },
+    // Gummel-Poon BJT (#87). At VBE = 1.1 V the IKF = 20 mA knee and the
+    // 21.5 ohm of RC + RE (plus RB) compress the forward gain to about 15
+    // (3.0 mA of base current for 46.6 mA of collector current).
+    Expectation {
+        fixture: "m7_bjt_gummel",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 41,
+        variables: &["v(v-sweep)", "v(b)", "v(c)", "i(vbe)", "i(vcb)"],
+        values: &[
+            ("v(v-sweep)", 40, 1.100000000000001, 0.),
+            ("i(vbe)", 40, -4.966010012111799e-2, 0.),
+            ("i(vcb)", 40, -4.664713816377888e-2, 0.),
+        ],
+    },
+    // Five 51-point VCE sweeps (IB = 5..25 uA); at 5 V and 25 uA the gain is
+    // about 110: BF = 150 lowered by ISE leakage and high injection, raised by
+    // the Early effect (VAF = 60 V).
+    Expectation {
+        fixture: "m7_bjt_output",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 255,
+        variables: &["v(v-sweep)", "v(b)", "v(c)", "i(vce)"],
+        values: &[
+            ("v(v-sweep)", 254, 4.999999999999998, 0.),
+            ("v(b)", 254, 8.017159997526093e-1, 0.),
+            ("i(vce)", 254, -2.739006031922822e-3, 0.),
+        ],
+    },
+    // -40..125 C: the NPN emitter rises as VBE falls with temperature; the
+    // PNP collector and the M=2 TLEV=3 follower follow their biasing.
+    Expectation {
+        fixture: "m7_bjt_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 12,
+        variables: &[
+            "temp-sweep",
+            "v(fb)",
+            "v(fe)",
+            "v(nb)",
+            "v(nc)",
+            "v(ne)",
+            "v(pb)",
+            "v(pc)",
+            "v(pe)",
+            "v(sub)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vsub)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -40., 0.),
+            ("v(ne)", 0, 7.446680380960549e-2, 0.),
+            ("v(pc)", 11, 1.077693071789567, 0.),
+            ("v(fe)", 11, 2.066642618251229, 0.),
+        ],
+    },
+    // A bypassed common-emitter stage: about -97 (gm times 3.3k || 10k) at
+    // 1 kHz, rolled off by the coupling capacitors and the junction charges.
+    Expectation {
+        fixture: "m7_bjt_amp_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 91,
+        variables: &[
+            "frequency",
+            "v(in)",
+            "v(nb)",
+            "v(nc)",
+            "v(ne)",
+            "v(ns)",
+            "v(out)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 10., 0.),
+            ("v(out)", 40, -9.708196298518708e1, 7.191525861659186),
+        ],
+    },
+    // The same stage's 10 mV input pulse; the first row is its bias point
+    // (1.26 V base from the 82k/15k divider, 3.6 V collector).
+    Expectation {
+        fixture: "m7_bjt_amp_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2623,
+        variables: &[
+            "time", "v(in)", "v(nb)", "v(nc)", "v(ne)", "v(ns)", "v(out)", "v(vcc)", "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(nc)", 0, 3.615525216417331, 0.),
+            ("v(nb)", 0, 1.257160102738815, 0.),
+        ],
+    },
     Expectation {
         fixture: "m4_diode_ac",
         plotname: "AC Analysis",
@@ -701,6 +801,93 @@ const EXPECTATIONS: &[Expectation] = &[
             ("time", 0, 0., 0.),
             ("v(drain)", 0, 3.749999962400001, 0.),
             ("v(gate)", 0, 1.5, 0.),
+        ],
+    },
+    // MOS1 completion (#88). At t = 0 the input is low: the NMOS is off, the
+    // PMOS pulls the output to VDD, and the supply only feeds the reverse NMOS
+    // drain junction (gmin * 3.3 V plus JS * AD).
+    Expectation {
+        fixture: "m7_mos1_inverter_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10029,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 3.299999997161830, 0.),
+            ("i(vdd)", 0, -3.300190593273314e-12, 0.),
+        ],
+    },
+    // The operating point of a symmetric three-stage ring is metastable: every
+    // node sits at the same inverter switching voltage and each stage draws
+    // the same crowbar current until the current kick at 0.2 ns.
+    Expectation {
+        fixture: "m7_mos1_ring_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 12017,
+        variables: &["time", "v(n1)", "v(n2)", "v(n3)", "v(vdd)", "i(vdd)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(n1)", 0, 1.583269636740751, 0.),
+            ("v(n2)", 0, 1.583269636740767, 0.),
+            ("v(n3)", 0, 1.583269636740759, 0.),
+            ("i(vdd)", 0, -6.843983314869297e-4, 0.),
+        ],
+    },
+    // A common-source stage: the supply current is the load-resistor current,
+    // i(vdd) = v(drain) / 10 k (the drain is the only path from VDD).
+    Expectation {
+        fixture: "m7_mos1_meyer_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 36,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(drain)", 0, -2.642323147155134, 4.132728256333773e-6),
+            ("i(vdd)", 0, -2.642323147155135e-4, 4.132728256333773e-10),
+        ],
+    },
+    // Gate sweep with fixed body biases: the forward bulk-junction current
+    // i(vbs) of m1/m2 does not depend on the gate; at vgs = 0 the PMOS is off
+    // and i(vd3) is its reverse drain junction (gmin * 1.7 V plus IS).
+    Expectation {
+        fixture: "m7_mos1_process_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 31,
+        variables: &[
+            "v(v-sweep)",
+            "v(b)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "i(egp)",
+            "v(gp)",
+            "v(g)",
+            "i(vbp)",
+            "i(vbs)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbs)", 0, -1.024308251724379e-7, 0.),
+            ("i(vbs)", 30, -1.024308251724379e-7, 0.),
+            ("i(vd3)", 0, 1.710000042799543e-12, 0.),
+            ("i(vd1)", 30, -9.838819194962108e-4, 0.),
         ],
     },
     Expectation {
@@ -1633,6 +1820,85 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(c1)", 1037, 1.493033752313648e+00, 0.0),
             ("v(c3)", 1037, 1.393870438628249e+00, 0.0),
             ("i(vsense2)", 1037, 2.000000000000000e-03, 0.0),
+        ],
+    }, // Diode physics (#86). The regulator conducts forward at -2 V and holds
+    // its output a little above BV = 5.1 V (series resistance plus the
+    // breakdown exponential) at 12 V in.
+    Expectation {
+        fixture: "m7_zener_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 141,
+        variables: &["v(v-sweep)", "v(in)", "v(out)", "i(vin)"],
+        values: &[
+            ("v(out)", 0, -7.308665019568273e-01, 0.0),
+            ("v(out)", 140, 5.282797124103860e+00, 0.0),
+            ("i(vin)", 140, -6.717202875896115e-02, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m7_diode_physics_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 205,
+        variables: &["v(v-sweep)", "v(a)", "v(k1)", "v(k2)", "v(k3)", "i(v1)"],
+        values: &[
+            ("v(k1)", 0, -6.205250986919840e+00, 0.0),
+            ("v(k2)", 0, -5.188330173225660e+00, 0.0),
+            ("v(k3)", 0, -7.431592663148733e+00, 0.0),
+            ("i(v1)", 204, -1.335006444774208e-02, 0.0),
+        ],
+    },
+    // C names the `.dc temp` scale `temp-sweep` (type `temp-sweep`). Forward
+    // voltages fall and the TCV-shifted breakdown knee drops when heated.
+    Expectation {
+        fixture: "m7_diode_temp_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 34,
+        variables: &["temp-sweep", "v(a)", "v(b)", "v(c)", "v(k)", "i(v3)"],
+        values: &[
+            ("temp-sweep", 0, -40.0, 0.0),
+            ("v(a)", 0, 8.105491866356285e-01, 0.0),
+            ("v(k)", 0, 5.795576367813973e+00, 0.0),
+            ("temp-sweep", 33, 125.0, 0.0),
+            ("v(a)", 33, 5.432783558641020e-01, 0.0),
+            ("v(k)", 33, 5.407655948379028e+00, 0.0),
+        ],
+    },
+    Expectation {
+        fixture: "m7_diode_temp_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 31,
+        variables: &[
+            "frequency",
+            "v(b1)",
+            "v(b2)",
+            "v(b3)",
+            "v(k1)",
+            "v(k2)",
+            "v(k3)",
+            "i(vb1)",
+            "i(vb2)",
+            "i(vb3)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.0),
+            ("v(k1)", 0, 9.999771077537682e-01, -4.783484309209417e-03),
+            ("v(k3)", 0, 4.676800133344254e-01, -3.705732363331333e-05),
+        ],
+    },
+    Expectation {
+        fixture: "m7_zener_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 432,
+        variables: &["time", "v(in)", "v(out)", "i(vin)"],
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("time", 431, 1.8e-3, 0.0),
+            ("v(out)", 431, -8.215683334810343e-01, 0.0),
         ],
     },
 ];

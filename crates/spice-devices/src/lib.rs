@@ -28,7 +28,7 @@
 //!
 //! `Circuit::from_netlist` accepts literal R/C/L/V/I, linear E/F/G/H controlled
 //! sources, K mutual inductance, bounded model-backed R/C/L and the explicitly bounded M4
-//! diode/Ebers-Moll BJT/MOS1 subset.
+//! diode/Gummel-Poon BJT/MOS1 subset.
 //! Parsing alone never enables unsupported physics; model-aware schemas reject it.
 //! Constant/Step/Pwl/Pulse forcing is available both through the device API and
 //! from numeric `PULSE(...)`/`PWL(...)` source setters; `SIN`/`EXP`/`SFFM`/`AM`
@@ -38,6 +38,7 @@
 #![warn(missing_docs)]
 
 pub mod behavioural;
+pub mod bjt;
 pub mod circuit;
 pub mod controlled;
 mod factory;
@@ -45,6 +46,7 @@ pub mod functions;
 pub mod limiting;
 pub mod linear;
 pub mod models;
+pub mod mos1;
 pub mod mutual;
 pub mod nonlinear;
 pub mod passive;
@@ -73,7 +75,6 @@ pub use subckt::{ExpandedNetlist, SubcircuitLimits, expand_subcircuits};
 pub mod rlc;
 pub mod state;
 pub mod traits;
-pub mod transistors;
 
 pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
 pub use circuit::LoadRequest;

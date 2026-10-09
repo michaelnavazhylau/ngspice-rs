@@ -1,0 +1,223 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_mos1_process_dc.cir
+title: "MOS1 process extraction (NSUB/TPG/NSS/UO), forward body bias and temperature" @netlists/m7_mos1_process_dc.cir:1:1
+card 1 @netlists/m7_mos1_process_dc.cir:2:1 lines=2-2 continuations=0
+  raw: "vd1 d1 0 2"
+  kind: device(v)
+  token 1 2:1 word "vd1"
+  token 2 2:5 word "d1"
+  token 3 2:8 number "0" value=0e0
+  token 4 2:10 number "2" value=2e0
+card 2 @netlists/m7_mos1_process_dc.cir:3:1 lines=3-3 continuations=0
+  raw: "vd2 d2 0 2"
+  kind: device(v)
+  token 1 3:1 word "vd2"
+  token 2 3:5 word "d2"
+  token 3 3:8 number "0" value=0e0
+  token 4 3:10 number "2" value=2e0
+card 3 @netlists/m7_mos1_process_dc.cir:4:1 lines=4-4 continuations=0
+  raw: "vd3 d3 0 -2"
+  kind: device(v)
+  token 1 4:1 word "vd3"
+  token 2 4:5 word "d3"
+  token 3 4:8 number "0" value=0e0
+  token 4 4:10 number "-2" value=-2e0
+card 4 @netlists/m7_mos1_process_dc.cir:5:1 lines=5-5 continuations=0
+  raw: "vgs g 0 0"
+  kind: device(v)
+  token 1 5:1 word "vgs"
+  token 2 5:5 word "g"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 number "0" value=0e0
+card 5 @netlists/m7_mos1_process_dc.cir:6:1 lines=6-6 continuations=0
+  raw: "vbs b 0 0.3"
+  kind: device(v)
+  token 1 6:1 word "vbs"
+  token 2 6:5 word "b"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 number "0.3" value=3e-1
+card 6 @netlists/m7_mos1_process_dc.cir:7:1 lines=7-7 continuations=0
+  raw: "vbp bp 0 -0.3"
+  kind: device(v)
+  token 1 7:1 word "vbp"
+  token 2 7:5 word "bp"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "-0.3" value=-3e-1
+card 7 @netlists/m7_mos1_process_dc.cir:8:1 lines=8-8 continuations=0
+  raw: "egp gp 0 g 0 -1"
+  kind: device(e)
+  token 1 8:1 word "egp"
+  token 2 8:5 word "gp"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 word "g"
+  token 5 8:12 number "0" value=0e0
+  token 6 8:14 number "-1" value=-1e0
+card 8 @netlists/m7_mos1_process_dc.cir:9:1 lines=9-9 continuations=0
+  raw: "m1 d1 g 0 b mn w=4u l=1u temp=60"
+  kind: device(m)
+  token 1 9:1 word "m1"
+  token 2 9:4 word "d1"
+  token 3 9:7 word "g"
+  token 4 9:9 number "0" value=0e0
+  token 5 9:11 word "b"
+  token 6 9:13 word "mn"
+  token 7 9:16 word "w"
+  token 8 9:17 equals "="
+  token 9 9:18 number "4u" value=4e-6
+  token 10 9:21 word "l"
+  token 11 9:22 equals "="
+  token 12 9:23 number "1u" value=1e-6
+  token 13 9:26 word "temp"
+  token 14 9:30 equals "="
+  token 15 9:31 number "60" value=6e1
+card 9 @netlists/m7_mos1_process_dc.cir:10:1 lines=10-10 continuations=0
+  raw: "m2 d2 g 0 b mq w=4u l=1u dtemp=-30"
+  kind: device(m)
+  token 1 10:1 word "m2"
+  token 2 10:4 word "d2"
+  token 3 10:7 word "g"
+  token 4 10:9 number "0" value=0e0
+  token 5 10:11 word "b"
+  token 6 10:13 word "mq"
+  token 7 10:16 word "w"
+  token 8 10:17 equals "="
+  token 9 10:18 number "4u" value=4e-6
+  token 10 10:21 word "l"
+  token 11 10:22 equals "="
+  token 12 10:23 number "1u" value=1e-6
+  token 13 10:26 word "dtemp"
+  token 14 10:31 equals "="
+  token 15 10:32 number "-30" value=-3e1
+card 10 @netlists/m7_mos1_process_dc.cir:11:1 lines=11-11 continuations=0
+  raw: "m3 d3 gp 0 bp mp w=8u l=1u nrd=3 nrs=3"
+  kind: device(m)
+  token 1 11:1 word "m3"
+  token 2 11:4 word "d3"
+  token 3 11:7 word "gp"
+  token 4 11:10 number "0" value=0e0
+  token 5 11:12 word "bp"
+  token 6 11:15 word "mp"
+  token 7 11:18 word "w"
+  token 8 11:19 equals "="
+  token 9 11:20 number "8u" value=8e-6
+  token 10 11:23 word "l"
+  token 11 11:24 equals "="
+  token 12 11:25 number "1u" value=1e-6
+  token 13 11:28 word "nrd"
+  token 14 11:31 equals "="
+  token 15 11:32 number "3" value=3e0
+  token 16 11:34 word "nrs"
+  token 17 11:37 equals "="
+  token 18 11:38 number "3" value=3e0
+card 11 @netlists/m7_mos1_process_dc.cir:12:1 lines=12-12 continuations=0
+  raw: ".model mn nmos(level=1 tox=25n nsub=2e16 tpg=1 nss=1e10 uo=550 lambda=0.02 tnom=20)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "mn"
+  token 3 12:11 word "nmos"
+  token 4 12:15 lparen "("
+  token 5 12:16 word "level"
+  token 6 12:21 equals "="
+  token 7 12:22 number "1" value=1e0
+  token 8 12:24 word "tox"
+  token 9 12:27 equals "="
+  token 10 12:28 number "25n" value=2.5000000000000002e-8
+  token 11 12:32 word "nsub"
+  token 12 12:36 equals "="
+  token 13 12:37 number "2e16" value=2e16
+  token 14 12:42 word "tpg"
+  token 15 12:45 equals "="
+  token 16 12:46 number "1" value=1e0
+  token 17 12:48 word "nss"
+  token 18 12:51 equals "="
+  token 19 12:52 number "1e10" value=1e10
+  token 20 12:57 word "uo"
+  token 21 12:59 equals "="
+  token 22 12:60 number "550" value=5.5e2
+  token 23 12:64 word "lambda"
+  token 24 12:70 equals "="
+  token 25 12:71 number "0.02" value=2e-2
+  token 26 12:76 word "tnom"
+  token 27 12:80 equals "="
+  token 28 12:81 number "20" value=2e1
+  token 29 12:83 rparen ")"
+card 12 @netlists/m7_mos1_process_dc.cir:13:1 lines=13-13 continuations=0
+  raw: ".model mq nmos(level=1 tox=25n nsub=5e15 tpg=-1 uo=500 phi=0.6)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "mq"
+  token 3 13:11 word "nmos"
+  token 4 13:15 lparen "("
+  token 5 13:16 word "level"
+  token 6 13:21 equals "="
+  token 7 13:22 number "1" value=1e0
+  token 8 13:24 word "tox"
+  token 9 13:27 equals "="
+  token 10 13:28 number "25n" value=2.5000000000000002e-8
+  token 11 13:32 word "nsub"
+  token 12 13:36 equals "="
+  token 13 13:37 number "5e15" value=5e15
+  token 14 13:42 word "tpg"
+  token 15 13:45 equals "="
+  token 16 13:46 number "-1" value=-1e0
+  token 17 13:49 word "uo"
+  token 18 13:51 equals "="
+  token 19 13:52 number "500" value=5e2
+  token 20 13:56 word "phi"
+  token 21 13:59 equals "="
+  token 22 13:60 number "0.6" value=6e-1
+  token 23 13:63 rparen ")"
+card 13 @netlists/m7_mos1_process_dc.cir:14:1 lines=14-14 continuations=0
+  raw: ".model mp pmos(level=1 tox=25n nsub=1e16 nss=2e10 u0=250 gamma=0.45 rsh=30)"
+  kind: dot(.model)
+  token 1 14:1 word ".model"
+  token 2 14:8 word "mp"
+  token 3 14:11 word "pmos"
+  token 4 14:15 lparen "("
+  token 5 14:16 word "level"
+  token 6 14:21 equals "="
+  token 7 14:22 number "1" value=1e0
+  token 8 14:24 word "tox"
+  token 9 14:27 equals "="
+  token 10 14:28 number "25n" value=2.5000000000000002e-8
+  token 11 14:32 word "nsub"
+  token 12 14:36 equals "="
+  token 13 14:37 number "1e16" value=1e16
+  token 14 14:42 word "nss"
+  token 15 14:45 equals "="
+  token 16 14:46 number "2e10" value=2e10
+  token 17 14:51 word "u0"
+  token 18 14:53 equals "="
+  token 19 14:54 number "250" value=2.5e2
+  token 20 14:58 word "gamma"
+  token 21 14:63 equals "="
+  token 22 14:64 number "0.45" value=4.5e-1
+  token 23 14:69 word "rsh"
+  token 24 14:72 equals "="
+  token 25 14:73 number "30" value=3e1
+  token 26 14:75 rparen ")"
+card 14 @netlists/m7_mos1_process_dc.cir:15:1 lines=15-15 continuations=0
+  raw: ".options reltol=1e-7 vntol=1e-12 abstol=1e-18"
+  kind: dot(.options)
+  token 1 15:1 word ".options"
+  token 2 15:10 word "reltol"
+  token 3 15:16 equals "="
+  token 4 15:17 number "1e-7" value=1e-7
+  token 5 15:22 word "vntol"
+  token 6 15:27 equals "="
+  token 7 15:28 number "1e-12" value=1e-12
+  token 8 15:34 word "abstol"
+  token 9 15:40 equals "="
+  token 10 15:41 number "1e-18" value=1e-18
+card 15 @netlists/m7_mos1_process_dc.cir:16:1 lines=16-16 continuations=0
+  raw: ".dc vgs 0 3 0.1"
+  kind: dot(.dc)
+  token 1 16:1 word ".dc"
+  token 2 16:5 word "vgs"
+  token 3 16:9 number "0" value=0e0
+  token 4 16:11 number "3" value=3e0
+  token 5 16:13 number "0.1" value=1e-1
+card 16 @netlists/m7_mos1_process_dc.cir:17:1 lines=17-17 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 17:1 word ".end"

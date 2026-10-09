@@ -1,0 +1,169 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_bjt_temp.cir
+title: "Gummel-Poon BJT temperature sweep" @netlists/m7_bjt_temp.cir:1:1
+scope root
+  cards (21):
+    [0] device[0] @netlists/m7_bjt_temp.cir:2:1 "vcc vcc 0 5"
+    [1] device[1] @netlists/m7_bjt_temp.cir:3:1 "rb1 vcc nb 47k"
+    [2] device[2] @netlists/m7_bjt_temp.cir:4:1 "rb2 nb 0 10k"
+    [3] device[3] @netlists/m7_bjt_temp.cir:5:1 "rc1 vcc nc 2.2k"
+    [4] device[4] @netlists/m7_bjt_temp.cir:6:1 "re1 ne 0 470"
+    [5] device[5] @netlists/m7_bjt_temp.cir:7:1 "q1 nc nb ne qn"
+    [6] device[6] @netlists/m7_bjt_temp.cir:8:1 "rb3 0 pb 47k"
+    [7] device[7] @netlists/m7_bjt_temp.cir:9:1 "rb4 pb vcc 10k"
+    [8] device[8] @netlists/m7_bjt_temp.cir:10:1 "rc2 pc 0 2.2k"
+    [9] device[9] @netlists/m7_bjt_temp.cir:11:1 "re2 vcc pe 470"
+    [10] device[10] @netlists/m7_bjt_temp.cir:12:1 "q2 pc pb pe sub qp"
+    [11] device[11] @netlists/m7_bjt_temp.cir:13:1 "vsub sub 0 0"
+    [12] device[12] @netlists/m7_bjt_temp.cir:14:1 "rb5 vcc fb 100k"
+    [13] device[13] @netlists/m7_bjt_temp.cir:15:1 "re3 fe 0 1k"
+    [14] device[14] @netlists/m7_bjt_temp.cir:16:1 "q3 vcc fb fe qt dtemp=10 area=2 areab=1.5 m=2"
+    [15] options[0] @netlists/m7_bjt_temp.cir:17:1 ".options reltol=1e-8"
+    [16] model[0] @netlists/m7_bjt_temp.cir:18:1 ".model qn npn(is=1e-15 bf=120 vaf=80 ikf=50m ise=2e-14 ne=1.6 rb=50 re=0.5 rc=5 xtb=1.6 xti=3.5 eg=1.12)"
+    [17] model[1] @netlists/m7_bjt_temp.cir:19:1 ".model qp pnp(is=5e-16 bf=60 br=3 vaf=40 ikf=10m isc=1e-14 nc=1.7 rb=80 rbm=20 irb=1m re=1 rc=10 tlev=1 xtb=0.004 trb1=2m tre1=1m trc1=3m tvaf1=-1m tbr1=1m iss=1e-17 ns=1.1 tnom=35)"
+    [18] model[2] @netlists/m7_bjt_temp.cir:20:1 ".model qt npn(is=1e-15 ibe=2e-15 ibc=3e-15 bf=90 ikf=5m nkf=0.6 ise=1e-14 tlev=3 tis1=-5e-4 tise1=-2e-4 tbf1=3m tnf1=1e-4 tlevc=1 cje=1p cte=1m)"
+    [19] analysis[0] @netlists/m7_bjt_temp.cir:21:1 ".dc temp -40 125 15"
+    [20] end @netlists/m7_bjt_temp.cir:22:1 ".end"
+  devices (15):
+    device [0] name="vcc" designator=v @netlists/m7_bjt_temp.cir:2:1
+      nodes: "vcc" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m7_bjt_temp.cir:2:11
+    device [1] name="rb1" designator=r @netlists/m7_bjt_temp.cir:3:1
+      nodes: "vcc" "nb"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="47k" @netlists/m7_bjt_temp.cir:3:12
+    device [2] name="rb2" designator=r @netlists/m7_bjt_temp.cir:4:1
+      nodes: "nb" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_bjt_temp.cir:4:10
+    device [3] name="rc1" designator=r @netlists/m7_bjt_temp.cir:5:1
+      nodes: "vcc" "nc"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2.2k" @netlists/m7_bjt_temp.cir:5:12
+    device [4] name="re1" designator=r @netlists/m7_bjt_temp.cir:6:1
+      nodes: "ne" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="470" @netlists/m7_bjt_temp.cir:6:10
+    device [5] name="q1" designator=q @netlists/m7_bjt_temp.cir:7:1
+      nodes: "nc" "nb" "ne"
+      model: "qn"
+      parameters (0):
+    device [6] name="rb3" designator=r @netlists/m7_bjt_temp.cir:8:1
+      nodes: "0" "pb"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="47k" @netlists/m7_bjt_temp.cir:8:10
+    device [7] name="rb4" designator=r @netlists/m7_bjt_temp.cir:9:1
+      nodes: "pb" "vcc"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m7_bjt_temp.cir:9:12
+    device [8] name="rc2" designator=r @netlists/m7_bjt_temp.cir:10:1
+      nodes: "pc" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2.2k" @netlists/m7_bjt_temp.cir:10:10
+    device [9] name="re2" designator=r @netlists/m7_bjt_temp.cir:11:1
+      nodes: "vcc" "pe"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="470" @netlists/m7_bjt_temp.cir:11:12
+    device [10] name="q2" designator=q @netlists/m7_bjt_temp.cir:12:1
+      nodes: "pc" "pb" "pe" "sub"
+      model: "qp"
+      parameters (0):
+    device [11] name="vsub" designator=v @netlists/m7_bjt_temp.cir:13:1
+      nodes: "sub" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m7_bjt_temp.cir:13:12
+    device [12] name="rb5" designator=r @netlists/m7_bjt_temp.cir:14:1
+      nodes: "vcc" "fb"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100k" @netlists/m7_bjt_temp.cir:14:12
+    device [13] name="re3" designator=r @netlists/m7_bjt_temp.cir:15:1
+      nodes: "fe" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m7_bjt_temp.cir:15:10
+    device [14] name="q3" designator=q @netlists/m7_bjt_temp.cir:16:1
+      nodes: "vcc" "fb" "fe"
+      model: "qt"
+      parameters (4):
+        [0] name="dtemp" kind=scalar value="10" @netlists/m7_bjt_temp.cir:16:17
+        [1] name="area" kind=scalar value="2" @netlists/m7_bjt_temp.cir:16:26
+        [2] name="areab" kind=scalar value="1.5" @netlists/m7_bjt_temp.cir:16:33
+        [3] name="m" kind=scalar value="2" @netlists/m7_bjt_temp.cir:16:43
+  models (3):
+    model [0] name="qn" base="npn" level=none @netlists/m7_bjt_temp.cir:18:1
+      parameters (12):
+        [0] name="is" kind=scalar value="1e-15" @netlists/m7_bjt_temp.cir:18:15
+        [1] name="bf" kind=scalar value="120" @netlists/m7_bjt_temp.cir:18:24
+        [2] name="vaf" kind=scalar value="80" @netlists/m7_bjt_temp.cir:18:31
+        [3] name="ikf" kind=scalar value="50m" @netlists/m7_bjt_temp.cir:18:38
+        [4] name="ise" kind=scalar value="2e-14" @netlists/m7_bjt_temp.cir:18:46
+        [5] name="ne" kind=scalar value="1.6" @netlists/m7_bjt_temp.cir:18:56
+        [6] name="rb" kind=scalar value="50" @netlists/m7_bjt_temp.cir:18:63
+        [7] name="re" kind=scalar value="0.5" @netlists/m7_bjt_temp.cir:18:69
+        [8] name="rc" kind=scalar value="5" @netlists/m7_bjt_temp.cir:18:76
+        [9] name="xtb" kind=scalar value="1.6" @netlists/m7_bjt_temp.cir:18:81
+        [10] name="xti" kind=scalar value="3.5" @netlists/m7_bjt_temp.cir:18:89
+        [11] name="eg" kind=scalar value="1.12" @netlists/m7_bjt_temp.cir:18:97
+    model [1] name="qp" base="pnp" level=none @netlists/m7_bjt_temp.cir:19:1
+      parameters (22):
+        [0] name="is" kind=scalar value="5e-16" @netlists/m7_bjt_temp.cir:19:15
+        [1] name="bf" kind=scalar value="60" @netlists/m7_bjt_temp.cir:19:24
+        [2] name="br" kind=scalar value="3" @netlists/m7_bjt_temp.cir:19:30
+        [3] name="vaf" kind=scalar value="40" @netlists/m7_bjt_temp.cir:19:35
+        [4] name="ikf" kind=scalar value="10m" @netlists/m7_bjt_temp.cir:19:42
+        [5] name="isc" kind=scalar value="1e-14" @netlists/m7_bjt_temp.cir:19:50
+        [6] name="nc" kind=scalar value="1.7" @netlists/m7_bjt_temp.cir:19:60
+        [7] name="rb" kind=scalar value="80" @netlists/m7_bjt_temp.cir:19:67
+        [8] name="rbm" kind=scalar value="20" @netlists/m7_bjt_temp.cir:19:73
+        [9] name="irb" kind=scalar value="1m" @netlists/m7_bjt_temp.cir:19:80
+        [10] name="re" kind=scalar value="1" @netlists/m7_bjt_temp.cir:19:87
+        [11] name="rc" kind=scalar value="10" @netlists/m7_bjt_temp.cir:19:92
+        [12] name="tlev" kind=scalar value="1" @netlists/m7_bjt_temp.cir:19:98
+        [13] name="xtb" kind=scalar value="0.004" @netlists/m7_bjt_temp.cir:19:105
+        [14] name="trb1" kind=scalar value="2m" @netlists/m7_bjt_temp.cir:19:115
+        [15] name="tre1" kind=scalar value="1m" @netlists/m7_bjt_temp.cir:19:123
+        [16] name="trc1" kind=scalar value="3m" @netlists/m7_bjt_temp.cir:19:131
+        [17] name="tvaf1" kind=scalar value="-1m" @netlists/m7_bjt_temp.cir:19:139
+        [18] name="tbr1" kind=scalar value="1m" @netlists/m7_bjt_temp.cir:19:149
+        [19] name="iss" kind=scalar value="1e-17" @netlists/m7_bjt_temp.cir:19:157
+        [20] name="ns" kind=scalar value="1.1" @netlists/m7_bjt_temp.cir:19:167
+        [21] name="tnom" kind=scalar value="35" @netlists/m7_bjt_temp.cir:19:174
+    model [2] name="qt" base="npn" level=none @netlists/m7_bjt_temp.cir:20:1
+      parameters (15):
+        [0] name="is" kind=scalar value="1e-15" @netlists/m7_bjt_temp.cir:20:15
+        [1] name="ibe" kind=scalar value="2e-15" @netlists/m7_bjt_temp.cir:20:24
+        [2] name="ibc" kind=scalar value="3e-15" @netlists/m7_bjt_temp.cir:20:34
+        [3] name="bf" kind=scalar value="90" @netlists/m7_bjt_temp.cir:20:44
+        [4] name="ikf" kind=scalar value="5m" @netlists/m7_bjt_temp.cir:20:50
+        [5] name="nkf" kind=scalar value="0.6" @netlists/m7_bjt_temp.cir:20:57
+        [6] name="ise" kind=scalar value="1e-14" @netlists/m7_bjt_temp.cir:20:65
+        [7] name="tlev" kind=scalar value="3" @netlists/m7_bjt_temp.cir:20:75
+        [8] name="tis1" kind=scalar value="-5e-4" @netlists/m7_bjt_temp.cir:20:82
+        [9] name="tise1" kind=scalar value="-2e-4" @netlists/m7_bjt_temp.cir:20:93
+        [10] name="tbf1" kind=scalar value="3m" @netlists/m7_bjt_temp.cir:20:105
+        [11] name="tnf1" kind=scalar value="1e-4" @netlists/m7_bjt_temp.cir:20:113
+        [12] name="tlevc" kind=scalar value="1" @netlists/m7_bjt_temp.cir:20:123
+        [13] name="cje" kind=scalar value="1p" @netlists/m7_bjt_temp.cir:20:131
+        [14] name="cte" kind=scalar value="1m" @netlists/m7_bjt_temp.cir:20:138
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m7_bjt_temp.cir:21:1
+      arguments: "temp" "-40" "125" "15"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_bjt_temp.cir:17:1
+      setting [0] name="reltol" value="1e-8"@netlists/m7_bjt_temp.cir:17:17 @netlists/m7_bjt_temp.cir:17:10
+  globals (0):

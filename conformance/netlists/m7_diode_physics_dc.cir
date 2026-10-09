@@ -1,0 +1,14 @@
+Diode recombination, tunnelling, knee and sidewall currents across a DC sweep
+.options reltol=1e-6
+v1 a 0 dc 0
+r1 a k1 100
+d1 k1 0 drec
+r2 a k2 100
+d2 k2 0 dtun pj=10
+r3 a k3 100
+d3 k3 0 dknee
+.model drec d(is=1e-15 isr=1e-11 nr=2 vj=0.7 m=0.4 bv=6 ibv=10u)
+.model dtun d(is=1e-15 jtun=1e-13 jtunsw=1e-14 ntun=15 jsw=1e-15 ns=1.2 ikp=1u bv=5 nbv=2)
+.model dknee d(is=1e-13 n=1.1 ikf=2m ikr=1u bv=7 rs=5)
+.dc v1 -9 1.2 0.05
+.end

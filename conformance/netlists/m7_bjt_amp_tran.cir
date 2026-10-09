@@ -1,0 +1,17 @@
+Gummel-Poon BJT amplifier transient
+vin in 0 pulse(0 10m 1u 10n 10n 2u 5u)
+vcc vcc 0 9
+rs in ns 600
+cin ns nb 1u
+rb1 vcc nb 82k
+rb2 nb 0 15k
+rc vcc nc 3.3k
+re ne 0 330
+ce ne 0 10u
+cl nc out 1u
+rl out 0 10k
+q1 nc nb ne 0 qamp
+.options temp=50 reltol=1e-8
+.model qamp npn(is=5e-16 bf=180 br=5 vaf=70 var=15 ikf=40m ikr=4m ise=1e-14 ne=1.5 isc=2e-14 nc=1.8 rb=120 rbm=12 irb=0.5m re=0.8 rc=15 cje=6p vje=0.72 mje=0.36 cjc=3p vjc=0.6 mjc=0.4 xcjc=0.6 cjs=2p vjs=0.65 mjs=0.35 tf=0.35n xtf=4 vtf=3 itf=60m tr=40n fc=0.6 xtb=1.5)
+.tran 10n 12u 0 5n
+.end

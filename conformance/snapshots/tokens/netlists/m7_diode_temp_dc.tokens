@@ -1,0 +1,161 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_diode_temp_dc.cir
+title: "Diode temperature sweep: EG/XTI/TNOM, TLEV 2 band gap, DTEMP and breakdown TCV" @netlists/m7_diode_temp_dc.cir:1:1
+card 1 @netlists/m7_diode_temp_dc.cir:2:1 lines=2-2 continuations=0
+  raw: ".options reltol=1e-6"
+  kind: dot(.options)
+  token 1 2:1 word ".options"
+  token 2 2:10 word "reltol"
+  token 3 2:16 equals "="
+  token 4 2:17 number "1e-6" value=1e-6
+card 2 @netlists/m7_diode_temp_dc.cir:3:1 lines=3-3 continuations=0
+  raw: "i1 0 a dc 1m"
+  kind: device(i)
+  token 1 3:1 word "i1"
+  token 2 3:4 number "0" value=0e0
+  token 3 3:6 word "a"
+  token 4 3:8 word "dc"
+  token 5 3:11 number "1m" value=1e-3
+card 3 @netlists/m7_diode_temp_dc.cir:4:1 lines=4-4 continuations=0
+  raw: "d1 a 0 dsi"
+  kind: device(d)
+  token 1 4:1 word "d1"
+  token 2 4:4 word "a"
+  token 3 4:6 number "0" value=0e0
+  token 4 4:8 word "dsi"
+card 4 @netlists/m7_diode_temp_dc.cir:5:1 lines=5-5 continuations=0
+  raw: "i2 0 b dc 1m"
+  kind: device(i)
+  token 1 5:1 word "i2"
+  token 2 5:4 number "0" value=0e0
+  token 3 5:6 word "b"
+  token 4 5:8 word "dc"
+  token 5 5:11 number "1m" value=1e-3
+card 5 @netlists/m7_diode_temp_dc.cir:6:1 lines=6-6 continuations=0
+  raw: "d2 b 0 dtl2 dtemp=10"
+  kind: device(d)
+  token 1 6:1 word "d2"
+  token 2 6:4 word "b"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 word "dtl2"
+  token 5 6:13 word "dtemp"
+  token 6 6:18 equals "="
+  token 7 6:19 number "10" value=1e1
+card 6 @netlists/m7_diode_temp_dc.cir:7:1 lines=7-7 continuations=0
+  raw: "v3 c 0 dc 9"
+  kind: device(v)
+  token 1 7:1 word "v3"
+  token 2 7:4 word "c"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 word "dc"
+  token 5 7:11 number "9" value=9e0
+card 7 @netlists/m7_diode_temp_dc.cir:8:1 lines=8-8 continuations=0
+  raw: "r3 c k 1k"
+  kind: device(r)
+  token 1 8:1 word "r3"
+  token 2 8:4 word "c"
+  token 3 8:6 word "k"
+  token 4 8:8 number "1k" value=1e3
+card 8 @netlists/m7_diode_temp_dc.cir:9:1 lines=9-9 continuations=0
+  raw: "d3 0 k dz"
+  kind: device(d)
+  token 1 9:1 word "d3"
+  token 2 9:4 number "0" value=0e0
+  token 3 9:6 word "k"
+  token 4 9:8 word "dz"
+card 9 @netlists/m7_diode_temp_dc.cir:10:1 lines=10-10 continuations=0
+  raw: ".model dsi d(is=2e-14 n=1.05 eg=1.11 xti=3 tnom=35 rs=5 trs1=3m)"
+  kind: dot(.model)
+  token 1 10:1 word ".model"
+  token 2 10:8 word "dsi"
+  token 3 10:12 word "d"
+  token 4 10:13 lparen "("
+  token 5 10:14 word "is"
+  token 6 10:16 equals "="
+  token 7 10:17 number "2e-14" value=2e-14
+  token 8 10:23 word "n"
+  token 9 10:24 equals "="
+  token 10 10:25 number "1.05" value=1.05e0
+  token 11 10:30 word "eg"
+  token 12 10:32 equals "="
+  token 13 10:33 number "1.11" value=1.11e0
+  token 14 10:38 word "xti"
+  token 15 10:41 equals "="
+  token 16 10:42 number "3" value=3e0
+  token 17 10:44 word "tnom"
+  token 18 10:48 equals "="
+  token 19 10:49 number "35" value=3.5e1
+  token 20 10:52 word "rs"
+  token 21 10:54 equals "="
+  token 22 10:55 number "5" value=5e0
+  token 23 10:57 word "trs1"
+  token 24 10:61 equals "="
+  token 25 10:62 number "3m" value=3e-3
+  token 26 10:64 rparen ")"
+card 10 @netlists/m7_diode_temp_dc.cir:11:1 lines=11-11 continuations=0
+  raw: ".model dtl2 d(is=1e-15 n=1.2 tlev=2 eg=1.17 gap1=4.73e-4 gap2=636 xti=2.5 isr=1e-12 nr=2)"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "dtl2"
+  token 3 11:13 word "d"
+  token 4 11:14 lparen "("
+  token 5 11:15 word "is"
+  token 6 11:17 equals "="
+  token 7 11:18 number "1e-15" value=1e-15
+  token 8 11:24 word "n"
+  token 9 11:25 equals "="
+  token 10 11:26 number "1.2" value=1.2e0
+  token 11 11:30 word "tlev"
+  token 12 11:34 equals "="
+  token 13 11:35 number "2" value=2e0
+  token 14 11:37 word "eg"
+  token 15 11:39 equals "="
+  token 16 11:40 number "1.17" value=1.17e0
+  token 17 11:45 word "gap1"
+  token 18 11:49 equals "="
+  token 19 11:50 number "4.73e-4" value=4.73e-4
+  token 20 11:58 word "gap2"
+  token 21 11:62 equals "="
+  token 22 11:63 number "636" value=6.36e2
+  token 23 11:67 word "xti"
+  token 24 11:70 equals "="
+  token 25 11:71 number "2.5" value=2.5e0
+  token 26 11:75 word "isr"
+  token 27 11:78 equals "="
+  token 28 11:79 number "1e-12" value=1e-12
+  token 29 11:85 word "nr"
+  token 30 11:87 equals "="
+  token 31 11:88 number "2" value=2e0
+  token 32 11:89 rparen ")"
+card 11 @netlists/m7_diode_temp_dc.cir:12:1 lines=12-12 continuations=0
+  raw: ".model dz d(bv=5.6 ibv=1m tcv=2.5m nbv=1.2)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "dz"
+  token 3 12:11 word "d"
+  token 4 12:12 lparen "("
+  token 5 12:13 word "bv"
+  token 6 12:15 equals "="
+  token 7 12:16 number "5.6" value=5.6e0
+  token 8 12:20 word "ibv"
+  token 9 12:23 equals "="
+  token 10 12:24 number "1m" value=1e-3
+  token 11 12:27 word "tcv"
+  token 12 12:30 equals "="
+  token 13 12:31 number "2.5m" value=2.5e-3
+  token 14 12:36 word "nbv"
+  token 15 12:39 equals "="
+  token 16 12:40 number "1.2" value=1.2e0
+  token 17 12:43 rparen ")"
+card 12 @netlists/m7_diode_temp_dc.cir:13:1 lines=13-13 continuations=0
+  raw: ".dc temp -40 125 5"
+  kind: dot(.dc)
+  token 1 13:1 word ".dc"
+  token 2 13:5 word "temp"
+  token 3 13:10 number "-40" value=-4e1
+  token 4 13:14 number "125" value=1.25e2
+  token 5 13:18 number "5" value=5e0
+card 13 @netlists/m7_diode_temp_dc.cir:14:1 lines=14-14 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 14:1 word ".end"

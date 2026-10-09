@@ -1,5 +1,102 @@
 # Verification
 
+## M7 Gummel-Poon BJT (#87)
+
+Five new C goldens, each captured individually with `cargo xtask golden
+capture --netlist <name>` (no existing golden recaptured, no tolerance
+changed): `m7_bjt_gummel` (VBC = 0 Gummel plot), `m7_bjt_output` (nested VCE/IB
+output characteristics), `m7_bjt_temp` (`.dc temp` over NPN, lateral PNP with
+substrate, TLEV=3/TLEVC=1), `m7_bjt_amp_ac` and `m7_bjt_amp_tran` (CE amplifier
+at 50 C with every charge). They set `.option reltol=1e-8` because C's default
+reltol with bypass stops these sweeps about 4e-4 from the converged root, far
+outside the 1 ppm `compare::NONLINEAR` bound; with it the worst DC/AC errors are
+below 0.1 of that bound and the transient's 0.039 of `compare::TRAN`.
+
+`golden verify` projects two C naming conventions onto the Rust plot: a
+temperature scale becomes `temp-sweep` (name and unit), and the Rust-only
+`sweep(<outer>)` column of a nested sweep is dropped (C writes the points
+without it; the outer value is still visible through the circuit's voltages).
+The three new `c_bjt_reference` live-C comparisons are opt-in via `NGSPICE_BIN`. Ten new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#bjt).
+
+## M7 diode physics (#86)
+
+Five new C goldens, each captured individually with `cargo xtask golden
+capture --netlist <name>` (no existing golden recaptured or tolerance changed),
+are registered in `golden verify`: `m7_zener_dc` (a Zener
+shunt regulator swept from forward conduction through reverse breakdown),
+`m7_diode_physics_dc` (recombination, tunnelling, IKF/IKR/IKP knees, NS-sidewall
+breakdown), `m7_diode_temp_dc` (`.dc temp -40 125 5`: EG/XTI/TNOM, TLEV 2,
+DTEMP, TRS and TCV-shifted breakdown) and `m7_diode_temp_ac` (`.options
+temp=100`: TLEVC 0/1 depletion laws, sidewall charge, recombination small
+signal) under the 1 ppm `compare::NONLINEAR` bound, and `m7_zener_tran` (a
+SIN-driven clipper through breakdown with junction, sidewall and diffusion
+charge) under `compare::TRAN` (worst 0.470 of the bound). The DC decks set
+`.options reltol=1e-6` (the regulator also `vntol=1e-9`): at C's default
+tolerances its forward points stopped up to 0.3 % (in current) short of the
+physical root, which the Rust point and an independent junction check satisfy
+to 1e-10. The transient deck sets `reltol=1e-5` so both integrators resolve the
+recovery at each zero crossing. These option lines were chosen before the
+goldens were committed; the first captures of the default-tolerance drafts were
+discarded, not committed. `golden verify` names C's `.dc temp` scale
+`temp-sweep` (type `temp-sweep`, `dctrcurv.c`). Using the exact recombination
+derivative in AC instead of C's stored conductance fails `m7_diode_temp_ac`
+(6.9e3 times the bound). Details: [M4_NONLINEAR.md](M4_NONLINEAR.md#diode).
+
+## M7 MOS1 completion (#88)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>`; no existing golden was recaptured and no tolerance changed.
+The existing MOS fixtures (`mos_inverter`,
+`m4_mos1_ac`, `m4_mos1_tran`) verify unchanged (`m4_mos1_tran` still at 0.187
+of its bound, although only the gate charges now enter LTE control, as in
+`mos1trun.c`).
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m7_mos1_inverter_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.438 of bound |
+| `m7_mos1_ring_tran` | `compare::TRAN` | 297 instants + 8 breakpoint limits, worst 0.523 of bound |
+| `m7_mos1_meyer_ac` | `compare::NONLINEAR` | 36 points |
+| `m7_mos1_process_dc` | `compare::NONLINEAR` | 31 points |
+
+Deck design, measured before capture against the same C binary in a scratch
+copy (never in the committed tree):
+
+- **Bounded maximum step.** The Meyer charge `q1 + (v - v1) * average C` is a
+  trapezoidal quadrature of `C(v) dv` along the accepted voltage path, so its
+  error depends on the step sequence, which differs between the two adaptive
+  drivers. With the default maximum step (`tstep`) the inverter differs from C
+  by up to 1.09x the `TRAN` bound at a 22 nA supply-current sample; with
+  `tmax = 2 ps` it is 0.44x. The decks set `tmax` (2 ps inverter, 0.5 ps ring)
+  so the comparison measures model agreement, not each driver's discretization
+  error.
+- **Three-stage ring.** A free-running ring amplifies any per-step difference
+  into phase drift, and `compare::TRAN` compares values point by point with a
+  1e-3 relative bound and a 1 uV floor. Refining a five-stage unloaded ring
+  from `tmax = 2 ps` to `0.5 ps` moves **C's own** waveform by 8.4 mV (Rust's by
+  5.7 mV) at a 1.74 ns transition, more than the C-Rust difference at either
+  step (3.9 mV and 1.3 mV, shrinking with the step). Five-stage variants still
+  failed on sub-millivolt settling tails, where the bound is about 1 uV (worst
+  37x for 50 fF loads at 1 ps, 224x unloaded at 1 ps, 302x for 20 fF at 2 ps):
+  this is the two simulators' discretization error, not a model difference.
+  Three stages with 50 fF loads at 0.5 ps verify over 6 ns (about ten periods)
+  at 0.523x; the same deck at 1 ps fails at 1.34x, so the step bound is
+  load-bearing. The kick is a single 0.3 ns current pulse into `n1`, because
+  the ring's operating point is the metastable symmetric state.
+- **Tight DC RELTOL.** With RD/RS and forward body bias, C's default Newton
+  stopping test leaves its DC-sweep currents up to 2.2e-4 relative from the
+  physical root: for an NMOS with `RS=90` and 0.3 V forward body bias, C gives
+  -2.64450e-6 A at vgs = 0.2 V by default and -2.64508e-6 A with `.options
+  reltol=1e-7 vntol=1e-12 abstol=1e-18`; Rust gives -2.645078e-6 A either way.
+  The process deck therefore sets those options, which Rust also honours,
+  rather than loosening `NONLINEAR`.
+
+`spice-analysis/tests/m7_mos1.rs` adds ten C-free tests (charge recurrences,
+AC capacitances, temperature/process laws, series-resistance KCL, transient and
+DC finite-difference Jacobians, `NotYetPorted` inputs and fixture round trips);
+eight new parser snapshots were blessed and existing snapshots are unchanged.
+See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos1).
+
 ## M6 switches S/W (#81, `work/m6-switches`)
 
 On top of the Wave 1 tree this slice adds six C goldens (`switch_op`,

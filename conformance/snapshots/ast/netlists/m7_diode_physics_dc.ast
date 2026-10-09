@@ -1,0 +1,91 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_diode_physics_dc.cir
+title: "Diode recombination, tunnelling, knee and sidewall currents across a DC sweep" @netlists/m7_diode_physics_dc.cir:1:1
+scope root
+  cards (13):
+    [0] options[0] @netlists/m7_diode_physics_dc.cir:2:1 ".options reltol=1e-6"
+    [1] device[0] @netlists/m7_diode_physics_dc.cir:3:1 "v1 a 0 dc 0"
+    [2] device[1] @netlists/m7_diode_physics_dc.cir:4:1 "r1 a k1 100"
+    [3] device[2] @netlists/m7_diode_physics_dc.cir:5:1 "d1 k1 0 drec"
+    [4] device[3] @netlists/m7_diode_physics_dc.cir:6:1 "r2 a k2 100"
+    [5] device[4] @netlists/m7_diode_physics_dc.cir:7:1 "d2 k2 0 dtun pj=10"
+    [6] device[5] @netlists/m7_diode_physics_dc.cir:8:1 "r3 a k3 100"
+    [7] device[6] @netlists/m7_diode_physics_dc.cir:9:1 "d3 k3 0 dknee"
+    [8] model[0] @netlists/m7_diode_physics_dc.cir:10:1 ".model drec d(is=1e-15 isr=1e-11 nr=2 vj=0.7 m=0.4 bv=6 ibv=10u)"
+    [9] model[1] @netlists/m7_diode_physics_dc.cir:11:1 ".model dtun d(is=1e-15 jtun=1e-13 jtunsw=1e-14 ntun=15 jsw=1e-15 ns=1.2 ikp=1u bv=5 nbv=2)"
+    [10] model[2] @netlists/m7_diode_physics_dc.cir:12:1 ".model dknee d(is=1e-13 n=1.1 ikf=2m ikr=1u bv=7 rs=5)"
+    [11] analysis[0] @netlists/m7_diode_physics_dc.cir:13:1 ".dc v1 -9 1.2 0.05"
+    [12] end @netlists/m7_diode_physics_dc.cir:14:1 ".end"
+  devices (7):
+    device [0] name="v1" designator=v @netlists/m7_diode_physics_dc.cir:3:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m7_diode_physics_dc.cir:3:8
+    device [1] name="r1" designator=r @netlists/m7_diode_physics_dc.cir:4:1
+      nodes: "a" "k1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/m7_diode_physics_dc.cir:4:9
+    device [2] name="d1" designator=d @netlists/m7_diode_physics_dc.cir:5:1
+      nodes: "k1" "0"
+      model: "drec"
+      parameters (0):
+    device [3] name="r2" designator=r @netlists/m7_diode_physics_dc.cir:6:1
+      nodes: "a" "k2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/m7_diode_physics_dc.cir:6:9
+    device [4] name="d2" designator=d @netlists/m7_diode_physics_dc.cir:7:1
+      nodes: "k2" "0"
+      model: "dtun"
+      parameters (1):
+        [0] name="pj" kind=scalar value="10" @netlists/m7_diode_physics_dc.cir:7:14
+    device [5] name="r3" designator=r @netlists/m7_diode_physics_dc.cir:8:1
+      nodes: "a" "k3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/m7_diode_physics_dc.cir:8:9
+    device [6] name="d3" designator=d @netlists/m7_diode_physics_dc.cir:9:1
+      nodes: "k3" "0"
+      model: "dknee"
+      parameters (0):
+  models (3):
+    model [0] name="drec" base="d" level=none @netlists/m7_diode_physics_dc.cir:10:1
+      parameters (7):
+        [0] name="is" kind=scalar value="1e-15" @netlists/m7_diode_physics_dc.cir:10:15
+        [1] name="isr" kind=scalar value="1e-11" @netlists/m7_diode_physics_dc.cir:10:24
+        [2] name="nr" kind=scalar value="2" @netlists/m7_diode_physics_dc.cir:10:34
+        [3] name="vj" kind=scalar value="0.7" @netlists/m7_diode_physics_dc.cir:10:39
+        [4] name="m" kind=scalar value="0.4" @netlists/m7_diode_physics_dc.cir:10:46
+        [5] name="bv" kind=scalar value="6" @netlists/m7_diode_physics_dc.cir:10:52
+        [6] name="ibv" kind=scalar value="10u" @netlists/m7_diode_physics_dc.cir:10:57
+    model [1] name="dtun" base="d" level=none @netlists/m7_diode_physics_dc.cir:11:1
+      parameters (9):
+        [0] name="is" kind=scalar value="1e-15" @netlists/m7_diode_physics_dc.cir:11:15
+        [1] name="jtun" kind=scalar value="1e-13" @netlists/m7_diode_physics_dc.cir:11:24
+        [2] name="jtunsw" kind=scalar value="1e-14" @netlists/m7_diode_physics_dc.cir:11:35
+        [3] name="ntun" kind=scalar value="15" @netlists/m7_diode_physics_dc.cir:11:48
+        [4] name="jsw" kind=scalar value="1e-15" @netlists/m7_diode_physics_dc.cir:11:56
+        [5] name="ns" kind=scalar value="1.2" @netlists/m7_diode_physics_dc.cir:11:66
+        [6] name="ikp" kind=scalar value="1u" @netlists/m7_diode_physics_dc.cir:11:73
+        [7] name="bv" kind=scalar value="5" @netlists/m7_diode_physics_dc.cir:11:80
+        [8] name="nbv" kind=scalar value="2" @netlists/m7_diode_physics_dc.cir:11:85
+    model [2] name="dknee" base="d" level=none @netlists/m7_diode_physics_dc.cir:12:1
+      parameters (6):
+        [0] name="is" kind=scalar value="1e-13" @netlists/m7_diode_physics_dc.cir:12:16
+        [1] name="n" kind=scalar value="1.1" @netlists/m7_diode_physics_dc.cir:12:25
+        [2] name="ikf" kind=scalar value="2m" @netlists/m7_diode_physics_dc.cir:12:31
+        [3] name="ikr" kind=scalar value="1u" @netlists/m7_diode_physics_dc.cir:12:38
+        [4] name="bv" kind=scalar value="7" @netlists/m7_diode_physics_dc.cir:12:45
+        [5] name="rs" kind=scalar value="5" @netlists/m7_diode_physics_dc.cir:12:50
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m7_diode_physics_dc.cir:13:1
+      arguments: "v1" "-9" "1.2" "0.05"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_diode_physics_dc.cir:2:1
+      setting [0] name="reltol" value="1e-6"@netlists/m7_diode_physics_dc.cir:2:17 @netlists/m7_diode_physics_dc.cir:2:10
+  globals (0):

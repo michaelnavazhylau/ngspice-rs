@@ -1,0 +1,16 @@
+Diode small signal at 100 C: depletion temperature laws, sidewall charge and recombination
+.options temp=100
+vb1 b1 0 dc 2 ac 1
+r1 b1 k1 10k
+d1 0 k1 dc0 pj=50
+vb2 b2 0 dc 2 ac 1
+r2 b2 k2 10k
+d2 0 k2 dc1 dtemp=-30
+vb3 b3 0 dc 0.62 ac 1
+r3 b3 k3 1k
+d3 k3 0 dfw
+.model dc0 d(cjo=20p vj=0.75 m=0.45 cjsw=2p vjsw=0.6 mjsw=0.3 fcs=0.4 tnom=50)
+.model dc1 d(cjo=15p vj=0.8 m=0.5 tlevc=1 cta=1.5m tpb=1.8m)
+.model dfw d(is=1e-15 n=1.1 tt=5n cjo=10p isr=1e-11 nr=2 vj=0.7 m=0.4 ikf=5m jtun=1e-14 rs=3 ttt1=2m)
+.ac dec 5 1k 1g
+.end

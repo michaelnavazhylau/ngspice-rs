@@ -1,0 +1,18 @@
+MOS1 3-stage CMOS ring oscillator with Meyer gate charge (TOX)
+vdd vdd 0 3.3
+ikick 0 n1 pulse(0 200u 0.2n 0.1n 0.1n 0.3n 1)
+mn1 n2 n1 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u
+mp1 n2 n1 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u
+c1 n2 0 50f
+mn2 n3 n2 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u
+mp2 n3 n2 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u
+c2 n3 0 50f
+mn3 n1 n3 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u
+mp3 n1 n3 vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u
+c3 n1 0 50f
+.model nch nmos(level=1 vto=0.7 kp=110u gamma=0.4 phi=0.7 lambda=0.04 tox=9n ld=0.05u
++ cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n mjsw=0.33 pb=0.9)
+.model pch pmos(level=1 vto=-0.8 kp=40u gamma=0.5 phi=0.7 lambda=0.05 tox=9n ld=0.05u
++ cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m mj=0.5 cjsw=0.3n mjsw=0.33 pb=0.9)
+.tran 0.02n 6n 0 0.5p
+.end
