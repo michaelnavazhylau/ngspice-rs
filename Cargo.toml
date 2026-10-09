@@ -71,7 +71,7 @@ resolver = "3"
 members = ["xtask"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 rust-version = "1.89"
 license = "BSD-3-Clause"
@@ -128,3 +128,10 @@ unimplemented = "warn"
 
 [lints]
 workspace = true
+
+# Unoptimized builds of the generic faer/diffsol code monomorphized into this
+# crate make simulations ~25x slower, which dominated `cargo test` (the golden
+# fixture verification alone took ~3 minutes). opt-level 1 keeps debug
+# assertions and overflow checks; optimizing only dependencies does not help.
+[profile.dev]
+opt-level = 1

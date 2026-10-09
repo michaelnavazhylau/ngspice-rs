@@ -719,9 +719,7 @@ impl Mos1 {
         ]
         .iter()
         .all(|v| v.is_finite());
-        if !finite
-            || !(phi.is_finite() && phi > 0.)
-            || !(potential.is_finite() && potential > 0.)
+        if !(finite && phi.is_finite() && phi > 0. && potential.is_finite() && potential > 0.)
             || operating.beta <= 0.
             || operating.drain.saturation <= 0.
             || operating.source.saturation <= 0.
