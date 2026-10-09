@@ -886,7 +886,9 @@ const EXPECTATIONS: &[Expectation] = &[
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
         points: 20036,
-        variables: &["time", "v(in)", "v(mid)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        variables: &[
+            "time", "v(in)", "v(mid)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)",
+        ],
         values: &[
             ("time", 0, 2e-13, 0.),
             ("v(mid)", 0, 2.146194135632362e+00, 0.),
