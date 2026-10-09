@@ -1,0 +1,16 @@
+Title: pole-zero: forward-biased diode with series resistance and junction charge
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(zero(1))	voltage
+Values:
+ 0	-1.257597815812064e+10,0.000000000000000e+00
+	-6.983243413825105e+07,0.000000000000000e+00
+	-2.545810592258894e+09,0.000000000000000e+00
+

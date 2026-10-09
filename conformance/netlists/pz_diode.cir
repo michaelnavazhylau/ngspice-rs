@@ -1,0 +1,10 @@
+Pole-zero: forward-biased diode with series resistance and junction charge
+* The operating point is solved first and the junction is linearized with its
+* depletion and diffusion capacitance; rs adds an internal node.
+v1 in 0 dc 0.65 ac 1
+r1 in out 1k
+d1 out 0 dm
+c1 out 0 10p
+.model dm d(is=1e-14 n=1 rs=10 cjo=20p vj=0.7 m=0.5 tt=1n)
+.pz in 0 out 0 vol pz
+.end

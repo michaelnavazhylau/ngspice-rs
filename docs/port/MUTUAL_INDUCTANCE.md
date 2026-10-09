@@ -124,5 +124,6 @@ their instance `ic=` seeds `uic` (golden `transformer_model_uic_tran`).
 only which stderr diagnostics `muttemp.c` prints, while the port prints none
 and always applies the rejection above.
 
-Not covered: K sensitivities (`sens_coeff`) and `.pz`/noise (no such analyses
-in the port).
+`.pz` uses the same coupled branch equations (`mutpzld.c`; golden
+`pz_transformer`). Not covered: K sensitivities (`sens_coeff`) and noise (no
+such analyses in the port).

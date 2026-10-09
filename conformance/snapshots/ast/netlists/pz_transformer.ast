@@ -1,0 +1,63 @@
+# ngspice-rs ast-dump v1
+file: netlists/pz_transformer.cir
+title: "Pole-zero: coupled-inductor transformer" @netlists/pz_transformer.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/pz_transformer.cir:4:1 "vin in 0 dc 0 ac 1"
+    [1] device[1] @netlists/pz_transformer.cir:5:1 "rs in p 50"
+    [2] device[2] @netlists/pz_transformer.cir:6:1 "l1 p 0 10m"
+    [3] device[3] @netlists/pz_transformer.cir:7:1 "l2 s 0 40m"
+    [4] device[4] @netlists/pz_transformer.cir:8:1 "k1 l1 l2 0.98"
+    [5] device[5] @netlists/pz_transformer.cir:9:1 "rl s 0 1k"
+    [6] device[6] @netlists/pz_transformer.cir:10:1 "cl s 0 100n"
+    [7] analysis[0] @netlists/pz_transformer.cir:11:1 ".pz in 0 s 0 vol pz"
+    [8] end @netlists/pz_transformer.cir:12:1 ".end"
+  devices (7):
+    device [0] name="vin" designator=v @netlists/pz_transformer.cir:4:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/pz_transformer.cir:4:10
+        [1] name="acmag" kind=scalar value="1" @netlists/pz_transformer.cir:4:18
+        [2] name="acphase" kind=scalar value="0" @netlists/pz_transformer.cir:4:15
+    device [1] name="rs" designator=r @netlists/pz_transformer.cir:5:1
+      nodes: "in" "p"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/pz_transformer.cir:5:9
+    device [2] name="l1" designator=l @netlists/pz_transformer.cir:6:1
+      nodes: "p" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="10m" @netlists/pz_transformer.cir:6:8
+    device [3] name="l2" designator=l @netlists/pz_transformer.cir:7:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="40m" @netlists/pz_transformer.cir:7:8
+    device [4] name="k1" designator=k @netlists/pz_transformer.cir:8:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/pz_transformer.cir:8:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/pz_transformer.cir:8:7
+        [2] name="coefficient" kind=scalar value="0.98" @netlists/pz_transformer.cir:8:10
+    device [5] name="rl" designator=r @netlists/pz_transformer.cir:9:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/pz_transformer.cir:9:8
+    device [6] name="cl" designator=c @netlists/pz_transformer.cir:10:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="100n" @netlists/pz_transformer.cir:10:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=pz @netlists/pz_transformer.cir:11:1
+      arguments: "in" "0" "s" "0" "vol" "pz"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

@@ -1,0 +1,62 @@
+# ngspice-rs token-dump v1
+file: netlists/pz_bridge_diff.cir
+title: "Pole-zero: RC bridge with a differential output" @netlists/pz_bridge_diff.cir:1:1
+card 1 @netlists/pz_bridge_diff.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 in 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 word "in"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 word "dc"
+  token 5 6:12 number "0" value=0e0
+  token 6 6:14 word "ac"
+  token 7 6:17 number "1" value=1e0
+card 2 @netlists/pz_bridge_diff.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "in"
+  token 3 7:7 word "a"
+  token 4 7:9 number "1k" value=1e3
+card 3 @netlists/pz_bridge_diff.cir:8:1 lines=8-8 continuations=0
+  raw: "c1 a 0 1u"
+  kind: device(c)
+  token 1 8:1 word "c1"
+  token 2 8:4 word "a"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "1u" value=1e-6
+card 4 @netlists/pz_bridge_diff.cir:9:1 lines=9-9 continuations=0
+  raw: "r2 in b 2k"
+  kind: device(r)
+  token 1 9:1 word "r2"
+  token 2 9:4 word "in"
+  token 3 9:7 word "b"
+  token 4 9:9 number "2k" value=2e3
+card 5 @netlists/pz_bridge_diff.cir:10:1 lines=10-10 continuations=0
+  raw: "c2 b 0 3u"
+  kind: device(c)
+  token 1 10:1 word "c2"
+  token 2 10:4 word "b"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "3u" value=3e-6
+card 6 @netlists/pz_bridge_diff.cir:11:1 lines=11-11 continuations=0
+  raw: "r3 a b 5k"
+  kind: device(r)
+  token 1 11:1 word "r3"
+  token 2 11:4 word "a"
+  token 3 11:6 word "b"
+  token 4 11:8 number "5k" value=5e3
+card 7 @netlists/pz_bridge_diff.cir:12:1 lines=12-12 continuations=0
+  raw: ".pz in 0 a b vol pz"
+  kind: dot(.pz)
+  token 1 12:1 word ".pz"
+  token 2 12:5 word "in"
+  token 3 12:8 number "0" value=0e0
+  token 4 12:10 word "a"
+  token 5 12:12 word "b"
+  token 6 12:14 word "vol"
+  token 7 12:18 word "pz"
+card 8 @netlists/pz_bridge_diff.cir:13:1 lines=13-13 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 13:1 word ".end"

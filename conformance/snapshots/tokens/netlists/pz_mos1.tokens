@@ -1,0 +1,99 @@
+# ngspice-rs token-dump v1
+file: netlists/pz_mos1.cir
+title: "Pole-zero: MOS1 common-source stage, current drive at the gate" @netlists/pz_mos1.cir:1:1
+card 1 @netlists/pz_mos1.cir:5:1 lines=5-5 continuations=0
+  raw: "vdd vdd 0 5"
+  kind: device(v)
+  token 1 5:1 word "vdd"
+  token 2 5:5 word "vdd"
+  token 3 5:9 number "0" value=0e0
+  token 4 5:11 number "5" value=5e0
+card 2 @netlists/pz_mos1.cir:6:1 lines=6-6 continuations=0
+  raw: "vin gate 0 dc 2 ac 1"
+  kind: device(v)
+  token 1 6:1 word "vin"
+  token 2 6:5 word "gate"
+  token 3 6:10 number "0" value=0e0
+  token 4 6:12 word "dc"
+  token 5 6:15 number "2" value=2e0
+  token 6 6:17 word "ac"
+  token 7 6:20 number "1" value=1e0
+card 3 @netlists/pz_mos1.cir:7:1 lines=7-7 continuations=0
+  raw: "rs gate g 1k"
+  kind: device(r)
+  token 1 7:1 word "rs"
+  token 2 7:4 word "gate"
+  token 3 7:9 word "g"
+  token 4 7:11 number "1k" value=1e3
+card 4 @netlists/pz_mos1.cir:8:1 lines=8-8 continuations=0
+  raw: "rd vdd drain 10k"
+  kind: device(r)
+  token 1 8:1 word "rd"
+  token 2 8:4 word "vdd"
+  token 3 8:8 word "drain"
+  token 4 8:14 number "10k" value=1e4
+card 5 @netlists/pz_mos1.cir:9:1 lines=9-9 continuations=0
+  raw: "cl drain 0 1p"
+  kind: device(c)
+  token 1 9:1 word "cl"
+  token 2 9:4 word "drain"
+  token 3 9:10 number "0" value=0e0
+  token 4 9:12 number "1p" value=1e-12
+card 6 @netlists/pz_mos1.cir:10:1 lines=10-10 continuations=0
+  raw: "m1 drain g 0 0 mm w=10u l=1u"
+  kind: device(m)
+  token 1 10:1 word "m1"
+  token 2 10:4 word "drain"
+  token 3 10:10 word "g"
+  token 4 10:12 number "0" value=0e0
+  token 5 10:14 number "0" value=0e0
+  token 6 10:16 word "mm"
+  token 7 10:19 word "w"
+  token 8 10:20 equals "="
+  token 9 10:21 number "10u" value=9.999999999999999e-6
+  token 10 10:25 word "l"
+  token 11 10:26 equals "="
+  token 12 10:27 number "1u" value=1e-6
+card 7 @netlists/pz_mos1.cir:11:1 lines=11-11 continuations=0
+  raw: ".model mm nmos(level=1 vto=1 kp=1e-4 cbd=10p cbs=5p cgso=4e-7 cgdo=2e-7)"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "mm"
+  token 3 11:11 word "nmos"
+  token 4 11:15 lparen "("
+  token 5 11:16 word "level"
+  token 6 11:21 equals "="
+  token 7 11:22 number "1" value=1e0
+  token 8 11:24 word "vto"
+  token 9 11:27 equals "="
+  token 10 11:28 number "1" value=1e0
+  token 11 11:30 word "kp"
+  token 12 11:32 equals "="
+  token 13 11:33 number "1e-4" value=1e-4
+  token 14 11:38 word "cbd"
+  token 15 11:41 equals "="
+  token 16 11:42 number "10p" value=1e-11
+  token 17 11:46 word "cbs"
+  token 18 11:49 equals "="
+  token 19 11:50 number "5p" value=5e-12
+  token 20 11:53 word "cgso"
+  token 21 11:57 equals "="
+  token 22 11:58 number "4e-7" value=4e-7
+  token 23 11:63 word "cgdo"
+  token 24 11:67 equals "="
+  token 25 11:68 number "2e-7" value=2e-7
+  token 26 11:72 rparen ")"
+card 8 @netlists/pz_mos1.cir:12:1 lines=12-12 continuations=0
+  raw: ".pz g 0 drain 0 cur pz"
+  kind: dot(.pz)
+  token 1 12:1 word ".pz"
+  token 2 12:5 word "g"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 word "drain"
+  token 5 12:15 number "0" value=0e0
+  token 6 12:17 word "cur"
+  token 7 12:21 word "pz"
+card 9 @netlists/pz_mos1.cir:13:1 lines=13-13 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 13:1 word ".end"

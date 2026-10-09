@@ -1,0 +1,77 @@
+# ngspice-rs token-dump v1
+file: netlists/pz_diode.cir
+title: "Pole-zero: forward-biased diode with series resistance and junction charge" @netlists/pz_diode.cir:1:1
+card 1 @netlists/pz_diode.cir:4:1 lines=4-4 continuations=0
+  raw: "v1 in 0 dc 0.65 ac 1"
+  kind: device(v)
+  token 1 4:1 word "v1"
+  token 2 4:4 word "in"
+  token 3 4:7 number "0" value=0e0
+  token 4 4:9 word "dc"
+  token 5 4:12 number "0.65" value=6.5e-1
+  token 6 4:17 word "ac"
+  token 7 4:20 number "1" value=1e0
+card 2 @netlists/pz_diode.cir:5:1 lines=5-5 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 5:1 word "r1"
+  token 2 5:4 word "in"
+  token 3 5:7 word "out"
+  token 4 5:11 number "1k" value=1e3
+card 3 @netlists/pz_diode.cir:6:1 lines=6-6 continuations=0
+  raw: "d1 out 0 dm"
+  kind: device(d)
+  token 1 6:1 word "d1"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 word "dm"
+card 4 @netlists/pz_diode.cir:7:1 lines=7-7 continuations=0
+  raw: "c1 out 0 10p"
+  kind: device(c)
+  token 1 7:1 word "c1"
+  token 2 7:4 word "out"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 number "10p" value=1e-11
+card 5 @netlists/pz_diode.cir:8:1 lines=8-8 continuations=0
+  raw: ".model dm d(is=1e-14 n=1 rs=10 cjo=20p vj=0.7 m=0.5 tt=1n)"
+  kind: dot(.model)
+  token 1 8:1 word ".model"
+  token 2 8:8 word "dm"
+  token 3 8:11 word "d"
+  token 4 8:12 lparen "("
+  token 5 8:13 word "is"
+  token 6 8:15 equals "="
+  token 7 8:16 number "1e-14" value=1e-14
+  token 8 8:22 word "n"
+  token 9 8:23 equals "="
+  token 10 8:24 number "1" value=1e0
+  token 11 8:26 word "rs"
+  token 12 8:28 equals "="
+  token 13 8:29 number "10" value=1e1
+  token 14 8:32 word "cjo"
+  token 15 8:35 equals "="
+  token 16 8:36 number "20p" value=2e-11
+  token 17 8:40 word "vj"
+  token 18 8:42 equals "="
+  token 19 8:43 number "0.7" value=7e-1
+  token 20 8:47 word "m"
+  token 21 8:48 equals "="
+  token 22 8:49 number "0.5" value=5e-1
+  token 23 8:53 word "tt"
+  token 24 8:55 equals "="
+  token 25 8:56 number "1n" value=1e-9
+  token 26 8:58 rparen ")"
+card 6 @netlists/pz_diode.cir:9:1 lines=9-9 continuations=0
+  raw: ".pz in 0 out 0 vol pz"
+  kind: dot(.pz)
+  token 1 9:1 word ".pz"
+  token 2 9:5 word "in"
+  token 3 9:8 number "0" value=0e0
+  token 4 9:10 word "out"
+  token 5 9:14 number "0" value=0e0
+  token 6 9:16 word "vol"
+  token 7 9:20 word "pz"
+card 7 @netlists/pz_diode.cir:10:1 lines=10-10 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 10:1 word ".end"

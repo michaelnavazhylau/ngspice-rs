@@ -164,6 +164,7 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
   its direct attempt in `Predict` and then its own continuation strategies
   ([DC_CONTINUATION.md](DC_CONTINUATION.md)); the converged states agree on
   the verified decks.
-* Not ported: switch noise (`swnoise.c`), pole-zero (`swpzload.c`),
+* Pole-zero analysis uses the AC conductance (`swpzload.c`/`cswpzld.c` read
+  the same `MODEINITSMSIG` state). Not ported: switch noise (`swnoise.c`),
   `@s1[i]`/`@s1[p]` queries (`swask.c`), C's `optran` fallback for operating
   points that do not converge, and the diffsol BDF backend.

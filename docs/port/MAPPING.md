@@ -75,6 +75,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
 | `src/spicelib/analysis/` (whole directory) | 21,993 | `analysis::driver` | trait/runner, linear `.op`, single-independent-source `.dc`, complex `.ac`, the adaptive trap/Gear-2 companion `.tran` driver (`companion.rs`: `dctran.c`, `ckttrunc.c`, `cktterr.c` policy, linear circuits) and explicitly selected restricted diffsol BDF; nonlinear/other analyses pending |
+| ↳ `pzan.c`, `cktpzset.c`, `cktpzld.c`, `cktpzstr.c`; `maths/ni/nipzmeth.c`; device `*pzld.c` | 2,118 (without the device loads) | `analysis::pz`, `maths::pencil`, `Device::assemble_pole_zero` | `.pz` with C's card, `PZinit` checks, drive/column modification and plot layout; roots by orthogonal staircase deflation plus QZ instead of the Muller search ([POLE_ZERO_ADR.md](POLE_ZERO_ADR.md)) |
 | ↳ `cktdojob.c`, `dctran.c`, `dcop.c`, `acan.c`, `cktload.c` | 2,060 | `analysis::driver` | bounded linear assembly/factor/solve/plot orchestration; no nonlinear Newton/stepping or SPICE trap/Gear driver |
 | `src/frontend/rawfile.c` | 863 | `analysis::rawfile` | ASCII read **and** write ported, plus binary real/complex read **and** write with explicit byte order and validated payload lengths (#45); see [RAWFILES.md](RAWFILES.md) |
 | `src/frontend/plotting/` | 9,380 | `analysis::results` | production result tables; interactive plotting not ported |

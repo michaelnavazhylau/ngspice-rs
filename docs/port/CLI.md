@@ -16,7 +16,7 @@ equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 | `spice-rs parse <netlist>` | builds the semantic netlist and reports unported gaps |
 | `spice-rs simulate --output <path> <netlist>` | runs every analysis of the deck in ngspice batch order and writes one ASCII rawfile with a plot per analysis |
 | `spice-rs devices` | lists every device designator as `ported` (built from its card), `bounded` (built from a deck for a stated subset: D/Q/M, S/W, X) or `pending` (`NotYetPorted` with its C reference) |
-| `spice-rs analyses` | lists the analyses: `.op`/`.dc`/`.ac`/`.tran` drivers, `.four` as a post-processor of the `.tran` plot, the rest without a driver |
+| `spice-rs analyses` | lists the analyses: `.op`/`.dc`/`.ac`/`.tran`/`.pz` drivers, `.four` as a post-processor of the `.tran` plot, the rest without a driver |
 | `spice-rs help`, `spice-rs version` | usage and version |
 
 Both tables are derived, not hand-maintained (#117): a designator's status
@@ -114,7 +114,7 @@ and `.four` blocks. A single-analysis deck's report is unchanged.
 
 ### Multi-analysis decks
 
-A deck may contain any number of `.op`, `.dc`, `.ac` and `.tran` cards (GitHub
+A deck may contain any number of `.op`, `.dc`, `.ac`, `.tran` and `.pz` cards (GitHub
 #96). `simulate` reproduces `ngspice -b -r <path> deck.cir`, which runs them all
 in one job; the scheduling rules live in `analysis::batch`:
 

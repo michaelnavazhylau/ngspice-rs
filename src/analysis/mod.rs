@@ -8,7 +8,8 @@
 //! | [`fourier`] | `.four` Fourier/THD evaluation over the final complete period of a transient plot and its text rendering | ported for the bounded card subset in `docs/port/FOURIER.md` |
 //! | [`rawfile`] | ngspice rawfile reading **and** writing, ASCII and binary | ported for the bounded layouts in `docs/port/RAWFILES.md` |
 //! | [`batch`] | ngspice batch order, plot names and per-plot `.save`/`.print`/`.measure`/`.four` targeting for multi-analysis decks | ported (`docs/port/CLI.md`) |
-//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
+//! | `pz` | `.pz` poles and zeros at the operating point (`pzan.c`), roots from [`crate::maths::pencil`] | ported (`docs/port/POLE_ZERO_ADR.md`) |
+//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran`/`.pz` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
 //!
 //! The C equivalent is `src/spicelib/analysis/` (21,993 lines: the `CKT*`
 //! job-control, loading and iteration machinery) and `src/frontend/rawfile.c`.
@@ -36,6 +37,7 @@ mod initial;
 mod linear;
 pub mod measure;
 pub mod newton;
+mod pz;
 pub mod rawfile;
 pub mod results;
 pub mod selection;

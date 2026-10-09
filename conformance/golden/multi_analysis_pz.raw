@@ -1,0 +1,88 @@
+Title: pole-zero with other analyses in one batch run
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: AC Analysis
+Flags: complex
+No. Variables: 6
+No. Points: 3
+Variables:
+	0	frequency	frequency
+	1	v(a)	voltage
+	2	v(in)	voltage
+	3	i(l1)	current
+	4	v(out)	voltage
+	5	i(v1)	current
+Values:
+ 0	1.000000000000000e+02,0.000000000000000e+00
+	9.119928838780024e-02,-1.785961185401786e-05
+	1.000000000000000e+00,0.000000000000000e+00
+	9.087894900871206e-04,-5.728434327049202e-05
+	9.083936024383166e-02,-5.727952383288644e-03
+	-9.087647218259449e-04,-5.730284385435968e-06
+
+ 1	5.500000000000000e+02,0.000000000000000e+00
+	9.943337027174574e-02,-3.178920194916056e-03
+	1.000000000000000e+00,0.000000000000000e+00
+	8.895810701644882e-04,-3.404381399292131e-04
+	8.766867271830844e-02,-3.392063509773038e-02
+	-8.993944167299449e-04,-3.470682754462392e-05
+
+ 2	1.000000000000000e+03,0.000000000000000e+00
+	1.144439428202739e-01,-2.107381374669181e-02
+	1.000000000000000e+00,0.000000000000000e+00
+	7.531453802802732e-04,-6.979986862773535e-04
+	7.058739191978865e-02,-6.839533362216375e-02
+	-8.812586516267819e-04,-7.947053018066223e-05
+
+Title: pole-zero with other analyses in one batch run
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 5
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	v(a)	voltage
+	2	i(l1)	current
+	3	v(out)	voltage
+	4	i(v1)	current
+Values:
+ 0	1.000000000000000e+00
+	9.090909090909093e-02
+	9.090909090909093e-04
+	9.090909090909093e-02
+	-9.090909090909091e-04
+
+Title: pole-zero with other analyses in one batch run
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(zero(1))	voltage
+	1	v(zero(2))	voltage
+	2	v(zero(3))	voltage
+Values:
+ 0	-2.031285288892326e+04,0.000000000000000e+00
+	9.656426444461636e+03,1.997630015595523e+04
+	9.656426444461636e+03,-1.997630015595523e+04
+
+Title: pole-zero with other analyses in one batch run
+Date: Fri Oct  9 16:43:10  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(pole(3))	voltage
+Values:
+ 0	-7.967878263548421e+04,0.000000000000000e+00
+	-6.115154136803343e+03,9.386629607343893e+03
+	-6.115154136803343e+03,-9.386629607343893e+03
+

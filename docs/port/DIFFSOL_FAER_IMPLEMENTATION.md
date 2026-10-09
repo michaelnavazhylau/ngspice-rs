@@ -46,6 +46,12 @@ The companion trap/Gear transient driver is documented separately in
 - `maths::complex::{ComplexMatrix, ComplexLu}` assembles `A + j omega E`
   and uses faer complex sparse LU with explicit `primitives::Complex` conversions.
   It never routes AC through a real matrix solve.
+- `maths::pencil::pencil_roots(A, E)` returns the finite roots of
+  `det(A + s E)` for `.pz` (#103): exact power-of-two scaling, orthogonal
+  staircase deflation of the infinite eigenvalues (faer SVD rank decisions at
+  `16 n eps` of the scaled norm; a singular pencil is an error), then faer's
+  complex QZ without eigenvectors. Dense, at most 1000 unknowns
+  ([POLE_ZERO_ADR.md](POLE_ZERO_ADR.md)).
 
 ## Devices and analyses
 

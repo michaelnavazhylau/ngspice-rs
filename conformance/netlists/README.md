@@ -130,6 +130,13 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_ic_mos1_uic_tran` | `.tran` | MOS1 inverter pair started under `uic` from full and partial `ic=` vectors and the `.ic` node vector (Gear-2, `reltol=1e-5`, 2 ps maximum step) |
 | `m7_ic_latch_nodeset_op` | `.op` | symmetric CMOS latch whose `.nodeset` (forced in MODEINITJCT/MODEINITFIX only) selects the q-high state |
 | `m7_ic_latch_mos1_ic_op` | `.op` | the same latch whose MOS1 `ic=` vectors move the MODEINITJCT start (no `uic`) and select the q-high state |
+| `pz_ladder_cur` | `.pz` | current-driven RLC ladder read on the negative output node (C swaps the drive): a real pole and a complex pair |
+| `pz_bridge_diff` | `.pz` | RC bridge with a differential output (C's column addition) and a zero at the origin |
+| `pz_transformer` | `.pz` | K-coupled transformer into an RC load: complex pair, real pole, zero at the origin |
+| `pz_cv_loop` | `.pz` | decoupling capacitor across an ideal supply (an index-two block that must add no pole) |
+| `pz_diode` | `.pz` | forward-biased diode with `rs`, depletion and diffusion charge, linearized at the operating point |
+| `pz_mos1` | `.pz` | MOS1 stage with current drive at a floating gate: a pole at the origin and a right-half-plane zero |
+| `multi_analysis_pz` | `.ac`, `.op`, two `.pz` | batch order and plot names with pole-zero plots (`pz1` zeros, `pz2` poles) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -181,3 +188,10 @@ answer, the OFF flip-flop compares at 0.53 of the bound through its flip, and
 the MOS1 deck's trapezoidal gate currents ring from step to step on the flat
 input. The `.ic` flip-flop keeps every default. See
 [VERIFICATION.md](../../docs/port/VERIFICATION.md#m7-nonlinear-initial-conditions-99).
+
+The seven pole-zero decks (#103) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+Each has at least two roots (C's `write` adds a copy named `all` to a plot with a
+single vector) and is one on which C's root search finishes without a warning;
+`golden verify` compares the roots as unordered sets
+([POLE_ZERO_ADR.md](../../docs/port/POLE_ZERO_ADR.md)).

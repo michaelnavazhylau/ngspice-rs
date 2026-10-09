@@ -644,6 +644,15 @@ impl Device for Switch {
         };
         Ok(Some(max_change / change * context.dt))
     }
+
+    /// Pole-zero load: C `swpzload.c`/`cswpzld.c` (the `MODEINITSMSIG` state, as AC) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 #[cfg(test)]

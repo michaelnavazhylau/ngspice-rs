@@ -380,6 +380,38 @@ impl Device for Behavioural {
             factor,
         )
     }
+
+    /// `ASRCpzLoad` (`asrcpzld.c`) stamps the same bias-point Jacobian as
+    /// AC. The XSPICE instances the front end generates for `POLY`/`TABLE`
+    /// (designator `a`) have no pole-zero load in C (`DEVpzLoad = NULL`, so
+    /// C silently drops them) and a `hertz` expression has no defined
+    /// pole-zero frequency: both are refused.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut LinearContext<'_>,
+        bias: &Vector,
+    ) -> SpiceResult<()> {
+        if self.designator == 'a' {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "pole-zero analysis of XSPICE code-model instance {} (POLY/TABLE): C has no \
+                     pole-zero load for code models and would drop it silently",
+                    self.name
+                ),
+                location: None,
+            });
+        }
+        if self.depends_on_frequency() {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "pole-zero analysis of {}: its expression reads `hertz`",
+                    self.name
+                ),
+                location: None,
+            });
+        }
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 fn unsupported(location: &SourceLoc, feature: impl Into<String>) -> SpiceError {

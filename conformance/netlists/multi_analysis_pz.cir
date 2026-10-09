@@ -1,0 +1,15 @@
+Pole-zero with other analyses in one batch run
+* ngspice runs .ac, .op, then the .pz cards in reverse deck order: pz1 holds
+* the zeros (two of them right-half-plane), pz2 the poles.
+v1 in 0 dc 1 ac 1
+r1 in a 1k
+c1 a 0 1u
+l1 a out 10m
+r2 out 0 100
+c2 out 0 100n
+c3 in out 10n
+.op
+.pz in 0 out 0 vol pol
+.ac lin 3 100 1k
+.pz in 0 out 0 vol zer
+.end

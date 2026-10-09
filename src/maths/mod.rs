@@ -7,6 +7,7 @@
 //! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; floating/coupled mass blocks via block-SVD nullspaces; higher-index pencils rejected |
 //! | [`complex`] | complex sparse operators for AC | owned faer LU |
 //! | [`equilibration`] | explicit bounded row/column scaling | owned LU wrappers with original-unit residuals |
+//! | [`pencil`] | finite roots of a regular real pencil `det(A + s E)` for pole-zero analysis | SVD deflation of infinite eigenvalues, then faer QZ ([POLE_ZERO_ADR.md](../../docs/port/POLE_ZERO_ADR.md)) |
 //! | [`integrator`] | trapezoidal and Gear companion coefficients, integration, prediction and truncation estimates | orders 1–2; trial coefficients separate from accepted step history |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`
@@ -24,6 +25,7 @@ pub mod equilibration;
 pub mod integrator;
 pub mod linear;
 pub use linear::{DenseLu, SparseLu, SparseSymbolic};
+pub mod pencil;
 pub mod sparse;
 
 pub use dense::{Matrix, Vector};

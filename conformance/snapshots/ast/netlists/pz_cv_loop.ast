@@ -1,0 +1,67 @@
+# ngspice-rs ast-dump v1
+file: netlists/pz_cv_loop.cir
+title: "Pole-zero: decoupling capacitor across an ideal supply" @netlists/pz_cv_loop.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/pz_cv_loop.cir:5:1 "vdd vdd 0 dc 5"
+    [1] device[1] @netlists/pz_cv_loop.cir:6:1 "cdec vdd 0 1u"
+    [2] device[2] @netlists/pz_cv_loop.cir:7:1 "vin in 0 dc 0 ac 1"
+    [3] device[3] @netlists/pz_cv_loop.cir:8:1 "r1 in a 1k"
+    [4] device[4] @netlists/pz_cv_loop.cir:9:1 "c1 a vdd 1n"
+    [5] device[5] @netlists/pz_cv_loop.cir:10:1 "r2 a b 2k"
+    [6] device[6] @netlists/pz_cv_loop.cir:11:1 "c2 b 0 2n"
+    [7] device[7] @netlists/pz_cv_loop.cir:12:1 "rload b vdd 10k"
+    [8] analysis[0] @netlists/pz_cv_loop.cir:13:1 ".pz in 0 b 0 vol pz"
+    [9] end @netlists/pz_cv_loop.cir:14:1 ".end"
+  devices (8):
+    device [0] name="vdd" designator=v @netlists/pz_cv_loop.cir:5:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/pz_cv_loop.cir:5:11
+    device [1] name="cdec" designator=c @netlists/pz_cv_loop.cir:6:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1u" @netlists/pz_cv_loop.cir:6:12
+    device [2] name="vin" designator=v @netlists/pz_cv_loop.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/pz_cv_loop.cir:7:10
+        [1] name="acmag" kind=scalar value="1" @netlists/pz_cv_loop.cir:7:18
+        [2] name="acphase" kind=scalar value="0" @netlists/pz_cv_loop.cir:7:15
+    device [3] name="r1" designator=r @netlists/pz_cv_loop.cir:8:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/pz_cv_loop.cir:8:9
+    device [4] name="c1" designator=c @netlists/pz_cv_loop.cir:9:1
+      nodes: "a" "vdd"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/pz_cv_loop.cir:9:10
+    device [5] name="r2" designator=r @netlists/pz_cv_loop.cir:10:1
+      nodes: "a" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/pz_cv_loop.cir:10:8
+    device [6] name="c2" designator=c @netlists/pz_cv_loop.cir:11:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="2n" @netlists/pz_cv_loop.cir:11:8
+    device [7] name="rload" designator=r @netlists/pz_cv_loop.cir:12:1
+      nodes: "b" "vdd"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/pz_cv_loop.cir:12:13
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=pz @netlists/pz_cv_loop.cir:13:1
+      arguments: "in" "0" "b" "0" "vol" "pz"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

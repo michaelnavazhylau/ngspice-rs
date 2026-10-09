@@ -1732,6 +1732,15 @@ impl Device for Bjt {
         }
         Ok(())
     }
+
+    /// Pole-zero load: C `bjtpzld.c` (excess phase is rejected at elaboration) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 #[cfg(test)]

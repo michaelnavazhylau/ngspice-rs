@@ -1161,6 +1161,15 @@ impl Device for Diode {
         context.nodal(self.junction, p.ac_conductance, false)?;
         context.nodal(self.junction, p.ac_capacitance, true)
     }
+
+    /// Pole-zero load: C `diopzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 #[cfg(test)]
