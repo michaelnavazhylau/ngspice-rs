@@ -1639,6 +1639,85 @@ impl Device for Bjt {
             vec![0, 2, 4]
         }
     }
+    /// `bjt.c` `BJTpTable`: AREA, AREAB, AREAC, M, TEMP and DTEMP, which
+    /// `bjttemp.c`/`bjtload.c` re-derive (`dctrcurv.c` `DCTsetInstParam`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        ["area", "areab", "areac", "m", "temp", "dtemp"]
+            .into_iter()
+            .find(|name| name.eq_ignore_ascii_case(keyword))
+    }
+    /// `BJTparam` then `BJTtemp`. A swept AREA leaves AREAB/AREAC at the
+    /// values `bjtsetup.c` defaulted them to from the card's AREA, exactly as
+    /// C does: only `BJTsetup` copies AREA into an ungiven AREAB/AREAC.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        use crate::devices::sweep::check_swept;
+        let mut instance = self.instance;
+        let positive = || check_swept(&self.name, parameter, value, value > 0., "positive");
+        match parameter {
+            "area" => {
+                positive()?;
+                instance.area = value;
+            }
+            "areab" => {
+                positive()?;
+                instance.areab = value;
+            }
+            "areac" => {
+                positive()?;
+                instance.areac = value;
+            }
+            "m" => {
+                positive()?;
+                instance.multiplier = value;
+            }
+            "temp" => {
+                check_swept(
+                    &self.name,
+                    parameter,
+                    value,
+                    value + CELSIUS_TO_KELVIN > 0.,
+                    "above absolute zero",
+                )?;
+                instance.temp = Some(value + CELSIUS_TO_KELVIN);
+            }
+            "dtemp" => {
+                check_swept(&self.name, parameter, value, true, "finite")?;
+                instance.dtemp = value;
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "{}: BJT parameter {parameter} cannot be swept",
+                    self.name
+                )));
+            }
+        }
+        let device = Self {
+            name: self.name.clone(),
+            terminals: self.terminals.clone(),
+            nodes: self.nodes,
+            pol: self.pol,
+            subs: self.subs,
+            model: self.model,
+            instance,
+            initial: self.initial.clone(),
+        };
+        evaluate(
+            &device.thermal(context)?,
+            Bias {
+                vbe: 0.,
+                vbc: 0.,
+                vbx: 0.,
+                vsub: 0.,
+            },
+            context.gmin,
+        )?;
+        Ok(Box::new(device))
+    }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("BJT AC requires small-signal assembly"));

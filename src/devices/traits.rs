@@ -299,7 +299,8 @@ pub struct StampContext<'a> {
 
 impl StampContext<'_> {
     /// The temperatures and junction `gmin` of this load as a [`crate::devices::ModelContext`]
-    /// (without resistor overrides, which [`crate::devices::Circuit`] has already applied).
+    /// (without resistor or instance-parameter overrides, which
+    /// [`crate::devices::Circuit`] has already applied).
     #[must_use]
     pub const fn model_context(&self) -> crate::devices::ModelContext {
         crate::devices::ModelContext::new(self.temperature, self.nominal_temperature)
@@ -594,6 +595,37 @@ pub trait Device: fmt::Debug {
     ) -> SpiceResult<Real> {
         Err(SpiceError::circuit(format!(
             "{} is not a resistor",
+            self.name()
+        )))
+    }
+
+    /// The canonical (lowercase, alias-folded) keyword of a settable real
+    /// instance parameter that a `.dc @inst[param]` sweep may replace on this
+    /// device (C `dctrcurv.c` `DCTfindInstParam`), or `None` (the default)
+    /// when the port cannot sweep `keyword` on it. Independent-source `dc`
+    /// and resistor `r` are swept by the source and resistor targets and are
+    /// not reported here.
+    fn instance_parameter(&self, _keyword: &str) -> Option<&'static str> {
+        None
+    }
+
+    /// A disposable copy of this device with `parameter` (a keyword returned
+    /// by [`Self::instance_parameter`]) given the value `value`, exactly as C's
+    /// `DEVparam` setter followed by `DEVtemperature` would leave the
+    /// instance. The copy has the same name, terminals, branch rows and state
+    /// layout; `context` is the point at which it will be evaluated and is
+    /// used for validation only. Immutable: this device does not change.
+    ///
+    /// # Errors
+    /// A parameter this device does not sweep, or an invalid value.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        _value: Real,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        Err(SpiceError::circuit(format!(
+            "{}: instance parameter {parameter} cannot be swept",
             self.name()
         )))
     }

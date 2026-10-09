@@ -1,0 +1,46 @@
+# ngspice-rs ast-dump v1
+file: netlists/m8_dc_param_diode.cir
+title: "Diode instance-parameter sweep: @d1[area] nested with the circuit temperature" @netlists/m8_dc_param_diode.cir:1:1
+scope root
+  cards (7):
+    [0] options[0] @netlists/m8_dc_param_diode.cir:2:1 ".options reltol=1e-8"
+    [1] device[0] @netlists/m8_dc_param_diode.cir:3:1 "v1 in 0 2"
+    [2] device[1] @netlists/m8_dc_param_diode.cir:4:1 "r1 in a 1k"
+    [3] device[2] @netlists/m8_dc_param_diode.cir:5:1 "d1 a 0 dx area=2"
+    [4] model[0] @netlists/m8_dc_param_diode.cir:6:1 ".model dx d(is=1e-14 rs=10 n=1.1 eg=1.11 xti=3)"
+    [5] analysis[0] @netlists/m8_dc_param_diode.cir:7:1 ".dc @d1[area] 0.5 4 0.5 temp -20 80 50"
+    [6] end @netlists/m8_dc_param_diode.cir:8:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/m8_dc_param_diode.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/m8_dc_param_diode.cir:3:9
+    device [1] name="r1" designator=r @netlists/m8_dc_param_diode.cir:4:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m8_dc_param_diode.cir:4:9
+    device [2] name="d1" designator=d @netlists/m8_dc_param_diode.cir:5:1
+      nodes: "a" "0"
+      model: "dx"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @netlists/m8_dc_param_diode.cir:5:11
+  models (1):
+    model [0] name="dx" base="d" level=none @netlists/m8_dc_param_diode.cir:6:1
+      parameters (5):
+        [0] name="is" kind=scalar value="1e-14" @netlists/m8_dc_param_diode.cir:6:13
+        [1] name="rs" kind=scalar value="10" @netlists/m8_dc_param_diode.cir:6:22
+        [2] name="n" kind=scalar value="1.1" @netlists/m8_dc_param_diode.cir:6:28
+        [3] name="eg" kind=scalar value="1.11" @netlists/m8_dc_param_diode.cir:6:34
+        [4] name="xti" kind=scalar value="3" @netlists/m8_dc_param_diode.cir:6:42
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m8_dc_param_diode.cir:7:1
+      arguments: "@d1[area]" "0.5" "4" "0.5" "temp" "-20" "80" "50"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m8_dc_param_diode.cir:2:1
+      setting [0] name="reltol" value="1e-8"@netlists/m8_dc_param_diode.cir:2:17 @netlists/m8_dc_param_diode.cir:2:10
+  globals (0):

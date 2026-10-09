@@ -111,6 +111,9 @@ pub struct ControlledSource {
     terminals: Vec<NodeId>,
     gain: Real,
     control: Option<ControlReference>,
+    /// The G/F instance `m`, if given (`VCCSmGiven`/`CCCSmGiven`): a gain set
+    /// later through `@g1[gain]` is multiplied by it.
+    multiplier: Option<Real>,
 }
 
 impl ControlledSource {
@@ -188,6 +191,7 @@ impl ControlledSource {
             terminals,
             gain,
             control,
+            multiplier: None,
         })
     }
 
@@ -304,6 +308,39 @@ impl Device for ControlledSource {
             context.controls,
         )
     }
+
+    /// `gain` of E/F/G/H (`vcvs.c`, `cccs.c`, `vccs.c`, `ccvs.c`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        keyword.eq_ignore_ascii_case("gain").then_some("gain")
+    }
+
+    /// `VCVSparam`/`CCVSparam` store the swept gain as is; `VCCSparam` and
+    /// `CCCSparam` multiply it by the instance `m` when one was given anywhere
+    /// on the card (`VCCSmGiven`), which is what `dctrcurv.c` sees.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        if parameter != "gain" {
+            return Err(SpiceError::circuit(format!(
+                "{}: controlled-source parameter {parameter} cannot be swept",
+                self.name
+            )));
+        }
+        let gain = value * self.multiplier.unwrap_or(1.);
+        if !gain.is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "{}: swept gain {value} is not finite",
+                self.name
+            )));
+        }
+        Ok(Box::new(Self {
+            gain,
+            ..self.clone()
+        }))
+    }
 }
 
 /// Builds an E/F/G/H from its parsed (and literalized) AST instance, binding
@@ -415,6 +452,10 @@ pub(crate) fn instantiate(
         },
         other => other,
     })?;
+    let device = ControlledSource {
+        multiplier,
+        ..device
+    };
     *nodes = staged;
     Ok(Box::new(device))
 }

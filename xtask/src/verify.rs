@@ -490,6 +490,44 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // #97: `.dc @instance[parameter]` (C `param-sweep`) and the `res-sweep`
+    // scale of a resistor target.
+    Supported {
+        name: "m8_dc_param_diode",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_param_mos1",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_param_gain",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_res_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     Supported {
         name: "m7_diode_temp_ac",
         kind: AnalysisKind::Ac,
@@ -1021,10 +1059,15 @@ fn run_card(
     {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
         // independent-source scale in the voltage/current naming convention,
-        // and names a temperature scale (and its unit) `temp-sweep`.
+        // and names a temperature scale (and its unit) `temp-sweep`, a
+        // resistance scale `res-sweep` and an `@inst[param]` scale
+        // `param-sweep`, which its rawfile writes as a voltage
+        // (`dctrcurv.c`).
         let (name, unit) = match got.variables[0].unit.as_str() {
             "voltage" => ("v(v-sweep)", None),
             "temperature" => ("temp-sweep", Some("temp-sweep")),
+            "resistance" => ("res-sweep", Some("res-sweep")),
+            "parameter" => ("v(param-sweep)", Some("voltage")),
             _ => ("i(i-sweep)", None),
         };
         got.variables[0].name = name.into();

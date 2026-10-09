@@ -1,10 +1,12 @@
 //! Typed bounded DC sweeps, including one outer sweep (`dctrcurv.c`).
 //! Targets are independent V/I sources, resistors (literal or model-backed,
-//! identified by physical device metadata) and circuit temperature. Other
-//! model parameters and more than two axes are explicitly unsupported.
-//! Nothing is mutated: sources use temporary RHS offsets, temperature and
-//! resistor values travel in an immutable per-point `ModelContext`.
-//! See `docs/port/DC_SWEEPS.md`.
+//! identified by physical device metadata), circuit temperature and the
+//! settable instance parameters `@inst[param]` that both C and the port
+//! support. Model parameters (C rejects them too) and more than two axes (C
+//! has two nesting levels) are explicitly unsupported.
+//! Nothing is mutated: sources use temporary RHS offsets, temperature,
+//! resistor and instance-parameter values travel in an immutable per-point
+//! `ModelContext`. See `docs/port/DC_SWEEPS.md`.
 use crate::analysis::linear::{number, plot, unsupported};
 use crate::analysis::{AnalysisContext, AnalysisRequest, Plot};
 use crate::devices::{Circuit, ModelContext};
@@ -32,9 +34,39 @@ pub enum SweepTarget {
     Resistor(String),
     /// Circuit temperature (Celsius); nominal temperature is unchanged.
     Temperature,
+    /// A settable real instance parameter, `.dc @instance[parameter]` (C
+    /// `dctrcurv.c` `PARAM_CODE`, `DCTfindInstParam`/`DCTsetInstParam`).
+    InstanceParameter {
+        /// The target as C names it, `@instance[parameter]`, with the
+        /// instance's own spelling and the canonical parameter keyword.
+        name: String,
+        /// The instance name, in the device's own spelling.
+        instance: String,
+        /// The canonical (lowercase, alias-folded) parameter keyword.
+        parameter: String,
+        /// How the value reaches the equations.
+        route: ParameterRoute,
+    },
+}
+/// How an [`SweepTarget::InstanceParameter`] value reaches the equations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParameterRoute {
+    /// `@v1[dc]`: the voltage-source DC value, as [`SweepTarget::VoltageSource`].
+    VoltageSource,
+    /// `@i1[dc]` / `@i1[c]`: the current-source DC value, as
+    /// [`SweepTarget::CurrentSource`].
+    CurrentSource,
+    /// `@r1[r]` / `@r1[resistance]`: the supplied resistance, as
+    /// [`SweepTarget::Resistor`] (C `RESparam` then `REStemp`).
+    Resistor,
+    /// Any other supported parameter: a per-point device replacement
+    /// ([`crate::devices::Device::with_instance_parameter`]).
+    Device,
 }
 impl SweepTarget {
-    /// The plot unit of the swept quantity.
+    /// The plot unit of the swept quantity. An instance parameter has no
+    /// common physical unit and is reported as `parameter` (C names its scale
+    /// `param-sweep`).
     #[must_use]
     pub fn unit(&self) -> &str {
         match self {
@@ -42,14 +74,39 @@ impl SweepTarget {
             Self::CurrentSource(_) => "current",
             Self::Resistor(_) => "resistance",
             Self::Temperature => "temperature",
+            Self::InstanceParameter { .. } => "parameter",
         }
     }
-    /// The instance name, or `temp`.
+    /// The instance name, `temp`, or `@instance[parameter]`.
     #[must_use]
     pub fn name(&self) -> &str {
         match self {
             Self::VoltageSource(n) | Self::CurrentSource(n) | Self::Resistor(n) => n,
             Self::Temperature => "temp",
+            Self::InstanceParameter { name, .. } => name,
+        }
+    }
+    /// True when the swept value is a supplied resistance.
+    fn is_resistance(&self) -> bool {
+        matches!(
+            self,
+            Self::Resistor(_)
+                | Self::InstanceParameter {
+                    route: ParameterRoute::Resistor,
+                    ..
+                }
+        )
+    }
+    /// The independent source this target sweeps, if any.
+    fn source(&self) -> Option<&str> {
+        match self {
+            Self::VoltageSource(name) | Self::CurrentSource(name) => Some(name),
+            Self::InstanceParameter {
+                instance,
+                route: ParameterRoute::VoltageSource | ParameterRoute::CurrentSource,
+                ..
+            } => Some(instance),
+            _ => None,
         }
     }
 }
@@ -155,27 +212,95 @@ impl SweepSpec {
         {
             return Err(unsupported("DC sweep makes no progress"));
         }
-        match self.target {
-            SweepTarget::Temperature if values.iter().any(|v| *v <= -273.15) => {
-                return Err(unsupported("DC temperature below absolute zero"));
-            }
-            SweepTarget::Resistor(_)
-                if values.iter().any(|v| *v == 0. || !(1. / v).is_finite()) =>
-            {
-                return Err(unsupported(
-                    "DC resistance must be nonzero with finite conductance",
-                ));
-            }
-            _ => {}
+        if self.target == SweepTarget::Temperature && values.iter().any(|v| *v <= -273.15) {
+            return Err(unsupported("DC temperature below absolute zero"));
+        }
+        if self.target.is_resistance() && values.iter().any(|v| *v == 0. || !(1. / v).is_finite()) {
+            return Err(unsupported(
+                "DC resistance must be nonzero with finite conductance",
+            ));
         }
         Ok(())
     }
 }
-/// Parse and resolve one/two axes against actual independent sources and
-/// resistors (by physical metadata, never by instance-name prefix).
-/// Positional form: `target start stop step [outer start stop step]`.
+/// Split a C instance-parameter target `@instance[parameter]` (`dctrcurv.c`
+/// `DCTfindInstParam`) into its nonempty instance and parameter. C ignores
+/// anything after the closing bracket; the port rejects it.
+fn parameter_target(text: &str) -> SpiceResult<Option<(&str, &str)>> {
+    let Some(rest) = text.strip_prefix('@') else {
+        return Ok(None);
+    };
+    let malformed = || {
+        unsupported(format!(
+            "malformed DC sweep target {text}; expected @instance[parameter]"
+        ))
+    };
+    let (instance, rest) = rest.split_once('[').ok_or_else(malformed)?;
+    let parameter = rest.strip_suffix(']').ok_or_else(malformed)?;
+    if instance.is_empty() || parameter.is_empty() || parameter.contains(['[', ']']) {
+        return Err(malformed());
+    }
+    Ok(Some((instance, parameter)))
+}
+
+/// What one axis written as `target` names before the source table exists:
+/// the quantity it sweeps (for duplicate detection) and how it is applied.
+enum Written<'a> {
+    Temperature,
+    /// A plain name: an independent source or a resistor.
+    Name(&'a str),
+    /// `@instance[r|resistance]` of a resistor.
+    Resistance(&'a str),
+    /// `@instance[parameter]` that the device replaces itself.
+    Device(&'a str, &'static str),
+    /// `@instance[parameter]` left for the source table (`dc`, current `c`)
+    /// or for an explicit rejection.
+    Other(&'a str, &'a str),
+}
+impl<'a> Written<'a> {
+    fn classify(circuit: &Circuit, target: &'a str) -> SpiceResult<Self> {
+        if target.eq_ignore_ascii_case("temp") {
+            return Ok(Self::Temperature);
+        }
+        let Some((instance, parameter)) = parameter_target(target)? else {
+            return Ok(Self::Name(target));
+        };
+        if matches!(parameter.to_ascii_lowercase().as_str(), "r" | "resistance")
+            && circuit.resistor(instance).is_some()
+        {
+            return Ok(Self::Resistance(instance));
+        }
+        if let Some(device) = circuit.device(instance)
+            && let Some(canonical) = device.instance_parameter(parameter)
+        {
+            return Ok(Self::Device(instance, canonical));
+        }
+        Ok(Self::Other(instance, parameter))
+    }
+    /// The swept quantity: `r1` and `@r1[r]`, `v1` and `@v1[dc]` are one.
+    fn key(&self) -> String {
+        match self {
+            Self::Temperature => "temp".into(),
+            Self::Name(name) | Self::Resistance(name) => name.to_ascii_lowercase(),
+            Self::Device(name, parameter) => format!("@{}[{parameter}]", name.to_ascii_lowercase()),
+            Self::Other(name, parameter) => match parameter.to_ascii_lowercase().as_str() {
+                "dc" | "c" => name.to_ascii_lowercase(),
+                other => format!("@{}[{other}]", name.to_ascii_lowercase()),
+            },
+        }
+    }
+}
+
+/// Parse and resolve one/two axes against actual independent sources,
+/// resistors (by physical metadata, never by instance-name prefix), circuit
+/// temperature and `@instance[parameter]` targets.
+/// Positional form: `target start stop step [outer start stop step]`; C's
+/// `dot_dc` (`inp2dot.c`) reads exactly these two levels (`TRCVNESTLEVEL` is 2)
+/// and silently ignores anything after them, which the port rejects.
 /// # Errors
-/// Missing/unsupported/duplicate targets, invalid grid or Cartesian work budget.
+/// Missing/unsupported/duplicate targets, invalid grid or Cartesian work
+/// budget; [`SpiceError::NotYetPorted`] for an instance parameter C sweeps but
+/// the port does not.
 pub fn resolve(
     circuit: &Circuit,
     request: &AnalysisRequest,
@@ -194,50 +319,111 @@ pub fn resolve(
             ".dc requires one or two target/start/stop/step axes",
         ));
     }
-    // Resolve the first point's resistor/temperature settings before assembly:
-    // the original resistance may overflow at a swept temperature even though
-    // every requested replacement is valid. Physical resistor metadata needs
-    // no equation assembly, and source kinds come from the resulting system.
+    // Resolve the first point's resistor/temperature/parameter settings before
+    // assembly: the original resistance may overflow at a swept temperature
+    // even though every requested replacement is valid. Physical resistor
+    // metadata needs no equation assembly, and source kinds come from the
+    // resulting system.
     let mut names = std::collections::BTreeSet::new();
     let mut probe = context.model_context();
+    let mut written = Vec::new();
     for axis in args.as_chunks::<4>().0 {
-        let name = axis[0].to_ascii_lowercase();
-        if !names.insert(name.clone()) {
+        let target = Written::classify(circuit, axis[0])?;
+        if !names.insert(target.key()) {
             return Err(unsupported("duplicate nested DC target"));
         }
         let start = number(Some(axis[1]), "sweep start")?;
-        if name == "temp" {
-            probe.temperature = start;
-        } else if circuit.resistor(&name).is_some() {
-            probe = probe.with_resistor_override(circuit.resistor_override(&name, start)?)?;
+        match target {
+            Written::Temperature => probe.temperature = start,
+            Written::Name(name) | Written::Resistance(name) if circuit.resistor(name).is_some() => {
+                probe = probe.with_resistor_override(circuit.resistor_override(name, start)?)?;
+            }
+            _ => {}
+        }
+        written.push(target);
+    }
+    // Instance parameters are validated at the probe temperature.
+    for (axis, target) in args.as_chunks::<4>().0.iter().zip(&written) {
+        if let Written::Device(name, parameter) = target {
+            let start = number(Some(axis[1]), "sweep start")?;
+            probe = probe.with_instance_override(
+                circuit.instance_override(name, parameter, start, &probe)?,
+            )?;
         }
     }
     let system = circuit.small_signal_system(&probe, &Vector::zeros(circuit.unknown_count()))?;
-    let mut axes = vec![];
-    let mut work = 1usize;
-    for axis in args.as_chunks::<4>().0 {
-        let name = axis[0].to_ascii_lowercase();
-        let target = if name == "temp" {
-            SweepTarget::Temperature
-        } else if let Some(source) = system
+    let source = |name: &str| {
+        system
             .sources
             .iter()
-            .find(|s| s.name.eq_ignore_ascii_case(&name))
-        {
-            match source.kind {
-                crate::devices::SourceKind::Voltage => {
-                    SweepTarget::VoltageSource(source.name.clone())
-                }
-                crate::devices::SourceKind::Current => {
-                    SweepTarget::CurrentSource(source.name.clone())
+            .find(|s| s.name.eq_ignore_ascii_case(name))
+    };
+    let instance_name = |index: usize| circuit.devices()[index].name().to_owned();
+    let parameter = |instance: String, parameter: &str, route| SweepTarget::InstanceParameter {
+        name: format!("@{instance}[{parameter}]"),
+        instance,
+        parameter: parameter.to_owned(),
+        route,
+    };
+    let mut axes = vec![];
+    let mut work = 1usize;
+    for (axis, written) in args.as_chunks::<4>().0.iter().zip(written) {
+        let target = match written {
+            Written::Temperature => SweepTarget::Temperature,
+            Written::Name(name) => {
+                if let Some(source) = source(name) {
+                    match source.kind {
+                        crate::devices::SourceKind::Voltage => {
+                            SweepTarget::VoltageSource(source.name.clone())
+                        }
+                        crate::devices::SourceKind::Current => {
+                            SweepTarget::CurrentSource(source.name.clone())
+                        }
+                    }
+                } else if let Some((index, _)) = circuit.resistor(name) {
+                    SweepTarget::Resistor(instance_name(index))
+                } else {
+                    return Err(unsupported(format!(
+                        "DC sweep supports independent V/I sources, resistors, temp and \
+                         @instance[parameter] only; unsupported target {name}"
+                    )));
                 }
             }
-        } else if let Some((index, _)) = circuit.resistor(&name) {
-            SweepTarget::Resistor(circuit.devices()[index].name().to_owned())
-        } else {
-            return Err(unsupported(format!(
-                "DC sweep supports independent V/I sources, resistors and temp only; unsupported target {name}"
-            )));
+            Written::Resistance(name) => {
+                let (index, _) = circuit
+                    .resistor(name)
+                    .ok_or_else(|| SpiceError::circuit("resolved DC resistor disappeared"))?;
+                parameter(instance_name(index), "r", ParameterRoute::Resistor)
+            }
+            Written::Device(name, canonical) => {
+                let (index, _) = circuit.instance_parameter(name, canonical)?;
+                parameter(instance_name(index), canonical, ParameterRoute::Device)
+            }
+            Written::Other(name, keyword) => {
+                let keyword = keyword.to_ascii_lowercase();
+                match source(name) {
+                    // vsrc.c/isrc.c: `dc` (isrc alias `c`) is the DC value
+                    // that `.dc v1` sweeps.
+                    Some(source)
+                        if keyword == "dc"
+                            || (keyword == "c"
+                                && source.kind == crate::devices::SourceKind::Current) =>
+                    {
+                        let route = match source.kind {
+                            crate::devices::SourceKind::Voltage => ParameterRoute::VoltageSource,
+                            crate::devices::SourceKind::Current => ParameterRoute::CurrentSource,
+                        };
+                        parameter(source.name.clone(), "dc", route)
+                    }
+                    // Explicit NotYetPorted/Unsupported with the C reference.
+                    _ => {
+                        circuit.instance_parameter(name, &keyword)?;
+                        return Err(SpiceError::circuit(format!(
+                            "DC sweep target @{name}[{keyword}] could not be resolved"
+                        )));
+                    }
+                }
+            }
         };
         let spec = SweepSpec {
             target,
@@ -253,6 +439,52 @@ pub fn resolve(
     }
     Ok(axes)
 }
+
+/// The per-point model context and source values of one Cartesian point:
+/// `values` pairs with `axes` (inner first).
+fn point_context<'a>(
+    circuit: &Circuit,
+    axes: &'a [SweepSpec],
+    values: [Real; 2],
+    base: ModelContext,
+) -> SpiceResult<(ModelContext, Vec<(&'a str, Real)>)> {
+    let mut model = base;
+    let mut sources = vec![];
+    for (axis, value) in axes.iter().zip(values) {
+        if let Some(name) = axis.target.source() {
+            sources.push((name, value));
+            continue;
+        }
+        match &axis.target {
+            SweepTarget::Temperature => model.temperature = value,
+            SweepTarget::Resistor(name)
+            | SweepTarget::InstanceParameter {
+                instance: name,
+                route: ParameterRoute::Resistor,
+                ..
+            } => {
+                model = model.with_resistor_override(circuit.resistor_override(name, value)?)?;
+            }
+            _ => {}
+        }
+    }
+    // Instance parameters are applied (and validated) at the point's
+    // temperature, after a temperature axis in either position.
+    for (axis, value) in axes.iter().zip(values) {
+        if let SweepTarget::InstanceParameter {
+            instance,
+            parameter,
+            route: ParameterRoute::Device,
+            ..
+        } = &axis.target
+        {
+            model = model.with_instance_override(
+                circuit.instance_override(instance, parameter, value, &model)?,
+            )?;
+        }
+    }
+    Ok((model, sources))
+}
 /// Reject every point the run would later fail on for *input* reasons: a swept
 /// resistance whose effective value is invalid at some swept temperature, or a
 /// circuit that cannot be assembled at some swept temperature. Convergence
@@ -263,49 +495,49 @@ fn preflight(
     grids: &[Vec<Real>],
     context: &AnalysisContext,
 ) -> SpiceResult<()> {
-    let temperatures = axes
-        .iter()
-        .zip(grids)
-        .find(|(axis, _)| axis.target == SweepTarget::Temperature)
-        .map(|(_, grid)| grid.clone());
     let zero = Vector::zeros(circuit.unknown_count());
-    if temperatures.is_some() {
-        // Validate actual Cartesian point contexts, not the original resistor
-        // recipes at each temperature: those recipes are replaced by the sweep.
+    // A temperature or device-parameter axis changes the devices themselves:
+    // validate actual Cartesian point contexts, not the original recipes at
+    // each temperature (those recipes are replaced by the sweep).
+    if axes.iter().any(|axis| {
+        matches!(
+            axis.target,
+            SweepTarget::Temperature
+                | SweepTarget::InstanceParameter {
+                    route: ParameterRoute::Device,
+                    ..
+                }
+        )
+    }) {
         let single = [0.];
         let outer = grids.get(1).map_or(&single[..], Vec::as_slice);
         for outer_value in outer {
             for inner_value in &grids[0] {
-                let mut model = context.model_context();
-                for (axis, value) in axes.iter().zip([*inner_value, *outer_value]) {
-                    match &axis.target {
-                        SweepTarget::Temperature => model.temperature = value,
-                        SweepTarget::Resistor(name) => {
-                            model = model
-                                .with_resistor_override(circuit.resistor_override(name, value)?)?;
-                        }
-                        _ => {}
-                    }
-                }
+                let (model, _) = point_context(
+                    circuit,
+                    axes,
+                    [*inner_value, *outer_value],
+                    context.model_context(),
+                )?;
                 circuit.small_signal_system(&model, &zero)?;
             }
         }
         return Ok(());
     }
-    let temperatures = vec![context.temperature];
+    let model = context.model_context();
     for (axis, grid) in axes.iter().zip(grids) {
-        let SweepTarget::Resistor(name) = &axis.target else {
-            continue;
+        let name = match &axis.target {
+            SweepTarget::Resistor(name)
+            | SweepTarget::InstanceParameter {
+                instance: name,
+                route: ParameterRoute::Resistor,
+                ..
+            } => name,
+            _ => continue,
         };
-        for temperature in &temperatures {
-            let model = ModelContext {
-                temperature: *temperature,
-                ..context.model_context()
-            };
-            for value in grid {
-                let target = circuit.resistor_override(name, *value)?;
-                circuit.effective_resistance(&target, &model)?;
-            }
+        for value in grid {
+            let target = circuit.resistor_override(name, *value)?;
+            circuit.effective_resistance(&target, &model)?;
         }
     }
     Ok(())
@@ -422,12 +654,7 @@ pub(crate) fn run(
     let linear = !circuit.devices().iter().any(|d| d.is_nonlinear());
     // The factorization is valid only while the operator is: a resistor or
     // temperature axis changes it at every point, so those recompute below.
-    let source_only = axes.iter().all(|a| {
-        matches!(
-            a.target,
-            SweepTarget::VoltageSource(_) | SweepTarget::CurrentSource(_)
-        )
-    });
+    let source_only = axes.iter().all(|a| a.target.source().is_some());
     // Preserve the delivered repeated-RHS LU optimization on source-only linear sweeps.
     let system = if linear && source_only {
         Some(circuit.small_signal_system(
@@ -455,20 +682,12 @@ pub(crate) fn run(
         // then becomes the accepted history (C's `firstTime` memcpy).
         first = true;
         for inner_value in inner {
-            let mut model = context.model_context();
-            let mut overrides = vec![];
-            for (axis, value) in axes.iter().zip([*inner_value, *outer_value]) {
-                match &axis.target {
-                    SweepTarget::VoltageSource(name) | SweepTarget::CurrentSource(name) => {
-                        overrides.push((name.as_str(), value))
-                    }
-                    SweepTarget::Temperature => model.temperature = value,
-                    SweepTarget::Resistor(name) => {
-                        model = model
-                            .with_resistor_override(circuit.resistor_override(name, value)?)?;
-                    }
-                }
-            }
+            let (model, overrides) = point_context(
+                circuit,
+                &axes,
+                [*inner_value, *outer_value],
+                context.model_context(),
+            )?;
             let mut solved_state = None;
             let x = if let (Some(system), Some(lu)) = (&system, &lu) {
                 let mut rhs = system.dc_rhs(None)?;

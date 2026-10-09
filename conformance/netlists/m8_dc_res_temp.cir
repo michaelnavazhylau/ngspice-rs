@@ -1,0 +1,7 @@
+Model-backed resistor sweep nested with the circuit temperature (res-sweep scale)
+v1 in 0 2
+r1 in out rm scale=2 m=4
+r2 out 0 1k
+.model rm r(r=1k tc1=0.01 tnom=27)
+.dc r1 1k 2k 500 temp 27 47 20
+.end

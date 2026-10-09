@@ -1,8 +1,8 @@
-# Typed scalar DC sweeps (#35)
+# Typed scalar DC sweeps (#35, #97)
 
 Scope: the bounded `.dc` driver in `analysis::sweep` (C: `dctrcurv.c`).
 It sweeps scalar targets over one inner axis and one optional outer axis. It is
-not a general parameter sweep, a model-parameter sweep or a `.step` analysis.
+not a model-parameter sweep (C has none, see below) or a `.step` analysis.
 No new parser exists: the `.dc` card's positional arguments come from the existing
 analysis-card AST (so `{expr}`/`.param` arguments already work) and are read as
 `target start stop step [target start stop step]`. Named `key=value` arguments
@@ -16,6 +16,7 @@ are convergence controls owned by `DcSettings::from_request` and are ignored by 
 | independent I source | `SourceKind::Current` of the assembled source | DC value (A) | `current` |
 | resistor, literal or model-backed | `Device::resistor_metadata()` | **supplied scalar** (ohm) | `resistance` |
 | `temp` | the reserved word | circuit temperature (Celsius) | `temperature` |
+| `@inst[param]` | the instance (any device) and its settable real parameter | that instance parameter (#97) | `parameter` |
 
 Targets are identified by what the device *is*, never by the first letter of its
 name: a programmatic resistor named `v9` is a resistor target, a voltage source
@@ -23,10 +24,60 @@ named `r9` is a voltage-source target, and a capacitor named `rc` is rejected.
 Lookup is case-insensitive and the plot/`SweepTarget` keep the instance's own
 spelling. `temp` wins over a device that is literally named `temp`.
 
-Anything else (capacitors, inductors, diodes, BJTs, MOSFETs, model names,
-`r1.r`-style parameter references, nodes, more than two axes, malformed arity, a
-duplicate target in the two axes) is `Unsupported` and is rejected **before the
-first sample**, as is every invalid grid or value below.
+Anything else (a bare capacitor, inductor, diode, BJT or MOSFET name, model
+names, `r1.r`-style references, nodes, more than two axes, malformed arity, a
+duplicate quantity in the two axes) is `Unsupported` and is rejected **before
+the first sample**, as is every invalid grid or value below. Instance
+parameters are described in [Instance-parameter targets](#instance-parameter-targets-97).
+
+## What C sweeps (#97)
+
+Established by reading `dctrcurv.c`, `dctsetp.c`, `inp2dot.c` (`dot_dc`) and
+`trcvdefs.h`, and by running the reference binary on probe decks (results
+below are its output; nothing in the C tree was changed):
+
+- **Two nesting levels, no more.** `TRCVNESTLEVEL` is 2 and `dot_dc` reads
+  `name1 start1 stop1 step1 [name2 start2 stop2 step2]`. Anything after the
+  eighth token is **silently ignored**: `.dc v1 1 2 1 r1 1k 2k 1k temp 27 28 1`
+  runs a two-level sweep without the `temp` axis. The port rejects a third axis
+  (and any other arity) instead of dropping it.
+- **Target kinds.** `DCtrCurv` resolves each name, in order, as a resistor
+  (`RESname`, sweeping `RESresist`), voltage source, current source, the word
+  `temp`, and finally `@instance[parameter]` (`DCTfindInstParam`, the
+  "Enhancement-62" `PARAM_CODE` path present in the reference build). Anything
+  else is fatal: `Voltage source, current source, or resistor named "..." is
+  not in the circuit`.
+- **Instance parameters only.** `DCTfindInstParam` searches every device type's
+  *instances* for the name (case-insensitive) and then only that device's
+  instance table for a keyword with `IF_SET` and `IF_REAL` (aliases included,
+  e.g. diode `perim` for `pj`, current source `c` for `dc`). It never looks at
+  model tables: `.dc @dm[is] ...`, `.dc dm[is] ...`, `.dc @d1[is] ...` (IS is a
+  model parameter) and `.dc @d1[foo] ...` all fail with the error above. A
+  `.param` name (`.dc pp 1 3 1`) fails the same way; `inpcom.c` only repairs
+  `.dc (TEMPER)` back to `.dc TEMP` and does not rewrite parameter sweeps.
+- **Setting a parameter.** Each point calls the device's `DEVparam` setter with
+  the new value (marking it given) and then `DEVtemperature` for the device
+  type (`DCTsetInstParam`); nothing reruns `DEVsetup`. Consequences that the
+  port reproduces: a G/F gain set this way is multiplied by an `m` given
+  anywhere on the card (`VCCSparam`/`CCCSparam`), a G/F `m` sweep has no effect,
+  and a BJT `area` sweep leaves AREAB/AREAC at the values `bjtsetup.c` copied
+  from the card's AREA. The value is accumulated as `now += step` with C's
+  absolute `1e3 DBL_EPSILON` stop test, like sources.
+- **Restoration quirk.** After the sweep C restores the saved value but cannot
+  clear the "given" flag, so a later analysis in the same run sees, e.g., a
+  diode TEMP fixed at the temperature it had during the sweep. The port never
+  mutates devices and has no such carry-over.
+- **Same quantity twice.** C accepts `@d1[area]` in both levels, or `r1` and
+  `@r1[r]`, and produces order-dependent results; the port rejects both.
+- **Vector naming.** The scale of the inner axis is `v-sweep`/`i-sweep`/
+  `temp-sweep`/`res-sweep`/`param-sweep`; the rawfile writes `param-sweep` as
+  `v(param-sweep)` of type voltage and `res-sweep` with type `res-sweep`. C
+  writes no column for the outer value. The port's public plot keeps its
+  `sweep` scale (unit `parameter` for `@inst[param]`) and its `sweep(<outer>)`
+  column; `golden verify` maps both conventions.
+- **Accuracy.** At C's default `reltol=1e-3` the warm-started points stop up to
+  ~3e-4 V from the root of a diode sweep; with `.options reltol=1e-8` C and the
+  port agree to well under 1 ppm, so every nonlinear comparison sets it.
 
 ## Supplied scalar versus effective resistance
 
@@ -144,12 +195,80 @@ with discrete-state devices sweep C's accumulated values
 stop test, temperature accumulated in kelvin) instead of the grid above,
 because a switch control on a threshold is decided by the last bit.
 
+## Instance-parameter targets (#97)
+
+`@instance[parameter]` is split into a nonempty instance and parameter (text
+after `]`, which C ignores, is rejected). Lookup is case-insensitive; the
+target keeps the instance's spelling and the canonical keyword
+(`@d1[pj]` for `@D1[PERIM]`). Each target takes one of four routes
+(`ParameterRoute`):
+
+| Written | Route | Applied as |
+| --- | --- | --- |
+| `@v1[dc]` | `VoltageSource` | the V-source target (factor reuse kept) |
+| `@i1[dc]`, `@i1[c]` | `CurrentSource` | the I-source target |
+| `@r1[r]`, `@r1[resistance]` | `Resistor` | the resistor target (`RESparam` + `REStemp` equal `RESresist` + `RESupdate_conduct`) |
+| supported device parameter | `Device` | a per-point device replacement |
+
+Device parameters supported by the port, each re-derived exactly as the
+device's temperature routine does:
+
+| Device | Parameters | C reference |
+| --- | --- | --- |
+| diode | `area`, `pj` (`perim`), `m`, `temp`, `dtemp` | `dioparam.c`, `diotemp.c` |
+| Gummel-Poon BJT | `area`, `areab`, `areac`, `m`, `temp`, `dtemp` | `bjtparam.c`, `bjttemp.c` |
+| MOS1 | `m`, `l`, `w`, `ad`, `as`, `pd`, `ps`, `nrd`, `nrs`, `temp`, `dtemp` | `mos1par.c`, `mos1temp.c` |
+| E/F/G/H | `gain` (G/F times a given `m`) | `vcvspar.c`, `cccspar.c`, `vccspar.c`, `ccvspar.c` |
+
+`devices::sweep::c_instance_parameter_known` lists C's other settable real
+instance parameters of the elaborated device kinds (resistor `temp`/`tc1`/`w`/...,
+capacitor and inductor values, source `acmag`/`m`, diode `ic`/`w`/`l`, BJT/MOS1
+`ic*`, G/F `m`, B-source `temp`/`m`, K `k`); sweeping one of them is
+`NotYetPorted` naming `dctrcurv.c`. A parameter C does not have is
+`Unsupported`, like an unknown instance or any model name.
+
+Values are checked against the instance schema domains (AREA/M/W/L positive,
+PJ/AD/AS/PD/PS/NRD/NRS nonnegative, TEMP above absolute zero) and the device's
+own construction checks (diode sidewall/TM1 restrictions, `L - 2 LD > 0`,
+MOS1 RSH/NRD conductances). A diode DTEMP sweep on an instance with TEMP is
+rejected, as the card-level rule rejects TEMP with DTEMP (C silently ignores
+DTEMP there); a MOS1 or BJT DTEMP sweep under an instance TEMP has no effect in
+either simulator. MOS1 values that would create or remove an internal
+drain/source node are rejected; nothing re-runs the topology.
+
+Immutability follows the resistor design: `Circuit::instance_override(name,
+keyword, value, context)` validates by building the replacement once and
+returns an `InstanceOverride` (device ordinal, canonical keyword, value);
+`ModelContext::instance_overrides` carries at most `MAX_INSTANCE_OVERRIDES` = 2,
+two parameters of one device are allowed, the same parameter twice is not.
+`Circuit::load`, `linear_system_with_context` and `small_signal_system` stamp
+`Device::with_instance_parameter(...)` — a disposable copy with the same
+terminals, branch rows and state layout — in place of the original for that
+point. A temperature axis is applied before the instance parameters of the
+same point. Every Cartesian point of a sweep with a device-parameter or
+temperature axis is assembled once before the first sample, so an invalid
+value anywhere in the grid is an up-front error.
+
+Tests: `tests/dc_parameter_sweeps.rs` (diode junction law over AREA, AREA/M
+equivalence, instance TEMP/DTEMP versus circuit `temp`, E/F/G gains with `m`,
+source/resistor routes equal the typed targets, BJT/MOS1 identity and W/L/M
+scaling, routing/canonical names, rejections, immutability, override bounds).
+C goldens `m8_dc_param_diode` (AREA x circuit TEMP), `m8_dc_param_mos1`
+(W x L with RSH series nodes), `m8_dc_param_gain` (G gain with `m` x E gain)
+and `m8_dc_res_temp` (resistor `res-sweep` scale) are in `golden verify`, and
+the opt-in `c_dc_param_sweep_reference` compares 15 more decks (diode
+AREA/PERIM/M/TEMP/DTEMP with temperature and source axes, BJT AREA/AREAB/M/DTEMP,
+MOS1 W/L/M/NRD/TEMP, E/F/G/H gains, `@v1[dc]`/`@i1[c]`/`@r1[r]`/`@r1[resistance]`)
+against the live reference binary.
+
 ## Limits and non-goals
 
-Model-parameter targets (`rm.r`), geometry (`l`/`w`), `tc1`/`tc2`, `scale`, `m`,
-inductors, capacitors, nonlinear devices, subcircuit instances, list/decade/octave
-sweeps and more than two axes are unsupported. Two resistor axes are allowed;
-the same resistor twice is not. Convergence policy (`gmin`/source stepping, itl
+Model-parameter targets (`@rm[r]`, `@dm[is]`, `rm.r`) are not sweepable in C
+and stay `Unsupported`; neither are `.param` names. More than two axes are
+rejected (C silently drops them). Instance parameters outside the table above
+and list/decade/octave sweeps are unsupported. Instances inside subcircuits are
+named as C flattens them (`@d.x1.d1[area]`). Two resistor axes are allowed; the same quantity twice is
+not. Convergence policy (`gmin`/source stepping, itl
 options) belongs to `bias.rs`/`newton.rs`; sweep requests use the same configured
 policy as OP/AC (see [DC_CONTINUATION.md](DC_CONTINUATION.md)).
 

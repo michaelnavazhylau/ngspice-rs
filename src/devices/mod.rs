@@ -17,7 +17,7 @@
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
-//! | [`sweep`] | physical resistor metadata and immutable per-point resistor overrides | typed `.dc` resistor targets |
+//! | [`sweep`] | physical resistor metadata, immutable per-point resistor and instance-parameter overrides | typed `.dc` resistor and `@inst[param]` targets |
 //! | [`subckt`] | `X` instance expansion: port binding, hierarchical names, scoped parameters and models | top-level definitions, named overrides, `.global` nodes |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework
@@ -83,7 +83,10 @@ pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, DeviceSupport, Registry};
 pub use rlc::{Capacitor, Inductor, Resistor};
 pub use state::{ACCEPTED_DEPTH, DeviceState, IterationPhase, StateHistory, TrialState};
-pub use sweep::{MAX_RESISTOR_OVERRIDES, ResistorMetadata, ResistorOrigin, ResistorOverride};
+pub use sweep::{
+    InstanceOverride, MAX_INSTANCE_OVERRIDES, MAX_RESISTOR_OVERRIDES, ResistorMetadata,
+    ResistorOrigin, ResistorOverride,
+};
 pub use switch::{Switch, SwitchKind, SwitchState};
 pub use traits::{
     AcceptContext, AnalysisMode, ControlReference, Device, InductanceValue, MnaUnknowns,
