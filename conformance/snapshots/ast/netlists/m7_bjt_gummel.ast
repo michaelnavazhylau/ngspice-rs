@@ -1,0 +1,58 @@
+# ngspice-rs ast-dump v1
+file: netlists/m7_bjt_gummel.cir
+title: "Gummel-Poon BJT Gummel plot" @netlists/m7_bjt_gummel.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/m7_bjt_gummel.cir:2:1 "vbe b 0 0.5"
+    [1] device[1] @netlists/m7_bjt_gummel.cir:3:1 "vcb c b 0"
+    [2] device[2] @netlists/m7_bjt_gummel.cir:4:1 "q1 c b 0 qgp"
+    [3] model[0] @netlists/m7_bjt_gummel.cir:5:1 ".model qgp npn(is=2e-16 bf=150 nf=1.01 vaf=60 ikf=20m ise=5e-14 ne=1.7 br=4 nr=1.02 var=8 ikr=2m isc=1e-13 nc=1.9 rb=150 irb=0.2m rbm=15 re=1.5 rc=20)"
+    [4] options[0] @netlists/m7_bjt_gummel.cir:6:1 ".options reltol=1e-8"
+    [5] analysis[0] @netlists/m7_bjt_gummel.cir:7:1 ".dc vbe 0.3 1.1 0.02"
+    [6] end @netlists/m7_bjt_gummel.cir:8:1 ".end"
+  devices (3):
+    device [0] name="vbe" designator=v @netlists/m7_bjt_gummel.cir:2:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m7_bjt_gummel.cir:2:9
+    device [1] name="vcb" designator=v @netlists/m7_bjt_gummel.cir:3:1
+      nodes: "c" "b"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m7_bjt_gummel.cir:3:9
+    device [2] name="q1" designator=q @netlists/m7_bjt_gummel.cir:4:1
+      nodes: "c" "b" "0"
+      model: "qgp"
+      parameters (0):
+  models (1):
+    model [0] name="qgp" base="npn" level=none @netlists/m7_bjt_gummel.cir:5:1
+      parameters (18):
+        [0] name="is" kind=scalar value="2e-16" @netlists/m7_bjt_gummel.cir:5:16
+        [1] name="bf" kind=scalar value="150" @netlists/m7_bjt_gummel.cir:5:25
+        [2] name="nf" kind=scalar value="1.01" @netlists/m7_bjt_gummel.cir:5:32
+        [3] name="vaf" kind=scalar value="60" @netlists/m7_bjt_gummel.cir:5:40
+        [4] name="ikf" kind=scalar value="20m" @netlists/m7_bjt_gummel.cir:5:47
+        [5] name="ise" kind=scalar value="5e-14" @netlists/m7_bjt_gummel.cir:5:55
+        [6] name="ne" kind=scalar value="1.7" @netlists/m7_bjt_gummel.cir:5:65
+        [7] name="br" kind=scalar value="4" @netlists/m7_bjt_gummel.cir:5:72
+        [8] name="nr" kind=scalar value="1.02" @netlists/m7_bjt_gummel.cir:5:77
+        [9] name="var" kind=scalar value="8" @netlists/m7_bjt_gummel.cir:5:85
+        [10] name="ikr" kind=scalar value="2m" @netlists/m7_bjt_gummel.cir:5:91
+        [11] name="isc" kind=scalar value="1e-13" @netlists/m7_bjt_gummel.cir:5:98
+        [12] name="nc" kind=scalar value="1.9" @netlists/m7_bjt_gummel.cir:5:108
+        [13] name="rb" kind=scalar value="150" @netlists/m7_bjt_gummel.cir:5:115
+        [14] name="irb" kind=scalar value="0.2m" @netlists/m7_bjt_gummel.cir:5:122
+        [15] name="rbm" kind=scalar value="15" @netlists/m7_bjt_gummel.cir:5:131
+        [16] name="re" kind=scalar value="1.5" @netlists/m7_bjt_gummel.cir:5:138
+        [17] name="rc" kind=scalar value="20" @netlists/m7_bjt_gummel.cir:5:145
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m7_bjt_gummel.cir:7:1
+      arguments: "vbe" "0.3" "1.1" "0.02"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m7_bjt_gummel.cir:6:1
+      setting [0] name="reltol" value="1e-8"@netlists/m7_bjt_gummel.cir:6:17 @netlists/m7_bjt_gummel.cir:6:10
+  globals (0):

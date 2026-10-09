@@ -1,0 +1,8 @@
+Gummel-Poon BJT output characteristics
+vce c 0 0
+ib 0 b dc 10u
+q1 c b 0 qgp
+.model qgp npn(is=2e-16 bf=150 nf=1.01 vaf=60 ikf=20m ise=5e-14 ne=1.7 br=4 nr=1.02 var=8 ikr=2m isc=1e-13 nc=1.9 rb=150 irb=0.2m rbm=15 re=1.5 rc=20)
+.options reltol=1e-8
+.dc vce 0 5 0.1 ib 5u 25u 5u
+.end

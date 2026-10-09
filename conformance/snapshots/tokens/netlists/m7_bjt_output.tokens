@@ -1,0 +1,111 @@
+# ngspice-rs token-dump v1
+file: netlists/m7_bjt_output.cir
+title: "Gummel-Poon BJT output characteristics" @netlists/m7_bjt_output.cir:1:1
+card 1 @netlists/m7_bjt_output.cir:2:1 lines=2-2 continuations=0
+  raw: "vce c 0 0"
+  kind: device(v)
+  token 1 2:1 word "vce"
+  token 2 2:5 word "c"
+  token 3 2:7 number "0" value=0e0
+  token 4 2:9 number "0" value=0e0
+card 2 @netlists/m7_bjt_output.cir:3:1 lines=3-3 continuations=0
+  raw: "ib 0 b dc 10u"
+  kind: device(i)
+  token 1 3:1 word "ib"
+  token 2 3:4 number "0" value=0e0
+  token 3 3:6 word "b"
+  token 4 3:8 word "dc"
+  token 5 3:11 number "10u" value=9.999999999999999e-6
+card 3 @netlists/m7_bjt_output.cir:4:1 lines=4-4 continuations=0
+  raw: "q1 c b 0 qgp"
+  kind: device(q)
+  token 1 4:1 word "q1"
+  token 2 4:4 word "c"
+  token 3 4:6 word "b"
+  token 4 4:8 number "0" value=0e0
+  token 5 4:10 word "qgp"
+card 4 @netlists/m7_bjt_output.cir:5:1 lines=5-5 continuations=0
+  raw: ".model qgp npn(is=2e-16 bf=150 nf=1.01 vaf=60 ikf=20m ise=5e-14 ne=1.7 br=4 nr=1.02 var=8 ikr=2m isc=1e-13 nc=1.9 rb=150 irb=0.2m rbm=15 re=1.5 rc=20)"
+  kind: dot(.model)
+  token 1 5:1 word ".model"
+  token 2 5:8 word "qgp"
+  token 3 5:12 word "npn"
+  token 4 5:15 lparen "("
+  token 5 5:16 word "is"
+  token 6 5:18 equals "="
+  token 7 5:19 number "2e-16" value=2e-16
+  token 8 5:25 word "bf"
+  token 9 5:27 equals "="
+  token 10 5:28 number "150" value=1.5e2
+  token 11 5:32 word "nf"
+  token 12 5:34 equals "="
+  token 13 5:35 number "1.01" value=1.01e0
+  token 14 5:40 word "vaf"
+  token 15 5:43 equals "="
+  token 16 5:44 number "60" value=6e1
+  token 17 5:47 word "ikf"
+  token 18 5:50 equals "="
+  token 19 5:51 number "20m" value=2e-2
+  token 20 5:55 word "ise"
+  token 21 5:58 equals "="
+  token 22 5:59 number "5e-14" value=5e-14
+  token 23 5:65 word "ne"
+  token 24 5:67 equals "="
+  token 25 5:68 number "1.7" value=1.7e0
+  token 26 5:72 word "br"
+  token 27 5:74 equals "="
+  token 28 5:75 number "4" value=4e0
+  token 29 5:77 word "nr"
+  token 30 5:79 equals "="
+  token 31 5:80 number "1.02" value=1.02e0
+  token 32 5:85 word "var"
+  token 33 5:88 equals "="
+  token 34 5:89 number "8" value=8e0
+  token 35 5:91 word "ikr"
+  token 36 5:94 equals "="
+  token 37 5:95 number "2m" value=2e-3
+  token 38 5:98 word "isc"
+  token 39 5:101 equals "="
+  token 40 5:102 number "1e-13" value=1e-13
+  token 41 5:108 word "nc"
+  token 42 5:110 equals "="
+  token 43 5:111 number "1.9" value=1.9e0
+  token 44 5:115 word "rb"
+  token 45 5:117 equals "="
+  token 46 5:118 number "150" value=1.5e2
+  token 47 5:122 word "irb"
+  token 48 5:125 equals "="
+  token 49 5:126 number "0.2m" value=2e-4
+  token 50 5:131 word "rbm"
+  token 51 5:134 equals "="
+  token 52 5:135 number "15" value=1.5e1
+  token 53 5:138 word "re"
+  token 54 5:140 equals "="
+  token 55 5:141 number "1.5" value=1.5e0
+  token 56 5:145 word "rc"
+  token 57 5:147 equals "="
+  token 58 5:148 number "20" value=2e1
+  token 59 5:150 rparen ")"
+card 5 @netlists/m7_bjt_output.cir:6:1 lines=6-6 continuations=0
+  raw: ".options reltol=1e-8"
+  kind: dot(.options)
+  token 1 6:1 word ".options"
+  token 2 6:10 word "reltol"
+  token 3 6:16 equals "="
+  token 4 6:17 number "1e-8" value=1e-8
+card 6 @netlists/m7_bjt_output.cir:7:1 lines=7-7 continuations=0
+  raw: ".dc vce 0 5 0.1 ib 5u 25u 5u"
+  kind: dot(.dc)
+  token 1 7:1 word ".dc"
+  token 2 7:5 word "vce"
+  token 3 7:9 number "0" value=0e0
+  token 4 7:11 number "5" value=5e0
+  token 5 7:13 number "0.1" value=1e-1
+  token 6 7:17 word "ib"
+  token 7 7:20 number "5u" value=4.9999999999999996e-6
+  token 8 7:23 number "25u" value=2.4999999999999998e-5
+  token 9 7:27 number "5u" value=4.9999999999999996e-6
+card 7 @netlists/m7_bjt_output.cir:8:1 lines=8-8 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 8:1 word ".end"

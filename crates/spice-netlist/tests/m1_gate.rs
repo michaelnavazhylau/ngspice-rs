@@ -225,6 +225,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M6 switch decks (#81) are gated by `xtask golden verify` and
     // `spice-analysis/tests/switches.rs`.
     on_disk.retain(|name| !name.starts_with("switch_"));
+    // M7 Gummel-Poon BJT decks (#87) are gated by `xtask golden verify`,
+    // `spice-analysis/tests/bjt_gummel_poon.rs` and the parser round trip there.
+    on_disk.retain(|name| !name.starts_with("m7_bjt_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `spice-analysis/tests/behavioural_sources.rs`.
     on_disk.retain(|name| {

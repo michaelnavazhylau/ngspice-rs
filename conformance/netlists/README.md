@@ -103,6 +103,11 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `bsource_zero_op` | `.op` | `1/x`, `sqrt`, `log`/`ln`/`log10` and divisions whose controlling nodes start Newton at 0 V (`1e32` slopes, `log(0) = -1e99`) |
 | `bsource_zero_dc` | `.dc` | the same singular slopes at the first sweep point's 0 V start |
 | `bsource_zero_tran` | `.tran` | the same at the initial operating point, then a 1–3 V `sin` input into resistive loads (1 us maximum step) |
+| `m7_bjt_gummel` | `.dc` | Gummel plot (VBC = 0) of a Gummel-Poon NPN: VAF/VAR, IKF/IKR, ISE/ISC leakage, RB/RBM/IRB, RC/RE internal nodes (#87) |
+| `m7_bjt_output` | `.dc` | nested output characteristics, VCE inner and IB outer (C writes no outer column) |
+| `m7_bjt_temp` | `.dc` | `temp` sweep -40..125 C: NPN (XTB/XTI/EG), lateral PNP with substrate ISS, TLEV=1 and polynomial tempcos, TNOM; TLEV=3/TLEVC=1 NPN with IBE/IBC, NKF, `dtemp`/`area`/`areab`/`m` |
+| `m7_bjt_amp_ac` | `.ac` | CE amplifier at 50 C: CJE/CJC with XCJC, CJS substrate (4th terminal), TF with XTF/VTF/ITF, TR |
+| `m7_bjt_amp_tran` | `.tran` | the same amplifier driven by a 10 mV PULSE: every charge companion |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -130,3 +135,9 @@ The ten behavioural-source decks (#79) were captured one at a time with
 through a scratch `.spiceinit` because their decks carry a
 `* xtask-codemodels:` comment. See
 [BEHAVIOURAL_SOURCES.md](../../docs/port/BEHAVIOURAL_SOURCES.md).
+
+The five `m7_bjt_*` decks (#87) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+Each sets `.option reltol=1e-8`: at C's default `reltol` (with bypass) the
+Gummel-Poon sweeps stop about 4e-4 away from the converged root, outside the
+1 ppm nonlinear bound; see [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md).

@@ -654,6 +654,106 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(coll)", 0, 4.982934701819048, 0.),
         ],
     },
+    // Gummel-Poon BJT (#87). At VBE = 1.1 V the IKF = 20 mA knee and the
+    // 21.5 ohm of RC + RE (plus RB) compress the forward gain to about 15
+    // (3.0 mA of base current for 46.6 mA of collector current).
+    Expectation {
+        fixture: "m7_bjt_gummel",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 41,
+        variables: &["v(v-sweep)", "v(b)", "v(c)", "i(vbe)", "i(vcb)"],
+        values: &[
+            ("v(v-sweep)", 40, 1.100000000000001, 0.),
+            ("i(vbe)", 40, -4.966010012111799e-2, 0.),
+            ("i(vcb)", 40, -4.664713816377888e-2, 0.),
+        ],
+    },
+    // Five 51-point VCE sweeps (IB = 5..25 uA); at 5 V and 25 uA the gain is
+    // about 110: BF = 150 lowered by ISE leakage and high injection, raised by
+    // the Early effect (VAF = 60 V).
+    Expectation {
+        fixture: "m7_bjt_output",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 255,
+        variables: &["v(v-sweep)", "v(b)", "v(c)", "i(vce)"],
+        values: &[
+            ("v(v-sweep)", 254, 4.999999999999998, 0.),
+            ("v(b)", 254, 8.017159997526093e-1, 0.),
+            ("i(vce)", 254, -2.739006031922822e-3, 0.),
+        ],
+    },
+    // -40..125 C: the NPN emitter rises as VBE falls with temperature; the
+    // PNP collector and the M=2 TLEV=3 follower follow their biasing.
+    Expectation {
+        fixture: "m7_bjt_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 12,
+        variables: &[
+            "temp-sweep",
+            "v(fb)",
+            "v(fe)",
+            "v(nb)",
+            "v(nc)",
+            "v(ne)",
+            "v(pb)",
+            "v(pc)",
+            "v(pe)",
+            "v(sub)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vsub)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -40., 0.),
+            ("v(ne)", 0, 7.446680380960549e-2, 0.),
+            ("v(pc)", 11, 1.077693071789567, 0.),
+            ("v(fe)", 11, 2.066642618251229, 0.),
+        ],
+    },
+    // A bypassed common-emitter stage: about -97 (gm times 3.3k || 10k) at
+    // 1 kHz, rolled off by the coupling capacitors and the junction charges.
+    Expectation {
+        fixture: "m7_bjt_amp_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 91,
+        variables: &[
+            "frequency",
+            "v(in)",
+            "v(nb)",
+            "v(nc)",
+            "v(ne)",
+            "v(ns)",
+            "v(out)",
+            "v(vcc)",
+            "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 10., 0.),
+            ("v(out)", 40, -9.708196298518708e1, 7.191525861659186),
+        ],
+    },
+    // The same stage's 10 mV input pulse; the first row is its bias point
+    // (1.26 V base from the 82k/15k divider, 3.6 V collector).
+    Expectation {
+        fixture: "m7_bjt_amp_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2623,
+        variables: &[
+            "time", "v(in)", "v(nb)", "v(nc)", "v(ne)", "v(ns)", "v(out)", "v(vcc)", "i(vcc)",
+            "i(vin)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(nc)", 0, 3.615525216417331, 0.),
+            ("v(nb)", 0, 1.257160102738815, 0.),
+        ],
+    },
     Expectation {
         fixture: "m4_diode_ac",
         plotname: "AC Analysis",
