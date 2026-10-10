@@ -90,7 +90,7 @@ unsafe-cast cases instead of silently changing the input.
 | Family | Backend selection | Initial supported level policy |
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
-| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1) and MOS3 (3); other selectors fail naming the C directory `inpdomod.c` selects (`mos2/`, `mos6/`, `mos9/`, `bsim3/`, ...) |
+| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1), MOS3 (3) and MOS6 (6); other selectors fail naming the C directory `inpdomod.c` selects (`mos2/`, `mos9/`, `bsim3/`, ...) |
 | JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1), 2 (Parker-Skellern `jfet2/`), see [JFET.md](JFET.md); others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
 | `res`, `c`, `l` | C fixes backend 1 without scanning level | Bounded Rust contract requires first explicit level to round to 1 |
@@ -117,6 +117,12 @@ rejected. MOS3 adds `XL`, `WD`, `XW`, `DELVTO`, `VMAX`, `XJ`, `NFS`, `ETA`,
 `DELTA`, `THETA`, `KAPPA` (default 0.2), defaults `TOX` to 1e-7 m and `MJSW`
 to 0.33, and has no `LAMBDA`; `XD`, `ALPHA` and `INPUT_DELTA`, listed in
 `MOS3mPTable` but without a `MOS3mParam` case, are rejected.
+`devices::mos6::MODEL` follows `MOS6mParam`: MOS1's junction, overlap,
+resistance and process setters (no `KP`) plus `KV` (2), `NV` (0.5), `KC`
+(5e-5, derived from `U0` when TOX is given and KC is not), `NC` (1), `NVTH`
+(0.5) and `PS` (0) (accepted, unused by C's load), `GAMMA1`, `SIGMA`,
+`LAMBDA1` (0), and `LAMBDA`/`LAMBDA0` (LAMBDA0 defaults to LAMBDA, else 0).
+C has no level-6 noise, so `KF`/`AF`/`NLEV`/`GDSNOI` are rejected as unknown.
 
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.

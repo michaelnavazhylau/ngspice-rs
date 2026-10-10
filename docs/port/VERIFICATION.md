@@ -61,6 +61,47 @@ live C: `c_noise_reference::mos3_noise_matches_c` (both flicker forms) and
 `c_pole_zero::a_mos3_stage_matches_c`. Six new parser snapshots were blessed;
 existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
 
+## M10 MOS level 6 (#89, wave 3)
+
+The shell gained default-identity hooks only (instance setter checks, the
+junction `gmin` and limiting saturation current per unit `M`, refusal of
+small-signal/pole-zero loads); the ASCII Rust rawfile of every other
+conformance deck with an M device or MOS model (25 decks, MOS1 and MOS3) is
+byte-identical before and after (dates aside).
+
+Two new MOS6 C goldens, each captured with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed). C's
+`mos6init.c` has no `DEVacLoad`, so there is no AC fixture: ngspice drops a
+level-6 device from the small-signal matrix, which the port refuses.
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos6_dc` | `compare::NONLINEAR` | 81 points, worst 0.045 of bound |
+| `m10_mos6_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.008 of bound |
+
+Deck design, measured against the same C binary:
+
+- **Tight RELTOL for the DC sweep** (`reltol=1e-7 vntol=1e-12 abstol=1e-18`,
+  as `m10_mos3_dc`). At the default options C's Newton stopping error leaves
+  the forward-biased PMOS bulk current 31x the bound from the port's root
+  (6e-5 relative at point 13); with the tightened options the deck verifies
+  at 0.045 of the bound.
+- **Gear-2 and RELTOL 1e-5 for the inverter** (as `m10_mos3_tran`).
+  Trapezoidal integration at the default RELTOL fails at 2.9x the bound
+  (the input gate current at the 11 ns edge); Gear-2 alone verifies at 0.605,
+  trapezoidal with `reltol=1e-5` at 0.012, and the committed Gear-2 with
+  `reltol=1e-5` at 0.008.
+
+`tests/m10_mos6.rs` adds ten C-free tests; `devices::mos6` unit tests check
+regions and finite-difference derivatives; `golden_rawfiles` documents both
+goldens (the m5 bulk current restates C's `M`-scaled `gmin` and the m1/m5
+drain current at vgs = 4 V the n-th power law to the last digit). Opt-in live
+C: `tests/c_mos6_reference.rs` (NMOS `@m[id/ig/is/ib]` with `M = 3` through
+inverse mode, which fails if the junction `gmin` is not `M`-scaled;
+`.dc @m1[w]` nested with `@m1[temp]`; `uic` transient). Four new parser
+snapshots were blessed; existing snapshots are unchanged. See
+[M4_NONLINEAR.md](M4_NONLINEAR.md#mos6).
+
 ## Remaining M8 features (#132)
 
 - `c_dc_param_sweep_reference`: remaining listed real instance setters, plus

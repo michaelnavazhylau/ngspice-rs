@@ -381,6 +381,80 @@ verify`:
 | `m10_mos3_ac` | active-load common-source stage at 75 C, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
 | `m10_mos3_tran` | CMOS inverter with weak-inversion leakage, Gear-2 | 0.047 of `TRAN` bound |
 
+### MOS6
+
+Level 6 NMOS/PMOS (Sakurai-Newton n-th power law) in `devices::mos6` on the
+shared `devices::mos` shell (M10, #89). C references, read as behaviour only:
+`mos6/mos6.c` (`MOS6mPTable`), `mos6mpar.c`, `mos6par.c`, `mos6set.c`,
+`mos6temp.c`, `mos6load.c`, `mos6trun.c`, `mos6ic.c` and `mos6init.c`.
+
+The shell contributes series resistance (internal nodes `<name>#drain` /
+`<name>#source`, as MOS1), junction geometry and temperature scaling with
+MOS1's constant reverse law, Meyer gate charge, limiting and start voltages,
+OFF/IC, `.dc @m[...]` instance sweeps and truncation (gate charges only).
+
+Model setters (`MOS6mParam`; C defaults, *derived* = C's `...Given` logic):
+`VTO`/`VT0` (0 or derived), `KV` (2), `NV` (0.5), `KC` (5e-5, or `0.5 U0 Cox
+1e-4` with `U0`/`UO` defaulting to 600 cm²/Vs when TOX is given), `NC` (1),
+`NVTH` (0.5) and `PS` (0) (settable but unused by `mos6load.c`, as in C),
+`GAMMA`, `GAMMA1` (0), `SIGMA` (0), `PHI` (0.6 V or derived; must be positive),
+`LAMBDA`, `LAMBDA0` (LAMBDA when not given, else 0), `LAMBDA1` (0),
+`RD`/`RS`/`RSH`, `CBD`/`CBS`, `IS` (1e-14 A), `JS` (0), `PB` (0.8 V),
+`CGSO`/`CGDO`/`CGBO`, `CJ`, `MJ` (0.5), `CJSW`, `MJSW` (0.5), `FC` (0.5), `TOX`
+(none: no Meyer charge), `LD`, `NSUB`, `TPG`, `NSS`, `TNOM`. C has no noise
+setters for level 6, so `KF`/`AF`/`NLEV`/`GDSNOI` (and `KP`, ...) are rejected
+as unknown. Instance setters are MOS1's.
+
+- **Process/temperature** (`mos6temp.c`): as MOS1 (NSUB/TPG/NSS extraction
+  only with TOX), with KC in place of KP: `tKc = KC / (T/TNOM)^1.5`; KV is not
+  temperature dependent.
+- **Drain current** (`mos6load.c`): `von = type VBI + GAMMA sarg - GAMMA1 vbs -
+  SIGMA vds` with MOS1's `sarg` (forward-bias continuation), `vgon = vgs -
+  von`; cutoff for `vgon <= 0`; `vdsat = KV vgon^NV`; saturation `Id = KC M W /
+  Leff vgon^NC (1 + (LAMBDA0 - LAMBDA1 vbs) vds)`, times `(2 - x) x` with `x =
+  vds / vdsat` below `vdsat`.
+- **`M`**: `mos6load.c` multiplies its whole stamp by `M`. The shell scales
+  currents and charges instead, which is equivalent except for the junction
+  `gmin` (stamped `M` times) and the `DEVpnjlim` critical voltage (per unit
+  device); level hooks reproduce both.
+
+**Jacobian.** C's `gm`/`gds`/`gmbs` are the exact derivatives of its current
+except in forward body bias beyond `sarg = 0`, where C omits the `GAMMA1` term
+of the body transconductance; the port uses the exact derivative there (the
+converged point is the same). `devices::mos6` unit tests check every region by
+finite differences.
+
+**Not in C, refused.** `mos6init.c` registers no `DEVacLoad`, `DEVpzLoad`,
+`DEVnoise`, `DEVdisto` or sensitivity routines: ngspice silently drops a
+level-6 instance from the small-signal matrix. The port refuses `.ac` (and so
+`.noise`, `.disto`, `.sp`) and `.pz` with `Unsupported`, `.noise`/`.disto`
+generators with `NotYetPorted` naming `mos6init.c`, and `.sens` with the
+generic refusal. There is therefore no AC golden.
+
+Divergences: `mos6set.c` gives NRD/NRS no default, so in C RSH without an
+explicit nonzero NRD (NRS) and without RD (RS) creates no internal node and
+applies no resistance; the port refuses that combination. An explicit zero
+NRD/NRS with RSH, nonfinite or nonpositive temperature-scaled values and
+`L - 2 LD <= 0` (C warns and continues) are errors, as for MOS1. C's
+`MOS6convTest` compares per-unit currents; the port's Newton test is
+circuit-wide. C's predictor, bypass and `oldlimit` are not ported, as for MOS1.
+The shell reports physical terminal currents for `@m[id]` etc. of every MOS
+level, where C's PMOS asks are polarity-normalized.
+
+Evidence: `tests/m10_mos6.rs` (C-default law, GAMMA/GAMMA1/SIGMA/LAMBDA0/
+LAMBDA1 closed forms for both polarities, LAMBDA aliasing, TOX/NSUB process
+extraction with TEMP/TNOM, `M`-scaled `gmin`, internal nodes and the RSH/NRD
+refusal, Meyer/overlap capacitances, whole-circuit DC Jacobians, refused
+analyses and invalid inputs), unit tests in `devices::mos6`, the opt-in live-C
+`tests/c_mos6_reference.rs` (`@m[id/ig/is/ib]` with `M = 3` into inverse mode,
+`.dc @m1[w]` nested with `@m1[temp]`, `uic` transient) and two C goldens in
+`cargo xtask golden verify`:
+
+| Fixture | Exercises | Result |
+| --- | --- | --- |
+| `m10_mos6_dc` | gate sweep: KV/NV/KC/NC, GAMMA1/SIGMA/LAMBDA0/LAMBDA1, reverse and forward body bias, inverse mode, `M=2`, TOX/NSUB/TPG/NSS/UO process with TNOM and the LAMBDA alias, PMOS with RD/RSH/NRD/NRS and TEMP, diode-connected device | within `NONLINEAR` (81 points; worst 0.045 of bound) |
+| `m10_mos6_tran` | CMOS inverter, Meyer/overlap and junction charge (MJSW 0.33), RSH/NRD and RD/RS, Gear-2 | 0.008 of `TRAN` bound |
+
 ### JFET
 
 Level 1 NJF/PJF (#82, M10) lives in `devices::jfet` and level 2
