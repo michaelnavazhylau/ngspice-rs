@@ -957,8 +957,9 @@ impl Device for Jfet2 {
         self.initial.off
     }
     /// With `TAUG` or `TAUD` the small-signal load of `PSacload` is not
-    /// affine in `j omega`, so AC re-assembles it at every frequency.
-    fn depends_on_frequency(&self) -> bool {
+    /// affine in `j omega`, so AC re-assembles it at every frequency (the
+    /// operating point itself does not depend on it).
+    fn small_signal_depends_on_frequency(&self) -> bool {
         self.model.taug != 0. || self.model.taud != 0.
     }
     fn state_count(&self) -> usize {
