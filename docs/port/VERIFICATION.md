@@ -1466,6 +1466,39 @@ fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
 (error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
 orders 1-6, asserted within 0.75-1.35 times `2^k`).
 
+## Model binning verification (#109)
+
+C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so
+binning has no rawfile goldens. It is verified at the selection level:
+
+- `src/devices/binning.rs` unit tests: `model_name_match` digit suffixes,
+  binnable levels, inclusive 1e-9 m edges, last-declared-wins ordering,
+  skipped partial bounds and non-binnable candidates, last-setter precedence,
+  the `nf`/`wnflag`/`scale` geometry rule and non-literal errors.
+- `tests/model_binning.rs`: the production parser, subcircuit expansion and
+  `RunConfig::circuit` path — the selected bin is read from its
+  `NotYetPorted` diagnostic, C failure cases are parse errors, subcircuit bin
+  sets shadow outer models, root models may not join a local set, and the
+  resolver API (`bin_candidates`, `declarations_for`, `select_bin`,
+  `with_bin_options`).
+- `tests/transistor_parser.rs`: binned `M` references parse (the former
+  "MOS model binning" parser gap is gone); `.N`-less and BJT forms do not.
+- Opt-in `tests/c_binning_reference.rs`: 21 decks (BSIM3 and BSIM4 bins, bin
+  edges and the 1 nm tolerance, reversed declaration order, `m`, missing `w`,
+  out-of-range, level-1 bins, mixed level-1/BSIM candidates, partial bounds,
+  `nch.01`, an exact model beside bins, local/root/narrow-local subcircuit
+  sets) run `op` + `show all : model` in C; the bin C binds (or its "could not
+  find a valid modelname") must equal the port's choice, and the sequence of C
+  outcomes is pinned so the comparison cannot pass vacuously.
+
+```sh
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs --test c_binning_reference --locked -- --ignored
+```
+
+Not verified: `.options scale`/`wnflag` and instance `nf`/`wnflag` through a
+deck (not accepted by the front end yet; covered only by unit tests), and any
+simulation through a binned card.
+
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity
