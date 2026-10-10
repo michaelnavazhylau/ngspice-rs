@@ -352,9 +352,12 @@ history (unpruned) and breakpoint path.
 
 **Consequences.** Circuits without delay lines take exactly the old path:
 no device requests reach the table, and `accept_transient_point` reduces to
-`accept_point`; every existing golden and test is unchanged. LTRA can reuse
-the history (with `drop_front = 0`), the breakpoint table and the step-bound
-hook; it needs only its own `DelayLine`. Device code is in [TRANSMISSION_LINES.md](TRANSMISSION_LINES.md).
+`accept_point`; every existing golden and test is unchanged. LTRA (slice 8)
+reuses the history (with `drop_front = 0`: it convolves every accepted point),
+the breakpoint table and the step-bound hook with its own `DelayLine`; the only
+addition was the run's `reltol`/`abstol` in `DelayContext` (C's `CHECK` in
+`ltraacct.c` and the `compactrel`/`compactabs` defaults). Device code is in
+[TRANSMISSION_LINES.md](TRANSMISSION_LINES.md).
 Tests: `tests/delay_lines.rs` (a probe device: exact landing on a requested
 breakpoint, history equal to the accepted points under forced rejections,
 atomic failure, backend refusals) and `companion.rs` unit tests of the

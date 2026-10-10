@@ -1,12 +1,14 @@
 # Transmission lines
 
 M10 slice 3 (#84) ports the **lossless transmission line `T`** (C
-`src/spicelib/parser/inp2t.c`, `src/spicelib/devices/tra/`). The lossy lines
-(`O`/LTRA, `Y`/TXL, `P`/CPL) remain `NotYetPorted`; LTRA is planned on the
-same delay infrastructure (M10 slice 8). Code: `src/netlist/parser/tline.rs`
-(grammar), `src/devices/tline.rs` (device), `src/devices/delay.rs` (delay
-history, device breakpoints and step bounds shared with future lines). The
-transient-driver design is the ADR in
+`src/spicelib/parser/inp2t.c`, `src/spicelib/devices/tra/`) and M10 slice 8
+(#85 part 2) the **lossy line `O`** with `ltra` models (C
+`src/spicelib/parser/inp2o.c`, `src/spicelib/devices/ltra/`, see
+[below](#lossy-line-o-ltra-85)). `Y`/TXL and `P`/CPL remain `NotYetPorted`.
+Code: `src/netlist/parser/{tline,ltra}.rs` (grammars),
+`src/devices/{tline,ltra}.rs` and `src/devices/ltra/convolution.rs`
+(devices), `src/devices/delay.rs` (delay history, device breakpoints and step
+bounds shared by both). The transient-driver design is the ADR in
 [TRANSIENT.md](TRANSIENT.md#device-driven-breakpoints-and-delay-history-adr-84).
 
 ## Card
@@ -132,3 +134,121 @@ merge threshold).
   incommensurate delay (same rows, `1e-9 |C| + 1e-12`), a line into a diode
   (same rows, C's own `reltol`), AC with `f`/`nl` and a shorted stub inside a
   subcircuit, `.op` and `.sp`.
+
+## Lossy line `O` (LTRA, #85)
+
+```text
+Oname p1 n1 p2 n2 model [v1= i1= v2= i2=] [ic=v1[,i1[,v2[,i2]]]]
+.model model ltra [r=] [l=] [g=] [c=] len= [rel=] [abs=] [compactrel=]
+       [compactabs=] [steplimit|nosteplimit] [lininterp|quadinterp|mixedinterp]
+       [truncdontcut] [truncnr] [nocontrol] [ltra]
+```
+
+| Item | C behaviour | This port |
+| --- | --- | --- |
+| model name | required (`INP2O`; a missing model ends in "length must be given") | parse error; a non-`ltra` model is "incorrect model type" |
+| instance setters | `LTRApTable`: `v1 i1 v2 i2` (`IF_REAL`), `ic` (`IF_REALVEC`, fallthrough `v1 i1 v2 i2`) | same, ordered; used only by `uic` (refused) |
+| leading value | ignored | refused (`Unsupported`) |
+| `r l g c len` | per-metre values, 0 by default; `len` required (`ltraset.c`) | same; negative values and `len <= 0` are errors |
+| `rel`, `abs` | breakpoint slope tolerances, default 1 and 1 (output-only in the table but settable through `.model`) | same, nonnegative |
+| `compactrel`, `compactabs` | straight-line tolerances (`LTRAstLineReltol/Abstol`), 0 means `reltol`/`abstol` | same; used by the RLC `LTRAmaxSafeStep` |
+| flags | `IF_FLAG`, written order: `steplimit` (default) / `nosteplimit`, `quadinterp` (default) / `lininterp` / `mixedinterp`, `truncdontcut`; `ltra`, `nocontrol`, `truncnr` change nothing reachable | same |
+| `level`, unknown setters, instance defaults on the card | warning / ignored / instance defaults | errors |
+| `.options trytocompact` | linear interpolation and history compaction | refused by the options layer (unimplemented option) |
+
+### Cases (`ltraset.c`)
+
+| Case | Condition | DC | AC | Transient |
+| --- | --- | --- | --- | --- |
+| LC | `R = G = 0` | `i1 + i2 = 0`, `v(p1) - v(p2) = 0` | exact | delayed waves (`Y0 v + i` at `t - TD`) |
+| RLC | `G = 0`, `R, L, C > 0` | `v(p1) - v(p2) = R len i1` | exact | attenuated delayed waves plus `h1'`, `h2`, `h3'` convolutions (Bessel responses) |
+| RC | `G = L = 0` | as RLC | exact | `h1'`, `h2`, `h3'` convolutions (`erfc` responses), no delay |
+| RG | `L = C = 0` | exact `cosh`/`sinh` two-port (with C's `1 + gmin` factors) | refused (below) | the DC two-port at every point |
+| RL, `G` with `L` or `C`, fewer than two nonzero | errors, as in C | | | |
+
+The DC rows of the LC/RLC/RC cases are C's: they relate only the positive
+terminals (`v(p1) - v(p2) = R len i1`), which matches a line whose negative
+terminals are both ground and is reproduced as is (a `.dc` check with a
+floating negative terminal matches C to rounding).
+
+The two unknowns are C's `CKTmkVolt` nodes `<name>#i1` and `<name>#i2`
+(currents into the positive terminals, typed `voltage` in rawfiles); there
+are no internal voltage nodes. The AC load is `ltraacld.c`'s exact
+`Y0(s) V1 - I1 = exp(-lambda(s) len) (Y0(s) V2 + I2)`, assembled per
+frequency like the lossless line (`A += Re`, `E += Im / omega`).
+
+### Transient
+
+* **History** (`ltraacct.c`, `dctran.c` `CKTtimePoints`): the port voltages
+  and currents of every accepted point, starting with the operating point at
+  `t = 0`, kept in the device's `DelayHistory` (width 4) and never pruned:
+  every load convolves the whole past (`O(N)` per load, `O(N^2)` per run, as
+  in C). Trials only read it.
+* **Load** (`ltraload.c`, `ltramisc.c`): at each trial time the line computes
+  `LTRArlcCoeffsSetup`/`LTRArcCoeffsSetup` over the accepted times (C keeps
+  them per model for the time point; the port recomputes the same values per
+  load), stamps the coefficient of the unknown sample, and puts the
+  convolution of the history minus the operating point, the operating-point
+  integral terms (`LTRAintH*`) and the attenuated delayed waves into the
+  right-hand side. The delayed values use C's interpolation choice and its
+  operation order. C's `LTRAchopReltol` has no deck setter (0), so no
+  coefficient is chopped unless it is exactly zero.
+* **Breakpoints** (`ltraacct.c`): after recording a point, if either
+  attenuated wave `(v + Z0 i) exp(-beta TD)` changes slope by at least
+  `rel max(|d1|, |d2|) + abs` and is not steady (C's `CHECK`: range of the
+  last three values at least `50 (reltol (sum)/3 + abstol)`), the line asks
+  for a breakpoint at the previous time plus `TD`. Unlike `traacct.c`, C does
+  not test that this lies ahead: a request in the past is `CKTsetBreak`'s
+  "breakpoint in the past" error, which the port reproduces as an error
+  (unreachable with the default `steplimit`, which keeps steps at most `TD`).
+* **Step bound** (`ltratrun.c`): LC/RLC steps at most `TD` (`steplimit`), or
+  under `nosteplimit` when the slope test fires for the converged trial;
+  RLC lines also at most `LTRAmaxSafeStep` (the bisection of `ltratemp.c`,
+  with C's duplicated `h2` straight-line test) unless `truncdontcut`. C's
+  convolution truncation-error control (`LTRAlteCalculate`, `truncnr`) needs
+  `LTRAlteConType` other than `nocontrol`, which no deck can set.
+
+The port therefore takes C's timepoints on every deck tried. LC, RC and RG
+lines agree with C to rounding. RLC lines agree to about `1e-7` relative:
+`ltramisc.c` branches on exact time equalities (`curtime - t_i == TD` picks
+the auxiliary index, `t == t_k` the interpolation shortcuts), and at a step
+that lands on a delayed source corner the port's exact breakpoint landing and
+C's `t + (bp - t)` can take different branches.
+
+### Unsupported (explicit errors)
+
+* `backend=diffsol method=bdf` (as for `T`), `.tran ... uic`
+  (`NotYetPorted`, `ltraload.c` `MODEINITTRAN | MODEUIC`).
+* `.pz`: C has no LTRA pole-zero load and `PZinit`'s transmission-line check
+  finds only TRA lines, so ngspice silently drops the line. Refused.
+* `.noise`, `.disto`, `.sens`: no C routines; refused.
+* **AC with an RG line**: `LTRAacLoad` calls the DC load of *every* LTRA
+  model and returns when it meets an RG model, so in C any other lossy line in
+  the circuit loses or doubles its AC load (an LC line beside an RG line
+  comes out two orders of magnitude off; checked live in
+  `c_ltra_reference`). An RG line alone is right in C, but the device cannot
+  see the other lines, so the port refuses RG lines in AC/`.sp`.
+* Nonfinite convolution terms: C's Bessel approximations overflow once
+  `beta t` exceeds about 700 and C continues with NaN; the port stops with an
+  error.
+* No instance observations: C's `@o1[v1]` etc. return the operating point
+  it copied into them during a transient, not the card values.
+
+### Verification
+
+* Analytic (`tests/ltra.rs`): a matched LC line (delayed half-amplitude copy,
+  steps bounded by `TD`), the LC case against the lossless `T` line and the
+  exact ringing of a mismatched line, an RC line against the open-ended
+  diffusion series (error 3.2e-3 V just after the step, the same as C's own),
+  an RLC line's `exp(-beta TD)` first arrival and DC limit, the DC two-ports
+  (RG `cosh`/`sinh`), AC against `1/cosh(gamma len)` for LC/RLC/RC (1e-9),
+  flag order, every refusal, the grammar and the deck writer.
+* C goldens (`golden verify`, `compare::TRAN`/`compare::AC`):
+  `m10_ltra_tran` (LC ringing, RLC with `mixedinterp`, RG; worst 0.024 of the
+  bound, from the RLC branches above), `m10_ltra_rc_tran` (diffusion line and
+  a subcircuit copy with `lininterp nosteplimit`; 0.000) and `m10_ltra_ac`
+  (quarter- and half-wave LC, RLC, RC).
+* Opt-in live C (`tests/c_ltra_reference.rs`): one LC/RLC/RC/RG deck under
+  eight flag sets (same rows, `1e-5 |C| + 1e-9`), a line into a diode (C's
+  `reltol`), AC of LC/RLC/RC lines in a subcircuit, `.op`, `.dc` with an RG
+  line and floating negative terminals, `.sp`, and the RG AC defect.
