@@ -175,6 +175,8 @@ fn first_level_rounding_and_last_diode_integer_setter_are_separate() {
     assert_eq!(mos.first_raw, Some(1.49));
     assert_eq!(mos.selector, 1);
     assert_eq!(mos.applied, None); // MOS1 has no model level setter.
+    // inpdomod.c rounds the first level: 1.5 selects MOS2 (`mos2/`).
+    assert_eq!(selection('m', "nmos", "level=1.5").unwrap().selector, 2);
     assert_eq!(
         selection('q', "npn", "level=1.5 level=9").unwrap().selector,
         2
@@ -189,7 +191,7 @@ fn first_level_rounding_and_last_diode_integer_setter_are_separate() {
     assert_eq!(default.first_raw, None);
     assert_eq!(default.applied, Some(1));
     for (d, base, setters) in [
-        ('m', "nmos", "level=1.5"),
+        ('m', "nmos", "level=3.6"),
         ('q', "npn", "level=3"),
         ('r', "r", "level=2"),
         ('r', "res", "level=2"),

@@ -740,7 +740,7 @@ r2 out 0 1k
             assert_eq!(status(letter), "pending", "{letter}");
         }
         assert!(
-            text.contains("built: MOS1 and MOS3 (levels 1 and 3)"),
+            text.contains("built: MOS1, MOS2 and MOS3 (levels 1, 2 and 3)"),
             "{text}"
         );
         assert!(text.contains("inp2r.c"), "{text}");

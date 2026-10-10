@@ -57,6 +57,8 @@ pub enum NoiseFamily {
     Diode,
     /// `mos1` (`mos1noi.c`).
     Mos1,
+    /// `mos2` (`mos2noi.c`).
+    Mos2,
     /// `mos3` (`mos3noi.c`).
     Mos3,
     /// `res` (`resnoise.c`).
