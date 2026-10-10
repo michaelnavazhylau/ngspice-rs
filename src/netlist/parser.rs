@@ -38,6 +38,7 @@ mod func;
 mod grammar;
 mod hints;
 mod ic;
+mod jfet;
 mod linear;
 mod measure;
 mod model;

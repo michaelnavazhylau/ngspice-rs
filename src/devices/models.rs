@@ -58,6 +58,10 @@ pub enum ModelFamily {
     Switch,
     /// Current-controlled switch (`csw`, `csw/csw.c`).
     CurrentSwitch,
+    /// N-channel JFET (`njf`; level 1 `jfet/`, level 2 `jfet2/`).
+    Njf,
+    /// P-channel JFET (`pjf`; level 1 `jfet/`, level 2 `jfet2/`).
+    Pjf,
 }
 
 impl ModelFamily {
@@ -75,6 +79,8 @@ impl ModelFamily {
             "pmos" => Some(Self::Pmos),
             "sw" => Some(Self::Switch),
             "csw" => Some(Self::CurrentSwitch),
+            "njf" => Some(Self::Njf),
+            "pjf" => Some(Self::Pjf),
             _ => None,
         }
     }
@@ -92,6 +98,7 @@ impl ModelFamily {
             Self::Nmos | Self::Pmos => 'm',
             Self::Switch => 's',
             Self::CurrentSwitch => 'w',
+            Self::Njf | Self::Pjf => 'j',
         }
     }
 }
@@ -154,7 +161,7 @@ impl<'a> ModelResolver<'a> {
         let Some(name) = &instance.model else {
             if matches!(
                 instance.designator.to_ascii_lowercase(),
-                'd' | 'q' | 'm' | 's' | 'w'
+                'd' | 'q' | 'm' | 's' | 'w' | 'j'
             ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),
@@ -569,11 +576,29 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
             first_integer
         }
         ModelFamily::Resistor if card.base.eq_ignore_ascii_case("r") => first_integer,
+        // inpdomod.c: NJF/PJF level 0 or 1 is JFET, 2 is JFET2.
+        ModelFamily::Njf | ModelFamily::Pjf => first_integer.max(1),
         _ => 1,
     };
     let applied = (family == ModelFamily::Diode).then_some(last.unwrap_or(1));
+    if matches!(family, ModelFamily::Njf | ModelFamily::Pjf) && selector != 1 {
+        // inpdomod.c accepts levels 0-2 (JFET, JFET2) and rejects the rest.
+        let reference = if selector == 2 {
+            "src/spicelib/devices/jfet2/ (Parker-Skellern: jfet2parm.c, psmodel.c, jfet2load.c)"
+        } else {
+            "src/spicelib/parser/inpdomod.c (only JFET levels 1-2 exist in C)"
+        };
+        return Err(SpiceError::not_yet_ported(
+            format!(
+                "{location}: {:?} model '{}' level {selector}",
+                family, card.name
+            ),
+            reference,
+        ));
+    }
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
+        ModelFamily::Njf | ModelFamily::Pjf => true,
         ModelFamily::Diode => applied == Some(1),
         ModelFamily::Resistor if card.base.eq_ignore_ascii_case("r") => selector <= 1,
         _ => selector == 1 && first_integer == 1,

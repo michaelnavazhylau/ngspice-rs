@@ -62,10 +62,12 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
     if !matches!(
         base.text.to_ascii_lowercase().as_str(),
         "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
+            // JFET (`jfet/jfet.c`; level 2 is `jfet2/`).
+            | "njf" | "pjf"
     ) {
         return Err(gap(
             input,
-            "model family outside D/BJT/MOS/R/C/L/SW/CSW scalar syntax",
+            "model family outside D/BJT/MOS/JFET/R/C/L/SW/CSW scalar syntax",
         ));
     }
     any.parse_next(input)
@@ -105,6 +107,8 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             "pmos",
             "sw",
             "csw",
+            "njf",
+            "pjf",
             "sens_area",
             "sens_l",
             "sens_w",

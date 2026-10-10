@@ -671,7 +671,18 @@ impl Writer {
         let base = model.base.as_str();
         if !matches!(
             base,
-            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
+            "d" | "npn"
+                | "pnp"
+                | "nmos"
+                | "pmos"
+                | "r"
+                | "res"
+                | "c"
+                | "l"
+                | "sw"
+                | "csw"
+                | "njf"
+                | "pjf"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -688,6 +699,7 @@ impl Writer {
                         "nmos" | "pmos" => &["nmos", "pmos"],
                         "sw" => &["sw"],
                         "csw" => &["csw"],
+                        "njf" | "pjf" => &["njf", "pjf"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {
@@ -739,6 +751,7 @@ impl Writer {
             'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
             'm' | 'e' | 'g' | 's' => count == 4,
+            'j' => count == 3,
             'x' => true,
             'k' => count == 0,
             _ => {
@@ -779,7 +792,7 @@ impl Writer {
             ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
-            ('d' | 'q' | 'm' | 'x' | 's' | 'w', None) => {
+            ('d' | 'q' | 'm' | 'x' | 's' | 'w' | 'j', None) => {
                 return Err(refuse("device without a model/target", Some(location)));
             }
             (_, Some(model)) => {
@@ -1580,6 +1593,7 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
         'q' => &[
             "area", "areab", "areac", "m", "icvbe", "icvce", "temp", "dtemp",
         ],
+        'j' => &["area", "m", "ic-vds", "ic-vgs", "temp", "dtemp"],
         _ => &[
             "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
             "dtemp",
@@ -1595,6 +1609,7 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
                 let names: &[&str] = match designator {
                     'q' => &["icvbe", "icvce"],
                     'm' => &["icvds", "icvgs", "icvbs"],
+                    'j' => &["ic-vds", "ic-vgs"],
                     _ => &[],
                 };
                 if components.is_empty()
