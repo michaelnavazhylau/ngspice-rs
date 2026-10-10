@@ -58,7 +58,7 @@ pub(super) type Mos3 = Mosfet<Level3>;
 /// Model setters (`MOS3mPTable` as `MOS3mParam` accepts them). Parameters
 /// whose *presence* changes C's derivations (`MOS3...Given`) have no schema
 /// default; the rest carry `mos3set.c`'s defaults.
-const MODEL: &[P] = &[
+pub(super) const MODEL: &[P] = &[
     p("vto", U::Volt, D::Finite, None),
     p("vt0", U::Volt, D::Finite, None),
     p("kp", U::AmperePerVoltSquared, D::Positive, None),
@@ -106,6 +106,10 @@ const MODEL: &[P] = &[
     p("nlev", U::Dimensionless, D::Finite, Some(2.)),
     p("gdsnoi", U::Dimensionless, D::Finite, Some(1.)),
 ];
+
+/// The level-3 setters without `NLEV` and `GDSNOI` (`mos3.c` gained them;
+/// `mos9.c`'s otherwise identical `MOS9mPTable` does not have them).
+pub(super) const MODEL_WITHOUT_NOISE_SELECTORS: &[P] = MODEL.split_at(MODEL.len() - 2).0;
 
 /// Validated level-3 model card. `None` records C's "not given".
 #[derive(Debug, Clone, Copy)]

@@ -321,7 +321,6 @@ fn unported_mos_levels_name_their_c_directory() {
         (2, "mos2/"),
         (4, "bsim1/"),
         (6, "mos6/"),
-        (9, "mos9/"),
         (49, "bsim3/"),
         (54, "bsim4/"),
     ] {

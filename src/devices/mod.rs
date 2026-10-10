@@ -57,6 +57,7 @@ pub mod models;
 pub mod mos;
 pub mod mos1;
 pub mod mos3;
+pub mod mos9;
 pub mod mutual;
 pub mod noise;
 pub mod nonlinear;
