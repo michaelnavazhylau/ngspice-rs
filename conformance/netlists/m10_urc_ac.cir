@@ -1,0 +1,18 @@
+Uniform distributed RC lines in small signal (urcsetup.c expansion)
+* U1: FMAX rule with K=1.5 (wnorm = 6283 -> 16 sections), r0 = 10k,
+*     c0 = 100p, driven from 50 ohms and terminated by 1meg.
+* U2: n=6, K=3, its reference terminal tied to the input (a bootstrapped line).
+* U3: n=1, a single section (one series pair and one shunt capacitor).
+v1 in 0 dc 0 ac 1
+rs in a 50
+u1 a out 0 rline1 l=1m
+rl out 0 1meg
+u2 a b a rline2 l=2m n=6
+rb b 0 10k
+u3 a c 0 rline3 l=1m n=1
+rc c 0 10k
+.model rline1 urc(k=1.5 fmax=1g rperl=1e7 cperl=1e-7)
+.model rline2 urc(k=3 rperl=2e6 cperl=1e-7)
+.model rline3 urc(rperl=5e6 cperl=1e-7)
+.ac dec 10 1k 1g
+.end

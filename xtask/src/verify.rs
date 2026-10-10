@@ -774,6 +774,20 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // URC lines (#85): urcsetup.c's R/C (and R/D) ladders with C's names. The
+    // R/C decks are linear (AC bound, default TRAN); the ISPERL deck runs the
+    // generated diodes and keeps the default TRAN bound.
+    Supported {
+        name: "m10_urc_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    tran("m10_urc_tran", &[]),
+    tran("m10_urc_diode_tran", &[]),
 ];
 
 /// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.
