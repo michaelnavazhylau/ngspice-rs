@@ -172,14 +172,51 @@ pub(super) struct Params {
 
 impl Level3 {
     /// Effective channel length `L - 2 LD + XL` and width `W - 2 WD + XW`.
-    fn effective(&self, geometry: &Geometry) -> (Real, Real) {
+    pub(super) fn effective(&self, geometry: &Geometry) -> (Real, Real) {
         (
             geometry.l - 2. * self.common.ld + self.xl,
             geometry.w - 2. * self.wd + self.xw,
         )
     }
 
-    fn process(&self, tnom: Real) -> SpiceResult<Process> {
+    /// The validated card (`<label>mpar.c`, `<label>set.c`) with the
+    /// level-3 schema; `label` (`MOS3`, `MOS9`) names the device and its
+    /// `<label>noi.c` in diagnostics.
+    pub(super) fn card(resolved: &ResolvedModel<'_>, label: &str) -> SpiceResult<Self> {
+        let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
+        let get = |name: &str| m.get(name).map(|v| v.value);
+        let required = |name: &str| required(&m, name, label);
+        let noise_file = format!("{}noi.c", label.to_ascii_lowercase());
+        let common = Common::from_values(&m, resolved.family(), label, &noise_file)?;
+        let model = Self {
+            common,
+            vto: aliased(&m, ["vto", "vt0"]),
+            kp: get("kp"),
+            gamma: get("gamma"),
+            phi: get("phi"),
+            tox: required("tox")?,
+            xl: required("xl")?,
+            wd: required("wd")?,
+            xw: required("xw")?,
+            delvto: aliased(&m, ["delvto", "delvt0"]).unwrap_or(0.),
+            u0: aliased(&m, ["u0", "uo"]),
+            nsub: get("nsub"),
+            tpg: get("tpg"),
+            nss: get("nss"),
+            vmax: required("vmax")?,
+            xj: required("xj")?,
+            nfs: required("nfs")?,
+            eta: required("eta")?,
+            delta: required("delta")?,
+            theta: required("theta")?,
+            kappa: required("kappa")?,
+        };
+        model.common.check(model.tpg, label)?;
+        Ok(model)
+    }
+
+    /// `label` (`MOS3`, `MOS9`) names the device and its `<label>temp.c`.
+    fn process(&self, tnom: Real, label: &str) -> SpiceResult<Process> {
         let pol = self.common.pol;
         let vtnom = tnom * K_OVER_Q;
         let egfet1 = band_gap(tnom);
@@ -203,7 +240,8 @@ impl Level3 {
             let density = nsub * 1e6;
             if density <= intrinsic {
                 return Err(SpiceError::circuit(format!(
-                    "MOS3 NSUB={nsub} is below the intrinsic density (mos3temp.c: Nsub < Ni)"
+                    "{label} NSUB={nsub} is below the intrinsic density ({}temp.c: Nsub < Ni)",
+                    label.to_ascii_lowercase()
                 )));
             }
             if self.phi.is_none() {
@@ -231,77 +269,19 @@ impl Level3 {
         process.narrow = self.delta * 0.5 * std::f64::consts::PI * EPSILON_SI / cox;
         Ok(process)
     }
-}
 
-impl MosLevel for Level3 {
-    type Params = Params;
-    const LEVEL: u8 = 3;
-    const LABEL: &'static str = "MOS3";
-    const PRIME_SUFFIXES: [&'static str; 2] = ["internal#drain", "internal#source"];
-
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
-        let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
-        let get = |name: &str| m.get(name).map(|v| v.value);
-        let required = |name: &str| required(&m, name, "MOS3");
-        let common = Common::from_values(&m, resolved.family(), "MOS3", "mos3noi.c")?;
-        let model = Self {
-            common,
-            vto: aliased(&m, ["vto", "vt0"]),
-            kp: get("kp"),
-            gamma: get("gamma"),
-            phi: get("phi"),
-            tox: required("tox")?,
-            xl: required("xl")?,
-            wd: required("wd")?,
-            xw: required("xw")?,
-            delvto: aliased(&m, ["delvto", "delvt0"]).unwrap_or(0.),
-            u0: aliased(&m, ["u0", "uo"]),
-            nsub: get("nsub"),
-            tpg: get("tpg"),
-            nss: get("nss"),
-            vmax: required("vmax")?,
-            xj: required("xj")?,
-            nfs: required("nfs")?,
-            eta: required("eta")?,
-            delta: required("delta")?,
-            theta: required("theta")?,
-            kappa: required("kappa")?,
-        };
-        model.common.check(model.tpg, "MOS3")?;
-        Ok(model)
-    }
-
-    fn common(&self) -> &Common {
-        &self.common
-    }
-
-    /// `mos3temp.c` refuses (`E_PARMVAL`) a nonpositive effective length or
-    /// width.
-    fn check_geometry(&self, name: &str, geometry: &Geometry) -> SpiceResult<()> {
-        let (length, width) = self.effective(geometry);
-        if length <= 0. || !length.is_finite() {
-            return Err(SpiceError::circuit(format!(
-                "{name}: MOS3 effective channel length L - 2*LD + XL must be positive"
-            )));
-        }
-        if width <= 0. || !width.is_finite() {
-            return Err(SpiceError::circuit(format!(
-                "{name}: MOS3 effective channel width W - 2*WD + XW must be positive"
-            )));
-        }
-        Ok(())
-    }
-
-    /// `mos3temp.c` and the start of `mos3load.c`.
-    fn operating(
+    /// `<label>temp.c` and the start of `<label>load.c` (identical in
+    /// `mos3/` and `mos9/`); `label` names the device in diagnostics.
+    pub(super) fn operating_as(
         &self,
+        label: &str,
         name: &str,
         geometry: &Geometry,
         context: &ModelContext,
     ) -> SpiceResult<Operating<Params>> {
         let model = &self.common;
-        let t = Temperatures::new(model.tnom, geometry, context, name, "MOS3")?;
-        let process = self.process(t.tnom)?;
+        let t = Temperatures::new(model.tnom, geometry, context, name, label)?;
+        let process = self.process(t.tnom, label)?;
         let ratio = t.ratio;
         let ratio4 = ratio * ratio.sqrt();
         let kp = process.kp / ratio4;
@@ -381,12 +361,76 @@ impl MosLevel for Level3 {
             || [bottom, side].iter().any(|f| !f.is_finite() || *f < 0.)
         {
             return Err(SpiceError::circuit(format!(
-                "{}: MOS3 parameters are out of range at {:.2} K \
+                "{}: {label} parameters are out of range at {:.2} K \
                  (nonfinite value, or nonpositive PHI/PB/KP/U0/IS after temperature scaling)",
                 name, t.temp
             )));
         }
         Ok(operating)
+    }
+
+    /// The [`NoiseShape`] of `mos3noi.c`/`mos9noi.c` for one instance: the
+    /// NLEV 3 `beta` is `tKP m W / (L - 2 LD)` with the drawn width, and the
+    /// flicker laws use `W - 2 WD`, `L - 2 LD` (C ignores XW/XL there) and
+    /// the model's `Cox`.
+    pub(super) fn noise_shape(
+        &self,
+        geometry: &Geometry,
+        family: NoiseFamily,
+    ) -> impl FnOnce(&Operating<Params>) -> NoiseShape + use<> {
+        let cox = 3.9 * EPSILON_0 / self.tox;
+        let length = geometry.l - 2. * self.common.ld;
+        let width = geometry.w - 2. * self.wd;
+        let (m, w) = (geometry.m, geometry.w);
+        move |op| NoiseShape {
+            family,
+            beta: op.params.kp * m * w / length,
+            width,
+            length,
+            cox,
+        }
+    }
+}
+
+impl MosLevel for Level3 {
+    type Params = Params;
+    const LEVEL: u8 = 3;
+    const LABEL: &'static str = "MOS3";
+    const PRIME_SUFFIXES: [&'static str; 2] = ["internal#drain", "internal#source"];
+
+    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
+        Self::card(resolved, "MOS3")
+    }
+
+    fn common(&self) -> &Common {
+        &self.common
+    }
+
+    /// `mos3temp.c` refuses (`E_PARMVAL`) a nonpositive effective length or
+    /// width.
+    fn check_geometry(&self, name: &str, geometry: &Geometry) -> SpiceResult<()> {
+        let (length, width) = self.effective(geometry);
+        if length <= 0. || !length.is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "{name}: MOS3 effective channel length L - 2*LD + XL must be positive"
+            )));
+        }
+        if width <= 0. || !width.is_finite() {
+            return Err(SpiceError::circuit(format!(
+                "{name}: MOS3 effective channel width W - 2*WD + XW must be positive"
+            )));
+        }
+        Ok(())
+    }
+
+    /// `mos3temp.c` and the start of `mos3load.c`.
+    fn operating(
+        &self,
+        name: &str,
+        geometry: &Geometry,
+        context: &ModelContext,
+    ) -> SpiceResult<Operating<Params>> {
+        self.operating_as("MOS3", name, geometry, context)
     }
 
     /// `mos3load.c`'s `moseq3` block, line for line, in the normalized device
@@ -669,18 +713,10 @@ impl MosLevel for Level3 {
     /// `tKP m W / (L - 2 LD)` with the drawn width, and the flicker laws use
     /// `W - 2 WD`, `L - 2 LD` (C ignores XW/XL there) and the model's `Cox`.
     fn noise(device: &Mos3, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
-        let model = &device.model;
-        let geometry = &device.geometry;
-        let cox = 3.9 * EPSILON_0 / model.tox;
-        let length = geometry.l - 2. * model.common.ld;
-        let width = geometry.w - 2. * model.wd;
-        device.classic_noise(context, |op| NoiseShape {
-            family: NoiseFamily::Mos3,
-            beta: op.params.kp * geometry.m * geometry.w / length,
-            width,
-            length,
-            cox,
-        })
+        let shape = device
+            .model
+            .noise_shape(&device.geometry, NoiseFamily::Mos3);
+        device.classic_noise(context, shape)
     }
 }
 
