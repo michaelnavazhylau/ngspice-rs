@@ -476,8 +476,8 @@ fn unrepresentable_asts_are_explicit_errors() {
     refused(&n, "title");
 
     let mut n = base.clone();
-    n.devices[0].designator = 'z';
-    n.devices[0].name = "z1".into();
+    n.devices[0].designator = 'y';
+    n.devices[0].name = "y1".into();
     refused(&n, "no writer");
 
     // PULSE field present after an omitted one.
