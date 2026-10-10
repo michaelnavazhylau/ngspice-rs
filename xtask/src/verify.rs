@@ -215,6 +215,28 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m10_mos2_tran", &[]),
+    // MOS level 9 (#89), mos3's decks with level-9 cards and geometry above
+    // mos9temp.c's 1 um effective-size floor: DC (tightened RELTOL), the
+    // small-signal stage at 75 C with an instance DTEMP, and the inverter.
+    Supported {
+        name: "m10_mos9_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos9_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos9_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,

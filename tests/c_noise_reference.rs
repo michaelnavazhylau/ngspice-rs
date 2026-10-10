@@ -320,6 +320,38 @@ fn mos2_noise_matches_c() {
     );
 }
 
+/// MOS9 (#89): `mos9noi.c` has no NLEV: `2/3 |gm|` channel noise, the
+/// SPICE3 flicker law with `Cox^2` in every compatibility mode, and thermal
+/// generators at the circuit temperature even for instances with their own
+/// TEMP or DTEMP (C `NevalSrc`).
+const MOS9_NOISE: &str = "MOS9 noise
+vdd vdd 0 5
+v1 in 0 dc 1.6 ac 1
+m1 out in 0 0 n0 w=10u l=2u dtemp=30
+m2 out in vdd vdd p3 w=20u l=2u temp=50
+m3 o2 in 0 0 n1 w=10u l=2u m=2
+m5 o2 in 0 0 n2 w=4u l=1.5u
+r1 vdd out 10k
+r2 vdd o2 20k
+.model n0 nmos(level=9 vto=1 kp=1e-4 kf=1e-24 af=1.3 tox=2e-8 rd=30 rs=15)
+.model n1 nmos(level=9 vto=0.8 kf=1e-24 af=1.1 tox=1e-8 nsub=1e16 xj=0.2u kappa=0.4 ld=0.1u xl=0.05u)
+.model n2 nmos(level=9 vto=0.9 kp=1e-4 kf=1e-25 af=0.9 rd=20 rs=10 tox=2e-8 cgso=1n cgdo=1n vmax=1e5 nfs=1e11 wd=0.2u xw=0.1u)
+.model p3 pmos(level=9 vto=-1 kp=5e-5 kf=1e-24 rd=20 rs=10 nsub=1e16 xj=0.2u)
+.option reltol=1e-7
+.noise v(out,o2) v1 lin 6 1k 100k 1
+.end
+";
+
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn mos9_noise_matches_c() {
+    compare("mos9", MOS9_NOISE);
+    compare(
+        "mos9-spice3",
+        &MOS9_NOISE.replace(".end\n", ".control\nset ngbehavior=s3\n.endc\n.end\n"),
+    );
+}
+
 #[test]
 #[ignore = "requires NGSPICE_BIN"]
 fn spice3_mos1_flicker_matches_c() {

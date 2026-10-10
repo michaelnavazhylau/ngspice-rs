@@ -317,13 +317,7 @@ fn expect_not_ported(body: &str, reference: &str) {
 
 #[test]
 fn unported_mos_levels_name_their_c_directory() {
-    for (level, directory) in [
-        (4, "bsim1/"),
-        (6, "mos6/"),
-        (9, "mos9/"),
-        (49, "bsim3/"),
-        (54, "bsim4/"),
-    ] {
+    for (level, directory) in [(4, "bsim1/"), (6, "mos6/"), (49, "bsim3/"), (54, "bsim4/")] {
         expect_not_ported(
             &format!("m1 d g 0 0 mm\n.model mm nmos(level={level})"),
             directory,

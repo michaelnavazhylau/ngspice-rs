@@ -90,7 +90,7 @@ unsafe-cast cases instead of silently changing the input.
 | Family | Backend selection | Initial supported level policy |
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
-| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1), MOS2 (2) and MOS3 (3); other selectors fail naming the C directory `inpdomod.c` selects (`mos6/`, `mos9/`, `bsim3/`, ...) |
+| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1), MOS2 (2), MOS3 (3) and MOS9 (9); other selectors fail naming the C directory `inpdomod.c` selects (`mos6/`, `bsim3/`, ...) |
 | JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1), 2 (Parker-Skellern `jfet2/`), see [JFET.md](JFET.md); others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
 | `res`, `c`, `l` | C fixes backend 1 without scanning level | Bounded Rust contract requires first explicit level to round to 1 |
@@ -120,7 +120,10 @@ to 0.33, and has no `LAMBDA`; `XD`, `ALPHA` and `INPUT_DELTA`, listed in
 `LAMBDA` (0; derived from `XD` with NSUB), `DELTA`, `UEXP`, `UCRIT` (1e4
 V/cm), `VMAX`, `XJ`, `NEFF` (1) and `NFS`, defaults `TOX` to 1e-7 m and
 `MJSW` to 0.33, requires positive `UCRIT` and `NEFF`, and rejects level-3
-setters (`XL`, `WD`, `XW`, `DELVTO`, `THETA`, `ETA`, `KAPPA`).
+setters (`XL`, `WD`, `XW`, `DELVTO`, `THETA`, `ETA`, `KAPPA`). MOS9
+(`devices::mos9`) accepts exactly the MOS3 setters except `NLEV` and
+`GDSNOI`, which `mos9.c` does not have (`MODEL_WITHOUT_NOISE_SELECTORS`);
+they are rejected like any unknown keyword.
 
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.
