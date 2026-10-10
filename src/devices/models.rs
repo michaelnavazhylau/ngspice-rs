@@ -52,9 +52,9 @@ pub enum ModelFamily {
     Npn,
     /// PNP classic BJT.
     Pnp,
-    /// NMOS (bounded selectors for levels 1 and 3).
+    /// NMOS (bounded selectors for levels 1, 3 and 6).
     Nmos,
-    /// PMOS (bounded selectors for levels 1 and 3).
+    /// PMOS (bounded selectors for levels 1, 3 and 6).
     Pmos,
     /// Voltage-controlled switch (`sw`, `sw/sw.c`).
     Switch,
@@ -729,8 +729,9 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
     }
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
-        // MOS1 (`mos1/`) and MOS3 (`mos3/`); `inpdomod.c` maps the others.
-        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1 | 3),
+        // MOS1 (`mos1/`), MOS3 (`mos3/`) and MOS6 (`mos6/`); `inpdomod.c`
+        // maps the others.
+        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1 | 3 | 6),
         ModelFamily::Njf | ModelFamily::Pjf => true,
         ModelFamily::Diode => applied == Some(1),
         ModelFamily::Resistor if card.base.eq_ignore_ascii_case("r") => selector <= 1,

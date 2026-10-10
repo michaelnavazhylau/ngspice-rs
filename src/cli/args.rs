@@ -550,7 +550,7 @@ pub fn analyses_text() -> String {
     let _ = writeln!(
         out,
         "\nDevices: see `spice-rs devices` (linear, controlled, behavioural, K, switches and bounded \
-         diode/BJT/MOS1/MOS3/JFET). Every analysis card of a deck runs, in ngspice batch order. \
+         diode/BJT/MOS1/MOS3/MOS6/JFET). Every analysis card of a deck runs, in ngspice batch order. \
          .tran runs the trap/Gear companion driver (backend=diffsol method=bdf selects BDF \
          for linear decks). See docs/port/CLI.md and docs/port/TRANSIENT.md."
     );
@@ -740,7 +740,7 @@ r2 out 0 1k
             assert_eq!(status(letter), "pending", "{letter}");
         }
         assert!(
-            text.contains("built: MOS1 and MOS3 (levels 1 and 3)"),
+            text.contains("built: MOS1, MOS3 and MOS6 (levels 1, 3 and 6)"),
             "{text}"
         );
         assert!(text.contains("inp2r.c"), "{text}");
