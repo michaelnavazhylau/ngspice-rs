@@ -26,8 +26,10 @@
 //! ([`MosLevel::drain_current`]). Levels choose the bulk-junction reverse law
 //! ([`ReverseLaw`]) and the internal node suffixes, and may provide `.noise`
 //! and `.disto` generators; the defaults are explicit `NotYetPorted` errors,
-//! never zeros. Levels whose frame differs (BSIM charge models, MOS6's
-//! separate channel model) can reuse the helpers without the generic device.
+//! never zeros. Default-identity hooks let a level refuse loads its C device
+//! lacks and follow C's per-unit `M` handling (level 6). Levels whose frame
+//! differs (BSIM charge models) can reuse the helpers without the generic
+//! device.
 
 use crate::devices::initial::InstanceInitial;
 use crate::devices::limiting::{self, Limiter, Linearization};
@@ -200,13 +202,16 @@ impl Common {
             fc: required("fc")?,
             ld: required("ld")?,
             tnom: get("tnom"),
-            kf: required("kf")?,
-            af: required("af")?,
+            // Levels without a C noise routine (MOS6) have no KF/AF/NLEV/
+            // GDSNOI setters; their noise is refused, so the neutral values
+            // below (the C defaults of the levels that have them) are unused.
+            kf: get("kf").unwrap_or(0.),
+            af: get("af").unwrap_or(1.),
             nlev: {
                 // IF_INTEGER setter: floor(value + 0.5). C's switch has no
                 // case outside 0..=3 (the flicker density is then the bare
                 // gain), which the port rejects.
-                let raw = required("nlev")?;
+                let raw = get("nlev").unwrap_or(2.);
                 let rounded = (raw + 0.5).floor();
                 if !(0. ..=3.).contains(&rounded) {
                     return Err(SpiceError::circuit(format!(
@@ -215,7 +220,7 @@ impl Common {
                 }
                 rounded as u8
             },
-            gdsnoi: required("gdsnoi")?,
+            gdsnoi: get("gdsnoi").unwrap_or(1.),
         })
     }
 
@@ -584,6 +589,44 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Sized + 'static {
         vbs: Real,
     ) -> DrainCurrent;
 
+    /// Instance checks that need to know which setters the card gave (the
+    /// geometry carries C's defaults). The default accepts every instance.
+    ///
+    /// # Errors
+    /// Setter combinations the level refuses.
+    fn check_instance(
+        &self,
+        _name: &str,
+        _setters: &crate::devices::schema::ScalarValues,
+    ) -> SpiceResult<()> {
+        Ok(())
+    }
+
+    /// The `gmin` the bulk junctions add in a load. C's level 6
+    /// (`mos6load.c`) multiplies its whole stamp, `gmin` included, by `M`;
+    /// the other classic levels scale the currents and add `gmin` once (the
+    /// default).
+    fn junction_gmin(gmin: Real, _geometry: &Geometry) -> Real {
+        gmin
+    }
+
+    /// The bulk-junction saturation current that sets `DEVpnjlim`'s critical
+    /// voltage, from the instance's (`M`-scaled) one. Level 6
+    /// (`mos6temp.c`) derives `vcrit` per unit device; the other classic
+    /// levels from the scaled current (the default).
+    fn limiting_saturation(saturation: Real, _geometry: &Geometry) -> Real {
+        saturation
+    }
+
+    /// Refuses a small-signal (`"AC"`) or pole-zero (`"pole-zero"`) load the
+    /// level's C device does not have. The default accepts both.
+    ///
+    /// # Errors
+    /// The level has no such C load.
+    fn small_signal(_device: &Mosfet<Self>, _analysis: &str) -> SpiceResult<()> {
+        Ok(())
+    }
+
     /// `.noise` generators (`mosXnoi.c`).
     ///
     /// # Errors
@@ -748,6 +791,7 @@ impl<L: MosLevel> Mosfet<L> {
             dtemp: required("dtemp")?,
         };
         model.check_geometry(&i.name, &geometry)?;
+        model.check_instance(&i.name, &v)?;
         let series = Self::series(&model, &geometry)?;
         let mut device = Self {
             name: i.name.clone(),
@@ -938,10 +982,12 @@ impl<L: MosLevel> Mosfet<L> {
             vgs = vgd + vds;
         }
         if vds >= 0. {
-            let vcrit = limiting::critical_voltage(op.vt, op.source.saturation);
+            let saturation = L::limiting_saturation(op.source.saturation, &self.geometry);
+            let vcrit = limiting::critical_voltage(op.vt, saturation);
             vbs = limiter.pn_junction(vbs, Some(vbs_old), op.vt, vcrit);
         } else {
-            let vcrit = limiting::critical_voltage(op.vt, op.drain.saturation);
+            let saturation = L::limiting_saturation(op.drain.saturation, &self.geometry);
+            let vcrit = limiting::critical_voltage(op.vt, saturation);
             let vbd = limiter.pn_junction(vbs - vds, Some(vbs_old - vds_old), op.vt, vcrit);
             vbs = vbd + vds;
         }
@@ -1310,7 +1356,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         // The intrinsic d', g, s', b at the (limited) voltages, relative to
         // s'; every equation below depends on voltage differences only.
         let v = [vds, vgs, 0., vbs].map(|x| pol * x);
-        let point = self.point(&op, v, context.gmin)?;
+        let point = self.point(&op, v, L::junction_gmin(context.gmin, &self.geometry))?;
         // MOSconvTest for an `off` instance held in MODEINITFIX: the drain
         // (channel minus bulk-drain) and bulk currents at the held voltages
         // against their linear prediction at the iterate's node voltages.
@@ -1413,6 +1459,12 @@ impl<L: MosLevel> Device for Mosfet<L> {
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
+        // Only a load at a solved bias point (AC and the analyses built on
+        // it) carries the bias state; the zero-bias structural assemblies of
+        // the DC and transient drivers do not, and stay level-independent.
+        if context.states.is_some() {
+            L::small_signal(self, "AC")?;
+        }
         let op = self.operating(context.model_context)?;
         let v = self.inner.map(|n| {
             context
@@ -1421,7 +1473,11 @@ impl<L: MosLevel> Device for Mosfet<L> {
                 .and_then(|r| bias.get(r))
                 .unwrap_or(0.)
         });
-        let point = self.point(&op, v, context.model_context.gmin)?;
+        let point = self.point(
+            &op,
+            v,
+            L::junction_gmin(context.model_context.gmin, &self.geometry),
+        )?;
         for (ports, conductance) in self.series_ports().into_iter().zip(self.series) {
             if conductance > 0. {
                 context.nodal(ports, conductance, false)?;
@@ -1446,6 +1502,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         context: &mut crate::devices::linear::LinearContext<'_>,
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
+        L::small_signal(self, "pole-zero")?;
         self.assemble_small_signal(context, bias)
     }
 
