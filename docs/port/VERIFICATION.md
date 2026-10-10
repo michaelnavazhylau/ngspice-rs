@@ -20,6 +20,47 @@ test requires every registered kind. Pole-zero preparation reuses
 `ac::SmallSignal`, including deck DC options and nodeset/switch-state handling;
 all existing pole-zero tests and live-C comparisons remain unchanged.
 
+## M10 MOS shared shell and level 3 (#89)
+
+The MOS1 frame moved into the shared `devices::mos` shell first, as a
+separate commit with no behaviour change: every existing test and golden
+passes unchanged, and every MOS1 deck's binary Rust rawfile (16 decks,
+including `disto_mos1`, `noise_mos1`, `pz_mos1`, `m8_dc_param_mos1` and the
+convergence/IC decks) is byte-identical before and after (dates aside).
+
+Three new MOS3 C goldens, each captured with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed):
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos3_dc` | `compare::NONLINEAR` | 81 points |
+| `m10_mos3_ac` | `compare::NONLINEAR` | 36 points |
+| `m10_mos3_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.047 of bound |
+
+Deck design, measured against the same C binary before capture:
+
+- **Tight RELTOL for the AC bias.** With the default options C's Newton
+  stopping test leaves the AC deck's drain bias 5.1e-6 relative from the root
+  (0.5595758 V against 0.5595729 V), which the stage gain amplifies past the
+  1 ppm bound (8e-5 absolute at 1 kHz). With `reltol=1e-7 vntol=1e-12
+  abstol=1e-18` C and Rust agree to 6e-15 at the operating point, and the AC
+  sweep then verifies: the port's `gm`/`gds`/`gmbs` are C's, including C's
+  approximate channel-length-modulation derivatives.
+- **Gear-2 and RELTOL 1e-5 for the inverter.** Under trapezoidal integration
+  the gate currents ring at ±2.7 nA on the flat input with amplitudes that
+  depend on each driver's step history (0.35% apart, 2.5x the bound). With
+  Gear-2 at the default RELTOL the deck verifies at 0.966 of the bound; with
+  `reltol=1e-5` (as `m7_ic_mos1_uic_tran`) at 0.047, and 0.037 at 1e-6, so the
+  remaining difference is step control, not the model.
+
+`tests/m10_mos3.rs` adds nine C-free tests; `devices::mos3` unit tests check
+regions and finite-difference derivatives; `golden_rawfiles` documents the
+three goldens (the m5 forward/reverse bulk current and the m6 reverse drain
+current at vgs = 0 restate the cubic reverse law to the last digit). Opt-in
+live C: `c_noise_reference::mos3_noise_matches_c` (both flicker forms) and
+`c_pole_zero::a_mos3_stage_matches_c`. Six new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
+
 ## Remaining M8 features (#132)
 
 - `c_dc_param_sweep_reference`: remaining listed real instance setters, plus
@@ -1482,6 +1523,24 @@ fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
 (error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
 orders 1-6, asserted within 0.75-1.35 times `2^k`).
 
+## M10 lossless transmission line (#84)
+
+Goldens `m10_tline_tran`, `m10_tline_pulse` and `m10_tline_ac`, captured once
+each with `cargo xtask golden capture --netlist <name>` (no existing golden
+recaptured, no tolerance changed). The transient decks set the lines'
+`rel=1e-3 abs=1e3` so that each line lands on the delayed corners of its waves;
+`Gate::Echoes` declares those instants (source corner `b` plus offsets derived
+by hand from the deck's `td` values and terminations, documented in the
+registry) as breakpoints that both plots must sample and that are never
+interpolated across. `golden verify`: `m10_tline_tran` 219 instants + 44
+breakpoint limits, `m10_tline_pulse` 271 instants + 100 limits, both worst
+error 0.000 of `compare::TRAN`; `m10_tline_ac` 101 points under `compare::AC`.
+The C and Rust transients have identical point counts (314 and 1018) and agree
+to about 1e-15 V. Internal line nodes (`t1#i1`, `t1#i2`, `t1#int1`,
+`t1#int2`) are compared, since C saves them. Analytic, infrastructure and
+opt-in live-C coverage is listed in
+[TRANSMISSION_LINES.md](TRANSMISSION_LINES.md#verification).
+
 ## M10 JFET level 1 (#82)
 
 Four new C goldens, each captured once with `cargo xtask golden capture
@@ -1517,6 +1576,7 @@ copy:
 The opt-in `tests/c_jfet_reference.rs` adds live comparisons of saved
 `@j[...]` asks of both polarities, a nested `@j1[area]` x `@j1[temp]` sweep
 and `.pz` roots of a common-source stage (agreeing to about 1e-12 relative).
+
 ## Model binning verification (#109)
 
 C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so

@@ -12,8 +12,10 @@
 //! | [`behavioural`] | B sources and the lowered E/G/F/H VALUE/TABLE/POLY forms | `inpptree.c` function set with C's derivative rules; Newton, AC and transient loads |
 //! | [`mutual`] | K mutual inductance | coupled flux in DC/AC/companion/BDF; inductors and inductive-system checks resolved by [`circuit`] |
 //! | [`switch`] | S/W voltage- and current-controlled switches | hysteresis, accepted switch state, Newton phases, `swtrunc.c` step control |
+//! | [`tline`] | T lossless transmission line | DC, AC (`exp(-j omega TD)`), companion transient with delay history and device breakpoints |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
+//! | [`delay`] | device-owned delay history, device breakpoints and step bounds | transmission lines; companion driver only |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
@@ -42,6 +44,7 @@ pub mod binning;
 pub mod bjt;
 pub mod circuit;
 pub mod controlled;
+pub mod delay;
 pub mod distortion;
 mod factory;
 pub mod functions;
@@ -51,7 +54,9 @@ pub mod jfet2;
 pub mod limiting;
 pub mod linear;
 pub mod models;
+pub mod mos;
 pub mod mos1;
+pub mod mos3;
 pub mod mutual;
 pub mod noise;
 pub mod nonlinear;
@@ -69,6 +74,7 @@ pub mod sources;
 pub mod subckt;
 pub mod sweep;
 pub mod switch;
+pub mod tline;
 pub mod urc;
 pub use functions::{
     AmSpec, ExpSpec, FunctionSpec, PwlBreakpoints, PwlSource, SffmSpec, SineSpec, SourceFunction,
@@ -85,8 +91,8 @@ pub mod state;
 pub mod traits;
 
 pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
-pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
+pub use circuit::{DelayAcceptance, LoadRequest};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, DeviceSupport, Registry};

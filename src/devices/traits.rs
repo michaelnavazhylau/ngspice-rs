@@ -519,6 +519,28 @@ pub trait Device: fmt::Debug {
         false
     }
 
+    /// True when the device's small-signal (AC) stamp itself depends on the
+    /// analysis frequency in a way the affine `A + j omega E` pencil cannot
+    /// express, e.g. a transmission line's `exp(-j omega TD)` (`traacld.c`).
+    /// Small-signal drivers then reassemble the system at every frequency
+    /// with [`crate::devices::ModelContext::frequency`] set, without
+    /// re-solving the operating point (unlike [`Self::depends_on_frequency`]).
+    /// `false` by default.
+    fn small_signal_depends_on_frequency(&self) -> bool {
+        false
+    }
+
+    /// The device's accepted-waveform delay history behaviour (transmission
+    /// lines), or `None` (the default). See [`crate::devices::delay`]: such a
+    /// device reads its history while stamping
+    /// ([`crate::devices::DeviceState::delay_history`]), and the companion
+    /// transient driver records accepted samples, device breakpoints and step
+    /// bounds through it. Backends that cannot integrate a delay (diffsol
+    /// BDF) must refuse circuits containing one.
+    fn delay_line(&self) -> Option<&dyn crate::devices::delay::DelayLine> {
+        None
+    }
+
     /// True when the device holds a discrete state (a switch position) that
     /// a last-bit change of its control can flip, so drivers must reproduce
     /// C's exact control values (e.g. `dctrcurv.c`'s accumulated sweep values).

@@ -63,6 +63,8 @@ pub enum ScalarUnit {
     VoltPerKelvin,
     /// Absolute temperature offset or scale in Kelvin (not converted).
     Kelvin,
+    /// Velocity in metres per second (MOS3 `VMAX`).
+    MetrePerSecond,
     /// Resistance per unit length, ohms per metre (URC `RPERL`/`RSPERL`).
     OhmPerMetre,
     /// Current per unit length, amperes per metre (URC `ISPERL`).

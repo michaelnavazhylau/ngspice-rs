@@ -207,6 +207,14 @@ Level 1 NMOS/PMOS in `devices::mos1` (#88). C references, read as
 behaviour only: `mos1/mos1set.c`, `mos1temp.c`, `mos1load.c`, `mos1acld.c`,
 `mos1trun.c` and `devices/devsup.c` (`DEVqmeyer`).
 
+Since M10 (#89) the level-independent frame described below (series
+resistance and internal nodes, bulk junctions, Meyer gate charge, limiting and
+start voltages, real/AC/pole-zero loads, truncation slots, instance sweeps and
+observations) lives in the shared `devices::mos` shell; `devices::mos1`
+supplies only the level-1 schema, process extraction, Shichman-Hodges drain
+current, noise and distortion through the `MosLevel` trait. The extraction
+changed no MOS1 output: every MOS1 deck's Rust rawfile is byte-identical.
+
 Model setters (C defaults; *derived* means C's `...Given` logic applies):
 `VTO`/`VT0` (0 V or derived), `KP` (2e-5 A/V² or derived), `GAMMA` (0 or
 derived), `PHI` (0.6 V or derived), `LAMBDA` (0), `RD`/`RS`/`RSH` (0 ohm),
@@ -295,6 +303,83 @@ goldens verified by `cargo xtask golden verify`:
 See [VERIFICATION.md](VERIFICATION.md#mos1-completion-88) for why the transient
 decks bound the maximum step, why the ring oscillator is three stages, and why
 the DC deck tightens RELTOL.
+
+### MOS3
+
+Level 3 NMOS/PMOS in `devices::mos3` on the shared `devices::mos` shell
+(M10, #89). C references, read as behaviour only: `mos3/mos3.c`
+(`MOS3mPTable`), `mos3mpar.c`, `mos3set.c`, `mos3temp.c`, `mos3load.c`
+(`moseq3`), `mos3acld.c`, `mos3pzld.c`, `mos3trun.c` and `mos3noi.c`.
+
+The shell contributes everything described for MOS1 above that is not the
+drain current: series resistance (internal nodes `<name>#internal#drain` /
+`<name>#internal#source`, C's `CKTmkVolt` suffixes for MOS3), junction
+geometry and temperature scaling, Meyer gate charge, limiting and start
+voltages, OFF/IC, `.dc @m[...]` instance sweeps, small-signal and pole-zero
+loads, truncation (gate charges only) and the `.noise` generators.
+
+Model setters (`MOS3mParam`; C defaults, *derived* = C's `...Given` logic):
+`VTO`/`VT0` (0 or derived), `KP` (derived from `U0`/`UO`, 600 cm²/Vs, whenever
+not given), `GAMMA`, `PHI` (0.6 V or derived; must be positive), `RD`/`RS`/`RSH`,
+`CBD`/`CBS`, `IS` (1e-14 A), `JS` (0), `PB` (0.8 V), `CGSO`/`CGDO`/`CGBO`, `CJ`,
+`MJ` (0.5), `CJSW`, `MJSW` (**0.33**), `FC` (0.5), `TOX` (**1e-7 m**, so Meyer
+charge is always on; 0 is refused), `LD`, `XL`, `WD`, `XW` (0 m), `DELVTO`/`DELVT0`
+(0 V), `NSUB`, `TPG`, `NSS`, `VMAX` (0: no velocity saturation), `XJ` (0: no
+short-channel factor), `NFS` (0: no weak inversion), `ETA`, `DELTA`, `THETA` (0),
+`KAPPA` (0.2), `TNOM` and the noise setters `KF`/`AF`/`NLEV`/`GDSNOI`. There is no
+`LAMBDA`. `XD`, `ALPHA` and `INPUT_DELTA` appear in `MOS3mPTable` but have no
+`MOS3mParam` case, so C rejects them and so does the port. Instance setters are
+MOS1's.
+
+- **Geometry**: effective length `L - 2 LD + XL` and width `W - 2 WD + XW`
+  (both must be positive, C's `E_PARMVAL`); `Beta`, `Cox` area and the overlap
+  capacitances use them.
+- **Process** (`mos3temp.c`): `Cox = 3.9 eps0 / TOX`; with NSUB (above the
+  intrinsic density scaled to TNOM, `1.45e16 (T/300)^1.5 exp(Eg/2 (1/300 -
+  1/T)/(k/q))`) PHI, GAMMA (`EPSSIL = 11.7 eps0`) and VTO are derived when not
+  given, and `alpha = 2 EPSSIL / (q NSUB)` with `sqrt(alpha)` the depletion
+  coefficient (both zero without NSUB); `narrow = DELTA pi EPSSIL / (2 Cox)`.
+- **Temperature**: as MOS1, plus `U0` scaled like KP and DELVTO added to `VBI`.
+- **Drain current** (`mos3load.c`, line for line): square-root body term with
+  C's forward-bias continuation; XJ short-channel factor `fshort`; narrow-width
+  and body factor `fbody`; static feedback `vth = VBI - eta vds + qb/Cox` with
+  `eta = 8.15e-22 ETA / (Cox Leff^3)`; NFS weak inversion (`von = vth + n Vt`,
+  exponential below `von`); THETA mobility modulation; VMAX velocity
+  saturation (`vdsat`, `fdrain`); KAPPA channel-length modulation (only with
+  NSUB, i.e. nonzero `alpha`, including C's linear-region term) and the punch-
+  through limit; the special `vds = 0` conductance. `.options badmos3` is
+  rejected by the options layer, so only C's default formulation exists.
+- **Junctions**: the cubic reverse law `-IS (1 + (3 Vt / (v e))^3)` below
+  `-3 Vt` (`ReverseLaw::Cubic`), otherwise MOS1's.
+
+**Jacobian.** The port stamps C's own `gm`/`gds`/`gmbs`, which the small-signal
+and pole-zero loads (and so the AC goldens) depend on. They are the exact
+derivatives of C's current in weak and strong inversion, with XJ, ETA, THETA,
+DELTA in reverse body bias, and VMAX below `vdsat`; C's expressions are
+approximate for KAPPA channel-length modulation with NSUB (`ddldv*` treat
+`delxl` as a function of `vds - vdsat` only), for the DELTA term in forward body
+bias and for velocity saturation beyond `vdsat`. That changes only the Newton
+path, not the converged point; `devices::mos3` unit tests check exactness by
+finite differences where C is exact and bound C's approximation elsewhere.
+
+Not ported: `.disto` (`mos3dset.c`/`mos3dist.c`) and `.sens`, which fail
+explicitly; C's predictor, bypass and `oldlimit`, as for MOS1. Divergences: C
+continues on nonfinite or nonpositive temperature-scaled values and on
+`TOX = 0`; here they are errors.
+
+Evidence: `tests/m10_mos3.rs` (C-default square law with the cubic reverse
+junction, NSUB process extraction with the TNOM intrinsic density, internal
+nodes, effective-geometry Meyer/overlap capacitances, whole-circuit DC
+Jacobians, noise, unported levels and invalid inputs), unit tests in
+`devices::mos3`/`devices::mos`, the opt-in live-C `mos3_noise_matches_c` and
+`a_mos3_stage_matches_c` (pole-zero), and three C goldens in `cargo xtask golden
+verify`:
+
+| Fixture | Exercises | Result |
+| --- | --- | --- |
+| `m10_mos3_dc` | gate sweep: XJ/NSUB/NFS/VMAX/ETA/THETA/KAPPA/DELTA, reverse and forward body bias, inverse mode, PMOS with XL/WD/XW, RD/RSH, TEMP, TNOM/DELVTO, diode-connected velocity saturation | within `NONLINEAR` (81 points) |
+| `m10_mos3_ac` | active-load common-source stage at 75 C, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
+| `m10_mos3_tran` | CMOS inverter with weak-inversion leakage, Gear-2 | 0.047 of `TRAN` bound |
 
 ### JFET
 

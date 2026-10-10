@@ -21,6 +21,17 @@ enum Gate {
     /// Pole-zero plots: poles and zeros as unordered root sets
     /// (`compare::roots`).
     Roots(compare::RootTolerance),
+    /// [`Gate::Transient`] for transmission-line decks: every source
+    /// breakpoint `b` also declares the breakpoints `b + offset` (inside the
+    /// run) where a line's delayed wave changes slope. The offsets are
+    /// derived by hand from the deck's `td` values and topology (which echoes
+    /// exist depends on the terminations) and documented with the fixture;
+    /// both simulators must land on each of them (`traacct.c` sets them as
+    /// device breakpoints), never interpolated across.
+    Echoes {
+        tolerance: compare::TranTolerance,
+        offsets: &'static [f64],
+    },
 }
 
 /// An additional Rust-only run of the same deck against the same C golden.
@@ -157,6 +168,29 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // MOS level 3 on the shared MOS shell (#89): short-channel threshold,
+    // weak inversion, velocity saturation, channel-length modulation and
+    // temperature (DC, tightened RELTOL as for MOS1), the small-signal stage
+    // at 75 C, and a CMOS inverter with a bounded maximum step (transient).
+    Supported {
+        name: "m10_mos3_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos3_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos3_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
@@ -665,6 +699,46 @@ const SUPPORTED: &[Supported] = &[
         gate: Gate::Points {
             axis: None,
             tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // Lossless transmission lines (#84, M10 slice 3). The transient decks set
+    // each line's `rel`/`abs` so that it lands on a breakpoint wherever a
+    // wave changes slope; the echoes are listed per deck (see the decks'
+    // comments). Both simulators take the same steps (the port follows
+    // dctran.c/traacct.c/tratrunc.c), so `compare::TRAN` holds with margin.
+    // No diffsol variants: the BDF backend refuses delay lines. The AC deck
+    // carries exp(-j omega td) exactly and keeps the linear AC bound.
+    Supported {
+        name: "m10_tline_tran",
+        kind: AnalysisKind::Transient,
+        gate: Gate::Echoes {
+            tolerance: compare::TRAN,
+            // t2 (td = 1 ns, mismatched at both ends): every multiple of 1 ns;
+            // t1 (td = 2 ns, matched) adds only b + 2 ns, already listed.
+            offsets: &[
+                1e-9, 2e-9, 3e-9, 4e-9, 5e-9, 6e-9, 7e-9, 8e-9, 9e-9, 10e-9, 11e-9,
+            ],
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_tline_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_tline_pulse",
+        kind: AnalysisKind::Transient,
+        gate: Gate::Echoes {
+            tolerance: compare::TRAN,
+            // t1 (1.25 ns, matched both ends): b + 1.25 ns; t2 (0.75 ns behind
+            // the buffer, open end): b + 1.25 + 0.75 and b + 1.25 + 2*0.75.
+            offsets: &[1.25e-9, 2e-9, 2.75e-9],
         },
         variants: &[],
     },
@@ -1401,6 +1475,14 @@ fn run_variant(
             tolerance: *tolerance,
         },
         (Gate::Roots(tolerance), _) => Gate::Roots(*tolerance),
+        (Gate::Echoes { tolerance, offsets }, None) => Gate::Echoes {
+            tolerance: *tolerance,
+            offsets,
+        },
+        (Gate::Echoes { offsets, .. }, Some(variant)) => Gate::Echoes {
+            tolerance: variant.tolerance,
+            offsets,
+        },
     };
     compare_plot(&gate, &netlist, &request, &got, &want.plots[0].plot)
 }
@@ -1513,7 +1595,9 @@ fn run_card_plots(
         .nodes()
         .iter()
         .filter(|node| {
-            node.kind == ngspice_rs::primitives::NodeKind::Internal && !node.name.ends_with("#res")
+            node.kind == ngspice_rs::primitives::NodeKind::Internal
+                && !node.name.ends_with("#res")
+                && !is_tline_node(&node.name)
         })
         .map(|node| format!("v({})", node.name))
         .collect();
@@ -1522,6 +1606,18 @@ fn run_card_plots(
         .map(|plot| project(plot, request.kind, &internal))
         .collect();
     Ok((request, plots))
+}
+
+/// A transmission line's internal node (`trasetup.c` `CKTmkVolt` names
+/// `#i1`, `#i2`, `#int1`, `#int2`): not on `outitf.c`'s list of internal
+/// names it omits, so C saves (and the comparison keeps) them.
+fn is_tline_node(name: &str) -> bool {
+    ngspice_rs::devices::tline::INTERNAL_SUFFIXES
+        .iter()
+        .any(|suffix| {
+            name.strip_suffix(suffix)
+                .is_some_and(|stem| stem.ends_with('#'))
+        })
 }
 
 /// Projects one Rust plot onto C's default save set and naming (see
@@ -1588,6 +1684,17 @@ fn compare_plot(
     got: &ngspice_rs::analysis::Plot,
     want: &ngspice_rs::analysis::Plot,
 ) -> Result<String, String> {
+    // A transmission-line deck is a transient comparison whose breakpoints
+    // also include the declared echoes.
+    let (echo_gate, offsets) = match *gate {
+        Gate::Echoes { tolerance, offsets } => (Gate::Transient(tolerance), offsets),
+        _ => (Gate::Transient(compare::TRAN), &[][..]),
+    };
+    let gate = if matches!(gate, Gate::Echoes { .. }) {
+        &echo_gate
+    } else {
+        gate
+    };
     match *gate {
         Gate::Points { axis, tolerance } => compare::plots(got, want, tolerance, axis)
             .map(|()| format!("{} point(s)", got.point_count())),
@@ -1601,7 +1708,10 @@ fn compare_plot(
                     .ok_or_else(|| format!(".tran {what} is not a positive number"))
             };
             let (step, stop) = (time(0, "tstep")?, time(1, "tstop")?);
-            let breakpoints = tran::breakpoints(netlist, step, stop)?;
+            let mut breakpoints = tran::breakpoints(netlist, step, stop)?;
+            if !offsets.is_empty() {
+                breakpoints = tran::echoes(&breakpoints, offsets, stop)?;
+            }
             // With `uic` C writes no t = 0 row: its first row is the first
             // accepted step. The comparison then starts at that time, which the
             // Rust plot must reproduce (`tran::Series::new`); without `uic`
@@ -1628,6 +1738,8 @@ fn compare_plot(
                 )
             })
         }
+        // Mapped to `Gate::Transient` with its offsets above.
+        Gate::Echoes { .. } => Err("echo gate not mapped".into()),
     }
 }
 

@@ -336,6 +336,121 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(rail)", 0, 0., 0.),
         ],
     },
+    // M10 lossless lines (#84). t1 is matched (Rs = Z0 = RL = 50): b is the
+    // source at half amplitude 2 ns late (0 at 2.5 ns, 0.5 V once the 1.5 ns
+    // corner arrives at 3.5 ns) and port 1 draws 1 V / 100 ohm. t2 has
+    // Rs = 25, RL = 200: the first wave 50/75 V doubles by 1 + 0.6 to
+    // 1.0667 V at d after 1 ns; one round trip later (-1/3 * 0.6 = -0.2 of
+    // it) d is 0.8533 V; i2 = -v(d)/200 flows into port 2.
+    Expectation {
+        fixture: "m10_tline_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 314,
+        variables: &[
+            "time",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(d)",
+            "v(in)",
+            "v(t1#i1)",
+            "v(t1#i2)",
+            "v(t1#int1)",
+            "v(t1#int2)",
+            "v(t2#i1)",
+            "v(t2#i2)",
+            "v(t2#int1)",
+            "v(t2#int2)",
+            "i(v1)",
+        ],
+        values: &[
+            ("time", 66, 2.500000000000000e-09, 0.),
+            ("v(b)", 66, 0.000000000000000e+00, 0.),
+            ("v(d)", 66, 1.066666666666667e+00, 0.),
+            ("v(a)", 66, 5.000000000000000e-01, 0.),
+            ("v(t1#i1)", 66, 1.000000000000000e-02, 0.),
+            ("v(t2#i2)", 66, -5.333333333333334e-03, 0.),
+            ("time", 92, 3.500000000000000e-09, 0.),
+            ("v(b)", 92, 4.999999999999998e-01, 0.),
+            ("time", 118, 4.500000000000000e-09, 0.),
+            ("v(d)", 118, 8.533333333333336e-01, 0.),
+            ("v(t2#i2)", 118, -4.266666666666667e-03, 0.),
+        ],
+    },
+    // A matched 1.25 ns line, a gain-2 buffer and a 0.75 ns line into an
+    // open end (1 Meg, reflection G = (1e6 - 50)/(1e6 + 50)): at 2.95 ns b is
+    // 0.5 V, c is 1 V, e is 0.5 (1 + G) = 0.99995 V; at 3.45 ns the pulse
+    // has left b and c and the reflection 0.5 G reaches d.
+    Expectation {
+        fixture: "m10_tline_pulse",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1018,
+        variables: &[
+            "time",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(d)",
+            "i(e1)",
+            "v(e)",
+            "v(in)",
+            "v(t1#i1)",
+            "v(t1#i2)",
+            "v(t1#int1)",
+            "v(t1#int2)",
+            "v(t2#i1)",
+            "v(t2#i2)",
+            "v(t2#int1)",
+            "v(t2#int2)",
+            "i(v1)",
+        ],
+        values: &[
+            ("time", 114, 2.950000000000000e-09, 0.),
+            ("v(b)", 114, 5.000000000000000e-01, 0.),
+            ("v(c)", 114, 1.000000000000000e+00, 0.),
+            ("v(e)", 114, 9.999500024998750e-01, 0.),
+            ("time", 208, 3.450000000000000e-09, 0.),
+            ("v(c)", 208, 0.000000000000000e+00, 0.),
+            ("v(d)", 208, 4.999500024998750e-01, 0.),
+        ],
+    },
+    // Quarter-wave transformer (t1, 1 ns, 1k load) and a 75 ohm stub shorted
+    // at its far end (t2, td = nl/f = 1 ns). At 1 MHz the stub is
+    // j75 tan(2 pi 1e6 1e-9) = j0.4712 ohm, so v(a) is about j0.4712/50; at
+    // 247 and 253 MHz, symmetric about the 250 MHz resonance, v(a) values are
+    // complex conjugates and v(b) values mirror their real parts.
+    Expectation {
+        fixture: "m10_tline_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 101,
+        variables: &[
+            "frequency",
+            "v(a)",
+            "v(b)",
+            "v(in)",
+            "v(t1#i1)",
+            "v(t1#i2)",
+            "v(t1#int1)",
+            "v(t1#int2)",
+            "v(t2#i1)",
+            "v(t2#i2)",
+            "v(t2#int1)",
+            "v(t2#int2)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1.000000000000000e+06, 0.),
+            ("v(a)", 0, 9.327227579780661e-05, 9.424535667926139e-03),
+            ("v(b)", 0, 9.623501006147279e-05, 9.424691470345799e-03),
+            ("v(a)", 41, 4.796101179914983e-02, -1.702507201791681e-02),
+            ("v(b)", 41, 1.852869795371671e-02, -9.524046874805195e-01),
+            ("v(a)", 42, 4.796101179914984e-02, 1.702507201791690e-02),
+            ("v(b)", 42, -1.852869795371688e-02, -9.524046874805195e-01),
+        ],
+    },
     Expectation {
         fixture: "bjt_ce",
         plotname: "Operating Point",
@@ -1085,6 +1200,93 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vbs)", 30, -1.024308251724379e-7, 0.),
             ("i(vd3)", 0, 1.710000042799543e-12, 0.),
             ("i(vd1)", 30, -9.838819194962108e-4, 0.),
+        ],
+    },
+    // MOS3 (#89). The forward bulk-source junction of m5 (VBF = 0.3 V, M = 2)
+    // and its reverse drain junction (vbd = -2.7 V) do not depend on the gate:
+    // i(vbf) = -(2 IS (exp(0.3/Vt) - 1) + 0.3 gmin - 2 IS (1 + a) - 2.7 gmin)
+    // with mos3load.c's cubic reverse term a = (3 Vt / (-2.7 e))^3, i.e.
+    // -2.17673075027435e-9 A at both ends of the sweep. At vgs = 0 the
+    // diode-connected m6 conducts nothing and the gate source only feeds its
+    // reverse drain junction at -1 V: IS (1 + (3 Vt / (-1 e))^3) + gmin, whose
+    // cubic term shows in the last digits (the level-1 law gives 1.01e-12).
+    Expectation {
+        fixture: "m10_mos3_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &[
+            "v(v-sweep)",
+            "v(bf)",
+            "v(bn)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "i(egp)",
+            "v(g)",
+            "v(gp)",
+            "i(vbf)",
+            "i(vbn)",
+            "i(vbp)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vd4)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbf)", 0, -2.176730750274356e-9, 0.),
+            ("i(vbf)", 80, -2.176730750274356e-9, 0.),
+            ("i(vgs)", 0, -1.009999767397924e-12, 0.),
+            ("i(vd1)", 80, -4.796352806841470e-3, 0.),
+        ],
+    },
+    // A common-source stage with an active PMOS load: the input and the AC
+    // grounds are exact, and at 1 kHz the drain gain is a negative real
+    // -gm / (gds_n + gds_p) of about -3.6; the supply current is the PMOS
+    // output-conductance current gds_p v(drain) (its gate and source are AC
+    // ground).
+    Expectation {
+        fixture: "m10_mos3_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 36,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(pg)",
+            "i(vbias)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(gate)", 0, 1., 0.),
+            ("v(pg)", 0, 0., 0.),
+            ("v(drain)", 0, -3.624157146617256, 2.036276489396150e-5),
+            ("i(vdd)", 0, -1.304200572558852e-4, 2.619276876019919e-10),
+        ],
+    },
+    // At t = 0 the input is low; with NFS = 5e11 the off NMOS still leaks a
+    // weak-inversion current of about 46 uA, which the PMOS (in its linear
+    // region) supplies with a 35 mV drop below VDD. The input draws nothing.
+    Expectation {
+        fixture: "m10_mos3_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10033,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 3.265152494593047, 0.),
+            ("i(vdd)", 0, -4.628269539665508e-5, 0.),
+            ("i(vin)", 0, 0., 0.),
         ],
     },
     Expectation {

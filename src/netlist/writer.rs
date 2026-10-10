@@ -752,7 +752,7 @@ impl Writer {
         let count_ok = match designator {
             'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
-            'm' | 'e' | 'g' | 's' => count == 4,
+            'm' | 'e' | 'g' | 's' | 't' => count == 4,
             'j' | 'u' => count == 3,
             'x' => true,
             'k' => count == 0,
@@ -791,7 +791,7 @@ impl Writer {
             }
         }
         match (designator, &device.model) {
-            ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k', Some(_)) => {
+            ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k' | 't', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
             ('d' | 'q' | 'm' | 'x' | 's' | 'w' | 'j' | 'u', None) => {
@@ -820,6 +820,7 @@ impl Writer {
             'e' | 'f' | 'g' | 'h' => controlled_parameters(device, &mut parts)?,
             'k' => mutual_parameters(device, &mut parts)?,
             's' | 'w' => switch_parameters(setters, designator, &mut parts)?,
+            't' => tline_parameters(device, &mut parts)?,
             'u' => urc_parameters(device, &mut parts)?,
             'x' => {
                 for parameter in &device.parameters {
@@ -1132,6 +1133,44 @@ fn switch_parameters(
             ));
         }
         parts.push(parameter.name.clone());
+    }
+    Ok(())
+}
+
+/// T (`parser/tline.rs`): `TRApTable` scalars and the `ic` vector, in order.
+fn tline_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
+    const SCALARS: [&str; 11] = [
+        "z0", "zo", "td", "f", "nl", "v1", "v2", "i1", "i2", "rel", "abs",
+    ];
+    const IC: [&str; 4] = ["v1", "i1", "v2", "i2"];
+    for parameter in &device.parameters {
+        let location = &parameter.location;
+        match &parameter.kind {
+            ParameterKind::InitialConditions(components) if parameter.name == "ic" => {
+                if components.is_empty()
+                    || components.len() > IC.len()
+                    || components.iter().zip(IC).any(|(c, n)| c.name != n)
+                {
+                    return Err(refuse("malformed ic vector", Some(location)));
+                }
+                let mut texts = Vec::new();
+                for component in components {
+                    texts.push(positioned_number(&component.value, location)?);
+                }
+                parts.push(format!("ic=({})", texts.join(",")));
+            }
+            ParameterKind::Scalar | ParameterKind::Expression(_)
+                if SCALARS.contains(&parameter.name.as_str()) =>
+            {
+                parts.push(named_value(parameter, false)?);
+            }
+            _ => {
+                return Err(refuse(
+                    format!("parameter {:?} on 't' instance", parameter.name),
+                    Some(location),
+                ));
+            }
+        }
     }
     Ok(())
 }

@@ -51,6 +51,7 @@ mod scopes;
 mod structure;
 mod switch;
 mod syntax;
+mod tline;
 mod transistor;
 mod urc;
 mod vector;
