@@ -15,7 +15,8 @@ use crate::primitives::{
 /// Designators [`instantiate`] builds from the card alone (the registry's
 /// `ported` entries). `tests/registry_support.rs` elaborates one instance of
 /// every designator to keep this list and [`ELABORATED`] honest.
-pub(crate) const CARD_FACTORY: &[char] = &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k'];
+pub(crate) const CARD_FACTORY: &[char] =
+    &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k', 't'];
 
 /// Designators built only while elaborating a deck, with the subset built:
 /// D/Q/M/S/W from a resolved `.model` card ([`instantiate_with_models`]) and X
@@ -112,6 +113,9 @@ pub(crate) fn instantiate(
     }
     if instance.designator == 'k' {
         return crate::devices::mutual::instantiate(instance);
+    }
+    if instance.designator == 't' {
+        return crate::devices::tline::TransmissionLine::instantiate(instance, nodes);
     }
     // `a` instances only come from the front end's TABLE/POLY lowering
     // (crate::netlist::behavioural); user XSPICE cards are not parsed.

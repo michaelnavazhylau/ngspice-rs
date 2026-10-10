@@ -1466,6 +1466,24 @@ fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
 (error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
 orders 1-6, asserted within 0.75-1.35 times `2^k`).
 
+## M10 lossless transmission line (#84)
+
+Goldens `m10_tline_tran`, `m10_tline_pulse` and `m10_tline_ac`, captured once
+each with `cargo xtask golden capture --netlist <name>` (no existing golden
+recaptured, no tolerance changed). The transient decks set the lines'
+`rel=1e-3 abs=1e3` so that each line lands on the delayed corners of its waves;
+`Gate::Echoes` declares those instants (source corner `b` plus offsets derived
+by hand from the deck's `td` values and terminations, documented in the
+registry) as breakpoints that both plots must sample and that are never
+interpolated across. `golden verify`: `m10_tline_tran` 219 instants + 44
+breakpoint limits, `m10_tline_pulse` 271 instants + 100 limits, both worst
+error 0.000 of `compare::TRAN`; `m10_tline_ac` 101 points under `compare::AC`.
+The C and Rust transients have identical point counts (314 and 1018) and agree
+to about 1e-15 V. Internal line nodes (`t1#i1`, `t1#i2`, `t1#int1`,
+`t1#int2`) are compared, since C saves them. Analytic, infrastructure and
+opt-in live-C coverage is listed in
+[TRANSMISSION_LINES.md](TRANSMISSION_LINES.md#verification).
+
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity

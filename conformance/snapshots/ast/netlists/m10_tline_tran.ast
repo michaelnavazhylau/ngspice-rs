@@ -1,0 +1,71 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_tline_tran.cir
+title: "Lossless transmission lines, matched and mismatched transient" @netlists/m10_tline_tran.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m10_tline_tran.cir:9:1 "v1 in 0 pwl(0 0 1n 0 1.5n 1 6n 1 6.5n 0)"
+    [1] device[1] @netlists/m10_tline_tran.cir:10:1 "rs1 in a 50"
+    [2] device[2] @netlists/m10_tline_tran.cir:11:1 "t1 a 0 b 0 z0=50 td=2n rel=1e-3 abs=1e3"
+    [3] device[3] @netlists/m10_tline_tran.cir:12:1 "rl1 b 0 50"
+    [4] device[4] @netlists/m10_tline_tran.cir:13:1 "rs2 in c 25"
+    [5] device[5] @netlists/m10_tline_tran.cir:14:1 "t2 c 0 d 0 z0=50 td=1n rel=1e-3 abs=1e3"
+    [6] device[6] @netlists/m10_tline_tran.cir:15:1 "rl2 d 0 200"
+    [7] analysis[0] @netlists/m10_tline_tran.cir:16:1 ".tran 0.05n 12n"
+    [8] end @netlists/m10_tline_tran.cir:17:1 ".end"
+  devices (7):
+    device [0] name="v1" designator=v @netlists/m10_tline_tran.cir:9:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pwl" kind=waveform value="(0 0 1n 0 1.5n 1 6n 1 6.5n 0)" @netlists/m10_tline_tran.cir:9:9
+          pwl
+            point [0] time="0"@netlists/m10_tline_tran.cir:9:13 value="0"@netlists/m10_tline_tran.cir:9:15
+            point [1] time="1n"@netlists/m10_tline_tran.cir:9:17 value="0"@netlists/m10_tline_tran.cir:9:20
+            point [2] time="1.5n"@netlists/m10_tline_tran.cir:9:22 value="1"@netlists/m10_tline_tran.cir:9:27
+            point [3] time="6n"@netlists/m10_tline_tran.cir:9:29 value="1"@netlists/m10_tline_tran.cir:9:32
+            point [4] time="6.5n"@netlists/m10_tline_tran.cir:9:34 value="0"@netlists/m10_tline_tran.cir:9:39
+    device [1] name="rs1" designator=r @netlists/m10_tline_tran.cir:10:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_tline_tran.cir:10:10
+    device [2] name="t1" designator=t @netlists/m10_tline_tran.cir:11:1
+      nodes: "a" "0" "b" "0"
+      model: none
+      parameters (4):
+        [0] name="z0" kind=scalar value="50" @netlists/m10_tline_tran.cir:11:12
+        [1] name="td" kind=scalar value="2n" @netlists/m10_tline_tran.cir:11:18
+        [2] name="rel" kind=scalar value="1e-3" @netlists/m10_tline_tran.cir:11:24
+        [3] name="abs" kind=scalar value="1e3" @netlists/m10_tline_tran.cir:11:33
+    device [3] name="rl1" designator=r @netlists/m10_tline_tran.cir:12:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_tline_tran.cir:12:9
+    device [4] name="rs2" designator=r @netlists/m10_tline_tran.cir:13:1
+      nodes: "in" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="25" @netlists/m10_tline_tran.cir:13:10
+    device [5] name="t2" designator=t @netlists/m10_tline_tran.cir:14:1
+      nodes: "c" "0" "d" "0"
+      model: none
+      parameters (4):
+        [0] name="z0" kind=scalar value="50" @netlists/m10_tline_tran.cir:14:12
+        [1] name="td" kind=scalar value="1n" @netlists/m10_tline_tran.cir:14:18
+        [2] name="rel" kind=scalar value="1e-3" @netlists/m10_tline_tran.cir:14:24
+        [3] name="abs" kind=scalar value="1e3" @netlists/m10_tline_tran.cir:14:33
+    device [6] name="rl2" designator=r @netlists/m10_tline_tran.cir:15:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="200" @netlists/m10_tline_tran.cir:15:9
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_tline_tran.cir:16:1
+      arguments: "0.05n" "12n"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

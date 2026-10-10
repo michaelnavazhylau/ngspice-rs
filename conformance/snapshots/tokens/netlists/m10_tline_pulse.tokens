@@ -1,0 +1,106 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_tline_pulse.cir
+title: "Breakpoint propagation through transmission lines, periodic pulse" @netlists/m10_tline_pulse.cir:1:1
+card 1 @netlists/m10_tline_pulse.cir:10:1 lines=10-10 continuations=0
+  raw: "v1 in 0 pulse(0 1 0.5n 0.2n 0.2n 1n 5n)"
+  kind: device(v)
+  token 1 10:1 word "v1"
+  token 2 10:4 word "in"
+  token 3 10:7 number "0" value=0e0
+  token 4 10:9 word "pulse"
+  token 5 10:14 lparen "("
+  token 6 10:15 number "0" value=0e0
+  token 7 10:17 number "1" value=1e0
+  token 8 10:19 number "0.5n" value=5e-10
+  token 9 10:24 number "0.2n" value=2.0000000000000003e-10
+  token 10 10:29 number "0.2n" value=2.0000000000000003e-10
+  token 11 10:34 number "1n" value=1e-9
+  token 12 10:37 number "5n" value=5e-9
+  token 13 10:39 rparen ")"
+card 2 @netlists/m10_tline_pulse.cir:11:1 lines=11-11 continuations=0
+  raw: "rs in a 50"
+  kind: device(r)
+  token 1 11:1 word "rs"
+  token 2 11:4 word "in"
+  token 3 11:7 word "a"
+  token 4 11:9 number "50" value=5e1
+card 3 @netlists/m10_tline_pulse.cir:12:1 lines=12-12 continuations=0
+  raw: "t1 a 0 b 0 z0=50 td=1.25n rel=1e-3 abs=1e3"
+  kind: device(t)
+  token 1 12:1 word "t1"
+  token 2 12:4 word "a"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 word "b"
+  token 5 12:10 number "0" value=0e0
+  token 6 12:12 word "z0"
+  token 7 12:14 equals "="
+  token 8 12:15 number "50" value=5e1
+  token 9 12:18 word "td"
+  token 10 12:20 equals "="
+  token 11 12:21 number "1.25n" value=1.25e-9
+  token 12 12:27 word "rel"
+  token 13 12:30 equals "="
+  token 14 12:31 number "1e-3" value=1e-3
+  token 15 12:36 word "abs"
+  token 16 12:39 equals "="
+  token 17 12:40 number "1e3" value=1e3
+card 4 @netlists/m10_tline_pulse.cir:13:1 lines=13-13 continuations=0
+  raw: "rl b 0 50"
+  kind: device(r)
+  token 1 13:1 word "rl"
+  token 2 13:4 word "b"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "50" value=5e1
+card 5 @netlists/m10_tline_pulse.cir:14:1 lines=14-14 continuations=0
+  raw: "e1 c 0 b 0 2"
+  kind: device(e)
+  token 1 14:1 word "e1"
+  token 2 14:4 word "c"
+  token 3 14:6 number "0" value=0e0
+  token 4 14:8 word "b"
+  token 5 14:10 number "0" value=0e0
+  token 6 14:12 number "2" value=2e0
+card 6 @netlists/m10_tline_pulse.cir:15:1 lines=15-15 continuations=0
+  raw: "rs2 c d 50"
+  kind: device(r)
+  token 1 15:1 word "rs2"
+  token 2 15:5 word "c"
+  token 3 15:7 word "d"
+  token 4 15:9 number "50" value=5e1
+card 7 @netlists/m10_tline_pulse.cir:16:1 lines=16-16 continuations=0
+  raw: "t2 d 0 e 0 z0=50 td=0.75n rel=1e-3 abs=1e3"
+  kind: device(t)
+  token 1 16:1 word "t2"
+  token 2 16:4 word "d"
+  token 3 16:6 number "0" value=0e0
+  token 4 16:8 word "e"
+  token 5 16:10 number "0" value=0e0
+  token 6 16:12 word "z0"
+  token 7 16:14 equals "="
+  token 8 16:15 number "50" value=5e1
+  token 9 16:18 word "td"
+  token 10 16:20 equals "="
+  token 11 16:21 number "0.75n" value=7.500000000000001e-10
+  token 12 16:27 word "rel"
+  token 13 16:30 equals "="
+  token 14 16:31 number "1e-3" value=1e-3
+  token 15 16:36 word "abs"
+  token 16 16:39 equals "="
+  token 17 16:40 number "1e3" value=1e3
+card 8 @netlists/m10_tline_pulse.cir:17:1 lines=17-17 continuations=0
+  raw: "ro e 0 1meg"
+  kind: device(r)
+  token 1 17:1 word "ro"
+  token 2 17:4 word "e"
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 number "1meg" value=1e6
+card 9 @netlists/m10_tline_pulse.cir:18:1 lines=18-18 continuations=0
+  raw: ".tran 0.05n 16n"
+  kind: dot(.tran)
+  token 1 18:1 word ".tran"
+  token 2 18:7 number "0.05n" value=5.000000000000001e-11
+  token 3 18:13 number "16n" value=1.6e-8
+card 10 @netlists/m10_tline_pulse.cir:19:1 lines=19-19 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 19:1 word ".end"

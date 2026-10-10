@@ -392,6 +392,27 @@ pub(crate) fn breakpoints(netlist: &Netlist, tstep: f64, tstop: f64) -> Result<V
     Ok(times)
 }
 
+/// `breakpoints` plus `b + offset` for every breakpoint `b` and offset (the
+/// echoes of a transmission-line deck, see `verify::Gate::Echoes`), inside
+/// `(0, tstop)`, sorted and deduplicated like [`breakpoints`].
+pub(crate) fn echoes(breakpoints: &[f64], offsets: &[f64], tstop: f64) -> Result<Vec<f64>, String> {
+    if offsets.iter().any(|o| !(o.is_finite() && *o > 0.0)) {
+        return Err("echo offsets must be finite and positive".into());
+    }
+    let eps = TIME_EPS_REL * tstop;
+    let mut times = breakpoints.to_vec();
+    for b in breakpoints {
+        times.extend(offsets.iter().map(|o| b + o));
+    }
+    if times.len() > MAX_POINTS {
+        return Err("too many echo breakpoints".into());
+    }
+    times.retain(|&t| t > eps && t < tstop - eps);
+    times.sort_by(f64::total_cmp);
+    times.dedup_by(|b, a| (*b - *a).abs() <= eps);
+    Ok(times)
+}
+
 /// Whether a subcircuit body, or one nested in it, defines a V/I source with a
 /// waveform setter.
 fn has_waveform_source(subcircuit: &Subcircuit) -> bool {
@@ -574,6 +595,14 @@ mod tests {
             }
         }
         plot(&rows)
+    }
+
+    #[test]
+    fn echoes_extend_breakpoints_inside_the_run() {
+        let echoed = echoes(&[1.0, 2.5], &[1.0, 1.5], 4.0).unwrap();
+        assert_eq!(echoed, vec![1.0, 2.0, 2.5, 3.5]);
+        assert!(echoes(&[1.0], &[0.0], 4.0).is_err());
+        assert!(echoes(&[1.0], &[f64::NAN], 4.0).is_err());
     }
 
     #[test]

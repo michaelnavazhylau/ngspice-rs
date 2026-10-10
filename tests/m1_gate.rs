@@ -285,6 +285,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M8 sensitivity decks (#102) are gated by `xtask golden verify`,
     // `tests/sensitivity_analysis.rs` and the opt-in `tests/c_sens_reference.rs`.
     on_disk.retain(|name| !name.starts_with("sens_"));
+    // M10 transmission-line decks (#84) are gated by `xtask golden verify`,
+    // `tests/tline.rs` and the opt-in `tests/c_tline_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_tline_"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

@@ -320,3 +320,13 @@ The package is ready to publish; the release path is not.
 All six M9 implementation slices are delivered with the bounded interfaces and
 explicit unsupported cases documented in CLI.md, OUTPUT_SELECTION.md,
 MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.
+
+## M10 — Extended device library (see [M10.md](docs/port/M10.md))
+
+- [x] Lossless transmission line `T` (#84, slice 3, `work/m10-tline`): `inp2t.c`
+  grammar, DC wire, exact AC `exp(-j omega TD)` (also `.sp`), companion
+  transient with an accepted-point delay history, device-driven breakpoints and
+  the `tratrunc.c` step bound (generic `devices::delay` infrastructure, ADR in
+  TRANSIENT.md); C goldens `m10_tline_{tran,ac,pulse}`. Explicit errors:
+  diffsol BDF, `uic` with a line, `.pz`, `.noise`, `.disto`, `.sens`. See
+  [TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md).

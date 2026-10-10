@@ -10,8 +10,9 @@
 //! designator lists (`factory::CARD_FACTORY`, `factory::ELABORATED`), so the table cannot claim more or less than
 //! the factories build:
 //!
-//! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural and K (mutual
-//!   inductance), built from the card alone by [`Registry::instantiate`];
+//! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural, K (mutual
+//!   inductance) and T (lossless transmission line), built from the card
+//!   alone by [`Registry::instantiate`];
 //! - **bounded**: D/Q/M (diode, Gummel-Poon BJT, MOS1), S/W switches and X
 //!   subcircuit instances, which need the deck (a `.model` card or a
 //!   `.subckt` definition) and are built by [`crate::devices::Circuit::from_netlist`]
@@ -416,7 +417,7 @@ mod tests {
         for (designator, _, _) in super::BUILTINS {
             assert!(registry.contains(*designator), "missing {designator}");
         }
-        assert_eq!(registry.ported_count(), 11);
+        assert_eq!(registry.ported_count(), 12);
         assert_eq!(registry.bounded_count(), 6);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
@@ -550,7 +551,7 @@ mod tests {
             factory,
         });
         assert!(replaced.is_some_and(|entry| entry.support == DeviceSupport::Ported));
-        assert_eq!(registry.ported_count(), 11);
+        assert_eq!(registry.ported_count(), 12);
         let mut nodes = crate::primitives::NodeTable::new();
         assert_eq!(
             registry
