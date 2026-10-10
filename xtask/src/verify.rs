@@ -191,6 +191,30 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m10_mos3_tran", &[]),
+    // MOS level 2 on the shared MOS shell (#89): Grove-Frohman and Baum
+    // saturation, weak inversion, mobility degradation, channel-length
+    // modulation and temperature (DC, tightened RELTOL as for MOS1/MOS3),
+    // the small-signal stage at 75 C, and a CMOS inverter with a bounded
+    // maximum step (transient).
+    Supported {
+        name: "m10_mos2_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos2_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos2_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,

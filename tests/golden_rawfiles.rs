@@ -1289,6 +1289,91 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vin)", 0, 0., 0.),
         ],
     },
+    // MOS2 (#89). The forward bulk-source junction of m5 (VBF = 0.3 V, M = 2)
+    // and its reverse drain junction (vbd = -2.7 V) do not depend on the gate:
+    // with mos2load.c's constant reverse law (unlike MOS3's cubic term)
+    // i(vbf) = -(2 IS (exp(0.3/Vt) - 1) + 0.3 gmin - 2 IS - 2.7 gmin), i.e.
+    // -2.1767307502507e-9 A at both ends of the sweep. At vgs = 0 the
+    // diode-connected m6 conducts nothing and the gate source only feeds its
+    // reverse drain junction at -1 V: exactly IS + gmin = 1.01e-12 A.
+    Expectation {
+        fixture: "m10_mos2_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &[
+            "v(v-sweep)",
+            "v(bf)",
+            "v(bn)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "i(egp)",
+            "v(g)",
+            "v(gp)",
+            "i(vbf)",
+            "i(vbn)",
+            "i(vbp)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vd4)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbf)", 0, -2.176730750250723e-9, 0.),
+            ("i(vbf)", 80, -2.176730750250723e-9, 0.),
+            ("i(vgs)", 0, -1.01e-12, 0.),
+            ("i(vd1)", 80, -2.110833970307553e-3, 0.),
+        ],
+    },
+    // A common-source stage with an active PMOS load, biased with both
+    // devices saturated: the input and the AC grounds are exact, and at
+    // 1 kHz the drain gain is a nearly real -gm / (gds_n + gds_p) of about
+    // -34; the supply current is the PMOS output-conductance current.
+    Expectation {
+        fixture: "m10_mos2_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 36,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(pg)",
+            "i(vbias)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(gate)", 0, 1., 0.),
+            ("v(pg)", 0, 0., 0.),
+            ("v(drain)", 0, -3.404835747607623e1, 5.124692484175040e-3),
+            ("i(vdd)", 0, -7.106415940587599e-5, 5.271268991673498e-9),
+        ],
+    },
+    // At t = 0 the input is low and the NMOS is off: the output sits 4 nV
+    // below VDD and the supply delivers about 5 pA, essentially gmin across
+    // the 5 V reverse drain junction of the NMOS. The input draws nothing.
+    Expectation {
+        fixture: "m10_mos2_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10042,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 4.999999995844477, 0.),
+            ("i(vdd)", 0, -5.001075616512571e-12, 0.),
+            ("i(vin)", 0, 0., 0.),
+        ],
+    },
     Expectation {
         fixture: "mos_inverter",
         plotname: "Operating Point",

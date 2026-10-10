@@ -210,6 +210,28 @@ cl drain 0 1p
     );
 }
 
+/// MOS2 (#89): `mos2pzld.c` is the AC load with `s` for `j omega`, Meyer
+/// and overlap capacitances over `L - 2 LD` and the drawn width, junction
+/// charges.
+#[test]
+#[ignore = "needs NGSPICE_BIN (absolute path to the C ngspice binary)"]
+fn a_mos2_stage_matches_c() {
+    check(
+        "mos2",
+        "vdd vdd 0 5
+vin gate 0 dc 1.4 ac 1
+rs gate g 1k
+rd vdd drain 10k
+cl drain 0 1p
+         m1 drain g 0 0 mm w=10u l=2u ad=20p as=20p pd=24u ps=24u
+         .model mm nmos(level=2 vto=0.8 tox=20n nsub=1e16 xj=0.2u vmax=5e4 ucrit=2e4 uexp=0.1
+         + delta=0.3 ld=0.1u cj=0.4m cjsw=0.3n cgso=4e-10 cgdo=3e-10 cgbo=2e-10)
+         .options reltol=1e-7
+.pz g 0 drain 0 vol pz
+",
+    );
+}
+
 #[test]
 #[ignore = "needs NGSPICE_BIN (absolute path to the C ngspice binary)"]
 fn c_negates_the_ccvs_gain_in_its_pole_zero_load() {

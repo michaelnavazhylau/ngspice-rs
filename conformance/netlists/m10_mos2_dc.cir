@@ -1,0 +1,29 @@
+MOS2 DC: Grove-Frohman saturation, weak inversion, Baum velocity saturation, CLM, temperature
+vgs g 0 0
+vd1 d1 0 3
+vd2 d2 0 0.1
+vd4 d4 0 -0.5
+vbn bn 0 -1
+vbf bf 0 0.3
+vbp bp 0 -0.4
+egp gp 0 g 0 -1
+m1 d1 g 0 bn mfull w=10u l=2u
+m2 d2 g 0 0 mclm w=10u l=1.5u
+m3 d3 gp 0 bp mp w=20u l=2u temp=60 nrd=2 nrs=2
+m4 d4 g 0 0 mfull w=10u l=2u
+m5 d1 g 0 bf mfull w=4u l=3u m=2
+m6 g g 0 bn mvsat w=5u l=1.2u
+m7 d1 g 0 bn mplain w=6u l=2u
+vd3 d3 0 -2.5
+.model mfull nmos(level=2 vto=0.7 tox=25n nsub=1e16 xj=0.3u ld=0.1u uo=550 ucrit=2e4
++ uexp=0.15 vmax=5e4 neff=2 nfs=2e11 delta=0.6 gamma=0.6 phi=0.7)
+.model mclm nmos(level=2 tox=30n nsub=2e16 tpg=1 nss=1e10 xj=0.4u u0=500 ucrit=1.5e4
++ uexp=0.1 delta=0.3 tnom=20)
+.model mp pmos(level=2 vto=-0.8 tox=25n nsub=1.5e16 xj=0.3u ld=0.08u u0=220 ucrit=3e4
++ uexp=0.2 vmax=4e4 nfs=1e11 lambda=0.03 rd=20 rsh=15)
+.model mvsat nmos(level=2 vto=0.6 kp=60u gamma=0.4 phi=0.65 tox=20n vmax=6e4 neff=1.5
++ xj=0.25u nsub=3e16)
+.model mplain nmos(level=2 vto=0.8 kp=40u gamma=0.5 phi=0.6 lambda=0.02 delta=0.4 ucrit=1e4 uexp=0.1)
+.options reltol=1e-7 vntol=1e-12 abstol=1e-18
+.dc vgs 0 4 0.05
+.end
