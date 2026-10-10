@@ -12,7 +12,7 @@
 //!
 //! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural and K (mutual
 //!   inductance), built from the card alone by [`Registry::instantiate`];
-//! - **bounded**: D/Q/M (diode, Gummel-Poon BJT, MOS1), S/W switches and X
+//! - **bounded**: D/Q/M (diode, Gummel-Poon BJT, MOS1/MOS3), S/W switches and X
 //!   subcircuit instances, which need the deck (a `.model` card or a
 //!   `.subckt` definition) and are built by [`crate::devices::Circuit::from_netlist`]
 //!   for a documented subset of C's models;

@@ -385,6 +385,9 @@ impl Temperatures {
 pub(super) enum ReverseLaw {
     /// `mos1load.c`: the constant reverse saturation current `-Is`.
     Constant,
+    /// `mos3load.c`: `-Is (1 + (3 Vt / (v e))^3)` with its derivative, which
+    /// joins the forward law with continuous value and slope.
+    Cubic,
 }
 
 /// One side's bulk junction: zero-bias bottom/sidewall capacitances at the
@@ -458,6 +461,14 @@ impl Junction {
         let (current, conductance) = if normalized <= -3. * vt {
             match self.reverse {
                 ReverseLaw::Constant => (-self.saturation, 0.),
+                ReverseLaw::Cubic => {
+                    let arg = 3. * vt / (normalized * std::f64::consts::E);
+                    let arg = arg * arg * arg;
+                    (
+                        -self.saturation * (1. + arg),
+                        self.saturation * 3. * arg / normalized,
+                    )
+                }
             }
         } else {
             let e = (normalized / vt).min(MAX_EXP_ARG).exp();
@@ -509,6 +520,19 @@ pub(super) struct DrainCurrent {
     pub(super) gmbs: Real,
     pub(super) von: Real,
     pub(super) vdsat: Real,
+}
+
+/// The level-specific inputs of [`Mosfet::classic_noise`].
+#[derive(Debug, Clone, Copy)]
+pub(super) struct NoiseShape {
+    /// C's device type, for the `.noise` visiting order.
+    pub(super) family: crate::devices::noise::NoiseFamily,
+    /// The NLEV 3 channel-noise `beta`.
+    pub(super) beta: Real,
+    /// Width, length and oxide capacitance per area of the flicker laws.
+    pub(super) width: Real,
+    pub(super) length: Real,
+    pub(super) cox: Real,
 }
 
 /// What a MOS level supplies to the shared shell. See the module
@@ -940,6 +964,96 @@ impl<L: MosLevel> Mosfet<L> {
         } else {
             [vbs, vgs, vds].map(|v| v.unwrap_or(0.))
         }
+    }
+
+    /// The `mos1noi.c`/`mos3noi.c` generators at the operating point: RD/RS
+    /// thermal noise and the channel thermal noise `Sid` at the instance
+    /// temperature, and the flicker law of NLEV between the internal drain
+    /// and source. NLEV < 3 uses `Sid = 2/3 abs(gm)`; NLEV 3 the
+    /// `GDSNOI`-scaled region formula with the level's `beta`. Flicker: NLEV 0
+    /// `m KF abs(cd/m)^AF / (f L^2 Cox)`, NLEV 1 `m KF abs(cd/m)^AF / (f W L
+    /// Cox)`, NLEV 2/3 `KF gm^2 / m / (f^AF W L Cox)`, with `cd` C's `MOSxcd`
+    /// (channel current in the device frame minus the bulk-drain junction
+    /// current) and the level's noise `W`, `L` and `Cox` ([`NoiseShape`]).
+    pub(super) fn classic_noise(
+        &self,
+        context: &crate::devices::noise::NoiseContext<'_>,
+        shape: impl FnOnce(&Operating<L::Params>) -> NoiseShape,
+    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
+        use crate::devices::noise::{DeviceNoise, NoiseKind, NoiseSource};
+        let (common, geometry) = (self.model.common(), &self.geometry);
+        let op = self.operating(context.model_context)?;
+        let v = self.inner.map(|node| context.voltage(node));
+        let point = self.point(&op, v, context.model_context.gmin)?;
+        let channel = point.channel;
+        let pol = common.pol;
+        let shape = shape(&op);
+        let gm = channel.partials[1].1;
+        let sid = if common.nlev < 3 {
+            2.0 / 3.0 * gm.abs()
+        } else {
+            let (vd, vs) = if channel.normal {
+                (v[0], v[2])
+            } else {
+                (v[2], v[0])
+            };
+            let vds = pol * (vd - vs);
+            let vgst = pol * (v[1] - vs) - channel.von;
+            if vgst > 0. {
+                let alpha = if vgst <= vds {
+                    0.
+                } else {
+                    1. - vds / channel.vdsat
+                };
+                2.0 / 3.0 * shape.beta * vgst * (1. + alpha + alpha * alpha) / (1. + alpha)
+                    * common.gdsnoi
+            } else {
+                0.
+            }
+        };
+        let mode = if channel.normal { 1. } else { -1. };
+        let cd = mode * (pol * channel.current) - pol * point.bd.current;
+        let cox = shape.cox;
+        let m = geometry.m;
+        let (width, length) = (shape.width, shape.length);
+        let (kf, af) = (common.kf, common.af);
+        let current_law = || m * kf * (af * (cd / m).abs().max(1e-38).ln()).exp();
+        let (coefficient, exponent) = if context.model_context.spice3_noise {
+            (current_law() / (width * length * cox * cox), 1.)
+        } else {
+            match common.nlev {
+                0 => (current_law() / (length * length * cox), 1.),
+                1 => (current_law() / (width * length * cox), 1.),
+                _ => (kf * gm * gm / m / (width * length * cox), af),
+            }
+        };
+        let temperature = geometry
+            .temp
+            .unwrap_or(context.model_context.temperature + geometry.dtemp)
+            + CELSIUS_TO_KELVIN;
+        let [d, _, s, _] = self.inner;
+        let thermal = |conductance: Real| NoiseKind::Thermal {
+            conductance,
+            temperature,
+        };
+        Ok(DeviceNoise::Sources {
+            family: shape.family,
+            model: Some(self.model_name.clone()),
+            total: true,
+            sources: vec![
+                NoiseSource::new("_rd", [d, self.terminals[0]], thermal(self.series[0])),
+                NoiseSource::new("_rs", [s, self.terminals[2]], thermal(self.series[1])),
+                NoiseSource::new("_id", [d, s], thermal(sid)),
+                NoiseSource::new(
+                    "_1overf",
+                    [d, s],
+                    NoiseKind::Flicker {
+                        coefficient,
+                        exponent,
+                    },
+                ),
+            ],
+        })
     }
 
     /// Nodes of the drain/source series resistors and the gate charges.
@@ -1385,6 +1499,31 @@ mod tests {
             let (below, above) = (j.charge(edge - 1e-12), j.charge(edge));
             assert!((below.0 - above.0).abs() <= 1e-9 * above.0.abs());
             assert!((below.1 - above.1).abs() <= 1e-9 * above.1);
+        }
+    }
+
+    #[test]
+    fn cubic_reverse_law_is_continuous_and_differentiable_at_minus_three_vt() {
+        let mut j = junction(0., 0., 0.5, 0.5);
+        j.reverse = ReverseLaw::Cubic;
+        let vt = 0.025852;
+        let edge = -3. * vt;
+        for pol in [1., -1.] {
+            let (below, above) = (
+                j.point(pol * (edge - 1e-12), pol, vt, 0.).unwrap(),
+                j.point(pol * (edge + 1e-12), pol, vt, 0.).unwrap(),
+            );
+            assert!((below.current - above.current).abs() <= 1e-9 * j.saturation);
+            assert!((below.conductance - above.conductance).abs() <= 1e-6 * above.conductance);
+        }
+        // The conductance is the current's derivative deep in reverse bias.
+        for v in [-0.1, -0.5, -3.] {
+            let h = 1e-4;
+            let g = j.point(v, 1., vt, 0.).unwrap().conductance;
+            let numerical = (j.point(v + h, 1., vt, 0.).unwrap().current
+                - j.point(v - h, 1., vt, 0.).unwrap().current)
+                / (2. * h);
+            assert!((numerical - g).abs() <= 1e-5 * g, "{v}: {numerical} {g}");
         }
     }
 

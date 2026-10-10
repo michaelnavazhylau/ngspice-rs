@@ -49,14 +49,14 @@ mod disto;
 
 use crate::devices::ResolvedModel;
 use crate::devices::mos::{
-    Common, DrainCurrent, EPSILON_0, Geometry, MosLevel, Mosfet, Operating, ReverseLaw,
+    Common, DrainCurrent, EPSILON_0, Geometry, MosLevel, Mosfet, NoiseShape, Operating, ReverseLaw,
     Temperatures, aliased, p, required,
 };
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
-use crate::devices::{ModelContext, mos::CELSIUS_TO_KELVIN, mos::CHARGE, mos::K_OVER_Q};
+use crate::devices::{ModelContext, mos::CHARGE, mos::K_OVER_Q};
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
 /// Intrinsic carrier density of silicon used by `mos1temp.c` (m^-3).
@@ -373,90 +373,21 @@ impl MosLevel for Level1 {
         device.distortion_terms(context)
     }
 
-    /// `mos1noi.c` at the operating point: RD/RS thermal noise and the
-    /// channel thermal noise `Sid` at the instance temperature, and the
-    /// flicker law of NLEV between the internal drain and source. NLEV < 3
-    /// uses `Sid = 2/3 abs(gm)`; NLEV 3 the `GDSNOI`-scaled region formula.
-    /// Flicker: NLEV 0 `m KF abs(cd/m)^AF / (f Leff^2 Cox)`, NLEV 1
-    /// `m KF abs(cd/m)^AF / (f W Leff Cox)`, NLEV 2/3
-    /// `KF gm^2 / m / (f^AF W Leff Cox)`, with `cd` C's `MOS1cd` (channel
-    /// current in the device frame minus the bulk-drain junction current) and
+    /// `mos1noi.c` at the operating point ([`Mosfet::classic_noise`]): the
+    /// NLEV 3 `beta` is the load's, the flicker laws use `W`, `L - 2 LD` and
     /// `Cox` taken for `TOX = 1e-7 m` when the model has no oxide capacitance.
     fn noise(device: &Mos1, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
-        let (model, geometry) = (&device.model, &device.geometry);
-        let op = device.operating(context.model_context)?;
-        let v = device.inner.map(|node| context.voltage(node));
-        let point = device.point(&op, v, context.model_context.gmin)?;
-        let channel = point.channel;
-        let pol = model.common.pol;
-        let gm = channel.partials[1].1;
-        let sid = if model.common.nlev < 3 {
-            2.0 / 3.0 * gm.abs()
-        } else {
-            let (vd, vs) = if channel.normal {
-                (v[0], v[2])
-            } else {
-                (v[2], v[0])
-            };
-            let vds = pol * (vd - vs);
-            let vgst = pol * (v[1] - vs) - channel.von;
-            if vgst > 0. {
-                let alpha = if vgst <= vds {
-                    0.
-                } else {
-                    1. - vds / channel.vdsat
-                };
-                2.0 / 3.0 * op.params.beta * vgst * (1. + alpha + alpha * alpha) / (1. + alpha)
-                    * model.common.gdsnoi
-            } else {
-                0.
-            }
-        };
-        let mode = if channel.normal { 1. } else { -1. };
-        let cd = mode * (pol * channel.current) - pol * point.bd.current;
-        let cox = match model.tox.filter(|tox| *tox != 0.) {
-            Some(tox) => 3.9 * EPSILON_0 / tox,
-            None => 3.9 * 8.854214871e-12 / 1e-7,
-        };
-        let m = geometry.m;
-        let length = model.length(geometry);
-        let (kf, af) = (model.common.kf, model.common.af);
-        let current_law = || m * kf * (af * (cd / m).abs().max(1e-38).ln()).exp();
-        let (coefficient, exponent) = if context.model_context.spice3_noise {
-            (current_law() / (geometry.w * length * cox * cox), 1.)
-        } else {
-            match model.common.nlev {
-                0 => (current_law() / (length * length * cox), 1.),
-                1 => (current_law() / (geometry.w * length * cox), 1.),
-                _ => (kf * gm * gm / m / (geometry.w * length * cox), af),
-            }
-        };
-        let temperature = geometry
-            .temp
-            .unwrap_or(context.model_context.temperature + geometry.dtemp)
-            + CELSIUS_TO_KELVIN;
-        let [d, _, s, _] = device.inner;
-        let thermal = |conductance: Real| NoiseKind::Thermal {
-            conductance,
-            temperature,
-        };
-        Ok(DeviceNoise::Sources {
+        let model = &device.model;
+        let geometry = &device.geometry;
+        device.classic_noise(context, |op| NoiseShape {
             family: NoiseFamily::Mos1,
-            model: Some(device.model_name.clone()),
-            total: true,
-            sources: vec![
-                NoiseSource::new("_rd", [d, device.terminals[0]], thermal(device.series[0])),
-                NoiseSource::new("_rs", [s, device.terminals[2]], thermal(device.series[1])),
-                NoiseSource::new("_id", [d, s], thermal(sid)),
-                NoiseSource::new(
-                    "_1overf",
-                    [d, s],
-                    NoiseKind::Flicker {
-                        coefficient,
-                        exponent,
-                    },
-                ),
-            ],
+            beta: op.params.beta,
+            width: geometry.w,
+            length: model.length(geometry),
+            cox: match model.tox.filter(|tox| *tox != 0.) {
+                Some(tox) => 3.9 * EPSILON_0 / tox,
+                None => 3.9 * 8.854214871e-12 / 1e-7,
+            },
         })
     }
 }

@@ -90,7 +90,7 @@ unsafe-cast cases instead of silently changing the input.
 | Family | Backend selection | Initial supported level policy |
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
-| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 only (1); other selectors fail |
+| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1) and MOS3 (3); other selectors fail naming the C directory `inpdomod.c` selects (`mos2/`, `mos6/`, `mos9/`, `bsim3/`, ...) |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
 | `res`, `c`, `l` | C fixes backend 1 without scanning level | Bounded Rust contract requires first explicit level to round to 1 |
 | `d` | C fixes backend 1 without scanning level | Last ordered integer setter applies; only final applied level 1 supported |
@@ -104,6 +104,18 @@ is explicit in `LevelSelection::{first_raw,selector,applied}`. C would ignore so
 passive level values that Rust conservatively rejects. Unsupported levels return
 located errors with C references; recognition of classic BJT/MOS1 does not
 make their factories available.
+
+MOS level schemas are owned by the level modules on the shared
+`devices::mos` shell (M10, #89): `devices::mos1::MODEL` and
+`devices::mos3::MODEL` are allowlists of C's `MOSxmParam` setters with
+`mosXset.c` defaults; setters whose presence changes C's derivations
+(`VTO`, `KP`, `GAMMA`, `PHI`, `NSUB`, `TPG`, `NSS`, `CJ`, `CJSW`, `CBD`, `CBS`,
+`RD`, `RS`, `RSH`, `TNOM`, `U0`) have no schema default, aliases (`VT0`,
+`UO`, MOS3 `DELVT0`) apply last-set-wins, and every other keyword is
+rejected. MOS3 adds `XL`, `WD`, `XW`, `DELVTO`, `VMAX`, `XJ`, `NFS`, `ETA`,
+`DELTA`, `THETA`, `KAPPA` (default 0.2), defaults `TOX` to 1e-7 m and `MJSW`
+to 0.33, and has no `LAMBDA`; `XD`, `ALPHA` and `INPUT_DELTA`, listed in
+`MOS3mPTable` but without a `MOS3mParam` case, are rejected.
 
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.

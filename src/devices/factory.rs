@@ -23,7 +23,7 @@ pub(crate) const CARD_FACTORY: &[char] = &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g
 pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('d', "junction diode (dioload.c subset)"),
     ('q', "Gummel-Poon BJT level 1 (bjtload.c)"),
-    ('m', "MOS1 (level 1)"),
+    ('m', "MOS1 and MOS3 (levels 1 and 3)"),
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
     ('x', "expanded before device elaboration"),
@@ -72,7 +72,13 @@ pub(crate) fn instantiate_with_models(
             }
             crate::devices::models::ModelFamily::Nmos
             | crate::devices::models::ModelFamily::Pmos => {
-                return crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context);
+                // `inpdomod.c`: the level selects the C device; the resolver
+                // admits only the ported levels.
+                return if model.levels().selector == 3 {
+                    crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)
+                } else {
+                    crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context)
+                };
             }
             crate::devices::models::ModelFamily::Switch
             | crate::devices::models::ModelFamily::CurrentSwitch => {

@@ -157,6 +157,29 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // MOS level 3 on the shared MOS shell (#89): short-channel threshold,
+    // weak inversion, velocity saturation, channel-length modulation and
+    // temperature (DC, tightened RELTOL as for MOS1), the small-signal stage
+    // at 75 C, and a CMOS inverter with a bounded maximum step (transient).
+    Supported {
+        name: "m10_mos3_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos3_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos3_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,

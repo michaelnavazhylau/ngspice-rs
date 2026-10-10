@@ -50,9 +50,9 @@ pub enum ModelFamily {
     Npn,
     /// PNP classic BJT.
     Pnp,
-    /// NMOS (bounded selector for level 1).
+    /// NMOS (bounded selectors for levels 1 and 3).
     Nmos,
-    /// PMOS (bounded selector for level 1).
+    /// PMOS (bounded selectors for levels 1 and 3).
     Pmos,
     /// Voltage-controlled switch (`sw`, `sw/sw.c`).
     Switch,
@@ -544,6 +544,29 @@ fn rounded_level(raw: Real, location: &SourceLoc) -> SpiceResult<u8> {
     Ok(rounded as u8)
 }
 
+/// The C device directory `inpdomod.c` selects for an unported NMOS/PMOS
+/// level.
+fn mos_level_reference(selector: u8) -> &'static str {
+    match selector {
+        0 => "src/spicelib/parser/inpdomod.c (level 0 selects src/spicelib/devices/mos1/)",
+        2 => "src/spicelib/devices/mos2/",
+        4 => "src/spicelib/devices/bsim1/",
+        5 => "src/spicelib/devices/bsim2/",
+        6 => "src/spicelib/devices/mos6/",
+        8 | 49 => "src/spicelib/devices/bsim3/ (bsim3v0/, bsim3v1/, bsim3v32/ by VERSION)",
+        9 => "src/spicelib/devices/mos9/",
+        10 | 58 => "src/spicelib/devices/bsimsoi/",
+        14 | 54 => "src/spicelib/devices/bsim4/ (bsim4v5/, bsim4v6/, bsim4v7/ by VERSION)",
+        55 => "src/spicelib/devices/bsim3soi_fd/",
+        56 => "src/spicelib/devices/bsim3soi_dd/",
+        57 => "src/spicelib/devices/bsim3soi_pd/",
+        60 => "src/spicelib/devices/soi3/",
+        68 => "src/spicelib/devices/hisim2/",
+        73 => "src/spicelib/devices/hisimhv1/, hisimhv2/",
+        _ => "src/spicelib/parser/inpdomod.c (no MOS device for this level)",
+    }
+}
+
 fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> {
     let mut first = None;
     let mut last = None;
@@ -574,6 +597,8 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
     let applied = (family == ModelFamily::Diode).then_some(last.unwrap_or(1));
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
+        // MOS1 (`mos1/`) and MOS3 (`mos3/`); `inpdomod.c` maps the others.
+        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1 | 3),
         ModelFamily::Diode => applied == Some(1),
         ModelFamily::Resistor if card.base.eq_ignore_ascii_case("r") => selector <= 1,
         _ => selector == 1 && first_integer == 1,
@@ -588,12 +613,17 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
         } else {
             location
         };
+        let reference = if matches!(family, ModelFamily::Nmos | ModelFamily::Pmos) {
+            mos_level_reference(selector)
+        } else {
+            "src/spicelib/parser/inpdomod.c, inpfindl.c, inpgval.c; src/spicelib/devices/dio/diosetup.c"
+        };
         return Err(SpiceError::not_yet_ported(
             format!(
                 "{setter_location}: {:?} model '{}' selector {selector}, applied level {applied:?}",
                 family, card.name
             ),
-            "src/spicelib/parser/inpdomod.c, inpfindl.c, inpgval.c; src/spicelib/devices/dio/diosetup.c",
+            reference,
         ));
     }
     Ok(LevelSelection {

@@ -63,6 +63,8 @@ pub enum ScalarUnit {
     VoltPerKelvin,
     /// Absolute temperature offset or scale in Kelvin (not converted).
     Kelvin,
+    /// Velocity in metres per second (MOS3 `VMAX`).
+    MetrePerSecond,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.
