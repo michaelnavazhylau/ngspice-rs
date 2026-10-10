@@ -694,19 +694,14 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
         _ => 1,
     };
     let applied = (family == ModelFamily::Diode).then_some(last.unwrap_or(1));
-    if matches!(family, ModelFamily::Njf | ModelFamily::Pjf) && selector != 1 {
+    if matches!(family, ModelFamily::Njf | ModelFamily::Pjf) && selector > 2 {
         // inpdomod.c accepts levels 0-2 (JFET, JFET2) and rejects the rest.
-        let reference = if selector == 2 {
-            "src/spicelib/devices/jfet2/ (Parker-Skellern: jfet2parm.c, psmodel.c, jfet2load.c)"
-        } else {
-            "src/spicelib/parser/inpdomod.c (only JFET levels 1-2 exist in C)"
-        };
         return Err(SpiceError::not_yet_ported(
             format!(
                 "{location}: {:?} model '{}' level {selector}",
                 family, card.name
             ),
-            reference,
+            "src/spicelib/parser/inpdomod.c (only JFET levels 1-2 exist in C)",
         ));
     }
     let supported = match family {

@@ -27,7 +27,10 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
     ('x', "expanded before device elaboration"),
-    ('j', "JFET level 1 (jfetload.c, Sydney B tail)"),
+    (
+        'j',
+        "JFET levels 1 (jfetload.c, Sydney B tail) and 2 (Parker-Skellern psmodel.c)",
+    ),
     (
         'u',
         "uniform RC line expanded into R/C/D sections (urcsetup.c)",
@@ -80,6 +83,12 @@ pub(crate) fn instantiate_with_models(
                 return crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Njf | crate::devices::models::ModelFamily::Pjf => {
+                // inpdomod.c: level 2 selects the Parker-Skellern JFET2.
+                if model.levels().selector == 2 {
+                    return crate::devices::jfet2::Jfet2::instantiate(
+                        instance, nodes, &model, context,
+                    );
+                }
                 return crate::devices::jfet::Jfet::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Switch

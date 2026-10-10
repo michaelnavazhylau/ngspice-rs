@@ -112,9 +112,8 @@ fn level_selection_and_model_validation_are_explicit() {
     assert!(circuit(&format!("{base}.model jm njf level=1")).is_ok());
     // inpdomod.c: level 0 is JFET level 1 too.
     assert!(circuit(&format!("{base}.model jm njf level=0")).is_ok());
-    let level2 = circuit(&format!("{base}.model jm njf level=2")).unwrap_err();
-    assert!(level2.is_not_yet_ported(), "{level2}");
-    assert!(level2.to_string().contains("jfet2/"), "{level2}");
+    // Level 2 is the Parker-Skellern JFET2 (tests/jfet2.rs).
+    assert!(circuit(&format!("{base}.model jm njf level=2")).is_ok());
     let level3 = circuit(&format!("{base}.model jm pjf level=3")).unwrap_err();
     assert!(level3.is_not_yet_ported(), "{level3}");
     for (model, what) in [
