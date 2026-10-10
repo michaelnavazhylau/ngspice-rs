@@ -207,6 +207,14 @@ Level 1 NMOS/PMOS in `devices::mos1` (#88). C references, read as
 behaviour only: `mos1/mos1set.c`, `mos1temp.c`, `mos1load.c`, `mos1acld.c`,
 `mos1trun.c` and `devices/devsup.c` (`DEVqmeyer`).
 
+Since M10 (#89) the level-independent frame described below (series
+resistance and internal nodes, bulk junctions, Meyer gate charge, limiting and
+start voltages, real/AC/pole-zero loads, truncation slots, instance sweeps and
+observations) lives in the shared `devices::mos` shell; `devices::mos1`
+supplies only the level-1 schema, process extraction, Shichman-Hodges drain
+current, noise and distortion through the `MosLevel` trait. The extraction
+changed no MOS1 output: every MOS1 deck's Rust rawfile is byte-identical.
+
 Model setters (C defaults; *derived* means C's `...Given` logic applies):
 `VTO`/`VT0` (0 V or derived), `KP` (2e-5 A/V² or derived), `GAMMA` (0 or
 derived), `PHI` (0.6 V or derived), `LAMBDA` (0), `RD`/`RS`/`RSH` (0 ohm),

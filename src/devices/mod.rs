@@ -47,6 +47,7 @@ mod initial;
 pub mod limiting;
 pub mod linear;
 pub mod models;
+pub mod mos;
 pub mod mos1;
 pub mod mutual;
 pub mod noise;
