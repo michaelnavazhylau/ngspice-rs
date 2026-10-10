@@ -3391,6 +3391,124 @@ const EXPECTATIONS: &[Expectation] = &[
             ),
         ],
     },
+    // JFET level 1 (#82). A reverse-biased PJF gate (v(g2) = 0.5 V, both
+    // junctions at -0.5 V normalized, area 2, m = 3) leaks
+    // 6 (IS (1 + arg) + gmin 0.5 V) with jfetload.c's cubic continuation
+    // arg = (3 Vt / (-0.5 e))^3 = -1.86e-4: 3.11998e-12 A. j1 cut off
+    // (vgs = -2.5 < VTO) at vds = 6 V leaks IS + 8.5 V gmin through its drain;
+    // j3 (inverse, drain at 0, source at 0.3 V, area 0.5) leaks
+    // 0.5 IS + 2.5 V gmin and 0.5 IS + 2.8 V gmin. At vgs = 0, vds = 6 V
+    // the Sydney saturation current beta (1 + lambda vds) vgst^2 (B + bFac
+    // vgst) with bFac = 0.3 / 3 is 5.1 mA at vgst = 2 V, 4.69 mA after the
+    // RS = 15 ohm source drop.
+    Expectation {
+        fixture: "m10_jfet_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 231,
+        variables: &[
+            "v(v-sweep)",
+            "v(d)",
+            "v(d2)",
+            "v(d3)",
+            "v(g)",
+            "v(g2)",
+            "v(s3)",
+            "i(vds)",
+            "i(vds2)",
+            "i(vds3)",
+            "i(vgs)",
+            "i(vgs2)",
+            "i(vs3)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -2.0, 0.),
+            ("v(v-sweep)", 230, 6.0, 0.),
+            ("i(vgs2)", 0, -3.119977670193058e-12, 0.),
+            ("i(vds)", 32, -8.510020466090395e-12, 0.),
+            ("i(vds3)", 0, -2.504999992531683e-12, 0.),
+            ("i(vs3)", 0, -2.80499999470203e-12, 0.),
+            ("v(g)", 197, 0.0, 0.),
+            ("i(vds)", 197, -4.688663451518488e-3, 0.),
+        ],
+    },
+    // A common-source JFET stage: the supply current is the load-resistor
+    // current, i(vdd) = v(drain) / 4.7 k (the drain is the only path from
+    // VDD), and the input source drives the gate through 50 k.
+    Expectation {
+        fixture: "m10_jfet_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 81,
+        variables: &[
+            "frequency",
+            "v(d)",
+            "v(g)",
+            "v(in)",
+            "v(s)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 10., 0.),
+            ("v(d)", 0, -3.894274406962087, -1.758438756966057),
+            ("i(vdd)", 0, -8.285690227578909e-4, -3.741359057374590e-4),
+            ("v(in)", 0, 1., 0.),
+            ("v(d)", 40, -9.081958090353348, 8.307667754627575),
+            ("i(vdd)", 40, -1.932331508585819e-3, 1.767588883963314e-3),
+        ],
+    },
+    // At t = 0 the PJF stage (VTO = -1.8 V normalized, gate at 0 V) is in
+    // its linear region: beta vds (2 vgst - vds) = 1 m * 0.6 * 3 = 1.8 mA
+    // through 3 k puts its drain at -0.6 V. The follower gate sits at the
+    // -1 V pulse level plus 10 k times its junction leakage.
+    Expectation {
+        fixture: "m10_jfet_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 4029,
+        variables: &[
+            "time", "v(d2)", "v(dd2)", "v(g)", "v(g2)", "v(in)", "v(s)", "v(vdd)", "i(vdd)",
+            "i(vdd2)", "i(vin)", "i(vin2)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(d2)", 0, -5.999999997695838e-1, 0.),
+            ("v(g)", 0, -9.999998539847536e-1, 0.),
+            ("time", 4028, 1e-6, 0.),
+        ],
+    },
+    // j4's forward-biased gate at 125 C: jfettemp.c's IS(T) =
+    // IS exp((T/TNOM - 1) EG / (N Vt)) (T/TNOM)^XTI = 1.9024e-9 A for
+    // IS = 1e-13, EG = 1.1, N = 1.2, XTI = 4, so the gate draws
+    // IS(T) (exp(0.45 / (N Vt)) - 1) + 0.45 gmin from the gate-source diode
+    // and IS(T) + 4.55 gmin back through the reverse gate-drain diode,
+    // 1.0617852856717e-4 A in total (restated independently).
+    Expectation {
+        fixture: "m10_jfet_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 12,
+        variables: &[
+            "temp-sweep",
+            "v(d)",
+            "v(dp)",
+            "v(g)",
+            "v(gf)",
+            "v(gp)",
+            "i(vd)",
+            "i(vdp)",
+            "i(vg)",
+            "i(vgf)",
+            "i(vgp)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -40., 0.),
+            ("temp-sweep", 11, 125., 0.),
+            ("i(vgf)", 11, -1.0617852856717e-4, 0.),
+        ],
+    },
 ];
 
 /// Multi-analysis fixtures (#96): one [`Expectation`] per plot, in rawfile

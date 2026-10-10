@@ -774,6 +774,40 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // JFET level 1 (#82, M10 slice 1): output/transfer sweeps of both
+    // polarities (inverse mode, forward gate bias, RD/RS, area/m, OFF), a
+    // common-source AC stage and a temperature sweep under the nonlinear
+    // 1 ppm bound (the DC decks tighten RELTOL so C's own Newton stopping
+    // error stays below it), and a source follower/PJF stage transient under
+    // `compare::TRAN` with `tmax` bounding both integrators' step error.
+    Supported {
+        name: "m10_jfet_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_jfet_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_jfet_tran", &[]),
+    Supported {
+        name: "m10_jfet_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
 ];
 
 /// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.

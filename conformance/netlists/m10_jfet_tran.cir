@@ -1,0 +1,15 @@
+JFET transient: source follower and PJF common-source stage with gate charge
+vdd vdd 0 12
+vin in 0 pulse(-1 1 50n 20n 20n 200n 500n)
+rg in g 10k
+j1 vdd g s jn
+rs s 0 2k
+cl s 0 5p
+vdd2 dd2 0 -6
+rl2 dd2 d2 3k
+vin2 g2 0 sin(0 0.8 4meg)
+j2 d2 g2 0 jp
+.model jn njf(vto=-2 beta=1.5m lambda=0.02 cgs=6p cgd=2p rd=10 rs=10 b=0.9)
+.model jp pjf(vto=-1.8 beta=1m cgs=3p cgd=3p pb=0.9 fc=0.3)
+.tran 2n 1u 0 0.25n
+.end
