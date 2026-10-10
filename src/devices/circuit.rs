@@ -142,6 +142,10 @@ pub struct DelayAcceptance {
     pub min_break: Real,
     /// The `t = 0` point that initializes the delay histories.
     pub start: bool,
+    /// The run's relative tolerance (C `CKTreltol`).
+    pub reltol: Real,
+    /// The run's absolute current tolerance (C `CKTabstol`).
+    pub abstol: Real,
 }
 
 /// One trial load of every device (C `CKTload`).
@@ -1694,6 +1698,8 @@ impl Circuit {
                 time,
                 steps: delay.steps,
                 min_break: delay.min_break,
+                reltol: delay.reltol,
+                abstol: delay.abstol,
                 initial_conditions: trial.initial_conditions(),
             };
             let update = if delay.start {
@@ -1759,6 +1765,8 @@ impl Circuit {
                 time,
                 steps: delay.steps,
                 min_break: delay.min_break,
+                reltol: delay.reltol,
+                abstol: delay.abstol,
                 initial_conditions: false,
             };
             if let Some(bound) = line.timestep_limit(samples, &context)? {

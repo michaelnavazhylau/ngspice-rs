@@ -1077,6 +1077,8 @@ impl Driver<'_> {
             steps: [dt, older(0), older(1)],
             min_break: 10. * self.settings.min_step(),
             start,
+            reltol: self.settings.tolerances.reltol,
+            abstol: self.settings.tolerances.abstol,
         }
     }
 

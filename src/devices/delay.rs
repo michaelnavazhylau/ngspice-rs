@@ -229,6 +229,11 @@ pub struct DelayContext<'a> {
     /// the previous one is not recorded. (The driver merges breakpoints with
     /// its own threshold.)
     pub min_break: Real,
+    /// The run's relative tolerance (C `CKTreltol`), read by the lossy line's
+    /// breakpoint test (`ltraacct.c`).
+    pub reltol: Real,
+    /// The run's absolute current tolerance (C `CKTabstol`).
+    pub abstol: Real,
     /// The run starts from `uic` initial conditions (C `MODEUIC`).
     pub initial_conditions: bool,
 }
