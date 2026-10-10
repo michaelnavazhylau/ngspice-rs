@@ -158,7 +158,7 @@ fn scalar_name(designator: char, text: &str) -> Option<String> {
         ('l', "l" | "inductance") => primary_name(designator),
         (_, "temp" | "dtemp" | "m" | "tc1" | "tc2" | "scale") => &name,
         ('r' | 'c', "w" | "l" | "bv_max") => &name,
-        ('r', "ac" | "tc" | "tce") => &name,
+        ('r', "ac" | "tc" | "tce" | "noisy") => &name,
         ('c' | 'l', "ic") => &name,
         ('l', "nt") => &name,
         _ => return None,
@@ -183,6 +183,8 @@ fn source_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> 
         alt((
             dc_parameters,
             ac_parameters,
+            distortion_parameters,
+            port_parameter,
             super::waveform::parameters,
             super::waveform::pwl_options,
             invalid_source,
@@ -216,6 +218,29 @@ fn ac_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
     .parse_next(input)
 }
 
+/// `distof1 [mag [phase]]` / `distof2 [mag [phase]]` (`vsrc.c`/`isrc.c`
+/// `IF_REALVEC` setters, `vsrcpar.c`: a missing magnitude is 1 and a missing
+/// phase 0), kept as the ordered pair `distof<k>mag`, `distof<k>phase`.
+fn distortion_parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
+    let (token, which) = alt((
+        keyword("distof1").map(|token| (token, 1)),
+        keyword("distof2").map(|token| (token, 2)),
+    ))
+    .parse_next(input)?;
+    let (magnitude, phase) = if which == 1 {
+        ("distof1mag", "distof1phase")
+    } else {
+        ("distof2mag", "distof2phase")
+    };
+    cut_err((
+        opt(equals),
+        ac_value(magnitude, "1", &token.location),
+        ac_value(phase, "0", &token.location),
+    ))
+    .map(|(_, magnitude, phase)| vec![magnitude, phase])
+    .parse_next(input)
+}
+
 fn ac_value<'a>(
     name: &'static str,
     default: &'static str,
@@ -243,6 +268,23 @@ fn ac_value<'a>(
             })
             .parse_next(input)
     }
+}
+
+/// The RFSPICE port setters of a voltage source (`vsrc.c`: `portnum`, `z0`,
+/// `pwr`, `freq`, `phase`), each `name [=] value`, kept as ordered scalar
+/// assignments: `vsrcpar.c` applies them in deck order and `portnum` reads the
+/// `z0` set so far. Current sources have no such parameters.
+fn port_parameter(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
+    let voltage = input.state.card.designator() == Some('v');
+    let (token, name) = any
+        .verify_map(move |token: &Token| {
+            let name = token.text.to_ascii_lowercase();
+            (voltage && matches!(name.as_str(), "portnum" | "z0" | "pwr" | "freq" | "phase"))
+                .then_some((token, name))
+        })
+        .parse_next(input)?;
+    let (_, value) = cut_err((opt(equals), value)).parse_next(input)?;
+    Ok(vec![named(&name, token.location.clone(), value)])
 }
 
 fn invalid_source(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {

@@ -12,9 +12,12 @@
 //!
 //! The port follows `src/maths/ni/nicomcof.c` (coefficients `CKTag`/`CKTagp`),
 //! `src/maths/ni/niinteg.c` (`NIintegrate`), `src/maths/ni/nipred.c`
-//! (`NIpred`) and `src/spicelib/analysis/cktterr.c` (`CKTterr`). Only orders 1
-//! and 2 are implemented: [`IntegrationMethod`] still *represents* Gear orders
-//! up to 6, but [`IntegrationMethod::validate_runtime`] rejects orders 3–6.
+//! (`NIpred`) and `src/spicelib/analysis/cktterr.c` (`CKTterr`): trapezoidal
+//! orders 1–2 and variable-step Gear orders 1–6 (#98). Which order a run
+//! actually uses is the transient driver's policy; `dctran.c` (and therefore
+//! [`crate::analysis::companion`]) only ever toggles between orders 1 and 2,
+//! whatever `maxord` says, so Gear orders 3–6 are reachable through this API
+//! but not from an ngspice-compatible `.tran`.
 //!
 //! # Trial versus accepted state
 //!
@@ -48,8 +51,9 @@ impl IntegrationMethod {
     /// The highest Gear order ngspice supports.
     pub const MAX_GEAR_ORDER: u8 = 6;
 
-    /// The highest order with implemented coefficient/history operations.
-    pub const MAX_RUNTIME_ORDER: u8 = 2;
+    /// The highest order with implemented coefficient/history operations:
+    /// every representable Gear order since #98 (trapezoidal stops at 2).
+    pub const MAX_RUNTIME_ORDER: u8 = Self::MAX_GEAR_ORDER;
 
     /// True when this method/order is representable, not proof that its
     /// coefficient/history operations are implemented. See
@@ -76,16 +80,19 @@ impl IntegrationMethod {
     ///
     /// # Errors
     ///
-    /// [`SpiceError::Unsupported`] for Gear orders 0 and 3–6.
+    /// [`SpiceError::Unsupported`] for Gear orders 0 and above 6 (ngspice's
+    /// `cktsopt.c` clamps `maxord` to `1..=6` with a warning; the port refuses
+    /// instead of silently changing the request).
     pub fn validate_runtime(self) -> SpiceResult<()> {
-        let order = self.max_order();
-        if (1..=Self::MAX_RUNTIME_ORDER).contains(&order) {
+        if self.is_valid() {
             Ok(())
         } else {
             Err(SpiceError::Unsupported {
                 feature: format!(
-                    "{} integration order {order}; only orders 1 and 2 are implemented",
-                    self.as_str()
+                    "{} integration order {}; orders 1 to {} are implemented",
+                    self.as_str(),
+                    self.max_order(),
+                    Self::MAX_GEAR_ORDER
                 ),
                 location: None,
             })
@@ -118,9 +125,22 @@ impl IntegrationMethod {
 /// (`cktntask.c`). `0` degenerates to backward Euler.
 pub const DEFAULT_XMU: Real = 0.5;
 
-/// Number of accepted step sizes retained: enough for order-2 prediction and
-/// truncation-error estimation.
-const HISTORY_LEN: usize = IntegrationMethod::MAX_RUNTIME_ORDER as usize + 1;
+/// Number of accepted step sizes retained (C `CKTdeltaOld[1..=6]`): enough
+/// for order-6 Gear prediction and truncation-error estimation, which need
+/// `order` accepted steps.
+const HISTORY_LEN: usize = IntegrationMethod::MAX_GEAR_ORDER as usize;
+
+/// `cktterr.c` `gearCoeff`: the error constants of Gear orders 1–6.
+const GEAR_ERROR_CONSTANTS: [Real; 6] = [
+    0.5,
+    0.222_222_222_2,
+    0.136_363_636_4,
+    0.096,
+    0.072_992_700_73,
+    0.058_309_037_90,
+];
+/// `cktterr.c` `trapCoeff`: the error constants of trapezoidal orders 1–2.
+const TRAP_ERROR_CONSTANTS: [Real; 2] = [0.5, 0.083_333_333_33];
 
 fn numerical(message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {
@@ -203,7 +223,7 @@ impl StepHistory {
         method
             .max_order()
             .min(by_history)
-            .min(IntegrationMethod::MAX_RUNTIME_ORDER)
+            .min(IntegrationMethod::MAX_GEAR_ORDER)
     }
 
     /// Builds the coefficients for a trial step of size `dt`, without
@@ -213,8 +233,9 @@ impl StepHistory {
     ///
     /// [`SpiceError::Numerical`] for a nonpositive/nonfinite step, `xmu`
     /// outside `[0, 0.5]`, nonfinite coefficients or a history too short for
-    /// the order; [`SpiceError::Unsupported`] for orders other than 1 and 2 or
-    /// above the method's maximum.
+    /// the order; [`SpiceError::Unsupported`] for order 0, an invalid method
+    /// (Gear above order 6) or an order above the method's maximum (2 for
+    /// trapezoidal).
     pub fn trial(
         &self,
         method: IntegrationMethod,
@@ -230,14 +251,14 @@ impl StepHistory {
         if !(xmu.is_finite() && (0.0..=0.5).contains(&xmu)) {
             return Err(numerical(format!("xmu must be in [0, 0.5], got {xmu}")));
         }
-        if !(1..=IntegrationMethod::MAX_RUNTIME_ORDER).contains(&order)
-            || order > method.max_order()
-        {
+        if !method.is_valid() || order == 0 || order > method.max_order() {
             return Err(SpiceError::Unsupported {
                 feature: format!(
-                    "{} integration at order {order} (maximum {}; implemented 1..=2)",
+                    "{} integration at order {order} (maximum {}; implemented: trap 1..=2, \
+                     gear 1..={})",
                     method.as_str(),
-                    method.max_order()
+                    method.max_order(),
+                    IntegrationMethod::MAX_GEAR_ORDER
                 ),
                 location: None,
             });
@@ -256,19 +277,26 @@ impl StepHistory {
             deltas[self.len + 1..].fill(fill);
         }
         // nicomcof.c
-        let ag = match (method, order) {
-            (_, 1) => [1.0 / dt, -1.0 / dt, 0.0],
-            (IntegrationMethod::Trapezoidal, _) => [1.0 / dt / (1.0 - xmu), xmu / (1.0 - xmu), 0.0],
-            (IntegrationMethod::Gear { .. }, _) => {
-                // Exact for quadratics on t_{n+1}, t_n, t_{n-1}: the closed
-                // form of the Vandermonde solve in nicomcof.c.
+        let mut ag = [0.0; HISTORY_LEN + 1];
+        match (method, order) {
+            (_, 1) => ag[..2].copy_from_slice(&[1.0 / dt, -1.0 / dt]),
+            (IntegrationMethod::Trapezoidal, _) => {
+                ag[..2].copy_from_slice(&[1.0 / dt / (1.0 - xmu), xmu / (1.0 - xmu)]);
+            }
+            (IntegrationMethod::Gear { .. }, 2) => {
+                // Closed form for t_{n+1}, t_n, t_{n-1}, kept from the
+                // original Gear-2 port so its results stay bit-identical;
+                // gear_corrector agrees to rounding (tested).
                 let h1 = deltas[1];
                 let r = 1.0 + h1 / dt;
                 let a2 = 1.0 / (r * h1);
                 let a1 = -a2 * r * r;
-                [-(a1 + a2), a1, a2]
+                ag[..3].copy_from_slice(&[-(a1 + a2), a1, a2]);
             }
-        };
+            (IntegrationMethod::Gear { .. }, _) => {
+                gear_corrector(&deltas, usize::from(order), &mut ag);
+            }
+        }
         for value in ag {
             finite(value, "integration coefficient")?;
         }
@@ -282,7 +310,8 @@ impl StepHistory {
         })
     }
 
-    /// Commits the step of accepted `coefficients`, shifting older steps.
+    /// Commits the step of accepted `coefficients`, shifting older steps
+    /// (C keeps `CKTdeltaOld[0..=6]`; the oldest step drops out).
     /// This is the only operation that advances the history.
     pub fn accept(&mut self, coefficients: &Coefficients) {
         self.accepted.copy_within(0..HISTORY_LEN - 1, 1);
@@ -296,6 +325,44 @@ impl StepHistory {
             fill: self.fill,
             ..Self::new()
         };
+    }
+}
+
+/// The variable-step Gear (BDF) corrector of `order` on the points
+/// `t_{n+1} - s_i`, `s_0 = 0`, `s_i = deltas[0] + ... + deltas[i - 1]`.
+///
+/// `nicomcof.c` solves the Vandermonde system `sum_i ag_i (s_i/h)^j =
+/// -delta_{j1}/h`, `j = 0..=order`, in step-normalized form (its "SPICE2
+/// difference warning"). The solution is the derivative at `t_{n+1}` of the
+/// Lagrange basis polynomials, which this evaluates in closed form on the same
+/// normalized abscissae `sigma_i = s_i / h`, so no matrix (and no pivot-free
+/// elimination) is involved:
+///
+/// * `ag_0 = (1/h) sum_{j >= 1} 1/sigma_j`,
+/// * `ag_i = (1/h) prod_{j != 0, i} sigma_j / (-sigma_i prod_{j != 0, i} (sigma_j - sigma_i))`.
+///
+/// The two agree to rounding; the result is exact for polynomials of degree
+/// `order` (tested), which is what defines the C coefficients.
+fn gear_corrector(
+    deltas: &[Real; HISTORY_LEN + 1],
+    order: usize,
+    ag: &mut [Real; HISTORY_LEN + 1],
+) {
+    let h = deltas[0];
+    let mut sigma = [0.0; HISTORY_LEN + 1];
+    let mut sum = 0.0;
+    for i in 1..=order {
+        sum += deltas[i - 1];
+        sigma[i] = sum / h;
+    }
+    ag[0] = (1..=order).map(|j| 1.0 / sigma[j]).sum::<Real>() / h;
+    for i in 1..=order {
+        let (mut numerator, mut denominator) = (1.0, -sigma[i]);
+        for j in (1..=order).filter(|&j| j != i) {
+            numerator *= sigma[j];
+            denominator *= sigma[j] - sigma[i];
+        }
+        ag[i] = numerator / denominator / h;
     }
 }
 
@@ -313,7 +380,7 @@ pub struct Coefficients {
     history: usize,
     /// Older steps are placeholders (see [`StepHistory::with_fill`]).
     filled: bool,
-    ag: [Real; 3],
+    ag: [Real; HISTORY_LEN + 1],
 }
 
 /// One integrated charge-storage element in companion form, as
@@ -481,7 +548,7 @@ impl Coefficients {
             IntegrationMethod::Gear { .. } => {
                 // Lagrange extrapolation to the trial time from nodes at
                 // distance t_{n+1} - t_{n-i}.
-                let mut nodes = [0.0; HISTORY_LEN];
+                let mut nodes = [0.0; HISTORY_LEN + 1];
                 let mut sum = 0.0;
                 for (i, node) in nodes.iter_mut().take(order + 1).enumerate() {
                     sum += d[i];
@@ -506,7 +573,10 @@ impl Coefficients {
     ///
     /// `charge` is the trial charge followed by at least `order + 1` accepted
     /// charges; `derivative` is `[trial, previous accepted]`. Requires `order`
-    /// accepted steps. The caller takes the minimum over all elements.
+    /// accepted steps. The bound is `(trtol tol / max(abstol, c_k |dd|))^(1/k)`
+    /// with the order-`k` error constant `c_k` of `cktterr.c` (`gearCoeff`,
+    /// `trapCoeff`) and the `(k + 1)`-th divided difference `dd` of the charge.
+    /// The caller takes the minimum over all elements.
     ///
     /// # Errors
     ///
@@ -559,14 +629,18 @@ impl Coefficients {
                 span[i] = span[i + 1] + self.deltas[i];
             }
         }
-        // cktterr.c gearCoeff/trapCoeff.
-        let factor = match (self.method, self.order) {
-            (_, 1) => 0.5,
-            (IntegrationMethod::Trapezoidal, _) => 0.083_333_333_33,
-            (IntegrationMethod::Gear { .. }, _) => 0.222_222_222_2,
+        // cktterr.c gearCoeff/trapCoeff (trial() guarantees the index).
+        let factor = match self.method {
+            IntegrationMethod::Trapezoidal => TRAP_ERROR_CONSTANTS[order - 1],
+            IntegrationMethod::Gear { .. } => GEAR_ERROR_CONSTANTS[order - 1],
         };
         let del = tol.trtol * tolerance / tol.abstol.max(factor * diff[0].abs());
-        let del = if order == 2 { del.sqrt() } else { del };
+        let del = match order {
+            1 => del,
+            2 => del.sqrt(),
+            3 => del.cbrt(),
+            _ => (del.ln() / Real::from(self.order)).exp(),
+        };
         finite(del, "truncation timestep")
     }
 }
@@ -577,6 +651,7 @@ mod tests {
 
     const TRAP: IntegrationMethod = IntegrationMethod::Trapezoidal;
     const GEAR2: IntegrationMethod = IntegrationMethod::Gear { order: 2 };
+    const GEAR6: IntegrationMethod = IntegrationMethod::Gear { order: 6 };
 
     fn close(a: f64, b: f64) -> bool {
         (a - b).abs() <= 1e-12 * (1.0 + a.abs().max(b.abs()))
@@ -601,32 +676,53 @@ mod tests {
     }
 
     #[test]
-    fn gear_orders_are_representable_but_only_two_run() {
+    fn gear_orders_one_to_six_run_and_others_are_rejected() {
         assert!(IntegrationMethod::Gear { order: 6 }.is_valid());
         assert!(!IntegrationMethod::Gear { order: 0 }.is_valid());
         assert!(!IntegrationMethod::Gear { order: 7 }.is_valid());
-        assert!(
-            IntegrationMethod::Gear { order: 1 }
-                .validate_runtime()
-                .is_ok()
-        );
-        assert!(GEAR2.validate_runtime().is_ok());
-        for order in [0, 3, 6] {
-            let error = IntegrationMethod::Gear { order }
-                .validate_runtime()
-                .unwrap_err();
-            assert!(error.to_string().contains("only orders 1 and 2"), "{error}");
+        for order in 1..=6 {
+            let method = IntegrationMethod::Gear { order };
+            assert!(method.validate_runtime().is_ok(), "{order}");
+            // Order k needs k - 1 accepted steps.
+            let warm = history(&vec![1.0; usize::from(order) - 1]);
+            assert_eq!(warm.available_order(method), order);
+            assert!(warm.trial(method, order, 1.0, DEFAULT_XMU).is_ok());
+            if order > 1 {
+                let short = history(&vec![1.0; usize::from(order) - 2]);
+                assert!(short.trial(method, order, 1.0, DEFAULT_XMU).is_err());
+            }
         }
-        let error = history(&[1.0, 1.0])
-            .trial(IntegrationMethod::Gear { order: 6 }, 3, 1.0, DEFAULT_XMU)
-            .unwrap_err();
-        assert!(error.to_string().contains("implemented 1..=2"), "{error}");
-        // A method's own maximum is honored.
+        for order in [0, 7, u8::MAX] {
+            let method = IntegrationMethod::Gear { order };
+            let error = method.validate_runtime().unwrap_err();
+            assert!(error.to_string().contains("orders 1 to 6"), "{error}");
+            // An invalid method never indexes past the coefficient storage.
+            assert!(
+                history(&[1.0; 6])
+                    .trial(method, 7, 1.0, DEFAULT_XMU)
+                    .is_err()
+            );
+        }
+        // A method's own maximum is honored, and trapezoidal stops at 2.
         assert!(
             history(&[1.0])
                 .trial(IntegrationMethod::Gear { order: 1 }, 2, 1.0, DEFAULT_XMU)
                 .is_err()
         );
+        assert!(
+            history(&[1.0; 4])
+                .trial(IntegrationMethod::Gear { order: 3 }, 4, 1.0, DEFAULT_XMU)
+                .is_err()
+        );
+        let error = history(&[1.0; 4])
+            .trial(TRAP, 3, 1.0, DEFAULT_XMU)
+            .unwrap_err();
+        assert!(error.to_string().contains("trap 1..=2"), "{error}");
+        assert_eq!(history(&[1.0; 6]).available_order(TRAP), 2);
+        assert_eq!(history(&[1.0; 6]).available_order(GEAR6), 6);
+        // The step history keeps exactly six accepted steps (C CKTdeltaOld[1..=6]).
+        let long = history(&[7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
+        assert_eq!(long.accepted(), &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
 
     #[test]
@@ -737,8 +833,8 @@ mod tests {
         history.accept(&second);
         history.accept(&back);
         history.accept(&back);
-        assert_eq!(history.accepted(), &[5e-7, 5e-7, 2e-6]);
-        assert_eq!(history.len(), 3);
+        assert_eq!(history.accepted(), &[5e-7, 5e-7, 2e-6, 1e-6]);
+        assert_eq!(history.len(), 4);
         history.clear();
         assert!(history.is_empty());
     }
@@ -874,5 +970,239 @@ mod tests {
         // Order 2 is unavailable without a real step, filled or not.
         history.trial(TRAP, 2, 5e-7, DEFAULT_XMU).is_err()
             && history.trial(TRAP, 1, 5e-7, DEFAULT_XMU).is_ok()
+    }
+
+    /// Nonuniform accepted steps (oldest first) and the trial step used by the
+    /// order-3..6 tests: ratios up to 3.5 between neighbours.
+    const OLD_STEPS: [f64; 6] = [0.11, 0.35, 0.1, 0.2, 0.15, 0.3];
+    const TRIAL_STEP: f64 = 0.25;
+
+    /// Time points `t_{n+1}, t_n, ..., t_{n-6}` for [`OLD_STEPS`], most recent
+    /// first, with `t_n = 1`.
+    fn nonuniform_times() -> [f64; 8] {
+        let mut times = [0.0; 8];
+        times[0] = 1.0 + TRIAL_STEP;
+        times[1] = 1.0;
+        for (i, dt) in OLD_STEPS.iter().rev().enumerate() {
+            times[i + 2] = times[i + 1] - dt;
+        }
+        times
+    }
+
+    /// Textbook fixed-step BDF coefficients (times `h`) for orders 1 to 6.
+    #[test]
+    fn gear_matches_the_fixed_step_bdf_tables() {
+        let tables: [&[f64]; 6] = [
+            &[1.0, -1.0],
+            &[1.5, -2.0, 0.5],
+            &[11.0 / 6.0, -3.0, 1.5, -1.0 / 3.0],
+            &[25.0 / 12.0, -4.0, 3.0, -4.0 / 3.0, 0.25],
+            &[137.0 / 60.0, -5.0, 5.0, -10.0 / 3.0, 1.25, -0.2],
+            &[147.0 / 60.0, -6.0, 7.5, -20.0 / 3.0, 3.75, -1.2, 1.0 / 6.0],
+        ];
+        let h = 2.5e-7;
+        let warm = history(&[h; 6]);
+        for (order, table) in (1..=6).zip(tables) {
+            let c = warm.trial(GEAR6, order, h, DEFAULT_XMU).unwrap();
+            assert_eq!(c.ag().len(), usize::from(order) + 1);
+            for (a, b) in c.ag().iter().zip(table) {
+                assert!((a * h - b).abs() <= 1e-12, "order {order}: {a} vs {b}/h");
+            }
+        }
+    }
+
+    /// An independent solve of the `nicomcof.c` system: `sum_i ag_i
+    /// (s_i/h)^j = -[j == 1]/h` by Gaussian elimination with partial pivoting.
+    fn vandermonde_ag(deltas: &[f64], order: usize) -> Vec<f64> {
+        let n = order + 1;
+        let h = deltas[0];
+        let mut s = vec![0.0; n];
+        for i in 1..n {
+            s[i] = s[i - 1] + deltas[i - 1];
+        }
+        let mut m: Vec<Vec<f64>> = (0..n)
+            .map(|j| {
+                let mut row: Vec<f64> = s.iter().map(|si| (si / h).powi(j as i32)).collect();
+                row.push(if j == 1 { -1.0 / h } else { 0.0 });
+                row
+            })
+            .collect();
+        for k in 0..n {
+            let pivot = (k..n)
+                .max_by(|&a, &b| m[a][k].abs().total_cmp(&m[b][k].abs()))
+                .unwrap();
+            m.swap(k, pivot);
+            let pivot_row = m[k].clone();
+            for row in m.iter_mut().skip(k + 1) {
+                let f = row[k] / pivot_row[k];
+                for (value, p) in row.iter_mut().zip(&pivot_row).skip(k) {
+                    *value -= f * p;
+                }
+            }
+        }
+        let mut x = vec![0.0; n];
+        for k in (0..n).rev() {
+            let tail: f64 = (k + 1..n).map(|c| m[k][c] * x[c]).sum();
+            x[k] = (m[k][n] - tail) / m[k][k];
+        }
+        x
+    }
+
+    /// Orders 1..6 on nonuniform steps: the corrector reproduces the derivative
+    /// and the predictor the value of every polynomial of degree `order`, and
+    /// the coefficients agree with the C Vandermonde formulation.
+    #[test]
+    fn high_order_gear_is_exact_for_polynomials_on_nonuniform_steps() {
+        let warm = history(&OLD_STEPS);
+        let times = nonuniform_times();
+        for order in 1..=6_u8 {
+            let k = i32::from(order);
+            // Degree `order` with nonzero lower terms, centred to keep the
+            // values O(1).
+            let f = |t: f64| {
+                (0..=k)
+                    .map(|p| (t - 0.6).powi(p) / f64::from(p + 1))
+                    .sum::<f64>()
+            };
+            let df = |t: f64| {
+                (1..=k)
+                    .map(|p| f64::from(p) * (t - 0.6).powi(p - 1) / f64::from(p + 1))
+                    .sum::<f64>()
+            };
+            let c = warm.trial(GEAR6, order, TRIAL_STEP, DEFAULT_XMU).unwrap();
+            let q: Vec<f64> = times.iter().map(|t| f(*t)).collect();
+            assert_eq!(c.charge_history_len(), usize::from(order));
+            let companion = c.integrate(&q, None, 1.0).unwrap();
+            let close6 = |a: f64, b: f64| (a - b).abs() <= 1e-9 * (1.0 + b.abs());
+            assert!(close6(companion.derivative, df(times[0])), "order {order}");
+            assert!(close6(c.predict(&q[1..]).unwrap(), q[0]), "order {order}");
+            let reference = vandermonde_ag(&c.deltas, usize::from(order));
+            // The general Lagrange form also reproduces the order-1 and the
+            // closed-form order-2 coefficients.
+            let mut general = [0.0; 7];
+            super::gear_corrector(&c.deltas, usize::from(order), &mut general);
+            for ((a, b), g) in c.ag().iter().zip(&reference).zip(general) {
+                assert!(
+                    (a - b).abs() <= 1e-10 * b.abs().max(1.0 / TRIAL_STEP),
+                    "order {order}"
+                );
+                assert!(
+                    (a - g).abs() <= 1e-12 * g.abs().max(1.0 / TRIAL_STEP),
+                    "order {order}"
+                );
+            }
+            // One degree more is not reproduced: the rule really has order k.
+            let g = |t: f64| (t - 0.6).powi(k + 1);
+            let q: Vec<f64> = times.iter().map(|t| g(*t)).collect();
+            let derivative = c.integrate(&q, None, 1.0).unwrap().derivative;
+            let exact = f64::from(k + 1) * (times[0] - 0.6).powi(k);
+            assert!((derivative - exact).abs() > 1e-6, "order {order}");
+        }
+        // Short charge or solution histories are errors, not panics.
+        let c = warm.trial(GEAR6, 6, TRIAL_STEP, DEFAULT_XMU).unwrap();
+        assert!(c.integrate(&[0.0; 6], None, 1.0).is_err());
+        assert!(c.predict(&[0.0; 6]).is_err());
+        assert!(
+            c.truncation_timestep(&[0.0; 7], [0.0; 2], &TruncationTolerances::default())
+                .is_err()
+        );
+    }
+
+    /// `CKTterr` for orders 1..6: on a polynomial of degree `order + 1` with
+    /// leading coefficient `a` the `(order + 1)`-th divided difference is `a`,
+    /// so the bound is `(trtol tol / max(abstol, c_k |a|))^(1/k)` exactly.
+    #[test]
+    fn high_order_truncation_timestep_follows_cktterr() {
+        let constants = [
+            0.5,
+            0.222_222_222_2,
+            0.136_363_636_4,
+            0.096,
+            0.072_992_700_73,
+            0.058_309_037_90,
+        ];
+        let tol = TruncationTolerances::default();
+        let warm = history(&OLD_STEPS);
+        let times = nonuniform_times();
+        for order in 1..=6_u8 {
+            let k = i32::from(order);
+            let a = 3.0e-3;
+            let q: Vec<f64> = times.iter().map(|t| a * t.powi(k + 1) + 1e-9 * t).collect();
+            let d = [2e-3, 1e-3];
+            let c = warm.trial(GEAR6, order, TRIAL_STEP, DEFAULT_XMU).unwrap();
+            let del = c.truncation_timestep(&q, d, &tol).unwrap();
+            let volttol = tol.abstol + tol.reltol * 2e-3;
+            let chargetol = tol.reltol * q[0].abs().max(q[1].abs()).max(tol.chgtol) / TRIAL_STEP;
+            let base = tol.trtol * volttol.max(chargetol)
+                / tol.abstol.max(constants[usize::from(order) - 1] * a);
+            let expected = base.powf(1.0 / f64::from(k));
+            assert!(
+                (del - expected).abs() <= 1e-9 * expected,
+                "order {order}: {del} vs {expected}"
+            );
+        }
+    }
+
+    /// Fixed-step convergence: Gear order `k` integrating `q' = -q` over
+    /// `[0, 1]` from exact starting values loses a factor of about `2^k` in
+    /// global error per halving of every step, on a nonuniform repeating step
+    /// pattern (so the variable-step coefficients are exercised, not just the
+    /// fixed-step table).
+    #[test]
+    fn gear_orders_converge_at_their_order() {
+        let pattern = [1.0, 0.7, 1.3];
+        let solve = |order: u8, base: f64| -> f64 {
+            // Exact history at t = 0 and the order - 1 earlier points (steps
+            // from the pattern), most recent first; older steps are accepted
+            // first.
+            let dts: Vec<f64> = (0..usize::from(order) - 1)
+                .map(|i| base * pattern[(i + 1) % 3])
+                .collect();
+            let mut steps = StepHistory::new();
+            for &dt in dts.iter().rev() {
+                let c = steps.trial(TRAP, 1, dt, DEFAULT_XMU).unwrap();
+                steps.accept(&c);
+            }
+            let mut t = 0.0;
+            let mut q = vec![1.0];
+            for dt in &dts {
+                t -= dt;
+                q.push((-t).exp());
+            }
+            let mut now = 0.0;
+            let mut i = 0;
+            while now < 1.0 - 1e-12 {
+                let dt = (base * pattern[i % 3]).min(1.0 - now);
+                i += 1;
+                let c = steps.trial(GEAR6, order, dt, DEFAULT_XMU).unwrap();
+                // derivative = ag0 q0 + history; with q0 = 0 the companion
+                // current is the history part, so ag0 q0 + current = -q0.
+                let mut trial = vec![0.0];
+                trial.extend_from_slice(&q);
+                let companion = c.integrate(&trial, None, 1.0).unwrap();
+                let q0 = -companion.current / (companion.conductance + 1.0);
+                q.insert(0, q0);
+                q.truncate(8);
+                steps.accept(&c);
+                now += dt;
+            }
+            (q[0] - (-1.0_f64).exp()).abs()
+        };
+        for order in 1..=6_u8 {
+            // Coarser for high orders so the finest error stays far above
+            // rounding (about 1e-13 at order 6).
+            let base = [0.04, 0.04, 0.04, 0.06, 0.08, 0.12][usize::from(order) - 1];
+            let errors: Vec<f64> = (0..3)
+                .map(|n| solve(order, base / f64::from(1 << n)))
+                .collect();
+            let expected = f64::from(1_u32 << order);
+            for pair in errors.windows(2) {
+                let ratio = pair[0] / pair[1];
+                assert!(
+                    ratio > 0.75 * expected && ratio < 1.35 * expected,
+                    "order {order}: errors {errors:?}, ratio {ratio} (expected about {expected})"
+                );
+            }
+        }
     }
 }

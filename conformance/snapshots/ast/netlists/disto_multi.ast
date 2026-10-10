@@ -1,0 +1,186 @@
+# ngspice-rs ast-dump v1
+file: netlists/disto_multi.cir
+title: "Distortion in a multi-analysis deck with linear devices and switches" @netlists/disto_multi.cir:1:1
+scope root
+  cards (31):
+    [0] device[0] @netlists/disto_multi.cir:5:1 "v1 in 0 dc 0.7 ac 1 distof1 0.02"
+    [1] device[1] @netlists/disto_multi.cir:6:1 "r1 in a 500"
+    [2] device[2] @netlists/disto_multi.cir:7:1 "d1 a 0 dm"
+    [3] device[3] @netlists/disto_multi.cir:8:1 "l1 a b 1m"
+    [4] device[4] @netlists/disto_multi.cir:9:1 "l2 c 0 1m"
+    [5] device[5] @netlists/disto_multi.cir:10:1 "k1 l1 l2 0.5"
+    [6] device[6] @netlists/disto_multi.cir:11:1 "r2 b 0 1k"
+    [7] device[7] @netlists/disto_multi.cir:12:1 "r3 c 0 1k"
+    [8] device[8] @netlists/disto_multi.cir:13:1 "e1 e 0 a 0 2"
+    [9] device[9] @netlists/disto_multi.cir:14:1 "re e f 1k"
+    [10] device[10] @netlists/disto_multi.cir:15:1 "d2 f 0 dm"
+    [11] device[11] @netlists/disto_multi.cir:16:1 "g1 0 gx a 0 1m"
+    [12] device[12] @netlists/disto_multi.cir:17:1 "rg gx 0 1k"
+    [13] device[13] @netlists/disto_multi.cir:18:1 "vsense gx h 0"
+    [14] device[14] @netlists/disto_multi.cir:19:1 "h1 hx 0 vsense 100"
+    [15] device[15] @netlists/disto_multi.cir:20:1 "rh hx 0 1k"
+    [16] device[16] @netlists/disto_multi.cir:21:1 "f1 0 fx vsense 2"
+    [17] device[17] @netlists/disto_multi.cir:22:1 "rf fx 0 1k"
+    [18] device[18] @netlists/disto_multi.cir:23:1 "s1 a sx in 0 sw1"
+    [19] device[19] @netlists/disto_multi.cir:24:1 "rsx sx 0 10k"
+    [20] device[20] @netlists/disto_multi.cir:25:1 "w1 a wx vsense csw1"
+    [21] device[21] @netlists/disto_multi.cir:26:1 "rwx wx 0 10k"
+    [22] device[22] @netlists/disto_multi.cir:27:1 "c1 a 0 1n"
+    [23] model[0] @netlists/disto_multi.cir:28:1 ".model dm d(is=1e-14 cjo=1p tt=1n)"
+    [24] model[1] @netlists/disto_multi.cir:29:1 ".model sw1 sw(vt=0.5 ron=100 roff=1e6)"
+    [25] model[2] @netlists/disto_multi.cir:30:1 ".model csw1 csw(it=1m ron=50)"
+    [26] options[0] @netlists/disto_multi.cir:31:1 ".option reltol=1e-7"
+    [27] analysis[0] @netlists/disto_multi.cir:32:1 ".op"
+    [28] analysis[1] @netlists/disto_multi.cir:33:1 ".ac dec 2 100 10k"
+    [29] analysis[2] @netlists/disto_multi.cir:34:1 ".disto lin 3 1k 4k"
+    [30] end @netlists/disto_multi.cir:35:1 ".end"
+  devices (23):
+    device [0] name="v1" designator=v @netlists/disto_multi.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (5):
+        [0] name="dc" kind=scalar value="0.7" @netlists/disto_multi.cir:5:9
+        [1] name="acmag" kind=scalar value="1" @netlists/disto_multi.cir:5:19
+        [2] name="acphase" kind=scalar value="0" @netlists/disto_multi.cir:5:16
+        [3] name="distof1mag" kind=scalar value="0.02" @netlists/disto_multi.cir:5:29
+        [4] name="distof1phase" kind=scalar value="0" @netlists/disto_multi.cir:5:21
+    device [1] name="r1" designator=r @netlists/disto_multi.cir:6:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/disto_multi.cir:6:9
+    device [2] name="d1" designator=d @netlists/disto_multi.cir:7:1
+      nodes: "a" "0"
+      model: "dm"
+      parameters (0):
+    device [3] name="l1" designator=l @netlists/disto_multi.cir:8:1
+      nodes: "a" "b"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/disto_multi.cir:8:8
+    device [4] name="l2" designator=l @netlists/disto_multi.cir:9:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1m" @netlists/disto_multi.cir:9:8
+    device [5] name="k1" designator=k @netlists/disto_multi.cir:10:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/disto_multi.cir:10:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/disto_multi.cir:10:7
+        [2] name="coefficient" kind=scalar value="0.5" @netlists/disto_multi.cir:10:10
+    device [6] name="r2" designator=r @netlists/disto_multi.cir:11:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_multi.cir:11:8
+    device [7] name="r3" designator=r @netlists/disto_multi.cir:12:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_multi.cir:12:8
+    device [8] name="e1" designator=e @netlists/disto_multi.cir:13:1
+      nodes: "e" "0" "a" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="2" @netlists/disto_multi.cir:13:12
+    device [9] name="re" designator=r @netlists/disto_multi.cir:14:1
+      nodes: "e" "f"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_multi.cir:14:8
+    device [10] name="d2" designator=d @netlists/disto_multi.cir:15:1
+      nodes: "f" "0"
+      model: "dm"
+      parameters (0):
+    device [11] name="g1" designator=g @netlists/disto_multi.cir:16:1
+      nodes: "0" "gx" "a" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="1m" @netlists/disto_multi.cir:16:13
+    device [12] name="rg" designator=r @netlists/disto_multi.cir:17:1
+      nodes: "gx" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_multi.cir:17:9
+    device [13] name="vsense" designator=v @netlists/disto_multi.cir:18:1
+      nodes: "gx" "h"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/disto_multi.cir:18:13
+    device [14] name="h1" designator=h @netlists/disto_multi.cir:19:1
+      nodes: "hx" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vsense" @netlists/disto_multi.cir:19:9
+        [1] name="gain" kind=scalar value="100" @netlists/disto_multi.cir:19:16
+    device [15] name="rh" designator=r @netlists/disto_multi.cir:20:1
+      nodes: "hx" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_multi.cir:20:9
+    device [16] name="f1" designator=f @netlists/disto_multi.cir:21:1
+      nodes: "0" "fx"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="vsense" @netlists/disto_multi.cir:21:9
+        [1] name="gain" kind=scalar value="2" @netlists/disto_multi.cir:21:16
+    device [17] name="rf" designator=r @netlists/disto_multi.cir:22:1
+      nodes: "fx" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/disto_multi.cir:22:9
+    device [18] name="s1" designator=s @netlists/disto_multi.cir:23:1
+      nodes: "a" "sx" "in" "0"
+      model: "sw1"
+      parameters (0):
+    device [19] name="rsx" designator=r @netlists/disto_multi.cir:24:1
+      nodes: "sx" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/disto_multi.cir:24:10
+    device [20] name="w1" designator=w @netlists/disto_multi.cir:25:1
+      nodes: "a" "wx"
+      model: "csw1"
+      parameters (1):
+        [0] name="control" kind=instance value="vsense" @netlists/disto_multi.cir:25:9
+    device [21] name="rwx" designator=r @netlists/disto_multi.cir:26:1
+      nodes: "wx" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/disto_multi.cir:26:10
+    device [22] name="c1" designator=c @netlists/disto_multi.cir:27:1
+      nodes: "a" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/disto_multi.cir:27:8
+  models (3):
+    model [0] name="dm" base="d" level=none @netlists/disto_multi.cir:28:1
+      parameters (3):
+        [0] name="is" kind=scalar value="1e-14" @netlists/disto_multi.cir:28:13
+        [1] name="cjo" kind=scalar value="1p" @netlists/disto_multi.cir:28:22
+        [2] name="tt" kind=scalar value="1n" @netlists/disto_multi.cir:28:29
+    model [1] name="sw1" base="sw" level=none @netlists/disto_multi.cir:29:1
+      parameters (3):
+        [0] name="vt" kind=scalar value="0.5" @netlists/disto_multi.cir:29:15
+        [1] name="ron" kind=scalar value="100" @netlists/disto_multi.cir:29:22
+        [2] name="roff" kind=scalar value="1e6" @netlists/disto_multi.cir:29:30
+    model [2] name="csw1" base="csw" level=none @netlists/disto_multi.cir:30:1
+      parameters (2):
+        [0] name="it" kind=scalar value="1m" @netlists/disto_multi.cir:30:17
+        [1] name="ron" kind=scalar value="50" @netlists/disto_multi.cir:30:23
+  subcircuits (0):
+  analyses (3):
+    analysis [0] kind=op @netlists/disto_multi.cir:32:1
+      arguments:
+    analysis [1] kind=ac @netlists/disto_multi.cir:33:1
+      arguments: "dec" "2" "100" "10k"
+    analysis [2] kind=disto @netlists/disto_multi.cir:34:1
+      arguments: "lin" "3" "1k" "4k"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/disto_multi.cir:31:1
+      setting [0] name="reltol" value="1e-7"@netlists/disto_multi.cir:31:16 @netlists/disto_multi.cir:31:9
+  globals (0):

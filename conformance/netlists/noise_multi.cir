@@ -1,0 +1,18 @@
+Noise in a multi-analysis deck with switches
+* #100: .noise composes with .ac/.op; a single-frequency .noise card writes no
+* integrated plot, the dec card two plots; S and W switch thermal noise.
+v1 in 0 dc 2 ac 1
+r1 in out 1k
+r2 out 0 2k
+c1 out 0 10n
+s1 out x in 0 sw1
+r3 x 0 1k
+vs y 0 0
+w1 out y vs csw1
+.model sw1 sw(vt=1 ron=100 roff=1e6)
+.model csw1 csw(it=1m ron=50)
+.noise v(out) v1 dec 3 100 1meg
+.ac dec 2 100 10k
+.op
+.noise v(out) v1 lin 1 10k 20k 1
+.end

@@ -219,8 +219,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
         "rc_sffm_am_tran",
         "rc_sin_tran",
     ];
+    // Gear maxord deck (#98), gated by `xtask golden verify` and
+    // `tests/golden_rawfiles.rs`.
+    let gear_maxord = ["rlc_series_gear_maxord6_tran"];
     on_disk.retain(|name| {
-        !M3_GATE_DECKS.contains(&name.as_str())
+        !gear_maxord.contains(&name.as_str())
+            && !M3_GATE_DECKS.contains(&name.as_str())
             && !m4.contains(&name.as_str())
             && !m7.contains(&name.as_str())
             && !m6.contains(&name.as_str())
@@ -238,9 +242,24 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M6 switch decks (#81) are gated by `xtask golden verify` and
     // `tests/switches.rs`.
     on_disk.retain(|name| !name.starts_with("switch_"));
+    // M8 DC parameter-sweep decks (#97) are gated by `xtask golden verify`
+    // and `tests/dc_parameter_sweeps.rs`.
+    on_disk.retain(|name| !name.starts_with("m8_dc_"));
+    // M8 S-parameter decks (#105) are gated by `xtask golden verify`,
+    // `tests/sparam.rs` and `tests/deck_writer.rs`.
+    on_disk.retain(|name| !name.starts_with("sp_"));
+    // M8 `.noise` decks (#100) are gated by `xtask golden verify` and
+    // `tests/noise_analysis.rs`.
+    on_disk.retain(|name| !name.starts_with("noise_"));
+    // M8 `.disto` decks (#104) are gated by `xtask golden verify`,
+    // `tests/distortion_analysis.rs` and the opt-in `tests/c_disto_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("disto_"));
     // M7 Gummel-Poon BJT decks (#87) are gated by `xtask golden verify`,
     // `tests/bjt_gummel_poon.rs` and the parser round trip there.
     on_disk.retain(|name| !name.starts_with("m7_bjt_"));
+    // M8 `.tf` decks (#101) are gated by `xtask golden verify`,
+    // `tests/analysis_tf.rs` and the opt-in `tests/c_tf_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("m8_tf_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `tests/behavioural_sources.rs`.
     on_disk.retain(|name| {
@@ -258,6 +277,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
                 | "bsource_zero_tran"
         )
     });
+    // M8 pole-zero decks (#103) are gated by `xtask golden verify` and
+    // `tests/pole_zero.rs`.
+    on_disk.retain(|name| !name.starts_with("pz_") && name != "multi_analysis_pz");
+    // M8 sensitivity decks (#102) are gated by `xtask golden verify`,
+    // `tests/sensitivity_analysis.rs` and the opt-in `tests/c_sens_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("sens_"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

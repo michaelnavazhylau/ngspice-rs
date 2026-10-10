@@ -1,0 +1,77 @@
+# ngspice-rs token-dump v1
+file: netlists/pz_cv_loop.cir
+title: "Pole-zero: decoupling capacitor across an ideal supply" @netlists/pz_cv_loop.cir:1:1
+card 1 @netlists/pz_cv_loop.cir:5:1 lines=5-5 continuations=0
+  raw: "vdd vdd 0 dc 5"
+  kind: device(v)
+  token 1 5:1 word "vdd"
+  token 2 5:5 word "vdd"
+  token 3 5:9 number "0" value=0e0
+  token 4 5:11 word "dc"
+  token 5 5:14 number "5" value=5e0
+card 2 @netlists/pz_cv_loop.cir:6:1 lines=6-6 continuations=0
+  raw: "cdec vdd 0 1u"
+  kind: device(c)
+  token 1 6:1 word "cdec"
+  token 2 6:6 word "vdd"
+  token 3 6:10 number "0" value=0e0
+  token 4 6:12 number "1u" value=1e-6
+card 3 @netlists/pz_cv_loop.cir:7:1 lines=7-7 continuations=0
+  raw: "vin in 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 7:1 word "vin"
+  token 2 7:5 word "in"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "dc"
+  token 5 7:13 number "0" value=0e0
+  token 6 7:15 word "ac"
+  token 7 7:18 number "1" value=1e0
+card 4 @netlists/pz_cv_loop.cir:8:1 lines=8-8 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 8:1 word "r1"
+  token 2 8:4 word "in"
+  token 3 8:7 word "a"
+  token 4 8:9 number "1k" value=1e3
+card 5 @netlists/pz_cv_loop.cir:9:1 lines=9-9 continuations=0
+  raw: "c1 a vdd 1n"
+  kind: device(c)
+  token 1 9:1 word "c1"
+  token 2 9:4 word "a"
+  token 3 9:6 word "vdd"
+  token 4 9:10 number "1n" value=1e-9
+card 6 @netlists/pz_cv_loop.cir:10:1 lines=10-10 continuations=0
+  raw: "r2 a b 2k"
+  kind: device(r)
+  token 1 10:1 word "r2"
+  token 2 10:4 word "a"
+  token 3 10:6 word "b"
+  token 4 10:8 number "2k" value=2e3
+card 7 @netlists/pz_cv_loop.cir:11:1 lines=11-11 continuations=0
+  raw: "c2 b 0 2n"
+  kind: device(c)
+  token 1 11:1 word "c2"
+  token 2 11:4 word "b"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "2n" value=2e-9
+card 8 @netlists/pz_cv_loop.cir:12:1 lines=12-12 continuations=0
+  raw: "rload b vdd 10k"
+  kind: device(r)
+  token 1 12:1 word "rload"
+  token 2 12:7 word "b"
+  token 3 12:9 word "vdd"
+  token 4 12:13 number "10k" value=1e4
+card 9 @netlists/pz_cv_loop.cir:13:1 lines=13-13 continuations=0
+  raw: ".pz in 0 b 0 vol pz"
+  kind: dot(.pz)
+  token 1 13:1 word ".pz"
+  token 2 13:5 word "in"
+  token 3 13:8 number "0" value=0e0
+  token 4 13:10 word "b"
+  token 5 13:12 number "0" value=0e0
+  token 6 13:14 word "vol"
+  token 7 13:18 word "pz"
+card 10 @netlists/pz_cv_loop.cir:14:1 lines=14-14 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 14:1 word ".end"

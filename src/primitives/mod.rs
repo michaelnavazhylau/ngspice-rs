@@ -31,8 +31,8 @@ pub use value::{
 ///
 /// Shared vocabulary: the netlist front-end records which analyses a deck asks
 /// for, and the analysis engine dispatches on them. Mirrors the `.op`, `.dc`,
-/// `.ac`, `.tran`, `.noise`, `.disto`, `.pz`, `.sens`, `.tf` and `.four` cards
-/// handled throughout `src/spicelib/analysis/`.
+/// `.ac`, `.tran`, `.noise`, `.disto`, `.pz`, `.sens`, `.tf`, `.four` and
+/// (RFSPICE builds) `.sp` cards handled throughout `src/spicelib/analysis/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnalysisKind {
     /// `.op` — DC operating point.
@@ -55,11 +55,14 @@ pub enum AnalysisKind {
     TransferFunction,
     /// `.four` — Fourier analysis of a transient result.
     Fourier,
+    /// `.sp` — S-parameter analysis over RF port sources (`span.c`, an
+    /// `RFSPICE` build option).
+    SParameter,
 }
 
 impl AnalysisKind {
     /// Every analysis kind, in the order ngspice documents them.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::OperatingPoint,
         Self::DcSweep,
         Self::Ac,
@@ -70,6 +73,7 @@ impl AnalysisKind {
         Self::Sensitivity,
         Self::TransferFunction,
         Self::Fourier,
+        Self::SParameter,
     ];
 
     /// The name without the leading dot, e.g. `"tran"`.
@@ -86,6 +90,7 @@ impl AnalysisKind {
             Self::Sensitivity => "sens",
             Self::TransferFunction => "tf",
             Self::Fourier => "four",
+            Self::SParameter => "sp",
         }
     }
 

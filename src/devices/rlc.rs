@@ -21,6 +21,9 @@
 use crate::maths::{Coefficients, Companion};
 use crate::primitives::{NodeId, Real, SpiceError, SpiceResult};
 
+use crate::devices::noise::{
+    CELSIUS_TO_KELVIN, DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::traits::{AnalysisMode, Device, StampContext};
 
 /// State slots of a capacitor (`CAPqcap`, `CAPccap`) or inductor
@@ -104,6 +107,46 @@ fn record_dc_state(context: &mut StampContext<'_>, quantity: Real) -> SpiceResul
     context.states.set(DERIVATIVE, 0.0)
 }
 
+/// A resistor's `.noise` description (`resnoise.c`, with the `ressetup.c`
+/// defaults): the `noisy` switch, the flicker law
+/// `m KF abs(I/m)^AF / (area f^EF)` and the noise temperature.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResistorNoise {
+    /// C `RESnoisy`: `false` (`noisy=0`) removes the resistor from `.noise`
+    /// entirely, names included. Default `true`.
+    pub noisy: bool,
+    /// Flicker coefficient `KF` (default 0, no flicker noise).
+    pub kf: Real,
+    /// Flicker current exponent `AF` (default 1).
+    pub af: Real,
+    /// Flicker frequency exponent `EF` (default 1).
+    pub ef: Real,
+    /// C `RESeffNoiseArea`: `(L - 2 SHORT)^LF (W - 2 NARROW)^WF` when the
+    /// instance gives `l` or `w`, else 1.
+    pub area: Real,
+    /// The parallel multiplier `m` (default 1).
+    pub multiplicity: Real,
+    /// Instance `temp=` in Celsius; `None` for the circuit temperature.
+    pub temperature: Option<Real>,
+    /// The model name; `None` for C's default resistor model (a literal resistor).
+    pub model: Option<String>,
+}
+
+impl Default for ResistorNoise {
+    fn default() -> Self {
+        Self {
+            noisy: true,
+            kf: 0.0,
+            af: 1.0,
+            ef: 1.0,
+            area: 1.0,
+            multiplicity: 1.0,
+            temperature: None,
+            model: None,
+        }
+    }
+}
+
 /// A resistor, `r1 n1 n2 <value> [tc1=… tc2=…]`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Resistor {
@@ -112,6 +155,8 @@ pub struct Resistor {
     /// Resistance in ohms, as parsed. A behavioural `R={expr}` value is not
     /// modelled yet.
     resistance: Real,
+    /// What `.noise` sees; the default for a literal resistor.
+    noise: ResistorNoise,
 }
 
 impl Resistor {
@@ -135,7 +180,20 @@ impl Resistor {
             name,
             terminals,
             resistance,
+            noise: ResistorNoise::default(),
         })
+    }
+
+    /// The same resistor with the given `.noise` description.
+    #[must_use]
+    pub fn with_noise(self, noise: ResistorNoise) -> Self {
+        Self { noise, ..self }
+    }
+
+    /// The `.noise` description.
+    #[must_use]
+    pub const fn noise_parameters(&self) -> &ResistorNoise {
+        &self.noise
     }
 
     /// The resistance in ohms.
@@ -153,6 +211,16 @@ impl Resistor {
 }
 
 impl Device for Resistor {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `res/resinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -199,6 +267,76 @@ impl Device for Resistor {
         _context: &crate::devices::models::ModelContext,
     ) -> SpiceResult<Real> {
         Resistor::new(&self.name, self.terminals, supplied).map(|resistor| resistor.resistance())
+    }
+
+    /// A literal resistor: C's default resistor model and the resistance
+    /// alone given ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(
+            crate::devices::sensitivity::ResistorSensitivity::new(
+                &self.name,
+                None,
+                self.terminals,
+                crate::devices::sensitivity::ResistorInputs {
+                    resistance: Some(self.resistance),
+                    ..Default::default()
+                },
+                context,
+            ),
+        ))
+    }
+
+    /// Pole-zero load: C `respzld.c` (the `ac=` conductance when given, as `resacld.c`) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
+
+    /// `resnoise.c`: thermal noise `4 k T / R` at the instance temperature
+    /// and the flicker law of [`ResistorNoise`], driven by the operating-point
+    /// current (C `REScurrent`). `noisy=0` is noiseless.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let n = &self.noise;
+        if !n.noisy {
+            return Ok(DeviceNoise::Noiseless);
+        }
+        let conductance = self.conductance();
+        let current =
+            (context.voltage(self.terminals[0]) - context.voltage(self.terminals[1])) * conductance;
+        let temperature = n
+            .temperature
+            .map_or_else(|| context.circuit_kelvin(), |t| t + CELSIUS_TO_KELVIN);
+        let coefficient =
+            n.multiplicity * n.kf * (current / n.multiplicity).abs().powf(n.af) / n.area;
+        Ok(DeviceNoise::Sources {
+            family: NoiseFamily::Resistor,
+            model: n.model.clone(),
+            total: true,
+            sources: vec![
+                NoiseSource::new(
+                    "_thermal",
+                    self.terminals,
+                    NoiseKind::Thermal {
+                        conductance,
+                        temperature,
+                    },
+                ),
+                NoiseSource::new(
+                    "_1overf",
+                    self.terminals,
+                    NoiseKind::Flicker {
+                        coefficient,
+                        exponent: n.ef,
+                    },
+                ),
+            ],
+        })
     }
 }
 
@@ -256,6 +394,25 @@ impl Capacitor {
 }
 
 impl Device for Capacitor {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `cap/capinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
+    /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
+    /// `src/spicelib/devices/cap/capinit.c`).
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -327,6 +484,37 @@ impl Device for Capacitor {
         context.system.has_initial_conditions |= self.initial_voltage.is_some();
         context.nodal(self.terminals, self.capacitance, true)
     }
+
+    /// `.sens`: C's capacitor records with the default model
+    /// ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        use crate::devices::sensitivity::{ReactiveInputs, ReactiveKind, ReactiveSensitivity};
+        let mut instance = vec![("capacitance", self.capacitance)];
+        instance.extend(self.initial_voltage.map(|ic| ("ic", ic)));
+        Ok(Box::new(ReactiveSensitivity::new(
+            ReactiveKind::Capacitor,
+            &self.name,
+            None,
+            self.terminals,
+            ReactiveInputs {
+                instance,
+                model: Vec::new(),
+            },
+            context,
+        )))
+    }
+
+    /// Pole-zero load: C `cappzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 /// An inductor, `l1 n1 n2 <value> [ic=…]`.
@@ -386,6 +574,25 @@ impl Inductor {
 }
 
 impl Device for Inductor {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `ind/indinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
+    /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
+    /// `src/spicelib/devices/ind/indinit.c`).
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -493,6 +700,37 @@ impl Device for Inductor {
         }
         context.system.has_initial_conditions |= self.initial_current.is_some();
         Ok(())
+    }
+
+    /// `.sens`: C's inductor records with the default model
+    /// ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        use crate::devices::sensitivity::{ReactiveInputs, ReactiveKind, ReactiveSensitivity};
+        let mut instance = vec![("inductance", self.inductance)];
+        instance.extend(self.initial_current.map(|ic| ("ic", ic)));
+        Ok(Box::new(ReactiveSensitivity::new(
+            ReactiveKind::Inductor,
+            &self.name,
+            None,
+            self.terminals,
+            ReactiveInputs {
+                instance,
+                model: Vec::new(),
+            },
+            context,
+        )))
+    }
+
+    /// Pole-zero load: C `indpzld.c` (with `mutpzld.c` mutual terms) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
     }
 }
 

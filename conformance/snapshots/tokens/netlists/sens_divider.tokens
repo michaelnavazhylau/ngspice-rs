@@ -1,0 +1,133 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_divider.cir
+title: "DC sensitivity of a divider with controlled sources" @netlists/sens_divider.cir:1:1
+card 1 @netlists/sens_divider.cir:5:1 lines=5-5 continuations=0
+  raw: "v1 in 0 dc 10"
+  kind: device(v)
+  token 1 5:1 word "v1"
+  token 2 5:4 word "in"
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "10" value=1e1
+card 2 @netlists/sens_divider.cir:6:1 lines=6-6 continuations=0
+  raw: "i1 0 b dc 1m"
+  kind: device(i)
+  token 1 6:1 word "i1"
+  token 2 6:4 number "0" value=0e0
+  token 3 6:6 word "b"
+  token 4 6:8 word "dc"
+  token 5 6:11 number "1m" value=1e-3
+card 3 @netlists/sens_divider.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "in"
+  token 3 7:7 word "a"
+  token 4 7:9 number "1k" value=1e3
+card 4 @netlists/sens_divider.cir:8:1 lines=8-8 continuations=0
+  raw: "r2 a 0 rm 2k m=2"
+  kind: device(r)
+  token 1 8:1 word "r2"
+  token 2 8:4 word "a"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "rm"
+  token 5 8:11 number "2k" value=2e3
+  token 6 8:14 word "m"
+  token 7 8:15 equals "="
+  token 8 8:16 number "2" value=2e0
+card 5 @netlists/sens_divider.cir:9:1 lines=9-9 continuations=0
+  raw: ".model rm r tc1=1e-3 tnom=20"
+  kind: dot(.model)
+  token 1 9:1 word ".model"
+  token 2 9:8 word "rm"
+  token 3 9:11 word "r"
+  token 4 9:13 word "tc1"
+  token 5 9:16 equals "="
+  token 6 9:17 number "1e-3" value=1e-3
+  token 7 9:22 word "tnom"
+  token 8 9:26 equals "="
+  token 9 9:27 number "20" value=2e1
+card 6 @netlists/sens_divider.cir:10:1 lines=10-10 continuations=0
+  raw: "r3 a b 3k"
+  kind: device(r)
+  token 1 10:1 word "r3"
+  token 2 10:4 word "a"
+  token 3 10:6 word "b"
+  token 4 10:8 number "3k" value=3e3
+card 7 @netlists/sens_divider.cir:11:1 lines=11-11 continuations=0
+  raw: "rb b 0 1k"
+  kind: device(r)
+  token 1 11:1 word "rb"
+  token 2 11:4 word "b"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "1k" value=1e3
+card 8 @netlists/sens_divider.cir:12:1 lines=12-12 continuations=0
+  raw: "e1 e 0 a 0 2"
+  kind: device(e)
+  token 1 12:1 word "e1"
+  token 2 12:4 word "e"
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 word "a"
+  token 5 12:10 number "0" value=0e0
+  token 6 12:12 number "2" value=2e0
+card 9 @netlists/sens_divider.cir:13:1 lines=13-13 continuations=0
+  raw: "re e c 1k"
+  kind: device(r)
+  token 1 13:1 word "re"
+  token 2 13:4 word "e"
+  token 3 13:6 word "c"
+  token 4 13:8 number "1k" value=1e3
+card 10 @netlists/sens_divider.cir:14:1 lines=14-14 continuations=0
+  raw: "g1 0 c b 0 1m m=3"
+  kind: device(g)
+  token 1 14:1 word "g1"
+  token 2 14:4 number "0" value=0e0
+  token 3 14:6 word "c"
+  token 4 14:8 word "b"
+  token 5 14:10 number "0" value=0e0
+  token 6 14:12 number "1m" value=1e-3
+  token 7 14:15 word "m"
+  token 8 14:16 equals "="
+  token 9 14:17 number "3" value=3e0
+card 11 @netlists/sens_divider.cir:15:1 lines=15-15 continuations=0
+  raw: "f1 0 c v1 0.5"
+  kind: device(f)
+  token 1 15:1 word "f1"
+  token 2 15:4 number "0" value=0e0
+  token 3 15:6 word "c"
+  token 4 15:8 word "v1"
+  token 5 15:11 number "0.5" value=5e-1
+card 12 @netlists/sens_divider.cir:16:1 lines=16-16 continuations=0
+  raw: "h1 h 0 v1 100"
+  kind: device(h)
+  token 1 16:1 word "h1"
+  token 2 16:4 word "h"
+  token 3 16:6 number "0" value=0e0
+  token 4 16:8 word "v1"
+  token 5 16:11 number "100" value=1e2
+card 13 @netlists/sens_divider.cir:17:1 lines=17-17 continuations=0
+  raw: "rh h c 2k"
+  kind: device(r)
+  token 1 17:1 word "rh"
+  token 2 17:4 word "h"
+  token 3 17:6 word "c"
+  token 4 17:8 number "2k" value=2e3
+card 14 @netlists/sens_divider.cir:18:1 lines=18-18 continuations=0
+  raw: "rc c 0 500"
+  kind: device(r)
+  token 1 18:1 word "rc"
+  token 2 18:4 word "c"
+  token 3 18:6 number "0" value=0e0
+  token 4 18:8 number "500" value=5e2
+card 15 @netlists/sens_divider.cir:19:1 lines=19-19 continuations=0
+  raw: ".sens v(c)"
+  kind: dot(.sens)
+  token 1 19:1 word ".sens"
+  token 2 19:7 word "v"
+  token 3 19:8 lparen "("
+  token 4 19:9 word "c"
+  token 5 19:10 rparen ")"
+card 16 @netlists/sens_divider.cir:20:1 lines=20-20 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 20:1 word ".end"

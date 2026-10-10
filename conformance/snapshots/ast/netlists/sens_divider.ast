@@ -1,0 +1,104 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_divider.cir
+title: "DC sensitivity of a divider with controlled sources" @netlists/sens_divider.cir:1:1
+scope root
+  cards (16):
+    [0] device[0] @netlists/sens_divider.cir:5:1 "v1 in 0 dc 10"
+    [1] device[1] @netlists/sens_divider.cir:6:1 "i1 0 b dc 1m"
+    [2] device[2] @netlists/sens_divider.cir:7:1 "r1 in a 1k"
+    [3] device[3] @netlists/sens_divider.cir:8:1 "r2 a 0 rm 2k m=2"
+    [4] model[0] @netlists/sens_divider.cir:9:1 ".model rm r tc1=1e-3 tnom=20"
+    [5] device[4] @netlists/sens_divider.cir:10:1 "r3 a b 3k"
+    [6] device[5] @netlists/sens_divider.cir:11:1 "rb b 0 1k"
+    [7] device[6] @netlists/sens_divider.cir:12:1 "e1 e 0 a 0 2"
+    [8] device[7] @netlists/sens_divider.cir:13:1 "re e c 1k"
+    [9] device[8] @netlists/sens_divider.cir:14:1 "g1 0 c b 0 1m m=3"
+    [10] device[9] @netlists/sens_divider.cir:15:1 "f1 0 c v1 0.5"
+    [11] device[10] @netlists/sens_divider.cir:16:1 "h1 h 0 v1 100"
+    [12] device[11] @netlists/sens_divider.cir:17:1 "rh h c 2k"
+    [13] device[12] @netlists/sens_divider.cir:18:1 "rc c 0 500"
+    [14] analysis[0] @netlists/sens_divider.cir:19:1 ".sens v(c)"
+    [15] end @netlists/sens_divider.cir:20:1 ".end"
+  devices (13):
+    device [0] name="v1" designator=v @netlists/sens_divider.cir:5:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="10" @netlists/sens_divider.cir:5:9
+    device [1] name="i1" designator=i @netlists/sens_divider.cir:6:1
+      nodes: "0" "b"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1m" @netlists/sens_divider.cir:6:8
+    device [2] name="r1" designator=r @netlists/sens_divider.cir:7:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_divider.cir:7:9
+    device [3] name="r2" designator=r @netlists/sens_divider.cir:8:1
+      nodes: "a" "0"
+      model: "rm"
+      parameters (2):
+        [0] name="m" kind=scalar value="2" @netlists/sens_divider.cir:8:14
+        [1] name="resistance" kind=scalar value="2k" @netlists/sens_divider.cir:8:11
+    device [4] name="r3" designator=r @netlists/sens_divider.cir:10:1
+      nodes: "a" "b"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="3k" @netlists/sens_divider.cir:10:8
+    device [5] name="rb" designator=r @netlists/sens_divider.cir:11:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_divider.cir:11:8
+    device [6] name="e1" designator=e @netlists/sens_divider.cir:12:1
+      nodes: "e" "0" "a" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="2" @netlists/sens_divider.cir:12:12
+    device [7] name="re" designator=r @netlists/sens_divider.cir:13:1
+      nodes: "e" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_divider.cir:13:8
+    device [8] name="g1" designator=g @netlists/sens_divider.cir:14:1
+      nodes: "0" "c" "b" "0"
+      model: none
+      parameters (2):
+        [0] name="m" kind=scalar value="3" @netlists/sens_divider.cir:14:15
+        [1] name="gain" kind=scalar value="1m" @netlists/sens_divider.cir:14:12
+    device [9] name="f1" designator=f @netlists/sens_divider.cir:15:1
+      nodes: "0" "c"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="v1" @netlists/sens_divider.cir:15:8
+        [1] name="gain" kind=scalar value="0.5" @netlists/sens_divider.cir:15:11
+    device [10] name="h1" designator=h @netlists/sens_divider.cir:16:1
+      nodes: "h" "0"
+      model: none
+      parameters (2):
+        [0] name="control" kind=instance value="v1" @netlists/sens_divider.cir:16:8
+        [1] name="gain" kind=scalar value="100" @netlists/sens_divider.cir:16:11
+    device [11] name="rh" designator=r @netlists/sens_divider.cir:17:1
+      nodes: "h" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/sens_divider.cir:17:8
+    device [12] name="rc" designator=r @netlists/sens_divider.cir:18:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/sens_divider.cir:18:8
+  models (1):
+    model [0] name="rm" base="r" level=none @netlists/sens_divider.cir:9:1
+      parameters (2):
+        [0] name="tc1" kind=scalar value="1e-3" @netlists/sens_divider.cir:9:13
+        [1] name="tnom" kind=scalar value="20" @netlists/sens_divider.cir:9:22
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_divider.cir:19:1
+      arguments: "v" "(" "c" ")"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

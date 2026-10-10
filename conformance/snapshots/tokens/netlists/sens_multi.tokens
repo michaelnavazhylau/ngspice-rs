@@ -1,0 +1,61 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_multi.cir
+title: "Sensitivity in a multi-analysis deck with a name filter" @netlists/sens_multi.cir:1:1
+card 1 @netlists/sens_multi.cir:3:1 lines=3-3 continuations=0
+  raw: "v1 in 0 dc 10 ac 1"
+  kind: device(v)
+  token 1 3:1 word "v1"
+  token 2 3:4 word "in"
+  token 3 3:7 number "0" value=0e0
+  token 4 3:9 word "dc"
+  token 5 3:12 number "10" value=1e1
+  token 6 3:15 word "ac"
+  token 7 3:18 number "1" value=1e0
+card 2 @netlists/sens_multi.cir:4:1 lines=4-4 continuations=0
+  raw: "r1 in out 1k"
+  kind: device(r)
+  token 1 4:1 word "r1"
+  token 2 4:4 word "in"
+  token 3 4:7 word "out"
+  token 4 4:11 number "1k" value=1e3
+card 3 @netlists/sens_multi.cir:5:1 lines=5-5 continuations=0
+  raw: "r2 out 0 2k"
+  kind: device(r)
+  token 1 5:1 word "r2"
+  token 2 5:4 word "out"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "2k" value=2e3
+card 4 @netlists/sens_multi.cir:6:1 lines=6-6 continuations=0
+  raw: "c1 out 0 1u"
+  kind: device(c)
+  token 1 6:1 word "c1"
+  token 2 6:4 word "out"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "1u" value=1e-6
+card 5 @netlists/sens_multi.cir:7:1 lines=7-7 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 7:1 word ".op"
+card 6 @netlists/sens_multi.cir:8:1 lines=8-8 continuations=0
+  raw: ".ac dec 2 10 1k"
+  kind: dot(.ac)
+  token 1 8:1 word ".ac"
+  token 2 8:5 word "dec"
+  token 3 8:9 number "2" value=2e0
+  token 4 8:11 number "10" value=1e1
+  token 5 8:14 number "1k" value=1e3
+card 7 @netlists/sens_multi.cir:9:1 lines=9-9 continuations=0
+  raw: ".sens v(out) r* v1 dc"
+  kind: dot(.sens)
+  token 1 9:1 word ".sens"
+  token 2 9:7 word "v"
+  token 3 9:8 lparen "("
+  token 4 9:9 word "out"
+  token 5 9:12 rparen ")"
+  token 6 9:14 word "r*"
+  token 7 9:17 word "v1"
+  token 8 9:20 word "dc"
+card 8 @netlists/sens_multi.cir:10:1 lines=10-10 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 10:1 word ".end"

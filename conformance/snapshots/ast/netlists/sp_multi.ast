@@ -1,0 +1,79 @@
+# ngspice-rs ast-dump v1
+file: netlists/sp_multi.cir
+title: "Port sources in AC, OP, transient and S-parameter analyses" @netlists/sp_multi.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/sp_multi.cir:3:1 "v1 in 0 dc 1 ac 1 pulse(0 1 1u 1u 1u 5u 20u) portnum 1 z0 50 pwr 0.001 sin(0 1 1meg)"
+    [1] device[1] @netlists/sp_multi.cir:4:1 "r1 in out 50"
+    [2] device[2] @netlists/sp_multi.cir:5:1 "c1 out 0 10n"
+    [3] device[3] @netlists/sp_multi.cir:6:1 "r2 out 0 200"
+    [4] device[4] @netlists/sp_multi.cir:7:1 "v2 out 0 dc 0 ac 0 portnum 2 z0 75"
+    [5] analysis[0] @netlists/sp_multi.cir:8:1 ".sp lin 4 10k 1meg"
+    [6] analysis[1] @netlists/sp_multi.cir:9:1 ".tran 0.1u 20u"
+    [7] analysis[2] @netlists/sp_multi.cir:10:1 ".ac lin 3 10k 1meg"
+    [8] analysis[3] @netlists/sp_multi.cir:11:1 ".op"
+    [9] end @netlists/sp_multi.cir:12:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @netlists/sp_multi.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (8):
+        [0] name="dc" kind=scalar value="1" @netlists/sp_multi.cir:3:9
+        [1] name="acmag" kind=scalar value="1" @netlists/sp_multi.cir:3:17
+        [2] name="acphase" kind=scalar value="0" @netlists/sp_multi.cir:3:14
+        [3] name="pulse" kind=waveform value="(0 1 1u 1u 1u 5u 20u)" @netlists/sp_multi.cir:3:19
+          pulse
+            initial: "0"@netlists/sp_multi.cir:3:25
+            pulsed: "1"@netlists/sp_multi.cir:3:27
+            delay: "1u"@netlists/sp_multi.cir:3:29
+            rise: "1u"@netlists/sp_multi.cir:3:32
+            fall: "1u"@netlists/sp_multi.cir:3:35
+            width: "5u"@netlists/sp_multi.cir:3:38
+            period: "20u"@netlists/sp_multi.cir:3:41
+        [4] name="portnum" kind=scalar value="1" @netlists/sp_multi.cir:3:46
+        [5] name="z0" kind=scalar value="50" @netlists/sp_multi.cir:3:56
+        [6] name="pwr" kind=scalar value="0.001" @netlists/sp_multi.cir:3:62
+        [7] name="sin" kind=waveform value="(0 1 1meg)" @netlists/sp_multi.cir:3:72
+          sin
+            vo: "0"@netlists/sp_multi.cir:3:76
+            va: "1"@netlists/sp_multi.cir:3:78
+            freq: "1meg"@netlists/sp_multi.cir:3:80
+    device [1] name="r1" designator=r @netlists/sp_multi.cir:4:1
+      nodes: "in" "out"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/sp_multi.cir:4:11
+    device [2] name="c1" designator=c @netlists/sp_multi.cir:5:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10n" @netlists/sp_multi.cir:5:10
+    device [3] name="r2" designator=r @netlists/sp_multi.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="200" @netlists/sp_multi.cir:6:10
+    device [4] name="v2" designator=v @netlists/sp_multi.cir:7:1
+      nodes: "out" "0"
+      model: none
+      parameters (5):
+        [0] name="dc" kind=scalar value="0" @netlists/sp_multi.cir:7:10
+        [1] name="acmag" kind=scalar value="0" @netlists/sp_multi.cir:7:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sp_multi.cir:7:15
+        [3] name="portnum" kind=scalar value="2" @netlists/sp_multi.cir:7:20
+        [4] name="z0" kind=scalar value="75" @netlists/sp_multi.cir:7:30
+  models (0):
+  subcircuits (0):
+  analyses (4):
+    analysis [0] kind=sp @netlists/sp_multi.cir:8:1
+      arguments: "lin" "4" "10k" "1meg"
+    analysis [1] kind=tran @netlists/sp_multi.cir:9:1
+      arguments: "0.1u" "20u"
+    analysis [2] kind=ac @netlists/sp_multi.cir:10:1
+      arguments: "lin" "3" "10k" "1meg"
+    analysis [3] kind=op @netlists/sp_multi.cir:11:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

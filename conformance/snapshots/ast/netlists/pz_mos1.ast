@@ -1,0 +1,66 @@
+# ngspice-rs ast-dump v1
+file: netlists/pz_mos1.cir
+title: "Pole-zero: MOS1 common-source stage, current drive at the gate" @netlists/pz_mos1.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/pz_mos1.cir:5:1 "vdd vdd 0 5"
+    [1] device[1] @netlists/pz_mos1.cir:6:1 "vin gate 0 dc 2 ac 1"
+    [2] device[2] @netlists/pz_mos1.cir:7:1 "rs gate g 1k"
+    [3] device[3] @netlists/pz_mos1.cir:8:1 "rd vdd drain 10k"
+    [4] device[4] @netlists/pz_mos1.cir:9:1 "cl drain 0 1p"
+    [5] device[5] @netlists/pz_mos1.cir:10:1 "m1 drain g 0 0 mm w=10u l=1u"
+    [6] model[0] @netlists/pz_mos1.cir:11:1 ".model mm nmos(level=1 vto=1 kp=1e-4 cbd=10p cbs=5p cgso=4e-7 cgdo=2e-7)"
+    [7] analysis[0] @netlists/pz_mos1.cir:12:1 ".pz g 0 drain 0 cur pz"
+    [8] end @netlists/pz_mos1.cir:13:1 ".end"
+  devices (6):
+    device [0] name="vdd" designator=v @netlists/pz_mos1.cir:5:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/pz_mos1.cir:5:11
+    device [1] name="vin" designator=v @netlists/pz_mos1.cir:6:1
+      nodes: "gate" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/pz_mos1.cir:6:12
+        [1] name="acmag" kind=scalar value="1" @netlists/pz_mos1.cir:6:20
+        [2] name="acphase" kind=scalar value="0" @netlists/pz_mos1.cir:6:17
+    device [2] name="rs" designator=r @netlists/pz_mos1.cir:7:1
+      nodes: "gate" "g"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/pz_mos1.cir:7:11
+    device [3] name="rd" designator=r @netlists/pz_mos1.cir:8:1
+      nodes: "vdd" "drain"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/pz_mos1.cir:8:14
+    device [4] name="cl" designator=c @netlists/pz_mos1.cir:9:1
+      nodes: "drain" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1p" @netlists/pz_mos1.cir:9:12
+    device [5] name="m1" designator=m @netlists/pz_mos1.cir:10:1
+      nodes: "drain" "g" "0" "0"
+      model: "mm"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/pz_mos1.cir:10:19
+        [1] name="l" kind=scalar value="1u" @netlists/pz_mos1.cir:10:25
+  models (1):
+    model [0] name="mm" base="nmos" level=1e0 @netlists/pz_mos1.cir:11:1
+      parameters (7):
+        [0] name="level" kind=scalar value="1" @netlists/pz_mos1.cir:11:16
+        [1] name="vto" kind=scalar value="1" @netlists/pz_mos1.cir:11:24
+        [2] name="kp" kind=scalar value="1e-4" @netlists/pz_mos1.cir:11:30
+        [3] name="cbd" kind=scalar value="10p" @netlists/pz_mos1.cir:11:38
+        [4] name="cbs" kind=scalar value="5p" @netlists/pz_mos1.cir:11:46
+        [5] name="cgso" kind=scalar value="4e-7" @netlists/pz_mos1.cir:11:53
+        [6] name="cgdo" kind=scalar value="2e-7" @netlists/pz_mos1.cir:11:63
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=pz @netlists/pz_mos1.cir:12:1
+      arguments: "g" "0" "drain" "0" "cur" "pz"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

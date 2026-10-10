@@ -1,0 +1,18 @@
+Title: pole-zero: coupled-inductor transformer
+Date: Fri Oct  9 16:43:09  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 4
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(pole(3))	voltage
+	3	v(zero(1))	voltage
+Values:
+ 0	-6.587015879976568e+04,5.139172478027967e+04
+	-6.587015879976568e+04,-5.139172478027967e+04
+	-4.522308663094482e+03,0.000000000000000e+00
+	0.000000000000000e+00,0.000000000000000e+00
+

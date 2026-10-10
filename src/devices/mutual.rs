@@ -130,6 +130,35 @@ impl MutualInductance {
 }
 
 impl Device for MutualInductance {
+    /// `.sens`: the coupling `k` is C's only perturbable parameter and is
+    /// `IF_AC` ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        _context: &crate::devices::models::ModelContext,
+    ) -> crate::primitives::SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>>
+    {
+        Ok(Box::new(crate::devices::sensitivity::MutualSensitivity))
+    }
+
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `ind/mutinit.c`), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
+    /// Noiseless: C gives this device no noise routine (`DEVnoise = NULL`,
+    /// `src/spicelib/devices/ind/indinit.c (mutual)`).
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -160,6 +189,15 @@ impl Device for MutualInductance {
     /// As [`Device::stamp`]: the inductors assemble the mutual `E` entries.
     fn assemble_linear(&self, _context: &mut LinearContext<'_>) -> SpiceResult<()> {
         Ok(())
+    }
+
+    /// Pole-zero load: C `mutpzld.c`, whose terms the coupled inductors stamp equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
     }
 }
 

@@ -6,8 +6,10 @@
 //! GAP1/GAP2, TLEV, TLEVC, DTEMP, TNOM), the sidewall junction (JSW, NS, CJSW,
 //! VJSW, MJSW, FCS, PJ), recombination (ISR/NR), tunnelling (JTUN/JTUNSW/NTUN),
 //! high-injection knees (IKF/IKR/IKP) and the transit-time/series-resistance
-//! temperature coefficients. Soft reverse recovery, a separate sidewall series
-//! resistance, self-heating, level-3 geometry and noise and SOA setters fail
+//! temperature coefficients, and the `.noise` generators of `dionoise.c`
+//! (series-resistance thermal, junction shot and KF/AF flicker noise).
+//! Soft reverse recovery, a separate sidewall series
+//! resistance, self-heating, level-3 geometry and SOA setters fail
 //! with [`SpiceError::NotYetPorted`] before node interning; unknown setters
 //! remain unsupported errors. The instance `off` flag follows `dioload.c`
 //! (`MODEINITJCT`/`MODEINITFIX` hold at 0 V). The `uic` initial load starts
@@ -20,6 +22,7 @@
 //! start at `tVcrit`, `DEVpnjlim`, reflected about BV in breakdown) through
 //! [`crate::devices::limiting`]; C's predictor and bypass are not ported.
 use crate::devices::limiting::{self, Limiter, Linearization};
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::schema::{
     ScalarDomain as Domain, ScalarParameter as Parameter, ScalarSchema, ScalarUnit as Unit,
     ScalarValues,
@@ -27,7 +30,9 @@ use crate::devices::schema::{
 use crate::devices::{Device, LinearContext, ModelContext, ResolvedModel, StampContext};
 use crate::maths::Vector;
 use crate::netlist::ast::{DeviceInstance, ParameterAssignment};
-use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
+use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError, SpiceResult};
+
+mod sens;
 
 /// Diode state slot of the limited junction voltage (C `DIOvoltage`).
 const DIODE_VOLTAGE_SLOT: usize = 2;
@@ -118,6 +123,9 @@ const MODEL: ScalarSchema<'static> = ScalarSchema {
         scalar("keg", Unit::Dimensionless, Domain::Finite, Some(1.)),
         scalar("area", Unit::Dimensionless, Domain::Positive, Some(1.)),
         scalar("pj", Unit::Dimensionless, Domain::NonNegative, Some(0.)),
+        // dionoise.c flicker law; diosetup.c defaults KF = 0, AF = 1.
+        scalar("kf", Unit::Dimensionless, Domain::Finite, Some(0.)),
+        scalar("af", Unit::Dimensionless, Domain::Finite, Some(1.)),
     ],
 };
 /// `dio.c::DIOmPTable` aliases (`IOPR` entries share the canonical setter id, so
@@ -159,8 +167,6 @@ const MODEL_PENDING: &[(&str, &str)] = &[
     ),
     ("rth0", "src/spicelib/devices/dio/dioload.c (self-heating)"),
     ("cth0", "src/spicelib/devices/dio/dioload.c (self-heating)"),
-    ("kf", "src/spicelib/devices/dio/dionoise.c"),
-    ("af", "src/spicelib/devices/dio/dionoise.c"),
     ("fv_max", "src/spicelib/devices/dio/diosoachk.c"),
     ("bv_max", "src/spicelib/devices/dio/diosoachk.c"),
     ("id_max", "src/spicelib/devices/dio/diosoachk.c"),
@@ -305,6 +311,8 @@ fn selector(values: &ScalarValues, name: &str, max: u8, owner: &DeviceInstance) 
 #[derive(Debug)]
 pub struct Diode {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model: String,
     terminals: Vec<NodeId>,
     junction: [NodeId; 2],
     parameters: DiodeParameters,
@@ -312,6 +320,15 @@ pub struct Diode {
     /// value is validated and kept but, exactly as in C, never used: see
     /// the `uic` start in `stamp`.
     initial: crate::devices::initial::InstanceInitial,
+    /// The instance card, for diagnostics of swept replacements.
+    location: SourceLoc,
+    /// The validated model and instance setters as written, for `.sens`
+    /// ([`sens`]), shared by swept and perturbed copies.
+    written: std::rc::Rc<(ScalarValues, ScalarValues)>,
+    /// A `.sens` stand-in: the load keeps C's nonfinite values (a knee
+    /// current of zero divides by zero in `dioload.c`) instead of rejecting
+    /// them, so the analysis can propagate C's NaN.
+    lenient: bool,
 }
 /// Typed validated diode parameters as written (nominal temperature values,
 /// instance scale factors kept separate). Temperature-dependent quantities are
@@ -371,6 +388,9 @@ struct DiodeParameters {
     temperature: Option<Real>,
     dtemp: Real,
     nominal: Option<Real>,
+    /// Flicker-noise coefficient and exponent (`dionoise.c`).
+    kf: Real,
+    af: Real,
 }
 impl Diode {
     pub(crate) fn instantiate(
@@ -418,10 +438,14 @@ impl Diode {
         *nodes = staged;
         Ok(Box::new(Self {
             name: instance.name.clone(),
+            model: card.name.clone(),
             terminals,
             junction: [positive, external[1]],
             parameters: p,
             initial,
+            location: instance.location.clone(),
+            written: std::rc::Rc::new((m, i)),
+            lenient: false,
         }))
     }
 }
@@ -485,8 +509,24 @@ impl DiodeParameters {
             temperature: i.get("temp").map(|v| v.value),
             dtemp: i.get("dtemp").map_or(0., |v| v.value),
             nominal: m.get("tnom").map(|v| v.value),
+            kf: value(m, "kf")?,
+            af: value(m, "af")?,
         };
-        let location = || instance.location.clone();
+        p.check(&instance.location)?;
+        if p.temperature.is_some() && i.get("dtemp").is_some() {
+            return Err(SpiceError::parse(
+                instance.location.clone(),
+                "diode has both temp= and dtemp= (C ignores dtemp); give one",
+            ));
+        }
+        Ok(p)
+    }
+
+    /// The instance-independent consistency checks of [`Self::new`], shared
+    /// with swept replacements ([`Diode::with_instance_parameter`]).
+    fn check(&self, location: &SourceLoc) -> SpiceResult<()> {
+        let p = self;
+        let location = || location.clone();
         if p.grading >= 1. || p.fc >= 1. || p.mjsw >= 1. || p.fcs >= 1. {
             return Err(SpiceError::parse(
                 location(),
@@ -499,12 +539,6 @@ impl DiodeParameters {
                 "diode needs finite area*m, pj*m",
             ));
         }
-        if p.temperature.is_some() && i.get("dtemp").is_some() {
-            return Err(SpiceError::parse(
-                location(),
-                "diode has both temp= and dtemp= (C ignores dtemp); give one",
-            ));
-        }
         // dioload.c evaluates the common-characteristic sidewall breakdown with
         // `vdsw`, which is only assigned for a separate sidewall (RSW), so C's
         // value there depends on stale solver state rather than on the junction.
@@ -513,7 +547,7 @@ impl DiodeParameters {
                 format!(
                     "{}: diode sidewall current (JSW*PJ > 0) sharing the bottom characteristic \
                      (NS not given) in breakdown (BV given)",
-                    instance.location
+                    location()
                 ),
                 "src/spicelib/devices/dio/dioload.c (common-characteristic sidewall breakdown)",
             ));
@@ -525,12 +559,12 @@ impl DiodeParameters {
                 format!(
                     "{}: diode sidewall depletion charge with grading temperature \
                      coefficients TM1/TM2",
-                    instance.location
+                    location()
                 ),
                 "src/spicelib/devices/dio/diotemp.c, dioload.c (DIOtGradingCoeffSW)",
             ));
         }
-        Ok(p)
+        Ok(())
     }
 
     /// `diotemp.c::DIOtempUpdate` at this run's instance temperature.
@@ -825,6 +859,20 @@ impl Thermal {
     /// `dioload.c` currents and charges at junction voltage `vd` (no RSW, no
     /// soft recovery, no self-heating).
     fn point(&self, vd: Real, gmin: Real) -> SpiceResult<DiodePoint> {
+        let point = self.point_unchecked(vd, gmin)?;
+        point.junction.validate()?;
+        if !point.ac_conductance.is_finite() || !point.ac_capacitance.is_finite() {
+            return Err(SpiceError::Numerical {
+                context: "junction".into(),
+                message: "nonfinite small-signal junction values".into(),
+            });
+        }
+        Ok(point)
+    }
+
+    /// [`Self::point`] without the final finiteness checks, for a `.sens`
+    /// stand-in that must carry C's NaN.
+    fn point_unchecked(&self, vd: Real, gmin: Real) -> SpiceResult<DiodePoint> {
         let vte = self.n * self.vt;
         let vtebrk = self.nbv * self.vt;
         let breakdown = self.breakdown.map(|bv| (bv, vtebrk));
@@ -916,13 +964,6 @@ impl Thermal {
             ac_conductance,
             ac_capacitance: capacitance + capacitance_sw + self.tt * ac_conductance,
         };
-        point.junction.validate()?;
-        if !point.ac_conductance.is_finite() || !point.ac_capacitance.is_finite() {
-            return Err(SpiceError::Numerical {
-                context: "junction".into(),
-                message: "nonfinite small-signal junction values".into(),
-            });
-        }
         Ok(point)
     }
 }
@@ -1100,6 +1141,98 @@ impl Device for Diode {
     fn truncation_slot(&self) -> Option<usize> {
         Some(0)
     }
+    /// `dio.c` `DIOpTable`: AREA, PJ (alias PERIM), M, TEMP and DTEMP, which
+    /// `diotemp.c` re-derives completely (`dctrcurv.c` `DCTsetInstParam`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        match keyword.to_ascii_lowercase().as_str() {
+            "area" => Some("area"),
+            "pj" | "perim" => Some("pj"),
+            "m" => Some("m"),
+            "temp" => Some("temp"),
+            "dtemp" => Some("dtemp"),
+            _ => None,
+        }
+    }
+    /// `DIOparam` then `DIOtemp`: the swept setter replaces the instance value
+    /// (AREA/PJ outrank the model's), every temperature-dependent quantity is
+    /// re-derived from it, and the instance schema domains still apply. A
+    /// swept DTEMP on a diode with an instance TEMP is rejected: C silently
+    /// ignores DTEMP there (`diotemp.c`), as the card-level rule says.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        let mut p = self.parameters;
+        let domain = |ok: bool, what: &str| {
+            if ok && value.is_finite() {
+                Ok(())
+            } else {
+                Err(SpiceError::circuit(format!(
+                    "{}: swept {parameter}={value} must be {what}",
+                    self.name
+                )))
+            }
+        };
+        match parameter {
+            "area" => {
+                domain(value > 0., "positive")?;
+                p.area = value;
+            }
+            "pj" => {
+                domain(value >= 0., "nonnegative")?;
+                p.perimeter = value;
+            }
+            "m" => {
+                domain(value > 0., "positive")?;
+                p.multiplier = value;
+            }
+            "temp" => {
+                domain(value + 273.15 > 0., "above absolute zero")?;
+                p.temperature = Some(value);
+            }
+            "dtemp" if p.temperature.is_some() => {
+                return Err(SpiceError::Unsupported {
+                    feature: format!(
+                        "{}: swept dtemp on a diode with an instance temp (C ignores dtemp)",
+                        self.name
+                    ),
+                    location: Some(self.location.clone()),
+                });
+            }
+            "dtemp" => {
+                domain(true, "finite")?;
+                p.dtemp = value;
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "{}: diode parameter {parameter} cannot be swept",
+                    self.name
+                )));
+            }
+        }
+        p.check(&self.location)?;
+        p.thermal(context)?.point(0., context.gmin)?;
+        Ok(Box::new(Self {
+            name: self.name.clone(),
+            model: self.model.clone(),
+            terminals: self.terminals.clone(),
+            junction: self.junction,
+            parameters: p,
+            initial: self.initial.clone(),
+            location: self.location.clone(),
+            written: self.written.clone(),
+            lenient: false,
+        }))
+    }
+    /// `.sens`: C's diode records ([`sens`]).
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(sens::DiodeSensitivity::new(self, context)))
+    }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("diode AC needs small-signal assembly"));
@@ -1114,7 +1247,16 @@ impl Device for Diode {
         let start =
             context.node_voltage(self.terminals[0]) - context.node_voltage(self.terminals[1]);
         let v = thermal.limit(&mut limiter, &context.states, raw, start, self.initial.off);
-        let p = thermal.point(v, model.gmin)?;
+        let mut p = if self.lenient {
+            thermal.point_unchecked(v, model.gmin)?
+        } else {
+            thermal.point(v, model.gmin)?
+        };
+        // C's DEVload matrix (`.tf`, `.sens`): dioload.c's junction
+        // conductance, which differs from the exact derivative only with ISR.
+        if context.states.c_jacobian() {
+            p.junction.conductance = p.ac_conductance;
+        }
         // DIOconvTest for an `off` diode held in MODEINITFIX.
         let held = p.junction.current;
         limiter.test_held(
@@ -1160,6 +1302,163 @@ impl Device for Diode {
         }
         context.nodal(self.junction, p.ac_conductance, false)?;
         context.nodal(self.junction, p.ac_capacitance, true)
+    }
+
+    /// Pole-zero load: C `diopzld.c` equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
+
+    /// `diodset.c`/`diodisto.c`: the junction current's and charge's second-
+    /// and third-order Taylor coefficients in the junction voltage, from C's
+    /// own simplified distortion model rather than `dioload.c`: the ideal
+    /// exponential of the total (bottom plus sidewall) saturation current,
+    /// SPICE3's cubic reverse law below `-3 N Vt`, a breakdown exponential in
+    /// `Vt` (not `NBV Vt`) below `-BV`, no ISR/IKF/IKR/tunnelling/gmin terms,
+    /// the transit-time diffusion charge, and the depletion charges graded
+    /// against the model's **unadjusted** VJ/VJSW below the temperature-
+    /// adjusted `FC*VJ` (`DIOtDepCap`, which C applies to the sidewall too).
+    /// The charge term is omitted when its second-order coefficient is zero,
+    /// as `diodisto.c` skips it.
+    fn distortion(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        use crate::devices::distortion::{
+            Control, DeviceDistortion, DistortionTerm, Response, Taylor,
+        };
+        let p = &self.parameters;
+        let t = p.thermal(context.model_context)?;
+        let vd = context.voltage(self.junction[0]) - context.voltage(self.junction[1]);
+        let csat = t.csat + t.csatsw.unwrap_or(0.);
+        let vt = t.vt;
+        let vte = t.n * vt;
+        let tt = t.tt;
+        let breakdown = t.breakdown.filter(|bv| *bv != 0.);
+        let (g2, g3, cdiff2, cdiff3) = if vd >= -3. * vte {
+            let evd = (vd / vte).exp();
+            let gd = csat * evd / vte;
+            let g2 = 0.5 * gd / vte;
+            let g3 = g2 / 3. / vte;
+            (g2, g3, g2 * tt, g3 * tt)
+        } else if breakdown.is_none_or(|bv| vd >= -bv) {
+            let arg = 3. * vte / (vd * std::f64::consts::E);
+            let arg = arg * arg * arg;
+            let gd = csat * 3. * arg / vd;
+            let g2 = -4. * gd / vd;
+            (g2, 5. * g2 / vd, 0., 0.)
+        } else {
+            let bv = breakdown.unwrap_or(0.);
+            let evrev = (-(bv + vd) / vt).exp();
+            let gd = csat * evrev / vt;
+            let g2 = -gd / 2. / vt;
+            (g2, -g2 / 3. / vt, 0., 0.)
+        };
+        let depletion_cap = p.fc * t.vj;
+        // `diotemp.c`: DIOtF2 = exp((1 + M(T)) ln(1 - FC)).
+        let junction = |czero: Real, pot: Real, grading: Real, f2: Real| {
+            if czero == 0. {
+                (0., 0.)
+            } else if vd < depletion_cap {
+                let arg = 1. - vd / pot;
+                let sarg = (-grading * arg.ln()).exp();
+                let c1 = czero * sarg;
+                let c2 = c1 / 2. / pot * grading / arg;
+                let c3 = c2 / 3. / pot / arg * (grading + 1.);
+                (c2, c3)
+            } else {
+                (czero / f2 / 2. / pot * grading, 0.)
+            }
+        };
+        let f2 = ((1. + t.grading) * (1. - p.fc).ln()).exp();
+        let f2_sw = ((1. + p.mjsw) * (1. - p.fcs).ln()).exp();
+        let (cjunc2, cjunc3) = junction(t.cjo, p.vj, t.grading, f2);
+        let (sw2, sw3) = junction(t.cjsw, p.vjsw, p.mjsw, f2_sw);
+        let (cap2, cap3) = (cdiff2 + (cjunc2 + sw2), cdiff3 + (cjunc3 + sw3));
+        let control = || vec![Control::between(self.junction[0], self.junction[1])];
+        let mut terms = vec![DistortionTerm::new(
+            Response::Current,
+            self.junction,
+            control(),
+            Taylor::single(g2, g3),
+        )];
+        if cap2 != 0. {
+            terms.push(DistortionTerm::new(
+                Response::Charge,
+                self.junction,
+                control(),
+                Taylor::single(cap2, cap3),
+            ));
+        }
+        Ok(DeviceDistortion::Terms(terms))
+    }
+
+    /// `dionoise.c`: thermal noise of the series resistance at the instance
+    /// temperature, shot noise `2 q abs(cd)` of the junction current (gmin
+    /// current included, as C's `DIOcurrent`) and the flicker law
+    /// `KF abs(cd/m)^AF m / f`. The `_rsw`/`_idsw`/`_1overfsw` generators of
+    /// a separate sidewall (RSW, not ported) are zero, as C's are without RSW.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let p = &self.parameters;
+        let thermal = p.thermal(context.model_context)?;
+        let vd = context.voltage(self.junction[0]) - context.voltage(self.junction[1]);
+        let cd = thermal
+            .point(vd, context.model_context.gmin)?
+            .junction
+            .current;
+        let temperature = p
+            .temperature
+            .unwrap_or(context.model_context.temperature + p.dtemp)
+            + 273.15;
+        let m = p.multiplier;
+        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp() * m;
+        let [anode, cathode] = self.junction;
+        let external = self.terminals[0];
+        Ok(DeviceNoise::Sources {
+            family: NoiseFamily::Diode,
+            model: Some(self.model.clone()),
+            total: true,
+            sources: vec![
+                NoiseSource::new(
+                    "_rs",
+                    [anode, external],
+                    NoiseKind::Thermal {
+                        conductance: thermal.conductance,
+                        temperature,
+                    },
+                ),
+                NoiseSource::new("_id", self.junction, NoiseKind::Shot { current: cd }),
+                NoiseSource::new(
+                    "_1overf",
+                    self.junction,
+                    NoiseKind::Flicker {
+                        coefficient: flicker,
+                        exponent: 1.,
+                    },
+                ),
+                NoiseSource::new(
+                    "_rsw",
+                    [anode, external],
+                    NoiseKind::Thermal {
+                        conductance: 0.,
+                        temperature,
+                    },
+                ),
+                NoiseSource::new("_idsw", [anode, cathode], NoiseKind::Shot { current: 0. }),
+                NoiseSource::new(
+                    "_1overfsw",
+                    [anode, cathode],
+                    NoiseKind::Flicker {
+                        coefficient: 0.,
+                        exponent: 1.,
+                    },
+                ),
+            ],
+        })
     }
 }
 
@@ -1439,7 +1738,6 @@ mod tests {
             ("rsw=1", ""),
             ("vp=1 tt=1n", ""),
             ("rth0=10", ""),
-            ("kf=1e-16", ""),
             ("bv_max=10", ""),
             ("xom=1e4", ""),
             ("", "w=1u l=1u"),

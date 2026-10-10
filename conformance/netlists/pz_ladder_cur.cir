@@ -1,0 +1,12 @@
+Pole-zero: current-driven RLC ladder read on the negative output node
+* cur pz with a grounded positive output node: CKTpzSetup takes the negative
+* node as the solution column and swaps the drive. One real pole and a
+* complex pair; the transimpedance has no finite zeros.
+i1 0 in dc 0 ac 1
+r1 in a 1k
+c1 a 0 1u
+l1 a b 1m
+r2 b 0 50
+c3 in 0 1n
+.pz in 0 0 b cur pz
+.end

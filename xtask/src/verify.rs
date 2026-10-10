@@ -18,6 +18,9 @@ enum Gate {
     },
     /// Event-aware comparison on a shared physical time grid (`tran.rs`).
     Transient(compare::TranTolerance),
+    /// Pole-zero plots: poles and zeros as unordered root sets
+    /// (`compare::roots`).
+    Roots(compare::RootTolerance),
 }
 
 /// An additional Rust-only run of the same deck against the same C golden.
@@ -225,6 +228,9 @@ const SUPPORTED: &[Supported] = &[
     // runs under `compare::TRAN_RESTART`.
     tran("rlc_series_tran", &[DIFFSOL_BDF_RESTART]),
     tran("rlc_series_gear_tran", &[]),
+    // `maxord=6` (#98): C's dctran.c only toggles orders 1 and 2, so this is
+    // the Gear-2 integration again (C data equal rlc_series_gear_tran).
+    tran("rlc_series_gear_maxord6_tran", &[]),
     tran("floating_cap_tran", &[DIFFSOL_BDF]),
     tran("coupled_cap_tran", &[DIFFSOL_BDF_RESTART]),
     // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. No
@@ -490,6 +496,44 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // #97: `.dc @instance[parameter]` (C `param-sweep`) and the `res-sweep`
+    // scale of a resistor target.
+    Supported {
+        name: "m8_dc_param_diode",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_param_mos1",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_param_gain",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_dc_res_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
     Supported {
         name: "m7_diode_temp_ac",
         kind: AnalysisKind::Ac,
@@ -623,7 +667,123 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // Pole-zero analysis (#103): C's Muller search against the port's
+    // generalized eigenvalues, compared as unordered root sets under
+    // `compare::POLE_ZERO`. Decks: a current-driven RLC ladder read on the
+    // negative output node (swapped drive), a differential output (C's
+    // column addition) with a zero at the origin, coupled inductors, a
+    // capacitor across an ideal supply (an index-two block the port deflates),
+    // and diode/MOS1 operating-point linearizations.
+    pole_zero("pz_ladder_cur"),
+    pole_zero("pz_bridge_diff"),
+    pole_zero("pz_transformer"),
+    pole_zero("pz_cv_loop"),
+    pole_zero("pz_diode"),
+    pole_zero("pz_mos1"),
+    // `.tf` transfer function (#101): a passive ladder (inductor short,
+    // capacitor open) and a current-driven E/G amplifier with a sensed current
+    // output keep the linear DC bound; the Gummel-Poon stage, linearised at its
+    // tightened-RELTOL operating point, the nonlinear 1 ppm bound.
+    Supported {
+        name: "m8_tf_divider",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_tf_controlled",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m8_tf_bjt",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // `.sens` (#102): C's finite-difference sensitivities, every parameter
+    // `sgen` perturbs. Linear decks (DC, a hot deck with C's in-place
+    // perturbation side effects, AC) under `compare::SENSITIVITY`; the diode
+    // deck, at a tightened-RELTOL operating point, under
+    // `compare::SENSITIVITY_NONLINEAR`.
+    Supported {
+        name: "sens_divider",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sens_hot",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sens_diode",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sens_ac",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY,
+        },
+        variants: &[],
+    },
+    // `.sp` (#105): linear port decks, so the AC bound applies to every
+    // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
+    // resistor so no Z/Y component is a rounding-level real part.
+    Supported {
+        name: "sp_attenuator",
+        kind: AnalysisKind::SParameter,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "sp_rc",
+        kind: AnalysisKind::SParameter,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
 ];
+
+/// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.
+const fn pole_zero(name: &'static str) -> Supported {
+    Supported {
+        name,
+        kind: AnalysisKind::PoleZero,
+        gate: Gate::Roots(compare::POLE_ZERO),
+        variants: &[],
+    }
+}
 /// One plot of a multi-analysis fixture: the analysis type expected at this
 /// position of the batch schedule and the gate its plot is compared under.
 struct Stage {
@@ -641,7 +801,155 @@ struct Batch {
     stages: &'static [Stage],
 }
 
+const NOISE_LINEAR_STAGES: [Stage; 2] = noise_stages(compare::NOISE);
+const NOISE_NONLINEAR_STAGES: [Stage; 2] = noise_stages(compare::NOISE_NONLINEAR);
+
+/// One distortion plot (#104) along `frequency`.
+const DISTORTION_STAGE: Stage = Stage {
+    kind: AnalysisKind::Distortion,
+    gate: Gate::Points {
+        axis: Some("frequency"),
+        tolerance: compare::DISTORTION,
+    },
+};
+/// A deck with an intermodulation card (three plots, run first as the later
+/// card) and a harmonic card (two plots).
+const DISTORTION_IM_AND_HARMONIC_STAGES: [Stage; 5] = [
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+    DISTORTION_STAGE,
+];
+
 const BATCH: &[Batch] = &[
+    // `.sens` (#102) after `.ac` and `.op`, with a name filter.
+    Batch {
+        name: "sens_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Sensitivity,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::SENSITIVITY,
+                },
+            },
+        ],
+    },
+    // `.noise` (#100): every `.noise` card writes a spectrum and an
+    // integrated-noise plot, so the fixtures are batch fixtures. The RC deck
+    // is linear (the AC-type bound with the noise floor); the diode, BJT and
+    // MOS1 decks inherit the nonlinear 1 ppm operating-point bound.
+    Batch {
+        name: "noise_rc",
+        stages: &NOISE_LINEAR_STAGES,
+    },
+    Batch {
+        name: "noise_diode",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    Batch {
+        name: "noise_bjt",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    Batch {
+        name: "noise_mos1",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    // `.ac`, `.op` and two `.noise` cards with S/W switches: the later,
+    // single-frequency card runs first and writes only its spectrum (`noise1`),
+    // the decade card then writes `noise2` and `noise3`.
+    Batch {
+        name: "noise_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Noise,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NOISE_NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Noise,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NOISE_NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Noise,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NOISE_NONLINEAR,
+                },
+            },
+        ],
+    },
+    // `.disto` (#104): every card writes two harmonic or three
+    // intermodulation plots, so the fixtures are batch fixtures. Each deck's
+    // later IM card runs first (`disto1..3`), its harmonic card second
+    // (`disto4 disto5`); `disto_multi` runs `.ac`, `.op` and a `lin` sweep.
+    Batch {
+        name: "disto_diode",
+        stages: &DISTORTION_IM_AND_HARMONIC_STAGES,
+    },
+    Batch {
+        name: "disto_bjt",
+        stages: &DISTORTION_IM_AND_HARMONIC_STAGES,
+    },
+    Batch {
+        name: "disto_mos1",
+        stages: &DISTORTION_IM_AND_HARMONIC_STAGES,
+    },
+    Batch {
+        name: "disto_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            DISTORTION_STAGE,
+            DISTORTION_STAGE,
+        ],
+    },
     Batch {
         name: "multi_analysis_rc",
         stages: &[
@@ -766,7 +1074,117 @@ const BATCH: &[Batch] = &[
             },
         ],
     },
+    // `.tf` in a batch (#101): `.op` then two `.tf` cards in reverse deck
+    // order, over a diode and a MOS1 stage; nonlinear 1 ppm bound.
+    Batch {
+        name: "m8_tf_batch",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::TransferFunction,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::TransferFunction,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::NONLINEAR,
+                },
+            },
+        ],
+    },
+    // `.sp` (#105) beside `.ac`, `.op` and `.tran` on the same RF ports: the
+    // series z0 of each port in every analysis, and `sp1` last in batch order.
+    Batch {
+        name: "sp_multi",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Transient,
+                gate: Gate::Transient(compare::TRAN),
+            },
+            Stage {
+                kind: AnalysisKind::SParameter,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+        ],
+    },
+    // `.op`, `.ac` and two `.pz` cards (#103): ngspice runs the later `.pz`
+    // (zeros) first, so `pz1` holds the zeros and `pz2` the poles.
+    Batch {
+        name: "multi_analysis_pz",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::Ac,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::AC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::PoleZero,
+                gate: Gate::Roots(compare::POLE_ZERO),
+            },
+            Stage {
+                kind: AnalysisKind::PoleZero,
+                gate: Gate::Roots(compare::POLE_ZERO),
+            },
+        ],
+    },
 ];
+
+/// The two plots of one `.noise` card (#100): the spectrum along `frequency`
+/// and the one-point integrated noise.
+const fn noise_stages(tolerance: compare::Tolerance) -> [Stage; 2] {
+    [
+        Stage {
+            kind: AnalysisKind::Noise,
+            gate: Gate::Points {
+                axis: Some("frequency"),
+                tolerance,
+            },
+        },
+        Stage {
+            kind: AnalysisKind::Noise,
+            gate: Gate::Points {
+                axis: None,
+                tolerance,
+            },
+        },
+    ]
+}
 
 /// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
 /// every committed deck, including `subckt_divider`, is verified through its
@@ -933,6 +1351,7 @@ fn run_variant(
             axis: *axis,
             tolerance: *tolerance,
         },
+        (Gate::Roots(tolerance), _) => Gate::Roots(*tolerance),
     };
     compare_plot(&gate, &netlist, &request, &got, &want.plots[0].plot)
 }
@@ -945,47 +1364,83 @@ fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>
     let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
     let schedule = ngspice_rs::analysis::batch::schedule(&netlist.analyses);
     let want = load_golden(root, fixture.name)?;
-    if schedule.len() != fixture.stages.len() || want.plots.len() != fixture.stages.len() {
+    let names: Vec<&str> = schedule
+        .iter()
+        .flat_map(ngspice_rs::analysis::batch::ScheduledAnalysis::plot_names)
+        .collect();
+    if names.len() != fixture.stages.len() || want.plots.len() != fixture.stages.len() {
         return Err(format!(
             "expected {} plots: the deck schedules {}, the C golden has {}",
             fixture.stages.len(),
-            schedule.len(),
+            names.len(),
             want.plots.len()
         ));
     }
-    let mut details = Vec::with_capacity(schedule.len());
-    for ((entry, stage), want) in schedule.iter().zip(fixture.stages).zip(&want.plots) {
+    let mut details = Vec::with_capacity(names.len());
+    let mut stages = fixture.stages.iter().zip(&want.plots);
+    for entry in &schedule {
         let card = &netlist.analyses[entry.card_index];
-        let (request, got) = run_card(&netlist, &config, card, &[])
+        let (request, plots) = run_card_plots(&netlist, &config, card, &[])
             .map_err(|error| format!("{}: {error}", entry.plot_name))?;
-        if request.kind != stage.kind {
+        let own: Vec<&str> = entry.plot_names().collect();
+        if plots.len() != own.len() {
             return Err(format!(
-                "{}: registry expects {:?}, the batch schedule runs {:?}",
-                entry.plot_name, stage.kind, request.kind
+                "{}: the driver produced {} plot(s), the schedule names {}",
+                entry.plot_name,
+                plots.len(),
+                own.len()
             ));
         }
-        if got.plotname != want.plot.plotname {
-            return Err(format!(
-                "{}: plot name '{}' where C wrote '{}' at this position",
-                entry.plot_name, got.plotname, want.plot.plotname
-            ));
+        for (got, name) in plots.iter().zip(own) {
+            let (stage, want) = stages.next().ok_or("more Rust plots than stages")?;
+            if request.kind != stage.kind {
+                return Err(format!(
+                    "{name}: registry expects {:?}, the batch schedule runs {:?}",
+                    stage.kind, request.kind
+                ));
+            }
+            if got.plotname != want.plot.plotname {
+                return Err(format!(
+                    "{name}: plot name '{}' where C wrote '{}' at this position",
+                    got.plotname, want.plot.plotname
+                ));
+            }
+            let detail = compare_plot(&stage.gate, &netlist, &request, got, &want.plot)
+                .map_err(|error| format!("{name}: {error}"))?;
+            details.push(format!("{name} ({}): {detail}", got.plotname));
         }
-        let detail = compare_plot(&stage.gate, &netlist, &request, &got, &want.plot)
-            .map_err(|error| format!("{}: {error}", entry.plot_name))?;
-        details.push(format!("{} ({}): {detail}", entry.plot_name, got.plotname));
     }
     Ok(details)
 }
 
-/// Runs one analysis card through the production driver and projects the plot
-/// onto C's default save set and naming. `extra` tokens are appended to the
-/// request after the deck's own settings.
+/// Runs one single-plot analysis card through [`run_card_plots`].
 fn run_card(
     netlist: &ngspice_rs::netlist::ast::Netlist,
     config: &RunConfig,
     card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
 ) -> Result<(AnalysisRequest, ngspice_rs::analysis::Plot), String> {
+    let (request, mut plots) = run_card_plots(netlist, config, card, extra)?;
+    if plots.len() != 1 {
+        return Err(format!(
+            "expected one Rust plot, the driver produced {} (register multi-plot analyses \
+             as batch fixtures)",
+            plots.len()
+        ));
+    }
+    Ok((request, plots.remove(0)))
+}
+
+/// Runs one analysis card through the production driver and projects every
+/// plot it produces (`.noise` produces two) onto C's default save set and
+/// naming. `extra` tokens are appended to the request after the deck's own
+/// settings.
+fn run_card_plots(
+    netlist: &ngspice_rs::netlist::ast::Netlist,
+    config: &RunConfig,
+    card: &ngspice_rs::netlist::ast::AnalysisCard,
+    extra: &[&str],
+) -> Result<(AnalysisRequest, Vec<ngspice_rs::analysis::Plot>), String> {
     if !card.expressions.is_empty() {
         return Err("braced analysis arguments are not supported in verification fixtures".into());
     }
@@ -995,19 +1450,37 @@ fn run_card(
         .extend(extra.iter().map(|token| (*token).to_owned()));
     let request = config.request(request).map_err(|e| e.to_string())?;
     let mut circuit = config.circuit(netlist).map_err(|e| e.to_string())?;
-    let mut got = runner(request.kind)
-        .and_then(|driver| driver.run(&mut circuit, &request, &config.context()))
+    let plots = runner(request.kind)
+        .and_then(|driver| driver.run_plots(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
     // C's default save set omits simulator-created internal nodes (e.g. a
     // diode's series-resistance anode). Project only those known internal rows;
     // every externally visible variable still goes through exact set checks.
+    // An RF port's `#res` node is not on `outitf.c`'s exclusion list, so C
+    // saves it and it stays compared.
     let internal: Vec<_> = circuit
         .nodes()
         .nodes()
         .iter()
-        .filter(|node| node.kind == ngspice_rs::primitives::NodeKind::Internal)
+        .filter(|node| {
+            node.kind == ngspice_rs::primitives::NodeKind::Internal && !node.name.ends_with("#res")
+        })
         .map(|node| format!("v({})", node.name))
         .collect();
+    let plots = plots
+        .into_iter()
+        .map(|plot| project(plot, request.kind, &internal))
+        .collect();
+    Ok((request, plots))
+}
+
+/// Projects one Rust plot onto C's default save set and naming (see
+/// [`run_card_plots`]).
+fn project(
+    mut got: ngspice_rs::analysis::Plot,
+    kind: AnalysisKind,
+    internal: &[String],
+) -> ngspice_rs::analysis::Plot {
     for column in (0..got.variables.len()).rev() {
         if internal.contains(&got.variables[column].name) {
             got.variables.remove(column);
@@ -1016,15 +1489,18 @@ fn run_card(
             }
         }
     }
-    if request.kind == AnalysisKind::DcSweep
-        && got.variables.first().is_some_and(|v| v.name == "sweep")
-    {
+    if kind == AnalysisKind::DcSweep && got.variables.first().is_some_and(|v| v.name == "sweep") {
         // Rust's public DC scale name predates the nonlinear gate; C wraps its
         // independent-source scale in the voltage/current naming convention,
-        // and names a temperature scale (and its unit) `temp-sweep`.
+        // and names a temperature scale (and its unit) `temp-sweep`, a
+        // resistance scale `res-sweep` and an `@inst[param]` scale
+        // `param-sweep`, which its rawfile writes as a voltage
+        // (`dctrcurv.c`).
         let (name, unit) = match got.variables[0].unit.as_str() {
             "voltage" => ("v(v-sweep)", None),
             "temperature" => ("temp-sweep", Some("temp-sweep")),
+            "resistance" => ("res-sweep", Some("res-sweep")),
+            "parameter" => ("v(param-sweep)", Some("voltage")),
             _ => ("i(i-sweep)", None),
         };
         got.variables[0].name = name.into();
@@ -1043,7 +1519,7 @@ fn run_card(
             }
         }
     }
-    Ok((request, got))
+    got
 }
 
 /// The committed C golden of `name`.
@@ -1065,6 +1541,7 @@ fn compare_plot(
     match *gate {
         Gate::Points { axis, tolerance } => compare::plots(got, want, tolerance, axis)
             .map(|()| format!("{} point(s)", got.point_count())),
+        Gate::Roots(tolerance) => compare::roots(got, want, tolerance),
         Gate::Transient(tolerance) => {
             let time = |index: usize, what: &str| {
                 request

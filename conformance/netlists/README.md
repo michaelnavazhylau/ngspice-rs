@@ -1,8 +1,8 @@
 # Conformance fixtures
 
 Every `*.cir` file here is a **pure deck**: no `.control` section and no file
-I/O. Most have exactly one analysis card; `multi_analysis_rc` and the M6 exit
-gate `m6_gate` deliberately have four (see below). `cargo xtask golden capture` instruments each one
+I/O. Most have exactly one analysis card; `multi_analysis_rc`, the M6 exit
+gate `m6_gate` and the RF-port deck `sp_multi` deliberately have four (see below). `cargo xtask golden capture` instruments each one
 by inserting
 
 ```spice
@@ -57,6 +57,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `rc_pwl_tran` | `.tran` | PWL drive with corners on the output grid |
 | `rlc_series_tran` | `.tran` | underdamped series RLC (zeta = 0.158), PULSE, trapezoidal |
 | `rlc_series_gear_tran` | `.tran` | same circuit, Gear-2 |
+| `rlc_series_gear_maxord6_tran` | `.tran` | same circuit, `method=gear maxord=6` (#98): `dctran.c` never raises the order above 2, so C's data equal `rlc_series_gear_tran` |
 | `floating_cap_tran` | `.tran` | floating capacitor between two resistive nodes (rank-deficient mass, index one) |
 | `coupled_cap_tran` | `.tran` | coupled capacitances (nondiagonal, nonsingular mass block) |
 | `rlc_series_ac` | `.ac` | complex RLC low-pass sweep through resonance (`lin`) |
@@ -130,6 +131,20 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_ic_mos1_uic_tran` | `.tran` | MOS1 inverter pair started under `uic` from full and partial `ic=` vectors and the `.ic` node vector (Gear-2, `reltol=1e-5`, 2 ps maximum step) |
 | `m7_ic_latch_nodeset_op` | `.op` | symmetric CMOS latch whose `.nodeset` (forced in MODEINITJCT/MODEINITFIX only) selects the q-high state |
 | `m7_ic_latch_mos1_ic_op` | `.op` | the same latch whose MOS1 `ic=` vectors move the MODEINITJCT start (no `uic`) and select the q-high state |
+| `m8_tf_divider` | `.tf` | V-driven ladder, `v(out)`: gain and input/output resistance with an inductor short and a capacitor open (#101) |
+| `m8_tf_controlled` | `.tf` | current-source input, E/G amplifier, `i(vs)` output through a zero-volt sense source (#101) |
+| `m8_tf_bjt` | `.tf` | Gummel-Poon CE stage with bias-dependent base resistance, linearised with C's `gx`-only matrix (`reltol=1e-8`, #101) |
+| `m8_tf_batch` | `.op` + 2 `.tf` | diode `v(d,dm)` and MOS1 `i(vdd)` transfer functions in ngspice batch order (`op1 tf1 tf2`, #101) |
+| `sp_attenuator` | `.sp` | matched K = 3 T pad between 50 ohm ports: S11 = 0, S21 = 1/3, closed-form Y/Z, port `#res` nodes, `v(rbase)` (#105) |
+| `sp_rc` | `.sp` | lossy RC two-port between 50 and 75 ohm ports: unequal power-wave normalisation, reciprocal S12 = S21, complex Y/Z (#105) |
+| `sp_multi` | `.sp` `.tran` `.ac` `.op` | RF ports in every analysis (series z0), a later `sin()` overriding `pwr`, batch order `.ac .op .tran .sp` (#105) |
+| `pz_ladder_cur` | `.pz` | current-driven RLC ladder read on the negative output node (C swaps the drive): a real pole and a complex pair |
+| `pz_bridge_diff` | `.pz` | RC bridge with a differential output (C's column addition) and a zero at the origin |
+| `pz_transformer` | `.pz` | K-coupled transformer into an RC load: complex pair, real pole, zero at the origin |
+| `pz_cv_loop` | `.pz` | decoupling capacitor across an ideal supply (an index-two block that must add no pole) |
+| `pz_diode` | `.pz` | forward-biased diode with `rs`, depletion and diffusion charge, linearized at the operating point |
+| `pz_mos1` | `.pz` | MOS1 stage with current drive at a floating gate: a pole at the origin and a right-half-plane zero |
+| `multi_analysis_pz` | `.ac`, `.op`, two `.pz` | batch order and plot names with pole-zero plots (`pz1` zeros, `pz2` poles) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -181,3 +196,10 @@ answer, the OFF flip-flop compares at 0.53 of the bound through its flip, and
 the MOS1 deck's trapezoidal gate currents ring from step to step on the flat
 input. The `.ic` flip-flop keeps every default. See
 [VERIFICATION.md](../../docs/port/VERIFICATION.md#m7-nonlinear-initial-conditions-99).
+
+The seven pole-zero decks (#103) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+Each has at least two roots (C's `write` adds a copy named `all` to a plot with a
+single vector) and is one on which C's root search finishes without a warning;
+`golden verify` compares the roots as unordered sets
+([POLE_ZERO_ADR.md](../../docs/port/POLE_ZERO_ADR.md)).

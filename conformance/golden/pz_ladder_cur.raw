@@ -1,0 +1,16 @@
+Title: pole-zero: current-driven rlc ladder read on the negative output node
+Date: Fri Oct  9 16:43:09  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(pole(3))	voltage
+Values:
+ 0	-1.000998950625846e+06,0.000000000000000e+00
+	-2.500052468707703e+04,1.933845422083931e+04
+	-2.500052468707703e+04,-1.933845422083931e+04
+

@@ -1,0 +1,16 @@
+Noise of a common-emitter BJT stage driven by a current source
+* #100: bjtnoise.c rc/rb/re thermal (bias-dependent rb with irb), collector
+* and base shot and KF/AF flicker noise; current-referred input noise. RELTOL
+* is tightened because C's default (1e-3) leaves a ~1e-4 relative operating-
+* point error in this high-impedance bias, which the shot noise inherits.
+vcc vcc 0 5
+i1 0 b dc 10u ac 1
+rbias vcc b 470k
+q1 c b e qflick area=2
+re e 0 100
+ce e 0 1n
+rc vcc c 2k
+.model qflick npn(is=1e-16 bf=120 vaf=60 ikf=20m ise=1e-14 rb=200 rbm=20 irb=1m rc=10 re=1 cje=2p cjc=1p tf=0.3n kf=1e-15 af=1.2)
+.option reltol=1e-6
+.noise v(c) i1 dec 4 10 100meg 3
+.end

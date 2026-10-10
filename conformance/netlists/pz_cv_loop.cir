@@ -1,0 +1,14 @@
+Pole-zero: decoupling capacitor across an ideal supply
+* cdec closes a loop with the DC source vdd (shorted in the pole-zero load),
+* an index-two block of the pencil: its infinite eigenvalues must be deflated,
+* not reported as huge finite poles. Two RC poles, no finite zeros.
+vdd vdd 0 dc 5
+cdec vdd 0 1u
+vin in 0 dc 0 ac 1
+r1 in a 1k
+c1 a vdd 1n
+r2 a b 2k
+c2 b 0 2n
+rload b vdd 10k
+.pz in 0 b 0 vol pz
+.end

@@ -17,12 +17,15 @@
 //! the bias dependence of the base resistance. C's `bjtload.c` stamps only the
 //! conductance `gx` there; both iterations share the same fixed point.
 //! [`Device::assemble_small_signal`] deliberately reproduces C's AC stamp,
-//! which omits the `d(gx)/dV` terms, because that is what `.ac` computes.
+//! which omits the `d(gx)/dV` terms, because that is what `.ac` computes; a
+//! load whose trial asks for C's matrix
+//! ([`crate::devices::DeviceState::c_jacobian`], used by `.tf`) omits them too.
 //!
 //! Not ported, and rejected with [`SpiceError::NotYetPorted`]: excess phase
 //! (`PTF` with `TF != 0`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`,
-//! `QCO`, ...), noise (`KF`/`AF`), safe-operating-area limits (`*_MAX`,
-//! `RTH0`).
+//! `QCO`, ...), safe-operating-area limits (`*_MAX`, `RTH0`). The `.noise`
+//! generators of `bjtnoise.c` (resistor thermal, collector/base shot and
+//! `KF`/`AF` flicker noise) are ported through [`Device::noise`].
 //!
 //! Newton limiting follows `bjtload.c` through [`crate::devices::limiting`]:
 //! `MODEINITJCT` starts at `vbe = tVcrit` (all zero for an `OFF` instance,
@@ -32,7 +35,10 @@
 //! later loads apply `DEVpnjlim`
 //! to `vbe`, `vbc` and `vsub`. C's `MODEINITPRED` extrapolation, bypass and
 //! the quasi-saturation `vbcx`/`vrci` limits (a rejected model) are not ported.
+mod disto;
+
 use crate::devices::limiting::{self, Limiter, Linearization};
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
@@ -173,6 +179,9 @@ const MODEL: &[P] = &[
     p("tisc2", U::InverseKelvinSquared, D::Finite, Some(0.)),
     p("tiss1", U::InverseKelvin, D::Finite, Some(0.)),
     p("tiss2", U::InverseKelvinSquared, D::Finite, Some(0.)),
+    // bjtnoise.c flicker law; bjtsetup.c defaults KF = 0, AF = 1.
+    p("kf", U::Dimensionless, D::Finite, Some(0.)),
+    p("af", U::Dimensionless, D::Finite, Some(1.)),
 ];
 
 /// `bjt.c` alias setters (`IOPR`/`IOPAR`) and their canonical parameter.
@@ -211,8 +220,6 @@ const UNPORTED_MODEL: &[(&str, &str)] = &[
     ("vg", "Kull quasi-saturation, bjt/bjttemp.c"),
     ("cn", "Kull quasi-saturation, bjt/bjttemp.c"),
     ("d", "Kull quasi-saturation, bjt/bjttemp.c"),
-    ("kf", "BJT flicker noise, bjt/bjtnoise.c"),
-    ("af", "BJT flicker noise, bjt/bjtnoise.c"),
     ("vbe_max", "BJT safe-operating-area check, bjt/bjtsoachk.c"),
     ("vbc_max", "BJT safe-operating-area check, bjt/bjtsoachk.c"),
     ("vce_max", "BJT safe-operating-area check, bjt/bjtsoachk.c"),
@@ -349,6 +356,9 @@ struct Model {
     tvjc: Real,
     tvje: Real,
     tvjs: Real,
+    /// Flicker-noise coefficient and exponent (`bjtnoise.c`).
+    kf: Real,
+    af: Real,
 }
 
 fn integer_selector(values: &ScalarValues, name: &str, allowed: &[u8]) -> SpiceResult<u8> {
@@ -463,6 +473,8 @@ impl Model {
             tvjc: get(m, "tvjc")?,
             tvje: get(m, "tvje")?,
             tvjs: get(m, "tvjs")?,
+            kf: get(m, "kf")?,
+            af: get(m, "af")?,
         };
         // Grading coefficients of 1 or more divide by zero in the depletion
         // charge; C clamps them (with tempco) to 0.999, the port additionally
@@ -1211,6 +1223,8 @@ struct Charge {
 #[derive(Debug)]
 pub struct Bjt {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model_name: String,
     /// External terminals (three, or four with an explicit substrate) followed
     /// by the internal nodes, in the order `bjtsetup.c` creates them.
     terminals: Vec<NodeId>,
@@ -1345,6 +1359,7 @@ impl Bjt {
         };
         Ok(Box::new(Self {
             name: i.name.clone(),
+            model_name: card.name.clone(),
             terminals,
             nodes,
             pol,
@@ -1639,6 +1654,86 @@ impl Device for Bjt {
             vec![0, 2, 4]
         }
     }
+    /// `bjt.c` `BJTpTable`: AREA, AREAB, AREAC, M, TEMP and DTEMP, which
+    /// `bjttemp.c`/`bjtload.c` re-derive (`dctrcurv.c` `DCTsetInstParam`).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        ["area", "areab", "areac", "m", "temp", "dtemp"]
+            .into_iter()
+            .find(|name| name.eq_ignore_ascii_case(keyword))
+    }
+    /// `BJTparam` then `BJTtemp`. A swept AREA leaves AREAB/AREAC at the
+    /// values `bjtsetup.c` defaulted them to from the card's AREA, exactly as
+    /// C does: only `BJTsetup` copies AREA into an ungiven AREAB/AREAC.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        use crate::devices::sweep::check_swept;
+        let mut instance = self.instance;
+        let positive = || check_swept(&self.name, parameter, value, value > 0., "positive");
+        match parameter {
+            "area" => {
+                positive()?;
+                instance.area = value;
+            }
+            "areab" => {
+                positive()?;
+                instance.areab = value;
+            }
+            "areac" => {
+                positive()?;
+                instance.areac = value;
+            }
+            "m" => {
+                positive()?;
+                instance.multiplier = value;
+            }
+            "temp" => {
+                check_swept(
+                    &self.name,
+                    parameter,
+                    value,
+                    value + CELSIUS_TO_KELVIN > 0.,
+                    "above absolute zero",
+                )?;
+                instance.temp = Some(value + CELSIUS_TO_KELVIN);
+            }
+            "dtemp" => {
+                check_swept(&self.name, parameter, value, true, "finite")?;
+                instance.dtemp = value;
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "{}: BJT parameter {parameter} cannot be swept",
+                    self.name
+                )));
+            }
+        }
+        let device = Self {
+            name: self.name.clone(),
+            model_name: self.model_name.clone(),
+            terminals: self.terminals.clone(),
+            nodes: self.nodes,
+            pol: self.pol,
+            subs: self.subs,
+            model: self.model,
+            instance,
+            initial: self.initial.clone(),
+        };
+        evaluate(
+            &device.thermal(context)?,
+            Bias {
+                vbe: 0.,
+                vbc: 0.,
+                vbx: 0.,
+                vsub: 0.,
+            },
+            context.gmin,
+        )?;
+        Ok(Box::new(device))
+    }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("BJT AC requires small-signal assembly"));
@@ -1681,7 +1776,10 @@ impl Device for Bjt {
             vbx: 0.,
             vsub: bias.vsub - raw.vsub,
         };
-        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, true, shift);
+        // The exact Jacobian unless the load asks for C's `bjtload.c` matrix
+        // (gx only), as `.tf` does.
+        let exact = !context.states.c_jacobian();
+        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, exact, shift);
         for flow in &flows {
             stamp_flow(context, flow)?;
         }
@@ -1731,6 +1829,78 @@ impl Device for Bjt {
             small_signal(context, charge.ends, &charge.partials, true)?;
         }
         Ok(())
+    }
+
+    /// Pole-zero load: C `bjtpzld.c` (excess phase is rejected at elaboration) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
+
+    /// `bjtdset.c`/`bjtdisto.c` at the operating point (see the `disto`
+    /// submodule for C's simplified distortion model).
+    fn distortion(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        self.distortion_terms(context)
+    }
+
+    /// `bjtnoise.c` at the operating point: thermal noise of RC, RB (the
+    /// bias-dependent `gx`) and RE at the instance temperature, shot noise of
+    /// the collector current `cc` and base current `cb` (C's `BJTcc`/`BJTcb`,
+    /// junction gmin included) and the flicker law `m KF abs(cb)^AF / f`
+    /// between the internal base and emitter. The quasi-saturation `_rci`
+    /// generator is zero: RCO is not ported, so C's `collCX` node is the
+    /// internal collector.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let thermal = self.thermal(context.model_context)?;
+        let e = evaluate(
+            &thermal,
+            self.bias(|node| context.voltage(node)),
+            context.model_context.gmin,
+        )?;
+        let m = self.instance.multiplier;
+        let cc = e.transport.value - e.base_collector.value;
+        let cb = e.base_emitter.value + e.base_collector.value;
+        let temperature = self
+            .instance
+            .temp
+            .unwrap_or(context.model_context.temperature + CELSIUS_TO_KELVIN + self.instance.dtemp);
+        let flicker = m * self.model.kf * (self.model.af * cb.abs().max(1e-38).ln()).exp();
+        let n = self.nodes;
+        let thermal_noise = |conductance: Real| NoiseKind::Thermal {
+            conductance,
+            temperature,
+        };
+        Ok(DeviceNoise::Sources {
+            family: NoiseFamily::Bjt,
+            model: Some(self.model_name.clone()),
+            total: true,
+            sources: vec![
+                NoiseSource::new("_rc", [n.cp, n.c], thermal_noise(thermal.gc * m)),
+                NoiseSource::new("_rci", [n.cp, n.cp], thermal_noise(0.)),
+                NoiseSource::new(
+                    "_rb",
+                    [n.bp, n.b],
+                    thermal_noise(e.base_conductance.value * m),
+                ),
+                NoiseSource::new("_re", [n.ep, n.e], thermal_noise(thermal.ge * m)),
+                NoiseSource::new("_ic", [n.cp, n.ep], NoiseKind::Shot { current: cc * m }),
+                NoiseSource::new("_ib", [n.bp, n.ep], NoiseKind::Shot { current: cb * m }),
+                NoiseSource::new(
+                    "_1overf",
+                    [n.bp, n.ep],
+                    NoiseKind::Flicker {
+                        coefficient: flicker,
+                        exponent: 1.,
+                    },
+                ),
+            ],
+        })
     }
 }
 

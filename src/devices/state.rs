@@ -57,9 +57,11 @@ use std::ops::Range;
 
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
-/// Number of accepted state vectors retained (C `CKTstate1..CKTstate3`):
-/// enough for order-2 integration and truncation-error estimates.
-pub const ACCEPTED_DEPTH: usize = 3;
+/// Number of accepted state vectors retained (C `CKTstate1..CKTstate7` for
+/// `maxord=6`; `cktsetup.c` allocates `max(2, maxord) + 2` vectors): enough
+/// for Gear order-6 integration (six accepted charges) and its
+/// truncation-error estimate (seven).
+pub const ACCEPTED_DEPTH: usize = crate::maths::IntegrationMethod::MAX_GEAR_ORDER as usize + 1;
 
 fn state_error(message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {
@@ -124,6 +126,7 @@ impl StateHistory {
             nonconvergent: false,
             device_limiting: false,
             initial_conditions: false,
+            c_jacobian: false,
             tolerances: None,
         }
     }
@@ -152,6 +155,7 @@ impl StateHistory {
             nonconvergent: false,
             device_limiting: true,
             initial_conditions: false,
+            c_jacobian: false,
             tolerances: None,
         })
     }
@@ -220,6 +224,7 @@ impl StateHistory {
             nonconvergent,
             device_limiting,
             initial_conditions,
+            c_jacobian,
             tolerances,
         } = trial;
         let previous: Option<&'a [Real]> = match previous {
@@ -238,6 +243,7 @@ impl StateHistory {
             nonconvergent: Some(nonconvergent),
             device_limiting: *device_limiting,
             initial_conditions: *initial_conditions,
+            c_jacobian: *c_jacobian,
             tolerances: *tolerances,
         })
     }
@@ -274,6 +280,7 @@ pub struct TrialState {
     nonconvergent: bool,
     device_limiting: bool,
     initial_conditions: bool,
+    c_jacobian: bool,
     tolerances: Option<(Real, Real)>,
 }
 
@@ -299,6 +306,17 @@ impl TrialState {
     #[must_use]
     pub const fn initial_conditions(&self) -> bool {
         self.initial_conditions
+    }
+
+    /// The same trial asking devices to stamp C's own `DEVload` matrix where
+    /// the port's Newton Jacobian deliberately differs from it (see
+    /// [`DeviceState::c_jacobian`]). Newton solves leave it off; `.tf`
+    /// (`tfanal.c`), which solves with the matrix C's last `CKTop` load left,
+    /// turns it on.
+    #[must_use]
+    pub const fn with_c_jacobian(mut self, enabled: bool) -> Self {
+        self.c_jacobian = enabled;
+        self
     }
 
     /// The same trial with device limiting allowed or forbidden (see
@@ -354,6 +372,7 @@ pub struct DeviceState<'a> {
     nonconvergent: Option<&'a mut bool>,
     device_limiting: bool,
     initial_conditions: bool,
+    c_jacobian: bool,
     tolerances: Option<(Real, Real)>,
 }
 
@@ -370,6 +389,7 @@ impl DeviceState<'_> {
             nonconvergent: None,
             device_limiting: false,
             initial_conditions: false,
+            c_jacobian: false,
             tolerances: None,
         }
     }
@@ -403,6 +423,17 @@ impl DeviceState<'_> {
     #[must_use]
     pub const fn initial_conditions(&self) -> bool {
         self.initial_conditions
+    }
+
+    /// Whether the load must stamp C's `DEVload` matrix rather than the
+    /// port's exact Newton Jacobian where the two deliberately differ
+    /// ([`TrialState::with_c_jacobian`]). The equations, residual and fixed
+    /// point are unchanged; only the matrix differs. Today only the BJT reads
+    /// it (`bjtload.c` stamps the bias-dependent base resistance as the
+    /// conductance `gx` alone).
+    #[must_use]
+    pub const fn c_jacobian(&self) -> bool {
+        self.c_jacobian
     }
 
     /// The value of `slot` written by the previous load of the same Newton
@@ -492,7 +523,7 @@ mod tests {
         let mut history = StateHistory::new(2);
         assert_eq!(history.depth(), 0);
         assert_eq!(history.accepted(1), None);
-        for step in 0_u32..5 {
+        for step in 0_u32..9 {
             let mut trial = history.trial();
             let mut device = history.device(&mut trial, 0..2).unwrap();
             assert_eq!(device.depth(), (step as usize).min(ACCEPTED_DEPTH));
@@ -503,11 +534,16 @@ mod tests {
             device.set(1, -f64::from(step)).unwrap();
             history.commit(trial).unwrap();
         }
+        assert_eq!(
+            ACCEPTED_DEPTH, 7,
+            "Gear order 6 needs seven accepted vectors"
+        );
         assert_eq!(history.depth(), ACCEPTED_DEPTH);
-        assert_eq!(history.accepted(1), Some(&[4.0, -4.0][..]));
-        assert_eq!(history.accepted(3), Some(&[2.0, -2.0][..]));
+        assert_eq!(history.accepted(1), Some(&[8.0, -8.0][..]));
+        assert_eq!(history.accepted(3), Some(&[6.0, -6.0][..]));
+        assert_eq!(history.accepted(7), Some(&[2.0, -2.0][..]));
         assert_eq!(history.accepted(0), None);
-        assert_eq!(history.accepted(4), None);
+        assert_eq!(history.accepted(8), None);
         history.clear();
         assert_eq!(history.depth(), 0);
     }

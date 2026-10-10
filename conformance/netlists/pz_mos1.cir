@@ -1,0 +1,13 @@
+Pole-zero: MOS1 common-source stage, current drive at the gate
+* The AC gate source is removed in the pole-zero load, so the gate node
+* floats behind rs: cur poles include one at the origin. A right-half-plane
+* zero from the gate-drain overlap capacitance.
+vdd vdd 0 5
+vin gate 0 dc 2 ac 1
+rs gate g 1k
+rd vdd drain 10k
+cl drain 0 1p
+m1 drain g 0 0 mm w=10u l=1u
+.model mm nmos(level=1 vto=1 kp=1e-4 cbd=10p cbs=5p cgso=4e-7 cgdo=2e-7)
+.pz g 0 drain 0 cur pz
+.end

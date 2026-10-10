@@ -299,7 +299,8 @@ pub struct StampContext<'a> {
 
 impl StampContext<'_> {
     /// The temperatures and junction `gmin` of this load as a [`crate::devices::ModelContext`]
-    /// (without resistor overrides, which [`crate::devices::Circuit`] has already applied).
+    /// (without resistor or instance-parameter overrides, which
+    /// [`crate::devices::Circuit`] has already applied).
     #[must_use]
     pub const fn model_context(&self) -> crate::devices::ModelContext {
         crate::devices::ModelContext::new(self.temperature, self.nominal_temperature)
@@ -412,6 +413,12 @@ pub trait Device: fmt::Debug {
     /// `VCVSfindBr`, `CCVSfindBr`). `None` (the default) for devices C's
     /// `CKTfndBranch` cannot find, including inductors.
     fn findable_branch(&self) -> Option<usize> {
+        None
+    }
+
+    /// The RFSPICE port data of a voltage source that is an S-parameter port
+    /// (`VSRCisPort`); `None` (the default) for every other device.
+    fn rf_port(&self) -> Option<&crate::devices::sources::RfPort> {
         None
     }
 
@@ -545,6 +552,37 @@ pub trait Device: fmt::Debug {
         self.assemble_linear(context)
     }
 
+    /// Assemble the device's pole-zero load at the bias point: its part of
+    /// the s-domain pencil `A + s E` (C `DEVpzLoad`, called by `CKTpzLoad`
+    /// in `cktpzld.c`). Every C pole-zero load is affine in `s` and equals
+    /// the AC load with `j omega` replaced by `s`, except an independent
+    /// voltage source with an AC value, which `vsrcpzld.c` removes from the
+    /// circuit (its current is forced to zero) because the pole-zero drive
+    /// takes its place.
+    ///
+    /// Opt-in: the default is an explicit error, so a device whose C model
+    /// has no `DEVpzLoad` (or whose pole-zero load the port has not
+    /// reviewed) can never contribute nothing silently. Devices whose C
+    /// pole-zero load equals their small-signal load delegate to
+    /// [`Self::assemble_small_signal`].
+    ///
+    /// # Errors
+    /// Unsupported devices, or the small-signal assembly's errors.
+    fn assemble_pole_zero(
+        &self,
+        _context: &mut crate::devices::linear::LinearContext<'_>,
+        _bias: &Vector,
+    ) -> SpiceResult<()> {
+        Err(SpiceError::Unsupported {
+            feature: format!(
+                "pole-zero analysis of {} (no pole-zero load; C devices without DEVpzLoad, \
+                 e.g. transmission lines and XSPICE code models, are not supported)",
+                self.name()
+            ),
+            location: None,
+        })
+    }
+
     /// Observes an accepted solution point before its state is committed.
     ///
     /// Called by [`crate::devices::Circuit::accept_point`] for the accepted initial
@@ -596,6 +634,109 @@ pub trait Device: fmt::Debug {
             "{} is not a resistor",
             self.name()
         )))
+    }
+
+    /// The device's `.noise` generators at the operating point
+    /// ([`crate::devices::noise`], C `DEVnoise`). Devices C gives no noise
+    /// routine return [`crate::devices::noise::DeviceNoise::Noiseless`]
+    /// explicitly; the default is an error, so a device whose noise is not
+    /// ported can never be silently omitted from the spectrum.
+    ///
+    /// # Errors
+    /// [`SpiceError::NotYetPorted`] by default; invalid bias physics.
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
+        Err(SpiceError::not_yet_ported(
+            format!(
+                "noise analysis of device {} (designator '{}')",
+                self.name(),
+                self.designator()
+            ),
+            "src/spicelib/devices/<dev>/<dev>noi*.c (DEVnoise)",
+        ))
+    }
+
+    /// When this device is an independent V/I source: its kind and whether an
+    /// `ac` value was given, as the `.noise` input reference needs them.
+    /// `None` (the default) for every other device.
+    fn input_source(&self) -> Option<crate::devices::noise::InputSource> {
+        None
+    }
+
+    /// The device's `.disto` nonlinearities at the operating point
+    /// ([`crate::devices::distortion`], C `DEVdisto`). Devices C gives no
+    /// distortion routine but simulates through their AC load return
+    /// [`crate::devices::distortion::DeviceDistortion::Linear`] explicitly;
+    /// the default is an error, so a device whose distortion is not ported
+    /// can never be silently treated as linear.
+    ///
+    /// # Errors
+    /// [`SpiceError::NotYetPorted`] by default; invalid bias physics.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Err(SpiceError::not_yet_ported(
+            format!(
+                "distortion analysis of device {} (designator '{}')",
+                self.name(),
+                self.designator()
+            ),
+            "src/spicelib/devices/<dev>/<dev>disto.c (DEVdisto)",
+        ))
+    }
+    /// The canonical (lowercase, alias-folded) keyword of a settable real
+    /// instance parameter that a `.dc @inst[param]` sweep may replace on this
+    /// device (C `dctrcurv.c` `DCTfindInstParam`), or `None` (the default)
+    /// when the port cannot sweep `keyword` on it. Independent-source `dc`
+    /// and resistor `r` are swept by the source and resistor targets and are
+    /// not reported here.
+    fn instance_parameter(&self, _keyword: &str) -> Option<&'static str> {
+        None
+    }
+
+    /// A disposable copy of this device with `parameter` (a keyword returned
+    /// by [`Self::instance_parameter`]) given the value `value`, exactly as C's
+    /// `DEVparam` setter followed by `DEVtemperature` would leave the
+    /// instance. The copy has the same name, terminals, branch rows and state
+    /// layout; `context` is the point at which it will be evaluated and is
+    /// used for validation only. Immutable: this device does not change.
+    ///
+    /// # Errors
+    /// A parameter this device does not sweep, or an invalid value.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        _value: Real,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        Err(SpiceError::circuit(format!(
+            "{}: instance parameter {parameter} cannot be swept",
+            self.name()
+        )))
+    }
+
+    /// The device as `.sens` perturbs it ([`crate::devices::sensitivity`],
+    /// C `cktsens.c`/`cktsgen.c`): C's parameter tables and records and the
+    /// setter/temperature/load routines replayed on them, evaluated under
+    /// `context`'s temperatures. The default is an explicit error, so a device
+    /// whose C parameters the port cannot reproduce is refused rather than
+    /// silently missing from the output.
+    ///
+    /// # Errors
+    /// [`SpiceError::NotYetPorted`] by default; device data the records cannot
+    /// represent.
+    fn sensitivity(
+        &self,
+        _context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Err(crate::devices::sensitivity::not_ported(
+            self.name(),
+            self.designator(),
+            "",
+        ))
     }
 }
 

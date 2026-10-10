@@ -1,0 +1,217 @@
+# ngspice-rs token-dump v1
+file: netlists/disto_diode.cir
+title: "Harmonic and intermodulation distortion of diode stages" @netlists/disto_diode.cir:1:1
+card 1 @netlists/disto_diode.cir:9:1 lines=9-9 continuations=0
+  raw: "v1 in 0 dc 0.65 ac 1 distof1 0.01 distof2 0.008 30"
+  kind: device(v)
+  token 1 9:1 word "v1"
+  token 2 9:4 word "in"
+  token 3 9:7 number "0" value=0e0
+  token 4 9:9 word "dc"
+  token 5 9:12 number "0.65" value=6.5e-1
+  token 6 9:17 word "ac"
+  token 7 9:20 number "1" value=1e0
+  token 8 9:22 word "distof1"
+  token 9 9:30 number "0.01" value=1e-2
+  token 10 9:35 word "distof2"
+  token 11 9:43 number "0.008" value=8e-3
+  token 12 9:49 number "30" value=3e1
+card 2 @netlists/disto_diode.cir:10:1 lines=10-10 continuations=0
+  raw: "r1 in a 1k"
+  kind: device(r)
+  token 1 10:1 word "r1"
+  token 2 10:4 word "in"
+  token 3 10:7 word "a"
+  token 4 10:9 number "1k" value=1e3
+card 3 @netlists/disto_diode.cir:11:1 lines=11-11 continuations=0
+  raw: "d1 a 0 dfwd pj=2 temp=40"
+  kind: device(d)
+  token 1 11:1 word "d1"
+  token 2 11:4 word "a"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 word "dfwd"
+  token 5 11:13 word "pj"
+  token 6 11:15 equals "="
+  token 7 11:16 number "2" value=2e0
+  token 8 11:18 word "temp"
+  token 9 11:22 equals "="
+  token 10 11:23 number "40" value=4e1
+card 4 @netlists/disto_diode.cir:12:1 lines=12-12 continuations=0
+  raw: "i2 0 v dc 20u distof1 1u 45 distof2 0.5u"
+  kind: device(i)
+  token 1 12:1 word "i2"
+  token 2 12:4 number "0" value=0e0
+  token 3 12:6 word "v"
+  token 4 12:8 word "dc"
+  token 5 12:11 number "20u" value=1.9999999999999998e-5
+  token 6 12:15 word "distof1"
+  token 7 12:23 number "1u" value=1e-6
+  token 8 12:26 number "45" value=4.5e1
+  token 9 12:29 word "distof2"
+  token 10 12:37 number "0.5u" value=5e-7
+card 5 @netlists/disto_diode.cir:13:1 lines=13-13 continuations=0
+  raw: "r2 v 0 100k"
+  kind: device(r)
+  token 1 13:1 word "r2"
+  token 2 13:4 word "v"
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 number "100k" value=1e5
+card 6 @netlists/disto_diode.cir:14:1 lines=14-14 continuations=0
+  raw: "d2 0 v dvar"
+  kind: device(d)
+  token 1 14:1 word "d2"
+  token 2 14:4 number "0" value=0e0
+  token 3 14:6 word "v"
+  token 4 14:8 word "dvar"
+card 7 @netlists/disto_diode.cir:15:1 lines=15-15 continuations=0
+  raw: "v3 z 0 dc -6 distof1 0.05 distof2 0.04"
+  kind: device(v)
+  token 1 15:1 word "v3"
+  token 2 15:4 word "z"
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 word "dc"
+  token 5 15:11 number "-6" value=-6e0
+  token 6 15:14 word "distof1"
+  token 7 15:22 number "0.05" value=5e-2
+  token 8 15:27 word "distof2"
+  token 9 15:35 number "0.04" value=4e-2
+card 8 @netlists/disto_diode.cir:16:1 lines=16-16 continuations=0
+  raw: "r3 z k 2k"
+  kind: device(r)
+  token 1 16:1 word "r3"
+  token 2 16:4 word "z"
+  token 3 16:6 word "k"
+  token 4 16:8 number "2k" value=2e3
+card 9 @netlists/disto_diode.cir:17:1 lines=17-17 continuations=0
+  raw: "d3 k 0 dz"
+  kind: device(d)
+  token 1 17:1 word "d3"
+  token 2 17:4 word "k"
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 word "dz"
+card 10 @netlists/disto_diode.cir:18:1 lines=18-18 continuations=0
+  raw: "r4 k 0 50k"
+  kind: device(r)
+  token 1 18:1 word "r4"
+  token 2 18:4 word "k"
+  token 3 18:6 number "0" value=0e0
+  token 4 18:8 number "50k" value=5e4
+card 11 @netlists/disto_diode.cir:19:1 lines=19-19 continuations=0
+  raw: "c4 k 0 1n"
+  kind: device(c)
+  token 1 19:1 word "c4"
+  token 2 19:4 word "k"
+  token 3 19:6 number "0" value=0e0
+  token 4 19:8 number "1n" value=1e-9
+card 12 @netlists/disto_diode.cir:20:1 lines=20-20 continuations=0
+  raw: ".model dfwd d(is=1e-14 n=1.2 rs=5 cjo=2p vj=0.7 m=0.4 tt=2n jsw=1e-15 cjsw=0.5p vjsw=0.6 mjsw=0.3)"
+  kind: dot(.model)
+  token 1 20:1 word ".model"
+  token 2 20:8 word "dfwd"
+  token 3 20:13 word "d"
+  token 4 20:14 lparen "("
+  token 5 20:15 word "is"
+  token 6 20:17 equals "="
+  token 7 20:18 number "1e-14" value=1e-14
+  token 8 20:24 word "n"
+  token 9 20:25 equals "="
+  token 10 20:26 number "1.2" value=1.2e0
+  token 11 20:30 word "rs"
+  token 12 20:32 equals "="
+  token 13 20:33 number "5" value=5e0
+  token 14 20:35 word "cjo"
+  token 15 20:38 equals "="
+  token 16 20:39 number "2p" value=2e-12
+  token 17 20:42 word "vj"
+  token 18 20:44 equals "="
+  token 19 20:45 number "0.7" value=7e-1
+  token 20 20:49 word "m"
+  token 21 20:50 equals "="
+  token 22 20:51 number "0.4" value=4e-1
+  token 23 20:55 word "tt"
+  token 24 20:57 equals "="
+  token 25 20:58 number "2n" value=2e-9
+  token 26 20:61 word "jsw"
+  token 27 20:64 equals "="
+  token 28 20:65 number "1e-15" value=1e-15
+  token 29 20:71 word "cjsw"
+  token 30 20:75 equals "="
+  token 31 20:76 number "0.5p" value=5e-13
+  token 32 20:81 word "vjsw"
+  token 33 20:85 equals "="
+  token 34 20:86 number "0.6" value=6e-1
+  token 35 20:90 word "mjsw"
+  token 36 20:94 equals "="
+  token 37 20:95 number "0.3" value=3e-1
+  token 38 20:98 rparen ")"
+card 13 @netlists/disto_diode.cir:21:1 lines=21-21 continuations=0
+  raw: ".model dvar d(is=1e-15 cjo=10p vj=0.8 m=0.5 fc=0.5)"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "dvar"
+  token 3 21:13 word "d"
+  token 4 21:14 lparen "("
+  token 5 21:15 word "is"
+  token 6 21:17 equals "="
+  token 7 21:18 number "1e-15" value=1e-15
+  token 8 21:24 word "cjo"
+  token 9 21:27 equals "="
+  token 10 21:28 number "10p" value=1e-11
+  token 11 21:32 word "vj"
+  token 12 21:34 equals "="
+  token 13 21:35 number "0.8" value=8e-1
+  token 14 21:39 word "m"
+  token 15 21:40 equals "="
+  token 16 21:41 number "0.5" value=5e-1
+  token 17 21:45 word "fc"
+  token 18 21:47 equals "="
+  token 19 21:48 number "0.5" value=5e-1
+  token 20 21:51 rparen ")"
+card 14 @netlists/disto_diode.cir:22:1 lines=22-22 continuations=0
+  raw: ".model dz d(is=1e-14 bv=5.1 ibv=1m cjo=5p)"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "dz"
+  token 3 22:11 word "d"
+  token 4 22:12 lparen "("
+  token 5 22:13 word "is"
+  token 6 22:15 equals "="
+  token 7 22:16 number "1e-14" value=1e-14
+  token 8 22:22 word "bv"
+  token 9 22:24 equals "="
+  token 10 22:25 number "5.1" value=5.1e0
+  token 11 22:29 word "ibv"
+  token 12 22:32 equals "="
+  token 13 22:33 number "1m" value=1e-3
+  token 14 22:36 word "cjo"
+  token 15 22:39 equals "="
+  token 16 22:40 number "5p" value=5e-12
+  token 17 22:42 rparen ")"
+card 15 @netlists/disto_diode.cir:23:1 lines=23-23 continuations=0
+  raw: ".option reltol=1e-7"
+  kind: dot(.options)
+  token 1 23:1 word ".option"
+  token 2 23:9 word "reltol"
+  token 3 23:15 equals "="
+  token 4 23:16 number "1e-7" value=1e-7
+card 16 @netlists/disto_diode.cir:24:1 lines=24-24 continuations=0
+  raw: ".disto dec 3 1k 10meg"
+  kind: dot(.disto)
+  token 1 24:1 word ".disto"
+  token 2 24:8 word "dec"
+  token 3 24:12 number "3" value=3e0
+  token 4 24:14 number "1k" value=1e3
+  token 5 24:17 number "10meg" value=1e7
+card 17 @netlists/disto_diode.cir:25:1 lines=25-25 continuations=0
+  raw: ".disto oct 2 1k 64k 0.9"
+  kind: dot(.disto)
+  token 1 25:1 word ".disto"
+  token 2 25:8 word "oct"
+  token 3 25:12 number "2" value=2e0
+  token 4 25:14 number "1k" value=1e3
+  token 5 25:17 number "64k" value=6.4e4
+  token 6 25:21 number "0.9" value=9e-1
+card 18 @netlists/disto_diode.cir:26:1 lines=26-26 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 26:1 word ".end"

@@ -156,7 +156,8 @@ let plot = analysis::runner(request.kind)?.run(&mut circuit, &request, &context)
 ## Explicit limits and verification
 
 Behavioral/nonlinear passives, advanced resistor levels, coil geometry, DTEMP,
-TCE/exponential temperature, AC-only resistance, noise/breakdown fields, unsupported
+TCE/exponential temperature, AC-only resistance, breakdown fields (resistor noise `KF`/`AF`/`EF`/`LF`/`WF`
+and `noisy` are ported for `.noise`, [NOISE.md](NOISE.md)), unsupported
 aliases, global geometry scaling and `.option` parsing remain gaps. D/Q/M factories,
 Model-backed C/L delegate to the scalar trap/Gear-2 companion stamps, which have
 no transient driver yet; general DAEs remain unavailable.

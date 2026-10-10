@@ -1019,7 +1019,7 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
     let allowed = |name: &str| match (designator, name) {
         (_, "temp" | "dtemp" | "m" | "tc1" | "tc2" | "scale") => true,
         ('r' | 'c', "w" | "l" | "bv_max") => true,
-        ('r', "ac" | "tc" | "tce") => true,
+        ('r', "ac" | "tc" | "tce" | "noisy") => true,
         ('c' | 'l', "ic") => true,
         ('l', "nt") => true,
         (_, name) => name == primary,
@@ -1430,11 +1430,37 @@ fn source_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceR
                 parts.push(value_text(parameter, false)?);
                 parts.push(value_text(phase, false)?);
             }
+            (
+                ParameterKind::Scalar | ParameterKind::Expression(_),
+                name @ ("distof1mag" | "distof2mag"),
+            ) => {
+                let phase_name = if name == "distof1mag" {
+                    "distof1phase"
+                } else {
+                    "distof2phase"
+                };
+                let Some(phase) = parameters.next_if(|next| next.name == phase_name) else {
+                    return Err(refuse(
+                        format!("{name} without {phase_name}"),
+                        Some(location),
+                    ));
+                };
+                parts.push(name.trim_end_matches("mag").to_owned());
+                parts.push(value_text(parameter, false)?);
+                parts.push(value_text(phase, false)?);
+            }
             (ParameterKind::Waveform(waveform), name) => {
                 parts.push(waveform_text(waveform, name, location)?);
             }
             // PWL delay/repeat setters stay separate ordered scalars (vsrc.c).
             (ParameterKind::Scalar | ParameterKind::Expression(_), name @ ("r" | "td")) => {
+                parts.push(format!("{name}={}", value_text(parameter, false)?));
+            }
+            // RFSPICE port setters of a V source, ordered like the PWL ones.
+            (
+                ParameterKind::Scalar | ParameterKind::Expression(_),
+                name @ ("portnum" | "z0" | "pwr" | "freq" | "phase"),
+            ) if device.designator == 'v' => {
                 parts.push(format!("{name}={}", value_text(parameter, false)?));
             }
             _ => {

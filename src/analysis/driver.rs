@@ -1,4 +1,8 @@
-//! Analysis drivers: `.op`, `.dc`, `.ac`, `.tran` and friends.
+//! Analysis drivers: `.op`, `.dc`, `.ac`, `.tran`, `.tf` and friends.
+//!
+//! `.noise` runs [`crate::analysis::noise`] (two plots, see
+//! [`Analysis::run_plots`]); `.disto` runs [`crate::analysis::disto`] (two
+//! harmonic or three intermodulation plots).
 //!
 //! Ported from `src/spicelib/analysis/`, which is where ngspice's job control
 //! lives: `CKTdoJob()` in `cktdojob.c` dispatches on the analysis, `dctran.c`
@@ -192,6 +196,22 @@ pub trait Analysis: fmt::Debug {
         request: &AnalysisRequest,
         context: &AnalysisContext,
     ) -> SpiceResult<Plot>;
+
+    /// Runs the analysis and returns **every** plot it produces, in C's
+    /// order. Only `.noise` produces more than one (the spectrum and the
+    /// integrated noise); the default wraps [`Self::run`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`].
+    fn run_plots(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Vec<Plot>> {
+        Ok(vec![self.run(circuit, request, context)?])
+    }
 }
 
 /// `.op` — the DC operating point.
@@ -273,6 +293,82 @@ impl Analysis for AcSmallSignal {
     }
 }
 
+/// `.noise` — small-signal noise spectra and integrated noise
+/// ([`crate::analysis::noise`], `docs/port/NOISE.md`).
+///
+/// C: `noisean.c`. [`Analysis::run_plots`] returns both of C's plots, the
+/// `Noise Spectral Density Curves` and (unless the sweep is one frequency)
+/// the `Integrated Noise`; [`Analysis::run`] returns the spectrum alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Noise;
+
+impl Analysis for Noise {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::Noise
+    }
+
+    fn name(&self) -> &'static str {
+        "noise"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        let mut plots = crate::analysis::noise::run(circuit, request, context)?;
+        Ok(plots.swap_remove(0))
+    }
+
+    fn run_plots(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Vec<Plot>> {
+        crate::analysis::noise::run(circuit, request, context)
+    }
+}
+
+/// `.disto` — small-signal harmonic and intermodulation distortion
+/// ([`crate::analysis::disto`], `docs/port/DISTORTION.md`).
+///
+/// C: `distoan.c`. [`Analysis::run_plots`] returns every plot C writes (the
+/// 2nd and 3rd harmonics, or the three IM products with `f2overf1`);
+/// [`Analysis::run`] returns the first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Distortion;
+
+impl Analysis for Distortion {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::Distortion
+    }
+
+    fn name(&self) -> &'static str {
+        "distortion"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        let mut plots = crate::analysis::disto::run(circuit, request, context)?;
+        Ok(plots.swap_remove(0))
+    }
+
+    fn run_plots(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Vec<Plot>> {
+        crate::analysis::disto::run(circuit, request, context)
+    }
+}
+
 /// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
 /// ([`crate::analysis::companion_transient`]), or the explicitly selected bounded diffsol
 /// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
@@ -302,13 +398,126 @@ impl Analysis for Transient {
     }
 }
 
+/// `.pz` — poles and zeros of the small-signal transfer function at the
+/// operating point, as the finite eigenvalues of the drive-modified pencil
+/// `A + s E` (`docs/port/POLE_ZERO_ADR.md`).
+///
+/// C: `pzan.c`, `cktpzset.c`, `cktpzld.c` (C searches with Muller's method,
+/// `cktpzstr.c`; the port does not).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PoleZero;
+
+impl Analysis for PoleZero {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::PoleZero
+    }
+
+    fn name(&self) -> &'static str {
+        "pole-zero"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::pz::run(circuit, request, context)
+    }
+}
+
+/// `.tf` — the DC small-signal transfer function, input and output resistance
+/// at the operating point (`src/analysis/tf.rs`; see `docs/port/TRANSFER_FUNCTION.md`).
+///
+/// C: `tfanal.c` (`TFanal`), reached through `CKTdoJob()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransferFunction;
+
+impl Analysis for TransferFunction {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::TransferFunction
+    }
+
+    fn name(&self) -> &'static str {
+        "transfer function"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::tf::run(circuit, request, context)
+    }
+}
+
+/// `.sp` — S-parameter analysis over the RF port sources (V sources with
+/// `portnum`), producing S, Y and Z matrices. `donoise` is not ported.
+///
+/// C: `span.c` (an `RFSPICE` build option); see `docs/port/SPARAM.md`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SParameter;
+
+impl Analysis for SParameter {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::SParameter
+    }
+
+    fn name(&self) -> &'static str {
+        "S-parameter"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::sparam::run(circuit, request, context)
+    }
+}
+
+/// `.sens` — DC or AC sensitivity of one output to every perturbable device
+/// parameter, by C's finite-difference perturbation
+/// (`src/analysis/sens.rs`; see `docs/port/SENSITIVITY.md`).
+///
+/// C: `cktsens.c` (`sens_sens`), `cktsgen.c`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sensitivity;
+
+impl Analysis for Sensitivity {
+    fn kind(&self) -> AnalysisKind {
+        AnalysisKind::Sensitivity
+    }
+
+    fn name(&self) -> &'static str {
+        "sensitivity"
+    }
+
+    fn run(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::sens::run(circuit, request, context)
+    }
+}
+
 /// Analyses with production drivers, for the devices and options documented
 /// under `docs/port/`.
-pub const DRIVERS: [AnalysisKind; 4] = [
+pub const DRIVERS: [AnalysisKind; 10] = [
     AnalysisKind::OperatingPoint,
     AnalysisKind::DcSweep,
     AnalysisKind::Ac,
     AnalysisKind::Transient,
+    AnalysisKind::PoleZero,
+    AnalysisKind::TransferFunction,
+    AnalysisKind::SParameter,
+    AnalysisKind::Noise,
+    AnalysisKind::Distortion,
+    AnalysisKind::Sensitivity,
 ];
 
 /// Whether an analysis has a driver.
@@ -350,8 +559,7 @@ pub fn support(kind: AnalysisKind) -> AnalysisSupport {
 ///
 /// # Errors
 ///
-/// [`SpiceError::Unsupported`] for the analyses without a driver (`.noise`,
-/// `.disto`, `.pz`, `.sens`, `.tf`) and for `.four`, which is not a driver but
+/// [`SpiceError::Unsupported`] for `.four`, which is not a driver but
 /// a post-processor of the transient plot ([`support`]). See
 /// `docs/port/ROADMAP.md`.
 pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
@@ -360,6 +568,12 @@ pub fn runner(kind: AnalysisKind) -> SpiceResult<Box<dyn Analysis>> {
         AnalysisKind::DcSweep => Box::new(DcSweep),
         AnalysisKind::Ac => Box::new(AcSmallSignal),
         AnalysisKind::Transient => Box::new(Transient),
+        AnalysisKind::PoleZero => Box::new(PoleZero),
+        AnalysisKind::TransferFunction => Box::new(TransferFunction),
+        AnalysisKind::SParameter => Box::new(SParameter),
+        AnalysisKind::Noise => Box::new(Noise),
+        AnalysisKind::Distortion => Box::new(Distortion),
+        AnalysisKind::Sensitivity => Box::new(Sensitivity),
         other => {
             return Err(SpiceError::Unsupported {
                 feature: format!(
@@ -391,23 +605,18 @@ mod tests {
 
     #[test]
     fn analyses_off_the_roadmap_are_reported_as_unsupported() {
-        for kind in [
-            AnalysisKind::Noise,
-            AnalysisKind::Distortion,
-            AnalysisKind::PoleZero,
-            AnalysisKind::Sensitivity,
-            AnalysisKind::TransferFunction,
-            AnalysisKind::Fourier,
-        ] {
-            let error = runner(kind).expect_err("no driver");
-            assert!(
-                !error.is_not_yet_ported(),
-                "{kind:?} is out of scope, not pending"
-            );
-            assert!(error.to_string().contains(kind.as_str()));
-        }
-        assert!(!super::has_driver(AnalysisKind::Noise));
+        let kind = AnalysisKind::Fourier;
+        let error = runner(kind).expect_err("no driver");
+        assert!(
+            !error.is_not_yet_ported(),
+            "{kind:?} is out of scope, not pending"
+        );
+        assert!(error.to_string().contains(kind.as_str()));
+        assert!(super::has_driver(AnalysisKind::Noise));
+        assert!(super::has_driver(AnalysisKind::Sensitivity));
+        assert!(super::has_driver(AnalysisKind::Distortion));
         assert!(super::has_driver(AnalysisKind::OperatingPoint));
+        assert!(super::has_driver(AnalysisKind::TransferFunction));
     }
 
     #[test]

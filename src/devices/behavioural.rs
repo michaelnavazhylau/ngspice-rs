@@ -150,6 +150,15 @@ impl Behavioural {
         &self.scale
     }
 
+    /// A copy with other output scaling setters, for a `.sens` load.
+    #[must_use]
+    pub(crate) fn with_scale(&self, scale: BehaviouralScale) -> Self {
+        Self {
+            scale,
+            ..self.clone()
+        }
+    }
+
     /// The compiled expression.
     #[must_use]
     pub const fn program(&self) -> &Program {
@@ -283,6 +292,59 @@ impl Behavioural {
 }
 
 impl Device for Behavioural {
+    /// `.sens`: a B source's `ASRCpTable` setters
+    /// ([`crate::devices::sensitivity`]). The XSPICE `spice2poly`/`pwl` code
+    /// models TABLE/POLY lower to are refused: their `MIF` parameters are not
+    /// ported.
+    fn sensitivity(
+        &self,
+        context: &crate::devices::models::ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        if self.designator != 'b' {
+            return Err(crate::devices::sensitivity::not_ported(
+                &self.name,
+                self.designator,
+                " (an XSPICE code model)",
+            ));
+        }
+        Ok(Box::new(
+            crate::devices::sensitivity::BehaviouralSensitivity::new(self, context),
+        ))
+    }
+
+    /// Noiseless: C gives B sources no noise routine (`DEVnoise = NULL`,
+    /// `src/spicelib/devices/asrc/asrcinit.c`), and the XSPICE `spice2poly`/
+    /// `pwl` code models that TABLE/POLY lower to declare none of the noise
+    /// parameters `MIFnoise` looks for (`src/xspice/mif/mifnoise.c`).
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+
+    /// Refused in `.disto`: neither C's B source (`asrcinit.c`) nor the XSPICE
+    /// code models that `POLY`/`TABLE` lower to have a distortion routine, so
+    /// C silently keeps only their small-signal linearization and drops their
+    /// nonlinearity. The port does not reproduce that partial result.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Err(SpiceError::Unsupported {
+            feature: format!(
+                "distortion analysis of {} ({}): C has no distortion routine for behavioural                  sources or XSPICE code models and would silently ignore their nonlinearity",
+                self.name,
+                if self.designator == 'a' {
+                    "XSPICE POLY/TABLE code model"
+                } else {
+                    "B source"
+                }
+            ),
+            location: None,
+        })
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -379,6 +441,38 @@ impl Device for Behavioural {
             &columns,
             factor,
         )
+    }
+
+    /// `ASRCpzLoad` (`asrcpzld.c`) stamps the same bias-point Jacobian as
+    /// AC. The XSPICE instances the front end generates for `POLY`/`TABLE`
+    /// (designator `a`) have no pole-zero load in C (`DEVpzLoad = NULL`, so
+    /// C silently drops them) and a `hertz` expression has no defined
+    /// pole-zero frequency: both are refused.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut LinearContext<'_>,
+        bias: &Vector,
+    ) -> SpiceResult<()> {
+        if self.designator == 'a' {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "pole-zero analysis of XSPICE code-model instance {} (POLY/TABLE): C has no \
+                     pole-zero load for code models and would drop it silently",
+                    self.name
+                ),
+                location: None,
+            });
+        }
+        if self.depends_on_frequency() {
+            return Err(SpiceError::Unsupported {
+                feature: format!(
+                    "pole-zero analysis of {}: its expression reads `hertz`",
+                    self.name
+                ),
+                location: None,
+            });
+        }
+        self.assemble_small_signal(context, bias)
     }
 }
 

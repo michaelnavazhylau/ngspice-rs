@@ -72,6 +72,7 @@ use crate::maths::Vector;
 use crate::netlist::ast::{DeviceInstance, ParameterKind};
 use crate::primitives::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 
+use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
 use crate::devices::schema::{ScalarDomain, ScalarParameter, ScalarSchema, ScalarUnit};
 use crate::devices::state::IterationPhase;
 use crate::devices::traits::{ControlReference, Device, StampContext, TruncationContext};
@@ -223,6 +224,8 @@ const fn schema(kind: SwitchKind) -> ScalarSchema<'static> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Switch {
     name: String,
+    /// The model card's name, for C's `.noise` visiting order.
+    model_name: String,
     kind: SwitchKind,
     /// `[n+, n-]`, then `[nc+, nc-]` for S.
     terminals: Vec<NodeId>,
@@ -231,6 +234,8 @@ pub struct Switch {
     model: SwitchModel,
     /// The last `on`/`off` flag (C `SWzero_stateGiven`): `true` for `on`.
     initially_on: bool,
+    /// The model setters as written, for `.sens`.
+    written: crate::devices::sensitivity::SwitchValues,
 }
 
 /// State slot of the switch state code.
@@ -309,6 +314,18 @@ impl Switch {
             }
             Ok(Some(g))
         };
+        let written_value = |name: &str| {
+            values
+                .get(name)
+                .filter(|value| value.location.is_some())
+                .map(|value| value.value)
+        };
+        let written = crate::devices::sensitivity::SwitchValues {
+            threshold: written_value(threshold),
+            hysteresis: written_value(hysteresis),
+            on: written_value("ron"),
+            off: written_value("roff"),
+        };
         let parameters = SwitchModel {
             threshold: get(threshold).unwrap_or(0.),
             hysteresis: get(hysteresis).unwrap_or(0.),
@@ -361,11 +378,13 @@ impl Switch {
         *nodes = staged;
         Ok(Box::new(Self {
             name: instance.name.clone(),
+            model_name: card.name.clone(),
             kind,
             terminals,
             control,
             model: parameters,
             initially_on,
+            written,
         }))
     }
 
@@ -373,6 +392,49 @@ impl Switch {
     #[must_use]
     pub const fn kind(&self) -> SwitchKind {
         self.kind
+    }
+
+    /// The model card's name.
+    #[must_use]
+    pub fn model_name(&self) -> &str {
+        &self.model_name
+    }
+
+    /// The model setters as written (for `.sens`).
+    pub(crate) const fn model_values(&self) -> crate::devices::sensitivity::SwitchValues {
+        self.written
+    }
+
+    /// A copy with the given threshold, hysteresis and on/off conductances,
+    /// for a `.sens` load.
+    ///
+    /// # Errors
+    /// A nonfinite value.
+    pub(crate) fn with_model(
+        &self,
+        threshold: Real,
+        hysteresis: Real,
+        on: Real,
+        off: Real,
+    ) -> SpiceResult<Self> {
+        if ![threshold, hysteresis, on, off]
+            .iter()
+            .all(|v| v.is_finite())
+        {
+            return Err(SpiceError::circuit(format!(
+                "{}: nonfinite perturbed switch model",
+                self.name
+            )));
+        }
+        Ok(Self {
+            model: SwitchModel {
+                threshold,
+                hysteresis,
+                on_conductance: on,
+                off_conductance: Some(off),
+            },
+            ..self.clone()
+        })
     }
 
     /// The control value at `solution`: `v(nc+) - v(nc-)` or the controlling
@@ -504,6 +566,16 @@ impl Switch {
 }
 
 impl Device for Switch {
+    /// Linear in `.disto`: C gives this device no distortion routine
+    /// (`DEVdisto = NULL`, `sw/swinit.c`, `csw/cswinit.c`; the switch enters through its small-signal on/off conductance), so it enters only through its
+    /// small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> crate::primitives::SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -564,6 +636,16 @@ impl Device for Switch {
         )
     }
 
+    /// `.sens`: C's switch model records ([`crate::devices::sensitivity`]).
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(
+            crate::devices::sensitivity::SwitchSensitivity::new(self, context),
+        ))
+    }
+
     fn assemble_small_signal(
         &self,
         context: &mut LinearContext<'_>,
@@ -610,6 +692,58 @@ impl Device for Switch {
         context.nodal([self.terminals[0], self.terminals[1]], g, false)
     }
 
+    /// `swnoise.c`/`cswnoise.c`: one thermal generator (C's empty suffix, no
+    /// separate total) of the on or off conductance at the circuit
+    /// temperature, decided like the small-signal stamp: from the supplied
+    /// small-signal state (any non-zero code is on, as `(int) CKTstate0` in
+    /// C), or from the instance flag's `MODEINITJCT` state without one.
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let closed = match context.states {
+            Some(states) => {
+                self.stored(states.get(STATE).copied(), "noise")?
+                    .ok_or_else(|| {
+                        SpiceError::circuit(format!("{}: missing noise state", self.name))
+                    })?
+                    != SwitchState::ReallyOff
+            }
+            None => {
+                let control = self.control_value(
+                    |node| context.voltage(node),
+                    |row| {
+                        context.bias.get(row).ok_or_else(|| {
+                            SpiceError::circuit("bias row out of range for a switch control")
+                        })
+                    },
+                    context.controls,
+                )?;
+                self.flag_state(control).is_closed()
+            }
+        };
+        let conductance = if closed {
+            self.model.on_conductance
+        } else {
+            self.model
+                .off_conductance
+                .unwrap_or(context.model_context.gmin)
+        };
+        Ok(DeviceNoise::Sources {
+            family: match self.kind {
+                SwitchKind::Voltage => NoiseFamily::VoltageSwitch,
+                SwitchKind::Current => NoiseFamily::CurrentSwitch,
+            },
+            model: Some(self.model_name.clone()),
+            total: false,
+            sources: vec![NoiseSource::new(
+                "",
+                [self.terminals[0], self.terminals[1]],
+                NoiseKind::Thermal {
+                    conductance,
+                    temperature: context.circuit_kelvin(),
+                },
+            )],
+        })
+    }
+
     fn timestep_limit(&self, context: &TruncationContext<'_>) -> SpiceResult<Option<Real>> {
         if self.kind == SwitchKind::Current {
             // cswtrunc.c reads a control slot CSWload never writes.
@@ -644,6 +778,15 @@ impl Device for Switch {
         };
         Ok(Some(max_change / change * context.dt))
     }
+
+    /// Pole-zero load: C `swpzload.c`/`cswpzld.c` (the `MODEINITSMSIG` state, as AC) equals the AC load with `s` for `j omega`.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> crate::primitives::SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
 }
 
 #[cfg(test)]
@@ -655,6 +798,7 @@ mod tests {
     fn switch(kind: SwitchKind, threshold: f64, hysteresis: f64, on: bool) -> Switch {
         Switch {
             name: "s1".into(),
+            model_name: "sw".into(),
             kind,
             terminals: vec![NodeId::GROUND; 4],
             control: Vec::new(),
@@ -665,6 +809,7 @@ mod tests {
                 off_conductance: None,
             },
             initially_on: on,
+            written: crate::devices::sensitivity::SwitchValues::default(),
         }
     }
 

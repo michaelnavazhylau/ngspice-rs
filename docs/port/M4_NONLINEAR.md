@@ -102,7 +102,7 @@ earlier or later (a knee shift within the matching tolerance).
 Not yet ported (`SpiceError::NotYetPorted`, naming the C file): soft reverse
 recovery (`VP`, `QPSCALE`), separate sidewall resistance (`RSW`), self-heating
 (`RTH0`, `CTH0`, instance `THERMAL`), level-3 geometry (`LM`/`LP`/`WM`/`WP`,
-`XOM`/`XOI`/`XM`/`XP`/`XW`, instance `W`/`L`), noise (`KF`/`AF`), SOA limits
+`XOM`/`XOI`/`XM`/`XP`/`XW`, instance `W`/`L`), SOA limits
 (`FV_MAX`, `BV_MAX`, `ID_MAX`, `TE_MAX`, `PD_MAX`), C's common-characteristic sidewall current in
 breakdown (JSW*PJ > 0 with BV and without NS: `dioload.c` evaluates it with an
 unassigned `vdsw`), and TM1/TM2 with sidewall capacitance (C mixes adjusted and
@@ -175,7 +175,7 @@ C selectors are errors rather than C's warning-and-reset.
 Not ported (`SpiceError::NotYetPorted` naming the C file): excess phase (`PTF`
 with `TF != 0`: Weil's approximation in `bjtload.c` and the AC phase rotation in
 `bjtacld.c`), Kull's quasi-saturation model (`RCO`, `VO`, `GAMMA`, `QCO`,
-`QUASIMOD`, `VG`, `CN`, `D`), noise (`KF`/`AF`, `bjtnoise.c`), safe-operating-area
+`QUASIMOD`, `VG`, `CN`, `D`), safe-operating-area
 limits (`*_MAX`, `RTH0`, `bjtsoachk.c`). `OFF` and `IC`/`ICVBE`/`ICVCE` follow
 `bjtload.c`/`bjtgetic.c` (#99): the `uic` initial load starts at
 `vbe = type * ICVBE`, `vbc = vbx = vbe - type * ICVCE`, `vsub = 0`, unset
@@ -273,8 +273,8 @@ whenever a component is nonzero, **also without `uic`** (C has no `MODEUIC`
 test there), at the default start otherwise; under `uic` unset components come
 from the external terminals of the node vector and an all-zero vector stays
 zero; `OFF` starts and holds the device at zero (it wins over the `IC` vector).
-`NotYetPorted` (naming the C reference): the noise parameters `KF`, `AF`,
-`NLEV`, `GDSNOI` (`mos1noi.c`). Other MOS levels, BSIM/CIDER/XSPICE remain
+The noise parameters `KF`, `AF`, `NLEV`, `GDSNOI` (`mos1noi.c`) and the diode
+and BJT `KF`/`AF` drive `.noise` (#100, [NOISE.md](NOISE.md)). Other MOS levels, BSIM/CIDER/XSPICE remain
 outside scope.
 
 Evidence: `tests/m7_mos1.rs` (operating-point and transient
