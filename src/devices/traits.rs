@@ -408,6 +408,29 @@ pub trait Device: fmt::Debug {
     fn observation_source_multiplier(&self) -> Real {
         1.
     }
+    /// Bias-dependent instance ask (`*ask.c` quantities C reads from
+    /// `CKTstate0`, e.g. a FET's `gm`) at the converged solution, whose node
+    /// voltages `voltage` returns; `transient` is set for transient points.
+    /// Unavailable keywords return `None` (the default); callers report an
+    /// explicit error.
+    /// # Errors
+    /// Invalid contextual temperature, bias physics, or a quantity whose C
+    /// value includes state this hook cannot reproduce.
+    fn observation_operating(
+        &self,
+        _keyword: &str,
+        _context: &crate::devices::ModelContext,
+        _voltage: &dyn Fn(NodeId) -> Real,
+        _transient: bool,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(None)
+    }
+    /// Factor applied to this device's observed terminal currents: `-1` for
+    /// devices whose C ask reports polarity-normalized currents for the
+    /// p-type variant (`jfetask.c`), `1` (the default) otherwise.
+    fn observation_current_sign(&self) -> Real {
+        1.
+    }
 
     /// The instance name, e.g. `r1`.
     fn name(&self) -> &str;

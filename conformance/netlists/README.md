@@ -145,6 +145,13 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `pz_diode` | `.pz` | forward-biased diode with `rs`, depletion and diffusion charge, linearized at the operating point |
 | `pz_mos1` | `.pz` | MOS1 stage with current drive at a floating gate: a pole at the origin and a right-half-plane zero |
 | `multi_analysis_pz` | `.ac`, `.op`, two `.pz` | batch order and plot names with pole-zero plots (`pz1` zeros, `pz2` poles) |
+| `m10_jfet_dc` | `.dc` | JFET output/transfer sweep: Sydney `B`, RD/RS, inverse mode, forward gate, PJF `area`/`m`, VTO/VT0 alias and tail type flags; tight RELTOL (#82) |
+| `m10_jfet_ac` | `.ac` | common-source JFET: CGS/CGD depletion capacitance with FC, RD/RS, `area`, `m` (#82) |
+| `m10_jfet_tran` | `.tran` | JFET source follower and PJF common-source stage, gate charge companions; `tmax` 0.25 ns (#82) |
+| `m10_jfet_temp` | `.dc temp` | TNOM, TCV/VTOTC, BEX/BETATCE, XTI/EG, TEMP/DTEMP, forward-gate IS(T), PJF with RS (#82) |
+| `m10_urc_tran` | `.tran` | URC lines (#85): FMAX-rule 10-section ladder (K=2), `n=4` on a DC-biased reference, C's 3-section minimum; generated `u1#hi<i>`/`u1#lo<i>` nodes |
+| `m10_urc_ac` | `.ac` | URC lines: 16-section FMAX-rule line, `n=6` with the reference tied to the input, a single section (`n=1`) |
+| `m10_urc_diode_tran` | `.tran` | URC `ISPERL` ladder: 17 generated diodes of `u1#diodemod` with `RSPERL` series resistance, conducting near the positive peaks (`reltol=1e-6`) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -165,6 +172,10 @@ The six `switch_*` decks (#81) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 In the two transient decks every plotted node is a source or capacitor node,
 so no plotted value jumps between samples where a switch flips.
+
+The three `m10_urc_*` decks (#85) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [URC.md](../../docs/port/URC.md).
 
 The ten behavioural-source decks (#79) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
@@ -203,3 +214,8 @@ Each has at least two roots (C's `write` adds a copy named `all` to a plot with 
 single vector) and is one on which C's root search finishes without a warning;
 `golden verify` compares the roots as unordered sets
 ([POLE_ZERO_ADR.md](../../docs/port/POLE_ZERO_ADR.md)).
+
+The four `m10_jfet_*` decks (#82) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [JFET.md](../../docs/port/JFET.md) and
+[VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-jfet-level-1-82).

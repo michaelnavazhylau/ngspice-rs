@@ -381,6 +381,12 @@ verify`:
 | `m10_mos3_ac` | active-load common-source stage at 75 C, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
 | `m10_mos3_tran` | CMOS inverter with weak-inversion leakage, Gear-2 | 0.047 of `TRAN` bound |
 
+### JFET
+
+Level 1 NJF/PJF (#82, M10) lives in `devices::jfet`; see [JFET.md](JFET.md)
+for its parameters, equations, limiting, the `off` divergence from C and its
+C goldens.
+
 ## Solvers, sweeps and state
 
 `NewtonOptions` defaults: 100 iterations (C's `itl1`), reltol=1e-8,

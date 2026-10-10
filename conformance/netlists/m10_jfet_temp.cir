@@ -1,0 +1,19 @@
+JFET temperature scaling: TNOM, TCV/VTOTC, BEX/BETATCE, XTI/EG, TEMP/DTEMP
+vd d 0 5
+vg g 0 -0.8
+vgf gf 0 0.45
+j1 d g 0 ja
+j2 d g 0 jb temp=60
+j3 d g 0 jc dtemp=-20
+j4 d gf 0 jd
+vdp dp 0 -4
+vgp gp 0 0.6
+j5 dp gp 0 je
+.model ja njf(vto=-2 beta=1m tcv=2.5m bex=-1.5 tnom=20 is=1e-14)
+.model jb njf(vto=-2 beta=1m vtotc=-2m betatce=-0.5 xti=3 eg=1.2)
+.model jc njf(vto=-1.5 beta=0.5m lambda=0.01 is=5e-15 n=1.3 xti=2 tnom=35)
+.model jd njf(vto=-2 beta=1m is=1e-13 n=1.2 eg=1.1 xti=4 pb=0.75)
+.model je pjf(vto=-1.6 beta=0.7m tcv=-1.5m bex=-2 rs=50)
+.options reltol=1e-7 vntol=1e-12 abstol=1e-15
+.dc temp -40 125 15
+.end

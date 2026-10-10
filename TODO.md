@@ -109,7 +109,7 @@ tests and documented limits as the remaining functionality is added.
 
 ### M1b: remaining model/device and waveform syntax
 
-- [x] Parse bounded D/Q/M bare OFF and model-family tail flags (#10); thermal/sensitivity/CIDER, extra ports, binning and advanced forms remain gaps. See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
+- [x] Parse bounded D/Q/M bare OFF and model-family tail flags (#10); thermal/sensitivity/CIDER, extra ports and advanced forms remain gaps (binned M references parse since #109). See [FRONTEND_VALUES.md](docs/port/FRONTEND_VALUES.md).
 - [x] Parse Q 1–2/M 1–3 value IC vectors (#10), with positioned components and ordered duplicates/scalar setters; no initialization support.
 - [x] Parse declared-model R/C/L without mistaking models for parameter references (#11); forward references, omitted values and bounded geometry-only forms, not arithmetic.
 - [x] Represent numeric PULSE (2–7 fields) and bounded paired PWL (#8), retaining timing omissions and DC/AC application order; factories reject unimplemented runtime semantics.
@@ -144,7 +144,8 @@ tests and documented limits as the remaining functionality is added.
 
 - [x] Top-level first-declaration model lookup, family compatibility and family-specific level selection/rounding (#17); failed elaboration leaves circuit state unchanged.
 - [x] Device-owned scalar schema extension API and bounded diode IS/N/RS/AREA/TEMP/TNOM defaults/ranges (#17); raw AST preserved; M4 adds bounded model-aware D/Q/M factories (see its support table).
-- [ ] Add scoped model resolution, binning and further device-owned schemas/defaults; expand only with production tests.
+- [x] Scoped model resolution (#18) and MOS model binning (#109): `devices::binning` ports `INPgetModBin`/`model_name_match` (inclusive 1 nm edges, last declared match wins, `nf`/`wnflag`/`scale` inputs) with subcircuit-scoped bin sets, checked against C by `tests/c_binning_reference.rs`. C bins only BSIM3/BSIM4/HiSIM, so a selected bin stays `NotYetPorted` until those families land; `.options scale`/`wnflag` and instance `nf` are not deck inputs yet. See [MODEL_SCHEMAS.md](docs/port/MODEL_SCHEMAS.md#model-binning-109).
+- [ ] Add further device-owned schemas/defaults; expand only with production tests.
 - [x] Preserve omitted versus explicit BJT substrate terminals; bounded M4 factories reject unavailable substrate physics/backends.
 - [x] Define and implement the bounded passive value/geometry/temperature surface (#19); explicit errors for unsupported setters, missing/invalid geometry and nonfinite derivations.
 - [ ] Expand passive aliases, coil geometry, DTEMP/TCE/AC-only values and other advanced forms only with documented formulas and conformance tests.
@@ -321,3 +322,31 @@ The package is ready to publish; the release path is not.
 All six M9 implementation slices are delivered with the bounded interfaces and
 explicit unsupported cases documented in CLI.md, OUTPUT_SELECTION.md,
 MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.
+
+## M10 — Extended device library (work/m10-*)
+
+Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
+
+- [x] JFET level 1 (#82, slice 1, `work/m10-jfet`): `J` grammar (`inp2j.c`),
+  `njf`/`pjf` model family with level 0/1 selection (level 2 `jfet2/` and other
+  levels `NotYetPorted`), `devices::jfet` (Sydney `B` channel in normal/inverse
+  mode, gate diodes, depletion charge with FC, RD/RS internal nodes, area/m,
+  `jfettemp.c` temperature laws, `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`,
+  AC and pole-zero loads, `jfettrun.c` truncation, `jfetask.c` observations,
+  `@j[...]` instance sweeps). C goldens `m10_jfet_dc`/`_ac`/`_tran`/`_temp`
+  (124 verified), `tests/jfet.rs` and opt-in `c_jfet_reference`. Not ported:
+  `.noise` (`jfetnoi.c`), `.disto`, `.sens` (explicit errors); `off` diverges
+  from C, whose operating point fails with an `off` JFET. See
+  [JFET.md](docs/port/JFET.md).
+- [x] URC uniform distributed RC lines (#85, part 1; `work/m10-urc`): `inp2u.c`
+  grammar (`l=`/`n=`, required model, refused leading value), `urc` model
+  schema with `urcsetup.c` defaults and the no-op `urc` flag, and `urcsetup.c`'s
+  expansion (FMAX section rule, geometric `K` scaling, `ISPERL` diode ladder
+  with the generated `<name>#diodemod`) into existing R/C/D devices with C's
+  names (`u1#hi1`, `u1#rlo1`, …) plus the load-free instance answering
+  `@u1[l]`/`@u1[n]`. C goldens `m10_urc_tran`/`m10_urc_ac`/`m10_urc_diode_tran`
+  (123 verified), `tests/urc_lines.rs` and opt-in `c_urc_reference` (element
+  asks equal to C's to 1e-15). Explicit errors for C's degenerate inputs
+  (missing `l`, `n < 1`, `K = 1`, zero `CPERL`), `.pz` (C aborts) and `.sens`
+  (`NotYetPorted`: C's zero URC parameter entries). See
+  [URC.md](docs/port/URC.md).

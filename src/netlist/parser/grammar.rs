@@ -22,7 +22,7 @@ use crate::netlist::token::Token;
 
 use super::{
     behavioural, controlled, diode, expression, fourier, func, hints, linear, measure, model,
-    mutual, options, param, save, structure, switch, transistor,
+    mutual, options, param, save, structure, switch, transistor, urc,
 };
 
 pub(super) enum ParsedCard {
@@ -133,6 +133,8 @@ pub(super) fn parse_card(
             diode::diode_card,
             transistor::transistor_card,
             switch::switch_card,
+            super::jfet::jfet_card,
+            urc::urc_card,
         )),
         unported_card,
         unknown_card,

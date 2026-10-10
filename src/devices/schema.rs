@@ -65,6 +65,12 @@ pub enum ScalarUnit {
     Kelvin,
     /// Velocity in metres per second (MOS3 `VMAX`).
     MetrePerSecond,
+    /// Resistance per unit length, ohms per metre (URC `RPERL`/`RSPERL`).
+    OhmPerMetre,
+    /// Current per unit length, amperes per metre (URC `ISPERL`).
+    AmperePerMetre,
+    /// Frequency in hertz (URC `FMAX`).
+    Hertz,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.
