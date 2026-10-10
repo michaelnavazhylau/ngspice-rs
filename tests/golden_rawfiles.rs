@@ -1289,6 +1289,71 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vin)", 0, 0., 0.),
         ],
     },
+    // MOS6 (#89). The bulk of m5 (VBF = 0.3 V, M = 2) forward-biases its
+    // source junction and reverse-biases its drain junction (vbd = -2.7 V)
+    // whatever the gate: mos6load.c multiplies the whole stamp, gmin
+    // included, by M, so i(vbf) = -2 (IS (exp(0.3/Vt) - 1) + 0.3 gmin - IS -
+    // 2.7 gmin) = -2.17433075025e-9 A at both ends of the sweep (the level-1
+    // and level-3 stamps would add gmin once). At vgs = 0 the diode-connected
+    // m6 (IS = 1e-15) only has its drain junction at -1 V: IS + gmin. At
+    // vgs = 4 V the drain supply feeds m1 (vbs = -1 V) and m5 (vbs = 0.3 V),
+    // both in the linear region (vdsat = KV vgon^NV of about 5 V above
+    // vds = 3 V): Id = KC W/Leff M vgon^NC (1 + (LAMBDA0 - LAMBDA1 vbs) vds)
+    // (2 - x) x, x = vds/vdsat, vgon = vgs - (VTO + GAMMA (sqrt(PHI - vbs) -
+    // sqrt(PHI)) - GAMMA1 vbs - SIGMA vds), i.e. 2.84132 mA and 1.08468 mA,
+    // plus the drain junctions' IS + 4 gmin and 2 (IS + 2.7 gmin).
+    Expectation {
+        fixture: "m10_mos6_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &[
+            "v(v-sweep)",
+            "v(bf)",
+            "v(bn)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "i(egp)",
+            "v(g)",
+            "v(gp)",
+            "i(vbf)",
+            "i(vbn)",
+            "i(vbp)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vd4)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbf)", 0, -2.174330750250723e-9, 0.),
+            ("i(vbf)", 80, -2.174330750250723e-9, 0.),
+            ("i(vgs)", 0, -1.001000000000000e-12, 0.),
+            ("i(vd1)", 80, -3.925997210440011e-3, 0.),
+        ],
+    },
+    // At t = 0 the input is low and the NMOS is off (level 6 has no weak
+    // inversion): the supply only feeds the NMOS reverse drain junction,
+    // JS AD + 3.3 gmin (about 3.3002e-12 A to Newton tolerance), through the
+    // conducting PMOS, a few nV below VDD. The input draws nothing.
+    Expectation {
+        fixture: "m10_mos6_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10029,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 3.299999996161406, 0.),
+            ("i(vdd)", 0, -3.300175841036724e-12, 0.),
+            ("i(vin)", 0, 0., 0.),
+        ],
+    },
     Expectation {
         fixture: "mos_inverter",
         plotname: "Operating Point",

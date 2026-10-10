@@ -191,6 +191,21 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m10_mos3_tran", &[]),
+    // MOS level 6 (Sakurai-Newton n-th power law) on the shared MOS shell
+    // (#89): GAMMA1/SIGMA/LAMBDA1 threshold and CLM terms, NSUB/TOX process
+    // extraction, PMOS series resistance and temperature (DC, tightened
+    // RELTOL as for MOS1/MOS3), and a CMOS inverter with a bounded maximum
+    // step (transient). C has no MOS6 AC load, so there is no AC fixture.
+    Supported {
+        name: "m10_mos6_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos6_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
