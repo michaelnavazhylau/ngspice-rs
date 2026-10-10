@@ -51,21 +51,21 @@ use crate::devices::{
     Device, LinearContext, ModelContext, ModelFamily, ResolvedModel, StampContext,
 };
 use crate::maths::Vector;
-use crate::netlist::ast::{DeviceInstance, ParameterKind};
+use crate::netlist::ast::{DeviceInstance, ParameterAssignment, ParameterKind};
 use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 
 /// C `CONSTboltz` (J/K).
-const BOLTZMANN: Real = 1.38064852e-23;
+pub(super) const BOLTZMANN: Real = 1.38064852e-23;
 /// C `CHARGE` (C).
-const CHARGE: Real = 1.6021766208e-19;
+pub(super) const CHARGE: Real = 1.6021766208e-19;
 /// C `CONSTKoverQ`.
-const K_OVER_Q: Real = BOLTZMANN / CHARGE;
+pub(super) const K_OVER_Q: Real = BOLTZMANN / CHARGE;
 /// C `CONSTCtoK`.
-const CELSIUS_TO_KELVIN: Real = 273.15;
+pub(super) const CELSIUS_TO_KELVIN: Real = 273.15;
 /// C `REFTEMP` (27 degrees Celsius).
-const REFTEMP: Real = 27. + CELSIUS_TO_KELVIN;
+pub(super) const REFTEMP: Real = 27. + CELSIUS_TO_KELVIN;
 /// `jfettemp.c` limits FC to this value (the port rejects larger values).
-const MAX_FC: Real = 0.95;
+pub(super) const MAX_FC: Real = 0.95;
 
 /// Slots of the state vector (a subset of C's `JFETnumStates` layout, with
 /// every charge directly followed by its derivative).
@@ -81,7 +81,7 @@ mod slot {
     pub(super) const COUNT: usize = 6;
 }
 
-const fn p(name: &'static str, unit: U, domain: D, default: Option<Real>) -> P {
+pub(super) const fn p(name: &'static str, unit: U, domain: D, default: Option<Real>) -> P {
     P {
         name,
         unit,
@@ -124,7 +124,7 @@ const MODEL: &[P] = &[
 
 /// Scalar instance setters of `JFETpTable` (`jfetset.c`/`jfettemp.c`
 /// defaults). `ic-vds`/`ic-vgs` and `off` are split off first.
-const INSTANCE: &[P] = &[
+pub(super) const INSTANCE: &[P] = &[
     p("area", U::Dimensionless, D::Positive, Some(1.)),
     p("m", U::Dimensionless, D::Positive, Some(1.)),
     p("temp", U::Celsius, D::Temperature, None),
@@ -132,9 +132,9 @@ const INSTANCE: &[P] = &[
 ];
 
 /// The `IC` vector components (`jfetpar.c`): `IC-VDS`, then `IC-VGS`.
-const IC_COMPONENTS: [&str; 2] = ["ic-vds", "ic-vgs"];
+pub(super) const IC_COMPONENTS: [&str; 2] = ["ic-vds", "ic-vgs"];
 
-fn required(values: &ScalarValues, name: &str) -> SpiceResult<Real> {
+pub(super) fn required(values: &ScalarValues, name: &str) -> SpiceResult<Real> {
     values
         .get(name)
         .map(|v| v.value)
@@ -169,12 +169,12 @@ struct Model {
 
 /// Validated instance setters.
 #[derive(Debug, Clone, Copy)]
-struct Instance {
-    area: Real,
-    m: Real,
+pub(super) struct Instance {
+    pub(super) area: Real,
+    pub(super) m: Real,
     /// Instance temperature in Celsius, when given.
-    temp: Option<Real>,
-    dtemp: Real,
+    pub(super) temp: Option<Real>,
+    pub(super) dtemp: Real,
 }
 
 /// Every temperature- and area-dependent quantity of one load
@@ -345,39 +345,12 @@ impl Jfet {
             )));
         }
         let (initial, setters) = crate::devices::initial::split(&i.parameters, &IC_COMPONENTS)?;
-        // JFET_MOD_NJF/JFET_MOD_PJF tail flags set the type in card order,
-        // starting from the base (`.model jm njf(pjf)` is a PJF).
-        let mut pol = if resolved.family() == ModelFamily::Pjf {
-            -1.
-        } else {
-            1.
-        };
-        let card = resolved.card();
-        let mut scalars = Vec::new();
-        for parameter in &card.parameters {
-            match (
-                parameter.kind == ParameterKind::Flag,
-                parameter.name.as_str(),
-            ) {
-                (_, name) if name.eq_ignore_ascii_case("level") => {}
-                (true, "njf") => pol = 1.,
-                (true, "pjf") => pol = -1.,
-                _ => scalars.push(parameter),
-            }
-        }
-        let m = ScalarSchema { parameters: MODEL }.validate(scalars, &card.location)?;
-        let v = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(&setters, &i.location)?;
+        let (pol, scalars) = card_scalars(resolved);
+        let m = ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         // JFET_MOD_VTO has the IOP spelling `vt0` and the IOPR alias `vto`;
         // setters apply in card order, so the later one wins.
-        let vto = ["vto", "vt0"]
-            .iter()
-            .filter_map(|name| m.get(name))
-            .max_by_key(|v| v.location.as_ref().map(|l| (l.line, l.column)))
-            .map_or(-2., |v| v.value);
+        let vto = last_setter(&m, &["vto", "vt0"]).unwrap_or(-2.);
         let model = Model {
             pol,
             vto,
@@ -400,18 +373,8 @@ impl Jfet {
             xti: get("xti"),
             eg: required(&m, "eg")?,
         };
-        if model.fc > MAX_FC {
-            return Err(SpiceError::circuit(format!(
-                "{}: JFET FC={} exceeds {MAX_FC} (jfettemp.c would clamp it with a warning)",
-                i.name, model.fc
-            )));
-        }
-        let instance = Instance {
-            area: required(&v, "area")?,
-            m: required(&v, "m")?,
-            temp: v.get("temp").map(|v| v.value),
-            dtemp: required(&v, "dtemp")?,
-        };
+        check_fc(&i.name, model.fc)?;
+        let instance = instance_setters(&setters, &i.location)?;
         let mut device = Self {
             name: i.name.clone(),
             terminals: vec![],
@@ -422,53 +385,15 @@ impl Jfet {
         };
         // Validate every derivation before interning nodes.
         device.operating(context)?;
-        let mut staged = nodes.clone();
-        let external: Vec<NodeId> = i.nodes.iter().map(|n| staged.intern(n)).collect();
-        device.terminals.clone_from(&external);
-        device.inner = [external[0], external[1], external[2]];
-        // jfetset.c creates the source prime node before the drain prime node.
-        for (index, resistance, suffix) in [(2, model.rs, "source"), (0, model.rd, "drain")] {
-            if resistance != 0. {
-                let name = format!("{}#{suffix}", i.name);
-                if staged.get(&name).is_some() {
-                    return Err(SpiceError::circuit(format!(
-                        "JFET internal-node name collision: {name}"
-                    )));
-                }
-                let prime = staged.intern(&name);
-                staged.set_kind(prime, NodeKind::Internal);
-                device.terminals.push(prime);
-                device.inner[index] = prime;
-            }
-        }
-        *nodes = staged;
+        (device.terminals, device.inner) = intern_nodes(i, nodes, model.rd, model.rs)?;
         Ok(Box::new(device))
     }
 
     /// `jfettemp.c` for this instance, with `jfetload.c`'s area scaling.
     fn operating(&self, context: &ModelContext) -> SpiceResult<Operating> {
         let (model, instance) = (&self.model, &self.instance);
-        let tnom = model.tnom.unwrap_or(context.nominal_temperature) + CELSIUS_TO_KELVIN;
-        let temp = instance
-            .temp
-            .unwrap_or(context.temperature + instance.dtemp)
-            + CELSIUS_TO_KELVIN;
-        if !(tnom.is_finite() && tnom > 0. && temp.is_finite() && temp > 0.) {
-            return Err(SpiceError::circuit(format!(
-                "{}: invalid JFET temperature",
-                self.name
-            )));
-        }
-        let band_gap = |kelvin: Real| 1.16 - (7.02e-4 * kelvin * kelvin) / (kelvin + 1108.);
-        let reference = 1.1150877 / (BOLTZMANN * (REFTEMP + REFTEMP));
-        let vtnom = K_OVER_Q * tnom;
-        let fact1 = tnom / REFTEMP;
-        let kt1 = BOLTZMANN * tnom;
-        let arg1 = -band_gap(tnom) / (kt1 + kt1) + reference;
-        let pbfact1 = -2. * vtnom * (1.5 * fact1.ln() + CHARGE * arg1);
-        let pbo = (model.pb - pbfact1) / fact1;
-        let gmaold = (model.pb - pbo) / pbo;
-        let cjfact = 1. / (1. + 0.5 * (4e-4 * (tnom - REFTEMP) - gmaold));
+        let (tnom, temp) = temperatures(&self.name, model.tnom, instance, context)?;
+        let junction = gate_junction(model.pb, tnom, temp);
         let xfc = (1. - model.fc).ln();
         let f2 = (1.5 * xfc).exp();
         let f3 = 1. - model.fc * 1.5;
@@ -476,18 +401,16 @@ impl Jfet {
 
         let vt = temp * K_OVER_Q;
         let vt_n = vt * model.n;
-        let fact2 = temp / REFTEMP;
         let ratio1 = temp / tnom - 1.;
         let mut saturation = model.is * (ratio1 * model.eg / vt_n).exp();
         if let Some(xti) = model.xti {
             saturation *= (ratio1 + 1.).powf(xti);
         }
-        let kt = BOLTZMANN * temp;
-        let arg = -band_gap(temp) / (kt + kt) + reference;
-        let pbfact = -2. * vt * (1.5 * fact2.ln() + CHARGE * arg);
-        let pb = fact2 * pbo + pbfact;
-        let gmanew = (pb - pbo) / pbo;
-        let cjfact1 = 1. + 0.5 * (4e-4 * (temp - REFTEMP) - gmanew);
+        let GateJunction {
+            pb,
+            cjfact,
+            cjfact1,
+        } = junction;
         let cap = cjfact * cjfact1 * instance.area;
         let vto = match model.vtotc {
             Some(vtotc) => model.vto + vtotc * (temp - tnom),
@@ -580,13 +503,8 @@ impl Jfet {
         Ok(point)
     }
 
-    /// Normalized `[vgs, vgd]` of `jfetload.c` for this load: the `uic`
-    /// initial load evaluates at `type * IC` (`vgd = vgs - vds`, unset
-    /// components from the external terminals as `jfetic.c` does), the
-    /// `MODEINITJCT` load at `vgs = vgd = -1` (zero for an `off` instance,
-    /// which is also held at zero through `MODEINITFIX`), and later loads
-    /// apply `DEVpnjlim` (`vt = kT/q`, `JFETvcrit`) and then `DEVfetlim`
-    /// (`JFETtThreshold`) to both junction voltages.
+    /// Normalized `[vgs, vgd]` of `jfetload.c` for this load; see
+    /// [`limit_junctions`] (`DEVfetlim` against `JFETtThreshold`).
     fn limit(
         &self,
         op: &Operating,
@@ -595,40 +513,26 @@ impl Jfet {
         raw: [Real; 2],
         ic: [Real; 2],
     ) -> [Real; 2] {
-        let pol = self.model.pol;
-        let mode = limiter.mode();
-        if mode == Linearization::InitialConditions {
-            // C checks MODEINITJCT & MODETRANOP & MODEUIC before `off`.
-            let [vds, vgs] = ic.map(|v| pol * v);
-            return [vgs, vgs - vds];
-        }
-        if limiter.holds_off(states, self.initial.off) {
-            return [0.; 2];
-        }
-        if mode == Linearization::Initial {
-            return [-1., -1.];
-        }
-        let [Some(vgs_old), Some(vgd_old)] =
-            [slot::VGS, slot::VGD].map(|s| limiter.previous(states, s))
-        else {
-            return raw;
-        };
-        let vgs = limiter.pn_junction(raw[0], Some(vgs_old), op.vt, op.vcrit);
-        let vgd = limiter.pn_junction(raw[1], Some(vgd_old), op.vt, op.vcrit);
-        [
-            limiter.fet_gate(vgs, vgs_old, op.vto),
-            limiter.fet_gate(vgd, vgd_old, op.vto),
-        ]
+        limit_junctions(
+            Junctions {
+                pol: self.model.pol,
+                off: self.initial.off,
+                vt: op.vt,
+                vcrit: op.vcrit,
+                vto: op.vto,
+                slots: [slot::VGS, slot::VGD],
+            },
+            limiter,
+            states,
+            raw,
+            ic,
+        )
     }
 
-    /// The `uic` initial conditions `[IC-VDS, IC-VGS]`: unset components are
-    /// the external terminal voltages of the solution (`jfetic.c`).
+    /// The `uic` initial conditions `[IC-VDS, IC-VGS]`; see
+    /// [`start_conditions`].
     fn start_conditions(&self, voltage: impl Fn(NodeId) -> Real) -> [Real; 2] {
-        let [d, g, s] = [0, 1, 2].map(|k| self.terminals[k]);
-        [
-            self.initial.values[0].unwrap_or_else(|| voltage(d) - voltage(s)),
-            self.initial.values[1].unwrap_or_else(|| voltage(g) - voltage(s)),
-        ]
+        start_conditions(&self.terminals, &self.initial, voltage)
     }
 
     /// Normalized `[vgs, vgd]` from physical node voltages of d', g, s'.
@@ -640,15 +544,11 @@ impl Jfet {
     /// Drain and source series conductances per device (`jfetload.c`
     /// `gdpr`, `gspr`: `area / R`), zero without an internal node.
     fn series(&self) -> [Real; 2] {
-        let conductance = |r: Real| if r == 0. { 0. } else { self.instance.area / r };
-        [conductance(self.model.rd), conductance(self.model.rs)]
+        series_conductances(self.instance.area, self.model.rd, self.model.rs)
     }
 
     fn series_ports(&self) -> [[NodeId; 2]; 2] {
-        [
-            [self.terminals[0], self.inner[0]],
-            [self.terminals[2], self.inner[2]],
-        ]
+        series_ports(&self.terminals, self.inner)
     }
 
     /// The channel partials over d', g, s' (physical and normalized partials
@@ -699,9 +599,315 @@ impl Jfet {
     }
 }
 
+// Pieces shared with the Parker-Skellern level 2 (`jfet2/`), whose setup,
+// temperature, instance and load skeleton C copied from `jfet/`.
+
+/// The polarity and the scalar setters of a JFET model card: the
+/// `JFET_MOD_NJF`/`JFET_MOD_PJF` (`JFET2_MOD_NJF`/`PJF`) tail flags set the
+/// type in card order, starting from the base (`.model jm njf(pjf)` is a
+/// PJF); `level` is consumed by the resolver.
+pub(super) fn card_scalars<'a>(
+    resolved: &'a ResolvedModel<'_>,
+) -> (Real, Vec<&'a ParameterAssignment>) {
+    let mut pol = if resolved.family() == ModelFamily::Pjf {
+        -1.
+    } else {
+        1.
+    };
+    let mut scalars = Vec::new();
+    for parameter in &resolved.card().parameters {
+        match (
+            parameter.kind == ParameterKind::Flag,
+            parameter.name.as_str(),
+        ) {
+            (_, name) if name.eq_ignore_ascii_case("level") => {}
+            (true, "njf") => pol = 1.,
+            (true, "pjf") => pol = -1.,
+            _ => scalars.push(parameter),
+        }
+    }
+    (pol, scalars)
+}
+
+/// The value of whichever of the alias spellings `names` (one C parameter
+/// id) was set last in card order, `None` when none was given.
+pub(super) fn last_setter(values: &ScalarValues, names: &[&str]) -> Option<Real> {
+    names
+        .iter()
+        .filter_map(|name| values.get(name))
+        .max_by_key(|v| v.location.as_ref().map(|l| (l.line, l.column)))
+        .map(|v| v.value)
+}
+
+/// `jfettemp.c`/`jfet2temp.c` limit FC to 0.95 with a warning; the port
+/// rejects such a model instead of altering it.
+pub(super) fn check_fc(name: &str, fc: Real) -> SpiceResult<()> {
+    if fc > MAX_FC {
+        return Err(SpiceError::circuit(format!(
+            "{name}: JFET FC={fc} exceeds {MAX_FC} (jfettemp.c would clamp it with a warning)"
+        )));
+    }
+    Ok(())
+}
+
+/// The validated scalar instance setters (`AREA`, `M`, `TEMP`, `DTEMP`).
+pub(super) fn instance_setters(
+    setters: &[ParameterAssignment],
+    owner: &crate::primitives::SourceLoc,
+) -> SpiceResult<Instance> {
+    let v = ScalarSchema {
+        parameters: INSTANCE,
+    }
+    .validate(setters, owner)?;
+    Ok(Instance {
+        area: required(&v, "area")?,
+        m: required(&v, "m")?,
+        temp: v.get("temp").map(|v| v.value),
+        dtemp: required(&v, "dtemp")?,
+    })
+}
+
+/// Interns the external d, g, s and the internal prime nodes of a nonzero
+/// `RS`, then `RD` (`jfetset.c`/`jfet2set.c` create the source prime node
+/// first): returns the terminal list and the intrinsic d', g, s'.
+pub(super) fn intern_nodes(
+    i: &DeviceInstance,
+    nodes: &mut NodeTable,
+    rd: Real,
+    rs: Real,
+) -> SpiceResult<(Vec<NodeId>, [NodeId; 3])> {
+    let mut staged = nodes.clone();
+    let external: Vec<NodeId> = i.nodes.iter().map(|n| staged.intern(n)).collect();
+    let mut terminals = external.clone();
+    let mut inner = [external[0], external[1], external[2]];
+    for (index, resistance, suffix) in [(2, rs, "source"), (0, rd, "drain")] {
+        if resistance != 0. {
+            let name = format!("{}#{suffix}", i.name);
+            if staged.get(&name).is_some() {
+                return Err(SpiceError::circuit(format!(
+                    "JFET internal-node name collision: {name}"
+                )));
+            }
+            let prime = staged.intern(&name);
+            staged.set_kind(prime, NodeKind::Internal);
+            terminals.push(prime);
+            inner[index] = prime;
+        }
+    }
+    *nodes = staged;
+    Ok((terminals, inner))
+}
+
+/// The model's nominal and the instance's temperature in Kelvin: `TNOM`
+/// else the circuit nominal temperature, `TEMP` else the circuit
+/// temperature plus `DTEMP`.
+pub(super) fn temperatures(
+    name: &str,
+    tnom: Option<Real>,
+    instance: &Instance,
+    context: &ModelContext,
+) -> SpiceResult<(Real, Real)> {
+    let tnom = tnom.unwrap_or(context.nominal_temperature) + CELSIUS_TO_KELVIN;
+    let temp = instance
+        .temp
+        .unwrap_or(context.temperature + instance.dtemp)
+        + CELSIUS_TO_KELVIN;
+    if !(tnom.is_finite() && tnom > 0. && temp.is_finite() && temp > 0.) {
+        return Err(SpiceError::circuit(format!(
+            "{name}: invalid JFET temperature"
+        )));
+    }
+    Ok((tnom, temp))
+}
+
+/// The temperature-scaled gate junction of `jfettemp.c`/`jfet2temp.c`.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct GateJunction {
+    /// C `tGatePot` at the device temperature.
+    pub(super) pb: Real,
+    /// `cjfact` (from TNOM) and `cjfact1` (to the device temperature): the
+    /// zero-bias capacitances scale by their product.
+    pub(super) cjfact: Real,
+    pub(super) cjfact1: Real,
+}
+
+/// `jfettemp.c`'s band-gap laws for the gate potential `pb` (given at
+/// `tnom`) and the capacitance factors at `temp` (both Kelvin).
+pub(super) fn gate_junction(pb: Real, tnom: Real, temp: Real) -> GateJunction {
+    let band_gap = |kelvin: Real| 1.16 - (7.02e-4 * kelvin * kelvin) / (kelvin + 1108.);
+    let reference = 1.1150877 / (BOLTZMANN * (REFTEMP + REFTEMP));
+    let vtnom = K_OVER_Q * tnom;
+    let fact1 = tnom / REFTEMP;
+    let kt1 = BOLTZMANN * tnom;
+    let arg1 = -band_gap(tnom) / (kt1 + kt1) + reference;
+    let pbfact1 = -2. * vtnom * (1.5 * fact1.ln() + CHARGE * arg1);
+    let pbo = (pb - pbfact1) / fact1;
+    let gmaold = (pb - pbo) / pbo;
+    let cjfact = 1. / (1. + 0.5 * (4e-4 * (tnom - REFTEMP) - gmaold));
+    let vt = temp * K_OVER_Q;
+    let fact2 = temp / REFTEMP;
+    let kt = BOLTZMANN * temp;
+    let arg = -band_gap(temp) / (kt + kt) + reference;
+    let pbfact = -2. * vt * (1.5 * fact2.ln() + CHARGE * arg);
+    let pb = fact2 * pbo + pbfact;
+    let gmanew = (pb - pbo) / pbo;
+    let cjfact1 = 1. + 0.5 * (4e-4 * (temp - REFTEMP) - gmanew);
+    GateJunction {
+        pb,
+        cjfact,
+        cjfact1,
+    }
+}
+
+/// What [`limit_junctions`] needs of a device: polarity, `off`, `kT/q`,
+/// `vcrit`, the `DEVfetlim` threshold and the `vgs`/`vgd` state slots.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Junctions {
+    pub(super) pol: Real,
+    pub(super) off: bool,
+    pub(super) vt: Real,
+    pub(super) vcrit: Real,
+    pub(super) vto: Real,
+    pub(super) slots: [usize; 2],
+}
+
+/// Normalized `[vgs, vgd]` of `jfetload.c`/`jfet2load.c` for this load: the
+/// `uic` initial load evaluates at `type * IC` (`vgd = vgs - vds`, unset
+/// components from the external terminals as `jfetic.c` does), the
+/// `MODEINITJCT` load at `vgs = vgd = -1` (zero for an `off` instance, which
+/// is also held at zero through `MODEINITFIX`), and later loads apply
+/// `DEVpnjlim` (`vt = kT/q`, `vcrit`) and then `DEVfetlim` (`vto`) to both
+/// junction voltages.
+pub(super) fn limit_junctions(
+    j: Junctions,
+    limiter: &mut Limiter,
+    states: &crate::devices::DeviceState<'_>,
+    raw: [Real; 2],
+    ic: [Real; 2],
+) -> [Real; 2] {
+    let mode = limiter.mode();
+    if mode == Linearization::InitialConditions {
+        // C checks MODEINITJCT & MODETRANOP & MODEUIC before `off`.
+        let [vds, vgs] = ic.map(|v| j.pol * v);
+        return [vgs, vgs - vds];
+    }
+    if limiter.holds_off(states, j.off) {
+        return [0.; 2];
+    }
+    if mode == Linearization::Initial {
+        return [-1., -1.];
+    }
+    let [Some(vgs_old), Some(vgd_old)] = j.slots.map(|s| limiter.previous(states, s)) else {
+        return raw;
+    };
+    let vgs = limiter.pn_junction(raw[0], Some(vgs_old), j.vt, j.vcrit);
+    let vgd = limiter.pn_junction(raw[1], Some(vgd_old), j.vt, j.vcrit);
+    [
+        limiter.fet_gate(vgs, vgs_old, j.vto),
+        limiter.fet_gate(vgd, vgd_old, j.vto),
+    ]
+}
+
+/// The `uic` initial conditions `[IC-VDS, IC-VGS]`: unset components are
+/// the external terminal voltages of the solution (`jfetic.c`,
+/// `jfet2ic.c`).
+pub(super) fn start_conditions(
+    terminals: &[NodeId],
+    initial: &crate::devices::initial::InstanceInitial,
+    voltage: impl Fn(NodeId) -> Real,
+) -> [Real; 2] {
+    let [d, g, s] = [0, 1, 2].map(|k| terminals[k]);
+    [
+        initial.values[0].unwrap_or_else(|| voltage(d) - voltage(s)),
+        initial.values[1].unwrap_or_else(|| voltage(g) - voltage(s)),
+    ]
+}
+
+/// Drain and source series conductances per device (`gdpr`, `gspr`:
+/// `area / R`), zero without an internal node.
+pub(super) fn series_conductances(area: Real, rd: Real, rs: Real) -> [Real; 2] {
+    let conductance = |r: Real| if r == 0. { 0. } else { area / r };
+    [conductance(rd), conductance(rs)]
+}
+
+/// The d-d' and s-s' ports of the series resistances.
+pub(super) fn series_ports(terminals: &[NodeId], inner: [NodeId; 3]) -> [[NodeId; 2]; 2] {
+    [[terminals[0], inner[0]], [terminals[2], inner[2]]]
+}
+
+/// `jfetask.c`/`jfet2ask.c` scalar asks: `area` (C reports `area * m`),
+/// `m`, `temp`, `dtemp`, `ic-vds` and `ic-vgs` (when given).
+pub(super) fn observation_parameter(
+    p: &Instance,
+    initial: &crate::devices::initial::InstanceInitial,
+    key: &str,
+    context: &ModelContext,
+) -> Option<Real> {
+    match key {
+        "area" => Some(p.area * p.m),
+        "m" => Some(p.m),
+        "temp" => Some(p.temp.unwrap_or(context.temperature + p.dtemp)),
+        "dtemp" => Some(p.dtemp),
+        "ic-vds" => initial.values[0],
+        "ic-vgs" => initial.values[1],
+        _ => None,
+    }
+}
+
+/// `JFETparam`/`JFET2param` of a swept instance setter, with the instance
+/// schema domains; the caller re-derives the temperature dependence.
+pub(super) fn swept_instance(
+    name: &str,
+    instance: &Instance,
+    initial: &crate::devices::initial::InstanceInitial,
+    parameter: &str,
+    value: Real,
+) -> SpiceResult<(Instance, crate::devices::initial::InstanceInitial)> {
+    use crate::devices::sweep::check_swept;
+    let check = |ok: bool, what: &str| check_swept(name, parameter, value, ok, what);
+    let mut instance = *instance;
+    let mut initial = initial.clone();
+    match parameter {
+        "area" => {
+            check(value > 0., "positive")?;
+            instance.area = value;
+        }
+        "m" => {
+            check(value > 0., "positive")?;
+            instance.m = value;
+        }
+        "temp" => {
+            check(value + CELSIUS_TO_KELVIN > 0., "above absolute zero")?;
+            instance.temp = Some(value);
+        }
+        "dtemp" => {
+            check(true, "finite")?;
+            instance.dtemp = value;
+        }
+        "ic-vds" | "ic-vgs" => {
+            check(true, "finite")?;
+            initial.values[usize::from(parameter == "ic-vgs")] = Some(value);
+        }
+        _ => {
+            return Err(SpiceError::circuit(format!(
+                "{name}: JFET parameter {parameter} cannot be swept"
+            )));
+        }
+    }
+    Ok((instance, initial))
+}
+
+/// `JFETpTable`/`JFET2pTable` settable reals that `dctrcurv.c`
+/// `DCTsetInstParam` re-derives through `JFETtemp`/`JFET2temp`.
+pub(super) fn instance_parameter(keyword: &str) -> Option<&'static str> {
+    ["area", "m", "temp", "dtemp", "ic-vds", "ic-vgs"]
+        .into_iter()
+        .find(|name| name.eq_ignore_ascii_case(keyword))
+}
+
 /// Stamps a nonlinear current `current(v)` flowing from `output[0]` to
 /// `output[1]`, linearized at the evaluated voltages.
-fn stamp_current(
+pub(super) fn stamp_current(
     context: &mut StampContext<'_>,
     output: [NodeId; 2],
     current: Real,
@@ -789,16 +995,12 @@ impl Device for Jfet {
         key: &str,
         context: &ModelContext,
     ) -> SpiceResult<Option<Real>> {
-        let p = &self.instance;
-        Ok(match key {
-            "area" => Some(p.area * p.m),
-            "m" => Some(p.m),
-            "temp" => Some(p.temp.unwrap_or(context.temperature + p.dtemp)),
-            "dtemp" => Some(p.dtemp),
-            "ic-vds" => self.initial.values[0],
-            "ic-vgs" => self.initial.values[1],
-            _ => None,
-        })
+        Ok(observation_parameter(
+            &self.instance,
+            &self.initial,
+            key,
+            context,
+        ))
     }
     fn observation_operating(
         &self,
@@ -839,9 +1041,7 @@ impl Device for Jfet {
     /// `JFETpTable`'s settable reals that `dctrcurv.c` `DCTsetInstParam`
     /// re-derives through `JFETtemp`.
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
-        ["area", "m", "temp", "dtemp", "ic-vds", "ic-vgs"]
-            .into_iter()
-            .find(|name| name.eq_ignore_ascii_case(keyword))
+        instance_parameter(keyword)
     }
     /// `JFETparam` then `JFETtemp`, with the instance schema domains.
     fn with_instance_parameter(
@@ -850,38 +1050,8 @@ impl Device for Jfet {
         value: Real,
         context: &ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
-        use crate::devices::sweep::check_swept;
-        let check = |ok: bool, what: &str| check_swept(&self.name, parameter, value, ok, what);
-        let mut instance = self.instance;
-        let mut initial = self.initial.clone();
-        match parameter {
-            "area" => {
-                check(value > 0., "positive")?;
-                instance.area = value;
-            }
-            "m" => {
-                check(value > 0., "positive")?;
-                instance.m = value;
-            }
-            "temp" => {
-                check(value + CELSIUS_TO_KELVIN > 0., "above absolute zero")?;
-                instance.temp = Some(value);
-            }
-            "dtemp" => {
-                check(true, "finite")?;
-                instance.dtemp = value;
-            }
-            "ic-vds" | "ic-vgs" => {
-                check(true, "finite")?;
-                initial.values[usize::from(parameter == "ic-vgs")] = Some(value);
-            }
-            _ => {
-                return Err(SpiceError::circuit(format!(
-                    "{}: JFET parameter {parameter} cannot be swept",
-                    self.name
-                )));
-            }
-        }
+        let (instance, initial) =
+            swept_instance(&self.name, &self.instance, &self.initial, parameter, value)?;
         let device = Self {
             name: self.name.clone(),
             terminals: self.terminals.clone(),
