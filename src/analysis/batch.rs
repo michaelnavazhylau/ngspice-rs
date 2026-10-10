@@ -360,6 +360,28 @@ pub fn resolve_outputs(
     measures: &[MeasureCard],
     fourier_cards: &[FourierCard],
 ) -> SpiceResult<PlotOutputs> {
+    resolve_outputs_with_scope(
+        plot,
+        scheduled,
+        output,
+        measures,
+        fourier_cards,
+        &crate::netlist::eval::ParamScope::root(&[])?,
+    )
+}
+
+/// Resolves outputs with the deck parameter scope for scalar measurements.
+///
+/// # Errors
+/// As [`resolve_outputs`], including scalar expression evaluation errors.
+pub fn resolve_outputs_with_scope(
+    plot: &Plot,
+    scheduled: &ScheduledAnalysis,
+    output: &OutputCards,
+    measures: &[MeasureCard],
+    fourier_cards: &[FourierCard],
+    scope: &crate::netlist::eval::ParamScope,
+) -> SpiceResult<PlotOutputs> {
     let kind = scheduled.kind;
     if matches!(
         plot.plotname.as_str(),
@@ -439,18 +461,28 @@ pub fn resolve_outputs(
     let requests = selection::write_requests(&own, kind)?;
     let selection = Selection::resolve(plot, kind, &requests)?;
     let print_requests = selection::print_requests(&own, kind)?;
-    let printed = if print_requests.is_empty() {
+    let mut printed = if print_requests.is_empty() {
         None
     } else {
         Some(Selection::resolve(plot, kind, &print_requests)?.to_text(plot)?)
     };
+    for card in own
+        .prints
+        .iter()
+        .filter(|card| card.ascii_plot && !card.requests.is_empty())
+    {
+        let selected = Selection::resolve(plot, kind, &card.requests)?.apply(plot)?;
+        printed
+            .get_or_insert_with(String::new)
+            .push_str(&super::asciiplot::render(&selected)?);
+    }
     let measurements = if scheduled.last_of_kind {
         let own: Vec<MeasureCard> = measures
             .iter()
             .filter(|card| card.analysis == kind)
             .cloned()
             .collect();
-        measure::resolve(plot, kind, &own)?
+        measure::resolve_with_scope(plot, kind, &own, scope)?
     } else {
         Vec::new()
     };

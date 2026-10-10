@@ -181,3 +181,53 @@ fn sp_measurements_match_c() {
         "v1 a 0 dc 0 portnum 1\nv2 b 0 dc 0 portnum 2\nr1 a b 50\nr2 a 0 100\nr3 b 0 100\nc1 b 0 1n\n.sp dec 10 1k 1meg\n .meas sp transmission max vm(S_2_1)\n.meas sp atfreq find vr(S_2_1) at=10k\n.print sp all",
     );
 }
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; extended measurement variants"]
+fn extended_measurements_match_c() {
+    compare(
+        "extended",
+        AnalysisKind::DcSweep,
+        "V1 in 0 0\nR1 in 0 1k\n.dc v1 0 2 .25\n.meas dc crossing WHEN v(in)=.5 rise=1 td=.1\n.meas dc found FIND v(in) WHEN v(in)=.75\n.meas dc slope DERIV v(in) AT=1\n.meas dc slopewhen DERIV v(in) WHEN v(in)=1.25\n.meas dc low MIN_AT v(in)\n.meas dc high MAX_AT v(in)\n.meas dc range PP v(in)\n.meas dc area INTEG v(in)\n.meas dc rms RMS v(in)",
+    );
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; phase/gain margins"]
+fn margins_match_c() {
+    compare(
+        "margins",
+        AnalysisKind::Ac,
+        "V1 in 0 0 ac 1\nE1 drive 0 in 0 10\nR1 drive a 1k\nC1 a 0 1u\nE2 b 0 a 0 1\nR2 b c 1k\nC2 c 0 1u\nE3 d 0 c 0 1\nR3 d out 1k\nC3 out 0 1u\n.ac dec 100 1 1meg\n.meas ac pm PHASE_MARGIN v(out)\n.meas ac gm GAIN_MARGIN v(out)",
+    );
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; independent trigger and target TD"]
+fn trigger_target_delays_have_independent_search_origins() {
+    compare(
+        "independent-td",
+        AnalysisKind::Transient,
+        "V1 out 0 pulse(0 1 0 1u 1u 400u 1m)\nR1 out 0 1k\n.tran 1u 4m\n.meas tran delay TRIG v(out) VAL=.5 RISE=1 TD=.5m TARG v(out) VAL=.5 RISE=1 TD=1.5m\n.meas tran whenlate WHEN v(out)=.5 RISE=1 TD=2.5m",
+    );
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; moving vector references"]
+fn vector_equality_crossings_match_c() {
+    compare(
+        "vector-equality",
+        AnalysisKind::DcSweep,
+        "V1 in 0 0\nR1 in 0 1k\nE1 ref 0 in 0 .5\nV2 target ref .375\n.dc v1 0 2 .2\n.meas dc rising WHEN v(in)=v(target) RISE=1\n.meas dc falling WHEN v(target)=v(in) FALL=1\n.meas dc found FIND v(ref) WHEN v(in)=v(target)\n.meas dc slope DERIV v(ref) WHEN v(in)=v(target)",
+    );
+}
+
+#[test]
+fn vector_equality_uses_both_sampled_slopes() {
+    let deck = "V1 in 0 0\nR1 in 0 1k\nE1 ref 0 in 0 .5\nV2 target ref .375\n.dc v1 0 2 .2\n.meas dc rising WHEN v(in)=v(target) RISE=1\n.meas dc falling WHEN v(target)=v(in) FALL=1\n.meas dc found FIND v(ref) WHEN v(in)=v(target)\n.meas dc slope DERIV v(ref) WHEN v(in)=v(target)";
+    let results = port_results(deck);
+    for ((name, value), expected) in results.iter().zip([0.75, 0.75, 0.375, 0.5]) {
+        assert!((value - expected).abs() < 1e-12, "{name}: {value}");
+    }
+    assert_eq!(results.len(), 4);
+}

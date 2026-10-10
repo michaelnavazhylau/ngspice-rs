@@ -99,12 +99,43 @@ pub fn resolve(
     kind: AnalysisKind,
     cards: &[MeasureCard],
 ) -> SpiceResult<Vec<Measurement>> {
+    resolve_with_scope(
+        plot,
+        kind,
+        cards,
+        &crate::netlist::eval::ParamScope::root(&[])?,
+    )
+}
+
+/// Evaluates vector measurements first, then PARAM/EXPR cards in source order.
+/// C: `measure.c::do_measure` uses two passes and publishes scalar results to numparam.
+///
+/// # Errors
+/// As [`resolve`], plus undefined or invalid scalar expressions.
+pub fn resolve_with_scope(
+    plot: &Plot,
+    kind: AnalysisKind,
+    cards: &[MeasureCard],
+    scope: &crate::netlist::eval::ParamScope,
+) -> SpiceResult<Vec<Measurement>> {
     if cards.is_empty() {
         return Ok(Vec::new());
     }
     let axis = Axis::of(plot, kind)?;
     let mut results = Vec::with_capacity(cards.len());
-    for card in cards {
+    let mut scope = std::sync::Arc::new(scope.clone());
+    let mut budget = crate::netlist::eval::EvalBudget::default();
+    for (index, card) in cards
+        .iter()
+        .enumerate()
+        .filter(|(_, card)| !matches!(card.request, MeasureRequest::Parameter(_)))
+        .chain(
+            cards
+                .iter()
+                .enumerate()
+                .filter(|(_, card)| matches!(card.request, MeasureRequest::Parameter(_))),
+        )
+    {
         if card.analysis != kind {
             return Err(unsupported(
                 card,
@@ -118,9 +149,34 @@ pub fn resolve(
                 ),
             ));
         }
-        results.push(evaluate(plot, &axis, card)?);
+        let resolved = crate::netlist::parser::resolve_measure_card(card, &scope, &mut budget)?;
+        let card = &resolved;
+        let result = if let MeasureRequest::Parameter(expression) = &card.request {
+            Measurement {
+                name: card.name.clone(),
+                value: scope.evaluate(expression, &mut budget)?,
+                unit: "scalar".into(),
+                at: None,
+                window: None,
+                events: None,
+            }
+        } else {
+            evaluate(plot, &axis, card)?
+        };
+        scope = std::sync::Arc::new(crate::netlist::eval::ParamScope::resolve(
+            Some(scope),
+            &[crate::netlist::eval::ParamBinding {
+                name: card.name.to_ascii_lowercase(),
+                value: result.value,
+                location: card.name_location.clone(),
+            }],
+            &[],
+            &mut budget,
+        )?);
+        results.push((index, result));
     }
-    Ok(results)
+    results.sort_by_key(|(index, _)| *index);
+    Ok(results.into_iter().map(|(_, result)| result).collect())
 }
 
 /// Renders results as the bounded text block the CLI appends to its report.
@@ -424,6 +480,49 @@ impl<'a> Operand<'a> {
 
 fn evaluate(plot: &Plot, axis: &Axis, card: &MeasureCard) -> SpiceResult<Measurement> {
     match &card.request {
+        MeasureRequest::Deferred { .. } | MeasureRequest::Parameter(_) => Err(unsupported(
+            card,
+            "scalar measurement requires the two-pass resolver".into(),
+        )),
+        MeasureRequest::AtEvent {
+            operand,
+            event,
+            derivative,
+            window,
+        } => {
+            let window = Window::resolve(window, axis, card)?;
+            let at = event_at(plot, axis, event, &window, card)?;
+            let operand = Operand::resolve(plot, operand, &card.name)?;
+            let value = if *derivative {
+                derivative_at(axis, &operand, at, card)?
+            } else {
+                value_at(axis, &operand, at, card)?
+            };
+            Ok(Measurement {
+                name: card.name.clone(),
+                value,
+                unit: if *derivative {
+                    format!("{}/{}", operand.unit(), axis.name)
+                } else {
+                    operand.unit().to_owned()
+                },
+                at: Some(at),
+                window: None,
+                events: None,
+            })
+        }
+        MeasureRequest::When { event, window } => {
+            let window = Window::resolve(window, axis, card)?;
+            let value = event_at(plot, axis, event, &window, card)?;
+            Ok(Measurement {
+                name: card.name.clone(),
+                value,
+                unit: axis.name.to_owned(),
+                at: None,
+                window: None,
+                events: None,
+            })
+        }
         MeasureRequest::Find {
             operand,
             at,
@@ -462,6 +561,31 @@ fn evaluate(plot: &Plot, axis: &Axis, card: &MeasureCard) -> SpiceResult<Measure
             let operand = Operand::resolve(plot, operand, &card.name)?;
             let window = Window::resolve(window, axis, card)?;
             let (value, at, span) = match statistic {
+                MeasureStatistic::PhaseMargin | MeasureStatistic::GainMargin => {
+                    let (value, at) = margin(
+                        axis,
+                        &operand,
+                        &window,
+                        *statistic == MeasureStatistic::PhaseMargin,
+                        card,
+                    )?;
+                    (value, Some(at), None)
+                }
+                MeasureStatistic::MinAt | MeasureStatistic::MaxAt => {
+                    let (_, at) = extremum(
+                        axis,
+                        &operand,
+                        &window,
+                        *statistic == MeasureStatistic::MaxAt,
+                        card,
+                    )?;
+                    (at, None, None)
+                }
+                MeasureStatistic::PeakToPeak => {
+                    let (min, _) = extremum(axis, &operand, &window, false, card)?;
+                    let (max, _) = extremum(axis, &operand, &window, true, card)?;
+                    (max - min, None, None)
+                }
                 MeasureStatistic::Min | MeasureStatistic::Max => {
                     let (value, at) = extremum(
                         axis,
@@ -483,7 +607,11 @@ fn evaluate(plot: &Plot, axis: &Axis, card: &MeasureCard) -> SpiceResult<Measure
                     let width = span_width(span, card)?;
                     let points = window.clipped(axis, &operand, card)?;
                     let squared = *statistic == MeasureStatistic::Rms;
-                    let area = integral(&points, squared, card)?;
+                    let area = if *statistic == MeasureStatistic::Avg {
+                        integral(&points, false, card)?
+                    } else {
+                        simpson_integral(&points, squared, card)?
+                    };
                     let mean = if *statistic == MeasureStatistic::Integ {
                         area
                     } else {
@@ -658,6 +786,166 @@ fn integral(points: &[(Real, Real)], square: bool, card: &MeasureCard) -> SpiceR
     Ok(area)
 }
 
+/// C `measure_rms_integral`: greedy Simpson 3/8, then 1/3, then trapezoid.
+/// Only positive widths within 100 ULPs share a Simpson panel.
+fn simpson_integral(
+    points: &[(Real, Real)],
+    square: bool,
+    card: &MeasureCard,
+) -> SpiceResult<Real> {
+    let y = |i: usize| {
+        if square {
+            points[i].1 * points[i].1
+        } else {
+            points[i].1
+        }
+    };
+    let width = |i: usize| points[i + 1].0 - points[i].0;
+    let equal = |a: Real, b: Real| a > 0. && b > 0. && a.to_bits().abs_diff(b.to_bits()) <= 100;
+    let mut area = 0.;
+    let mut i = 0;
+    while i + 1 < points.len() {
+        let h = width(i);
+        if i + 3 < points.len() && equal(h, width(i + 1)) && equal(h, width(i + 2)) {
+            area += 3. * h * (y(i) + 3. * (y(i + 1) + y(i + 2)) + y(i + 3)) / 8.;
+            i += 3;
+        } else if i + 2 < points.len() && equal(h, width(i + 1)) {
+            area += h * (y(i) + 4. * y(i + 1) + y(i + 2)) / 3.;
+            i += 2;
+        } else {
+            area += h * (y(i) + y(i + 1)) / 2.;
+            i += 1;
+        }
+    }
+    if !area.is_finite() {
+        return Err(nonfinite(
+            card,
+            "INTEG/RMS".into(),
+            "the integrated value is not finite".into(),
+        ));
+    }
+    Ok(area)
+}
+
+/// C `measure_margin`: unwrap phase, interpolate dB/degrees and log frequency.
+fn margin(
+    axis: &Axis,
+    operand: &Operand<'_>,
+    window: &Window,
+    phase_margin: bool,
+    card: &MeasureCard,
+) -> SpiceResult<(Real, Real)> {
+    if axis.name != "frequency" || !operand.plot.flags.is_complex() {
+        return Err(unsupported(
+            card,
+            "margin measurements require complex AC/SP data".into(),
+        ));
+    }
+    let mut previous: Option<(Real, Real, Real)> = None;
+    let mut raw_previous = 0.;
+    let mut offset = 0.;
+    for (i, point) in operand.plot.points.iter().enumerate() {
+        let value = operand.column.value(point)?;
+        let db = 20. * value.re.hypot(value.im).log10();
+        let raw = value.im.atan2(value.re).to_degrees();
+        if i > 0 {
+            if raw - raw_previous > 180. {
+                offset -= 360.;
+            } else if raw - raw_previous < -180. {
+                offset += 360.;
+            }
+        }
+        raw_previous = raw;
+        let phase = raw + offset;
+        let frequency = axis.values[i];
+        if !db.is_finite() {
+            return Err(nonfinite(
+                card,
+                "margin".into(),
+                "zero or nonfinite gain".into(),
+            ));
+        }
+        if let Some((f0, db0, p0)) = previous {
+            let (a, b, target) = if phase_margin {
+                (db0, db, 0.)
+            } else {
+                (p0, phase, -180.)
+            };
+            if (a >= target && b < target) || (a < target && b >= target) {
+                let fraction = (target - a) / (b - a);
+                let at = if f0 > 0. && frequency > 0. {
+                    (f0.ln() + fraction * (frequency.ln() - f0.ln())).exp()
+                } else {
+                    f0 + fraction * (frequency - f0)
+                };
+                if at >= window.from && at <= window.to {
+                    let value = if phase_margin {
+                        180. + p0 + fraction * (phase - p0)
+                    } else {
+                        -(db0 + fraction * (db - db0))
+                    };
+                    return Ok((value, at));
+                }
+            }
+        }
+        previous = Some((frequency, db, phase));
+    }
+    Err(unsupported(
+        card,
+        "no margin crossover in the measurement window".into(),
+    ))
+}
+
+/// Nonuniform quadratic derivative, C `measure_deriv_at`; two samples use a
+/// safe secant instead of the C implementation's out-of-range stencil.
+fn derivative_at(
+    axis: &Axis,
+    operand: &Operand<'_>,
+    at: Real,
+    card: &MeasureCard,
+) -> SpiceResult<Real> {
+    check_range(axis, at, card, "AT=")?;
+    let j = axis
+        .values
+        .windows(2)
+        .position(|w| w[0] <= at && at <= w[1])
+        .map(|i| i + 1)
+        .ok_or_else(|| unsupported(card, "DERIV needs a bracketing interval".into()))?;
+    let secant = || -> SpiceResult<Real> {
+        let width = axis.values[j] - axis.values[j - 1];
+        if width == 0. {
+            return Err(unsupported(card, "DERIV at a repeated axis value".into()));
+        }
+        Ok((operand.value(j)? - operand.value(j - 1)?) / width)
+    };
+    let value = if axis.values.len() == 2 {
+        secant()?
+    } else {
+        let middle = (j - 1).clamp(1, axis.values.len() - 2);
+        let t = &axis.values[middle - 1..=middle + 1];
+        if t[0] == t[1] || t[1] == t[2] {
+            secant()?
+        } else {
+            let mut sum = 0.;
+            for k in 0..3 {
+                let a = (k + 1) % 3;
+                let b = (k + 2) % 3;
+                sum += operand.value(middle - 1 + k)? * ((at - t[a]) + (at - t[b]))
+                    / ((t[k] - t[a]) * (t[k] - t[b]));
+            }
+            sum
+        }
+    };
+    if !value.is_finite() {
+        return Err(nonfinite(
+            card,
+            "DERIV".into(),
+            "nonfinite derivative".into(),
+        ));
+    }
+    Ok(value)
+}
+
 /// The width of a covered window, which a mean needs to be defined.
 fn span_width(span: MeasureSpan, card: &MeasureCard) -> SpiceResult<Real> {
     let width = span.to - span.from;
@@ -684,6 +972,19 @@ fn event_at(
     card: &MeasureCard,
 ) -> SpiceResult<Real> {
     match event {
+        MeasureEvent::Delayed { event, td } => {
+            let window = Window {
+                from: window.from.max(*td),
+                to: window.to,
+            };
+            if window.from > window.to {
+                return Err(unsupported(
+                    card,
+                    "TD lies after the measurement window".into(),
+                ));
+            }
+            event_at(plot, axis, event, &window, card)
+        }
         MeasureEvent::At { at, .. } => {
             check_range(axis, *at, card, "the event AT=")?;
             if *at < window.from || *at > window.to {
@@ -699,6 +1000,33 @@ fn event_at(
                 ));
             }
             Ok(*at)
+        }
+        MeasureEvent::VectorCrossing {
+            operand,
+            reference,
+            transition,
+        } => {
+            let lhs = Operand::resolve(plot, operand, &card.name)?;
+            let rhs = Operand::resolve(plot, reference, &card.name)?;
+            crossing_samples(
+                axis,
+                |index| {
+                    let difference = lhs.value(index)? - rhs.value(index)?;
+                    if !difference.is_finite() {
+                        return Err(nonfinite(
+                            card,
+                            "WHEN".into(),
+                            "vector difference overflow".into(),
+                        ));
+                    }
+                    Ok(difference)
+                },
+                0.0,
+                *transition,
+                window,
+                card,
+                &format!("{} = {}", operand.vector.name(), reference.vector.name()),
+            )
         }
         MeasureEvent::Crossing {
             operand,
@@ -729,13 +1057,33 @@ fn crossing(
     card: &MeasureCard,
 ) -> SpiceResult<Real> {
     let operand = Operand::resolve(plot, request, &card.name)?;
+    crossing_samples(
+        axis,
+        |index| operand.value(index),
+        value,
+        transition,
+        window,
+        card,
+        &request.vector.name(),
+    )
+}
+
+fn crossing_samples(
+    axis: &Axis,
+    sample: impl Fn(usize) -> SpiceResult<Real>,
+    value: Real,
+    transition: MeasureTransition,
+    window: &Window,
+    card: &MeasureCard,
+    description: &str,
+) -> SpiceResult<Real> {
     let (first, last) = window.samples(axis, card)?;
     let start = first.saturating_sub(1);
     let mut crossings: Vec<(Real, bool)> = Vec::new();
     for index in start + 1..=last {
         let previous = index - 1;
-        let before = operand.value(previous)?;
-        let after = operand.value(index)?;
+        let before = sample(previous)?;
+        let after = sample(index)?;
         let before_high = before >= value;
         let after_high = after >= value;
         if before_high == after_high {
@@ -752,7 +1100,16 @@ fn crossing(
                 value,
             )
         };
-        crossings.push((x, after_high));
+        if !x.is_finite() {
+            return Err(nonfinite(
+                card,
+                "WHEN/TRIG/TARG".into(),
+                "nonfinite crossing position".into(),
+            ));
+        }
+        if x >= window.from && x <= window.to {
+            crossings.push((x, after_high));
+        }
     }
     let selected = match transition {
         MeasureTransition::First => crossings.first(),
@@ -775,7 +1132,7 @@ fn crossing(
                  lower bound [{}, {}]",
                 card.name,
                 transition.name(),
-                request.vector.name(),
+                description,
                 crate::primitives::format_spice_number(value),
                 crate::primitives::format_spice_number(window.from),
                 crate::primitives::format_spice_number(window.to)
@@ -787,6 +1144,9 @@ fn crossing(
 /// The unit of a statistic's result.
 fn statistic_unit(statistic: &MeasureStatistic, operand: &Operand<'_>, axis: &Axis) -> String {
     match statistic {
+        MeasureStatistic::PhaseMargin => "degrees".into(),
+        MeasureStatistic::GainMargin => "db".into(),
+        MeasureStatistic::MinAt | MeasureStatistic::MaxAt => axis.name.to_owned(),
         MeasureStatistic::Integ => format!("{}*{}", operand.unit(), axis.name),
         _ => operand.unit().to_owned(),
     }

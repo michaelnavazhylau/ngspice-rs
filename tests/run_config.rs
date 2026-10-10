@@ -126,7 +126,6 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
         // noopiter in tests/convergence.rs.
         ".options gshunt=1e-12",
         ".options bypass=1",
-        ".options filetype=ascii",
         ".options reltol=1m minbreak=1n",
     ] {
         assert!(

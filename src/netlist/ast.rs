@@ -267,6 +267,20 @@ pub struct Subcircuit {
     /// `.func` definitions local to this body (visible to the body and to
     /// nested definitions, not outside).
     pub functions: Vec<FuncCard>,
+    /// Options retained in the body; applied when instantiated.
+    pub options: Vec<OptionCard>,
+    /// Global declarations collected before instance node translation.
+    pub globals: Vec<GlobalCard>,
+    /// Instance-local initial conditions.
+    pub initial_conditions: Vec<NodeHintCard>,
+    /// Instance-local operating-point hints.
+    pub nodesets: Vec<NodeHintCard>,
+    /// Body output requests, translated for each instance.
+    pub output: OutputCards,
+    /// Body measurements, repeated without vector renaming as in C.
+    pub measurements: Vec<MeasureCard>,
+    /// Body Fourier requests, hoisted once per used definition without renaming.
+    pub fourier: Vec<FourierCard>,
     /// Ordered body cards, including the closing `.ends`.
     pub cards: Vec<ScopedCard>,
     /// Where the closing `.ends` was written.
@@ -542,6 +556,8 @@ pub struct SaveCard {
 /// `com_save2()`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrintCard {
+    /// Render a line-printer graph for `.plot`, rather than a table.
+    pub ascii_plot: bool,
     /// The analysis the card names, e.g. `.print ac v(out)`.
     pub analysis: AnalysisKind,
     /// Where the analysis name was written.
@@ -745,6 +761,35 @@ pub struct MeasureCard {
 /// The bounded operation of a [`MeasureCard`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeasureRequest {
+    /// A structurally validated card whose numeric setters need parameter evaluation.
+    Deferred {
+        /// Original positioned tokens; the same winnow grammar parses evaluated values.
+        card: Box<crate::netlist::card::RawCard>,
+        /// Ground-alias policy used when the card was parsed.
+        auto_gnd: bool,
+        /// Structurally checked request, for discovering observation operands.
+        template: Box<MeasureRequest>,
+    },
+    /// Scalar numparam expression, evaluated after vector measurements.
+    Parameter(Box<crate::netlist::expr::ParameterExpression>),
+    /// FIND or DERIV at a threshold event or explicit axis position.
+    AtEvent {
+        /// Vector to evaluate.
+        operand: VectorRequest,
+        /// Locate the query.
+        event: MeasureEvent,
+        /// Differentiate a local quadratic instead of reading the vector.
+        derivative: bool,
+        /// Query bounds.
+        window: MeasureWindow,
+    },
+    /// Axis position of a threshold crossing (`WHEN`).
+    When {
+        /// Threshold event.
+        event: MeasureEvent,
+        /// Search bounds.
+        window: MeasureWindow,
+    },
     /// `FIND <operand> AT=<value>`: the operand's value at one axis value.
     Find {
         /// The vector to read.
@@ -781,6 +826,16 @@ pub enum MeasureRequest {
 /// A whole-window reduction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MeasureStatistic {
+    /// Phase margin in degrees at the first unity-gain crossing.
+    PhaseMargin,
+    /// Gain margin in dB at the first unwrapped -180 degree crossing.
+    GainMargin,
+    /// Axis value at the minimum.
+    MinAt,
+    /// Axis value at the maximum.
+    MaxAt,
+    /// Peak-to-peak range.
+    PeakToPeak,
     /// `MIN`: the smallest operand value in the window.
     Min,
     /// `MAX`: the largest operand value in the window.
@@ -798,6 +853,11 @@ impl MeasureStatistic {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
+            Self::PhaseMargin => "PHASE_MARGIN",
+            Self::GainMargin => "GAIN_MARGIN",
+            Self::MinAt => "MIN_AT",
+            Self::MaxAt => "MAX_AT",
+            Self::PeakToPeak => "PP",
             Self::Min => "MIN",
             Self::Max => "MAX",
             Self::Avg => "AVG",
@@ -810,12 +870,28 @@ impl MeasureStatistic {
 /// One `TRIG`/`TARG` event clause.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeasureEvent {
+    /// Begin a threshold search at its own TD, independently of another event.
+    Delayed {
+        /// Event whose crossing count begins at TD.
+        event: Box<MeasureEvent>,
+        /// Lower search bound.
+        td: Real,
+    },
     /// `AT=<value>`: one axis value, with no operand.
     At {
         /// The axis value.
         at: Real,
         /// Where the `AT=` setter was written.
         location: SourceLoc,
+    },
+    /// `WHEN <operand>=<reference>`: crossing of two sampled vectors.
+    VectorCrossing {
+        /// Left side of the equality.
+        operand: VectorRequest,
+        /// Moving reference on the right side.
+        reference: VectorRequest,
+        /// Which crossing of left minus right through zero to take.
+        transition: MeasureTransition,
     },
     /// `<operand> VAL=<value> [RISE=n|FALL=n|CROSS=n|LAST]`.
     Crossing {
@@ -910,6 +986,10 @@ pub const MAX_HARMONICS: u32 = 100;
 /// the written rawfile. See `docs/port/FOURIER.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FourierCard {
+    /// A front-end `fourier` command uses C's configured half-open grid, even without `set`.
+    pub frontend_command: bool,
+    /// Unevaluated fundamental; resolve against the deck parameter scope before analysis.
+    pub fundamental_expression: Option<Box<crate::netlist::expr::ParameterExpression>>,
     /// The fundamental frequency in hertz: a finite, strictly positive value.
     pub fundamental: Real,
     /// Where the fundamental frequency was written.
@@ -954,9 +1034,9 @@ pub enum ScopedCardKind {
     Analysis(usize),
     /// Index into source directives; resolved content follows this entry.
     Include(usize),
-    /// Index into [`Netlist::options`] (root scope only).
+    /// Index into this scope's options (`Netlist::options` or `Subcircuit::options`).
     Options(usize),
-    /// Index into [`Netlist::globals`] (root scope only).
+    /// Index into this scope's global declarations.
     Global(usize),
     /// Index into this scope's `.param` cards (`Netlist::params` at the root,
     /// `Subcircuit::params` in a body).
@@ -964,21 +1044,21 @@ pub enum ScopedCardKind {
     /// Index into this scope's `.func` cards (`Netlist::functions` at the
     /// root, `Subcircuit::functions` in a body).
     Func(usize),
-    /// Index into [`Netlist::initial_conditions`] (root scope only).
+    /// Index into this scope's initial-condition cards.
     InitialCondition(usize),
-    /// Index into [`Netlist::nodesets`] (root scope only).
+    /// Index into this scope's nodeset cards.
     Nodeset(usize),
-    /// A `.save` or `.print` card (root scope only). The typed requests live in
+    /// A `.save` or root `.print`/`.plot` card. Body requests live in `Subcircuit::output`; root requests live in
     /// the [`OutputCards`] the parser returns beside the [`Netlist`]
     /// ([`crate::netlist::Parser::parse_file_with_output`]), so this card carries no
     /// scope-local index.
     Output,
-    /// A `.measure`/`.meas` card (root scope only). The typed request lives in
+    /// A `.measure`/`.meas` card. Body requests live in `Subcircuit::measurements`; root requests live in
     /// the [`MeasureCard`] list returned beside the [`Netlist`]
     /// ([`ParsedDeck::measurements`](crate::netlist::ParsedDeck::measurements)), so this
     /// card carries no scope-local index.
     Measure,
-    /// A `.four` card (root scope only). The typed request lives in the
+    /// A `.four` card. Body requests live in `Subcircuit::fourier`; root requests live in the
     /// [`FourierCard`] list returned beside the [`Netlist`]
     /// ([`ParsedDeck::fourier`](crate::netlist::ParsedDeck::fourier)), so this card
     /// carries no scope-local index.
@@ -1051,23 +1131,68 @@ impl Netlist {
     pub fn is_global_node(&self, name: &str) -> bool {
         name == "0"
             || self
-                .globals
+                .global_node_names()
                 .iter()
-                .flat_map(|card| &card.nodes)
-                .any(|node| node.name.eq_ignore_ascii_case(name))
+                .any(|node| node.eq_ignore_ascii_case(name))
     }
 
     /// Declared global nodes in first-declaration order without duplicates.
     /// Ground `0` is implicit and listed only if written (or aliased) explicitly.
     #[must_use]
     pub fn global_node_names(&self) -> Vec<&str> {
+        let active = self.active_subcircuit_indices();
         let mut names: Vec<&str> = Vec::new();
-        for node in self.globals.iter().flat_map(|card| &card.nodes) {
+        let cards = self.globals.iter().chain(
+            self.subcircuits
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| active.contains(index))
+                .flat_map(|(_, sub)| &sub.globals),
+        );
+        for node in cards.flat_map(|card| &card.nodes) {
             if !names.contains(&node.name.as_str()) {
                 names.push(&node.name);
             }
         }
         names
+    }
+
+    /// Definitions reachable from root X instances, in declaration-index order.
+    /// C removes unused bodies before collecting front-end declarations.
+    pub(crate) fn active_subcircuit_indices(&self) -> std::collections::BTreeSet<usize> {
+        // C inpcom removes unused definitions before collect_global_nodes.
+        // A declaration in a reachable body applies throughout the deck.
+        let mut graph = petgraph::graph::DiGraph::<Option<usize>, ()>::new();
+        let root = graph.add_node(None);
+        let mut definitions = std::collections::BTreeMap::new();
+        for (index, sub) in self.subcircuits.iter().enumerate() {
+            let node = graph.add_node(Some(index));
+            definitions
+                .entry(sub.name.to_ascii_lowercase())
+                .or_insert(node);
+        }
+        for node in graph.node_indices().collect::<Vec<_>>() {
+            let devices = graph[node].map_or(self.devices.as_slice(), |index| {
+                &self.subcircuits[index].devices
+            });
+            for device in devices.iter().filter(|device| device.designator == 'x') {
+                if let Some(target) = device
+                    .model
+                    .as_ref()
+                    .and_then(|name| definitions.get(&name.to_ascii_lowercase()))
+                {
+                    graph.add_edge(node, *target, ());
+                }
+            }
+        }
+        let mut active = std::collections::BTreeSet::new();
+        let mut walk = petgraph::visit::Dfs::new(&graph, root);
+        while let Some(node) = walk.next(&graph) {
+            if let Some(index) = graph[node] {
+                active.insert(index);
+            }
+        }
+        active
     }
 
     /// Every `.ic` entry in deck order (card order, then entry order),

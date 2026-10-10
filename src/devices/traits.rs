@@ -384,6 +384,31 @@ impl StampContext<'_> {
 /// [`fmt::Debug`] is a supertrait so that a `Box<dyn Device>` can be printed in
 /// diagnostics and compared in tests.
 pub trait Device: fmt::Debug {
+    /// Scalar instance ask (`*ask.c`), evaluated at the point's model context.
+    /// Unavailable keywords return `None`; callers report an explicit error.
+    /// # Errors
+    /// Invalid contextual temperature or derived value.
+    fn observation_parameter(
+        &self,
+        _keyword: &str,
+        _context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(None)
+    }
+    /// Independent current-source forcing for observations, including multiplicity.
+    /// # Errors
+    /// Invalid or unresolved source waveform.
+    fn observation_source_current(
+        &self,
+        _time: Option<(Real, crate::devices::Forcing)>,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(None)
+    }
+    /// Current-source parallel multiplier, used for swept forcing observations.
+    fn observation_source_multiplier(&self) -> Real {
+        1.
+    }
+
     /// The instance name, e.g. `r1`.
     fn name(&self) -> &str;
 

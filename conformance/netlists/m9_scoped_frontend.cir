@@ -1,0 +1,20 @@
+M9 scoped front-end declarations
+V1 out 0 sin(0 1 1k)
+.subckt cell a params: hint=.25
+R1 a local 1k
+C1 local rail 1u
+.global rail
+.option reltol=.001
+.ic v(local)={hint}
+.nodeset v(a)=0
+.save all v(local) i(vlocal)
+Vlocal other 0 0
+R2 other 0 1k
+.measure tran mm max v(out)
+.four 1k v(out)
+.ends
+X1 out cell hint=.25
+X2 out cell hint=.5
+Vrail rail 0 0
+.tran 1u 2m
+.end

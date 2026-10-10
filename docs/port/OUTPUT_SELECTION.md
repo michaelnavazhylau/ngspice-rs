@@ -1,5 +1,7 @@
 # Output selection: `.save` and `.print`
 
+The M9 section below updates the historical subset descriptions in this guide.
+
 Implemented for issue #42 in the Rust-only `work/m5-save-print` worktree, based on
 `origin/main` `1334358`. The C reference is `src/frontend/dotcards.c`
 (`ft_dotsaves()`, `ft_savedotargs()`, `fixem()`), `src/frontend/breakp2.c`
@@ -68,9 +70,8 @@ or measurement cards. See [SPARAM.md](SPARAM.md) and [NOISE.md](NOISE.md).
   `0` under the default `auto_gnd` rule (`Parser::with_auto_gnd(false)` keeps it
   a plain node). Matching against the plot is case-insensitive.
 * device names are lowercased, so `.save i(V1)` matches the plot's `i(v1)`.
-* `i(…)` accepts a **voltage source, an inductor or an E/H controlled source**
-  only: those are the branch currents the port's plots carry (`i(v1)`, `i(l1)`,
-  `i(e1)`, `i(h.x1.h1)`; see [CONTROLLED_SOURCES.md](CONTROLLED_SOURCES.md)).
+* `i(…)` selects existing branch currents or requests a device terminal current.
+  See the M9 observation section below for supported analyses and limits.
 * `vm` is the magnitude, `vp` the phase in radians in `(-pi, pi]` (C's `ph()`),
   `vr`/`vi` the real and imaginary parts, `vdb` `20*log10` of the magnitude.
 
@@ -79,13 +80,13 @@ synthesised request:
 
 | Input | Result |
 | --- | --- |
-| `i(r1)`, `i(q1)`, `i(g1)`, `i(f1)`, … | `SpiceError::NotYetPorted` (exit 3): only source/inductor/E/H branch currents are observable; a resistor, G/F or nonlinear instance current needs a device observation API |
-| `@r1[resistance]`, any `@…` name | `SpiceError::NotYetPorted` (exit 3): instance parameters are not observable |
+| Unsupported device current asks | `SpiceError::NotYetPorted` (exit 3); see M9 device observations below |
+| Unsupported `@device[param]` asks | `SpiceError::NotYetPorted` (exit 3); supported scalar asks are listed below |
 | `power(v1)`, `im(v1)`, a bare `v`, `v(a,b,c)`, a missing `)`, an empty `v()` | `SpiceError::Parse` (exit 2) |
 | `v(a,a)`, `v(0,0)` | `SpiceError::Parse` (exit 2): identically zero, so there is nothing to write |
 | `.save`/`.print` with no requests | `SpiceError::Parse` (exit 2) |
 | `.print` without a valid analysis name (`v(out)`, `tranx`) | `SpiceError::Parse` (exit 2) |
-| `.save`/`.print` inside a `.subckt` body | `SpiceError::NotYetPorted` (exit 3): body-local output scope is not defined yet in this port |
+| `.print`/`.plot` inside a `.subckt` body | `SpiceError::NotYetPorted` (exit 3); body `.save` is supported by M9 expansion |
 
 Every message carries the offending token's `SourceLoc` (`deck.cir:6:7`).
 
@@ -194,9 +195,8 @@ until after the rawfile is written).
   analysis-specific save entries, so a plot whose type none of them names keeps
   only its scale (and `beginPlot()` reports "no data saved" for it). The port
   narrows a plot only by `.save` and by `.print` cards of its own type (#96).
-* **`.save` inside a `.subckt` body is rejected.** C's handling of a body-local
-  `.save` is not modelled here yet, so it is a documented gap rather than a
-  guess.
+* **Body `.save` requests are translated per instance.** See the M9 scoped-card
+  rules below; `.print`/`.plot` inside bodies remain unsupported.
 
 ## Public API
 
@@ -235,14 +235,89 @@ existing consumer of `Netlist` is untouched.
 
 ## Known limits
 
-* `.plot` (the ASCII plotting card) is still outside the port's subset; only
-  `.save` and `.print` are parsed.
-* `i(…)` for anything but a voltage source or an inductor, and every `@instance`
-  parameter, are `NotYetPorted`: the port has no observation API that could
-  supply them, and it never synthesises a value.
+* ASCII `.plot` and device observations have the bounded M9 support described
+  below; unsupported rendering options and device asks fail explicitly.
 * A `.dc` scale column is named `sweep` by the port's driver (C writes
   `v(v-sweep)`); a selection keeps whatever the driver produced, and the
   committed-golden comparator maps the name (see [CLI.md](CLI.md)).
 * The text table is a bounded rendering of the selected vectors: no `xlimit`,
   no column-width formatting options, and no interactive `print`/`plot`
   commands.
+
+## M9 ASCII plots (#111)
+
+`.plot <analysis> <operands...>` now uses the same parser, target validation,
+full-plot resolution and rawfile selection as `.print`. It renders a line-printer
+graph with C's `+*=$%!0123456789` legend and `X` for collisions. The independent
+axis runs down the page. Each row echoes its physical scale and the first trace
+value. Complex operands use their real component; use `vm`, `vp`, etc. to select
+another component. Nonfinite data, missing operands and descending axes fail
+before any publication.
+
+Formatting deliberately uses a fixed 60-column field and the solver's physical
+sample rows rather than C's terminal widths, page breaks, date headings and
+resampled rows. Live C process checks compare legend identities and DC physical
+rows, not byte-for-byte pagination. Graphical backends, explicit plot limits and
+interactive plotting options remain unsupported.
+
+### M9 subcircuit front-end cards (#108)
+
+Subcircuit bodies retain typed `.option`, `.global`, `.ic`, `.nodeset`,
+`.save`, `.measure` and `.four` cards, with their ordered source cards and
+positions. The writer preserves their definition scope. Expansion follows C's
+`frontend/inp.c::inp_spsource`, `frontend/subckt.c::translate` and
+`collect_global_nodes`:
+
+- Used definitions contribute global nodes before instance node translation;
+  unused definitions contribute none.
+- Options and node hints follow expanded card order. Local expressions use each
+  instance's parameter scope. Hint nodes and save voltage/current names are
+  translated through ports, globals and instance paths.
+- Measurements repeat for every instance, retaining their result and vector
+  names. A bare internal node in a body measurement consequently still names a
+  top-level vector; an absent vector fails explicitly.
+- Fourier cards are hoisted once per used definition before expansion, with
+  their original vector names. Multiple instances do not multiply transforms.
+
+`devices::subckt::expand_with_output` returns the expanded output requests for
+library consumers; the CLI applies them before target validation. `RunConfig`
+applies instantiated options and hints. `.print`/`.plot` inside bodies, nested
+subcircuit definitions and body analysis requests remain explicit unsupported
+cases. Expansion limits also bound front-end cards in otherwise empty bodies.
+
+`m9_frontend` covers syntax round trips, local parameters, precedence, unused
+bodies, limits and atomic failures. Its opt-in C check verifies renaming,
+measurement repetition, saved variables and Fourier hoisting. The new committed
+`m9_scoped_frontend` C rawfile compares the resulting RC circuit on a shared
+physical time grid; existing goldens were not regenerated.
+
+## M9 device observations (#113)
+
+`.save`, `.print`, `.plot`, `.measure` and `.four` may request `i(device)`
+for a non-branch device or `@device[param]`. Requested quantities are registered
+before solving and added to the full plot before output selection. Existing
+source/inductor branch columns retain their signs and names. Body saves rename
+both current requests and `@instance` names per instance.
+
+`Circuit::set_observations` and `Circuit::observe_real` expose the device-side
+API. Scalar asks use `Device::observation_parameter`, following `*ask.c`.
+Real terminal currents use a disposable physical device load at the solved
+point, with limiting disabled, the point's model context, source forcing and
+pre-acceptance integration history. Observing never accepts state. Ground
+terminal current follows terminal KCL. Two-terminal power is voltage drop times
+current. DC parameter/source sweeps are observed before restoring their context;
+companion transient currents include the integrated charge contribution.
+
+Supported scalar asks include R/C/L values and applicable geometry, multiplicity,
+temperature and instance fields for D/Q/MOS1. Unsupported keywords fail with a
+`NotYetPorted` error naming the C ask routines. AC supports scalar parameter asks;
+AC current/power asks, coincident terminal currents and diffsol observations are
+explicitly refused. Other analysis drivers that cannot emit an observation fail
+when resolving the requested vector. These bounds do not imply every upstream
+ask or model is implemented.
+
+`m9_observations` compares saved R/D/Q/M currents and parameters against the
+new committed `conformance/observations/m9_device_dc.raw` C fixture. The opt-in
+C test checks that fixture without recapture. Analytic RC transient tests check
+capacitor/resistor KCL, power and measurement integration; invalid requests
+preserve an existing output file.

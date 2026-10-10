@@ -301,6 +301,41 @@ pub fn load_classified(path: impl AsRef<Path>) -> SpiceResult<(Deck, Vec<RawCard
     Ok((deck, cards))
 }
 
+/// Evaluates a measurement's numeric setters, retaining positioned diagnostics.
+/// Reuses the original winnow card grammar to check ranges and crossing counts.
+///
+/// # Errors
+/// Expression evaluation or measurement grammar failures.
+pub fn resolve_measure_card(
+    card: &MeasureCard,
+    scope: &crate::netlist::eval::ParamScope,
+    budget: &mut crate::netlist::eval::EvalBudget,
+) -> SpiceResult<MeasureCard> {
+    let crate::netlist::ast::MeasureRequest::Deferred {
+        card: source,
+        auto_gnd,
+        ..
+    } = &card.request
+    else {
+        return Ok(card.clone());
+    };
+    let mut prepared = (**source).clone();
+    for token in &mut prepared.tokens {
+        if expression::is_expression_token(token) {
+            let value = scope.evaluate(&measure::numeric_expression(token)?, budget)?;
+            token.kind = crate::netlist::token::TokenKind::Number(value);
+            token.text = crate::netlist::elaborate::format_literal(value);
+        }
+    }
+    match grammar::parse_card(&prepared, *auto_gnd, &std::collections::BTreeSet::new())? {
+        grammar::ParsedCard::Measure(card) => Ok(card),
+        _ => Err(crate::primitives::SpiceError::parse(
+            card.location.clone(),
+            "expected a measurement card",
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Parser;

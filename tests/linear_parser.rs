@@ -262,7 +262,6 @@ fn unsupported_semantics_never_get_silently_dropped() {
         (".control\nquit\n.endc", "frontend/inp.c"),
         // `.save`/`.print` now parse into output requests; `.plot` (the ASCII
         // plotting card) is still outside the port's subset.
-        (".plot dc v(a)", "inp2dot.c"),
         (".model rm r(rsh=\"sheet\")", "inpdomod.c"),
     ] {
         let error = parse(body).expect_err("not ported");

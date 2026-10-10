@@ -537,10 +537,10 @@ fn write_scope(ctx: &Ctx<'_>, out: &mut Out, indent: usize, scope: &Scope<'_>) {
             includes: &sub.includes,
             params: &sub.params,
             functions: &sub.functions,
-            options: &[],
-            globals: &[],
-            initial_conditions: &[],
-            nodesets: &[],
+            options: &sub.options,
+            globals: &sub.globals,
+            initial_conditions: &sub.initial_conditions,
+            nodesets: &sub.nodesets,
             cards: &sub.cards,
         };
         write_scope(ctx, out, indent + 3, &inner);

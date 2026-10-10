@@ -301,6 +301,7 @@ fn simulate_writes_c_layout_and_composes_with_other_analyses() {
     let output = dir.join("out.raw");
     let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
         .arg("simulate")
+        .args(["--format", "ascii"])
         .arg("--output")
         .arg(&output)
         .arg(&deck)

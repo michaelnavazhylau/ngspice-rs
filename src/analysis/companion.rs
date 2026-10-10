@@ -552,7 +552,26 @@ impl Driver<'_> {
         // C (dctran.c) writes no t = 0 row under uic: the first dump is the
         // first accepted timepoint (`CKTtime > 0`).
         if start <= 0. && !self.uic {
-            push(&mut plot, 0., &x)?;
+            let observed = self.circuit.observe_real(
+                &LoadRequest {
+                    mode: AnalysisMode::OperatingPoint,
+                    solution: &x,
+                    model_context: &self.model_context,
+                    integration: None,
+                    history: &self.history,
+                    forcing: None,
+                },
+                &[],
+                Some((
+                    0.,
+                    Forcing {
+                        limit: crate::devices::Limit::Left,
+                        timing: self.timing,
+                    },
+                )),
+                None,
+            )?;
+            push(&mut plot, 0., &x, observed)?;
         }
         // dctran.c: under uic a breakpoint at the print step limits ringing of
         // the first steps ("CKTsetBreak(ckt, ckt->CKTstep)").
@@ -635,6 +654,35 @@ impl Driver<'_> {
                             }
                         }
                         if !reject {
+                            let observed = if t_new >= start {
+                                self.circuit.observe_real(
+                                    &LoadRequest {
+                                        mode: AnalysisMode::Transient {
+                                            time: t_new,
+                                            dt: coefficients.dt(),
+                                        },
+                                        solution: &x_new,
+                                        model_context: &self.model_context,
+                                        integration: Some(&coefficients),
+                                        history: &self.history,
+                                        forcing: Some(Forcing {
+                                            limit,
+                                            timing: self.timing,
+                                        }),
+                                    },
+                                    &[],
+                                    Some((
+                                        t_new,
+                                        Forcing {
+                                            limit,
+                                            timing: self.timing,
+                                        },
+                                    )),
+                                    Some(&state),
+                                )?
+                            } else {
+                                Vec::new()
+                            };
                             self.circuit.accept_point(
                                 &x_new,
                                 Some(t_new),
@@ -646,7 +694,7 @@ impl Driver<'_> {
                             t = t_new;
                             x = x_new;
                             if t >= start {
-                                push(&mut plot, t, &x)?;
+                                push(&mut plot, t, &x, observed)?;
                             }
                             breaks.discard_before(t);
                             first = false;
@@ -1047,8 +1095,9 @@ fn equilibrated(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<(SparseMatri
     Ok((scaled, b))
 }
 
-fn push(plot: &mut Plot, time: Real, x: &Vector) -> SpiceResult<()> {
+fn push(plot: &mut Plot, time: Real, x: &Vector, observed: Vec<Complex>) -> SpiceResult<()> {
     let mut point = vec![Complex::real(time)];
     point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
+    point.extend(observed);
     plot.push_point(point)
 }

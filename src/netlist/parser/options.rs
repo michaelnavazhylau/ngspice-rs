@@ -27,7 +27,7 @@ fn options(input: &mut Input<'_>) -> Result<ParsedCard> {
         let settings: Vec<OptionSetting> = repeat(1.., setting).parse_next(input)?;
         if let Some(option) = settings
             .iter()
-            .find(|o| matches!(o.name.as_str(), "sqrnoise" | "ngbehavior"))
+            .find(|o| matches!(o.name.as_str(), "sqrnoise" | "ngbehavior" | "filetype"))
         {
             return Err(ErrMode::Cut(Failure(SpiceError::parse(
                 option.location.clone(),
@@ -170,7 +170,16 @@ pub(super) fn frontend_setting(input: &mut Input<'_>) -> Result<ParsedCard> {
     cut_err(|input: &mut Input<'_>| {
         let settings: Vec<OptionSetting> = repeat(1.., setting).parse_next(input)?;
         for option in &settings {
-            if !matches!(option.name.as_str(), "sqrnoise" | "ngbehavior") {
+            if !matches!(
+                option.name.as_str(),
+                "sqrnoise"
+                    | "ngbehavior"
+                    | "filetype"
+                    | "nfreqs"
+                    | "nperiods"
+                    | "polydegree"
+                    | "fourgridsize"
+            ) {
                 return Err(ErrMode::Cut(Failure(SpiceError::not_yet_ported(
                     format!("front-end setting {}", option.name),
                     "src/frontend/variable.c",

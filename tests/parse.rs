@@ -127,10 +127,10 @@ fn remaining_syntax_gaps_and_source_failures_keep_distinct_exits() {
     std::fs::create_dir(&dir).unwrap();
     let path = dir.join("deck.cir");
     for (text, status) in [
-        // `.plot` is still `.`-card syntax this port does not run yet, so it
+        // `.width` is still unsupported front-end syntax, so it
         // keeps the "not ported" exit ahead of a missing include. (`.save` and
         // `.print` are parsed and applied; see docs/port/OUTPUT_SELECTION.md.)
-        ("title\n.plot dc v(a)\n.include missing.inc\n", 3),
+        ("title\n.width 80\n.include missing.inc\n", 3),
         // `.param` now parses, so the missing source is the first failure.
         ("title\n.param x=1\n.include missing.inc\n", 2),
         ("title\n.include missing.inc\n", 2),

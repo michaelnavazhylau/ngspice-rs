@@ -14,12 +14,8 @@
 //!
 //! - `v(node)`, `v(first,second)`, `i(device)` and the `vm`/`vp`/`vr`/`vi`/`vdb`
 //!   voltage components, plus `all`;
-//! - `i(<device>)` is accepted only for a voltage source or an inductor, the two
-//!   branch currents the port's plots carry; anything else (a resistor, a
-//!   nonlinear instance) is [`SpiceError::NotYetPorted`], never a synthesised
-//!   value;
-//! - `@instance[param]` names are [`SpiceError::NotYetPorted`]: the port has no
-//!   observation API for instance parameters;
+//! - `i(<device>)` and `@instance[param]` are recorded by the device observation
+//!   API when requested; unsupported asks fail explicitly at analysis time;
 //! - `v(a,a)` and `v(0,0)` are identically zero and are rejected rather than
 //!   written;
 //! - a card with no requests, a missing `)`, a bare `v`, a third terminal and an
@@ -27,7 +23,7 @@
 
 use crate::primitives::{AnalysisKind, SourceLoc, SpiceError};
 use winnow::Parser as _;
-use winnow::combinator::{cut_err, opt, peek, repeat};
+use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
@@ -37,10 +33,6 @@ use crate::netlist::token::{Token, TokenKind};
 use super::grammar::{Failure, Input, ParsedCard, Result, keyword};
 use super::syntax::canonical_node;
 use super::vector::punctuation;
-
-/// The C reference for the device currents the port cannot observe yet.
-const C_REFERENCE_CURRENTS: &str =
-    "src/frontend/outitf.c (beginPlot save set), src/spicelib/analysis/cktnames.c";
 
 /// A parsed `.save` or `.print` card.
 pub(super) enum OutputCard {
@@ -60,7 +52,8 @@ pub(super) fn output_card(input: &mut Input<'_>) -> Result<ParsedCard> {
         })
         .parse_next(input);
     }
-    keyword(".print").parse_next(input)?;
+    let ascii_plot =
+        alt((keyword(".print").value(false), keyword(".plot").value(true))).parse_next(input)?;
     cut_err(|input: &mut Input<'_>| {
         let name = any
             .verify(|token: &Token| token.is_name_like())
@@ -78,6 +71,7 @@ pub(super) fn output_card(input: &mut Input<'_>) -> Result<ParsedCard> {
         };
         let requests = requests(input, ".print")?;
         Ok(ParsedCard::Output(OutputCard::Print(PrintCard {
+            ascii_plot,
             analysis,
             analysis_location: name.location.clone(),
             requests,
@@ -118,13 +112,25 @@ pub(super) fn request(input: &mut Input<'_>) -> Result<VectorRequest> {
         });
     }
     if head.text.starts_with('@') {
-        return Err(ErrMode::Cut(Failure(SpiceError::not_yet_ported(
-            format!(
-                "{}: {}: instance parameters are not observable",
-                location, head.text
-            ),
-            C_REFERENCE_CURRENTS,
-        ))));
+        let valid = head
+            .text
+            .strip_prefix('@')
+            .and_then(|s| s.split_once('['))
+            .is_some_and(|(d, p)| {
+                !d.is_empty()
+                    && p.strip_suffix(']')
+                        .is_some_and(|p| !p.is_empty() && !p.contains(['[', ']']))
+            });
+        if !valid {
+            return Err(fail(&location, "expected @device[parameter]"));
+        }
+        return Ok(VectorRequest {
+            vector: RequestedVector::Named {
+                name: head.text.to_ascii_lowercase(),
+                component: None,
+            },
+            location,
+        });
     }
     if head.kind != TokenKind::Word {
         return Err(fail(
@@ -275,23 +281,13 @@ fn node(input: &mut Input<'_>, at: &SourceLoc, function: &str) -> Result<String>
 /// (`e.x1.e1` inside a subcircuit keeps its designator first).
 fn device(token: &Token) -> Result<String> {
     let name = token.text.to_ascii_lowercase();
-    match name.chars().next() {
-        Some('v' | 'l' | 'e' | 'h') => Ok(name),
-        Some(designator) if designator.is_ascii_alphabetic() => {
-            Err(ErrMode::Cut(Failure(SpiceError::not_yet_ported(
-                format!(
-                    "{}: i({name}): only a voltage source or inductor branch current (or an E/H \
-                     controlled-source branch current) is observable; \
-                     an '{designator}' instance current needs a device observation API",
-                    token.location
-                ),
-                C_REFERENCE_CURRENTS,
-            ))))
-        }
-        _ => Err(fail(
+    if name.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) {
+        Ok(name)
+    } else {
+        Err(fail(
             &token.location,
             format!("expected a device name in i(...), found '{name}'"),
-        )),
+        ))
     }
 }
 

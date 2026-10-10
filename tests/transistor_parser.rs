@@ -306,9 +306,9 @@ fn model_index_does_not_look_past_end_or_into_scoped_bodies() {
 #[test]
 fn declaration_prepass_preserves_semantic_and_lexical_error_order() {
     // An unported `.` card on line 2 still wins over the malformed `{` on line
-    // 3; `.plot` stands in for a card outside the port's subset (`.save` and
+    // 3; `.width` stands in for a card outside the port's subset (`.save` and
     // `.print` are parsed now).
-    let error = parse(".plot dc v(a)\n.model later d(is={\n").unwrap_err();
+    let error = parse(".width 80\n.model later d(is={\n").unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
     assert!(error.to_string().contains("transistor.cir:2:1"));
     let error = parse("R1\n.model later d(is={\n").unwrap_err();

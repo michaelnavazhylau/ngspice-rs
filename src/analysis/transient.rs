@@ -62,6 +62,11 @@ fn run_diffsol(
     // .nodeset only steers DC convergence and cannot change a linear operating
     // point; it is validated (unknown nodes) and otherwise has no effect.
     crate::analysis::initial::resolve(circuit, request)?;
+    if !circuit.observations().is_empty() {
+        return Err(unsupported(
+            "device observations on diffsol BDF; use the companion transient backend",
+        ));
+    }
     let mut positional = vec![];
     let mut seen = std::collections::BTreeSet::new();
     for a in &request.arguments {

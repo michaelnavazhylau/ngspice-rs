@@ -146,24 +146,8 @@ fn nodes_are_canonicalised_like_device_nodes() {
 
 #[test]
 fn unsupported_requests_are_positioned_failures_not_dropped_cards() {
-    let not_ported = [
-        (
-            ".save i(r1)",
-            "only a voltage source or inductor branch current",
-        ),
-        (
-            ".save i(q1)",
-            "only a voltage source or inductor branch current",
-        ),
-        (
-            ".save @r1[resistance]",
-            "instance parameters are not observable",
-        ),
-    ];
-    for (body, expected) in not_ported {
-        let error = parse(body).expect_err(body);
-        assert!(error.is_not_yet_ported(), "{body}: {error}");
-        assert!(error.to_string().contains(expected), "{body}: {error}");
+    for body in [".save i(r1)", ".save i(q1)", ".save @r1[resistance]"] {
+        assert!(parse(body).is_ok());
     }
     let parse_errors = [
         (".save v(a,a)", "identically zero"),
@@ -192,18 +176,14 @@ fn unsupported_requests_are_positioned_failures_not_dropped_cards() {
 }
 
 #[test]
-fn a_body_local_output_card_is_rejected_explicitly() {
-    for body in [
-        ".subckt s a b\nr1 a b 1k\n.save v(a)\n.ends\n",
-        ".subckt s a b\n.print op v(a)\n.ends\n",
-    ] {
-        let error = parse(body).expect_err(body);
-        assert!(error.is_not_yet_ported(), "{body}: {error}");
-        assert!(
-            error.to_string().contains("inside a .subckt body"),
-            "{body}: {error}"
-        );
-    }
+fn a_body_local_print_card_is_rejected_explicitly() {
+    let body = ".subckt s a b\n.print op v(a)\n.ends\n";
+    let error = parse(body).expect_err(body);
+    assert!(error.is_not_yet_ported(), "{body}: {error}");
+    assert!(
+        error.to_string().contains("inside a .subckt body"),
+        "{body}: {error}"
+    );
 }
 
 #[test]

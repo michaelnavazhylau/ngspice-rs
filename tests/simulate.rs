@@ -72,6 +72,7 @@ fn stderr(run: &Output) -> String {
 fn simulate(output: &Path, deck: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_spice-rs"))
         .arg("simulate")
+        .args(["--format", "ascii"])
         .arg("--output")
         .arg(output)
         .arg(deck)
@@ -164,7 +165,7 @@ fn operating_point_matches_the_committed_golden() {
     assert_eq!(written.plots[0].title, "RC divider, operating point");
     assert_eq!(
         written.plots[0].command,
-        format!("spice-rs {VERSION} (Rust port), Build")
+        format!("ngspice-compatible spice-rs {VERSION} (Rust port), Build")
     );
     assert_eq!(
         written.plots[0].date.len(),
@@ -417,7 +418,7 @@ fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
         "{report}"
     );
     assert!(
-        report.contains("(ngspice ASCII rawfile with 4 plots, no binary support)"),
+        report.contains("(ngspice ASCII rawfile with 4 plots)"),
         "{report}"
     );
     let sections: Vec<usize> = ["[ac1]", "[dc1]", "[op1]", "[tran1]"]
@@ -443,7 +444,10 @@ fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
     );
     for raw_plot in &written.plots {
         assert_eq!(raw_plot.title, "Multi-analysis RC low-pass with load");
-        assert!(raw_plot.command.starts_with("spice-rs "), "{raw_plot:?}");
+        assert!(
+            raw_plot.command.starts_with("ngspice-compatible spice-rs "),
+            "{raw_plot:?}"
+        );
     }
     // The port names the DC scale `sweep`; C writes `v(v-sweep)` (CLI.md).
     assert_eq!(written.plots[1].plot.variables[0].name, "sweep");
@@ -1080,19 +1084,9 @@ fn an_unresolvable_save_card_fails_before_anything_is_published() {
 
 #[test]
 fn unsupported_and_malformed_selections_fail_explicitly() {
-    // `.save i(r1)`: a resistor current is not observable in this port.
     let dir = scratch("save-unsupported");
     let cases = [
-        (
-            "i(r1)",
-            3,
-            "only a voltage source or inductor branch current",
-        ),
-        (
-            "@r1[resistance]",
-            3,
-            "instance parameters are not observable",
-        ),
+        ("@r1[unknown]", 3, "device observation"),
         ("vm(out)", 2, "needs a complex plot"),
         ("v(a,a)", 2, "identically zero"),
         ("power(v1)", 2, "unknown vector request"),
@@ -1218,7 +1212,7 @@ fn a_failed_or_unsupported_measurement_publishes_nothing() {
             2,
             "is outside the time range",
         ),
-        (".meas tran x when v(out)=2", 3, "the when measurement"),
+        (".meas tran x when v(out)=2", 2, "no first crossing"),
         (".meas tran x frobnicate v(out)", 2, "no such measurement"),
         (
             ".meas dc x max v(out)",
@@ -1699,4 +1693,204 @@ fn equal_braced_noise_bounds_schedule_one_plot_and_preserve_later_names() {
         assert!(stdout(&run).contains(name), "{}", stdout(&run));
     }
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn binary_cli_output_and_encoding_precedence() {
+    use ngspice_rs::analysis::RawFormat;
+    let dir = scratch("binary-format");
+    let deck = write_deck(
+        &dir,
+        "binary test\nV1 in 0 1 ac 1\nR1 in 0 1k\n.op\n.ac lin 2 1 2\n.control\nset filetype=ascii\n.endc\n.end\n",
+    );
+    let raw = dir.join("out.raw");
+    let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+        .args(["simulate", "--format", "binary", "--output"])
+        .arg(&raw)
+        .arg(&deck)
+        .output()
+        .unwrap();
+    assert!(run.status.success(), "{}", stderr(&run));
+    assert_eq!(
+        RawFormat::detect(&fs::read(&raw).unwrap()).unwrap(),
+        RawFormat::Binary
+    );
+    assert_eq!(RawFile::load(&raw).unwrap().plots.len(), 2);
+    assert!(stdout(&run).contains("ngspice binary rawfile with 2 plots"));
+    let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+        .args(["simulate", "--output"])
+        .arg(&raw)
+        .arg(&deck)
+        .env("SPICE_ASCIIRAWFILE", "0")
+        .output()
+        .unwrap();
+    assert!(run.status.success(), "{}", stderr(&run));
+    assert_eq!(
+        RawFormat::detect(&fs::read(&raw).unwrap()).unwrap(),
+        RawFormat::Ascii
+    );
+    fs::write(&deck, "binary test\nV1 in 0 1\nR1 in 0 1k\n.op\n.end\n").unwrap();
+    for (environment, expected) in [("0", RawFormat::Binary), ("1", RawFormat::Ascii)] {
+        let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+            .args(["simulate", "--output"])
+            .arg(&raw)
+            .arg(&deck)
+            .env("SPICE_ASCIIRAWFILE", environment)
+            .output()
+            .unwrap();
+        assert!(run.status.success(), "{}", stderr(&run));
+        assert_eq!(
+            RawFormat::detect(&fs::read(&raw).unwrap()).unwrap(),
+            expected
+        );
+    }
+}
+
+#[test]
+fn ascii_plot_is_routed_and_failures_publish_nothing() {
+    let dir = scratch("asciiplot");
+    let deck = write_deck(
+        &dir,
+        "plot test\nV1 in 0 0\nR1 in 0 1k\n.dc v1 0 1 .25\n.plot dc v(in)\n.end\n",
+    );
+    let raw = dir.join("out.raw");
+    let run = simulate(&raw, &deck);
+    assert!(run.status.success(), "{}", stderr(&run));
+    assert!(stdout(&run).contains("Legend:  + = v(in)"));
+    assert!(stdout(&run).contains("plot: DC transfer characteristic"));
+    let before = fs::read(&raw).unwrap();
+    fs::write(
+        &deck,
+        "bad plot\nV1 in 0 1\nR1 in 0 1k\n.op\n.plot dc v(in)\n.end\n",
+    )
+    .unwrap();
+    let run = simulate(&raw, &deck);
+    assert!(!run.status.success());
+    assert!(run.stdout.is_empty());
+    assert_eq!(fs::read(&raw).unwrap(), before);
+}
+
+#[test]
+fn extended_measurements_use_full_data_and_physical_axis() {
+    let dir = scratch("extended-measure");
+    let deck = write_deck(
+        &dir,
+        "measurement test\nV1 in 0 0\nR1 in 0 1k\n.dc v1 0 2 .25\n.save i(v1)\n.meas dc crossing WHEN v(in)=.5 rise=1 td=.1\n.meas dc found FIND v(in) WHEN v(in)=.75\n.meas dc slope DERIV v(in) AT=1\n.meas dc slopewhen DERIV v(in) WHEN v(in)=1.25\n.meas dc low MIN_AT v(in)\n.meas dc high MAX_AT v(in)\n.meas dc range PP v(in)\n.meas dc area INTEG v(in)\n.meas dc rms RMS v(in)\n.end\n",
+    );
+    let run = simulate(&dir.join("out.raw"), &deck);
+    assert!(run.status.success(), "{}", stderr(&run));
+    let text = stdout(&run);
+    for (name, expected) in [
+        ("crossing", 0.5),
+        ("found", 0.75),
+        ("slope", 1.),
+        ("slopewhen", 1.),
+        ("low", 0.),
+        ("high", 2.),
+        ("range", 2.),
+        ("area", 2.),
+        ("rms", (4_f64 / 3.).sqrt()),
+    ] {
+        let line = text
+            .lines()
+            .find(|line| line.starts_with(name) && line.contains('='))
+            .unwrap();
+        let value: f64 = line
+            .split('=')
+            .nth(1)
+            .unwrap()
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!((value - expected).abs() < 1e-12, "{name}: {line}");
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; C loads Rust binary real and complex plots"]
+fn c_reads_the_cli_binary_rawfile() {
+    let binary = std::env::var("NGSPICE_BIN").expect("NGSPICE_BIN");
+    assert!(Path::new(&binary).is_absolute());
+    let dir = scratch("c-binary-read");
+    let deck = write_deck(
+        &dir,
+        "binary C test\nV1 in 0 1 ac 1\nR1 in 0 1k\n.op\n.ac lin 2 1 2\n.end\n",
+    );
+    let raw = dir.join("out.raw");
+    let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+        .args(["simulate", "--format", "binary", "--output"])
+        .arg(&raw)
+        .arg(&deck)
+        .output()
+        .unwrap();
+    assert!(run.status.success(), "{}", stderr(&run));
+    let control = dir.join("read.cir");
+    fs::write(&control, format!("Read Rust binary\n.control\nload {}\nsetplot op1\nprint v(in)\nsetplot ac1\nprint v(in)\nquit\n.endc\n.end\n", raw.display())).unwrap();
+    let run = Command::new(binary)
+        .args(["-b"])
+        .arg(control)
+        .output()
+        .unwrap();
+    assert!(run.status.success(), "{}", stderr(&run));
+    assert!(
+        !stderr(&run).to_lowercase().contains("error"),
+        "{}",
+        stderr(&run)
+    );
+    assert!(stdout(&run).contains("1.000000e+00"), "{}", stdout(&run));
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN; compare ASCII plot legend and physical rows"]
+fn ascii_plot_data_match_c_text_output() {
+    let binary = std::env::var("NGSPICE_BIN").expect("NGSPICE_BIN");
+    let dir = scratch("c-asciiplot");
+    let deck = write_deck(
+        &dir,
+        "plot test\nV1 in 0 0\nR1 in 0 1k\n.dc v1 0 1 .25\n.plot dc v(in)\n.end\n",
+    );
+    let ours = simulate(&dir.join("out.raw"), &deck);
+    let theirs = Command::new(binary).arg("-b").arg(&deck).output().unwrap();
+    assert!(ours.status.success(), "{}", stderr(&ours));
+    assert!(theirs.status.success(), "{}", stderr(&theirs));
+    let rows = |text: String| -> Vec<(f64, f64)> {
+        text.lines()
+            .filter_map(|line| {
+                let mut words = line.split_whitespace();
+                let axis = words.next()?.parse::<f64>().ok()?;
+                let value = words.next()?.parse::<f64>().ok()?;
+                let drawing = words.collect::<String>();
+                drawing.contains('+').then_some((axis, value))
+            })
+            .collect()
+    };
+    assert!(stdout(&theirs).contains("Legend:"));
+    assert!(stdout(&theirs).contains("+ = v(in)"));
+    assert_eq!(rows(stdout(&ours)), rows(stdout(&theirs)));
+    assert_eq!(rows(stdout(&ours)).len(), 5);
+}
+
+#[test]
+fn fourier_frontend_settings_reach_the_cli() {
+    let dir = scratch("fourier-settings");
+    let deck = write_deck(
+        &dir,
+        "settings\nV1 out 0 sin(0 1 1k)\nR1 out 0 1k\n.tran 1u 4m\n.four 1k v(out)\n.control\nset nfreqs=5 nperiods=2 polydegree=3 fourgridsize=256\n.endc\n.end\n",
+    );
+    let run = simulate(&dir.join("out.raw"), &deck);
+    assert!(run.status.success(), "{}", stderr(&run));
+    assert!(
+        stdout(&run).contains("512 subinterval(s)"),
+        "{}",
+        stdout(&run)
+    );
+    let parsed = ngspice_rs::netlist::Parser::new()
+        .parse_file(&deck)
+        .unwrap();
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
+    assert_eq!(config.fourier_settings().unwrap().polydegree, 3);
+    let written = ngspice_rs::netlist::write_netlist(&parsed).unwrap();
+    assert!(written.contains("set nfreqs=5 nperiods=2 polydegree=3 fourgridsize=256"));
 }

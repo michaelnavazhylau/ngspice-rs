@@ -99,3 +99,5 @@ pub use traits::{
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.
 pub const C_REFERENCE_FRAMEWORK: &str = "src/spicelib/devices/ (ckt*.c)";
+
+pub mod observe;

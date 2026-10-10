@@ -63,7 +63,7 @@ fn frontend_settings_roundtrip_and_unsupported_commands_fail() {
     let request = config.request_for(&reparsed.analyses[0]).unwrap();
     assert!(request.squared_noise && request.spice3_noise);
     for body in [
-        ".control\nrun\n.endc",
+        ".control\nresume\n.endc",
         ".control\nset unknown\n.endc",
         ".control\nset sqrnoise",
         ".endc",

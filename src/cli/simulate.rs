@@ -1,8 +1,7 @@
-//! `spice-rs simulate` — run every analysis of a deck and write an ASCII rawfile.
+//! `spice-rs simulate` — run every analysis of a deck and write an ASCII or binary rawfile.
 //!
 //! C: the batch path of `src/ngspice.c` (`ngspice -b -r`: `ft_dorun()` →
-//! `CKTdoJob()`) plus the writer in `src/frontend/rawfile.c` (`raw_write`, ASCII
-//! only). The command is deliberately narrow:
+//! `CKTdoJob()`) plus the writer in `src/frontend/rawfile.c` (`raw_write`). The command is deliberately narrow:
 //!
 //! * the deck is loaded by the ordinary [`crate::netlist::Parser`] and elaborated
 //!   by the ordinary production runner, so no device or solver logic is
@@ -49,7 +48,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::analysis::batch;
 use crate::analysis::fourier::{self, FourierAnalysis};
 use crate::analysis::measure::{self, Measurement};
-use crate::analysis::{RawFile, RawPlot, RunConfig, runner};
+use crate::analysis::{RawFile, RawFormat, RawPlot, RunConfig, runner};
 use crate::netlist::Parser;
 use crate::primitives::{AnalysisKind, SpiceError, SpiceResult};
 
@@ -64,6 +63,8 @@ pub struct Report {
     pub title: String,
     /// The rawfile that was written.
     pub output: PathBuf,
+    /// Encoding of the published rawfile.
+    pub format: RawFormat,
     /// One entry per plot, in rawfile (ngspice batch) order.
     pub plots: Vec<PlotReport>,
 }
@@ -131,7 +132,39 @@ pub struct PlotReport {
 /// evaluated, and the `.print` tables and measurement blocks are only returned
 /// with the report, so a failure publishes nothing at all.
 pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
-    let parsed = Parser::with_auto_gnd(auto_gnd).parse_file_with_output(deck)?;
+    run_with_format(deck, output, auto_gnd, Some(RawFormat::Ascii))
+}
+
+/// Simulate with explicit encoding, or C's deck/environment/default precedence.
+/// C: `frontend/runcoms.c::dosim`, `misc/ivars.c::init_ivars`.
+///
+/// # Errors
+/// The same parsing, simulation and atomic output errors as [`run`].
+pub fn run_with_format(
+    deck: &Path,
+    output: &Path,
+    auto_gnd: bool,
+    format: Option<RawFormat>,
+) -> SpiceResult<Report> {
+    let mut parsed = Parser::with_auto_gnd(auto_gnd).parse_file_with_output(deck)?;
+    if parsed.netlist.subcircuits.iter().any(|sub| {
+        !sub.output.is_empty() || !sub.measurements.is_empty() || !sub.fourier.is_empty()
+    }) {
+        let literal = crate::netlist::elaborate::literalize(&parsed.netlist)?;
+        let expanded = crate::devices::subckt::expand_with_output(
+            &literal.netlist,
+            &literal.scope,
+            crate::devices::subckt::SubcircuitLimits::default(),
+            &parsed.output,
+            &parsed.measurements,
+            &parsed.fourier,
+        )?;
+        parsed.output = expanded.output;
+        parsed.measurements = expanded.measurements;
+        parsed.fourier = expanded.fourier;
+    }
+    let scope = crate::netlist::eval::ParamScope::for_netlist(&parsed.netlist)?;
+    parsed.fourier = fourier::resolve_cards(&parsed.fourier, &scope)?;
     let netlist = &parsed.netlist;
     if netlist.analyses.is_empty() {
         return Err(SpiceError::parse(
@@ -149,6 +182,22 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
     // Options are validated before anything runs, exactly as `parse` does:
     // unknown or unsupported settings are errors, never ignored.
     let config = RunConfig::from_netlist(netlist)?;
+    let format = format.or(config.raw_format()).unwrap_or_else(|| {
+        // C uses atoi: leading signed integer, nonzero means ASCII.
+        let value = std::env::var("SPICE_ASCIIRAWFILE").unwrap_or_default();
+        let value = value.trim_start();
+        let digits: String = value
+            .chars()
+            .enumerate()
+            .take_while(|(i, c)| c.is_ascii_digit() || (*i == 0 && matches!(c, '+' | '-')))
+            .map(|(_, c)| c)
+            .collect();
+        if digits.parse::<i64>().unwrap_or(0) != 0 {
+            RawFormat::Ascii
+        } else {
+            RawFormat::Binary
+        }
+    });
     let schedule = batch::schedule_evaluated(&netlist.analyses, &config)?;
     // Every request and driver is validated before the first analysis runs, so
     // an unsupported last analysis cannot waste the earlier ones.
@@ -176,6 +225,27 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
             Some(circuit) => circuit,
             None => config.circuit(netlist)?,
         };
+        let observations = crate::analysis::observations::requests(
+            entry.kind,
+            &parsed.output,
+            &parsed.measurements,
+            &parsed.fourier,
+        );
+        circuit.set_observations(&observations)?;
+        if !circuit.observations().is_empty()
+            && !matches!(
+                entry.kind,
+                crate::primitives::AnalysisKind::OperatingPoint
+                    | crate::primitives::AnalysisKind::DcSweep
+                    | crate::primitives::AnalysisKind::Ac
+                    | crate::primitives::AnalysisKind::Transient
+            )
+        {
+            return Err(SpiceError::not_yet_ported(
+                "device observations for this analysis",
+                "src/frontend/outitf.c (OUTpData)",
+            ));
+        }
         let produced = driver.run_plots(&mut circuit, &request, &config.context())?;
         let names: Vec<&str> = entry.plot_names().collect();
         if produced.len() != names.len() {
@@ -193,13 +263,25 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
             // resolved against the **full** plot and before anything is
             // written or printed: an unresolvable request leaves stdout empty
             // and an existing destination untouched.
-            let outputs = batch::resolve_outputs(
+            let mut outputs = batch::resolve_outputs_with_scope(
                 plot,
                 entry,
                 &parsed.output,
                 &parsed.measurements,
-                &parsed.fourier,
+                if config.fourier_settings().is_some() {
+                    &[]
+                } else {
+                    &parsed.fourier
+                },
+                &scope,
             )?;
+            if entry.last_of_kind
+                && entry.kind == AnalysisKind::Transient
+                && let Some(settings) = config.fourier_settings()
+            {
+                outputs.fourier =
+                    fourier::resolve_with_settings(plot, entry.kind, &parsed.fourier, settings)?;
+            }
             let raw_plot = raw_plot_for(&netlist.title, outputs.written, &date);
             plots.push(PlotReport {
                 name: name.to_owned(),
@@ -228,14 +310,18 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
         deck: netlist.path.clone(),
         title: rawfile.plots[0].title.clone(),
         output: output.to_path_buf(),
+        format,
         plots,
     };
-    write_rawfile(&rawfile, output)?;
+    write_rawfile(&rawfile, output, format)?;
     Ok(report)
 }
 
 /// One rawfile plot: ngspice's three headers, then the data.
 ///
+/// C treats arbitrary `Command:` headers as executable commands when loading.
+/// The `ngspice-compatible` prefix makes this descriptive metadata under C's
+/// simulator-prefix check (`rawfile.c::raw_read`), while naming the actual writer.
 /// `title` is the deck's title line and `command` names the writer, as
 /// `raw_write()` does for ngspice itself; `date` is the write time in UTC (see
 /// [`now_header`]). Every plot of one run carries the same three headers.
@@ -243,7 +329,10 @@ fn raw_plot_for(title: &str, plot: crate::analysis::Plot, date: &str) -> RawPlot
     RawPlot {
         title: title.trim().to_owned(),
         date: date.to_owned(),
-        command: format!("spice-rs {} (Rust port), Build", env!("CARGO_PKG_VERSION")),
+        command: format!(
+            "ngspice-compatible spice-rs {} (Rust port), Build",
+            env!("CARGO_PKG_VERSION")
+        ),
         plot,
     }
 }
@@ -260,7 +349,7 @@ fn raw_plot_for(title: &str, plot: crate::analysis::Plot, date: &str) -> RawPlot
 /// [`SpiceError::Io`] when the destination names no file, when its directory is
 /// missing, or when the write or the rename fails; [`SpiceError::Numerical`]
 /// from [`RawFile::write`]'s consistency check.
-fn write_rawfile(rawfile: &RawFile, output: &Path) -> SpiceResult<()> {
+fn write_rawfile(rawfile: &RawFile, output: &Path, format: RawFormat) -> SpiceResult<()> {
     let (directory, temporary) = temporary_path(output)?;
     if !directory.is_dir() {
         return Err(SpiceError::io(
@@ -274,7 +363,7 @@ fn write_rawfile(rawfile: &RawFile, output: &Path) -> SpiceResult<()> {
             ),
         ));
     }
-    if let Err(error) = rawfile.write(&temporary) {
+    if let Err(error) = rawfile.write_with_format(&temporary, format) {
         let _ = fs::remove_file(&temporary);
         return Err(error);
     }
@@ -397,16 +486,26 @@ pub fn report_text(report: &Report) -> String {
         plot_lines(&mut out, plot);
         let _ = writeln!(
             out,
-            "output:    {} (ngspice ASCII rawfile, no binary support)",
-            report.output.display()
+            "output:    {} (ngspice {} rawfile)",
+            report.output.display(),
+            if report.format == RawFormat::Ascii {
+                "ASCII"
+            } else {
+                "binary"
+            }
         );
         plot_blocks(&mut out, plot);
         return out;
     }
     let _ = writeln!(
         out,
-        "output:    {} (ngspice ASCII rawfile with {} plots, no binary support)",
+        "output:    {} (ngspice {} rawfile with {} plots)",
         report.output.display(),
+        if report.format == RawFormat::Ascii {
+            "ASCII"
+        } else {
+            "binary"
+        },
         report.plots.len()
     );
     let names: Vec<&str> = report.plots.iter().map(|plot| plot.name.as_str()).collect();
@@ -512,6 +611,7 @@ mod tests {
             deck: PathBuf::from("rc.cir"),
             title: "RC divider".to_owned(),
             output: PathBuf::from("out.raw"),
+            format: crate::analysis::RawFormat::Ascii,
             plots: vec![plot(
                 AnalysisKind::OperatingPoint,
                 "Operating Point".to_owned(),
@@ -550,6 +650,7 @@ mod tests {
             deck: PathBuf::from("rc.cir"),
             title: "RC divider".to_owned(),
             output: PathBuf::from("out.raw"),
+            format: crate::analysis::RawFormat::Ascii,
             plots: vec![plot(
                 AnalysisKind::OperatingPoint,
                 "Operating Point".to_owned(),
@@ -573,6 +674,7 @@ mod tests {
             deck: PathBuf::from("rc.cir"),
             title: String::new(),
             output: PathBuf::from("out.raw"),
+            format: crate::analysis::RawFormat::Ascii,
             plots: vec![plot(
                 AnalysisKind::Transient,
                 "Transient Analysis".to_owned(),
@@ -609,6 +711,7 @@ mod tests {
             deck: PathBuf::from("rc.cir"),
             title: "RC".to_owned(),
             output: PathBuf::from("out.raw"),
+            format: crate::analysis::RawFormat::Ascii,
             plots: vec![ac, tran],
         };
         let text = report_text(&report);

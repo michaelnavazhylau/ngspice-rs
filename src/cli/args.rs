@@ -35,7 +35,7 @@ pub enum Command {
     Tokens,
     /// Build a semantic netlist for supported syntax; report any unported gaps.
     Parse,
-    /// Run every analysis of the deck and write one ASCII rawfile.
+    /// Run every analysis of the deck and write one rawfile.
     Simulate,
     /// List the device designators the registry knows.
     Devices,
@@ -109,6 +109,8 @@ pub struct Args {
     pub output: Option<PathBuf>,
     /// Whether `gnd` is aliased to node `0`, as ngspice does by default.
     pub auto_gnd: bool,
+    /// Explicit rawfile encoding; otherwise deck/environment settings apply.
+    pub format: Option<crate::analysis::RawFormat>,
 }
 
 impl Default for Args {
@@ -118,6 +120,7 @@ impl Default for Args {
             netlist: None,
             output: None,
             auto_gnd: true,
+            format: None,
         }
     }
 }
@@ -149,6 +152,17 @@ impl Args {
                 }
                 "--no-auto-gnd" => args.auto_gnd = false,
                 "--auto-gnd" => args.auto_gnd = true,
+                "--format" => {
+                    let value = arguments.next().ok_or("--format needs ascii or binary")?;
+                    if args.format.is_some() {
+                        return Err("--format is given more than once".into());
+                    }
+                    args.format = Some(match value.as_str() {
+                        "ascii" => crate::analysis::RawFormat::Ascii,
+                        "binary" => crate::analysis::RawFormat::Binary,
+                        _ => return Err("--format needs ascii or binary".into()),
+                    });
+                }
                 "--output" => {
                     let path = arguments
                         .next()
@@ -202,6 +216,9 @@ impl Args {
         if args.command.needs_output() && args.output.is_none() {
             return Err("'simulate' needs an output path: --output <path> <netlist>".to_owned());
         }
+        if !args.command.needs_output() && args.format.is_some() {
+            return Err("--format is only supported by simulate".into());
+        }
         if !args.command.needs_output() && args.output.is_some() {
             return Err(format!(
                 "'{}' does not take --output (only 'simulate' writes a rawfile)",
@@ -233,12 +250,14 @@ USAGE:
     spice-rs tokens [OPTIONS] <netlist>   dump the token stream
     spice-rs parse [OPTIONS] <netlist>    parse the deck into the netlist model
     spice-rs simulate (--output <path>) [OPTIONS] <netlist>
-                                          run every analysis and write one ASCII rawfile
+                                          run every analysis and write one rawfile
     spice-rs devices                      list the device designators known to the port
     spice-rs analyses                     list the analyses and their driver status
     spice-rs help | version
 
 OPTIONS:
+    --format <ascii|binary>  rawfile encoding (default: binary; deck set filetype
+                            and SPICE_ASCIIRAWFILE may override the default)
     --output <path>  where 'simulate' writes the rawfile; also --output=<path>.
                      An existing destination is replaced only after a successful
                      run; a failed run leaves it untouched
@@ -289,7 +308,8 @@ pub fn run(args: &Args) -> SpiceResult<()> {
                 .output
                 .as_ref()
                 .expect("Args::parse guarantees --output for 'simulate'");
-            let report = crate::cli::simulate::run(deck, output, args.auto_gnd)?;
+            let report =
+                crate::cli::simulate::run_with_format(deck, output, args.auto_gnd, args.format)?;
             print!("{}", crate::cli::simulate::report_text(&report));
             Ok(())
         }

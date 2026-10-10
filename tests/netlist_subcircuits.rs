@@ -147,9 +147,9 @@ fn nesting_budget_and_first_error_order_are_explicit() {
             .to_string()
             .contains("nesting limit")
     );
-    // An unported card on line 2 wins over the malformed one on line 3 (`.plot`
-    // is still outside the subset; `.save`/`.print` are parsed).
-    let e = parse(".plot dc v(a)\n.subckt a\nmalformed {\n").unwrap_err();
+    // An unported card on line 2 wins over the malformed one on line 3 (`.width`
+    // is still outside the subset).
+    let e = parse(".width 80\n.subckt a\nmalformed {\n").unwrap_err();
     assert!(e.is_not_yet_ported());
     assert!(e.to_string().contains("scopes.cir:2:1"));
 }

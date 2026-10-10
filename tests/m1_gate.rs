@@ -260,6 +260,8 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M8 `.tf` decks (#101) are gated by `xtask golden verify`,
     // `tests/analysis_tf.rs` and the opt-in `tests/c_tf_reference.rs`.
     on_disk.retain(|name| !name.starts_with("m8_tf_"));
+    // M9 scoped front-end behavior has its own C-backed integration gate.
+    on_disk.retain(|name| !name.starts_with("m9_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `tests/behavioural_sources.rs`.
     on_disk.retain(|name| {
@@ -558,11 +560,7 @@ fn malformed_and_unsupported_cards_are_explicit_errors() {
         assert!(error.to_string().contains(needle), "{body}: {error}");
     }
     // Valid syntax outside the supported subset is NotYetPorted, never ignored.
-    for body in [
-        "q1 c b e s1 s2 s3 qm\n",
-        "d1 a b dm thermal\n",
-        ".subckt s a\n.option reltol=1e-3\n.ends\n",
-    ] {
+    for body in ["q1 c b e s1 s2 s3 qm\n", "d1 a b dm thermal\n"] {
         let result = parse_text(&format!("t\n{body}.end\n"));
         assert!(
             matches!(

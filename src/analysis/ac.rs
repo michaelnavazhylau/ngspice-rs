@@ -44,6 +44,7 @@ pub(crate) fn run(
         })?;
         let mut point = vec![Complex::real(f)];
         point.extend(x);
+        point.extend(circuit.observe_parameters(&context.model_context().with_frequency(f))?);
         plot.push_point(point)?;
     }
     Ok(plot)

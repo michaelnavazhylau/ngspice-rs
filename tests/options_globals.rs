@@ -127,8 +127,13 @@ fn ground_is_always_global_and_empty_global_cards_fail() {
 #[test]
 fn subcircuit_bodies_do_not_silently_drop_options_or_globals() {
     for card in [".options reltol=1m", ".global vdd"] {
-        let error = parse(&format!(".subckt s a b\nr1 a b 1\n{card}\n.ends\n.end\n")).unwrap_err();
-        assert!(error.is_not_yet_ported(), "{card}: {error}");
+        let netlist = parse(&format!(".subckt s a b\nr1 a b 1\n{card}\n.ends\n.end\n")).unwrap();
+        assert_eq!(
+            netlist.subcircuits[0].options.len() + netlist.subcircuits[0].globals.len(),
+            1
+        );
+        assert!(netlist.options.is_empty());
+        assert!(netlist.globals.is_empty());
     }
 }
 

@@ -47,3 +47,5 @@ pub const C_REFERENCE_SPARSE: &str = "src/maths/sparse/ (SPARSE 1.3), src/maths/
 
 /// The C reference for numerical integration, used in `NotYetPorted` errors.
 pub const C_REFERENCE_INTEGRATION: &str = "src/maths/ni/niinteg.c, src/maths/ni/nicomcof.c";
+
+pub mod polynomial;

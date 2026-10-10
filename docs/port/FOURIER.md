@@ -1,5 +1,7 @@
 # `.four` — bounded Fourier/THD analysis
 
+The M9 section below updates the historical subset descriptions in this guide.
+
 `.four` is post-processing on a transient result: after a run, the deck's cards are
 evaluated against the **full** plot the driver produced, before and independently of the
 `.save`/`.print` selection that narrows what is written (exactly as `.measure` is,
@@ -42,7 +44,7 @@ are never treated as a uniform grid, and the port never transforms internal time
   the deck does run. In a multi-analysis deck (#96) the cards are evaluated
   against the last executed `.tran` plot, which is the plot C's
   `setcplot("tran")` selects; see [CLI.md](CLI.md#multi-analysis-decks).
-* A `.four` card inside a `.subckt` body is rejected like `.save`/`.print`.
+* A `.four` card inside a used `.subckt` definition is hoisted once, without vector renaming (M9 #108).
 
 ## The window
 
@@ -114,7 +116,7 @@ value. Exit statuses are `simulate`'s (`docs/port/CLI.md`): `NotYetPorted` → 3
 | Input | Class |
 | --- | --- |
 | malformed card, missing or non-positive fundamental, non-whole or repeated `HARMONICS=`, a value that is a `{…}`-free non-literal, a missing vector, `all`, an AC-component spelling, an unknown parameter | `SpiceError::Parse` (2), positioned at the offending token |
-| `NFREQS=`, `NPERIODS=`, `POLYDEGREE=`, `FOURGRIDSIZE=` (C reads them from interactive `set` variables), a `.four` card in a `.subckt` body | `SpiceError::NotYetPorted` (3) |
+| `NFREQS=`, `NPERIODS=`, `POLYDEGREE=`, `FOURGRIDSIZE=` (C reads them from interactive `set` variables) | `SpiceError::NotYetPorted` (3) |
 | a harmonic count beyond the port's resampling budget (`HARMONICS=101` with `MAX_HARMONICS = 100`), a card in a run that is not `.tran`, a plot without a `time` axis or with fewer than two points, a descending time axis, a run shorter than one period, a window with too few samples for the requested harmonics, a grid point on an unrepresented discontinuity, an unresolvable vector | `SpiceError::Unsupported` (2) |
 | a non-finite axis, operand or result value, or a zero fundamental amplitude | `SpiceError::Numerical` (2) |
 
@@ -133,10 +135,8 @@ value. Exit statuses are `simulate`'s (`docs/port/CLI.md`): `NotYetPorted` → 3
 * **Phase is radians.** C prints degrees.
 * **THD is a fraction in the API** and a percentage in the text block; C only prints the
   percentage.
-* **`nfreqs`, `nperiods`, `polydegree` and `fourgridsize` are not honoured.** C takes all four
-  from interactive `set` variables and defaults them to `10, 1, 1, 200`; the port has one
-  harmonic count (`HARMONICS=` or `9`) and rejects the others by name rather than silently
-  using its own value.
+* **Explicit settings select a separate C-compatible path.** See the M9 settings
+  section below; unconfigured `.four` retains the historical closed-grid behavior.
 * **A failing card fails the run.** C prints `Error: …` to `cp_err` and carries on with the rest
   of the batch job; the port returns an error, publishes no report and leaves an existing
   output destination untouched, because a transform the port cannot compute is not a successful
@@ -152,10 +152,10 @@ value. Exit statuses are `simulate`'s (`docs/port/CLI.md`): `NotYetPorted` → 3
 
 ## Not ported
 
-`NFREQS=`, `NPERIODS=`, `POLYDEGREE=`, `FOURGRIDSIZE=`, `{…}` parameter values, `.four` inside a
-`.subckt` body, `.four` on a non-transient run, `sp`/`sparam` parameters, and the interactive
-`fourier` command. A full FFT library port and ngspice's other interpolation options are
-explicit non-goals.
+Inline `.four` setters `NFREQS=`, `NPERIODS=`, `POLYDEGREE=` and
+`FOURGRIDSIZE=` remain unsupported; supply them through pre-run `set` or
+`.options`. Non-transient transforms, `sp`/`sparam`, arbitrary interactive
+commands and a full FFT library remain outside scope.
 
 ## Validation
 
@@ -176,3 +176,42 @@ explicit non-goals.
   the local C binary (`NGSPICE_BIN`), over the same deck for both engines: DC, THD and the
   harmonic table, for a filtered voltage, the unfiltered square wave and a branch current. It
   needs no C for ordinary runs.
+
+## M9 explicit front-end settings (#115)
+
+Bounded pre-run `set nfreqs=... nperiods=... polydegree=... fourgridsize=...`
+is supported; the same numeric settings may be supplied with `.options` as a
+Rust extension. `RunConfig::fourier_settings` exposes them and
+`fourier::resolve_with_settings` evaluates them. Defaults are 10 rows including
+DC, one period, degree 1 and 200 grid samples per period. Explicit `HARMONICS`
+on a card overrides NFREQS. At least a fundamental is required for THD.
+
+Explicit settings select C's half-open DFT grid over the last NPERIODS periods.
+Degree zero deliberately follows C's sample-index DFT over the full trace,
+without interpolation; it does not reinterpret adaptive samples as uniform
+physical time. Degrees 1 through 16 use moving local polynomial stencils.
+The configured interpolator follows C's absolute power-basis fits, acceptance
+thresholds, degree fallback, moving stencil and duplicate-time edge nudging
+(`maths/poly/interpolate.c`, `polyfit.c`). It also preserves C's final interval
+coefficient-tail behavior after degree reduction. All harmonic magnitudes are
+compared against C for degrees 0, 1, 2, 3, 5 and 7, as well as each configurable
+setting. `resolve_with_stable_settings` is an explicit library alternative using
+local Lagrange coordinates and rejecting repeated timestamps; it can differ
+from C's high-degree fallback. Limits: 100 periods, 100 harmonics,
+100000 grid samples per vector. Default unconfigured `.four` keeps the existing
+closed trapezoid behavior documented above.
+
+Fundamental frequencies accept `{expression}` and `'expression'`, resolved
+against the top-level `.param`/`.func` scope before simulation. This is a Rust
+extension: the local C reference rejects a braced `.four` frequency as “bad
+fundamental freq”. A hoisted body card uses that same top-level scope, rather
+than an arbitrary instance's parameter overrides. Library callers use
+`fourier::resolve_cards`; analysis rejects unresolved expressions explicitly.
+
+Bounded `.control` blocks accept pre-run `set`, one argument-free `run`,
+`fourier <frequency> <vectors>` after that run, and a final argument-free `quit`.
+The CLI evaluates the command against the last transient plot with configured
+C-compatible defaults. A second run, settings after run, Fourier before run,
+quit before run and commands after quit are explicit failures. Source round trips
+and process tests cover this subset. Loading arbitrary plots, reruns and the
+general interactive command interpreter remain unsupported.
