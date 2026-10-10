@@ -617,21 +617,33 @@ impl Jfet {
 pub(super) fn card_scalars<'a>(
     resolved: &'a ResolvedModel<'_>,
 ) -> (Real, Vec<&'a ParameterAssignment>) {
-    let mut pol = if resolved.family() == ModelFamily::Pjf {
-        -1.
-    } else {
-        1.
-    };
+    typed_scalars(
+        resolved,
+        resolved.family() == ModelFamily::Pjf,
+        ["njf", "pjf"],
+    )
+}
+
+/// The polarity and the scalar setters of a FET model card whose n- and
+/// p-type tail flags are `flags` (`njf`/`pjf`, MES `nmf`/`pmf`): the flags
+/// set the type in card order, starting from the base (p-type when
+/// `p_base`); `level` is consumed by the resolver.
+pub(super) fn typed_scalars<'a>(
+    resolved: &'a ResolvedModel<'_>,
+    p_base: bool,
+    [n_flag, p_flag]: [&str; 2],
+) -> (Real, Vec<&'a ParameterAssignment>) {
+    let mut pol = if p_base { -1. } else { 1. };
     let mut scalars = Vec::new();
     for parameter in &resolved.card().parameters {
-        match (
-            parameter.kind == ParameterKind::Flag,
-            parameter.name.as_str(),
-        ) {
-            (_, name) if name.eq_ignore_ascii_case("level") => {}
-            (true, "njf") => pol = 1.,
-            (true, "pjf") => pol = -1.,
-            _ => scalars.push(parameter),
+        let name = parameter.name.as_str();
+        if name.eq_ignore_ascii_case("level") {
+        } else if parameter.kind == ParameterKind::Flag && name == n_flag {
+            pol = 1.;
+        } else if parameter.kind == ParameterKind::Flag && name == p_flag {
+            pol = -1.;
+        } else {
+            scalars.push(parameter);
         }
     }
     (pol, scalars)
