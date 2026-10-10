@@ -159,3 +159,21 @@ TEMP/TNOM, repeated diode integer levels and first BJT/MOS selector behavior.
 These are setup/input checks, not Rust nonlinear simulation parity. Goldens and
 solver tolerances are unchanged. Validation results are recorded in
 [VERIFICATION.md](VERIFICATION.md#passive-syntax-and-model-schema-verification).
+
+## URC line model (`urc`, #85)
+
+`.model name urc(...)` (`urc.c` `URCmPTable`, defaults from `urcsetup.c`),
+validated by `devices::urc` when a `U` instance is expanded:
+
+| Setter | Unit | Domain | Default |
+| --- | --- | --- | --- |
+| `k` | — | positive, not 1 | 1.5 |
+| `fmax` | Hz | finite | 1e9 |
+| `rperl` | ohm/m | positive | 1000 |
+| `cperl` | F/m | nonnegative (positive without `isperl`) | 1e-12 |
+| `isperl` | A/m | positive | none: given selects the diode ladder |
+| `rsperl` | ohm/m | nonnegative | 0 |
+
+The bare `urc` flag is a no-op (`URC_MOD_URC`). `level` and unknown setters
+are refused (C warns and ignores them). Instance setters `l` (m, required,
+positive) and `n` (`IF_INTEGER`, rounded, at least 1). See [URC.md](URC.md).
