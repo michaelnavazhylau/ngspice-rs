@@ -66,6 +66,7 @@ translate all of it; the roadmap targets a small, useful subset first.
 | `dio/` | 5,598 | `devices::diode` (planned) | **not ported** |
 | `bjt/` | 9,482 | `devices::bjt` (planned) | **not ported** |
 | `mos1/`…`mos9/`, `bsim*`, `hisim*`, `hfet*`, `vbic`, `soi*` | 218,897 | `devices::mos` (planned) | **not ported** |
+| `jfet/` (`jfetset.c`, `jfettemp.c`, `jfetload.c`, `jfetacld.c`, `jfetpzld.c`, `jfettrun.c`, `jfetask.c`, `jfetic.c`); `parser/inp2j.c` | — | `devices::jfet`, `netlist::parser::jfet` | level 1 DC/AC/pole-zero/transient, temperature, observations; `jfetnoi.c`/`jfetdist.c` refused, `jfet2/` not ported ([JFET.md](JFET.md)) |
 | `src/xspice/` (event-driven code models) | 28,373 | `devices::xspice` (planned) | **not ported** |
 | `src/osdi/` (Verilog-A / OSDI) | 3,372 | — | **not ported**; needs a Verilog-A compiler path, probably out of scope |
 | `src/ciderlib/` (numerical device simulator) | 28,342 | — | **not ported**; probably out of scope |

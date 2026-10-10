@@ -1466,6 +1466,42 @@ fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
 (error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
 orders 1-6, asserted within 0.75-1.35 times `2^k`).
 
+## M10 JFET level 1 (#82)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>`; no existing golden was recaptured and no tolerance changed.
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_jfet_dc` | `compare::NONLINEAR` | 231 points (nested `vds` x `vgs` sweep) |
+| `m10_jfet_ac` | `compare::NONLINEAR` | 81 points |
+| `m10_jfet_tran` | `compare::TRAN` | 493 instants + 16 breakpoint limits, worst 0.033 of bound |
+| `m10_jfet_temp` | `compare::NONLINEAR` | 12 points (`.dc temp -40 125 15`) |
+
+Deck design, measured before capture against the same C binary in a scratch
+copy:
+
+- **Tight DC tolerances.** With RD/RS and a forward-biased gate, C's default
+  Newton stopping test leaves sweep currents up to about 2e-4 relative from
+  the converged root (217 times the 1 ppm bound at one point); with
+  `reltol=1e-7 vntol=1e-12 abstol=1e-15` both engines agree within 1e-6 of
+  the bound's scale, and the port at default tolerances already matches C's
+  tightened answer. `abstol=1e-18` (the MOS1 deck's value) makes C's own
+  operating point fail, so the JFET decks use `1e-15`.
+- **No `off` instance.** `jfetload.c` never clears `icheck` for a held `off`
+  load, so C cannot leave `MODEINITFIX` and its operating point fails
+  (gmin and source stepping both fail, then garbage values); see
+  [JFET.md](JFET.md#newton-start-and-limiting). `off` is covered by Rust tests
+  only.
+- **Bounded maximum step.** At `tmax = 1 ns` the capacitive gate currents of
+  the transient deck (`i(vin)`, `i(vin2)`) differed by up to 2.7 times the
+  `TRAN` bound, i.e. by the two drivers' discretization error; at
+  `tmax = 0.25 ns` the worst error is 0.033 of the bound.
+
+The opt-in `tests/c_jfet_reference.rs` adds live comparisons of saved
+`@j[...]` asks of both polarities, a nested `@j1[area]` x `@j1[temp]` sweep
+and `.pz` roots of a common-source stage (agreeing to about 1e-12 relative).
+
 ## Not yet verified
 
 Full corpus simulation, nonlinear D/Q/M arithmetic, trap/Gear transient parity

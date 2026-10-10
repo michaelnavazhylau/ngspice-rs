@@ -320,3 +320,19 @@ The package is ready to publish; the release path is not.
 All six M9 implementation slices are delivered with the bounded interfaces and
 explicit unsupported cases documented in CLI.md, OUTPUT_SELECTION.md,
 MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.
+
+## M10 — Extended device library (work/m10-*)
+
+Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
+
+- [x] JFET level 1 (#82, slice 1, `work/m10-jfet`): `J` grammar (`inp2j.c`),
+  `njf`/`pjf` model family with level 0/1 selection (level 2 `jfet2/` and other
+  levels `NotYetPorted`), `devices::jfet` (Sydney `B` channel in normal/inverse
+  mode, gate diodes, depletion charge with FC, RD/RS internal nodes, area/m,
+  `jfettemp.c` temperature laws, `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`,
+  AC and pole-zero loads, `jfettrun.c` truncation, `jfetask.c` observations,
+  `@j[...]` instance sweeps). C goldens `m10_jfet_dc`/`_ac`/`_tran`/`_temp`
+  (124 verified), `tests/jfet.rs` and opt-in `c_jfet_reference`. Not ported:
+  `.noise` (`jfetnoi.c`), `.disto`, `.sens` (explicit errors); `off` diverges
+  from C, whose operating point fails with an `off` JFET. See
+  [JFET.md](docs/port/JFET.md).

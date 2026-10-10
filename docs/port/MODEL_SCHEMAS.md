@@ -91,6 +91,7 @@ unsafe-cast cases instead of silently changing the input.
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
 | MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 only (1); other selectors fail |
+| JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1, [JFET.md](JFET.md)); 2 (`jfet2/`) and others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
 | `res`, `c`, `l` | C fixes backend 1 without scanning level | Bounded Rust contract requires first explicit level to round to 1 |
 | `d` | C fixes backend 1 without scanning level | Last ordered integer setter applies; only final applied level 1 supported |

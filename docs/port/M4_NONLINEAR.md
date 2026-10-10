@@ -296,6 +296,12 @@ See [VERIFICATION.md](VERIFICATION.md#mos1-completion-88) for why the transient
 decks bound the maximum step, why the ring oscillator is three stages, and why
 the DC deck tightens RELTOL.
 
+### JFET
+
+Level 1 NJF/PJF (#82, M10) lives in `devices::jfet`; see [JFET.md](JFET.md)
+for its parameters, equations, limiting, the `off` divergence from C and its
+C goldens.
+
 ## Solvers, sweeps and state
 
 `NewtonOptions` defaults: 100 iterations (C's `itl1`), reltol=1e-8,
