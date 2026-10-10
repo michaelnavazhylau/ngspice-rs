@@ -68,7 +68,8 @@ translate all of it; the roadmap targets a small, useful subset first.
 | `dio/` | 5,598 | `devices::diode` (planned) | **not ported** |
 | `bjt/` | 9,482 | `devices::bjt` (planned) | **not ported** |
 | `mos1/`…`mos9/`, `bsim*`, `hisim*`, `hfet*`, `vbic`, `soi*` | 218,897 | `devices::mos` shell, `devices::mos1`, `devices::mos3` | **partial**: MOS1 and MOS3 (`mos3set.c`, `mos3temp.c`, `mos3load.c`, `mos3acld.c`, `mos3pzld.c`, `mos3trun.c`, `mos3noi.c`; not `mos3dset.c`/`mos3dist.c` or the sensitivity routines); other levels `NotYetPorted` naming their directory |
-| `jfet/` (`jfetset.c`, `jfettemp.c`, `jfetload.c`, `jfetacld.c`, `jfetpzld.c`, `jfettrun.c`, `jfetask.c`, `jfetic.c`); `parser/inp2j.c` | — | `devices::jfet`, `netlist::parser::jfet` | level 1 DC/AC/pole-zero/transient, temperature, observations; `jfetnoi.c`/`jfetdist.c` refused, `jfet2/` not ported ([JFET.md](JFET.md)) |
+| `jfet/` (`jfetset.c`, `jfettemp.c`, `jfetload.c`, `jfetacld.c`, `jfetpzld.c`, `jfettrun.c`, `jfetask.c`, `jfetic.c`); `parser/inp2j.c` | — | `devices::jfet`, `netlist::parser::jfet` | level 1 DC/AC/pole-zero/transient, temperature, observations; `jfetnoi.c`/`jfetdist.c` refused ([JFET.md](JFET.md)) |
+| `jfet2/` (`jfet2parm.h`, `jfet2set.c`, `jfet2temp.c`, `psmodel.c`, `jfet2load.c`, `jfet2acld.c`, `jfet2trun.c`, `jfet2ask.c`, `jfet2ic.c`) | — | `devices::jfet2` | level 2 (Parker-Skellern) DC/AC/transient, temperature, observations; no C pole-zero load (refused), `jfet2noi.c` refused ([JFET.md](JFET.md#level-2-parker-skellern)) |
 | `src/xspice/` (event-driven code models) | 28,373 | `devices::xspice` (planned) | **not ported** |
 | `src/osdi/` (Verilog-A / OSDI) | 3,372 | — | **not ported**; needs a Verilog-A compiler path, probably out of scope |
 | `src/ciderlib/` (numerical device simulator) | 28,342 | — | **not ported**; probably out of scope |

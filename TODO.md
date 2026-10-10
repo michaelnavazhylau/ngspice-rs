@@ -328,8 +328,8 @@ MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.
 Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
 
 - [x] JFET level 1 (#82, slice 1, `work/m10-jfet`): `J` grammar (`inp2j.c`),
-  `njf`/`pjf` model family with level 0/1 selection (level 2 `jfet2/` and other
-  levels `NotYetPorted`), `devices::jfet` (Sydney `B` channel in normal/inverse
+  `njf`/`pjf` model family with level 0/1 selection (level 2 since slice 6;
+  other levels `NotYetPorted`), `devices::jfet` (Sydney `B` channel in normal/inverse
   mode, gate diodes, depletion charge with FC, RD/RS internal nodes, area/m,
   `jfettemp.c` temperature laws, `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`,
   AC and pole-zero loads, `jfettrun.c` truncation, `jfetask.c` observations,
@@ -357,3 +357,13 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   TRANSIENT.md); C goldens `m10_tline_{tran,ac,pulse}`. Explicit errors:
   diffsol BDF, `uic` with a line, `.pz`, `.noise`, `.disto`, `.sens`. See
   [TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md).
+- [x] JFET level 2, Parker-Skellern (#82 part 2, slice 6, `work/m10-jfet2`):
+  `njf`/`pjf` `level=2` selects `devices::jfet2` (`psmodel.c` channel with
+  subthreshold, power laws, velocity saturation, drain/source feedback through
+  the TAUG-filtered gate voltages, TAUD-filtered self-heating, gate breakdown;
+  incremental Statz gate charge plus CDS; `jfet2temp.c`; `PSacload` dispersion;
+  `jfet2ask.c` asks incl. `vtrap`/`vpave`). C goldens
+  `m10_jfet2_dc`/`_ac`/`_tran`/`_temp`, `tests/jfet2.rs`, opt-in
+  `c_jfet2_reference`. Explicit errors: `.pz` (no C `DEVpzLoad`), `.noise`
+  (`jfet2noi.c`), `.disto`, `.sens`, transient `@j[gm|gds|ggs|ggd|igd|vtrap|vpave]`.
+  See [JFET.md](docs/port/JFET.md#level-2-parker-skellern).

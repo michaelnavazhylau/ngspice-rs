@@ -1577,6 +1577,43 @@ The opt-in `tests/c_jfet_reference.rs` adds live comparisons of saved
 `@j[...]` asks of both polarities, a nested `@j1[area]` x `@j1[temp]` sweep
 and `.pz` roots of a common-source stage (agreeing to about 1e-12 relative).
 
+## M10 JFET level 2 (#82)
+
+Four new C goldens of the Parker-Skellern model, each captured once with
+`cargo xtask golden capture --netlist <name>`; no existing golden was
+recaptured and no tolerance changed.
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_jfet2_dc` | `compare::NONLINEAR` | 231 points (nested `vds` x `vgs` sweep) |
+| `m10_jfet2_ac` | `compare::NONLINEAR` | 91 points (agreement about 1e-13 relative) |
+| `m10_jfet2_tran` | `compare::TRAN` | 501 instants, worst 0.043 of bound |
+| `m10_jfet2_temp` | `compare::NONLINEAR` | 12 points (`.dc temp -40 125 15`) |
+
+Deck design, measured before capture against the same C binary:
+
+- **Tight DC tolerances**, as for level 1 (`reltol=1e-7 vntol=1e-12
+  abstol=1e-15`), so C's own Newton stopping error stays inside 1 ppm.
+- **Transient options.** The NJF stage is driven through a 1 k gate
+  resistor, so `i(vin)` is the difference of two nearly equal node voltages
+  divided by 1 k. At default tolerances both engines' Newton stopping error
+  on `v(g)` (about 3e-4 relative, inside `v(g)`'s own bound) put `i(vin)` up
+  to 150 times its pointwise bound; `reltol=1e-6 vntol=1e-11 abstol=1e-15`
+  bring every vector below 0.5 of the bound (0.043 on the verified grid).
+  Pulse-driven variants were discarded: after each source breakpoint the two
+  drivers' first steps differ by about 0.5%, and the stiff ideal-source gate
+  current then exceeds the pointwise bound at its zero crossings for
+  integration (not device) reasons. `tmax = 0.25 ns` as for level 1.
+- **Exact Newton matrix.** The port's matrix adds the CDS companion and the
+  incremental-charge cross derivatives C leaves out; finite-difference tests
+  (`tests/jfet2.rs`) confirm it is the exact Jacobian, so the converged
+  points are C's equations' roots.
+
+The opt-in `tests/c_jfet2_reference.rs` adds live comparisons of saved
+`@j[...]` asks of both polarities (including `vtrap`/`vpave`, inverse mode
+and breakdown), a nested `@j1[area]` x `@j1[temp]` sweep and a `uic`
+transient (same step count as C, within `compare::TRAN`).
+
 ## Model binning verification (#109)
 
 C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so

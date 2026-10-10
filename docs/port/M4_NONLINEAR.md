@@ -383,7 +383,8 @@ verify`:
 
 ### JFET
 
-Level 1 NJF/PJF (#82, M10) lives in `devices::jfet`; see [JFET.md](JFET.md)
+Level 1 NJF/PJF (#82, M10) lives in `devices::jfet` and level 2
+(Parker-Skellern) in `devices::jfet2`; see [JFET.md](JFET.md)
 for its parameters, equations, limiting, the `off` divergence from C and its
 C goldens.
 

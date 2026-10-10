@@ -1,4 +1,4 @@
-# JFET level 1 (#82, M10 slice 1)
+# JFET levels 1 and 2 (#82, M10 slices 1 and 6)
 
 `J` instances with an `njf`/`pjf` model of level 1 are built by
 `devices::jfet` (registry status `bounded`). The behaviour is read from the C
@@ -21,9 +21,9 @@ card and the `njf`/`pjf` model families, including the `njf`/`pjf` tail flags.
 ## Model selection
 
 `ModelFamily::{Njf, Pjf}`. As `inpdomod.c`, the first `level` selects the
-backend: 0 or 1 is this device, 2 (Parker-Skellern, `jfet2/`) fails with
-`NotYetPorted` naming `jfet2/`, any other level fails with `NotYetPorted`
-naming `inpdomod.c` (C itself rejects it). The tail flags `njf`/`pjf` set the
+backend: 0 or 1 is this device, 2 is the Parker-Skellern device
+([below](#level-2-parker-skellern)), any other level fails with
+`NotYetPorted` naming `inpdomod.c` (C itself rejects it). The tail flags `njf`/`pjf` set the
 polarity in card order starting from the base (`.model m njf(pjf)` is a PJF),
 as `JFET_MOD_NJF`/`JFET_MOD_PJF` do.
 
@@ -103,7 +103,7 @@ sweeps re-derive `JFETtemp`.
 ## Not ported
 
 `.noise` (`jfetnoi.c`), `.disto` (`jfetdset.c`/`jfetdist.c`) and `.sens` of a
-JFET fail with `NotYetPorted`; JFET level 2 (`jfet2/`, M10 slice 6).
+JFET fail with `NotYetPorted`.
 
 ## Evidence
 
@@ -120,3 +120,91 @@ JFET fail with `NotYetPorted`; JFET level 2 (`jfet2/`, M10 slice 6).
   [VERIFICATION.md](VERIFICATION.md#m10-jfet-level-1-82).
 - Opt-in `tests/c_jfet_reference.rs` (live C): saved asks of both
   polarities, `.dc @j1[area] @j1[temp]`, and `.pz` roots.
+
+## Level 2 (Parker-Skellern)
+
+`.model name njf|pjf(level=2 ...)` builds `devices::jfet2` from `jfet2/`:
+`jfet2parm.h` (setters and defaults), `jfet2set.c`, `jfet2temp.c`,
+`psmodel.c` (`PSids`, `qgg`/`PScharge`, `PSacload`, `PSinstanceinit`),
+`jfet2load.c`, `jfet2acld.c`, `jfet2trun.c`, `jfet2ask.c`, `jfet2ic.c`. The
+instance grammar, `area`/`m`/`temp`/`dtemp`/`off`/`ic`, the RD/RS internal
+nodes, `MODEINITJCT`/`uic`/`off` starts and `DEVpnjlim`/`DEVfetlim` limiting
+(against the model's VTO; level 2 has no VTO temperature law) are shared
+with level 1. No full Parker-Skellern parity is claimed beyond the evidence
+below.
+
+**Parameters** (`jfet2parm.h`, `jfet2set.c` defaults): `ACGAM` 0, `AF` 1,
+`BETA` 1e-4, `CDS`/`CGD`/`CGS` 0, `DELTA` 0, `HFETA`/`HFE1`/`HFE2`/`HFG1`/`HFG2`
+0, `HFGAM` (default: the model's `LFGAM`), `LFGAM`/`LFG1`/`LFG2` 0, `MVST` 0,
+`MXI` 0, `FC` 0.5, `IBD` 0, `IS` 1e-14, `KF` 0, `LAMBDA` 0, `N` 1, `P` 2,
+`VBI`/`PB` 1 (one parameter, last spelling wins), `Q` 2, `RD`/`RS` 0, `TAUD`/
+`TAUG` 0, `VBD` 1, `VER` 0 (read nowhere in C), `VST` 0, `VT0`/`VTO` -2 (last
+spelling wins), `XC` 0, `XI` 1000, `Z` 1, `TNOM`. Level-1-only setters (`B`,
+`TCV`, `XTI`, ...) are rejected. Fail-closed range checks where `psmodel.c`
+would divide by zero or take a root of a negative number: `VBD`, `XI`, `P`,
+`Q`, `PB`, `IS`, `N` positive; `Z`, `TAUD`, `TAUG`, `VST`, `DELTA`, `IBD`,
+`BETA`, `LAMBDA`, `RD`, `RS`, `CGS`, `CGD`, `CDS` nonnegative; `FC > 0.95` is
+rejected; nonfinite derived values (e.g. `D3` with `VBI = VTO` and `P != Q`)
+and nonfinite evaluations are errors.
+
+**Equations.**
+
+- *Temperature* (`jfet2temp.c`): `IS(T) = IS exp((T/TNOM - 1) 1.11 / Vt)`
+  (fixed 1.11 eV, no `N`, no `XTI`), `VBI(T)` and the CGS/CGD factors by
+  level 1's band-gap laws, `vcrit` from the unscaled `IS(T)`; then
+  `PSinstanceinit`: `xiwoo = XI (VBI(T) - VTO)`, `za = sqrt(1 + Z) / 2`,
+  `alpha = (xiwoo / (XI + 1))^2 / 4`, `d3 = P / Q / (VBI(T) - VTO)^(P - Q)`.
+- *Channel* (`PSids`): exponential subthreshold `vgt = VST(1 + MVST vds)
+  ln(1 + exp(vgst / vst))` (numerically linear above `40 vst`, cut off below
+  `-10 vst`), dual power law (`P`, `Q`, `d3`), early saturation (`XI`, `MXI`,
+  `Z`), `LAMBDA`, `BETA * area`, and thermal reduction `ids / (1 + DELTA/area
+  * pave)`. `gm`/`gds` are C's partials (exact; finite-difference checked).
+  Inverse mode exchanges the junctions as `jfet2load.c` does.
+- *Rate-dependent threshold and self-heating* (`psmodel.c` state): the
+  threshold shift `-(LFGAM - LFG1 vgstrap + LFG2 vtrap) vtrap + eta (vgstrap -
+  vgs) + gam (vtrap - vgd)` uses the filtered gate voltages, and `pave` the
+  filtered power, each `x = h x(accepted) + (1 - h) x(now)` with `h = (tau /
+  (tau + dt/4))^4` (TAUG, TAUD) in transient and `h = 0` otherwise. The filters
+  read only the last accepted point, so rejected trials leave no trace. As in
+  C the slots follow `PSids`' argument order, so in inverse mode `vtrap` holds
+  the gate-source voltage.
+- *Gate diodes*: `IS(T) * area` with `N Vt`, dropped below `-10 N Vt`,
+  linearized above `40 N Vt`, plus reverse "breakdown" `IBD * area *
+  (exp(-v/VBD) - 1)`, plus `gmin`.
+- *Charge*: Statz `qgg` with `ACGAM`, `XC`, `alpha`, `VMAX = FC * VBI(T)`, and
+  `CDS * area * vds`. In transient the gate charges are incremental (half
+  sums of `qgg` at the present and accepted junction voltages) and both drive
+  `jfet2trun.c` truncation (CDS does not). A plain operating point stores
+  zero gate charges, a DC sweep or the `uic` initial load the total charge in
+  both slots, as C does, so truncation control sees C's charge magnitudes.
+- *AC* (`jfet2acld.c`/`PSacload`): DC conductances, `PSacload`'s
+  frequency-dependent `gm`/`gds` (real parts in `A`, imaginary parts in `E`
+  divided by `omega`; the device asks for per-frequency assembly when TAUG or
+  TAUD is set), `j omega` times the Statz capacitances (two-terminal, as in
+  C) and CDS. With `TAUG = TAUD = 0` it reduces to the DC conductances.
+
+**Divergences.** Those of level 1 (no predictor/bypass, held `off` rule,
+FC rejection), plus: the Newton matrix is the exact Jacobian (C omits the CDS
+companion conductance and the incremental-charge cross derivatives from its
+matrix; the residual and its root are C's); `.pz` is refused (C has no
+`DEVpzLoad` for level 2 and silently omits the device).
+
+**Observations** (`jfet2ask.c`): as level 1 (`id`/`ig`/`is` normalized,
+`area * m`, ...), plus `vtrap` and `vpave` (unscaled, as C). In transient only
+`vgs`/`vgd` and the terminal currents are available; `gm`, `gds`, `ggs`,
+`ggd`, `igd`, `vtrap`, `vpave` read C's filter or charge state there and are
+refused (`NotYetPorted`).
+
+**Not ported.** `.noise` (`jfet2noi.c`), `.disto` (C has none) and `.sens`
+fail explicitly.
+
+**Evidence.** `tests/jfet2.rs`: level selection and validation, a square-law
+reduction (`P = Q = 2`, `VST = Z = 0`, huge `XI`) of both polarities, inverse
+mode, the thermal-reduction law, DC and transient finite-difference Jacobians
+(filters, incremental charges, CDS, both modes, breakdown, subthreshold),
+TAUG dispersion (`|gm(inf)| / |gm(0)| = (1 - HFGAM) / (1 - LFGAM)`),
+self-heating relaxation to the DC point, asks, explicit refusals, writer round
+trip; unit tests in `devices::jfet2` for `PSids`/`qgg` partials and
+`PSacload`. C goldens `m10_jfet2_{dc,ac,tran,temp}` and the opt-in
+`tests/c_jfet2_reference.rs`; see
+[VERIFICATION.md](VERIFICATION.md#m10-jfet-level-2-82).
