@@ -439,3 +439,86 @@ fn decks_round_trip_through_the_writer() {
     .unwrap();
     assert_eq!(write_netlist(&again).unwrap(), written, "{written}");
 }
+
+#[test]
+fn the_transient_jacobian_matches_finite_differences_with_filters_and_charges() {
+    use ngspice_rs::devices::{Forcing, Limit, TransientTiming};
+    use ngspice_rs::maths::integrator::{DEFAULT_XMU, IntegrationMethod, StepHistory};
+    // The incremental Statz charges (with their cross derivatives), CDS, the
+    // TAUG/TAUD filters and both modes: the Newton matrix is the exact
+    // derivative of the load's residual.
+    for (vd, vg) in [(3., -1.), (-0.6, -1.), (0.3, 0.4)] {
+        let c = circuit(&format!(
+            "vd d 0 {vd}\nvg g 0 {vg}\nj1 d g 0 jm 1.5 m=2\n\
+             .model jm njf(level=2 {FULL} acgam=0.1 xc=0.2 taug=20n taud=50n)"
+        ))
+        .unwrap();
+        let solved = ngspice_rs::analysis::bias::solve_dc(
+            &c,
+            &ModelContext::default(),
+            &Default::default(),
+            &[],
+            None,
+            None,
+        )
+        .unwrap();
+        let mut history = c.state_history();
+        for _ in 0..ngspice_rs::devices::ACCEPTED_DEPTH {
+            history.commit(solved.trial.clone()).unwrap();
+        }
+        let dt = 1e-9;
+        let mut steps = StepHistory::new();
+        let first = steps
+            .trial(IntegrationMethod::Trapezoidal, 1, dt, DEFAULT_XMU)
+            .unwrap();
+        steps.accept(&first);
+        let coefficients = steps
+            .trial(IntegrationMethod::Trapezoidal, 2, dt, DEFAULT_XMU)
+            .unwrap();
+        let n = c.unknown_count();
+        let load = |x: &Vector| {
+            let mut a = SparseMatrix::new(n, n);
+            let mut b = Vector::zeros(n);
+            let mut trial = history.trial();
+            c.load(
+                &LoadRequest {
+                    mode: AnalysisMode::Transient { time: dt, dt },
+                    solution: x,
+                    model_context: &ModelContext::default(),
+                    integration: Some(&coefficients),
+                    history: &history,
+                    forcing: Some(Forcing {
+                        limit: Limit::Right,
+                        timing: TransientTiming::new(dt, 10. * dt).unwrap(),
+                    }),
+                },
+                &mut a,
+                &mut b,
+                &mut trial,
+            )
+            .unwrap();
+            (a, b)
+        };
+        let mut x = solved.values.clone();
+        let (d, g) = (
+            c.unknowns().node_row(c.nodes().get("d").unwrap()).unwrap(),
+            c.unknowns().node_row(c.nodes().get("g").unwrap()).unwrap(),
+        );
+        x.as_mut_slice()[g] += 0.05;
+        x.as_mut_slice()[d] -= 0.1;
+        let (a, _) = load(&x);
+        for col in 0..n {
+            let h = 1e-6;
+            let mut low = x.clone();
+            let mut high = x.clone();
+            low.as_mut_slice()[col] -= h;
+            high.as_mut_slice()[col] += h;
+            let ((al, bl), (ah, bh)) = (load(&low), load(&high));
+            let (rl, rh) = (residual(&al, &bl, &low), residual(&ah, &bh, &high));
+            for r in 0..n {
+                let numerical = (rh[r] - rl[r]) / (2. * h);
+                close(numerical, entry(&a, r, col), 1e-5, 1e-9);
+            }
+        }
+    }
+}

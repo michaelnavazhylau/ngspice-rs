@@ -882,6 +882,43 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // JFET level 2, Parker-Skellern (#82, M10 slice 6): output/transfer
+    // sweeps (subthreshold, power laws, drain feedback, self-heating,
+    // breakdown, RD/RS, inverse mode, area/m, PJF), a dispersive (TAUG/TAUD)
+    // common-source AC stage and a temperature sweep under the nonlinear
+    // 1 ppm bound with tightened RELTOL as for level 1, and a gate-lag/
+    // self-heating transient under `compare::TRAN`; that deck also tightens
+    // RELTOL/VNTOL because `i(vin)` is the small difference of two nearly
+    // equal node voltages over 1 k, which C's default Newton stopping error
+    // on `v(g)` would otherwise exceed.
+    Supported {
+        name: "m10_jfet2_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_jfet2_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_jfet2_tran", &[]),
+    Supported {
+        name: "m10_jfet2_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
     // URC lines (#85): urcsetup.c's R/C (and R/D) ladders with C's names. The
     // R/C decks are linear (AC bound, default TRAN); the ISPERL deck runs the
     // generated diodes and keeps the default TRAN bound.

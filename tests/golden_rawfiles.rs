@@ -3711,6 +3711,111 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vgf)", 11, -1.0617852856717e-4, 0.),
         ],
     },
+    // JFET level 2, Parker-Skellern (#82 part 2). j3 (NJF after the tail
+    // flags, VTO = -1.8 V as the later spelling, inverse with vds = -0.3 V)
+    // is cut off at vgs = -2.5 V (vgd - VTO = -0.7 V, VST = 0), so only its
+    // gate diodes conduct, below FX thermal voltages: drain -(0.5 IS +
+    // 2.5 V gmin), source -(0.5 IS + 2.8 V gmin).
+    Expectation {
+        fixture: "m10_jfet2_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 231,
+        variables: &[
+            "v(v-sweep)",
+            "v(d)",
+            "v(d2)",
+            "v(d3)",
+            "v(g)",
+            "v(g2)",
+            "v(s3)",
+            "i(vds)",
+            "i(vds2)",
+            "i(vds3)",
+            "i(vgs)",
+            "i(vgs2)",
+            "i(vs3)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -2.0, 0.),
+            ("v(v-sweep)", 230, 6.0, 0.),
+            ("i(vds3)", 0, -2.50499999997495e-12, 0.),
+            ("i(vs3)", 0, -2.804999999999999e-12, 0.),
+        ],
+    },
+    // A dispersive common-source stage: the supply current is the load
+    // current, i(vdd) = v(drain) / 2.2 k.
+    Expectation {
+        fixture: "m10_jfet2_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 91,
+        variables: &[
+            "frequency",
+            "v(d)",
+            "v(g)",
+            "v(in)",
+            "v(s)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1., 0.),
+            ("v(in)", 0, 1., 0.),
+            ("v(d)", 0, -5.599764732293349, -0.03688337824141155),
+            ("i(vdd)", 0, -2.545347605587886e-3, -1.676517192791434e-5),
+            ("v(d)", 60, -1.102096628068044, 3.394548060413783),
+            ("i(vdd)", 60, -5.00953012758202e-4, 1.542976391097174e-3),
+        ],
+    },
+    // At t = 0 the PJF load current is (v(d2) + 6 V) / 3 k and the NJF gate
+    // sits 1 k times its reverse junction leakage above the -0.8 V source.
+    Expectation {
+        fixture: "m10_jfet2_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 4027,
+        variables: &[
+            "time", "v(d)", "v(d2)", "v(dd2)", "v(g)", "v(g2)", "v(in)", "v(vdd)", "i(vdd)",
+            "i(vdd2)", "i(vin)", "i(vin2)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(d2)", 0, -6.072237048111027e-1, 0.),
+            ("i(vdd2)", 0, 1.797592098396299e-3, 0.),
+            ("v(g)", 0, -7.999999933475176e-1, 0.),
+            ("time", 4026, 1e-6, 0.),
+        ],
+    },
+    // At -40 C the three reverse-biased gates on v(g) leak gmin (0.8 V +
+    // 5.8 V) each plus, for j2 at TEMP = 60 C, 2 IS(T) with jfet2temp.c's
+    // IS(T) = IS exp((T/TNOM - 1) 1.11 / Vt) = 7.0172e-13 A (the other
+    // devices' IS(T) is negligible): 2.1203441e-11 A.
+    Expectation {
+        fixture: "m10_jfet2_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 12,
+        variables: &[
+            "temp-sweep",
+            "v(d)",
+            "v(dp)",
+            "v(g)",
+            "v(gf)",
+            "v(gp)",
+            "i(vd)",
+            "i(vdp)",
+            "i(vg)",
+            "i(vgf)",
+            "i(vgp)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -40., 0.),
+            ("temp-sweep", 11, 125., 0.),
+            ("i(vg)", 0, 2.120344133494706e-11, 0.),
+        ],
+    },
     // URC lines (#85). C expands each U instance at setup (urcsetup.c) and
     // saves the generated `<name>#hi<i>`/`#lo<i>` nodes (outitf.c only hides
     // device-internal names such as `#internal`).
