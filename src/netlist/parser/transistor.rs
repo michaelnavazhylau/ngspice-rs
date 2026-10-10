@@ -1,7 +1,11 @@
 //! Bounded Q/M instance grammars from `inp2q.c`, `inp2m.c`, `bjt/bjt.c`
 //! and `mos1/mos1.c`. The declaration index follows C's earliest-model terminal
 //! scan, including forward references and node/model-name collisions. It does
-//! not select or validate a model backend, inject ports/defaults, or do binning.
+//! not select or validate a model backend or inject ports/defaults. An `M`
+//! card also recognises a binned reference: a name with no declaration of its
+//! own but a declared `<name>.<digits>` model, as `inp2m.c` falls back to
+//! `INPgetModBin` and `subckt.c` uses `model_name_match`. Which bin (if any)
+//! applies is decided later by `devices::models::ModelResolver`.
 
 use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
@@ -52,11 +56,25 @@ pub(super) fn transistor_card<'a>(input: &mut Input<'a>) -> Result<ParsedCard> {
 }
 
 fn is_declared_model(input: &Input<'_>, token: &Token) -> bool {
+    let name = token.text.to_ascii_lowercase();
     token.is_name_like()
-        && input
-            .state
-            .declared_models
-            .contains(&token.text.to_ascii_lowercase())
+        && (input.state.declared_models.contains(&name)
+            || (input.state.card.designator() == Some('m') && is_binned_reference(input, &name)))
+}
+
+/// `misc/string.c::model_name_match` against the declared names: a MOS
+/// reference to `<name>` with a declared `<name>.<digits>` binning candidate.
+fn is_binned_reference(input: &Input<'_>, name: &str) -> bool {
+    let prefix = format!("{name}.");
+    input
+        .state
+        .declared_models
+        .range(prefix.clone()..)
+        .take_while(|model| model.starts_with(&prefix))
+        .any(|model| {
+            let suffix = &model[prefix.len()..];
+            !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
+        })
 }
 
 fn declared_model<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
@@ -144,15 +162,6 @@ fn mos_connections<'a>(input: &mut Input<'a>) -> Result<Connections<'a>> {
             .any(|token| is_declared_model(input, token))
         {
             return Err(gap(input, "MOS extra/thermal terminal syntax"));
-        }
-        let prefix = format!("{}.", candidate.text.to_ascii_lowercase());
-        if input
-            .state
-            .declared_models
-            .iter()
-            .any(|model| model.starts_with(&prefix))
-        {
-            return Err(gap(input, "MOS model binning"));
         }
     }
     let model = declared_model(input)?;

@@ -13,8 +13,9 @@
 //! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural, K (mutual
 //!   inductance) and T (lossless transmission line), built from the card
 //!   alone by [`Registry::instantiate`];
-//! - **bounded**: D/Q/M (diode, Gummel-Poon BJT, MOS1), S/W switches and X
-//!   subcircuit instances, which need the deck (a `.model` card or a
+//! - **bounded**: D/Q/M/J (diode, Gummel-Poon BJT, MOS1/MOS3, JFET level 1), S/W
+//!   switches, X subcircuit instances and U uniform RC lines (expanded into
+//!   generated R/C/D elements), which need the deck (a `.model` card or a
 //!   `.subckt` definition) and are built by [`crate::devices::Circuit::from_netlist`]
 //!   for a documented subset of C's models;
 //! - **pending**: everything else, an explicit `NotYetPorted` with the C
@@ -418,7 +419,7 @@ mod tests {
             assert!(registry.contains(*designator), "missing {designator}");
         }
         assert_eq!(registry.ported_count(), 12);
-        assert_eq!(registry.bounded_count(), 6);
+        assert_eq!(registry.bounded_count(), 8);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
@@ -473,13 +474,13 @@ mod tests {
         let registry = Registry::with_builtins();
         let mut nodes = crate::primitives::NodeTable::new();
         let error = registry
-            .instantiate(&card("j1 d g s jm"), &mut nodes)
+            .instantiate(&card("z1 d g s zm"), &mut nodes)
             .expect_err("not ported");
         assert!(error.is_not_yet_ported());
         let message = error.to_string();
-        assert!(message.contains("device instance 'j1'"), "{message}");
-        assert!(message.contains("inp2j.c"), "{message}");
-        assert!(message.contains("jfet.c"), "{message}");
+        assert!(message.contains("device instance 'z1'"), "{message}");
+        assert!(message.contains("inp2z.c"), "{message}");
+        assert!(message.contains("mes/"), "{message}");
         assert!(nodes.is_empty(), "a stub factory must not intern nodes");
     }
 

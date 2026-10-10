@@ -90,7 +90,8 @@ unsafe-cast cases instead of silently changing the input.
 | Family | Backend selection | Initial supported level policy |
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
-| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 only (1); other selectors fail |
+| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1) and MOS3 (3); other selectors fail naming the C directory `inpdomod.c` selects (`mos2/`, `mos6/`, `mos9/`, `bsim3/`, ...) |
+| JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1, [JFET.md](JFET.md)); 2 (`jfet2/`) and others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
 | `res`, `c`, `l` | C fixes backend 1 without scanning level | Bounded Rust contract requires first explicit level to round to 1 |
 | `d` | C fixes backend 1 without scanning level | Last ordered integer setter applies; only final applied level 1 supported |
@@ -104,6 +105,18 @@ is explicit in `LevelSelection::{first_raw,selector,applied}`. C would ignore so
 passive level values that Rust conservatively rejects. Unsupported levels return
 located errors with C references; recognition of classic BJT/MOS1 does not
 make their factories available.
+
+MOS level schemas are owned by the level modules on the shared
+`devices::mos` shell (M10, #89): `devices::mos1::MODEL` and
+`devices::mos3::MODEL` are allowlists of C's `MOSxmParam` setters with
+`mosXset.c` defaults; setters whose presence changes C's derivations
+(`VTO`, `KP`, `GAMMA`, `PHI`, `NSUB`, `TPG`, `NSS`, `CJ`, `CJSW`, `CBD`, `CBS`,
+`RD`, `RS`, `RSH`, `TNOM`, `U0`) have no schema default, aliases (`VT0`,
+`UO`, MOS3 `DELVT0`) apply last-set-wins, and every other keyword is
+rejected. MOS3 adds `XL`, `WD`, `XW`, `DELVTO`, `VMAX`, `XJ`, `NFS`, `ETA`,
+`DELTA`, `THETA`, `KAPPA` (default 0.2), defaults `TOX` to 1e-7 m and `MJSW`
+to 0.33, and has no `LAMBDA`; `XD`, `ALPHA` and `INPUT_DELTA`, listed in
+`MOS3mPTable` but without a `MOS3mParam` case, are rejected.
 
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.
@@ -128,6 +141,60 @@ Other keywords/aliases (including JS, capacitance, DTEMP, M, geometry, IC and
 flags) are explicit gaps. Numerical setup, IS epsmin clamping, compatibility-mode
 RS substitution, temperature-dependent derived quantities and nonlinear equations
 remain device work, not hidden schema corrections.
+
+## Model binning (#109)
+
+C: `spicelib/parser/inpgmod.c::INPgetModBin` (with `in_range`/`parse_line`),
+`misc/string.c::model_name_match`, `spicelib/parser/inp2m.c`,
+`spicelib/parser/inpmkmod.c::INPmakeMod`, `frontend/subckt.c`. Rust:
+`devices::binning` (selection rule), `ModelResolver::{resolve, select_bin,
+bin_candidates, declarations_for, with_bin_options}`, the `M` grammar in
+`netlist/parser/transistor.rs` and `devices::subckt` (scoped renaming).
+
+The rules were read from the C sources and confirmed with the reference binary
+(`show all : model` after `op`; `tests/c_binning_reference.rs`):
+
+| Aspect | C behaviour (mirrored by the port) |
+| --- | --- |
+| Which instances | Only `M`. `inp2m.c` tries `INPgetMod` (exact name) first and calls `INPgetModBin` only when it fails, so an exact `.model nch` always wins over `nch.1`. Q/D/other designators never bin. |
+| Candidate names | `<name>.<digits>`: a dot and at least one ASCII digit, nothing else (`nch.01` binds `nch`; `nch.a`, `nch.` and `nch1` do not). Case-insensitive, as the deck is lowercased. |
+| Binnable models | `nmos`/`pmos`/`nsoi`/`psoi` whose level selects BSIM3 (8, 49, any version), BSIM4 (14, 54), HiSIM2 (68) or HiSIM-HV (73). Every other candidate (MOS level 1, 2, 3, 6, 9, ...) is skipped, so level-1 `.N` cards never bin. |
+| Bounds | The candidate must set all four of `lmin lmax wmin wmax` (last setter wins, as `parse_line` overwrites); otherwise it is skipped. |
+| Geometry | `l` and `w` must both be written on the instance; `defl`/`defw` and model defaults are not consulted. `L = l*scale`, `W = w/nf*scale`; `nf` divides only when the instance sets `nf` and either the instance's `wnflag` is nonzero or, without one, the `wnflag` option is set (default 0; 1 only under HSPICE/Spectre compatibility). The multiplier `m` is ignored. |
+| Range test | `min < v < max` or `|v-min| < 1e-9` or `|v-max| < 1e-9`: both edges inclusive with an absolute 1 nm tolerance, so adjacent bins overlap on their shared edge (`l=5.0009u` is inside `lmax=5u`, `5.0011u` is not). |
+| Multiple matches | Not an error. `INPmakeMod` prepends to the model table (keeping the first of duplicate names), and `INPgetModBin` returns the first match in that table: the **last declared** matching bin wins. |
+| No match / missing `l`,`w` / no binnable candidate | The token is not a model; `inp2m.c` ends with "could not find a valid modelname". |
+| Subcircuits | `subckt.c` rewrites an `M` model token to `<inst>:<name>` when any body-local model `model_name_match`es it (exact or bin). The innermost frame with such a match captures the name even if none of its bins fits the instance; outer bins or an outer exact model are then not considered. |
+
+The port's resolver selects exactly that card. Differences are explicit:
+
+- C's failure cases are `SpiceError::Parse` at the instance, naming every
+  candidate with its location and the reason (no binnable family, missing
+  `l`/`w`, or the effective L/W outside every bin).
+- No binnable family is simulated yet. A selected BSIM/HiSIM bin reaches the
+  ordinary level selector and fails with `NotYetPorted`
+  (`m1 binned to model 'nch.2': ... selector 8 ...`), so deck-visible binning
+  is gated per family by `levels()`; nothing is silently dropped.
+- `.options scale` and `.options wnflag` are not deck settings in this port
+  (`scale` is rejected as an unimplemented front-end option; `wnflag` is not an
+  accepted option), and the `M` grammar does not accept `nf`/`wnflag`
+  instance parameters yet. `devices::binning::BinOptions` and
+  `ModelResolver::with_bin_options` carry both inputs, and the selection
+  logic is unit-tested for them, so a later front-end change only has to
+  supply the values.
+- Subcircuit-local models are flattened to `<path>.<name>` (C: `<path>:<name>`).
+  A body's bin set is emitted whole, in declaration order, and the `M`
+  reference becomes `<path>.<name>`. A root declaration that would join or
+  shadow such a set (`.model x1.nch.7` or `.model x1.nch`) is a parse error
+  instead of silently changing the selection.
+- The unused-root-model rule counts every candidate of a binned reference as
+  used (C's `inp_rem_unused_models::mark_all_binned`).
+
+To enable binning for a family (slice 10, BSIM3): make `levels()` accept the
+selector and dispatch the factory on it. `ModelResolver::resolve` already
+returns the selected bin's card; the factory reads its parameters as for any
+other card, and size-dependent `L*`/`W*`/`P*` parameters are the family's own
+schema concern.
 
 ## Circuit boundary and tests
 
@@ -159,3 +226,21 @@ TEMP/TNOM, repeated diode integer levels and first BJT/MOS selector behavior.
 These are setup/input checks, not Rust nonlinear simulation parity. Goldens and
 solver tolerances are unchanged. Validation results are recorded in
 [VERIFICATION.md](VERIFICATION.md#passive-syntax-and-model-schema-verification).
+
+## URC line model (`urc`, #85)
+
+`.model name urc(...)` (`urc.c` `URCmPTable`, defaults from `urcsetup.c`),
+validated by `devices::urc` when a `U` instance is expanded:
+
+| Setter | Unit | Domain | Default |
+| --- | --- | --- | --- |
+| `k` | — | positive, not 1 | 1.5 |
+| `fmax` | Hz | finite | 1e9 |
+| `rperl` | ohm/m | positive | 1000 |
+| `cperl` | F/m | nonnegative (positive without `isperl`) | 1e-12 |
+| `isperl` | A/m | positive | none: given selects the diode ladder |
+| `rsperl` | ohm/m | nonnegative | 0 |
+
+The bare `urc` flag is a no-op (`URC_MOD_URC`). `level` and unknown setters
+are refused (C warns and ignores them). Instance setters `l` (m, required,
+positive) and `n` (`IF_INTEGER`, rounded, at least 1). See [URC.md](URC.md).

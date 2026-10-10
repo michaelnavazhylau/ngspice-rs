@@ -15,10 +15,11 @@ pub(super) fn vector(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     let token = keyword("ic").parse_next(input)?;
     cut_err(|input: &mut Input<'_>| {
         opt(equals).parse_next(input)?;
-        let components: &[&str] = if input.state.card.designator() == Some('q') {
-            &["icvbe", "icvce"]
-        } else {
-            &["icvds", "icvgs", "icvbs"]
+        let components: &[&str] = match input.state.card.designator() {
+            Some('q') => &["icvbe", "icvce"],
+            // jfetpar.c JFET_IC: the vector fills IC-VDS, then IC-VGS.
+            Some('j') => &["ic-vds", "ic-vgs"],
+            _ => &["icvds", "icvgs", "icvbs"],
         };
         let vector = numeric(input, components.len())?;
         let values = vector

@@ -168,6 +168,29 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // MOS level 3 on the shared MOS shell (#89): short-channel threshold,
+    // weak inversion, velocity saturation, channel-length modulation and
+    // temperature (DC, tightened RELTOL as for MOS1), the small-signal stage
+    // at 75 C, and a CMOS inverter with a bounded maximum step (transient).
+    Supported {
+        name: "m10_mos3_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos3_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos3_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
@@ -825,6 +848,54 @@ const SUPPORTED: &[Supported] = &[
         },
         variants: &[],
     },
+    // JFET level 1 (#82, M10 slice 1): output/transfer sweeps of both
+    // polarities (inverse mode, forward gate bias, RD/RS, area/m, OFF), a
+    // common-source AC stage and a temperature sweep under the nonlinear
+    // 1 ppm bound (the DC decks tighten RELTOL so C's own Newton stopping
+    // error stays below it), and a source follower/PJF stage transient under
+    // `compare::TRAN` with `tmax` bounding both integrators' step error.
+    Supported {
+        name: "m10_jfet_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_jfet_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_jfet_tran", &[]),
+    Supported {
+        name: "m10_jfet_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    // URC lines (#85): urcsetup.c's R/C (and R/D) ladders with C's names. The
+    // R/C decks are linear (AC bound, default TRAN); the ISPERL deck runs the
+    // generated diodes and keeps the default TRAN bound.
+    Supported {
+        name: "m10_urc_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+        variants: &[],
+    },
+    tran("m10_urc_tran", &[]),
+    tran("m10_urc_diode_tran", &[]),
 ];
 
 /// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.

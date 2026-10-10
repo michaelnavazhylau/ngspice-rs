@@ -41,6 +41,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::devices::binning::{NameMatch, model_name_match};
 use crate::netlist::ast::{
     DeviceInstance, FourierCard, MeasureCard, ModelCard, Netlist, NodeHintCard, OptionCard,
     OutputCards, ParamAssignment, ParamCard, ParameterAssignment, ParameterKind, RequestedVector,
@@ -182,6 +183,7 @@ pub fn expand_with_output(
             .chain(["0".to_owned()])
             .collect(),
         emitted_locals: BTreeSet::new(),
+        binned_bases: BTreeSet::new(),
         root_functions: root.functions().cloned(),
         functions: BTreeMap::new(),
     };
@@ -198,6 +200,11 @@ pub fn expand_with_output(
     };
     expander.expand_body("", 0, &BTreeMap::new(), root, &mut locals, &directives)?;
     check_flattened_model_names(&expander.models, &expander.emitted_locals)?;
+    check_binned_bases(
+        &expander.models,
+        &expander.emitted_locals,
+        &expander.binned_bases,
+    )?;
     Ok(ExpandedNetlist {
         devices: expander.devices,
         models: expander.models,
@@ -217,6 +224,9 @@ struct LocalModel {
     name: String,
     card: ModelCard,
     emitted: bool,
+    /// Declaration index of the (first) card within its frame; binned sets are
+    /// emitted in this order because C's last declared matching bin wins.
+    order: usize,
 }
 
 #[derive(Default)]
@@ -251,6 +261,8 @@ struct Expander<'a> {
     global_nodes: BTreeSet<String>,
     /// Lowercased names of the body-local models that were renamed and emitted.
     emitted_locals: BTreeSet<String>,
+    /// Lowercased flattened base names (`x1.nch`) of body-local binned sets.
+    binned_bases: BTreeSet<String>,
     /// The deck's top-level `.func` definitions.
     root_functions: Option<Arc<FunctionScope>>,
     /// Each definition's own `.func` scope (lexically inside the root's),
@@ -347,6 +359,39 @@ fn check_acyclic(
             chain.join(" -> ")
         ),
     ))
+}
+
+/// Reject a declaration that would join (or shadow) a body-local binning set.
+///
+/// A body's `nch.1`, `nch.2` become `x1.nch.1`, `x1.nch.2` and its `M`
+/// references `x1.nch`, which `ModelResolver` bins. A root `.model x1.nch`
+/// (exact names win over bins) or `.model x1.nch.7` (an extra candidate)
+/// would silently change the selection, so either is reported.
+fn check_binned_bases(
+    models: &[ModelCard],
+    renamed: &BTreeSet<String>,
+    bases: &BTreeSet<String>,
+) -> SpiceResult<()> {
+    for card in models {
+        let name = card.name.to_ascii_lowercase();
+        if renamed.contains(&name) {
+            continue;
+        }
+        if let Some(base) = bases
+            .iter()
+            .find(|base| model_name_match(base, &name).is_some())
+        {
+            return Err(SpiceError::parse(
+                card.location.clone(),
+                format!(
+                    "model '{}' collides with the binned subcircuit models '{base}.<n>'; \
+                     rename the top-level model",
+                    card.name
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Reject a per-instance rename that collides with another flattened model.
@@ -547,12 +592,13 @@ impl Expander<'_> {
     /// The root frame's models: every top-level declaration, unrenamed.
     fn root_models(&self) -> BTreeMap<String, LocalModel> {
         let mut map: BTreeMap<String, LocalModel> = BTreeMap::new();
-        for card in &self.netlist.models {
+        for (order, card) in self.netlist.models.iter().enumerate() {
             map.entry(card.name.to_ascii_lowercase())
                 .or_insert(LocalModel {
                     name: card.name.clone(),
                     card: card.clone(),
                     emitted: true,
+                    order,
                 });
         }
         map
@@ -563,7 +609,7 @@ impl Expander<'_> {
     /// frame references one, so unused declarations are not invented.
     fn local_models(&self, cards: &[ModelCard], path: &str) -> BTreeMap<String, LocalModel> {
         let mut map: BTreeMap<String, LocalModel> = BTreeMap::new();
-        for card in cards {
+        for (order, card) in cards.iter().enumerate() {
             let name = format!("{path}.{}", card.name);
             let renamed = ModelCard {
                 name: name.clone(),
@@ -574,6 +620,7 @@ impl Expander<'_> {
                     name,
                     card: renamed,
                     emitted: false,
+                    order,
                 });
         }
         map
@@ -950,6 +997,13 @@ impl Expander<'_> {
         let key = reference.to_ascii_lowercase();
         for index in (0..locals.len()).rev() {
             let Some(local) = locals[index].get(&key) else {
+                // subckt.c matches M models with model_name_match, so a frame
+                // declaring only `<name>.<digits>` bins also captures the name.
+                if instance.designator.eq_ignore_ascii_case(&'m')
+                    && self.rewrite_binned(instance, &key, &mut locals[index])
+                {
+                    return;
+                }
                 continue;
             };
             let name = local.name.clone();
@@ -965,6 +1019,42 @@ impl Expander<'_> {
             instance.model = Some(name);
             return;
         }
+    }
+
+    /// Bind an `M` reference to one frame's `<key>.<digits>` binning set:
+    /// emit every bin of the set (declaration order) and rewrite the reference
+    /// to the set's flattened base name, leaving the choice of bin to
+    /// `ModelResolver`. `false` when the frame has no such bin.
+    fn rewrite_binned(
+        &mut self,
+        instance: &mut DeviceInstance,
+        key: &str,
+        frame: &mut BTreeMap<String, LocalModel>,
+    ) -> bool {
+        let mut bins: Vec<(&String, &mut LocalModel)> = frame
+            .iter_mut()
+            .filter(|(name, _)| model_name_match(key, name) == Some(NameMatch::Bin))
+            .collect();
+        bins.sort_by_key(|(_, local)| local.order);
+        let Some((first_key, first)) = bins.first() else {
+            return false;
+        };
+        // `<path>.nch.1` minus the `.1` the original `nch.1` adds to `nch`.
+        let suffix = first_key.len() - key.len();
+        let base = first.name[..first.name.len() - suffix].to_owned();
+        let renamed = !first.name.eq_ignore_ascii_case(first_key);
+        for (_, local) in &mut bins {
+            if !local.emitted {
+                self.models.push(local.card.clone());
+                self.emitted_locals.insert(local.name.to_ascii_lowercase());
+                local.emitted = true;
+            }
+        }
+        if renamed {
+            self.binned_bases.insert(base.to_ascii_lowercase());
+        }
+        instance.model = Some(base);
+        true
     }
 }
 

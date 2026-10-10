@@ -1202,6 +1202,93 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vd1)", 30, -9.838819194962108e-4, 0.),
         ],
     },
+    // MOS3 (#89). The forward bulk-source junction of m5 (VBF = 0.3 V, M = 2)
+    // and its reverse drain junction (vbd = -2.7 V) do not depend on the gate:
+    // i(vbf) = -(2 IS (exp(0.3/Vt) - 1) + 0.3 gmin - 2 IS (1 + a) - 2.7 gmin)
+    // with mos3load.c's cubic reverse term a = (3 Vt / (-2.7 e))^3, i.e.
+    // -2.17673075027435e-9 A at both ends of the sweep. At vgs = 0 the
+    // diode-connected m6 conducts nothing and the gate source only feeds its
+    // reverse drain junction at -1 V: IS (1 + (3 Vt / (-1 e))^3) + gmin, whose
+    // cubic term shows in the last digits (the level-1 law gives 1.01e-12).
+    Expectation {
+        fixture: "m10_mos3_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &[
+            "v(v-sweep)",
+            "v(bf)",
+            "v(bn)",
+            "v(bp)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "i(egp)",
+            "v(g)",
+            "v(gp)",
+            "i(vbf)",
+            "i(vbn)",
+            "i(vbp)",
+            "i(vd1)",
+            "i(vd2)",
+            "i(vd3)",
+            "i(vd4)",
+            "i(vgs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vbf)", 0, -2.176730750274356e-9, 0.),
+            ("i(vbf)", 80, -2.176730750274356e-9, 0.),
+            ("i(vgs)", 0, -1.009999767397924e-12, 0.),
+            ("i(vd1)", 80, -4.796352806841470e-3, 0.),
+        ],
+    },
+    // A common-source stage with an active PMOS load: the input and the AC
+    // grounds are exact, and at 1 kHz the drain gain is a negative real
+    // -gm / (gds_n + gds_p) of about -3.6; the supply current is the PMOS
+    // output-conductance current gds_p v(drain) (its gate and source are AC
+    // ground).
+    Expectation {
+        fixture: "m10_mos3_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 36,
+        variables: &[
+            "frequency",
+            "v(drain)",
+            "v(gate)",
+            "v(pg)",
+            "i(vbias)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(gate)", 0, 1., 0.),
+            ("v(pg)", 0, 0., 0.),
+            ("v(drain)", 0, -3.624157146617256, 2.036276489396150e-5),
+            ("i(vdd)", 0, -1.304200572558852e-4, 2.619276876019919e-10),
+        ],
+    },
+    // At t = 0 the input is low; with NFS = 5e11 the off NMOS still leaks a
+    // weak-inversion current of about 46 uA, which the PMOS (in its linear
+    // region) supplies with a 35 mV drop below VDD. The input draws nothing.
+    Expectation {
+        fixture: "m10_mos3_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 10033,
+        variables: &["time", "v(in)", "v(out)", "v(vdd)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(in)", 0, 0., 0.),
+            ("v(out)", 0, 3.265152494593047, 0.),
+            ("i(vdd)", 0, -4.628269539665508e-5, 0.),
+            ("i(vin)", 0, 0., 0.),
+        ],
+    },
     Expectation {
         fixture: "mos_inverter",
         plotname: "Operating Point",
@@ -3504,6 +3591,324 @@ const EXPECTATIONS: &[Expectation] = &[
                 2.806548924600987e+04,
                 -4.884261394280977e+04,
             ),
+        ],
+    },
+    // JFET level 1 (#82). A reverse-biased PJF gate (v(g2) = 0.5 V, both
+    // junctions at -0.5 V normalized, area 2, m = 3) leaks
+    // 6 (IS (1 + arg) + gmin 0.5 V) with jfetload.c's cubic continuation
+    // arg = (3 Vt / (-0.5 e))^3 = -1.86e-4: 3.11998e-12 A. j1 cut off
+    // (vgs = -2.5 < VTO) at vds = 6 V leaks IS + 8.5 V gmin through its drain;
+    // j3 (inverse, drain at 0, source at 0.3 V, area 0.5) leaks
+    // 0.5 IS + 2.5 V gmin and 0.5 IS + 2.8 V gmin. At vgs = 0, vds = 6 V
+    // the Sydney saturation current beta (1 + lambda vds) vgst^2 (B + bFac
+    // vgst) with bFac = 0.3 / 3 is 5.1 mA at vgst = 2 V, 4.69 mA after the
+    // RS = 15 ohm source drop.
+    Expectation {
+        fixture: "m10_jfet_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 231,
+        variables: &[
+            "v(v-sweep)",
+            "v(d)",
+            "v(d2)",
+            "v(d3)",
+            "v(g)",
+            "v(g2)",
+            "v(s3)",
+            "i(vds)",
+            "i(vds2)",
+            "i(vds3)",
+            "i(vgs)",
+            "i(vgs2)",
+            "i(vs3)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -2.0, 0.),
+            ("v(v-sweep)", 230, 6.0, 0.),
+            ("i(vgs2)", 0, -3.119977670193058e-12, 0.),
+            ("i(vds)", 32, -8.510020466090395e-12, 0.),
+            ("i(vds3)", 0, -2.504999992531683e-12, 0.),
+            ("i(vs3)", 0, -2.80499999470203e-12, 0.),
+            ("v(g)", 197, 0.0, 0.),
+            ("i(vds)", 197, -4.688663451518488e-3, 0.),
+        ],
+    },
+    // A common-source JFET stage: the supply current is the load-resistor
+    // current, i(vdd) = v(drain) / 4.7 k (the drain is the only path from
+    // VDD), and the input source drives the gate through 50 k.
+    Expectation {
+        fixture: "m10_jfet_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 81,
+        variables: &[
+            "frequency",
+            "v(d)",
+            "v(g)",
+            "v(in)",
+            "v(s)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 10., 0.),
+            ("v(d)", 0, -3.894274406962087, -1.758438756966057),
+            ("i(vdd)", 0, -8.285690227578909e-4, -3.741359057374590e-4),
+            ("v(in)", 0, 1., 0.),
+            ("v(d)", 40, -9.081958090353348, 8.307667754627575),
+            ("i(vdd)", 40, -1.932331508585819e-3, 1.767588883963314e-3),
+        ],
+    },
+    // At t = 0 the PJF stage (VTO = -1.8 V normalized, gate at 0 V) is in
+    // its linear region: beta vds (2 vgst - vds) = 1 m * 0.6 * 3 = 1.8 mA
+    // through 3 k puts its drain at -0.6 V. The follower gate sits at the
+    // -1 V pulse level plus 10 k times its junction leakage.
+    Expectation {
+        fixture: "m10_jfet_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 4029,
+        variables: &[
+            "time", "v(d2)", "v(dd2)", "v(g)", "v(g2)", "v(in)", "v(s)", "v(vdd)", "i(vdd)",
+            "i(vdd2)", "i(vin)", "i(vin2)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(d2)", 0, -5.999999997695838e-1, 0.),
+            ("v(g)", 0, -9.999998539847536e-1, 0.),
+            ("time", 4028, 1e-6, 0.),
+        ],
+    },
+    // j4's forward-biased gate at 125 C: jfettemp.c's IS(T) =
+    // IS exp((T/TNOM - 1) EG / (N Vt)) (T/TNOM)^XTI = 1.9024e-9 A for
+    // IS = 1e-13, EG = 1.1, N = 1.2, XTI = 4, so the gate draws
+    // IS(T) (exp(0.45 / (N Vt)) - 1) + 0.45 gmin from the gate-source diode
+    // and IS(T) + 4.55 gmin back through the reverse gate-drain diode,
+    // 1.0617852856717e-4 A in total (restated independently).
+    Expectation {
+        fixture: "m10_jfet_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 12,
+        variables: &[
+            "temp-sweep",
+            "v(d)",
+            "v(dp)",
+            "v(g)",
+            "v(gf)",
+            "v(gp)",
+            "i(vd)",
+            "i(vdp)",
+            "i(vg)",
+            "i(vgf)",
+            "i(vgp)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -40., 0.),
+            ("temp-sweep", 11, 125., 0.),
+            ("i(vgf)", 11, -1.0617852856717e-4, 0.),
+        ],
+    },
+    // URC lines (#85). C expands each U instance at setup (urcsetup.c) and
+    // saves the generated `<name>#hi<i>`/`#lo<i>` nodes (outitf.c only hides
+    // device-internal names such as `#internal`).
+    //
+    // AC: u1 has 16 sections (FMAX rule, wnorm = 6283), u2 6 and u3 one. At
+    // 1 kHz the lines are their series resistance: node a sees 50 ohms into
+    // 1.01meg || 14k || 15k (0.99309 V); out = a x 1meg/1.01meg, c = a x 10k/15k
+    // and u3's single section splits its 5k in half (hi1 = a x 12.5k/15k). At
+    // 1 GHz u2, whose reference is node a, follows a (bootstrapped).
+    Expectation {
+        fixture: "m10_urc_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 61,
+        variables: &[
+            "frequency",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(in)",
+            "v(out)",
+            "v(u1#hi1)",
+            "v(u1#hi2)",
+            "v(u1#hi3)",
+            "v(u1#hi4)",
+            "v(u1#hi5)",
+            "v(u1#hi6)",
+            "v(u1#hi7)",
+            "v(u1#hi8)",
+            "v(u1#hi9)",
+            "v(u1#hi10)",
+            "v(u1#hi11)",
+            "v(u1#hi12)",
+            "v(u1#hi13)",
+            "v(u1#hi14)",
+            "v(u1#hi15)",
+            "v(u1#hi16)",
+            "v(u1#lo1)",
+            "v(u1#lo2)",
+            "v(u1#lo3)",
+            "v(u1#lo4)",
+            "v(u1#lo5)",
+            "v(u1#lo6)",
+            "v(u1#lo7)",
+            "v(u1#lo8)",
+            "v(u1#lo9)",
+            "v(u1#lo10)",
+            "v(u1#lo11)",
+            "v(u1#lo12)",
+            "v(u1#lo13)",
+            "v(u1#lo14)",
+            "v(u1#lo15)",
+            "v(u2#hi1)",
+            "v(u2#hi2)",
+            "v(u2#hi3)",
+            "v(u2#hi4)",
+            "v(u2#hi5)",
+            "v(u2#hi6)",
+            "v(u2#lo1)",
+            "v(u2#lo2)",
+            "v(u2#lo3)",
+            "v(u2#lo4)",
+            "v(u2#lo5)",
+            "v(u3#hi1)",
+            "i(v1)",
+        ],
+        values: &[
+            ("frequency", 0, 1.000000000000000e+03, 0.000000000000000e+00),
+            ("v(a)", 0, 9.930936632071502e-01, -5.382241520880548e-05),
+            ("v(out)", 0, 9.832528899959881e-01, -3.121963569868132e-03),
+            ("v(c)", 0, 6.620612607450966e-01, -9.025177738822004e-04),
+            (
+                "v(u3#hi1)",
+                0,
+                8.275765759313708e-01,
+                -1.128147217352751e-03,
+            ),
+            ("v(b)", 0, 7.093531542884740e-01, 2.895352155594307e-04),
+            (
+                "frequency",
+                60,
+                1.000000000000003e+09,
+                0.000000000000000e+00,
+            ),
+            ("v(b)", 60, 7.330566902714178e-01, -1.500625671561303e-01),
+            ("v(a)", 60, 7.356733966178166e-01, -1.537677306069264e-01),
+        ],
+    },
+    // Transient: u1 10 sections (K=2), u2 n=4 on a 0.5 V reference, u3 C's
+    // minimum of 3. At t = 0 every line is at rest and the reference source
+    // carries no current; by the end of the pulse plateau (4.1 us) the lines
+    // are resistive: out -> 100k/111k, b -> 20k/(20k + 5) and c -> 50k/51k.
+    Expectation {
+        fixture: "m10_urc_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 539,
+        variables: &[
+            "time",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(in)",
+            "v(out)",
+            "v(ref)",
+            "v(u1#hi1)",
+            "v(u1#hi2)",
+            "v(u1#hi3)",
+            "v(u1#hi4)",
+            "v(u1#hi5)",
+            "v(u1#hi6)",
+            "v(u1#hi7)",
+            "v(u1#hi8)",
+            "v(u1#hi9)",
+            "v(u1#hi10)",
+            "v(u1#lo1)",
+            "v(u1#lo2)",
+            "v(u1#lo3)",
+            "v(u1#lo4)",
+            "v(u1#lo5)",
+            "v(u1#lo6)",
+            "v(u1#lo7)",
+            "v(u1#lo8)",
+            "v(u1#lo9)",
+            "v(u2#hi1)",
+            "v(u2#hi2)",
+            "v(u2#hi3)",
+            "v(u2#hi4)",
+            "v(u2#lo1)",
+            "v(u2#lo2)",
+            "v(u2#lo3)",
+            "v(u3#hi1)",
+            "v(u3#hi2)",
+            "v(u3#hi3)",
+            "v(u3#lo1)",
+            "v(u3#lo2)",
+            "i(v1)",
+            "i(vref)",
+        ],
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(out)", 0, 0.0, 0.0),
+            ("v(ref)", 0, 5.000000000000000e-01, 0.0),
+            ("i(vref)", 0, 0.0, 0.0),
+            ("time", 227, 4.106385346547844e-06, 0.0),
+            ("v(out)", 227, 9.006617947405140e-01, 0.0),
+            ("v(b)", 227, 9.997557712633194e-01, 0.0),
+            ("v(c)", 227, 9.803922652419178e-01, 0.0),
+            ("time", 538, 9.999999999999999e-06, 0.0),
+            ("v(ref)", 538, 5.000000000000000e-01, 0.0),
+        ],
+    },
+    // ISPERL: 9 sections (17 diodes of u1#diodemod, no capacitors); the
+    // diodes' `#internal` series-resistance nodes are not saved. At t = 0 the
+    // reference reverse-biases every diode by 0.8 V, so vref sinks the total
+    // leakage IS + 17 x gmin x 0.8 V = 1e-14 + 1.36e-11 A. Near the first
+    // positive peak the line conducts into the reference.
+    Expectation {
+        fixture: "m10_urc_diode_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 521,
+        variables: &[
+            "time",
+            "v(a)",
+            "v(in)",
+            "v(out)",
+            "v(ref)",
+            "v(u1#hi1)",
+            "v(u1#hi2)",
+            "v(u1#hi3)",
+            "v(u1#hi4)",
+            "v(u1#hi5)",
+            "v(u1#hi6)",
+            "v(u1#hi7)",
+            "v(u1#hi8)",
+            "v(u1#hi9)",
+            "v(u1#lo1)",
+            "v(u1#lo2)",
+            "v(u1#lo3)",
+            "v(u1#lo4)",
+            "v(u1#lo5)",
+            "v(u1#lo6)",
+            "v(u1#lo7)",
+            "v(u1#lo8)",
+            "i(v1)",
+            "i(vref)",
+        ],
+        values: &[
+            ("time", 0, 0.0, 0.0),
+            ("v(ref)", 0, 8.000000000000000e-01, 0.0),
+            ("v(a)", 0, 2.414677183998285e-08, 0.0),
+            ("i(v1)", 0, 1.207338591999142e-11, 0.0),
+            ("i(vref)", 0, -1.360999864456567e-11, 0.0),
+            ("time", 76, 1.241349991185178e-06, 0.0),
+            ("v(a)", 76, 1.415726361379865e+00, 0.0),
+            ("v(out)", 76, 1.152598588810652e+00, 0.0),
+            ("time", 520, 9.999999999999999e-06, 0.0),
         ],
     },
 ];

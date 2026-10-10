@@ -213,7 +213,10 @@ ground belongs to elaboration. M requires four ports and refuses a declared
 model in the bulk slot. Model names are never ground-aliased. Bounded bare OFF,
 model-family flags, Q/M IC vectors and PULSE/PWL now parse; arities, omissions,
 C references and stricter delimiter policy are in [FRONTEND_VALUES.md](FRONTEND_VALUES.md).
-Extra/thermal terminals, sensitivity flags, model binning, CIDER and numeric-looking
+An M card also accepts a binned reference (a name with only declared
+`<name>.<digits>` models); `devices::binning`/`ModelResolver` choose the bin
+(see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md#model-binning-109)), never the parser.
+Extra/thermal terminals, sensitivity flags, CIDER and numeric-looking
 Q/M model names remain outside this grammar. Purely numeric Q model names produce Parse
 errors: C's front end requires an alphabetic character; ngspice-47+ also rejects
 the scaled-numeric `123n` probe. Ordinary alpha-named models containing digits

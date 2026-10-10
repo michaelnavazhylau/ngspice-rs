@@ -22,7 +22,8 @@ use crate::devices::distortion::{
 };
 use crate::primitives::{Real, SpiceResult};
 
-use super::{MAX_EXP_ARG, Mos1};
+use super::Mos1;
+use crate::devices::mos::MAX_EXP_ARG;
 
 /// `exp(-grading * ln(arg))` with `mos1dset.c`'s square-root shortcut.
 fn grading_power(arg: Real, grading: Real) -> Real {
@@ -42,7 +43,7 @@ impl Mos1 {
         context: &DistortionContext<'_>,
     ) -> SpiceResult<DeviceDistortion> {
         let op = self.operating(context.model_context)?;
-        let pol = self.model.pol;
+        let pol = self.model.common.pol;
         let gmin = context.model_context.gmin;
         let [dp, g, sp, b] = self.inner;
         let v = |node| context.voltage(node);
@@ -70,8 +71,8 @@ impl Mos1 {
         let mode: Real = if vds >= 0. { 1. } else { -1. };
         let normal = mode > 0.;
         let gamma = op.gamma;
-        let lambda = op.lambda;
-        let beta = op.beta;
+        let lambda = op.params.lambda;
+        let beta = op.params.beta;
         let phi = op.phi;
         let vbx = if normal { vbs } else { vbd };
         let (sarg, dvon, d2von, d3von);
@@ -147,7 +148,7 @@ impl Mos1 {
         }
 
         // Bulk depletion charges.
-        let bulk = |v: Real, junction: &super::Junction| {
+        let bulk = |v: Real, junction: &crate::devices::mos::Junction| {
             let pb = junction.potential;
             let (mj, mjsw) = (junction.mj, junction.mjsw);
             if v < junction.fc * pb {
