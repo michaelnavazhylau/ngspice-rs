@@ -129,6 +129,60 @@ flags) are explicit gaps. Numerical setup, IS epsmin clamping, compatibility-mod
 RS substitution, temperature-dependent derived quantities and nonlinear equations
 remain device work, not hidden schema corrections.
 
+## Model binning (#109)
+
+C: `spicelib/parser/inpgmod.c::INPgetModBin` (with `in_range`/`parse_line`),
+`misc/string.c::model_name_match`, `spicelib/parser/inp2m.c`,
+`spicelib/parser/inpmkmod.c::INPmakeMod`, `frontend/subckt.c`. Rust:
+`devices::binning` (selection rule), `ModelResolver::{resolve, select_bin,
+bin_candidates, declarations_for, with_bin_options}`, the `M` grammar in
+`netlist/parser/transistor.rs` and `devices::subckt` (scoped renaming).
+
+The rules were read from the C sources and confirmed with the reference binary
+(`show all : model` after `op`; `tests/c_binning_reference.rs`):
+
+| Aspect | C behaviour (mirrored by the port) |
+| --- | --- |
+| Which instances | Only `M`. `inp2m.c` tries `INPgetMod` (exact name) first and calls `INPgetModBin` only when it fails, so an exact `.model nch` always wins over `nch.1`. Q/D/other designators never bin. |
+| Candidate names | `<name>.<digits>`: a dot and at least one ASCII digit, nothing else (`nch.01` binds `nch`; `nch.a`, `nch.` and `nch1` do not). Case-insensitive, as the deck is lowercased. |
+| Binnable models | `nmos`/`pmos`/`nsoi`/`psoi` whose level selects BSIM3 (8, 49, any version), BSIM4 (14, 54), HiSIM2 (68) or HiSIM-HV (73). Every other candidate (MOS level 1, 2, 3, 6, 9, ...) is skipped, so level-1 `.N` cards never bin. |
+| Bounds | The candidate must set all four of `lmin lmax wmin wmax` (last setter wins, as `parse_line` overwrites); otherwise it is skipped. |
+| Geometry | `l` and `w` must both be written on the instance; `defl`/`defw` and model defaults are not consulted. `L = l*scale`, `W = w/nf*scale`; `nf` divides only when the instance sets `nf` and either the instance's `wnflag` is nonzero or, without one, the `wnflag` option is set (default 0; 1 only under HSPICE/Spectre compatibility). The multiplier `m` is ignored. |
+| Range test | `min < v < max` or `|v-min| < 1e-9` or `|v-max| < 1e-9`: both edges inclusive with an absolute 1 nm tolerance, so adjacent bins overlap on their shared edge (`l=5.0009u` is inside `lmax=5u`, `5.0011u` is not). |
+| Multiple matches | Not an error. `INPmakeMod` prepends to the model table (keeping the first of duplicate names), and `INPgetModBin` returns the first match in that table: the **last declared** matching bin wins. |
+| No match / missing `l`,`w` / no binnable candidate | The token is not a model; `inp2m.c` ends with "could not find a valid modelname". |
+| Subcircuits | `subckt.c` rewrites an `M` model token to `<inst>:<name>` when any body-local model `model_name_match`es it (exact or bin). The innermost frame with such a match captures the name even if none of its bins fits the instance; outer bins or an outer exact model are then not considered. |
+
+The port's resolver selects exactly that card. Differences are explicit:
+
+- C's failure cases are `SpiceError::Parse` at the instance, naming every
+  candidate with its location and the reason (no binnable family, missing
+  `l`/`w`, or the effective L/W outside every bin).
+- No binnable family is simulated yet. A selected BSIM/HiSIM bin reaches the
+  ordinary level selector and fails with `NotYetPorted`
+  (`m1 binned to model 'nch.2': ... selector 8 ...`), so deck-visible binning
+  is gated per family by `levels()`; nothing is silently dropped.
+- `.options scale` and `.options wnflag` are not deck settings in this port
+  (`scale` is rejected as an unimplemented front-end option; `wnflag` is not an
+  accepted option), and the `M` grammar does not accept `nf`/`wnflag`
+  instance parameters yet. `devices::binning::BinOptions` and
+  `ModelResolver::with_bin_options` carry both inputs, and the selection
+  logic is unit-tested for them, so a later front-end change only has to
+  supply the values.
+- Subcircuit-local models are flattened to `<path>.<name>` (C: `<path>:<name>`).
+  A body's bin set is emitted whole, in declaration order, and the `M`
+  reference becomes `<path>.<name>`. A root declaration that would join or
+  shadow such a set (`.model x1.nch.7` or `.model x1.nch`) is a parse error
+  instead of silently changing the selection.
+- The unused-root-model rule counts every candidate of a binned reference as
+  used (C's `inp_rem_unused_models::mark_all_binned`).
+
+To enable binning for a family (slice 10, BSIM3): make `levels()` accept the
+selector and dispatch the factory on it. `ModelResolver::resolve` already
+returns the selected bin's card; the factory reads its parameters as for any
+other card, and size-dependent `L*`/`W*`/`P*` parameters are the family's own
+schema concern.
+
 ## Circuit boundary and tests
 
 `Circuit::add_instance` takes a resolver/context, validates before construction

@@ -3,7 +3,9 @@
 //! C: `inpmkmod.c::INPmakeMod` keeps the first declaration; `inpdomod.c` selects
 //! a backend using `inpfindl.c::INPfindLev`'s first level. `inpgmod.c` applies
 //! ordered setters. Resolution/validation are not proof of a simulation backend.
-//! No scoped expansion, binning, global state or nonlinear arithmetic lives here.
+//! No scoped expansion, global state or nonlinear arithmetic lives here. MOS
+//! binning (`inpgmod.c::INPgetModBin`) is a fallback of [`ModelResolver::resolve`]
+//! whose selection rule lives in [`crate::devices::binning`].
 //!
 //! ```
 //! use std::path::Path;
@@ -117,6 +119,10 @@ pub struct LevelSelection {
 #[derive(Debug)]
 pub struct ModelResolver<'a> {
     definitions: BTreeMap<String, &'a ModelCard>,
+    /// First declarations in declaration order, for binning candidates.
+    ordered: Vec<&'a ModelCard>,
+    /// Front-end settings read by binning.
+    bin_options: crate::devices::binning::BinOptions,
 }
 
 impl<'a> ModelResolver<'a> {
@@ -126,15 +132,102 @@ impl<'a> ModelResolver<'a> {
     /// Empty model names in a programmatically constructed AST.
     pub fn new(cards: &'a [ModelCard]) -> SpiceResult<Self> {
         let mut definitions = BTreeMap::new();
+        let mut ordered = Vec::new();
         for card in cards {
             if card.name.is_empty() {
                 return Err(SpiceError::parse(card.location.clone(), "empty model name"));
             }
-            definitions
-                .entry(card.name.to_ascii_lowercase())
-                .or_insert(card);
+            if let std::collections::btree_map::Entry::Vacant(slot) =
+                definitions.entry(card.name.to_ascii_lowercase())
+            {
+                slot.insert(card);
+                ordered.push(card);
+            }
         }
-        Ok(Self { definitions })
+        Ok(Self {
+            definitions,
+            ordered,
+            bin_options: crate::devices::binning::BinOptions::default(),
+        })
+    }
+
+    /// Replace the front-end settings binning reads (`scale`, `wnflag`).
+    #[must_use]
+    pub const fn with_bin_options(mut self, options: crate::devices::binning::BinOptions) -> Self {
+        self.bin_options = options;
+        self
+    }
+
+    /// Binning candidates for a reference: first declarations named
+    /// `<name>.<digits>`, in declaration order (no family filtering).
+    #[must_use]
+    pub fn bin_candidates(&self, name: &str) -> Vec<&'a ModelCard> {
+        self.ordered
+            .iter()
+            .copied()
+            .filter(|card| {
+                crate::devices::binning::model_name_match(name, &card.name)
+                    == Some(crate::devices::binning::NameMatch::Bin)
+            })
+            .collect()
+    }
+
+    /// Declarations a reference can bind: the exact card when one exists,
+    /// otherwise every binning candidate. C's `inp_rem_unused_models`
+    /// (`mark_all_binned`) treats all of them as used.
+    #[must_use]
+    pub fn declarations_for(&self, name: &str) -> Vec<&'a ModelCard> {
+        self.model(name)
+            .map_or_else(|| self.bin_candidates(name), |card| vec![card])
+    }
+
+    /// The card `INPgetModBin` binds to an `M` instance whose model name has no
+    /// exact declaration. `Ok(None)` when the instance is not a MOSFET, has an
+    /// exact declaration, or has no `<name>.<digits>` candidate at all.
+    ///
+    /// # Errors
+    /// C's "could not find a valid modelname" cases, as parse errors at the
+    /// instance naming every candidate: no binnable family/level among the
+    /// candidates, `l`/`w` not written on the instance, or no bin containing
+    /// the geometry. Invalid geometry or bound values are also errors.
+    pub fn select_bin(&self, instance: &DeviceInstance) -> SpiceResult<Option<&'a ModelCard>> {
+        use crate::devices::binning::{BinOutcome, select_bin};
+        let Some(name) = &instance.model else {
+            return Ok(None);
+        };
+        if !instance.designator.eq_ignore_ascii_case(&'m') || self.model(name).is_some() {
+            return Ok(None);
+        }
+        let candidates = self.bin_candidates(name);
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        let listed = candidates
+            .iter()
+            .map(|card| format!("'{}' ({})", card.name, card.location))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let reason = match select_bin(&candidates, instance, &self.bin_options)? {
+            BinOutcome::Selected(card) => return Ok(Some(card)),
+            BinOutcome::NoBinnableCandidate => "ngspice bins only BSIM3 (level 8/49), BSIM4 \
+                 (14/54), HiSIM2 (68) and HiSIM-HV (73) MOS models"
+                .to_owned(),
+            BinOutcome::MissingGeometry => {
+                "binning needs both l and w written on the instance".to_owned()
+            }
+            BinOutcome::NoMatch(geometry) => format!(
+                "no bin with all of lmin/lmax/wmin/wmax contains L={:e} W={:e}",
+                geometry.length, geometry.width
+            ),
+        };
+        Err(SpiceError::parse(
+            instance.location.clone(),
+            format!(
+                "model '{name}' referenced by {} is not defined and cannot be binned: \
+                 {reason}; candidates {listed}",
+                instance.name
+            ),
+        ))
     }
 
     /// Raw first declaration by case-insensitive name; no ground aliasing.
@@ -163,7 +256,12 @@ impl<'a> ModelResolver<'a> {
             }
             return Ok(None);
         };
-        let card = self.model(name).ok_or_else(|| {
+        let exact = self.model(name);
+        let binned = match exact {
+            Some(_) => None,
+            None => self.select_bin(instance)?,
+        };
+        let card = exact.or(binned).ok_or_else(|| {
             SpiceError::parse(
                 instance.location.clone(),
                 format!(
@@ -182,10 +280,20 @@ impl<'a> ModelResolver<'a> {
                 ),
             ));
         }
+        let levels = levels(card, family).map_err(|error| match (binned, error) {
+            // Name the bin so an unported binnable family reads as such.
+            (Some(card), SpiceError::NotYetPorted { what, c_reference }) => {
+                SpiceError::not_yet_ported(
+                    format!("{} binned to model '{}': {what}", instance.name, card.name),
+                    c_reference,
+                )
+            }
+            (_, error) => error,
+        })?;
         Ok(Some(ResolvedModel {
             card,
             family,
-            levels: levels(card, family)?,
+            levels,
         }))
     }
 }
