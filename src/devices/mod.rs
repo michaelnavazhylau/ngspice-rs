@@ -20,6 +20,7 @@
 //! | [`sweep`] | physical resistor metadata, immutable per-point resistor and instance-parameter overrides | typed `.dc` resistor and `@inst[param]` targets |
 //! | [`noise`] | `.noise` generators: the [`Device::noise`] hook, thermal/shot/flicker laws and C's instance order | R, D, Q, MOS1, S/W; explicit `Noiseless` for C's noise-free devices |
 //! | [`subckt`] | `X` instance expansion: port binding, hierarchical names, scoped parameters and models | top-level definitions, named overrides, `.global` nodes |
+//! | [`urc`] | `U` uniform RC lines expanded into lumped R/C/D sections (`urcsetup.c`) | factory expansion into existing devices |
 //!
 //! The C equivalent is `src/spicelib/devices/`: `ckt*.c` for the framework
 //! (`CKTcrte`, `CKTbindNode`, the `CKTdevice` vtable) and one directory per
@@ -66,6 +67,7 @@ pub mod sources;
 pub mod subckt;
 pub mod sweep;
 pub mod switch;
+pub mod urc;
 pub use functions::{
     AmSpec, ExpSpec, FunctionSpec, PwlBreakpoints, PwlSource, SffmSpec, SineSpec, SourceFunction,
 };

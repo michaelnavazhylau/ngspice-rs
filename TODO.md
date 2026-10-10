@@ -321,3 +321,18 @@ The package is ready to publish; the release path is not.
 All six M9 implementation slices are delivered with the bounded interfaces and
 explicit unsupported cases documented in CLI.md, OUTPUT_SELECTION.md,
 MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.
+
+## M10 — Extended device library (docs/port/M10.md)
+
+- [x] URC uniform distributed RC lines (#85, part 1; `work/m10-urc`): `inp2u.c`
+  grammar (`l=`/`n=`, required model, refused leading value), `urc` model
+  schema with `urcsetup.c` defaults and the no-op `urc` flag, and `urcsetup.c`'s
+  expansion (FMAX section rule, geometric `K` scaling, `ISPERL` diode ladder
+  with the generated `<name>#diodemod`) into existing R/C/D devices with C's
+  names (`u1#hi1`, `u1#rlo1`, …) plus the load-free instance answering
+  `@u1[l]`/`@u1[n]`. C goldens `m10_urc_tran`/`m10_urc_ac`/`m10_urc_diode_tran`
+  (123 verified), `tests/urc_lines.rs` and opt-in `c_urc_reference` (element
+  asks equal to C's to 1e-15). Explicit errors for C's degenerate inputs
+  (missing `l`, `n < 1`, `K = 1`, zero `CPERL`), `.pz` (C aborts) and `.sens`
+  (`NotYetPorted`: C's zero URC parameter entries). See
+  [URC.md](docs/port/URC.md).

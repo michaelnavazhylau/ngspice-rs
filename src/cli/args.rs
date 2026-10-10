@@ -693,7 +693,7 @@ r2 out 0 1k
         assert!(text.contains("by designator:    r(2) v(1)"), "{text}");
         assert!(text.contains("analyses: .tran"), "{text}");
         assert!(
-            text.contains("port:     11 ported and 6 bounded of 26 device designators"),
+            text.contains("port:     11 ported and 7 bounded of 26 device designators"),
             "{text}"
         );
     }
@@ -718,7 +718,7 @@ r2 out 0 1k
     fn the_device_list_distinguishes_ported_bounded_and_pending() {
         let text = devices_text(&Registry::with_builtins());
         assert!(
-            text.starts_with("26 device designator(s): 11 ported, 6 bounded, 9 pending"),
+            text.starts_with("26 device designator(s): 11 ported, 7 bounded, 8 pending"),
             "{text}"
         );
         let status = |letter: char| {
@@ -733,10 +733,10 @@ r2 out 0 1k
         for letter in ['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k'] {
             assert_eq!(status(letter), "ported", "{letter}");
         }
-        for letter in ['d', 'q', 'm', 's', 'w', 'x'] {
+        for letter in ['d', 'q', 'm', 's', 'w', 'x', 'u'] {
             assert_eq!(status(letter), "bounded", "{letter}");
         }
-        for letter in ['j', 'z', 't', 'o', 'y', 'u', 'n', 'p', 'a'] {
+        for letter in ['j', 'z', 't', 'o', 'y', 'n', 'p', 'a'] {
             assert_eq!(status(letter), "pending", "{letter}");
         }
         assert!(text.contains("built: MOS1 (level 1)"), "{text}");

@@ -54,6 +54,22 @@ linear baseline beneath PORT cosines.
 
 # Verification
 
+## M10 URC lines (#85 part 1, `work/m10-urc`)
+
+Three new C goldens (`m10_urc_tran`, `m10_urc_ac`, `m10_urc_diode_tran`),
+each captured individually with `cargo xtask golden capture --netlist`; no
+existing golden was recaptured and no tolerance was changed. `cargo xtask
+golden verify` reports **123 verified / 0 unsupported / 0 failures** (AC at
+`compare::AC`, both transients at `compare::TRAN`; the diode deck runs at
+`reltol=1e-6`, worst error 0.12 of the bound, because at the default RELTOL
+C's and the port's integration errors in near-zero source currents exceed
+it); `golden check` reproduces all 123 fixtures. `cargo test --workspace
+--locked` reports **1276 passed, 0 failed, 126 ignored**; all **126 ignored
+live-C** checks pass with absolute `NGSPICE_BIN`, including the new
+`c_urc_reference` (generated element values and `@u1[l]`/`@u1[n]` equal to
+C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
+are unchanged. See [URC.md](URC.md).
+
 ## M8 sensitivity analysis (#102)
 
 `.sens` DC and AC sensitivities ([SENSITIVITY.md](SENSITIVITY.md)).

@@ -671,7 +671,7 @@ impl Writer {
         let base = model.base.as_str();
         if !matches!(
             base,
-            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
+            "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw" | "urc"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -688,6 +688,7 @@ impl Writer {
                         "nmos" | "pmos" => &["nmos", "pmos"],
                         "sw" => &["sw"],
                         "csw" => &["csw"],
+                        "urc" => &["urc"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {
@@ -739,6 +740,7 @@ impl Writer {
             'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
             'm' | 'e' | 'g' | 's' => count == 4,
+            'u' => count == 3,
             'x' => true,
             'k' => count == 0,
             _ => {
@@ -779,7 +781,7 @@ impl Writer {
             ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
-            ('d' | 'q' | 'm' | 'x' | 's' | 'w', None) => {
+            ('d' | 'q' | 'm' | 'x' | 's' | 'w' | 'u', None) => {
                 return Err(refuse("device without a model/target", Some(location)));
             }
             (_, Some(model)) => {
@@ -805,6 +807,7 @@ impl Writer {
             'e' | 'f' | 'g' | 'h' => controlled_parameters(device, &mut parts)?,
             'k' => mutual_parameters(device, &mut parts)?,
             's' | 'w' => switch_parameters(setters, designator, &mut parts)?,
+            'u' => urc_parameters(device, &mut parts)?,
             'x' => {
                 for parameter in &device.parameters {
                     parts.push(named_value(parameter, true)?);
@@ -1082,6 +1085,24 @@ fn passive_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Spice
 
 /// S/W (`parser/switch.rs`): only bare `on`/`off` flags follow the model, in
 /// their written order; W's `control` was already written before the model.
+/// U (`parser/urc.rs`): the ordered `l=`/`n=` setters, nothing else.
+fn urc_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> SpiceResult<()> {
+    for parameter in &device.parameters {
+        if !matches!(
+            parameter.kind,
+            ParameterKind::Scalar | ParameterKind::Expression(_)
+        ) || !matches!(parameter.name.as_str(), "l" | "n")
+        {
+            return Err(refuse(
+                format!("parameter {:?} on 'u' instance", parameter.name),
+                Some(&parameter.location),
+            ));
+        }
+        parts.push(named_value(parameter, false)?);
+    }
+    Ok(())
+}
+
 fn switch_parameters(
     setters: &[ParameterAssignment],
     designator: char,
