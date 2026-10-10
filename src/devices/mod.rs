@@ -37,6 +37,7 @@
 //! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
 
 pub mod behavioural;
+pub mod binning;
 pub mod bjt;
 pub mod circuit;
 pub mod controlled;

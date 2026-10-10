@@ -1433,12 +1433,11 @@ impl Circuit {
         let referenced: BTreeSet<_> = expanded
             .devices
             .iter()
-            .filter_map(|instance| {
-                instance
-                    .model
-                    .as_ref()
-                    .map(|name| name.to_ascii_lowercase())
-            })
+            .filter_map(|instance| instance.model.as_ref())
+            // A binned reference uses its whole `<name>.<n>` set (C's
+            // `mark_all_binned`), not only the selected bin.
+            .flat_map(|name| models.declarations_for(name))
+            .map(|card| card.name.to_ascii_lowercase())
             .collect();
         if let Some(model) = netlist
             .models

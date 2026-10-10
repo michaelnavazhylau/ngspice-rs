@@ -273,10 +273,6 @@ fn unsupported_variants_keep_device_specific_c_references() {
         ("M1 D G S B NM W=\"width\"\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B NM NF=2\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B NM W=4k7\n.model NM NMOS", "inp2m.c"),
-        (
-            "M1 D G S B NM W=1u L=1u\n.model NM.1 NMOS LMIN=0 LMAX=2u",
-            "inp2m.c",
-        ),
     ] {
         match parse(body).expect_err("gap") {
             SpiceError::NotYetPorted { what, c_reference } => {
@@ -286,6 +282,18 @@ fn unsupported_variants_keep_device_specific_c_references() {
             other => panic!("{body}: expected gap, got {other}"),
         }
     }
+}
+
+#[test]
+fn binned_mos_references_parse_and_leave_bin_choice_to_the_resolver() {
+    // inp2m.c falls back to INPgetModBin; the parser only recognises the name.
+    let netlist = parse("M1 D G S B NM W=1u L=1u\n.model NM.1 NMOS LMIN=0 LMAX=2u")
+        .expect("binned reference");
+    assert_eq!(netlist.devices[0].model.as_deref(), Some("nm"));
+    assert_eq!(netlist.devices[0].nodes, ["d", "g", "s", "b"]);
+    // Only `.<digits>` suffixes are candidates, and BJTs never bin.
+    assert!(parse("M1 D G S B NM W=1u L=1u\n.model NM.A NMOS").is_err());
+    assert!(parse("Q1 C B E QM\n.model QM.1 NPN").is_err());
 }
 
 #[test]
