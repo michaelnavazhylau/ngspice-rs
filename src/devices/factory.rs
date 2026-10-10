@@ -36,6 +36,7 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
         'u',
         "uniform RC line expanded into R/C/D sections (urcsetup.c)",
     ),
+    ('z', "MESFET level 1 (Statz, mesload.c)"),
 ];
 
 pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Box<dyn Device>> {
@@ -97,6 +98,12 @@ pub(crate) fn instantiate_with_models(
                     );
                 }
                 return crate::devices::jfet::Jfet::instantiate(instance, nodes, &model, context);
+            }
+            crate::devices::models::ModelFamily::Nmf | crate::devices::models::ModelFamily::Pmf => {
+                // inpdomod.c: the resolver admits only level 1 (`mes/`).
+                return crate::devices::mesfet::Mesfet::instantiate(
+                    instance, nodes, &model, context,
+                );
             }
             crate::devices::models::ModelFamily::Switch
             | crate::devices::models::ModelFamily::CurrentSwitch => {
