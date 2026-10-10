@@ -15,7 +15,8 @@ use crate::primitives::{
 /// Designators [`instantiate`] builds from the card alone (the registry's
 /// `ported` entries). `tests/registry_support.rs` elaborates one instance of
 /// every designator to keep this list and [`ELABORATED`] honest.
-pub(crate) const CARD_FACTORY: &[char] = &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k'];
+pub(crate) const CARD_FACTORY: &[char] =
+    &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g', 'h', 'b', 'k', 't'];
 
 /// Designators built only while elaborating a deck, with the subset built:
 /// D/Q/M/S/W from a resolved `.model` card ([`instantiate_with_models`]) and X
@@ -23,10 +24,18 @@ pub(crate) const CARD_FACTORY: &[char] = &['r', 'c', 'l', 'v', 'i', 'e', 'f', 'g
 pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('d', "junction diode (dioload.c subset)"),
     ('q', "Gummel-Poon BJT level 1 (bjtload.c)"),
-    ('m', "MOS1 (level 1)"),
+    ('m', "MOS1 and MOS3 (levels 1 and 3)"),
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
     ('x', "expanded before device elaboration"),
+    (
+        'j',
+        "JFET levels 1 (jfetload.c, Sydney B tail) and 2 (Parker-Skellern psmodel.c)",
+    ),
+    (
+        'u',
+        "uniform RC line expanded into R/C/D sections (urcsetup.c)",
+    ),
 ];
 
 pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Box<dyn Device>> {
@@ -72,13 +81,36 @@ pub(crate) fn instantiate_with_models(
             }
             crate::devices::models::ModelFamily::Nmos
             | crate::devices::models::ModelFamily::Pmos => {
-                return crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context);
+                // `inpdomod.c`: the level selects the C device; the resolver
+                // admits only the ported levels.
+                return if model.levels().selector == 3 {
+                    crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)
+                } else {
+                    crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context)
+                };
+            }
+            crate::devices::models::ModelFamily::Njf | crate::devices::models::ModelFamily::Pjf => {
+                // inpdomod.c: level 2 selects the Parker-Skellern JFET2.
+                if model.levels().selector == 2 {
+                    return crate::devices::jfet2::Jfet2::instantiate(
+                        instance, nodes, &model, context,
+                    );
+                }
+                return crate::devices::jfet::Jfet::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Switch
             | crate::devices::models::ModelFamily::CurrentSwitch => {
                 return crate::devices::switch::Switch::instantiate(
                     instance, nodes, &model, context,
                 );
+            }
+            crate::devices::models::ModelFamily::Urc => {
+                // One U instance becomes many devices: Circuit::add_instances
+                // calls crate::devices::urc::expand instead of this factory.
+                return Err(SpiceError::circuit(format!(
+                    "URC {} is expanded by Circuit::add_instances, not built as one device",
+                    instance.name
+                )));
             }
             _ => {}
         }
@@ -112,6 +144,9 @@ pub(crate) fn instantiate(
     }
     if instance.designator == 'k' {
         return crate::devices::mutual::instantiate(instance);
+    }
+    if instance.designator == 't' {
+        return crate::devices::tline::TransmissionLine::instantiate(instance, nodes);
     }
     // `a` instances only come from the front end's TABLE/POLY lowering
     // (crate::netlist::behavioural); user XSPICE cards are not parsed.

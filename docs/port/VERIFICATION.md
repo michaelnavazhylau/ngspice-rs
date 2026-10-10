@@ -20,6 +20,47 @@ test requires every registered kind. Pole-zero preparation reuses
 `ac::SmallSignal`, including deck DC options and nodeset/switch-state handling;
 all existing pole-zero tests and live-C comparisons remain unchanged.
 
+## M10 MOS shared shell and level 3 (#89)
+
+The MOS1 frame moved into the shared `devices::mos` shell first, as a
+separate commit with no behaviour change: every existing test and golden
+passes unchanged, and every MOS1 deck's binary Rust rawfile (16 decks,
+including `disto_mos1`, `noise_mos1`, `pz_mos1`, `m8_dc_param_mos1` and the
+convergence/IC decks) is byte-identical before and after (dates aside).
+
+Three new MOS3 C goldens, each captured with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed):
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos3_dc` | `compare::NONLINEAR` | 81 points |
+| `m10_mos3_ac` | `compare::NONLINEAR` | 36 points |
+| `m10_mos3_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.047 of bound |
+
+Deck design, measured against the same C binary before capture:
+
+- **Tight RELTOL for the AC bias.** With the default options C's Newton
+  stopping test leaves the AC deck's drain bias 5.1e-6 relative from the root
+  (0.5595758 V against 0.5595729 V), which the stage gain amplifies past the
+  1 ppm bound (8e-5 absolute at 1 kHz). With `reltol=1e-7 vntol=1e-12
+  abstol=1e-18` C and Rust agree to 6e-15 at the operating point, and the AC
+  sweep then verifies: the port's `gm`/`gds`/`gmbs` are C's, including C's
+  approximate channel-length-modulation derivatives.
+- **Gear-2 and RELTOL 1e-5 for the inverter.** Under trapezoidal integration
+  the gate currents ring at ±2.7 nA on the flat input with amplitudes that
+  depend on each driver's step history (0.35% apart, 2.5x the bound). With
+  Gear-2 at the default RELTOL the deck verifies at 0.966 of the bound; with
+  `reltol=1e-5` (as `m7_ic_mos1_uic_tran`) at 0.047, and 0.037 at 1e-6, so the
+  remaining difference is step control, not the model.
+
+`tests/m10_mos3.rs` adds nine C-free tests; `devices::mos3` unit tests check
+regions and finite-difference derivatives; `golden_rawfiles` documents the
+three goldens (the m5 forward/reverse bulk current and the m6 reverse drain
+current at vgs = 0 restate the cubic reverse law to the last digit). Opt-in
+live C: `c_noise_reference::mos3_noise_matches_c` (both flicker forms) and
+`c_pole_zero::a_mos3_stage_matches_c`. Six new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
+
 ## Remaining M8 features (#132)
 
 - `c_dc_param_sweep_reference`: remaining listed real instance setters, plus
@@ -53,6 +94,22 @@ diffsol retains its index-one structure restrictions and requires a piecewise
 linear baseline beneath PORT cosines.
 
 # Verification
+
+## M10 URC lines (#85 part 1, `work/m10-urc`)
+
+Three new C goldens (`m10_urc_tran`, `m10_urc_ac`, `m10_urc_diode_tran`),
+each captured individually with `cargo xtask golden capture --netlist`; no
+existing golden was recaptured and no tolerance was changed. `cargo xtask
+golden verify` reports **123 verified / 0 unsupported / 0 failures** (AC at
+`compare::AC`, both transients at `compare::TRAN`; the diode deck runs at
+`reltol=1e-6`, worst error 0.12 of the bound, because at the default RELTOL
+C's and the port's integration errors in near-zero source currents exceed
+it); `golden check` reproduces all 123 fixtures. `cargo test --workspace
+--locked` reports **1276 passed, 0 failed, 126 ignored**; all **126 ignored
+live-C** checks pass with absolute `NGSPICE_BIN`, including the new
+`c_urc_reference` (generated element values and `@u1[l]`/`@u1[n]` equal to
+C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
+are unchanged. See [URC.md](URC.md).
 
 ## M8 sensitivity analysis (#102)
 
@@ -1465,6 +1522,130 @@ normalized Vandermonde system, the closed-form `CKTterr` bound
 fixed-step convergence on `q' = -q` with a nonuniform repeating step pattern
 (error ratios per halving 2.0, 4.0, 8.0-8.1, 16.0-16.3, 32.0-32.7 and 67 for
 orders 1-6, asserted within 0.75-1.35 times `2^k`).
+
+## M10 lossless transmission line (#84)
+
+Goldens `m10_tline_tran`, `m10_tline_pulse` and `m10_tline_ac`, captured once
+each with `cargo xtask golden capture --netlist <name>` (no existing golden
+recaptured, no tolerance changed). The transient decks set the lines'
+`rel=1e-3 abs=1e3` so that each line lands on the delayed corners of its waves;
+`Gate::Echoes` declares those instants (source corner `b` plus offsets derived
+by hand from the deck's `td` values and terminations, documented in the
+registry) as breakpoints that both plots must sample and that are never
+interpolated across. `golden verify`: `m10_tline_tran` 219 instants + 44
+breakpoint limits, `m10_tline_pulse` 271 instants + 100 limits, both worst
+error 0.000 of `compare::TRAN`; `m10_tline_ac` 101 points under `compare::AC`.
+The C and Rust transients have identical point counts (314 and 1018) and agree
+to about 1e-15 V. Internal line nodes (`t1#i1`, `t1#i2`, `t1#int1`,
+`t1#int2`) are compared, since C saves them. Analytic, infrastructure and
+opt-in live-C coverage is listed in
+[TRANSMISSION_LINES.md](TRANSMISSION_LINES.md#verification).
+
+## M10 JFET level 1 (#82)
+
+Four new C goldens, each captured once with `cargo xtask golden capture
+--netlist <name>`; no existing golden was recaptured and no tolerance changed.
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_jfet_dc` | `compare::NONLINEAR` | 231 points (nested `vds` x `vgs` sweep) |
+| `m10_jfet_ac` | `compare::NONLINEAR` | 81 points |
+| `m10_jfet_tran` | `compare::TRAN` | 493 instants + 16 breakpoint limits, worst 0.033 of bound |
+| `m10_jfet_temp` | `compare::NONLINEAR` | 12 points (`.dc temp -40 125 15`) |
+
+Deck design, measured before capture against the same C binary in a scratch
+copy:
+
+- **Tight DC tolerances.** With RD/RS and a forward-biased gate, C's default
+  Newton stopping test leaves sweep currents up to about 2e-4 relative from
+  the converged root (217 times the 1 ppm bound at one point); with
+  `reltol=1e-7 vntol=1e-12 abstol=1e-15` both engines agree within 1e-6 of
+  the bound's scale, and the port at default tolerances already matches C's
+  tightened answer. `abstol=1e-18` (the MOS1 deck's value) makes C's own
+  operating point fail, so the JFET decks use `1e-15`.
+- **No `off` instance.** `jfetload.c` never clears `icheck` for a held `off`
+  load, so C cannot leave `MODEINITFIX` and its operating point fails
+  (gmin and source stepping both fail, then garbage values); see
+  [JFET.md](JFET.md#newton-start-and-limiting). `off` is covered by Rust tests
+  only.
+- **Bounded maximum step.** At `tmax = 1 ns` the capacitive gate currents of
+  the transient deck (`i(vin)`, `i(vin2)`) differed by up to 2.7 times the
+  `TRAN` bound, i.e. by the two drivers' discretization error; at
+  `tmax = 0.25 ns` the worst error is 0.033 of the bound.
+
+The opt-in `tests/c_jfet_reference.rs` adds live comparisons of saved
+`@j[...]` asks of both polarities, a nested `@j1[area]` x `@j1[temp]` sweep
+and `.pz` roots of a common-source stage (agreeing to about 1e-12 relative).
+
+## M10 JFET level 2 (#82)
+
+Four new C goldens of the Parker-Skellern model, each captured once with
+`cargo xtask golden capture --netlist <name>`; no existing golden was
+recaptured and no tolerance changed.
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_jfet2_dc` | `compare::NONLINEAR` | 231 points (nested `vds` x `vgs` sweep) |
+| `m10_jfet2_ac` | `compare::NONLINEAR` | 91 points (agreement about 1e-13 relative) |
+| `m10_jfet2_tran` | `compare::TRAN` | 501 instants, worst 0.043 of bound |
+| `m10_jfet2_temp` | `compare::NONLINEAR` | 12 points (`.dc temp -40 125 15`) |
+
+Deck design, measured before capture against the same C binary:
+
+- **Tight DC tolerances**, as for level 1 (`reltol=1e-7 vntol=1e-12
+  abstol=1e-15`), so C's own Newton stopping error stays inside 1 ppm.
+- **Transient options.** The NJF stage is driven through a 1 k gate
+  resistor, so `i(vin)` is the difference of two nearly equal node voltages
+  divided by 1 k. At default tolerances both engines' Newton stopping error
+  on `v(g)` (about 3e-4 relative, inside `v(g)`'s own bound) put `i(vin)` up
+  to 150 times its pointwise bound; `reltol=1e-6 vntol=1e-11 abstol=1e-15`
+  bring every vector below 0.5 of the bound (0.043 on the verified grid).
+  Pulse-driven variants were discarded: after each source breakpoint the two
+  drivers' first steps differ by about 0.5%, and the stiff ideal-source gate
+  current then exceeds the pointwise bound at its zero crossings for
+  integration (not device) reasons. `tmax = 0.25 ns` as for level 1.
+- **Exact Newton matrix.** The port's matrix adds the CDS companion and the
+  incremental-charge cross derivatives C leaves out; finite-difference tests
+  (`tests/jfet2.rs`) confirm it is the exact Jacobian, so the converged
+  points are C's equations' roots.
+
+The opt-in `tests/c_jfet2_reference.rs` adds live comparisons of saved
+`@j[...]` asks of both polarities (including `vtrap`/`vpave`, inverse mode
+and breakdown), a nested `@j1[area]` x `@j1[temp]` sweep and a `uic`
+transient (same step count as C, within `compare::TRAN`).
+
+## Model binning verification (#109)
+
+C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so
+binning has no rawfile goldens. It is verified at the selection level:
+
+- `src/devices/binning.rs` unit tests: `model_name_match` digit suffixes,
+  binnable levels, inclusive 1e-9 m edges, last-declared-wins ordering,
+  skipped partial bounds and non-binnable candidates, last-setter precedence,
+  the `nf`/`wnflag`/`scale` geometry rule and non-literal errors.
+- `tests/model_binning.rs`: the production parser, subcircuit expansion and
+  `RunConfig::circuit` path — the selected bin is read from its
+  `NotYetPorted` diagnostic, C failure cases are parse errors, subcircuit bin
+  sets shadow outer models, root models may not join a local set, and the
+  resolver API (`bin_candidates`, `declarations_for`, `select_bin`,
+  `with_bin_options`).
+- `tests/transistor_parser.rs`: binned `M` references parse (the former
+  "MOS model binning" parser gap is gone); `.N`-less and BJT forms do not.
+- Opt-in `tests/c_binning_reference.rs`: 21 decks (BSIM3 and BSIM4 bins, bin
+  edges and the 1 nm tolerance, reversed declaration order, `m`, missing `w`,
+  out-of-range, level-1 bins, mixed level-1/BSIM candidates, partial bounds,
+  `nch.01`, an exact model beside bins, local/root/narrow-local subcircuit
+  sets) run `op` + `show all : model` in C; the bin C binds (or its "could not
+  find a valid modelname") must equal the port's choice, and the sequence of C
+  outcomes is pinned so the comparison cannot pass vacuously.
+
+```sh
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs --test c_binning_reference --locked -- --ignored
+```
+
+Not verified: `.options scale`/`wnflag` and instance `nf`/`wnflag` through a
+deck (not accepted by the front end yet; covered only by unit tests), and any
+simulation through a binned card.
 
 ## Not yet verified
 

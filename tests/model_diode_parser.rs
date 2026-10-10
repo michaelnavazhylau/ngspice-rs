@@ -252,7 +252,7 @@ fn unsupported_model_shapes_preserve_specific_gaps() {
         ".model nm nmos version=3.3.0",
         ".model dm d(nchan)",
         ".model xm unknown foo=2",
-        ".model jf njf beta=1m",
+        ".model mf nmf beta=1m",
         ".model vd vdmos nchan",
         ".model cd numd",
     ] {

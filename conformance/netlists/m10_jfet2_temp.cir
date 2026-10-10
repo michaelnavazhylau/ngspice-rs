@@ -1,0 +1,19 @@
+JFET level 2 temperature scaling: TNOM, TEMP/DTEMP, IS(T), VBI(T), forward gate, PJF
+vd d 0 5
+vg g 0 -0.8
+vgf gf 0 0.45
+j1 d g 0 ja
+j2 d g 0 jb temp=60
+j3 d g 0 jc dtemp=-20
+j4 d gf 0 jd
+vdp dp 0 -4
+vgp gp 0 0.6
+j5 dp gp 0 je
+.model ja njf(level=2 vto=-2 beta=1m tnom=20 is=1e-14 vst=0.05)
+.model jb njf(level=2 vto=-2 beta=1m vbi=0.7 delta=0.3 xi=5)
+.model jc njf(level=2 vto=-1.5 beta=0.5m lambda=0.01 is=5e-15 n=1.3 tnom=35)
+.model jd njf(level=2 vto=-2 beta=1m is=1e-13 n=1.2 pb=0.75 rs=20)
+.model je pjf(level=2 vto=-1.6 beta=0.7m rs=50 p=2.4 q=2.2)
+.options reltol=1e-7 vntol=1e-12 abstol=1e-15
+.dc temp -40 125 15
+.end

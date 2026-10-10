@@ -44,7 +44,9 @@
 //!   bound the next step to `min(2 dt, limit)`. A trial whose bound is not
 //!   above `0.9 dt` is rejected and retried with the bound. The first step is
 //!   never checked, as in C.
-//! * **Breakpoints**: sources' corners and jumps are consumed lazily. A step is
+//! * **Breakpoints**: sources' corners and jumps are consumed lazily, merged
+//!   with breakpoints devices request when they accept a point (transmission
+//!   lines; [`crate::devices::delay`], `CKTsetBreak` from `DEVaccept`). A step is
 //!   cut to land exactly on the next breakpoint (or equalised in two halves
 //!   when the following step would be tiny); the step *ending* at a breakpoint
 //!   evaluates the forcing with the left limit, later steps with the right.
@@ -361,12 +363,14 @@ fn nearly_equal(a: Real, b: Real) -> bool {
     (a - b).abs() <= 100.0 * Real::EPSILON * a.abs().max(b.abs())
 }
 
-/// Lazily merged source breakpoints, bracketed by `0` and the stop time.
+/// Lazily merged source and device breakpoints, bracketed by `0` and the
+/// stop time.
 ///
 /// C keeps a sorted list `CKTbreaks`, always starting with the time-zero and
 /// ending with the final-time breakpoint, and merges entries closer than
 /// `CKTminBreak` (`cktsetbk.c`). Here only the next two entries are ever
-/// materialized.
+/// materialized; later explicit requests (the `uic` step, device
+/// breakpoints) wait in `extra` until the lazy source sequence reaches them.
 struct Breaks {
     source: Peekable<SystemBreakpoints>,
     queue: VecDeque<Real>,
@@ -375,9 +379,10 @@ struct Breaks {
     pulled: usize,
     limit: usize,
     finished: bool,
-    /// An extra breakpoint (`uic`: `CKTsetBreak(step)` in `dctran.c`), merged
-    /// into the source breakpoints in time order.
-    extra: Option<Real>,
+    /// Explicit breakpoints beyond the materialized queue, ascending (`uic`:
+    /// `CKTsetBreak(step)` in `dctran.c`; device requests from
+    /// [`Breaks::insert`]), merged into the source breakpoints in time order.
+    extra: VecDeque<Real>,
 }
 
 impl Breaks {
@@ -390,19 +395,19 @@ impl Breaks {
             pulled: 0,
             limit: settings.max_steps,
             finished: false,
-            extra,
+            extra: extra.into_iter().collect(),
         })
     }
 
     fn fill(&mut self, wanted: usize) -> SpiceResult<()> {
         while self.queue.len() < wanted && !self.finished {
-            let take_extra = match (self.extra, self.source.peek()) {
-                (Some(extra), Some(source)) => extra <= *source,
+            let take_extra = match (self.extra.front(), self.source.peek()) {
+                (Some(extra), Some(source)) => extra <= source,
                 (Some(_), None) => true,
                 (None, _) => false,
             };
             let time = if take_extra {
-                self.extra.take()
+                self.extra.pop_front()
             } else {
                 self.source.next()
             };
@@ -433,6 +438,42 @@ impl Breaks {
         self.fill(2)?;
         let first = self.queue.front().copied().unwrap_or(self.stop);
         Ok((first, self.queue.get(1).copied().unwrap_or(first)))
+    }
+
+    /// A device breakpoint requested at the accepted time `now` (C
+    /// `CKTsetBreak` called from `DEVaccept`, `cktsetbk.c`): ignored when not
+    /// later than `now + min_break` (C's XSPICE loop discards such entries
+    /// before the next step) or not before `stop - min_break` (like a source
+    /// breakpoint there); otherwise merged like C: an existing breakpoint at
+    /// most `min_break` later is replaced by the earlier request, a request
+    /// at most `min_break` after an existing one is dropped.
+    fn insert(&mut self, time: Real, now: Real) -> SpiceResult<()> {
+        if !time.is_finite() {
+            return Err(failure(format!(
+                "nonfinite device breakpoint at t = {now:e}"
+            )));
+        }
+        if time <= now + self.min_break || time >= self.stop - self.min_break {
+            return Ok(());
+        }
+        // Requests before the last materialized entry (or anywhere once the
+        // stop time is materialized) belong in the queue itself.
+        let materialized = self.finished || self.queue.back().is_some_and(|last| time < *last);
+        let list = if materialized {
+            &mut self.queue
+        } else {
+            &mut self.extra
+        };
+        let next = list.partition_point(|b| *b <= time);
+        if next > 0 && time - list[next - 1] <= self.min_break {
+            return Ok(());
+        }
+        if next < list.len() && list[next] - time <= self.min_break {
+            list[next] = time;
+            return Ok(());
+        }
+        list.insert(next, time);
+        Ok(())
     }
 
     /// Drops breakpoints the run has moved past (`t > breaks[0]` in C).
@@ -491,6 +532,21 @@ pub fn companion_transient(
 ) -> SpiceResult<(Plot, TransientStats)> {
     let settings = Settings::from_request(request)?;
     let bias = settings.bias(request)?;
+    if request.uic
+        && let Some(line) = circuit.devices().iter().find(|d| d.delay_line().is_some())
+    {
+        // traload.c starts the delayed waves from the instance
+        // `ic=`/`v1 i1 v2 i2` under MODEUIC, but the port's impulse check
+        // (initial::check_impulse_free) has no transmission-line
+        // formulation yet.
+        return Err(SpiceError::not_yet_ported(
+            format!(
+                ".tran uic with transmission line {} (initial waves from its ic=)",
+                line.name()
+            ),
+            "src/spicelib/devices/tra/traload.c (MODEINITTRAN | MODEUIC)",
+        ));
+    }
     // Unknown/ground nodes in .ic/.nodeset fail before anything is assembled.
     let hints = initial::resolve(circuit, request)?;
     let model_context = context.model_context();
@@ -634,8 +690,12 @@ impl Driver<'_> {
                         let mut next = delta;
                         let mut reject = false;
                         if !first {
-                            let bound =
-                                (2. * delta).min(self.truncation_limit(&coefficients, &state)?);
+                            let bound = (2. * delta).min(self.truncation_limit(
+                                &coefficients,
+                                &state,
+                                &x_new,
+                                t_new,
+                            )?);
                             if bound > 0.9 * delta {
                                 next = bound;
                                 if coefficients.order() == 1 && max_order > 1 {
@@ -645,7 +705,8 @@ impl Driver<'_> {
                                     // maxord (3..=6) allows.
                                     let probe =
                                         self.steps.trial(method, 2, delta, self.settings.xmu)?;
-                                    next = (2. * delta).min(self.truncation_limit(&probe, &state)?);
+                                    next = (2. * delta)
+                                        .min(self.truncation_limit(&probe, &state, &x_new, t_new)?);
                                     order = if next <= 1.05 * delta { 1 } else { 2 };
                                 }
                             } else {
@@ -683,12 +744,17 @@ impl Driver<'_> {
                             } else {
                                 Vec::new()
                             };
-                            self.circuit.accept_point(
+                            let acceptance = self.delay_acceptance(coefficients.dt(), false);
+                            let requested = self.circuit.accept_transient_point(
                                 &x_new,
-                                Some(t_new),
+                                t_new,
                                 &mut self.history,
                                 state,
+                                &acceptance,
                             )?;
+                            for time in requested {
+                                breaks.insert(time, t_new)?;
+                            }
                             self.steps.accept(&coefficients);
                             self.record_step(attempted, forced || t_new >= stop);
                             t = t_new;
@@ -845,8 +911,16 @@ impl Driver<'_> {
         // C copies CKTstate0 into CKTstate1..3; the derivative is zero. The
         // port fills every retained vector (ACCEPTED_DEPTH, sized for Gear
         // order 6); dctran.c's orders 1-2 never read beyond CKTstate3.
-        self.circuit
-            .accept_point(&x, Some(0.), &mut self.history, trial.clone())?;
+        // The t = 0 point also starts every transmission line's delay
+        // history (traload.c, MODEINITTRAN); it requests no breakpoints.
+        let acceptance = self.delay_acceptance(self.settings.max_step, true);
+        self.circuit.accept_transient_point(
+            &x,
+            0.,
+            &mut self.history,
+            trial.clone(),
+            &acceptance,
+        )?;
         for _ in 1..crate::devices::ACCEPTED_DEPTH {
             self.history.commit(trial.clone())?;
         }
@@ -992,13 +1066,36 @@ impl Driver<'_> {
         Ok(Trial::Converged { x, state })
     }
 
-    /// C `CKTtrunc`: the smallest step bound over every charge-storage element
-    /// and every discrete-state device ([`crate::devices::Device::timestep_limit`],
-    /// `swtrunc.c`), from the trial point and the accepted history.
+    /// The delay-line quantities of an accepted point or a converged trial
+    /// whose step is `dt`: C `CKTdeltaOld[0..3]` (`dt`, then the two latest
+    /// accepted steps; steps not taken yet read as the maximum step, as
+    /// `dctran.c` initializes `CKTdeltaOld`) and the `CKTminBreak` that
+    /// `TRAaccept` compares sample spacing with. The reference binary is an
+    /// XSPICE build, whose `dctran.c` sets `CKTminBreak = 10 CKTdelmin`; the
+    /// port's own breakpoint merging ([`Breaks`]) keeps the non-XSPICE
+    /// `5e-5 CKTmaxStep` it has always used, so source breakpoints are
+    /// unaffected. Recording samples down to `10 CKTdelmin` keeps the delay
+    /// history, and so the device breakpoints, identical to C's.
+    fn delay_acceptance(&self, dt: Real, start: bool) -> crate::devices::DelayAcceptance {
+        let accepted = self.steps.accepted();
+        let older = |age: usize| accepted.get(age).copied().unwrap_or(self.settings.max_step);
+        crate::devices::DelayAcceptance {
+            steps: [dt, older(0), older(1)],
+            min_break: 10. * self.settings.min_step(),
+            start,
+        }
+    }
+
+    /// C `CKTtrunc`: the smallest step bound over every charge-storage element,
+    /// every discrete-state device ([`crate::devices::Device::timestep_limit`],
+    /// `swtrunc.c`) and every delay line (`tratrunc.c`), from the converged
+    /// trial `solution` at `time` and the accepted history.
     fn truncation_limit(
         &self,
         coefficients: &Coefficients,
         trial: &TrialState,
+        solution: &Vector,
+        time: Real,
     ) -> SpiceResult<Real> {
         let tolerances = &self.settings.tolerances;
         let tolerances = TruncationTolerances {
@@ -1059,6 +1156,14 @@ impl Driver<'_> {
                 }
             }
         }
+        if let Some(bound) = self.circuit.delay_timestep_limit(
+            &self.history,
+            solution,
+            time,
+            &self.delay_acceptance(coefficients.dt(), false),
+        )? {
+            limit = limit.min(bound);
+        }
         Ok(limit)
     }
 }
@@ -1100,4 +1205,65 @@ fn push(plot: &mut Plot, time: Real, x: &Vector, observed: Vec<Complex>) -> Spic
     point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
     point.extend(observed);
     plot.push_point(point)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Breaks, Settings};
+    use crate::analysis::AnalysisRequest;
+    use crate::devices::LinearSystem;
+    use crate::primitives::AnalysisKind;
+
+    fn breaks(extra: Option<f64>) -> Breaks {
+        // tmax = 1: min_break = 5e-5.
+        let settings = Settings::from_request(&AnalysisRequest::with_arguments(
+            AnalysisKind::Transient,
+            ["0.1", "10", "0", "1"],
+        ))
+        .unwrap();
+        Breaks::new(&LinearSystem::new(1), &settings, extra).unwrap()
+    }
+
+    fn drain(breaks: &mut Breaks) -> Vec<f64> {
+        let mut seen = Vec::new();
+        loop {
+            let (first, _) = breaks.front_two().unwrap();
+            seen.push(first);
+            if first >= breaks.stop {
+                return seen;
+            }
+            breaks.discard_before(first + 1e-9);
+            if breaks.queue.front() == Some(&first) {
+                breaks.queue.pop_front();
+            }
+        }
+    }
+
+    #[test]
+    fn device_breakpoints_merge_like_cktsetbreak() {
+        let mut b = breaks(Some(0.1));
+        assert_eq!(b.front_two().unwrap(), (0., 0.1));
+        // Before the materialized queue end: inserted in order.
+        b.insert(0.05, 0.).unwrap();
+        // Within min_break before an existing entry: replaces it (earlier wins).
+        b.insert(0.1 - 2e-5, 0.).unwrap();
+        // Within min_break after an existing entry: dropped.
+        b.insert(0.05 + 2e-5, 0.).unwrap();
+        // Beyond the materialized queue: kept for later, in order.
+        b.insert(7., 0.).unwrap();
+        b.insert(3., 0.).unwrap();
+        // Not after now + min_break, or not before stop - min_break: ignored.
+        b.insert(1e-5, 0.).unwrap();
+        b.insert(10. - 1e-5, 0.).unwrap();
+        assert!(b.insert(f64::NAN, 0.).is_err());
+        assert_eq!(drain(&mut b), vec![0., 0.05, 0.1 - 2e-5, 3., 7., 10.]);
+    }
+
+    #[test]
+    fn the_uic_breakpoint_is_unchanged_without_device_requests() {
+        let mut b = breaks(Some(0.1));
+        assert_eq!(drain(&mut b), vec![0., 0.1, 10.]);
+        let mut b = breaks(None);
+        assert_eq!(drain(&mut b), vec![0., 10.]);
+    }
 }

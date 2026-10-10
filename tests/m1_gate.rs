@@ -262,6 +262,18 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     on_disk.retain(|name| !name.starts_with("m8_tf_"));
     // M9 scoped front-end behavior has its own C-backed integration gate.
     on_disk.retain(|name| !name.starts_with("m9_"));
+    // M10 MOS3 decks (#89) are gated by `xtask golden verify` and
+    // `tests/m10_mos3.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_mos3_"));
+    // M10 JFET level 1 decks (#82) are gated by `xtask golden verify` and
+    // `tests/jfet.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_jfet_"));
+    // M10 JFET level 2 decks (#82) are gated by `xtask golden verify` and
+    // `tests/jfet2.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_jfet2_"));
+    // M10 URC decks (#85) are gated by `xtask golden verify`,
+    // `tests/golden_rawfiles.rs` and `tests/urc_lines.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_urc_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `tests/behavioural_sources.rs`.
     on_disk.retain(|name| {
@@ -285,6 +297,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M8 sensitivity decks (#102) are gated by `xtask golden verify`,
     // `tests/sensitivity_analysis.rs` and the opt-in `tests/c_sens_reference.rs`.
     on_disk.retain(|name| !name.starts_with("sens_"));
+    // M10 transmission-line decks (#84) are gated by `xtask golden verify`,
+    // `tests/tline.rs` and the opt-in `tests/c_tline_reference.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_tline_"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

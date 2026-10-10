@@ -84,7 +84,10 @@ the run with an error; no partial plot is returned.
   step by eight and returns to order 1.
 * **Breakpoints.** Source corners and jumps are consumed lazily from
   `LinearSystem::breakpoints_in`, merged within `5e-5 maxstep` (`CKTminBreak`)
-  and bracketed by `0` and `tstop`. A step is cut to land exactly on the next
+  and bracketed by `0` and `tstop`; devices may add breakpoints when they
+  accept a point (transmission lines, see
+  [Device-driven breakpoints](#device-driven-breakpoints-and-delay-history-adr-84)).
+  A step is cut to land exactly on the next
   breakpoint (the step end is assigned the breakpoint time, not `t + dt`), or
   halved when the following step would otherwise be tiny. The step **ending** at a
   breakpoint evaluates the forcing with `Limit::Left`; later steps use
@@ -297,6 +300,72 @@ slope corner. Opt-in `c_source_functions.rs` compares 22 V/I sources (all forms
 and defaults) with C's node voltages at all of C's timepoints (1e-9 relative),
 their `.op` values, the `.four` THD and harmonics of a SIN-driven diode
 clipper, and the documented divergences on unmarked decks.
+
+## Device-driven breakpoints and delay history (ADR, #84)
+
+**Context.** Until M10 the only transient breakpoints were source corners
+(`SystemBreakpoints`), and every device history was a fixed set of state
+slots rotated by `StateHistory::commit`. The lossless transmission line
+(`tra/`) needs three more things from `dctran.c`: an accepted-waveform
+history of variable length (`TRAdelays`, appended by `TRAaccept`, pruned once
+older than `TD`), breakpoints requested by a device when it accepts a point
+(`CKTsetBreak` from `DEVaccept`, at `t_prev + TD` when a wave's slope
+changes), and a device step bound (`TRAtrunc`). LTRA (slice 8) needs the same
+history (unpruned) and breakpoint path.
+
+**Decision.**
+
+* *Ownership.* `devices::delay::DelayHistory` lives in `StateHistory`, keyed
+  by device ordinal, next to the fixed slots; `Circuit::state_history()`
+  creates one per device whose `Device::delay_line()` is `Some`. A load reads
+  it through `DeviceState::delay_history()` (`StateHistory::device_of`);
+  `Circuit::load` takes the history by shared reference, so no trial,
+  Newton iteration, rejected step or `observe_real` sample can change it.
+* *Mutation only on acceptance.* `Circuit::accept_transient_point` asks every
+  `DelayLine` for a `DelayUpdate` (start: `reset` with the `t = 0` samples;
+  later: `drop_front` + `append` + requested `breakpoints`), validates all of
+  them, runs the accept hooks, commits the fixed state and only then applies
+  the delay updates, so a failure anywhere leaves both histories untouched.
+  `accept_point` (DC sweeps, tests) never touches delay histories; a
+  transient load without a started history is an explicit error.
+* *Breakpoints.* The companion driver's lazy `Breaks` queue keeps an ordered
+  list of explicit requests (previously only the `uic` step) merged with the
+  source sequence in time order. A device request `time` at accepted time
+  `now` follows `cktsetbk.c`: an existing entry at most `CKTminBreak` later
+  is replaced by the earlier request, a request at most `CKTminBreak` after
+  an existing entry is dropped, requests not later than `now + CKTminBreak`
+  (C's XSPICE loop discards those before the next step) or not before
+  `stop - CKTminBreak` are ignored. The step that lands on a device
+  breakpoint is treated exactly like one landing on a source corner: forced
+  landing, `Limit::Left` forcing at the step end, order 1 and the `0.1`
+  restart step after it. Left/right source limits are unchanged; a device
+  breakpoint is not a source discontinuity.
+* *Step bound.* `Driver::truncation_limit` also takes the tightest
+  `DelayLine::timestep_limit` of the converged trial (solution and time),
+  with C's `CKTdeltaOld` indices. A bound at or below zero rejects the trial
+  and is then raised to `delmin`, as `dctran.c` does.
+* *Step history quantities.* Delay lines see `CKTdeltaOld[0..3]` (`[dt,
+  previous, the one before]`, not-yet-taken steps as `CKTmaxStep`) and the
+  sample-spacing threshold of `TRAaccept`. The reference binary is an XSPICE
+  build (`CKTminBreak = 10 CKTdelmin`), so samples are recorded down to
+  that spacing, while the driver's breakpoint merging keeps its existing
+  `5e-5 CKTmaxStep`; this keeps the line's history, and so its breakpoints,
+  identical to C's on every fixture.
+* *Other backends.* The diffsol BDF backend refuses any circuit with a delay
+  line (a delay is not an index-one `E x' + A x = b(t)`), before assembling
+  anything; `uic` with a delay line is `NotYetPorted` (the impulse check has
+  no line formulation).
+
+**Consequences.** Circuits without delay lines take exactly the old path:
+`Breaks` with no device requests yields the same sequence (unit-tested), and
+`accept_transient_point` reduces to `accept_point`; every existing golden and
+test is unchanged. LTRA can reuse the history (with `drop_front = 0`), the
+breakpoint queue and the step-bound hook; it needs only its own
+`DelayLine`. Device code is in [TRANSMISSION_LINES.md](TRANSMISSION_LINES.md).
+Tests: `tests/delay_lines.rs` (a probe device: exact landing on a requested
+breakpoint, history equal to the accepted points under forced rejections,
+atomic failure, backend refusals) and `companion.rs` unit tests of the
+merge rules.
 
 ## Gear `maxord` 3–6 (#98)
 

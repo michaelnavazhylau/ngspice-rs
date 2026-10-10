@@ -1,0 +1,15 @@
+JFET level 2 transient: gate-lag and self-heating filters (TAUG/TAUD), Statz charge, CDS, PJF stage
+vdd vdd 0 10
+vin in 0 sin(-0.8 0.7 5meg)
+rg in g 1k
+rl vdd d 1k
+j1 d g 0 jn
+.model jn njf(level=2 vto=-2 beta=2m lambda=0.02 rd=5 rs=5 cgs=4p cgd=1.5p cds=0.5p acgam=0.1 xc=0.1 delta=0.5 taud=100n lfgam=0.05 lfg1=0.01 hfgam=0.01 taug=200n vst=0.05 xi=20 z=0.5)
+vdd2 dd2 0 -6
+rl2 dd2 d2 3k
+vin2 g2 0 sin(0 0.4 4meg)
+j2 d2 g2 0 jp
+.model jp pjf(level=2 vto=-1.8 beta=1m cgs=3p cgd=3p pb=0.9 fc=0.3 taug=50n lfgam=0.03)
+.options reltol=1e-6 vntol=1e-11 abstol=1e-15
+.tran 2n 1u 0 0.25n
+.end

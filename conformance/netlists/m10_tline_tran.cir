@@ -1,0 +1,17 @@
+Lossless transmission lines, matched and mismatched transient
+* One 1 V trapezoid (1 ns flat, 0.5 ns edges, 4.5 ns top) drives two lines.
+* t1 is matched at both ends (Z0 = Rs = RL = 50): b is the source delayed
+* by td = 2 ns at half amplitude, with no reflection. t2 has a 25 ohm source
+* (reflection -1/3) and a 200 ohm load (+0.6): d steps to 0.8 V after 1 ns
+* and rings by -0.2 per 2 ns round trip. rel=1e-3 abs=1e3 make each line set
+* a breakpoint where a wave changes slope (traacct.c), so both simulators
+* land on every echo b + k*td of the source corners b (k*1 ns for t2).
+v1 in 0 pwl(0 0 1n 0 1.5n 1 6n 1 6.5n 0)
+rs1 in a 50
+t1 a 0 b 0 z0=50 td=2n rel=1e-3 abs=1e3
+rl1 b 0 50
+rs2 in c 25
+t2 c 0 d 0 z0=50 td=1n rel=1e-3 abs=1e3
+rl2 d 0 200
+.tran 0.05n 12n
+.end

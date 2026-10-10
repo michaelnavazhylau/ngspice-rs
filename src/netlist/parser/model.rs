@@ -1,7 +1,8 @@
 //! Bounded `.model` grammar (`inpdomod.c`, `inpgmod.c`, `inpfindl.c`).
 //!
 //! Retains scalar assignments and bounded bare type flags for D/BJT/MOS/R/C/L
-//! and the SW/CSW switch models (`sw.c`/`csw.c` `SWmPTable`/`CSWmPTable`).
+//! and the SW/CSW switch models (`sw.c`/`csw.c` `SWmPTable`/`CSWmPTable`),
+//! plus the URC line model (`urc.c` `URCmPTable`, whose `urc` flag is a no-op).
 //! The base token remains distinct from ordered tail flag setters.
 //! Device parameter validity, default levels, selector rounding, model lookup
 //! and availability are elaboration concerns, not claims made by this grammar.
@@ -61,11 +62,13 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
     let base = input.input.first().expect("peek succeeded");
     if !matches!(
         base.text.to_ascii_lowercase().as_str(),
-        "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw"
+        "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw" | "urc"
+            // JFET (`jfet/jfet.c`; level 2 is `jfet2/`).
+            | "njf" | "pjf"
     ) {
         return Err(gap(
             input,
-            "model family outside D/BJT/MOS/R/C/L/SW/CSW scalar syntax",
+            "model family outside D/BJT/MOS/JFET/R/C/L/SW/CSW/URC scalar syntax",
         ));
     }
     any.parse_next(input)
@@ -105,6 +108,9 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             "pmos",
             "sw",
             "csw",
+            "njf",
+            "pjf",
+            "urc",
             "sens_area",
             "sens_l",
             "sens_w",

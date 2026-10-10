@@ -408,6 +408,29 @@ pub trait Device: fmt::Debug {
     fn observation_source_multiplier(&self) -> Real {
         1.
     }
+    /// Bias-dependent instance ask (`*ask.c` quantities C reads from
+    /// `CKTstate0`, e.g. a FET's `gm`) at the converged solution, whose node
+    /// voltages `voltage` returns; `transient` is set for transient points.
+    /// Unavailable keywords return `None` (the default); callers report an
+    /// explicit error.
+    /// # Errors
+    /// Invalid contextual temperature, bias physics, or a quantity whose C
+    /// value includes state this hook cannot reproduce.
+    fn observation_operating(
+        &self,
+        _keyword: &str,
+        _context: &crate::devices::ModelContext,
+        _voltage: &dyn Fn(NodeId) -> Real,
+        _transient: bool,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(None)
+    }
+    /// Factor applied to this device's observed terminal currents: `-1` for
+    /// devices whose C ask reports polarity-normalized currents for the
+    /// p-type variant (`jfetask.c`), `1` (the default) otherwise.
+    fn observation_current_sign(&self) -> Real {
+        1.
+    }
 
     /// The instance name, e.g. `r1`.
     fn name(&self) -> &str;
@@ -494,6 +517,28 @@ pub trait Device: fmt::Debug {
     /// point at every frequency, as `acan.c` does when `CKTvarHertz` is set.
     fn depends_on_frequency(&self) -> bool {
         false
+    }
+
+    /// True when the device's small-signal (AC) stamp itself depends on the
+    /// analysis frequency in a way the affine `A + j omega E` pencil cannot
+    /// express, e.g. a transmission line's `exp(-j omega TD)` (`traacld.c`).
+    /// Small-signal drivers then reassemble the system at every frequency
+    /// with [`crate::devices::ModelContext::frequency`] set, without
+    /// re-solving the operating point (unlike [`Self::depends_on_frequency`]).
+    /// `false` by default.
+    fn small_signal_depends_on_frequency(&self) -> bool {
+        false
+    }
+
+    /// The device's accepted-waveform delay history behaviour (transmission
+    /// lines), or `None` (the default). See [`crate::devices::delay`]: such a
+    /// device reads its history while stamping
+    /// ([`crate::devices::DeviceState::delay_history`]), and the companion
+    /// transient driver records accepted samples, device breakpoints and step
+    /// bounds through it. Backends that cannot integrate a delay (diffsol
+    /// BDF) must refuse circuits containing one.
+    fn delay_line(&self) -> Option<&dyn crate::devices::delay::DelayLine> {
+        None
     }
 
     /// True when the device holds a discrete state (a switch position) that
