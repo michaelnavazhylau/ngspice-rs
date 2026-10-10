@@ -44,6 +44,7 @@ pub mod distortion;
 mod factory;
 pub mod functions;
 mod initial;
+pub mod jfet;
 pub mod limiting;
 pub mod linear;
 pub mod models;

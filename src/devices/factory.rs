@@ -27,6 +27,7 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
     ('x', "expanded before device elaboration"),
+    ('j', "JFET level 1 (jfetload.c, Sydney B tail)"),
 ];
 
 pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Box<dyn Device>> {
@@ -73,6 +74,9 @@ pub(crate) fn instantiate_with_models(
             crate::devices::models::ModelFamily::Nmos
             | crate::devices::models::ModelFamily::Pmos => {
                 return crate::devices::mos1::Mos1::instantiate(instance, nodes, &model, context);
+            }
+            crate::devices::models::ModelFamily::Njf | crate::devices::models::ModelFamily::Pjf => {
+                return crate::devices::jfet::Jfet::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Switch
             | crate::devices::models::ModelFamily::CurrentSwitch => {
