@@ -1,0 +1,30 @@
+Lossy transmission lines (ltra) in a transient: LC, RLC and RG cases
+* One 1 V trapezoid (1 ns flat, 0.5 ns edges, 4.5 ns top), then a -0.5 V
+* step at 12 ns, drives three lines through their source resistors.
+* o1: LC line, Z0 = 50, TD = 2 ns (L = 250 nH/m, C = 100 pF/m, len 0.4 m),
+*     25 ohm source and 200 ohm load: the far end steps to 0.8 * 4/3 * 0.5
+*     after 2 ns and rings by -0.2 per 4 ns round trip.
+* o2: RLC line, R = 5 ohm/m, len 2 m (TD = 10 ns, attenuation exp(-0.1)),
+*     matched source, 120 ohm load; the Bessel-function convolutions add the
+*     dispersive tail. mixedinterp falls back to linear interpolation where
+*     the quadratic leaves the samples' range.
+* o3: RG line (R = 10 ohm/m, G = 1 mS/m, len 2 m): C loads its exact DC
+*     two-port at every time point.
+* Every LC/RLC step is bounded by its TD (steplimit, ltratrun.c); default
+* rel/abs = 1 set breakpoints only where an attenuated wave reverses slope.
+v1 in 0 pwl(0 0 1n 0 1.5n 1 6n 1 6.5n 0 12n 0 12.2n -0.5 30n -0.5)
+rs1 in a 25
+o1 a 0 b 0 lcline
+rl1 b 0 200
+rs2 in c 50
+o2 c 0 d 0 rlcline
+rl2 d 0 120
+rs3 in e 50
+o3 e 0 f 0 rgline
+rl3 f 0 100
+cl3 f 0 5p
+.model lcline ltra l=250n c=100p len=0.4
+.model rlcline ltra r=5 l=250n c=100p len=2 mixedinterp
+.model rgline ltra r=10 g=1m len=2
+.tran 0.05n 40n
+.end

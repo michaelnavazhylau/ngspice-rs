@@ -813,6 +813,23 @@ const SUPPORTED: &[Supported] = &[
     },
     tran("m10_urc_tran"),
     tran("m10_urc_diode_tran"),
+    // Lossy lines (#85, LTRA): the port follows dctran.c, ltraacct.c and
+    // ltratrun.c, so both simulators take the same timepoints and the
+    // default TRAN bound holds with margin (worst 0.024 of it, from the RLC
+    // line where ltramisc.c's coefficients branch on exact time equalities
+    // at delayed source corners). No diffsol variants: the BDF backend
+    // refuses delay lines.
+    // The AC deck carries the exact complex two-ports.
+    tran("m10_ltra_tran"),
+    tran("m10_ltra_rc_tran"),
+    Supported {
+        name: "m10_ltra_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+    },
 ];
 
 /// Pole-zero registry entry: `compare::POLE_ZERO`.

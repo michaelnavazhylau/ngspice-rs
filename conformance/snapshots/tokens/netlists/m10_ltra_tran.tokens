@@ -1,0 +1,163 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_ltra_tran.cir
+title: "Lossy transmission lines (ltra) in a transient: LC, RLC and RG cases" @netlists/m10_ltra_tran.cir:1:1
+card 1 @netlists/m10_ltra_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "v1 in 0 pwl(0 0 1n 0 1.5n 1 6n 1 6.5n 0 12n 0 12.2n -0.5 30n -0.5)"
+  kind: device(v)
+  token 1 15:1 word "v1"
+  token 2 15:4 word "in"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 word "pwl"
+  token 5 15:12 lparen "("
+  token 6 15:13 number "0" value=0e0
+  token 7 15:15 number "0" value=0e0
+  token 8 15:17 number "1n" value=1e-9
+  token 9 15:20 number "0" value=0e0
+  token 10 15:22 number "1.5n" value=1.5000000000000002e-9
+  token 11 15:27 number "1" value=1e0
+  token 12 15:29 number "6n" value=6.000000000000001e-9
+  token 13 15:32 number "1" value=1e0
+  token 14 15:34 number "6.5n" value=6.5e-9
+  token 15 15:39 number "0" value=0e0
+  token 16 15:41 number "12n" value=1.2000000000000002e-8
+  token 17 15:45 number "0" value=0e0
+  token 18 15:47 number "12.2n" value=1.22e-8
+  token 19 15:53 number "-0.5" value=-5e-1
+  token 20 15:58 number "30n" value=3.0000000000000004e-8
+  token 21 15:62 number "-0.5" value=-5e-1
+  token 22 15:66 rparen ")"
+card 2 @netlists/m10_ltra_tran.cir:16:1 lines=16-16 continuations=0
+  raw: "rs1 in a 25"
+  kind: device(r)
+  token 1 16:1 word "rs1"
+  token 2 16:5 word "in"
+  token 3 16:8 word "a"
+  token 4 16:10 number "25" value=2.5e1
+card 3 @netlists/m10_ltra_tran.cir:17:1 lines=17-17 continuations=0
+  raw: "o1 a 0 b 0 lcline"
+  kind: device(o)
+  token 1 17:1 word "o1"
+  token 2 17:4 word "a"
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 word "b"
+  token 5 17:10 number "0" value=0e0
+  token 6 17:12 word "lcline"
+card 4 @netlists/m10_ltra_tran.cir:18:1 lines=18-18 continuations=0
+  raw: "rl1 b 0 200"
+  kind: device(r)
+  token 1 18:1 word "rl1"
+  token 2 18:5 word "b"
+  token 3 18:7 number "0" value=0e0
+  token 4 18:9 number "200" value=2e2
+card 5 @netlists/m10_ltra_tran.cir:19:1 lines=19-19 continuations=0
+  raw: "rs2 in c 50"
+  kind: device(r)
+  token 1 19:1 word "rs2"
+  token 2 19:5 word "in"
+  token 3 19:8 word "c"
+  token 4 19:10 number "50" value=5e1
+card 6 @netlists/m10_ltra_tran.cir:20:1 lines=20-20 continuations=0
+  raw: "o2 c 0 d 0 rlcline"
+  kind: device(o)
+  token 1 20:1 word "o2"
+  token 2 20:4 word "c"
+  token 3 20:6 number "0" value=0e0
+  token 4 20:8 word "d"
+  token 5 20:10 number "0" value=0e0
+  token 6 20:12 word "rlcline"
+card 7 @netlists/m10_ltra_tran.cir:21:1 lines=21-21 continuations=0
+  raw: "rl2 d 0 120"
+  kind: device(r)
+  token 1 21:1 word "rl2"
+  token 2 21:5 word "d"
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 number "120" value=1.2e2
+card 8 @netlists/m10_ltra_tran.cir:22:1 lines=22-22 continuations=0
+  raw: "rs3 in e 50"
+  kind: device(r)
+  token 1 22:1 word "rs3"
+  token 2 22:5 word "in"
+  token 3 22:8 word "e"
+  token 4 22:10 number "50" value=5e1
+card 9 @netlists/m10_ltra_tran.cir:23:1 lines=23-23 continuations=0
+  raw: "o3 e 0 f 0 rgline"
+  kind: device(o)
+  token 1 23:1 word "o3"
+  token 2 23:4 word "e"
+  token 3 23:6 number "0" value=0e0
+  token 4 23:8 word "f"
+  token 5 23:10 number "0" value=0e0
+  token 6 23:12 word "rgline"
+card 10 @netlists/m10_ltra_tran.cir:24:1 lines=24-24 continuations=0
+  raw: "rl3 f 0 100"
+  kind: device(r)
+  token 1 24:1 word "rl3"
+  token 2 24:5 word "f"
+  token 3 24:7 number "0" value=0e0
+  token 4 24:9 number "100" value=1e2
+card 11 @netlists/m10_ltra_tran.cir:25:1 lines=25-25 continuations=0
+  raw: "cl3 f 0 5p"
+  kind: device(c)
+  token 1 25:1 word "cl3"
+  token 2 25:5 word "f"
+  token 3 25:7 number "0" value=0e0
+  token 4 25:9 number "5p" value=5e-12
+card 12 @netlists/m10_ltra_tran.cir:26:1 lines=26-26 continuations=0
+  raw: ".model lcline ltra l=250n c=100p len=0.4"
+  kind: dot(.model)
+  token 1 26:1 word ".model"
+  token 2 26:8 word "lcline"
+  token 3 26:15 word "ltra"
+  token 4 26:20 word "l"
+  token 5 26:21 equals "="
+  token 6 26:22 number "250n" value=2.5000000000000004e-7
+  token 7 26:27 word "c"
+  token 8 26:28 equals "="
+  token 9 26:29 number "100p" value=1e-10
+  token 10 26:34 word "len"
+  token 11 26:37 equals "="
+  token 12 26:38 number "0.4" value=4e-1
+card 13 @netlists/m10_ltra_tran.cir:27:1 lines=27-27 continuations=0
+  raw: ".model rlcline ltra r=5 l=250n c=100p len=2 mixedinterp"
+  kind: dot(.model)
+  token 1 27:1 word ".model"
+  token 2 27:8 word "rlcline"
+  token 3 27:16 word "ltra"
+  token 4 27:21 word "r"
+  token 5 27:22 equals "="
+  token 6 27:23 number "5" value=5e0
+  token 7 27:25 word "l"
+  token 8 27:26 equals "="
+  token 9 27:27 number "250n" value=2.5000000000000004e-7
+  token 10 27:32 word "c"
+  token 11 27:33 equals "="
+  token 12 27:34 number "100p" value=1e-10
+  token 13 27:39 word "len"
+  token 14 27:42 equals "="
+  token 15 27:43 number "2" value=2e0
+  token 16 27:45 word "mixedinterp"
+card 14 @netlists/m10_ltra_tran.cir:28:1 lines=28-28 continuations=0
+  raw: ".model rgline ltra r=10 g=1m len=2"
+  kind: dot(.model)
+  token 1 28:1 word ".model"
+  token 2 28:8 word "rgline"
+  token 3 28:15 word "ltra"
+  token 4 28:20 word "r"
+  token 5 28:21 equals "="
+  token 6 28:22 number "10" value=1e1
+  token 7 28:25 word "g"
+  token 8 28:26 equals "="
+  token 9 28:27 number "1m" value=1e-3
+  token 10 28:30 word "len"
+  token 11 28:33 equals "="
+  token 12 28:34 number "2" value=2e0
+card 15 @netlists/m10_ltra_tran.cir:29:1 lines=29-29 continuations=0
+  raw: ".tran 0.05n 40n"
+  kind: dot(.tran)
+  token 1 29:1 word ".tran"
+  token 2 29:7 number "0.05n" value=5.000000000000001e-11
+  token 3 29:13 number "40n" value=4e-8
+card 16 @netlists/m10_ltra_tran.cir:30:1 lines=30-30 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 30:1 word ".end"

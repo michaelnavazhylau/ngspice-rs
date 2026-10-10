@@ -1,0 +1,111 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_ltra_rc_tran.cir
+title: "Lossy transmission lines (ltra): distributed RC diffusion" @netlists/m10_ltra_rc_tran.cir:1:1
+card 1 @netlists/m10_ltra_rc_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "v1 in 0 pulse(0 1 0.5u 20n 20n 3u 8u)"
+  kind: device(v)
+  token 1 9:1 word "v1"
+  token 2 9:4 word "in"
+  token 3 9:7 number "0" value=0e0
+  token 4 9:9 word "pulse"
+  token 5 9:14 lparen "("
+  token 6 9:15 number "0" value=0e0
+  token 7 9:17 number "1" value=1e0
+  token 8 9:19 number "0.5u" value=5e-7
+  token 9 9:24 number "20n" value=2e-8
+  token 10 9:28 number "20n" value=2e-8
+  token 11 9:32 number "3u" value=3e-6
+  token 12 9:35 number "8u" value=8e-6
+  token 13 9:37 rparen ")"
+card 2 @netlists/m10_ltra_rc_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "o1 in 0 far 0 rcline"
+  kind: device(o)
+  token 1 10:1 word "o1"
+  token 2 10:4 word "in"
+  token 3 10:7 number "0" value=0e0
+  token 4 10:9 word "far"
+  token 5 10:13 number "0" value=0e0
+  token 6 10:15 word "rcline"
+card 3 @netlists/m10_ltra_rc_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "x1 in out rcsub"
+  kind: device(x)
+  token 1 11:1 word "x1"
+  token 2 11:4 word "in"
+  token 3 11:7 word "out"
+  token 4 11:11 word "rcsub"
+card 4 @netlists/m10_ltra_rc_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "rl out 0 10k"
+  kind: device(r)
+  token 1 12:1 word "rl"
+  token 2 12:4 word "out"
+  token 3 12:8 number "0" value=0e0
+  token 4 12:10 number "10k" value=1e4
+card 5 @netlists/m10_ltra_rc_tran.cir:13:1 lines=13-13 continuations=0
+  raw: ".subckt rcsub p q"
+  kind: dot(.subckt)
+  token 1 13:1 word ".subckt"
+  token 2 13:9 word "rcsub"
+  token 3 13:15 word "p"
+  token 4 13:17 word "q"
+card 6 @netlists/m10_ltra_rc_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "rs p m 2k"
+  kind: device(r)
+  token 1 14:1 word "rs"
+  token 2 14:4 word "p"
+  token 3 14:6 word "m"
+  token 4 14:8 number "2k" value=2e3
+card 7 @netlists/m10_ltra_rc_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "o1 m 0 q 0 rcline2"
+  kind: device(o)
+  token 1 15:1 word "o1"
+  token 2 15:4 word "m"
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 word "q"
+  token 5 15:10 number "0" value=0e0
+  token 6 15:12 word "rcline2"
+card 8 @netlists/m10_ltra_rc_tran.cir:16:1 lines=16-16 continuations=0
+  raw: ".ends"
+  kind: dot(.ends)
+  token 1 16:1 word ".ends"
+card 9 @netlists/m10_ltra_rc_tran.cir:17:1 lines=17-17 continuations=0
+  raw: ".model rcline ltra r=1k c=1n len=1"
+  kind: dot(.model)
+  token 1 17:1 word ".model"
+  token 2 17:8 word "rcline"
+  token 3 17:15 word "ltra"
+  token 4 17:20 word "r"
+  token 5 17:21 equals "="
+  token 6 17:22 number "1k" value=1e3
+  token 7 17:25 word "c"
+  token 8 17:26 equals "="
+  token 9 17:27 number "1n" value=1e-9
+  token 10 17:30 word "len"
+  token 11 17:33 equals "="
+  token 12 17:34 number "1" value=1e0
+card 10 @netlists/m10_ltra_rc_tran.cir:18:1 lines=18-18 continuations=0
+  raw: ".model rcline2 ltra r=1k c=1n len=1 lininterp nosteplimit"
+  kind: dot(.model)
+  token 1 18:1 word ".model"
+  token 2 18:8 word "rcline2"
+  token 3 18:16 word "ltra"
+  token 4 18:21 word "r"
+  token 5 18:22 equals "="
+  token 6 18:23 number "1k" value=1e3
+  token 7 18:26 word "c"
+  token 8 18:27 equals "="
+  token 9 18:28 number "1n" value=1e-9
+  token 10 18:31 word "len"
+  token 11 18:34 equals "="
+  token 12 18:35 number "1" value=1e0
+  token 13 18:37 word "lininterp"
+  token 14 18:47 word "nosteplimit"
+card 11 @netlists/m10_ltra_rc_tran.cir:19:1 lines=19-19 continuations=0
+  raw: ".tran 20n 8u"
+  kind: dot(.tran)
+  token 1 19:1 word ".tran"
+  token 2 19:7 number "20n" value=2e-8
+  token 3 19:11 number "8u" value=8e-6
+card 12 @netlists/m10_ltra_rc_tran.cir:20:1 lines=20-20 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 20:1 word ".end"

@@ -1,0 +1,20 @@
+Lossy transmission lines (ltra): distributed RC diffusion
+* o1: R = 1 kohm/m, C = 1 nF/m, len 1 m (R C len^2 = 1 us), driven directly
+*     by a 1 V pulse and open at the far end: the far end follows the
+*     diffusion series 1 - (4/pi) sum (-1)^k/(2k+1) exp(-(2k+1)^2 pi^2 t/4us)
+*     while the pulse is high, then discharges back through the source.
+* o2: the same line inside a subcircuit, driven through 2 kohm into a
+*     10 kohm load with linear interpolation (lininterp, which C's RC load
+*     does not use) and nosteplimit (no effect on RC lines).
+v1 in 0 pulse(0 1 0.5u 20n 20n 3u 8u)
+o1 in 0 far 0 rcline
+x1 in out rcsub
+rl out 0 10k
+.subckt rcsub p q
+rs p m 2k
+o1 m 0 q 0 rcline2
+.ends
+.model rcline ltra r=1k c=1n len=1
+.model rcline2 ltra r=1k c=1n len=1 lininterp nosteplimit
+.tran 20n 8u
+.end

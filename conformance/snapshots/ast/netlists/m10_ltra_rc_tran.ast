@@ -1,0 +1,87 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_ltra_rc_tran.cir
+title: "Lossy transmission lines (ltra): distributed RC diffusion" @netlists/m10_ltra_rc_tran.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m10_ltra_rc_tran.cir:9:1 "v1 in 0 pulse(0 1 0.5u 20n 20n 3u 8u)"
+    [1] device[1] @netlists/m10_ltra_rc_tran.cir:10:1 "o1 in 0 far 0 rcline"
+    [2] device[2] @netlists/m10_ltra_rc_tran.cir:11:1 "x1 in out rcsub"
+    [3] device[3] @netlists/m10_ltra_rc_tran.cir:12:1 "rl out 0 10k"
+    [4] subcircuit[0] @netlists/m10_ltra_rc_tran.cir:13:1 ".subckt rcsub p q"
+    [5] model[0] @netlists/m10_ltra_rc_tran.cir:17:1 ".model rcline ltra r=1k c=1n len=1"
+    [6] model[1] @netlists/m10_ltra_rc_tran.cir:18:1 ".model rcline2 ltra r=1k c=1n len=1 lininterp nosteplimit"
+    [7] analysis[0] @netlists/m10_ltra_rc_tran.cir:19:1 ".tran 20n 8u"
+    [8] end @netlists/m10_ltra_rc_tran.cir:20:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/m10_ltra_rc_tran.cir:9:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1 0.5u 20n 20n 3u 8u)" @netlists/m10_ltra_rc_tran.cir:9:9
+          pulse
+            initial: "0"@netlists/m10_ltra_rc_tran.cir:9:15
+            pulsed: "1"@netlists/m10_ltra_rc_tran.cir:9:17
+            delay: "0.5u"@netlists/m10_ltra_rc_tran.cir:9:19
+            rise: "20n"@netlists/m10_ltra_rc_tran.cir:9:24
+            fall: "20n"@netlists/m10_ltra_rc_tran.cir:9:28
+            width: "3u"@netlists/m10_ltra_rc_tran.cir:9:32
+            period: "8u"@netlists/m10_ltra_rc_tran.cir:9:35
+    device [1] name="o1" designator=o @netlists/m10_ltra_rc_tran.cir:10:1
+      nodes: "in" "0" "far" "0"
+      model: "rcline"
+      parameters (0):
+    device [2] name="x1" designator=x @netlists/m10_ltra_rc_tran.cir:11:1
+      nodes: "in" "out"
+      model: "rcsub"
+      parameters (0):
+    device [3] name="rl" designator=r @netlists/m10_ltra_rc_tran.cir:12:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="10k" @netlists/m10_ltra_rc_tran.cir:12:10
+  models (2):
+    model [0] name="rcline" base="ltra" level=none @netlists/m10_ltra_rc_tran.cir:17:1
+      parameters (3):
+        [0] name="r" kind=scalar value="1k" @netlists/m10_ltra_rc_tran.cir:17:20
+        [1] name="c" kind=scalar value="1n" @netlists/m10_ltra_rc_tran.cir:17:25
+        [2] name="len" kind=scalar value="1" @netlists/m10_ltra_rc_tran.cir:17:30
+    model [1] name="rcline2" base="ltra" level=none @netlists/m10_ltra_rc_tran.cir:18:1
+      parameters (5):
+        [0] name="r" kind=scalar value="1k" @netlists/m10_ltra_rc_tran.cir:18:21
+        [1] name="c" kind=scalar value="1n" @netlists/m10_ltra_rc_tran.cir:18:26
+        [2] name="len" kind=scalar value="1" @netlists/m10_ltra_rc_tran.cir:18:31
+        [3] name="lininterp" kind=flag value="" @netlists/m10_ltra_rc_tran.cir:18:37
+        [4] name="nosteplimit" kind=flag value="" @netlists/m10_ltra_rc_tran.cir:18:47
+  subcircuits (1):
+    subcircuit [0] name="rcsub" @netlists/m10_ltra_rc_tran.cir:13:1 end=@netlists/m10_ltra_rc_tran.cir:16:1
+      terminals: "p" "q"
+      parameters (0):
+      scope body
+        cards (3):
+          [0] device[0] @netlists/m10_ltra_rc_tran.cir:14:1 "rs p m 2k"
+          [1] device[1] @netlists/m10_ltra_rc_tran.cir:15:1 "o1 m 0 q 0 rcline2"
+          [2] ends @netlists/m10_ltra_rc_tran.cir:16:1 ".ends"
+        devices (2):
+          device [0] name="rs" designator=r @netlists/m10_ltra_rc_tran.cir:14:1
+            nodes: "p" "m"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="2k" @netlists/m10_ltra_rc_tran.cir:14:8
+          device [1] name="o1" designator=o @netlists/m10_ltra_rc_tran.cir:15:1
+            nodes: "m" "0" "q" "0"
+            model: "rcline2"
+            parameters (0):
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_ltra_rc_tran.cir:19:1
+      arguments: "20n" "8u"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
