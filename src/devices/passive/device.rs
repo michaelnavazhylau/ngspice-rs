@@ -9,7 +9,7 @@ use crate::devices::{
 use crate::netlist::ast::DeviceInstance;
 use crate::primitives::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ModelPassive {
     name: String,
     /// The model card's name, for C's `.noise` visiting order.
@@ -44,6 +44,35 @@ impl ModelPassive {
     }
 }
 impl Device for ModelPassive {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        let primary = match self.parameters.family() {
+            ModelFamily::Resistor => "resistance",
+            ModelFamily::Capacitor => "capacitance",
+            _ => "inductance",
+        };
+        let keyword = match keyword.to_ascii_lowercase().as_str() {
+            "r" => "resistance".to_owned(),
+            "c" | "cap" => "capacitance".to_owned(),
+            other => other.to_owned(),
+        };
+        super::instance_schema(self.parameters.family(), primary)
+            .iter()
+            .find(|d| d.name == keyword)
+            .map(|d| d.name)
+    }
+
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        Ok(Box::new(Self {
+            parameters: self.parameters.swept(parameter, value, context)?,
+            ..self.clone()
+        }))
+    }
+
     /// Linear in `.disto`: C gives this device no distortion routine
     /// (`DEVdisto = NULL`, `res`/`cap`/`ind` `*init.c`), so it enters only through its
     /// small-signal matrix.
@@ -255,4 +284,23 @@ pub(crate) fn instantiate(
     device.scalar(context)?;
     *nodes = staged;
     Ok(Box::new(device))
+}
+
+/// Per-point literal R/C/L replacement, retaining temperature and multiplier setters.
+pub(crate) fn swept_literal(
+    name: &str,
+    terminals: [NodeId; 2],
+    family: ModelFamily,
+    value: Real,
+    ic: Option<Real>,
+    change: (&str, Real),
+    context: &ModelContext,
+) -> SpiceResult<Box<dyn Device>> {
+    Ok(Box::new(ModelPassive {
+        name: name.to_owned(),
+        model: String::new(),
+        terminals,
+        parameters: PassiveParameters::literal(family, value, ic)?
+            .swept(change.0, change.1, context)?,
+    }))
 }

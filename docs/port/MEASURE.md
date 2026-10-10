@@ -101,7 +101,7 @@ card      := .measure | .meas
 | Input | Result |
 | --- | --- |
 | missing/invalid analysis word (`.measure`, `.measure 2 …`) | `SpiceError::Parse` (exit 2), positioned |
-| a measurement over an S-parameter plot (`sp`, `sparam`; the `.sp` driver exists, its measurement axis is not ported) | `SpiceError::NotYetPorted` (exit 3) |
+| a measurement over an S-parameter plot (`sp`, `sparam`) | frequency axis; named vectors and `mag`/`ph`/`real`/`imag`/`db` components |
 | an analysis no measurement can be taken on (`op`, `noise`, `disto`, `pz`, `sens`, `tf`, `four`) | `SpiceError::Unsupported` (exit 2) |
 | a C operation the port does not implement (`WHEN`, `MIN_AT`, `MAX_AT`, `PP`, `DERIV[ATIVE]`, `ERR*`, `PHASE_MARGIN`, `GAIN_MARGIN`) | `SpiceError::NotYetPorted` (exit 3) |
 | an unknown operation word | `SpiceError::Parse` (exit 2) |
@@ -373,3 +373,9 @@ the `Date:` header).
 * **`TD=`, `WHEN`, `MIN_AT`/`MAX_AT`, `PP`, `DERIV`, `ERR*` and the margin
   measurements are not ported** and are rejected with `NotYetPorted` naming
   `src/frontend/com_measure2.c`, never silently ignored.
+
+M8 SP measurements use `frequency`, including C's `vm(S_2_1)`/`vr(S_2_1)`
+vector aliases. The port additionally accepts explicit named-vector components
+such as `mag(S_2_1)`/`real(S_2_1)` directly; C's `.meas` parser requires the
+`vm`/`vr` aliases instead of those expression spellings. `c_measure_reference`
+compares the aliases against C's printed measurements.

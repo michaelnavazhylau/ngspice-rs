@@ -171,3 +171,13 @@ fn a_dc_sweep_measures_values_and_integrals_like_c() {
          .meas dc vint integ v(out)",
     );
 }
+
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn sp_measurements_match_c() {
+    compare(
+        "sp",
+        AnalysisKind::SParameter,
+        "v1 a 0 dc 0 portnum 1\nv2 b 0 dc 0 portnum 2\nr1 a b 50\nr2 a 0 100\nr3 b 0 100\nc1 b 0 1n\n.sp dec 10 1k 1meg\n .meas sp transmission max vm(S_2_1)\n.meas sp atfreq find vr(S_2_1) at=10k\n.print sp all",
+    );
+}

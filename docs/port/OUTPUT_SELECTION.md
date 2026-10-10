@@ -41,6 +41,13 @@ Route map:
   `vm(a,b)` → `mag(v(a)-v(b))`, and `vp`/`vr`/`vi`/`vdb` likewise; a `,0`
   terminal drops out of the difference.
 
+M8 adds named analysis vectors (`S_2_1`, `Y_1_1`, `NF`,
+`onoise_spectrum`, `onoise_total`) and `mag`/`ph`/`real`/`imag`/`db`
+components of named vectors. Missing names still fail at resolution.
+`.print noise` routes spectra and integrated totals to their respective
+plots. `keepopinfo` bias plots receive deck-wide saves, and no SP/noise print
+or measurement cards. See [SPARAM.md](SPARAM.md) and [NOISE.md](NOISE.md).
+
 ## The supported request grammar
 
 ```

@@ -130,6 +130,25 @@ impl MutualInductance {
 }
 
 impl Device for MutualInductance {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        matches!(keyword.to_ascii_lowercase().as_str(), "k" | "coefficient").then_some("k")
+    }
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        _context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        if parameter != "k" {
+            return Err(SpiceError::circuit("unknown coupling setter"));
+        }
+        crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+        Ok(Box::new(Self {
+            coefficient: value,
+            ..self.clone()
+        }))
+    }
+
     /// `.sens`: the coupling `k` is C's only perturbable parameter and is
     /// `IF_AC` ([`crate::devices::sensitivity`]).
     fn sensitivity(

@@ -292,6 +292,38 @@ impl Behavioural {
 }
 
 impl Device for Behavioural {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        ["temp", "dtemp", "tc1", "tc2", "m"]
+            .into_iter()
+            .find(|k| k.eq_ignore_ascii_case(keyword))
+    }
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        crate::devices::sweep::check_swept(
+            &self.name,
+            parameter,
+            value,
+            parameter != "temp" || value > -273.15,
+            "finite and above absolute zero for temp",
+        )?;
+        let mut scale = self.scale;
+        match parameter {
+            "temp" => scale.temperature = Some(value),
+            "dtemp" => scale.dtemp = value,
+            "tc1" => scale.tc1 = value,
+            "tc2" => scale.tc2 = value,
+            "m" => scale.m = value,
+            _ => return Err(SpiceError::circuit("unknown behavioural sweep setter")),
+        }
+        let copy = self.with_scale(scale);
+        copy.checked_factor(context.temperature)?;
+        Ok(Box::new(copy))
+    }
+
     /// `.sens`: a B source's `ASRCpTable` setters
     /// ([`crate::devices::sensitivity`]). The XSPICE `spice2poly`/`pwl` code
     /// models TABLE/POLY lower to are refused: their `MIF` parameters are not

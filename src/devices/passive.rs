@@ -22,7 +22,7 @@
 //! ```
 
 mod device;
-pub(crate) use device::instantiate;
+pub(crate) use device::{instantiate, swept_literal};
 
 use crate::devices::models::{ModelContext, ModelFamily, ResolvedModel};
 use crate::devices::schema::{
@@ -61,6 +61,107 @@ pub struct PassiveParameters {
 }
 
 impl PassiveParameters {
+    pub(crate) fn literal(family: ModelFamily, value: Real, ic: Option<Real>) -> SpiceResult<Self> {
+        let location = SourceLoc::new(std::path::PathBuf::from("<literal passive>"), 0, 0);
+        let primary = match family {
+            ModelFamily::Resistor => "resistance",
+            ModelFamily::Capacitor => "capacitance",
+            _ => "inductance",
+        };
+        let mut instance_values = ScalarSchema {
+            parameters: &instance_schema(family, primary),
+        }
+        .validate(&[], &location)?;
+        instance_values.set(primary, value, U::Dimensionless, location.clone());
+        Ok(Self {
+            family,
+            nominal_value: value,
+            temperature: None,
+            nominal_temperature: None,
+            tc1: 0.,
+            tc2: 0.,
+            scale: 1.,
+            multiplicity: 1.,
+            initial_condition: ic,
+            noisy: true,
+            kf: 0.,
+            af: 1.,
+            ef: 1.,
+            noise_area: 1.,
+            model_values: model_schema(family).validate(&[], &location)?,
+            instance_values,
+            location,
+        })
+    }
+
+    /// C's DEVparam then DEVtemperature, without rerunning DEVsetup.
+    pub(crate) fn swept(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Self> {
+        let mut p = self.clone();
+        let primary = match self.family {
+            ModelFamily::Resistor => "resistance",
+            ModelFamily::Capacitor => "capacitance",
+            _ => "inductance",
+        };
+        let definitions = instance_schema(self.family, primary);
+        let definition = definitions
+            .iter()
+            .find(|d| d.name == parameter)
+            .ok_or_else(|| {
+                SpiceError::circuit(format!("passive parameter {parameter} cannot be swept"))
+            })?;
+        crate::devices::sweep::check_swept(
+            "passive",
+            parameter,
+            value,
+            match parameter {
+                "temp" => value > -273.15,
+                "w" | "l" | "m" | "scale" => value > 0.,
+                _ => true,
+            },
+            "in its finite physical domain",
+        )?;
+        p.instance_values
+            .set(parameter, value, definition.unit, self.location.clone());
+        match parameter {
+            name if name == primary => {
+                valid_value(self.family, value, &self.location)?;
+                p.nominal_value = value;
+            }
+            "temp" => p.temperature = Some(value),
+            "tc1" => p.tc1 = value,
+            "tc2" => p.tc2 = value,
+            "m" => p.multiplicity = value,
+            "scale" => p.scale = value,
+            "ic" => p.initial_condition = Some(value),
+            "w" | "l" => {
+                // restemp.c re-derives geometry only without a given resistance;
+                // CAPsetup's geometry is setup-only, not rerun by a DC setter.
+                if self.family == ModelFamily::Resistor
+                    && optional(&p.instance_values, primary).is_none()
+                {
+                    p.nominal_value = model_value(
+                        self.family,
+                        &p.model_values,
+                        &p.instance_values,
+                        &p.location,
+                    )?;
+                }
+            }
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "passive parameter {parameter} cannot be swept"
+                )));
+            }
+        }
+        p.effective_value(context)?;
+        Ok(p)
+    }
+
     /// Validated resistor/capacitor/inductor family.
     #[must_use]
     pub const fn family(&self) -> ModelFamily {

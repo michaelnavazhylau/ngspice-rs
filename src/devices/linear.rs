@@ -42,6 +42,13 @@ pub struct Forcing {
 pub enum Waveform {
     /// Time-independent forcing.
     Constant(Real),
+    /// RFSPICE PORT accumulation in VSRCload order. Tones are (amplitude, radians/s).
+    PortSeries {
+        /// Preceding non-PORT voltage source time function.
+        baseline: Box<Waveform>,
+        /// Accumulated cosine excitations, flattened to bound recursion.
+        tones: Vec<(Real, Real)>,
+    },
     /// Right-continuous jump at a nonnegative time.
     Step {
         /// Value before the jump.
@@ -74,6 +81,10 @@ impl Waveform {
     pub fn validate(&self) -> SpiceResult<()> {
         let valid = match self {
             Self::Constant(v) => v.is_finite(),
+            Self::PortSeries { baseline, tones } => {
+                baseline.validate()?;
+                tones.iter().all(|(a, w)| a.is_finite() && w.is_finite())
+            }
             Self::Step {
                 before,
                 after,
@@ -112,6 +123,10 @@ impl Waveform {
     /// The resolved pulse is invalid.
     pub fn resolve(&self, timing: &TransientTiming) -> SpiceResult<Self> {
         match self {
+            Self::PortSeries { baseline, tones } => Ok(Self::PortSeries {
+                baseline: Box::new(baseline.resolve(timing)?),
+                tones: tones.clone(),
+            }),
             Self::PulseDefaults(spec) => Ok(Self::Pulse(spec.resolve(timing)?)),
             Self::FunctionDefaults(spec) => Ok(Self::Function(spec.resolve(timing)?)),
             other => Ok(other.clone()),
@@ -124,7 +139,10 @@ impl Waveform {
     /// are not.
     #[must_use]
     pub const fn is_piecewise_linear(&self) -> bool {
-        !matches!(self, Self::Function(_) | Self::FunctionDefaults(_))
+        !matches!(
+            self,
+            Self::Function(_) | Self::FunctionDefaults(_) | Self::PortSeries { .. }
+        )
     }
 
     /// The value C loads in OP/DC analyses when the source has no explicit DC
@@ -135,6 +153,9 @@ impl Waveform {
     /// The waveform is invalid.
     pub fn time_zero(&self) -> SpiceResult<Real> {
         match self {
+            Self::PortSeries { baseline, tones } => {
+                Ok(baseline.time_zero()? + tones.iter().map(|(a, _)| a).sum::<Real>())
+            }
             Self::PulseDefaults(spec) => {
                 self.validate()?;
                 Ok(spec.initial)
@@ -160,6 +181,10 @@ impl Waveform {
         let left = limit == Limit::Left;
         Ok(match self {
             Self::Constant(v) => *v,
+            Self::PortSeries { baseline, tones } => {
+                baseline.value_at(t, limit)?
+                    + tones.iter().map(|(a, w)| a * (w * t).cos()).sum::<Real>()
+            }
             Self::Step {
                 before,
                 after,
@@ -211,6 +236,9 @@ impl Waveform {
         timing: &TransientTiming,
     ) -> SpiceResult<Real> {
         match self {
+            Self::PortSeries { baseline, tones } => Ok(baseline
+                .value_at_timed(t, limit, timing)?
+                + tones.iter().map(|(a, w)| a * (w * t).cos()).sum::<Real>()),
             Self::PulseDefaults(spec) => spec.resolve(timing)?.value_at(t, limit),
             Self::FunctionDefaults(spec) => spec.resolve(timing)?.value_at(t, limit),
             other => other.value_at(t, limit),
@@ -246,6 +274,7 @@ impl Waveform {
         }
         let fixed: Vec<Real> = match self {
             Self::Constant(_) => vec![],
+            Self::PortSeries { baseline, .. } => return baseline.breakpoints_in(t0, t1),
             Self::Step { time, .. } => vec![*time],
             Self::Pwl(p) => p.iter().map(|p| p.0).collect(),
             Self::Pulse(pulse) => {

@@ -64,6 +64,12 @@ pub struct AnalysisRequest {
     /// DC operating points. They cannot change the unique solution of a linear
     /// circuit; under transient `uic` C reuses them as initial node voltages.
     pub nodesets: Vec<NodeCondition>,
+    /// Front-end `set sqrnoise`: report power densities and integrated powers.
+    pub squared_noise: bool,
+    /// SPICE3-compatible MOS1 flicker law (`newcompat.s3`).
+    pub spice3_noise: bool,
+    /// Retain the small-signal operating-point plot before spectral output.
+    pub keep_op_info: bool,
 }
 
 impl AnalysisRequest {
@@ -76,6 +82,9 @@ impl AnalysisRequest {
             uic: false,
             initial_conditions: Vec::new(),
             nodesets: Vec::new(),
+            squared_noise: false,
+            spice3_noise: false,
+            keep_op_info: false,
         }
     }
 
@@ -91,6 +100,9 @@ impl AnalysisRequest {
             uic: false,
             initial_conditions: Vec::new(),
             nodesets: Vec::new(),
+            squared_noise: false,
+            spice3_noise: false,
+            keep_op_info: false,
         }
     }
 
@@ -134,6 +146,9 @@ impl From<&AnalysisCard> for AnalysisRequest {
             uic: card.uic,
             initial_conditions: Vec::new(),
             nodesets: Vec::new(),
+            squared_noise: false,
+            spice3_noise: false,
+            keep_op_info: false,
         }
     }
 }
@@ -210,8 +225,52 @@ pub trait Analysis: fmt::Debug {
         request: &AnalysisRequest,
         context: &AnalysisContext,
     ) -> SpiceResult<Vec<Plot>> {
-        Ok(vec![self.run(circuit, request, context)?])
+        let mut plots = operating_point_prelude(self.kind(), circuit, request, context)?;
+        plots.push(self.run(circuit, request, context)?);
+        Ok(plots)
     }
+}
+
+// C acan.c/noisean.c/span.c/distoan.c/pzan.c dump the bias before the sweep.
+// Keep the library single-plot interface unchanged; run_plots publishes the
+// optional bias. Preparation is deterministic and owns no accepted trial state.
+fn operating_point_prelude(
+    kind: AnalysisKind,
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &AnalysisContext,
+) -> SpiceResult<Vec<Plot>> {
+    if !request.keep_op_info
+        || !matches!(
+            kind,
+            AnalysisKind::Ac
+                | AnalysisKind::Noise
+                | AnalysisKind::SParameter
+                | AnalysisKind::Distortion
+                | AnalysisKind::PoleZero
+        )
+    {
+        return Ok(Vec::new());
+    }
+    circuit.finalize()?;
+    let settings = crate::analysis::bias::DcSettings::from_request(request)?;
+    let small = crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
+    let title = match kind {
+        AnalysisKind::Noise => "NOISE Operating Point",
+        AnalysisKind::Distortion | AnalysisKind::PoleZero => "Distortion Operating Point",
+        _ => "AC Operating Point",
+    };
+    let mut plot = crate::analysis::linear::plot(circuit, "op1", title, None, false)?;
+    plot.push_point(
+        small
+            .bias()
+            .as_slice()
+            .iter()
+            .copied()
+            .map(crate::primitives::Complex::real)
+            .collect(),
+    )?;
+    Ok(vec![plot])
 }
 
 /// `.op` — the DC operating point.
@@ -327,7 +386,9 @@ impl Analysis for Noise {
         request: &AnalysisRequest,
         context: &AnalysisContext,
     ) -> SpiceResult<Vec<Plot>> {
-        crate::analysis::noise::run(circuit, request, context)
+        let mut plots = operating_point_prelude(self.kind(), circuit, request, context)?;
+        plots.extend(crate::analysis::noise::run(circuit, request, context)?);
+        Ok(plots)
     }
 }
 
@@ -365,7 +426,9 @@ impl Analysis for Distortion {
         request: &AnalysisRequest,
         context: &AnalysisContext,
     ) -> SpiceResult<Vec<Plot>> {
-        crate::analysis::disto::run(circuit, request, context)
+        let mut plots = operating_point_prelude(self.kind(), circuit, request, context)?;
+        plots.extend(crate::analysis::disto::run(circuit, request, context)?);
+        Ok(plots)
     }
 }
 
@@ -453,7 +516,7 @@ impl Analysis for TransferFunction {
 }
 
 /// `.sp` — S-parameter analysis over the RF port sources (V sources with
-/// `portnum`), producing S, Y and Z matrices. `donoise` is not ported.
+/// `portnum`), producing S, Y and Z matrices and optional RF noise.
 ///
 /// C: `span.c` (an `RFSPICE` build option); see `docs/port/SPARAM.md`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

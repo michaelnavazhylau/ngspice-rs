@@ -1657,9 +1657,11 @@ impl Device for Bjt {
     /// `bjt.c` `BJTpTable`: AREA, AREAB, AREAC, M, TEMP and DTEMP, which
     /// `bjttemp.c`/`bjtload.c` re-derive (`dctrcurv.c` `DCTsetInstParam`).
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
-        ["area", "areab", "areac", "m", "temp", "dtemp"]
-            .into_iter()
-            .find(|name| name.eq_ignore_ascii_case(keyword))
+        [
+            "icvbe", "icvce", "area", "areab", "areac", "m", "temp", "dtemp",
+        ]
+        .into_iter()
+        .find(|name| name.eq_ignore_ascii_case(keyword))
     }
     /// `BJTparam` then `BJTtemp`. A swept AREA leaves AREAB/AREAC at the
     /// values `bjtsetup.c` defaulted them to from the card's AREA, exactly as
@@ -1670,10 +1672,16 @@ impl Device for Bjt {
         value: Real,
         context: &ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
+        let mut initial = self.initial.clone();
+        if let Some(index) = ["icvbe", "icvce"].iter().position(|k| *k == parameter) {
+            crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+            initial.values[index] = Some(value);
+        }
         use crate::devices::sweep::check_swept;
         let mut instance = self.instance;
         let positive = || check_swept(&self.name, parameter, value, value > 0., "positive");
         match parameter {
+            "icvbe" | "icvce" => {}
             "area" => {
                 positive()?;
                 instance.area = value;
@@ -1720,7 +1728,7 @@ impl Device for Bjt {
             subs: self.subs,
             model: self.model,
             instance,
-            initial: self.initial.clone(),
+            initial,
         };
         evaluate(
             &device.thermal(context)?,

@@ -172,7 +172,7 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 | `indverbosity` | no-op (non-negative integer validated) | none | selects only which stderr diagnostics `muttemp.c` prints for an inductive system (`CKTindverbosity`); the port prints none and always rejects a coupled inductance matrix that is not positive semidefinite (MUTUAL_INDUCTANCE.md) |
 | `bypass=0` | no-op | none | C default (`TSKbypass = 0`); this port never bypasses device evaluation. Other values `NotYetPorted` |
 | `pivtol`, `pivrel` | `NotYetPorted` | | Sparse 1.3 pivot thresholds (`TSKpivotAbsTol`/`TSKpivotRelTol`, `spfactor.c`); this port's faer partial-pivoting LU has no equivalent knob yet |
-| `gshunt`, `cshunt`, `rshunt`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `badmos3`, `trytocompact`, `keepopinfo`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
+| `gshunt`, `cshunt`, `rshunt`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `badmos3`, `trytocompact`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
 | `filetype`, `savecurrents`, `scale`, `scalm`, `seed`, `seedinfo`, `rndseed`, `interp`, `warn`, `measureprec`, `rawfileprec`, `strict_errorhandling` | `NotYetPorted` | | front-end variables with an output/setup effect |
 | anything else | parse error | | C would store an unread variable or warn |
 
@@ -292,3 +292,7 @@ and D/M model names parse unresolved; resolution belongs to elaboration
 (#17/#18). Subcircuit flattening and subcircuit-scoped parameter evaluation are
 implemented (#18, [SUBCIRCUITS.md](SUBCIRCUITS.md)); a D/Q/M parse is still
 syntax, not simulation.
+
+M8 adds `.options keepopinfo` for the C bias plots preceding AC, SP, noise,
+distortion and pole-zero analyses, plus bounded pre-run `.control` settings
+`set sqrnoise` and `set ngbehavior=s3` (MOS1 noise law only).

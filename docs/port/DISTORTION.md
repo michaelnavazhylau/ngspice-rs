@@ -188,11 +188,12 @@ than `dec`/`oct`/`lin`, more than 100,000 frequencies, a `hertz`-dependent
 circuit (C linearizes once), B sources and XSPICE code models (C silently drops
 their nonlinearity), and `f2overf1` without any `distof2` input (C's
 `E_NOF2SRC`). Not supported: excess phase (`PTF`, already refused by the BJT),
-`.option keepopinfo`'s `Distortion Operating Point` plot (the option is not
-accepted), `.measure` on distortion plots (rejected by the parser), and
+`.measure` on distortion plots (rejected by the parser), and
 distortion of
 device families the port does not simulate (JFET, MESFET, MOS2/3/9, BSIM1,
 VDMOS have `DEVdisto` in C). A circuit without any `distof1` input produces
 all-zero plots, exactly as C does. The complex solves keep the `.ac` rank and
 backward-residual guards (`ComplexLu::solve`), which can refuse some
 well-posed reactive systems (#128); the fixtures avoid such values.
+
+`.options keepopinfo` retains the preceding `Distortion Operating Point` plot.

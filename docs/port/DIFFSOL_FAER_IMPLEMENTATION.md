@@ -41,6 +41,9 @@ The companion trap/Gear transient driver is documented separately in
   costs **n extra sparse solves** and O(n) auxiliary storage per factorization.
 - Every solve checks finite output and row-scaled normwise backward error:
   `|Ax-b|[r] <= 128 * epsilon * n * (sum_c |A[r,c]| * ||x||inf + |b[r]|)`.
+  Complex solves retry a failed residual with at most two iterative-refinement
+  corrections using the existing factors (#128), including transposed and
+  complete-basis solves; the residual and rank thresholds remain unchanged.
   Residual/norm arithmetic overflow is an explicit numerical error. These are
   diagnostics, not a promise of forward accuracy for arbitrarily conditioned MNA.
 - `maths::complex::{ComplexMatrix, ComplexLu}` assembles `A + j omega E`
@@ -176,7 +179,11 @@ companion driver). Unsupported: `.param` expressions in waveforms. See [FRONTEND
 times must be finite, nonnegative and strictly increasing. DC and AC source excitations remain distinct from the waveform.
 
 For each interval between knots, forcing is preassembled at both endpoints and
-is affine; fallible assembly happens outside diffsol callbacks. Custom
+is affine; PORT adds exact immutable cosine terms via
+`integrate_segment_with_cosines`. Endpoint forcing includes those terms,
+consistent initialization uses their analytic derivatives, and requested
+samples project algebraic constraints with the exact forcing. PORT inherits
+the baseline source's breakpoints; fallible assembly happens outside diffsol callbacks. Custom
 `NonLinearOpJacobian`/`LinearOp` operators provide assembled Jacobians and explicit
 sparsity; there is no NaN-based discovery or mutable device trial state. The mass
 operator implements `out = E*v + beta*out`, including zero-mass algebraic rows.

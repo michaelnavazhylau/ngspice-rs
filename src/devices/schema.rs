@@ -132,6 +132,18 @@ pub struct ScalarValue {
 pub struct ScalarValues(BTreeMap<String, ScalarValue>);
 
 impl ScalarValues {
+    /// Replace a previously validated scalar in an owned per-point recipe.
+    pub(crate) fn set(&mut self, name: &str, value: Real, unit: ScalarUnit, location: SourceLoc) {
+        self.0.insert(
+            name.to_owned(),
+            ScalarValue {
+                value,
+                unit,
+                location: Some(location),
+            },
+        );
+    }
+
     /// Lookup by canonical name, case-insensitively. Absent optional values
     /// return `None`, rather than inventing a zero.
     #[must_use]

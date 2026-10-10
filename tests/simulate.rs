@@ -633,6 +633,9 @@ fn a_deck_without_an_analysis_is_an_input_failure() {
         "{}",
         stderr(&run)
     );
+    for kind in ngspice_rs::analysis::driver::DRIVERS {
+        assert!(stderr(&run).contains(&format!(".{}", kind.as_str())));
+    }
     assert!(!output.exists());
     assert_eq!(entries(&dir), ["deck.cir"]);
     fs::remove_dir_all(&dir).unwrap();
@@ -1677,4 +1680,23 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     let lim_peak = lim.iter().map(|value| value.re.abs()).fold(0., f64::max);
     assert!(lim_peak < 0.9 * peak, "limiter {lim_peak} vs {peak}");
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn equal_braced_noise_bounds_schedule_one_plot_and_preserve_later_names() {
+    let dir = scratch("noise-braced");
+    let deck = write_deck(
+        &dir,
+        "noise expressions\n.param f0=1k\nv1 in 0 ac 1\nr1 in out 1k\nr2 out 0 1k\n.noise v(out) v1 dec 2 {f0} {2*f0/2}\n.noise v(out) v1 dec 2 1k 10k\n.end\n",
+    );
+    let output = dir.join("out.raw");
+    let run = simulate(&output, &deck);
+    assert!(run.status.success(), "{}", stderr(&run));
+    let raw = RawFile::load(&output).unwrap();
+    assert_eq!(raw.plots.len(), 3);
+    assert_eq!(raw.plots[2].plot.point_count(), 1);
+    for name in ["noise1", "noise2", "noise3"] {
+        assert!(stdout(&run).contains(name), "{}", stdout(&run));
+    }
+    fs::remove_dir_all(dir).unwrap();
 }

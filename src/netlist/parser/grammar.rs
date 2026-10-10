@@ -141,6 +141,23 @@ pub(super) fn parse_card(
     .map_err(|error| error.into_inner().0)
 }
 
+pub(super) fn parse_frontend_setting(
+    card: &RawCard,
+    auto_gnd: bool,
+    declared_models: &BTreeSet<String>,
+) -> SpiceResult<ParsedCard> {
+    options::frontend_setting
+        .parse(Input {
+            input: TokenSlice::new(&card.tokens),
+            state: Context {
+                card,
+                auto_gnd,
+                declared_models,
+            },
+        })
+        .map_err(|error| error.into_inner().0)
+}
+
 fn end_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     (keyword(".end"), rest)
         .map(|_| ParsedCard::End)

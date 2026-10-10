@@ -48,6 +48,10 @@ fn run_both(name: &str, deck_text: &str) -> (RawFile, RawFile) {
     let _cleanup = Cleanup(directory.clone());
     let deck = directory.join("deck.cir");
     fs::write(&deck, deck_text).unwrap();
+    if deck_text.contains("set ngbehavior=s3") {
+        // newcompat is set before device setup in C, via its initialization file.
+        fs::write(directory.join(".spiceinit"), "set ngbehavior=s3\n").unwrap();
+    }
     let c = Command::new(&binary)
         .args(["-b", "-r", "c.raw", "deck.cir"])
         .current_dir(&directory)
@@ -206,5 +210,54 @@ rc c vee 2k
 .noise v(c) i1 dec 3 100 10meg 1
 .end
 ",
+    );
+}
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs C batch mode out of process"]
+fn equal_braced_noise_bounds_match_c() {
+    compare(
+        "braced_bounds",
+        "noise expressions\n.param f0=1k\nv1 in 0 ac 1\nr1 in out 1k\nr2 out 0 1k\n.noise v(out) v1 dec 2 {f0} {2*f0/2}\n.noise v(out) v1 dec 2 1k 10k\n.end\n",
+    );
+}
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs C batch mode out of process"]
+fn large_bjt_bypass_matches_c_at_high_frequency() {
+    let deck = fs::read_to_string(workspace().join("conformance/netlists/noise_bjt.cir"))
+        .unwrap()
+        .replace("ce e 0 1n", "ce e 0 10u")
+        .replace(
+            ".noise v(c) i1 dec 4 10 100meg 3",
+            ".ac dec 4 10meg 100meg\n.noise v(c) i1 dec 4 10meg 100meg 3",
+        );
+    compare("large_bypass", &deck);
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn squared_noise_and_retained_bias_match_c() {
+    for (name, input) in [
+        ("voltage", "v1 in 0 ac 1\nr1 in out 1k\nr2 out 0 1k"),
+        ("current", "i1 0 out ac 1\nr1 out 0 1k"),
+    ] {
+        compare(
+            &format!("squared-{name}"),
+            &format!(
+                "squared noise\n{input}\n.options keepopinfo\n.noise v(out) {} dec 2 10 1k 1\n.control\nset sqrnoise\n.endc\n.end\n",
+                if name == "voltage" { "v1" } else { "i1" }
+            ),
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn spice3_mos1_flicker_matches_c() {
+    let deck = fs::read_to_string(workspace().join("conformance/netlists/noise_mos1.cir")).unwrap();
+    compare(
+        "mos1-spice3",
+        &deck.replace(".end", ".control\nset ngbehavior=s3\n.endc\n.end"),
     );
 }

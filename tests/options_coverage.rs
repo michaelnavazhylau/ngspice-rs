@@ -639,7 +639,6 @@ fn unknown_and_unported_options_still_fail() {
         ".options scale=1u",
         ".options seed=5",
         ".options klu",
-        ".options keepopinfo",
     ] {
         assert!(
             config(pending).unwrap_err().is_not_yet_ported(),

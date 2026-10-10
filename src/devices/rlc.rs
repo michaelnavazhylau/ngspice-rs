@@ -211,6 +211,43 @@ impl Resistor {
 }
 
 impl Device for Resistor {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        [
+            "resistance",
+            "r",
+            "temp",
+            "tc1",
+            "tc2",
+            "w",
+            "l",
+            "m",
+            "scale",
+        ]
+        .into_iter()
+        .find(|k| k.eq_ignore_ascii_case(keyword))
+        .map(|k| match k {
+            "r" => "resistance",
+            "c" | "cap" => "capacitance",
+            other => other,
+        })
+    }
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        crate::devices::passive::swept_literal(
+            &self.name,
+            self.terminals,
+            crate::devices::ModelFamily::Resistor,
+            self.resistance,
+            None,
+            (parameter, value),
+            context,
+        )
+    }
+
     /// Linear in `.disto`: C gives this device no distortion routine
     /// (`DEVdisto = NULL`, `res/resinit.c`), so it enters only through its
     /// small-signal matrix.
@@ -394,6 +431,45 @@ impl Capacitor {
 }
 
 impl Device for Capacitor {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        [
+            "capacitance",
+            "c",
+            "cap",
+            "ic",
+            "temp",
+            "tc1",
+            "tc2",
+            "w",
+            "l",
+            "m",
+            "scale",
+        ]
+        .into_iter()
+        .find(|k| k.eq_ignore_ascii_case(keyword))
+        .map(|k| match k {
+            "r" => "resistance",
+            "c" | "cap" => "capacitance",
+            other => other,
+        })
+    }
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        crate::devices::passive::swept_literal(
+            &self.name,
+            self.terminals,
+            crate::devices::ModelFamily::Capacitor,
+            self.capacitance,
+            self.initial_voltage,
+            (parameter, value),
+            context,
+        )
+    }
+
     /// Linear in `.disto`: C gives this device no distortion routine
     /// (`DEVdisto = NULL`, `cap/capinit.c`), so it enters only through its
     /// small-signal matrix.
@@ -574,6 +650,33 @@ impl Inductor {
 }
 
 impl Device for Inductor {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        ["inductance", "ic", "temp", "tc1", "tc2", "m", "scale"]
+            .into_iter()
+            .find(|k| k.eq_ignore_ascii_case(keyword))
+            .map(|k| match k {
+                "r" => "resistance",
+                "c" | "cap" => "capacitance",
+                other => other,
+            })
+    }
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        crate::devices::passive::swept_literal(
+            &self.name,
+            self.terminals,
+            crate::devices::ModelFamily::Inductor,
+            self.inductance,
+            self.initial_current,
+            (parameter, value),
+            context,
+        )
+    }
+
     /// Linear in `.disto`: C gives this device no distortion routine
     /// (`DEVdisto = NULL`, `ind/indinit.c`), so it enters only through its
     /// small-signal matrix.

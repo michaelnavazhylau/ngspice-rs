@@ -270,7 +270,16 @@ impl Writer {
                     used[6] += 1;
                     let options = entry(scope.options, i, "options")?;
                     if !skip {
-                        self.options(options, depth)?;
+                        if card
+                            .source
+                            .tokens
+                            .first()
+                            .is_some_and(|token| token.text.eq_ignore_ascii_case("set"))
+                        {
+                            self.settings(options, depth, "set")?;
+                        } else {
+                            self.options(options, depth)?;
+                        }
                     }
                 }
                 ScopedCardKind::Global(i) => {
@@ -537,12 +546,19 @@ impl Writer {
     }
 
     fn options(&mut self, card: &OptionCard, depth: usize) -> SpiceResult<()> {
+        self.settings(card, depth, ".options")
+    }
+
+    fn settings(&mut self, card: &OptionCard, depth: usize, prefix: &str) -> SpiceResult<()> {
         let location = &card.location;
         if card.settings.is_empty() {
             return Err(refuse("empty .options card", Some(location)));
         }
-        let mut text = ".options".to_owned();
+        let mut text = prefix.to_owned();
         for setting in &card.settings {
+            if prefix == "set" && !matches!(setting.name.as_str(), "sqrnoise" | "ngbehavior") {
+                return Err(refuse("unsupported front-end setting", Some(location)));
+            }
             if !matches!(
                 single_token(&setting.name, location),
                 Some(Token {

@@ -349,10 +349,15 @@ fn batch_plot_names(netlist: &Path) -> Result<Vec<String>, String> {
     let parsed = ngspice_rs::netlist::Parser::new()
         .parse_file(netlist)
         .map_err(|error| format!("parsing {}: {error}", netlist.display()))?;
-    Ok(ngspice_rs::analysis::batch::schedule(&parsed.analyses)
-        .iter()
-        .flat_map(|entry| entry.plot_names().map(str::to_owned).collect::<Vec<_>>())
-        .collect())
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed)
+        .map_err(|error| error.to_string())?;
+    Ok(
+        ngspice_rs::analysis::batch::schedule_evaluated(&parsed.analyses, &config)
+            .map_err(|error| error.to_string())?
+            .iter()
+            .flat_map(|entry| entry.plot_names().map(str::to_owned).collect::<Vec<_>>())
+            .collect(),
+    )
 }
 
 fn tail(text: &str, lines: usize) -> String {

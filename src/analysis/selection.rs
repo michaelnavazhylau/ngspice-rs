@@ -387,6 +387,34 @@ pub(crate) fn resolve_request(plot: &Plot, request: &VectorRequest) -> SpiceResu
     match &request.vector {
         // `all` keeps the whole plot, so `Selection::resolve` handles it before
         // asking for a single column.
+        RequestedVector::Named {
+            name: vector,
+            component,
+        } => {
+            let index = plot
+                .variable_index(vector)
+                .or_else(|| plot.variable_index(&format!("v({vector})")))
+                .or_else(|| plot.variable_index(&format!("i({vector})")))
+                .ok_or_else(|| {
+                    unsupported(format!(
+                        "{name}: the analysis has no named vector {vector}; it carries {}",
+                        column_names(plot)
+                    ))
+                })?;
+            let variable = &plot.variables[index];
+            let unit = match component {
+                Some(VectorComponent::Phase) => "phase".to_owned(),
+                Some(VectorComponent::Decibels) => "db".to_owned(),
+                _ => variable.unit.clone(),
+            };
+            Ok(Column {
+                name,
+                unit,
+                is_real: component.is_some() || variable.is_real,
+                terms: vec![(index, 1.)],
+                component: *component,
+            })
+        }
         RequestedVector::All => Err(unsupported(format!(
             "{name}: resolved by Selection::resolve, not per request"
         ))),
@@ -395,7 +423,11 @@ pub(crate) fn resolve_request(plot: &Plot, request: &VectorRequest) -> SpiceResu
                 difference(plot, positive, negative.as_deref(), &name).map_err(unsupported)?;
             Ok(Column {
                 name,
-                unit: "voltage".to_owned(),
+                unit: if negative.is_none() && terms.len() == 1 {
+                    plot.variables[terms[0].0].unit.clone()
+                } else {
+                    "voltage".to_owned()
+                },
                 is_real: !plot.flags.is_complex(),
                 terms,
                 component: None,
@@ -433,7 +465,16 @@ pub(crate) fn resolve_request(plot: &Plot, request: &VectorRequest) -> SpiceResu
                 difference(plot, positive, negative.as_deref(), &name).map_err(unsupported)?;
             Ok(Column {
                 name,
-                unit: component_unit(*component).to_owned(),
+                unit: if matches!(
+                    component,
+                    VectorComponent::Magnitude | VectorComponent::Real | VectorComponent::Imaginary
+                ) && negative.is_none()
+                    && terms.len() == 1
+                {
+                    plot.variables[terms[0].0].unit.clone()
+                } else {
+                    component_unit(*component).to_owned()
+                },
                 is_real: true,
                 terms,
                 component: Some(*component),
@@ -469,6 +510,7 @@ fn difference(
             return Ok(None);
         }
         plot.variable_index(&format!("v({node})"))
+            .or_else(|| plot.variable_index(node))
             .map(Some)
             .ok_or_else(|| {
                 format!(

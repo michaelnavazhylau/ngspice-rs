@@ -40,7 +40,7 @@
 //!   units are those C's rawfile writer gives these vectors.
 //!
 //! Every value is the square root of the noise power (C without
-//! `set sqrnoise`, a front-end variable the port has no way to set): V/sqrt(Hz)
+//! `set sqrnoise`, supported through bounded pre-run settings): V/sqrt(Hz)
 //! or A/sqrt(Hz) in plot 1, V or A in plot 2. Input-referred values are
 //! voltages for a V input and currents for an I input.
 //!
@@ -452,7 +452,8 @@ pub(crate) fn run(
     // them (`noisean.c`: `CKTop`, then a `MODEINITSMSIG` load; a
     // `hertz`-dependent circuit is re-solved at every frequency).
     let mut small = crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
-    let model = context.model_context();
+    let mut model = context.model_context();
+    model.spice3_noise = request.spice3_noise;
     let mut generators: Vec<Generators> =
         circuit_noise(circuit, &model, small.bias(), Some(small.state()))?
             .into_iter()
@@ -626,6 +627,40 @@ pub(crate) fn run(
             });
         }
         plots.push(integrated);
+    }
+    if request.squared_noise {
+        for plot in &mut plots {
+            plot.plotname = if plot.plotname == SPECTRUM_PLOTNAME {
+                "Noise Spectral Density Curves - (V^2 or A^2)/Hz"
+            } else {
+                "Integrated Noise - V^2 or A^2"
+            }
+            .to_owned();
+            for (index, variable) in plot.variables.iter_mut().enumerate() {
+                if variable.name == "frequency" {
+                    continue;
+                }
+                if let Some(inner) = variable
+                    .name
+                    .strip_prefix("v(")
+                    .or_else(|| variable.name.strip_prefix("i("))
+                    .and_then(|n| n.strip_suffix(')'))
+                {
+                    variable.name = inner.to_owned();
+                }
+                variable.unit = match variable.unit.as_str() {
+                    "voltage-density" => "voltage^2-density",
+                    "current-density" => "current^2-density",
+                    "voltage" => "voltage^2",
+                    "current" => "current^2",
+                    other => other,
+                }
+                .to_owned();
+                for point in &mut plot.points {
+                    point[index].re *= point[index].re;
+                }
+            }
+        }
     }
     Ok(plots)
 }

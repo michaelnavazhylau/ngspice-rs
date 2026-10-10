@@ -416,8 +416,24 @@ pub trait Device: fmt::Debug {
         None
     }
 
-    /// The RFSPICE port data of a voltage source that is an S-parameter port
-    /// (`VSRCisPort`); `None` (the default) for every other device.
+    /// Whether this voltage source inherits its predecessor DC value (VSRC PORT without DC).
+    fn dc_accumulates_predecessor(&self) -> bool {
+        false
+    }
+
+    /// Binds the previous voltage-source value in C VSRCload's reverse-deck
+    /// traversal. Non-voltage devices return None; PORT adds to that value.
+    /// # Errors
+    /// Invalid accumulated RF excitation.
+    fn bind_voltage_predecessor(
+        &mut self,
+        _waveform: &crate::devices::Waveform,
+        _dc: Real,
+    ) -> SpiceResult<Option<(crate::devices::Waveform, Real)>> {
+        Ok(None)
+    }
+
+    /// The RFSPICE port data, or None for every other device.
     fn rf_port(&self) -> Option<&crate::devices::sources::RfPort> {
         None
     }

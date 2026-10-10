@@ -1362,7 +1362,8 @@ fn run_variant(
 fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>, String> {
     let netlist = Parser::new().parse_file(path).map_err(|e| e.to_string())?;
     let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
-    let schedule = ngspice_rs::analysis::batch::schedule(&netlist.analyses);
+    let schedule = ngspice_rs::analysis::batch::schedule_evaluated(&netlist.analyses, &config)
+        .map_err(|e| e.to_string())?;
     let want = load_golden(root, fixture.name)?;
     let names: Vec<&str> = schedule
         .iter()

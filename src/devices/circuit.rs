@@ -280,6 +280,13 @@ impl Circuit {
         if self.mutual.pairs.is_empty() {
             return Ok(Vec::new());
         }
+        let replacements = self.replacements(context)?;
+        let device_at = |index: usize| -> &dyn Device {
+            replacements
+                .iter()
+                .find(|(i, _)| *i == index)
+                .map_or(self.devices[index].as_ref(), |(_, d)| d.as_ref())
+        };
         let mut values: std::collections::BTreeMap<usize, InductanceValue> =
             std::collections::BTreeMap::new();
         for pair in &self.mutual.pairs {
@@ -287,7 +294,7 @@ impl Circuit {
                 if values.contains_key(&index) {
                     continue;
                 }
-                let device = &self.devices[index];
+                let device = device_at(index);
                 let value = device.inductance(context).ok_or_else(|| {
                     SpiceError::circuit(format!("{} is not an inductor", device.name()))
                 })??;
@@ -298,7 +305,11 @@ impl Circuit {
         let mut mutuals = Vec::with_capacity(self.mutual.pairs.len());
         for pair in &self.mutual.pairs {
             let (a, b) = (values[&pair.first], values[&pair.second]);
-            let inductance = pair.coefficient * (a.coupling_base * b.coupling_base).abs().sqrt();
+            let coefficient = device_at(pair.coupling)
+                .mutual_coupling()
+                .ok_or_else(|| SpiceError::circuit("stale coupling override"))?
+                .coefficient;
+            let inductance = coefficient * (a.coupling_base * b.coupling_base).abs().sqrt();
             if !inductance.is_finite() {
                 return Err(SpiceError::circuit(format!(
                     "{}: nonfinite mutual inductance",
@@ -495,6 +506,14 @@ impl Circuit {
     /// names no device, or a device without a findable branch current, is a
     /// [`SpiceError::Parse`] at the reference (C: "unknown controlling source").
     pub fn finalize(&mut self) -> SpiceResult<()> {
+        let mut previous = crate::devices::Waveform::Constant(0.);
+        let mut previous_dc = 0.;
+        for device in self.devices.iter_mut().rev() {
+            if let Some((waveform, dc)) = device.bind_voltage_predecessor(&previous, previous_dc)? {
+                previous = waveform;
+                previous_dc = dc;
+            }
+        }
         self.topology()?;
         self.rebuild_unknowns();
         for index in 0..self.devices.len() {
@@ -504,6 +523,57 @@ impl Circuit {
             return Err(error.clone());
         }
         self.check_port_numbering()
+    }
+
+    /// RHS changes for temporary DC source setters. In VSRCload order a PORT
+    /// without explicit DC inherits the preceding voltage-source change;
+    /// sweeping the PORT itself sets its DC-given flag for that point.
+    /// # Errors
+    /// Duplicate, unknown or nonfinite source values, or overflowing sums.
+    pub fn dc_source_changes(
+        &self,
+        system: &crate::devices::LinearSystem,
+        overrides: &[(&str, Real)],
+    ) -> SpiceResult<Vector> {
+        let mut changes = Vector::zeros(self.unknown_count());
+        let mut names = BTreeSet::new();
+        for (name, value) in overrides {
+            if !value.is_finite()
+                || !names.insert(name.to_ascii_lowercase())
+                || !system
+                    .sources
+                    .iter()
+                    .any(|s| s.name.eq_ignore_ascii_case(name))
+            {
+                return Err(SpiceError::circuit(
+                    "invalid, duplicate or unknown DC source override",
+                ));
+            }
+        }
+        let mut previous_change = 0.;
+        for source in system.sources.iter().rev() {
+            let given = overrides
+                .iter()
+                .find(|(name, _)| source.name.eq_ignore_ascii_case(name));
+            let inherited = source.kind == crate::devices::SourceKind::Voltage
+                && self
+                    .device(&source.name)
+                    .is_some_and(|d| d.dc_accumulates_predecessor());
+            let change = given.map_or(
+                if inherited { previous_change } else { 0. },
+                |(_, value)| value - source.dc,
+            );
+            for (row, sign) in &source.rows {
+                changes.add_to(*row, sign * change)?;
+            }
+            if source.kind == crate::devices::SourceKind::Voltage {
+                previous_change = change;
+            }
+        }
+        if !changes.is_finite() {
+            return Err(SpiceError::circuit("DC source changes overflow"));
+        }
+        Ok(changes)
     }
 
     /// `vsrctemp.c` (`VSRCtemp`, run before every analysis): the RF port

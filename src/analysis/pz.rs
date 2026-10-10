@@ -226,37 +226,14 @@ pub(crate) fn run(
             return Err(short("Transfer function is -1"));
         }
     }
-    // The operating point, exactly as AC solves it (`PZan` calls `CKTop`
-    // and then loads with `MODEINITSMSIG`).
-    let hints = crate::analysis::initial::resolve(circuit, request)?;
-    let nodes = crate::analysis::bias::NodeForcing {
-        initial: Vec::new(),
-        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
-    };
-    let mut seed = crate::maths::Vector::zeros(circuit.unknown_count());
-    for hint in hints.nodesets {
-        seed.as_mut_slice()[hint.row] = hint.value;
-    }
-    let solved = crate::analysis::bias::solve_dc_forced(
-        circuit,
+    // PZan uses the same CKTop/MODEINITSMSIG preparation as acan.c.
+    let small_signal =
+        crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
+    let system = circuit.pole_zero_system_at(
         &context.model_context(),
-        &settings,
-        &[],
-        Some(&seed),
-        None,
-        &nodes,
-    )?
-    .solution;
-    // As in `ac.rs`: `MODEINITSMSIG` copies the zero `CKTstate1` into the
-    // switch states, so the small-signal (and pole-zero) loads see the
-    // accepted history, not the operating point's trial state.
-    let history = circuit.state_history();
-    let state1 = history.accepted(1).map_or_else(
-        || vec![0.; history.len()],
-        <[crate::primitives::Real]>::to_vec,
-    );
-    let system =
-        circuit.pole_zero_system_at(&context.model_context(), &solved.values, Some(&state1))?;
+        small_signal.bias(),
+        Some(small_signal.state()),
+    )?;
     let (a, e) = (dense(&system.a)?, dense(&system.e)?);
     // `PZan` runs the pole search before the zero search; `PZpost` lists
     // poles first.

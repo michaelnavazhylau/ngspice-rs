@@ -288,7 +288,16 @@ pub(crate) fn instantiate(
         new_nodes.intern(&instance.nodes[0]),
         new_nodes.intern(&instance.nodes[1]),
     ];
+    let power_function = port.power_function.is_some();
     let rf = port.finish(instance, dc_given, &mut new_nodes)?;
+    let tone = power_function.then(|| {
+        rf.as_ref().map_or((0., 0.), |p| {
+            (
+                (4. * p.z0 * p.power).sqrt(),
+                2. * std::f64::consts::PI * p.frequency,
+            )
+        })
+    });
     let device: Box<dyn Device> = match instance.designator {
         'r' => Box::new(Resistor::new(&instance.name, terminals, value)?.with_noise(
             ResistorNoise {
@@ -310,6 +319,7 @@ pub(crate) fn instantiate(
                 ),
                 waveform.unwrap_or(Waveform::Constant(value)),
             )?
+            .with_power_tone(tone)
             .with_ac_given(ac_given)
             .with_sensitivity_inputs(crate::devices::sensitivity::SourceInputs {
                 dc_given,
@@ -389,7 +399,7 @@ impl PortSetters {
     fn finish(
         self,
         instance: &DeviceInstance,
-        dc_given: bool,
+        _dc_given: bool,
         nodes: &mut NodeTable,
     ) -> SpiceResult<Option<crate::devices::RfPort>> {
         let Some(at) = self.any else {
@@ -403,16 +413,6 @@ impl PortSetters {
         let Some(number) = number else {
             // Not a port: portnum/z0/phase have no effect in C. pwr/freq would
             // still switch the time function to PORT with an unset amplitude.
-            if let Some(location) = self.power_function {
-                return Err(SpiceError::not_yet_ported(
-                    format!(
-                        "{location}: {}: pwr=/freq= on a voltage source that is not an RF \
-                         port (the PORT time function without a port amplitude)",
-                        instance.name
-                    ),
-                    "src/spicelib/devices/vsrc/vsrcload.c (case PORT)",
-                ));
-            }
             return Ok(None);
         };
         if !z0.is_finite() {
@@ -420,20 +420,6 @@ impl PortSetters {
                 feature: format!("{}: non-finite port impedance z0", instance.name),
                 location: Some(at),
             });
-        }
-        if let Some(location) = &self.power_function
-            && !dc_given
-        {
-            // vsrcload.c: without a DC value even the operating point loads the
-            // PORT function, added to the previous instance's value.
-            return Err(SpiceError::not_yet_ported(
-                format!(
-                    "{location}: {}: an RF port with pwr=/freq= needs an explicit DC value \
-                     (without one C loads the PORT time function in the operating point)",
-                    instance.name
-                ),
-                "src/spicelib/devices/vsrc/vsrcload.c (case PORT)",
-            ));
         }
         let name = format!("{}#res", instance.name);
         if nodes.get(&name).is_some() {

@@ -146,11 +146,7 @@ fn analysis(input: &mut Input<'_>) -> Result<(AnalysisKind, SourceLoc)> {
         Some(AnalysisKind::Transient) => Ok((AnalysisKind::Transient, token.location)),
         Some(AnalysisKind::Ac) => Ok((AnalysisKind::Ac, token.location)),
         Some(AnalysisKind::DcSweep) => Ok((AnalysisKind::DcSweep, token.location)),
-        // C measures `.sp` plots too; the port's measurement axis code does not.
-        Some(AnalysisKind::SParameter) => Err(gap(
-            &token.location,
-            format!(".measure {spelling}: measurements over an S-parameter plot"),
-        )),
+        Some(AnalysisKind::SParameter) => Ok((AnalysisKind::SParameter, token.location)),
         Some(kind) => Err(ErrMode::Cut(Failure(SpiceError::Unsupported {
             feature: format!(
                 ".measure {}: C measures tran, dc, sp and ac only, and a .{} result has no \
@@ -160,10 +156,7 @@ fn analysis(input: &mut Input<'_>) -> Result<(AnalysisKind, SourceLoc)> {
             ),
             location: Some(token.location),
         }))),
-        None if spelling == "sparam" => Err(gap(
-            &token.location,
-            format!(".measure {spelling}: measurements over an S-parameter plot"),
-        )),
+        None if spelling == "sparam" => Ok((AnalysisKind::SParameter, token.location)),
         None => Err(fail(
             &token.location,
             format!(

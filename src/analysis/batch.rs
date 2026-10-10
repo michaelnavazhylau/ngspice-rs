@@ -136,6 +136,10 @@ pub const fn plot_abbreviation(kind: AnalysisKind) -> &'static str {
 /// nothing; whether that is an error is the caller's decision.
 #[must_use]
 pub fn schedule(cards: &[AnalysisCard]) -> Vec<ScheduledAnalysis> {
+    schedule_with_bias(cards, false)
+}
+
+fn schedule_with_bias(cards: &[AnalysisCard], keep_op_info: bool) -> Vec<ScheduledAnalysis> {
     let mut order: Vec<usize> = (0..cards.len()).collect();
     // Same type: reverse deck order (the job list is built by prepending).
     order.sort_by(|&a, &b| {
@@ -159,8 +163,22 @@ pub fn schedule(cards: &[AnalysisCard]) -> Vec<ScheduledAnalysis> {
                 }
                 _ => 1,
             };
-            let mut own = Vec::with_capacity(count);
-            for _ in 0..count {
+            let bias = keep_op_info
+                && matches!(
+                    kind,
+                    AnalysisKind::Ac
+                        | AnalysisKind::Noise
+                        | AnalysisKind::SParameter
+                        | AnalysisKind::Distortion
+                        | AnalysisKind::PoleZero
+                );
+            let mut own = Vec::with_capacity(count + usize::from(bias));
+            for index in 0..count + usize::from(bias) {
+                let abbreviation = if bias && index == 0 {
+                    "op"
+                } else {
+                    abbreviation
+                };
                 let mut name = format!("{abbreviation}{plot_num}");
                 while names.iter().any(|taken| taken.eq_ignore_ascii_case(&name)) {
                     plot_num += 1;
@@ -186,6 +204,26 @@ pub fn schedule(cards: &[AnalysisCard]) -> Vec<ScheduledAnalysis> {
             .any(|later| later.kind == kind);
     }
     scheduled
+}
+
+/// Schedules evaluated analysis cards, so expression-valued noise bounds
+/// determine the same plot count as the driver (C `noisean.c`).
+///
+/// # Errors
+/// Returns errors from evaluating card arguments and applying deck options.
+pub fn schedule_evaluated(
+    cards: &[AnalysisCard],
+    config: &crate::analysis::RunConfig,
+) -> SpiceResult<Vec<ScheduledAnalysis>> {
+    let mut evaluated = cards.to_vec();
+    let mut keep_op_info = false;
+    for card in &mut evaluated {
+        let request = config.request_for(card)?;
+        keep_op_info = request.keep_op_info;
+        card.arguments = request.arguments;
+        card.expressions.clear();
+    }
+    Ok(schedule_with_bias(&evaluated, keep_op_info))
 }
 
 /// Checks, before anything runs, that every `.print`, `.measure` and `.four`
@@ -323,7 +361,29 @@ pub fn resolve_outputs(
     fourier_cards: &[FourierCard],
 ) -> SpiceResult<PlotOutputs> {
     let kind = scheduled.kind;
-    let own = OutputCards {
+    if matches!(
+        plot.plotname.as_str(),
+        "AC Operating Point" | "NOISE Operating Point" | "Distortion Operating Point"
+    ) {
+        return Ok(PlotOutputs {
+            written: Selection::resolve(
+                plot,
+                AnalysisKind::OperatingPoint,
+                &selection::write_requests(
+                    &OutputCards {
+                        saves: output.saves.clone(),
+                        prints: Vec::new(),
+                    },
+                    AnalysisKind::OperatingPoint,
+                )?,
+            )?
+            .apply(plot)?,
+            printed: None,
+            measurements: Vec::new(),
+            fourier: Vec::new(),
+        });
+    }
+    let mut own = OutputCards {
         saves: output.saves.clone(),
         prints: output
             .prints
@@ -332,6 +392,50 @@ pub fn resolve_outputs(
             .cloned()
             .collect(),
     };
+    if kind == AnalysisKind::Noise {
+        let integrated = plot.plotname.starts_with("Integrated Noise");
+        let has_integrated = scheduled
+            .plot_names()
+            .filter(|name| name.starts_with("noise"))
+            .count()
+            > 1;
+        let applicable = |request: &crate::netlist::ast::VectorRequest| -> SpiceResult<bool> {
+            if matches!(request.vector, crate::netlist::ast::RequestedVector::All) {
+                return Ok(true);
+            }
+            let name = request.vector.name().to_ascii_lowercase();
+            let total = name.contains("onoise_total") || name.contains("inoise_total");
+            if total && !has_integrated {
+                return Err(SpiceError::Unsupported {
+                    feature: format!("{name}: single-frequency .noise has no integrated plot"),
+                    location: Some(request.location.clone()),
+                });
+            }
+            Ok(total == integrated)
+        };
+        for save in &mut own.saves {
+            save.requests = save
+                .requests
+                .iter()
+                .filter_map(|r| match applicable(r) {
+                    Ok(true) => Some(Ok(r.clone())),
+                    Ok(false) => None,
+                    Err(e) => Some(Err(e)),
+                })
+                .collect::<SpiceResult<_>>()?;
+        }
+        for print in &mut own.prints {
+            print.requests = print
+                .requests
+                .iter()
+                .filter_map(|r| match applicable(r) {
+                    Ok(true) => Some(Ok(r.clone())),
+                    Ok(false) => None,
+                    Err(e) => Some(Err(e)),
+                })
+                .collect::<SpiceResult<_>>()?;
+        }
+    }
     let requests = selection::write_requests(&own, kind)?;
     let selection = Selection::resolve(plot, kind, &requests)?;
     let print_requests = selection::print_requests(&own, kind)?;

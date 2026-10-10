@@ -71,7 +71,7 @@ pub(super) fn output_card(input: &mut Input<'_>) -> Result<ParsedCard> {
                 &name.location,
                 format!(
                     "expected an analysis name after .print (op, dc, ac, tran, noise, disto, pz, \
-                     sens, tf or four), found '{}'",
+                     sens, tf, sp or four), found '{}'",
                     name.text
                 ),
             ));
@@ -102,8 +102,7 @@ fn requests(input: &mut Input<'_>, card: &str) -> Result<Vec<VectorRequest>> {
 }
 
 /// The supported request spellings, quoted in diagnostics.
-const SUPPORTED: &str =
-    "all, v(node), v(first,second), i(source|inductor|E|H), vm/vp/vr/vi/vdb(node[,second])";
+const SUPPORTED: &str = "all, v(node), v(first,second), i(source|inductor|E|H), vm/vp/vr/vi/vdb(node[,second]), named-vector, mag/ph/real/imag/db(named-vector)";
 
 /// One vector request. Shared with the `.measure` grammar
 /// (`super::measure`), whose operands use the same bounded spelling.
@@ -137,6 +136,44 @@ pub(super) fn request(input: &mut Input<'_>) -> Result<VectorRequest> {
         ));
     }
     let name = head.text.to_ascii_lowercase();
+    let named_component = match name.as_str() {
+        "mag" => Some(VectorComponent::Magnitude),
+        "ph" => Some(VectorComponent::Phase),
+        "real" => Some(VectorComponent::Real),
+        "imag" => Some(VectorComponent::Imaginary),
+        "db" => Some(VectorComponent::Decibels),
+        _ => None,
+    };
+    if let Some(component) = named_component {
+        punctuation(TokenKind::LParen).parse_next(input)?;
+        let vector = any
+            .verify(|t: &Token| t.kind == TokenKind::Word)
+            .parse_next(input)?;
+        punctuation(TokenKind::RParen).parse_next(input)?;
+        return Ok(VectorRequest {
+            vector: RequestedVector::Named {
+                name: vector.text.to_ascii_lowercase(),
+                component: Some(component),
+            },
+            location,
+        });
+    }
+    // Named analysis vectors have no parentheses. Unknown names still fail
+    // during resolution, before output publication, rather than disappearing.
+    if !matches!(name.as_str(), "v" | "i" | "vm" | "vp" | "vr" | "vi" | "vdb")
+        && !input
+            .input
+            .first()
+            .is_some_and(|t| t.kind == TokenKind::LParen)
+    {
+        return Ok(VectorRequest {
+            vector: RequestedVector::Named {
+                name,
+                component: None,
+            },
+            location,
+        });
+    }
     if !matches!(name.as_str(), "v" | "i" | "vm" | "vp" | "vr" | "vi" | "vdb") {
         return Err(fail(
             &location,
