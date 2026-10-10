@@ -54,6 +54,22 @@ linear baseline beneath PORT cosines.
 
 # Verification
 
+## M10 URC lines (#85 part 1, `work/m10-urc`)
+
+Three new C goldens (`m10_urc_tran`, `m10_urc_ac`, `m10_urc_diode_tran`),
+each captured individually with `cargo xtask golden capture --netlist`; no
+existing golden was recaptured and no tolerance was changed. `cargo xtask
+golden verify` reports **123 verified / 0 unsupported / 0 failures** (AC at
+`compare::AC`, both transients at `compare::TRAN`; the diode deck runs at
+`reltol=1e-6`, worst error 0.12 of the bound, because at the default RELTOL
+C's and the port's integration errors in near-zero source currents exceed
+it); `golden check` reproduces all 123 fixtures. `cargo test --workspace
+--locked` reports **1276 passed, 0 failed, 126 ignored**; all **126 ignored
+live-C** checks pass with absolute `NGSPICE_BIN`, including the new
+`c_urc_reference` (generated element values and `@u1[l]`/`@u1[n]` equal to
+C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
+are unchanged. See [URC.md](URC.md).
+
 ## M8 sensitivity analysis (#102)
 
 `.sens` DC and AC sensitivities ([SENSITIVITY.md](SENSITIVITY.md)).
@@ -1501,6 +1517,38 @@ copy:
 The opt-in `tests/c_jfet_reference.rs` adds live comparisons of saved
 `@j[...]` asks of both polarities, a nested `@j1[area]` x `@j1[temp]` sweep
 and `.pz` roots of a common-source stage (agreeing to about 1e-12 relative).
+## Model binning verification (#109)
+
+C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so
+binning has no rawfile goldens. It is verified at the selection level:
+
+- `src/devices/binning.rs` unit tests: `model_name_match` digit suffixes,
+  binnable levels, inclusive 1e-9 m edges, last-declared-wins ordering,
+  skipped partial bounds and non-binnable candidates, last-setter precedence,
+  the `nf`/`wnflag`/`scale` geometry rule and non-literal errors.
+- `tests/model_binning.rs`: the production parser, subcircuit expansion and
+  `RunConfig::circuit` path — the selected bin is read from its
+  `NotYetPorted` diagnostic, C failure cases are parse errors, subcircuit bin
+  sets shadow outer models, root models may not join a local set, and the
+  resolver API (`bin_candidates`, `declarations_for`, `select_bin`,
+  `with_bin_options`).
+- `tests/transistor_parser.rs`: binned `M` references parse (the former
+  "MOS model binning" parser gap is gone); `.N`-less and BJT forms do not.
+- Opt-in `tests/c_binning_reference.rs`: 21 decks (BSIM3 and BSIM4 bins, bin
+  edges and the 1 nm tolerance, reversed declaration order, `m`, missing `w`,
+  out-of-range, level-1 bins, mixed level-1/BSIM candidates, partial bounds,
+  `nch.01`, an exact model beside bins, local/root/narrow-local subcircuit
+  sets) run `op` + `show all : model` in C; the bin C binds (or its "could not
+  find a valid modelname") must equal the port's choice, and the sequence of C
+  outcomes is pinned so the comparison cannot pass vacuously.
+
+```sh
+NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p ngspice-rs --test c_binning_reference --locked -- --ignored
+```
+
+Not verified: `.options scale`/`wnflag` and instance `nf`/`wnflag` through a
+deck (not accepted by the front end yet; covered only by unit tests), and any
+simulation through a binned card.
 
 ## Not yet verified
 

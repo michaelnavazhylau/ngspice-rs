@@ -149,6 +149,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m10_jfet_ac` | `.ac` | common-source JFET: CGS/CGD depletion capacitance with FC, RD/RS, `area`, `m` (#82) |
 | `m10_jfet_tran` | `.tran` | JFET source follower and PJF common-source stage, gate charge companions; `tmax` 0.25 ns (#82) |
 | `m10_jfet_temp` | `.dc temp` | TNOM, TCV/VTOTC, BEX/BETATCE, XTI/EG, TEMP/DTEMP, forward-gate IS(T), PJF with RS (#82) |
+| `m10_urc_tran` | `.tran` | URC lines (#85): FMAX-rule 10-section ladder (K=2), `n=4` on a DC-biased reference, C's 3-section minimum; generated `u1#hi<i>`/`u1#lo<i>` nodes |
+| `m10_urc_ac` | `.ac` | URC lines: 16-section FMAX-rule line, `n=6` with the reference tied to the input, a single section (`n=1`) |
+| `m10_urc_diode_tran` | `.tran` | URC `ISPERL` ladder: 17 generated diodes of `u1#diodemod` with `RSPERL` series resistance, conducting near the positive peaks (`reltol=1e-6`) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
 previous goldens were not recaptured. See [M4_NONLINEAR.md](../../docs/port/M4_NONLINEAR.md)
@@ -169,6 +172,10 @@ The six `switch_*` decks (#81) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
 In the two transient decks every plotted node is a source or capacitor node,
 so no plotted value jumps between samples where a switch flips.
+
+The three `m10_urc_*` decks (#85) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+See [URC.md](../../docs/port/URC.md).
 
 The ten behavioural-source decks (#79) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.

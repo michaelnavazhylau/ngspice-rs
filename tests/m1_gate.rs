@@ -265,6 +265,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M10 JFET level 1 decks (#82) are gated by `xtask golden verify` and
     // `tests/jfet.rs`.
     on_disk.retain(|name| !name.starts_with("m10_jfet_"));
+    // M10 URC decks (#85) are gated by `xtask golden verify`,
+    // `tests/golden_rawfiles.rs` and `tests/urc_lines.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_urc_"));
     // M6 behavioural-source decks (#79) are gated by `xtask golden verify` and
     // `tests/behavioural_sources.rs`.
     on_disk.retain(|name| {

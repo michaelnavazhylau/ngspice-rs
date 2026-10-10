@@ -28,6 +28,10 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('w', "current-controlled switch (companion .tran, no BDF)"),
     ('x', "expanded before device elaboration"),
     ('j', "JFET level 1 (jfetload.c, Sydney B tail)"),
+    (
+        'u',
+        "uniform RC line expanded into R/C/D sections (urcsetup.c)",
+    ),
 ];
 
 pub(crate) fn from_card(card: &RawCard, nodes: &mut NodeTable) -> SpiceResult<Box<dyn Device>> {
@@ -83,6 +87,14 @@ pub(crate) fn instantiate_with_models(
                 return crate::devices::switch::Switch::instantiate(
                     instance, nodes, &model, context,
                 );
+            }
+            crate::devices::models::ModelFamily::Urc => {
+                // One U instance becomes many devices: Circuit::add_instances
+                // calls crate::devices::urc::expand instead of this factory.
+                return Err(SpiceError::circuit(format!(
+                    "URC {} is expanded by Circuit::add_instances, not built as one device",
+                    instance.name
+                )));
             }
             _ => {}
         }

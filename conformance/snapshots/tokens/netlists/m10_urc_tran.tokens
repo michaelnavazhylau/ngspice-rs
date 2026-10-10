@@ -1,0 +1,152 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_urc_tran.cir
+title: "Uniform distributed RC lines in a transient (urcsetup.c expansion)" @netlists/m10_urc_tran.cir:1:1
+card 1 @netlists/m10_urc_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "v1 in 0 pulse(0 1 100n 20n 20n 4u 10u)"
+  kind: device(v)
+  token 1 7:1 word "v1"
+  token 2 7:4 word "in"
+  token 3 7:7 number "0" value=0e0
+  token 4 7:9 word "pulse"
+  token 5 7:14 lparen "("
+  token 6 7:15 number "0" value=0e0
+  token 7 7:17 number "1" value=1e0
+  token 8 7:19 number "100n" value=1.0000000000000001e-7
+  token 9 7:24 number "20n" value=2e-8
+  token 10 7:28 number "20n" value=2e-8
+  token 11 7:32 number "4u" value=4e-6
+  token 12 7:35 number "10u" value=9.999999999999999e-6
+  token 13 7:38 rparen ")"
+card 2 @netlists/m10_urc_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "rs in a 1k"
+  kind: device(r)
+  token 1 8:1 word "rs"
+  token 2 8:4 word "in"
+  token 3 8:7 word "a"
+  token 4 8:9 number "1k" value=1e3
+card 3 @netlists/m10_urc_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "u1 a out 0 rline1 l=1m"
+  kind: device(u)
+  token 1 9:1 word "u1"
+  token 2 9:4 word "a"
+  token 3 9:6 word "out"
+  token 4 9:10 number "0" value=0e0
+  token 5 9:12 word "rline1"
+  token 6 9:19 word "l"
+  token 7 9:20 equals "="
+  token 8 9:21 number "1m" value=1e-3
+card 4 @netlists/m10_urc_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "rl out 0 100k"
+  kind: device(r)
+  token 1 10:1 word "rl"
+  token 2 10:4 word "out"
+  token 3 10:8 number "0" value=0e0
+  token 4 10:10 number "100k" value=1e5
+card 5 @netlists/m10_urc_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "cl out 0 2p"
+  kind: device(c)
+  token 1 11:1 word "cl"
+  token 2 11:4 word "out"
+  token 3 11:8 number "0" value=0e0
+  token 4 11:10 number "2p" value=2e-12
+card 6 @netlists/m10_urc_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "vref ref 0 dc 0.5"
+  kind: device(v)
+  token 1 12:1 word "vref"
+  token 2 12:6 word "ref"
+  token 3 12:10 number "0" value=0e0
+  token 4 12:12 word "dc"
+  token 5 12:15 number "0.5" value=5e-1
+card 7 @netlists/m10_urc_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "u2 in b ref rline2 l=5m n=4"
+  kind: device(u)
+  token 1 13:1 word "u2"
+  token 2 13:4 word "in"
+  token 3 13:7 word "b"
+  token 4 13:9 word "ref"
+  token 5 13:13 word "rline2"
+  token 6 13:20 word "l"
+  token 7 13:21 equals "="
+  token 8 13:22 number "5m" value=5e-3
+  token 9 13:25 word "n"
+  token 10 13:26 equals "="
+  token 11 13:27 number "4" value=4e0
+card 8 @netlists/m10_urc_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "rb b 0 20k"
+  kind: device(r)
+  token 1 14:1 word "rb"
+  token 2 14:4 word "b"
+  token 3 14:6 number "0" value=0e0
+  token 4 14:8 number "20k" value=2e4
+card 9 @netlists/m10_urc_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "u3 in c 0 rline3 l=10u"
+  kind: device(u)
+  token 1 15:1 word "u3"
+  token 2 15:4 word "in"
+  token 3 15:7 word "c"
+  token 4 15:9 number "0" value=0e0
+  token 5 15:11 word "rline3"
+  token 6 15:18 word "l"
+  token 7 15:19 equals "="
+  token 8 15:20 number "10u" value=9.999999999999999e-6
+card 10 @netlists/m10_urc_tran.cir:16:1 lines=16-16 continuations=0
+  raw: "rc c 0 50k"
+  kind: device(r)
+  token 1 16:1 word "rc"
+  token 2 16:4 word "c"
+  token 3 16:6 number "0" value=0e0
+  token 4 16:8 number "50k" value=5e4
+card 11 @netlists/m10_urc_tran.cir:17:1 lines=17-17 continuations=0
+  raw: ".model rline1 urc(k=2 fmax=1g rperl=1e7 cperl=1e-7)"
+  kind: dot(.model)
+  token 1 17:1 word ".model"
+  token 2 17:8 word "rline1"
+  token 3 17:15 word "urc"
+  token 4 17:18 lparen "("
+  token 5 17:19 word "k"
+  token 6 17:20 equals "="
+  token 7 17:21 number "2" value=2e0
+  token 8 17:23 word "fmax"
+  token 9 17:27 equals "="
+  token 10 17:28 number "1g" value=1e9
+  token 11 17:31 word "rperl"
+  token 12 17:36 equals "="
+  token 13 17:37 number "1e7" value=1e7
+  token 14 17:41 word "cperl"
+  token 15 17:46 equals "="
+  token 16 17:47 number "1e-7" value=1e-7
+  token 17 17:51 rparen ")"
+card 12 @netlists/m10_urc_tran.cir:18:1 lines=18-18 continuations=0
+  raw: ".model rline2 urc(cperl=40n)"
+  kind: dot(.model)
+  token 1 18:1 word ".model"
+  token 2 18:8 word "rline2"
+  token 3 18:15 word "urc"
+  token 4 18:18 lparen "("
+  token 5 18:19 word "cperl"
+  token 6 18:24 equals "="
+  token 7 18:25 number "40n" value=4e-8
+  token 8 18:28 rparen ")"
+card 13 @netlists/m10_urc_tran.cir:19:1 lines=19-19 continuations=0
+  raw: ".model rline3 urc urc rperl=1e8 cperl=2e-7"
+  kind: dot(.model)
+  token 1 19:1 word ".model"
+  token 2 19:8 word "rline3"
+  token 3 19:15 word "urc"
+  token 4 19:19 word "urc"
+  token 5 19:23 word "rperl"
+  token 6 19:28 equals "="
+  token 7 19:29 number "1e8" value=1e8
+  token 8 19:33 word "cperl"
+  token 9 19:38 equals "="
+  token 10 19:39 number "2e-7" value=2e-7
+card 14 @netlists/m10_urc_tran.cir:20:1 lines=20-20 continuations=0
+  raw: ".tran 20n 10u"
+  kind: dot(.tran)
+  token 1 20:1 word ".tran"
+  token 2 20:7 number "20n" value=2e-8
+  token 3 20:11 number "10u" value=9.999999999999999e-6
+card 15 @netlists/m10_urc_tran.cir:21:1 lines=21-21 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 21:1 word ".end"
