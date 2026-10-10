@@ -764,12 +764,26 @@ pub(crate) fn run(
             // Only a solved point is accepted; a failure above returns before
             // any accept hook runs for it. A nonlinear point's state becomes the
             // accepted history of the next one.
+            let observed = circuit.observe_real(
+                &crate::devices::LoadRequest {
+                    mode: crate::devices::AnalysisMode::DcSweep,
+                    solution: &x,
+                    model_context: &model,
+                    integration: None,
+                    history: &history,
+                    forcing: None,
+                },
+                &overrides,
+                None,
+                solved_state.as_ref(),
+            )?;
             match solved_state {
                 Some(trial) => circuit.accept_point(&x, None, &mut history, trial)?,
                 None => circuit.accept_solution(&x, None)?,
             }
             let mut point = vec![Complex::real(*inner_value)];
             point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
+            point.extend(observed);
             if axes.len() == 2 {
                 point.push(Complex::real(*outer_value));
             }

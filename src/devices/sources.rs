@@ -239,6 +239,34 @@ impl IndependentSource {
 }
 
 impl Device for IndependentSource {
+    fn observation_parameter(
+        &self,
+        keyword: &str,
+        _context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(match keyword {
+            "dc" => Some(self.dc),
+            "m" if !self.voltage => Some(self.multiplier),
+            _ => None,
+        })
+    }
+    fn observation_source_current(
+        &self,
+        time: Option<(Real, crate::devices::Forcing)>,
+    ) -> SpiceResult<Option<Real>> {
+        if self.voltage {
+            return Ok(None);
+        }
+        let value = match time {
+            Some((t, f)) => self.waveform.value_at_timed(t, f.limit, &f.timing)?,
+            None => self.dc,
+        };
+        Ok(Some(value * self.multiplier))
+    }
+    fn observation_source_multiplier(&self) -> Real {
+        self.multiplier
+    }
+
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         match keyword.to_ascii_lowercase().as_str() {
             "acmag" => Some("acmag"),

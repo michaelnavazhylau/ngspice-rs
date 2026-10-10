@@ -1006,6 +1006,26 @@ fn linear_current(
 }
 
 impl Device for Mos1 {
+    fn observation_parameter(
+        &self,
+        key: &str,
+        context: &ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        let p = &self.geometry;
+        Ok(match key {
+            "w" => Some(p.w),
+            "m" => Some(p.m),
+            "ad" => Some(p.ad),
+            "as" => Some(p.as_),
+            "pd" => Some(p.pd),
+            "ps" => Some(p.ps),
+            "nrd" => Some(p.nrd),
+            "nrs" => Some(p.nrs),
+            "temp" => Some(p.temp.map_or(context.temperature + p.dtemp, |t| t - 273.15)),
+            "dtemp" => Some(p.dtemp),
+            _ => None,
+        })
+    }
     fn name(&self) -> &str {
         &self.name
     }

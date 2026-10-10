@@ -1,5 +1,7 @@
 # Measurements: `.measure` and `.meas`
 
+The M9 section below updates the historical subset descriptions in this guide.
+
 Implemented for issue #43 in the Rust-only `work/m5-measure` worktree, based on
 `origin/main` `7624471` (which already carries `.save`/`.print` output selection,
 subcircuit elaboration, the `simulate` CLI and binary rawfile I/O). The C
@@ -367,9 +369,8 @@ the `Date:` header).
   `.measurement` reach the measurement path there; the port accepts the two
   spellings its card classifier knows and rejects anything else as an unknown
   directive.
-* **A `.measure` card inside a `.subckt` body is not ported** (C hoists such a
-  card out of the body into `ci_meas`); the port rejects it explicitly rather
-  than guessing the scope.
+* **A body `.measure` repeats per instance without vector renaming**, as in C.
+  See OUTPUT_SELECTION.md for the scoped-card rules and C checks.
 * **`TD=`, `WHEN`, `MIN_AT`/`MAX_AT`, `PP`, `DERIV`, `ERR*` and the margin
   measurements are not ported** and are rejected with `NotYetPorted` naming
   `src/frontend/com_measure2.c`, never silently ignored.
@@ -379,3 +380,47 @@ vector aliases. The port additionally accepts explicit named-vector components
 such as `mag(S_2_1)`/`real(S_2_1)` directly; C's `.meas` parser requires the
 `vm`/`vr` aliases instead of those expression spellings. `c_measure_reference`
 compares the aliases against C's printed measurements.
+
+## M9 measurement extensions (#114)
+
+Implemented: `WHEN vector=value` with crossing selectors, `FIND`/`DERIV vector
+AT=value` or `WHEN vector=value`, `MIN_AT`, `MAX_AT`, `PP`, and AC/SP
+`PHASE_MARGIN`/`GAIN_MARGIN`. `TD` belongs to threshold events and is tracked
+independently for trigger and target. Use `FROM` for statistics. DERIV evaluates
+a local nonuniform quadratic (`measure_deriv_at`); two samples safely use a
+secant. Margins unwrap phase, interpolate gain in dB and phase in degrees, and
+interpolate crossover frequency logarithmically (`measure_margin`). Missing
+crossovers and nonfinite arithmetic fail explicitly.
+
+RMS and INTEG now match C's greedy Simpson 3/8, Simpson 1/3, then trapezoid
+policy for positive interval widths within 100 ULPs. AVG retains trapezoids.
+Live C tests cover these forms and margins; process tests verify full-plot
+measurement despite narrowed `.save` output.
+
+Scalar `PARAM`/`EXPR` expressions accept quoted or braced numparam syntax,
+optional `=`, and a single bare scalar/name. Evaluation follows C
+`measure.c::do_measure`: all vector measurements first, then scalar cards in
+source order. Scalars can read top-level `.param`/`.func` values, any vector
+measurement result, and earlier scalar results. Results are returned in source
+order; undefined/forward scalar references, domain errors and nonfinite results
+fail the run before publication. Library callers use `measure::resolve_with_scope`
+and `batch::resolve_outputs_with_scope` when deck parameters are needed.
+The local C input preprocessor mishandles `EXPR` with a user function and a
+measurement-result argument; the live C regression uses its `PARAM` spelling.
+Numeric setters AT/VAL/TD/FROM/TO and crossing counts accept braced or
+single-quoted numparam expressions. The original positioned card is retained
+and reparsed with the same winnow grammar after evaluation, enforcing finite
+values, valid ranges and integer counts. Setters can read deck parameters and
+earlier measurement results; result references in setters are a Rust extension
+because C's deck preprocessor rejects them. `m9_measure_expressions` tests
+source round trips, scope, invalid values, atomic failure and live C parameter
+setter comparisons.
+`ERR`/`ERR1`/`ERR2`/`ERR3` remain explicit errors: the inspected upstream
+`com_measure2.c` recognizes their names but returns “currently not supported”;
+its equation functions are disabled empty stubs. No formulas are invented.
+
+`WHEN` also accepts a sampled vector on the right side, for example
+`WHEN v(out)=v(ref) RISE=1`. Crossing direction and interpolation use the
+left-minus-right samples, including both slopes. FIND and DERIV can use the
+same event. Nonfinite differences fail explicitly. Analytic tests and an opt-in
+C comparison cover moving references and both directions.

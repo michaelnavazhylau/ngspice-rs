@@ -77,6 +77,53 @@ pub(super) fn measure_card(input: &mut Input<'_>) -> Result<ParsedCard> {
     if input.state.card.dot_command() != Some(&DotCommand::Measure) {
         return Err(ErrMode::Backtrack(Failure::from_input(input)));
     }
+    let source = input.state.card;
+    let scalar = source
+        .tokens
+        .get(3)
+        .is_some_and(|t| t.is_keyword("param") || t.is_keyword("expr"));
+    if !scalar
+        && source
+            .tokens
+            .iter()
+            .any(super::expression::is_expression_token)
+    {
+        let mut prepared = source.clone();
+        for token in &mut prepared.tokens {
+            if super::expression::is_expression_token(token) {
+                numeric_expression(token).map_err(|e| ErrMode::Cut(Failure(e)))?;
+                token.kind = TokenKind::Number(1.0);
+                token.text = "1".into();
+            }
+        }
+        // Numeric setters are range-checked after evaluation. Neutralize literal
+        // setters too, so a deferred FROM does not spuriously conflict with the
+        // same literal FROM in a TRIG/TARG pair during structural validation.
+        for i in 1..prepared.tokens.len() {
+            if prepared.tokens[i - 1].kind == TokenKind::Equals
+                && matches!(prepared.tokens[i].kind, TokenKind::Number(_))
+            {
+                prepared.tokens[i].kind = TokenKind::Number(1.);
+                prepared.tokens[i].text = "1".into();
+            }
+        }
+        let parsed = super::grammar::parse_card(
+            &prepared,
+            input.state.auto_gnd,
+            input.state.declared_models,
+        )
+        .map_err(|e| ErrMode::Cut(Failure(e)))?;
+        let ParsedCard::Measure(mut parsed) = parsed else {
+            return Err(fail(&source.location, "expected a measurement card"));
+        };
+        parsed.request = MeasureRequest::Deferred {
+            card: Box::new(source.clone()),
+            auto_gnd: input.state.auto_gnd,
+            template: Box::new(parsed.request),
+        };
+        winnow::token::rest.parse_next(input)?;
+        return Ok(ParsedCard::Measure(parsed));
+    }
     any.parse_next(input)?;
     cut_err(card).parse_next(input)
 }
@@ -107,9 +154,12 @@ fn card(input: &mut Input<'_>) -> Result<ParsedCard> {
     let name_location = name.location.clone();
     let operation = operation(input, &location)?;
     let request = match operation {
-        Operation::Find => find(input, &location)?,
+        Operation::Parameter => parameter_expression(input)?,
+        Operation::Find => find_or_deriv(input, &location, false)?,
         Operation::Statistic(statistic) => statistic_request(input, statistic)?,
         Operation::Trig => trig_targ(input, &location)?,
+        Operation::When => when(input)?,
+        Operation::Deriv => find_or_deriv(input, &location, true)?,
     };
     Ok(ParsedCard::Measure(MeasureCard {
         analysis,
@@ -169,9 +219,12 @@ fn analysis(input: &mut Input<'_>) -> Result<(AnalysisKind, SourceLoc)> {
 
 /// The operation word after the result name.
 enum Operation {
+    Parameter,
     Find,
     Statistic(MeasureStatistic),
     Trig,
+    When,
+    Deriv,
 }
 
 /// C's `measure_function_type()` (`com_measure2.c`).
@@ -195,6 +248,7 @@ fn operation(input: &mut Input<'_>, card: &SourceLoc) -> Result<Operation> {
     any.parse_next(input)?;
     let word = token.text.to_ascii_lowercase();
     let operation = match word.as_str() {
+        "param" | "expr" => Operation::Parameter,
         "find" => Operation::Find,
         "min" => Operation::Statistic(MeasureStatistic::Min),
         "max" => Operation::Statistic(MeasureStatistic::Max),
@@ -202,8 +256,14 @@ fn operation(input: &mut Input<'_>, card: &SourceLoc) -> Result<Operation> {
         "rms" => Operation::Statistic(MeasureStatistic::Rms),
         "integ" | "integral" => Operation::Statistic(MeasureStatistic::Integ),
         "trig" => Operation::Trig,
-        "when" | "min_at" | "max_at" | "pp" | "deriv" | "derivative" | "err" | "err1" | "err2"
-        | "err3" | "phase_margin" | "phasemargin" | "gain_margin" | "gainmargin" => {
+        "when" => Operation::When,
+        "deriv" | "derivative" => Operation::Deriv,
+        "min_at" => Operation::Statistic(MeasureStatistic::MinAt),
+        "max_at" => Operation::Statistic(MeasureStatistic::MaxAt),
+        "pp" => Operation::Statistic(MeasureStatistic::PeakToPeak),
+        "phase_margin" | "phasemargin" => Operation::Statistic(MeasureStatistic::PhaseMargin),
+        "gain_margin" | "gainmargin" => Operation::Statistic(MeasureStatistic::GainMargin),
+        "err" | "err1" | "err2" | "err3" => {
             return Err(gap(
                 &token.location,
                 format!(
@@ -225,8 +285,128 @@ fn operation(input: &mut Input<'_>, card: &SourceLoc) -> Result<Operation> {
     Ok(operation)
 }
 
+fn parameter_expression(input: &mut Input<'_>) -> Result<MeasureRequest> {
+    if input
+        .input
+        .first()
+        .is_some_and(|token| token.kind == TokenKind::Equals)
+    {
+        any.parse_next(input)?;
+    }
+    let token = any.parse_next(input)?;
+    let expression = match &token.kind {
+        TokenKind::Expression(_) => super::expression::from_brace_token(token),
+        TokenKind::Quoted(inner) if token.text == format!("'{inner}'") => {
+            super::expression::parse_delimited(
+                inner,
+                &token.location,
+                token.location.column + 1,
+                false,
+                true,
+            )
+        }
+        TokenKind::Number(_) | TokenKind::Word => super::expression::from_name_token(token),
+        _ => return Err(fail(&token.location, "PARAM requires a scalar expression")),
+    }
+    .map_err(|error| ErrMode::Cut(Failure(error)))?;
+    Ok(MeasureRequest::Parameter(Box::new(expression)))
+}
+
+/// C `measure_parse_when`: threshold equality, then ordinary crossing selectors.
+fn when(input: &mut Input<'_>) -> Result<MeasureRequest> {
+    let lhs = operand(input, "WHEN")?;
+    let location = lhs.location.clone();
+    let vector_rhs = input.input.get(1).is_some_and(|token| {
+        token.kind == TokenKind::Word && !super::expression::is_expression_token(token)
+    });
+    let (value, reference) = if vector_rhs {
+        let equals = any.parse_next(input)?;
+        if equals.kind != TokenKind::Equals {
+            return Err(fail(
+                &equals.location,
+                "WHEN requires vector=value or vector=vector",
+            ));
+        }
+        (0.0, Some(operand(input, "WHEN reference")?))
+    } else {
+        (number(input, "WHEN", &location)?, None)
+    };
+    let mut setters = Setters::default();
+    parameters(input, &mut setters, false)?;
+    if setters.at().is_some() || setters.val().is_some() {
+        return Err(fail(&location, "WHEN uses vector=value, without AT or VAL"));
+    }
+    let transition = setters
+        .transition()
+        .map_or(MeasureTransition::First, |(t, _)| t);
+    let event = if let Some(reference) = reference {
+        MeasureEvent::VectorCrossing {
+            operand: lhs,
+            reference,
+            transition,
+        }
+    } else {
+        MeasureEvent::Crossing {
+            operand: lhs,
+            value,
+            value_location: location,
+            transition,
+        }
+    };
+    Ok(MeasureRequest::When {
+        event: setters.delayed(event),
+        window: setters.window(),
+    })
+}
+
 /// `FIND <operand> AT=<value> [FROM=<value>] [TO=<value>]`.
-fn find(input: &mut Input<'_>, card: &SourceLoc) -> Result<MeasureRequest> {
+fn find_or_deriv(
+    input: &mut Input<'_>,
+    card: &SourceLoc,
+    derivative: bool,
+) -> Result<MeasureRequest> {
+    let has_when = input.input.iter().any(|t| t.is_keyword("when"));
+    if !has_when {
+        let request = find_at(input, card)?;
+        if !derivative {
+            return Ok(request);
+        }
+        let MeasureRequest::Find {
+            operand,
+            at,
+            at_location,
+            window,
+        } = request
+        else {
+            unreachable!()
+        };
+        return Ok(MeasureRequest::AtEvent {
+            operand,
+            event: MeasureEvent::At {
+                at,
+                location: at_location,
+            },
+            derivative,
+            window,
+        });
+    }
+    let operand = operand(input, if derivative { "DERIV" } else { "FIND" })?;
+    if !next_is(input, "when") {
+        return Err(fail(card, "expected WHEN after the operand"));
+    }
+    any.parse_next(input)?;
+    let MeasureRequest::When { event, window } = when(input)? else {
+        unreachable!()
+    };
+    Ok(MeasureRequest::AtEvent {
+        operand,
+        event,
+        derivative,
+        window,
+    })
+}
+
+fn find_at(input: &mut Input<'_>, card: &SourceLoc) -> Result<MeasureRequest> {
     let operand = operand(input, "FIND")?;
     let mut setters = Setters::default();
     parameters(input, &mut setters, false)?;
@@ -262,6 +442,12 @@ fn statistic_request(input: &mut Input<'_>, statistic: MeasureStatistic) -> Resu
     let operand = operand(input, statistic.name())?;
     let mut setters = Setters::default();
     parameters(input, &mut setters, false)?;
+    if let Some((_, at)) = &setters.td {
+        return Err(fail(
+            at,
+            "TD is a crossing parameter; use FROM for a statistic",
+        ));
+    }
     let unsupported = setters.at().or_else(|| setters.val()).map(|(_, at)| at);
     if let Some(at) = unsupported {
         return Err(fail(
@@ -367,6 +553,14 @@ fn event(
             format!("{clause} AT=<value> takes no RISE/FALL/CROSS/LAST selector"),
         ));
     }
+    let event = if let Some((td, _)) = setters.td {
+        MeasureEvent::Delayed {
+            event: Box::new(event),
+            td,
+        }
+    } else {
+        event
+    };
     Ok((event, setters.window()))
 }
 
@@ -429,10 +623,8 @@ fn parameters(input: &mut Input<'_>, setters: &mut Setters, stop_at_targ: bool) 
                 setters.set_transition(transition, token.location.clone())?;
             }
             "td" => {
-                return Err(gap(
-                    &token.location,
-                    "TD=<value> (measurements start at the axis origin in this port)",
-                ));
+                let value = number(input, &name, &token.location)?;
+                set(&mut setters.td, value, token.location, "TD")?;
             }
             "at" => setters.set_at(number(input, &name, &token.location)?, token.location)?,
             "val" => setters.set_val(number(input, &name, &token.location)?, token.location)?,
@@ -559,12 +751,24 @@ fn merge(left: MeasureWindow, right: MeasureWindow, card: &SourceLoc) -> Result<
 struct Setters {
     at: Option<(Real, SourceLoc)>,
     val: Option<(Real, SourceLoc)>,
+    td: Option<(Real, SourceLoc)>,
     from: Option<(Real, SourceLoc)>,
     to: Option<(Real, SourceLoc)>,
     transition: Option<(MeasureTransition, SourceLoc)>,
 }
 
 impl Setters {
+    fn delayed(&self, event: MeasureEvent) -> MeasureEvent {
+        if let Some((td, _)) = self.td {
+            MeasureEvent::Delayed {
+                event: Box::new(event),
+                td,
+            }
+        } else {
+            event
+        }
+    }
+
     fn set_at(&mut self, value: Real, at: SourceLoc) -> Result<()> {
         set(&mut self.at, value, at, "AT")
     }
@@ -623,4 +827,26 @@ fn set(slot: &mut Option<(Real, SourceLoc)>, value: Real, at: SourceLoc, name: &
     }
     *slot = Some((value, at));
     Ok(())
+}
+
+/// Resolve a numeric setter token using exactly the numparam expression grammar.
+pub(super) fn numeric_expression(
+    token: &Token,
+) -> crate::primitives::SpiceResult<crate::netlist::expr::ParameterExpression> {
+    match &token.kind {
+        TokenKind::Expression(_) => super::expression::from_brace_token(token),
+        TokenKind::Quoted(inner) if token.text == format!("'{inner}'") => {
+            super::expression::parse_delimited(
+                inner,
+                &token.location,
+                token.location.column + 1,
+                false,
+                true,
+            )
+        }
+        _ => Err(SpiceError::parse(
+            token.location.clone(),
+            "expected a braced or single-quoted numeric expression",
+        )),
+    }
 }

@@ -75,7 +75,9 @@ fn applicable(
                 location: Some(print.analysis_location.clone()),
             });
         }
-        requests.extend(print.requests.iter().cloned());
+        if include_saves || !print.ascii_plot {
+            requests.extend(print.requests.iter().cloned());
+        }
     }
     Ok(requests)
 }
@@ -648,6 +650,7 @@ mod tests {
 
     fn print(analysis: AnalysisKind, requests: Vec<VectorRequest>) -> PrintCard {
         PrintCard {
+            ascii_plot: false,
             analysis,
             analysis_location: SourceLoc::new(PathBuf::from("deck.cir"), 4, 8),
             requests,

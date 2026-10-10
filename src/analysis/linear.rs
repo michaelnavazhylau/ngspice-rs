@@ -58,6 +58,9 @@ pub(crate) fn plot(
             plot.push_variable(var(format!("i({})", device.name()), "current"));
         }
     }
+    for name in circuit.observations() {
+        plot.push_variable(Variable::new(name, crate::devices::observe::unit(name)));
+    }
     Ok(plot)
 }
 
@@ -99,7 +102,23 @@ pub(crate) fn op(
     .values;
     let mut plot = plot(circuit, "op1", "Operating Point", None, false)?;
     circuit.accept_solution(&x, None)?;
-    plot.push_point(x.as_slice().iter().map(|v| Complex::real(*v)).collect())?;
+    let history = circuit.state_history();
+    let values = circuit.observe_real(
+        &crate::devices::LoadRequest {
+            mode: crate::devices::AnalysisMode::OperatingPoint,
+            solution: &x,
+            model_context: &context.model_context(),
+            integration: None,
+            history: &history,
+            forcing: None,
+        },
+        &[],
+        None,
+        None,
+    )?;
+    let mut point: Vec<_> = x.as_slice().iter().map(|v| Complex::real(*v)).collect();
+    point.extend(values);
+    plot.push_point(point)?;
     Ok(plot)
 }
 

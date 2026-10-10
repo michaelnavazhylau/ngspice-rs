@@ -156,7 +156,6 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
 /// Front-end variables that ngspice reads from `.options` with an effect on
 /// output or setup, not implemented here.
 const FRONTEND_UNIMPLEMENTED: &[&str] = &[
-    "filetype",
     "savecurrents",
     "scale",
     "scalm",
@@ -332,6 +331,8 @@ pub struct IgnoredOption {
 /// Resolved, validated run configuration for one deck.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct RunConfig {
+    fourier: Option<crate::analysis::fourier::FourierSettings>,
+    raw_format: Option<crate::analysis::RawFormat>,
     squared_noise: bool,
     spice3_noise: bool,
     keep_op_info: bool,
@@ -358,7 +359,25 @@ impl RunConfig {
     /// and option expressions that fail to evaluate.
     pub fn from_netlist(netlist: &Netlist) -> SpiceResult<Self> {
         let scope = ParamScope::for_netlist(netlist)?;
-        let mut config = Self::resolve(&netlist.options, &RunOverrides::default(), Some(&scope))?;
+        // Body front-end cards follow expanded instance/card order, not definition order.
+        let expanded = if netlist.subcircuits.iter().any(|sub| {
+            !sub.options.is_empty()
+                || !sub.initial_conditions.is_empty()
+                || !sub.nodesets.is_empty()
+        }) {
+            let literal = crate::netlist::elaborate::literalize(netlist)?;
+            Some(crate::devices::subckt::expand_subcircuits(
+                &literal.netlist,
+                &literal.scope,
+                crate::devices::subckt::SubcircuitLimits::default(),
+            )?)
+        } else {
+            None
+        };
+        let options = expanded
+            .as_ref()
+            .map_or(netlist.options.as_slice(), |expanded| &expanded.options);
+        let mut config = Self::resolve(options, &RunOverrides::default(), Some(&scope))?;
         let (initial, nodesets) = crate::netlist::elaborate::literalize_node_hints(
             netlist,
             &scope,
@@ -377,10 +396,30 @@ impl RunConfig {
                 })
                 .collect::<Vec<_>>()
         };
-        config.initial_conditions = conditions(&initial);
-        config.nodesets = conditions(&nodesets);
+        config.initial_conditions = conditions(
+            expanded
+                .as_ref()
+                .map_or(&initial, |expanded| &expanded.initial_conditions),
+        );
+        config.nodesets = conditions(
+            expanded
+                .as_ref()
+                .map_or(&nodesets, |expanded| &expanded.nodesets),
+        );
         config.params = Some(std::sync::Arc::new(scope));
         Ok(config)
+    }
+
+    /// Explicit Fourier front-end settings.
+    #[must_use]
+    pub fn fourier_settings(&self) -> Option<crate::analysis::fourier::FourierSettings> {
+        self.fourier
+    }
+
+    /// Rawfile encoding selected by the front-end `set filetype` variable.
+    #[must_use]
+    pub fn raw_format(&self) -> Option<crate::analysis::RawFormat> {
+        self.raw_format
     }
 
     /// The deck's resolved top-level `.param` scope (only for configs built by
@@ -567,6 +606,38 @@ impl RunConfig {
             return Ok(());
         }
         match name {
+            "nfreqs" | "nperiods" | "polydegree" | "fourgridsize" => {
+                let value = whole(
+                    if name == "polydegree" { 0 } else { 1 },
+                    match name {
+                        "nfreqs" => 101,
+                        "nperiods" => 100,
+                        "polydegree" => 16,
+                        _ => 100_000,
+                    },
+                )?;
+                let settings = self.fourier.get_or_insert_with(Default::default);
+                match name {
+                    "nfreqs" => settings.nfreqs = value as u32,
+                    "nperiods" => settings.nperiods = value as u32,
+                    "polydegree" => settings.polydegree = value as u32,
+                    _ => settings.gridsize = value as u32,
+                }
+                return Ok(());
+            }
+            "filetype" => {
+                self.raw_format = Some(match setting.value.as_ref().map(|v| v.text.as_str()) {
+                    Some("ascii") => crate::analysis::RawFormat::Ascii,
+                    Some("binary") => crate::analysis::RawFormat::Binary,
+                    _ => {
+                        return Err(SpiceError::parse(
+                            location.clone(),
+                            "filetype requires ascii or binary",
+                        ));
+                    }
+                });
+                return Ok(());
+            }
             "sqrnoise" => {
                 if setting.value.is_some() {
                     return Err(SpiceError::Unsupported {
@@ -1050,7 +1121,11 @@ fn accepted(name: &str) -> bool {
         || IGNORED_BY_C.iter().any(|(ignored, _)| *ignored == name)
         || matches!(
             name,
-            "post"
+            "nfreqs"
+                | "nperiods"
+                | "polydegree"
+                | "fourgridsize"
+                | "post"
                 | "ingold"
                 | "indverbosity"
                 | "bypass"

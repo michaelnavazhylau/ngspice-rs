@@ -1119,6 +1119,21 @@ pub(crate) fn stamp_junction(
     context.stamp_rhs(nodes[1], equivalent)
 }
 impl Device for Diode {
+    fn observation_parameter(
+        &self,
+        key: &str,
+        context: &ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        let p = &self.parameters;
+        Ok(match key {
+            "area" => Some(p.area),
+            "pj" | "perim" => Some(p.perimeter),
+            "m" => Some(p.multiplier),
+            "temp" => Some(p.temperature.unwrap_or(context.temperature + p.dtemp)),
+            "dtemp" => Some(p.dtemp),
+            _ => None,
+        })
+    }
     fn name(&self) -> &str {
         &self.name
     }

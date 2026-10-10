@@ -634,7 +634,6 @@ fn unknown_and_unported_options_still_fail() {
         ".options cshunt=1p",
         ".options minbreak=1n",
         ".options numdgt=8",
-        ".options filetype=ascii",
         ".options savecurrents",
         ".options scale=1u",
         ".options seed=5",

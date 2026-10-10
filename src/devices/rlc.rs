@@ -211,6 +211,20 @@ impl Resistor {
 }
 
 impl Device for Resistor {
+    fn observation_parameter(
+        &self,
+        keyword: &str,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(match keyword {
+            "r" | "resistance" => Some(self.resistance),
+            "g" | "conductance" => Some(self.conductance()),
+            "temp" => Some(context.temperature),
+            "m" | "scale" => Some(1.),
+            "tc1" | "tc2" | "dtemp" => Some(0.),
+            _ => None,
+        })
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         [
             "resistance",
@@ -431,6 +445,19 @@ impl Capacitor {
 }
 
 impl Device for Capacitor {
+    fn observation_parameter(
+        &self,
+        keyword: &str,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(match keyword {
+            "c" | "cap" | "capacitance" => Some(self.capacitance),
+            "temp" => Some(context.temperature),
+            "m" | "scale" => Some(1.),
+            "tc1" | "tc2" | "dtemp" => Some(0.),
+            _ => None,
+        })
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         [
             "capacitance",
@@ -650,6 +677,19 @@ impl Inductor {
 }
 
 impl Device for Inductor {
+    fn observation_parameter(
+        &self,
+        keyword: &str,
+        context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        Ok(match keyword {
+            "l" | "inductance" => Some(self.inductance),
+            "temp" => Some(context.temperature),
+            "m" | "scale" => Some(1.),
+            "tc1" | "tc2" | "dtemp" => Some(0.),
+            _ => None,
+        })
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         ["inductance", "ic", "temp", "tc1", "tc2", "m", "scale"]
             .into_iter()

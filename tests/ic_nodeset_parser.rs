@@ -99,10 +99,15 @@ fn malformed_forms_are_explicit_errors() {
 }
 
 #[test]
-fn hints_inside_subcircuit_bodies_are_not_yet_ported() {
+fn hints_inside_subcircuit_bodies_are_retained_for_expansion() {
     for card in [".ic v(a)=1", ".nodeset v(a)=1"] {
-        let error = parse(&format!(".subckt s a b\nr1 a b 1k\n{card}\n.ends s\n")).unwrap_err();
-        assert!(matches!(error, SpiceError::NotYetPorted { .. }), "{error}");
+        let netlist = parse(&format!(".subckt s a b\nr1 a b 1k\n{card}\n.ends s\n")).unwrap();
+        assert_eq!(
+            netlist.subcircuits[0].initial_conditions.len() + netlist.subcircuits[0].nodesets.len(),
+            1
+        );
+        assert!(netlist.initial_conditions.is_empty());
+        assert!(netlist.nodesets.is_empty());
     }
 }
 

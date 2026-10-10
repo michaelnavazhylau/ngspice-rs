@@ -291,3 +291,32 @@ The package is ready to publish; the release path is not.
 - [ ] Add a `release` environment and a `v*`-tag workflow with `permissions: id-token: write` and `rust-lang/crates-io-auth-action`, publishing the single package with `cargo publish`; guard that the tag matches the workspace version and gate the job on the existing `Tests` workflow.
 - [ ] Add a `cargo package` check to CI so packaging, the include/exclude set and the package-relative conformance paths cannot regress silently.
 - [ ] Clear the six `cargo doc --no-deps` warnings before docs.rs is used: five public docs link to private items (`analysis::fourier` twice, `analysis::measure`, `analysis::newton`, `devices::circuit`) and `netlist::bexpr` links to the unresolved `crate::lower`.
+
+
+## M9 — Output and front-end completeness (work/m9)
+
+- [x] Binary CLI output (#112): explicit format, front-end/environment precedence,
+  atomic publication, process readback and opt-in C loading.
+- [x] Bounded ASCII `.plot` rendering (#111): shared operands, deterministic
+  line-printer field, atomic failure behavior, opt-in C legend/DC-row comparison.
+  Terminal pagination/resampling and explicit limits remain unsupported.
+- [x] Subcircuit directives (#108): scoped options/globals/hints/saves, repeated
+  measurements, and once-per-used-definition Fourier hoisting; C oracle and RC golden.
+- [x] Device observations (#113): requested non-branch terminal currents and
+  scalar `@device[param]` asks at solved OP/DC/companion transient points,
+  contextual scalar asks in AC, saved R/D/Q/M C golden and opt-in drift check.
+  Unsupported asks, coincident terminals, AC current/power asks and diffsol
+  observations fail explicitly; see OUTPUT_SELECTION.md.
+- [x] Remaining measurements (#114): WHEN, TD, extrema positions, PP, DERIV,
+  margins, vector thresholds, Simpson integration, two-pass scalar PARAM/EXPR
+  expressions and expression-valued numeric setters, with opt-in C comparisons.
+  Upstream ERR variants are themselves unimplemented and explicitly refused.
+- [x] Configurable Fourier (#115): settings, polynomial interpolation including
+  C's degree fallback/edge behavior, scoped hoisting and fundamental parameter
+  expressions (Rust extension); opt-in C comparisons per setting and degree.
+  Bounded `set` / `run` / `fourier` / `quit` control blocks are supported;
+  the general interactive command interpreter remains outside scope.
+
+All six M9 implementation slices are delivered with the bounded interfaces and
+explicit unsupported cases documented in CLI.md, OUTPUT_SELECTION.md,
+MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.

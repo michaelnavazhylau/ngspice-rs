@@ -1626,6 +1626,22 @@ fn small_signal(
 }
 
 impl Device for Bjt {
+    fn observation_parameter(
+        &self,
+        key: &str,
+        context: &ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        let p = &self.instance;
+        Ok(match key {
+            "area" => Some(p.area),
+            "areab" => Some(p.areab),
+            "areac" => Some(p.areac),
+            "m" => Some(p.multiplier),
+            "temp" => Some(p.temp.map_or(context.temperature + p.dtemp, |t| t - 273.15)),
+            "dtemp" => Some(p.dtemp),
+            _ => None,
+        })
+    }
     fn name(&self) -> &str {
         &self.name
     }

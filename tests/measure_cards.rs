@@ -195,23 +195,12 @@ fn a_trig_clause_may_be_an_axis_value_and_windows_must_agree() {
 }
 
 #[test]
-fn unsupported_operations_and_parameters_are_not_yet_ported() {
-    let not_ported = [
-        (".meas tran x when v(out)=2\n", "the when measurement"),
-        (".meas tran x pp v(out)\n", "the pp measurement"),
-        (".meas tran x deriv v(out) at=1m\n", "the deriv measurement"),
-        (".meas tran x find v(out) when v(in)=2\n", "the WHEN form"),
-        (".meas tran x avg v(out) td=1u\n", "TD=<value>"),
-        (
-            ".meas tran x min v(out) to={1m}\n",
-            "a {…} expression as the value of to=",
-        ),
-    ];
-    for (body, expected) in not_ported {
-        let error = parse(body).expect_err(body);
-        assert!(error.is_not_yet_ported(), "{body}: {error}");
-        assert!(error.to_string().contains(expected), "{body}: {error}");
-    }
+fn numeric_setter_expressions_are_retained_until_evaluation() {
+    let parsed = parse(".meas tran x min v(out) to={1m}\n").unwrap();
+    assert!(matches!(
+        parsed.measurements[0].request,
+        MeasureRequest::Deferred { .. }
+    ));
 }
 
 #[test]
@@ -327,14 +316,15 @@ fn the_analysis_word_may_carry_its_dot_and_only_two_card_names_are_known() {
 }
 
 #[test]
-fn a_body_local_measure_card_is_rejected_explicitly() {
-    let error = parse(".subckt s a b\nr1 a b 1k\n.measure tran x max v(a)\n.ends\n")
-        .expect_err("body-local .measure");
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(
-        error.to_string().contains("inside a .subckt body"),
-        "{error}"
-    );
+fn a_body_local_measure_card_is_retained_until_expansion() {
+    let parsed = parse(".subckt s a b\nr1 a b 1k\n.measure tran x max v(a)\n.ends\n").unwrap();
+    assert!(parsed.measurements.is_empty());
+    assert_eq!(parsed.netlist.subcircuits[0].measurements.len(), 1);
+    let written = write_netlist(&parsed.netlist).unwrap();
+    let reparsed = Parser::new()
+        .parse_deck_with_output(&parse_deck_text(Path::new("roundtrip.cir"), &written))
+        .unwrap();
+    assert_eq!(reparsed.netlist.subcircuits[0].measurements.len(), 1);
 }
 
 #[test]
@@ -436,14 +426,7 @@ fn an_operand_uses_the_save_spelling_and_keeps_its_position() {
     );
 
     // The save grammar's own failures are reused, position and all.
-    let error = parse(".meas tran x avg i(r1)\n").expect_err("a resistor current");
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(
-        error
-            .to_string()
-            .contains("only a voltage source or inductor"),
-        "{error}"
-    );
+    assert!(parse(".meas tran x avg i(r1)\n").is_ok());
     let error = parse(".meas tran x avg power(v1)\n").expect_err("an unknown request");
     assert!(
         error.to_string().contains("unknown vector request"),

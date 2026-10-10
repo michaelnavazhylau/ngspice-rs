@@ -116,15 +116,8 @@ fn a_frequency_that_is_not_a_positive_literal_is_a_positioned_parse_error() {
         assert!(matches!(error, SpiceError::Parse { .. }), "{body}: {error}");
         assert!(error.to_string().contains("four.cir:2:"), "{body}: {error}");
     }
-    // A braced expression is valid numparam the port does not evaluate here.
-    let error = parse(".four {1/(2m)} v(out)\n").expect_err("a braced frequency");
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(
-        error
-            .to_string()
-            .contains("as the .four fundamental frequency"),
-        "{error}"
-    );
+    let card = one(".four {1/(2m)} v(out)\n");
+    assert!(card.fundamental_expression.is_some());
 }
 
 #[test]
@@ -212,14 +205,7 @@ fn a_card_needs_at_least_one_vector_and_rejects_all_and_ac_components() {
 
 #[test]
 fn the_save_grammars_own_failures_are_reused_position_and_all() {
-    let error = parse(".four 1k i(r1)\n").expect_err("a resistor current");
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(
-        error
-            .to_string()
-            .contains("only a voltage source or inductor"),
-        "{error}"
-    );
+    assert!(parse(".four 1k i(r1)\n").is_ok());
     let error = parse(".four 1k power(v1)\n").expect_err("an unknown request");
     assert!(matches!(error, SpiceError::Parse { .. }), "{error}");
     assert!(
@@ -262,14 +248,15 @@ fn four_is_a_post_processing_card_and_not_an_analysis() {
 }
 
 #[test]
-fn a_body_local_four_card_is_rejected_explicitly() {
-    let error =
-        parse(".subckt s a b\nr1 a b 1k\n.four 1k v(a)\n.ends\n").expect_err("body-local .four");
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(
-        error.to_string().contains("inside a .subckt body"),
-        "{error}"
-    );
+fn a_body_local_four_card_is_retained_until_expansion() {
+    let parsed = parse(".subckt s a b\nr1 a b 1k\n.four 1k v(a)\n.ends\n").unwrap();
+    assert!(parsed.fourier.is_empty());
+    assert_eq!(parsed.netlist.subcircuits[0].fourier.len(), 1);
+    let written = write_netlist(&parsed.netlist).unwrap();
+    let reparsed = Parser::new()
+        .parse_deck_with_output(&parse_deck_text(Path::new("roundtrip.cir"), &written))
+        .unwrap();
+    assert_eq!(reparsed.netlist.subcircuits[0].fourier.len(), 1);
 }
 
 #[test]

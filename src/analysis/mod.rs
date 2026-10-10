@@ -68,3 +68,10 @@ pub use selection::{Selection, print_requests, write_requests};
 
 /// The C reference for the analysis drivers, used in `NotYetPorted` errors.
 pub const C_REFERENCE_ANALYSIS: &str = "src/spicelib/analysis/cktdojob.c, dctran.c, dcop.c, acan.c";
+
+/// Batch line-printer plots.
+pub mod asciiplot;
+
+pub mod observations;
+
+mod fourier_resample;

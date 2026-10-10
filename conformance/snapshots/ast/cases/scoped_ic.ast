@@ -1,0 +1,40 @@
+# ngspice-rs ast-dump v1
+file: cases/scoped_ic.cir
+title: "IC in a subcircuit body" @cases/scoped_ic.cir:1:1
+scope root
+  cards (2):
+    [0] subcircuit[0] @cases/scoped_ic.cir:2:1 ".subckt s a b"
+    [1] end @cases/scoped_ic.cir:6:1 ".end"
+  devices (0):
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="s" @cases/scoped_ic.cir:2:1 end=@cases/scoped_ic.cir:5:1
+      terminals: "a" "b"
+      parameters (0):
+      scope body
+        cards (3):
+          [0] device[0] @cases/scoped_ic.cir:3:1 "r1 a b 1k"
+          [1] ic[0] @cases/scoped_ic.cir:4:1 ".ic v(a)=1"
+          [2] ends @cases/scoped_ic.cir:5:1 ".ends s"
+        devices (1):
+          device [0] name="r1" designator=r @cases/scoped_ic.cir:3:1
+            nodes: "a" "b"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="1k" @cases/scoped_ic.cir:3:8
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (0):
+        globals (0):
+        initial-conditions (1):
+          ic-card [0] @cases/scoped_ic.cir:4:1
+            entry [0] node="a" node_at=cases/scoped_ic.cir:4:7 @cases/scoped_ic.cir:4:5
+              value literal "1" value=1e0 @cases/scoped_ic.cir:4:10
+  analyses (0):
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

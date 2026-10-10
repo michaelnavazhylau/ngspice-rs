@@ -307,6 +307,35 @@ struct Expectation {
 /// change in the last digit fails rather than being lost to precision.
 #[allow(clippy::excessive_precision)]
 const EXPECTATIONS: &[Expectation] = &[
+    // The two scoped .ic values set capacitor voltages to .25 and .5 V.
+    // At t=0 the sine source is zero, so its outward current is the sum
+    // of the two resistor currents: (.25 + .5)/1k = .75 mA.
+    Expectation {
+        fixture: "m9_scoped_frontend",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 2008,
+        variables: &[
+            "time",
+            "v(out)",
+            "v(rail)",
+            "i(v.x1.vlocal)",
+            "i(v.x2.vlocal)",
+            "i(v1)",
+            "i(vrail)",
+            "v(x1.local)",
+            "v(x1.other)",
+            "v(x2.local)",
+            "v(x2.other)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(x1.local)", 0, 0.25, 0.),
+            ("v(x2.local)", 0, 0.5, 0.),
+            ("i(v1)", 0, 0.00075, 0.),
+            ("v(rail)", 0, 0., 0.),
+        ],
+    },
     Expectation {
         fixture: "bjt_ce",
         plotname: "Operating Point",

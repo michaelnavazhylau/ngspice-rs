@@ -1,0 +1,157 @@
+# ngspice-rs token-dump v1
+file: netlists/m9_scoped_frontend.cir
+title: "M9 scoped front-end declarations" @netlists/m9_scoped_frontend.cir:1:1
+card 1 @netlists/m9_scoped_frontend.cir:2:1 lines=2-2 continuations=0
+  raw: "V1 out 0 sin(0 1 1k)"
+  kind: device(v)
+  token 1 2:1 word "V1"
+  token 2 2:4 word "out"
+  token 3 2:8 number "0" value=0e0
+  token 4 2:10 word "sin"
+  token 5 2:13 lparen "("
+  token 6 2:14 number "0" value=0e0
+  token 7 2:16 number "1" value=1e0
+  token 8 2:18 number "1k" value=1e3
+  token 9 2:20 rparen ")"
+card 2 @netlists/m9_scoped_frontend.cir:3:1 lines=3-3 continuations=0
+  raw: ".subckt cell a params: hint=.25"
+  kind: dot(.subckt)
+  token 1 3:1 word ".subckt"
+  token 2 3:9 word "cell"
+  token 3 3:14 word "a"
+  token 4 3:16 word "params:"
+  token 5 3:24 word "hint"
+  token 6 3:28 equals "="
+  token 7 3:29 number ".25" value=2.5e-1
+card 3 @netlists/m9_scoped_frontend.cir:4:1 lines=4-4 continuations=0
+  raw: "R1 a local 1k"
+  kind: device(r)
+  token 1 4:1 word "R1"
+  token 2 4:4 word "a"
+  token 3 4:6 word "local"
+  token 4 4:12 number "1k" value=1e3
+card 4 @netlists/m9_scoped_frontend.cir:5:1 lines=5-5 continuations=0
+  raw: "C1 local rail 1u"
+  kind: device(c)
+  token 1 5:1 word "C1"
+  token 2 5:4 word "local"
+  token 3 5:10 word "rail"
+  token 4 5:15 number "1u" value=1e-6
+card 5 @netlists/m9_scoped_frontend.cir:6:1 lines=6-6 continuations=0
+  raw: ".global rail"
+  kind: dot(.global)
+  token 1 6:1 word ".global"
+  token 2 6:9 word "rail"
+card 6 @netlists/m9_scoped_frontend.cir:7:1 lines=7-7 continuations=0
+  raw: ".option reltol=.001"
+  kind: dot(.options)
+  token 1 7:1 word ".option"
+  token 2 7:9 word "reltol"
+  token 3 7:15 equals "="
+  token 4 7:16 number ".001" value=1e-3
+card 7 @netlists/m9_scoped_frontend.cir:8:1 lines=8-8 continuations=0
+  raw: ".ic v(local)={hint}"
+  kind: dot(.ic)
+  token 1 8:1 word ".ic"
+  token 2 8:5 word "v"
+  token 3 8:6 lparen "("
+  token 4 8:7 word "local"
+  token 5 8:12 rparen ")"
+  token 6 8:13 equals "="
+  token 7 8:14 expression "{hint}" inner="hint"
+card 8 @netlists/m9_scoped_frontend.cir:9:1 lines=9-9 continuations=0
+  raw: ".nodeset v(a)=0"
+  kind: dot(.nodeset)
+  token 1 9:1 word ".nodeset"
+  token 2 9:10 word "v"
+  token 3 9:11 lparen "("
+  token 4 9:12 word "a"
+  token 5 9:13 rparen ")"
+  token 6 9:14 equals "="
+  token 7 9:15 number "0" value=0e0
+card 9 @netlists/m9_scoped_frontend.cir:10:1 lines=10-10 continuations=0
+  raw: ".save all v(local) i(vlocal)"
+  kind: dot(.save)
+  token 1 10:1 word ".save"
+  token 2 10:7 word "all"
+  token 3 10:11 word "v"
+  token 4 10:12 lparen "("
+  token 5 10:13 word "local"
+  token 6 10:18 rparen ")"
+  token 7 10:20 word "i"
+  token 8 10:21 lparen "("
+  token 9 10:22 word "vlocal"
+  token 10 10:28 rparen ")"
+card 10 @netlists/m9_scoped_frontend.cir:11:1 lines=11-11 continuations=0
+  raw: "Vlocal other 0 0"
+  kind: device(v)
+  token 1 11:1 word "Vlocal"
+  token 2 11:8 word "other"
+  token 3 11:14 number "0" value=0e0
+  token 4 11:16 number "0" value=0e0
+card 11 @netlists/m9_scoped_frontend.cir:12:1 lines=12-12 continuations=0
+  raw: "R2 other 0 1k"
+  kind: device(r)
+  token 1 12:1 word "R2"
+  token 2 12:4 word "other"
+  token 3 12:10 number "0" value=0e0
+  token 4 12:12 number "1k" value=1e3
+card 12 @netlists/m9_scoped_frontend.cir:13:1 lines=13-13 continuations=0
+  raw: ".measure tran mm max v(out)"
+  kind: dot(.measure)
+  token 1 13:1 word ".measure"
+  token 2 13:10 word "tran"
+  token 3 13:15 word "mm"
+  token 4 13:18 word "max"
+  token 5 13:22 word "v"
+  token 6 13:23 lparen "("
+  token 7 13:24 word "out"
+  token 8 13:27 rparen ")"
+card 13 @netlists/m9_scoped_frontend.cir:14:1 lines=14-14 continuations=0
+  raw: ".four 1k v(out)"
+  kind: dot(.four)
+  token 1 14:1 word ".four"
+  token 2 14:7 number "1k" value=1e3
+  token 3 14:10 word "v"
+  token 4 14:11 lparen "("
+  token 5 14:12 word "out"
+  token 6 14:15 rparen ")"
+card 14 @netlists/m9_scoped_frontend.cir:15:1 lines=15-15 continuations=0
+  raw: ".ends"
+  kind: dot(.ends)
+  token 1 15:1 word ".ends"
+card 15 @netlists/m9_scoped_frontend.cir:16:1 lines=16-16 continuations=0
+  raw: "X1 out cell hint=.25"
+  kind: device(x)
+  token 1 16:1 word "X1"
+  token 2 16:4 word "out"
+  token 3 16:8 word "cell"
+  token 4 16:13 word "hint"
+  token 5 16:17 equals "="
+  token 6 16:18 number ".25" value=2.5e-1
+card 16 @netlists/m9_scoped_frontend.cir:17:1 lines=17-17 continuations=0
+  raw: "X2 out cell hint=.5"
+  kind: device(x)
+  token 1 17:1 word "X2"
+  token 2 17:4 word "out"
+  token 3 17:8 word "cell"
+  token 4 17:13 word "hint"
+  token 5 17:17 equals "="
+  token 6 17:18 number ".5" value=5e-1
+card 17 @netlists/m9_scoped_frontend.cir:18:1 lines=18-18 continuations=0
+  raw: "Vrail rail 0 0"
+  kind: device(v)
+  token 1 18:1 word "Vrail"
+  token 2 18:7 word "rail"
+  token 3 18:12 number "0" value=0e0
+  token 4 18:14 number "0" value=0e0
+card 18 @netlists/m9_scoped_frontend.cir:19:1 lines=19-19 continuations=0
+  raw: ".tran 1u 2m"
+  kind: dot(.tran)
+  token 1 19:1 word ".tran"
+  token 2 19:7 number "1u" value=1e-6
+  token 3 19:10 number "2m" value=2e-3
+card 19 @netlists/m9_scoped_frontend.cir:20:1 lines=20-20 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 20:1 word ".end"

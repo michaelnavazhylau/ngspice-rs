@@ -17,7 +17,8 @@
 //! ```
 //!
 //! where `<fundamental-frequency>` is a finite, strictly positive literal
-//! (`1k`, `2.5e3`), `<n>` is a whole number of harmonics in
+//! (`1k`, `2.5e3`) or a braced/quoted numparam expression (Rust extension),
+//! `<n>` is a whole number of harmonics in
 //! `1..=`[`MAX_HARMONICS`], `<vector>` is the `.save`/`.print` spelling of one
 //! vector (`v(node)`, `v(first,second)`, `i(source|inductor|E|H)`) without `all`,
 //! and `HARMONICS=` may be written anywhere after the frequency. Without
@@ -28,9 +29,9 @@
 //! * every malformed or unknown word, a missing or non-positive fundamental, a
 //!   non-whole or repeated `HARMONICS=`, a missing vector, `all` and an AC
 //!   component spelling (`vm(out)`, …) are [`SpiceError::Parse`];
-//! * `NFREQS=`/`NPERIODS=`/`POLYDEGREE=`/`FOURGRIDSIZE=` and a `{…}` value are
+//! * card-local `NFREQS=`/`NPERIODS=`/`POLYDEGREE=`/`FOURGRIDSIZE=` are
 //!   [`SpiceError::NotYetPorted`]: C takes them from interactive `set`
-//!   variables, and this port implements none of them;
+//!   variables, which the port handles separately through run configuration;
 //! * a harmonic count beyond this port's bounded resampling budget is
 //!   [`SpiceError::Unsupported`], naming the budget rather than clamping it.
 
@@ -83,7 +84,33 @@ fn gap(at: &SourceLoc, message: impl Into<String>) -> ErrMode<Failure> {
 
 fn card(input: &mut Input<'_>) -> Result<ParsedCard> {
     let location = input.state.card.location.clone();
-    let (fundamental, fundamental_location) = fundamental(input, &location)?;
+    let fundamental_expression = if let Some(token) = input.input.first() {
+        let expression = match &token.kind {
+            TokenKind::Expression(_) => Some(super::expression::from_brace_token(token)),
+            TokenKind::Quoted(inner) if token.text == format!("'{inner}'") => {
+                Some(super::expression::parse_delimited(
+                    inner,
+                    &token.location,
+                    token.location.column + 1,
+                    false,
+                    true,
+                ))
+            }
+            _ => None,
+        };
+        expression
+            .transpose()
+            .map_err(|error| ErrMode::Cut(Failure(error)))?
+            .map(Box::new)
+    } else {
+        None
+    };
+    let (fundamental, fundamental_location) = if fundamental_expression.is_some() {
+        let token = any.parse_next(input)?;
+        (0.0, token.location.clone())
+    } else {
+        fundamental(input, &location)?
+    };
     let mut harmonics = DEFAULT_HARMONICS;
     let mut harmonics_location = None;
     let mut vectors: Vec<VectorRequest> = Vec::new();
@@ -114,6 +141,8 @@ fn card(input: &mut Input<'_>) -> Result<ParsedCard> {
         ));
     }
     Ok(ParsedCard::Fourier(FourierCard {
+        frontend_command: false,
+        fundamental_expression,
         fundamental,
         fundamental_location,
         harmonics,

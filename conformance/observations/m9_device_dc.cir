@@ -1,0 +1,16 @@
+M9 device observations, independent bias blocks
+Vdrive in 0 0
+R1 in 0 1k
+D1 in 0 dm area=2
+.model dm d(is=1e-14 n=1)
+Vc c 0 2
+Vb b 0 .65
+Q1 c b 0 qm m=2
+.model qm npn(is=1e-15 bf=100)
+Vd d 0 1
+Vg g 0 1.5
+M1 d g 0 0 mm w=20u l=1u
+.model mm nmos(level=1 vto=.5 kp=100u)
+.dc Vdrive 0 .5 .1
+.save v(in) @r1[i] @r1[resistance] @d1[id] @d1[area] @q1[ic] @q1[ib] @q1[m] @m1[id] @m1[w] i(Vdrive)
+.end

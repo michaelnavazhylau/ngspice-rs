@@ -374,10 +374,10 @@ impl Writer {
                 includes: &sub.includes,
                 params: &sub.params,
                 functions: &sub.functions,
-                options: &[],
-                globals: &[],
-                initial_conditions: &[],
-                nodesets: &[],
+                options: &sub.options,
+                globals: &sub.globals,
+                initial_conditions: &sub.initial_conditions,
+                nodesets: &sub.nodesets,
                 cards: &sub.cards,
             },
             depth + 1,
@@ -556,7 +556,18 @@ impl Writer {
         }
         let mut text = prefix.to_owned();
         for setting in &card.settings {
-            if prefix == "set" && !matches!(setting.name.as_str(), "sqrnoise" | "ngbehavior") {
+            if prefix == "set"
+                && !matches!(
+                    setting.name.as_str(),
+                    "sqrnoise"
+                        | "ngbehavior"
+                        | "filetype"
+                        | "nfreqs"
+                        | "nperiods"
+                        | "polydegree"
+                        | "fourgridsize"
+                )
+            {
                 return Err(refuse("unsupported front-end setting", Some(location)));
             }
             if !matches!(

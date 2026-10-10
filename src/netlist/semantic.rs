@@ -416,6 +416,102 @@ fn cards(cards: &[ScopedCard]) -> Vec<ScopedCard> {
         .collect()
 }
 
+fn output_cards(cards: &crate::netlist::ast::OutputCards) -> crate::netlist::ast::OutputCards {
+    let mut out = cards.clone();
+    for save in &mut out.saves {
+        save.location = blank();
+        for request in &mut save.requests {
+            request.location = blank();
+        }
+    }
+    for print in &mut out.prints {
+        print.location = blank();
+        print.analysis_location = blank();
+        for request in &mut print.requests {
+            request.location = blank();
+        }
+    }
+    out
+}
+
+fn measure_event(event: &mut crate::netlist::ast::MeasureEvent) {
+    use crate::netlist::ast::MeasureEvent;
+    match event {
+        MeasureEvent::Delayed { event, .. } => measure_event(event),
+        MeasureEvent::At { location, .. } => *location = blank(),
+        MeasureEvent::Crossing {
+            operand,
+            value_location,
+            ..
+        } => {
+            operand.location = blank();
+            *value_location = blank();
+        }
+        MeasureEvent::VectorCrossing {
+            operand, reference, ..
+        } => {
+            operand.location = blank();
+            reference.location = blank();
+        }
+    }
+}
+
+fn measurement(card: &crate::netlist::ast::MeasureCard) -> crate::netlist::ast::MeasureCard {
+    use crate::netlist::ast::MeasureRequest;
+    let mut out = card.clone();
+    out.location = blank();
+    out.name_location = blank();
+    out.analysis_location = blank();
+    let original = out.clone();
+    match &mut out.request {
+        MeasureRequest::Deferred { card, template, .. } => {
+            card.location = blank();
+            for token in &mut card.tokens {
+                token.location = blank();
+            }
+            let mut inner = original.clone();
+            inner.request = *template.clone();
+            **template = measurement(&inner).request;
+        }
+        MeasureRequest::Parameter(expression) => **expression = expression_form(expression),
+        MeasureRequest::Find {
+            operand,
+            at_location,
+            ..
+        } => {
+            operand.location = blank();
+            *at_location = blank();
+        }
+        MeasureRequest::Statistic { operand, .. } => operand.location = blank(),
+        MeasureRequest::AtEvent { operand, event, .. } => {
+            operand.location = blank();
+            measure_event(event);
+        }
+        MeasureRequest::When { event, .. } => measure_event(event),
+        MeasureRequest::TrigTarg { trig, targ, .. } => {
+            measure_event(trig);
+            measure_event(targ);
+        }
+    }
+    out
+}
+
+fn fourier_card(card: &crate::netlist::ast::FourierCard) -> crate::netlist::ast::FourierCard {
+    let mut out = card.clone();
+    out.location = blank();
+    out.fundamental_location = blank();
+    out.fundamental_expression = out
+        .fundamental_expression
+        .as_deref()
+        .map(expression_form)
+        .map(Box::new);
+    out.harmonics_location = out.harmonics_location.map(|_| blank());
+    for request in &mut out.vectors {
+        request.location = blank();
+    }
+    out
+}
+
 fn subcircuit(sub: &Subcircuit) -> Subcircuit {
     Subcircuit {
         name: sub.name.clone(),
@@ -428,6 +524,13 @@ fn subcircuit(sub: &Subcircuit) -> Subcircuit {
         includes: sub.includes.iter().map(include).collect(),
         params: sub.params.iter().map(param).collect(),
         functions: sub.functions.iter().map(function).collect(),
+        options: sub.options.iter().map(option).collect(),
+        globals: sub.globals.iter().map(global).collect(),
+        initial_conditions: sub.initial_conditions.iter().map(hints).collect(),
+        nodesets: sub.nodesets.iter().map(hints).collect(),
+        output: output_cards(&sub.output),
+        measurements: sub.measurements.iter().map(measurement).collect(),
+        fourier: sub.fourier.iter().map(fourier_card).collect(),
         cards: cards(&sub.cards),
         end_location: blank(),
         location: blank(),

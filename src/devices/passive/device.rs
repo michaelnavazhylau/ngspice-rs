@@ -44,6 +44,34 @@ impl ModelPassive {
     }
 }
 impl Device for ModelPassive {
+    fn observation_parameter(
+        &self,
+        keyword: &str,
+        context: &ModelContext,
+    ) -> SpiceResult<Option<Real>> {
+        let p = &self.parameters;
+        Ok(match keyword {
+            "r" | "resistance" if p.family == ModelFamily::Resistor => {
+                Some(p.scaled_value(context)?)
+            }
+            "g" | "conductance" if p.family == ModelFamily::Resistor => {
+                Some(1. / p.effective_value(context)?)
+            }
+            "c" | "cap" | "capacitance" if p.family == ModelFamily::Capacitor => {
+                Some(p.effective_value(context)?)
+            }
+            "l" | "inductance" if p.family == ModelFamily::Inductor => {
+                Some(p.coupling_value(context)?)
+            }
+            "m" => Some(p.multiplicity),
+            "scale" => Some(p.scale),
+            "temp" => Some(p.temperature.unwrap_or(context.temperature)),
+            "tc1" => Some(p.tc1),
+            "tc2" => Some(p.tc2),
+            "ic" => Some(p.initial_condition.unwrap_or(0.)),
+            _ => p.instance_values.get(keyword).map(|v| v.value),
+        })
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         let primary = match self.parameters.family() {
             ModelFamily::Resistor => "resistance",

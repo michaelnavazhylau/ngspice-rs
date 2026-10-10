@@ -1,5 +1,7 @@
 # The `spice-rs` command line
 
+The M9 section below updates the historical subset descriptions in this guide.
+
 The CLI is a thin front end over the production engine: it parses the deck with
 `netlist::Parser`, elaborates it and runs the analysis with the
 `analysis` drivers. No device, solver or rawfile logic lives here. The C
@@ -227,3 +229,20 @@ blocks, hidden operands and failed measurements (see [MEASURE.md](MEASURE.md)), 
 `tests/parse.rs`
 keeps the older inspection commands green. Nothing in these tests invokes C or
 re-captures a golden.
+
+## M9 encoding selection (#112)
+
+`spice-rs simulate --format ascii|binary --output out.raw deck.cir` selects
+encoding explicitly. Without the flag, the last `set filetype=ascii|binary` in a
+bounded `.control` settings block wins over `SPICE_ASCIIRAWFILE` (nonzero integer
+selects ASCII); the CLI default is binary, as in C `runcoms.c::dosim` and
+`misc/ivars.c`. Invalid settings fail before publication. `.options filetype`
+is rejected: it is a front-end variable. The existing library `simulate::run`
+retains its ASCII default; `run_with_format` exposes the CLI selection policy.
+
+Both encodings use the same atomic temporary-file publication and carry every
+scheduled plot. The `Command:` metadata begins `ngspice-compatible spice-rs`
+because C `raw_read()` executes command headers that do not begin with its
+simulator name. The actual Rust writer and version remain explicit.
+Process tests cover selection precedence, multi-plot binary readback, and live
+C loading of the unmodified binary output.

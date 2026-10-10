@@ -176,6 +176,7 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("rc_transient", &[]),
+    tran("m9_scoped_frontend", &[]),
     Supported {
         name: "rlc_series",
         kind: AnalysisKind::OperatingPoint,

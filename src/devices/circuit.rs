@@ -51,6 +51,7 @@ pub type CircuitGraph = UnGraph<CircuitVertex, usize, usize>;
 /// A circuit under construction, or ready to be simulated.
 #[derive(Default)]
 pub struct Circuit {
+    pub(crate) observations: Vec<String>,
     nodes: NodeTable,
     unknowns: MnaUnknowns,
     devices: Vec<Box<dyn Device>>,
@@ -947,7 +948,10 @@ impl Circuit {
     /// are untouched; callers stamp the replacement instead of the original for
     /// that ordinal. Several instance overrides of one device are applied in
     /// slot order to the same replacement.
-    fn replacements(&self, context: &ModelContext) -> SpiceResult<Vec<(usize, Box<dyn Device>)>> {
+    pub(crate) fn replacements(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Vec<(usize, Box<dyn Device>)>> {
         let mut replacements: Vec<(usize, Box<dyn Device>)> = Vec::new();
         for target in context.resistor_overrides.iter().flatten() {
             let device = self
@@ -1370,7 +1374,12 @@ impl Circuit {
     /// Unsupported elaboration constructs, `.option` cards, models or invalid
     /// parameters.
     pub fn from_netlist(netlist: &crate::netlist::ast::Netlist) -> SpiceResult<Self> {
-        if !netlist.options.is_empty() {
+        if !netlist.options.is_empty()
+            || netlist
+                .subcircuits
+                .iter()
+                .any(|sub| !sub.options.is_empty())
+        {
             return Err(SpiceError::Unsupported {
                 feature: ".option cards require RunConfig::from_netlist to resolve them; \
                           Circuit::from_netlist would apply default temperatures"

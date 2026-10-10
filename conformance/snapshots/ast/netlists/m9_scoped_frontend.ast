@@ -1,0 +1,106 @@
+# ngspice-rs ast-dump v1
+file: netlists/m9_scoped_frontend.cir
+title: "M9 scoped front-end declarations" @netlists/m9_scoped_frontend.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/m9_scoped_frontend.cir:2:1 "V1 out 0 sin(0 1 1k)"
+    [1] subcircuit[0] @netlists/m9_scoped_frontend.cir:3:1 ".subckt cell a params: hint=.25"
+    [2] device[1] @netlists/m9_scoped_frontend.cir:16:1 "X1 out cell hint=.25"
+    [3] device[2] @netlists/m9_scoped_frontend.cir:17:1 "X2 out cell hint=.5"
+    [4] device[3] @netlists/m9_scoped_frontend.cir:18:1 "Vrail rail 0 0"
+    [5] analysis[0] @netlists/m9_scoped_frontend.cir:19:1 ".tran 1u 2m"
+    [6] end @netlists/m9_scoped_frontend.cir:20:1 ".end"
+  devices (4):
+    device [0] name="v1" designator=v @netlists/m9_scoped_frontend.cir:2:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="sin" kind=waveform value="(0 1 1k)" @netlists/m9_scoped_frontend.cir:2:10
+          sin
+            vo: "0"@netlists/m9_scoped_frontend.cir:2:14
+            va: "1"@netlists/m9_scoped_frontend.cir:2:16
+            freq: "1k"@netlists/m9_scoped_frontend.cir:2:18
+    device [1] name="x1" designator=x @netlists/m9_scoped_frontend.cir:16:1
+      nodes: "out"
+      model: "cell"
+      parameters (1):
+        [0] name="hint" kind=scalar value=".25" @netlists/m9_scoped_frontend.cir:16:13
+    device [2] name="x2" designator=x @netlists/m9_scoped_frontend.cir:17:1
+      nodes: "out"
+      model: "cell"
+      parameters (1):
+        [0] name="hint" kind=scalar value=".5" @netlists/m9_scoped_frontend.cir:17:13
+    device [3] name="vrail" designator=v @netlists/m9_scoped_frontend.cir:18:1
+      nodes: "rail" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m9_scoped_frontend.cir:18:14
+  models (0):
+  subcircuits (1):
+    subcircuit [0] name="cell" @netlists/m9_scoped_frontend.cir:3:1 end=@netlists/m9_scoped_frontend.cir:15:1
+      terminals: "a"
+      parameters (1):
+        [0] name="hint" kind=scalar value=".25" @netlists/m9_scoped_frontend.cir:3:24
+      scope body
+        cards (12):
+          [0] device[0] @netlists/m9_scoped_frontend.cir:4:1 "R1 a local 1k"
+          [1] device[1] @netlists/m9_scoped_frontend.cir:5:1 "C1 local rail 1u"
+          [2] global[0] @netlists/m9_scoped_frontend.cir:6:1 ".global rail"
+          [3] options[0] @netlists/m9_scoped_frontend.cir:7:1 ".option reltol=.001"
+          [4] ic[0] @netlists/m9_scoped_frontend.cir:8:1 ".ic v(local)={hint}"
+          [5] nodeset[0] @netlists/m9_scoped_frontend.cir:9:1 ".nodeset v(a)=0"
+          [6] output @netlists/m9_scoped_frontend.cir:10:1 ".save all v(local) i(vlocal)"
+          [7] device[2] @netlists/m9_scoped_frontend.cir:11:1 "Vlocal other 0 0"
+          [8] device[3] @netlists/m9_scoped_frontend.cir:12:1 "R2 other 0 1k"
+          [9] measure @netlists/m9_scoped_frontend.cir:13:1 ".measure tran mm max v(out)"
+          [10] four @netlists/m9_scoped_frontend.cir:14:1 ".four 1k v(out)"
+          [11] ends @netlists/m9_scoped_frontend.cir:15:1 ".ends"
+        devices (4):
+          device [0] name="r1" designator=r @netlists/m9_scoped_frontend.cir:4:1
+            nodes: "a" "local"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="1k" @netlists/m9_scoped_frontend.cir:4:12
+          device [1] name="c1" designator=c @netlists/m9_scoped_frontend.cir:5:1
+            nodes: "local" "rail"
+            model: none
+            parameters (1):
+              [0] name="capacitance" kind=scalar value="1u" @netlists/m9_scoped_frontend.cir:5:15
+          device [2] name="vlocal" designator=v @netlists/m9_scoped_frontend.cir:11:1
+            nodes: "other" "0"
+            model: none
+            parameters (1):
+              [0] name="dc" kind=scalar value="0" @netlists/m9_scoped_frontend.cir:11:16
+          device [3] name="r2" designator=r @netlists/m9_scoped_frontend.cir:12:1
+            nodes: "other" "0"
+            model: none
+            parameters (1):
+              [0] name="resistance" kind=scalar value="1k" @netlists/m9_scoped_frontend.cir:12:12
+        models (0):
+        subcircuits (0):
+        analyses (0):
+        includes (0):
+        params (0):
+        options (1):
+          option-card [0] @netlists/m9_scoped_frontend.cir:7:1
+            setting [0] name="reltol" value=".001"@netlists/m9_scoped_frontend.cir:7:16 @netlists/m9_scoped_frontend.cir:7:9
+        globals (1):
+          global-card [0] @netlists/m9_scoped_frontend.cir:6:1
+            node [0] "rail" @netlists/m9_scoped_frontend.cir:6:9
+        initial-conditions (1):
+          ic-card [0] @netlists/m9_scoped_frontend.cir:8:1
+            entry [0] node="local" node_at=netlists/m9_scoped_frontend.cir:8:7 @netlists/m9_scoped_frontend.cir:8:5
+              value expression @netlists/m9_scoped_frontend.cir:8:14
+                expression braced=true text="hint" span=8:15..19
+                  identifier "hint" span=8:15..19
+        nodesets (1):
+          nodeset-card [0] @netlists/m9_scoped_frontend.cir:9:1
+            entry [0] node="a" node_at=netlists/m9_scoped_frontend.cir:9:12 @netlists/m9_scoped_frontend.cir:9:10
+              value literal "0" value=0e0 @netlists/m9_scoped_frontend.cir:9:15
+  analyses (1):
+    analysis [0] kind=tran @netlists/m9_scoped_frontend.cir:19:1
+      arguments: "1u" "2m"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

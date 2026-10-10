@@ -127,6 +127,9 @@ fn scope(
     let mut result = Scope::default();
     let mut definitions = BTreeSet::new();
     let mut control = false;
+    let mut control_ran = false;
+    let mut control_quit = false;
+    let mut deck_ran = false;
     while let Some(entry) = cards.get(*cursor) {
         let entry = entry.as_ref().map_err(Clone::clone)?;
         *cursor += 1;
@@ -143,10 +146,75 @@ fn scope(
                 ));
             }
             control = begin;
+            if begin {
+                control_ran = false;
+                control_quit = false;
+            }
             result.cards.push(ordered(entry, ScopedCardKind::Output));
             continue;
         }
-        let parsed = if control {
+        if control {
+            if control_quit {
+                return Err(SpiceError::not_yet_ported(
+                    format!("{}: commands after quit", card.location),
+                    "src/frontend/control.c",
+                ));
+            }
+            if let Some(head) = card.tokens.first()
+                && (head.is_keyword("run") || head.is_keyword("quit"))
+            {
+                if card.tokens.len() != 1 || (head.is_keyword("run") && deck_ran) {
+                    return Err(SpiceError::not_yet_ported(
+                        format!(
+                            "{}: repeated or argument-bearing control run/quit",
+                            card.location
+                        ),
+                        "src/frontend/runcoms.c",
+                    ));
+                }
+                if head.is_keyword("run") {
+                    control_ran = true;
+                    deck_ran = true;
+                } else {
+                    if !control_ran {
+                        return Err(SpiceError::not_yet_ported(
+                            format!("{}: quit before run", card.location),
+                            "src/frontend/inp.c, src/frontend/control.c",
+                        ));
+                    }
+                    control_quit = true;
+                }
+                result.cards.push(ordered(entry, ScopedCardKind::Output));
+                continue;
+            }
+        }
+        let parsed = if control && card.tokens.first().is_some_and(|t| t.is_keyword("fourier")) {
+            if !control_ran {
+                return Err(SpiceError::parse(
+                    card.location.clone(),
+                    "fourier needs a preceding run in this control block",
+                ));
+            }
+            let mut converted = card.clone();
+            converted.tokens[0].text = ".four".into();
+            converted.kind = crate::netlist::card::CardKind::DotCommand(DotCommand::Analysis(
+                crate::primitives::AnalysisKind::Fourier,
+            ));
+            let mut parsed = grammar::parse_card(&converted, auto_gnd, &declared)?;
+            if let ParsedCard::Fourier(card) = &mut parsed {
+                card.frontend_command = true;
+            }
+            parsed
+        } else if control {
+            if deck_ran && card.tokens.first().is_some_and(|t| t.is_keyword("set")) {
+                return Err(SpiceError::not_yet_ported(
+                    format!(
+                        "{}: set after run; set Fourier variables before run",
+                        card.location
+                    ),
+                    "src/frontend/variable.c",
+                ));
+            }
             grammar::parse_frontend_setting(card, auto_gnd, &declared)?
         } else {
             grammar::parse_card(card, auto_gnd, &declared)?
@@ -165,42 +233,18 @@ fn scope(
                 ScopedCardKind::Analysis(result.analyses.len() - 1)
             }
             ParsedCard::Options(o) => {
-                reject_in_body(
-                    card,
-                    opening,
-                    ".option",
-                    "src/frontend/inpcom.c (INPdoOpts)",
-                )?;
                 result.options.push(o);
                 ScopedCardKind::Options(result.options.len() - 1)
             }
             ParsedCard::Global(g) => {
-                reject_in_body(
-                    card,
-                    opening,
-                    ".global",
-                    "src/frontend/subckt.c (collect_global_nodes)",
-                )?;
                 result.globals.push(g);
                 ScopedCardKind::Global(result.globals.len() - 1)
             }
             ParsedCard::InitialCondition(c) => {
-                reject_in_body(
-                    card,
-                    opening,
-                    ".ic",
-                    "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)",
-                )?;
                 result.initial_conditions.push(c);
                 ScopedCardKind::InitialCondition(result.initial_conditions.len() - 1)
             }
             ParsedCard::Nodeset(c) => {
-                reject_in_body(
-                    card,
-                    opening,
-                    ".nodeset",
-                    "src/frontend/inpcom.c, src/frontend/subckt.c (.ic/.nodeset node translation)",
-                )?;
                 result.nodesets.push(c);
                 ScopedCardKind::Nodeset(result.nodesets.len() - 1)
             }
@@ -218,12 +262,6 @@ fn scope(
                 // (`OutputCards`), so the card carries no scope-local index.
                 match output {
                     OutputCard::Save(save) => {
-                        reject_in_body(
-                            card,
-                            opening,
-                            ".save",
-                            "src/frontend/dotcards.c (ft_dotsaves/com_save)",
-                        )?;
                         result.output.saves.push(save);
                     }
                     OutputCard::Print(print) => {
@@ -243,14 +281,8 @@ fn scope(
                 // output rather than the circuit: the typed request travels
                 // beside the netlist (`ParsedDeck::measurements`) and the card
                 // carries no scope-local index. C collects `.meas` lines into
-                // `ft_curckt->ci_meas` in `inp_spsource()`; body-local
-                // measurement scope is not defined yet in this port.
-                reject_in_body(
-                    card,
-                    opening,
-                    ".measure",
-                    "src/frontend/inp.c (inp_spsource), src/frontend/measure.c (do_measure)",
-                )?;
+                // `ft_curckt->ci_meas` after expansion in `inp_spsource()`;
+                // body requests remain attached until instance expansion.
                 result.measurements.push(measure);
                 ScopedCardKind::Measure
             }
@@ -259,15 +291,8 @@ fn scope(
                 // rather than the circuit: the typed request travels beside the
                 // netlist (`ParsedDeck::fourier`) and the card carries no
                 // scope-local index. C filters `.four` lines out of the deck in
-                // `inp_spsource()` and runs them after the transient; body-local
-                // Fourier scope is not defined yet in this port.
-                reject_in_body(
-                    card,
-                    opening,
-                    ".four",
-                    "src/frontend/inp.c (inp_spsource), src/frontend/dotcards.c (ft_dotsaves), \
-                     src/frontend/fourier.c (fourier)",
-                )?;
+                // `inp_spsource()` before expansion and runs them after the
+                // transient. Used body definitions contribute one copy.
                 result.fourier.push(fourier);
                 ScopedCardKind::Fourier
             }
@@ -312,6 +337,13 @@ fn scope(
                 s.includes = body.includes;
                 s.params = body.params;
                 s.functions = body.functions;
+                s.options = body.options;
+                s.globals = body.globals;
+                s.initial_conditions = body.initial_conditions;
+                s.nodesets = body.nodesets;
+                s.output = body.output;
+                s.measurements = body.measurements;
+                s.fourier = body.fourier;
                 s.cards = body.cards;
                 result.subcircuits.push(s);
                 ScopedCardKind::Subcircuit(result.subcircuits.len() - 1)
