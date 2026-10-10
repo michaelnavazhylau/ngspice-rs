@@ -58,6 +58,9 @@ pub enum ModelFamily {
     Switch,
     /// Current-controlled switch (`csw`, `csw/csw.c`).
     CurrentSwitch,
+    /// Uniform distributed RC line (`urc`, `urc/urc.c`), expanded into
+    /// lumped R/C/D sections by [`crate::devices::urc`].
+    Urc,
 }
 
 impl ModelFamily {
@@ -75,6 +78,7 @@ impl ModelFamily {
             "pmos" => Some(Self::Pmos),
             "sw" => Some(Self::Switch),
             "csw" => Some(Self::CurrentSwitch),
+            "urc" => Some(Self::Urc),
             _ => None,
         }
     }
@@ -92,6 +96,7 @@ impl ModelFamily {
             Self::Nmos | Self::Pmos => 'm',
             Self::Switch => 's',
             Self::CurrentSwitch => 'w',
+            Self::Urc => 'u',
         }
     }
 }
@@ -154,7 +159,7 @@ impl<'a> ModelResolver<'a> {
         let Some(name) = &instance.model else {
             if matches!(
                 instance.designator.to_ascii_lowercase(),
-                'd' | 'q' | 'm' | 's' | 'w'
+                'd' | 'q' | 'm' | 's' | 'w' | 'u'
             ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),

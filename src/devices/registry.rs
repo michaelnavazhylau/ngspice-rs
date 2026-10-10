@@ -12,8 +12,9 @@
 //!
 //! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural and K (mutual
 //!   inductance), built from the card alone by [`Registry::instantiate`];
-//! - **bounded**: D/Q/M (diode, Gummel-Poon BJT, MOS1), S/W switches and X
-//!   subcircuit instances, which need the deck (a `.model` card or a
+//! - **bounded**: D/Q/M (diode, Gummel-Poon BJT, MOS1), S/W switches, X
+//!   subcircuit instances and U uniform RC lines (expanded into generated
+//!   R/C/D elements), which need the deck (a `.model` card or a
 //!   `.subckt` definition) and are built by [`crate::devices::Circuit::from_netlist`]
 //!   for a documented subset of C's models;
 //! - **pending**: everything else, an explicit `NotYetPorted` with the C
@@ -417,7 +418,7 @@ mod tests {
             assert!(registry.contains(*designator), "missing {designator}");
         }
         assert_eq!(registry.ported_count(), 11);
-        assert_eq!(registry.bounded_count(), 6);
+        assert_eq!(registry.bounded_count(), 7);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
