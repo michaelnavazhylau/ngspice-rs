@@ -185,19 +185,17 @@ impl Circuit {
                     } else {
                         current
                     }
+                } else if key == "dc" && matches!(device.designator(), 'v' | 'i') {
+                    sources
+                        .iter()
+                        .find(|(n, _)| n.eq_ignore_ascii_case(instance))
+                        .map(|(_, value)| *value)
+                        .or(device.observation_parameter(key, request.model_context)?)
+                        .ok_or_else(|| gap(name))?
                 } else {
-                    if key == "dc" && matches!(device.designator(), 'v' | 'i') {
-                        sources
-                            .iter()
-                            .find(|(n, _)| n.eq_ignore_ascii_case(instance))
-                            .map(|(_, value)| *value)
-                            .or(device.observation_parameter(key, request.model_context)?)
-                            .ok_or_else(|| gap(name))?
-                    } else {
-                        device
-                            .observation_parameter(key, request.model_context)?
-                            .ok_or_else(|| gap(name))?
-                    }
+                    device
+                        .observation_parameter(key, request.model_context)?
+                        .ok_or_else(|| gap(name))?
                 };
                 if !value.is_finite() {
                     return Err(SpiceError::Numerical {
