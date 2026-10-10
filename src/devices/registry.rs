@@ -13,7 +13,7 @@
 //! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural, K (mutual
 //!   inductance) and T (lossless transmission line), built from the card
 //!   alone by [`Registry::instantiate`];
-//! - **bounded**: D/Q/M/J (diode, Gummel-Poon BJT, MOS1/MOS3/MOS6, JFET levels 1-2), S/W
+//! - **bounded**: D/Q/M/J (diode, Gummel-Poon BJT, MOS1/MOS2/MOS3/MOS6/MOS9, JFET levels 1-2), S/W
 //!   switches, X subcircuit instances and U uniform RC lines (expanded into
 //!   generated R/C/D elements), which need the deck (a `.model` card or a
 //!   `.subckt` definition) and are built by [`crate::devices::Circuit::from_netlist`]

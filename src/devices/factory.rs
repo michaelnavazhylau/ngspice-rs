@@ -24,7 +24,10 @@ pub(crate) const CARD_FACTORY: &[char] =
 pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('d', "junction diode (dioload.c subset)"),
     ('q', "Gummel-Poon BJT level 1 (bjtload.c)"),
-    ('m', "MOS1, MOS3 and MOS6 (levels 1, 3 and 6)"),
+    (
+        'm',
+        "MOS1, MOS2, MOS3, MOS6 and MOS9 (levels 1, 2, 3, 6 and 9)",
+    ),
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
     ('x', "expanded before device elaboration"),
@@ -85,6 +88,10 @@ pub(crate) fn instantiate_with_models(
                 // admits only the ported levels.
                 return if model.levels().selector == 3 {
                     crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)
+                } else if model.levels().selector == 2 {
+                    crate::devices::mos2::Mos2::instantiate(instance, nodes, &model, context)
+                } else if model.levels().selector == 9 {
+                    crate::devices::mos9::Mos9::instantiate(instance, nodes, &model, context)
                 } else if model.levels().selector == 6 {
                     crate::devices::mos6::Mos6::instantiate(instance, nodes, &model, context)
                 } else {

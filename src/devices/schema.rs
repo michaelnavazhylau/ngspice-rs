@@ -71,6 +71,8 @@ pub enum ScalarUnit {
     AmperePerMetre,
     /// Frequency in hertz (URC `FMAX`).
     Hertz,
+    /// Electric field in volts per centimetre (MOS2 `UCRIT`).
+    VoltPerCentimetre,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.

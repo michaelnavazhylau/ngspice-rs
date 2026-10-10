@@ -206,6 +206,52 @@ const SUPPORTED: &[Supported] = &[
         variants: &[],
     },
     tran("m10_mos6_tran", &[]),
+    // MOS level 2 on the shared MOS shell (#89): Grove-Frohman and Baum
+    // saturation, weak inversion, mobility degradation, channel-length
+    // modulation and temperature (DC, tightened RELTOL as for MOS1/MOS3),
+    // the small-signal stage at 75 C, and a CMOS inverter with a bounded
+    // maximum step (transient).
+    Supported {
+        name: "m10_mos2_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos2_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos2_tran", &[]),
+    // MOS level 9 (#89), mos3's decks with level-9 cards and geometry above
+    // mos9temp.c's 1 um effective-size floor: DC (tightened RELTOL), the
+    // small-signal stage at 75 C with an instance DTEMP, and the inverter.
+    Supported {
+        name: "m10_mos9_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    Supported {
+        name: "m10_mos9_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+        variants: &[],
+    },
+    tran("m10_mos9_tran", &[]),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,

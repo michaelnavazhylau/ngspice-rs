@@ -268,6 +268,12 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M10 MOS6 decks (#89) are gated by `xtask golden verify` and
     // `tests/m10_mos6.rs`.
     on_disk.retain(|name| !name.starts_with("m10_mos6_"));
+    // M10 MOS2 decks (#89) are gated by `xtask golden verify` and
+    // `tests/m10_mos2.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_mos2_"));
+    // M10 MOS9 decks (#89) are gated by `xtask golden verify` and
+    // `tests/m10_mos9.rs`.
+    on_disk.retain(|name| !name.starts_with("m10_mos9_"));
     // M10 JFET level 1 decks (#82) are gated by `xtask golden verify` and
     // `tests/jfet.rs`.
     on_disk.retain(|name| !name.starts_with("m10_jfet_"));
