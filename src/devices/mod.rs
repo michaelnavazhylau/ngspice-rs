@@ -14,6 +14,7 @@
 //! | [`switch`] | S/W voltage- and current-controlled switches | hysteresis, accepted switch state, Newton phases, `swtrunc.c` step control |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
+//! | [`delay`] | device-owned delay history, device breakpoints and step bounds | transmission lines; companion driver only |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
@@ -40,6 +41,7 @@ pub mod behavioural;
 pub mod bjt;
 pub mod circuit;
 pub mod controlled;
+pub mod delay;
 pub mod distortion;
 mod factory;
 pub mod functions;
@@ -80,8 +82,8 @@ pub mod state;
 pub mod traits;
 
 pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
-pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
+pub use circuit::{DelayAcceptance, LoadRequest};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, DeviceSupport, Registry};
