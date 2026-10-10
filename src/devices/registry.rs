@@ -419,7 +419,7 @@ mod tests {
             assert!(registry.contains(*designator), "missing {designator}");
         }
         assert_eq!(registry.ported_count(), 12);
-        assert_eq!(registry.bounded_count(), 8);
+        assert_eq!(registry.bounded_count(), 9);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");

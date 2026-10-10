@@ -32,6 +32,19 @@ pub(super) fn model(input: &mut Input<'_>, base: &str) -> Result<ParameterAssign
                 "njf" | "pjf" => matches!(key.as_str(), "njf" | "pjf"),
                 // URC_MOD_URC: "already know we are a URC" (urcmpar.c no-op).
                 "urc" => key == "urc",
+                // LTRAmPTable's IF_FLAG entries (ltrampar.c).
+                "ltra" => matches!(
+                    key.as_str(),
+                    "ltra"
+                        | "nocontrol"
+                        | "steplimit"
+                        | "nosteplimit"
+                        | "lininterp"
+                        | "quadinterp"
+                        | "mixedinterp"
+                        | "truncnr"
+                        | "truncdontcut"
+                ),
                 _ => false,
             }
         })

@@ -4,7 +4,8 @@
 //! device grammars follow `inp2r.c`, `inp2c.c`, `inp2l.c`, `inp2v.c`, and
 //! `inp2i.c`, plus `inp2d.c`, `inp2q.c` and `inp2m.c` for bounded D/Q/M forms,
 //! `inp2e.c`..`inp2h.c` for linear controlled sources, `inp2k.c` for mutual
-//! inductance, `inp2s.c`/`inp2w.c` for switches and `inp2u.c` for URC lines.
+//! inductance, `inp2s.c`/`inp2w.c` for switches, `inp2u.c` for URC lines and `inp2o.c` for
+//! lossy lines.
 //! Scalar model cards follow
 //! `inpdomod.c`/`inpgmod.c`. Dot-card dispatch follows `inp2dot.c`, not the front-end
 //! `parse-bison.y` expression grammar.
@@ -40,6 +41,7 @@ mod hints;
 mod ic;
 mod jfet;
 mod linear;
+mod ltra;
 mod measure;
 mod model;
 mod mutual;

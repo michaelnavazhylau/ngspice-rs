@@ -67,6 +67,9 @@ pub enum ModelFamily {
     /// Uniform distributed RC line (`urc`, `urc/urc.c`), expanded into
     /// lumped R/C/D sections by [`crate::devices::urc`].
     Urc,
+    /// Lossy transmission line (`ltra`, `ltra/ltra.c`), simulated by
+    /// [`crate::devices::ltra`].
+    Ltra,
 }
 
 impl ModelFamily {
@@ -87,6 +90,7 @@ impl ModelFamily {
             "njf" => Some(Self::Njf),
             "pjf" => Some(Self::Pjf),
             "urc" => Some(Self::Urc),
+            "ltra" => Some(Self::Ltra),
             _ => None,
         }
     }
@@ -106,6 +110,7 @@ impl ModelFamily {
             Self::CurrentSwitch => 'w',
             Self::Njf | Self::Pjf => 'j',
             Self::Urc => 'u',
+            Self::Ltra => 'o',
         }
     }
 }
@@ -259,7 +264,7 @@ impl<'a> ModelResolver<'a> {
         let Some(name) = &instance.model else {
             if matches!(
                 instance.designator.to_ascii_lowercase(),
-                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u'
+                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'o'
             ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),

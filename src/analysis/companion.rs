@@ -455,16 +455,21 @@ fn companion(
     if request.uic
         && let Some(line) = circuit.devices().iter().find(|d| d.delay_line().is_some())
     {
-        // traload.c starts the delayed waves from the instance
+        // traload.c/ltraload.c start the delayed waves from the instance
         // `ic=`/`v1 i1 v2 i2` under MODEUIC, but the port's impulse check
         // (initial::check_impulse_free) has no transmission-line
         // formulation yet.
+        let reference = if line.designator() == 'o' {
+            "src/spicelib/devices/ltra/ltraload.c (MODEINITTRAN | MODEUIC)"
+        } else {
+            "src/spicelib/devices/tra/traload.c (MODEINITTRAN | MODEUIC)"
+        };
         return Err(SpiceError::not_yet_ported(
             format!(
                 ".tran uic with transmission line {} (initial waves from its ic=)",
                 line.name()
             ),
-            "src/spicelib/devices/tra/traload.c (MODEINITTRAN | MODEUIC)",
+            reference,
         ));
     }
     // Unknown/ground nodes in .ic/.nodeset fail before anything is assembled.
