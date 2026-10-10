@@ -20,6 +20,50 @@ test requires every registered kind. Pole-zero preparation reuses
 `ac::SmallSignal`, including deck DC options and nodeset/switch-state handling;
 all existing pole-zero tests and live-C comparisons remain unchanged.
 
+## M10 MOS level 2 (#89)
+
+`devices::mos2` adds level 2 on the shared shell without touching it: every
+MOS1/MOS3 golden and test passes unchanged. Three new C goldens, each captured
+with `cargo xtask golden capture --netlist <name>` (no existing golden
+recaptured, no tolerance changed):
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos2_dc` | `compare::NONLINEAR` | 81 points |
+| `m10_mos2_ac` | `compare::NONLINEAR` | 36 points |
+| `m10_mos2_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.016 of bound |
+
+Each deck option was measured by recapturing a variant without it (then
+restoring the committed deck and golden byte for byte):
+
+- **DC, `reltol=1e-7 vntol=1e-12 abstol=1e-18`** (as `m7_mos1_process_dc` and
+  `m10_mos3_dc`): with C's default options 10 components miss, worst 492x the
+  bound (the subthreshold PMOS current `i(vd3)` at 2.75 uA differs by 1.8 nA,
+  C's Newton stopping error).
+- **AC, the same options**: at default tolerances one point misses by 3.5x
+  (the drain bias error amplified by the stage gain of about -34).
+- **Transient, Gear-2 with `reltol=1e-5` and `tmax` 2 ps** (as `m10_mos3_tran`):
+  Gear-2 at the default RELTOL misses 3 instants (5.2x the bound, the
+  picoamp supply current of the first step), trapezoidal 13 (5.2x), and
+  without the bounded step 104 instants miss, worst 638x, as the two step
+  sequences drift apart through the edges.
+
+Adding an eighth device with a `GAMMA = 0` VMAX card to `m10_mos2_dc` cannot
+be captured: C's DC sweep fails at `vgs = 0.95` ("timestep too small"),
+consistent with the rounding-dependent Baum radicand that turns its `vdsat`
+into NaN (see [M4_NONLINEAR.md](M4_NONLINEAR.md#mos2)), while the port
+continues; `devices::mos2` unit tests cover that case instead.
+
+`tests/m10_mos2.rs` adds eight C-free tests; `devices::mos2` unit tests check
+regions, the quartic root, finite-difference derivatives where C is exact and
+bounds where it is not; `golden_rawfiles` documents the three goldens (the m5
+forward/reverse bulk current and the m6 reverse drain current at vgs = 0
+restate the constant reverse law exactly). `tests/models.rs` now pins that
+`level=1.5` selects MOS2. Opt-in live C:
+`c_noise_reference::mos2_noise_matches_c` (both flicker forms) and
+`c_pole_zero::a_mos2_stage_matches_c`. Six new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos2).
+
 ## M10 MOS shared shell and level 3 (#89)
 
 The MOS1 frame moved into the shared `devices::mos` shell first, as a

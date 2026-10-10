@@ -381,6 +381,93 @@ verify`:
 | `m10_mos3_ac` | active-load common-source stage at 75 C, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
 | `m10_mos3_tran` | CMOS inverter with weak-inversion leakage, Gear-2 | 0.047 of `TRAN` bound |
 
+### MOS2
+
+Level 2 (Grove-Frohman) NMOS/PMOS in `devices::mos2` on the shared
+`devices::mos` shell (M10, #89). C references, read as behaviour only:
+`mos2/mos2.c` (`MOS2mPTable`), `mos2mpar.c`, `mos2set.c`, `mos2temp.c`,
+`mos2load.c` (`moseq2`), `mos2acld.c`, `mos2pzld.c`, `mos2trun.c` and
+`mos2noi.c`.
+
+The shell contributes everything described for MOS1 that is not the drain
+current, as for MOS3 (internal nodes `<name>#internal#drain` /
+`<name>#internal#source`, C's `CKTmkVolt` suffixes for MOS2).
+
+Model setters (`MOS2mParam`; C defaults, *derived* = C's `...Given` logic):
+`VTO`/`VT0` (0 or derived), `KP` (derived from `U0`/`UO`, 600 cm²/Vs, whenever
+not given), `GAMMA`, `PHI` (0.6 V or derived; must be positive), `LAMBDA` (0:
+derived from `XD` when NSUB is given), `RD`/`RS`/`RSH`, `CBD`/`CBS`, `IS`
+(1e-14 A), `JS` (0), `PB` (0.8 V), `CGSO`/`CGDO`/`CGBO`, `CJ`, `MJ` (0.5),
+`CJSW`, `MJSW` (**0.33**), `FC` (0.5), `TOX` (**1e-7 m**; 0 is refused), `LD`,
+`NSUB`, `TPG`, `NSS`, `DELTA` (0), `UEXP` (0), `UCRIT` (1e4 V/cm, must be
+positive), `VMAX` (0: no velocity saturation), `XJ` (0), `NEFF` (1, must be
+positive), `NFS` (0: no weak inversion), `TNOM` and the noise setters
+`KF`/`AF`/`NLEV`/`GDSNOI`. There are no `XL`/`WD`/`XW`/`DELVTO` or level-3
+setters. `MOS2mPTable`'s computed CJ default never reaches a load (C uses the
+bottom capacitance only when CJ was given), so the port has none. Instance
+setters are MOS1's.
+
+- **Geometry**: effective length `L - 2 LD` (must be positive; C only warns),
+  drawn width `W`; `Beta`, `Cox` area and the overlaps as for MOS1.
+- **Process** (`mos2temp.c`): `Cox = 3.9 eps0 / TOX`; with NSUB (above the
+  fixed intrinsic density 1.45e16 m^-3, unlike MOS3's TNOM-scaled one) PHI,
+  GAMMA and VTO are derived when not given, and `XD = sqrt(2 EPSSIL / (q
+  NSUB))` (zero without NSUB).
+- **Temperature**: as MOS1 (KP scaled by `(T/TNOM)^1.5`; `mos2load.c` uses the
+  unscaled `U0` for mobility).
+- **Drain current** (`mos2load.c`, line for line): square-root body terms at
+  source and drain with C's forward-bias continuation; DELTA narrow-width
+  factor (`eta = 1 + factor`); XJ short-channel `gamasd` (with NSUB or a
+  positive GAMMA); NFS weak inversion (`von = vbin + gamasd sarg + n Vt`,
+  exponential below `von`) and the cutoff at `vbin` without NFS; UCRIT/UEXP
+  mobility degradation; the Grove-Frohman saturation voltage, replaced with
+  VMAX by Baum's velocity-saturated one (smallest positive root of C's
+  quartic, Ferrari/Cardano as C writes it, residual at most 1e-6) with NEFF;
+  channel-length modulation by `LAMBDA` or, with NSUB and no positive LAMBDA,
+  from `XD` (with or without VMAX); the punch-through limit (`XD sqrt(PB)`,
+  0.25 um without NSUB); the special `vds <= 1e-10` conductance.
+- **Junctions**: MOS1's constant reverse current (`ReverseLaw::Constant`).
+
+**Jacobian.** The port stamps C's own `gm`/`gds`/`gmbs`. They are the exact
+derivatives of C's current in reverse and zero body bias for linear and
+saturated strong inversion with DELTA, UCRIT/UEXP, LAMBDA or the XD-derived
+modulation, XJ without NSUB, and Baum's `vdsat` (through C's `dfund*`); C's
+expressions are approximate for XJ with NSUB (`dgdvds`/`dgddb2` drop terms),
+VMAX beyond `vdsat` with DELTA or UEXP, the XD-derived modulation with VMAX in
+the linear region (C differentiates `xls` although the clamped `vds - vdsat` is
+constant there), weak inversion (`dxndvb` has the opposite sign of the
+derivative of `xn`) and forward body bias. Below the threshold without NFS
+C keeps a negative `gm` with no current (the unclamped `dsdvgs`); the port
+keeps it. `devices::mos2` unit tests check exactness by finite differences
+where C is exact and bound C's approximation elsewhere.
+
+Not ported: `.disto` (`mos2dset.c`/`mos2dist.c`) and `.sens`, which fail
+explicitly; C's predictor, bypass and `oldlimit`, as for MOS1. Divergences:
+C continues on `L - 2 LD <= 0`, on nonfinite or nonpositive
+temperature-scaled values and on `TOX = 0`; here they are errors. In weak
+inversion with a nonpositive `vdsat` above the strong-inversion threshold C
+leaves the previous evaluation's current, `gm` and `gmbs` in place (`goto
+doneval`); the port returns no current there. With `GAMMA = 0` and VMAX the
+quartic is biquadratic and the radicand `y3^2/4 - d1` is exactly zero, so its
+computed sign is rounding (and, in C, compiler contraction) dependent; C's
+`vdsat` becomes NaN at some biases and its DC solution fails. The port takes a
+radicand that is negative within 1e-12 of its terms as zero (a genuinely
+negative one stays NaN and is reported as a nonfinite channel).
+
+Evidence: `tests/m10_mos2.rs` (C-default square law with the constant reverse
+junction, NSUB process extraction with the fixed intrinsic density and a given
+LAMBDA, internal nodes, Meyer/overlap capacitances over `L - 2 LD` and `W`,
+whole-circuit DC Jacobians, noise, invalid inputs and the `.disto`/`.sens`
+refusals), unit tests in `devices::mos2`, the opt-in live-C
+`mos2_noise_matches_c` (both flicker forms) and `a_mos2_stage_matches_c`
+(pole-zero), and three C goldens in `cargo xtask golden verify`:
+
+| Fixture | Exercises | Result |
+| --- | --- | --- |
+| `m10_mos2_dc` | gate sweep: NSUB/XJ/NFS/VMAX/NEFF/UCRIT/UEXP/DELTA, XD-derived and given LAMBDA, no-NSUB card, reverse and forward body bias, inverse mode, PMOS with RD/RSH and TEMP, TNOM/TPG/NSS extraction, diode-connected velocity saturation | within `NONLINEAR` (81 points) |
+| `m10_mos2_ac` | active-load common-source stage (both saturated, gain about -34) at 75 C, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
+| `m10_mos2_tran` | CMOS inverter with velocity saturation and weak inversion, Gear-2 | 0.016 of `TRAN` bound |
+
 ### JFET
 
 Level 1 NJF/PJF (#82, M10) lives in `devices::jfet` and level 2

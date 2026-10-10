@@ -110,6 +110,7 @@ finite differences.
 | D | `diodset.c`, `diodisto.c` | junction current and charge in `v(a') - v(k)` |
 | Q (Gummel-Poon) | `bjtdset.c`, `bjtdisto.c` | `ic(vbe, vbc, vbe)`, `ib(vbe, vbc)`, `ibb(vbe, vbc, vbb)`, `qbe(vbe, vbc)`, `qbx`, `qbc`, `qsc` |
 | M (MOS1) | `mos1dset.c`, `mos1dist.c` | `id(vgs, vbs, vds)`, bulk diodes, bulk depletion and Meyer gate charges |
+| M (MOS2) | `mos2dset.c`, `mos2dist.c` | **refused** (`NotYetPorted` naming `mos2dset.c`): not ported |
 | M (MOS3) | `mos3dset.c`, `mos3dist.c` | **refused** (`NotYetPorted` naming `mos3dset.c`): not ported |
 | B sources, `POLY`/`TABLE` code models | no `DEVdisto` | **refused**: C keeps their linearization and silently drops their nonlinearity |
 
