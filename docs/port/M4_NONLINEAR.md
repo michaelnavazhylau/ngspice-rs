@@ -381,6 +381,55 @@ verify`:
 | `m10_mos3_ac` | active-load common-source stage at 75 C, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
 | `m10_mos3_tran` | CMOS inverter with weak-inversion leakage, Gear-2 | 0.047 of `TRAN` bound |
 
+### MOS9
+
+Level 9 NMOS/PMOS in `devices::mos9` on the shared shell (M10 wave 3, #89).
+C's `mos9/` (Alan Gillespie's modified level 3) is a copy of `mos3/`; a
+line-by-line comparison of the two directories finds only these behavioural
+differences, which are the only MOS9-specific code (`Level9` otherwise
+delegates the card, `mos9temp.c` derivation and `moseq3` current to
+`devices::mos3`, sharing its code rather than duplicating it):
+
+- **Setters** (`mos9.c`, `mos9mpar.c`, `mos9set.c`): MOS3's, with the same
+  defaults and aliases, minus `NLEV` and `GDSNOI`, which are rejected as
+  unknown keywords. `XD`, `ALPHA` and `INPUT_DELTA` are rejected as for MOS3.
+  Instance setters are MOS1's; `mos9par.c` does not apply `.options scale`,
+  which the options layer rejects for every device.
+- **Geometry** (`mos9temp.c`): the effective length `L - 2 LD + XL` and width
+  `W - 2 WD + XW` must be at least `1e-6` m (`E_PARMVAL`), at elaboration and
+  in instance sweeps; MOS3 only requires them positive.
+- **Drain current** (`mos9load.c`): MOS3's `moseq3` block without its
+  `argb != 0` guard, see the divergence below. Junctions use the cubic reverse
+  law; `mos9acld.c`, `mos9pzld.c` and `mos9trun.c` equal MOS3's; internal
+  nodes are `<name>#internal#drain`/`#internal#source`.
+- **Noise** (`mos9noi.c`): the generators predate NLEV: channel thermal noise
+  `2/3 abs(gm)`, flicker always in the SPICE3 form `m KF abs(cd/m)^AF / (f (W -
+  2 WD)(L - 2 LD) Cox^2)`, and RD/RS/channel thermal noise at the circuit
+  temperature (`NevalSrc`), even for an instance with its own TEMP or DTEMP.
+
+Divergences: MOS3's (errors where C warns and continues, `TOX = 0`). With
+VMAX > 0, NSUB given and KAPPA = 0, `mos9load.c` evaluates `0/0` for the
+channel-length derivatives beyond `vdsat`, and C's whole solution is NaN
+(checked with the reference binary); the port keeps MOS3's guard, whose zero
+derivatives are exact because the channel-length reduction is identically
+zero there, so it converges to MOS3's answer. Not ported: `.disto`
+(`mos9dset.c`/`mos9dist.c`) and `.sens`, which fail explicitly.
+
+Evidence: `tests/m10_mos9.rs` (level 9 equals level 3 bit for bit on shared
+cards across bias points, small-signal matrices and a transient inverter;
+internal nodes and truncation slots; whole-circuit DC Jacobians including the
+KAPPA = 0 guard; the 1 um floor; noise equal to MOS3's SPICE3 form; rejected
+setters and refusals), the opt-in live-C `mos9_noise_matches_c` and
+`a_mos9_stage_matches_c` (pole-zero), and three C goldens in `cargo xtask
+golden verify`, the MOS3 decks with level-9 cards and channels of at least
+1 um effective length:
+
+| Fixture | Exercises | Result |
+| --- | --- | --- |
+| `m10_mos9_dc` | as `m10_mos3_dc`, plus TEMP with DTEMP on the PMOS | within `NONLINEAR` (81 points) |
+| `m10_mos9_ac` | common-source stage with both transistors saturated (gain about -8.5), 75 C, PMOS DTEMP, `M=2`, junction geometry, RD/RS, Meyer/overlap | within `NONLINEAR` (36 points) |
+| `m10_mos9_tran` | CMOS inverter, Gear-2 | 0.007 of `TRAN` bound |
+
 ### JFET
 
 Level 1 NJF/PJF (#82, M10) lives in `devices::jfet` and level 2

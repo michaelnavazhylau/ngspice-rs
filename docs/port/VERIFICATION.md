@@ -61,6 +61,42 @@ live C: `c_noise_reference::mos3_noise_matches_c` (both flicker forms) and
 `c_pole_zero::a_mos3_stage_matches_c`. Six new parser snapshots were blessed;
 existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
 
+## M10 MOS level 9 (#89)
+
+`devices::mos9` reuses the level-3 code; the shared parts of
+`devices::mos3` were parameterized by the device label (for diagnostics) in a
+separate commit with no behaviour change: every MOS1 and MOS3 deck's Rust
+rawfile is byte-identical before and after (dates aside), and all existing
+goldens verify.
+
+Three new MOS9 C goldens, each captured with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed):
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos9_dc` | `compare::NONLINEAR` | 81 points |
+| `m10_mos9_ac` | `compare::NONLINEAR` | 36 points |
+| `m10_mos9_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.007 of bound |
+
+The decks are the MOS3 ones with level-9 cards, so they inherit the MOS3
+options for the same reasons: `reltol=1e-7 vntol=1e-12 abstol=1e-18` on the
+DC and AC decks (C's Newton stopping error at the bias would otherwise be
+amplified by the stage gain), and Gear-2 with `reltol=1e-5` and a 2 ps
+maximum step on the inverter. Channels are lengthened so every effective
+length and width is at least 1 um (`mos9temp.c` refuses smaller ones), and
+the AC input bias is 1.15 V so that both transistors are saturated.
+
+`tests/m10_mos9.rs` adds seven C-free tests; its DC Jacobian check uses an
+absolute bound of `2e-11`, the central difference's roundoff for residual rows
+carrying series-resistor terms near 0.1 A against sub-uA channel currents.
+`golden_rawfiles` documents the three goldens (the gate-independent junction
+currents equal MOS3's to the last digit). Opt-in live C:
+`c_noise_reference::mos9_noise_matches_c` (with and without
+`ngbehavior=s3`; mutation checks confirmed it fails if the thermal generators
+use the instance temperature or if the NLEV flicker law is used) and
+`c_pole_zero::a_mos9_stage_matches_c`. Six new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos9).
+
 ## Remaining M8 features (#132)
 
 - `c_dc_param_sweep_reference`: remaining listed real instance setters, plus
