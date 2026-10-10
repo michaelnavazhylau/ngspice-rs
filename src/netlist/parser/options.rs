@@ -25,6 +25,15 @@ fn options(input: &mut Input<'_>) -> Result<ParsedCard> {
     alt((keyword(".options"), keyword(".option"), keyword(".opt"))).parse_next(input)?;
     cut_err(|input: &mut Input<'_>| {
         let settings: Vec<OptionSetting> = repeat(1.., setting).parse_next(input)?;
+        if let Some(option) = settings
+            .iter()
+            .find(|o| matches!(o.name.as_str(), "sqrnoise" | "ngbehavior"))
+        {
+            return Err(ErrMode::Cut(Failure(SpiceError::parse(
+                option.location.clone(),
+                "front-end variables require set inside .control/.endc",
+            ))));
+        }
         Ok(ParsedCard::Options(OptionCard {
             settings,
             location: input.state.card.location.clone(),
@@ -140,6 +149,36 @@ fn global(input: &mut Input<'_>) -> Result<ParsedCard> {
         .parse_next(input)?;
         Ok(ParsedCard::Global(GlobalCard {
             nodes,
+            location: input.state.card.location.clone(),
+        }))
+    })
+    .parse_next(input)
+}
+
+/// Bounded front-end pre-run settings; no commands are silently skipped.
+pub(super) fn frontend_setting(input: &mut Input<'_>) -> Result<ParsedCard> {
+    if !input.input.first().is_some_and(|t| t.is_keyword("set")) {
+        return Err(ErrMode::Cut(Failure(SpiceError::not_yet_ported(
+            format!(
+                "{}: control commands other than bounded pre-run set",
+                input.state.card.location
+            ),
+            "src/frontend/inp.c",
+        ))));
+    }
+    keyword("set").parse_next(input)?;
+    cut_err(|input: &mut Input<'_>| {
+        let settings: Vec<OptionSetting> = repeat(1.., setting).parse_next(input)?;
+        for option in &settings {
+            if !matches!(option.name.as_str(), "sqrnoise" | "ngbehavior") {
+                return Err(ErrMode::Cut(Failure(SpiceError::not_yet_ported(
+                    format!("front-end setting {}", option.name),
+                    "src/frontend/variable.c",
+                ))));
+            }
+        }
+        Ok(ParsedCard::Options(OptionCard {
+            settings,
             location: input.state.card.location.clone(),
         }))
     })

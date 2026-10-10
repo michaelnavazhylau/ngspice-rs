@@ -3,7 +3,8 @@
 //!
 //! This is NOT ngspice trap or fixed Gear-2. Operators and sparsity are assembled
 //! explicitly; no NaN probing, mutable devices, or fallible callbacks are hidden
-//! inside diffsol equations. Each source segment is affine and integration is
+//! inside diffsol equations. Each source segment is affine with optional exact
+//! cosine contributions, and integration is
 //! restarted at breakpoints by the analysis layer.
 //!
 //! # Index-one formulation
@@ -59,6 +60,7 @@ struct Equations {
     b1: Vec<f64>,
     start: f64,
     end: f64,
+    cosines: Vec<CosineForcing>,
 }
 impl Op for Equations {
     type T = f64;
@@ -83,6 +85,13 @@ impl NonLinearOp for Equations {
         let f = ((t - self.start) / (self.end - self.start)).clamp(0., 1.);
         for i in 0..self.b0.len() {
             out.set_index(i, (1. - f) * self.b0[i] + f * self.b1[i]);
+        }
+        for tone in &self.cosines {
+            let correction = tone.amplitude
+                * ((tone.omega * t).cos()
+                    - (1. - f) * (tone.omega * self.start).cos()
+                    - f * (tone.omega * self.end).cos());
+            out.set_index(tone.row, out.get_index(tone.row) + correction);
         }
         self.jac.gemv(1., x, 1., out);
     }
@@ -452,6 +461,21 @@ impl LinearDae {
         options: &BdfOptions,
         accepted: &mut impl FnMut(f64, &Vector) -> SpiceResult<()>,
     ) -> SpiceResult<DaeOutput> {
+        self.integrate_segment_with_cosines(segment, options, &[], accepted)
+    }
+
+    /// Integrates affine forcing plus exact cosine terms. The endpoint RHSs
+    /// include the cosines; their affine interpolants are replaced analytically.
+    /// No device evaluation occurs in numeric callbacks.
+    /// # Errors
+    /// As integrate_segment, plus invalid row, nonfinite or overflowing forcing.
+    pub fn integrate_segment_with_cosines(
+        &self,
+        segment: &DaeSegment,
+        options: &BdfOptions,
+        cosines: &[CosineForcing],
+        accepted: &mut impl FnMut(f64, &Vector) -> SpiceResult<()>,
+    ) -> SpiceResult<DaeOutput> {
         self.check_vector(&segment.initial)?;
         self.check_vector(&segment.b_start)?;
         self.check_vector(&segment.b_end)?;
@@ -478,6 +502,28 @@ impl LinearDae {
                 "invalid time grid/tolerances/limits",
             ));
         }
+        let mut bounds = vec![0.; n];
+        for tone in cosines {
+            if tone.row >= n
+                || !tone.amplitude.is_finite()
+                || !tone.omega.is_finite()
+                || !(tone.omega * segment.end).is_finite()
+                || !(tone.amplitude * tone.omega).is_finite()
+            {
+                return Err(numerical(
+                    "diffsol cosine forcing",
+                    "invalid or overflowing term",
+                ));
+            }
+            bounds[tone.row] += 4. * tone.amplitude.abs() + (tone.amplitude * tone.omega).abs();
+            if !(bounds[tone.row]
+                + segment.b_start.as_slice()[tone.row].abs()
+                + segment.b_end.as_slice()[tone.row].abs())
+            .is_finite()
+            {
+                return Err(numerical("diffsol cosine forcing", "forcing sum overflows"));
+            }
+        }
         let projected = self.project(&segment.initial, &segment.b_start)?;
         if projected
             .as_slice()
@@ -499,6 +545,7 @@ impl LinearDae {
             b1: segment.b_end.as_slice().to_vec(),
             start: segment.start,
             end: segment.end,
+            cosines: cosines.to_vec(),
         };
         let err = |e: diffsol::DiffsolError| numerical("diffsol BDF", e.to_string());
         let problem = OdeBuilder::<M>::new()
@@ -518,6 +565,12 @@ impl LinearDae {
         for i in 0..n {
             db.as_mut_slice()[i] = (segment.b_end.as_slice()[i] - segment.b_start.as_slice()[i])
                 / (segment.end - segment.start);
+        }
+        for tone in cosines {
+            db.as_mut_slice()[tone.row] += tone.amplitude
+                * (-tone.omega * (tone.omega * segment.start).sin()
+                    - ((tone.omega * segment.end).cos() - (tone.omega * segment.start).cos())
+                        / (segment.end - segment.start));
         }
         let dy = self.derivative(&segment.initial, &segment.b_start, &db)?;
         {
@@ -580,6 +633,24 @@ impl LinearDae {
                     vector(&solver.interpolate(t).map_err(err)?)
                 };
                 self.check_vector(&x)?;
+                let x = if cosines.is_empty() {
+                    x
+                } else {
+                    let fraction =
+                        ((t - segment.start) / (segment.end - segment.start)).clamp(0., 1.);
+                    let mut rhs = Vector::zeros(n);
+                    for i in 0..n {
+                        rhs.as_mut_slice()[i] = (1. - fraction) * segment.b_start.as_slice()[i]
+                            + fraction * segment.b_end.as_slice()[i];
+                    }
+                    for tone in cosines {
+                        rhs.as_mut_slice()[tone.row] += tone.amplitude
+                            * ((tone.omega * t).cos()
+                                - (1. - fraction) * (tone.omega * segment.start).cos()
+                                - fraction * (tone.omega * segment.end).cos());
+                    }
+                    self.project(&x, &rhs)?
+                };
                 samples.push((t, x));
                 sample += 1;
             }
@@ -610,6 +681,17 @@ pub struct BdfOptions {
     /// Maximum accepted steps in this segment.
     pub max_steps: usize,
 }
+/// One immutable cosine contribution to a numeric forcing row.
+#[derive(Debug, Clone, Copy)]
+pub struct CosineForcing {
+    /// RHS row receiving the contribution.
+    pub row: usize,
+    /// Signed amplitude.
+    pub amplitude: f64,
+    /// Angular frequency in radians/second.
+    pub omega: f64,
+}
+
 /// One continuous, affine forcing interval (never spans a discontinuity).
 pub struct DaeSegment {
     /// Interval start.
@@ -650,6 +732,7 @@ mod tests {
             b1: vec![0.; 2],
             start: 0.,
             end: 1.,
+            cosines: Vec::new(),
         };
         let x = V::from_vec(vec![3., 7.], FaerContext::default());
         let mut y = V::from_vec(vec![5., 11.], FaerContext::default());

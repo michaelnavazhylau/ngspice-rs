@@ -206,10 +206,6 @@ fn unsupported_operations_and_parameters_are_not_yet_ported() {
             ".meas tran x min v(out) to={1m}\n",
             "a {…} expression as the value of to=",
         ),
-        (
-            ".meas sp x avg v(out)\n",
-            "measurements over an S-parameter plot",
-        ),
     ];
     for (body, expected) in not_ported {
         let error = parse(body).expect_err(body);

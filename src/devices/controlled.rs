@@ -372,7 +372,11 @@ impl Device for ControlledSource {
 
     /// `gain` of E/F/G/H (`vcvs.c`, `cccs.c`, `vccs.c`, `ccvs.c`).
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
-        keyword.eq_ignore_ascii_case("gain").then_some("gain")
+        match keyword.to_ascii_lowercase().as_str() {
+            "gain" => Some("gain"),
+            "m" if matches!(self.kind, ControlledKind::Vccs | ControlledKind::Cccs) => Some("m"),
+            _ => None,
+        }
     }
 
     /// `VCVSparam`/`CCVSparam` store the swept gain as is; `VCCSparam` and
@@ -384,6 +388,14 @@ impl Device for ControlledSource {
         value: Real,
         _context: &crate::devices::models::ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
+        if parameter == "m" && matches!(self.kind, ControlledKind::Vccs | ControlledKind::Cccs) {
+            crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+            // VCCSparam/CCCSparam: M stores a multiplier; only GAIN applies it.
+            return Ok(Box::new(Self {
+                multiplier: Some(value),
+                ..self.clone()
+            }));
+        }
         if parameter != "gain" {
             return Err(SpiceError::circuit(format!(
                 "{}: controlled-source parameter {parameter} cannot be swept",

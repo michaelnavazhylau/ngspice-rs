@@ -1034,7 +1034,8 @@ impl Device for Mos1 {
     /// `DCTsetInstParam`).
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         [
-            "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "temp", "dtemp",
+            "icvds", "icvgs", "icvbs", "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "temp",
+            "dtemp",
         ]
         .into_iter()
         .find(|name| name.eq_ignore_ascii_case(keyword))
@@ -1049,10 +1050,19 @@ impl Device for Mos1 {
         value: Real,
         context: &ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
+        let mut initial = self.initial.clone();
+        if let Some(index) = ["icvds", "icvgs", "icvbs"]
+            .iter()
+            .position(|k| *k == parameter)
+        {
+            crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+            initial.values[index] = Some(value);
+        }
         use crate::devices::sweep::check_swept;
         let mut geometry = self.geometry;
         let check = |ok: bool, what: &str| check_swept(&self.name, parameter, value, ok, what);
         match parameter {
+            "icvds" | "icvgs" | "icvbs" => {}
             "m" => {
                 check(value > 0., "positive")?;
                 geometry.m = value;
@@ -1135,7 +1145,7 @@ impl Device for Mos1 {
             model: self.model,
             geometry,
             series,
-            initial: self.initial.clone(),
+            initial,
         };
         device.operating(context)?;
         Ok(Box::new(device))
@@ -1345,13 +1355,17 @@ impl Device for Mos1 {
         let m = geometry.m;
         let length = geometry.length;
         let current_law = || m * model.kf * (model.af * (cd / m).abs().max(1e-38).ln()).exp();
-        let (coefficient, exponent) = match model.nlev {
-            0 => (current_law() / (length * length * cox), 1.),
-            1 => (current_law() / (geometry.w * length * cox), 1.),
-            _ => (
-                model.kf * gm * gm / m / (geometry.w * length * cox),
-                model.af,
-            ),
+        let (coefficient, exponent) = if context.model_context.spice3_noise {
+            (current_law() / (geometry.w * length * cox * cox), 1.)
+        } else {
+            match model.nlev {
+                0 => (current_law() / (length * length * cox), 1.),
+                1 => (current_law() / (geometry.w * length * cox), 1.),
+                _ => (
+                    model.kf * gm * gm / m / (geometry.w * length * cox),
+                    model.af,
+                ),
+            }
         };
         let temperature = geometry
             .temp

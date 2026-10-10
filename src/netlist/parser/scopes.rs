@@ -126,11 +126,32 @@ fn scope(
     let declared = model_names(cards, *cursor, inherited);
     let mut result = Scope::default();
     let mut definitions = BTreeSet::new();
+    let mut control = false;
     while let Some(entry) = cards.get(*cursor) {
         let entry = entry.as_ref().map_err(Clone::clone)?;
         *cursor += 1;
         let card = &entry.source;
-        let kind = match grammar::parse_card(card, auto_gnd, &declared)? {
+        if matches!(
+            card.dot_command(),
+            Some(DotCommand::Control | DotCommand::Endc)
+        ) {
+            let begin = card.dot_command() == Some(&DotCommand::Control);
+            if opening.is_some() || card.tokens.len() != 1 || begin == control {
+                return Err(SpiceError::parse(
+                    card.location.clone(),
+                    "invalid or nested .control/.endc settings block",
+                ));
+            }
+            control = begin;
+            result.cards.push(ordered(entry, ScopedCardKind::Output));
+            continue;
+        }
+        let parsed = if control {
+            grammar::parse_frontend_setting(card, auto_gnd, &declared)?
+        } else {
+            grammar::parse_card(card, auto_gnd, &declared)?
+        };
+        let kind = match parsed {
             ParsedCard::Device(d) => {
                 result.devices.push(d);
                 ScopedCardKind::Device(result.devices.len() - 1)
@@ -326,6 +347,9 @@ fn scope(
             }
         };
         result.cards.push(ordered(entry, kind));
+    }
+    if control {
+        return Err(SpiceError::circuit("missing .endc for settings block"));
     }
     if let Some((name, location)) = opening {
         return Err(SpiceError::parse(

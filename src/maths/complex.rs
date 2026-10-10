@@ -127,41 +127,63 @@ impl ComplexLu {
         if rhs.len() != n || rhs.iter().any(|v| !v.is_finite()) {
             return Err(numerical("complex solve", "invalid RHS"));
         }
+        let mut x = self.solve_unchecked(rhs, transposed);
+        // Bounded iterative refinement reuses the owned factors. Apply the
+        // original residual/rank policy unchanged, including basis solves.
+        for attempt in 0..=2 {
+            if x.iter().any(|v| !v.is_finite()) {
+                return Err(numerical(
+                    "complex solve",
+                    "non-finite solution/singular system",
+                ));
+            }
+            let max_x = x.iter().fold(0_f64, |m, v| m.max(v.magnitude()));
+            let mut residual = rhs.to_vec();
+            let mut ax = vec![Complex::ZERO; n];
+            let mut scale: Vec<_> = rhs.iter().map(|v| v.magnitude()).collect();
+            for (r, c, a) in &self.matrix.entries {
+                let (r, c) = if transposed { (*c, *r) } else { (*r, *c) };
+                ax[r] = ax[r] + *a * x[c];
+                scale[r] += a.magnitude() * max_x;
+            }
+            let mut failed = None;
+            for r in 0..n {
+                residual[r] = rhs[r] - ax[r];
+                let error = residual[r].magnitude();
+                if !error.is_finite() || !scale[r].is_finite() {
+                    return Err(numerical("complex solve", "non-finite residual/scale"));
+                }
+                if error > 128. * f64::EPSILON * (n as f64) * scale[r] {
+                    failed = Some(r);
+                }
+            }
+            let Some(row) = failed else {
+                return Ok(x);
+            };
+            if attempt == 2 {
+                return Err(numerical(
+                    "complex solve",
+                    format!("backward residual failed at row {row} after iterative refinement"),
+                ));
+            }
+            let correction = self.solve_unchecked(&residual, transposed);
+            for (value, delta) in x.iter_mut().zip(correction) {
+                *value = *value + delta;
+            }
+        }
+        unreachable!("bounded refinement returns on its final attempt")
+    }
+
+    fn solve_unchecked(&self, rhs: &[Complex], transposed: bool) -> Vec<Complex> {
+        let n = self.matrix.n;
         let mut x = Mat::from_fn(n, 1, |r, _| c64::new(rhs[r].re, rhs[r].im));
         if transposed {
             self.factor.solve_transpose_in_place(x.as_mut());
         } else {
             self.factor.solve_in_place(x.as_mut());
         }
-        let x: Vec<_> = (0..n)
+        (0..n)
             .map(|r| Complex::new(x[(r, 0)].re, x[(r, 0)].im))
-            .collect();
-        if x.iter().any(|v| !v.is_finite()) {
-            return Err(numerical(
-                "complex solve",
-                "non-finite solution/singular system",
-            ));
-        }
-        let max_x = x.iter().fold(0_f64, |m, v| m.max(v.magnitude()));
-        let mut ax = vec![Complex::ZERO; n];
-        let mut scale: Vec<_> = rhs.iter().map(|v| v.magnitude()).collect();
-        for (r, c, a) in &self.matrix.entries {
-            let (r, c) = if transposed { (*c, *r) } else { (*r, *c) };
-            ax[r] = ax[r] + *a * x[c];
-            scale[r] += a.magnitude() * max_x;
-        }
-        for r in 0..n {
-            let error = (ax[r] - rhs[r]).magnitude();
-            if !error.is_finite()
-                || !scale[r].is_finite()
-                || error > 128. * f64::EPSILON * (n as f64) * scale[r]
-            {
-                return Err(numerical(
-                    "complex solve",
-                    format!("backward residual failed at row {r}"),
-                ));
-            }
-        }
-        Ok(x)
+            .collect()
     }
 }

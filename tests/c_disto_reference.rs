@@ -198,3 +198,14 @@ re2 e2 0 2k
 ",
     );
 }
+
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn distortion_retained_bias_matches_c() {
+    let deck =
+        fs::read_to_string(workspace().join("conformance/netlists/disto_diode.cir")).unwrap();
+    compare(
+        "disto-keepopinfo",
+        &deck.replace(".end", ".options keepopinfo\n.end"),
+    );
+}

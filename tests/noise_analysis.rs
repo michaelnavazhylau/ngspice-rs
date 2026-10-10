@@ -395,3 +395,18 @@ fn simulate_writes_both_plots_and_composes_with_other_analyses() {
     assert_eq!(raw.plots[3].plot.variables[0].name, "v(onoise_total)");
     let _ = std::fs::remove_dir_all(&directory);
 }
+
+#[test]
+fn large_bjt_bypass_runs_ac_and_adjoint_noise_at_high_frequency() {
+    let deck = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("conformance/netlists/noise_bjt.cir"),
+    )
+    .unwrap()
+    .replace("ce e 0 1n", "ce e 0 10u")
+    .replace(
+        ".noise v(c) i1 dec 4 10 100meg 3",
+        ".ac dec 4 10meg 100meg\n.noise v(c) i1 dec 4 10meg 100meg 3",
+    );
+    assert_eq!(run_at(&deck, 0).unwrap()[0].point_count(), 5);
+    assert!(run_at(&deck, 1).unwrap()[0].point_count() >= 2);
+}

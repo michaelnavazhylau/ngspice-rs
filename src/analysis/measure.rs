@@ -205,7 +205,7 @@ impl Axis {
     fn of(plot: &Plot, kind: AnalysisKind) -> SpiceResult<Self> {
         let name = match kind {
             AnalysisKind::Transient => "time",
-            AnalysisKind::Ac => "frequency",
+            AnalysisKind::Ac | AnalysisKind::SParameter => "frequency",
             AnalysisKind::DcSweep => "sweep",
             other => {
                 return Err(SpiceError::Unsupported {

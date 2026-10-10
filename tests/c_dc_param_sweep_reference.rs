@@ -112,6 +112,7 @@ fn diode_instance_parameter_sweeps_match_c() {
         ("temp-area", "temp 80 -20 -50 @d1[area] 3 1 -1"),
         ("perim-m", "@d1[perim] 0 4 1 @d1[m] 1 3 1"),
         ("instance-temp", "@d1[temp] -40 125 15"),
+        ("diode-pj", "@d1[pj] 0 4 1"),
         ("dtemp-source", "@d1[dtemp] 0 50 10 v1 1 3 1"),
     ] {
         compare(tag, &format!("{diode}\n.dc {sweep}"), NONLINEAR);
@@ -127,6 +128,8 @@ fn bjt_and_mos1_instance_parameter_sweeps_match_c() {
     for (tag, sweep) in [
         // AREAB keeps bjtsetup.c's copy of the card AREA; AREAC is given.
         ("bjt-area", "@q1[area] 1 3 0.5"),
+        ("bjt-areac", "@q1[areac] 1 3 0.5"),
+        ("bjt-temp", "@q1[temp] -20 100 30"),
         ("bjt-areab-m", "@q1[areab] 1 2 0.5 @q1[m] 1 2 1"),
         ("bjt-dtemp", "@q1[dtemp] -20 40 20 vb 0.7 0.8 0.05"),
     ] {
@@ -139,6 +142,12 @@ fn bjt_and_mos1_instance_parameter_sweeps_match_c() {
         ("mos-w-l", "@m1[w] 5u 25u 5u @m1[l] 1u 3u 1u"),
         ("mos-m-nrd", "@m1[m] 1 3 1 @m1[nrd] 1 5 2"),
         ("mos-temp", "@m1[temp] -40 110 30"),
+        ("mos-ad", "@m1[ad] 1p 21p 5p"),
+        ("mos-as", "@m1[as] 1p 21p 5p"),
+        ("mos-pd", "@m1[pd] 2u 22u 5u"),
+        ("mos-ps", "@m1[ps] 2u 22u 5u"),
+        ("mos-nrs", "@m1[nrs] 1 5 1"),
+        ("mos-dtemp", "@m1[dtemp] -20 100 30"),
     ] {
         compare(tag, &format!("{mos}\n.dc {sweep}"), NONLINEAR);
     }
@@ -172,4 +181,87 @@ fn linear_instance_parameter_sweeps_match_c() {
     ] {
         compare(tag, &format!("{passive}\n.dc {sweep}"), LINEAR);
     }
+}
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs temporary C decks out of process"]
+fn remaining_m8_instance_setters_match_c() {
+    let resistor = "resistor setters\nv1 a 0 1\nr1 a b rm l=10u w=2u\nr2 b 0 1k\n.model rm r(rsh=100 tc1=0.01 tc2=0.0001)";
+    for (key, range) in [
+        ("temp", "27 77 25"),
+        ("tc1", "0 0.02 0.01"),
+        ("tc2", "0 0.002 0.001"),
+        ("w", "2u 6u 2u"),
+        ("l", "10u 30u 10u"),
+        ("m", "1 3 1"),
+        ("scale", "1 3 1"),
+    ] {
+        compare(
+            &format!("res-{key}"),
+            &format!("{resistor}\n.options temp=47\n.dc @r1[{key}] {range}"),
+            LINEAR,
+        );
+    }
+    let linear = "misc setters\nv1 in 0 1 ac 1\ni1 0 out 1m ac 1\nr1 out 0 1k\nc1 out 0 1n\nl1 in ll 1m\nr2 ll 0 1k\nl2 out lx 2m\nr3 lx 0 1k\nk1 l1 l2 0.1\ng1 0 go in 0 1m m=2\nrg go 0 1k\nf1 0 fo v1 2 m=3\nrf fo 0 1k\nb1 bo 0 v=v(in) tc1=0.01\nrb bo 0 1k";
+    for (target, range) in [
+        ("c1[capacitance]", "1n 3n 1n"),
+        ("l1[inductance]", "1m 3m 1m"),
+        ("v1[acmag]", "1 3 1"),
+        ("i1[acmag]", "1 3 1"),
+        ("i1[m]", "1 3 1"),
+        ("g1[m]", "1 3 1"),
+        ("f1[m]", "1 3 1"),
+        ("k1[k]", "0.1 0.3 0.1"),
+        ("b1[temp]", "27 77 25"),
+        ("b1[dtemp]", "0 50 25"),
+        ("b1[tc1]", "0 0.02 0.01"),
+        ("b1[tc2]", "0 0.002 0.001"),
+        ("b1[m]", "1 3 1"),
+    ] {
+        compare(target, &format!("{linear}\n.dc @{target} {range}"), LINEAR);
+    }
+    let diode = "diode setters\nv1 a 0 1\nr1 a b 1k\nd1 b 0 dm\n.model dm d(is=1e-14)\n.options reltol=1e-8";
+    for target in ["ic", "w", "l"] {
+        compare(
+            &format!("diode-{target}"),
+            &format!("{diode}\n.dc @d1[{target}] 1u 3u 1u"),
+            NONLINEAR,
+        );
+    }
+    for (tag, deck, keys) in [
+        (
+            "q",
+            "BJT IC\nv1 c 0 5\nv2 b 0 0.7\nq1 c b 0 qm\n.model qm npn\n.options reltol=1e-8",
+            &["icvbe", "icvce"][..],
+        ),
+        (
+            "m",
+            "MOS IC\nv1 d 0 2\nv2 g 0 1.5\nm1 d g 0 0 mm w=10u l=2u\n.model mm nmos(vto=0.7 kp=50u)\n.options reltol=1e-8",
+            &["icvds", "icvgs", "icvbs"][..],
+        ),
+    ] {
+        for key in keys {
+            compare(
+                &format!("{tag}-{key}"),
+                &format!("{deck}\n.dc @{tag}1[{key}] 0 0.2 0.1"),
+                NONLINEAR,
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn source_sweeps_propagate_through_dc_port_accumulation() {
+    let body = "PORT DC sweep\nvnon n 0 freq 1k\nv1 a 0 portnum 1 pwr 1m\nvbase base 0 dc 0.2\nrn n 0 1k\nr1 a 0 50\nrbase base 0 1k";
+    compare(
+        "port-dc-base",
+        &format!("{body}\n.dc vbase 0.2 0.6 0.2"),
+        LINEAR,
+    );
+    compare(
+        "port-dc-direct",
+        &format!("{body}\n.dc v1 0.1 0.3 0.1"),
+        LINEAR,
+    );
 }

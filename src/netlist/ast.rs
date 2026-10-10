@@ -572,6 +572,14 @@ pub struct VectorRequest {
 /// `docs/port/OUTPUT_SELECTION.md`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestedVector {
+    /// A named analysis vector (noise spectra or S/Y/Z parameters), optionally
+    /// transformed with mag/ph/real/imag/db.
+    Named {
+        /// Lowercase vector name.
+        name: String,
+        /// Scalar component, when requested.
+        component: Option<VectorComponent>,
+    },
     /// `all`: keep the driver's whole vector set. C: `.save all`.
     All,
     /// `v(node)` or `v(first,second)`: a node voltage or a voltage difference.
@@ -640,6 +648,19 @@ impl RequestedVector {
             }
         }
         match self {
+            Self::Named { name, component } => match component {
+                None => name.clone(),
+                Some(c) => format!(
+                    "{}({name})",
+                    match c {
+                        VectorComponent::Magnitude => "mag",
+                        VectorComponent::Phase => "ph",
+                        VectorComponent::Real => "real",
+                        VectorComponent::Imaginary => "imag",
+                        VectorComponent::Decibels => "db",
+                    }
+                ),
+            },
             Self::All => "all".to_owned(),
             Self::Voltage { positive, negative } => {
                 format!("v({})", terminals(positive, negative.as_deref()))
@@ -663,7 +684,7 @@ impl RequestedVector {
     pub const fn is_difference(&self) -> bool {
         match self {
             Self::Voltage { negative, .. } | Self::Component { negative, .. } => negative.is_some(),
-            Self::All | Self::Current { .. } => false,
+            Self::All | Self::Current { .. } | Self::Named { .. } => false,
         }
     }
 }

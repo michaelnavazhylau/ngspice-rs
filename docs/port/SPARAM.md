@@ -26,20 +26,24 @@ Each setter is `name value` or `name=value` and is applied in deck order, as
 | `vsrcset.c`: a port creates the internal node `<name>#res` | same node, which C saves and the port plots (`v(v1#res)`) |
 | `vsrcload.c`/`vsrcacld.c`: the ideal source sits between `#res` and the negative terminal; `1/z0` is stamped between the positive terminal and `#res` in **every** analysis | same in `.op`, `.dc`, `.ac`, `.tran` (both backends) and `.sp`: a port is a Thevenin source with series `z0`, and `i(v1)` is the current through the ideal source |
 
-The large-signal `PORT` time function selected by `pwr`/`freq` is only
-partly ported: `vsrcload.c` adds `sqrt(4 z0 pwr) cos(2 pi freq t)` to the
-value left over from the previously loaded source instance, which the port
-does not reproduce. Therefore:
+The large-signal `PORT` function adds `sqrt(4 z0 pwr) cos(2 pi freq t)`
+to the value left by the previous voltage source in C's reverse-deck load
+order (`vsrcload.c`). Consecutive PORTs accumulate, and a nonport V source
+with `pwr`/`freq` inherits the previous value with zero amplitude. Without
+explicit DC the operating point evaluates this accumulation at zero;
+source sweeps propagate changes through the same chain. An explicit DC value
+overrides it in DC analyses. Later waveform setters replace PORT; `phase` is
+stored but unused, as in C. Both transient backends support PORT. diffsol
+requires its inherited baseline to be piecewise linear and retains its
+existing index-one DAE restrictions; ordinary SIN/EXP/SFFM/AM still require
+the companion backend.
 
-* with an explicit DC value, DC and small-signal analyses (`.op`, `.dc`, `.ac`,
-  `.sp`) run normally (C uses the DC value and the AC phasor there);
-* any transient with such a port is `NotYetPorted` (companion and diffsol
-  backends), unless a later waveform setter (`sin(...)`, `pulse(...)`, …)
-  replaced the `PORT` function, as it does in `vsrcpar.c`;
-* a port with `pwr`/`freq` and no DC value is `NotYetPorted` (C loads the
-  `PORT` function even in the operating point), and so is `pwr`/`freq` on a
-  source that is not a port;
-* `phase` is stored and has no effect, as in C.
+PORT accumulation is checked at full excitation and at source events. DC
+continuation retains the port's existing uniform RHS source scaling; C's
+non-XSPICE `VSRCload` scales explicit-DC predecessors before adding a no-DC
+PORT tone (and applies another scaling in MODETRANOP). Intermediate
+continuation paths can therefore differ even though the final full-excitation
+equations match; this is not a claim of identical nonlinear branch selection.
 
 ## `.sp` analysis
 
@@ -89,8 +93,12 @@ attribute for `dec`/`oct` scales.
 ## Divergences and unsupported cases
 
 * **`donoise`** (`.sp ... 1`: `Cy_i_j`, `NF`, `SOpt`, `NFmin`, `Rn` from
-  `CKTspnoise`/`noisesp.c`) is `NotYetPorted`. Other `donoise` values are C's
-  "no noise" and run normally.
+  `CKTspnoise`/`noisesp.c`) is supported using device noise generators and
+  transposed complex solves. Covariances are exported as `i(Cy_i_j)`; two-port
+  plots additionally carry `NF`/`NFmin` in dB, complex `SOpt`, and `Rn` in ohms.
+  C's RF noise path does not accumulate flicker generators into Cy; this port
+  reproduces that behavior. Other `donoise` values disable noise. Undefined
+  or nonfinite noise parameters return an explicit numerical error.
 * **AC current sources.** `span.c` saves the AC-load RHS before the port loop
   with `memcpy(rhswoPorts, CKTrhs)` followed by `memcpy(rhswoPorts, CKTirhs)`
   and an all-zero imaginary copy, so a current source's *imaginary* AC phasor
@@ -108,12 +116,14 @@ attribute for `dec`/`oct` scales.
   error.
 * **No RF port** is an error (C: "No RF Port is present, cannot run sp
   analysis" and `controlled_exit`).
-* `.measure sp` (and `sparam`) is `NotYetPorted` (`MEASURE.md`).
-* C's `keepopinfo` "AC Operating Point" plot is not produced (as for `.ac`).
-* The `.ac`-path complex sparse LU's backward-residual guard can refuse some
-  reactive decks at particular frequencies (for example an LC ladder with
-  50 ohm terminations between 280 and 490 kHz); this affects `.ac` and `.sp`
-  alike and is not specific to S-parameters.
+* `.measure sp` (and `sparam`) uses the frequency axis and named vectors,
+  including `mag(S_2_1)`/`real(S_2_1)` components (`MEASURE.md`).
+* `.options keepopinfo` retains C's preceding "AC Operating Point" plot,
+  including its batch `op` name, for `.ac` and `.sp`.
+* Complex sparse LU applies up to two iterative-refinement corrections with
+  its existing factors before reporting a failed backward residual (#128).
+  The residual threshold and complete-basis rank/conditioning policy are
+  unchanged; unresolved numerical systems still fail explicitly.
 
 ## Verification
 
@@ -136,3 +146,9 @@ attribute for `dec`/`oct` scales.
   Chebyshev LC low-pass, a `pwr`/`freq` port deck and a port transient; every
   value by name within `1e-9 |C| + 1e-12` (the `c_batch_reference.rs`
   policy), and the series-resistor deck documents the Z divergence.
+
+Remaining-M8 checks (#132): `c_sparam_reference` covers hierarchical port
+names and retained bias, passive and nonlinear SP noise, and PORT waveforms
+against C and analytic values on each backend's physical sample times.
+`m8_additional_outputs` exercises SP measurements and print selection through
+the CLI; `c_measure_reference` checks measurements against C.

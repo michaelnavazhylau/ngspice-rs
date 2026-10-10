@@ -691,15 +691,9 @@ pub(crate) fn run(
             let mut solved_state = None;
             let x = if let (Some(system), Some(lu)) = (&system, &lu) {
                 let mut rhs = system.dc_rhs(None)?;
-                for (name, value) in &overrides {
-                    let source = system
-                        .sources
-                        .iter()
-                        .find(|s| s.name == *name)
-                        .ok_or_else(|| SpiceError::circuit("resolved DC source disappeared"))?;
-                    for (row, sign) in &source.rows {
-                        rhs.add_to(*row, sign * (value - source.dc))?;
-                    }
+                let changes = circuit.dc_source_changes(system, &overrides)?;
+                for (row, change) in changes.as_slice().iter().enumerate() {
+                    rhs.add_to(row, *change)?;
                 }
                 lu.solve(&rhs)?
             } else {

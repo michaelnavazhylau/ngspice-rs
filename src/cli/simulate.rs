@@ -136,14 +136,20 @@ pub fn run(deck: &Path, output: &Path, auto_gnd: bool) -> SpiceResult<Report> {
     if netlist.analyses.is_empty() {
         return Err(SpiceError::parse(
             netlist.location.clone(),
-            "the deck requests no analysis: 'simulate' needs at least one .op, .dc, .ac, \
-             .tran, .sp, .noise or .disto card",
+            format!(
+                "the deck requests no analysis: 'simulate' needs at least one {} card",
+                crate::analysis::driver::DRIVERS
+                    .iter()
+                    .map(|kind| format!(".{}", kind.as_str()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         ));
     }
     // Options are validated before anything runs, exactly as `parse` does:
     // unknown or unsupported settings are errors, never ignored.
     let config = RunConfig::from_netlist(netlist)?;
-    let schedule = batch::schedule(&netlist.analyses);
+    let schedule = batch::schedule_evaluated(&netlist.analyses, &config)?;
     // Every request and driver is validated before the first analysis runs, so
     // an unsupported last analysis cannot waste the earlier ones.
     let mut jobs = Vec::with_capacity(schedule.len());

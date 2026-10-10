@@ -33,7 +33,7 @@ pub struct RfPort {
     pub phase: Real,
     /// True when `pwr`/`freq` selected C's large-signal `PORT` time function
     /// (`vsrcpar.c` sets `VSRCfunctionType = PORT`) and no later waveform setter
-    /// replaced it. Its transient evaluation is not ported.
+    /// replaced it.
     pub power_function: bool,
 }
 
@@ -55,9 +55,13 @@ pub struct IndependentSource {
     voltage: bool,
     dc: Real,
     ac: Complex,
+    multiplier: Real,
     /// Whether an AC value was written (C `VSRCacGiven`), even `ac 0`.
     ac_given: bool,
     waveform: Waveform,
+    original_waveform: Waveform,
+    original_dc: Real,
+    power_tone: Option<(Real, Real)>,
     port: Option<RfPort>,
     /// What the card gave, as `.sens` replays C's records
     /// ([`crate::devices::sensitivity`]).
@@ -89,6 +93,7 @@ impl IndependentSource {
             voltage,
             dc,
             ac,
+            multiplier: 1.,
             ac_given: ac != Complex::ZERO,
             sensitivity: crate::devices::sensitivity::SourceInputs {
                 dc_given: true,
@@ -96,10 +101,20 @@ impl IndependentSource {
                 ac: (ac != Complex::ZERO)
                     .then(|| (ac.magnitude(), ac.im.atan2(ac.re).to_degrees())),
             },
+            original_waveform: waveform.clone(),
+            original_dc: dc,
+            power_tone: None,
             waveform,
             port: None,
             distortion: [None, None],
         })
+    }
+
+    /// Selects C's PORT cosine time function, including its zero-amplitude
+    /// nonport form. Values are initialized by VSRCtemp.
+    pub(crate) fn with_power_tone(mut self, tone: Option<(Real, Real)>) -> Self {
+        self.power_tone = tone;
+        self
     }
 
     /// Records what the card wrote for `.sens`: an explicit DC value, a
@@ -125,6 +140,7 @@ impl IndependentSource {
         }
         Ok(Self {
             dc,
+            original_dc: dc,
             ac,
             ..self.clone()
         })
@@ -200,6 +216,12 @@ impl IndependentSource {
         }
         self.terminals.truncate(2);
         self.terminals.push(port.internal);
+        self.power_tone = port.power_function.then(|| {
+            (
+                (4. * port.z0 * port.power).sqrt(),
+                2. * std::f64::consts::PI * port.frequency,
+            )
+        });
         self.port = Some(port);
         Ok(self)
     }
@@ -216,31 +238,48 @@ impl IndependentSource {
     }
 }
 
-/// Fails for a port whose large-signal `PORT` time function (`pwr`/`freq`)
-/// would drive a transient analysis: `vsrcload.c` adds it to the value left
-/// over from the previously loaded source instance, which the port does not
-/// reproduce. DC and small-signal analyses use the explicit DC value and the AC
-/// phasor and are unaffected. Both transient backends call this first.
-///
-/// # Errors
-/// [`SpiceError::NotYetPorted`] naming the first such port.
-pub fn reject_transient_power_ports(circuit: &crate::devices::Circuit) -> SpiceResult<()> {
-    for device in circuit.devices() {
-        if device.rf_port().is_some_and(|port| port.power_function) {
-            return Err(power_function_error(device.name()));
+impl Device for IndependentSource {
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        match keyword.to_ascii_lowercase().as_str() {
+            "acmag" => Some("acmag"),
+            "acphase" => Some("acphase"),
+            "m" if !self.voltage => Some("m"),
+            _ => None,
         }
     }
-    Ok(())
-}
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        _context: &crate::devices::ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+        let mut copy = self.clone();
+        match parameter {
+            "acmag" | "acphase" => {
+                let (mag, phase) = copy.sensitivity.ac.unwrap_or((1., 0.));
+                let (mag, phase) = if parameter == "acmag" {
+                    (value, phase)
+                } else {
+                    (mag, value)
+                };
+                copy.ac = Complex::new(
+                    mag * phase.to_radians().cos(),
+                    mag * phase.to_radians().sin(),
+                );
+                copy.ac_given = true;
+                copy.sensitivity.ac = Some((mag, phase));
+            }
+            "m" if !self.voltage => copy.multiplier = value,
+            _ => {
+                return Err(SpiceError::circuit(format!(
+                    "source parameter {parameter} cannot be swept"
+                )));
+            }
+        }
+        Ok(Box::new(copy))
+    }
 
-fn power_function_error(name: &str) -> SpiceError {
-    SpiceError::not_yet_ported(
-        format!("{name}: the transient value of the RF port power function (pwr=/freq=)"),
-        "src/spicelib/devices/vsrc/vsrcload.c (case PORT)",
-    )
-}
-
-impl Device for IndependentSource {
     /// Noiseless: C's VSRC/ISRC have no noise routine (`DEVnoise = NULL`); the
     /// transient noise sources (`trnoise`/`trrandom`) are not ported.
     fn noise(
@@ -313,6 +352,37 @@ impl Device for IndependentSource {
     fn findable_branch(&self) -> Option<usize> {
         self.voltage.then_some(0)
     }
+    fn dc_accumulates_predecessor(&self) -> bool {
+        self.voltage && self.power_tone.is_some() && !self.sensitivity.dc_given
+    }
+
+    fn bind_voltage_predecessor(
+        &mut self,
+        previous: &Waveform,
+        previous_dc: Real,
+    ) -> SpiceResult<Option<(Waveform, Real)>> {
+        if !self.voltage {
+            return Ok(None);
+        }
+        self.dc = self.original_dc;
+        self.waveform = self.original_waveform.clone();
+        if let Some(tone) = self.power_tone {
+            let (baseline, mut tones) = match previous {
+                Waveform::PortSeries { baseline, tones } => (baseline.clone(), tones.clone()),
+                other => (Box::new(other.clone()), Vec::new()),
+            };
+            tones.push(tone);
+            self.waveform = Waveform::PortSeries { baseline, tones };
+            self.waveform.validate()?;
+            if !self.sensitivity.dc_given {
+                self.dc = previous_dc + tone.0;
+            }
+            if !self.dc.is_finite() {
+                return Err(SpiceError::circuit("nonfinite PORT DC accumulation"));
+            }
+        }
+        Ok(Some((self.waveform.clone(), self.dc)))
+    }
     fn rf_port(&self) -> Option<&RfPort> {
         self.port.as_ref()
     }
@@ -324,9 +394,6 @@ impl Device for IndependentSource {
         let value = match context.mode {
             AnalysisMode::OperatingPoint | AnalysisMode::DcSweep => self.dc,
             AnalysisMode::Transient { time, .. } => {
-                if self.port.as_ref().is_some_and(|port| port.power_function) {
-                    return Err(power_function_error(&self.name));
-                }
                 let forcing = context.forcing.ok_or_else(|| {
                     SpiceError::circuit(format!(
                         "{}: transient source load without a forcing context",
@@ -360,8 +427,8 @@ impl Device for IndependentSource {
             )?;
             context.rhs.add_to(branch, value)
         } else {
-            context.stamp_rhs(self.terminals[0], -value)?;
-            context.stamp_rhs(self.terminals[1], value)
+            context.stamp_rhs(self.terminals[0], -value * self.multiplier)?;
+            context.stamp_rhs(self.terminals[1], value * self.multiplier)
         }
     }
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
@@ -373,7 +440,12 @@ impl Device for IndependentSource {
         } else {
             [(self.terminals[0], -1.), (self.terminals[1], 1.)]
                 .into_iter()
-                .filter_map(|(node, sign)| context.unknowns.node_row(node).map(|r| (r, sign)))
+                .filter_map(|(node, sign)| {
+                    context
+                        .unknowns
+                        .node_row(node)
+                        .map(|r| (r, sign * self.multiplier))
+                })
                 .collect()
         };
         context.system.sources.push(LinearSource {

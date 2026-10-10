@@ -1145,6 +1145,9 @@ impl Device for Diode {
     /// `diotemp.c` re-derives completely (`dctrcurv.c` `DCTsetInstParam`).
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         match keyword.to_ascii_lowercase().as_str() {
+            "ic" => Some("ic"),
+            "w" => Some("w"),
+            "l" => Some("l"),
             "area" => Some("area"),
             "pj" | "perim" => Some("pj"),
             "m" => Some("m"),
@@ -1164,6 +1167,11 @@ impl Device for Diode {
         value: Real,
         context: &ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
+        let mut initial = self.initial.clone();
+        if let Some(index) = ["ic"].iter().position(|k| *k == parameter) {
+            crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+            initial.values[index] = Some(value);
+        }
         let mut p = self.parameters;
         let domain = |ok: bool, what: &str| {
             if ok && value.is_finite() {
@@ -1176,6 +1184,10 @@ impl Device for Diode {
             }
         };
         match parameter {
+            "ic" => {}
+            "w" | "l" => {
+                domain(value >= 0., "nonnegative")?; /* diotemp.c geometry is setup-only once area was resolved. */
+            }
             "area" => {
                 domain(value > 0., "positive")?;
                 p.area = value;
@@ -1220,7 +1232,7 @@ impl Device for Diode {
             terminals: self.terminals.clone(),
             junction: self.junction,
             parameters: p,
-            initial: self.initial.clone(),
+            initial,
             location: self.location.clone(),
             written: self.written.clone(),
             lenient: false,

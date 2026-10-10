@@ -63,7 +63,8 @@ Every analysis writes C's plots, in C's order:
 | integrated | `Integrated Noise` (real, one point, no scale), only when `fstart != fstop` | with `pts_per_summary`: `v(onoise_total_<inst><suffix>)`, `v(inoise_total_<inst><suffix>)` pairs; then `v(onoise_total)`, `v(inoise_total)` |
 
 * All values are square roots (V/sqrt(Hz), A/sqrt(Hz), V, A): C without
-  `set sqrnoise`, a front-end variable the port has no way to set.
+  `set sqrnoise`. A bounded `.control`/`.endc` block supports pre-run
+  `set sqrnoise` and `set ngbehavior=s3`; other commands fail explicitly.
 * Units: `onoise_*` are `voltage-density`; `inoise_spectrum` is
   `voltage-density` for a V input and `current-density` for an I input. In the
   integrated plot C's rawfile writer spells the vectors `v(...)`/`i(...)` with
@@ -164,13 +165,24 @@ have (C creates a floating node), identical output nodes, `fstart <= 0` or
 `fstop < fstart`, a sweep type other than `dec`/`oct`/`lin`, fewer than one
 point, a negative `pts_per_summary`, an input that is not an independent source
 or has no `ac` value, more than 100,000 frequencies, and devices whose noise is
-not ported. Not supported: `set sqrnoise` (squared outputs), `.option
-keepopinfo`'s extra `NOISE Operating Point` plot, transient noise sources
-(`trnoise`/`trrandom`), C's SPICE3-compatibility MOS1 flicker form, noise of
-model families the port does not simulate, `.print noise` (the port's `.print`
-vectors are node voltages and branch currents, which noise plots do not carry;
-such a request fails, as a `.save v(...)` does, where C refuses to run the
-analysis). `.measure` cannot target noise plots (rejected by the parser). C's
+not ported. Transient noise sources (`trnoise`/`trrandom`) and noise of
+model families the port does not simulate remain unsupported.
+
+`set sqrnoise` produces C's squared density/integrated titles, units
+(`voltage^2-density`, `current^2-density`, `voltage^2`, `current^2`) and
+unwrapped integrated names. Only the bare boolean setting is supported.
+`set ngbehavior=s3` selects `mos1noi.c`'s SPICE3 flicker form with the
+`W * Leff * Cox^2` denominator, regardless of NLEV. This bounded setting does
+not provide a general SPICE3 syntax-compatibility mode; it selects the noise
+law on the supported netlist grammar. C comparisons set it in `.spiceinit`
+before reading the deck. `.options keepopinfo` writes the preceding
+`NOISE Operating Point` plot. `.print noise` accepts named spectra and
+integrated totals, routing each to its corresponding plot; requesting an
+integrated total in a single-frequency sweep is an explicit error. Unknown
+vectors still fail. These behaviors are covered by `c_noise_reference` and
+`m8_additional_outputs`.
+
+`.measure` cannot target noise plots (rejected by the parser). C's
 OP for a high-impedance BJT bias at its default RELTOL differs from the port's
 by about 1e-4 relative, which shot noise inherits; the BJT fixture tightens
 RELTOL as other nonlinear fixtures do.

@@ -312,7 +312,7 @@ fn unsupported_targets_fail_before_any_sample() {
     ] {
         assert!(unsupported(&resolve_error(args)), "{args}");
     }
-    // C sweeps these but the port does not yet.
+    // Additional C setters now resolve through the production replacement path.
     for args in [
         "@d1[ic] 1 2 1",
         "@r1[tc1] 0 1m 1m",
@@ -320,7 +320,7 @@ fn unsupported_targets_fail_before_any_sample() {
         "@i1[m] 1 2 1",
         "@v1[acmag] 1 2 1",
     ] {
-        assert!(resolve_error(args).is_not_yet_ported(), "{args}");
+        assert!(resolve(&c, &request(args), &context).is_ok(), "{args}");
     }
     // Two nesting levels only (C silently ignores a third axis).
     assert!(unsupported(&resolve_error(
@@ -384,11 +384,7 @@ fn instance_overrides_are_bounded_per_context() {
             .is_err()
     );
     assert!(c.instance_override("d1", "area", 0., &base).is_err());
-    assert!(
-        c.instance_override("d1", "ic", 1., &base)
-            .unwrap_err()
-            .is_not_yet_ported()
-    );
+    assert!(c.instance_override("d1", "ic", 1., &base).is_ok());
     assert!(
         c.instance_override("v1", "dc", 1., &base)
             .unwrap_err()

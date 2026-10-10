@@ -115,22 +115,34 @@ fn run_diffsol(
         return Err(unsupported("transient sample grid makes no progress"));
     }
     let mut system = circuit.linear_system_with_context(&context.model_context())?;
-    crate::devices::sources::reject_transient_power_ports(circuit)?;
     // C resolves PULSE TR/TF/PW/PER defaults from CKTstep and CKTfinalTime.
     system.bind_transient_timing(&TransientTiming::new(dt, end)?)?;
-    // DaeSegment interpolates the forcing linearly between breakpoints, which
-    // is exact only for piecewise-linear sources; never approximate SIN/EXP/
-    // SFFM/AM that way.
-    if let Some(source) = system
-        .sources
-        .iter()
-        .find(|s| !s.waveform.is_piecewise_linear())
-    {
-        return Err(unsupported(format!(
-            "{}: SIN/EXP/SFFM/AM forcing is implemented only by the companion driver \
-             (omit backend=diffsol); the diffsol BDF backend needs piecewise-linear sources",
-            source.name
-        )));
+    // Keep ordinary nonlinear-in-time functions outside this bounded adapter.
+    // PORT cosines are assembled as immutable numeric forcing contributions,
+    // with an affine baseline between its inherited source breakpoints.
+    let mut cosines = Vec::new();
+    for source in &system.sources {
+        let baseline = match &source.waveform {
+            crate::devices::Waveform::PortSeries { baseline, tones } => {
+                for (amplitude, omega) in tones {
+                    for (row, sign) in &source.rows {
+                        cosines.push(crate::maths::diffsol::CosineForcing {
+                            row: *row,
+                            amplitude: sign * amplitude,
+                            omega: *omega,
+                        });
+                    }
+                }
+                baseline.as_ref()
+            }
+            other => other,
+        };
+        if !baseline.is_piecewise_linear() {
+            return Err(unsupported(format!(
+                "{}: SIN/EXP/SFFM/AM forcing is implemented only by the companion driver (omit backend=diffsol); diffsol requires a piecewise-linear baseline",
+                source.name
+            )));
+        }
     }
     if system.has_initial_conditions {
         return Err(unsupported(
@@ -217,9 +229,10 @@ fn run_diffsol(
                 .filter(|t| *t > segment_start && *t < segment_end)
                 .collect(),
         };
-        let result = dae.integrate_segment(&segment, &options, &mut |t, x| {
-            circuit.accept_solution(x, Some(t))
-        })?;
+        let result =
+            dae.integrate_segment_with_cosines(&segment, &options, &cosines, &mut |t, x| {
+                circuit.accept_solution(x, Some(t))
+            })?;
         options.max_steps -= result.steps;
         for (t, sample) in result.samples {
             push(&mut plot, t, &sample)?;

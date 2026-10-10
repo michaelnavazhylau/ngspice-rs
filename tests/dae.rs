@@ -210,3 +210,64 @@ fn higher_index_and_nonunique_nullspaces_are_rejected() {
     let error = LinearDae::new(&a, &e).err().unwrap().to_string();
     assert!(error.contains("dense analysis limit"), "{error}");
 }
+
+#[test]
+fn exact_cosine_forcing_initializes_derivatives_and_projects_sample_constraints() {
+    use ngspice_rs::maths::diffsol::CosineForcing;
+    let omega: f64 = 7.;
+    let mut s = segment();
+    s.initial = Vector::from_slice(&[0., 1.]);
+    s.b_start = Vector::from_slice(&[1., 1.]);
+    s.b_end = Vector::from_slice(&[omega.cos(), omega.cos()]);
+    let terms = [
+        CosineForcing {
+            row: 0,
+            amplitude: 1.,
+            omega,
+        },
+        CosineForcing {
+            row: 1,
+            amplitude: 1.,
+            omega,
+        },
+    ];
+    let result = model()
+        .integrate_segment_with_cosines(&s, &options(), &terms, &mut |_, _| Ok(()))
+        .unwrap();
+    for (t, x) in result.samples {
+        let expected =
+            ((omega * t).cos() + omega * (omega * t).sin() - (-t).exp()) / (1. + omega * omega);
+        assert!((x.as_slice()[0] - expected).abs() < 1e-6);
+        assert!((x.as_slice()[1] - (omega * t).cos()).abs() < 1e-12);
+    }
+    for term in [
+        CosineForcing {
+            row: 2,
+            amplitude: 1.,
+            omega,
+        },
+        CosineForcing {
+            row: 0,
+            amplitude: f64::NAN,
+            omega,
+        },
+        CosineForcing {
+            row: 0,
+            amplitude: f64::MAX,
+            omega,
+        },
+        CosineForcing {
+            row: 0,
+            amplitude: 1.,
+            omega: f64::INFINITY,
+        },
+    ] {
+        assert!(
+            model()
+                .integrate_segment_with_cosines(&s, &options(), &[term], &mut |_, _| panic!(
+                    "invalid forcing accepted"
+                ))
+                .is_err()
+        );
+    }
+}

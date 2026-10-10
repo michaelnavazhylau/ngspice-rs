@@ -264,6 +264,13 @@ fn operand(input: &mut Input<'_>) -> Result<VectorRequest> {
                 component.function()
             ),
         )),
-        RequestedVector::Voltage { .. } | RequestedVector::Current { .. } => Ok(request),
+        RequestedVector::Voltage { .. }
+        | RequestedVector::Current { .. }
+        | RequestedVector::Named {
+            component: None, ..
+        } => Ok(request),
+        RequestedVector::Named {
+            component: Some(_), ..
+        } => Err(fail(at, "a component cannot be transformed by .four")),
     }
 }

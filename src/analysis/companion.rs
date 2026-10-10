@@ -495,7 +495,6 @@ pub fn companion_transient(
     let hints = initial::resolve(circuit, request)?;
     let model_context = context.model_context();
     circuit.finalize()?;
-    crate::devices::sources::reject_transient_power_ports(circuit)?;
     let nonlinear = circuit.devices().iter().any(|d| d.is_nonlinear());
     let mut system = if nonlinear {
         circuit.small_signal_system(&model_context, &Vector::zeros(circuit.unknown_count()))?

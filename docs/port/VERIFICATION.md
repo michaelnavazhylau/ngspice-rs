@@ -1,3 +1,57 @@
+# M8 follow-up regressions (#128–131)
+
+Complex LU now retries failed original-system residuals with at most two
+iterative-refinement corrections, for ordinary and transposed solves alike.
+The `128 n eps` residual bound and complete-basis rank/conditioning cutoff
+are unchanged. `tests/complex_solver.rs` retains explicit singular and
+unresolved near-singular homogeneous rejection. Production regressions run
+all 601 points of the 50-ohm LC ladder in AC and SP, and AC/adjoint noise
+with the BJT emitter bypass raised to 10 uF at 10–100 MHz. Opt-in
+`c_sparam_reference` and `c_noise_reference` compare them with live C;
+the LC regression uses the existing AC bound (`1e-10 |C| + 1e-12`).
+No golden was recaptured and no comparison tolerance was loosened.
+
+The CLI and xtask batch paths schedule evaluated arguments, including equal
+braced noise frequency bounds. `tests/simulate.rs` pins the resulting three
+plot names for a mixed single-/multiple-frequency noise deck;
+`c_noise_reference::equal_braced_noise_bounds_match_c` compares the rawfiles.
+The no-analysis diagnostic is generated from `driver::DRIVERS` and its process
+test requires every registered kind. Pole-zero preparation reuses
+`ac::SmallSignal`, including deck DC options and nodeset/switch-state handling;
+all existing pole-zero tests and live-C comparisons remain unchanged.
+
+## Remaining M8 features (#132)
+
+- `c_dc_param_sweep_reference`: remaining listed real instance setters, plus
+  MOS1 AD/AS/PD/PS/NRS/DTEMP, BJT AREAC/TEMP and diode PJ; source sweeps through
+  no-DC PORT accumulation. Linear comparisons use `1e-12 |C| + 1e-15`,
+  nonlinear comparisons `1e-6 |C| + 1e-12` with tightened deck RELTOL.
+- `c_sparam_reference`: passive and nonlinear noise covariances and two-port
+  NF/SOpt/NFmin/Rn, hierarchical `#res` names, PORT DC/transient source order
+  and bias plots. Covariance comparisons use a `1e-30` absolute floor rather
+  than the voltage/current floor. Nonlinear circuit internal nodes omitted
+  by C batch output are excluded from the layout comparison; every C vector
+  is compared. Waveforms are checked against analytic values at both C's and
+  Rust's physical sample times, including diffsol samples and a PWL corner.
+- `c_noise_reference`: squared titles/names/units/values for voltage/current
+  inputs and SPICE3 MOS1 flicker (C initialized with `ngbehavior=s3` before
+  loading). `c_measure_reference` compares SP measurements with C using
+  C's `vm(S_2_1)`/`vr(S_2_1)` syntax and its printed-value precision.
+- `m8_additional_outputs`: CLI noise print routing, SP measurement/selection,
+  retained bias, front-end setting round trips and explicit command errors.
+  `sparam` checks both PORT transient backends analytically; `dae` checks exact
+  cosine forcing, analytic derivatives, sample constraints and invalid terms.
+- `keepopinfo` covers all C users: AC/SP, noise, distortion and pole-zero
+  (C's PZ title is also `Distortion Operating Point`). Batch naming includes
+  each preceding `op` plot; saves apply to bias plots. Live C checks include
+  AC/PZ (`c_sparam_reference`) and distortion (`c_disto_reference`).
+
+The tracked M8 follow-ups are implemented with the documented backend and model
+bounds. No fixtures were recaptured or comparison thresholds relaxed. This does
+not claim full SPICE parity. Front-end controls remain bounded pre-run settings;
+diffsol retains its index-one structure restrictions and requires a piecewise
+linear baseline beneath PORT cosines.
+
 # Verification
 
 ## M8 sensitivity analysis (#102)

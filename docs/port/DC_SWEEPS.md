@@ -220,12 +220,16 @@ device's temperature routine does:
 | MOS1 | `m`, `l`, `w`, `ad`, `as`, `pd`, `ps`, `nrd`, `nrs`, `temp`, `dtemp` | `mos1par.c`, `mos1temp.c` |
 | E/F/G/H | `gain` (G/F times a given `m`) | `vcvspar.c`, `cccspar.c`, `vccspar.c`, `ccvspar.c` |
 
-`devices::sweep::c_instance_parameter_known` lists C's other settable real
-instance parameters of the elaborated device kinds (resistor `temp`/`tc1`/`w`/...,
-capacitor and inductor values, source `acmag`/`m`, diode `ic`/`w`/`l`, BJT/MOS1
-`ic*`, G/F `m`, B-source `temp`/`m`, K `k`); sweeping one of them is
-`NotYetPorted` naming `dctrcurv.c`. A parameter C does not have is
-`Unsupported`, like an unknown instance or any model name.
+The remaining M8 real setters are implemented through immutable per-point
+replacements: R `temp`/`tc1`/`tc2`/`w`/`l`/`m`/`scale`, C/L values, V/I
+`acmag`/`acphase` and I `m`, D `ic`/`w`/`l`, Q `icvbe`/`icvce`, MOS1
+`icvds`/`icvgs`/`icvbs`, G/F `m`, B `temp`/`dtemp`/`tc1`/`tc2`/`m`, K `k`.
+Setter effects follow DEVparam then DEVtemperature, without rerunning setup:
+D geometry and Q setup-only area coefficients retain C's already-resolved
+values; G/F `m` updates the stored multiplier but not the gain until a gain
+setter runs. K and swept inductances feed the mutual-inductance assembly.
+Unknown parameters remain explicit errors. Live C tests cover these setters
+and the earlier MOS1 geometry/temperature, Q AREAC/TEMP and D PJ setters.
 
 Values are checked against the instance schema domains (AREA/M/W/L positive,
 PJ/AD/AS/PD/PS/NRD/NRS nonnegative, TEMP above absolute zero) and the device's

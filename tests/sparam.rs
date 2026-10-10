@@ -433,8 +433,12 @@ fn port_numbering_must_be_one_to_n_in_every_analysis() {
 #[test]
 fn unsupported_sp_requests_are_explicit() {
     let ports = "v1 1 0 dc 0 portnum 1\nr1 1 2 50\nv2 2 0 dc 0 portnum 2";
-    let (pending, text) = message(sp(ports, ".sp lin 2 1k 2k 1"));
-    assert!(pending && text.contains("donoise"), "{text}");
+    assert!(
+        sp(ports, ".sp lin 2 1k 2k 1")
+            .unwrap()
+            .variable_index("i(Cy_1_1)")
+            .is_some()
+    );
     // donoise values other than 1 are C's "no noise".
     for flag in ["0", "2", "0.4"] {
         sp(ports, &format!(".sp lin 2 1k 2k {flag}")).unwrap();
@@ -457,13 +461,11 @@ fn unsupported_sp_requests_are_explicit() {
         !pending && text.contains("i1") && text.contains("imaginary"),
         "{text}"
     );
-    // .measure over an S-parameter plot is not ported.
-    let (pending, text) = message(sp(ports, ".sp lin 2 1k 2k\n.meas sp m1 max v(2)"));
-    assert!(pending, "{text}");
+    sp(ports, ".sp lin 2 1k 2k\n.meas sp m1 max v(2)").unwrap();
 }
 
 #[test]
-fn the_port_power_function_is_refused_where_c_would_use_it() {
+fn the_port_power_function_runs_where_c_uses_it() {
     let tail = "r1 1 2 50\nv2 2 0 dc 0 portnum 2";
     // With an explicit DC value, pwr/freq do not affect DC or small-signal
     // analyses.
@@ -480,11 +482,11 @@ fn the_port_power_function_is_refused_where_c_would_use_it() {
     assert_eq!(plain.points, powered.points);
     sp(&format!("v1 1 0 dc 1 portnum 1 pwr 1m\n{tail}"), ".op").unwrap();
     for backend in ["", " backend=diffsol method=bdf"] {
-        let (pending, text) = message(sp(
-            &format!("v1 1 0 dc 1 portnum 1 freq 1meg\n{tail}"),
+        sp(
+            &format!("v1 1 0 dc 1 portnum 1 freq 1meg\nc1 1 0 1n\n{tail}"),
             &format!(".tran 1u 10u{backend}"),
-        ));
-        assert!(pending && text.contains("PORT"), "{backend}: {text}");
+        )
+        .unwrap();
     }
     // A later waveform setter replaces the PORT function, as in vsrcpar.c.
     let plots = sp(
@@ -494,14 +496,12 @@ fn the_port_power_function_is_refused_where_c_would_use_it() {
     .unwrap();
     assert!(plots.point_count() > 10);
     // Without a DC value C loads the PORT function in the operating point.
-    let (pending, text) = message(sp(
+    sp(
         &format!("v1 1 0 ac 1 portnum 1 pwr 1m\n{tail}"),
         ".sp lin 1 1k 1k",
-    ));
-    assert!(pending && text.contains("explicit DC value"), "{text}");
-    // pwr/freq on a source that is not a port.
-    let (pending, text) = message(sp(&format!("v1 1 0 dc 1 freq 1k\n{tail}"), ".op"));
-    assert!(pending && text.contains("not an RF port"), "{text}");
+    )
+    .unwrap();
+    sp("v1 1 0 dc 1 freq 1k\nr1 1 0 50", ".op").unwrap();
     // Current sources have no port parameters.
     let error = sp("i1 1 0 dc 1 portnum 1\nr1 1 0 1", ".op").unwrap_err();
     assert!(matches!(error, SpiceError::NotYetPorted { .. }), "{error}");
@@ -539,4 +539,41 @@ fn deck_dc_options_reach_the_sp_operating_point() {
     )
     .unwrap();
     close_real(&plots[0], "S_1_1", 0, 0.);
+}
+
+#[test]
+fn reactive_ladder_runs_ac_and_sp_across_the_residual_regression_band() {
+    let body = "v1 in 0 dc 0 ac 1 portnum 1 z0 50\nc1 in 0 318.3n\nl1 in out 1.592m\nc2 out 0 318.3n\nv2 out 0 dc 0 ac 0 portnum 2 z0 50";
+    for kind in ["ac", "sp"] {
+        let plot = sp(body, &format!(".{kind} dec 100 1 1e6")).unwrap();
+        assert_eq!(plot.point_count(), 601);
+        assert!(plot.points.iter().flatten().all(|v| v.is_finite()));
+    }
+}
+
+#[test]
+fn port_cosines_accumulate_in_c_load_order_on_both_backends() {
+    let body = "vnon n 0 freq 10\nv1 a 0 portnum 1 pwr 2m freq 2k phase 73\nv2 b 0 dc 0.2 portnum 2 pwr 1m freq 1k\nvbase base 0 pwl(0 0.2 100u 0.3)\nrn n 0 100\nr1 a 0 50\nr2 b 0 50\nrb base 0 100\nc1 a 0 1u";
+    let bias = sp(body, ".op").unwrap();
+    close(
+        value(&bias, "v(v1#res)", 0),
+        Complex::real(0.2 + (0.4_f64).sqrt()),
+    );
+    close(value(&bias, "v(n)", 0), value(&bias, "v(v1#res)", 0));
+    for backend in ["", " backend=diffsol method=bdf"] {
+        let plot = sp(body, &format!(".tran 1u 100u{backend}")).unwrap();
+        for point in 0..plot.point_count() {
+            let t = value(&plot, "time", point).re;
+            let baseline = 0.2 + 1000. * t;
+            let two = baseline + 0.2_f64.sqrt() * (2. * std::f64::consts::PI * 1e3 * t).cos();
+            let one = two + 0.4_f64.sqrt() * (2. * std::f64::consts::PI * 2e3 * t).cos();
+            for (name, expected) in [("v(v2#res)", two), ("v(v1#res)", one), ("v(n)", one)] {
+                let got = value(&plot, name, point).re;
+                assert!(
+                    (got - expected).abs() < 1e-9,
+                    "{backend} {name} t={t}: {got} != {expected}"
+                );
+            }
+        }
+    }
 }

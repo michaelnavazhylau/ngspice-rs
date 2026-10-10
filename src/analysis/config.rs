@@ -125,7 +125,6 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "defas",
     "badmos3",
     "trytocompact",
-    "keepopinfo",
     "copynodesets",
     "nodedamping",
     "linesearch",
@@ -333,6 +332,9 @@ pub struct IgnoredOption {
 /// Resolved, validated run configuration for one deck.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct RunConfig {
+    squared_noise: bool,
+    spice3_noise: bool,
+    keep_op_info: bool,
     context: AnalysisContext,
     transient: TransientSettings,
     dc: DcOptions,
@@ -565,6 +567,32 @@ impl RunConfig {
             return Ok(());
         }
         match name {
+            "sqrnoise" => {
+                if setting.value.is_some() {
+                    return Err(SpiceError::Unsupported {
+                        feature: "use the bare boolean set sqrnoise".into(),
+                        location: Some(location.clone()),
+                    });
+                }
+                self.squared_noise = true;
+                return Ok(());
+            }
+            "ngbehavior" => {
+                let value = setting.value.as_ref().map(|v| v.text.to_ascii_lowercase());
+                if value.as_deref() != Some("s3") {
+                    return Err(SpiceError::Unsupported {
+                        feature: "only ngbehavior=s3 for MOS1 noise compatibility is supported"
+                            .into(),
+                        location: Some(location.clone()),
+                    });
+                }
+                self.spice3_noise = true;
+                return Ok(());
+            }
+            "keepopinfo" => {
+                self.keep_op_info = setting.value.is_none() || number("0 or 1")? != 0.;
+                return Ok(());
+            }
             "post" | "ingold" => {
                 self.ignore(setting, UNREAD_REASON);
                 return Ok(());
@@ -867,6 +895,9 @@ impl RunConfig {
     /// names `backend=diffsol`, which implements none of them, so the selection
     /// cannot be honoured and is not silently ignored.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
+        request.squared_noise |= self.squared_noise;
+        request.spice3_noise |= self.spice3_noise;
+        request.keep_op_info |= self.keep_op_info;
         // Deck-level hints travel with every request (explicit request entries
         // win); each driver validates them against its circuit.
         if request.initial_conditions.is_empty() {
@@ -884,6 +915,7 @@ impl RunConfig {
                     | AnalysisKind::DcSweep
                     | AnalysisKind::Ac
                     | AnalysisKind::Noise
+                    | AnalysisKind::PoleZero
                     | AnalysisKind::TransferFunction
                     | AnalysisKind::SParameter
             ) {

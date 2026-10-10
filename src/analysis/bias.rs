@@ -1553,23 +1553,9 @@ fn run(
     if target.len() != n || !target.is_finite() {
         return Err(SpiceError::circuit("invalid DC forcing"));
     }
-    let mut names = std::collections::BTreeSet::new();
-    for (name, value) in overrides {
-        if !value.is_finite() || !names.insert(name.to_ascii_lowercase()) {
-            return Err(SpiceError::circuit(
-                "nonfinite or duplicate DC source override",
-            ));
-        }
-        let source = system
-            .sources
-            .iter()
-            .find(|s| s.name.eq_ignore_ascii_case(name))
-            .ok_or_else(|| {
-                SpiceError::circuit(format!("DC target {name} is not an independent source"))
-            })?;
-        for (row, sign) in &source.rows {
-            target.add_to(*row, sign * (value - source.dc))?;
-        }
+    let changes = circuit.dc_source_changes(&system, overrides)?;
+    for (row, change) in changes.as_slice().iter().enumerate() {
+        target.add_to(row, *change)?;
     }
     // Preserve exact linear solving (no nonlinear damping or continuation).
     if !circuit.devices().iter().any(|device| device.is_nonlinear()) {

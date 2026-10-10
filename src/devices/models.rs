@@ -318,6 +318,8 @@ impl<'a> ResolvedModel<'a> {
 /// resistor and instance-parameter overrides here (see [`crate::devices::sweep`]) instead of mutating devices.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelContext {
+    /// Use SPICE3 MOS1 flicker noise (`mos1noi.c`, newcompat.s3).
+    pub spice3_noise: bool,
     /// Circuit temperature, degrees Celsius (instance TEMP default).
     pub temperature: Real,
     /// Nominal temperature, degrees Celsius (model TNOM default).
@@ -359,6 +361,7 @@ impl ModelContext {
             instance_overrides: [None; MAX_INSTANCE_OVERRIDES],
             gmin: DEFAULT_GMIN,
             frequency: 0.,
+            spice3_noise: false,
         }
     }
 
