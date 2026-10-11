@@ -374,6 +374,8 @@ impl StepHistory {
 ///
 /// The two agree to rounding; the result is exact for polynomials of degree
 /// `order` (tested), which is what defines the C coefficients.
+// Kept index-for-index with nicomcof.c so the arithmetic matches it.
+#[allow(clippy::needless_range_loop, clippy::assign_op_pattern)]
 fn gear_corrector(
     deltas: &[Real; HISTORY_LEN + 1],
     order: usize,

@@ -331,6 +331,7 @@ pub enum PhasePolicy {
 ///
 /// # Errors
 /// As [`solve_counted_limited`].
+#[allow(clippy::too_many_arguments)]
 pub fn solve_phased(
     initial: &Vector,
     branch_rows: &[bool],
