@@ -113,8 +113,8 @@ impl Default for NewtonOptions {
     fn default() -> Self {
         Self {
             max_iterations: 100,
-            reltol: 1e-8,
-            vntol: 1e-10,
+            reltol: 1e-3,
+            vntol: 1e-6,
             abstol: 1e-12,
             voltage_step: 0.2,
             limiting: StepLimiting::Device,

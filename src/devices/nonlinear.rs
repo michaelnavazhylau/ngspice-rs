@@ -1337,11 +1337,16 @@ impl Device for Diode {
         let thermal = self.parameters.thermal(&model)?;
         let mut limiter = Limiter::new(&context.states);
         // dioload.c: MODEINITPRED extrapolates the junction voltage
-        // (`DEVpred`) before limiting it; otherwise the iterate's.
-        let raw = match (context.states.phase(), limiter.mode(), context.integration) {
-            (crate::devices::IterationPhase::Predict, Linearization::Limited, Some(c)) => context
+        // (`DEVpred`) before limiting it; otherwise the iterate's. A `.dc`
+        // sweep predicts too, with `xfact = 1` (dctrcurv.c keeps
+        // `CKTdelta == CKTdeltaOld[1]`).
+        let raw = match (context.states.phase(), limiter.mode()) {
+            (crate::devices::IterationPhase::Predict, Linearization::Limited) => context
                 .states
-                .predicted(DIODE_VOLTAGE_SLOT, c.predictor_ratio())
+                .predicted(
+                    DIODE_VOLTAGE_SLOT,
+                    context.integration.map_or(1., |c| c.predictor_ratio()),
+                )
                 .ok_or_else(|| SpiceError::circuit("missing accepted diode voltage"))?,
             _ => context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]),
         };
