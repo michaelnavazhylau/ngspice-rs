@@ -3,8 +3,8 @@
 //!
 //! This follows ngspice's `spsmp.c` use of SPARSE: a fresh pattern is
 //! MNA-preordered (`SMPpreOrder`) and ordered with threshold pivoting
-//! (`SMPreorder`, `spOrderAndFactor` with `CKTpivotRelTol = 1e-3`,
-//! `CKTpivotAbsTol = 1e-13`); a reused pattern is refactored with the
+//! (`SMPreorder`, `spOrderAndFactor` with the matrix's [`PivotTolerances`],
+//! C's `CKTpivotRelTol`/`CKTpivotAbsTol`); a reused pattern is refactored with the
 //! existing pivot order (`SMPluFac`, `spFactor`) and, on a zero pivot,
 //! reordered as `NIiter` does after `E_SINGULAR`. Like C there is no
 //! condition estimate or residual check: only structural/numeric singularity
@@ -21,10 +21,54 @@ use crate::maths::sparse13::{Scalar, Sparse, Status};
 use crate::maths::{Matrix, Pattern, SparseMatrix, Vector};
 use crate::primitives::{SpiceError, SpiceResult};
 
-/// ngspice's default `CKTpivotRelTol` (`.options pivrel`).
-pub(crate) const PIVOT_REL_TOL: f64 = 1.0e-3;
-/// ngspice's default `CKTpivotAbsTol` (`.options pivtol`).
-pub(crate) const PIVOT_ABS_TOL: f64 = 1.0e-13;
+/// SPARSE threshold-pivoting limits for ordering a circuit matrix: C's
+/// `CKTpivotAbsTol` (`.options pivtol`) and `CKTpivotRelTol` (`.options
+/// pivrel`), passed to every `SMPreorder`/`SMPcReorder` (`niiter.c`,
+/// `niaciter.c`). A refactor with an existing order (`spFactor`) does not
+/// read them.
+///
+/// `spOrderAndFactor` silently falls back to its stored threshold for a
+/// relative value outside `(0, 1]` or a negative absolute value; here such
+/// values are rejected by [`Self::validate`] instead.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PivotTolerances {
+    /// Smallest acceptable pivot magnitude (`pivtol`, default `1e-13`).
+    pub absolute: f64,
+    /// Smallest acceptable ratio of a pivot to the largest magnitude in its
+    /// column (`pivrel`, default `1e-3`).
+    pub relative: f64,
+}
+
+impl PivotTolerances {
+    /// ngspice's defaults (`cktntask.c`): `pivtol = 1e-13`, `pivrel = 1e-3`.
+    pub const DEFAULT: Self = Self {
+        absolute: 1.0e-13,
+        relative: 1.0e-3,
+    };
+
+    /// Checks `0 <= absolute` and `0 < relative <= 1`, both finite.
+    ///
+    /// # Errors
+    /// A message naming the offending option.
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.absolute.is_finite() || self.absolute < 0. {
+            return Err(format!(
+                "pivtol must be finite and >= 0, not {}",
+                self.absolute
+            ));
+        }
+        if !self.relative.is_finite() || self.relative <= 0. || self.relative > 1. {
+            return Err(format!("pivrel must be in (0, 1], not {}", self.relative));
+        }
+        Ok(())
+    }
+}
+
+impl Default for PivotTolerances {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
 
 pub(crate) fn numerical(context: &str, message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {
@@ -82,7 +126,11 @@ pub(crate) fn check_status<T: Scalar>(
 }
 
 /// Orders and factors a freshly built matrix (`SMPpreOrder` + `SMPreorder`).
-pub(crate) fn order_fresh<T: Scalar>(context: &str, sparse: &mut Sparse<T>) -> SpiceResult<()> {
+pub(crate) fn order_fresh<T: Scalar>(
+    context: &str,
+    sparse: &mut Sparse<T>,
+    pivot: PivotTolerances,
+) -> SpiceResult<()> {
     if !sparse.fully_translated() {
         return Err(numerical(
             context,
@@ -90,7 +138,7 @@ pub(crate) fn order_fresh<T: Scalar>(context: &str, sparse: &mut Sparse<T>) -> S
         ));
     }
     sparse.mna_preorder();
-    let status = sparse.order_and_factor(PIVOT_REL_TOL, PIVOT_ABS_TOL);
+    let status = sparse.order_and_factor(pivot.relative, pivot.absolute);
     check_status(context, status, sparse)
 }
 
@@ -237,7 +285,7 @@ impl SparseLu {
                     handle
                 })
                 .collect();
-            order_fresh("sparse LU", &mut sparse)?;
+            order_fresh("sparse LU", &mut sparse, matrix.pivot_tolerances())?;
             return Ok(Self {
                 symbolic: SparseSymbolic {
                     n: pattern.order(),
@@ -260,7 +308,7 @@ impl SparseLu {
                 handle
             })
             .collect();
-        order_fresh("sparse LU", &mut sparse)?;
+        order_fresh("sparse LU", &mut sparse, matrix.pivot_tolerances())?;
         Ok(Self {
             symbolic: SparseSymbolic {
                 n,
@@ -306,7 +354,8 @@ impl SparseLu {
         let mut status = sparse.factor();
         if status == Status::ZeroDiag {
             load(&mut sparse);
-            status = sparse.order_and_factor(PIVOT_REL_TOL, PIVOT_ABS_TOL);
+            let pivot = matrix.pivot_tolerances();
+            status = sparse.order_and_factor(pivot.relative, pivot.absolute);
         }
         check_status("sparse LU", status, &sparse)?;
         Ok(Self {

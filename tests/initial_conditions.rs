@@ -183,7 +183,8 @@ fn ic_without_uic_is_enforced_during_the_bias_then_released() {
 #[test]
 fn ic_duplicates_use_the_last_entry_and_node_names_are_case_insensitive() {
     let deck = "t\nv1 in 0 1\nr1 in OUT 1k\nc1 out 0 1u\n.ic v(out)=0.2\n.ic V(OUT)=0.4 v(out)=0.6\n.tran 10u 1m\n.end\n";
-    assert_eq!(column(&run(deck).unwrap(), "v(out)")[0], 0.6);
+    // INPevaluate("0.6") is 6 * 0.1.
+    assert_eq!(column(&run(deck).unwrap(), "v(out)")[0], 6. * 0.1);
 }
 
 #[test]

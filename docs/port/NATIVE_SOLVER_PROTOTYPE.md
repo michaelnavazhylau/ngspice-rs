@@ -31,6 +31,16 @@ in `sparse13.rs`); nothing is taken from LGPL KLU.
   to ngspice's `TSTALLOC` order; standalone `SparseMatrix` solves (tests, small
   helper systems) still use folded row-major order. Markowitz ties can break
   differently from C, changing rounding only.
+- **Element creation order (open).** C does not stamp in deck order:
+  `CKTsetup` walks device types in `DEVices` order, and within a type
+  `CKTmodCrt`/`CKTcrtElt` prepend models and instances, so the last
+  instance card sets up first. SPARSE numbers rows by first appearance, so
+  C's internal numbering, and with it Markowitz tie-breaking in
+  `QuicklySearchDiagonal`, differs from this port's deck-order pattern. Seen
+  with `.options pivrel=1e-30`: on a deck where two diagonals tie at
+  Markowitz product 1, C (with `.options sparse`) keeps the well-conditioned
+  one and this port takes the 1e-17 pivot. With the default `pivrel` both
+  reject it. Matching C means learning the pattern in C's setup order.
 - **Pivot persistence.** One pivot order is kept per circuit pattern and reused
   by every solve, as C keeps one ordered matrix; a new element (a position no
   previous load stamped) forces a reorder, as in SPARSE. Elements are learned
@@ -109,5 +119,6 @@ eigenvalue-method behaviour now encode C's. Production C-golden fixtures
 3. Pole-zero: C's search (fidelity, including its failures) or the eigenvalue
    method (robustness).
 4. Follow-ups if adopted: device-level evaluation cost (above), reading
-   `.options pivtol/pivrel`, streaming rawfile output, and whether to remove the
+   `.options pivtol/pivrel` (done: `AnalysisContext::pivot` reaches every
+   circuit factorization), streaming rawfile output, and whether to remove the
    remaining `backend=diffsol` option checks in `src/analysis/config.rs`.

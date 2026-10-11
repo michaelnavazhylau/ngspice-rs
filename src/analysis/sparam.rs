@@ -31,7 +31,7 @@
 //! singular conversion) is written as zeros, C's `cinverse` contract for an
 //! exactly singular matrix.
 
-use crate::analysis::ac::{SmallSignal, frequency_grid};
+use crate::analysis::ac::{GridKind, SmallSignal, frequency_grid};
 use crate::analysis::linear::{plot, unsupported};
 use crate::analysis::results::Variable;
 use crate::analysis::{AnalysisRequest, Plot};
@@ -84,7 +84,7 @@ pub(crate) fn run(
         donoise = (value + 0.5).floor() == 1.;
     }
 
-    let grid = frequency_grid(&positional)?;
+    let grid = frequency_grid(&positional, settings.newton.reltol, GridKind::Sp)?;
     circuit.finalize()?;
     let ports = bind_ports(circuit)?;
     let mut small_signal = SmallSignal::prepare(circuit, request, context, settings)?;

@@ -37,7 +37,7 @@ card 3 @parser/param_expressions.cir:4:1 lines=4-4 continuations=0
   token 1 4:1 word ".param"
   token 2 4:8 word "vdd"
   token 3 4:11 equals "="
-  token 4 4:12 number "3.3" value=3.3e0
+  token 4 4:12 number "3.3" value=3.3000000000000003e0
   token 5 4:16 word "decay"
   token 6 4:21 equals "="
   token 7 4:22 word "-2^2"

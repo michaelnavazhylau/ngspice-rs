@@ -23,8 +23,8 @@ pub mod value;
 pub use error::{SourceLoc, SpiceError, SpiceResult};
 pub use node::{GROUND_ALIAS, GROUND_NAME, Node, NodeId, NodeKind, NodeTable};
 pub use value::{
-    Complex, ParsedNumber, Real, approx_eq, format_spice_number, parse_spice_number,
-    parse_spice_number_prefix,
+    Complex, ParsedNumber, Real, approx_eq, c_integer, format_spice_number, parse_numparam_number,
+    parse_numparam_number_prefix, parse_spice_number, parse_spice_number_prefix,
 };
 
 /// The kinds of analysis ngspice can run.

@@ -292,6 +292,49 @@ impl Behavioural {
 }
 
 impl Device for Behavioural {
+    /// `asrc`: `inpcom.c` rewrites the E/G/F/H VALUE/TABLE/POLY forms into
+    /// B sources before parsing.
+    fn c_device_type(&self) -> crate::devices::setup::CDeviceType {
+        crate::devices::setup::CDeviceType::Asrc
+    }
+
+    /// `asrcset.c`: a voltage source's branch elements, then one column per
+    /// expression variable (the branch row, or both output nodes).
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let (pos, neg) = (setup.node(self.terminals[0]), setup.node(self.terminals[1]));
+        let branch = match self.output {
+            BehaviouralOutput::Voltage => {
+                let branch = Some(setup.branch(0)?);
+                setup.element(pos, branch);
+                setup.element(neg, branch);
+                setup.element(branch, neg);
+                setup.element(branch, pos);
+                branch
+            }
+            BehaviouralOutput::Current => None,
+        };
+        for variable in &self.variables {
+            let column = match *variable {
+                Variable::Node(node) => setup.node(node),
+                Variable::Branch(index) => {
+                    Some(setup.controls.get(index).copied().ok_or_else(|| {
+                        SpiceError::circuit(format!("{}: unbound controlling source", self.name))
+                    })?)
+                }
+            };
+            match self.output {
+                BehaviouralOutput::Voltage => setup.element(branch, column),
+                BehaviouralOutput::Current => {
+                    setup.element(pos, column);
+                    setup.element(neg, column);
+                }
+            }
+        }
+        Ok(true)
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         ["temp", "dtemp", "tc1", "tc2", "m"]
             .into_iter()

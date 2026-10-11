@@ -35,14 +35,14 @@ card 5 @netlists/m7_mos1_process_dc.cir:6:1 lines=6-6 continuations=0
   token 1 6:1 word "vbs"
   token 2 6:5 word "b"
   token 3 6:7 number "0" value=0e0
-  token 4 6:9 number "0.3" value=3e-1
+  token 4 6:9 number "0.3" value=3.0000000000000004e-1
 card 6 @netlists/m7_mos1_process_dc.cir:7:1 lines=7-7 continuations=0
   raw: "vbp bp 0 -0.3"
   kind: device(v)
   token 1 7:1 word "vbp"
   token 2 7:5 word "bp"
   token 3 7:8 number "0" value=0e0
-  token 4 7:10 number "-0.3" value=-3e-1
+  token 4 7:10 number "-0.3" value=-3.0000000000000004e-1
 card 7 @netlists/m7_mos1_process_dc.cir:8:1 lines=8-8 continuations=0
   raw: "egp gp 0 g 0 -1"
   kind: device(e)
@@ -165,7 +165,7 @@ card 12 @netlists/m7_mos1_process_dc.cir:13:1 lines=13-13 continuations=0
   token 19 13:52 number "500" value=5e2
   token 20 13:56 word "phi"
   token 21 13:59 equals "="
-  token 22 13:60 number "0.6" value=6e-1
+  token 22 13:60 number "0.6" value=6.000000000000001e-1
   token 23 13:63 rparen ")"
 card 13 @netlists/m7_mos1_process_dc.cir:14:1 lines=14-14 continuations=0
   raw: ".model mp pmos(level=1 tox=25n nsub=1e16 nss=2e10 u0=250 gamma=0.45 rsh=30)"

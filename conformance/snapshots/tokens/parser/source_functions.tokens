@@ -45,7 +45,7 @@ card 3 @parser/source_functions.cir:4:1 lines=4-4 continuations=0
   token 11 4:24 comma ","
   token 12 4:26 number "0.1m" value=1e-4
   token 13 4:30 comma ","
-  token 14 4:32 number "0.6m" value=6e-4
+  token 14 4:32 number "0.6m" value=6.000000000000001e-4
   token 15 4:36 comma ","
   token 16 4:38 number "0.2m" value=2e-4
   token 17 4:42 rparen ")"

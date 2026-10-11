@@ -188,10 +188,13 @@ fn contextual_model_rc_transient_matches_the_analytic_step() {
 
 #[test]
 fn logarithmic_ac_preserves_integer_span_endpoints_without_adding_out_of_range_points() {
+    // ngspice (acan.c) steps `freq *= delta` while `freq <= stop + freqTol`;
+    // `.ac dec` over a decade or more stretches delta so the last point lands
+    // on `stop` (`dec 3 1 999` ends at 999, not 10^(8/3)).
     for (mode, end, count, last) in [
         ("dec", "1000", 10, 1000.0),
         ("oct", "8", 10, 8.0),
-        ("dec", "999", 9, 10f64.powf(8.0 / 3.0)),
+        ("dec", "999", 9, 999.0),
     ] {
         let mut c = circuit("v1 a 0 1 ac 1\nr1 a 0 1k");
         let p = run(

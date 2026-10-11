@@ -165,13 +165,13 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 | `itl4` | effect | companion Newton iterations per timepoint (`tranmaxiter` = `max(itl4, 100)`; unset, 100); rejected with diffsol | `CKTtranMaxIter` in `dctran.c`: nominal default 10, but `niiter.c` raises it (and any value below 100) to 100 |
 | `srcsteps`, `itl6` | effect | C's source stepping: `1` `gillespie_src`, `n > 1` `spice3_src`, `0` off (`itl6` is the same setting) | `OPT_SRCSTEPS` (both names), `cktop.c` |
 | `gminsteps`, `gminfactor` | effect | C's gmin stepping: `1` `dynamic_gmin` then `new_gmin`, `n > 1` `spice3_gmin`, `0` off | `cktop.c`, see DC_CONTINUATION.md |
+| `pivtol`, `pivrel` | effect | SPARSE threshold-pivoting limits whenever a circuit matrix is ordered, in every analysis (`AnalysisContext::pivot`); `pivtol` finite `>= 0`, `pivrel` in `(0, 1]` | `CKTpivotAbsTol`/`CKTpivotRelTol` passed to `SMPreorder`/`SMPcReorder` (`niiter.c`, `niaciter.c`, `cktsens.c`); C's `spOrderAndFactor` silently keeps its default for out-of-range values, which are explicit errors here |
 | `noopiter` | effect (flag) | skip the direct Newton attempt of every DC bias (#106) | `CKTnoOpIter` in `cktop.c` |
 | `acct`, `noacct`, `list`, `nomod`, `nopage`, `node`, `opts`, `noinit`, `norefvalue` | no-op (flag only) | none | front-end print controls handled first by `if_option`; no numerical effect; this port prints no such listing |
 | `itl3`, `itl5`, `cptime`, `limtim`, `limpts`, `lvlcod`, `lvltim` | no-op (value validated) | none | `OPTtbl` entries without `IF_SET`; `if_option` warns "unsupported"/"obsolete" and C ignores them |
 | `post`, `ingold` | no-op | none | plain front-end variables that nothing in ngspice reads |
 | `indverbosity` | no-op (non-negative integer validated) | none | selects only which stderr diagnostics `muttemp.c` prints for an inductive system (`CKTindverbosity`); the port prints none and always rejects a coupled inductance matrix that is not positive semidefinite (MUTUAL_INDUCTANCE.md) |
 | `bypass=0` | no-op | none | C default (`TSKbypass = 0`); this port never bypasses device evaluation. Other values `NotYetPorted` |
-| `pivtol`, `pivrel` | `NotYetPorted` | | Sparse 1.3 pivot thresholds (`TSKpivotAbsTol`/`TSKpivotRelTol`, `spfactor.c`); this port's faer partial-pivoting LU has no equivalent knob yet |
 | `gshunt`, `cshunt`, `rshunt`, `oldlimit`, `numdgt`, `minbreak`, `defm`/`defl`/`defw`/`defad`/`defas`, `badmos3`, `trytocompact`, `copynodesets`, `nodedamping`, `linesearch`, `absdv`, `reldv`, `noopac`, `epsmin`, `sparse`, `klu`, `klu_memgrow_factor`, `lte*`, `newtrunc`, XSPICE options | `NotYetPorted` | | |
 | `filetype`, `savecurrents`, `scale`, `scalm`, `seed`, `seedinfo`, `rndseed`, `interp`, `warn`, `measureprec`, `rawfileprec`, `strict_errorhandling` | `NotYetPorted` | | front-end variables with an output/setup effect |
 | anything else | parse error | | C would store an unread variable or warn |

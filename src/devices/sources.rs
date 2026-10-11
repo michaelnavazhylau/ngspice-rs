@@ -239,6 +239,24 @@ impl IndependentSource {
 }
 
 impl Device for IndependentSource {
+    /// `vsrcset.c` (an RF port first stamps its reference resistor towards
+    /// its internal node, whose branch replaces the positive terminal);
+    /// current sources allocate nothing.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        if !self.voltage {
+            return Ok(true);
+        }
+        let branch = setup.branch(0)?;
+        if let Some(port) = &self.port {
+            setup.conductance(self.terminals[0], port.internal);
+        }
+        let [positive, negative] = self.ideal();
+        setup.voltage_branch(positive, negative, branch);
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         keyword: &str,

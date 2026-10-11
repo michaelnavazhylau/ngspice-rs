@@ -94,7 +94,6 @@ fn invalid_values_are_errors() {
         ".options abstol=0",
         ".options maxord=0",
         ".options maxord=7",
-        ".options maxord=2.5",
         ".options maxord=gear",
         ".options method=euler",
         ".options method=2",
@@ -283,7 +282,8 @@ fn parsed_ic_and_nodeset_cards_travel_with_every_request() {
             .iter()
             .map(|c| (c.node.as_str(), c.value))
             .collect();
-        assert_eq!(ic, [("a", 1.), ("a", 1.5)]);
+        // numparam's "1.500000000000000e+00" read by INPevaluate.
+        assert_eq!(ic, [("a", 1.), ("a", 1.5000000000000002)]);
         assert_eq!(request.nodesets.len(), 1);
         assert_eq!(request.nodesets[0].value, 2.);
         assert_eq!(request.nodesets[0].location.line, 5);

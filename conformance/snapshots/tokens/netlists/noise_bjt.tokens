@@ -108,7 +108,7 @@ card 8 @netlists/noise_bjt.cir:13:1 lines=13-13 continuations=0
   token 46 13:117 number "1e-15" value=1e-15
   token 47 13:123 word "af"
   token 48 13:125 equals "="
-  token 49 13:126 number "1.2" value=1.2e0
+  token 49 13:126 number "1.2" value=1.2000000000000002e0
   token 50 13:129 rparen ")"
 card 9 @netlists/noise_bjt.cir:14:1 lines=14-14 continuations=0
   raw: ".option reltol=1e-6"

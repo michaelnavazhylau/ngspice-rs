@@ -1119,6 +1119,27 @@ pub(crate) fn stamp_junction(
     context.stamp_rhs(nodes[1], equivalent)
 }
 impl Device for Diode {
+    /// `diosetup.c` (without sidewall resistance or self-heating, which the
+    /// port rejects); `posPrime` is the external anode when `RS = 0`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [pos, neg] = [self.terminals[0], self.terminals[1]];
+        let prime = self.junction[0];
+        for (row, col) in [
+            (pos, prime),
+            (neg, prime),
+            (prime, pos),
+            (prime, neg),
+            (pos, pos),
+            (neg, neg),
+            (prime, prime),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         key: &str,
@@ -1749,7 +1770,8 @@ mod tests {
     #[test]
     fn aliases_keep_last_set_precedence() {
         let p = parameters("cj0=1p cjo=2p cj=3p pb=0.6 mj=0.3 vb=7 ib=1u nz=2", "").unwrap();
-        assert_eq!((p.cjo, p.vj, p.grading), (3e-12, 0.6, 0.3));
+        // INPevaluate values: `0.6` is 6 * 0.1 and `0.3` is 3 * 0.1.
+        assert_eq!((p.cjo, p.vj, p.grading), (3e-12, 6. * 0.1, 3. * 0.1));
         assert_eq!((p.bv, p.ibv, p.nbv), (Some(7.), 1e-6, 2.));
         let p = parameters("cjo=2p cj0=1p", "").unwrap();
         assert_eq!(p.cjo, 1e-12);

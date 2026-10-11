@@ -8,7 +8,7 @@ card 1 @netlists/bsource_ac.cir:8:1 lines=8-8 continuations=0
   token 2 8:5 word "in"
   token 3 8:8 number "0" value=0e0
   token 4 8:10 word "dc"
-  token 5 8:13 number "0.6" value=6e-1
+  token 5 8:13 number "0.6" value=6.000000000000001e-1
   token 6 8:17 word "ac"
   token 7 8:20 number "1" value=1e0
 card 2 @netlists/bsource_ac.cir:9:1 lines=9-9 continuations=0

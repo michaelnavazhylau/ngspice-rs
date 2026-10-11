@@ -43,7 +43,7 @@ card 5 @netlists/rc_gear_tran.cir:7:1 lines=7-7 continuations=0
   kind: dot(.tran)
   token 1 7:1 word ".tran"
   token 2 7:7 number "2u" value=2e-6
-  token 3 7:10 number "1.2m" value=1.2e-3
+  token 3 7:10 number "1.2m" value=1.2000000000000001e-3
 card 6 @netlists/rc_gear_tran.cir:8:1 lines=8-8 continuations=0
   raw: ".end"
   kind: dot(.end)

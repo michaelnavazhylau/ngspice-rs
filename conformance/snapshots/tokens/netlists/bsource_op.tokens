@@ -42,7 +42,7 @@ card 5 @netlists/bsource_op.cir:9:1 lines=9-9 continuations=0
   token 2 9:4 word "b"
   token 3 9:6 number "0" value=0e0
   token 4 9:8 word "dc"
-  token 5 9:11 number "-0.3" value=-3e-1
+  token 5 9:11 number "-0.3" value=-3.0000000000000004e-1
 card 6 @netlists/bsource_op.cir:10:1 lines=10-10 continuations=0
   raw: "rb b 0 2k"
   kind: device(r)

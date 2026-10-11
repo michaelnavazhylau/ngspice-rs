@@ -104,7 +104,7 @@ card 10 @netlists/m7_diode_temp_dc.cir:11:1 lines=11-11 continuations=0
   token 7 11:18 number "1e-15" value=1e-15
   token 8 11:24 word "n"
   token 9 11:25 equals "="
-  token 10 11:26 number "1.2" value=1.2e0
+  token 10 11:26 number "1.2" value=1.2000000000000002e0
   token 11 11:30 word "tlev"
   token 12 11:34 equals "="
   token 13 11:35 number "2" value=2e0
@@ -136,7 +136,7 @@ card 11 @netlists/m7_diode_temp_dc.cir:12:1 lines=12-12 continuations=0
   token 4 12:12 lparen "("
   token 5 12:13 word "bv"
   token 6 12:15 equals "="
-  token 7 12:16 number "5.6" value=5.6e0
+  token 7 12:16 number "5.6" value=5.6000000000000005e0
   token 8 12:20 word "ibv"
   token 9 12:23 equals "="
   token 10 12:24 number "1m" value=1e-3
@@ -145,7 +145,7 @@ card 11 @netlists/m7_diode_temp_dc.cir:12:1 lines=12-12 continuations=0
   token 13 12:31 number "2.5m" value=2.5e-3
   token 14 12:36 word "nbv"
   token 15 12:39 equals "="
-  token 16 12:40 number "1.2" value=1.2e0
+  token 16 12:40 number "1.2" value=1.2000000000000002e0
   token 17 12:43 rparen ")"
 card 12 @netlists/m7_diode_temp_dc.cir:13:1 lines=13-13 continuations=0
   raw: ".dc temp -40 125 5"

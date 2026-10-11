@@ -46,7 +46,7 @@ card 5 @netlists/options_xmu_tran.cir:8:1 lines=8-8 continuations=0
   kind: dot(.tran)
   token 1 8:1 word ".tran"
   token 2 8:7 number "2u" value=2e-6
-  token 3 8:10 number "1.2m" value=1.2e-3
+  token 3 8:10 number "1.2m" value=1.2000000000000001e-3
 card 6 @netlists/options_xmu_tran.cir:9:1 lines=9-9 continuations=0
   raw: ".end"
   kind: dot(.end)

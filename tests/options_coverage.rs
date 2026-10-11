@@ -249,9 +249,13 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
         1e-6,
         1e-9,
     );
-    for bad in [".options itl2=1.5", ".options itl2=10001"] {
+    for bad in [".options itl2=10001", ".options itl2=abc"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
     }
+    // IF_INTEGER rounds: floor(0.5 + 1.5) = 2 (raised to 100 for the limit).
+    let rounded = config(".options itl2=1.5").unwrap();
+    assert_eq!(rounded.dc().itl2, Some(100));
+    assert_eq!(rounded.dc().itl2_written, Some(2));
     assert_eq!(config(".options itl2=0").unwrap().dc().itl2, Some(100));
     // The request key is validated by the sweep driver.
     let mut circuit = RunConfig::from_netlist(&deck(sweep))
@@ -446,16 +450,25 @@ fn itl4_is_the_companion_newton_limit_per_timepoint() {
         starved.rejected > default.rejected,
         "{starved:?} vs {default:?}"
     );
-    for bad in [".options itl4=2.5", ".options itl4", ".options itl4=10001"] {
+    for bad in [".options itl4", ".options itl4=10001"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
     }
+    // IF_INTEGER rounds 2.5 to 3, which NIiter raises to 100.
+    assert_eq!(
+        config(".options itl4=2.5").unwrap().transient().itl4,
+        Some(100)
+    );
 }
 
 #[test]
 fn xmu_weights_the_companion_trapezoidal_rule() {
     let c = config(".options xmu=0.3").unwrap();
-    assert_eq!(c.transient().xmu, Some(0.3));
-    assert_eq!(c.request(tran()).unwrap().named("xmu"), Some("3e-1"));
+    // INPevaluate("0.3") is 3 * 0.1.
+    assert_eq!(c.transient().xmu, Some(3. * 0.1));
+    assert_eq!(
+        c.request(tran()).unwrap().named("xmu"),
+        Some("3.0000000000000004e-1")
+    );
     assert!(c.request(diffsol()).is_err());
     let rc = "v1 a 0 pulse(0 1 0 1n 1n 1 2)\nr1 a b 1k\nc1 b 0 1u\n.tran 10u 2m";
     let at = |plot: &Plot, t: f64| {
@@ -583,7 +596,8 @@ fn options_c_ignores_are_documented_no_ops() {
         assert!(config(&format!(".options {name}=abc")).is_err(), "{name}");
         assert!(config(&format!(".options {name}")).is_err(), "{name}");
     }
-    assert!(config(".options itl3=2.5").is_err());
+    // Validated as C's IF_INTEGER: 2.5 rounds, a word does not parse.
+    assert!(config(".options itl3=2.5").is_ok());
     assert!(config(".options cptime=2.5").is_ok());
 }
 
@@ -605,19 +619,68 @@ fn unread_frontend_variables_and_bypass_are_documented_no_ops() {
     assert!(!config(".options bypass").unwrap_err().is_not_yet_ported());
 }
 
+/// A 1e-17 S diagonal at node `a` with the lowest Markowitz product, coupled
+/// by VCCSs to `b`: SPARSE takes it as the first pivot only when `pivrel`
+/// lets it, and then loses `v(a)` to cancellation. ngspice with
+/// `.options sparse` gives v(a) = -3.45016 by default and -9.89 with
+/// `pivrel=1e-30 pivtol=0`.
+const TINY_PIVOT_DECK: &str = "r1 a 0 1e17
+g1 a 0 b 0 -0.7
+g2 b 0 a 0 -1.3
+r2 b 0 1.7
+r3 b c 1.1
+r4 c 0 2.9
+r5 c d 1.3
+r6 d 0 3.1
+r7 b d 0.9
+r8 c e 1
+r9 e 0 1
+r10 d e 1";
+
 #[test]
-fn pivot_thresholds_are_not_yet_ported() {
-    // C sets Sparse's TSKpivotAbsTol/TSKpivotRelTol from them (cktsopt.c);
-    // this port's LU has no matching knob, so they are explicit gaps rather
-    // than no-ops.
-    for options in [
-        ".options pivtol=1e-13",
-        ".options pivrel=1e-3",
-        ".options pivtol={1e-13}",
+fn pivot_thresholds_reach_every_circuit_factorization() {
+    let c = config(".options pivtol=1e-10 pivrel=0.5").unwrap();
+    assert_eq!(c.context().pivot.absolute, 1e-10);
+    assert_eq!(c.context().pivot.relative, 0.5);
+    assert_eq!(c.context().model_context().pivot, c.context().pivot);
+    assert_eq!(c.applied().len(), 2);
+    let defaults = config("").unwrap().context().pivot;
+    assert_eq!((defaults.absolute, defaults.relative), (1e-13, 1e-3));
+    assert_eq!(
+        config(".param p=1e-12\n.options pivtol={p}")
+            .unwrap()
+            .context()
+            .pivot
+            .absolute,
+        1e-12
+    );
+    // spOrderAndFactor would silently fall back to its default here.
+    for bad in [
+        ".options pivtol=-1e-13",
+        ".options pivrel=0",
+        ".options pivrel=1.5",
+        ".options pivrel=abc",
+        ".options pivtol",
     ] {
-        let error = config(options).unwrap_err();
-        assert!(error.is_not_yet_ported(), "{options}: {error}");
-        assert!(error.to_string().contains("piv"), "{error}");
+        let error = config(bad).unwrap_err();
+        assert!(!error.is_not_yet_ported(), "{bad}: {error}");
+    }
+
+    let exact = -3.450_156_379_816_799;
+    let run = |sources: &str, analysis: &str, options: &str| {
+        let plot = simulate(&format!(
+            "{TINY_PIVOT_DECK}\n{sources}\n{options}\n{analysis}"
+        ))
+        .unwrap();
+        plot.value("v(a)", plot.point_count() - 1).unwrap().re
+    };
+    let dc = "i1 0 a 1.1\ni2 0 b 2.3";
+    let ac = "i1 0 a dc 0 ac 1.1\ni2 0 b dc 0 ac 2.3";
+    let loose = ".options pivrel=1e-30 pivtol=0";
+    for (sources, analysis) in [(dc, ".op"), (ac, ".ac lin 1 1k 1k"), (dc, ".tran 1u 2u")] {
+        close(run(sources, analysis, ""), exact, 1e-9, 0.);
+        let lost = run(sources, analysis, loose);
+        assert!((lost - exact).abs() > 0.1, "{analysis}: v(a) = {lost}");
     }
 }
 
@@ -678,7 +741,7 @@ fn option_expression_failures_are_explicit() {
         "{undefined}"
     );
     // Range checks apply to the evaluated value.
-    assert!(config(".param n=2.5\n.options itl1={n}").is_err());
+    assert!(config(".param n=10001\n.options itl1={n}").is_err());
     assert!(config(".param n=-1\n.options reltol={n}").is_err());
     assert!(config(".options temp={-300}").is_err());
     // method takes a word.

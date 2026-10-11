@@ -88,19 +88,19 @@ card 5 @netlists/m7_mos1_meyer_ac.cir:6:1 lines=6-7 continuations=1
   token 28 6:81 number "0.1u" value=1e-7
   token 29 6:86 word "cgso"
   token 30 6:90 equals "="
-  token 31 6:91 number "0.4n" value=4.0000000000000007e-10
+  token 31 6:91 number "0.4n" value=4e-10
   token 32 6:96 word "cgdo"
   token 33 6:100 equals "="
-  token 34 6:101 number "0.4n" value=4.0000000000000007e-10
+  token 34 6:101 number "0.4n" value=4e-10
   token 35 6:106 word "cgbo"
   token 36 6:110 equals "="
-  token 37 6:111 number "0.2n" value=2.0000000000000003e-10
+  token 37 6:111 number "0.2n" value=2e-10
   token 38 6:116 word "cj"
   token 39 6:118 equals "="
   token 40 6:119 number "0.5m" value=5e-4
   token 41 6:124 word "cjsw"
   token 42 6:128 equals "="
-  token 43 6:129 number "0.4n" value=4.0000000000000007e-10
+  token 43 6:129 number "0.4n" value=4e-10
   token 44 6:134 word "mjsw"
   token 45 6:138 equals "="
   token 46 6:139 number "0.33" value=3.3e-1

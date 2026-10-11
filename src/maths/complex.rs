@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::maths::{
     SparseMatrix,
-    linear::{PIVOT_ABS_TOL, PIVOT_REL_TOL, check_status, numerical, order_fresh, square},
+    linear::{PivotTolerances, check_status, numerical, order_fresh, square},
     sparse13::{Sparse, Status},
 };
 use crate::primitives::{Complex, SpiceResult};
@@ -18,9 +18,11 @@ use crate::primitives::{Complex, SpiceResult};
 pub struct ComplexMatrix {
     n: usize,
     entries: Vec<(usize, usize, Complex)>,
+    pivot: PivotTolerances,
 }
 impl ComplexMatrix {
-    /// Assembles `A + j omega E`, preserving cancellations and checking overflow.
+    /// Assembles `A + j omega E`, preserving cancellations and checking
+    /// overflow. The pivot tolerances are `a`'s.
     /// # Errors
     /// Invalid dimensions, frequency or coefficients.
     pub fn from_operators(a: &SparseMatrix, e: &SparseMatrix, omega: f64) -> SpiceResult<Self> {
@@ -59,6 +61,7 @@ impl ComplexMatrix {
                 .filter(|(_, v)| *v != Complex::ZERO)
                 .map(|((r, c), v)| (r, c, v))
                 .collect(),
+            pivot: a.pivot_tolerances(),
         })
     }
 
@@ -76,7 +79,7 @@ impl ComplexMatrix {
                 handle
             })
             .collect();
-        order_fresh("complex sparse LU", &mut sparse)?;
+        order_fresh("complex sparse LU", &mut sparse, self.pivot)?;
         Ok(ComplexLu {
             n: self.n,
             pattern: Arc::new(self.entries.iter().map(|&(r, c, _)| (r, c)).collect()),
@@ -112,7 +115,7 @@ impl ComplexMatrix {
         let mut status = sparse.factor();
         if status == Status::ZeroDiag {
             load(&mut sparse);
-            status = sparse.order_and_factor(PIVOT_REL_TOL, PIVOT_ABS_TOL);
+            status = sparse.order_and_factor(self.pivot.relative, self.pivot.absolute);
         }
         check_status("complex sparse LU", status, &sparse)?;
         Ok(ComplexLu {

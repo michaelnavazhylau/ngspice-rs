@@ -65,7 +65,7 @@ card 7 @netlists/epoly_dc.cir:12:1 lines=12-12 continuations=0
   token 14 12:32 number "2" value=2e0
   token 15 12:34 number "0.5" value=5e-1
   token 16 12:38 number "-0.25" value=-2.5e-1
-  token 17 12:44 number "0.3" value=3e-1
+  token 17 12:44 number "0.3" value=3.0000000000000004e-1
 card 8 @netlists/epoly_dc.cir:13:1 lines=13-13 continuations=0
   raw: "r1 o1 0 1k"
   kind: device(r)
@@ -183,10 +183,10 @@ card 17 @netlists/epoly_dc.cir:22:1 lines=22-22 continuations=0
   token 17 22:37 number "0.5" value=5e-1
   token 18 22:41 number "0.1" value=1e-1
   token 19 22:45 number "0.2" value=2e-1
-  token 20 22:49 number "0.3" value=3e-1
+  token 20 22:49 number "0.3" value=3.0000000000000004e-1
   token 21 22:53 number "0.4" value=4e-1
   token 22 22:57 number "0.5" value=5e-1
-  token 23 22:61 number "0.6" value=6e-1
+  token 23 22:61 number "0.6" value=6.000000000000001e-1
 card 18 @netlists/epoly_dc.cir:23:1 lines=23-23 continuations=0
   raw: "r6 o6 0 1k"
   kind: device(r)

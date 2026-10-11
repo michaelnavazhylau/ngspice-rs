@@ -35,7 +35,7 @@ card 5 @netlists/evalue_op.cir:10:1 lines=10-10 continuations=0
   token 2 10:5 word "in"
   token 3 10:8 number "0" value=0e0
   token 4 10:10 word "dc"
-  token 5 10:13 number "1.2" value=1.2e0
+  token 5 10:13 number "1.2" value=1.2000000000000002e0
 card 6 @netlists/evalue_op.cir:11:1 lines=11-11 continuations=0
   raw: "rin in 0 1k"
   kind: device(r)

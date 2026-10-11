@@ -1626,6 +1626,54 @@ fn small_signal(
 }
 
 impl Device for Bjt {
+    /// `bjtsetup.c` without quasi-saturation (`RCO`, which the port rejects),
+    /// so `collCX` is the collector prime; a three-terminal device's
+    /// substrate is ground and allocates nothing.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let Nodes {
+            c,
+            b,
+            e,
+            s,
+            cp,
+            bp,
+            ep,
+            sc,
+        } = self.nodes;
+        let cx = cp;
+        for (row, col) in [
+            (c, cx),
+            (b, bp),
+            (e, ep),
+            (cx, c),
+            (cp, bp),
+            (cp, ep),
+            (bp, b),
+            (bp, cp),
+            (bp, ep),
+            (ep, e),
+            (ep, cp),
+            (ep, bp),
+            (c, c),
+            (b, b),
+            (e, e),
+            (cp, cp),
+            (bp, bp),
+            (ep, ep),
+            (s, s),
+            (sc, s),
+            (s, sc),
+            (b, cp),
+            (cp, b),
+            (cx, cx),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         key: &str,

@@ -1006,6 +1006,51 @@ fn linear_current(
 }
 
 impl Device for Mos1 {
+    /// `mos1set.c`.
+    fn c_device_type(&self) -> crate::devices::setup::CDeviceType {
+        crate::devices::setup::CDeviceType::Mos1
+    }
+
+    /// `mos1set.c`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [d, g, s, b] = [
+            self.terminals[0],
+            self.terminals[1],
+            self.terminals[2],
+            self.terminals[3],
+        ];
+        let [dp, _, sp, _] = self.inner;
+        for (row, col) in [
+            (d, d),
+            (g, g),
+            (s, s),
+            (b, b),
+            (dp, dp),
+            (sp, sp),
+            (d, dp),
+            (g, b),
+            (g, dp),
+            (g, sp),
+            (s, sp),
+            (b, dp),
+            (b, sp),
+            (dp, sp),
+            (dp, d),
+            (b, g),
+            (dp, g),
+            (sp, g),
+            (sp, s),
+            (dp, b),
+            (sp, b),
+            (sp, dp),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         key: &str,

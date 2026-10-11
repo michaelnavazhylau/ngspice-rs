@@ -566,6 +566,29 @@ pub trait Device: fmt::Debug {
     /// devices that have not been ported.
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()>;
 
+    /// The C device type whose `DEVsetup`/`DEVload` handles this instance,
+    /// which places it in [`crate::devices::setup`]'s traversal. The default
+    /// maps the designator; devices whose type depends on the model (MOS
+    /// levels, the lowered behavioural forms) override it.
+    fn c_device_type(&self) -> crate::devices::setup::CDeviceType {
+        crate::devices::setup::CDeviceType::of_designator(self.designator())
+            .unwrap_or(crate::devices::setup::CDeviceType::CodeModel)
+    }
+
+    /// Allocates this device's matrix elements in its C `DEVsetup`
+    /// `TSTALLOC` order, including elements whose value may be zero in some
+    /// analyses. Returns `false` when the device does not declare them, in
+    /// which case its elements are learned from its first load and appended.
+    ///
+    /// # Errors
+    /// Missing branch or control bindings.
+    fn setup_matrix(
+        &self,
+        _setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        Ok(false)
+    }
+
     /// Assembles immutable, state-independent linear equations.
     ///
     /// # Errors

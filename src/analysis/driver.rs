@@ -166,16 +166,21 @@ pub struct AnalysisContext {
     /// default [`crate::devices::DEFAULT_GMIN`]. See
     /// [`crate::devices::ModelContext::gmin`].
     pub gmin: Real,
+    /// SPARSE pivot thresholds of the circuit matrix (`.option pivtol`/
+    /// `pivrel`, C `CKTpivotAbsTol`/`CKTpivotRelTol`), default
+    /// [`crate::maths::PivotTolerances::DEFAULT`].
+    pub pivot: crate::maths::PivotTolerances,
 }
 
 impl AnalysisContext {
-    /// Copy temperature and junction-gmin settings into the lower-level device
-    /// context. Validation occurs at circuit elaboration/equation assembly; no
+    /// Copy temperature, junction-gmin and pivot settings into the lower-level
+    /// device context. Validation occurs at circuit elaboration/equation assembly; no
     /// global state is used.
     #[must_use]
     pub const fn model_context(&self) -> crate::devices::ModelContext {
         crate::devices::ModelContext::new(self.temperature, self.nominal_temperature)
             .with_gmin(self.gmin)
+            .with_pivot_tolerances(self.pivot)
     }
 }
 
@@ -185,6 +190,7 @@ impl Default for AnalysisContext {
             temperature: 27.0,
             nominal_temperature: 27.0,
             gmin: crate::devices::DEFAULT_GMIN,
+            pivot: crate::maths::PivotTolerances::DEFAULT,
         }
     }
 }

@@ -870,6 +870,7 @@ impl NodeForcing {
             return Ok(());
         }
         let mut forced = SparseMatrix::new(a.rows(), a.cols());
+        forced.set_pivot_tolerances(a.pivot_tolerances());
         for t in a.triplets() {
             if !rows.contains_key(&t.row) {
                 forced.add(t.row, t.col, t.value)?;

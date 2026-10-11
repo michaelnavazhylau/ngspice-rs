@@ -211,6 +211,14 @@ impl Resistor {
 }
 
 impl Device for Resistor {
+    /// `ressetup.c`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        setup.conductance(self.terminals[0], self.terminals[1]);
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         keyword: &str,
@@ -445,6 +453,14 @@ impl Capacitor {
 }
 
 impl Device for Capacitor {
+    /// `capsetup.c`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        setup.conductance(self.terminals[0], self.terminals[1]);
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         keyword: &str,
@@ -677,6 +693,15 @@ impl Inductor {
 }
 
 impl Device for Inductor {
+    /// `indsetup.c`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let branch = setup.branch(0)?;
+        setup.inductor(self.terminals[0], self.terminals[1], branch);
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         keyword: &str,

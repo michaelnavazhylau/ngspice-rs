@@ -91,7 +91,7 @@ card 8 @netlists/sens_diode.cir:13:1 lines=13-13 continuations=0
   token 6 13:19 number "1e-15" value=1e-15
   token 7 13:25 word "eg"
   token 8 13:27 equals "="
-  token 9 13:28 number "1.2" value=1.2e0
+  token 9 13:28 number "1.2" value=1.2000000000000002e0
   token 10 13:32 word "ikf"
   token 11 13:35 equals "="
   token 12 13:36 number "1" value=1e0

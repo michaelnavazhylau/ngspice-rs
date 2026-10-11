@@ -49,7 +49,7 @@ use crate::netlist::ast::{
 use crate::netlist::bexpr::BExprKind;
 use crate::netlist::eval::{EvalBudget, FunctionScope, ParamBinding, ParamScope};
 use crate::netlist::expr::{Expr, ExprKind, ParameterExpression, SourceSpan};
-use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult, parse_spice_number};
+use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult};
 use petgraph::Direction;
 use petgraph::algo::tarjan_scc;
 use petgraph::graph::{DiGraph, NodeIndex};
@@ -453,7 +453,7 @@ impl Expander<'_> {
                     if let Some(expression) = setting.expression.take() {
                         let value = scope.evaluate(&expression, &mut self.budget)?;
                         setting.value = Some(crate::netlist::ast::PositionedValue {
-                            text: format!("{value:e}"),
+                            text: crate::netlist::elaborate::format_literal(value),
                             location: setting.location.clone(),
                         });
                     }
@@ -1017,9 +1017,11 @@ fn formal_assignment(formal: &ParameterAssignment) -> SpiceResult<ParamAssignmen
     })
 }
 
-/// A finite scalar parameter value; anything else is rejected explicitly.
+/// A finite scalar parameter value, read as numparam reads subcircuit call
+/// and `params:` values (`fetchnumber()`: `%lG` times the unit); anything
+/// else is rejected explicitly.
 fn finite_number(parameter: &ParameterAssignment) -> SpiceResult<Real> {
-    parse_spice_number(&parameter.value)
+    crate::primitives::parse_numparam_number(&parameter.value)
         .filter(|value| value.is_finite())
         .ok_or_else(|| {
             SpiceError::parse(

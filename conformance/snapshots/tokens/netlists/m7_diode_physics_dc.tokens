@@ -79,7 +79,7 @@ card 9 @netlists/m7_diode_physics_dc.cir:10:1 lines=10-10 continuations=0
   token 13 10:37 number "2" value=2e0
   token 14 10:39 word "vj"
   token 15 10:41 equals "="
-  token 16 10:42 number "0.7" value=7e-1
+  token 16 10:42 number "0.7" value=7.000000000000001e-1
   token 17 10:46 word "m"
   token 18 10:47 equals "="
   token 19 10:48 number "0.4" value=4e-1
@@ -114,7 +114,7 @@ card 10 @netlists/m7_diode_physics_dc.cir:11:1 lines=11-11 continuations=0
   token 19 11:60 number "1e-15" value=1e-15
   token 20 11:66 word "ns"
   token 21 11:68 equals "="
-  token 22 11:69 number "1.2" value=1.2e0
+  token 22 11:69 number "1.2" value=1.2000000000000002e0
   token 23 11:73 word "ikp"
   token 24 11:76 equals "="
   token 25 11:77 number "1u" value=1e-6
@@ -157,7 +157,7 @@ card 12 @netlists/m7_diode_physics_dc.cir:13:1 lines=13-13 continuations=0
   token 1 13:1 word ".dc"
   token 2 13:5 word "v1"
   token 3 13:8 number "-9" value=-9e0
-  token 4 13:11 number "1.2" value=1.2e0
+  token 4 13:11 number "1.2" value=1.2000000000000002e0
   token 5 13:15 number "0.05" value=5e-2
 card 13 @netlists/m7_diode_physics_dc.cir:14:1 lines=14-14 continuations=0
   raw: ".end"

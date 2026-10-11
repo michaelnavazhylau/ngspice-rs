@@ -83,7 +83,7 @@ card 8 @netlists/noise_rc.cir:12:1 lines=12-12 continuations=0
   token 13 12:34 number "1.5" value=1.5e0
   token 14 12:38 word "ef"
   token 15 12:40 equals "="
-  token 16 12:41 number "1.2" value=1.2e0
+  token 16 12:41 number "1.2" value=1.2000000000000002e0
   token 17 12:45 word "lf"
   token 18 12:47 equals "="
   token 19 12:48 number "1.1" value=1.1e0

@@ -12,7 +12,7 @@ use ngspice_rs::netlist::{
     expr::{BinaryOp, Expr, ExprKind, Function, ParameterExpression, UnaryOp},
     source::parse_deck_text,
 };
-use ngspice_rs::primitives::{SourceLoc, SpiceError, parse_spice_number};
+use ngspice_rs::primitives::{SourceLoc, SpiceError, parse_numparam_number};
 
 fn parse(body: &str) -> Result<Netlist, SpiceError> {
     Parser::new().parse_deck(&parse_deck_text(
@@ -126,7 +126,8 @@ fn scale_factors_units_and_literal_spellings_are_kept() {
         let ExprKind::Number { value, spelling } = &parsed.root.kind else {
             panic!("{text}: {:?}", parsed.root);
         };
-        assert_eq!(*value, parse_spice_number(text).unwrap(), "{text}");
+        // numparam's fetchnumber(), not INPevaluate (`1mil` is milli there).
+        assert_eq!(*value, parse_numparam_number(text).unwrap(), "{text}");
         assert_eq!(spelling, text);
         assert_eq!(parsed.text, text);
         assert!(!parsed.braced);

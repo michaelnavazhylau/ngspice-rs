@@ -226,11 +226,14 @@ fn literalize_replaces_sites_but_keeps_original_text_and_terminals() {
     let d = &e.netlist.devices[0];
     assert_eq!(d.nodes, ["1", "2"]);
     assert_eq!(d.parameters[0].kind, ParameterKind::Scalar);
-    assert_eq!(d.parameters[0].value, "2000");
+    assert_eq!(d.parameters[0].value, "2.000000000000000e+03");
     assert_eq!(e.netlist.devices[1].model.as_deref(), Some("cm"));
-    assert_eq!(e.netlist.analyses[0].arguments, ["1e-3", "1m"]);
+    assert_eq!(
+        e.netlist.analyses[0].arguments,
+        ["1.000000000000000e-03", "1m"]
+    );
     assert!(e.netlist.analyses[0].expressions.is_empty());
-    assert_eq!(e.netlist.analyses[1].arguments[2], "2000");
+    assert_eq!(e.netlist.analyses[1].arguments[2], "2.000000000000000e+03");
     assert_eq!(e.netlist.params, n.params);
     assert_eq!(e.sites.len(), 4);
     assert_eq!(e.sites[0].original, "{r}");

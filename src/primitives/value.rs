@@ -194,36 +194,37 @@ pub struct ParsedNumber {
     pub consumed: usize,
 }
 
-/// Multiplier and byte-width of a scale suffix.
+/// `INPevaluate`'s decimal exponent adjustment and byte width of a scale
+/// suffix, plus whether it is `MIL` (which also scales the mantissa by 25.4).
 ///
 /// `letter` is the first letter after the numeric part, `rest` the text that
 /// follows it. `MEG` and `MIL` are three bytes wide, everything else one.
-fn scale_suffix(letter: char, rest: &str) -> (Real, usize) {
+/// Other letters (units such as `V`, `F`, `ohm`) do not scale.
+fn scale_suffix(letter: char, rest: &str) -> (i32, usize, bool) {
     fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
         text.len() >= prefix.len()
             && text.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
     }
 
     match letter.to_ascii_lowercase() {
-        't' => (1e12, 1),
-        'g' => (1e9, 1),
-        'k' => (1e3, 1),
-        'u' => (1e-6, 1),
-        'n' => (1e-9, 1),
-        'p' => (1e-12, 1),
-        'f' => (1e-15, 1),
-        'a' => (1e-18, 1),
-        'l' => (1e-3, 1),
+        't' => (12, 1, false),
+        'g' => (9, 1, false),
+        'k' => (3, 1, false),
+        'u' => (-6, 1, false),
+        'n' => (-9, 1, false),
+        'p' => (-12, 1, false),
+        'f' => (-15, 1, false),
+        'a' => (-18, 1, false),
         'm' => {
             if starts_with_ignore_case(rest, "eg") {
-                (1e6, 3)
+                (6, 3, false)
             } else if starts_with_ignore_case(rest, "il") {
-                (25.4e-6, 3)
+                (-6, 3, true)
             } else {
-                (1e-3, 1)
+                (-3, 1, false)
             }
         }
-        _ => (1.0, 0),
+        _ => (0, 0, false),
     }
 }
 
@@ -231,71 +232,196 @@ fn scale_suffix(letter: char, rest: &str) -> (Real, usize) {
 ///
 /// Does not skip leading whitespace: the literal must begin at byte 0. Returns
 /// `None` when no numeric part is present. The numeric part is
-/// `[+-]?(digits[.digits?]|.digits)([eE][+-]?digits)?`, optionally followed by a
-/// scale suffix.
+/// `[+-]?(digits[.digits?]|.digits)([eEdD][+-]?digits)?`, optionally followed
+/// by a scale suffix.
+///
+/// The value is computed exactly as `INPevaluate()` (`inpeval.c`) does, not
+/// as the nearest double to the decimal literal: the digits accumulate into a
+/// double mantissa (`mantis = 10 * mantis + digit`, fraction digits counted
+/// as negative powers), `MIL` multiplies the mantissa by 25.4, and the result
+/// is `sign * mantis * pow(10, expo)`. So `1.2` is `12 * 0.1`,
+/// `1.2000000000000002`, as in ngspice.
 ///
 /// # Divergence from `INPevaluate()`
 ///
 /// `INPevaluate()` applies the suffix multiplier but leaves `MEG`/`MIL`
 /// unconsumed in its output pointer, because its callers do the skipping.
 /// This function consumes the whole recognised suffix, so `consumed` is the
-/// full width. The numeric result is identical.
+/// full width. An exponent marker without digits (`1e`) is left for the
+/// caller; C would consume it with exponent zero, which gives the same value
+/// unless a scale letter follows it.
 #[must_use]
 pub fn parse_spice_number_prefix(input: &str) -> Option<ParsedNumber> {
     let bytes = input.as_bytes();
     let mut i = 0;
-
-    if matches!(bytes.first(), Some(b'+' | b'-')) {
-        i += 1;
+    let mut sign = 1.0;
+    match bytes.first() {
+        Some(b'+') => i += 1,
+        Some(b'-') => {
+            i += 1;
+            sign = -1.0;
+        }
+        _ => {}
     }
 
+    let mut mantis: Real = 0.0;
+    let mut expo1: i32 = 0;
     let mut mantissa_digits = 0;
     while i < bytes.len() && bytes[i].is_ascii_digit() {
+        mantis = 10.0 * mantis + Real::from(bytes[i] - b'0');
         i += 1;
         mantissa_digits += 1;
     }
     if bytes.get(i) == Some(&b'.') {
         i += 1;
-        let fraction_start = i;
         while i < bytes.len() && bytes[i].is_ascii_digit() {
+            mantis = 10.0 * mantis + Real::from(bytes[i] - b'0');
+            expo1 = expo1.saturating_sub(1);
             i += 1;
+            mantissa_digits += 1;
         }
-        mantissa_digits += i - fraction_start;
     }
     if mantissa_digits == 0 {
         return None;
     }
 
+    let mut expo2: i32 = 0;
     if bytes
         .get(i)
-        .is_some_and(|byte| byte.eq_ignore_ascii_case(&b'e'))
+        .is_some_and(|byte| matches!(byte.to_ascii_lowercase(), b'e' | b'd'))
     {
         let mut exponent_end = i + 1;
-        if matches!(bytes.get(exponent_end), Some(b'+' | b'-')) {
-            exponent_end += 1;
+        let mut negative = false;
+        match bytes.get(exponent_end) {
+            Some(b'+') => exponent_end += 1,
+            Some(b'-') => {
+                exponent_end += 1;
+                negative = true;
+            }
+            _ => {}
         }
         let exponent_digits_start = exponent_end;
+        let mut exponent: i32 = 0;
         while exponent_end < bytes.len() && bytes[exponent_end].is_ascii_digit() {
+            exponent = exponent
+                .saturating_mul(10)
+                .saturating_add(i32::from(bytes[exponent_end] - b'0'));
             exponent_end += 1;
         }
         // `1e` with nothing after it is a mantissa of `1` followed by junk, not
         // an exponent; leave it for the caller.
         if exponent_end > exponent_digits_start {
             i = exponent_end;
+            expo2 = if negative { -exponent } else { exponent };
         }
     }
 
-    // The sign is part of the slice, so a negative literal keeps its sign.
-    let mantissa: Real = input[..i].parse().ok()?;
-    let (factor, suffix_width) = match input[i..].chars().next() {
+    let (scale, suffix_width, mil) = match input[i..].chars().next() {
         Some(letter) => scale_suffix(letter, &input[i + letter.len_utf8()..]),
-        None => (1.0, 0),
+        None => (0, 0, false),
     };
+    if mil {
+        mantis *= 25.4;
+    }
+    let expo = expo1.saturating_add(scale).saturating_add(expo2);
 
     Some(ParsedNumber {
-        value: mantissa * factor,
+        value: sign * mantis * Real::from(expo).powf_c(),
         consumed: i + suffix_width,
     })
+}
+
+/// C's `INPgetValue(IF_INTEGER)` conversion (`inpgval.c`):
+/// `(int) floor(0.5 + value)`, or `None` when that is not a finite `int`.
+#[must_use]
+pub fn c_integer(value: Real) -> Option<i64> {
+    let rounded = (0.5 + value).floor();
+    (rounded.is_finite() && rounded.abs() <= Real::from(i32::MAX)).then_some(rounded as i64)
+}
+
+/// Parses a number inside a `.param`/`{...}` expression as numparam's
+/// `fetchnumber()` (`xpressn.c`) does: `sscanf("%lG")` (the correctly rounded
+/// decimal value, `e`/`E` exponents only) times `parseunit()`'s multiplier
+/// for the next letter (`T G K MEG M U N P F A`; `MIL` is milli there).
+/// `consumed` covers the numeric part only; the caller swallows the unit
+/// letters, as `fetchnumber()` does.
+#[must_use]
+pub fn parse_numparam_number_prefix(input: &str) -> Option<ParsedNumber> {
+    let bytes = input.as_bytes();
+    let mut i = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
+    let mut digits = 0;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+        digits += 1;
+    }
+    if bytes.get(i) == Some(&b'.') {
+        i += 1;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+            digits += 1;
+        }
+    }
+    if digits == 0 {
+        return None;
+    }
+    if bytes
+        .get(i)
+        .is_some_and(|byte| byte.eq_ignore_ascii_case(&b'e'))
+    {
+        let mut end = i + 1;
+        if matches!(bytes.get(end), Some(b'+' | b'-')) {
+            end += 1;
+        }
+        let start = end;
+        while end < bytes.len() && bytes[end].is_ascii_digit() {
+            end += 1;
+        }
+        if end > start {
+            i = end;
+        }
+    }
+    let value: Real = input[..i].parse().ok()?;
+    let rest = &input[i..];
+    let unit = match rest.bytes().next().map(|b| b.to_ascii_uppercase()) {
+        Some(b'T') => 1e12,
+        Some(b'G') => 1e9,
+        Some(b'K') => 1e3,
+        Some(b'M') if rest.len() >= 3 && rest[..3].eq_ignore_ascii_case("meg") => 1e6,
+        Some(b'M') => 1e-3,
+        Some(b'U') => 1e-6,
+        Some(b'N') => 1e-9,
+        Some(b'P') => 1e-12,
+        Some(b'F') => 1e-15,
+        Some(b'A') => 1e-18,
+        _ => 1.0,
+    };
+    Some(ParsedNumber {
+        value: value * unit,
+        consumed: i,
+    })
+}
+
+/// A complete numparam number ([`parse_numparam_number_prefix`]) followed by
+/// nothing but unit letters, which `fetchnumber()` swallows.
+#[must_use]
+pub fn parse_numparam_number(input: &str) -> Option<Real> {
+    let trimmed = input.trim();
+    let parsed = parse_numparam_number_prefix(trimmed)?;
+    trimmed[parsed.consumed..]
+        .chars()
+        .all(|c| c.is_ascii_alphabetic())
+        .then_some(parsed.value)
+}
+
+/// `pow(10.0, expo)` through the platform `pow`, as C calls it.
+trait PowTen {
+    fn powf_c(self) -> Real;
+}
+
+impl PowTen for Real {
+    fn powf_c(self) -> Real {
+        Real::powf(10.0, self)
+    }
 }
 
 /// Parses a complete SPICE numeric literal, scale factor included.
@@ -345,7 +471,8 @@ pub fn format_spice_number(value: Real) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        Complex, approx_eq, format_spice_number, parse_spice_number, parse_spice_number_prefix,
+        Complex, approx_eq, format_spice_number, parse_numparam_number_prefix, parse_spice_number,
+        parse_spice_number_prefix,
     };
 
     #[test]
@@ -367,8 +494,9 @@ mod tests {
         assert_eq!(parse_spice_number("1meg"), Some(1e6));
         assert_eq!(parse_spice_number("1MEG"), Some(1e6));
         assert_eq!(parse_spice_number("1MeG"), Some(1e6));
-        assert_eq!(parse_spice_number("1mil"), Some(25.4e-6));
-        assert_eq!(parse_spice_number("1MIL"), Some(25.4e-6));
+        // `mantis *= 25.4`, then `pow(10, -6)`.
+        assert_eq!(parse_spice_number("1mil"), Some(25.4 * 1e-6));
+        assert_eq!(parse_spice_number("1MIL"), Some(25.4 * 1e-6));
         assert_eq!(parse_spice_number("1u"), Some(1e-6));
         assert_eq!(parse_spice_number("1n"), Some(1e-9));
         assert_eq!(parse_spice_number("1p"), Some(1e-12));
@@ -376,7 +504,42 @@ mod tests {
         assert_eq!(parse_spice_number("1a"), Some(1e-18));
         assert_eq!(parse_spice_number("1t"), Some(1e12));
         assert_eq!(parse_spice_number("1g"), Some(1e9));
-        assert_eq!(parse_spice_number("1l"), Some(1e-3));
+        // INPevaluate has no `l` suffix: `2l` is 2 (a unit letter).
+        assert_eq!(parse_spice_number("2l"), Some(2.0));
+    }
+
+    #[test]
+    fn values_are_computed_as_inpevaluate_does() {
+        // Digits accumulate into a double mantissa scaled by pow(10, expo),
+        // so these differ from the nearest double; ngspice gives the same.
+        assert_eq!(parse_spice_number("1.2"), Some(1.200_000_000_000_000_2));
+        assert_eq!(parse_spice_number("1.2"), Some(12.0 * 10f64.powf(-1.0)));
+        // numparam writes `{3}` back as "% 23.15e" text before INPevaluate.
+        assert_eq!(
+            parse_spice_number("3.000000000000000e+00"),
+            Some(3e15 * 10f64.powf(-15.0))
+        );
+        // `d`/`D` is an exponent marker, as `e`.
+        assert_eq!(parse_spice_number("1d3"), Some(1000.0));
+        assert_eq!(
+            parse_spice_number("-2.5D-3"),
+            Some(-25.0 * 10f64.powf(-4.0))
+        );
+    }
+
+    #[test]
+    fn numparam_numbers_are_strtod_times_the_unit() {
+        let value = |text| parse_numparam_number_prefix(text).map(|p| p.value);
+        assert_eq!(value("1.2"), Some(1.2));
+        assert_eq!(value("1.2k"), Some(1.2 * 1e3));
+        assert_eq!(value("2meg"), Some(2e6));
+        // parseunit() has no MIL: `1mil` is milli.
+        assert_eq!(value("1mil"), Some(1e-3));
+        // %lG has no `d` exponent.
+        assert_eq!(
+            parse_numparam_number_prefix("1d3").map(|p| p.consumed),
+            Some(1)
+        );
     }
 
     #[test]

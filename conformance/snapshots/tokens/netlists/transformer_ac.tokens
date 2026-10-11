@@ -84,7 +84,7 @@ card 11 @netlists/transformer_ac.cir:16:1 lines=16-16 continuations=0
   token 4 16:12 word "lc"
   token 5 16:15 word "k"
   token 6 16:16 equals "="
-  token 7 16:17 number "0.6" value=6e-1
+  token 7 16:17 number "0.6" value=6.000000000000001e-1
 card 12 @netlists/transformer_ac.cir:17:1 lines=17-17 continuations=0
   raw: ".ends"
   kind: dot(.ends)

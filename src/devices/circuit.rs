@@ -55,6 +55,12 @@ pub struct Circuit {
     nodes: NodeTable,
     unknowns: MnaUnknowns,
     devices: Vec<Box<dyn Device>>,
+    /// Per device, the model name it was parsed with (lowercase), or `None`
+    /// for its type's default model: C's model list membership.
+    models: Vec<Option<String>>,
+    /// Device ordinals in C's `CKTsetup`/`CKTload` order
+    /// ([`crate::devices::setup`]), computed by `finalize`.
+    order: Vec<usize>,
     branch_rows: Vec<std::ops::Range<usize>>,
     /// Per device, the branch rows of its controlling sources, or why they
     /// could not be resolved (reported by `finalize` and every load).
@@ -64,9 +70,10 @@ pub struct Circuit {
     /// Inductor pairs coupled by K devices, or why the K references could not
     /// be resolved (reported by `finalize` and every load).
     mutual: MutualBinding,
-    /// Element positions the devices stamp, numbered in first-stamp order
-    /// (ngspice's `TSTALLOC` order); learned from loads, extended when a load
-    /// touches a new position. See [`Circuit::new_matrix`].
+    /// Element positions, numbered in C's `TSTALLOC` order: allocated by
+    /// `finalize` from [`Device::setup_matrix`] in setup order, extended when
+    /// a load touches a position no device declared. See
+    /// [`Circuit::new_matrix`].
     pattern: std::cell::RefCell<Option<std::sync::Arc<crate::maths::Pattern>>>,
 }
 
@@ -527,7 +534,77 @@ impl Circuit {
         if let Some(error) = &self.mutual.error {
             return Err(error.clone());
         }
-        self.check_port_numbering()
+        self.check_port_numbering()?;
+        self.allocate_matrix()
+    }
+
+    /// C's `CKTsetup`: orders the devices and allocates the matrix elements
+    /// they declare, in that order. A pattern that already starts with the
+    /// same elements is kept, so its pivot order survives re-finalization
+    /// (C sets a circuit up once).
+    fn allocate_matrix(&mut self) -> SpiceResult<()> {
+        let keys: Vec<crate::devices::setup::SetupKey> = self
+            .devices
+            .iter()
+            .enumerate()
+            .map(|(index, device)| crate::devices::setup::SetupKey {
+                device_type: device.c_device_type(),
+                model: self.models.get(index).cloned().flatten(),
+            })
+            .collect();
+        let order = crate::devices::setup::setup_order(&keys);
+        let mut elements = Vec::new();
+        for &index in &order {
+            let coupled: Vec<(usize, usize)> = self
+                .mutual
+                .pairs
+                .iter()
+                .rev()
+                .filter(|pair| pair.coupling == index)
+                .map(|pair| {
+                    (
+                        self.branch_rows[pair.first].start,
+                        self.branch_rows[pair.second].start,
+                    )
+                })
+                .collect();
+            let mut setup = crate::devices::setup::MatrixSetup {
+                unknowns: &self.unknowns,
+                branches: self.branch_rows[index].clone(),
+                controls: self.controls(index)?,
+                coupled: &coupled,
+                elements: &mut elements,
+            };
+            self.devices[index].setup_matrix(&mut setup)?;
+        }
+        self.order = order;
+        let n = self.unknown_count();
+        let mut slot = self.pattern.borrow_mut();
+        if elements.is_empty() || n == 0 {
+            return Ok(());
+        }
+        let allocated = crate::maths::Pattern::new(n, elements);
+        let same = slot.as_ref().is_some_and(|current| {
+            current.order() == n
+                && current.len() >= allocated.len()
+                && (0..allocated.len()).all(|index| {
+                    let id = crate::maths::sparse::element_id(index);
+                    current.position(id) == allocated.position(id)
+                })
+        });
+        if !same {
+            *slot = Some(std::sync::Arc::new(allocated));
+        }
+        Ok(())
+    }
+
+    /// Device ordinals in `CKTload` order (card order before `finalize`).
+    fn load_order(&self) -> Vec<usize> {
+        if self.order.len() == self.devices.len() {
+            self.order.clone()
+        } else {
+            (0..self.devices.len()).collect()
+        }
     }
 
     /// RHS changes for temporary DC source setters. In VSRCload order a PORT
@@ -679,6 +756,7 @@ impl Circuit {
             )));
         }
         self.devices.push(device);
+        self.models.push(None);
         Ok(())
     }
 
@@ -1056,17 +1134,18 @@ impl Circuit {
                 1,
                 1,
             ))?;
+        matrix.set_pivot_tolerances(request.model_context.pivot);
         let replacements = self.replacements(request.model_context)?;
         let mutual = self.mutual_terms(request.model_context)?;
-        for (index, device) in self.devices.iter().enumerate() {
+        for (position, index) in self.load_order().into_iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
-                None => &**device,
+                None => &*self.devices[index],
             };
             let states = request
                 .history
                 .device(trial, self.state_rows[index].clone())?;
-            matrix.begin_device(index);
+            matrix.begin_device(position);
             device.stamp(&mut StampContext {
                 matrix: &mut *matrix,
                 rhs: &mut *rhs,
@@ -1230,10 +1309,11 @@ impl Circuit {
         let replacements = self.replacements(context)?;
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
-        for (index, device) in self.devices.iter().enumerate() {
+        system.a.set_pivot_tolerances(context.pivot);
+        for index in self.load_order() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
-                None => &**device,
+                None => &*self.devices[index],
             };
             let range = &self.branch_rows[index];
             device.assemble_linear(&mut crate::devices::linear::LinearContext {
@@ -1320,10 +1400,11 @@ impl Circuit {
         let replacements = self.replacements(context)?;
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
-        for (index, device) in self.devices.iter().enumerate() {
+        system.a.set_pivot_tolerances(context.pivot);
+        for index in self.load_order() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
-                None => &**device,
+                None => &*self.devices[index],
             };
             let range = &self.branch_rows[index];
             let mut linear = crate::devices::linear::LinearContext {
@@ -1413,6 +1494,11 @@ impl Circuit {
         }
         self.nodes = nodes;
         self.devices.extend(staged);
+        self.models.extend(
+            instances
+                .iter()
+                .map(|instance| instance.model.as_ref().map(|m| m.to_ascii_lowercase())),
+        );
         Ok(())
     }
 

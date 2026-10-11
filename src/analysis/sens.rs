@@ -784,6 +784,7 @@ pub(crate) fn run(
             // CKTsetup, CKTtemp and the AC load of the whole circuit in its
             // present (perturbed and restored) state.
             let mut system = LinearSystem::new(n);
+            system.a.set_pivot_tolerances(model.pivot);
             for (slot, member) in members.iter().enumerate() {
                 let (model_record, instance_record) = records.pair(member, slot);
                 member.sensitivity.setup(model_record, instance_record)?;

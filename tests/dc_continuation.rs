@@ -1144,7 +1144,6 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
     let config = |options: &str| RunConfig::from_netlist(&parse(&format!("r1 a 0 1k\n{options}")));
     for bad in [
         ".options itl1=10001",
-        ".options itl1=2.5",
         ".options itl1=abc",
         ".options srcsteps=-1",
         ".options srcsteps=1001",
@@ -1161,7 +1160,13 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
         assert!(!error.is_not_yet_ported(), "{bad}: {error}");
     }
     // niiter.c raises any limit below 100 (including 0) to 100.
-    for low in [".options itl1=0", ".options itl1=1", ".options itl1=99"] {
+    // IF_INTEGER: floor(0.5 + 2.5) = 3, raised to NIiter's 100.
+    for low in [
+        ".options itl1=0",
+        ".options itl1=1",
+        ".options itl1=99",
+        ".options itl1=2.5",
+    ] {
         assert_eq!(config(low).unwrap().dc().itl1, Some(100), "{low}");
     }
     // Disabling is valid for the count options only.

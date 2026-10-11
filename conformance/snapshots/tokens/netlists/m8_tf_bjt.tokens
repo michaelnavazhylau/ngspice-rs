@@ -8,7 +8,7 @@ card 1 @netlists/m8_tf_bjt.cir:5:1 lines=5-5 continuations=0
   token 2 5:5 word "in"
   token 3 5:8 number "0" value=0e0
   token 4 5:10 word "dc"
-  token 5 5:13 number "1.4" value=1.4e0
+  token 5 5:13 number "1.4" value=1.4000000000000001e0
 card 2 @netlists/m8_tf_bjt.cir:6:1 lines=6-6 continuations=0
   raw: "vcc vcc 0 9"
   kind: device(v)

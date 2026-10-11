@@ -79,7 +79,7 @@ card 9 @netlists/m8_tf_batch.cir:13:1 lines=13-13 continuations=0
   token 7 13:18 number "1e-14" value=1e-14
   token 8 13:24 word "n"
   token 9 13:25 equals "="
-  token 10 13:26 number "1.2" value=1.2e0
+  token 10 13:26 number "1.2" value=1.2000000000000002e0
   token 11 13:30 word "rs"
   token 12 13:32 equals "="
   token 13 13:33 number "5" value=5e0

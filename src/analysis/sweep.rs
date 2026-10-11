@@ -167,10 +167,8 @@ impl SweepSpec {
     /// accumulated in kelvin (`CKTtemp`) and reported in Celsius.
     ///
     /// For steps that are not binary-exact (`0.1`) these differ from
-    /// [`Self::grid`] by an ulp or so, which is irrelevant for continuous
-    /// devices but decides a switch control that lands exactly on a
-    /// threshold, so DC sweeps of circuits with discrete-state devices use
-    /// these values. The stop test is C's absolute one, so the last value may
+    /// [`Self::grid`] by an ulp or so (a reverse `0.3 0 -0.1` sweep ends at
+    /// `2.8e-17`, as in ngspice); every `.dc` sweep uses them. The stop test is C's absolute one, so the last value may
     /// lie up to `1e3 DBL_EPSILON` beyond `stop` as it does in C.
     /// # Errors
     /// Everything [`Self::grid`] rejects, and the same point/progress/domain
@@ -613,19 +611,12 @@ pub(crate) fn run(
         }
         crate::analysis::bias::ContinuationSchedule::Ladder => None,
     });
-    // A switch control landing exactly on a threshold is decided by the last
-    // bit of the swept value, so with discrete-state devices the sweep visits
-    // C's accumulated values (`dctrcurv.c`) rather than `start + i step`.
-    let discrete = circuit.devices().iter().any(|d| d.has_discrete_state());
+    // The values `dctrcurv.c` visits (`value += step`, C's absolute stop
+    // test), not `start + i step`: the last bits reach every device and the
+    // output scale.
     let grids = axes
         .iter()
-        .map(|axis| {
-            if discrete {
-                axis.accumulated_grid()
-            } else {
-                axis.grid()
-            }
-        })
+        .map(SweepSpec::accumulated_grid)
         .collect::<SpiceResult<Vec<_>>>()?;
     // C's absolute stop test can add one point per axis to the checked budget.
     grids

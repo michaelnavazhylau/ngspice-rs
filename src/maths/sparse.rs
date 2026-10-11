@@ -328,6 +328,8 @@ pub struct SparseMatrix {
     triplets: Vec<Triplet>,
     folded: bool,
     bound: Option<Bound>,
+    /// Thresholds used when this matrix is (re)ordered.
+    pivot: crate::maths::PivotTolerances,
 }
 
 impl SparseMatrix {
@@ -340,6 +342,7 @@ impl SparseMatrix {
             triplets: Vec::new(),
             folded: false,
             bound: None,
+            pivot: crate::maths::PivotTolerances::DEFAULT,
         }
     }
 
@@ -362,7 +365,21 @@ impl SparseMatrix {
                 pattern,
                 view: OnceCell::new(),
             }),
+            pivot: crate::maths::PivotTolerances::DEFAULT,
         }
+    }
+
+    /// Pivot thresholds used when this matrix is ordered for factorization
+    /// (default [`crate::maths::PivotTolerances::DEFAULT`]).
+    #[must_use]
+    pub const fn pivot_tolerances(&self) -> crate::maths::PivotTolerances {
+        self.pivot
+    }
+
+    /// Replaces the pivot thresholds (`.options pivtol`/`pivrel`); validated
+    /// by the caller (see [`crate::maths::PivotTolerances::validate`]).
+    pub const fn set_pivot_tolerances(&mut self, pivot: crate::maths::PivotTolerances) {
+        self.pivot = pivot;
     }
 
     /// The pattern and per-element values when bound with no overflow: the

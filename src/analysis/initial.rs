@@ -432,6 +432,7 @@ pub(crate) fn constrained_bias(
 ) -> SpiceResult<Vector> {
     let n = a.rows();
     let mut matrix = SparseMatrix::new(n, n);
+    matrix.set_pivot_tolerances(a.pivot_tolerances());
     let fixed: BTreeMap<usize, Real> = constraints.iter().map(|h| (h.row, h.value)).collect();
     for triplet in a.triplets() {
         if !fixed.contains_key(&triplet.row) {
