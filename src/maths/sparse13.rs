@@ -438,6 +438,11 @@ impl<T: Scalar> Sparse<T> {
         }
     }
 
+    /// Whether the frame holds LU factors (`Matrix->Factored`).
+    pub(crate) const fn is_factored(&self) -> bool {
+        self.factored
+    }
+
     /// Overwrites one element's value (`*element = value`).
     pub(crate) fn set(&mut self, element: usize, value: T) {
         self.elements[element].value = value;

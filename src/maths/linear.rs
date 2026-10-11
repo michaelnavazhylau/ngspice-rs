@@ -464,6 +464,33 @@ fn ni_step(
     result
 }
 
+/// `SMPsolve` with the factors a circuit pattern's frame holds now: those of
+/// the last factorization of the circuit matrix (after `CKTop`, the last
+/// `NIiter` pass's load), as `.tf` (`tfanal.c`) solves its unit excitations.
+/// `None` when the frame holds no factors.
+///
+/// # Errors
+/// An invalid RHS or a non-finite solution.
+pub fn solve_last_factors(pattern: &Arc<Pattern>, rhs: &Vector) -> SpiceResult<Option<Vector>> {
+    let cached = pattern.take_ordering();
+    let result = match &cached {
+        Some(symbolic)
+            if matches!(&symbolic.key, Key::Pattern(weak) if std::ptr::eq(weak.as_ptr(), Arc::as_ptr(pattern)))
+                && symbolic.sparse.is_factored() =>
+        {
+            Some(
+                SparseLu {
+                    symbolic: symbolic.clone(),
+                }
+                .solve(rhs),
+            )
+        }
+        _ => None,
+    };
+    pattern.store_ordering(cached);
+    result.transpose()
+}
+
 /// Owned numeric sparse LU factors.
 #[derive(Debug)]
 pub struct SparseLu {

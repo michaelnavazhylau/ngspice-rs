@@ -22,7 +22,9 @@ pub mod dense_complex;
 pub mod equilibration;
 pub mod integrator;
 pub mod linear;
-pub use linear::{DenseLu, NiStep, PivotTolerances, SparseLu, SparseSymbolic, solve_ni};
+pub use linear::{
+    DenseLu, NiStep, PivotTolerances, SparseLu, SparseSymbolic, solve_last_factors, solve_ni,
+};
 pub mod pencil;
 pub mod sparse;
 pub(crate) mod sparse13;

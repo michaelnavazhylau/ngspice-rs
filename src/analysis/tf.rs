@@ -50,8 +50,8 @@
 use crate::analysis::linear::unsupported;
 use crate::analysis::results::{PlotFlags, Variable};
 use crate::analysis::{AnalysisContext, AnalysisRequest, Plot};
-use crate::devices::{AnalysisMode, Circuit, IterationPhase, LoadRequest};
-use crate::maths::{SparseMatrix, Vector};
+use crate::devices::Circuit;
+use crate::maths::Vector;
 use crate::primitives::{Complex, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 
 /// `TFanal()`'s threshold below which a branch current is treated as zero and
@@ -353,7 +353,7 @@ pub(crate) fn run(
         seed.as_mut_slice()[hint.row] = hint.value;
     }
     let model = context.model_context();
-    let solved = crate::analysis::bias::solve_dc_forced(
+    crate::analysis::bias::solve_dc_forced(
         circuit,
         &model,
         &settings,
@@ -361,33 +361,22 @@ pub(crate) fn run(
         Some(&seed),
         None,
         &nodes,
-    )?
-    .solution;
-
-    // The Newton Jacobian at the operating point: one MODEINITFLOAT load whose
-    // previous iterate is the converged one, so no device limits its voltages.
-    let history = circuit.state_history();
-    let mut trial = history
-        .trial_in(IterationPhase::Float, Some(&solved.trial))?
-        .with_device_limiting(settings.newton.limiting.is_device())
-        .with_c_jacobian(true);
-    let mut jacobian = SparseMatrix::new(n, n);
-    circuit.load(
-        &LoadRequest {
-            mode: AnalysisMode::OperatingPoint,
-            solution: &solved.values,
-            model_context: &model,
-            integration: None,
-            history: &history,
-            forcing: None,
-        },
-        &mut jacobian,
-        &mut Vector::zeros(n),
-        &mut trial,
     )?;
-    jacobian.fold_duplicates();
-    let factors = jacobian.factorize()?;
 
+    // tfanal.c solves with the LU factors CKTop's last NIiter pass left in
+    // the circuit matrix (its load at CKTrhsOld); no further load is made.
+    let pattern = circuit.matrix_pattern();
+    let solve = |rhs: &Vector| -> SpiceResult<Vector> {
+        if let Some(pattern) = &pattern
+            && let Some(x) = crate::maths::solve_last_factors(pattern, rhs)?
+        {
+            return Ok(x);
+        }
+        Err(SpiceError::Numerical {
+            context: ".tf".to_owned(),
+            message: "the operating point left no factored circuit matrix".to_owned(),
+        })
+    };
     // Unit excitation of the input source.
     let mut rhs = Vector::zeros(n);
     match input {
@@ -397,7 +386,7 @@ pub(crate) fn run(
             add(&mut rhs, minus, 1.)?;
         }
     }
-    let x = factors.solve(&rhs)?;
+    let x = solve(&rhs)?;
     let read = |x: &Vector| match probe {
         Probe::Voltage { pos, neg } => at(x, pos) - at(x, neg),
         Probe::Current { row, .. } => at(x, Some(row)),
@@ -423,7 +412,7 @@ pub(crate) fn run(
             }
             Probe::Current { row, .. } => rhs.add_to(row, 1.)?,
         }
-        let y = factors.solve(&rhs)?;
+        let y = solve(&rhs)?;
         match probe {
             Probe::Voltage { pos, neg } => at(&y, neg) - at(&y, pos),
             Probe::Current { row, .. } => resistance(at(&y, Some(row))),
