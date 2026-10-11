@@ -63,21 +63,40 @@ const DIODE: &str = "i1 0 a 1m\nd1 a 0 dx area=1\n.model dx d(is=1e-14 n=1.2)";
 fn diode_area_follows_the_junction_law() {
     // An ideal junction forced by 1 mA: I = IS*AREA*(exp(V/(N Vt)) - 1).
     // N*Vt is taken from the AREA=1 point, so no constant is assumed.
+    // The law is checked with tight Newton tolerances: under ngspice's
+    // defaults (reltol 1e-3, vntol 1e-6) NIiter returns the iterate its last
+    // load used (CKTrhsOld) and C's own sweep misses the law by up to
+    // 2.7e-4 relative (at AREA=2), see below.
     let mut c = circuit(DIODE);
-    let plot = run(&mut c, "@d1[area] 1 8 0.5").unwrap();
+    let plot = run(&mut c, "@d1[area] 1 8 0.5 rtol=1e-12 vntol=1e-15").unwrap();
     assert_eq!(plot.variables[0].name, "sweep");
     assert_eq!(plot.variables[0].unit, "parameter");
     let (current, is): (f64, f64) = (1e-3, 1e-14);
     let v = column(&plot, "v(a)");
     let nvt = v[0] / (current / is + 1.).ln();
     for (area, v) in column(&plot, "sweep").iter().zip(&v) {
-        // gmin (1e-12 S) carries < 1e-12 A of the 1 mA. NIiter returns the
-        // iterate its last load used (CKTrhsOld), accurate to the Newton
-        // tolerance: ngspice's own point misses the law by ~1e-6 relative.
-        close(*v, nvt * (current / (is * area) + 1.).ln(), 1e-6, 0.);
+        // gmin (1e-12 S) carries < 1e-12 A of the 1 mA.
+        close(*v, nvt * (current / (is * area) + 1.).ln(), 1e-12, 0.);
     }
     assert_eq!(v.len(), 15);
     assert!(v.windows(2).all(|w| w[1] < w[0]));
+
+    // With the default tolerances the sweep is C's, point for point: every
+    // point after the first starts from MODEINITPRED, where dioload.c
+    // extrapolates the junction voltage (DEVpred, 2 state1 - state2 in a
+    // `.dc` sweep), so the third point onwards depends on the predictor.
+    // C ngspice (SPARSE) values of `.dc @d1[area] 1 8 0.5`:
+    let c_values = [
+        (0, 0.786_142_267_072_146_3),
+        (1, 0.773_635_545_570_295_7),
+        (2, 0.764_832_471_460_488_4),
+        (3, 0.757_747_607_618_252_8),
+        (14, 0.721_600_282_480_419_5),
+    ];
+    let v = column(&run(&mut c, "@d1[area] 1 8 0.5").unwrap(), "v(a)");
+    for (point, want) in c_values {
+        close(v[point], want, 1e-13, 0.);
+    }
 }
 
 #[test]

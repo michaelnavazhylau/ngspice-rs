@@ -1337,12 +1337,18 @@ impl Device for Diode {
         let thermal = self.parameters.thermal(&model)?;
         let mut limiter = Limiter::new(&context.states);
         // dioload.c: MODEINITPRED extrapolates the junction voltage
-        // (`DEVpred`) before limiting it; otherwise the iterate's.
-        let raw = match (context.states.phase(), limiter.mode(), context.integration) {
-            (crate::devices::IterationPhase::Predict, Linearization::Limited, Some(c)) => context
-                .states
-                .predicted(DIODE_VOLTAGE_SLOT, c.predictor_ratio())
-                .ok_or_else(|| SpiceError::circuit("missing accepted diode voltage"))?,
+        // (`DEVpred`) before limiting it; otherwise the iterate's. Outside
+        // transient a predicted load is a `.dc` sweep point (dctrcurv.c),
+        // where `CKTdelta` and every `CKTdeltaOld` are the first axis's step,
+        // so DEVpred's ratio is 1: `2 state1 - state2`.
+        let raw = match (context.states.phase(), limiter.mode()) {
+            (crate::devices::IterationPhase::Predict, Linearization::Limited) => {
+                let ratio = context.integration.map_or(1., |c| c.predictor_ratio());
+                context
+                    .states
+                    .predicted(DIODE_VOLTAGE_SLOT, ratio)
+                    .ok_or_else(|| SpiceError::circuit("missing accepted diode voltage"))?
+            }
             _ => context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]),
         };
         // diogetic.c takes the uic start across the external terminals unless
