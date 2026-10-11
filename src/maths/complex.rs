@@ -13,6 +13,41 @@ use crate::maths::{
 };
 use crate::primitives::{Complex, SpiceResult};
 
+/// `omega` times each of `e`'s contributions in stamp order, except that
+/// the contributions indexed by one of `groups` (ranges into `e`'s unfolded
+/// triplets, all at one position) are scaled one by one and summed into a
+/// single value first: a device such as `mos1acld.c` adds
+/// `xgd + xgs + xgb` (each `cap * CKTomega`) to an element in one step.
+fn dynamic_terms(
+    e: &SparseMatrix,
+    groups: &[std::ops::Range<usize>],
+    omega: f64,
+) -> Vec<(usize, usize, f64)> {
+    let triplets = e.triplets();
+    let mut out = Vec::with_capacity(triplets.len());
+    let mut groups = groups.iter().peekable();
+    let mut i = 0;
+    while i < triplets.len() {
+        while groups.next_if(|g| g.end <= i || g.is_empty()).is_some() {}
+        let t = &triplets[i];
+        match groups.peek() {
+            Some(g) if g.start == i && g.end <= triplets.len() => {
+                let mut sum = 0.;
+                for u in &triplets[g.start..g.end] {
+                    sum += omega * u.value;
+                }
+                out.push((t.row, t.col, sum));
+                i = g.end;
+            }
+            _ => {
+                out.push((t.row, t.col, omega * t.value));
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
 /// Complex assembled sparse matrix, independent of real stamping storage.
 #[derive(Debug, Clone)]
 pub struct ComplexMatrix {
@@ -29,6 +64,19 @@ impl ComplexMatrix {
     /// # Errors
     /// Invalid dimensions, frequency or coefficients.
     pub fn from_operators(a: &SparseMatrix, e: &SparseMatrix, omega: f64) -> SpiceResult<Self> {
+        Self::from_operators_grouped(a, e, &[], omega)
+    }
+
+    /// [`Self::from_operators`] with `groups` of `e`'s stamp-order
+    /// contributions (see [`dynamic_terms`]) each added as one sum.
+    /// # Errors
+    /// As [`Self::from_operators`].
+    pub fn from_operators_grouped(
+        a: &SparseMatrix,
+        e: &SparseMatrix,
+        groups: &[std::ops::Range<usize>],
+        omega: f64,
+    ) -> SpiceResult<Self> {
         square(a.rows(), a.cols())?;
         if e.rows() != a.rows() || e.cols() != a.cols() || !omega.is_finite() || omega < 0. {
             return Err(numerical(
@@ -37,20 +85,22 @@ impl ComplexMatrix {
             ));
         }
         let mut assembled = std::collections::BTreeMap::new();
-        for (m, dynamic) in [(a, false), (e, true)] {
-            for t in m.triplets() {
-                let v = if dynamic {
-                    Complex::imaginary(omega * t.value)
-                } else {
-                    Complex::real(t.value)
-                };
+        let real = a
+            .triplets()
+            .iter()
+            .map(|t| (t.row, t.col, Complex::real(t.value)));
+        let imaginary = dynamic_terms(e, groups, omega)
+            .into_iter()
+            .map(|(row, col, v)| (row, col, Complex::imaginary(v)));
+        {
+            for (row, col, v) in real.chain(imaginary) {
                 if !v.is_finite() {
                     return Err(numerical(
                         "complex assembly",
                         "non-finite coefficient/overflow",
                     ));
                 }
-                let entry = assembled.entry((t.row, t.col)).or_insert(Complex::ZERO);
+                let entry = assembled.entry((row, col)).or_insert(Complex::ZERO);
                 *entry = *entry + v;
                 if !entry.is_finite() {
                     return Err(numerical("complex assembly", "duplicate sum overflow"));
@@ -86,6 +136,20 @@ impl ComplexMatrix {
         e: &SparseMatrix,
         omega: f64,
     ) -> SpiceResult<Option<Self>> {
+        Self::from_operators_grouped_on(pattern, a, e, &[], omega)
+    }
+
+    /// [`Self::from_operators_on`] with `groups` of `e`'s stamp-order
+    /// contributions (see [`dynamic_terms`]) each added as one sum.
+    /// # Errors
+    /// As [`Self::from_operators_on`].
+    pub fn from_operators_grouped_on(
+        pattern: &Arc<crate::maths::Pattern>,
+        a: &SparseMatrix,
+        e: &SparseMatrix,
+        groups: &[std::ops::Range<usize>],
+        omega: f64,
+    ) -> SpiceResult<Option<Self>> {
         let n = pattern.order();
         if a.rows() != n || a.cols() != n || e.rows() != n || e.cols() != n {
             return Err(numerical("complex assembly", "operator dimensions invalid"));
@@ -95,16 +159,20 @@ impl ComplexMatrix {
             return Err(numerical("complex assembly", "frequency invalid"));
         }
         let mut values = vec![Complex::ZERO; pattern.len()];
-        for (m, dynamic) in [(a, false), (e, true)] {
-            for t in m.triplets() {
-                let Some(id) = pattern.find(t.row, t.col) else {
+        let real = a.triplets().iter().map(|t| (t.row, t.col, t.value, false));
+        let imaginary = dynamic_terms(e, groups, omega)
+            .into_iter()
+            .map(|(row, col, v)| (row, col, v, true));
+        {
+            for (row, col, v, dynamic) in real.chain(imaginary) {
+                let Some(id) = pattern.find(row, col) else {
                     return Ok(None);
                 };
                 let value = &mut values[id.index()];
                 if dynamic {
-                    value.im += omega * t.value;
+                    value.im += v;
                 } else {
-                    value.re += t.value;
+                    value.re += v;
                 }
                 if !value.is_finite() {
                     return Err(numerical(

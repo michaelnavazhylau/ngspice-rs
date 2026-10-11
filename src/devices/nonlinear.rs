@@ -1112,6 +1112,7 @@ pub(crate) fn junction_companion(
     Ok((companion.conductance, companion.derivative))
 }
 
+#[allow(dead_code)] // No in-tree caller since MOS1 follows mos1load.c directly.
 pub(crate) fn stamp_junction(
     context: &mut StampContext<'_>,
     nodes: [NodeId; 2],

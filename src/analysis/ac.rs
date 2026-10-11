@@ -153,12 +153,17 @@ pub(crate) fn ac_matrix(
     omega: Real,
 ) -> SpiceResult<ComplexMatrix> {
     if let Some(pattern) = circuit.matrix_pattern()
-        && let Some(matrix) =
-            ComplexMatrix::from_operators_on(&pattern, &system.a, &system.e, omega)?
+        && let Some(matrix) = ComplexMatrix::from_operators_grouped_on(
+            &pattern,
+            &system.a,
+            &system.e,
+            &system.e_groups,
+            omega,
+        )?
     {
         return Ok(matrix);
     }
-    ComplexMatrix::from_operators(&system.a, &system.e, omega)
+    ComplexMatrix::from_operators_grouped(&system.a, &system.e, &system.e_groups, omega)
 }
 
 /// The circuit linearized at its DC operating point, as `acan.c` and `span.c`

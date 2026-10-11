@@ -220,8 +220,13 @@ fn solve_at(
     rhs: &[Complex],
 ) -> SpiceResult<Vec<Complex>> {
     if let Some(pattern) = circuit.matrix_pattern()
-        && let Some(matrix) =
-            ComplexMatrix::from_operators_on(&pattern, &system.a, &system.e, omega)?
+        && let Some(matrix) = ComplexMatrix::from_operators_grouped_on(
+            &pattern,
+            &system.a,
+            &system.e,
+            &system.e_groups,
+            omega,
+        )?
     {
         let lu = matrix.factorize()?;
         if rhs.iter().all(|value| *value == Complex::ZERO) {
@@ -230,7 +235,8 @@ fn solve_at(
         return lu.solve(rhs);
     }
     let flip = omega < 0.;
-    let matrix = ComplexMatrix::from_operators(&system.a, &system.e, omega.abs())?;
+    let matrix =
+        ComplexMatrix::from_operators_grouped(&system.a, &system.e, &system.e_groups, omega.abs())?;
     let lu = matrix.factorize()?;
     if rhs.iter().all(|value| *value == Complex::ZERO) {
         return Ok(vec![Complex::ZERO; rhs.len()]);
