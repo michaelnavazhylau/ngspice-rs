@@ -45,6 +45,12 @@ fn dc() -> AnalysisRequest {
     AnalysisRequest::with_arguments(AnalysisKind::DcSweep, ["v1", "0", "1", "0.1"])
 }
 
+/// ngspice's default Newton tolerances (`CKTreltol`, `CKTvoltTol`): two
+/// converged solutions of one circuit reached along different iterates
+/// agree only to these (NIiter stops once the update is within them).
+const NIITER_RELTOL: f64 = 1e-3;
+const NIITER_VNTOL: f64 = 1e-6;
+
 fn close(a: f64, b: f64, rel: f64, abs: f64) {
     assert!(
         (a - b).abs() <= rel * a.abs().max(b.abs()) + abs,
@@ -243,11 +249,14 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
     let plot = deck_with_request(&format!("{sweep}\n.options itl2=5"), &tight).unwrap();
     let reference = simulate(sweep).unwrap();
     assert_eq!(plot.point_count(), 2);
+    // Two converged solves of one point along different iterates agree to
+    // NIiter's tolerance (update within reltol |v| + vntol, returning the
+    // last load's iterate, CKTrhsOld), not exactly: here 2.9e-4 relative.
     close(
         plot.value("v(b)", 1).unwrap().re,
         reference.value("v(b)", 1).unwrap().re,
-        1e-6,
-        1e-9,
+        NIITER_RELTOL,
+        NIITER_VNTOL,
     );
     for bad in [".options itl2=10001", ".options itl2=abc"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
@@ -348,7 +357,13 @@ fn itl2_bounds_every_continuation_stage_of_the_dc_bias() {
         let limited = format!("{body}\n{analysis}\n.options itl2=5");
         let plot = deck_with_request(&limited, &tight).unwrap();
         if analysis == ".op" {
-            close(plot.value("v(b)", 0).unwrap().re, expected, 1e-6, 1e-9);
+            // As above: NIiter's tolerance (here 4.9e-6 relative apart).
+            close(
+                plot.value("v(b)", 0).unwrap().re,
+                expected,
+                NIITER_RELTOL,
+                NIITER_VNTOL,
+            );
         }
         // The stage limit is the bound, not the direct-solve limit: a literal
         // stagemaxiter=3 fails as before.

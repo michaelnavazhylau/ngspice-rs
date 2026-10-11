@@ -160,8 +160,12 @@ fn device_limiting_solves_an_overdriven_junction_directly_at_an_exact_point() {
     assert_original_equations_solved(&report);
     // C's itl1 default bounds the direct solve.
     assert!(report.stages[0].iterations <= 100, "{report:?}");
-    // The returned point satisfies the unmodified KCL at the junction: the
-    // limited loads never converge, so the last load was exact.
+    // The returned point satisfies the unmodified KCL at the junction to
+    // NIiter's accuracy: the limited loads never converge, so the last load
+    // was exact, but NIiter returns that load's iterate (CKTrhsOld) once the
+    // next update is within reltol 1e-3 / vntol 1e-6. C ngspice (SPARSE)
+    // returns the same v(b) = 0.8909291905866813 bit for bit, where the diode
+    // current exceeds the resistor's by 6.7e-6 relative.
     let circuit = Circuit::from_netlist(&parse(HARD_DIODE)).unwrap();
     let row = |name: &str| {
         circuit
@@ -174,13 +178,16 @@ fn device_limiting_solves_an_overdriven_junction_directly_at_an_exact_point() {
     let diode = 1e-14 * ((vb / VT).exp() - 1.) + 1e-12 * vb;
     let resistor = va - vb;
     assert!(
-        (diode - resistor).abs() <= 1e-6 * resistor,
+        (diode - resistor).abs() <= 1e-5 * resistor,
         "{diode} vs {resistor}"
     );
-    // The port's legacy global damping reaches the same root.
+    // The port's legacy global damping reaches the same root, through other
+    // iterates: the two stop within NIiter's tolerance of it (here
+    // 1.7e-7 V apart, the device-limited point being C's above).
     let (global, report) = solve(HARD_DIODE, &["limiting=global"]);
     assert_original_equations_solved(&report);
-    assert!((global.unwrap().as_slice()[row("b")] - vb).abs() < 1e-9);
+    let global = global.unwrap().as_slice()[row("b")];
+    assert!((global - vb).abs() < 1e-6, "{global} vs {vb}");
 }
 
 #[test]

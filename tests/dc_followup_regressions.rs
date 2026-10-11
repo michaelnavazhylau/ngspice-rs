@@ -144,7 +144,13 @@ fn dc_points_consume_deck_continuation_controls_and_request_overrides() {
         .unwrap();
     assert_eq!(plot.point_count(), 2);
     let vt = (1.38064852e-23 / 1.6021766208e-19) * 300.15;
-    assert!((plot.value("v(a)", 1).unwrap().re - vt * 2_f64.ln()).abs() < 1e-10);
+    // NIiter's accuracy, not exact: it accepts once the update is within
+    // reltol |v| + vntol (1e-3, 1e-6 V) and returns the iterate the last load
+    // used (CKTrhsOld). C ngspice's own 20-step uniform source stepping on
+    // this diode (`.options noopiter gminsteps=0 srcsteps=20`) stops at
+    // 0.017936336109075593 V, 8.1e-6 V (4.5e-4 relative) from vt ln 2.
+    let (v, exact) = (plot.value("v(a)", 1).unwrap().re, vt * 2_f64.ln());
+    assert!((v - exact).abs() < 1e-3 * exact + 1e-6, "{v} vs {exact}");
     let mut explicit = AnalysisRequest::from(&n.analyses[0]);
     explicit.arguments.push("srcsteps=0".into());
     let disabled = config.request(explicit).unwrap();

@@ -37,32 +37,47 @@ fn close(a: f64, b: f64, relative: f64, absolute: f64) {
     );
 }
 #[test]
-fn diode_dc_obeys_junction_law_kcl_and_explains_the_legacy_c_accuracy() {
+fn diode_dc_obeys_junction_law_kcl_and_matches_c() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("conformance/netlists/diode_dc.cir");
     let n = Parser::new().parse_file(path).unwrap();
     let mut c = Circuit::from_netlist(&n).unwrap();
+    // With ngspice's default Newton tolerances (reltol 1e-3, vntol 1e-6) the
+    // sweep is C's: NIiter returns the iterate its last load used
+    // (CKTrhsOld) and every point after the first starts from the
+    // MODEINITPRED extrapolation, so the result is accurate to those
+    // tolerances only (C's own 0.75 V point misses the junction law by
+    // 2.5e-5 relative), but it is the committed C golden.
     let got = run(&mut c, AnalysisKind::DcSweep, &["v1", "0", "1", "0.25"]).unwrap();
     let raw =
         ngspice_rs::analysis::RawFile::parse(include_str!("../conformance/golden/diode_dc.raw"))
             .unwrap();
     let want = &raw.plots[0].plot;
-    let mut legacy_worst = 0_f64;
+    assert_eq!(got.point_count(), want.point_count());
+    for point in 0..got.point_count() {
+        for name in ["v(out)", "i(v1)"] {
+            let (rust, c) = (
+                got.value(name, point).unwrap().re,
+                want.value(name, point).unwrap().re,
+            );
+            // The golden is the stock (FMA) C build; the port reproduces the
+            // FMA-free build bit for bit, 1e-10 relative from it at worst.
+            close(rust, c, 1e-9, 1e-30);
+        }
+    }
+    // Tight requested tolerances solve the junction law and KCL themselves.
+    let got = run(
+        &mut c,
+        AnalysisKind::DcSweep,
+        &["v1", "0", "1", "0.25", "rtol=1e-12", "vntol=1e-15"],
+    )
+    .unwrap();
     for point in 0..got.point_count() {
         let vin = got.value("v(in)", point).unwrap().re;
         let v = got.value("v(out)", point).unwrap().re;
         let i = 1e-14 * ((v / VT).exp() - 1.) + 1e-12 * v;
-        close((vin - v) / 1e3, i, 1e-8, 1e-12);
-        close(got.value("i(v1)", point).unwrap().re, -i, 1e-8, 1e-12);
-        let cv = want.value("v(out)", point).unwrap().re;
-        let ci = want.value("i(v1)", point).unwrap().re;
-        let ratio = (got.value("i(v1)", point).unwrap().re - ci).abs() / (ci.abs() + 1e-12);
-        legacy_worst = legacy_worst.max(ratio);
-        // C's legacy default-RELTOL/bypass result has less accurate voltages;
-        // there is no reason to move the accurate Rust root towards this data.
-        close(v, cv, 1e-3, 1e-6);
-        close(-i, ci, 1e-3, 1e-12);
+        close((vin - v) / 1e3, i, 1e-9, 1e-15);
+        close(got.value("i(v1)", point).unwrap().re, -i, 1e-9, 1e-15);
     }
-    assert!(legacy_worst > 1e-4 && legacy_worst < 1e-3, "{legacy_worst}");
 }
 #[test]
 fn bjt_forward_reverse_gain_kcl_and_polarity_are_physical() {
@@ -452,7 +467,12 @@ fn source_stepping_rescues_a_bounded_iteration_budget_without_changing_physics()
     }
     let solved =
         ngspice_rs::analysis::bias::solve_dc(&c, &context, &options, &[], None, None).unwrap();
-    close(solved.values.as_slice()[0], VT * 2_f64.ln(), 1e-8, 1e-12);
+    // The full-source stage converges in NIiter's sense (update within
+    // reltol |v| + vntol, 1e-3 relative here) and returns the last load's
+    // iterate (CKTrhsOld): this one stops 3.3e-6 relative from vt ln 2, and
+    // C ngspice's own 20-step source stepping on this diode
+    // (`.options noopiter gminsteps=0 srcsteps=20`) stops 4.5e-4 away.
+    close(solved.values.as_slice()[0], VT * 2_f64.ln(), 1e-3, 1e-12);
     assert_eq!(history.depth(), 0);
 }
 

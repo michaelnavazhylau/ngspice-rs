@@ -397,18 +397,35 @@ fn temperature_sweeps_recompute_models_and_instance_temp_stays_fixed() {
 fn nonlinear_circuits_converge_at_every_resistor_point() {
     let n = netlist("v1 in 0 1\nr1 in d 1k\nd1 d 0 dm\n.model dm d(is=1e-14)");
     let mut c = Circuit::from_netlist(&n).unwrap();
+    // With ngspice's default tolerances the sweep is C's, point for point.
+    // NIiter returns the iterate its last load used (CKTrhsOld), accurate
+    // only to reltol 1e-3 / vntol 1e-6 in voltage: C ngspice (SPARSE) gives
+    // these values, whose current balance is off by up to 1.3% (at 2k, a
+    // predicted point that converged after one exact load).
     let p = run(&mut c, &["r1", "1k", "4k", "1k"]).unwrap();
+    let c_values = [
+        0.629_440_782_414_598_1,
+        0.612_976_486_981_510_7,
+        0.602_830_341_553_060_1,
+        0.596_015_835_103_853_4,
+    ];
+    for (row, want) in c_values.iter().enumerate() {
+        close(p.value("v(d)", row).unwrap().re, *want, 1e-13, 0.);
+    }
+    // Tight requested tolerances solve the physical law itself.
+    let p = run(
+        &mut c,
+        &["r1", "1k", "4k", "1k", "rtol=1e-12", "vntol=1e-15"],
+    )
+    .unwrap();
     assert_eq!(p.point_count(), 4);
     let vt = (1.38064852e-23 / 1.6021766208e-19) * 300.15;
     let mut previous = f64::INFINITY;
     for (row, supplied) in [1e3, 2e3, 3e3, 4e3].iter().enumerate() {
         let v = p.value("v(d)", row).unwrap().re;
         let diode = 1e-14 * ((v / vt).exp() - 1.) + 1e-12 * v;
-        // The physical law at this R, to NIiter's accuracy: it returns the
-        // iterate its last load used (CKTrhsOld); ngspice's own solution of
-        // this circuit misses the current balance by 3e-6 relative.
-        close((1. - v) / supplied, diode, 1e-5, 1e-12);
-        close(p.value("i(v1)", row).unwrap().re, -diode, 1e-5, 1e-12);
+        close((1. - v) / supplied, diode, 1e-9, 1e-15);
+        close(p.value("i(v1)", row).unwrap().re, -diode, 1e-9, 1e-15);
         assert!(
             v < previous,
             "a larger series R must lower the diode voltage"
@@ -743,7 +760,11 @@ fn sweep_points_are_seeded_from_the_previous_accepted_solution() {
         .unwrap()
         .re;
     assert!(want > 4.0 && want < 4.6, "{want}");
-    close(p.value("v(a)", 20).unwrap().re, want, 1e-9, 1e-12);
+    // Both stop where NIiter's test passes (update within reltol |v| +
+    // vntol = 1e-3 |v| + 1e-6 V) and return the last load's iterate
+    // (CKTrhsOld), so they agree to that tolerance, not exactly (here
+    // 5.6e-5 V, 1.3e-5 relative, apart).
+    close(p.value("v(a)", 20).unwrap().re, want, 1e-3, 1e-6);
     // That same point as a sweep's *first* point has no warm seed and needs more
     // iterations than the budget allows, so the ramp is doing the work.
     let mut cold = circuit(body);

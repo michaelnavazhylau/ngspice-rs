@@ -44,16 +44,35 @@ fn close(got: f64, want: f64, relative: f64) {
 #[test]
 fn a_nonlinear_operating_point_satisfies_the_device_equations() {
     // A diode-like B current from a 1 V source through 1k: the solved node
-    // must satisfy KCL with the exponential exactly (to Newton tolerance).
+    // must satisfy KCL with the exponential (to Newton tolerance).
+    let deck = "vin in 0 dc 1\nr1 in a 1k\nb1 a 0 i=1e-14*(exp(v(a)/0.025852)-1)";
+    let kcl = |a: f64| (1. - a) / 1e3 - 1e-14 * ((a / 0.025852).exp() - 1.);
+    // ngspice's NIiter defaults (reltol 1e-3, vntol 1e-6) stop once the
+    // update is within tolerance and return the iterate the last load used
+    // (CKTrhsOld). C ngspice (SPARSE) gives v(a) = 0.6291468590192147 for
+    // this deck, bit-identical to the port, with a KCL residual of
+    // -2.16e-12 A, i.e. 5.8e-9 of the 3.7e-4 A branch current.
+    let plot = run(deck, AnalysisKind::OperatingPoint, &[]).unwrap();
+    let a = value(&plot, "v(a)", 0);
+    close(a, 0.629_146_859_019_214_7, 1e-13);
+    assert!(
+        kcl(a).abs() < 1e-11,
+        "KCL residual {} at v(a) = {a}",
+        kcl(a)
+    );
+    // Requesting tighter Newton tolerances solves the law exactly.
     let plot = run(
-        "vin in 0 dc 1\nr1 in a 1k\nb1 a 0 i=1e-14*(exp(v(a)/0.025852)-1)",
+        deck,
         AnalysisKind::OperatingPoint,
-        &[],
+        &["rtol=1e-9", "vntol=1e-12"],
     )
     .unwrap();
     let a = value(&plot, "v(a)", 0);
-    let kcl = (1. - a) / 1e3 - 1e-14 * ((a / 0.025852).exp() - 1.);
-    assert!(kcl.abs() < 1e-12, "KCL residual {kcl} at v(a) = {a}");
+    assert!(
+        kcl(a).abs() < 1e-15,
+        "KCL residual {} at v(a) = {a}",
+        kcl(a)
+    );
     assert!(a > 0.5 && a < 0.8, "{a}");
 }
 

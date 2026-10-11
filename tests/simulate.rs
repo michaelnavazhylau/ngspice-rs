@@ -1630,12 +1630,17 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     );
     let peak = out.iter().map(|value| value.re.abs()).fold(0., f64::max);
     assert!((1.5..2.5).contains(&peak), "peak {peak}");
+    // The B source is linearized at the previous Newton iterate and NIiter
+    // returns the iterate its last load used (CKTrhsOld), so the limiter
+    // holds to the deck's reltol (1e-4), not exactly: C ngspice (SPARSE)
+    // misses 2 tanh(v(out)/2) by up to 1.0e-4 relative (1.5e-4 V) on this
+    // deck, the port by the same at the same time points.
     for point in 0..out.len() {
         close(
             "tran limiter",
             lim[point].re,
             2. * (out[point].re / 2.).tanh(),
-            1e-6,
+            2e-4,
         );
         close("tran sense", isense[point].re, lim[point].re / 10., 1e-6);
     }

@@ -25,6 +25,17 @@ const DIFFICULT: &str = "i1 0 a 1m\nd1 a 0 dm\n.model dm d(is=1m)";
 /// The same hard bias, with an AC unit drive so an `.ac` run must solve it first.
 const DIFFICULT_AC: &str = "i1 0 a dc 1m ac 1\nd1 a 0 dm\n.model dm d(is=1m)";
 
+/// Relative accuracy of a converged bias of [`DIFFICULT`] under ngspice's
+/// default Newton tolerances: NIiter accepts once the update is within
+/// `reltol |v| + vntol` (1e-3 relative plus 1e-6 V, 1.9e-5 V at this 18 mV
+/// bias) and returns the iterate the last load used (CKTrhsOld), so the bias
+/// is guaranteed only to about reltol. Measured in C ngspice (SPARSE): the
+/// direct solve misses `vt ln 2` by 1.7e-9 relative (its AC `v(a)` misses
+/// `vt / 2 mA` by 1.2e-9), but with `.options noopiter gminsteps=0
+/// srcsteps=20` its last uniform source step stops at 0.017936336109075593,
+/// 4.5e-4 relative from the root; the port returns the same value bit for bit.
+const NIITER_ACCURACY: f64 = 1e-3;
+
 fn parse(body: &str) -> Netlist {
     Parser::new()
         .parse_deck(&parse_deck_text(
@@ -258,7 +269,7 @@ fn ac_bias_deck_continuation_options_use_last_set_wins_and_request_precedence() 
     close(
         solved.value("v(a)", 0).unwrap().re,
         1. / (2. * (1e-3 / VT)),
-        1e-6,
+        NIITER_ACCURACY,
         1e-9,
     );
     // Last deck occurrence wins: the later `srcsteps=20` re-enables the strategy.
@@ -379,8 +390,8 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
     assert_original_equations_solved(report);
     // Success is checked against the unmodified equations, not the solver's own.
     let v = solved.solution.values.as_slice()[0];
-    close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
-    close(diode_residual(v) + 1e-3, 1e-3, 1e-7, 1e-12);
+    close(v, VT * 2_f64.ln(), NIITER_ACCURACY, 1e-12);
+    close(diode_residual(v) + 1e-3, 1e-3, NIITER_ACCURACY, 1e-12);
 
     // The ladder policy tries gmin stepping first, then source stepping.
     let defaults = run(ContinuationPolicy::ladder()).unwrap();
@@ -1095,8 +1106,9 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
         ".options gminsteps=0",
         &["maxiter=4", "limiting=global"],
     ));
-    close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
-    // Deck default options (no DC options) use the default 200 iterations.
+    close(v, VT * 2_f64.ln(), NIITER_ACCURACY, 1e-12);
+    // Deck default options (no DC options) use the default 200 iterations;
+    // the direct solve is C's (1.7e-9 from the root, see NIITER_ACCURACY).
     close(ok(run_op("", &[])), VT * 2_f64.ln(), 1e-8, 1e-12);
 
     // Duplicate setters: last wins, in deck order, across option cards.
@@ -1104,7 +1116,7 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
         ".options gminsteps=0 srcsteps=0\n.options srcsteps=20",
         &["maxiter=4", "limiting=global"],
     );
-    close(ok(off_then_on), VT * 2_f64.ln(), 1e-8, 1e-12);
+    close(ok(off_then_on), VT * 2_f64.ln(), NIITER_ACCURACY, 1e-12);
     let on_then_off = run_op(
         ".options gminsteps=0 srcsteps=20\n.options srcsteps=0",
         &["maxiter=4", "limiting=global"],
@@ -1129,7 +1141,7 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
             &["maxiter=4", "limiting=global", "srcsteps=20"],
         )),
         VT * 2_f64.ln(),
-        1e-8,
+        NIITER_ACCURACY,
         1e-12,
     );
     let merged = RunConfig::from_netlist(&parse(&format!("{DIFFICULT}\n{deck} gminfactor=5")))
@@ -1151,7 +1163,7 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     close(
         ok(run_op("", &["maxiter=4", "limiting=global", "gminsteps=0"])),
         VT * 2_f64.ln(),
-        1e-8,
+        NIITER_ACCURACY,
         1e-12,
     );
 }
@@ -1266,7 +1278,7 @@ fn ac_bias_uses_the_configured_continuation() {
     close(
         solved.value("v(a)", 0).unwrap().re,
         1. / (2. * conductance),
-        1e-6,
+        NIITER_ACCURACY,
         1e-9,
     );
     assert!(ac(&["maxiter=4", "limiting=global", "gminsteps=0", "srcsteps=0"]).is_err());
