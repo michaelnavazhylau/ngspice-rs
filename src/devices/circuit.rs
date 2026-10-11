@@ -671,57 +671,6 @@ impl Circuit {
         }
     }
 
-    /// RHS changes for temporary DC source setters. In VSRCload order a PORT
-    /// without explicit DC inherits the preceding voltage-source change;
-    /// sweeping the PORT itself sets its DC-given flag for that point.
-    /// # Errors
-    /// Duplicate, unknown or nonfinite source values, or overflowing sums.
-    pub fn dc_source_changes(
-        &self,
-        system: &crate::devices::LinearSystem,
-        overrides: &[(&str, Real)],
-    ) -> SpiceResult<Vector> {
-        let mut changes = Vector::zeros(self.unknown_count());
-        let mut names = BTreeSet::new();
-        for (name, value) in overrides {
-            if !value.is_finite()
-                || !names.insert(name.to_ascii_lowercase())
-                || !system
-                    .sources
-                    .iter()
-                    .any(|s| s.name.eq_ignore_ascii_case(name))
-            {
-                return Err(SpiceError::circuit(
-                    "invalid, duplicate or unknown DC source override",
-                ));
-            }
-        }
-        let mut previous_change = 0.;
-        for source in system.sources.iter().rev() {
-            let given = overrides
-                .iter()
-                .find(|(name, _)| source.name.eq_ignore_ascii_case(name));
-            let inherited = source.kind == crate::devices::SourceKind::Voltage
-                && self
-                    .device(&source.name)
-                    .is_some_and(|d| d.dc_accumulates_predecessor());
-            let change = given.map_or(
-                if inherited { previous_change } else { 0. },
-                |(_, value)| value - source.dc,
-            );
-            for (row, sign) in &source.rows {
-                changes.add_to(*row, sign * change)?;
-            }
-            if source.kind == crate::devices::SourceKind::Voltage {
-                previous_change = change;
-            }
-        }
-        if !changes.is_finite() {
-            return Err(SpiceError::circuit("DC source changes overflow"));
-        }
-        Ok(changes)
-    }
-
     /// `vsrctemp.c` (`VSRCtemp`, run before every analysis): the RF port
     /// numbers must be exactly `1..=N` for `N` ports. A number above `N` is
     /// "incorrect port ordering" (a gap or an out-of-range index), a repeated
@@ -981,6 +930,29 @@ impl Circuit {
         Ok(InstanceOverride::new(index, parameter, value))
     }
 
+    /// A DC value override of the independent V or I source `name`, as
+    /// `dctrcurv.c` applies it to the swept source (`dcValue`, `dcGiven`).
+    ///
+    /// # Errors
+    /// An unknown name, a device that is not an independent source, or a
+    /// nonfinite value.
+    pub fn source_override(
+        &self,
+        name: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<InstanceOverride> {
+        let index = self
+            .devices
+            .iter()
+            .position(|d| d.name().eq_ignore_ascii_case(name))
+            .filter(|&i| matches!(self.devices[i].designator().to_ascii_lowercase(), 'v' | 'i'))
+            .filter(|_| value.is_finite())
+            .ok_or_else(|| SpiceError::circuit("invalid or unknown DC source override"))?;
+        self.devices[index].with_instance_parameter("dc", value, context)?;
+        Ok(InstanceOverride::new(index, "dc", value))
+    }
+
     /// The Newton load of the single device at ordinal `index`, with `device`
     /// (the circuit's own or a stand-in with the same terminals, branch rows
     /// and state layout) in its place: C's `DEVload` of one isolated instance,
@@ -1035,6 +1007,9 @@ impl Circuit {
             integration: request.integration,
             states,
             forcing: request.forcing,
+            source_factor: request.model_context.source_factor,
+            // An isolated load has no preceding voltage source.
+            voltage_source_value: &mut 0.,
         })
     }
 
@@ -1201,6 +1176,7 @@ impl Circuit {
         matrix.set_pivot_tolerances(request.model_context.pivot);
         let replacements = self.replacements(request.model_context)?;
         let mutual = self.mutual_terms(request.model_context)?;
+        let mut voltage_source_value = 0.;
         for (position, index) in self.load_order().into_iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
@@ -1227,6 +1203,8 @@ impl Circuit {
                 integration: request.integration,
                 states,
                 forcing: request.forcing,
+                source_factor: request.model_context.source_factor,
+                voltage_source_value: &mut voltage_source_value,
             })?;
         }
         self.learn_pattern(matrix);

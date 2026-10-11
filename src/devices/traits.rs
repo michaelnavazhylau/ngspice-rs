@@ -336,6 +336,12 @@ pub struct StampContext<'a> {
     pub states: DeviceState<'a>,
     /// Source-forcing context of a companion transient load; `None` otherwise.
     pub forcing: Option<Forcing>,
+    /// C's `CKTsrcFact`, [`crate::devices::ModelContext::source_factor`].
+    pub source_factor: Real,
+    /// C's running `value` in `VSRCload`: the value the previous voltage
+    /// source in load order loaded (0 before the first). Each independent
+    /// voltage source writes its own; a PORT adds its cosine to it.
+    pub voltage_source_value: &'a mut Real,
 }
 
 impl StampContext<'_> {
@@ -480,11 +486,6 @@ pub trait Device: fmt::Debug {
     /// `CKTfndBranch` cannot find, including inductors.
     fn findable_branch(&self) -> Option<usize> {
         None
-    }
-
-    /// Whether this voltage source inherits its predecessor DC value (VSRC PORT without DC).
-    fn dc_accumulates_predecessor(&self) -> bool {
-        false
     }
 
     /// Binds the previous voltage-source value in C VSRCload's reverse-deck

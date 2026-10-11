@@ -1051,6 +1051,8 @@ mod tests {
             integration: None,
             states: crate::devices::state::DeviceState::none(),
             forcing: None,
+            source_factor: 1.,
+            voltage_source_value: &mut 0.,
         };
         device.stamp(&mut context).unwrap_err().to_string()
     }

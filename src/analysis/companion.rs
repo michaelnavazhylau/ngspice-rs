@@ -767,7 +767,11 @@ impl Driver<'_> {
                     &self.bias,
                     &[],
                     Some(&seed),
-                    Some(&rhs),
+                    // MODETRANOP: the sources' time functions at 0-.
+                    Some(Forcing {
+                        limit: crate::devices::Limit::Left,
+                        timing: self.timing,
+                    }),
                     &nodes,
                 )?
                 .solution;

@@ -274,8 +274,8 @@ fixtures.
 
 The nonlinear decks set `.options reltol=1e-8`: at C's default the
 warm-started diode points stop ~3e-4 V short of the root. `golden verify` now
-also projects C's `res-sweep` (type `res-sweep`) and `v(param-sweep)` (type
-voltage) scales onto the Rust `sweep` column. The opt-in
+also covers C's `res-sweep` (type `res-sweep`) and `v(param-sweep)` (type
+voltage) scales, which the port now writes under the same names. The opt-in
 `c_dc_param_sweep_reference` runs 15 further decks against the live binary
 (linear at `1e-12 |C| + 1e-15`, nonlinear at the `NONLINEAR` bound); it also
 detects C's BJT AREAB quirk (a variant that rescaled AREAB with AREA failed at
@@ -425,10 +425,9 @@ reltol with bypass stops these sweeps about 4e-4 from the converged root, far
 outside the 1 ppm `compare::NONLINEAR` bound; with it the worst DC/AC errors are
 below 0.1 of that bound and the transient's 0.039 of `compare::TRAN`.
 
-`golden verify` projects two C naming conventions onto the Rust plot: a
-temperature scale becomes `temp-sweep` (name and unit), and the Rust-only
-`sweep(<outer>)` column of a nested sweep is dropped (C writes the points
-without it; the outer value is still visible through the circuit's voltages).
+DC sweep plots use C's scale names and types (a temperature scale is
+`temp-sweep`, name and unit) and, like C, write no outer-value column for a
+nested sweep; the outer value is visible through the circuit's voltages.
 The three new `c_bjt_reference` live-C comparisons are opt-in via `NGSPICE_BIN`. Ten new parser snapshots were blessed;
 existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#bjt).
 

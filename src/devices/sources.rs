@@ -218,7 +218,8 @@ impl IndependentSource {
         self.terminals.push(port.internal);
         self.power_tone = port.power_function.then(|| {
             (
-                (4. * port.z0 * port.power).sqrt(),
+                // vsrctemp.c: sqrt(VSRCportPower * 4.0 * VSRCportZ0).
+                (port.power * 4. * port.z0).sqrt(),
                 2. * std::f64::consts::PI * port.frequency,
             )
         });
@@ -317,6 +318,12 @@ impl Device for IndependentSource {
                 copy.sensitivity.ac = Some((mag, phase));
             }
             "m" if !self.voltage => copy.multiplier = value,
+            // dctrcurv.c sets VSRCdcValue/ISRCdcValue and the dcGiven flag
+            // for each swept point.
+            "dc" => {
+                copy.dc = value;
+                copy.sensitivity.dc_given = true;
+            }
             _ => {
                 return Err(SpiceError::circuit(format!(
                     "source parameter {parameter} cannot be swept"
@@ -398,10 +405,6 @@ impl Device for IndependentSource {
     fn findable_branch(&self) -> Option<usize> {
         self.voltage.then_some(0)
     }
-    fn dc_accumulates_predecessor(&self) -> bool {
-        self.voltage && self.power_tone.is_some() && !self.sensitivity.dc_given
-    }
-
     fn bind_voltage_predecessor(
         &mut self,
         previous: &Waveform,
@@ -432,29 +435,57 @@ impl Device for IndependentSource {
     fn rf_port(&self) -> Option<&RfPort> {
         self.port.as_ref()
     }
-    /// DC loads stamp the DC value. Companion transient loads stamp the time-`t`
-    /// forcing, evaluated with the one-sided limit of `context.forcing`
-    /// (`vsrcload.c`/`isrcload.c` evaluate the waveform at `CKTtime`). A port
-    /// also stamps `1/z0` between its positive terminal and `#res`.
+    /// The value `vsrcload.c`/`isrcload.c` load. In MODEDCOP/MODEDCTRANCURVE
+    /// a given DC value is loaded as `dc * CKTsrcFact`. Otherwise the source
+    /// function is evaluated at `CKTtime` (0 in DC modes), with the one-sided
+    /// limit of `context.forcing`, and scaled by `CKTsrcFact` only in
+    /// MODETRANOP (an operating-point load with a forcing context). A PORT
+    /// adds its cosine to C's running `value`, which is the value the
+    /// previous voltage source in load order loaded
+    /// ([`StampContext::voltage_source_value`]). A port also stamps `1/z0`
+    /// between its positive terminal and `#res`.
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
-        let value = match context.mode {
-            AnalysisMode::OperatingPoint | AnalysisMode::DcSweep => self.dc,
-            AnalysisMode::Transient { time, .. } => {
-                let forcing = context.forcing.ok_or_else(|| {
-                    SpiceError::circuit(format!(
-                        "{}: transient source load without a forcing context",
-                        self.name
-                    ))
-                })?;
-                self.waveform
-                    .value_at_timed(time, forcing.limit, &forcing.timing)?
-            }
+        let (time, transient_op) = match context.mode {
+            AnalysisMode::OperatingPoint | AnalysisMode::DcSweep => (0., context.forcing.is_some()),
+            AnalysisMode::Transient { time, .. } => (time, false),
             AnalysisMode::Ac { .. } => {
                 return Err(SpiceError::circuit(
                     "use linear equation assembly for AC sources",
                 ));
             }
         };
+        let dc_mode = !matches!(context.mode, AnalysisMode::Transient { .. });
+        let value = if dc_mode && !transient_op && self.sensitivity.dc_given {
+            self.dc * context.source_factor
+        } else {
+            let mut value = match (self.voltage, self.power_tone) {
+                (true, Some((amplitude, two_pi_frequency))) => {
+                    *context.voltage_source_value + amplitude * (time * two_pi_frequency).cos()
+                }
+                _ => match context.forcing {
+                    Some(forcing) => {
+                        self.waveform
+                            .value_at_timed(time, forcing.limit, &forcing.timing)?
+                    }
+                    // DC without a given value: the function at time 0,
+                    // which the factory stored as `dc`.
+                    None if dc_mode => self.dc,
+                    None => {
+                        return Err(SpiceError::circuit(format!(
+                            "{}: transient source load without a forcing context",
+                            self.name
+                        )));
+                    }
+                },
+            };
+            if transient_op {
+                value *= context.source_factor;
+            }
+            value
+        };
+        if self.voltage {
+            *context.voltage_source_value = value;
+        }
         if let Some(port) = &self.port {
             let g0 = 1. / port.z0;
             let [positive, internal] = [self.terminals[0], port.internal];

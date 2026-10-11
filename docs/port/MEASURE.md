@@ -121,8 +121,12 @@ Every parse-time message carries the offending token's `SourceLoc`
 ## The axis
 
 The axis is the driver's scale vector of the plot, addressed by name:
-`time` for `.tran`, `frequency` for `.ac`, `sweep` for `.dc` — the same columns
-`beginPlot()` puts first and that the rawfile writes first.
+`time` for `.tran`, `frequency` for `.ac`, and for `.dc` the first of
+`v(v-sweep)`, `i(i-sweep)`, `temp-sweep`, `res-sweep` the plot carries (C's
+lookup order in `com_measure2.c`) — the same columns `beginPlot()` puts first
+and that the rawfile writes first. C stops there, so it cannot measure a
+`.dc @inst[param]` plot ("no such scale vector"); the port also accepts its
+`v(param-sweep)` scale, a deliberate divergence.
 
 * The axis must be **finite** and **non-decreasing**. A descending axis (a
   descending `.dc` sweep, e.g. `dc v1 2 0 -0.5`) or a nested `.dc` sweep (whose

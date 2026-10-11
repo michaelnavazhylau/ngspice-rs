@@ -4,9 +4,10 @@
 //! settable instance parameters `@inst[param]` that both C and the port
 //! support. Model parameters (C rejects them too) and more than two axes (C
 //! has two nesting levels) are explicitly unsupported.
-//! Nothing is mutated: sources use temporary RHS offsets, temperature,
-//! resistor and instance-parameter values travel in an immutable per-point
-//! `ModelContext`. See `docs/port/DC_SWEEPS.md`.
+//! Nothing is mutated: source DC values (loaded as `dctrcurv.c` sets
+//! `dcValue`/`dcGiven`), temperature, resistor and instance-parameter values
+//! travel in an immutable per-point `ModelContext`, and every point runs
+//! NIiter, linear circuits included. See `docs/port/DC_SWEEPS.md`.
 use crate::analysis::linear::{number, plot, unsupported};
 use crate::analysis::{AnalysisContext, AnalysisRequest, Plot};
 use crate::devices::{Circuit, ModelContext};
@@ -64,17 +65,21 @@ pub enum ParameterRoute {
     Device,
 }
 impl SweepTarget {
-    /// The plot unit of the swept quantity. An instance parameter has no
-    /// common physical unit and is reported as `parameter` (C names its scale
-    /// `param-sweep`).
+    /// The scale vector of a sweep whose first (inner) axis is this target,
+    /// as C names and types it in the plot: `dctrcurv.c` calls the scale
+    /// `v-sweep`, `i-sweep`, `temp-sweep`, `res-sweep` or `param-sweep`, and
+    /// the front end types it by name (`guess_type`, `outitf.c`), which
+    /// leaves `v-sweep` and `param-sweep` as voltages. Like the port's other
+    /// vectors, voltage and current names carry their `v(...)`/`i(...)`
+    /// wrapping, as C's rawfile writes them.
     #[must_use]
-    pub fn unit(&self) -> &str {
+    pub fn scale(&self) -> (&'static str, &'static str) {
         match self {
-            Self::VoltageSource(_) => "voltage",
-            Self::CurrentSource(_) => "current",
-            Self::Resistor(_) => "resistance",
-            Self::Temperature => "temperature",
-            Self::InstanceParameter { .. } => "parameter",
+            Self::VoltageSource(_) => ("v(v-sweep)", "voltage"),
+            Self::CurrentSource(_) => ("i(i-sweep)", "current"),
+            Self::Resistor(_) => ("res-sweep", "res-sweep"),
+            Self::Temperature => ("temp-sweep", "temp-sweep"),
+            Self::InstanceParameter { .. } => ("v(param-sweep)", "voltage"),
         }
     }
     /// The instance name, `temp`, or `@instance[parameter]`.
@@ -633,29 +638,10 @@ pub(crate) fn run(
         circuit,
         "dc1",
         "DC transfer characteristic",
-        Some(("sweep", axes[0].target.unit())),
+        // C writes only the inner axis' scale; an outer axis has no vector.
+        Some(axes[0].target.scale()),
         false,
     )?;
-    if axes.len() == 2 {
-        result.push_variable(crate::analysis::results::Variable::new(
-            format!("sweep({})", axes[1].target.name()),
-            axes[1].target.unit(),
-        ));
-    }
-    let linear = !circuit.devices().iter().any(|d| d.is_nonlinear());
-    // The factorization is valid only while the operator is: a resistor or
-    // temperature axis changes it at every point, so those recompute below.
-    let source_only = axes.iter().all(|a| a.target.source().is_some());
-    // Preserve the delivered repeated-RHS LU optimization on source-only linear sweeps.
-    let system = if linear && source_only {
-        Some(circuit.small_signal_system(
-            &context.model_context(),
-            &Vector::zeros(circuit.unknown_count()),
-        )?)
-    } else {
-        None
-    };
-    let lu = system.as_ref().map(|s| s.a.factorize()).transpose()?;
     let mut previous = Vector::zeros(circuit.unknown_count());
     // dctrcurv.c rotates the state vectors before every point, so a point's
     // CKTstate1 is the previous point's state (the first point's own state is
@@ -679,15 +665,8 @@ pub(crate) fn run(
                 [*inner_value, *outer_value],
                 context.model_context(),
             )?;
-            let mut solved_state = None;
-            let x = if let (Some(system), Some(lu)) = (&system, &lu) {
-                let mut rhs = system.dc_rhs(None)?;
-                let changes = circuit.dc_source_changes(system, &overrides)?;
-                for (row, change) in changes.as_slice().iter().enumerate() {
-                    rhs.add_to(row, *change)?;
-                }
-                lu.solve(&rhs)?
-            } else {
+            // dctrcurv.c runs NIiter at every point, linear circuits included.
+            let (x, solved_state) = {
                 // dctrcurv.c: every point after the first first tries a plain
                 // warm-started Newton bounded by `itl2` (CKTdcTrcvMaxIter) and
                 // only on failure falls back to the full operating-point solve.
@@ -748,8 +727,7 @@ pub(crate) fn run(
                         .solution
                     }
                 };
-                solved_state = Some(solution.trial);
-                solution.values
+                (solution.values, Some(solution.trial))
             };
             let first_point = std::mem::replace(&mut first, false);
             // Only a solved point is accepted; a failure above returns before
@@ -782,9 +760,6 @@ pub(crate) fn run(
             let mut point = vec![Complex::real(*inner_value)];
             point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
             point.extend(observed);
-            if axes.len() == 2 {
-                point.push(Complex::real(*outer_value));
-            }
             result.push_point(point)?;
             previous = x;
         }

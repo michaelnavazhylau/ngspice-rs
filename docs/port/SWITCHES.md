@@ -155,9 +155,9 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
   lands exactly on a threshold differently. This is a parser-wide divergence,
   not specific to switches; the switch fixtures use literals both engines read
   identically.
-* Only the outer value of a nested sweep is written by the port as
-  `sweep(<name>)`; C writes no such vector, so nested switch sweeps are
-  compared with live C (`c_switches`) rather than a golden.
+* C writes no vector for the outer value of a nested sweep, and neither does
+  the port; nested switch sweeps are compared with live C (`c_switches`)
+  rather than a golden.
 * C always tries a warm `MODEINITPRED` solve at a sweep point after the first
   and then `CKTop` (a direct `MODEINITJCT` attempt, then stepping). Without
   a warm-start limit (`itl2`, `trcvmaxiter=`) the port's per-point solve runs

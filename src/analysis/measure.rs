@@ -242,6 +242,15 @@ fn nonfinite(card: &MeasureCard, context: String, message: String) -> SpiceError
     }
 }
 
+/// The scale vectors a DC sweep plot may carry, in C's lookup order.
+const DC_SCALES: [&str; 5] = [
+    "v(v-sweep)",
+    "i(i-sweep)",
+    "temp-sweep",
+    "res-sweep",
+    "v(param-sweep)",
+];
+
 /// The ordered physical axis of a plot: the driver's scale vector.
 ///
 /// The companion and diffsol transient drivers keep every accepted time point
@@ -262,7 +271,13 @@ impl Axis {
         let name = match kind {
             AnalysisKind::Transient => "time",
             AnalysisKind::Ac | AnalysisKind::SParameter => "frequency",
-            AnalysisKind::DcSweep => "sweep",
+            // com_measure2.c tries v-sweep, i-sweep, temp-sweep, res-sweep in
+            // that order. C stops there, so a `.dc @dev[param]` plot has no
+            // measurable scale; the port also accepts its param-sweep.
+            AnalysisKind::DcSweep => DC_SCALES
+                .into_iter()
+                .find(|name| plot.variable_index(name).is_some())
+                .unwrap_or(DC_SCALES[0]),
             other => {
                 return Err(SpiceError::Unsupported {
                     feature: format!(

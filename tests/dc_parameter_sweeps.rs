@@ -69,12 +69,14 @@ fn diode_area_follows_the_junction_law() {
     // 2.7e-4 relative (at AREA=2), see below.
     let mut c = circuit(DIODE);
     let plot = run(&mut c, "@d1[area] 1 8 0.5 rtol=1e-12 vntol=1e-15").unwrap();
-    assert_eq!(plot.variables[0].name, "sweep");
-    assert_eq!(plot.variables[0].unit, "parameter");
+    // dctrcurv.c names an instance-parameter scale param-sweep, which
+    // guess_type (outitf.c) leaves a voltage.
+    assert_eq!(plot.variables[0].name, "v(param-sweep)");
+    assert_eq!(plot.variables[0].unit, "voltage");
     let (current, is): (f64, f64) = (1e-3, 1e-14);
     let v = column(&plot, "v(a)");
     let nvt = v[0] / (current / is + 1.).ln();
-    for (area, v) in column(&plot, "sweep").iter().zip(&v) {
+    for (area, v) in column(&plot, "v(param-sweep)").iter().zip(&v) {
         // gmin (1e-12 S) carries < 1e-12 A of the 1 mA.
         close(*v, nvt * (current / (is * area) + 1.).ln(), 1e-12, 0.);
     }
@@ -142,18 +144,21 @@ fn controlled_gain_sources_and_resistance_routes() {
                 g1 0 go in 0 1m m=3\nrg go 0 1k\nf1 0 fo v1 1\nrf fo 0 1k";
     let mut c = circuit(body);
     let e = run(&mut c, "@e1[gain] -2 2 1").unwrap();
-    for (gain, v) in column(&e, "sweep").iter().zip(column(&e, "v(eo)")) {
+    for (gain, v) in column(&e, "v(param-sweep)").iter().zip(column(&e, "v(eo)")) {
         close(v, 2. * gain, 1e-12, 1e-15);
     }
     // VCCSparam: a given m multiplies the swept gain.
     let g = run(&mut c, "@g1[gain] 1m 3m 1m").unwrap();
-    for (gain, v) in column(&g, "sweep").iter().zip(column(&g, "v(go)")) {
+    for (gain, v) in column(&g, "v(param-sweep)").iter().zip(column(&g, "v(go)")) {
         close(v, gain * 3. * 2. * 1e3, 1e-12, 1e-15);
     }
     // F senses i(v1) = -2 mA; nested with E so both replacements coexist.
     let f = run(&mut c, "@f1[gain] 1 2 1 @e1[gain] 1 2 1").unwrap();
-    assert_eq!(column(&f, "sweep(@e1[gain])"), [1., 1., 2., 2.]);
-    for (gain, v) in column(&f, "sweep").iter().zip(column(&f, "v(fo)")) {
+    // C writes no outer-axis column: the outer E gain shows in v(eo) = 2*gain.
+    let names: Vec<_> = f.variables.iter().map(|v| v.name.as_str()).collect();
+    assert!(names.iter().all(|n| !n.starts_with("sweep")), "{names:?}");
+    assert_eq!(column(&f, "v(eo)"), [2., 2., 4., 4.]);
+    for (gain, v) in column(&f, "v(param-sweep)").iter().zip(column(&f, "v(fo)")) {
         close(v, gain * -2e-3 * 1e3, 1e-12, 1e-15);
     }
     // `@v1[dc]`, `@i1[c]` and `@r1[r]` are the typed source/resistor sweeps.
@@ -172,8 +177,13 @@ fn controlled_gain_sources_and_resistance_routes() {
     ] {
         let a = run(&mut c, parameter).unwrap();
         let b = run(&mut c, typed).unwrap();
-        same_columns(&a, &b, &["sweep", "v(in)", "v(out)", "i(v1)"], 0.);
-        assert_eq!(a.variables[0].unit, "parameter");
+        same_columns(&a, &b, &["v(in)", "v(out)", "i(v1)"], 0.);
+        // The scales hold the same grid under C's per-kind names.
+        assert_eq!(
+            column(&a, "v(param-sweep)"),
+            column(&b, &b.variables[0].name)
+        );
+        assert_eq!(a.variables[0].unit, "voltage");
     }
 }
 
@@ -253,15 +263,24 @@ fn bjt_and_mos1_replacements_reproduce_the_card_and_scale() {
     );
     // Saturation: Id = KP/2 * W/L * (Vgs - Vto)^2 * M.
     let w = run(&mut c, "@m1[w] 10u 30u 10u").unwrap();
-    for (width, i) in column(&w, "sweep").iter().zip(column(&w, "i(vdd)")) {
+    for (width, i) in column(&w, "v(param-sweep)")
+        .iter()
+        .zip(column(&w, "i(vdd)"))
+    {
         close(-i, 25e-6 * width / 2e-6 * 0.8 * 0.8, 1e-6, 1e-15);
     }
     let l = run(&mut c, "@m1[l] 2u 4u 1u").unwrap();
-    for (length, i) in column(&l, "sweep").iter().zip(column(&l, "i(vdd)")) {
+    for (length, i) in column(&l, "v(param-sweep)")
+        .iter()
+        .zip(column(&l, "i(vdd)"))
+    {
         close(-i, 25e-6 * 10e-6 / length * 0.8 * 0.8, 1e-6, 1e-15);
     }
     let m = run(&mut c, "@m1[m] 1 3 1").unwrap();
-    for (count, i) in column(&m, "sweep").iter().zip(column(&m, "i(vdd)")) {
+    for (count, i) in column(&m, "v(param-sweep)")
+        .iter()
+        .zip(column(&m, "i(vdd)"))
+    {
         close(-i, count * 25e-6 * 5. * 0.8 * 0.8, 1e-6, 1e-15);
     }
 }

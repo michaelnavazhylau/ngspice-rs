@@ -10,7 +10,9 @@ use ngspice_rs::analysis::bias::{
 };
 use ngspice_rs::analysis::newton::{NewtonOptions, StepLimiting};
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
-use ngspice_rs::devices::{AnalysisMode, Circuit, LoadRequest, ModelContext};
+use ngspice_rs::devices::{
+    AnalysisMode, Circuit, Forcing, Limit, LoadRequest, ModelContext, TransientTiming,
+};
 use ngspice_rs::maths::{SparseMatrix, Vector};
 use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
 use ngspice_rs::primitives::{AnalysisKind, SpiceError, SpiceResult};
@@ -907,21 +909,35 @@ fn continuation_never_accepts_state_or_edits_sources_on_success_or_failure() {
     assert_eq!(accepted.get(), 0);
     assert_eq!(dc_rhs(&c), rhs_before);
 
-    // Forcing replaces source values for the solve only (transient 0- bias).
-    let mut forcing = Vector::zeros(c.unknown_count());
-    forcing.as_mut_slice().copy_from_slice(&dc_rhs(&c));
-    forcing.as_mut_slice().iter_mut().for_each(|v| *v *= 27.);
+    // Forcing makes the solve C's MODETRANOP bias: a source loads its time
+    // function at 0- (here the PULSE's 3 V) instead of its DC value, and the
+    // circuit's sources are untouched.
+    let pulsed = circuit("v1 a 0 dc 1 pulse(3 5 1m)\nr1 a 0 1k");
+    let pulsed_rhs = dc_rhs(&pulsed);
     let forced = solve_dc_with(
-        &c,
+        &pulsed,
         &context,
         &DcSettings::default(),
         &[],
         None,
-        Some(&forcing),
+        Some(Forcing {
+            limit: Limit::Left,
+            timing: TransientTiming::new(1e-4, 1e-2).unwrap(),
+        }),
     )
     .unwrap();
-    close(forced.solution.values.as_slice()[0], 3., 1e-8, 1e-12);
-    assert_eq!(dc_rhs(&c), rhs_before);
+    close(forced.solution.values.as_slice()[0], 3., 0., 0.);
+    assert_eq!(dc_rhs(&pulsed), pulsed_rhs);
+    let plain = solve_dc(
+        &pulsed,
+        &context,
+        &NewtonOptions::default(),
+        &[],
+        None,
+        None,
+    )
+    .unwrap();
+    close(plain.values.as_slice()[0], 1., 0., 0.);
 
     // Only an explicit accept runs hooks, exactly once, after the solve.
     let plain = solve_dc(&c, &context, &NewtonOptions::default(), &[], None, None).unwrap();

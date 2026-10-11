@@ -105,7 +105,8 @@ is therefore the default output, not "`v(out)` only".
 **Ordering.** A selection only ever narrows, and writes in C's `dbs` order:
 every `.save` request in card order, then every applicable `.print` request in
 card order. A sweep keeps its independent vector first (C's `beginPlot()` pass
-0): `.dc` keeps `sweep`, `.ac` keeps `frequency`, `.tran` keeps `time`. An
+0): `.dc` keeps its scale (e.g. `v(v-sweep)`), `.ac` keeps `frequency`,
+`.tran` keeps `time`. An
 operating-point result has no independent vector, so only the requests are
 written. Requests keep their order even when the driver orders the same columns
 differently: `.save v(out) v(in)` writes `v(out)` then `v(in)`, while the
@@ -237,9 +238,8 @@ existing consumer of `Netlist` is untouched.
 
 * ASCII `.plot` and device observations have the bounded M9 support described
   below; unsupported rendering options and device asks fail explicitly.
-* A `.dc` scale column is named `sweep` by the port's driver (C writes
-  `v(v-sweep)`); a selection keeps whatever the driver produced, and the
-  committed-golden comparator maps the name (see [CLI.md](CLI.md)).
+* A `.dc` scale column carries C's name (`v(v-sweep)`, `i(i-sweep)`,
+  `temp-sweep`, `res-sweep` or `v(param-sweep)`); a selection keeps it first.
 * The text table is a bounded rendering of the selected vectors: no `xlimit`,
   no column-width formatting options, and no interactive `print`/`plot`
   commands.

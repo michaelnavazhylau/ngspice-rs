@@ -407,7 +407,7 @@ fn decimal_sweeps_decide_thresholds_at_cs_accumulated_values() {
         &["vc", "0", "2", "0.1"],
     )
     .unwrap();
-    let sweep = column(&plot, "sweep");
+    let sweep = column(&plot, "v(v-sweep)");
     assert_eq!(sweep[10], 0.9999999999999999);
     let a = column(&plot, "v(a)");
     close(a[10], OPEN, 1e-12);

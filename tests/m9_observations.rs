@@ -22,11 +22,7 @@ fn column(plot: &ngspice_rs::analysis::Plot, name: &str) -> Vec<Complex> {
 fn compare(ours: &ngspice_rs::analysis::Plot, c: &ngspice_rs::analysis::Plot) {
     assert_eq!(ours.points.len(), c.points.len());
     for v in &ours.variables {
-        let name = if v.name == "sweep" {
-            "v(v-sweep)"
-        } else {
-            &v.name
-        };
+        let name = v.name.as_str();
         let c_name = if name.starts_with("i(") {
             format!("{}#branch", &name[2..name.len() - 1])
         } else {

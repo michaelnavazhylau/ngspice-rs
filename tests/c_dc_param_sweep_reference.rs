@@ -73,22 +73,20 @@ fn compare(tag: &str, deck: &str, (relative, absolute): (f64, f64)) {
     let c = run_c(tag, deck);
     let rust = run_rust(deck);
     assert_eq!(rust.point_count(), c.point_count(), "{tag}: point counts");
-    let scale = c.variables[0].name.clone();
+    // The port names the scale as C's dctrcurv.c does, so it compares by name.
+    let scale = c.variables[0].name.to_ascii_lowercase();
+    assert_eq!(rust.variables[0].name, scale, "{tag}: scale name");
     let mut compared = 0;
     for variable in &c.variables {
         let name = variable.name.to_ascii_lowercase();
-        let ours_name = if name == scale.to_ascii_lowercase() {
-            "sweep".to_owned()
-        } else if name.starts_with("v(") || name.starts_with("i(") {
-            name.clone()
-        } else {
+        if !(name == scale || name.starts_with("v(") || name.starts_with("i(")) {
             continue;
-        };
+        }
         compared += 1;
         for point in 0..c.point_count() {
             let ours = rust
-                .value(&ours_name, point)
-                .unwrap_or_else(|| panic!("{tag}: Rust has no {ours_name}"))
+                .value(&name, point)
+                .unwrap_or_else(|| panic!("{tag}: Rust has no {name}"))
                 .re;
             let theirs = c.value(&variable.name, point).unwrap().re;
             assert!(

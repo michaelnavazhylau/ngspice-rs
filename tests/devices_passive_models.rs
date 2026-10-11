@@ -351,6 +351,8 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         integration: None,
         states: ngspice_rs::devices::DeviceState::none(),
         forcing: None,
+        source_factor: 1.,
+        voltage_source_value: &mut 0.,
     };
     circuit.devices_mut()[0].stamp(&mut context).unwrap();
     close(matrix.get(0, 0), 1.0 / 1500.0);

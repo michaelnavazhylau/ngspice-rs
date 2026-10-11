@@ -328,10 +328,9 @@ Linear circuits retain exact solving and source-only sweeps reuse LU factors.
 Typed targets: independent V/I sources, circuit temperature and scalar resistance
 (including supported model-backed resistors). One optional outer axis, inner axis
 varying fastest; <=100000 Cartesian points, inclusive reachable endpoints, finite
-signed steps, explicit no-progress/duplicate-target errors. Nested plots append an
-explicit `sweep(outer-name)` column. Immutable point overrides preserve originals
-on success/failure; R/TEMP axes rebuild numerical operators while source-only linear
-axes retain LU reuse. See [DC_SWEEPS.md](DC_SWEEPS.md) for supplied/effective semantics,
+signed steps, explicit no-progress/duplicate-target errors. As in C, nested plots
+carry only the inner axis' scale. Immutable point overrides preserve originals
+on success/failure; every point runs Newton, as in C (no LU reuse across points). See [DC_SWEEPS.md](DC_SWEEPS.md) for supplied/effective semantics,
 analytic tests and eight opt-in live C comparisons. Arbitrary model-setter sweeps
 and >2 axes remain unsupported. Local #34/#35 follow-ups are not yet published.
 
@@ -408,8 +407,8 @@ Each new transient compares 96 physical instants and ten breakpoint limits.
 
 C's default saved signals omit simulator-created internal nodes: verification
 projects only known `NodeKind::Internal` columns from the Rust plot, then retains
-exact external variable-set/unit checks. The public Rust `sweep` scale name is
-normalized to C's `v(v-sweep)`/`i(i-sweep)` naming for verification only.
+exact external variable-set/unit checks. DC scales carry C's own names
+(`v(v-sweep)`, `i(i-sweep)`, ...), so no renaming is needed.
 No model quantities or external signals are excluded to hide an error.
 
 `tests/m4_gate.rs` additionally pins polarity and finite gain,

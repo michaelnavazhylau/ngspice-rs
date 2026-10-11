@@ -296,7 +296,8 @@ pub(crate) fn instantiate(
         let tone = power_function.then(|| {
             rf.as_ref().map_or((0., 0.), |p| {
                 (
-                    (4. * p.z0 * p.power).sqrt(),
+                    // vsrctemp.c: sqrt(VSRCportPower * 4.0 * VSRCportZ0).
+                    (p.power * 4. * p.z0).sqrt(),
                     2. * std::f64::consts::PI * p.frequency,
                 )
             })

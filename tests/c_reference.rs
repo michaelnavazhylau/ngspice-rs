@@ -260,13 +260,15 @@ fn parsed_flags_and_ic_vectors_match_live_c_setter_order() {
     // Independent expectations pin fallthrough/omission and precedence.
     assert_eq!(expected["@dlead[area]"], 2.0);
     assert_eq!(expected["@qfull[area]"], 2.0);
-    assert_eq!(expected["@qfull[icvbe]"], 0.7);
+    // INPevaluate builds a decimal from its digits and power of ten, which is
+    // not always the nearest double: 0.7 and -0.3 land one ulp away.
+    assert_eq!(expected["@qfull[icvbe]"], 0.7000000000000001);
     assert_eq!(expected["@qfull[icvce]"], 4.0);
     assert_eq!(expected["@qpartial[icvce]"], 5.0);
     assert_eq!(expected["@mfull[icvgs]"], 4.0);
     assert_eq!(expected["@mpartial[icvds]"], 0.4);
     assert_eq!(expected["@mpartial[icvgs]"], 6.0);
-    assert_eq!(expected["@mpartial[icvbs]"], -0.3);
+    assert_eq!(expected["@mpartial[icvbs]"], -0.30000000000000004);
     // Model type flags are input-only; successful C setup checks their syntax,
     // not a fictitious scalar query or Rust model polarity implementation.
     assert_reference("flags-ic", FLAGS_IC, expected);

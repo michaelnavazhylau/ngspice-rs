@@ -9,7 +9,8 @@
 //! for the remaining differences from ngspice.
 use crate::analysis::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution, PhasePolicy};
 use crate::devices::{
-    AnalysisMode, Circuit, IterationPhase, LoadRequest, ModelContext, StateHistory, TrialState,
+    AnalysisMode, Circuit, Forcing, IterationPhase, LoadRequest, ModelContext, StateHistory,
+    TrialState,
 };
 use crate::maths::{SparseMatrix, Vector};
 use crate::primitives::{Real, SpiceError, SpiceResult};
@@ -898,7 +899,7 @@ pub fn solve_dc(
     options: &NewtonOptions,
     overrides: &[(&str, f64)],
     initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    forcing: Option<Forcing>,
 ) -> SpiceResult<NewtonSolution<TrialState>> {
     let settings = DcSettings {
         newton: *options,
@@ -911,8 +912,10 @@ pub fn solve_dc(
 
 /// Solve a finalized circuit under explicit [`DcSettings`], reporting attempts.
 ///
-/// Independent source overrides are typed, checked, and applied to a temporary
-/// RHS only. `forcing` replaces source DC values for the transient bias at 0-.
+/// Independent source overrides are typed, checked, and loaded as the sources'
+/// DC values (`dctrcurv.c` sets `dcValue` and `dcGiven`); the circuit is not
+/// modified. `forcing` makes the solve C's MODETRANOP bias: sources load their
+/// time functions at 0 with its one-sided limit, scaled by `CKTsrcFact`.
 /// Direct Newton runs first. Only a [`SpiceError::Numerical`] failure starts
 /// continuation (gmin stepping, then source stepping, as enabled and within the
 /// total iteration budget); any other error is returned at once, unretried.
@@ -929,7 +932,7 @@ pub fn solve_dc_with(
     settings: &DcSettings,
     overrides: &[(&str, f64)],
     initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    forcing: Option<Forcing>,
 ) -> Result<DcSolution, DcFailure> {
     solve_dc_forced(
         circuit,
@@ -955,7 +958,7 @@ pub fn solve_dc_forced(
     settings: &DcSettings,
     overrides: &[(&str, f64)],
     initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    forcing: Option<Forcing>,
     nodes: &NodeForcing,
 ) -> Result<DcSolution, DcFailure> {
     solve(
@@ -1014,7 +1017,7 @@ pub fn solve_dc_from(
 /// the direct attempt's Newton phase policy.
 struct Start<'a> {
     initial: Option<&'a Vector>,
-    forcing: Option<&'a Vector>,
+    forcing: Option<Forcing>,
     history: &'a StateHistory,
     policy: PhasePolicy,
     nodes: &'a NodeForcing,
@@ -1079,8 +1082,8 @@ struct Engine<'a> {
     branches: Vec<bool>,
     /// Rows watched by Newton's voltage-step damping ([`limited_rows`]).
     limited: Option<Vec<bool>>,
-    target: Vector,
-    original: Vector,
+    /// MODETRANOP source forcing ([`Start::forcing`]).
+    forcing: Option<Forcing>,
     nodes: &'a NodeForcing,
     newton: NewtonOptions,
     /// Per-stage limit of the gmin/source-stepping strategies.
@@ -1164,7 +1167,10 @@ impl Engine<'_> {
         let history = self.history;
         let device_limiting = options.limiting.is_device();
         let (reltol, abstol) = (options.reltol, options.abstol);
-        let context = junction.map_or(*self.context, |junction| self.context.with_gmin(junction));
+        // Sources load their value scaled by CKTsrcFact (vsrcload.c).
+        let context = junction
+            .map_or(*self.context, |junction| self.context.with_gmin(junction))
+            .with_source_factor(scale);
         let result = newton::solve_phased(
             guess,
             &self.branches,
@@ -1192,18 +1198,12 @@ impl Engine<'_> {
                         model_context: &context,
                         integration: None,
                         history,
-                        forcing: None,
+                        forcing: self.forcing,
                     },
                     &mut a,
                     &mut b,
                     &mut trial,
                 )?;
-                for row in 0..self.branches.len() {
-                    b.add_to(
-                        row,
-                        scale * self.target.as_slice()[row] - self.original.as_slice()[row],
-                    )?;
-                }
                 // cktload.c: .nodeset rows in MODEINITJCT/MODEINITFIX only,
                 // .ic rows in every load, both scaled by CKTsrcFact.
                 let hinted = matches!(phase, IterationPhase::Junction | IterationPhase::Fix);
@@ -1567,16 +1567,11 @@ fn run(
         ));
     }
     let zero = Vector::zeros(n);
-    let system = circuit.small_signal_system(context, &zero)?;
-    let original = system.dc_rhs(None)?;
-    let mut target = forcing.cloned().unwrap_or_else(|| original.clone());
-    if target.len() != n || !target.is_finite() {
-        return Err(SpiceError::circuit("invalid DC forcing"));
+    let mut loaded = *context;
+    for (name, value) in overrides {
+        loaded = loaded.with_instance_override(circuit.source_override(name, *value, context)?)?;
     }
-    let changes = circuit.dc_source_changes(&system, overrides)?;
-    for (row, change) in changes.as_slice().iter().enumerate() {
-        target.add_to(row, *change)?;
-    }
+    let context = &loaded;
     // Linear circuits take the same CKTop/NIiter path as nonlinear ones, as
     // in ngspice: the same iterations, pivot order and continuation fallbacks.
     let seed = initial.unwrap_or(&zero);
@@ -1695,8 +1690,7 @@ fn run(
         policy: phases,
         branches: branch_rows(circuit),
         limited: limited_rows(circuit),
-        target,
-        original,
+        forcing,
         nodes,
         newton: *options,
         stage_limit,

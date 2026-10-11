@@ -70,6 +70,12 @@ fn assert_column(p: &Plot, name: &str, want: &[f64], relative: f64, absolute: f6
 fn unit(p: &Plot, name: &str) -> String {
     p.variables[p.variable_index(name).unwrap()].unit.clone()
 }
+/// dctrcurv.c writes only the inner axis' scale: no vector holds the outer
+/// value of a nested sweep (the port once appended one as `sweep(<outer>)`).
+fn assert_no_outer_column(p: &Plot) {
+    let names: Vec<_> = p.variables.iter().map(|v| v.name.as_str()).collect();
+    assert!(names.iter().all(|n| !n.starts_with("sweep")), "{names:?}");
+}
 fn grid(start: f64, stop: f64, step: f64) -> SpiceResult<Vec<f64>> {
     SweepSpec {
         target: SweepTarget::VoltageSource("v1".into()),
@@ -173,7 +179,11 @@ fn target_specific_grid_domains() {
     assert!(res(-1., 1., 1.).is_err()); // passes through zero
     assert!(res(0., 1., 1.).is_err());
     assert!(res(1e-320, 1e-320, 1.).is_err()); // infinite conductance
-    assert_eq!(SweepTarget::Resistor("r1".into()).unit(), "resistance");
+    // dctrcurv.c names the scale res-sweep; guess_type gives it type SV_RES.
+    assert_eq!(
+        SweepTarget::Resistor("r1".into()).scale(),
+        ("res-sweep", "res-sweep")
+    );
 }
 
 // ---- run: sources, endpoints, nesting ----------------------------------------
@@ -184,14 +194,21 @@ fn endpoint_rounding_reaches_the_run() {
     let p = run(&mut c, &["v1", "0", "0.3", "0.1"]).unwrap();
     assert_eq!(p.point_count(), 4);
     // ngspice's last value: 0.1 + 0.1 + 0.1, also INPevaluate("0.3").
-    assert_eq!(*column(&p, "sweep").last().unwrap(), 0.30000000000000004);
+    assert_eq!(
+        *column(&p, "v(v-sweep)").last().unwrap(),
+        0.30000000000000004
+    );
     assert_column(&p, "i(v1)", &[0., -1e-4, -2e-4, -3e-4], 1e-12, 1e-18);
     // dctrcurv.c accumulates `value += step`: the reverse sweep ends at
     // 0.3 - 3 * 0.1 in floating point, as ngspice's output does.
     let p = run(&mut c, &["v1", "0.3", "0", "-0.1"]).unwrap();
-    assert_eq!(column(&p, "sweep").last(), Some(&2.7755575615628914e-17));
+    assert_eq!(
+        column(&p, "v(v-sweep)").last(),
+        Some(&2.7755575615628914e-17)
+    );
     assert_eq!(p.point_count(), 4);
-    assert_eq!(unit(&p, "sweep"), "voltage");
+    assert_eq!(p.variables[0].name, "v(v-sweep)");
+    assert_eq!(unit(&p, "v(v-sweep)"), "voltage");
 }
 
 #[test]
@@ -199,8 +216,10 @@ fn nested_voltage_grids_are_inner_fast_forward_and_reverse() {
     let mut c = circuit("v1 a 0 0\nv2 b 0 0\nr1 a b 1k");
     // i(v1) = (v2 - v1)/R; the first axis is inner, as C's dctrcurv loops.
     let p = run(&mut c, &["v1", "0", "1", "0.5", "v2", "1", "2", "1"]).unwrap();
-    assert_column(&p, "sweep", &[0., 0.5, 1., 0., 0.5, 1.], 0., 1e-15);
-    assert_column(&p, "sweep(v2)", &[1., 1., 1., 2., 2., 2.], 0., 0.);
+    assert_column(&p, "v(v-sweep)", &[0., 0.5, 1., 0., 0.5, 1.], 0., 1e-15);
+    // The outer value is observable only through the solution: v(b) = V2.
+    assert_no_outer_column(&p);
+    assert_column(&p, "v(b)", &[1., 1., 1., 2., 2., 2.], 1e-12, 1e-15);
     assert_column(
         &p,
         "i(v1)",
@@ -208,13 +227,10 @@ fn nested_voltage_grids_are_inner_fast_forward_and_reverse() {
         1e-12,
         1e-15,
     );
-    assert_eq!(
-        (unit(&p, "sweep"), unit(&p, "sweep(v2)")),
-        ("voltage".into(), "voltage".into())
-    );
+    assert_eq!(unit(&p, "v(v-sweep)"), "voltage");
     let p = run(&mut c, &["v1", "1", "0", "-0.5", "v2", "2", "1", "-1"]).unwrap();
-    assert_column(&p, "sweep", &[1., 0.5, 0., 1., 0.5, 0.], 0., 1e-15);
-    assert_column(&p, "sweep(v2)", &[2., 2., 2., 1., 1., 1.], 0., 0.);
+    assert_column(&p, "v(v-sweep)", &[1., 0.5, 0., 1., 0.5, 0.], 0., 1e-15);
+    assert_column(&p, "v(b)", &[2., 2., 2., 1., 1., 1.], 1e-12, 1e-15);
     assert_column(
         &p,
         "i(v1)",
@@ -230,8 +246,16 @@ fn nested_current_and_voltage_grids_forward_and_reverse() {
     let mut c = circuit("i1 0 a 0\nv2 b 0 0\nr1 a 0 1k\nr2 a b 1k");
     let va = |i: f64, v2: f64| (i * 1e3 + v2) / 2.;
     let p = run(&mut c, &["i1", "0", "2m", "1m", "v2", "0", "2", "2"]).unwrap();
-    assert_column(&p, "sweep", &[0., 1e-3, 2e-3, 0., 1e-3, 2e-3], 1e-12, 1e-18);
-    assert_column(&p, "sweep(v2)", &[0., 0., 0., 2., 2., 2.], 0., 0.);
+    assert_column(
+        &p,
+        "i(i-sweep)",
+        &[0., 1e-3, 2e-3, 0., 1e-3, 2e-3],
+        1e-12,
+        1e-18,
+    );
+    // The outer value is observable only through the solution: v(b) = V2.
+    assert_no_outer_column(&p);
+    assert_column(&p, "v(b)", &[0., 0., 0., 2., 2., 2.], 1e-12, 1e-15);
     let want: Vec<_> = [
         (0., 0.),
         (1e-3, 0.),
@@ -244,13 +268,16 @@ fn nested_current_and_voltage_grids_forward_and_reverse() {
     .map(|(i, v)| va(*i, *v))
     .collect();
     assert_column(&p, "v(a)", &want, 1e-12, 1e-15);
-    assert_eq!(
-        (unit(&p, "sweep"), unit(&p, "sweep(v2)")),
-        ("current".into(), "voltage".into())
-    );
+    assert_eq!(unit(&p, "i(i-sweep)"), "current");
     let p = run(&mut c, &["i1", "2m", "0", "-1m", "v2", "2", "0", "-2"]).unwrap();
-    assert_column(&p, "sweep", &[2e-3, 1e-3, 0., 2e-3, 1e-3, 0.], 1e-12, 1e-18);
-    assert_column(&p, "sweep(v2)", &[2., 2., 2., 0., 0., 0.], 0., 0.);
+    assert_column(
+        &p,
+        "i(i-sweep)",
+        &[2e-3, 1e-3, 0., 2e-3, 1e-3, 0.],
+        1e-12,
+        1e-18,
+    );
+    assert_column(&p, "v(b)", &[2., 2., 2., 0., 0., 0.], 1e-12, 1e-15);
     let want: Vec<_> = [
         (2e-3, 2.),
         (1e-3, 2.),
@@ -273,12 +300,13 @@ fn literal_resistor_grids_recompute_the_operator_at_every_point() {
     let mut c = circuit("v1 a 0 2\nr1 a b 1k\nr2 b 0 1k");
     let rs = [500., 1000., 1500., 2000.];
     let p = run(&mut c, &["r1", "500", "2k", "500"]).unwrap();
-    assert_column(&p, "sweep", &rs, 1e-12, 0.);
+    assert_column(&p, "res-sweep", &rs, 1e-12, 0.);
     let vb: Vec<_> = rs.iter().map(|r| 2. * 1e3 / (r + 1e3)).collect();
     assert_column(&p, "v(b)", &vb, 1e-12, 1e-15);
     let i: Vec<_> = rs.iter().map(|r| -2. / (r + 1e3)).collect();
     assert_column(&p, "i(v1)", &i, 1e-12, 1e-15);
-    assert_eq!(unit(&p, "sweep"), "resistance");
+    // dctrcurv.c names the scale res-sweep; guess_type (outitf.c) types it by name.
+    assert_eq!(unit(&p, "res-sweep"), "res-sweep");
     // Reverse resistor grid on the other resistor.
     let p = run(&mut c, &["r2", "2k", "1k", "-500"]).unwrap();
     assert_column(
@@ -297,35 +325,34 @@ fn literal_resistor_grids_recompute_the_operator_at_every_point() {
 fn nested_source_and_resistor_axes_mix_rhs_offsets_with_replaced_operators() {
     // The first axis is inner (fast) and it is a source, while the outer axis
     // replaces a resistor: the point mixes a temporary RHS offset with a
-    // rebuilt operator, and the plot carries both nested columns.
+    // rebuilt operator. The plot carries only the inner scale, as C's does.
     let mut c = circuit("v1 in 0 1\nr1 in out 1k\nr2 out 0 1k");
     let p = run(&mut c, &["v1", "0", "1", "0.5", "r1", "1k", "2k", "1k"]).unwrap();
     assert_eq!(p.point_count(), 6);
-    assert_column(&p, "sweep", &[0., 0.5, 1., 0., 0.5, 1.], 0., 1e-15);
-    assert_column(&p, "sweep(r1)", &[1e3, 1e3, 1e3, 2e3, 2e3, 2e3], 1e-12, 0.);
+    assert_column(&p, "v(v-sweep)", &[0., 0.5, 1., 0., 0.5, 1.], 0., 1e-15);
+    assert_no_outer_column(&p);
     let vout = [1e3, 2e3]
         .into_iter()
         .flat_map(|r1| [0., 0.5, 1.].map(move |v1| v1 * 1e3 / (r1 + 1e3)));
     assert_column(&p, "v(out)", &vout.collect::<Vec<_>>(), 1e-12, 1e-15);
-    assert_eq!(
-        (unit(&p, "sweep"), unit(&p, "sweep(r1)")),
-        ("voltage".into(), "resistance".into())
-    );
+    assert_eq!(unit(&p, "v(v-sweep)"), "voltage");
     // Reverse on both axes keeps the inner-fast ordering.
     let p = run(&mut c, &["v1", "1", "0", "-0.5", "r1", "2k", "1k", "-1k"]).unwrap();
-    assert_column(&p, "sweep", &[1., 0.5, 0., 1., 0.5, 0.], 0., 1e-15);
-    assert_column(&p, "sweep(r1)", &[2e3, 2e3, 2e3, 1e3, 1e3, 1e3], 1e-12, 0.);
+    assert_column(&p, "v(v-sweep)", &[1., 0.5, 0., 1., 0.5, 0.], 0., 1e-15);
+    let vout = [2e3, 1e3]
+        .into_iter()
+        .flat_map(|r1| [1., 0.5, 0.].map(move |v1| v1 * 1e3 / (r1 + 1e3)));
+    assert_column(&p, "v(out)", &vout.collect::<Vec<_>>(), 1e-12, 1e-15);
 }
 
 #[test]
 fn two_resistor_axes_nest_inner_fast_and_reject_the_same_resistor_twice() {
     let mut c = circuit("v1 a 0 2\nr1 a b 1k\nr2 b 0 1k");
     let p = run(&mut c, &["r1", "1k", "2k", "1k", "r2", "1k", "3k", "2k"]).unwrap();
-    assert_column(&p, "sweep", &[1e3, 2e3, 1e3, 2e3], 1e-12, 0.);
-    assert_column(&p, "sweep(r2)", &[1e3, 1e3, 3e3, 3e3], 1e-12, 0.);
+    assert_column(&p, "res-sweep", &[1e3, 2e3, 1e3, 2e3], 1e-12, 0.);
+    assert_no_outer_column(&p);
     let vb = [(1e3, 1e3), (2e3, 1e3), (1e3, 3e3), (2e3, 3e3)].map(|(r1, r2)| 2. * r2 / (r1 + r2));
     assert_column(&p, "v(b)", &vb, 1e-12, 1e-15);
-    assert_eq!(unit(&p, "sweep(r2)"), "resistance");
     assert!(run(&mut c, &["r1", "1k", "2k", "1k", "R1", "1k", "2k", "1k"]).is_err());
 }
 
@@ -360,23 +387,19 @@ fn resistor_and_temperature_axes_in_both_orders_recompute_model_backed_values() 
     let mut c = circuit("v1 a 0 1\nr1 a 0 rm\n.model rm r(r=1k tc1=0.01)");
     let r = |supplied: f64, t: f64| supplied * (1. + 0.01 * (t - 27.));
     let p = run(&mut c, &["r1", "1k", "2k", "1k", "temp", "27", "47", "20"]).unwrap();
-    assert_column(&p, "sweep", &[1e3, 2e3, 1e3, 2e3], 1e-12, 0.);
-    assert_column(&p, "sweep(temp)", &[27., 27., 47., 47.], 0., 0.);
+    // Only the inner scale is written; i(v1) carries the outer value.
+    assert_column(&p, "res-sweep", &[1e3, 2e3, 1e3, 2e3], 1e-12, 0.);
+    assert_no_outer_column(&p);
     let want = [(1e3, 27.), (2e3, 27.), (1e3, 47.), (2e3, 47.)].map(|(s, t)| -1. / r(s, t));
     assert_column(&p, "i(v1)", &want, 1e-9, 0.);
-    assert_eq!(
-        (unit(&p, "sweep"), unit(&p, "sweep(temp)")),
-        ("resistance".into(), "temperature".into())
-    );
+    // dctrcurv.c's scale names; guess_type (outitf.c) types them by name.
+    assert_eq!(unit(&p, "res-sweep"), "res-sweep");
     let p = run(&mut c, &["temp", "27", "47", "20", "r1", "1k", "2k", "1k"]).unwrap();
-    assert_column(&p, "sweep", &[27., 47., 27., 47.], 0., 0.);
-    assert_column(&p, "sweep(r1)", &[1e3, 1e3, 2e3, 2e3], 1e-12, 0.);
+    assert_column(&p, "temp-sweep", &[27., 47., 27., 47.], 0., 0.);
+    assert_no_outer_column(&p);
     let want = [(1e3, 27.), (1e3, 47.), (2e3, 27.), (2e3, 47.)].map(|(s, t)| -1. / r(s, t));
     assert_column(&p, "i(v1)", &want, 1e-9, 0.);
-    assert_eq!(
-        (unit(&p, "sweep"), unit(&p, "sweep(r1)")),
-        ("temperature".into(), "resistance".into())
-    );
+    assert_eq!(unit(&p, "temp-sweep"), "temp-sweep");
 }
 
 #[test]
@@ -385,7 +408,7 @@ fn temperature_sweeps_recompute_models_and_instance_temp_stays_fixed() {
     let mut c =
         circuit("v1 a 0 1\nr1 a 0 rm temp=77\nr2 a 0 rm\n.model rm r(r=1k tc1=0.01 tnom=27)");
     let p = run(&mut c, &["temp", "27", "47", "10"]).unwrap();
-    assert_column(&p, "sweep", &[27., 37., 47.], 0., 0.);
+    assert_column(&p, "temp-sweep", &[27., 37., 47.], 0., 0.);
     let want: Vec<_> = [27., 37., 47.]
         .iter()
         .map(|t| -(1. / 1500. + 1. / (1e3 * (1. + 0.01 * (t - 27.)))))
@@ -529,7 +552,9 @@ fn programmatic_names_resolve_by_physical_kind_and_keep_their_case() {
         1e-15,
     );
     let p = run(&mut c, &["r9", "0", "2", "1", "load", "1k", "3k", "2k"]).unwrap();
-    assert_eq!(p.variables.last().unwrap().name, "sweep(Load)");
+    // r9 is a voltage source; the outer `Load` axis gets no column.
+    assert_eq!(p.variables[0].name, "v(v-sweep)");
+    assert_no_outer_column(&p);
     let want = [
         (0., 1e3),
         (1., 1e3),
@@ -548,7 +573,8 @@ fn programmatic_names_resolve_by_physical_kind_and_keep_their_case() {
 #[derive(Debug)]
 struct Probe {
     node: NodeId,
-    assembled: Rc<Cell<usize>>,
+    /// Newton loads (`stamp` calls).
+    loads: Rc<Cell<usize>>,
     accepted: Rc<Cell<usize>>,
 }
 impl Device for Probe {
@@ -562,10 +588,10 @@ impl Device for Probe {
         std::slice::from_ref(&self.node)
     }
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
+        self.loads.set(self.loads.get() + 1);
         context.stamp(self.node, self.node, 1e-3)
     }
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
-        self.assembled.set(self.assembled.get() + 1);
         context.nodal([self.node, NodeId::GROUND], 1e-3, false)
     }
     fn accept(&self, _: &AcceptContext<'_>) -> SpiceResult<()> {
@@ -574,16 +600,16 @@ impl Device for Probe {
     }
 }
 fn probe(c: &mut Circuit, node: &str) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
-    let (assembled, accepted) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
+    let (loads, accepted) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
     let node = c.nodes().get(node).unwrap();
     c.add_device(Box::new(Probe {
         node,
-        assembled: assembled.clone(),
+        loads: loads.clone(),
         accepted: accepted.clone(),
     }))
     .unwrap();
     c.finalize().unwrap();
-    (assembled, accepted)
+    (loads, accepted)
 }
 
 /// A nonlinear-flagged 1 mS device that fails numerically when |v| exceeds `limit`,
@@ -639,36 +665,26 @@ fn gated(body: &str, limit: f64) -> (Circuit, Rc<Cell<usize>>) {
     (c, accepted)
 }
 
-// ---- factor reuse boundary --------------------------------------------------------
+// ---- per-point Newton loads -----------------------------------------------------------
 
 #[test]
-fn source_only_linear_sweeps_reuse_one_factor_but_resistor_and_temperature_axes_do_not() {
-    let make = || {
-        let mut c = circuit("v1 a 0 1\nr1 a b 1k\nr2 b 0 1k");
-        let (assembled, _) = probe(&mut c, "b");
-        (c, assembled)
-    };
+fn every_linear_sweep_point_runs_newton_whatever_the_axis() {
+    // dctrcurv.c runs NIiter at every point, linear circuits included: there
+    // is no factor reuse across points. A linear point converges on its
+    // second load (the first solve, then the confirming iteration), for a
+    // source axis as for a resistor or temperature axis.
     let count = |args: &[&str]| {
-        let (mut c, assembled) = make();
+        let mut c = circuit("v1 a 0 1\nr1 a b 1k\nr2 b 0 1k");
+        let (loads, _) = probe(&mut c, "b");
         run(&mut c, args).unwrap();
-        assembled.get()
+        loads.get()
     };
-    // Source-only: the operator is assembled exactly twice (one probe assembly
-    // in `resolve`, then one factor reused for every right-hand side).
-    let few = count(&["v1", "0", "1", "0.5"]);
-    let many = count(&["v1", "0", "2", "0.25"]);
-    assert_eq!(few, many);
-    assert_eq!(few, 2);
-    // Resistor axis: one assembly per extra point.
-    let few = count(&["r1", "1k", "3k", "1k"]);
-    let many = count(&["r1", "1k", "6k", "1k"]);
-    assert_eq!(many - few, 3);
-    // Temperature axis: the probe and every Cartesian point, re-assembled once
-    // for the preflight context check and once for the solved point.
-    let few = count(&["temp", "0", "10", "5"]);
-    let many = count(&["temp", "0", "20", "5"]);
-    assert_eq!(few, 1 + 3 + 3);
-    assert_eq!(many, 1 + 5 + 5);
+    let three = count(&["v1", "0", "1", "0.5"]);
+    assert_eq!(count(&["v1", "0", "2", "0.25"]) - three, 2 * 6);
+    assert_eq!(count(&["r1", "1k", "3k", "1k"]), three);
+    assert_eq!(count(&["r1", "1k", "6k", "1k"]) - three, 2 * 3);
+    assert_eq!(count(&["temp", "0", "10", "5"]), three);
+    assert_eq!(count(&["temp", "0", "20", "5"]) - three, 2 * 2);
 }
 
 // ---- restoration and failure ---------------------------------------------------------

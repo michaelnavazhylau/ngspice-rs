@@ -122,7 +122,8 @@ fn source_function_values_match_c_at_c_timepoints() {
     let cards = format!("{SOURCES}{}", loads());
     let (plot, text) = run_c("values", &cards, "tran 10u 2m", "");
     let plot = plot.unwrap_or_else(|| panic!("no C rawfile:\n{text}"));
-    let mut system = Circuit::from_netlist(&rust_netlist(&format!("t\n{cards}.end\n")))
+    let netlist = rust_netlist(&format!("t\n{cards}.end\n"));
+    let mut system = Circuit::from_netlist(&netlist)
         .unwrap()
         .linear_system()
         .unwrap();
@@ -132,8 +133,15 @@ fn source_function_values_match_c_at_c_timepoints() {
     let time: Vec<Real> = plot.column("time").unwrap().iter().map(|v| v.re).collect();
     assert!(time.len() > 200, "C wrote {} rows", time.len());
     let mut compared = 0;
-    for (k, source) in system.sources.iter().enumerate() {
-        let node = format!("v(n{})", k + 1);
+    // The system lists sources in C's load order, so each is matched to the
+    // node its own card drives.
+    for source in &system.sources {
+        let card = netlist
+            .devices
+            .iter()
+            .find(|d| d.name.eq_ignore_ascii_case(&source.name))
+            .unwrap();
+        let node = format!("v({})", card.nodes[0].to_ascii_lowercase());
         let scale = match source.kind {
             SourceKind::Voltage => 1.,
             SourceKind::Current => -1e3,

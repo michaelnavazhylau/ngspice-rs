@@ -1317,53 +1317,20 @@ fn run_card_plots(
         .collect();
     let plots = plots
         .into_iter()
-        .map(|plot| project(plot, request.kind, &internal))
+        .map(|plot| project(plot, &internal))
         .collect();
     Ok((request, plots))
 }
 
-/// Projects one Rust plot onto C's default save set and naming (see
-/// [`run_card_plots`]).
-fn project(
-    mut got: ngspice_rs::analysis::Plot,
-    kind: AnalysisKind,
-    internal: &[String],
-) -> ngspice_rs::analysis::Plot {
+/// Projects one Rust plot onto C's default save set (see
+/// [`run_card_plots`]). Vector names already follow C, including the DC
+/// sweep scales (`dctrcurv.c`).
+fn project(mut got: ngspice_rs::analysis::Plot, internal: &[String]) -> ngspice_rs::analysis::Plot {
     for column in (0..got.variables.len()).rev() {
         if internal.contains(&got.variables[column].name) {
             got.variables.remove(column);
             for row in &mut got.points {
                 row.remove(column);
-            }
-        }
-    }
-    if kind == AnalysisKind::DcSweep && got.variables.first().is_some_and(|v| v.name == "sweep") {
-        // Rust's public DC scale name predates the nonlinear gate; C wraps its
-        // independent-source scale in the voltage/current naming convention,
-        // and names a temperature scale (and its unit) `temp-sweep`, a
-        // resistance scale `res-sweep` and an `@inst[param]` scale
-        // `param-sweep`, which its rawfile writes as a voltage
-        // (`dctrcurv.c`).
-        let (name, unit) = match got.variables[0].unit.as_str() {
-            "voltage" => ("v(v-sweep)", None),
-            "temperature" => ("temp-sweep", Some("temp-sweep")),
-            "resistance" => ("res-sweep", Some("res-sweep")),
-            "parameter" => ("v(param-sweep)", Some("voltage")),
-            _ => ("i(i-sweep)", None),
-        };
-        got.variables[0].name = name.into();
-        if let Some(unit) = unit {
-            got.variables[0].unit = unit.into();
-        }
-        // A nested sweep's outer value is a Rust-only `sweep(<name>)` column;
-        // C writes every point of a nested `.dc` without it (the outer source
-        // value is still checked through the node voltages and currents).
-        for column in (1..got.variables.len()).rev() {
-            if got.variables[column].name.starts_with("sweep(") {
-                got.variables.remove(column);
-                for row in &mut got.points {
-                    row.remove(column);
-                }
             }
         }
     }

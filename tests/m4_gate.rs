@@ -287,6 +287,9 @@ fn typed_nested_source_and_temperature_sweeps_are_bounded_and_nonmutating() {
     )
     .unwrap();
     assert_eq!(p.point_count(), 6);
+    // C (dctrcurv.c) writes only the inner scale; v(b) carries the outer v2.
+    assert_eq!(p.variables[0].name, "v(v-sweep)");
+    assert!(p.variable_index("sweep(v2)").is_none());
     for row in 0..6 {
         let inner = (row % 3) as f64 * 0.5;
         let outer = 1. + (row / 3) as f64;
@@ -296,7 +299,8 @@ fn typed_nested_source_and_temperature_sweeps_are_bounded_and_nonmutating() {
             1e-12,
             1e-15,
         );
-        close(p.value("sweep(v2)", row).unwrap().re, outer, 0., 0.);
+        close(p.value("v(v-sweep)", row).unwrap().re, inner, 0., 0.);
+        close(p.value("v(b)", row).unwrap().re, outer, 1e-12, 1e-15);
     }
     let original = run(&mut c, AnalysisKind::OperatingPoint, &[]).unwrap();
     close(original.value("v(a)", 0).unwrap().re, 1., 0., 1e-15);

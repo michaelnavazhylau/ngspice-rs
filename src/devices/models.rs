@@ -343,6 +343,9 @@ pub struct ModelContext {
     /// SPARSE pivot thresholds for every circuit matrix a load or assembly
     /// fills (C `CKTpivotAbsTol`/`CKTpivotRelTol`, `.option pivtol`/`pivrel`).
     pub pivot: crate::maths::PivotTolerances,
+    /// C's `CKTsrcFact`: the source-stepping factor independent sources
+    /// scale their loaded value by (1 outside source stepping).
+    pub source_factor: Real,
 }
 
 /// ngspice's default junction `gmin` (`cktntask.c`: `TSKgmin = 1e-12`).
@@ -366,6 +369,7 @@ impl ModelContext {
             frequency: 0.,
             spice3_noise: false,
             pivot: crate::maths::PivotTolerances::DEFAULT,
+            source_factor: 1.,
         }
     }
 
@@ -374,6 +378,13 @@ impl ModelContext {
     #[must_use]
     pub const fn with_pivot_tolerances(mut self, pivot: crate::maths::PivotTolerances) -> Self {
         self.pivot = pivot;
+        self
+    }
+
+    /// This context with C's `CKTsrcFact` replaced ([`Self::source_factor`]).
+    #[must_use]
+    pub const fn with_source_factor(mut self, factor: Real) -> Self {
+        self.source_factor = factor;
         self
     }
 

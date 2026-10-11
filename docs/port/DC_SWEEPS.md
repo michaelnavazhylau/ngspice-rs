@@ -72,9 +72,9 @@ below are its output; nothing in the C tree was changed):
 - **Vector naming.** The scale of the inner axis is `v-sweep`/`i-sweep`/
   `temp-sweep`/`res-sweep`/`param-sweep`; the rawfile writes `param-sweep` as
   `v(param-sweep)` of type voltage and `res-sweep` with type `res-sweep`. C
-  writes no column for the outer value. The port's public plot keeps its
-  `sweep` scale (unit `parameter` for `@inst[param]`) and its `sweep(<outer>)`
-  column; `golden verify` maps both conventions.
+  writes no column for the outer value. The port's plots use the same names
+  and types (`SweepTarget::scale`), with the rawfile's `v(...)`/`i(...)`
+  wrapping in the vector name, and no outer column.
 - **Accuracy.** At C's default `reltol=1e-3` the warm-started points stop up to
   ~3e-4 V from the root of a diode sweep; with `.options reltol=1e-8` C and the
   port agree to well under 1 ppm, so every nonlinear comparison sets it.
@@ -132,8 +132,13 @@ ordinals and non-resistor/non-scalar targets are errors. Overrides are circuit-l
 like node IDs: do not reuse them with a different circuit or after device reordering.
 Per-point contexts reach configured `bias::solve_dc_with` through `&ModelContext`.
 
-Sources are overridden as before (temporary RHS offsets), and temperature is the
-per-point `ModelContext::temperature`.
+Sources are overridden through the same per-point instance overrides, as a
+`dc` value that also marks DC as given (`dctrcurv.c` sets `dcValue` and
+`dcGiven`): the source then loads `dc * CKTsrcFact` itself (`vsrcload.c`,
+`isrcload.c`), so the swept value reaches the right-hand side exactly as in C,
+and a PORT without DC adds its cosine to that loaded value when it follows the
+swept source in load order. Temperature is the per-point
+`ModelContext::temperature`.
 
 ## Grids
 
@@ -168,15 +173,14 @@ up front with zero accepted points. Convergence failures of nonlinear points
 remain run-time errors; they return `Err` and no plot, and device accept hooks
 have run only for points that were solved.
 
-## Factor reuse and warm starts
+## Newton at every point and warm starts
 
-A linear circuit swept over **sources only** assembles and factors the operator
-exactly twice - one probe assembly in `resolve`, then one factor reused for every
-right-hand side, pinned as an absolute count rather than a comparison. A resistor
-or temperature axis changes the operator, so each point re-assembles and re-solves
-through configured `bias::solve_dc_with` (tests pin one operator assembly per
-additional point, and a 1k/1k divider swept over `r1` must not return 1 V at every
-point, which detects a stale factor). Nonlinear circuits keep seeding each Newton
+As in `dctrcurv.c`, every point runs NIiter through `bias::solve_dc_from`,
+linear circuits and source-only axes included: there is no factor reuse
+across points (the port once solved source-only linear sweeps with one reused
+LU, which rounded differently from C). A linear point converges on its second
+load, whatever the axis (pinned by load counts), and a 1k/1k divider swept over
+`r1` must not return 1 V at every point. Nonlinear circuits keep seeding each Newton
 solve with the previous accepted point (and `.nodeset` for the first); that
 threading is pinned by a ramp that converges under a per-solve budget too small
 for a cold solve of its own final point. Each nonlinear point's converged state
@@ -205,7 +209,7 @@ target keeps the instance's spelling and the canonical keyword
 
 | Written | Route | Applied as |
 | --- | --- | --- |
-| `@v1[dc]` | `VoltageSource` | the V-source target (factor reuse kept) |
+| `@v1[dc]` | `VoltageSource` | the V-source target |
 | `@i1[dc]`, `@i1[c]` | `CurrentSource` | the I-source target |
 | `@r1[r]`, `@r1[resistance]` | `Resistor` | the resistor target (`RESparam` + `REStemp` equal `RESresist` + `RESupdate_conduct`) |
 | supported device parameter | `Device` | a per-point device replacement |

@@ -203,10 +203,11 @@ fn the_forward_dc_sweep_writes_the_requested_grid() {
     assert_eq!(plot.plotname, "DC transfer characteristic");
     assert_eq!(plot.flags, PlotFlags::Real);
     let names: Vec<&str> = plot.variables.iter().map(|v| v.name.as_str()).collect();
-    assert_eq!(names, ["sweep", "v(in)", "v(out)", "i(v1)"]);
+    // C's dctrcurv.c scale for a voltage-source sweep, as its rawfile names it.
+    assert_eq!(names, ["v(v-sweep)", "v(in)", "v(out)", "i(v1)"]);
     assert_eq!(plot.point_count(), 6, "0, 1, 2, 3, 4 and 5 volts");
     for point in 0..plot.point_count() {
-        let volts = plot.value("sweep", point).unwrap().re;
+        let volts = plot.value("v(v-sweep)", point).unwrap().re;
         assert!((volts - point as f64).abs() < 1e-12, "point {point}");
         assert!((plot.value("v(in)", point).unwrap().re - volts).abs() < 1e-12);
         assert!((plot.value("v(out)", point).unwrap().re - volts / 2.0).abs() < 1e-12);
@@ -229,7 +230,7 @@ fn the_reverse_dc_sweep_descends_through_the_same_grid() {
     let written = RawFile::load(&output).expect("parses");
     let plot = written.single_plot().unwrap();
     let volts: Vec<f64> = plot
-        .column("sweep")
+        .column("v(v-sweep)")
         .expect("the sweep column")
         .iter()
         .map(|value| value.re)
@@ -398,7 +399,7 @@ fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
         "{report}"
     );
 
-    let mut written = RawFile::load(&output).expect("parses");
+    let written = RawFile::load(&output).expect("parses");
     let committed = golden("multi_analysis_rc");
     assert_eq!(plotnames(&written), plotnames(&committed));
     assert_eq!(
@@ -417,9 +418,7 @@ fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
             "{raw_plot:?}"
         );
     }
-    // The port names the DC scale `sweep`; C writes `v(v-sweep)` (CLI.md).
-    assert_eq!(written.plots[1].plot.variables[0].name, "sweep");
-    written.plots[1].plot.variables[0].name = "v(v-sweep)".to_owned();
+    assert_eq!(written.plots[1].plot.variables[0].name, "v(v-sweep)");
     for (index, (got, want)) in written.plots.iter().zip(&committed.plots).enumerate() {
         let (relative, absolute) = if got.plot.flags == PlotFlags::Complex {
             (1e-10, 1e-12)
@@ -474,7 +473,7 @@ fn same_type_analyses_run_in_reverse_deck_order_with_c_plot_names() {
         ]
     );
     let last_sweep = |plot: &ngspice_rs::analysis::Plot| {
-        plot.value("sweep", plot.point_count() - 1)
+        plot.value("v(v-sweep)", plot.point_count() - 1)
             .expect("a sweep column")
             .re
     };
@@ -486,7 +485,9 @@ fn same_type_analyses_run_in_reverse_deck_order_with_c_plot_names() {
     assert_eq!(last_sweep(&written.plots[1].plot), 1.0);
     let report = stdout(&run);
     assert_eq!(
-        report.matches("print: 2 vector(s): sweep v(out)").count(),
+        report
+            .matches("print: 2 vector(s): v(v-sweep) v(out)")
+            .count(),
         2,
         "one table per dc plot: {report}"
     );
@@ -844,28 +845,31 @@ fn a_dc_print_card_selects_and_prints_the_requested_vectors() {
     assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
     let report = stdout(&run);
     assert!(
-        report.contains("variables: sweep v(out) i(v1)"),
+        report.contains("variables: v(v-sweep) v(out) i(v1)"),
         "a sweep keeps its scale column first: {report}"
     );
     assert!(
-        report.contains("print: 3 vector(s): sweep v(out) i(v1)"),
+        report.contains("print: 3 vector(s): v(v-sweep) v(out) i(v1)"),
         "{report}"
     );
     assert!(
         report.contains("values: real with 15 fractional digits"),
         "{report}"
     );
-    assert!(report.contains("  point  sweep  v(out)  i(v1)"), "{report}");
+    assert!(
+        report.contains("  point  v(v-sweep)  v(out)  i(v1)"),
+        "{report}"
+    );
 
     let written = RawFile::load(&output).expect("parses");
     let plot = written.single_plot().unwrap();
     assert_eq!(plot.variable_count(), 3);
     assert_eq!(plot.point_count(), 6);
     for point in 0..plot.point_count() {
-        let volts = plot.value("sweep", point).unwrap().re;
+        let volts = plot.value("v(v-sweep)", point).unwrap().re;
         // The table spells the values exactly as the rawfile does.
         for (name, value) in [
-            ("sweep", plot.value("sweep", point).unwrap()),
+            ("v(v-sweep)", plot.value("v(v-sweep)", point).unwrap()),
             ("v(out)", plot.value("v(out)", point).unwrap()),
             ("i(v1)", plot.value("i(v1)", point).unwrap()),
         ] {
@@ -1562,9 +1566,6 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     // order differs for this deck).
     for (got, want) in written.plots.iter().zip(&committed.plots) {
         let mut want_names = variable_names(&want.plot);
-        if want_names.first() == Some(&"v(v-sweep)") {
-            want_names[0] = "sweep";
-        }
         let mut got_names = variable_names(&got.plot);
         got_names.sort_unstable();
         want_names.sort_unstable();
@@ -1600,7 +1601,7 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     );
     // DC: the secondary shorts v(s1) to ground, so v(out) = -9 vref, and the
     // limiter and sense follow it exactly at every point.
-    let sweep = column(1, "sweep");
+    let sweep = column(1, "v(v-sweep)");
     let (out, lim, isense) = (
         column(1, "v(out)"),
         column(1, "v(lim)"),
