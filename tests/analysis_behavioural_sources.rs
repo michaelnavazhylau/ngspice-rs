@@ -173,7 +173,16 @@ fn transient_time_functions_are_evaluated_at_each_accepted_time() {
         };
         let o = (2. * std::f64::consts::PI * 1e3 * t).sin() + pwl;
         close(value(&plot, "v(o)", point), o, 1e-9);
-        close(value(&plot, "v(p)", point), o * o, 1e-9);
+        // b2 reads v(o) of the iterate its load used: NIiter returns that
+        // iterate (CKTrhsOld) once successive iterates agree within vntol, so
+        // v(p) may lag one pass by NIconvTest's tolerance, reltol |v| +
+        // vntol (1e-3, 1e-6 V), as in ngspice.
+        let p = value(&plot, "v(p)", point);
+        assert!(
+            (p - o * o).abs() <= 1e-3 * (o * o) + 1e-6,
+            "{p} != {}",
+            o * o
+        );
     }
 }
 

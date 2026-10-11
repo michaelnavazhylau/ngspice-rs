@@ -615,21 +615,30 @@ mod tests {
             a.add(0, 0, 1.)?;
             Ok((a, Vector::zeros(1), ()))
         };
-        let mut far = Vector::zeros(1);
-        far.add_to(0, 1e12).unwrap();
+        // x_{n+1} = x_n + 1 never converges.
+        let drifting = |x: &Vector| -> SpiceResult<(SparseMatrix, Vector, ())> {
+            let mut a = SparseMatrix::new(1, 1);
+            a.add(0, 0, 1.)?;
+            let mut b = Vector::zeros(1);
+            b.add_to(0, x.as_slice()[0] + 1.)?;
+            Ok((a, b, ()))
+        };
+        let far = Vector::zeros(1);
         let options = NewtonOptions {
             max_iterations: 3,
             ..NewtonOptions::default()
         };
-        let failure = solve_counted(&far, &[false], &options, identity).unwrap_err();
-        assert_eq!(failure.iterations, 3);
+        // NIiter fails after the solve that exceeds the limit: 3 + 1 passes.
+        let failure = solve_counted(&far, &[false], &options, drifting).unwrap_err();
+        assert_eq!(failure.iterations, 4);
         assert!(failure.error.to_string().contains("iteration limit"));
         assert_eq!(
-            solve(&far, &[false], &options, identity).unwrap_err(),
+            solve(&far, &[false], &options, drifting).unwrap_err(),
             failure.error
         );
+        // MODEINITJCT, MODEINITFIX, then a converged MODEINITFLOAT pass.
         let solved = solve_counted(&Vector::zeros(1), &[false], &options, identity).unwrap();
-        assert_eq!(solved.iterations, 1);
+        assert_eq!(solved.iterations, 3);
         let rejected = NewtonOptions {
             max_iterations: 0,
             ..options

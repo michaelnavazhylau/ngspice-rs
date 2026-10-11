@@ -464,6 +464,15 @@ fn gmin_stepping_resolves_a_singular_initial_jacobian_without_accepting_trials()
         accepted: std::rc::Rc<std::cell::Cell<usize>>,
     }
     impl ngspice_rs::devices::Device for Cubic {
+        /// Like a C DEVsetup, allocate the elements even though the load
+        /// stamps zero at v = 0 (where LoadGmin then acts).
+        fn setup_matrix(
+            &self,
+            setup: &mut ngspice_rs::devices::setup::MatrixSetup<'_>,
+        ) -> ngspice_rs::primitives::SpiceResult<bool> {
+            setup.conductance(self.nodes[0], self.nodes[1]);
+            Ok(true)
+        }
         fn name(&self) -> &str {
             "x1"
         }

@@ -404,8 +404,11 @@ fn nonlinear_circuits_converge_at_every_resistor_point() {
     for (row, supplied) in [1e3, 2e3, 3e3, 4e3].iter().enumerate() {
         let v = p.value("v(d)", row).unwrap().re;
         let diode = 1e-14 * ((v / vt).exp() - 1.) + 1e-12 * v;
-        close((1. - v) / supplied, diode, 1e-8, 1e-12); // the physical law at this R
-        close(p.value("i(v1)", row).unwrap().re, -diode, 1e-8, 1e-12);
+        // The physical law at this R, to NIiter's accuracy: it returns the
+        // iterate its last load used (CKTrhsOld); ngspice's own solution of
+        // this circuit misses the current balance by 3e-6 relative.
+        close((1. - v) / supplied, diode, 1e-5, 1e-12);
+        close(p.value("i(v1)", row).unwrap().re, -diode, 1e-5, 1e-12);
         assert!(
             v < previous,
             "a larger series R must lower the diode voltage"

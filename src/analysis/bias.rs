@@ -1130,7 +1130,10 @@ impl Engine<'_> {
             Some(junction) => format!("scale {scale}, junction gmin {junction:e} S"),
             None => format!("scale {scale}, gmin {gmin:e} S"),
         };
-        if self.remaining == 0 {
+        // A Newton solve needs two passes at least (the first never
+        // converges), and a failing one uses `max_iterations + 1` (NIiter
+        // fails after the solve that exceeds the limit).
+        if self.remaining < 2 {
             return Err(Halt::Budget(format!(
                 "total iteration budget ({}) exhausted before {}",
                 report.budget,
@@ -1150,7 +1153,7 @@ impl Engine<'_> {
             _ => self.stage_limit,
         };
         let options = NewtonOptions {
-            max_iterations: limit.min(self.remaining),
+            max_iterations: limit.min(self.remaining - 1),
             // cktop.c's gmin stepping sets CKTdiagGmin, which SMPreorder and
             // SMPluFac add to SPARSE's diagonal (LoadGmin).
             diag_gmin: gmin,
@@ -1676,10 +1679,11 @@ fn run(
         direct_count -= 1;
         stage_count += 1;
     }
+    // Each solve may take its limit plus the pass that exceeds it (NIiter).
     let budget = policy.max_total_iterations.unwrap_or_else(|| {
         direct_count
-            .saturating_mul(options.max_iterations)
-            .saturating_add(stage_count.saturating_mul(stage_limit))
+            .saturating_mul(options.max_iterations.saturating_add(1))
+            .saturating_add(stage_count.saturating_mul(stage_limit.saturating_add(1)))
     });
     report.budget = budget;
     let mut engine = Engine {

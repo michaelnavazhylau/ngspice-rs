@@ -308,8 +308,9 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
     assert_eq!(solved.trial.phase(), IterationPhase::Float);
     // JCT, then FIX until the iterate converges, then FLOAT with the previous
     // load as the iterate; flagged float loads are never accepted.
-    // Load 1 (JCT) solves x = 2; load 2 (FIX) reproduces it, so the FLOAT
-    // check reload follows; the two flagged float loads keep iterating.
+    // Load 1 (JCT) solves x = 2; load 2 (FIX) reproduces it and ends FIX;
+    // the two flagged float loads keep iterating and the third converges
+    // (NIiter makes no extra check load).
     assert_eq!(phases[0], (IterationPhase::Junction, false));
     assert_eq!(phases[1], (IterationPhase::Fix, true));
     assert!(
@@ -318,7 +319,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
             .all(|step| *step == (IterationPhase::Float, true)),
         "{phases:?}"
     );
-    assert_eq!(floats, 4, "{phases:?}");
+    assert_eq!(floats, 3, "{phases:?}");
     // A predicted solve starts in MODEINITPRED.
     let mut first = None;
     solve_phased(

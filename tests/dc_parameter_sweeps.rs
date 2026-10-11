@@ -71,8 +71,10 @@ fn diode_area_follows_the_junction_law() {
     let v = column(&plot, "v(a)");
     let nvt = v[0] / (current / is + 1.).ln();
     for (area, v) in column(&plot, "sweep").iter().zip(&v) {
-        // gmin (1e-12 S) carries < 1e-12 A of the 1 mA.
-        close(*v, nvt * (current / (is * area) + 1.).ln(), 1e-9, 0.);
+        // gmin (1e-12 S) carries < 1e-12 A of the 1 mA. NIiter returns the
+        // iterate its last load used (CKTrhsOld), accurate to the Newton
+        // tolerance: ngspice's own point misses the law by ~1e-6 relative.
+        close(*v, nvt * (current / (is * area) + 1.).ln(), 1e-6, 0.);
     }
     assert_eq!(v.len(), 15);
     assert!(v.windows(2).all(|w| w[1] < w[0]));

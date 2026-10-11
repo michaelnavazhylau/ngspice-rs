@@ -379,13 +379,14 @@ fn stage_iteration_limit_is_separate_from_the_direct_limit() {
     let solved = solve_dc_with(&circuit, &context, &settings, &[], None, None).unwrap();
     let stages = &solved.report.stages;
     assert_eq!(stages[0].strategy, DcStrategy::Direct);
-    assert_eq!(stages[0].iterations, 3);
+    // NIiter fails after the pass that exceeds the limit: 3 + 1.
+    assert_eq!(stages[0].iterations, 4);
     assert!(
         stages[1..]
             .iter()
             .all(|s| s.strategy == DcStrategy::GminStepping)
     );
-    assert!(stages[1..].iter().all(|s| s.iterations <= 40));
+    assert!(stages[1..].iter().all(|s| s.iterations <= 41));
     assert!(stages[1..].iter().any(|s| s.iterations > 3), "{stages:?}");
     // Gmin stepping's closing zero-gmin solve is bounded by the direct limit
     // (itl1), not the stage limit: C's `spice3_gmin`/`dynamic_gmin`/`new_gmin`
@@ -395,8 +396,12 @@ fn stage_iteration_limit_is_separate_from_the_direct_limit() {
     assert_eq!(closing.gmin, 0.);
     assert!(closing.iterations <= 3, "{closing:?}");
     // Budget: the direct limit for the direct and closing solves, plus the
-    // stage limit for every gmin stage in between.
-    assert_eq!(solved.report.budget, 2 * 3 + (stages.len() - 2) * 40);
+    // stage limit for every gmin stage in between, each plus the pass a
+    // failing NIiter makes beyond its limit.
+    assert_eq!(
+        solved.report.budget,
+        2 * (3 + 1) + (stages.len() - 2) * (40 + 1)
+    );
     for bad in ["stagemaxiter=0", "stagemaxiter=10001", "stagemaxiter=2.5"] {
         let request = AnalysisRequest::with_arguments(AnalysisKind::OperatingPoint, [bad]);
         assert!(DcSettings::from_request(&request).is_err(), "{bad}");

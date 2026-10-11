@@ -60,7 +60,10 @@ fn an_empty_geometric_schedule_still_validates_its_start() {
 }
 
 #[test]
-fn an_exact_linear_failure_records_the_attempt_without_continuation() {
+fn a_singular_linear_circuit_runs_the_continuation_strategies_as_ngspice() {
+    // ngspice (CKTop) treats a linear circuit like any other: after the
+    // direct NIiter fails on the singular matrix it tries dynamic gmin, true
+    // gmin and source stepping, which all fail here.
     let c = circuit("v1 a 0 1\nv2 a 0 1\nr1 a 0 1k");
     let failure = ngspice_rs::analysis::bias::solve_dc_with(
         &c,
@@ -71,13 +74,19 @@ fn an_exact_linear_failure_records_the_attempt_without_continuation() {
         None,
     )
     .unwrap_err();
-    assert_eq!(failure.report.outcome, DcOutcome::NonRetryableFailure);
-    assert_eq!(failure.report.attempts.len(), 1);
+    assert_eq!(failure.report.outcome, DcOutcome::Exhausted);
+    assert!(failure.report.attempts.len() > 1);
     assert_eq!(failure.report.attempts[0].strategy, DcStrategy::Direct);
     assert_eq!(failure.report.attempts[0].outcome, AttemptOutcome::Failed);
-    assert_eq!(failure.report.total_iterations, 1);
     assert!(failure.report.stages[0].error.is_some());
     assert!(failure.report.stages[0].is_unregularized());
+    assert!(
+        failure
+            .report
+            .attempts
+            .iter()
+            .all(|attempt| attempt.outcome != AttemptOutcome::Converged)
+    );
 }
 
 #[test]
