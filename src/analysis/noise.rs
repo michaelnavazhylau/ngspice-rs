@@ -110,18 +110,7 @@ fn integer(text: Option<&str>, what: &str) -> SpiceResult<i64> {
     Ok(rounded as i64)
 }
 
-/// `AlmostEqualUlps(a, b, max_ulps)` (`src/misc/equality.c`).
-fn almost_equal_ulps(a: Real, b: Real, max_ulps: i64) -> bool {
-    if a == b {
-        return true;
-    }
-    // Lexicographically ordered integer representations.
-    let ordered = |x: Real| {
-        let bits = x.to_bits() as i64;
-        if bits < 0 { i64::MIN - bits } else { bits }
-    };
-    (ordered(a) - ordered(b)).unsigned_abs() <= max_ulps.unsigned_abs()
-}
+use crate::primitives::almost_equal_ulps;
 
 /// The positional tokens of a `.noise` card: `v ( out [, ref] ) src type pts
 /// fstart fstop [pts_per_summary]`, the output spelled as one or several

@@ -39,6 +39,8 @@
 
 pub mod behavioural;
 pub mod bjt;
+pub mod breaks;
+pub use breaks::{BreakTable, SourceBreaks};
 pub mod circuit;
 pub mod controlled;
 pub mod distortion;

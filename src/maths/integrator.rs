@@ -388,8 +388,8 @@ fn gear_corrector(
     let mut mat = [[0.0; HISTORY_LEN + 1]; HISTORY_LEN + 1];
     *ag = [0.0; HISTORY_LEN + 1];
     ag[1] = -1. / delta;
-    for i in 0..=order {
-        mat[0][i] = 1.;
+    for entry in mat[0].iter_mut().take(order + 1) {
+        *entry = 1.;
     }
     for row in mat.iter_mut().take(order + 1).skip(1) {
         row[0] = 0.;
@@ -413,13 +413,13 @@ fn gear_corrector(
     }
     for i in 1..=order {
         for j in i + 1..=order {
-            ag[j] = ag[j] - mat[j][i] * ag[i];
+            ag[j] -= mat[j][i] * ag[i];
         }
     }
     ag[order] /= mat[order][order];
     for i in (0..order).rev() {
         for j in i + 1..=order {
-            ag[i] = ag[i] - mat[i][j] * ag[j];
+            ag[i] -= mat[i][j] * ag[j];
         }
         ag[i] /= mat[i][i];
     }

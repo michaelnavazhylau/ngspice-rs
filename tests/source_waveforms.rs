@@ -86,28 +86,29 @@ fn current_source_pulse_drives_the_expected_polarity() {
 }
 
 #[test]
-fn a_period_cut_ramp_is_a_jump_taken_from_the_left() {
+fn a_period_cut_ramp_restarts_without_a_breakpoint_like_c() {
     // A 10 ms rise cut by a 5 ms period: v(in) reaches 0.5 then jumps to 0.
     let mut c = circuit("v1 in 0 pulse(0 1 0 10m 1u 0 5m)\nr1 in out 1k\nc1 out 0 1n");
     let p = tran(&mut c, &["1m", "9m", "0", "0.5m"]).unwrap();
     assert!((at(&p, "v(in)", 4e-3) - 0.4).abs() < 1e-9);
-    // The companion driver stops on the breakpoint and the step ending there
-    // takes the left limit (0.5); the right limit (the restart at 0) shows in
-    // the first accepted point after it. The removed BDF backend sampled the
-    // right limit at the breakpoint itself.
-    assert!((at(&p, "v(in)", 5e-3) - 0.5).abs() < 1e-12);
-    let after = (0..p.point_count())
+    // `VSRCaccept` requests the end of the rise (TR = 10 ms), never the
+    // period cut, so ngspice (and the port, bit for bit) steps across 5 ms;
+    // the first point after it is already on the restarted ramp.
+    let times: Vec<f64> = (0..p.point_count())
         .map(|i| p.value("time", i).unwrap().re)
-        .position(|t| t > 5e-3)
-        .unwrap();
-    assert!(p.value("v(in)", after).unwrap().re < 1e-3);
+        .collect();
+    assert!(times.iter().all(|t| (t - 5e-3).abs() > 1e-6));
+    let after = times.iter().position(|t| *t > 5e-3).unwrap();
+    let restarted = (times[after] - 5e-3) / 10e-3;
+    assert!((p.value("v(in)", after).unwrap().re - restarted).abs() < 1e-9);
     assert!((at(&p, "v(in)", 6e-3) - 0.1).abs() < 1e-9);
 }
 
 #[test]
-fn breakpoint_budget_stops_runaway_periodic_sources() {
-    // 1 ns period over 10 ms would be 10 million segments.
+fn runaway_periodic_sources_hit_the_work_limit() {
+    // 1 ns period over 10 ms would be 10 million segments; ngspice would run
+    // them all, the port stops at its default work limit.
     let mut c = circuit("v1 in 0 pulse(0 1 0 0.1n 0.1n 0.3n 1n)\nr1 in out 1k\nc1 out 0 1n");
     let error = tran(&mut c, &["1m", "10m"]).unwrap_err();
-    assert!(error.to_string().contains("breakpoint limit"), "{error}");
+    assert!(error.to_string().contains("work limit"), "{error}");
 }

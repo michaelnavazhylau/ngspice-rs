@@ -32,11 +32,12 @@
 //! without an explicit DC value use the C time-zero value
 //! ([`FunctionSpec::time_zero`]).
 //!
-//! Breakpoints: C's `VSRCaccept` sets none for SIN/EXP/SFFM/AM. The port
-//! deliberately lands steps on the corners it can name exactly (SIN/SFFM/AM
-//! delay, EXP `TD1`/`TD2`) so its drivers never integrate across a slope change
-//! or the SFFM/AM delay jump; values are unaffected. PWL breakpoints are every
-//! (delayed, repeated) knot, as `VSRCaccept` sets them.
+//! Breakpoints: C's `VSRCaccept` sets none for SIN/EXP/SFFM/AM, and neither
+//! does the transient driver ([`crate::devices::SourceBreaks`]), which also
+//! requests PWL knots at accept time as `VSRCaccept` does.
+//! [`SourceFunction::corners`] and [`PwlSource::breakpoints_in`] only
+//! enumerate corners (SIN/SFFM/AM delay, EXP `TD1`/`TD2`, delayed and repeated
+//! PWL knots); they do not drive the step control.
 //!
 //! Deliberate differences from C: negative delays (SIN/SFFM/AM `TD`, EXP
 //! `TD1`/`TD2`) are rejected, as for PULSE, rather than shifting the waveform
@@ -555,15 +556,11 @@ impl SourceFunction {
 /// knot. With `r = t_k` the segment `[t_k, t_last]` repeats forever with period
 /// `t_last - t_k`; where `v_k != v_last` each repetition boundary is a jump.
 ///
-/// At every repetition boundary (including one a few ulps away, as the port's
-/// own breakpoint arithmetic produces) the left limit is `v_last` and the
-/// right limit `v_k`, like any other source jump, so the step ending at the
-/// boundary integrates toward `v_last` and both the companion driver and the
-/// diffsol segment assembly see the true ramp. Away from boundaries the fold
-/// uses `vsrcload.c`'s arithmetic. This is a deliberate difference from C,
-/// which evaluates a boundary instant once: depending on which side of
-/// `t_last` its accumulated landing time rounds to, C loads either `v_last` or
-/// `v_k` there (see `docs/port/TRANSIENT.md` for the measured effect).
+/// Values follow `vsrcload.c` verbatim, including at a repetition boundary,
+/// which C evaluates once: depending on which side of `t_last` the landing
+/// time (`CKTtime += CKTdelta` toward the breakpoint `VSRCaccept` requested)
+/// folds, it loads `v_last` or `v_k`. The transient driver reproduces those
+/// landing times bit for bit, so the requested [`Limit`] is ignored.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PwlSource {
     knots: Vec<(Real, Real)>,
@@ -663,10 +660,12 @@ impl PwlSource {
     /// in-cycle position is unresolvable.
     pub fn value_at(&self, t: Real, limit: Limit) -> SpiceResult<Real> {
         let kind = "PWL";
+        // vsrcload.c evaluates a single value; see the type documentation.
+        let _ = limit;
         if !t.is_finite() {
             return Err(invalid(kind, "nonfinite evaluation time"));
         }
-        let time = t - self.delay;
+        let mut time = t - self.delay;
         if !time.is_finite() {
             return Err(invalid(kind, "evaluation time overflows"));
         }
@@ -674,39 +673,30 @@ impl PwlSource {
         if time <= first.0 {
             return Ok(first.1);
         }
-        let Some(index) = self.repeat.filter(|_| time >= last.0) else {
-            return Ok(if time >= last.0 {
-                last.1
-            } else {
-                self.interpolate(time)
-            });
-        };
-        let start = self.knots[index].0;
-        let period = last.0 - start;
-        let elapsed = time - start;
-        let ratio = elapsed / period;
-        if !ratio.is_finite() || ratio >= MAX_CYCLE {
-            return Err(invalid(
-                kind,
-                "evaluation time is too many repetitions from the origin",
-            ));
+        let end = last.0;
+        if time > end {
+            let Some(index) = self.repeat else {
+                return Ok(last.1);
+            };
+            // Repeating (vsrcload.c, `case PWL`, in C's operation order).
+            let start = self.knots[index].0;
+            let period = end - start;
+            time -= start;
+            let cycle = (time / period).floor();
+            if !cycle.is_finite() || cycle >= MAX_CYCLE {
+                return Err(invalid(
+                    kind,
+                    "evaluation time is too many repetitions from the origin",
+                ));
+            }
+            time -= period * cycle;
+            time += start;
+            // Prevent glitches.
+            if time > end {
+                time = end;
+            }
         }
-        // A repetition boundary, within the round-off of the port's own
-        // breakpoint times (`delay + knot + cycle * period`): a jump from
-        // `v_last` to `v_k`, never C's ulp-dependent single value.
-        let nearest = ratio.round();
-        let tolerance = 64. * Real::EPSILON * (t.abs() + self.delay.abs() + start.abs() + period);
-        if nearest >= 1. && (elapsed - period * nearest).abs() <= tolerance {
-            return Ok(match limit {
-                Limit::Left => last.1,
-                Limit::Right => self.knots[index].1,
-            });
-        }
-        // Inside a repetition: C's fold, including its clamp to the last knot
-        // ("prevent glitches").
-        let cycle = ratio.floor();
-        let position = (start + (elapsed - period * cycle)).min(last.0);
-        Ok(self.interpolate(position))
+        Ok(self.interpolate(time))
     }
 
     /// Lazily enumerates the delayed knot times in `[t0, t1]`, continuing
@@ -1048,39 +1038,28 @@ mod tests {
         let p = PwlSource::new(knots.clone(), 0., Some(-1.)).unwrap();
         assert_eq!(p.repeat(), None);
         // r = 1: [1, 2] repeats with period 1; a jump 0.5 -> 1 at each boundary.
+        // vsrcload.c evaluates one value whatever the limit: the end of the
+        // first pass is not folded (`time > end_time` is strict), later exact
+        // boundaries fold to the restart value.
         let p = PwlSource::new(knots.clone(), 0.5, Some(1.)).unwrap();
         assert_eq!(p.repeat(), Some(1));
         assert_eq!(p.value_at(2.5, L).unwrap(), 0.5);
-        assert_eq!(p.value_at(2.5, R).unwrap(), 1.);
+        assert_eq!(p.value_at(2.5, R).unwrap(), 0.5);
         assert_eq!(p.value_at(3., R).unwrap(), 0.75);
-        // Every later boundary is the same jump (left 0.5, right 1).
-        assert_eq!(p.value_at(3.5, L).unwrap(), 0.5);
+        assert_eq!(p.value_at(3.5, L).unwrap(), 1.);
         assert_eq!(p.value_at(3.5, R).unwrap(), 1.);
         assert_eq!(p.value_at(100.75, R).unwrap(), 0.875);
         let corners: Vec<_> = p.breakpoints_in(0., 5.).unwrap().collect();
         assert_eq!(corners, [0.5, 1.5, 2.5, 3.5, 4.5]);
-        // Sawtooth `pwl(0 0 1m 1) r=0`: every boundary, at the port's own
-        // breakpoint times and a few ulps to either side, is the jump 1 -> 0.
+        // Sawtooth `pwl(0 0 1m 1) r=0`: C's single value at each boundary.
         let saw = PwlSource::new(vec![(0., 0.), (1e-3, 1.)], 0., Some(0.)).unwrap();
-        let boundaries: Vec<_> = saw.breakpoints_in(0., 4e-3).unwrap().skip(1).collect();
-        assert_eq!(boundaries.len(), 4);
-        for t in boundaries {
-            for at in [t, t.next_up(), t.next_down(), t * (1. + 4. * Real::EPSILON)] {
-                // Just before the first boundary is ordinary interpolation.
-                assert!(close(saw.value_at(at, L).unwrap(), 1.), "t={at:e}");
-                assert!(
-                    close(saw.value_at(at, R).unwrap(), 0.) || at < 1e-3,
-                    "t={at:e}"
-                );
-            }
-        }
+        assert_eq!(saw.value_at(1e-3, L).unwrap(), 1.);
+        assert_eq!(saw.value_at(2e-3, L).unwrap(), 0.);
+        assert!(close(saw.value_at(2e-3_f64.next_down(), R).unwrap(), 1.));
         assert!(close(saw.value_at(2.5e-3, R).unwrap(), 0.5));
         // An odd period whose boundaries are not representable exactly.
         let odd = PwlSource::new(vec![(0., 0.), (0.3e-3, 1.)], 0.05e-3, Some(0.)).unwrap();
-        for t in odd.breakpoints_in(0., 3e-3).unwrap().skip(1) {
-            assert_eq!(odd.value_at(t, L).unwrap(), 1., "t={t:e}");
-            assert_eq!(odd.value_at(t, R).unwrap(), 0., "t={t:e}");
-        }
+        assert!(close(odd.value_at(0.5e-3, R).unwrap(), 0.5));
         // r = 0 repeats everything: a continuous triangle when ends match.
         let tri = PwlSource::new(vec![(0., 0.), (1., 1.), (2., 0.)], 0., Some(0.)).unwrap();
         assert_eq!(tri.value_at(2., L).unwrap(), 0.);

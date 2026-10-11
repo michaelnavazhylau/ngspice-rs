@@ -1402,7 +1402,9 @@ impl Circuit {
             })?;
         }
         system.a.fold_duplicates();
-        system.e.fold_duplicates();
+        // E stays unfolded: `CKTacLoad` scales every device term by
+        // `omega` before adding it (`xc = cap * omega`), so the complex
+        // assembly must scale each contribution, not their sum.
         Ok(system)
     }
 
@@ -1505,7 +1507,9 @@ impl Circuit {
             }
         }
         system.a.fold_duplicates();
-        system.e.fold_duplicates();
+        // E stays unfolded: `CKTacLoad` scales every device term by
+        // `omega` before adding it (`xc = cap * omega`), so the complex
+        // assembly must scale each contribution, not their sum.
         Ok(system)
     }
 

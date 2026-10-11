@@ -180,8 +180,10 @@ fn transient_meyer_charge_advances_with_the_averaged_half_capacitances() {
     let (ovs, ovd) = (0.4e-9 * 10e-6, 0.3e-9 * 10e-6);
     let (gs1, gd1) = meyer_linear(2. - 0.8, 0.2, cox);
     let old = mos_states(&c, history.accepted(1).unwrap()).to_vec();
-    close(old[13], gs1, 1e-12, 0.);
-    close(old[14], gd1, 1e-12, 0.);
+    // State layout: charges (each followed by its current) at 4/6/8,
+    // DEVqmeyer halves at 14/15/16 (mos1.rs `slot`).
+    close(old[14], gs1, 1e-12, 0.);
+    close(old[15], gd1, 1e-12, 0.);
     close(old[4], 2. * (2. * gs1 + ovs), 1e-12, 0.);
     close(old[6], 1.8 * (2. * gd1 + ovd), 1e-12, 0.);
     // Move the gate and drain: the new charge is the old one plus the voltage
@@ -196,8 +198,8 @@ fn transient_meyer_charge_advances_with_the_averaged_half_capacitances() {
     let (a, _, trial) = transient_load(&c, &history, &coefficients, &x);
     let s = mos_states(&c, trial.values());
     let (gs, gd) = meyer_linear(2.3 - 0.8, 0.35, cox);
-    close(s[13], gs, 1e-12, 0.);
-    close(s[14], gd, 1e-12, 0.);
+    close(s[14], gs, 1e-12, 0.);
+    close(s[15], gd, 1e-12, 0.);
     let qgs = old[4] + (2.3 - 2.) * (gs + gs1 + ovs);
     let qgd = old[6] + ((2.3 - 0.35) - 1.8) * (gd + gd1 + ovd);
     close(s[4], qgs, 1e-12, 0.);
@@ -267,7 +269,7 @@ fn transient_companion_jacobian_is_exact_where_the_meyer_halves_are_constant() {
 
 #[test]
 fn dc_jacobian_with_series_resistance_body_bias_geometry_and_temperature() {
-    for body in [
+    for (case, body) in [
         // Saturation, reverse body bias, RSH squares, area junctions, 80 C.
         "vd c 0 3\nvg g 0 2\nvs e 0 0\nvb bulk 0 -0.5\n\
          m1 c g e bulk mm w=10u l=2u nrd=2 nrs=3 ad=20p as=20p pd=24u ps=24u temp=80\n\
@@ -281,7 +283,16 @@ fn dc_jacobian_with_series_resistance_body_bias_geometry_and_temperature() {
         // Reversed drain/source (inverse mode), PMOS, process extraction.
         "vd c 0 0.5\nvg g 0 -2\nvs e 0 0\nvb bulk 0 0.6\nm1 c g e bulk mm w=8u l=1u dtemp=20\n\
          .model mm pmos(tox=25n nsub=1e16 nss=2e10 u0=250 lambda=0.02 rs=60)",
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // mos1load.c stamps gmbs = gm * gamma / (2 sarg) also in forward body
+        // bias (sarg > 0 above vbs = 0), which is not the derivative of its
+        // own von there (that is gm * gamma / (2 sqrt(phi))): the columns
+        // that move vbs (bulk, internal source) of the second deck are C's
+        // matrix, not the exact Jacobian.
+        let c_gmbs = case == 1;
         let c = circuit(body);
         let context = ModelContext::default();
         let history = c.state_history();
@@ -312,6 +323,9 @@ fn dc_jacobian_with_series_resistance_body_bias_geometry_and_temperature() {
             let Some(col) = c.unknowns().node_row(node.id) else {
                 continue;
             };
+            if c_gmbs && (node.name == "bulk" || node.name == "m1#source") {
+                continue;
+            }
             let h = 1e-6;
             let mut low = solved.values.clone();
             let mut high = solved.values.clone();
