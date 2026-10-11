@@ -1223,7 +1223,9 @@ impl Engine<'_> {
         );
         let (iterations, error) = match &result {
             Ok(solved) => (solved.iterations, None),
-            Err(NewtonFailure { error, iterations }) => (*iterations, Some(error)),
+            Err(NewtonFailure {
+                error, iterations, ..
+            }) => (*iterations, Some(error)),
         };
         self.remaining = self.remaining.saturating_sub(iterations);
         report.total_iterations += iterations;

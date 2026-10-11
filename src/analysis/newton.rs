@@ -113,8 +113,8 @@ impl Default for NewtonOptions {
     fn default() -> Self {
         Self {
             max_iterations: 100,
-            reltol: 1e-8,
-            vntol: 1e-10,
+            reltol: 1e-3,
+            vntol: 1e-6,
             abstol: 1e-12,
             voltage_step: 0.2,
             limiting: StepLimiting::Device,
@@ -244,6 +244,10 @@ pub struct NewtonFailure {
     /// Iterations started before the failure, at most
     /// [`NewtonOptions::max_iterations`]; zero when settings were rejected.
     pub iterations: usize,
+    /// At the iteration limit: the iterate the last load used. `NIiter`
+    /// returns `E_ITERLIM` before swapping `CKTrhs` and `CKTrhsOld`, so this is
+    /// the `CKTrhsOld` the next solve (`dctran.c`'s retry) starts from.
+    pub last_iterate: Option<Vector>,
 }
 
 /// [`solve`] that also reports the work a failed solve used, so a caller owning a
@@ -276,6 +280,7 @@ pub fn solve_counted_limited<T>(
     mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
 ) -> Result<NewtonSolution<T>, NewtonFailure> {
     let mut iterations = 0;
+    let mut last_iterate = None;
     iterate(
         initial,
         branch_rows,
@@ -292,8 +297,13 @@ pub fn solve_counted_limited<T>(
         |x: &Vector, _, _: Option<&T>| load(x),
         |_: &Vector, _: &Vector, _: &T| Ok(false),
         &mut iterations,
+        &mut last_iterate,
     )
-    .map_err(|error| NewtonFailure { error, iterations })
+    .map_err(|error| NewtonFailure {
+        error,
+        iterations,
+        last_iterate,
+    })
 }
 
 /// How a phased solve starts (C `NIiter`'s initial `MODEINITF`).
@@ -331,6 +341,7 @@ pub enum PhasePolicy {
 ///
 /// # Errors
 /// As [`solve_counted_limited`].
+#[allow(clippy::too_many_arguments)]
 pub fn solve_phased(
     initial: &Vector,
     branch_rows: &[bool],
@@ -346,6 +357,7 @@ pub fn solve_phased(
     device_test: impl FnMut(&Vector, &Vector, &TrialState) -> SpiceResult<bool>,
 ) -> Result<NewtonSolution<TrialState>, NewtonFailure> {
     let mut iterations = 0;
+    let mut last_iterate = None;
     let first = match (policy, &continued) {
         (_, Some(_)) => IterationPhase::Float,
         (PhasePolicy::OperatingPoint, None) => IterationPhase::Junction,
@@ -375,8 +387,13 @@ pub fn solve_phased(
         },
         device_test,
         &mut iterations,
+        &mut last_iterate,
     )
-    .map_err(|error| NewtonFailure { error, iterations })
+    .map_err(|error| NewtonFailure {
+        error,
+        iterations,
+        last_iterate,
+    })
 }
 
 struct Phases<T, F> {
@@ -421,6 +438,7 @@ fn iterate<T, F: Fn(&T) -> bool>(
     mut load: impl FnMut(&Vector, IterationPhase, Option<&T>) -> SpiceResult<(SparseMatrix, Vector, T)>,
     mut device_test: impl FnMut(&Vector, &Vector, &T) -> SpiceResult<bool>,
     started: &mut usize,
+    last_iterate: &mut Option<Vector>,
 ) -> SpiceResult<NewtonSolution<T>> {
     options.validate()?;
     let n = initial.len();
@@ -476,6 +494,7 @@ fn iterate<T, F: Fn(&T) -> bool>(
             return Err(failure("nonfinite Newton iterate"));
         }
         if iterno > options.max_iterations {
+            *last_iterate = Some(guess);
             return Err(failure(format!(
                 "Newton iteration limit ({}) reached",
                 options.max_iterations

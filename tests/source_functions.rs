@@ -75,10 +75,15 @@ fn exp_rc_follows_the_analytic_response_with_trap_and_gear() {
         let mut corner = false;
         for ((t, v), u) in time.iter().zip(&out).zip(&input) {
             let want = exp_rc(*t, 0.2e-3, 0.3e-3, 1e-4);
-            // Gear-2 restarts at TD1 with a first-order step: 5e-5 V covers its
-            // local error near the corner on a 1 V scale.
+            // Like C (`vsrcacct.c` sets no EXP breakpoint), the driver steps
+            // across the slope corner at TD1; the trapezoidal steps within
+            // 15 us after it carry up to ~8e-5 V of the straddling step's
+            // error (bit-identical to ngspice). Elsewhere 5e-5 V covers the
+            // local error on a 1 V scale.
+            let near_corner = *t > 0.2e-3 && *t < 0.215e-3;
+            let absolute = if near_corner { 1e-4 } else { 5e-5 };
             assert!(
-                (v - want).abs() <= 2e-3 * want.abs() + 5e-5,
+                (v - want).abs() <= 2e-3 * want.abs() + absolute,
                 "{label} t={t}: {v} vs {want}"
             );
             let source = if *t <= 0.2e-3 {
@@ -89,8 +94,8 @@ fn exp_rc_follows_the_analytic_response_with_trap_and_gear() {
             assert!((u - source).abs() < 1e-12, "{label} t={t}");
             corner |= (t - 0.2e-3).abs() < 1e-15;
         }
-        // The port lands on TD1 (C itself sets no EXP breakpoint).
-        assert!(corner, "{label}: no sample at TD1");
+        // Neither C nor the port lands on TD1.
+        assert!(!corner, "{label}: unexpected sample at TD1");
     }
 }
 
@@ -213,9 +218,12 @@ fn sawtooth_rc(t: f64) -> f64 {
 
 #[test]
 fn a_discontinuous_repeated_pwl_ramps_every_repetition() {
-    // Every repetition boundary is a 1 V -> 0 V jump: the step ending there
-    // takes the left limit, so the full ramp is traversed instead of holding
-    // the restart value.
+    // Every repetition boundary is a 1 V -> 0 V jump. Like ngspice (whose
+    // step sequence and values the port reproduces bit for bit), the step
+    // ending exactly on a later boundary loads the restart value 0
+    // (`vsrcload.c` folds `time > end_time`), so v(out) there lags the
+    // analytic response by up to ~0.04 V for one step; the first boundary
+    // (`time == end_time`) is not folded and takes the ramp top.
     let plot = run("v1 in 0 pwl(0 0 1m 1) r=0\nr1 in out 1k\nc1 out 0 0.1u\n.tran 10u 4m 0 10u");
     let (time, vin, vout) = (
         column(&plot, "time"),
@@ -234,11 +242,14 @@ fn a_discontinuous_repeated_pwl_ramps_every_repetition() {
         }
         let want = sawtooth_rc(*t);
         assert!(
-            (vout[i] - want).abs() < 5e-3,
+            (vout[i] - want).abs() < 4e-2,
             "v(out) at {t:e}: {} vs {want}",
             vout[i]
         );
     }
+    let at = |when: f64| time.iter().position(|t| *t == when).unwrap();
+    assert_eq!(vin[at(1e-3)], 1.);
+    assert_eq!(vin[at(2e-3)], 0.);
     // Every later repetition reaches the top of the ramp again.
     for k in 1..4 {
         let start = f64::from(k) * 1e-3;

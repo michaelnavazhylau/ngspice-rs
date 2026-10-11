@@ -50,6 +50,23 @@ pub fn approx_eq(a: Real, b: Real, relative_tolerance: Real) -> bool {
     (a - b).abs() <= relative_tolerance * scale.max(1.0)
 }
 
+/// ngspice's `AlmostEqualUlps(a, b, max_ulps)` (`src/maths/misc/equality.c`):
+/// `a == b`, or the two's-complement-ordered bit patterns of `a` and `b` are at
+/// most `max_ulps` apart.
+#[must_use]
+pub fn almost_equal_ulps(a: Real, b: Real, max_ulps: i64) -> bool {
+    if a == b {
+        return true;
+    }
+    // Lexicographically ordered integer representations (`INT64_MIN - bits`
+    // for negative values), compared without overflow.
+    let ordered = |x: Real| {
+        let bits = x.to_bits() as i64;
+        i128::from(if bits < 0 { i64::MIN - bits } else { bits })
+    };
+    (ordered(a) - ordered(b)).unsigned_abs() <= u128::from(max_ulps.unsigned_abs())
+}
+
 /// A complex number, mirroring ngspice's `complex` struct
 /// (`src/include/ngspice/ngspice.h`), which is a two-element `double` array.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

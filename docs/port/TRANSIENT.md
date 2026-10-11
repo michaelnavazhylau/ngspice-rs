@@ -63,8 +63,17 @@ the run with an error; no partial plot is returned.
 * **Step sizes** (`traninit.c`, `dctran.c`). `maxstep = tmax` if given, else
   `min(tstep, (tstop - tstart)/50)`; `delmin = 1e-11 maxstep`; first step
   `min(tstop/100, tstep)/10`, cut at the `t = 0` breakpoint to
-  `0.1 min(tstop/50, gap to next breakpoint)` and divided by ten, at least
-  `2 delmin`. `tstep` limits the step; it is not an output spacing.
+  `0.1 min(tstop/50, gap to next breakpoint)` and divided by ten (the
+  XSPICE build of `dctran.c`, which the reference binary is, has no
+  `2 delmin` floor there). `tstep` limits the step; it is not an output
+  spacing. The driver is a literal port of the `dctran.c` loop (XSPICE
+  branches, no event-driven instances): `CKTtime += CKTdelta` per trial and
+  `CKTtime -= CKTdelta` on rejection (never a restored or assigned time),
+  `CKTsaveDelta`, `CKTbreak`, `firsttime`, the end test
+  `AlmostEqualUlps(CKTtime, CKTfinalTime, 100)`, and each trial's Newton
+  solve starting from the previous trial's last iterate (`CKTrhsOld`, also
+  after a rejected or non-converged trial), so accepted time points are
+  bit-identical to ngspice whenever the device loads are.
 * **Truncation error** (`CKTterr`, via `Coefficients::truncation_timestep`) for
   every device with `Device::truncation_slot()` (capacitors, inductors) from
   divided differences of the charge/flux over the trial and accepted points,
@@ -82,21 +91,29 @@ the run with an error; no partial plot is returned.
   second step uses `maxstep` placeholders for the not-yet-existing older steps
   (`StepHistory::with_fill`). Non-convergence of a nonlinear trial divides the
   step by eight and returns to order 1.
-* **Breakpoints.** Source corners and jumps are consumed lazily from
-  `LinearSystem::breakpoints_in`, merged within `5e-5 maxstep` (`CKTminBreak`)
-  and bracketed by `0` and `tstop`. A step is cut to land exactly on the next
-  breakpoint (the step end is assigned the breakpoint time, not `t + dt`), or
-  halved when the following step would otherwise be tiny. The step **ending** at a
-  breakpoint evaluates the forcing with `Limit::Left`; later steps use
-  `Limit::Right` at their (later) end time. History is *not* cleared at a
+* **Breakpoints.** C's table `CKTbreaks` (`devices::BreakTable`, starting as
+  `{0, tstop}`, `CKTsetBreak`/`CKTclrBreak` merge rules with `CKTminBreak =
+  10 delmin`, the XSPICE default) is filled at every accepted point by the
+  sources' accept hooks (`devices::SourceBreaks`, `VSRCaccept`/`ISRCaccept`):
+  a voltage PULSE or any PWL requests its *next* corner after
+  `time + CKTminBreak`, computed from the accepted time in C's operation
+  order; a current PULSE keeps ISRC's older `CKTbreak`/`SAMETIME` scheme;
+  SIN/EXP/SFFM/AM request none. At each step the driver clears entries at or
+  within `CKTminBreak` of the current time, cuts the step to `CKTbreaks[0] -
+  CKTtime` when it would pass it (the landing time is `CKTtime + CKTdelta`,
+  not the breakpoint value), or halves the distance when `t + 1.9 dt` passes
+  it (unless `t + dt` is the stop time). The step ending at a breakpoint
+  evaluates the forcing with `Limit::Left`, others with `Limit::Right`; only
+  port-only jumps (repeated-PWL boundaries, `Waveform::Step`) distinguish
+  them. History is *not* cleared at a
   breakpoint (C does not); only the order resets, so the post-breakpoint
   backward-Euler step re-derives the capacitor current/inductor voltage from
   continuous charge/flux. Source stamping is part of the device load
   (`IndependentSource::stamp` with `Forcing { limit, timing }`).
 * **Minimum step and limits.** At or below `delmin` after a rejection the step is
   retried once at `delmin`, then the run fails with "timestep too small"
-  (`dctran.c`). `t + dt <= t` is a "no progress" error. Accepted + rejected steps
-  and pulled breakpoints are bounded by `maxsteps`.
+  (`dctran.c`). Accepted + rejected steps are bounded by `maxsteps` (C has no
+  such bound).
 * **Newton structure.** `load -> solve -> converged?` per trial. Linear circuits
   take one solve and then a matrix-free reload at the solution for the trial
   state (one factorization per trial). Nonlinear devices iterate up to 10 times
@@ -233,37 +250,26 @@ except the noise/random/external ones. Syntax lives in
 Phases are degrees. Before its delay a SIN holds `VO + VA sin(PHASE)` and an
 EXP holds V1, but SFFM and AM hold **zero** (C returns 0 for `time <= TD`), so
 they jump at their delay unless `VO + VA sin(...)` vanishes there. A repeating
-PWL jumps at each repetition boundary when `v(r) != v(t_last)`. Every jump has
-distinct left/right limits (`Limit`), including every repeated-PWL boundary
-(left `v(t_last)`, right `v(r)`, also a few ulps either side of the port's own
-breakpoint times), so the step ending at a boundary integrates toward
-`v(t_last)` in the companion driver and the diffsol segments see the full ramp.
-This deliberately differs from C, which evaluates a boundary instant once: its
-next PWL breakpoint is accumulated from the previous landing time
-(`VSRCaccept`), and depending on which side of `t_last` that time's fold
-rounds, `vsrcload.c` loads `v(t_last)` or `v(r)` there. Bit-identical landing
-would require reproducing C's stateful breakpoint chain and its
-`CKTtime += CKTdelta` landing arithmetic, which the port does not do. The
-effect is bounded by one step of the jump: with tau = 0.1 ms and 7-10 us steps
-the worst RC `v(out)` difference from C is 0.024-0.036 V for a 1 V sawtooth
-(`pwl(0 0 1m 1) r=0`, `pwl(0 0 0.3m 1) r=0`, and a delayed partial repeat).
+PWL jumps at each repetition boundary when `v(r) != v(t_last)`. Like C, the
+source is evaluated once at a boundary (`vsrcload.c`'s fold: `v(t_last)` or
+`v(r)` depending on which side the landing time rounds to); since the driver
+reproduces C's breakpoint chain and `CKTtime += CKTdelta` landing arithmetic,
+discontinuous repeats (`pwl(0 0 1m 1) r=0`, `pwl(0 0 0.3m 1) r=0`, a delayed
+partial repeat) are bit-identical to ngspice.
 OP/DC analyses without an explicit DC
 value use C's time-zero value (`Waveform::time_zero`); the transient initial
 point uses the left limit at `t = 0`, as C's `MODETRANOP` load does (an explicit
 `dc` value only affects OP/DC, as in C).
 
-Breakpoints are lazy (`Waveform::breakpoints_in`). PULSE/PWL corners are the
-ones `VSRCaccept` sets, including every repeated PWL knot; a count-limited
-PULSE stops after `TD + NP*PER` except for C's final request (the next corner)
-and, for a fractional count, the jump where the train is cut. C sets **no**
-breakpoints for SIN/EXP/SFFM/AM; the port deliberately lands on SIN/SFFM/AM
-`TD` and EXP `TD1`/`TD2` so it never integrates across a slope corner or the
-SFFM/AM delay jump. Measured on RC decks (tau = 0.1 ms) without marker
-sources, this changes the worst `v(out)` difference from C to 2e-5 V (SIN with
-`TD`), 8e-5 V (EXP), 1.1e-3 V (SFFM/AM delay jump), 9e-3 V (EXP with
-`TD2 < TD1`, a jump at `TD1`) and 1e-3 V (PULSE with a fractional count); the
-opt-in `unmarked_decks_diverge_from_c_only_within_documented_bounds` keeps
-these bounded. The diffsol BDF backend rejects SIN/EXP/SFFM/AM (its segments
+The companion driver schedules breakpoints at accept time exactly like
+`VSRCaccept`/`ISRCaccept` (`devices::SourceBreaks`, see the step-control
+bullets above): C sets **no** breakpoints for SIN/EXP/SFFM/AM and neither does
+the port, so steps cross their delay corners and the SFFM/AM delay jump as in
+C; a voltage PULSE requests only the TD/TR/PW/TF corners of its
+not-yet-truncated ramp (a ramp cut by a short period is crossed, not landed
+on), and a count-limited PULSE stops requesting once `time > NP*PER`.
+`Waveform::breakpoints_in` still enumerates a waveform's corners as a public
+utility but no longer drives the transient step control. The diffsol BDF backend rejects SIN/EXP/SFFM/AM (its segments
 interpolate forcing linearly between breakpoints); PULSE counts and PWL
 `td=`/`r=` (including discontinuous repeats, segmented at every boundary) are
 piecewise linear and run there.
@@ -287,10 +293,10 @@ response under trap and Gear-2 and a `.four` of a SIN-driven RC: fundamental
 gain/phase of the low-pass within 1e-3 and THD below 0.1 %). C goldens
 `rc_sin_tran`, `rc_exp_tran`, `rc_sffm_am_tran` (AM as a current source),
 `rc_pwl_repeat_tran` (continuous `r=` repeat) and `rc_pulse_count_tran`
-verify under `compare::TRAN` with worst error 0.000 of the bound. There is no
-golden for a discontinuous `r=` repeat because of the boundary difference
-above; `source_functions.rs` checks one against the analytic RC response under
-both backends instead. Because C sets no SIN/EXP breakpoints, the
+verify under `compare::TRAN` with worst error 0.000 of the bound (and, with
+the C-faithful step control, bit-identically). There is no golden for a
+discontinuous `r=` repeat; `source_functions.rs` checks one against the
+analytic RC response instead. Because C sets no SIN/EXP breakpoints, the
 SIN and EXP decks carry a constant PWL marker source whose knots make C land on
 the corners too; otherwise the comparison would interpolate C's plot across a
 slope corner. Opt-in `c_source_functions.rs` compares 22 V/I sources (all forms

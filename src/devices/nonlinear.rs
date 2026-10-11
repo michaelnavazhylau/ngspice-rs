@@ -1383,8 +1383,8 @@ impl Device for Diode {
                 return Err(SpiceError::circuit("junction timestep mismatch"));
             }
             let (geq, ccap) = junction_companion(context, coefficients, p.junction, 0)?;
-            gd = gd + geq;
-            cd = cd + ccap;
+            gd += geq;
+            cd += ccap;
         } else {
             if context.mode.is_transient() {
                 return Err(SpiceError::circuit(

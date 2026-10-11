@@ -200,10 +200,11 @@ impl Waveform {
                 if t <= p[0].0 {
                     return Ok(p[0].1);
                 }
+                // vsrcload.c, `case PWL`, in C's operation order.
                 for w in p.windows(2) {
-                    if t <= w[1].0 {
+                    if w[1].0 >= t {
                         let fraction = (t - w[0].0) / (w[1].0 - w[0].0);
-                        return Ok((1. - fraction) * w[0].1 + fraction * w[1].1);
+                        return Ok(w[0].1 + fraction * (w[1].1 - w[0].1));
                     }
                 }
                 p.last().map_or(0., |p| p.1)
