@@ -380,6 +380,10 @@ pub struct LinearSystem {
     pub sources: Vec<LinearSource>,
     /// Rows with explicit device initial conditions (not yet supported).
     pub has_initial_conditions: bool,
+    /// Ranges of `e`'s unfolded contributions that one device adds to one
+    /// element as a single `omega`-scaled sum
+    /// ([`LinearContext::dynamic_sum`]); empty for most systems.
+    pub e_groups: Vec<std::ops::Range<usize>>,
 }
 impl LinearSystem {
     /// Empty assembly for n unknowns.
@@ -389,6 +393,7 @@ impl LinearSystem {
             e: SparseMatrix::new(n, n),
             sources: vec![],
             has_initial_conditions: false,
+            e_groups: vec![],
         }
     }
     /// DC forcing, optionally overriding one independent source.
@@ -500,6 +505,28 @@ impl LinearContext<'_> {
             &mut self.system.a
         };
         nodal_stamp(matrix, self.unknowns, terminals, value)
+    }
+    /// Adds the dynamic terms `terms` to `E[row][col]` as C adds
+    /// `x1 + x2 + ...` (each `cap * CKTomega`) in one step: the complex
+    /// assembly scales each term by `omega` and adds their sum. Ground rows
+    /// or columns are skipped.
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn dynamic_sum(&mut self, row: NodeId, col: NodeId, terms: &[Real]) -> SpiceResult<()> {
+        let (Some(r), Some(c)) = (self.unknowns.node_row(row), self.unknowns.node_row(col)) else {
+            return Ok(());
+        };
+        let start = self.system.e.triplets().len();
+        for term in terms {
+            self.system.e.add(r, c, *term)?;
+        }
+        let end = self.system.e.triplets().len();
+        // Only an unbound (triplet-list) E keeps the contributions apart.
+        if end - start > 1 && self.system.e.overflow().is_none() {
+            self.system.e_groups.push(start..end);
+        }
+        Ok(())
     }
     /// Stamps a voltage/inductor branch, positive current from terminal 0 to 1.
     pub fn branch(&mut self, terminals: [NodeId; 2]) -> SpiceResult<usize> {

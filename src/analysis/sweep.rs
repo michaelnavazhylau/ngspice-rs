@@ -751,8 +751,7 @@ pub(crate) fn run(
                 solved_state = Some(solution.trial);
                 solution.values
             };
-            let first_of_inner = first;
-            first = false;
+            let first_point = std::mem::replace(&mut first, false);
             // Only a solved point is accepted; a failure above returns before
             // any accept hook runs for it. A nonlinear point's state becomes the
             // accepted history of the next one.
@@ -769,11 +768,11 @@ pub(crate) fn run(
                 None,
                 solved_state.as_ref(),
             )?;
-            if first_of_inner {
-                // dctrcurv.c `firstTime`: after the first point of an inner
-                // sweep C copies CKTstate0 into CKTstate1, so after the next
-                // rotation CKTstate2 is that point too (`DEVpred` then
-                // predicts it unchanged), never a point of an earlier sweep.
+            // dctrcurv.c `firstTime`: after the first point of an inner
+            // sweep C copies CKTstate0 into CKTstate1, so after the next
+            // rotation CKTstate2 equals CKTstate1 (DEVpred extrapolates
+            // flat) instead of holding the previous outer value's last point.
+            if first_point {
                 history.clear();
             }
             match solved_state {
