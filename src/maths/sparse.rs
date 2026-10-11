@@ -67,6 +67,9 @@ pub struct Pattern {
     /// The `(row, col, id)` sequence of the last load, replayed by bound
     /// matrices to skip lookups (ngspice's per-device element pointers).
     trace: std::sync::Mutex<Arc<Trace>>,
+    /// ngspice's `NIACSHOULDREORDER`: set when the matrix is created
+    /// (`NIreinit`), cleared by the first complex reorder.
+    ac_reorder: std::sync::atomic::AtomicBool,
 }
 
 /// One recorded stamp: `(row, col, element)`.
@@ -133,6 +136,7 @@ impl Pattern {
             row_ids: order,
             ordering: std::sync::Mutex::new(None),
             trace: std::sync::Mutex::new(Arc::new(Trace::default())),
+            ac_reorder: std::sync::atomic::AtomicBool::new(true),
         }
     }
 
@@ -152,6 +156,17 @@ impl Pattern {
     /// Takes the cached pivot order (leaving none while a solve uses it).
     pub(crate) fn take_ordering(&self) -> Option<crate::maths::SparseSymbolic> {
         self.ordering.lock().ok().and_then(|mut slot| slot.take())
+    }
+
+    /// `NIACSHOULDREORDER`: whether the next complex factorization reorders.
+    pub(crate) fn ac_reorder(&self) -> bool {
+        self.ac_reorder.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Sets or clears `NIACSHOULDREORDER`.
+    pub(crate) fn set_ac_reorder(&self, value: bool) {
+        self.ac_reorder
+            .store(value, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Caches the pivot order for the next solve.

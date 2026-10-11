@@ -186,6 +186,7 @@ impl Device for ModelPassive {
             Ok(InductanceValue {
                 effective: self.parameters.effective_value(context)?,
                 coupling_base: self.parameters.coupling_value(context)?,
+                initial: self.parameters.initial_condition().unwrap_or(0.),
             })
         })
     }

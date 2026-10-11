@@ -87,6 +87,9 @@ pub struct MutualTerm {
     pub row: usize,
     /// Mutual inductance in henries (may be negative).
     pub inductance: Real,
+    /// The coupled inductor's `ic=` (C `INDinitCond`, zero when absent),
+    /// which `INDload` uses for the mutual flux of a `uic` first step.
+    pub initial: Real,
 }
 
 /// The inductance of an inductor, as mutual coupling sees it
@@ -99,6 +102,8 @@ pub struct InductanceValue {
     /// `INDinduct`, after temperature and scale but before dividing by the
     /// multiplicity `m`).
     pub coupling_base: Real,
+    /// The `ic=` initial current (C `INDinitCond`, zero when absent).
+    pub initial: Real,
 }
 
 /// What a K (mutual inductance) device couples: every pair of the named
@@ -254,6 +259,42 @@ impl MnaUnknowns {
 impl Default for MnaUnknowns {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// What a device's convergence test ([`Device::convergence_test`]) sees.
+#[derive(Debug)]
+pub struct ConvergenceContext<'a> {
+    /// Where the unknowns live.
+    pub unknowns: &'a MnaUnknowns,
+    /// The new iterate (C `CKTrhs`).
+    pub solution: &'a Vector,
+    /// The iterate the last load used (C `CKTrhsOld`).
+    pub previous: &'a Vector,
+    /// Branch rows of [`Device::controlling_sources`], in order.
+    pub controls: &'a [usize],
+    /// This device's slots of the last load's trial (C `CKTstate0`).
+    pub states: &'a [Real],
+    /// Temperatures, `gmin` and frequency of the solve.
+    pub model_context: &'a crate::devices::ModelContext,
+    /// The time of a transient solve, zero otherwise (C `CKTtime`).
+    pub time: Real,
+    /// C `CKTreltol`.
+    pub reltol: Real,
+    /// C `CKTabstol`.
+    pub abstol: Real,
+    /// C `CKTvoltTol`.
+    pub vntol: Real,
+}
+
+impl ConvergenceContext<'_> {
+    /// The new iterate's value at a node, zero at ground.
+    #[must_use]
+    pub fn voltage(&self, node: NodeId) -> Real {
+        self.unknowns
+            .node_row(node)
+            .and_then(|row| self.solution.get(row))
+            .unwrap_or(0.0)
     }
 }
 
@@ -565,6 +606,19 @@ pub trait Device: fmt::Debug {
     /// Device-specific failures, and [`crate::primitives::SpiceError::NotYetPorted`] for
     /// devices that have not been ported.
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()>;
+
+    /// C's `DEVconvTest`, run by `NIconvTest` (`CKTconvTest`) after the node
+    /// voltages and branch currents of a Newton pass converged: `true` when
+    /// this device has not converged. Only devices whose C type has a
+    /// convergence test override it; for the diode and BJT C's test passes
+    /// whenever the load did not already report nonconvergence (it measures
+    /// limiting at the load point), so they rely on the load's flag.
+    ///
+    /// # Errors
+    /// An evaluation failure (C `E_BADPARM`).
+    fn convergence_test(&self, _context: &ConvergenceContext<'_>) -> SpiceResult<bool> {
+        Ok(false)
+    }
 
     /// The C device type whose `DEVsetup`/`DEVload` handles this instance,
     /// which places it in [`crate::devices::setup`]'s traversal. The default

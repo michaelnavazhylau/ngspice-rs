@@ -89,7 +89,13 @@ mod slot {
     /// Limited `vbs`, `vgs`, `vds` and the load's `von` (C `MOS1vbs`,
     /// `MOS1vgs`, `MOS1vds`, `MOS1von`), for the next load's limiting.
     pub(super) const LIMITED: usize = 16;
-    pub(super) const COUNT: usize = 20;
+    /// What `MOS1convTest` reads from the load (C keeps these in the
+    /// instance): the channel current, its linearization constant and its
+    /// partials at d', g, s', b; the bulk-drain and bulk-source junction
+    /// currents and conductances; and the evaluation voltages of d', s', b
+    /// relative to s'. Trial-only values.
+    pub(super) const CONV: usize = 20;
+    pub(super) const COUNT: usize = 33;
 }
 
 const fn p(name: &'static str, unit: U, domain: D, default: Option<Real>) -> P {
@@ -1230,32 +1236,35 @@ impl Device for Mos1 {
         // s'; every equation below depends on voltage differences only.
         let v = [vds, vgs, 0., vbs].map(|x| pol * x);
         let point = self.point(&op, v, context.gmin)?;
-        // MOS1convTest for an `off` instance held in MODEINITFIX: the drain
-        // (channel minus bulk-drain) and bulk currents at the held voltages
-        // against their linear prediction at the iterate's node voltages.
+        // Values MOS1convTest needs (`mos1conv.c`; C keeps them in the
+        // instance), tested after the pass instead of here.
         {
-            let node_voltage = |n: NodeId| context.node_voltage(n);
-            let [d, _, s, b] = self.inner;
             let channel = &point.channel;
-            let channel_change: Real = channel
-                .partials
-                .iter()
-                .map(|(node, partial)| partial * node_voltage(*node))
-                .sum::<Real>()
-                - channel.linearized;
-            let bd_change =
-                point.bd.conductance * (node_voltage(b) - node_voltage(d) - (v[3] - v[0]));
-            let bs_change =
-                point.bs.conductance * (node_voltage(b) - node_voltage(s) - (v[3] - v[2]));
-            let drain = channel.current - point.bd.current;
-            let bulk = point.bd.current + point.bs.current;
-            limiter.test_held(
-                &context.states,
-                &[
-                    (drain, drain + channel_change - bd_change),
-                    (bulk, bulk + bd_change + bs_change),
-                ],
-            );
+            let mut partials = [0.; 4];
+            for (node, partial) in &channel.partials {
+                let k = self.inner.iter().position(|n| n == node).ok_or_else(|| {
+                    SpiceError::circuit(format!("{}: channel partial off the device", self.name))
+                })?;
+                partials[k] += partial;
+            }
+            let values = [
+                channel.current,
+                channel.linearized,
+                partials[0],
+                partials[1],
+                partials[2],
+                partials[3],
+                point.bd.current,
+                point.bd.conductance,
+                point.bs.current,
+                point.bs.conductance,
+                v[0],
+                v[2],
+                v[3],
+            ];
+            for (k, value) in values.into_iter().enumerate() {
+                context.states.set(slot::CONV + k, value)?;
+            }
         }
         for (ports, conductance) in self.series_ports().into_iter().zip(self.series) {
             if conductance > 0. {
@@ -1321,6 +1330,32 @@ impl Device for Mos1 {
             ],
         )
     }
+    /// `MOS1convTest` (`mos1conv.c`): the drain current (channel minus
+    /// bulk-drain) and the bulk current, predicted linearly from the last
+    /// load at the new iterate (`CKTrhs`), against their loaded values.
+    fn convergence_test(
+        &self,
+        context: &crate::devices::ConvergenceContext<'_>,
+    ) -> SpiceResult<bool> {
+        let at = |k: usize| context.states.get(slot::CONV + k).copied().unwrap_or(0.);
+        let node = self.inner.map(|n| context.voltage(n));
+        let channel_change = (0..4).map(|k| at(2 + k) * node[k]).sum::<Real>() - at(1);
+        let (gbd, gbs) = (at(7), at(9));
+        let (vd, vs, vb) = (at(10), at(11), at(12));
+        let bd_change = gbd * (node[3] - node[0] - (vb - vd));
+        let bs_change = gbs * (node[3] - node[2] - (vb - vs));
+        let drain = at(0) - at(6);
+        let drain_hat = drain + channel_change - bd_change;
+        let tol = context.reltol * drain_hat.abs().max(drain.abs()) + context.abstol;
+        if (drain_hat - drain).abs() >= tol {
+            return Ok(true);
+        }
+        let bulk = at(6) + at(8);
+        let bulk_hat = bulk + bd_change + bs_change;
+        let tol = context.reltol * bulk_hat.abs().max(bulk.abs()) + context.abstol;
+        Ok((bulk_hat - bulk).abs() > tol)
+    }
+
     /// `mos1acld.c`: conductances at the bias plus `jω` times the junction
     /// capacitances and the Meyer capacitances `2 half + overlap`.
     fn assemble_small_signal(

@@ -300,6 +300,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
             b.add_to(0, 2.)?;
             Ok((a, b, trial))
         },
+        |_, _, _| Ok(false),
     )
     .unwrap();
     assert_eq!(solved.values.as_slice(), [2.]);
@@ -335,6 +336,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
             a.add(0, 0, 1.)?;
             Ok((a, Vector::zeros(1), trial))
         },
+        |_, _, _| Ok(false),
     )
     .unwrap();
     assert_eq!(first, Some(IterationPhase::Predict));

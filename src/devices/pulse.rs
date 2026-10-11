@@ -249,38 +249,6 @@ impl Pulse {
         self.period
     }
 
-    fn lerp(&self, from: Real, to: Real, x: Real) -> Real {
-        (1. - x) * from + x * to
-    }
-
-    /// Value at in-cycle time `u` in `[0, period)`, taking the right limit.
-    fn shape_right(&self, u: Real) -> Real {
-        let fall_start = self.rise + self.width;
-        if u < self.rise {
-            self.lerp(self.initial, self.pulsed, u / self.rise)
-        } else if u < fall_start {
-            self.pulsed
-        } else if u < fall_start + self.fall {
-            self.lerp(self.pulsed, self.initial, (u - fall_start) / self.fall)
-        } else {
-            self.initial
-        }
-    }
-
-    /// Value at in-cycle time `u` in `(0, period]`, taking the left limit.
-    fn shape_left(&self, u: Real) -> Real {
-        let fall_start = self.rise + self.width;
-        if u <= self.rise {
-            self.lerp(self.initial, self.pulsed, u / self.rise)
-        } else if u <= fall_start {
-            self.pulsed
-        } else if u <= fall_start + self.fall {
-            self.lerp(self.pulsed, self.initial, (u - fall_start) / self.fall)
-        } else {
-            self.initial
-        }
-    }
-
     /// Forcing at time `t` using the requested one-sided limit.
     ///
     /// Away from corners both limits agree. Before `delay` the value is
@@ -298,35 +266,29 @@ impl Pulse {
         if !s.is_finite() {
             return Err(invalid("evaluation time overflows"));
         }
-        if s < 0. || (s == 0. && limit == Limit::Left) {
-            return Ok(self.initial);
-        }
-        // C: `time > tmax` holds V1; at `tmax` itself the shape is still used,
-        // so V1 is the right limit there.
+        // vsrcload.c, `case PULSE`, verbatim: C's pulse is continuous (TR and
+        // TF default to CKTstep), so both limits are the same value.
+        let _ = limit;
+        let mut time = s;
         if let Some(stop) = self.stop
-            && (s > stop || (s == stop && limit == Limit::Right))
+            && time > stop
         {
             return Ok(self.initial);
         }
-        let mut cycle = (s / self.period).floor();
-        if !cycle.is_finite() || cycle >= MAX_CYCLE {
-            return Err(invalid(
-                "evaluation time is too many periods from the origin",
-            ));
+        if time > self.period {
+            let basetime = self.period * (time / self.period).floor();
+            time -= basetime;
         }
-        let mut u = s - self.period * cycle;
-        if u < 0. {
-            u += self.period;
-            cycle -= 1.;
-        }
-        if u >= self.period {
-            u -= self.period;
-            cycle += 1.;
-        }
-        Ok(match limit {
-            Limit::Right => self.shape_right(u),
-            Limit::Left if u == 0. && cycle >= 1. => self.shape_left(self.period),
-            Limit::Left => self.shape_left(u),
+        let (v1, v2) = (self.initial, self.pulsed);
+        let (tr, tf, pw) = (self.rise, self.fall, self.width);
+        Ok(if time <= 0. || time >= tr + pw + tf {
+            v1
+        } else if time >= tr && time <= tr + pw {
+            v2
+        } else if time > 0. && time < tr {
+            v1 + (v2 - v1) * time / tr
+        } else {
+            v2 + (v1 - v2) * (time - (tr + pw)) / tf
         })
     }
 
@@ -480,33 +442,36 @@ mod tests {
     }
 
     #[test]
-    fn zero_duration_edges_have_distinct_limits() {
+    fn zero_duration_edges_follow_the_c_formula() {
+        // vsrcload.c has one value per time: `time <= 0` and
+        // `time >= TR + PW + TF` are V1 whatever the limit. (A deck cannot
+        // produce zero edges; TR and TF default to CKTstep.)
         let p = pulse(0., 0., 3., 10.);
-        assert_eq!((v(&p, 2., L), v(&p, 2., R)), (1., 5.));
-        assert_eq!((v(&p, 5., L), v(&p, 5., R)), (5., 1.));
+        assert_eq!((v(&p, 2., L), v(&p, 2., R)), (1., 1.));
+        assert_eq!((v(&p, 5., L), v(&p, 5., R)), (1., 1.));
         assert_eq!(v(&p, 3.5, R), 5.);
         assert_eq!(v(&p, 6., R), 1.);
-        // Zero width as well: a one-point spike.
         let spike = pulse(0., 0., 0., 10.);
         assert_eq!((v(&spike, 2., L), v(&spike, 2., R)), (1., 1.));
         assert_eq!(v(&spike, 2.5, R), 1.);
     }
 
     #[test]
-    fn multiple_periods_and_period_boundary_limits() {
+    fn multiple_periods_fold_as_vsrcload_does() {
         let p = pulse(0., 0., 3., 10.);
         for k in 0..4 {
             let base = 2. + 10. * f64::from(k);
-            assert_eq!((v(&p, base, L), v(&p, base, R)), (1., 5.), "k={k}");
+            assert_eq!((v(&p, base, L), v(&p, base, R)), (1., 1.), "k={k}");
             assert_eq!(v(&p, base + 1.5, R), 5., "k={k}");
-            assert_eq!((v(&p, base + 3., L), v(&p, base + 3., R)), (5., 1.));
+            assert_eq!(v(&p, base + 3., R), 1., "k={k}");
             assert_eq!(v(&p, base + 7., R), 1., "k={k}");
         }
-        // Slow rise cut off by a short period: the boundary is a jump.
+        // Slow rise cut off by a short period: `time > PER` folds strictly
+        // after the period, so at time = PER the rise is still evaluated.
         let cut = pulse(8., 1., 0., 4.);
-        assert_eq!((v(&cut, 6., L), v(&cut, 6., R)), (1. + 4. * 0.5, 1.));
-        assert_eq!(v(&cut, 5., R), 1. + 4. * 0.375);
-        assert_eq!((v(&cut, 10., L), v(&cut, 10., R)), (3., 1.));
+        assert_eq!(v(&cut, 6., R), 1. + 4. * 4. / 8.);
+        assert_eq!(v(&cut, 5., R), 1. + 4. * 3. / 8.);
+        assert_eq!(v(&cut, 10., L), 1.);
     }
 
     #[test]
@@ -514,8 +479,6 @@ mod tests {
         let p = pulse(1., 1., 1., 10.);
         assert!(p.value_at(f64::NAN, R).is_err());
         assert!(p.value_at(f64::INFINITY, L).is_err());
-        let tiny = Pulse::new(0., 1., 0., 0., 0., 0., 1e-300).unwrap();
-        assert!(tiny.value_at(1e10, R).is_err());
     }
 
     #[test]
@@ -686,7 +649,9 @@ mod tests {
         // A fractional count cuts the plateau: a jump to V1 at 2 + 1.4 * 10.
         let cut = pulse(1., 2., 3., 10.).with_count(1.4).unwrap();
         assert_eq!(v(&cut, 15., R), 5.);
-        assert_eq!((v(&cut, 16., L), v(&cut, 16., R)), (5., 1.));
+        // vsrcload.c: `time > tmax` holds V1; at tmax itself the shape.
+        assert_eq!((v(&cut, 16., L), v(&cut, 16., R)), (5., 5.));
+        assert_eq!(v(&cut, 16.5, R), 1.);
         let corners: Vec<_> = cut.breakpoints_in(0., 100.).unwrap().collect();
         assert_eq!(corners, [2., 3., 6., 8., 12., 13., 16., 18.]);
         // A cut in the idle part is no corner.

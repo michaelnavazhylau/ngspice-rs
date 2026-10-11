@@ -207,10 +207,28 @@ fn frequencies(card: &DistoCard, reltol: Real) -> SpiceResult<Vec<Real>> {
     Ok(grid)
 }
 
-/// Solves `(A + j omega E) x = rhs`; a negative `omega` (`f1 - f2` below
-/// `f2`) is solved as the conjugate of the positive-frequency system, which is
+/// `NIdIter`: solves `(A + j omega E) x = rhs` on the circuit's matrix at
+/// `CKTomega = omega`, negative for `f1 - f2` below `f2`, factoring even for
+/// a zero right-hand side as C does (the factorization is shared state).
+/// When the system does not fit the circuit's elements, a negative `omega`
+/// is solved as the conjugate of the positive-frequency system, which is
 /// exact for the real operators `A` and `E`.
-fn solve_at(system: &LinearSystem, omega: Real, rhs: &[Complex]) -> SpiceResult<Vec<Complex>> {
+fn solve_at(
+    circuit: &Circuit,
+    system: &LinearSystem,
+    omega: Real,
+    rhs: &[Complex],
+) -> SpiceResult<Vec<Complex>> {
+    if let Some(pattern) = circuit.matrix_pattern()
+        && let Some(matrix) =
+            ComplexMatrix::from_operators_on(&pattern, &system.a, &system.e, omega)?
+    {
+        let lu = matrix.factorize()?;
+        if rhs.iter().all(|value| *value == Complex::ZERO) {
+            return Ok(vec![Complex::ZERO; rhs.len()]);
+        }
+        return lu.solve(rhs);
+    }
     let flip = omega < 0.;
     let matrix = ComplexMatrix::from_operators(&system.a, &system.e, omega.abs())?;
     let lu = matrix.factorize()?;
@@ -345,11 +363,11 @@ pub(crate) fn run(
             unknowns,
             &mut rhs,
         )?;
-        solve_at(system, omega, &rhs)
+        solve_at(circuit, system, omega, &rhs)
     };
     for freq in grid {
         let omega1 = two_pi * freq;
-        let h1 = solve_at(system, omega1, &rhs_f1)?;
+        let h1 = solve_at(circuit, system, omega1, &rhs_f1)?;
         let base = Kernels {
             h1: &h1,
             h1_f2: None,
@@ -370,7 +388,7 @@ pub(crate) fn run(
                 vec![scaled(&h2, 2.), scaled(&h3, 2.)]
             }
             Some(rhs_f2) => {
-                let h1_f2 = solve_at(system, omega2, rhs_f2)?;
+                let h1_f2 = solve_at(circuit, system, omega2, rhs_f2)?;
                 let with_f2 = Kernels {
                     h1_f2: Some(&h1_f2),
                     ..base

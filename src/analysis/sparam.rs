@@ -37,7 +37,6 @@ use crate::analysis::results::Variable;
 use crate::analysis::{AnalysisRequest, Plot};
 use crate::devices::Circuit;
 use crate::devices::linear::SourceKind;
-use crate::maths::complex::ComplexMatrix;
 use crate::maths::dense_complex::DenseComplex;
 use crate::primitives::{Complex, Real, SpiceError, SpiceResult, parse_spice_number};
 
@@ -126,12 +125,9 @@ pub(crate) fn run(
     for f in grid {
         let (last, matrices, factor) =
             small_signal.at_frequency(circuit, context, f, |system| {
-                let matrix = ComplexMatrix::from_operators(
-                    &system.a,
-                    &system.e,
-                    2. * std::f64::consts::PI * f,
-                )?
-                .factorize()?;
+                let matrix =
+                    crate::analysis::ac::ac_matrix(circuit, system, 2. * std::f64::consts::PI * f)?
+                        .factorize()?;
                 let mut incident = DenseComplex::zeros(ports.len());
                 let mut scattered = DenseComplex::zeros(ports.len());
                 let mut last = Vec::new();

@@ -128,6 +128,9 @@ impl StateHistory {
             initial_conditions: false,
             c_jacobian: false,
             tolerances: None,
+            initial_transient: false,
+            uic: false,
+            patches: Vec::new(),
         }
     }
 
@@ -155,8 +158,14 @@ impl StateHistory {
             nonconvergent: false,
             device_limiting: true,
             initial_conditions: false,
-            c_jacobian: false,
+            // NIiter factors C's DEVload matrix.
+            c_jacobian: true,
             tolerances: None,
+            initial_transient: false,
+            uic: false,
+            patches: previous
+                .map(|previous| previous.patches.clone())
+                .unwrap_or_default(),
         })
     }
 
@@ -190,6 +199,15 @@ impl StateHistory {
     /// As [`Self::check`].
     pub fn commit(&mut self, trial: TrialState) -> SpiceResult<()> {
         self.check(&trial)?;
+        // dctran.c: the first step's MODEINITTRAN writes into CKTstate1, which
+        // is then copied into CKTstate2 and CKTstate3 before the rotation.
+        for vector in self.accepted.iter_mut().take(3) {
+            for &(slot, value) in &trial.patches {
+                if let Some(target) = vector.get_mut(slot) {
+                    *target = value;
+                }
+            }
+        }
         self.accepted.insert(0, trial.values);
         self.accepted.truncate(ACCEPTED_DEPTH);
         Ok(())
@@ -226,6 +244,9 @@ impl StateHistory {
             initial_conditions,
             c_jacobian,
             tolerances,
+            initial_transient,
+            uic,
+            patches,
         } = trial;
         let previous: Option<&'a [Real]> = match previous {
             Some(vector) => {
@@ -236,7 +257,7 @@ impl StateHistory {
         };
         Ok(DeviceState {
             previous,
-            trial: &mut values[range],
+            trial: &mut values[range.clone()],
             accepted,
             depth: self.accepted.len(),
             phase: *phase,
@@ -245,6 +266,10 @@ impl StateHistory {
             initial_conditions: *initial_conditions,
             c_jacobian: *c_jacobian,
             tolerances: *tolerances,
+            initial_transient: *initial_transient,
+            uic: *uic,
+            offset: range.start,
+            patches: Some(patches),
         })
     }
 }
@@ -282,6 +307,12 @@ pub struct TrialState {
     initial_conditions: bool,
     c_jacobian: bool,
     tolerances: Option<(Real, Real)>,
+    initial_transient: bool,
+    uic: bool,
+    /// `MODEINITTRAN` writes into `CKTstate1` (absolute slot, value), seen by
+    /// the later loads of the same solve and applied when the trial is
+    /// committed ([`DeviceState::patch_state1`]).
+    patches: Vec<(usize, Real)>,
 }
 
 impl TrialState {
@@ -291,6 +322,23 @@ impl TrialState {
     #[must_use]
     pub const fn with_convergence_tolerances(mut self, reltol: Real, abstol: Real) -> Self {
         self.tolerances = Some((reltol, abstol));
+        self
+    }
+
+    /// The same trial marked as part of a `uic` transient (C `MODEUIC`),
+    /// see [`DeviceState::uic`].
+    #[must_use]
+    pub const fn with_uic(mut self, enabled: bool) -> Self {
+        self.uic = enabled;
+        self
+    }
+
+    /// The same trial marked as the first transient timepoint's loads
+    /// (`MODEINITTRAN` rather than `MODEINITPRED` in
+    /// [`IterationPhase::Predict`]); see [`DeviceState::initial_transient`].
+    #[must_use]
+    pub const fn with_initial_transient(mut self, enabled: bool) -> Self {
+        self.initial_transient = enabled;
         self
     }
 
@@ -374,6 +422,11 @@ pub struct DeviceState<'a> {
     initial_conditions: bool,
     c_jacobian: bool,
     tolerances: Option<(Real, Real)>,
+    initial_transient: bool,
+    uic: bool,
+    /// This window's first absolute slot.
+    offset: usize,
+    patches: Option<&'a mut Vec<(usize, Real)>>,
 }
 
 impl DeviceState<'_> {
@@ -391,7 +444,27 @@ impl DeviceState<'_> {
             initial_conditions: false,
             c_jacobian: false,
             tolerances: None,
+            initial_transient: false,
+            uic: false,
+            offset: 0,
+            patches: None,
         }
+    }
+
+    /// C's `MODEINITTRAN` write `*(CKTstate1 + slot) = value`: later loads of
+    /// this solve read it through [`Self::accepted`]`(1, slot)`, and it
+    /// becomes part of the history when the point is accepted.
+    ///
+    /// # Errors
+    /// An out-of-range slot or a nonfinite value.
+    pub fn patch_state1(&mut self, slot: usize, value: Real) -> SpiceResult<()> {
+        if slot >= self.trial.len() || !value.is_finite() {
+            return Err(state_error("invalid CKTstate1 write"));
+        }
+        if let Some(patches) = self.patches.as_deref_mut() {
+            patches.push((self.offset + slot, value));
+        }
+        Ok(())
     }
 
     /// The `(reltol, abstol)` of the Newton solve this load belongs to, when
@@ -415,6 +488,33 @@ impl DeviceState<'_> {
     #[must_use]
     pub const fn device_limiting(&self) -> bool {
         self.device_limiting
+    }
+
+    /// Whether a [`IterationPhase::Predict`] load is `MODEINITTRAN` (the first
+    /// transient timepoint, junction voltages from `CKTstate1` unlimited)
+    /// rather than `MODEINITPRED` (`DEVpred` extrapolation, limited).
+    #[must_use]
+    pub const fn initial_transient(&self) -> bool {
+        self.initial_transient
+    }
+
+    /// Whether the transient runs with `uic` (C `MODEUIC`): in the first
+    /// step's `MODEINITTRAN` load capacitors and inductors start from their
+    /// `ic=` values.
+    #[must_use]
+    pub const fn uic(&self) -> bool {
+        self.uic
+    }
+
+    /// C `DEVpred` (`devsup.c`): `(1 + r) state1 - r state2` with
+    /// `r = CKTdelta / CKTdeltaOld[1]`; `state2` is `state1` when only one
+    /// accepted vector exists (dctran.c copies state1 into state2 after the
+    /// first step).
+    #[must_use]
+    pub fn predicted(&self, slot: usize, ratio: Real) -> Option<Real> {
+        let s1 = self.accepted(1, slot)?;
+        let s2 = self.accepted(2, slot).unwrap_or(s1);
+        Some((1. + ratio) * s1 - ratio * s2)
     }
 
     /// Whether this is C's `uic` initial load
@@ -507,6 +607,15 @@ impl DeviceState<'_> {
     /// The accepted value of `slot`, `age` points back (1 is the latest).
     #[must_use]
     pub fn accepted(&self, age: usize, slot: usize) -> Option<Real> {
+        if age == 1
+            && let Some(patches) = self.patches.as_deref()
+            && let Some(&(_, value)) = patches
+                .iter()
+                .rev()
+                .find(|(at, _)| *at == self.offset + slot)
+        {
+            return Some(value);
+        }
         age.checked_sub(1)
             .and_then(|index| self.accepted.get(index))
             .and_then(|vector| vector.get(slot))

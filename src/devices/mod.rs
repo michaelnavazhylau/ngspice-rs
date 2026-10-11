@@ -82,8 +82,8 @@ pub mod state;
 pub mod traits;
 
 pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
-pub use circuit::LoadRequest;
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
+pub use circuit::{ConvergenceRequest, LoadRequest};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, DeviceSupport, Registry};
@@ -95,8 +95,9 @@ pub use sweep::{
 };
 pub use switch::{Switch, SwitchKind, SwitchState};
 pub use traits::{
-    AcceptContext, AnalysisMode, ControlReference, Device, InductanceValue, MnaUnknowns,
-    MutualCoupling, MutualTerm, StampContext, StorageElement, StorageKind, TruncationContext,
+    AcceptContext, AnalysisMode, ControlReference, ConvergenceContext, Device, InductanceValue,
+    MnaUnknowns, MutualCoupling, MutualTerm, StampContext, StorageElement, StorageKind,
+    TruncationContext,
 };
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.

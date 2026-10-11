@@ -298,6 +298,36 @@ impl Device for Behavioural {
         crate::devices::setup::CDeviceType::Asrc
     }
 
+    /// One trial slot: the expression value of the last load (C
+    /// `ASRCprev_value`).
+    fn state_count(&self) -> usize {
+        1
+    }
+
+    /// `ASRCconvTest` (`asrcconv.c`): the expression at the new iterate
+    /// against its value at the last load, within `reltol` and `vntol` (a
+    /// voltage source) or `abstol` (a current source).
+    fn convergence_test(
+        &self,
+        context: &crate::devices::ConvergenceContext<'_>,
+    ) -> SpiceResult<bool> {
+        let (evaluation, _, _) = self.evaluate(
+            context.solution,
+            context.unknowns,
+            context.controls,
+            context.time,
+            context.model_context,
+        )?;
+        let rhs = evaluation.value;
+        let prev = context.states.first().copied().unwrap_or(0.);
+        let absolute = match self.output {
+            BehaviouralOutput::Voltage => context.vntol,
+            BehaviouralOutput::Current => context.abstol,
+        };
+        let tol = context.reltol * rhs.abs().max(prev.abs()) + absolute;
+        Ok((prev - rhs).abs() > tol)
+    }
+
     /// `asrcset.c`: a voltage source's branch elements, then one column per
     /// expression variable (the branch row, or both output nodes).
     fn setup_matrix(
@@ -478,6 +508,8 @@ impl Device for Behavioural {
             &context.model_context(),
         )?;
         let factor = self.checked_factor(context.temperature)?;
+        // asrcload.c: ASRCprev_value, the raw value ASRCconvTest compares.
+        context.states.set(0, evaluation.value)?;
         let branch = (!context.branches.is_empty()).then_some(context.branches.start);
         self.stamp_into(
             context.matrix,

@@ -48,6 +48,8 @@ pub(crate) trait Scalar: Copy + PartialEq + std::fmt::Debug {
     fn mul_sub(self, a: Self, b: Self) -> Self;
     /// Whether the value is exactly zero (`== 0.0` on every part).
     fn is_zero(self) -> bool;
+    /// `x.Real += r`.
+    fn add_real(self, r: f64) -> Self;
 }
 
 impl Scalar for f64 {
@@ -69,6 +71,9 @@ impl Scalar for f64 {
     }
     fn is_zero(self) -> bool {
         self == 0.0
+    }
+    fn add_real(self, r: f64) -> Self {
+        self + r
     }
 }
 
@@ -107,6 +112,9 @@ impl Scalar for Complex {
     }
     fn is_zero(self) -> bool {
         self.re == 0.0 && self.im == 0.0
+    }
+    fn add_real(self, r: f64) -> Self {
+        Complex::new(self.re + r, self.im)
     }
 }
 
@@ -369,6 +377,65 @@ impl<T: Scalar> Sparse<T> {
         self.factored = false;
         self.singular_row = 0;
         self.singular_col = 0;
+    }
+
+    /// The same matrix frame holding another scalar type, every element
+    /// zero: ngspice switches one frame between real and complex
+    /// (`spSetReal`/`spSetComplex`), keeping its internal numbering, row and
+    /// column exchanges, pivot order, fill-ins and flags. Loads start with
+    /// `spClear`, so the values carried over do not matter.
+    pub(crate) fn retyped<U: Scalar>(&self) -> Sparse<U> {
+        Sparse {
+            size: self.size,
+            current_size: self.current_size,
+            elements: self
+                .elements
+                .iter()
+                .map(|e| Element {
+                    value: U::ZERO,
+                    row: e.row,
+                    col: e.col,
+                    next_in_row: e.next_in_row,
+                    next_in_col: e.next_in_col,
+                })
+                .collect(),
+            diag: self.diag.clone(),
+            first_in_col: self.first_in_col.clone(),
+            first_in_row: self.first_in_row.clone(),
+            ext_to_int_row: self.ext_to_int_row.clone(),
+            ext_to_int_col: self.ext_to_int_col.clone(),
+            int_to_ext_row: self.int_to_ext_row.clone(),
+            int_to_ext_col: self.int_to_ext_col.clone(),
+            markowitz_row: self.markowitz_row.clone(),
+            markowitz_col: self.markowitz_col.clone(),
+            markowitz_prod: self.markowitz_prod.clone(),
+            singletons: self.singletons,
+            rel_threshold: self.rel_threshold,
+            abs_threshold: self.abs_threshold,
+            rows_linked: self.rows_linked,
+            internal_vectors: self.internal_vectors,
+            needs_ordering: self.needs_ordering,
+            factored: self.factored,
+            interchanges_odd: self.interchanges_odd,
+            status: self.status,
+            singular_row: self.singular_row,
+            singular_col: self.singular_col,
+        }
+    }
+
+    /// `LoadGmin` (`spsmp.c`): adds `gmin` to the real part of every
+    /// internal diagonal element (after the MNA preorder's column swaps, so a
+    /// voltage source's twin can be one), from the last row to the first.
+    pub(crate) fn load_gmin(&mut self, gmin: f64) {
+        if gmin == 0.0 {
+            return;
+        }
+        for i in (1..=self.size).rev() {
+            let diag = self.diag[i];
+            if diag != NONE {
+                self.elements[diag].value = self.elements[diag].value.add_real(gmin);
+            }
+        }
     }
 
     /// Overwrites one element's value (`*element = value`).

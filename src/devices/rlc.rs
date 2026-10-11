@@ -58,6 +58,13 @@ fn companion_coefficients<'a>(
 /// Integrates one element as `NIintegrate` does: `quantity` is the trial
 /// charge/flux and `capacitance` the C or L it was derived with. Reads only
 /// accepted history and touches nothing.
+/// `(MODEINITTRAN, MODEINITPRED)` of a transient load.
+fn transient_phase(context: &StampContext<'_>) -> (bool, bool) {
+    let predict = context.states.phase() == crate::devices::IterationPhase::Predict;
+    let initial = predict && context.states.initial_transient();
+    (initial, predict && !initial)
+}
+
 fn integrate(
     context: &StampContext<'_>,
     coefficients: &Coefficients,
@@ -584,7 +591,31 @@ impl Device for Capacitor {
             return Err(SpiceError::circuit("use complex equation assembly for AC"));
         }
         let coefficients = companion_coefficients(context, &self.name)?;
+        // capload.c: MODEINITPRED keeps CKTstate1's charge; MODEINITTRAN
+        // copies the charge, then the integrated current, into CKTstate1.
+        let (initial, predicting) = transient_phase(context);
+        let charge = if predicting {
+            context
+                .states
+                .accepted(1, QUANTITY)
+                .ok_or_else(|| SpiceError::circuit(format!("{}: no accepted charge", self.name)))?
+        } else if initial && context.states.uic() {
+            // cond1 (MODEUIC && MODEINITTRAN): vcap = CAPinitCond, which
+            // CAPgetic defaults to the node voltages of the uic start vector
+            // (the .ic values), the point this load sees.
+            self.capacitance * self.initial_voltage.unwrap_or(v)
+        } else {
+            charge
+        };
+        if initial {
+            context.states.patch_state1(QUANTITY, charge)?;
+        }
         let companion = integrate(context, coefficients, charge, self.capacitance, &self.name)?;
+        if initial {
+            context
+                .states
+                .patch_state1(DERIVATIVE, companion.derivative)?;
+        }
         context.states.set(QUANTITY, charge)?;
         context.states.set(DERIVATIVE, companion.derivative)?;
         crate::devices::linear::nodal_stamp(
@@ -804,6 +835,7 @@ impl Device for Inductor {
         Some(Ok(crate::devices::traits::InductanceValue {
             effective: self.inductance,
             coupling_base: self.inductance,
+            initial: self.initial_current.unwrap_or(0.),
         }))
     }
 
@@ -837,7 +869,37 @@ impl Device for Inductor {
             return Err(SpiceError::circuit("use complex equation assembly for AC"));
         }
         let coefficients = companion_coefficients(context, &self.name)?;
+        // indload.c: MODEINITPRED keeps CKTstate1's flux (the mutual flux
+        // is not added); MODEINITTRAN copies the flux, then the integrated
+        // voltage, into CKTstate1.
+        let (initial, predicting) = transient_phase(context);
+        let flux = if predicting {
+            context
+                .states
+                .accepted(1, QUANTITY)
+                .ok_or_else(|| SpiceError::circuit(format!("{}: no accepted flux", self.name)))?
+        } else if initial && context.states.uic() {
+            // MODEUIC && MODEINITTRAN: INDinduct/m * INDinitCond, plus each
+            // MUTfactor * the coupled inductor's INDinitCond.
+            // INDgetic defaults INDinitCond to the uic start vector's value.
+            let mut flux =
+                self.inductance * self.initial_current.unwrap_or(context.row_value(row)?);
+            for term in context.mutual {
+                flux += term.inductance * term.initial;
+            }
+            flux
+        } else {
+            flux
+        };
+        if initial {
+            context.states.patch_state1(QUANTITY, flux)?;
+        }
         let companion = integrate(context, coefficients, flux, self.inductance, &self.name)?;
+        if initial {
+            context
+                .states
+                .patch_state1(DERIVATIVE, companion.derivative)?;
+        }
         context.states.set(QUANTITY, flux)?;
         context.states.set(DERIVATIVE, companion.derivative)?;
         crate::devices::linear::branch_stamp(

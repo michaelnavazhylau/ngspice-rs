@@ -19,6 +19,9 @@ pub struct ComplexMatrix {
     n: usize,
     entries: Vec<(usize, usize, Complex)>,
     pivot: PivotTolerances,
+    /// The circuit pattern whose elements `entries` are (one per element,
+    /// in element order), or `None` for a standalone matrix.
+    bound: Option<Arc<crate::maths::Pattern>>,
 }
 impl ComplexMatrix {
     /// Assembles `A + j omega E`, preserving cancellations and checking
@@ -62,13 +65,85 @@ impl ComplexMatrix {
                 .map(|((r, c), v)| (r, c, v))
                 .collect(),
             pivot: a.pivot_tolerances(),
+            bound: None,
         })
+    }
+
+    /// `CKTacLoad` into a circuit pattern: every element of `pattern` (zeros
+    /// included, as ngspice allocates them at setup) holds the sum of `a`'s
+    /// contributions as its real part and of `omega` times `e`'s as its
+    /// imaginary part, each summed in stamp order (`omega` may be negative, as
+    /// `CKTomega` is for `.disto`'s `f1 - f2`). `None` when a stamp lies
+    /// outside the pattern.
+    ///
+    /// Factoring it ([`Self::factorize`]) shares the circuit's SPARSE frame
+    /// and pivot order with its real solves, as `NIacIter` does.
+    /// # Errors
+    /// Invalid dimensions, frequency or coefficients.
+    pub fn from_operators_on(
+        pattern: &Arc<crate::maths::Pattern>,
+        a: &SparseMatrix,
+        e: &SparseMatrix,
+        omega: f64,
+    ) -> SpiceResult<Option<Self>> {
+        let n = pattern.order();
+        if a.rows() != n || a.cols() != n || e.rows() != n || e.cols() != n {
+            return Err(numerical("complex assembly", "operator dimensions invalid"));
+        }
+        // `CKTomega` may be negative: `.disto` loads at `f1 - f2`.
+        if !omega.is_finite() {
+            return Err(numerical("complex assembly", "frequency invalid"));
+        }
+        let mut values = vec![Complex::ZERO; pattern.len()];
+        for (m, dynamic) in [(a, false), (e, true)] {
+            for t in m.triplets() {
+                let Some(id) = pattern.find(t.row, t.col) else {
+                    return Ok(None);
+                };
+                let value = &mut values[id.index()];
+                if dynamic {
+                    value.im += omega * t.value;
+                } else {
+                    value.re += t.value;
+                }
+                if !value.is_finite() {
+                    return Err(numerical(
+                        "complex assembly",
+                        "non-finite coefficient/overflow",
+                    ));
+                }
+            }
+        }
+        Ok(Some(Self {
+            n,
+            entries: values
+                .into_iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    let (row, col) = pattern.position(crate::maths::sparse::element_id(index));
+                    (row, col, value)
+                })
+                .collect(),
+            pivot: a.pivot_tolerances(),
+            bound: Some(Arc::clone(pattern)),
+        }))
     }
 
     /// Orders and factors (`SMPpreOrder` + `SMPcReorder`).
     /// # Errors
     /// Structurally or numerically singular matrix.
     pub fn factorize(&self) -> SpiceResult<ComplexLu> {
+        if let Some(pattern) = &self.bound {
+            let values: Vec<Complex> = self.entries.iter().map(|&(_, _, v)| v).collect();
+            let (sparse, handles) =
+                crate::maths::linear::factor_shared_complex(pattern, &values, self.pivot)?;
+            return Ok(ComplexLu {
+                n: self.n,
+                pattern: Arc::new(self.entries.iter().map(|&(r, c, _)| (r, c)).collect()),
+                handles,
+                sparse,
+            });
+        }
         let mut sparse = Sparse::new(self.n);
         let handles: Vec<_> = self
             .entries
@@ -94,6 +169,10 @@ impl ComplexMatrix {
     /// # Errors
     /// Structurally or numerically singular matrix.
     pub fn factorize_reusing(&self, previous: &ComplexLu) -> SpiceResult<ComplexLu> {
+        if self.bound.is_some() {
+            // The circuit pattern carries the pivot order itself.
+            return self.factorize();
+        }
         let same = previous.n == self.n
             && previous.pattern.len() == self.entries.len()
             && previous

@@ -56,7 +56,6 @@ use crate::analysis::results::{Plot, PlotFlags, Variable};
 use crate::analysis::{AnalysisContext, AnalysisRequest};
 use crate::devices::noise::{InstanceNoise, circuit_noise};
 use crate::devices::{Circuit, LinearSystem, SourceKind};
-use crate::maths::complex::ComplexMatrix;
 use crate::primitives::{Complex, NodeId, Real, SpiceError, SpiceResult, parse_spice_number};
 
 /// C `N_MINLOG`: the smallest number whose logarithm is taken.
@@ -497,11 +496,8 @@ pub(crate) fn run(
         }
         let input_name = card.input.as_str();
         let (forward, adjoint) = small.at_frequency(circuit, context, freq, |system| {
-            let matrix = ComplexMatrix::from_operators(
-                &system.a,
-                &system.e,
-                2. * std::f64::consts::PI * freq,
-            )?;
+            let matrix =
+                crate::analysis::ac::ac_matrix(circuit, system, 2. * std::f64::consts::PI * freq)?;
             let lu = matrix.factorize()?;
             Ok((
                 lu.solve(&input_rhs(system, input_name)?)?,

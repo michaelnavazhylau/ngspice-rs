@@ -225,6 +225,245 @@ fn solve_reusing(
     Ok(x)
 }
 
+/// `NIacIter`'s factorization (`niaciter.c`) of a complex system loaded into
+/// a circuit pattern's elements (`CKTacLoad`), in the same SPARSE frame as
+/// the circuit's real solves: the frame is switched to complex
+/// ([`Sparse::retyped`]), `SMPcReorder` runs when the pattern's
+/// `NIACSHOULDREORDER` flag is set (once per circuit), `SMPcLUfac` otherwise,
+/// and a zero pivot sets the flag and reorders. The frame, with whatever
+/// reordering happened, is stored back for the circuit's next solve.
+///
+/// `values` holds one value per pattern element, in element order.
+///
+/// # Errors
+/// A singular matrix.
+pub(crate) fn factor_shared_complex(
+    pattern: &Arc<Pattern>,
+    values: &[crate::primitives::Complex],
+    pivot: PivotTolerances,
+) -> SpiceResult<(Sparse<crate::primitives::Complex>, Arc<Vec<usize>>)> {
+    use crate::primitives::Complex;
+    let n = pattern.order();
+    let cached = pattern.take_ordering().filter(|symbolic| {
+        matches!(&symbolic.key, Key::Pattern(weak) if std::ptr::eq(weak.as_ptr(), Arc::as_ptr(pattern)))
+    });
+    let (mut sparse, handles, fresh) = match cached {
+        Some(symbolic) => (
+            symbolic.sparse.retyped::<Complex>(),
+            symbolic.handles,
+            false,
+        ),
+        None => {
+            let mut sparse = Sparse::<Complex>::new(n);
+            let handles: Vec<_> = (0..pattern.len())
+                .map(|index| {
+                    let (row, col) = pattern.position(crate::maths::sparse::element_id(index));
+                    sparse.get_element(row + 1, col + 1)
+                })
+                .collect();
+            (sparse, Arc::new(handles), true)
+        }
+    };
+    let load = |sparse: &mut Sparse<Complex>| {
+        sparse.clear();
+        for (handle, value) in handles.iter().zip(values) {
+            sparse.set(*handle, *value);
+        }
+    };
+    load(&mut sparse);
+    let result = if fresh {
+        pattern.set_ac_reorder(false);
+        order_fresh("complex sparse LU", &mut sparse, pivot)
+    } else {
+        let mut status = if pattern.ac_reorder() {
+            pattern.set_ac_reorder(false);
+            sparse.order_and_factor(pivot.relative, pivot.absolute)
+        } else {
+            sparse.factor()
+        };
+        if status == Status::ZeroDiag {
+            // NIacIter: E_SINGULAR sets NIACSHOULDREORDER and retries.
+            load(&mut sparse);
+            status = sparse.order_and_factor(pivot.relative, pivot.absolute);
+        }
+        check_status("complex sparse LU", status, &sparse)
+    };
+    pattern.store_ordering(Some(SparseSymbolic {
+        n,
+        key: Key::Pattern(Arc::downgrade(pattern)),
+        handles: Arc::clone(&handles),
+        sparse: Arc::new(sparse.retyped::<f64>()),
+    }));
+    result.map(|()| (sparse, handles))
+}
+
+/// The result of one `NIiter` factor-and-solve step ([`solve_ni`]).
+#[derive(Debug)]
+pub enum NiStep {
+    /// The new iterate.
+    Solved(Vector),
+    /// `SMPluFac` met a zero pivot with the existing order (`E_SINGULAR`):
+    /// `NIiter` sets `NISHOULDREORDER` and reloads before trying again.
+    ZeroPivot,
+}
+
+/// A SPARSE frame for `matrix` with elements created in its order (a bound
+/// matrix's pattern order, else folded row-major), values loaded, not yet
+/// ordered.
+fn fresh_frame(matrix: &SparseMatrix) -> SpiceResult<(Sparse<f64>, SparseSymbolic)> {
+    if let Some((pattern, values)) = matrix.bound_values() {
+        square(matrix.rows(), matrix.cols())?;
+        finite_bound(values)?;
+        let mut sparse = Sparse::new(pattern.order());
+        let handles: Vec<_> = (0..pattern.len())
+            .map(|index| {
+                let id = crate::maths::sparse::element_id(index);
+                let (row, col) = pattern.position(id);
+                let handle = sparse.get_element(row + 1, col + 1);
+                sparse.set(handle, values[index]);
+                handle
+            })
+            .collect();
+        let symbolic = SparseSymbolic {
+            n: pattern.order(),
+            key: Key::Pattern(Arc::downgrade(pattern)),
+            handles: Arc::new(handles),
+            sparse: Arc::new(Sparse::new(0)),
+        };
+        return Ok((sparse, symbolic));
+    }
+    let matrix = assembled(matrix)?;
+    let n = matrix.rows();
+    let pattern: Vec<_> = matrix.triplets().iter().map(|t| (t.row, t.col)).collect();
+    let mut sparse = Sparse::new(n);
+    let handles: Vec<_> = matrix
+        .triplets()
+        .iter()
+        .map(|t| {
+            let handle = sparse.get_element(t.row + 1, t.col + 1);
+            sparse.set(handle, t.value);
+            handle
+        })
+        .collect();
+    let symbolic = SparseSymbolic {
+        n,
+        key: Key::Triplets(Arc::new(pattern)),
+        handles: Arc::new(handles),
+        sparse: Arc::new(Sparse::new(0)),
+    };
+    Ok((sparse, symbolic))
+}
+
+/// One `NIiter` step on `matrix`: the factorization ngspice performs after a
+/// load, then `SMPsolve`.
+///
+/// A matrix never ordered (no matching `ordering`; a bound matrix uses its
+/// pattern's persistent frame instead) is MNA-preordered once
+/// (`SMPpreOrder`). Then `LoadGmin(diag_gmin)` and, with `reorder`
+/// (`NISHOULDREORDER`), `spOrderAndFactor`, which keeps every existing pivot
+/// that still passes the thresholds and reorders from the first that does
+/// not; without it `spFactor` with the existing order, which reports a zero
+/// pivot as [`NiStep::ZeroPivot`] for the caller to reload and reorder.
+///
+/// # Errors
+/// Invalid assembly or RHS, a singular reordered matrix, or a non-finite
+/// solution.
+pub fn solve_ni(
+    matrix: &SparseMatrix,
+    rhs: &Vector,
+    ordering: &mut Option<SparseSymbolic>,
+    reorder: bool,
+    diag_gmin: f64,
+) -> SpiceResult<NiStep> {
+    if let Some((pattern, _)) = matrix.bound_values() {
+        let mut cached = pattern.take_ordering();
+        let step = ni_step(matrix, rhs, &mut cached, reorder, diag_gmin);
+        pattern.store_ordering(cached);
+        return step;
+    }
+    ni_step(matrix, rhs, ordering, reorder, diag_gmin)
+}
+
+fn ni_step(
+    matrix: &SparseMatrix,
+    rhs: &Vector,
+    ordering: &mut Option<SparseSymbolic>,
+    reorder: bool,
+    diag_gmin: f64,
+) -> SpiceResult<NiStep> {
+    let pivot = matrix.pivot_tolerances();
+    let previous = ordering.take().filter(|previous| previous.matches(matrix));
+    let (mut sparse, symbolic, fresh) = match previous {
+        Some(previous) => {
+            let mut sparse =
+                Arc::try_unwrap(previous.sparse).unwrap_or_else(|shared| (*shared).clone());
+            let owned: Vec<f64>;
+            let values: &[f64] = match matrix.bound_values() {
+                Some((_, values)) => {
+                    finite_bound(values)?;
+                    values
+                }
+                None => {
+                    owned = assembled(matrix)?
+                        .triplets()
+                        .iter()
+                        .map(|t| t.value)
+                        .collect();
+                    &owned
+                }
+            };
+            sparse.clear();
+            for (handle, value) in previous.handles.iter().zip(values) {
+                sparse.set(*handle, *value);
+            }
+            let symbolic = SparseSymbolic {
+                sparse: Arc::new(Sparse::new(0)),
+                ..previous
+            };
+            (sparse, symbolic, false)
+        }
+        None => {
+            let (mut sparse, symbolic) = fresh_frame(matrix)?;
+            if !sparse.fully_translated() {
+                return Err(numerical(
+                    "sparse LU",
+                    "singular matrix: an unknown has no matrix entries",
+                ));
+            }
+            sparse.mna_preorder();
+            (sparse, symbolic, true)
+        }
+    };
+    sparse.load_gmin(diag_gmin);
+    let status = if fresh || reorder {
+        sparse.order_and_factor(pivot.relative, pivot.absolute)
+    } else {
+        sparse.factor()
+    };
+    // spZERO_DIAG and spSINGULAR are both E_SINGULAR to NIiter.
+    let zero_pivot = !fresh && !reorder && matches!(status, Status::ZeroDiag | Status::Singular);
+    let checked = if zero_pivot {
+        Ok(())
+    } else {
+        check_status("sparse LU", status, &sparse)
+    };
+    let factored = SparseSymbolic {
+        sparse: Arc::new(sparse),
+        ..symbolic
+    };
+    let result = checked.and_then(|()| {
+        if zero_pivot {
+            return Ok(NiStep::ZeroPivot);
+        }
+        let lu = SparseLu {
+            symbolic: factored.clone(),
+        };
+        lu.solve(rhs).map(NiStep::Solved)
+    });
+    *ordering = Some(factored);
+    result
+}
+
 /// Owned numeric sparse LU factors.
 #[derive(Debug)]
 pub struct SparseLu {

@@ -1151,6 +1151,10 @@ impl Engine<'_> {
         };
         let options = NewtonOptions {
             max_iterations: limit.min(self.remaining),
+            // cktop.c's gmin stepping sets CKTdiagGmin, which SMPreorder and
+            // SMPluFac add to SPARSE's diagonal (LoadGmin).
+            diag_gmin: gmin,
+            had_nodeset: !self.nodes.nodesets.is_empty(),
             ..self.newton
         };
         let reduced = options.max_iterations < limit;
@@ -1191,20 +1195,30 @@ impl Engine<'_> {
                     &mut b,
                     &mut trial,
                 )?;
-                for (row, branch) in self.branches.iter().enumerate() {
+                for row in 0..self.branches.len() {
                     b.add_to(
                         row,
                         scale * self.target.as_slice()[row] - self.original.as_slice()[row],
                     )?;
-                    if !branch && gmin > 0. {
-                        a.add(row, row, gmin)?;
-                    }
                 }
                 // cktload.c: .nodeset rows in MODEINITJCT/MODEINITFIX only,
                 // .ic rows in every load, both scaled by CKTsrcFact.
                 let hinted = matches!(phase, IterationPhase::Junction | IterationPhase::Fix);
                 self.nodes.apply(&mut a, &mut b, scale, hinted)?;
                 Ok((a, b, trial))
+            },
+            |new, old, trial| {
+                self.circuit
+                    .convergence_test(&crate::devices::ConvergenceRequest {
+                        solution: new,
+                        previous: old,
+                        trial,
+                        model_context: &context,
+                        time: 0.,
+                        reltol: options.reltol,
+                        abstol: options.abstol,
+                        vntol: options.vntol,
+                    })
             },
         );
         let (iterations, error) = match &result {
@@ -1558,70 +1572,8 @@ fn run(
     for (row, change) in changes.as_slice().iter().enumerate() {
         target.add_to(row, *change)?;
     }
-    // Preserve exact linear solving (no nonlinear damping or continuation).
-    if !circuit.devices().iter().any(|device| device.is_nonlinear()) {
-        let result = (|| {
-            // A linear point is unique: nodesets cannot change it, .ic rows can.
-            let values = if nodes.initial.is_empty() {
-                system.a.solve(&target)?
-            } else {
-                let (mut a, mut b) = (system.a.clone(), target.clone());
-                let initial = NodeForcing {
-                    initial: nodes.initial.clone(),
-                    nodesets: Vec::new(),
-                };
-                initial.apply(&mut a, &mut b, 1., false)?;
-                a.fold_duplicates();
-                a.solve(&b)?
-            };
-            let mut trial = history.trial();
-            circuit.load(
-                &LoadRequest {
-                    mode: AnalysisMode::OperatingPoint,
-                    solution: &values,
-                    model_context: context,
-                    integration: None,
-                    history,
-                    forcing: None,
-                },
-                &mut circuit.new_matrix(),
-                &mut Vector::zeros(n),
-                &mut trial,
-            )?;
-            Ok(NewtonSolution {
-                values,
-                trial,
-                iterations: 1,
-            })
-        })();
-        let error = result.as_ref().err().map(ToString::to_string);
-        report.budget = 1;
-        report.total_iterations = 1;
-        report.stages.push(DcStage {
-            strategy: DcStrategy::Direct,
-            source_scale: 1.,
-            gmin: 0.,
-            junction_gmin: None,
-            iterations: 1,
-            error: error.clone(),
-        });
-        report.attempts.push(DcAttempt {
-            strategy: DcStrategy::Direct,
-            outcome: if error.is_none() {
-                AttemptOutcome::Converged
-            } else {
-                AttemptOutcome::Failed
-            },
-            detail: error.unwrap_or_default(),
-        });
-        report.outcome = if result.is_ok() {
-            DcOutcome::Converged(DcStrategy::Direct)
-        } else {
-            // An exact linear failure is not rescued with fictitious gmin.
-            DcOutcome::NonRetryableFailure
-        };
-        return result;
-    }
+    // Linear circuits take the same CKTop/NIiter path as nonlinear ones, as
+    // in ngspice: the same iterations, pivot order and continuation fallbacks.
     let seed = initial.unwrap_or(&zero);
     let stage_limit = policy
         .stage_max_iterations

@@ -94,6 +94,27 @@ struct MutualBinding {
     error: Option<SpiceError>,
 }
 
+/// One device convergence test pass ([`Circuit::convergence_test`]).
+#[derive(Debug, Clone, Copy)]
+pub struct ConvergenceRequest<'a> {
+    /// The new iterate (C `CKTrhs`).
+    pub solution: &'a Vector,
+    /// The iterate the last load used (C `CKTrhsOld`).
+    pub previous: &'a Vector,
+    /// The last load's trial (C `CKTstate0`).
+    pub trial: &'a TrialState,
+    /// Temperatures and `gmin` of the solve.
+    pub model_context: &'a ModelContext,
+    /// Transient time, zero otherwise.
+    pub time: Real,
+    /// C `CKTreltol`.
+    pub reltol: Real,
+    /// C `CKTabstol`.
+    pub abstol: Real,
+    /// C `CKTvoltTol`.
+    pub vntol: Real,
+}
+
 /// One trial load of every device (C `CKTload`).
 #[derive(Debug, Clone, Copy)]
 pub struct LoadRequest<'a> {
@@ -315,7 +336,9 @@ impl Circuit {
         }
         let mut terms = vec![Vec::new(); self.devices.len()];
         let mut mutuals = Vec::with_capacity(self.mutual.pairs.len());
-        for pair in &self.mutual.pairs {
+        // INDload adds each K's flux in the MUT instance list's order, the
+        // last card first (instances are prepended).
+        for pair in self.mutual.pairs.iter().rev() {
             let (a, b) = (values[&pair.first], values[&pair.second]);
             let coefficient = device_at(pair.coupling)
                 .mutual_coupling()
@@ -331,13 +354,17 @@ impl Circuit {
             terms[pair.first].push(MutualTerm {
                 row: self.branch_rows[pair.second].start,
                 inductance,
+                initial: b.initial,
             });
             terms[pair.second].push(MutualTerm {
                 row: self.branch_rows[pair.first].start,
                 inductance,
+                initial: a.initial,
             });
             mutuals.push(inductance);
         }
+        // check_inductive_systems pairs these with self.mutual.pairs in order.
+        mutuals.reverse();
         self.check_inductive_systems(&values, &mutuals)?;
         Ok(terms)
     }
@@ -596,6 +623,43 @@ impl Circuit {
             *slot = Some(std::sync::Arc::new(allocated));
         }
         Ok(())
+    }
+
+    /// C `CKTconvTest`: every device's convergence test, in `CKTload` order,
+    /// after a Newton pass whose iterate converged; `true` at the first
+    /// device that has not converged.
+    ///
+    /// # Errors
+    /// Mismatched numbering or a device evaluation failure.
+    pub fn convergence_test(&self, request: &ConvergenceRequest<'_>) -> SpiceResult<bool> {
+        self.check_numbering()?;
+        let n = self.unknown_count();
+        if request.solution.len() != n
+            || request.previous.len() != n
+            || request.trial.values().len() != self.state_len
+        {
+            return Err(SpiceError::circuit(
+                "convergence test does not match the circuit numbering",
+            ));
+        }
+        for index in self.load_order() {
+            let context = crate::devices::traits::ConvergenceContext {
+                unknowns: &self.unknowns,
+                solution: request.solution,
+                previous: request.previous,
+                controls: self.controls(index)?,
+                states: &request.trial.values()[self.state_rows[index].clone()],
+                model_context: request.model_context,
+                time: request.time,
+                reltol: request.reltol,
+                abstol: request.abstol,
+                vntol: request.vntol,
+            };
+            if self.devices[index].convergence_test(&context)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Device ordinals in `CKTload` order (card order before `finalize`).
@@ -1180,6 +1244,17 @@ impl Circuit {
             Some(pattern) if pattern.order() == n => SparseMatrix::bound(pattern.clone()),
             _ => SparseMatrix::new(n, n),
         }
+    }
+
+    /// The circuit matrix's element pattern (C's one `CKTmatrix`), once
+    /// `finalize` or a load has created it for the present numbering.
+    #[must_use]
+    pub fn matrix_pattern(&self) -> Option<std::sync::Arc<crate::maths::Pattern>> {
+        self.pattern
+            .borrow()
+            .as_ref()
+            .filter(|pattern| pattern.order() == self.unknown_count())
+            .cloned()
     }
 
     /// Records the positions a load stamped: the first load defines the

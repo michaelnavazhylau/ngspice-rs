@@ -459,12 +459,9 @@ struct Driver<'a> {
     steps: StepHistory,
     hints: Hints,
     uic: bool,
-    nonlinear: bool,
     /// `true` for rows that carry branch currents (`abstol`), else `vntol`.
     branch_row: Vec<bool>,
     stats: TransientStats,
-    /// SPARSE pivot order reused by linear timepoints.
-    ordering: std::cell::RefCell<Option<crate::maths::SparseSymbolic>>,
 }
 
 /// Runs an ordinary `.tran` with the companion backend, returning the plot and
@@ -522,10 +519,8 @@ pub fn companion_transient(
         steps: StepHistory::with_fill(settings.max_step),
         hints,
         uic: request.uic,
-        nonlinear: circuit.devices().iter().any(|d| d.is_nonlinear()),
         branch_row,
         stats: TransientStats::default(),
-        ordering: std::cell::RefCell::new(None),
     };
     driver.run()
 }
@@ -625,7 +620,7 @@ impl Driver<'_> {
                     crate::devices::Limit::Right
                 };
                 let attempted = delta;
-                match self.solve_trial(t_new, &coefficients, limit, &x)? {
+                match self.solve_trial(t_new, &coefficients, limit, &x, first)? {
                     Trial::NotConverged => {
                         self.stats.rejected += 1;
                         delta /= 8.;
@@ -786,7 +781,8 @@ impl Driver<'_> {
                     vntol: tolerances.vntol,
                 },
             )?;
-            let (x, solved) = if self.nonlinear {
+            // dctran.c calls CKTop (NIiter) for every circuit, linear or not.
+            let (x, solved) = {
                 // CKTic: the Newton guess holds the .nodeset, then the .ic
                 // values; cktload.c forces the .ic rows in every load of the
                 // MODETRANOP solve and the .nodeset rows in its MODEINITJCT/
@@ -818,13 +814,6 @@ impl Driver<'_> {
                 )?
                 .solution;
                 (solution.values, Some(solution.trial))
-            } else if constraints.is_unconstrained() {
-                (self.system.a.solve(&rhs)?, None)
-            } else {
-                (
-                    initial::constrained_bias(&self.system.a, &rhs, &constraints.imposed)?,
-                    None,
-                )
             };
             initial::check_implied(
                 &x,
@@ -890,18 +879,18 @@ impl Driver<'_> {
         Ok(trial)
     }
 
-    /// One trial point: `load -> solve -> converged?` (C `NIiter`).
-    ///
-    /// Linear circuits are exact after one solve. The state of the trial is
-    /// evaluated at the converged solution with a matrix-free reload so that the
-    /// recorded charge/flux and derivative belong to the solved point (C keeps
-    /// the state of the last Newton load, one iterate behind).
+    /// One trial point: C `NIiter` from the predicted (here: the last
+    /// accepted) solution, `MODEINITTRAN` before the first accepted step
+    /// (`firsttime`) and `MODEINITPRED` after, for linear and nonlinear
+    /// circuits alike. The trial is that of the last Newton load, one iterate
+    /// behind the returned solution, as C's `CKTstate0`.
     fn solve_trial(
         &self,
         time: Real,
         coefficients: &Coefficients,
         limit: crate::devices::Limit,
         previous: &Vector,
+        initial: bool,
     ) -> SpiceResult<Trial> {
         let n = self.circuit.unknown_count();
         let tolerance = &self.settings.tolerances;
@@ -921,7 +910,9 @@ impl Driver<'_> {
             let mut state = self
                 .history
                 .trial_in(phase, previous)?
-                .with_device_limiting(options.limiting.is_device());
+                .with_device_limiting(options.limiting.is_device())
+                .with_initial_transient(initial && phase == crate::devices::IterationPhase::Predict)
+                .with_uic(self.uic);
             self.circuit.load(
                 &LoadRequest {
                     mode: AnalysisMode::Transient {
@@ -943,60 +934,54 @@ impl Driver<'_> {
             )?;
             Ok::<_, SpiceError>(state)
         };
-        if self.nonlinear {
-            let limited = crate::analysis::bias::limited_rows(self.circuit);
-            // dctran.c: MODEINITTRAN/MODEINITPRED for the first load of a
-            // timepoint, MODEINITFLOAT afterwards.
-            return match crate::analysis::newton::solve_phased(
-                previous,
-                &self.branch_row,
-                limited.as_deref(),
-                &options,
-                crate::analysis::newton::PhasePolicy::Predicted,
-                None,
-                |x, phase, last| {
-                    let mut matrix = self.circuit.new_matrix();
-                    let mut rhs = Vector::zeros(n);
-                    let state = load(x, &mut matrix, &mut rhs, phase, last)?;
-                    Ok((matrix, rhs, state))
-                },
-            )
-            .map_err(|failure| failure.error)
-            {
-                Ok(solved) => Ok(Trial::Converged {
-                    x: solved.values,
-                    state: solved.trial,
-                }),
-                Err(SpiceError::Numerical { message, .. })
-                    if message.contains("Newton iteration limit") =>
-                {
-                    Ok(Trial::NotConverged)
-                }
-                Err(error) => Err(error),
-            };
-        }
-        // Linear circuits are exact after one solve; reload only to record
-        // charge/flux at the solved point, with no Newton iteration loop.
-        let mut matrix = self.circuit.new_matrix();
-        let mut rhs = Vector::zeros(n);
-        let phase = crate::devices::IterationPhase::Predict;
-        load(previous, &mut matrix, &mut rhs, phase, None)?;
-        matrix.fold_duplicates();
-        // C keeps SPARSE's pivot order across timepoints (`SMPluFac`); only a
-        // changed pattern reorders.
-        let x = crate::maths::linear::solve_with_ordering(
-            &matrix,
-            &rhs,
-            &mut self.ordering.borrow_mut(),
-        )?;
-        let state = load(
-            &x,
-            &mut self.circuit.new_matrix(),
-            &mut Vector::zeros(n),
-            phase,
+        let limited = crate::analysis::bias::limited_rows(self.circuit);
+        // dctran.c: MODEINITTRAN (first step) or MODEINITPRED for the first
+        // load of a timepoint, MODEINITFLOAT afterwards.
+        let policy = if initial {
+            crate::analysis::newton::PhasePolicy::InitialTransient
+        } else {
+            crate::analysis::newton::PhasePolicy::Predicted
+        };
+        match crate::analysis::newton::solve_phased(
+            previous,
+            &self.branch_row,
+            limited.as_deref(),
+            &options,
+            policy,
             None,
-        )?;
-        Ok(Trial::Converged { x, state })
+            |x, phase, last| {
+                let mut matrix = self.circuit.new_matrix();
+                let mut rhs = Vector::zeros(n);
+                let state = load(x, &mut matrix, &mut rhs, phase, last)?;
+                Ok((matrix, rhs, state))
+            },
+            |new, old, trial| {
+                self.circuit
+                    .convergence_test(&crate::devices::ConvergenceRequest {
+                        solution: new,
+                        previous: old,
+                        trial,
+                        model_context: &self.model_context,
+                        time,
+                        reltol: options.reltol,
+                        abstol: options.abstol,
+                        vntol: options.vntol,
+                    })
+            },
+        )
+        .map_err(|failure| failure.error)
+        {
+            Ok(solved) => Ok(Trial::Converged {
+                x: solved.values,
+                state: solved.trial,
+            }),
+            Err(SpiceError::Numerical { message, .. })
+                if message.contains("Newton iteration limit") =>
+            {
+                Ok(Trial::NotConverged)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// C `CKTtrunc`: the smallest step bound over every charge-storage element

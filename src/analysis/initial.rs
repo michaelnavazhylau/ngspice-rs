@@ -293,12 +293,7 @@ pub(crate) struct Constraints {
     pub implied: Vec<RowHint>,
 }
 
-impl Constraints {
-    /// No row replacement is needed.
-    pub(crate) fn is_unconstrained(&self) -> bool {
-        self.imposed.is_empty()
-    }
-}
+impl Constraints {}
 
 /// Checks each implied `.ic` entry against the bias solution `x`.
 ///
@@ -416,38 +411,6 @@ pub(crate) fn forced_nodesets(
         }
     }
     kept
-}
-
-/// Solves `A x = rhs` with every node row in `constraints` replaced by
-/// `x[row] = value` (the exact form of `cktload.c`'s `ZeroNoncurRow` branch).
-/// The replaced row's KCL residual is the current the hidden constraint
-/// supplies, so capacitor-only (floating at DC) nodes become solvable.
-///
-/// # Errors
-/// A singular constrained system.
-pub(crate) fn constrained_bias(
-    a: &SparseMatrix,
-    rhs: &Vector,
-    constraints: &[RowHint],
-) -> SpiceResult<Vector> {
-    let n = a.rows();
-    let mut matrix = SparseMatrix::new(n, n);
-    matrix.set_pivot_tolerances(a.pivot_tolerances());
-    let fixed: BTreeMap<usize, Real> = constraints.iter().map(|h| (h.row, h.value)).collect();
-    for triplet in a.triplets() {
-        if !fixed.contains_key(&triplet.row) {
-            matrix.add(triplet.row, triplet.col, triplet.value)?;
-        }
-    }
-    let mut b = rhs.clone();
-    for (row, value) in &fixed {
-        matrix.add(*row, *row, 1.)?;
-        b.as_mut_slice()[*row] = *value;
-    }
-    matrix.fold_duplicates();
-    matrix
-        .solve(&b)
-        .map_err(|error| failure(format!("operating point with .ic constraints: {error}")))
 }
 
 /// The `uic` starting point: node voltages for the first load and the charge

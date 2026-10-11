@@ -36,20 +36,16 @@ pub(crate) fn run(
         Some(("frequency", "frequency")),
         true,
     )?;
-    // NIacIter keeps SPARSE's pivot order across frequencies (`SMPcLUfac`),
-    // reordering only after a zero pivot (`SMPcReorder`).
-    let mut previous: Option<crate::maths::complex::ComplexLu> = None;
+    // NIacIter on the circuit's own matrix: the first AC solve of the
+    // circuit reorders (`SMPcReorder`, starting from the real pivot order),
+    // later frequencies refactor (`SMPcLUfac`) and reorder only after a zero
+    // pivot. See [`ac_matrix`].
+    let shared: &Circuit = circuit;
     for f in grid {
-        let x = small_signal.at_frequency(circuit, context, f, |system| {
-            let matrix =
-                ComplexMatrix::from_operators(&system.a, &system.e, 2. * std::f64::consts::PI * f)?;
-            let factor = match &previous {
-                Some(previous) => matrix.factorize_reusing(previous)?,
-                None => matrix.factorize()?,
-            };
-            let x = factor.solve(&system.ac_rhs());
-            previous = Some(factor);
-            x
+        let x = small_signal.at_frequency(shared, context, f, |system| {
+            ac_matrix(shared, system, 2. * std::f64::consts::PI * f)?
+                .factorize()?
+                .solve(&system.ac_rhs())
         })?;
         let mut point = vec![Complex::real(f)];
         point.extend(x);
@@ -142,6 +138,27 @@ pub(crate) fn frequency_grid(
         }
     }
     Ok(grid)
+}
+
+/// `CKTacLoad`: the small-signal system at `omega` loaded into the circuit's
+/// own matrix, so that factoring it shares SPARSE's frame and pivot order
+/// with the real solves (`NIacIter`). Falls back to a standalone matrix when
+/// a small-signal stamp lies outside the circuit's allocated elements.
+///
+/// # Errors
+/// Invalid assembly.
+pub(crate) fn ac_matrix(
+    circuit: &Circuit,
+    system: &LinearSystem,
+    omega: Real,
+) -> SpiceResult<ComplexMatrix> {
+    if let Some(pattern) = circuit.matrix_pattern()
+        && let Some(matrix) =
+            ComplexMatrix::from_operators_on(&pattern, &system.a, &system.e, omega)?
+    {
+        return Ok(matrix);
+    }
+    ComplexMatrix::from_operators(&system.a, &system.e, omega)
 }
 
 /// The circuit linearized at its DC operating point, as `acan.c` and `span.c`
