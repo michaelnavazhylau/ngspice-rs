@@ -541,6 +541,31 @@ fn existing_effective_options_are_still_applied() {
     assert!(c.ignored().is_empty());
 }
 
+#[test]
+fn every_analysis_with_an_operating_point_gets_the_deck_tolerances() {
+    // C's CKTop reads CKTreltol/CKTvoltTol/CKTabstol for every analysis that
+    // solves an operating point; `.disto` and `.sens` once dropped them, so
+    // their operating points ran at the default reltol (the disto_* and
+    // sens_diode goldens tighten RELTOL and depend on it).
+    let c = config(".options reltol=1e-9 vntol=2u abstol=3p").unwrap();
+    for kind in [
+        AnalysisKind::OperatingPoint,
+        AnalysisKind::DcSweep,
+        AnalysisKind::Ac,
+        AnalysisKind::Noise,
+        AnalysisKind::Distortion,
+        AnalysisKind::PoleZero,
+        AnalysisKind::Sensitivity,
+        AnalysisKind::TransferFunction,
+        AnalysisKind::SParameter,
+    ] {
+        let request = c.request(AnalysisRequest::new(kind)).unwrap();
+        for key in ["rtol", "vntol", "abstol"] {
+            assert!(request.named(key).is_some(), "{kind:?} lacks {key}");
+        }
+    }
+}
+
 // ---- documented no-ops ------------------------------------------------------
 
 #[test]

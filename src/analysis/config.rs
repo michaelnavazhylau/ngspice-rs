@@ -963,7 +963,8 @@ impl RunConfig {
 
     /// Add deck settings to a request. Explicit request arguments win.
     ///
-    /// * `.op`, `.dc`, `.ac`, `.tf`, `.sp`: `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
+    /// * `.op`, `.dc`, `.ac`, `.noise`, `.disto`, `.pz`, `.sens`, `.tf`, `.sp`:
+    ///   `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
     ///   `abstol`), `itl1` (as `maxiter`), `srcsteps`, `gminsteps`,
     ///   `gminfactor` and, when the deck sets `itl1` or `itl2`, the
     ///   continuation stage limit `stagemaxiter` (`itl2`, else C's effective
@@ -999,7 +1000,9 @@ impl RunConfig {
                     | AnalysisKind::DcSweep
                     | AnalysisKind::Ac
                     | AnalysisKind::Noise
+                    | AnalysisKind::Distortion
                     | AnalysisKind::PoleZero
+                    | AnalysisKind::Sensitivity
                     | AnalysisKind::TransferFunction
                     | AnalysisKind::SParameter
             ) {

@@ -695,8 +695,18 @@ pub(crate) fn run(
     request: &AnalysisRequest,
     context: &AnalysisContext,
 ) -> SpiceResult<Plot> {
+    // Named `key=value` arguments are the operating point's Newton and
+    // continuation settings (the deck's `.options reltol=...`, which C's
+    // CKTop for `.sens` honours like any other analysis); DcSettings rejects
+    // any it does not know, so the card itself is the positional rest.
     let settings = crate::analysis::bias::DcSettings::from_request(request)?;
-    let card = parse(&request.arguments)?;
+    let positional: Vec<String> = request
+        .arguments
+        .iter()
+        .filter(|argument| !argument.contains('='))
+        .cloned()
+        .collect();
+    let card = parse(&positional)?;
     let grid = card.sweep.as_ref().map(frequencies).transpose()?;
     let ac = grid.is_some();
     circuit.finalize()?;
