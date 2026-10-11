@@ -5,7 +5,7 @@
 //! matrices (`cmultiply`, `csum`, `cminus`, `ceye`, `cinverse`). These are
 //! `N x N` matrices for `N` RF ports, never the MNA system, so a plain
 //! row-major store with Gauss-Jordan inversion (partial pivoting, as C's
-//! `cinv_gj`) is adequate; the MNA solves stay with the faer sparse LU of
+//! `cinv_gj`) is adequate; the MNA solves stay with the SPARSE LU of
 //! [`crate::maths::complex`].
 
 use crate::primitives::{Complex, SpiceError, SpiceResult};

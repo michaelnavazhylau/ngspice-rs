@@ -150,7 +150,15 @@ fn the_plot_has_c_names_units_and_order() {
     let back = RawFile::parse(&text).unwrap();
     let back = back.single_plot().unwrap();
     assert_eq!(back.variables, plot.variables);
-    assert_eq!(back.points, plot.points);
+    // The ASCII rawfile does not round-trip every bit, and the native sparse
+    // solver's rounding can land a value on a last-ulp neighbour, so compare
+    // to 1e-12 relative rather than bit for bit.
+    assert_eq!(back.points.len(), plot.points.len());
+    for (row, want_row) in back.points.iter().zip(&plot.points) {
+        for (got, want) in row.iter().zip(want_row) {
+            close(*got, *want);
+        }
+    }
 }
 
 #[test]
@@ -481,13 +489,11 @@ fn the_port_power_function_runs_where_c_uses_it() {
     .unwrap();
     assert_eq!(plain.points, powered.points);
     sp(&format!("v1 1 0 dc 1 portnum 1 pwr 1m\n{tail}"), ".op").unwrap();
-    for backend in ["", " backend=diffsol method=bdf"] {
-        sp(
-            &format!("v1 1 0 dc 1 portnum 1 freq 1meg\nc1 1 0 1n\n{tail}"),
-            &format!(".tran 1u 10u{backend}"),
-        )
-        .unwrap();
-    }
+    sp(
+        &format!("v1 1 0 dc 1 portnum 1 freq 1meg\nc1 1 0 1n\n{tail}"),
+        ".tran 1u 10u",
+    )
+    .unwrap();
     // A later waveform setter replaces the PORT function, as in vsrcpar.c.
     let plots = sp(
         &format!("v1 1 0 dc 0 portnum 1 pwr 1m sin(0 1 100k)\n{tail}"),
@@ -552,7 +558,7 @@ fn reactive_ladder_runs_ac_and_sp_across_the_residual_regression_band() {
 }
 
 #[test]
-fn port_cosines_accumulate_in_c_load_order_on_both_backends() {
+fn port_cosines_accumulate_in_c_load_order() {
     let body = "vnon n 0 freq 10\nv1 a 0 portnum 1 pwr 2m freq 2k phase 73\nv2 b 0 dc 0.2 portnum 2 pwr 1m freq 1k\nvbase base 0 pwl(0 0.2 100u 0.3)\nrn n 0 100\nr1 a 0 50\nr2 b 0 50\nrb base 0 100\nc1 a 0 1u";
     let bias = sp(body, ".op").unwrap();
     close(
@@ -560,20 +566,18 @@ fn port_cosines_accumulate_in_c_load_order_on_both_backends() {
         Complex::real(0.2 + (0.4_f64).sqrt()),
     );
     close(value(&bias, "v(n)", 0), value(&bias, "v(v1#res)", 0));
-    for backend in ["", " backend=diffsol method=bdf"] {
-        let plot = sp(body, &format!(".tran 1u 100u{backend}")).unwrap();
-        for point in 0..plot.point_count() {
-            let t = value(&plot, "time", point).re;
-            let baseline = 0.2 + 1000. * t;
-            let two = baseline + 0.2_f64.sqrt() * (2. * std::f64::consts::PI * 1e3 * t).cos();
-            let one = two + 0.4_f64.sqrt() * (2. * std::f64::consts::PI * 2e3 * t).cos();
-            for (name, expected) in [("v(v2#res)", two), ("v(v1#res)", one), ("v(n)", one)] {
-                let got = value(&plot, name, point).re;
-                assert!(
-                    (got - expected).abs() < 1e-9,
-                    "{backend} {name} t={t}: {got} != {expected}"
-                );
-            }
+    let plot = sp(body, ".tran 1u 100u").unwrap();
+    for point in 0..plot.point_count() {
+        let t = value(&plot, "time", point).re;
+        let baseline = 0.2 + 1000. * t;
+        let two = baseline + 0.2_f64.sqrt() * (2. * std::f64::consts::PI * 1e3 * t).cos();
+        let one = two + 0.4_f64.sqrt() * (2. * std::f64::consts::PI * 2e3 * t).cos();
+        for (name, expected) in [("v(v2#res)", two), ("v(v1#res)", one), ("v(n)", one)] {
+            let got = value(&plot, name, point).re;
+            assert!(
+                (got - expected).abs() < 1e-9,
+                "{name} t={t}: {got} != {expected}"
+            );
         }
     }
 }

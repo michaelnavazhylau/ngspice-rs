@@ -282,60 +282,67 @@ pub(crate) fn instantiate(
         (None, Some(w)) => w.time_zero()?,
         (None, None) => 0.,
     };
-    // Construct against a cloned table; failures leave the caller's node table untouched.
-    let mut new_nodes = nodes.clone();
-    let terminals = [
-        new_nodes.intern(&instance.nodes[0]),
-        new_nodes.intern(&instance.nodes[1]),
-    ];
-    let power_function = port.power_function.is_some();
-    let rf = port.finish(instance, dc_given, &mut new_nodes)?;
-    let tone = power_function.then(|| {
-        rf.as_ref().map_or((0., 0.), |p| {
-            (
-                (4. * p.z0 * p.power).sqrt(),
-                2. * std::f64::consts::PI * p.frequency,
-            )
-        })
-    });
-    let device: Box<dyn Device> = match instance.designator {
-        'r' => Box::new(Resistor::new(&instance.name, terminals, value)?.with_noise(
-            ResistorNoise {
-                noisy,
-                ..ResistorNoise::default()
-            },
-        )),
-        'c' => Box::new(Capacitor::new(&instance.name, terminals, value, ic)?),
-        'l' => Box::new(Inductor::new(&instance.name, terminals, value, ic)?),
-        _ => {
-            let source = IndependentSource::new(
-                &instance.name,
-                terminals,
-                instance.designator == 'v',
-                value,
-                Complex::new(
-                    mag * phase.to_radians().cos(),
-                    mag * phase.to_radians().sin(),
-                ),
-                waveform.unwrap_or(Waveform::Constant(value)),
-            )?
-            .with_power_tone(tone)
-            .with_ac_given(ac_given)
-            .with_sensitivity_inputs(crate::devices::sensitivity::SourceInputs {
-                dc_given,
-                function_given: waveform_given,
-                ac: ac_given.then_some((mag, phase)),
+    // Intern in place and roll back on failure, so the caller's node table is
+    // untouched by an error without cloning it per instance.
+    let mark = nodes.len();
+    let built = (|| -> SpiceResult<Box<dyn Device>> {
+        let new_nodes = &mut *nodes;
+        let terminals = [
+            new_nodes.intern(&instance.nodes[0]),
+            new_nodes.intern(&instance.nodes[1]),
+        ];
+        let power_function = port.power_function.is_some();
+        let rf = port.finish(instance, dc_given, new_nodes)?;
+        let tone = power_function.then(|| {
+            rf.as_ref().map_or((0., 0.), |p| {
+                (
+                    (4. * p.z0 * p.power).sqrt(),
+                    2. * std::f64::consts::PI * p.frequency,
+                )
             })
-            .with_distortion(distortion[0], distortion[1])?;
-            // Only V cards accept port setters (parser and allow-list above).
-            match rf {
-                Some(rf) => Box::new(source.with_port(rf)?),
-                None => Box::new(source),
+        });
+        let device: Box<dyn Device> = match instance.designator {
+            'r' => Box::new(Resistor::new(&instance.name, terminals, value)?.with_noise(
+                ResistorNoise {
+                    noisy,
+                    ..ResistorNoise::default()
+                },
+            )),
+            'c' => Box::new(Capacitor::new(&instance.name, terminals, value, ic)?),
+            'l' => Box::new(Inductor::new(&instance.name, terminals, value, ic)?),
+            _ => {
+                let source = IndependentSource::new(
+                    &instance.name,
+                    terminals,
+                    instance.designator == 'v',
+                    value,
+                    Complex::new(
+                        mag * phase.to_radians().cos(),
+                        mag * phase.to_radians().sin(),
+                    ),
+                    waveform.unwrap_or(Waveform::Constant(value)),
+                )?
+                .with_power_tone(tone)
+                .with_ac_given(ac_given)
+                .with_sensitivity_inputs(crate::devices::sensitivity::SourceInputs {
+                    dc_given,
+                    function_given: waveform_given,
+                    ac: ac_given.then_some((mag, phase)),
+                })
+                .with_distortion(distortion[0], distortion[1])?;
+                // Only V cards accept port setters (parser and allow-list above).
+                match rf {
+                    Some(rf) => Box::new(source.with_port(rf)?),
+                    None => Box::new(source),
+                }
             }
-        }
-    };
-    *nodes = new_nodes;
-    Ok(device)
+        };
+        Ok(device)
+    })();
+    if built.is_err() {
+        nodes.truncate(mark);
+    }
+    built
 }
 
 /// The ordered RFSPICE port setters of one V card (`vsrcpar.c`), resolved by

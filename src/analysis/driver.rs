@@ -11,8 +11,7 @@
 //! (`CKTload`), iteration (`CKTiter`) and convergence machinery.
 //!
 //! Drivers support linear R/C/L/V/I equations. Nonlinear analyses remain
-//! unsupported; an ordinary `.tran` runs the trap/Gear companion driver and
-//! `backend=diffsol method=bdf` selects the BDF backend. The split
+//! unsupported; `.tran` runs the trap/Gear companion driver. The split
 //! between [`AnalysisRequest`] and the netlist AST is deliberate: the driver
 //! layer does not need to know where a request came from, and the AST does not
 //! need to know which analyses exist.
@@ -432,10 +431,8 @@ impl Analysis for Distortion {
     }
 }
 
-/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
-/// ([`crate::analysis::companion_transient`]), or the explicitly selected bounded diffsol
-/// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
-/// `.ic`/`uic` are implemented by the companion driver only; general DAEs remain unsupported.
+/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver
+/// ([`crate::analysis::companion_transient`]); `backend=diffsol` is rejected.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.

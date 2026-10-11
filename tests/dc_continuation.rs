@@ -2,7 +2,7 @@
 //!
 //! Every success must solve the *original* equations (full sources, zero
 //! artificial nodal gmin); continuation never accepts device state, runs accept
-//! hooks or edits a source value. Transient/diffsol do not read these options.
+//! hooks or edits a source value.
 use ngspice_rs::analysis::bias::{
     AttemptOutcome, ContinuationPolicy, ContinuationSchedule, DEFAULT_GMIN_SCHEDULE, DcOutcome,
     DcReport, DcSettings, DcStrategy, MAX_GMIN_STAGES, MAX_SOURCE_STEPS, MAX_TOTAL_ITERATIONS,
@@ -1192,7 +1192,7 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
 }
 
 #[test]
-fn companion_transient_reads_dc_options_and_diffsol_rejects_them() {
+fn companion_transient_reads_dc_options() {
     let config = RunConfig::from_netlist(&parse(
         "v1 a 0 1\nr1 a 0 1k\n.options itl1=50 srcsteps=4 gminsteps=3 gminfactor=20",
     ))
@@ -1214,13 +1214,6 @@ fn companion_transient_reads_dc_options_and_diffsol_rejects_them() {
         .unwrap()
         .run(&mut c, &tran, &AnalysisContext::default())
         .unwrap();
-    let diffsol = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "10u", "backend=diffsol", "method=bdf"],
-    );
-    let error = config.request(diffsol).unwrap_err();
-    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
-    assert!(error.to_string().contains("itl1"), "{error}");
     // DC analyses accept them; invalid explicit .tran bias settings fail.
     assert!(config.request(request(&[])).is_ok());
     let error = runner(AnalysisKind::Transient)

@@ -1,4 +1,4 @@
-//! Linear complex small-signal analysis, using faer (not diffsol).
+//! Linear complex small-signal analysis on the SPARSE 1.3 complex LU.
 //!
 //! The frequency grid ([`frequency_grid`]) and the linearized system
 //! ([`SmallSignal`]) are shared with the `.sp` driver
@@ -36,11 +36,20 @@ pub(crate) fn run(
         Some(("frequency", "frequency")),
         true,
     )?;
+    // NIacIter keeps SPARSE's pivot order across frequencies (`SMPcLUfac`),
+    // reordering only after a zero pivot (`SMPcReorder`).
+    let mut previous: Option<crate::maths::complex::ComplexLu> = None;
     for f in grid {
         let x = small_signal.at_frequency(circuit, context, f, |system| {
             let matrix =
                 ComplexMatrix::from_operators(&system.a, &system.e, 2. * std::f64::consts::PI * f)?;
-            matrix.factorize()?.solve(&system.ac_rhs())
+            let factor = match &previous {
+                Some(previous) => matrix.factorize_reusing(previous)?,
+                None => matrix.factorize()?,
+            };
+            let x = factor.solve(&system.ac_rhs());
+            previous = Some(factor);
+            x
         })?;
         let mut point = vec![Complex::real(f)];
         point.extend(x);

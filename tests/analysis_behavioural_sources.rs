@@ -178,24 +178,6 @@ fn transient_time_functions_are_evaluated_at_each_accepted_time() {
 }
 
 #[test]
-fn the_bdf_backend_rejects_behavioural_sources_explicitly() {
-    let error = run(
-        "b1 o 0 v=sin(2*pi*1k*time)\nr1 o 0 1k\nc1 o 0 1n",
-        AnalysisKind::Transient,
-        &["10u", "1m", "backend=diffsol", "method=bdf"],
-    )
-    .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            ngspice_rs::primitives::SpiceError::Unsupported { .. }
-                | ngspice_rs::primitives::SpiceError::NotYetPorted { .. }
-        ),
-        "{error}"
-    );
-}
-
-#[test]
 fn singular_slopes_at_the_zero_start_converge_in_every_analysis() {
     // At the 0 V Newton start 1/x, sqrt, log and division have C's ~1e32
     // PTdivide-fudge slopes and log() is -1e99; the first linearisation is

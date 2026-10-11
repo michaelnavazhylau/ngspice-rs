@@ -71,7 +71,7 @@ fn integrate(
         )));
     }
     let needed = coefficients.charge_history_len();
-    let mut history = vec![quantity];
+    let mut history = crate::maths::integrator::ChargeHistory::new(quantity);
     for age in 1..=needed {
         history.push(context.states.accepted(age, QUANTITY).ok_or_else(|| {
             SpiceError::circuit(format!(
@@ -79,7 +79,7 @@ fn integrate(
                 coefficients.order(),
                 context.states.depth()
             ))
-        })?);
+        })?)?;
     }
     let previous = if coefficients.needs_previous_derivative() {
         Some(

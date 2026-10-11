@@ -1,9 +1,8 @@
 //! K mutual inductance through the production analyses (GitHub #80):
 //! analytic DC/AC transformer results, an ideal (k = 1) transformer whose
-//! turns ratio holds exactly on every transient method and backend, coupled
+//! turns ratio holds exactly on every transient method, coupled
 //! RL decays against the matrix exponential (from `uic` instance `ic=` and
-//! from the operating point), the diffsol BDF backend on the coupled mass
-//! matrix, and explicit failures.
+//! from the operating point), and explicit failures.
 //!
 //! The committed C goldens `transformer_ac`, `transformer_tran`,
 //! `transformer_ic_uic_tran` and `transformer_model_uic_tran` are compared by
@@ -15,7 +14,7 @@ use ngspice_rs::netlist::{Parser, source::parse_deck_text};
 use ngspice_rs::primitives::{Complex, SpiceResult};
 
 /// Runs the deck's only analysis as the CLI does, with `extra` request
-/// tokens appended (e.g. the explicit diffsol BDF backend).
+/// tokens appended.
 fn run_with(body: &str, extra: &[&str]) -> SpiceResult<Plot> {
     let netlist = Parser::new().parse_deck(&parse_deck_text(
         Path::new("k.cir"),
@@ -119,17 +118,13 @@ fn a_multi_inductor_card_equals_one_card_per_pair() {
 }
 
 #[test]
-fn an_ideal_transformer_keeps_its_turns_ratio_on_every_method_and_backend() {
+fn an_ideal_transformer_keeps_its_turns_ratio_on_every_method() {
     // k = 1 (C exempts it from its definiteness warning): v(s) = n v(p) with
     // n = sqrt(L2/L1) = 2 holds algebraically, and in every linear multistep
     // discretization of the coupled fluxes, since flux2 = n flux1 exactly.
     let deck = "vin in 0 pulse(0 1 0 1u 1u 50u 100u)\nrs in p 1\nl1 p 0 1m\nl2 s 0 4m\n\
                 k1 l1 l2 1\nrl s 0 100";
-    for (options, extra) in [
-        ("", &[][..]),
-        (".options method=gear", &[][..]),
-        ("", &["backend=diffsol", "method=bdf"][..]),
-    ] {
+    for (options, extra) in [("", &[][..]), (".options method=gear", &[][..])] {
         let p = run_with(&format!("{deck}\n{options}\n.tran 1u 200u"), extra)
             .unwrap_or_else(|e| panic!("{options} {extra:?}: {e}"));
         let (vp, vs) = (column(&p, "v(p)"), column(&p, "v(s)"));
@@ -195,13 +190,6 @@ fn coupled_rl_decay_from_instance_ic_matches_the_matrix_exponential() {
         assert!(error < 2e-6, "{options}: max error {error:e} A");
         println!("coupled RL uic decay {options:?}: max error {error:.3e} A");
     }
-    // The diffsol backend keeps rejecting instance ic=/uic explicitly.
-    let error = run_with(
-        &format!("{deck}\n.tran 1u 500u uic"),
-        &["backend=diffsol", "method=bdf"],
-    )
-    .expect_err("BDF has no uic");
-    assert!(error.to_string().contains("uic"), "{error}");
 }
 
 #[test]
@@ -259,46 +247,6 @@ fn coupled_rl_decay_from_the_operating_point_matches_the_matrix_exponential() {
         assert!(error < 2e-5, "{options}: max error {error:e} A");
         println!("coupled RL decay from the OP {options:?}: max error {error:.3e} A");
     }
-}
-
-#[test]
-fn the_bdf_backend_integrates_the_coupled_mass_matrix() {
-    // The transformer_tran fixture: BDF on the requested grid against a
-    // tightly toleranced companion reference (reltol 1e-7, steps <= 10 ns).
-    let deck = "vin in 0 pulse(0 1 0 1u 1u 100u 200u)\nrs in p 10\nl1 p 0 1m\nl2 s 0 4m\n\
-                k1 l1 l2 0.99\nrl s 0 100";
-    let bdf = run_with(
-        &format!("{deck}\n.tran 1u 400u"),
-        &["backend=diffsol", "method=bdf"],
-    )
-    .unwrap();
-    let reference = run(&format!(
-        "{deck}\n.options reltol=1e-7 abstol=1e-15\n.tran 1u 400u 0 10n"
-    ));
-    let (rt, r1, r2) = (
-        column(&reference, "time"),
-        column(&reference, "i(l1)"),
-        column(&reference, "i(l2)"),
-    );
-    let at = |values: &[f64], t: f64| {
-        let n = rt.partition_point(|x| *x < t).clamp(1, rt.len() - 1);
-        let f = (t - rt[n - 1]) / (rt[n] - rt[n - 1]);
-        values[n - 1] + f * (values[n] - values[n - 1])
-    };
-    let (bt, b1, b2) = (
-        column(&bdf, "time"),
-        column(&bdf, "i(l1)"),
-        column(&bdf, "i(l2)"),
-    );
-    let mut worst: f64 = 0.0;
-    for (n, t) in bt.iter().enumerate() {
-        worst = worst
-            .max((b1[n] - at(&r1, *t)).abs())
-            .max((b2[n] - at(&r2, *t)).abs());
-    }
-    // Measured 1.2e-7 A; the currents peak at tens of mA.
-    assert!(worst < 1e-6, "BDF vs reference: {worst:e} A");
-    println!("coupled BDF vs tight companion reference: {worst:.3e} A");
 }
 
 #[test]

@@ -1171,7 +1171,7 @@ impl Engine<'_> {
             },
             continued,
             |x, phase, previous| {
-                let mut a = SparseMatrix::new(n, n);
+                let mut a = self.circuit.new_matrix();
                 let mut b = Vector::zeros(n);
                 let mut trial = history
                     .trial_in(phase, previous)?
@@ -1583,7 +1583,7 @@ fn run(
                     history,
                     forcing: None,
                 },
-                &mut SparseMatrix::new(n, n),
+                &mut circuit.new_matrix(),
                 &mut Vector::zeros(n),
                 &mut trial,
             )?;

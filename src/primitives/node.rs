@@ -187,6 +187,14 @@ impl NodeTable {
         self.nodes.len()
     }
 
+    /// Removes every node interned after the table had `len` entries, so a
+    /// failed construction can roll back without cloning the whole table.
+    pub(crate) fn truncate(&mut self, len: usize) {
+        for node in self.nodes.drain(len.max(1)..) {
+            self.index.remove(&node.name);
+        }
+    }
+
     /// True when the table holds nothing but ground.
     #[must_use]
     pub fn is_empty(&self) -> bool {

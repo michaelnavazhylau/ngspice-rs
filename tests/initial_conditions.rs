@@ -464,32 +464,6 @@ fn failed_initialization_is_atomic_no_accept_hook_no_plot() {
     assert!(error.contains("zz"), "{error}");
 }
 
-// -------------------------------------------------------------------- backends
-
-#[test]
-fn diffsol_keeps_rejecting_ic_uic_and_instance_ic_explicitly() {
-    let tran = ".tran 10u 1m backend=diffsol method=bdf";
-    let base = "t\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u";
-    let error = error_of(&format!("{base}\n.ic v(out)=0.2\n{tran}\n.end\n"));
-    assert!(
-        error.contains(".ic") && error.contains("companion"),
-        "{error}"
-    );
-    assert!(error.contains("ic.cir:5"), "{error}");
-    let error = error_of(&format!("{base}\n{tran} uic\n.end\n"));
-    assert!(error.contains("uic"), "{error}");
-    let error = error_of(&format!(
-        "t\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u ic=0.5\n{tran}\n.end\n"
-    ));
-    assert!(error.contains("ic="), "{error}");
-    // A nodeset cannot change the linear bias: accepted (and validated).
-    let with = run(&format!("{base}\n.nodeset v(out)=0.2\n{tran}\n.end\n")).unwrap();
-    let without = run(&format!("{base}\n{tran}\n.end\n")).unwrap();
-    assert_eq!(with, without);
-    let error = error_of(&format!("{base}\n.nodeset v(zz)=0.2\n{tran}\n.end\n"));
-    assert!(error.contains("zz"), "{error}");
-}
-
 #[test]
 fn uic_adds_the_print_step_breakpoint_like_dctran() {
     // dctran.c: `if (UIC) CKTsetBreak(ckt, CKTstep)` at the first timepoint, so

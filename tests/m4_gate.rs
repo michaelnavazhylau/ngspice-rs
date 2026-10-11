@@ -337,14 +337,6 @@ fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamp
         .run(&mut c, &request, &config.context())
         .unwrap_err();
     assert!(error.to_string().contains(".ic V(a)=0.2"), "{error}");
-    assert!(
-        run(
-            &mut c,
-            AnalysisKind::Transient,
-            &["1u", "10u", "backend=diffsol", "method=bdf"]
-        )
-        .is_err()
-    );
 }
 #[test]
 fn transistor_small_signal_jacobians_are_derivatives_of_the_dc_equations() {

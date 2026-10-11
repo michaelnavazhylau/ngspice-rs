@@ -2,33 +2,30 @@
 //!
 //! | Module | Job | State |
 //! | --- | --- | --- |
-//! | [`dense`] | dense row-major matrix and vector storage | owned faer pivoted LU and checked solves |
-//! | [`sparse`] | sparse triplet storage and petgraph coupling topology | owned faer sparse LU, symbolic reuse and checked solves |
-//! | [`diffsol`] | bounded linear index-one DAE integration | adaptive BDF; floating/coupled mass blocks via block-SVD nullspaces; higher-index pencils rejected |
-//! | [`complex`] | complex sparse operators for AC | owned faer LU |
+//! | [`dense`] | dense row-major matrix and vector storage | LU through the SPARSE port; Jacobi symmetric eigenvalues |
+//! | [`sparse`] | sparse triplet storage and petgraph coupling topology | SPARSE 1.3 LU with pivot-order reuse |
+//! | [`complex`] | complex sparse operators for AC | SPARSE 1.3 complex LU, pivot reuse across frequencies, determinant |
 //! | [`dense_complex`] | small dense complex port matrices for `.sp` S/Y/Z conversion | Gauss-Jordan inverse with a rounding-aware singularity test |
 //! | [`equilibration`] | explicit bounded row/column scaling | owned LU wrappers with original-unit residuals |
-//! | [`pencil`] | finite roots of a regular real pencil `det(A + s E)` for pole-zero analysis | SVD deflation of infinite eigenvalues, then faer QZ ([POLE_ZERO_ADR.md](../../docs/port/POLE_ZERO_ADR.md)) |
+//! | [`pencil`] | roots of `det(A + s E)` for pole-zero analysis | port of ngspice's deflated Muller search (`cktpzstr.c`, `nipzmeth.c`) |
 //! | [`integrator`] | trapezoidal and Gear companion coefficients, integration, prediction and truncation estimates | trapezoidal orders 1–2, variable-step Gear orders 1–6; trial coefficients separate from accepted step history |
 //!
 //! The C implementations are `src/maths/dense/`, `src/maths/sparse/`
-//! (SPARSE 1.3, MIT licensed), `src/maths/KLU/` (LGPLv2 — see the licensing note
-//! in `docs/port/MAPPING.md`) and `src/maths/ni/`. These are behavioral
-//! references, not copied KLU algorithms: production LU/BDF uses MIT-licensed
-//! faer/diffsol without native SuiteSparse/SUNDIALS. The locked graph requires
-//! Rust 1.89. BDF is not ngspice trapezoidal or fixed Gear-2; see
-//! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
+//! (SPARSE 1.3, Berkeley permissive notice), `src/maths/KLU/` (LGPLv2 — see the
+//! licensing note in `docs/port/MAPPING.md`) and `src/maths/ni/`. The sparse LU
+//! is a Rust port of SPARSE 1.3 (`sparse13`); nothing is taken from KLU and no
+//! external solver crate is used. See `docs/port/NATIVE_SOLVER_PROTOTYPE.md`.
 
 pub mod complex;
 pub mod dense;
 pub mod dense_complex;
-pub mod diffsol;
 pub mod equilibration;
 pub mod integrator;
 pub mod linear;
 pub use linear::{DenseLu, SparseLu, SparseSymbolic};
 pub mod pencil;
 pub mod sparse;
+pub(crate) mod sparse13;
 
 pub use dense::{Matrix, Vector};
 pub use equilibration::{
@@ -37,7 +34,7 @@ pub use equilibration::{
 pub use integrator::{
     Coefficients, Companion, IntegrationMethod, StepHistory, TruncationTolerances,
 };
-pub use sparse::{SparseMatrix, Triplet};
+pub use sparse::{ElementId, Pattern, SparseMatrix, Triplet};
 
 /// The C reference for the dense solver, used in `NotYetPorted` errors.
 pub const C_REFERENCE_DENSE: &str = "src/maths/dense/";

@@ -551,8 +551,8 @@ pub fn analyses_text() -> String {
         out,
         "\nDevices: see `spice-rs devices` (linear, controlled, behavioural, K, switches and bounded \
          diode/BJT/MOS1). Every analysis card of a deck runs, in ngspice batch order. \
-         .tran runs the trap/Gear companion driver (backend=diffsol method=bdf selects BDF \
-         for linear decks). See docs/port/CLI.md and docs/port/TRANSIENT.md."
+         .tran runs the trap/Gear companion driver. See docs/port/CLI.md and \
+         docs/port/TRANSIENT.md."
     );
     out
 }

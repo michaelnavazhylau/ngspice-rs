@@ -82,23 +82,10 @@ repository = "https://github.com/michaelnavazhylau/ngspice-rs"
 # no regex dependency, and no optional ASCII/binary/SIMD/debug features.
 winnow = { version = "1.0.4", default-features = false, features = ["std", "parser"] }
 
-# Production solver backends. Both are MIT licensed, so they can be
-# linked from this BSD-3-Clause derivatives work; nothing here is translated from
-# the LGPL KLU or from SPARSE 1.3.
-#
-# `diffsol` offers BDF/TR-BDF2/ESDIRK34 for implicit `M y' = f(t, y)`.
-# Only its BDF backend is exposed and explicitly selected for bounded linear
-# DAEs; it is not an implementation of ngspice trap/fixed Gear-2. Only the `faer` backend is requested
-# here. Note that diffsol 0.17.1 always enables **both** `faer` and `nalgebra`
-# on its `diffsol-la`/`diffsol-nl` dependencies, so `nalgebra` is in the
-# dependency graph regardless of this feature list. The `suitesparse` and
-# `sundials` features stay off: they need an external KLU/SUNDIALS build.
-#
-# `faer` supplies the production sparse/complex and dense pivoted LU in
-# `src/maths`. Its defaults (`std`, `rayon`, `sparse-linalg`) match what the
-# diffsol `faer` backend already turns on, so the two agree on one feature set.
-diffsol = { version = "0.17.1", default-features = false, features = ["faer"] }
-faer = "0.24.4"
+# No external solver crates: the sparse LU is a Rust port of SPARSE 1.3
+# (`src/maths/sparse13.rs`, Kundert/UC Berkeley permissive notice), the
+# transient integrator is the companion trap/Gear driver and pole-zero uses the
+# ported ngspice root search. Nothing is translated from the LGPL KLU.
 
 # Prefer `petgraph` for graph representations/traversals instead of custom
 # adjacency lists, DFS, SCC or topological-sort implementations. `src/maths`
@@ -106,13 +93,11 @@ faer = "0.24.4"
 # graphs. These are different domains: MNA row 0 is not ground, structural
 # circuit connectivity need not be a DC path, and graph connectivity alone
 # does not establish solvability. Analysis-specific validation remains future
-# work. diffsol already brings in this same version and feature set.
+# work.
 petgraph = "0.8.3"
 
 [dependencies]
 winnow.workspace = true
-diffsol.workspace = true
-faer.workspace = true
 petgraph.workspace = true
 
 [workspace.lints.rust]
@@ -129,7 +114,7 @@ unimplemented = "warn"
 [lints]
 workspace = true
 
-# Unoptimized builds of the generic faer/diffsol code monomorphized into this
+# Unoptimized builds of the generic solver code monomorphized into this
 # crate make simulations ~25x slower, which dominated `cargo test` (the golden
 # fixture verification alone took ~3 minutes). opt-level 1 keeps debug
 # assertions and overflow checks; optimizing only dependencies does not help.

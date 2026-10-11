@@ -65,8 +65,7 @@ impl Fixture {
     fn number(&self, index: usize) -> f64 {
         parse_spice_number(self.request().argument(index).unwrap()).unwrap()
     }
-    /// Any analysis through the ordinary `runner` (used for `.ac` and for the
-    /// explicit diffsol BDF backend selected by extra request tokens).
+    /// Any analysis through the ordinary `runner` (used for `.ac`).
     fn run(&self, extra: &[&str]) -> ngspice_rs::primitives::SpiceResult<Plot> {
         let mut request = self.request();
         request
@@ -266,8 +265,6 @@ fn worst(plot: &Plot, name: &str, exact: &[f64]) -> f64 {
 /// Predicts one plot signal from the state and the input.
 type Output = Box<dyn Fn(&[f64], f64) -> f64>;
 
-type ModelCase = (&'static str, fn() -> Model, f64);
-
 struct Model {
     lti: Lti,
     /// Signals of the plot predicted by `state -> value` with the input.
@@ -414,8 +411,7 @@ fn closed_form_errors(plot: &Plot, model: &Model) -> Vec<(&'static str, f64, f64
 }
 
 /// As [`closed_form_errors`]; `drive_tolerance` bounds how far the plot's
-/// `v(in)` may be from the model drive (the BDF backend solves the source
-/// constraint only to its Newton tolerance, ~5e-9).
+/// `v(in)` may be from the model drive.
 fn closed_form_errors_with(
     plot: &Plot,
     model: &Model,
@@ -954,62 +950,6 @@ fn a_fast_edge_is_an_accepted_point_with_its_exact_level() {
 }
 
 // ---------------------------------------------------------------------------
-// The explicit diffsol BDF backend on the same decks (Rust-only syntax).
-
-const BDF: [&str; 2] = ["backend=diffsol", "method=bdf"];
-
-#[test]
-fn explicit_bdf_matches_the_closed_form_where_c_trapezoidal_cannot() {
-    // (fixture, model, budget relative to scale). BDF (rtol 1e-7) is far more
-    // accurate than the C-parity trapezoidal/Gear runs on the same decks: it
-    // has no first-order restart step. Measured worst error of any signal:
-    // 1.6e-7 (RL), 1.9e-7 (RC PWL), 3.6e-7 (RLC), 1.3e-7 (floating), 1.2e-7
-    // (coupled) of the device scale; budgets are at most twice the worst.
-    let cases: [ModelCase; 5] = [
-        ("rl_pulse_tran", rl_pulse, 7e-7),
-        ("rc_pwl_tran", rc_pwl, 7e-7),
-        ("rlc_series_tran", rlc, 7e-7),
-        // Floating and coupled capacitor networks: index-one DAEs (rank-deficient
-        // or nondiagonal mass matrix, GitHub #28).
-        ("floating_cap_tran", floating, 7e-7),
-        ("coupled_cap_tran", coupled, 7e-7),
-    ];
-    for (name, model, budget) in cases {
-        let fixture = Fixture::load(name);
-        let plot = fixture.run(&BDF).unwrap();
-        for (signal, _, relative) in closed_form_errors_with(&plot, &model(), 1e-7) {
-            assert!(
-                relative <= budget,
-                "{name} {signal}: {relative:e} > {budget:e}"
-            );
-        }
-    }
-}
-
-#[test]
-fn explicit_bdf_conserves_charge_and_kcl_in_the_floating_network() {
-    let data = Fixture::load("floating_cap_tran").run(&BDF).unwrap();
-    let t = column(&data, "time");
-    let (va, vb, iv) = (
-        column(&data, "v(a)"),
-        column(&data, "v(b)"),
-        column(&data, "i(v1)"),
-    );
-    let q: Vec<f64> = va.iter().zip(&vb).map(|(a, b)| 1e-6 * (a - b)).collect();
-    let delivered: Vec<f64> = iv.iter().map(|i| -i).collect();
-    let residual = charge_residual(&t, &q, &delivered, peak(&q));
-    // Measured 2.1e-6 of the peak charge (trapezoid quadrature on the 10 us grid).
-    assert!(residual <= 4.2e-6, "{residual:e}");
-    // KCL in the series path holds at every requested sample to the Newton
-    // tolerance of the BDF solve (measured 1.6e-8 of the peak current).
-    let kcl = (0..t.len())
-        .map(|k| (vb[k] / 1e3 + iv[k]).abs())
-        .fold(0., f64::max)
-        / peak(&iv);
-    assert!(kcl <= 3.2e-8, "{kcl:e}");
-}
-
-// ---------------------------------------------------------------------------
 // Complex AC sweep of the series RLC.
 
 /// Series RLC low-pass: `H = 1 / (1 - w^2 L C + j w R C)` for `v(out)`.
@@ -1090,8 +1030,7 @@ fn rlc_ac_sweep_matches_the_closed_form_and_the_c_data() {
 // ---------------------------------------------------------------------------
 // Initialized-state decks (GitHub #27): `uic` with instance `ic=`, and `.ic`
 // without `uic`. Their C goldens were captured with the reference binary like
-// every other fixture; none of these decks has a diffsol BDF variant because the
-// BDF backend rejects initial conditions (asserted below).
+// every other fixture.
 
 /// A deck's closed-form model, its exact initial state and the measured budget.
 struct InitialCase {
@@ -1343,17 +1282,4 @@ fn an_ic_without_uic_constrains_the_initial_bias_and_is_then_released() {
             .all(|v| (v - 1.).abs() <= 1e-9)
     );
     assert!(column(&plain, "i(v1)").iter().all(|i| i.abs() <= 1e-12));
-}
-
-#[test]
-fn the_diffsol_bdf_backend_rejects_every_initialized_state_deck_explicitly() {
-    for case in INITIAL_CASES {
-        let error = Fixture::load(case.name)
-            .run(&BDF)
-            .expect_err(case.name)
-            .to_string();
-        let expected = if case.uic { "uic" } else { ".ic" };
-        assert!(error.contains(expected), "{}: {error}", case.name);
-        assert!(error.contains("companion driver"), "{}: {error}", case.name);
-    }
 }

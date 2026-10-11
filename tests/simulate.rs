@@ -282,9 +282,9 @@ fn a_plain_transient_runs_the_engine_default_and_matches_the_golden() {
 
 #[test]
 fn uic_and_ic_transients_prove_the_companion_driver_not_diffsol() {
-    // `.tran uic` and instance `ic=` exist only in the companion driver: the
-    // diffsol BDF backend rejects both explicitly. A successful run here shows
-    // that `simulate` did not inject `backend=diffsol`.
+    // `.tran uic` and instance `ic=` run in the companion driver. A successful
+    // run here shows that `simulate` did not inject `backend=diffsol`, which is
+    // now rejected as Unsupported.
     let dir = scratch("tran-uic");
     let output = dir.join("uic.raw");
     let run = simulate(&output, &fixture("rc_ic_uic_tran"));
@@ -295,42 +295,10 @@ fn uic_and_ic_transients_prove_the_companion_driver_not_diffsol() {
 }
 
 #[test]
-fn explicit_bdf_succeeds_on_a_grounded_capacitor_circuit() {
-    let dir = scratch("bdf");
-    // A grounded capacitor charges from a pulse source: the explicit BDF backend
-    // needs the capacitor to have a resistive DC path on both nodes.
-    let deck = write_deck(
-        &dir,
-        "rc charging\nv1 in 0 pulse(0 1 0 1n 1n 1 2m)\nr1 in out 1k\nc1 out 0 1u\n\
-         .tran 1u 100u backend=diffsol method=bdf\n.end\n",
-    );
-    let output = dir.join("bdf.raw");
-    let run = simulate(&output, &deck);
-    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
-
-    let written = RawFile::load(&output).expect("parses");
-    let plot = written.single_plot().unwrap();
-    assert_eq!(plot.plotname, "Transient Analysis");
-    let names: Vec<&str> = plot.variables.iter().map(|v| v.name.as_str()).collect();
-    assert_eq!(names, ["time", "v(in)", "v(out)", "i(v1)"]);
-    assert_eq!(plot.point_count(), 101, "the 1 us grid up to 100 us");
-    // tau = R C = 1 ms: v(out) = 1 - exp(-t/tau), from a 0 V operating point.
-    for point in [0, 50, 100] {
-        let time = plot.value("time", point).unwrap().re;
-        let volts = plot.value("v(out)", point).unwrap().re;
-        let expected = 1.0 - (-time / 1e-3).exp();
-        assert!(
-            (volts - expected).abs() < 1e-3,
-            "point {point}: {volts} != {expected}"
-        );
-    }
-    fs::remove_dir_all(&dir).unwrap();
-}
-
-#[test]
 fn an_explicit_diffsol_selection_is_honoured() {
-    // The same circuit and `uic` as `rc_ic_uic_tran`, but with the backend named
-    // on the card: the engine's explicit rejection must reach the exit status.
+    // The same circuit and `uic` as `rc_ic_uic_tran`, but with the removed
+    // diffsol backend named on the card: the engine's Unsupported error must
+    // reach the exit status.
     let dir = scratch("bdf-uic");
     let deck = write_deck(
         &dir,
@@ -340,7 +308,7 @@ fn an_explicit_diffsol_selection_is_honoured() {
     let output = dir.join("out.raw");
     let run = simulate(&output, &deck);
     assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
-    assert!(stderr(&run).contains("uic"), "{}", stderr(&run));
+    assert!(stderr(&run).contains("backend=diffsol"), "{}", stderr(&run));
     assert!(!output.exists());
     assert_eq!(entries(&dir), ["deck.cir"]);
     fs::remove_dir_all(&dir).unwrap();

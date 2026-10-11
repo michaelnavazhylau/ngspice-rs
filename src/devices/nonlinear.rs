@@ -1080,14 +1080,14 @@ pub(crate) fn stamp_junction(
         if dt != coefficients.dt() {
             return Err(SpiceError::circuit("junction timestep mismatch"));
         }
-        let mut history = vec![p.charge];
+        let mut history = crate::maths::integrator::ChargeHistory::new(p.charge);
         for age in 1..=coefficients.charge_history_len() {
             history.push(
                 context
                     .states
                     .accepted(age, slot)
                     .ok_or_else(|| SpiceError::circuit("missing accepted junction charge"))?,
-            );
+            )?;
         }
         let previous = if coefficients.needs_previous_derivative() {
             Some(

@@ -255,19 +255,10 @@ fn switches_inside_subcircuits_sense_renamed_sources() {
 }
 
 #[test]
-fn unsupported_switch_analyses_fail_explicitly() {
+fn switch_nonlinear_uic_runs_on_the_companion_driver() {
     let deck = "vc c 0 pulse(0 2 1u 1u)\nvin in 0 1\nr1 in a 1k\nc1 a 0 1n\ns1 a 0 c 0 sm\n\
                 .model sm sw(vt=1)";
-    // The diffsol BDF backend needs immutable linear equations.
-    let error = run(
-        deck,
-        AnalysisKind::Transient,
-        &["1u", "10u", "backend=diffsol", "method=bdf"],
-    )
-    .unwrap_err();
-    assert!(error.to_string().contains("s1"), "{error}");
-    // Nonlinear uic initialization (#99) runs on the companion driver; the
-    // BDF backend keeps rejecting it.
+    // Nonlinear uic initialization (#99) runs on the companion driver.
     let mut c = circuit(deck).unwrap();
     let mut request = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u"]);
     request.uic = true;
@@ -275,17 +266,6 @@ fn unsupported_switch_analyses_fail_explicitly() {
         .unwrap()
         .run(&mut c, &request, &AnalysisContext::default())
         .unwrap();
-    let mut c = circuit(deck).unwrap();
-    let mut request = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "10u", "backend=diffsol", "method=bdf"],
-    );
-    request.uic = true;
-    let error = runner(AnalysisKind::Transient)
-        .unwrap()
-        .run(&mut c, &request, &AnalysisContext::default())
-        .unwrap_err();
-    assert!(!error.to_string().is_empty());
 }
 
 #[test]

@@ -140,8 +140,8 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "ltetrtol",
     "newtrunc",
     "maxopalter",
-    // Sparse 1.3 pivot thresholds (TSKpivotAbsTol/TSKpivotRelTol); this port's
-    // faer partial-pivoting LU has no equivalent knob yet.
+    // Sparse 1.3 pivot thresholds (TSKpivotAbsTol/TSKpivotRelTol); the SPARSE
+    // port uses ngspice's defaults (1e-13, 1e-3) and does not read these yet.
     "pivtol",
     "pivrel",
     "maxevtiter",

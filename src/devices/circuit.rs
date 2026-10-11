@@ -64,6 +64,10 @@ pub struct Circuit {
     /// Inductor pairs coupled by K devices, or why the K references could not
     /// be resolved (reported by `finalize` and every load).
     mutual: MutualBinding,
+    /// Element positions the devices stamp, numbered in first-stamp order
+    /// (ngspice's `TSTALLOC` order); learned from loads, extended when a load
+    /// touches a new position. See [`Circuit::new_matrix`].
+    pattern: std::cell::RefCell<Option<std::sync::Arc<crate::maths::Pattern>>>,
 }
 
 /// One inductor pair coupled by a K device, by device ordinal.
@@ -1062,6 +1066,7 @@ impl Circuit {
             let states = request
                 .history
                 .device(trial, self.state_rows[index].clone())?;
+            matrix.begin_device(index);
             device.stamp(&mut StampContext {
                 matrix: &mut *matrix,
                 rhs: &mut *rhs,
@@ -1081,7 +1086,55 @@ impl Circuit {
                 forcing: request.forcing,
             })?;
         }
+        self.learn_pattern(matrix);
+        matrix.record_trace();
         Ok(())
+    }
+
+    /// A zeroed MNA matrix for [`Circuit::load`]: bound to the learned element
+    /// pattern (stamps accumulate by element, no triplet list or sort), or a
+    /// plain triplet matrix before the first load.
+    #[must_use]
+    pub fn new_matrix(&self) -> SparseMatrix {
+        let n = self.unknown_count();
+        match &*self.pattern.borrow() {
+            Some(pattern) if pattern.order() == n => SparseMatrix::bound(pattern.clone()),
+            _ => SparseMatrix::new(n, n),
+        }
+    }
+
+    /// Records the positions a load stamped: the first load defines the
+    /// pattern in stamp order; positions outside it are appended (which, as a
+    /// new SPARSE element does, forces the next factorization to reorder).
+    fn learn_pattern(&self, matrix: &SparseMatrix) {
+        let n = self.unknown_count();
+        let mut slot = self.pattern.borrow_mut();
+        let current = slot.as_ref().filter(|pattern| pattern.order() == n);
+        let next = if let Some((bound, mut extra)) = matrix.overflow() {
+            let mut extra = extra.by_ref().peekable();
+            if extra.peek().is_none() {
+                return;
+            }
+            match current {
+                Some(pattern) if std::sync::Arc::ptr_eq(pattern, bound) => pattern.extended(extra),
+                _ => return,
+            }
+        } else {
+            let positions = matrix.triplets().iter().map(|t| (t.row, t.col));
+            match current {
+                None => crate::maths::Pattern::new(n, positions),
+                Some(pattern) => {
+                    let mut missing = positions
+                        .filter(|&(row, col)| pattern.find(row, col).is_none())
+                        .peekable();
+                    if missing.peek().is_none() {
+                        return;
+                    }
+                    pattern.extended(missing)
+                }
+            }
+        };
+        *slot = Some(std::sync::Arc::new(next));
     }
 
     fn run_accept_hooks(

@@ -309,13 +309,22 @@ fn backend_and_method_dispatch_is_explicit() {
         assert_eq!(ok(&["method=gear", &maxord]).unwrap(), gear, "{maxord}");
         assert_eq!(ok(&["method=trap", &maxord]).unwrap(), trap, "{maxord}");
     }
-    // diffsol BDF remains explicit.
-    let bdf = ok(&["backend=diffsol", "method=bdf"]).unwrap();
-    assert_ne!(times(&bdf), times(&trap));
+    // The adaptive BDF backend was removed: selecting it is Unsupported, not a
+    // silent fallback to the companion driver.
+    for extra in [
+        &["backend=diffsol"][..],
+        &["backend=diffsol", "method=bdf"][..],
+        &["backend=diffsol", "method=gear"][..],
+    ] {
+        let error = ok(extra).unwrap_err();
+        assert!(
+            matches!(error, SpiceError::Unsupported { .. }),
+            "{extra:?}: {error}"
+        );
+        assert!(error.to_string().contains("backend=diffsol"), "{error}");
+    }
     for extra in [
         &["backend=spice"][..],
-        &["backend=diffsol"][..],
-        &["backend=diffsol", "method=gear"][..],
         &["method=bdf"][..],
         &["method=euler"][..],
         &["method=gear", "maxord=7"][..],

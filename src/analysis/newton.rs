@@ -389,13 +389,14 @@ fn iterate<T, F: Fn(&T) -> bool>(
     let mut guess = initial.clone();
     let mut phase = phases.first;
     let mut previous = phases.previous;
+    let mut ordering = None;
     for iteration in 1..=options.max_iterations {
         *started = iteration;
         let (mut matrix, rhs, trial) = load(&guess, phase, previous.as_ref())?;
         let flagged = (phases.nonconvergent)(&trial);
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
-        let mut next = linearised_solve(&matrix, &rhs)?;
+        let mut next = linearised_solve(&matrix, &rhs, &mut ordering)?;
         if phases.damped {
             damp(
                 &mut next,
@@ -462,39 +463,16 @@ fn damp(
         }
     }
 }
-/// Iterative-refinement rounds of the balanced fallback solve.
-const REFINEMENT_STEPS: usize = 3;
-
-/// Solves one Newton linearisation: row-equilibrated first (the established
-/// path, unchanged for every system it accepts), then, only when that solve
-/// fails numerically, once more with Curtis-Reid row/column balancing and
-/// iterative refinement ([`crate::maths::EquilibratedSparseLu::new_balanced`],
-/// [`crate::maths::EquilibratedSparseLu::solve_refined`]).
-///
-/// The fallback exists for linearisations that are well posed but scaled
-/// across tens of decades through a coupling cycle. ngspice's `PTdivide`
-/// fudge gives `1/v(x)`, `sqrt(v(x))` or `log(v(x))` a slope of about `1e32`
-/// at a 0 V iterate (`src/spicelib/parser/ptfuncs.c`); SPARSE's threshold
-/// pivoting factors that matrix, whereas row scaling alone leaves the
-/// `v(out)` column `1e32` times weaker than its `v(in)` coupling and trips the
-/// conditioning guard. Balancing changes no equation: the factor is checked
-/// for rank/conditioning in scaled form and every solution is checked against
-/// the original snapshot in physical units; refinement then recovers small
-/// unknowns (a 2 V source beside a `-1e99` `log(0)` output) that the normwise
-/// residual bound alone would let the solve lose. When both attempts fail, the
-/// row-equilibrated error is reported, so diagnostics for genuinely singular
-/// systems are unchanged.
-fn linearised_solve(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<Vector> {
-    let (scaled, scaled_rhs) = equilibrated(matrix, rhs)?;
-    match scaled.solve(&scaled_rhs) {
-        Ok(solution) => Ok(solution),
-        Err(error @ SpiceError::Numerical { .. }) => {
-            crate::maths::EquilibratedSparseLu::new_balanced(matrix, None)
-                .and_then(|factor| factor.solve_refined(rhs, REFINEMENT_STEPS))
-                .map_err(|_| error)
-        }
-        Err(error) => Err(error),
-    }
+/// Solves one Newton linearisation on the raw matrix with SPARSE threshold
+/// pivoting, as `NIiter` does: the first iterate orders (`SMPreorder`), later
+/// iterates with the same pattern refactor with that order (`SMPluFac`). There
+/// is no row equilibration or conditioning guard; ngspice has neither.
+fn linearised_solve(
+    matrix: &SparseMatrix,
+    rhs: &Vector,
+    ordering: &mut Option<crate::maths::SparseSymbolic>,
+) -> SpiceResult<Vector> {
+    crate::maths::linear::solve_with_ordering(matrix, rhs, ordering)
 }
 
 fn check(matrix: &SparseMatrix, rhs: &Vector, n: usize) -> SpiceResult<()> {
@@ -548,31 +526,6 @@ fn residual_ok(
                         options.abstol
                     }
         }))
-}
-pub(crate) fn equilibrated(
-    matrix: &SparseMatrix,
-    rhs: &Vector,
-) -> SpiceResult<(SparseMatrix, Vector)> {
-    let mut largest = vec![0.; matrix.rows()];
-    for t in matrix.triplets() {
-        largest[t.row] = Real::max(largest[t.row], t.value.abs());
-    }
-    let scale = |row: usize| {
-        if largest[row] > 0. && largest[row].is_finite() {
-            1. / largest[row]
-        } else {
-            1.
-        }
-    };
-    let mut scaled = SparseMatrix::new(matrix.rows(), matrix.cols());
-    for t in matrix.triplets() {
-        scaled.add(t.row, t.col, t.value * scale(t.row))?;
-    }
-    let mut b = rhs.clone();
-    for (row, value) in b.as_mut_slice().iter_mut().enumerate() {
-        *value *= scale(row);
-    }
-    Ok((scaled, b))
 }
 fn failure(message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {

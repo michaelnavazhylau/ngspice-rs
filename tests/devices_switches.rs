@@ -348,7 +348,7 @@ fn small_signal_conductance_follows_swacload() {
         .small_signal_system(&ModelContext::default(), &solution(&c, 0.))
         .unwrap();
     close(system.a.get(a, a) - 1e-3, 1e-6);
-    // The switch has no immutable linear form: the BDF assembly refuses it.
+    // The switch has no immutable linear form: linear-system assembly refuses it.
     let mut c = c;
     assert!(c.linear_system().is_err());
     assert!(
