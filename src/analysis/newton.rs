@@ -213,6 +213,9 @@ pub struct NewtonSolution<T> {
     pub values: Vector,
     /// Trial data belonging to `values`, not to the preceding iterate.
     pub trial: T,
+    /// The solve of the last load (C's `CKTrhs` when `NIiter` returns: the
+    /// iterate after `values`, which `.sens` multiplies its `delta_Y` by).
+    pub next: Vector,
     /// Number of solves, bounded by [`NewtonOptions::max_iterations`].
     pub iterations: usize,
 }
@@ -520,6 +523,7 @@ fn iterate<T, F: Fn(&T) -> bool>(
                     return Ok(NewtonSolution {
                         values: guess,
                         trial,
+                        next,
                         iterations: iterno,
                     });
                 }
