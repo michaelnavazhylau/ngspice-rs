@@ -32,6 +32,133 @@ pub struct PencilRoots {
     pub roots: Vec<Complex>,
 }
 
+/// One device's pole-zero contribution to one matrix element, as a C
+/// `DEVpzLoad` adds it: `*elt += g + c * s.real` and `*(elt + 1) += c *
+/// s.imag` (`diopzld.c`), `*elt += g` alone (`respzld.c`) or `c * s.real`
+/// alone (`cappzld.c`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PencilTerm {
+    /// Zero-based matrix row.
+    pub row: usize,
+    /// Zero-based matrix column.
+    pub col: usize,
+    /// The `s`-independent part `g`, if the device adds one.
+    pub conductance: Option<Real>,
+    /// The coefficient `c` of `s`, if the device adds one.
+    pub capacitance: Option<Real>,
+}
+
+impl PencilTerm {
+    /// The value this term adds at `s`.
+    fn at(&self, s: Cx) -> Complex {
+        match (self.conductance, self.capacitance) {
+            (Some(g), Some(c)) => Complex::new(g + c * s.re, c * s.im),
+            (Some(g), None) => Complex::new(g, 0.0),
+            (None, Some(c)) => Complex::new(c * s.re, c * s.im),
+            (None, None) => Complex::ZERO,
+        }
+    }
+}
+
+/// The matrix `CKTpzSetup` builds and `CKTpzLoad` (`cktpzld.c`) loads at
+/// each trial `s`: the elements are created in order (the circuit's setup
+/// elements, then the drive), every trial clears them, adds the device
+/// [`PencilTerm`]s in load order, adds the solution column to the balance
+/// column (`SMPcAddCol`), zeroes the solution column (`SMPcZeroCol`) and
+/// stores the unit drive `+1`/`-1` in the input rows of the solution column.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PencilLoad {
+    /// The matrix order.
+    pub order: usize,
+    /// Zero-based `(row, col)` elements to create before loading, in
+    /// creation order (SPARSE numbers rows and columns by first appearance).
+    /// Term and drive positions not listed are created after these.
+    pub elements: Vec<(usize, usize)>,
+    /// Device contributions in load order.
+    pub terms: Vec<PencilTerm>,
+    /// The solution column (`PZsolution_col`), if any.
+    pub solution: Option<usize>,
+    /// The balance column (`PZbalance_col`), if any.
+    pub balance: Option<usize>,
+    /// The rows receiving `+1` and `-1` in the solution column
+    /// (`PZdrive_pptr`/`PZdrive_nptr`).
+    pub drive: [Option<usize>; 2],
+}
+
+impl PencilLoad {
+    /// A load of the plain pencil `A + s E` with one term per nonzero
+    /// position and the elements created row by row.
+    ///
+    /// # Errors
+    /// Non-square or mismatched matrices.
+    pub fn from_dense(a: &Matrix, e: &Matrix) -> SpiceResult<Self> {
+        let n = a.rows();
+        if a.cols() != n || e.rows() != n || e.cols() != n {
+            return Err(numerical(
+                "pole-zero search",
+                format!(
+                    "needs square matrices of one size, got {}x{} and {}x{}",
+                    a.rows(),
+                    a.cols(),
+                    e.rows(),
+                    e.cols()
+                ),
+            ));
+        }
+        let mut terms = Vec::new();
+        for row in 0..n {
+            for col in 0..n {
+                let g = a.get(row, col).unwrap_or(0.0);
+                let c = e.get(row, col).unwrap_or(0.0);
+                if g != 0.0 || c != 0.0 {
+                    terms.push(PencilTerm {
+                        row,
+                        col,
+                        conductance: Some(g),
+                        capacitance: (c != 0.0).then_some(c),
+                    });
+                }
+            }
+        }
+        Ok(Self {
+            order: n,
+            elements: terms.iter().map(|t| (t.row, t.col)).collect(),
+            terms,
+            ..Self::default()
+        })
+    }
+
+    fn validate(&self) -> SpiceResult<()> {
+        let n = self.order;
+        if n == 0 {
+            return Err(numerical("pole-zero search", "needs a nonempty matrix"));
+        }
+        let inside = |i: usize| i < n;
+        let positions = self
+            .elements
+            .iter()
+            .copied()
+            .chain(self.terms.iter().map(|t| (t.row, t.col)));
+        if !positions.into_iter().all(|(r, c)| inside(r) && inside(c))
+            || ![self.solution, self.balance, self.drive[0], self.drive[1]]
+                .into_iter()
+                .flatten()
+                .all(inside)
+        {
+            return Err(numerical(
+                "pole-zero search",
+                "matrix position out of range",
+            ));
+        }
+        if self.terms.iter().any(|t| {
+            !t.conductance.unwrap_or(0.0).is_finite() || !t.capacitance.unwrap_or(0.0).is_finite()
+        }) {
+            return Err(numerical("pole-zero search", "non-finite matrix entry"));
+        }
+        Ok(())
+    }
+}
+
 const NITER_LIM: usize = 200;
 
 const SHIFT_LEFT: u8 = 2;
@@ -261,13 +388,12 @@ struct Trial {
 
 type Set = [Option<usize>; 3];
 
-/// The SPARSE matrix of `A + s E` and its `(row, col, element)` handles.
-type Loaded = (Sparse<Complex>, Vec<(usize, usize, usize)>);
+/// The SPARSE matrix, its element per term and its drive elements.
+type Loaded = (Sparse<Complex>, Vec<usize>, [Option<usize>; 2]);
 
 /// One `CKTpzFindZeros` run with its file-scope state.
 struct Search<'a> {
-    a: &'a Matrix,
-    e: &'a Matrix,
+    load: &'a PencilLoad,
     sparse: Option<Loaded>,
     structurally_singular: bool,
     trials: Vec<Trial>,
@@ -289,32 +415,28 @@ struct Search<'a> {
     pz_k_mag: i32,
 }
 
-/// Roots of `det(A + s E)` found by ngspice's pole-zero search.
+/// Roots of `det(A + s E)` found by ngspice's pole-zero search
+/// ([`PencilLoad::from_dense`] + [`pencil_load_roots`]).
 ///
 /// # Errors
-/// Non-square or mismatched matrices, a determinant that vanishes at every
-/// trial (C `E_SHORT`, reported as a "singular pencil"), or the search losing
-/// numerical stability (C `E_PANIC`).
+/// As [`pencil_load_roots`], and non-square or mismatched matrices.
 pub fn pencil_roots(a: &Matrix, e: &Matrix) -> SpiceResult<PencilRoots> {
-    let n = a.rows();
-    if n == 0 || a.cols() != n || e.rows() != n || e.cols() != n {
-        return Err(numerical(
-            "pole-zero search",
-            format!(
-                "needs nonempty square matrices of one size, got {}x{} and {}x{}",
-                a.rows(),
-                a.cols(),
-                e.rows(),
-                e.cols()
-            ),
-        ));
-    }
-    if a.data().iter().chain(e.data()).any(|v| !v.is_finite()) {
-        return Err(numerical("pole-zero search", "non-finite matrix entry"));
-    }
+    pencil_load_roots(&PencilLoad::from_dense(a, e)?)
+}
+
+/// Roots of the determinant of `load` as a function of `s`, found by
+/// ngspice's pole-zero search (`CKTpzFindZeros`).
+///
+/// # Errors
+/// An empty matrix, out-of-range positions or non-finite terms, a
+/// determinant that vanishes at every trial (C `E_SHORT`, reported as a
+/// "singular pencil"), or the search losing numerical stability (C
+/// `E_PANIC`).
+pub fn pencil_load_roots(load: &PencilLoad) -> SpiceResult<PencilRoots> {
+    load.validate()?;
+    let n = load.order;
     let mut search = Search {
-        a,
-        e,
+        load,
         sparse: None,
         structurally_singular: false,
         trials: Vec::new(),
@@ -627,41 +749,54 @@ impl Search<'_> {
         Ok(suggestion)
     }
 
-    /// Loads `A + s E` and returns SPARSE's determinant (`CKTpzLoad`,
-    /// `SMPcReorder(1e-30, 0)`, `SMPcDProd`), or `None` when singular.
+    /// Loads the matrix at `s` and returns SPARSE's determinant
+    /// (`CKTpzLoad`, `SMPcReorder(1e-30, 0)`, `SMPcDProd`), or `None` when
+    /// singular. The matrix is created on the first trial, unordered (C
+    /// runs no `SMPpreOrder` for SPARSE), and keeps its pivot order between
+    /// trials while the pivots pass the threshold test.
     fn determinant_at(&mut self, s: Cx) -> Option<(Cx, i32)> {
         if self.structurally_singular {
             return None;
         }
-        let n = self.a.rows();
-        let fresh = self.sparse.is_none();
-        if fresh {
-            let mut sparse = Sparse::new(n);
-            let mut handles = Vec::new();
-            for row in 0..n {
-                for col in 0..n {
-                    let a = self.a.get(row, col).unwrap_or(0.0);
-                    let e = self.e.get(row, col).unwrap_or(0.0);
-                    if a != 0.0 || e != 0.0 {
-                        handles.push((row, col, sparse.get_element(row + 1, col + 1)));
-                    }
-                }
+        let load = self.load;
+        if self.sparse.is_none() {
+            let mut sparse = Sparse::new(load.order);
+            for &(row, col) in &load.elements {
+                sparse.get_element(row + 1, col + 1);
             }
+            let handles = load
+                .terms
+                .iter()
+                .map(|t| sparse.get_element(t.row + 1, t.col + 1))
+                .collect();
+            let drive = match load.solution {
+                Some(col) => load
+                    .drive
+                    .map(|row| row.map(|row| sparse.get_element(row + 1, col + 1))),
+                None => [None, None],
+            };
             if !sparse.fully_translated() {
                 self.structurally_singular = true;
                 return None;
             }
-            self.sparse = Some((sparse, handles));
+            self.sparse = Some((sparse, handles, drive));
         }
-        let (sparse, handles) = self.sparse.as_mut()?;
+        let (sparse, handles, drive) = self.sparse.as_mut()?;
         sparse.clear();
-        for &(row, col, handle) in handles.iter() {
-            let a = self.a.get(row, col).unwrap_or(0.0);
-            let e = self.e.get(row, col).unwrap_or(0.0);
-            sparse.set(handle, Complex::new(a + e * s.re, e * s.im));
+        for (term, &handle) in load.terms.iter().zip(handles.iter()) {
+            sparse.add(handle, term.at(s));
         }
-        if fresh {
-            sparse.mna_preorder();
+        if let Some(solution) = load.solution {
+            if let Some(balance) = load.balance {
+                sparse.add_col(balance + 1, solution + 1);
+            }
+            sparse.zero_col(solution + 1);
+        }
+        for (element, value) in drive.iter().zip([1.0, -1.0]) {
+            if let Some(element) = *element {
+                let im = sparse.value(element).im;
+                sparse.set(element, Complex::new(value, im));
+            }
         }
         match sparse.order_and_factor(0.0, 1.0e-30) {
             Status::Singular | Status::ZeroDiag => None,

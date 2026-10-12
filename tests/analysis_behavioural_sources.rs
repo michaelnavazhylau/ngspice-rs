@@ -248,8 +248,9 @@ fn singular_slopes_at_the_zero_start_converge_in_every_analysis() {
 #[test]
 fn infinite_slopes_at_the_zero_start_name_the_offending_derivative() {
     // pwr(0, -0.5) is infinite, so v(in)^0.5 has an infinite slope at the
-    // 0 V start. C loads it and carries a NaN iterate; the port stops with
-    // the value and the derivative it could not use.
+    // 0 V start (the derivative tree `0.5 * pwr(v, -0.5)`). C loads it and
+    // carries a NaN iterate; the port stops naming the derivative node and
+    // its arguments.
     let error = run(
         "vin in 0 dc 2\nrin in 0 1k\nb1 o 0 v=v(in)^0.5\nr1 o 0 1k",
         AnalysisKind::OperatingPoint,
@@ -257,9 +258,7 @@ fn infinite_slopes_at_the_zero_start_name_the_offending_derivative() {
     )
     .unwrap_err();
     assert!(
-        error
-            .to_string()
-            .contains("non-finite derivative inf (value 0) in '^'"),
+        error.to_string().contains("0, -0.5 out of range for pwr()"),
         "{error}"
     );
 }

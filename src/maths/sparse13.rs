@@ -258,8 +258,8 @@ impl<T: Scalar> Sparse<T> {
         self.find_element_in_col(Slot::Head(col), row, col, true)
     }
 
-    /// Adds to an element obtained from [`Self::get_element`].
-    #[cfg(test)]
+    /// Adds to an element obtained from [`Self::get_element`]
+    /// (`*element += value`).
     pub(crate) fn add(&mut self, element: usize, value: T)
     where
         T: std::ops::Add<Output = T>,
@@ -446,6 +446,63 @@ impl<T: Scalar> Sparse<T> {
     /// Overwrites one element's value (`*element = value`).
     pub(crate) fn set(&mut self, element: usize, value: T) {
         self.elements[element].value = value;
+    }
+
+    /// One element's value.
+    pub(crate) fn value(&self, element: usize) -> T {
+        self.elements[element].value
+    }
+
+    /// `SMPcAddCol` (`spsmp.c`): adds every element of external column
+    /// `addend` (fill-ins included) to the same row of column `accum`,
+    /// creating the missing elements there as originals (which, once rows
+    /// are linked, forces the next factorization to reorder). Untranslated
+    /// columns are left alone.
+    pub(crate) fn add_col(&mut self, accum: usize, addend: usize)
+    where
+        T: std::ops::Add<Output = T>,
+    {
+        let (Some(&accum), Some(&addend)) = (
+            self.ext_to_int_col.get(accum),
+            self.ext_to_int_col.get(addend),
+        ) else {
+            return;
+        };
+        if accum == NONE || addend == NONE {
+            return;
+        }
+        let mut next = self.first_in_col[addend];
+        let mut prev = Slot::Head(accum);
+        let mut acc = self.col_get(prev);
+        while next != NONE {
+            let row = self.elements[next].row;
+            while acc != NONE && self.elements[acc].row < row {
+                prev = Slot::After(acc);
+                acc = self.elements[acc].next_in_col;
+            }
+            if acc == NONE || self.elements[acc].row > row {
+                acc = self.create_element(row, accum, prev, false);
+            }
+            let value = self.elements[next].value;
+            self.add(acc, value);
+            next = self.elements[next].next_in_col;
+        }
+    }
+
+    /// `SMPcZeroCol` (`spsmp.c`): zeroes every element of external column
+    /// `col`, keeping them in the structure.
+    pub(crate) fn zero_col(&mut self, col: usize) {
+        let Some(&col) = self.ext_to_int_col.get(col) else {
+            return;
+        };
+        if col == NONE {
+            return;
+        }
+        let mut e = self.first_in_col[col];
+        while e != NONE {
+            self.elements[e].value = T::ZERO;
+            e = self.elements[e].next_in_col;
+        }
     }
 
     // --- sputils.c ------------------------------------------------------

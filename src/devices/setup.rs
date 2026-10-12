@@ -180,6 +180,9 @@ pub struct MatrixSetup<'a> {
     /// For a K device, the branch rows of each inductor pair it couples, in
     /// C's instance order.
     pub coupled: &'a [(usize, usize)],
+    /// Allocating for pole-zero analysis (`DEVpzSetup`, run by
+    /// `CKTpzSetup` on a fresh matrix) rather than `DEVsetup`.
+    pub pole_zero: bool,
     pub(crate) elements: &'a mut Vec<(usize, usize)>,
 }
 

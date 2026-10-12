@@ -531,17 +531,36 @@ impl LinearContext<'_> {
         let (Some(r), Some(c)) = (self.unknowns.node_row(row), self.unknowns.node_row(col)) else {
             return Ok(());
         };
+        self.dynamic_group(r, c, terms, scale, 1.)
+    }
+    /// Adds `scale * (x1 + x2 + ...) / divisor` to `E[r][c]` (matrix rows,
+    /// not nodes), each `x` being a term times `omega`, as one C stamp.
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn dynamic_group(
+        &mut self,
+        r: usize,
+        c: usize,
+        terms: &[Real],
+        scale: Real,
+        divisor: Real,
+    ) -> SpiceResult<()> {
         let start = self.system.e.triplets().len();
         for term in terms {
-            self.system.e.add(r, c, scale * *term)?;
+            self.system.e.add(r, c, scale * *term / divisor)?;
         }
         let end = self.system.e.triplets().len();
         // Only an unbound (triplet-list) E keeps the contributions apart.
-        if end > start && (terms.len() > 1 || scale != 1.) && self.system.e.overflow().is_none() {
+        if end > start
+            && (terms.len() > 1 || scale != 1. || divisor != 1.)
+            && self.system.e.overflow().is_none()
+        {
             self.system.e_groups.push(crate::maths::DynamicGroup {
                 range: start..end,
                 terms: terms.to_vec(),
                 scale,
+                divisor,
             });
         }
         Ok(())
