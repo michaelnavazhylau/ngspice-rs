@@ -53,7 +53,9 @@
 mod disto;
 
 use crate::devices::limiting;
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
@@ -1141,9 +1143,12 @@ impl Mos1 {
     /// The `MODEINITSMSIG` evaluation the small-signal loads read
     /// (`acan.c`, `noisean.c`, `pzan.c` load once in that mode after the
     /// operating point). C limits the bias voltages against the converged
-    /// load's `CKTstate0` there; the small-signal contexts supply the
-    /// accepted `CKTstate1` instead, so the bias is evaluated unlimited,
-    /// which equals C whenever the converged load itself limited nothing.
+    /// load's `CKTstate0` there (`mos1load.c`). The small-signal contexts
+    /// supply the accepted `CKTstate1` instead, so the limiting is replayed
+    /// against the bias itself: when the converged load limited nothing
+    /// (it stored its own iterate up to the rounding of `vds = vgs - vgd`,
+    /// and of `vgs = vgd + vds` for a reversed device), every limiter is the
+    /// identity and only that rounding remains, which is what C evaluates.
     fn small_signal_eval(
         &self,
         op: &Operating,
@@ -1152,7 +1157,12 @@ impl Mos1 {
     ) -> SpiceResult<Eval> {
         let pol = self.model.pol;
         let [dp, g, sp, b] = self.inner.map(&voltage);
-        self.evaluate(op, [pol * (b - sp), pol * (g - sp), pol * (dp - sp)], gmin)
+        let raw = [pol * (b - sp), pol * (g - sp), pol * (dp - sp)];
+        let [vbs, vgs, vds] = raw;
+        // DEVfetlim/DEVpnjlim/DEVlimvds leave an unchanged voltage alone
+        // whatever `von` is.
+        let (limited, _) = self.limit(op, raw, [vbs, vbs - vds, vgs, vds], 0.);
+        self.evaluate(op, limited, gmin)
     }
 }
 
@@ -1803,22 +1813,47 @@ impl Device for Mos1 {
             }
         };
         let cd = e.cd;
+        // mos1noi.c: `coxSquared` is the oxide capacitance factor (or the
+        // tox = 1e-7 default) squared; the NLEV 0..3 laws divide by its square
+        // root, `newcompat.s3` by the square itself.
         let cox = match model.tox.filter(|tox| *tox != 0.) {
             Some(tox) => 3.9 * EPSILON_0 / tox,
             None => 3.9 * 8.854214871e-12 / 1e-7,
         };
+        let cox_squared = cox * cox;
         let m = geometry.m;
         let length = geometry.length;
         let current_law = || m * model.kf * (model.af * (cd / m).abs().max(1e-38).ln()).exp();
-        let (coefficient, exponent) = if context.model_context.spice3_noise {
-            (current_law() / (geometry.w * length * cox * cox), 1.)
+        let (numerator, law) = if context.model_context.spice3_noise {
+            (
+                current_law(),
+                FlickerLaw::Channel {
+                    exponent: None,
+                    factors: [geometry.w, length, cox_squared],
+                },
+            )
         } else {
             match model.nlev {
-                0 => (current_law() / (length * length * cox), 1.),
-                1 => (current_law() / (geometry.w * length * cox), 1.),
+                0 => (
+                    current_law(),
+                    FlickerLaw::Channel {
+                        exponent: None,
+                        factors: [length, length, cox_squared.sqrt()],
+                    },
+                ),
+                1 => (
+                    current_law(),
+                    FlickerLaw::Channel {
+                        exponent: None,
+                        factors: [geometry.w, length, cox_squared.sqrt()],
+                    },
+                ),
                 _ => (
-                    model.kf * gm * gm / m / (geometry.w * length * cox),
-                    model.af,
+                    model.kf * gm * gm / m,
+                    FlickerLaw::Channel {
+                        exponent: Some(model.af),
+                        factors: [geometry.w, length, cox_squared.sqrt()],
+                    },
                 ),
             }
         };
@@ -1839,14 +1874,7 @@ impl Device for Mos1 {
                 NoiseSource::new("_rd", [d, self.terminals[0]], thermal(self.series[0])),
                 NoiseSource::new("_rs", [s, self.terminals[2]], thermal(self.series[1])),
                 NoiseSource::new("_id", [d, s], thermal(sid)),
-                NoiseSource::new(
-                    "_1overf",
-                    [d, s],
-                    NoiseKind::Flicker {
-                        coefficient,
-                        exponent,
-                    },
-                ),
+                NoiseSource::new("_1overf", [d, s], NoiseKind::Flicker { numerator, law }),
             ],
         })
     }

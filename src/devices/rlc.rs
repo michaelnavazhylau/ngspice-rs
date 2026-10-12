@@ -22,7 +22,7 @@ use crate::maths::{Coefficients, Companion};
 use crate::primitives::{NodeId, Real, SpiceError, SpiceResult};
 
 use crate::devices::noise::{
-    CELSIUS_TO_KELVIN, DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+    CELSIUS_TO_KELVIN, DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
 };
 use crate::devices::traits::{AnalysisMode, Device, StampContext};
 
@@ -378,8 +378,9 @@ impl Device for Resistor {
         let temperature = n
             .temperature
             .map_or_else(|| context.circuit_kelvin(), |t| t + CELSIUS_TO_KELVIN);
-        let coefficient =
-            n.multiplicity * n.kf * (current / n.multiplicity).abs().powf(n.af) / n.area;
+        // resnoise.c: `RESm * RESfNcoef * pow(fabs(REScurrent / RESm), RESfNexp)
+        // / (RESeffNoiseArea * pow(freq, RESef))`.
+        let numerator = n.multiplicity * n.kf * (current / n.multiplicity).abs().powf(n.af);
         Ok(DeviceNoise::Sources {
             family: NoiseFamily::Resistor,
             model: n.model.clone(),
@@ -397,8 +398,11 @@ impl Device for Resistor {
                     "_1overf",
                     self.terminals,
                     NoiseKind::Flicker {
-                        coefficient,
-                        exponent: n.ef,
+                        numerator,
+                        law: FlickerLaw::Area {
+                            area: n.area,
+                            exponent: n.ef,
+                        },
                     },
                 ),
             ],
