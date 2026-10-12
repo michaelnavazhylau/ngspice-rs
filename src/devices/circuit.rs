@@ -215,24 +215,52 @@ impl Circuit {
         let owned: BTreeSet<NodeId> = self.internal_nodes.iter().flatten().copied().collect();
         self.unknowns
             .rebuild_deferring(&self.nodes, |node| owned.contains(&node));
+        use crate::devices::setup::CDeviceType;
         self.branch_rows = vec![0..0; self.devices.len()];
+        // `CKTmkCur` runs once per device: in its own DEVsetup, or earlier
+        // when a CCCS/CCVS/CSW/ASRC setup asks `CKTfndBranch` for it
+        // (`VSRCfindBr`, `VCVSfindBr`, `CCVSfindBr` and `ASRCfindBr` make the
+        // branch on demand), so a controlling source's branch is numbered
+        // where its first user is set up.
+        let mut made = vec![false; self.devices.len()];
+        let make = |circuit: &mut Self, made: &mut [bool], index: usize| {
+            if made[index] {
+                return;
+            }
+            made[index] = true;
+            let count = circuit.devices[index].branch_currents();
+            let start = circuit.unknowns.len();
+            circuit.unknowns.add_rows(count);
+            circuit.branch_rows[index] = start..start + count;
+        };
         for index in self.setup_order() {
-            let device = &self.devices[index];
-            let count = device.branch_currents();
-            let branches_first = device.c_device_type() == crate::devices::setup::CDeviceType::Vsrc;
+            let kind = self.devices[index].c_device_type();
+            // vsrcset.c, ccvsset.c and asrcset.c make their own branch before
+            // anything else; the other setups make internal nodes first.
+            let branches_first = matches!(kind, CDeviceType::Vsrc | CDeviceType::Ccvs)
+                || (kind == CDeviceType::Asrc && self.devices[index].branch_currents() > 0);
             if branches_first {
-                let start = self.unknowns.len();
-                self.unknowns.add_rows(count);
-                self.branch_rows[index] = start..start + count;
+                make(self, &mut made, index);
+            }
+            // cccsset.c, ccvsset.c, cswsetup.c and asrcset.c call
+            // CKTfndBranch for each controlling source, in order.
+            let found: Vec<usize> = self.devices[index]
+                .controlling_sources()
+                .iter()
+                .filter_map(|control| {
+                    self.devices.iter().position(|other| {
+                        other.name().eq_ignore_ascii_case(&control.name)
+                            && other.findable_branch().is_some()
+                    })
+                })
+                .collect();
+            for target in found {
+                make(self, &mut made, target);
             }
             for &node in &self.internal_nodes[index] {
                 self.unknowns.assign_deferred(node);
             }
-            if !branches_first {
-                let start = self.unknowns.len();
-                self.unknowns.add_rows(count);
-                self.branch_rows[index] = start..start + count;
-            }
+            make(self, &mut made, index);
         }
         self.state_rows.clear();
         self.state_len = 0;
@@ -603,13 +631,63 @@ impl Circuit {
         crate::devices::setup::setup_order(&keys)
     }
 
+    /// The matrix elements device `index` allocates in its `DEVsetup`
+    /// (`TSTALLOC` order; with `pole_zero` its `DEVpzSetup`), appended to
+    /// `elements`.
+    fn declare_elements(
+        &self,
+        index: usize,
+        pole_zero: bool,
+        elements: &mut Vec<(usize, usize)>,
+    ) -> SpiceResult<()> {
+        let coupled: Vec<(usize, usize)> = self
+            .mutual
+            .pairs
+            .iter()
+            .rev()
+            .filter(|pair| pair.coupling == index)
+            .map(|pair| {
+                (
+                    self.branch_rows[pair.first].start,
+                    self.branch_rows[pair.second].start,
+                )
+            })
+            .collect();
+        let mut setup = crate::devices::setup::MatrixSetup {
+            unknowns: &self.unknowns,
+            branches: self.branch_rows[index].clone(),
+            controls: self.controls(index)?,
+            coupled: &coupled,
+            pole_zero,
+            elements,
+        };
+        self.devices[index].setup_matrix(&mut setup)?;
+        Ok(())
+    }
+
+    /// The `(row, col)` matrix elements device `index` allocates in its
+    /// `DEVsetup`, in `TSTALLOC` order (`.sens` replays them into its
+    /// perturbation matrix, `cktsens.c`).
+    ///
+    /// # Errors
+    /// Stale numbering or an ordinal out of range.
+    pub fn setup_elements(&self, index: usize) -> SpiceResult<Vec<(usize, usize)>> {
+        self.check_numbering()?;
+        if index >= self.devices.len() {
+            return Err(SpiceError::circuit("device ordinal out of range"));
+        }
+        let mut elements = Vec::new();
+        self.declare_elements(index, false, &mut elements)?;
+        Ok(elements)
+    }
+
     /// C's `CKTsetup`: orders the devices and allocates the matrix elements
     /// they declare, in that order. A pattern that already starts with the
     /// same elements is kept, so its pivot order survives re-finalization
     /// (C sets a circuit up once).
     fn allocate_matrix(&mut self) -> SpiceResult<()> {
         let order = self.setup_order();
-        let elements = self.setup_elements(&order, false)?;
+        let elements = self.ordered_elements(&order, false)?;
         self.order = order;
         let n = self.unknown_count();
         let mut slot = self.pattern.borrow_mut();
@@ -634,31 +712,14 @@ impl Circuit {
     /// The matrix elements the devices declare ([`Device::setup_matrix`]),
     /// visited in `order`: C's `CKTsetup`, or with `pole_zero` the
     /// `DEVpzSetup` pass of `CKTpzSetup` (`cktpzset.c`) on a fresh matrix.
-    fn setup_elements(&self, order: &[usize], pole_zero: bool) -> SpiceResult<Vec<(usize, usize)>> {
+    fn ordered_elements(
+        &self,
+        order: &[usize],
+        pole_zero: bool,
+    ) -> SpiceResult<Vec<(usize, usize)>> {
         let mut elements = Vec::new();
         for &index in order {
-            let coupled: Vec<(usize, usize)> = self
-                .mutual
-                .pairs
-                .iter()
-                .rev()
-                .filter(|pair| pair.coupling == index)
-                .map(|pair| {
-                    (
-                        self.branch_rows[pair.first].start,
-                        self.branch_rows[pair.second].start,
-                    )
-                })
-                .collect();
-            let mut setup = crate::devices::setup::MatrixSetup {
-                unknowns: &self.unknowns,
-                branches: self.branch_rows[index].clone(),
-                controls: self.controls(index)?,
-                coupled: &coupled,
-                pole_zero,
-                elements: &mut elements,
-            };
-            self.devices[index].setup_matrix(&mut setup)?;
+            self.declare_elements(index, pole_zero, &mut elements)?;
         }
         Ok(elements)
     }
@@ -672,7 +733,7 @@ impl Circuit {
     /// Mismatched numbering or missing bindings.
     pub fn pole_zero_elements(&self) -> SpiceResult<Vec<(usize, usize)>> {
         self.check_numbering()?;
-        let mut elements = self.setup_elements(&self.setup_order(), true)?;
+        let mut elements = self.ordered_elements(&self.setup_order(), true)?;
         if let Some(pattern) = self.matrix_pattern() {
             let known: BTreeSet<(usize, usize)> = elements.iter().copied().collect();
             for index in 0..pattern.len() {

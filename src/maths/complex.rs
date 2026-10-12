@@ -26,13 +26,16 @@ pub struct DynamicGroup {
     pub terms: Vec<f64>,
     /// The factor C applies to the sum (the instance multiplier `m`).
     pub scale: f64,
+    /// The divisor C applies after scaling (`indacld.c`'s
+    /// `CKTomega * INDinduct / m`); `1` for none.
+    pub divisor: f64,
 }
 
 /// `omega` times each of `e`'s contributions in stamp order, except that
 /// the contributions of one of `groups` are scaled one by one, summed and
 /// multiplied by the group's scale into a single value first
 /// ([`DynamicGroup`]).
-fn dynamic_terms(
+pub(crate) fn dynamic_terms(
     e: &SparseMatrix,
     groups: &[DynamicGroup],
     omega: f64,
@@ -54,7 +57,7 @@ fn dynamic_terms(
                 for term in terms {
                     sum += term;
                 }
-                out.push((t.row, t.col, g.scale * sum));
+                out.push((t.row, t.col, g.scale * sum / g.divisor));
                 i = g.range.end;
             }
             _ => {
@@ -213,6 +216,42 @@ impl ComplexMatrix {
             pivot: a.pivot_tolerances(),
             bound: Some(Arc::clone(pattern)),
         }))
+    }
+
+    /// Orders and factors a brand-new SPARSE matrix whose elements are
+    /// created in `entries` order (for a bound matrix, the circuit's element
+    /// order), with `SMPcReorder` alone: no `spMNA_Preorder` and no pivot
+    /// order inherited from a real factorization. This is the matrix
+    /// `sens_sens()` (`cktsens.c`) factors at each frequency, after
+    /// `CKTunsetup`/`CKTsetup` rebuilt the circuit matrix and `NIacIter`
+    /// reordered it.
+    /// # Errors
+    /// Structurally or numerically singular matrix.
+    pub fn factorize_new_matrix(&self) -> SpiceResult<ComplexLu> {
+        let mut sparse = Sparse::new(self.n);
+        let handles: Vec<_> = self
+            .entries
+            .iter()
+            .map(|&(r, c, v)| {
+                let handle = sparse.get_element(r + 1, c + 1);
+                sparse.set(handle, v);
+                handle
+            })
+            .collect();
+        if !sparse.fully_translated() {
+            return Err(numerical(
+                "complex sparse LU",
+                "singular matrix: an unknown has no matrix entries",
+            ));
+        }
+        let status = sparse.order_and_factor(self.pivot.relative, self.pivot.absolute);
+        crate::maths::linear::check_status("complex sparse LU", status, &sparse)?;
+        Ok(ComplexLu {
+            n: self.n,
+            pattern: Arc::new(self.entries.iter().map(|&(r, c, _)| (r, c)).collect()),
+            handles: Arc::new(handles),
+            sparse,
+        })
     }
 
     /// Orders and factors (`SMPpreOrder` + `SMPcReorder`).
