@@ -256,6 +256,11 @@ impl Device for IndependentSource {
         }
         let [positive, negative] = self.ideal();
         setup.voltage_branch(positive, negative, branch);
+        if setup.pole_zero {
+            // `VSRCpzSetup` (`vsrcpzs.c`) also allocates `(b,b)`, which
+            // `vsrcpzld.c` loads for a source with an AC value.
+            setup.element(Some(branch), Some(branch));
+        }
         Ok(true)
     }
     fn observation_parameter(
