@@ -1,5 +1,25 @@
 # Sparse rank-diagnostic audit (#47)
 
+> **Superseded (M10 item 0.5a).** The native SPARSE 1.3 solver
+> (`src/maths/sparse13.rs`, driven by `src/maths/linear.rs` as `spsmp.c` and
+> `niiter.c` drive SPARSE) replaced faer, and with it the guard this audit
+> retained: the n-solve rank probe, the backward-residual checks and Newton's
+> equilibrated fallback are gone. The reason is fidelity: ngspice has **no**
+> rank probe, condition estimate or residual check. Its policy is SPARSE's
+> factorization status, mapped by `spmatrix.h`: `spSINGULAR` and
+> `spZERO_DIAG` are `E_SINGULAR` (an error, after `NIiter` has printed
+> `singular matrix:  check node X` and, for a zero pivot met while
+> refactoring, retried with a reorder), and `spSMALL_PIVOT` is `OK`. The port
+> now does the same: structurally or numerically singular matrices fail and
+> name the unknown as C does; a pivot below `pivtol`/`pivrel` is accepted
+> with a warning (C is silent); non-finite inputs and solutions are still
+> rejected. A conditioning guard would reject or alter circuits that C
+> simulates, and the residual check cost a re-solve per Newton iteration. The
+> measurements are in `NATIVE_SOLVER_PROTOTYPE.md`; the degenerate-circuit
+> comparison with C is `tests/solver_robustness.rs`. The text below is kept
+> as the historical record of the faer-era policy and describes no current
+> code.
+
 ## Decision and boundaries
 
 **Retain the production guard unchanged.** This is an audit/test/benchmark

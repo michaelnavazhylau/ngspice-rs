@@ -75,6 +75,8 @@ pub struct ComplexMatrix {
     n: usize,
     entries: Vec<(usize, usize, Complex)>,
     pivot: PivotTolerances,
+    /// The circuit unknowns' names (from the real operator), for diagnostics.
+    names: Option<crate::maths::UnknownNames>,
     /// The circuit pattern whose elements `entries` are (one per element,
     /// in element order), or `None` for a standalone matrix.
     bound: Option<Arc<crate::maths::Pattern>>,
@@ -136,6 +138,7 @@ impl ComplexMatrix {
                 .map(|((r, c), v)| (r, c, v))
                 .collect(),
             pivot: a.pivot_tolerances(),
+            names: a.unknown_names().cloned(),
             bound: None,
         })
     }
@@ -214,6 +217,7 @@ impl ComplexMatrix {
                 })
                 .collect(),
             pivot: a.pivot_tolerances(),
+            names: a.unknown_names().cloned(),
             bound: Some(Arc::clone(pattern)),
         }))
     }
@@ -239,13 +243,17 @@ impl ComplexMatrix {
             })
             .collect();
         if !sparse.fully_translated() {
-            return Err(numerical(
-                "complex sparse LU",
-                "singular matrix: an unknown has no matrix entries",
-            ));
+            // A circuit's matrix follows C (see `maths::linear`).
+            if self.names.is_none() && self.bound.is_none() {
+                return Err(numerical(
+                    "complex sparse LU",
+                    "singular matrix: an unknown has no matrix entries",
+                ));
+            }
+            crate::maths::linear::warn_untranslated(&sparse, self.names.as_ref());
         }
         let status = sparse.order_and_factor(self.pivot.relative, self.pivot.absolute);
-        crate::maths::linear::check_status("complex sparse LU", status, &sparse)?;
+        check_status("complex sparse LU", status, &sparse, self.names.as_ref())?;
         Ok(ComplexLu {
             n: self.n,
             pattern: Arc::new(self.entries.iter().map(|&(r, c, _)| (r, c)).collect()),
@@ -260,8 +268,12 @@ impl ComplexMatrix {
     pub fn factorize(&self) -> SpiceResult<ComplexLu> {
         if let Some(pattern) = &self.bound {
             let values: Vec<Complex> = self.entries.iter().map(|&(_, _, v)| v).collect();
-            let (sparse, handles) =
-                crate::maths::linear::factor_shared_complex(pattern, &values, self.pivot)?;
+            let (sparse, handles) = crate::maths::linear::factor_shared_complex(
+                pattern,
+                &values,
+                self.pivot,
+                self.names.as_ref(),
+            )?;
             return Ok(ComplexLu {
                 n: self.n,
                 pattern: Arc::new(self.entries.iter().map(|&(r, c, _)| (r, c)).collect()),
@@ -279,7 +291,13 @@ impl ComplexMatrix {
                 handle
             })
             .collect();
-        order_fresh("complex sparse LU", &mut sparse, self.pivot)?;
+        order_fresh(
+            "complex sparse LU",
+            &mut sparse,
+            self.pivot,
+            self.names.as_ref(),
+            self.names.is_some(),
+        )?;
         Ok(ComplexLu {
             n: self.n,
             pattern: Arc::new(self.entries.iter().map(|&(r, c, _)| (r, c)).collect()),
@@ -321,7 +339,7 @@ impl ComplexMatrix {
             load(&mut sparse);
             status = sparse.order_and_factor(self.pivot.relative, self.pivot.absolute);
         }
-        check_status("complex sparse LU", status, &sparse)?;
+        check_status("complex sparse LU", status, &sparse, self.names.as_ref())?;
         Ok(ComplexLu {
             n: self.n,
             pattern: Arc::clone(&previous.pattern),

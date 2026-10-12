@@ -9,7 +9,17 @@
 //! reordered as `NIiter` does after `E_SINGULAR`. Like C there is no
 //! condition estimate or residual check: only structural/numeric singularity
 //! (`spSINGULAR`/`spZERO_DIAG`) and non-finite solutions are errors, and small
-//! pivots are accepted (`spSMALL_PIVOT` is `OK` in ngspice).
+//! pivots are accepted (`spSMALL_PIVOT` is `OK` in ngspice, which says
+//! nothing; the port prints a warning, see [`solver_warning`]). A singular
+//! circuit matrix names its unknowns as `NIiter`'s warning does
+//! (`singular matrix:  check node X`).
+//!
+//! A circuit unknown that no element references (a node joined only to
+//! current sources) has no row in SPARSE (`Translate` never numbers it); C
+//! then solves the rest and leaves the right-hand side in that unknown's
+//! solution entry, and so does the port for circuit solves ([`solve_ni`],
+//! AC), with a warning. Standalone matrices ([`SparseLu::new`],
+//! [`DenseLu`]) reject such a system instead.
 //!
 //! Elements are created in the folded triplet order (row-major), which sets
 //! SPARSE's internal numbering. ngspice instead creates them in device setup
@@ -87,6 +97,58 @@ pub(crate) fn square(rows: usize, cols: usize) -> SpiceResult<()> {
     Ok(())
 }
 
+/// Names of a circuit's unknowns by matrix row (C `NODENAME`/`CKTnodName`):
+/// node names and `<device>#branch` currents.
+pub type UnknownNames = Arc<[String]>;
+
+/// The name of 1-based external index `ext`, or `unknown <row>` (0-based
+/// row) without names.
+fn unknown_label(names: Option<&UnknownNames>, ext: usize) -> String {
+    let row = ext.saturating_sub(1);
+    names
+        .and_then(|names| names.get(row))
+        .cloned()
+        .unwrap_or_else(|| format!("unknown {row}"))
+}
+
+/// At most this many solver warnings are printed per process, as `NIiter`
+/// prints at most six "singular matrix" warnings unless `ngdebug` is set
+/// (its static `msgcount`).
+const MAX_SOLVER_WARNINGS: usize = 6;
+
+/// Prints a solver warning on standard error (ngspice's
+/// `IFerrorf(ERR_WARNING, ...)`), each distinct message once and at most
+/// [`MAX_SOLVER_WARNINGS`] per process. Warnings never change a result.
+pub(crate) fn solver_warning(message: String) {
+    static PRINTED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let Ok(mut printed) = PRINTED.lock() else {
+        return;
+    };
+    if printed.len() >= MAX_SOLVER_WARNINGS || printed.contains(&message) {
+        return;
+    }
+    eprintln!("warning: {message}");
+    printed.push(message);
+}
+
+/// Warns about circuit unknowns with no matrix entries (see the module
+/// documentation): C keeps their right-hand side as their solution.
+pub(crate) fn warn_untranslated<T: Scalar>(sparse: &Sparse<T>, names: Option<&UnknownNames>) {
+    if sparse.fully_translated() {
+        return;
+    }
+    let labels: Vec<String> = sparse
+        .untranslated()
+        .map(|ext| unknown_label(names, ext))
+        .collect();
+    solver_warning(format!(
+        "no matrix entries for {}: nothing constrains {}, so as in ngspice the \
+         solution holds the right-hand side there",
+        labels.join(", "),
+        if labels.len() == 1 { "it" } else { "them" }
+    ));
+}
+
 fn rhs_valid(rhs: &Vector, n: usize) -> SpiceResult<()> {
     if rhs.len() != n || !rhs.is_finite() {
         return Err(numerical(
@@ -97,49 +159,75 @@ fn rhs_valid(rhs: &Vector, n: usize) -> SpiceResult<()> {
     Ok(())
 }
 
-/// Maps a SPARSE status to the port's error, naming the singular unknown
-/// (0-based matrix row/column) as `NIiter`'s "singular matrix" warning does.
+/// Maps a SPARSE status to the port's error, naming the singular unknown as
+/// `NIiter`'s warning does (`SMPgetError` gives the column first, then the
+/// row: `singular matrix:  check nodes <col> and <row>`, or `check node
+/// <name>` when both name one unknown). `spSMALL_PIVOT`, which ngspice maps
+/// to `OK` without a message, is accepted with a [`solver_warning`].
 pub(crate) fn check_status<T: Scalar>(
     context: &str,
     status: Status,
     sparse: &Sparse<T>,
+    names: Option<&UnknownNames>,
 ) -> SpiceResult<()> {
     match status {
-        Status::Okay | Status::SmallPivot => Ok(()),
+        Status::Okay => Ok(()),
+        Status::SmallPivot => {
+            if let Some((row, col)) = sparse.small_pivot() {
+                let (col, row) = (unknown_label(names, col), unknown_label(names, row));
+                let at = if row == col {
+                    format!("node {row}")
+                } else {
+                    format!("nodes {col} and {row}")
+                };
+                solver_warning(format!(
+                    "small pivot in the {context}: no pivot passed the pivtol/pivrel \
+                     thresholds, so the largest remaining element (at {at}) was used; \
+                     the result may be inaccurate (ngspice accepts this silently)"
+                ));
+            }
+            Ok(())
+        }
         Status::ZeroDiag | Status::Singular => {
             let (row, col) = sparse.where_singular();
+            let (col, row) = (unknown_label(names, col), unknown_label(names, row));
             let unknowns = if row == col {
-                format!("unknown {}", row.saturating_sub(1))
+                format!("node {row}")
             } else {
-                format!(
-                    "unknowns {} and {}",
-                    row.saturating_sub(1),
-                    col.saturating_sub(1)
-                )
+                format!("nodes {col} and {row}")
             };
             Err(numerical(
                 context,
-                format!("singular matrix: check {unknowns}"),
+                format!("singular matrix:  check {unknowns}"),
             ))
         }
     }
 }
 
 /// Orders and factors a freshly built matrix (`SMPpreOrder` + `SMPreorder`).
+///
+/// A circuit matrix (`circuit`: a bound matrix, or one carrying unknown
+/// `names`) may leave unknowns without entries, as C does; a standalone one
+/// may not.
 pub(crate) fn order_fresh<T: Scalar>(
     context: &str,
     sparse: &mut Sparse<T>,
     pivot: PivotTolerances,
+    names: Option<&UnknownNames>,
+    circuit: bool,
 ) -> SpiceResult<()> {
     if !sparse.fully_translated() {
-        return Err(numerical(
-            context,
-            "singular matrix: an unknown has no matrix entries",
-        ));
+        if !circuit {
+            return Err(numerical(
+                context,
+                "singular matrix: an unknown has no matrix entries",
+            ));
+        }
+        warn_untranslated(sparse, names);
     }
     sparse.mna_preorder();
     let status = sparse.order_and_factor(pivot.relative, pivot.absolute);
-    check_status(context, status, sparse)
+    check_status(context, status, sparse, names)
 }
 
 /// What a [`SparseSymbolic`] was built from: a folded triplet pattern, or a
@@ -233,7 +321,8 @@ fn solve_reusing(
 /// and a zero pivot sets the flag and reorders. The frame, with whatever
 /// reordering happened, is stored back for the circuit's next solve.
 ///
-/// `values` holds one value per pattern element, in element order.
+/// `values` holds one value per pattern element, in element order; `names`
+/// label the unknowns in diagnostics.
 ///
 /// # Errors
 /// A singular matrix.
@@ -241,6 +330,7 @@ pub(crate) fn factor_shared_complex(
     pattern: &Arc<Pattern>,
     values: &[crate::primitives::Complex],
     pivot: PivotTolerances,
+    names: Option<&UnknownNames>,
 ) -> SpiceResult<(Sparse<crate::primitives::Complex>, Arc<Vec<usize>>)> {
     use crate::primitives::Complex;
     let n = pattern.order();
@@ -273,7 +363,7 @@ pub(crate) fn factor_shared_complex(
     load(&mut sparse);
     let result = if fresh {
         pattern.set_ac_reorder(false);
-        order_fresh("complex sparse LU", &mut sparse, pivot)
+        order_fresh("complex sparse LU", &mut sparse, pivot, names, true)
     } else {
         let mut status = if pattern.ac_reorder() {
             pattern.set_ac_reorder(false);
@@ -286,7 +376,7 @@ pub(crate) fn factor_shared_complex(
             load(&mut sparse);
             status = sparse.order_and_factor(pivot.relative, pivot.absolute);
         }
-        check_status("complex sparse LU", status, &sparse)
+        check_status("complex sparse LU", status, &sparse, names)
     };
     pattern.store_ordering(Some(SparseSymbolic {
         n,
@@ -425,10 +515,17 @@ fn ni_step(
         None => {
             let (mut sparse, symbolic) = fresh_frame(matrix)?;
             if !sparse.fully_translated() {
-                return Err(numerical(
-                    "sparse LU",
-                    "singular matrix: an unknown has no matrix entries",
-                ));
+                // A circuit's matrix (bound, or carrying unknown names)
+                // follows C: an unknown without entries stays untranslated
+                // and its solution entry holds the RHS. A standalone one
+                // is rejected.
+                if matrix.unknown_names().is_none() && matrix.bound_values().is_none() {
+                    return Err(numerical(
+                        "sparse LU",
+                        "singular matrix: an unknown has no matrix entries",
+                    ));
+                }
+                warn_untranslated(&sparse, matrix.unknown_names());
             }
             sparse.mna_preorder();
             (sparse, symbolic, true)
@@ -445,7 +542,7 @@ fn ni_step(
     let checked = if zero_pivot {
         Ok(())
     } else {
-        check_status("sparse LU", status, &sparse)
+        check_status("sparse LU", status, &sparse, matrix.unknown_names())
     };
     let factored = SparseSymbolic {
         sparse: Arc::new(sparse),
@@ -551,7 +648,14 @@ impl SparseLu {
                     handle
                 })
                 .collect();
-            order_fresh("sparse LU", &mut sparse, matrix.pivot_tolerances())?;
+            // A bound matrix is a circuit's, so it follows C.
+            order_fresh(
+                "sparse LU",
+                &mut sparse,
+                matrix.pivot_tolerances(),
+                matrix.unknown_names(),
+                true,
+            )?;
             return Ok(Self {
                 symbolic: SparseSymbolic {
                     n: pattern.order(),
@@ -574,7 +678,13 @@ impl SparseLu {
                 handle
             })
             .collect();
-        order_fresh("sparse LU", &mut sparse, matrix.pivot_tolerances())?;
+        order_fresh(
+            "sparse LU",
+            &mut sparse,
+            matrix.pivot_tolerances(),
+            matrix.unknown_names(),
+            matrix.unknown_names().is_some(),
+        )?;
         Ok(Self {
             symbolic: SparseSymbolic {
                 n,
@@ -623,7 +733,7 @@ impl SparseLu {
             let pivot = matrix.pivot_tolerances();
             status = sparse.order_and_factor(pivot.relative, pivot.absolute);
         }
-        check_status("sparse LU", status, &sparse)?;
+        check_status("sparse LU", status, &sparse, matrix.unknown_names())?;
         Ok(Self {
             symbolic: SparseSymbolic {
                 n,

@@ -83,6 +83,12 @@ pub struct PencilLoad {
     /// The rows receiving `+1` and `-1` in the solution column
     /// (`PZdrive_pptr`/`PZdrive_nptr`).
     pub drive: [Option<usize>; 2],
+    /// The relative pivot threshold the matrix holds. `CKTpzFindZeros`
+    /// reorders with `SMPcReorder(matrix, 1e-30, 0.0)`, and a relative
+    /// threshold outside `(0, 1]` keeps the one `ckt->CKTmatrix` stores: the
+    /// `.options pivrel` (`CKTpivotRelTol`) of the operating point's
+    /// `SMPreorder`. `0` keeps SPARSE's default, `1e-3`.
+    pub relative_threshold: f64,
 }
 
 impl PencilLoad {
@@ -798,7 +804,7 @@ impl Search<'_> {
                 sparse.set(element, Complex::new(value, im));
             }
         }
-        match sparse.order_and_factor(0.0, 1.0e-30) {
+        match sparse.order_and_factor(load.relative_threshold, 1.0e-30) {
             Status::Singular | Status::ZeroDiag => None,
             Status::Okay | Status::SmallPivot => {
                 let (mantissa, exponent) = sparse.determinant();

@@ -1,16 +1,28 @@
 //! Rust port of Kenneth Kundert's SPARSE 1.3, ngspice's native sparse LU.
 //!
 //! C: `src/maths/sparse/` (`spbuild.c`, `spfactor.c`, `spsolve.c`,
-//! `sputils.c`), driven through `spsmp.c`. SPARSE is distributed under the
-//! permissive Berkeley notice reproduced in its headers ("Permission to use,
-//! copy, modify, and distribute this software ... provided that the copyright
-//! notices appear in all copies"), so unlike KLU it may be ported here:
+//! `sputils.c`), driven through `spsmp.c`. SPARSE (author Kenneth S.
+//! Kundert, advising professor Alberto Sangiovanni-Vincentelli, UC Berkeley)
+//! is distributed under the permissive Berkeley notice in its headers, so
+//! unlike KLU it may be ported here; the notice is reproduced in full as it
+//! requires (also in `NOTICE`):
 //!
-//! > Copyright (c) 1985,86,87,88,89,90 by Kenneth S. Kundert and the
-//! > University of California.
+//! > Copyright (c) 1985,86,87,88,89,90
+//! > by Kenneth S. Kundert and the University of California.
+//! >
+//! > Permission to use, copy, modify, and distribute this software and
+//! > its documentation for any purpose and without fee is hereby granted,
+//! > provided that the copyright notices appear in all copies and
+//! > supporting documentation and that the authors and the University of
+//! > California are properly credited.  The authors and the University of
+//! > California make no representations as to the suitability of this
+//! > software for any purpose.  It is provided `as is', without express
+//! > or implied warranty.
 //!
 //! The configuration matches ngspice's `spconfig.h`: `TRANSLATE`,
-//! `EXPANDABLE` (sizes are fixed up front here), `DIAGONAL_PIVOTING`,
+//! `EXPANDABLE` (storage is allocated for the external size up front, and
+//! the internal size grows as `Translate` numbers new rows, as in C),
+//! `DIAGONAL_PIVOTING`,
 //! `MODIFIED_NODAL`, `TRANSPOSE`, `DETERMINANT`; no `MODIFIED_MARKOWITZ`,
 //! scaling or condition estimation. The default relative threshold is
 //! `1e-3` and `TIES_MULTIPLIER` 5 (`MAX_MARKOWITZ_TIES` only applies to
@@ -148,7 +160,12 @@ enum Slot {
 /// external indices; external index 0 (ground) is never used here.
 #[derive(Debug, Clone)]
 pub(crate) struct Sparse<T> {
+    /// Internal order (C `Size`): the rows translated so far. An external
+    /// index never referenced by an element has no internal row; as in
+    /// ngspice, its solution entry is left holding the right-hand side.
     size: usize,
+    /// External order (C `ExtSize`, here fixed by [`Self::new`]).
+    ext_size: usize,
     current_size: usize,
     elements: Vec<Element<T>>,
     diag: Vec<usize>,
@@ -172,6 +189,10 @@ pub(crate) struct Sparse<T> {
     status: Status,
     singular_row: usize,
     singular_col: usize,
+    /// External row and column of the first pivot `SearchEntireMatrix`
+    /// accepted below the thresholds (`spSMALL_PIVOT`), since the last
+    /// ordering.
+    small_pivot: Option<(usize, usize)>,
 }
 
 impl<T: Scalar> Sparse<T> {
@@ -180,7 +201,8 @@ impl<T: Scalar> Sparse<T> {
         let mut ext_to_int = vec![NONE; size + 1];
         ext_to_int[0] = 0;
         Self {
-            size,
+            size: 0,
+            ext_size: size,
             current_size: 0,
             elements: Vec::new(),
             diag: vec![NONE; size + 1],
@@ -204,17 +226,30 @@ impl<T: Scalar> Sparse<T> {
             status: Status::Okay,
             singular_row: 0,
             singular_col: 0,
+            small_pivot: None,
         }
     }
 
     /// Whether every external index has been translated (no empty unknown).
     pub(crate) fn fully_translated(&self) -> bool {
-        self.current_size == self.size
+        self.current_size == self.ext_size
+    }
+
+    /// External indices (1-based) that no element references, so have no
+    /// internal row (C leaves them out of the matrix; see [`Self::solve`]).
+    pub(crate) fn untranslated(&self) -> impl Iterator<Item = usize> + '_ {
+        (1..=self.ext_size).filter(|&ext| self.ext_to_int_row[ext] == NONE)
     }
 
     /// External row and column of the last singular/zero pivot.
     pub(crate) fn where_singular(&self) -> (usize, usize) {
         (self.singular_row, self.singular_col)
+    }
+
+    /// External row and column of the first small pivot of the last
+    /// ordering (status [`Status::SmallPivot`]), if any.
+    pub(crate) const fn small_pivot(&self) -> Option<(usize, usize)> {
+        self.small_pivot
     }
 
     fn col_get(&self, slot: Slot) -> usize {
@@ -250,7 +285,7 @@ impl<T: Scalar> Sparse<T> {
     /// `spGetElement(ext_row, ext_col)`: the element handle, created if
     /// missing. Indices are external and 1-based.
     pub(crate) fn get_element(&mut self, row: usize, col: usize) -> usize {
-        debug_assert!(row >= 1 && col >= 1 && row <= self.size && col <= self.size);
+        debug_assert!(row >= 1 && col >= 1 && row <= self.ext_size && col <= self.ext_size);
         let (row, col) = self.translate(row, col);
         if row == col && self.diag[row] != NONE {
             return self.diag[row];
@@ -273,6 +308,7 @@ impl<T: Scalar> Sparse<T> {
         let mut int_row = self.ext_to_int_row[ext_row];
         if int_row == NONE {
             self.current_size += 1;
+            self.size = self.current_size;
             int_row = self.current_size;
             self.ext_to_int_row[ext_row] = int_row;
             self.ext_to_int_col[ext_row] = int_row;
@@ -282,6 +318,7 @@ impl<T: Scalar> Sparse<T> {
         let mut int_col = self.ext_to_int_col[ext_col];
         if int_col == NONE {
             self.current_size += 1;
+            self.size = self.current_size;
             int_col = self.current_size;
             self.ext_to_int_row[ext_col] = int_col;
             self.ext_to_int_col[ext_col] = int_col;
@@ -377,6 +414,7 @@ impl<T: Scalar> Sparse<T> {
         self.factored = false;
         self.singular_row = 0;
         self.singular_col = 0;
+        self.small_pivot = None;
     }
 
     /// The same matrix frame holding another scalar type, every element
@@ -387,6 +425,7 @@ impl<T: Scalar> Sparse<T> {
     pub(crate) fn retyped<U: Scalar>(&self) -> Sparse<U> {
         Sparse {
             size: self.size,
+            ext_size: self.ext_size,
             current_size: self.current_size,
             elements: self
                 .elements
@@ -420,6 +459,7 @@ impl<T: Scalar> Sparse<T> {
             status: self.status,
             singular_row: self.singular_row,
             singular_col: self.singular_col,
+            small_pivot: self.small_pivot,
         }
     }
 
@@ -640,6 +680,7 @@ impl<T: Scalar> Sparse<T> {
     /// `spOrderAndFactor(Matrix, NULL, rel, abs, DiagPivoting = YES)`.
     pub(crate) fn order_and_factor(&mut self, rel_threshold: f64, abs_threshold: f64) -> Status {
         self.status = Status::Okay;
+        self.small_pivot = None;
         let size = self.size;
         if rel_threshold > 0.0 && rel_threshold <= 1.0 {
             self.rel_threshold = rel_threshold;
@@ -1040,6 +1081,13 @@ impl<T: Scalar> Sparse<T> {
             return None;
         }
         self.status = Status::SmallPivot;
+        if self.small_pivot.is_none() {
+            let element = &self.elements[largest_element];
+            self.small_pivot = Some((
+                self.int_to_ext_row[element.row],
+                self.int_to_ext_col[element.col],
+            ));
+        }
         Some(largest_element)
     }
 
@@ -1463,9 +1511,11 @@ impl<T: Scalar> Sparse<T> {
     // --- spsolve.c ------------------------------------------------------
 
     /// `spSolve` on a factored matrix. `rhs` and the result are indexed by
-    /// external index minus one.
+    /// external index minus one. ngspice solves in place (`SMPsolve` passes
+    /// `RHS` as both right-hand side and solution), so an external index with
+    /// no internal row keeps its right-hand-side value.
     pub(crate) fn solve(&self, rhs: &[T]) -> Vec<T> {
-        debug_assert!(self.factored && rhs.len() == self.size);
+        debug_assert!(self.factored && rhs.len() == self.ext_size);
         let size = self.size;
         let mut x = vec![T::ZERO; size + 1];
         for i in (1..=size).rev() {
@@ -1494,16 +1544,17 @@ impl<T: Scalar> Sparse<T> {
             }
             x[i] = temp;
         }
-        let mut solution = vec![T::ZERO; size];
+        let mut solution = rhs.to_vec();
         for i in (1..=size).rev() {
             solution[self.int_to_ext_col[i] - 1] = x[i];
         }
         solution
     }
 
-    /// `spSolveTransposed`: `A^T x = b` with the same factors.
+    /// `spSolveTransposed`: `A^T x = b` with the same factors (in place like
+    /// [`Self::solve`]).
     pub(crate) fn solve_transposed(&self, rhs: &[T]) -> Vec<T> {
-        debug_assert!(self.factored && rhs.len() == self.size);
+        debug_assert!(self.factored && rhs.len() == self.ext_size);
         let size = self.size;
         let mut x = vec![T::ZERO; size + 1];
         for i in (1..=size).rev() {
@@ -1530,7 +1581,7 @@ impl<T: Scalar> Sparse<T> {
             }
             x[i] = temp.mul(self.elements[pivot].value);
         }
-        let mut solution = vec![T::ZERO; size];
+        let mut solution = rhs.to_vec();
         for i in (1..=size).rev() {
             solution[self.int_to_ext_row[i] - 1] = x[i];
         }
@@ -1646,6 +1697,38 @@ mod tests {
         assert!((4.0 * x[0] + x[1] - 5.0).abs() < 1e-14);
         m.clear();
         assert_eq!(m.factor(), Status::ZeroDiag);
+    }
+
+    /// External row 2 has no element: as with ngspice's `Translate`, the
+    /// internal order is 2 and `spSolve` (in place in `SMPsolve`) leaves the
+    /// right-hand side in the untranslated entry.
+    #[test]
+    fn untranslated_rows_keep_their_right_hand_side() {
+        let entries = [(1, 1, 2.0), (1, 3, 1.0), (3, 1, 1.0), (3, 3, 4.0)];
+        let mut m = build(3, &entries);
+        assert!(!m.fully_translated());
+        assert_eq!(m.untranslated().collect::<Vec<_>>(), [2]);
+        m.mna_preorder();
+        assert_eq!(m.order_and_factor(1e-3, 1e-13), Status::Okay);
+        let x = m.solve(&[3.0, 7.5, 5.0]);
+        assert_eq!(x[1], 7.5);
+        assert!((2.0 * x[0] + x[2] - 3.0).abs() < 1e-15 && (x[0] + 4.0 * x[2] - 5.0).abs() < 1e-15);
+        assert_eq!(m.solve_transposed(&[3.0, -1.0, 5.0])[1], -1.0);
+        let (mantissa, exponent) = m.determinant();
+        assert!((mantissa * 10f64.powi(exponent) - 7.0).abs() < 1e-12);
+    }
+
+    /// No element passes the absolute threshold, so `SearchEntireMatrix`
+    /// takes the largest and reports `spSMALL_PIVOT` with its position.
+    #[test]
+    fn small_pivot_is_located() {
+        let mut m = build(2, &[(1, 1, 1e-14), (2, 2, 2e-14)]);
+        assert_eq!(m.order_and_factor(1e-3, 1e-13), Status::SmallPivot);
+        assert_eq!(m.small_pivot(), Some((2, 2)));
+        assert_eq!(m.solve(&[1e-14, 2e-14]), [1.0, 1.0]);
+        let mut m = build(2, &[(1, 1, 1e-14), (2, 2, 2e-14)]);
+        assert_eq!(m.order_and_factor(1e-3, 1e-16), Status::Okay);
+        assert_eq!(m.small_pivot(), None);
     }
 
     #[test]

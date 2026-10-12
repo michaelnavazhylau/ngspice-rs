@@ -154,6 +154,24 @@ impl Default for ResistorNoise {
     }
 }
 
+/// ngspice's smallest resistor magnitude (`RESMIN`, `resparam.c`).
+pub(crate) const RES_MIN: Real = 1e-12;
+
+/// The `RES_RESIST` setter (`resparam.c`): a resistance in `[0, RESMIN)` is
+/// raised to `RESMIN`, one in `(-RESMIN, 0)` lowered to `-RESMIN`, each with
+/// C's warning on standard error. Other values pass unchanged.
+pub(crate) fn res_resist(name: &str, value: Real) -> Real {
+    let clamped = if (0.0..RES_MIN).contains(&value) {
+        RES_MIN
+    } else if value < 0.0 && value > -RES_MIN {
+        -RES_MIN
+    } else {
+        return value;
+    };
+    eprintln!("warning: Value of resistor {name} is too small, set to {clamped:.6e}");
+    clamped
+}
+
 /// A resistor, `r1 n1 n2 <value> [tc1=… tc2=…]`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Resistor {
@@ -426,7 +444,8 @@ impl Capacitor {
     ///
     /// # Errors
     ///
-    /// [`SpiceError::Circuit`] for nonpositive/non-finite capacitance or non-finite IC.
+    /// [`SpiceError::Circuit`] for negative/non-finite capacitance or non-finite
+    /// IC. A zero capacitance is accepted, as in C (it stamps nothing).
     pub fn new(
         name: impl Into<String>,
         terminals: [NodeId; 2],
@@ -435,11 +454,11 @@ impl Capacitor {
     ) -> SpiceResult<Self> {
         let name = name.into();
         if !capacitance.is_finite()
-            || capacitance <= 0.0
+            || capacitance < 0.0
             || initial_voltage.is_some_and(|v| !v.is_finite())
         {
             return Err(SpiceError::circuit(format!(
-                "capacitor {name}: capacitance must be positive and finite; initial voltage must be finite"
+                "capacitor {name}: capacitance must be nonnegative and finite; initial voltage must be finite"
             )));
         }
         Ok(Self {
@@ -690,7 +709,8 @@ impl Inductor {
     ///
     /// # Errors
     ///
-    /// [`SpiceError::Circuit`] for nonpositive/non-finite inductance or non-finite IC.
+    /// [`SpiceError::Circuit`] for negative/non-finite inductance or non-finite
+    /// IC. A zero inductance is accepted, as in C (a short at every analysis).
     pub fn new(
         name: impl Into<String>,
         terminals: [NodeId; 2],
@@ -699,11 +719,11 @@ impl Inductor {
     ) -> SpiceResult<Self> {
         let name = name.into();
         if !inductance.is_finite()
-            || inductance <= 0.0
+            || inductance < 0.0
             || initial_current.is_some_and(|v| !v.is_finite())
         {
             return Err(SpiceError::circuit(format!(
-                "inductor {name}: inductance must be positive and finite; initial current must be finite"
+                "inductor {name}: inductance must be nonnegative and finite; initial current must be finite"
             )));
         }
         Ok(Self {

@@ -539,3 +539,26 @@ fn a_renamed_local_model_may_not_collide_with_a_declared_dotted_model() {
         "{error}"
     );
 }
+
+/// A legal but exploding hierarchy (ten levels of four instances, 4^10 =
+/// 1,048,576 resistors from a 30-card deck) stays inside the source card
+/// budget, so the default subcircuit device budget is what stops it, with an
+/// explicit error rather than unbounded allocation.
+#[test]
+fn default_limits_stop_an_exponential_hierarchy() {
+    let mut body = String::from(".subckt s0 a b\nr1 a b 1k\n.ends s0\n");
+    for level in 1..=10 {
+        let below = level - 1;
+        body.push_str(&format!(
+            ".subckt s{level} a b\nx1 a b s{below}\nx2 a b s{below}\nx3 a b s{below}\nx4 a b s{below}\n.ends s{level}\n"
+        ));
+    }
+    body.push_str("v1 in 0 dc 1\nx1 in 0 s10\n");
+    let netlist = deck(&body);
+    let scope = Arc::new(ParamScope::root(&netlist.params).unwrap());
+    let error = expand_subcircuits(&netlist, &scope, SubcircuitLimits::default()).unwrap_err();
+    assert!(
+        error.to_string().contains("more than 250000 devices"),
+        "{error}"
+    );
+}
