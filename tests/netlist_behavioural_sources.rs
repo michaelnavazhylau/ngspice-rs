@@ -247,13 +247,15 @@ fn resolution_substitutes_parameters_and_expands_functions() {
     );
     let v = expression(&netlist.devices[0], "v");
     // `.param` values arrive as numparam's "% 23.15e" text read back by
-    // INPevaluate (3 is 3.0000000000000004), the literal keeps C's 11 digits,
+    // INPevaluate (3 is 3.0000000000000004), the literal keeps C's 11 digits
+    // and is read back by INPevaluate too (1.2345678901000001, as the
+    // reference binary's `b1 o 0 v=1.23456789012345` outputs),
     // the .func argument is parenthesised and v(a) in a body names node `a`
     // literally.
     assert_eq!(
         shape(&v.root),
         "((((((3.0000000000000004 * v(in)) + (tanh[(1 + 1)] * 3.0000000000000004)) + (v(a) - \
-         (v(b) * 2))) + 1.2345678901) + pi) + time)"
+         (v(b) * 2))) + 1.2345678901000001) + pi) + time)"
     );
 }
 

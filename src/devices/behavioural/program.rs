@@ -2,13 +2,14 @@
 //!
 //! C references (behaviour only): `src/spicelib/parser/inpptree.c`
 //! (`PT_mkfnode`, `PTdifferentiate`, `prepare_PTF_PWL`), `ptfuncs.c` (the
-//! function values and domain rules) and `ifeval.c` (`PTeval`). ngspice
-//! differentiates the parse tree symbolically once and evaluates the
-//! derivative trees with the same C functions; the port evaluates value and
-//! gradient together (forward mode), applying **C's derivative rule for every
-//! node** so both agree, including the deliberate non-derivatives (`floor`,
-//! comparisons, `u` and `pwl_derivative` are zero or piecewise) and the
-//! domain quirks of the value functions:
+//! function values and domain rules) and `ifeval.c` (`PTeval`). Like ngspice,
+//! the port keeps the parse tree unsimplified, differentiates it symbolically
+//! once per quantity with C's rules and its `mkb`/`mkf` simplifications
+//! (constant folding, the 0/1 identities), and evaluates the value tree and
+//! each derivative tree node by node, so values and derivatives are C's
+//! operation for operation. That includes the deliberate non-derivatives
+//! (`floor`, comparisons, `u` and `pwl_derivative` are zero or piecewise) and
+//! the domain quirks of the value functions:
 //!
 //! - division adds `gmin * 1e-20` to the divisor away from zero (`PTdivide`),
 //!   so `1/0` is `1e32` with the default gmin;
@@ -31,6 +32,8 @@
 
 use crate::netlist::bexpr::{BBinaryOp, BExpr, BExprKind, BUnaryOp, STATISTICAL_FUNCTIONS};
 use crate::primitives::{Real, SpiceError, SpiceResult};
+
+use std::sync::Arc;
 
 use super::xspice::XspicePwl;
 
@@ -197,6 +200,11 @@ enum Binary {
     Max,
 }
 
+/// A shared subtree: C shares subtrees between the function and its
+/// derivative trees (`PTdifferentiate`, `inc_usage`).
+type Tree = Arc<Node>;
+
+/// A parse-tree node (`INPparseNode`).
 #[derive(Debug, Clone, PartialEq)]
 enum Node {
     Constant(Real),
@@ -204,26 +212,35 @@ enum Node {
     Time,
     Temperature,
     Frequency,
-    Unary(Unary, Box<Node>),
-    Operator(Operator, Box<Node>, Box<Node>),
-    Binary(Binary, Box<Node>, Box<Node>),
-    Ternary(Box<Node>, Box<Node>, Box<Node>),
+    Unary(Unary, Tree),
+    Operator(Operator, Tree, Tree),
+    Binary(Binary, Tree, Tree),
+    Ternary(Tree, Tree, Tree),
     /// `pwl(x, x0, y0, x1, y1, ...)`: flattened literal points.
-    Pwl(Box<Node>, Vec<Real>),
+    Pwl(Tree, Vec<Real>),
+    /// `PTF_PWL_DERIVATIVE`: the slope `PTdifferentiate` builds for `pwl()`.
+    PwlDerivative(Tree, Vec<Real>),
     /// The XSPICE `pwl` transfer of a lowered TABLE.
-    Table(Box<Node>, XspicePwl),
+    Table(Tree, XspicePwl),
+    /// The slope of [`Node::Table`] (the code model's partial).
+    TableSlope(Tree, XspicePwl),
 }
 
 impl Node {
-    const fn is_constant(&self) -> bool {
-        matches!(self, Self::Constant(_))
+    const fn constant(&self) -> Option<Real> {
+        match self {
+            Self::Constant(value) => Some(*value),
+            _ => None,
+        }
     }
 }
 
-/// A compiled behavioural expression.
+/// A compiled behavioural expression: the value tree and, per quantity, the
+/// derivative tree `PTdifferentiate` builds for it (`INPgetTree`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    root: Node,
+    root: Tree,
+    derivatives: Vec<Tree>,
     quantities: Vec<Quantity>,
 }
 
@@ -239,7 +256,8 @@ fn parse_error(expr: &BExpr, message: impl Into<String>) -> SpiceError {
 }
 
 impl Program {
-    /// Compiles a front-end-resolved expression tree.
+    /// Compiles a front-end-resolved expression tree and builds its
+    /// derivative trees.
     ///
     /// # Errors
     /// Names the front end should have resolved (`.param` values, `.func`
@@ -250,8 +268,15 @@ impl Program {
     /// `limit`; normally already rejected by the front end).
     pub fn compile(expr: &BExpr) -> SpiceResult<Self> {
         let mut quantities = Vec::new();
-        let root = compile(expr, &mut quantities)?;
-        Ok(Self { root, quantities })
+        let root = Arc::new(compile(expr, &mut quantities)?);
+        let derivatives = (0..quantities.len())
+            .map(|variable| differentiate(&root, variable))
+            .collect();
+        Ok(Self {
+            root,
+            derivatives,
+            quantities,
+        })
     }
 
     /// True when the expression reads `hertz`.
@@ -261,7 +286,11 @@ impl Program {
             match node {
                 Node::Frequency => true,
                 Node::Constant(_) | Node::Variable(_) | Node::Time | Node::Temperature => false,
-                Node::Unary(_, a) | Node::Pwl(a, _) | Node::Table(a, _) => walk(a),
+                Node::Unary(_, a)
+                | Node::Pwl(a, _)
+                | Node::PwlDerivative(a, _)
+                | Node::Table(a, _)
+                | Node::TableSlope(a, _) => walk(a),
                 Node::Operator(_, a, b) | Node::Binary(_, a, b) => walk(a) || walk(b),
                 Node::Ternary(a, b, c) => walk(a) || walk(b) || walk(c),
             }
@@ -275,7 +304,8 @@ impl Program {
         &self.quantities
     }
 
-    /// The value and every partial derivative at `environment`.
+    /// The value and every partial derivative at `environment`: `IFeval`
+    /// evaluates the value tree, then each derivative tree (`PTeval`).
     ///
     /// # Errors
     /// [`SpiceError::Numerical`] when a function is evaluated outside its
@@ -289,9 +319,13 @@ impl Program {
         let evaluator = Evaluator {
             environment,
             fudge: environment.gmin * 1e-20,
-            size: self.quantities.len(),
         };
-        let (value, gradient) = evaluator.eval(&self.root)?;
+        let value = evaluator.eval(&self.root)?;
+        let gradient = self
+            .derivatives
+            .iter()
+            .map(|tree| evaluator.eval(tree))
+            .collect::<SpiceResult<Vec<_>>>()?;
         Ok(Evaluation { value, gradient })
     }
 }
@@ -307,8 +341,8 @@ fn variable(quantities: &mut Vec<Quantity>, quantity: Quantity) -> Node {
     Node::Variable(index)
 }
 
-fn boxed(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Box<Node>> {
-    compile(expr, quantities).map(Box::new)
+fn boxed(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Tree> {
+    compile(expr, quantities).map(Arc::new)
 }
 
 fn compile(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Node> {
@@ -336,7 +370,7 @@ fn compile(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Node> {
                 None => plus,
                 Some(negative) => {
                     let minus = variable(quantities, Quantity::Node(negative.clone()));
-                    Node::Operator(Operator::Minus, Box::new(plus), Box::new(minus))
+                    Node::Operator(Operator::Minus, Arc::new(plus), Arc::new(minus))
                 }
             }
         }
@@ -344,7 +378,7 @@ fn compile(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Node> {
         BExprKind::Unary { op, operand } => {
             let operand = boxed(operand, quantities)?;
             match op {
-                BUnaryOp::Plus => *operand,
+                BUnaryOp::Plus => Arc::unwrap_or_clone(operand),
                 BUnaryOp::Minus => Node::Unary(Unary::Uminus, operand),
                 BUnaryOp::Not => Node::Unary(Unary::Eq0, operand),
             }
@@ -352,7 +386,7 @@ fn compile(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Node> {
         BExprKind::Binary { op, lhs, rhs } => {
             let lhs = boxed(lhs, quantities)?;
             let rhs = boxed(rhs, quantities)?;
-            let difference = |lhs, rhs| Box::new(Node::Operator(Operator::Minus, lhs, rhs));
+            let difference = |lhs, rhs| Arc::new(Node::Operator(Operator::Minus, lhs, rhs));
             match op {
                 BBinaryOp::Add => Node::Operator(Operator::Plus, lhs, rhs),
                 BBinaryOp::Sub => Node::Operator(Operator::Minus, lhs, rhs),
@@ -369,18 +403,18 @@ fn compile(expr: &BExpr, quantities: &mut Vec<Quantity>) -> SpiceResult<Node> {
                 // ne0(ne0(a) + ne0(b)).
                 BBinaryOp::And => Node::Unary(
                     Unary::Eq0,
-                    Box::new(Node::Operator(
+                    Arc::new(Node::Operator(
                         Operator::Plus,
-                        Box::new(Node::Unary(Unary::Eq0, lhs)),
-                        Box::new(Node::Unary(Unary::Eq0, rhs)),
+                        Arc::new(Node::Unary(Unary::Eq0, lhs)),
+                        Arc::new(Node::Unary(Unary::Eq0, rhs)),
                     )),
                 ),
                 BBinaryOp::Or => Node::Unary(
                     Unary::Ne0,
-                    Box::new(Node::Operator(
+                    Arc::new(Node::Operator(
                         Operator::Plus,
-                        Box::new(Node::Unary(Unary::Ne0, lhs)),
-                        Box::new(Node::Unary(Unary::Ne0, rhs)),
+                        Arc::new(Node::Unary(Unary::Ne0, lhs)),
+                        Arc::new(Node::Unary(Unary::Ne0, rhs)),
                     )),
                 ),
             }
@@ -615,9 +649,9 @@ fn almost_equal_ulps(a: Real, b: Real, max_ulps: i64) -> bool {
 /// `PTpowerH` without a compatibility mode (the `^` operator).
 fn power_h(a: Real, b: Real) -> Real {
     if a >= 0. {
-        a.powf(b)
+        c_pow(a, b)
     } else if almost_equal_ulps(b.round_ties_even(), b, 10) {
-        a.powf(b.round())
+        c_pow(a, b.round())
     } else {
         0.
     }
@@ -628,9 +662,9 @@ fn power(a: Real, b: Real) -> Real {
     if a == 0. {
         0.
     } else if a > 0. {
-        a.powf(b)
+        c_pow(a, b)
     } else if almost_equal_ulps(b.round_ties_even(), b, 10) {
-        a.powf(b.round())
+        c_pow(a, b.round())
     } else {
         0.
     }
@@ -638,7 +672,7 @@ fn power(a: Real, b: Real) -> Real {
 
 /// `PTpwr` without a compatibility mode.
 fn pwr(a: Real, b: Real) -> Real {
-    if a < 0. { -(-a).powf(b) } else { a.powf(b) }
+    if a < 0. { -c_pow(-a, b) } else { c_pow(a, b) }
 }
 
 /// C's `MODULUS(x, limit)`: `x - (int)(x / limit) * limit` (the `int`
@@ -652,315 +686,519 @@ fn modulus(x: Real, limit: Real) -> Real {
 const TWO_PI: Real = 2. * std::f64::consts::PI;
 const EXP_LIMIT: Real = 227.955_924_2;
 
+/// C's `pow()`. The exponent is opaque to the optimiser so that a constant
+/// exponent (`x^2`) is not rewritten to `x * x`: the platform `pow` is not
+/// always correctly rounded, and C calls it.
+fn c_pow(a: Real, b: Real) -> Real {
+    a.powf(std::hint::black_box(b))
+}
+
+/// The `ptfuncs.c` one-argument functions. C's `HUGE` (out of range) is
+/// [`Real::INFINITY`].
+fn unary_value(function: Unary, x: Real) -> Real {
+    match function {
+        Unary::Abs => x.abs(),
+        Unary::Sgn => {
+            if x > 0. {
+                1.
+            } else if x < 0. {
+                -1.
+            } else {
+                0.
+            }
+        }
+        Unary::Acos => x.acos(),
+        Unary::Acosh => x.acosh(),
+        Unary::Asin => x.asin(),
+        Unary::Asinh => x.asinh(),
+        Unary::Atan => x.atan(),
+        Unary::Atanh => x.atanh(),
+        Unary::Cos => modulus(x, TWO_PI).cos(),
+        Unary::Cosh => x.cosh(),
+        Unary::Exp => {
+            if x > EXP_LIMIT {
+                1e99
+            } else {
+                x.exp()
+            }
+        }
+        Unary::Log => {
+            if x < 0. {
+                Real::INFINITY
+            } else if x == 0. {
+                -1e99
+            } else {
+                x.ln()
+            }
+        }
+        Unary::Log10 => {
+            if x < 0. {
+                Real::INFINITY
+            } else if x == 0. {
+                -1e99
+            } else {
+                x.log10()
+            }
+        }
+        Unary::Sin => modulus(x, TWO_PI).sin(),
+        Unary::Sinh => x.sinh(),
+        Unary::Sqrt => {
+            if x < 0. {
+                Real::INFINITY
+            } else {
+                x.sqrt()
+            }
+        }
+        Unary::Tan => modulus(x, std::f64::consts::PI).tan(),
+        Unary::Tanh => x.tanh(),
+        Unary::Ustep => {
+            if x < 0. {
+                0.
+            } else if x > 0. {
+                1.
+            } else {
+                0.5
+            }
+        }
+        Unary::Uramp => {
+            if x < 0. {
+                0.
+            } else {
+                x
+            }
+        }
+        Unary::Ceil => x.ceil(),
+        Unary::Floor => x.floor(),
+        Unary::Nint => x.round_ties_even(),
+        Unary::Uminus => -x,
+        Unary::Ustep2 => {
+            if x <= 0. {
+                0.
+            } else if x <= 1. {
+                x
+            } else {
+                1.
+            }
+        }
+        Unary::Eq0 => flag(x == 0.),
+        Unary::Ne0 => flag(x != 0.),
+        Unary::Gt0 => flag(x > 0.),
+        Unary::Lt0 => flag(x < 0.),
+        Unary::Ge0 => flag(x >= 0.),
+        Unary::Le0 => flag(x <= 0.),
+    }
+}
+
+const fn flag(condition: bool) -> Real {
+    if condition { 1. } else { 0. }
+}
+
+/// `PTdivide`: the divisor moves `fudge` away from zero; a zero divisor
+/// after that is `HUGE`.
+fn divide(a: Real, b: Real, fudge: Real) -> Real {
+    let b = if b >= 0. { b + fudge } else { b - fudge };
+    if b == 0. { Real::INFINITY } else { a / b }
+}
+
+fn constant(value: Real) -> Tree {
+    Arc::new(Node::Constant(value))
+}
+
+/// `mkcon(0.0)` / `mkcon(1.0)` for a variable.
+fn zero() -> Tree {
+    constant(0.)
+}
+
+/// `mkb()` for the arithmetic operators: constant folding (plain C
+/// arithmetic and `pow`, not the `PT*` functions) and the 0/1 identities.
+fn mk_operator(op: Operator, left: Tree, right: Tree) -> Tree {
+    if let (Some(l), Some(r)) = (left.constant(), right.constant()) {
+        return constant(match op {
+            Operator::Times => l * r,
+            Operator::Divide => l / r,
+            Operator::Plus => l + r,
+            Operator::Minus => l - r,
+            Operator::Power => c_pow(l, r),
+        });
+    }
+    let (l, r) = (left.constant(), right.constant());
+    match op {
+        Operator::Times => {
+            // C's order: a zero factor (either side) wins, then a unit one.
+            if l == Some(0.) {
+                return left;
+            } else if r == Some(0.) || l == Some(1.) {
+                return right;
+            } else if r == Some(1.) {
+                return left;
+            }
+        }
+        Operator::Divide => {
+            if l == Some(0.) || r == Some(1.) {
+                return left;
+            }
+        }
+        Operator::Plus => {
+            if l == Some(0.) {
+                return right;
+            } else if r == Some(0.) {
+                return left;
+            }
+        }
+        Operator::Minus => {
+            if r == Some(0.) {
+                return left;
+            } else if l == Some(0.) {
+                return mk_unary(Unary::Uminus, right);
+            }
+        }
+        Operator::Power => {
+            if r == Some(0.) {
+                return constant(1.);
+            } else if r == Some(1.) {
+                return left;
+            }
+        }
+    }
+    Arc::new(Node::Operator(op, left, right))
+}
+
+/// `mkb(PT_TERN, condition, mkb(PT_COMMA, then, otherwise))`.
+fn mk_ternary(condition: Tree, then: Tree, otherwise: Tree) -> Tree {
+    if let Some(condition) = condition.constant() {
+        return if condition != 0. { then } else { otherwise };
+    }
+    if let (Some(a), Some(b)) = (then.constant(), otherwise.constant())
+        && a == b
+    {
+        return then;
+    }
+    Arc::new(Node::Ternary(condition, then, otherwise))
+}
+
+/// `mkf()` for a one-argument function: a constant argument is folded.
+fn mk_unary(function: Unary, argument: Tree) -> Tree {
+    match argument.constant() {
+        Some(x) => constant(unary_value(function, x)),
+        None => Arc::new(Node::Unary(function, argument)),
+    }
+}
+
+/// `mkf(PTF_POW/PTF_PWR, mkb(PT_COMMA, a, b))`: never folded (a comma node
+/// is not a constant).
+fn mk_binary(function: Binary, a: &Tree, b: Tree) -> Tree {
+    Arc::new(Node::Binary(function, a.clone(), b))
+}
+
+/// `mkb(PT_TIMES, ...)` shorthand.
+fn times(left: Tree, right: Tree) -> Tree {
+    mk_operator(Operator::Times, left, right)
+}
+
+/// `mkb(PT_DIVIDE, ...)` shorthand.
+fn over(left: Tree, right: Tree) -> Tree {
+    mk_operator(Operator::Divide, left, right)
+}
+
+/// `mkb(PT_POWER, u, mkcon(2.0))`.
+fn squared(u: &Tree) -> Tree {
+    mk_operator(Operator::Power, u.clone(), constant(2.))
+}
+
+/// `mkf(PTF_LOG, mkf(PTF_ABS, a))`.
+fn log_abs(a: &Tree) -> Tree {
+    mk_unary(Unary::Log, mk_unary(Unary::Abs, a.clone()))
+}
+
+/// The general power rule `f(a,b) * (b * (D(a) / a) + D(b) * log(abs(a)))`
+/// of `PTdifferentiate` (`^`, `pow()`, `pwr()`), with `outer = f(a,b)`.
+fn general_power(outer: Tree, a: &Tree, b: &Tree, variable: usize) -> Tree {
+    times(
+        outer,
+        mk_operator(
+            Operator::Plus,
+            times(b.clone(), over(differentiate(a, variable), a.clone())),
+            times(differentiate(b, variable), log_abs(a)),
+        ),
+    )
+}
+
+/// `PTdifferentiate` (`inpptree.c`): the derivative tree of `p` with respect
+/// to quantity `variable`, built with C's `mkb`/`mkf` simplifications so its
+/// evaluation is C's operation for operation. The PSPICE/HSPICE/LTspice
+/// `newcompat` variants are not modelled.
+fn differentiate(p: &Tree, variable: usize) -> Tree {
+    match &**p {
+        Node::Constant(_) | Node::Time | Node::Temperature | Node::Frequency => zero(),
+        Node::Variable(index) => constant(if *index == variable { 1. } else { 0. }),
+        Node::Operator(op @ (Operator::Plus | Operator::Minus), a, b) => {
+            mk_operator(*op, differentiate(a, variable), differentiate(b, variable))
+        }
+        // d(a * b) = d(a) * b + a * d(b)
+        Node::Operator(Operator::Times, a, b) => mk_operator(
+            Operator::Plus,
+            times(differentiate(a, variable), b.clone()),
+            times(a.clone(), differentiate(b, variable)),
+        ),
+        // d(a / b) = (d(a) * b - a * d(b)) / b^2
+        Node::Operator(Operator::Divide, a, b) => over(
+            mk_operator(
+                Operator::Minus,
+                times(differentiate(a, variable), b.clone()),
+                times(a.clone(), differentiate(b, variable)),
+            ),
+            squared(b),
+        ),
+        Node::Operator(Operator::Power, a, b) => {
+            if let Some(exponent) = b.constant() {
+                // b * pwr(a, b - 1) * d(a)
+                times(
+                    times(
+                        constant(exponent),
+                        mk_binary(Binary::Pwr, a, constant(exponent - 1.)),
+                    ),
+                    differentiate(a, variable),
+                )
+            } else if a.constant().is_some() {
+                // pow(a, b) * (d(b) * log(abs(a)))
+                times(
+                    mk_binary(Binary::Pow, a, b.clone()),
+                    times(differentiate(b, variable), log_abs(a)),
+                )
+            } else {
+                general_power(mk_binary(Binary::Pow, a, b.clone()), a, b, variable)
+            }
+        }
+        Node::Ternary(condition, then, otherwise) => mk_ternary(
+            condition.clone(),
+            differentiate(then, variable),
+            differentiate(otherwise, variable),
+        ),
+        Node::Binary(function @ (Binary::Min | Binary::Max), a, b) => {
+            // min(a,b)' = lt0(a-b) ? a' : b'; max uses gt0.
+            let comparison = if *function == Binary::Min {
+                Unary::Lt0
+            } else {
+                Unary::Gt0
+            };
+            mk_ternary(
+                mk_unary(
+                    comparison,
+                    mk_operator(Operator::Minus, a.clone(), b.clone()),
+                ),
+                differentiate(a, variable),
+                differentiate(b, variable),
+            )
+        }
+        Node::Binary(Binary::Pow, a, b) => {
+            if let Some(exponent) = b.constant() {
+                times(
+                    times(
+                        constant(exponent),
+                        mk_binary(Binary::Pwr, a, constant(exponent - 1.)),
+                    ),
+                    differentiate(a, variable),
+                )
+            } else if a.constant().is_some() {
+                times(
+                    mk_binary(Binary::Pow, a, b.clone()),
+                    times(differentiate(b, variable), log_abs(a)),
+                )
+            } else {
+                general_power(mk_binary(Binary::Pow, a, b.clone()), a, b, variable)
+            }
+        }
+        Node::Binary(Binary::Pwr, a, b) => {
+            if let Some(exponent) = b.constant() {
+                // b * pow(a, b - 1) * d(a)
+                times(
+                    times(
+                        constant(exponent),
+                        mk_binary(Binary::Pow, a, constant(exponent - 1.)),
+                    ),
+                    differentiate(a, variable),
+                )
+            } else {
+                general_power(mk_binary(Binary::Pwr, a, b.clone()), a, b, variable)
+            }
+        }
+        Node::Unary(function, u) => {
+            let one = || constant(1.);
+            let slope = match function {
+                Unary::Abs => mk_unary(Unary::Sgn, u.clone()),
+                Unary::Acos => over(
+                    constant(-1.),
+                    mk_unary(Unary::Sqrt, mk_operator(Operator::Minus, one(), squared(u))),
+                ),
+                Unary::Acosh => over(
+                    one(),
+                    mk_unary(Unary::Sqrt, mk_operator(Operator::Minus, squared(u), one())),
+                ),
+                Unary::Asin => over(
+                    one(),
+                    mk_unary(Unary::Sqrt, mk_operator(Operator::Minus, one(), squared(u))),
+                ),
+                Unary::Asinh => over(
+                    one(),
+                    mk_unary(Unary::Sqrt, mk_operator(Operator::Plus, squared(u), one())),
+                ),
+                Unary::Atan => over(one(), mk_operator(Operator::Plus, squared(u), one())),
+                Unary::Atanh => over(one(), mk_operator(Operator::Minus, one(), squared(u))),
+                Unary::Cos => mk_unary(Unary::Uminus, mk_unary(Unary::Sin, u.clone())),
+                Unary::Cosh => mk_unary(Unary::Sinh, u.clone()),
+                Unary::Exp => mk_unary(Unary::Exp, u.clone()),
+                Unary::Log => over(one(), u.clone()),
+                Unary::Log10 => over(constant(std::f64::consts::LOG10_E), u.clone()),
+                Unary::Sin => mk_unary(Unary::Cos, u.clone()),
+                Unary::Sinh => mk_unary(Unary::Cosh, u.clone()),
+                Unary::Sqrt => over(one(), times(constant(2.), mk_unary(Unary::Sqrt, u.clone()))),
+                Unary::Tan => mk_operator(
+                    Operator::Plus,
+                    one(),
+                    squared(&mk_unary(Unary::Tan, u.clone())),
+                ),
+                Unary::Tanh => mk_operator(
+                    Operator::Minus,
+                    one(),
+                    squared(&mk_unary(Unary::Tanh, u.clone())),
+                ),
+                Unary::Uramp => mk_unary(Unary::Ustep, u.clone()),
+                Unary::Ustep2 => mk_operator(
+                    Operator::Minus,
+                    mk_unary(Unary::Ustep, u.clone()),
+                    mk_unary(Unary::Ustep, mk_operator(Operator::Minus, u.clone(), one())),
+                ),
+                Unary::Uminus => constant(-1.),
+                Unary::Sgn
+                | Unary::Ustep
+                | Unary::Eq0
+                | Unary::Ne0
+                | Unary::Gt0
+                | Unary::Lt0
+                | Unary::Ge0
+                | Unary::Le0
+                | Unary::Floor
+                | Unary::Ceil
+                | Unary::Nint => zero(),
+            };
+            times(slope, differentiate(u, variable))
+        }
+        Node::Pwl(u, values) => {
+            let slope = match u.constant() {
+                Some(x) => constant(pwl_slope(x, values)),
+                None => Arc::new(Node::PwlDerivative(u.clone(), values.clone())),
+            };
+            times(slope, differentiate(u, variable))
+        }
+        Node::PwlDerivative(u, _) => times(zero(), differentiate(u, variable)),
+        Node::Table(u, map) => {
+            let slope = match u.constant() {
+                Some(x) => constant(map.evaluate(x).1),
+                None => Arc::new(Node::TableSlope(u.clone(), map.clone())),
+            };
+            times(slope, differentiate(u, variable))
+        }
+        Node::TableSlope(u, _) => times(zero(), differentiate(u, variable)),
+    }
+}
+
 struct Evaluator<'a> {
     environment: &'a Environment<'a>,
     fudge: Real,
-    size: usize,
 }
 
-type Dual = (Real, Vec<Real>);
-
-fn domain(function: &str, argument: Real) -> SpiceError {
+fn out_of_range(node: &Node, arguments: &[Real]) -> SpiceError {
+    let arguments: Vec<String> = arguments.iter().map(ToString::to_string).collect();
     SpiceError::Numerical {
         context: "behavioural source".into(),
-        message: format!("{argument} out of range for {function}"),
+        message: format!(
+            "{} out of range for {}",
+            arguments.join(", "),
+            describe(node)
+        ),
     }
 }
 
 impl Evaluator<'_> {
-    fn zero(&self) -> Vec<Real> {
-        vec![0.; self.size]
-    }
-
-    /// `PTdivide`: the divisor moves `fudge` away from zero.
-    fn divide(&self, a: Real, b: Real) -> Real {
-        let b = if b >= 0. {
-            b + self.fudge
-        } else {
-            b - self.fudge
-        };
-        a / b
-    }
-
-    fn eval(&self, node: &Node) -> SpiceResult<Dual> {
-        let (value, gradient) = match node {
-            Node::Constant(value) => (*value, self.zero()),
-            Node::Variable(index) => {
-                let mut gradient = self.zero();
-                gradient[*index] = 1.;
-                (self.environment.values[*index], gradient)
-            }
-            Node::Time => (self.environment.time, self.zero()),
-            Node::Temperature => (self.environment.temperature, self.zero()),
-            Node::Frequency => (self.environment.frequency, self.zero()),
+    /// `PTeval` (`ifeval.c`): a `HUGE` function or operator result is an
+    /// error, as in C; any other non-finite value is one too (C would carry
+    /// on with a NaN or an infinity).
+    fn eval(&self, node: &Node) -> SpiceResult<Real> {
+        let value = match node {
+            Node::Constant(value) => *value,
+            Node::Variable(index) => self.environment.values[*index],
+            Node::Time => self.environment.time,
+            Node::Temperature => self.environment.temperature,
+            Node::Frequency => self.environment.frequency,
             Node::Unary(function, argument) => {
-                let (x, dx) = self.eval(argument)?;
-                let (value, slope) = self.unary(*function, x)?;
-                (value, scale(&dx, slope))
+                let x = self.eval(argument)?;
+                let value = unary_value(*function, x);
+                if value == Real::INFINITY {
+                    return Err(out_of_range(node, &[x]));
+                }
+                value
             }
-            Node::Operator(op, lhs, rhs) => self.operator(*op, lhs, rhs)?,
-            Node::Binary(function, lhs, rhs) => self.binary(*function, lhs, rhs)?,
+            Node::Operator(op, lhs, rhs) => {
+                let a = self.eval(lhs)?;
+                let b = self.eval(rhs)?;
+                let value = match op {
+                    Operator::Plus => a + b,
+                    Operator::Minus => a - b,
+                    Operator::Times => a * b,
+                    Operator::Divide => divide(a, b, self.fudge),
+                    Operator::Power => power_h(a, b),
+                };
+                if value == Real::INFINITY {
+                    return Err(out_of_range(node, &[a, b]));
+                }
+                value
+            }
+            Node::Binary(function, lhs, rhs) => {
+                let a = self.eval(lhs)?;
+                let b = self.eval(rhs)?;
+                let value = match function {
+                    Binary::Pow => power(a, b),
+                    Binary::Pwr => pwr(a, b),
+                    Binary::Min => {
+                        if a > b {
+                            b
+                        } else {
+                            a
+                        }
+                    }
+                    Binary::Max => {
+                        if a > b {
+                            a
+                        } else {
+                            b
+                        }
+                    }
+                };
+                if value == Real::INFINITY {
+                    return Err(out_of_range(node, &[a, b]));
+                }
+                value
+            }
             Node::Ternary(condition, then, otherwise) => {
-                let (condition, _) = self.eval(condition)?;
-                if condition != 0. {
+                if self.eval(condition)? != 0. {
                     self.eval(then)?
                 } else {
                     self.eval(otherwise)?
                 }
             }
-            Node::Pwl(argument, values) => {
-                let (x, dx) = self.eval(argument)?;
-                (pwl_value(x, values), scale(&dx, pwl_slope(x, values)))
-            }
-            Node::Table(argument, map) => {
-                let (x, dx) = self.eval(argument)?;
-                let (value, slope) = map.evaluate(x);
-                (value, scale(&dx, slope))
-            }
+            Node::Pwl(argument, values) => pwl_value(self.eval(argument)?, values),
+            Node::PwlDerivative(argument, values) => pwl_slope(self.eval(argument)?, values),
+            Node::Table(argument, map) => map.evaluate(self.eval(argument)?).0,
+            Node::TableSlope(argument, map) => map.evaluate(self.eval(argument)?).1,
         };
-        let offending = if value.is_finite() {
-            gradient
-                .iter()
-                .find(|d| !d.is_finite())
-                .map(|d| format!("non-finite derivative {d} (value {value})"))
-        } else {
-            Some(format!("non-finite value {value}"))
-        };
-        if let Some(offending) = offending {
+        if !value.is_finite() {
             return Err(SpiceError::Numerical {
                 context: "behavioural source".into(),
-                message: format!("{offending} in {}", describe(node)),
+                message: format!("non-finite value {value} in {}", describe(node)),
             });
         }
-        Ok((value, gradient))
+        Ok(value)
     }
-
-    /// The value of a one-argument function and C's derivative rule for it.
-    fn unary(&self, function: Unary, x: Real) -> SpiceResult<(Real, Real)> {
-        let square = power_h(x, 2.);
-        let sqrt = |argument: Real| {
-            if argument < 0. {
-                Err(domain("sqrt", argument))
-            } else {
-                Ok(argument.sqrt())
-            }
-        };
-        let log = |argument: Real| {
-            if argument < 0. {
-                Err(domain("log", argument))
-            } else if argument == 0. {
-                Ok(-1e99)
-            } else {
-                Ok(argument.ln())
-            }
-        };
-        let exp = |argument: Real| {
-            if argument > EXP_LIMIT {
-                1e99
-            } else {
-                argument.exp()
-            }
-        };
-        let step = |argument: Real| {
-            if argument < 0. {
-                0.
-            } else if argument > 0. {
-                1.
-            } else {
-                0.5
-            }
-        };
-        let sgn = |argument: Real| {
-            if argument > 0. {
-                1.
-            } else if argument < 0. {
-                -1.
-            } else {
-                0.
-            }
-        };
-        let flag = |condition: bool| if condition { 1. } else { 0. };
-        Ok(match function {
-            Unary::Abs => (x.abs(), sgn(x)),
-            Unary::Sgn => (sgn(x), 0.),
-            Unary::Acos => (x.acos(), self.divide(-1., sqrt(1. - square)?)),
-            Unary::Acosh => (x.acosh(), self.divide(1., sqrt(square - 1.)?)),
-            Unary::Asin => (x.asin(), self.divide(1., sqrt(1. - square)?)),
-            Unary::Asinh => (x.asinh(), self.divide(1., sqrt(square + 1.)?)),
-            Unary::Atan => (x.atan(), self.divide(1., square + 1.)),
-            Unary::Atanh => (x.atanh(), self.divide(1., 1. - square)),
-            Unary::Cos => (modulus(x, TWO_PI).cos(), -modulus(x, TWO_PI).sin()),
-            Unary::Cosh => (x.cosh(), x.sinh()),
-            Unary::Exp => (exp(x), exp(x)),
-            Unary::Log => (log(x)?, self.divide(1., x)),
-            Unary::Log10 => {
-                let value = if x < 0. {
-                    return Err(domain("log10", x));
-                } else if x == 0. {
-                    -1e99
-                } else {
-                    x.log10()
-                };
-                (value, self.divide(std::f64::consts::LOG10_E, x))
-            }
-            Unary::Sin => (modulus(x, TWO_PI).sin(), modulus(x, TWO_PI).cos()),
-            Unary::Sinh => (x.sinh(), x.cosh()),
-            Unary::Sqrt => {
-                let root = sqrt(x)?;
-                (root, self.divide(1., 2. * root))
-            }
-            Unary::Tan => {
-                let tangent = modulus(x, std::f64::consts::PI).tan();
-                (tangent, 1. + power_h(tangent, 2.))
-            }
-            Unary::Tanh => {
-                let tangent = x.tanh();
-                (tangent, 1. - power_h(tangent, 2.))
-            }
-            Unary::Ustep => (step(x), 0.),
-            Unary::Uramp => (if x < 0. { 0. } else { x }, step(x)),
-            Unary::Ceil => (x.ceil(), 0.),
-            Unary::Floor => (x.floor(), 0.),
-            Unary::Nint => (x.round_ties_even(), 0.),
-            Unary::Uminus => (-x, -1.),
-            Unary::Ustep2 => (
-                if x <= 0. {
-                    0.
-                } else if x <= 1. {
-                    x
-                } else {
-                    1.
-                },
-                step(x) - step(x - 1.),
-            ),
-            Unary::Eq0 => (flag(x == 0.), 0.),
-            Unary::Ne0 => (flag(x != 0.), 0.),
-            Unary::Gt0 => (flag(x > 0.), 0.),
-            Unary::Lt0 => (flag(x < 0.), 0.),
-            Unary::Ge0 => (flag(x >= 0.), 0.),
-            Unary::Le0 => (flag(x <= 0.), 0.),
-        })
-    }
-
-    fn operator(&self, op: Operator, lhs: &Node, rhs: &Node) -> SpiceResult<Dual> {
-        let (a, da) = self.eval(lhs)?;
-        let (b, db) = self.eval(rhs)?;
-        Ok(match op {
-            Operator::Plus => (a + b, combine(&da, 1., &db, 1.)),
-            Operator::Minus => (a - b, combine(&da, 1., &db, -1.)),
-            Operator::Times => (a * b, combine(&da, b, &db, a)),
-            Operator::Divide => {
-                // d(a/b) = (a'b - b'a) / b^2, the quotient through PTdivide.
-                let denominator = power_h(b, 2.);
-                let gradient = da
-                    .iter()
-                    .zip(&db)
-                    .map(|(da, db)| self.divide(da * b - db * a, denominator))
-                    .collect();
-                (self.divide(a, b), gradient)
-            }
-            Operator::Power => {
-                let value = power_h(a, b);
-                (
-                    value,
-                    self.power_gradient(lhs, rhs, (a, &da), (b, &db), Power::Operator)?,
-                )
-            }
-        })
-    }
-
-    fn binary(&self, function: Binary, lhs: &Node, rhs: &Node) -> SpiceResult<Dual> {
-        let (a, da) = self.eval(lhs)?;
-        let (b, db) = self.eval(rhs)?;
-        Ok(match function {
-            Binary::Pow => (
-                power(a, b),
-                self.power_gradient(lhs, rhs, (a, &da), (b, &db), Power::Pow)?,
-            ),
-            Binary::Pwr => (
-                pwr(a, b),
-                self.power_gradient(lhs, rhs, (a, &da), (b, &db), Power::Pwr)?,
-            ),
-            // min: lt0(a-b) ? a' : b'; max: gt0(a-b) ? a' : b'.
-            Binary::Min => (if a > b { b } else { a }, if a - b < 0. { da } else { db }),
-            Binary::Max => (if a > b { a } else { b }, if a - b > 0. { da } else { db }),
-        })
-    }
-
-    /// `PTdifferentiate` for `^`, `pow()` and `pwr()`:
-    ///
-    /// - constant exponent: `b * pwr(a, b-1) * a'` (`pow(a, b-1)` for `pwr`);
-    /// - constant base (`^` and `pow`): `pow(a, b) * b' * log|a|`;
-    /// - otherwise `f(a, b) * (b * a'/a + b' * log|a|)` with `f` the
-    ///   function itself for `pwr` and `pow()` for the others.
-    fn power_gradient(
-        &self,
-        lhs: &Node,
-        rhs: &Node,
-        (a, da): (Real, &[Real]),
-        (b, db): (Real, &[Real]),
-        kind: Power,
-    ) -> SpiceResult<Vec<Real>> {
-        let log_abs = || -> Real {
-            let magnitude = a.abs();
-            if magnitude == 0. {
-                -1e99
-            } else {
-                magnitude.ln()
-            }
-        };
-        if rhs.is_constant() {
-            // C builds `b * pwr(a, b-1) * a'` with mkb(), which folds a zero
-            // constant factor away: no 0 * inf at a = 0.
-            if b == 0. {
-                return Ok(vec![0.; da.len()]);
-            }
-            let factor = b * match kind {
-                Power::Pwr => power(a, b - 1.),
-                Power::Operator | Power::Pow => pwr(a, b - 1.),
-            };
-            return Ok(scale(da, factor));
-        }
-        if lhs.is_constant() && kind != Power::Pwr {
-            let factor = power(a, b) * log_abs();
-            return Ok(scale(db, factor));
-        }
-        let outer = match kind {
-            Power::Pwr => pwr(a, b),
-            Power::Operator | Power::Pow => power(a, b),
-        };
-        let log = log_abs();
-        Ok(da
-            .iter()
-            .zip(db)
-            .map(|(da, db)| outer * (b * self.divide(*da, a) + db * log))
-            .collect())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Power {
-    Operator,
-    Pow,
-    Pwr,
-}
-
-fn scale(gradient: &[Real], factor: Real) -> Vec<Real> {
-    gradient
-        .iter()
-        .map(|d| if *d == 0. { 0. } else { d * factor })
-        .collect()
-}
-
-fn combine(a: &[Real], fa: Real, b: &[Real], fb: Real) -> Vec<Real> {
-    a.iter()
-        .zip(b)
-        .map(|(a, b)| {
-            let left = if *a == 0. { 0. } else { a * fa };
-            let right = if *b == 0. { 0. } else { b * fb };
-            left + right
-        })
-        .collect()
 }
 
 fn describe(node: &Node) -> String {
@@ -992,7 +1230,8 @@ fn describe(node: &Node) -> String {
         ),
         Node::Ternary(..) => "'?:'".into(),
         Node::Pwl(..) => "pwl()".into(),
-        Node::Table(..) => "a TABLE".into(),
+        Node::PwlDerivative(..) => "pwl_derivative()".into(),
+        Node::Table(..) | Node::TableSlope(..) => "a TABLE".into(),
     }
 }
 
