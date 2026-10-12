@@ -379,13 +379,15 @@ impl LinearDae {
         let constraint_lu = if structure.null_dim == 0 {
             None
         } else {
-            Some(structure.constraint_matrix(&a)?.factorize().map_err(|e| {
-                numerical(
-                    "linear DAE",
-                    "unsupported higher-index/singular algebraic constraints: ".to_owned()
-                        + &e.to_string(),
-                )
-            })?)
+            Some(
+                SparseLu::new_conditioned(&structure.constraint_matrix(&a)?).map_err(|e| {
+                    numerical(
+                        "linear DAE",
+                        "unsupported higher-index/singular algebraic constraints: ".to_owned()
+                            + &e.to_string(),
+                    )
+                })?,
+            )
         };
         Ok(Self {
             jac: backend(&a, -1.)?,

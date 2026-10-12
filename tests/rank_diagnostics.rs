@@ -33,6 +33,7 @@ fn rank_diagnostics_homogeneous_ideal_source_loop() {
 }
 
 #[test]
+#[ignore = "faer-control: the n-solve rank/conditioning diagnostic is removed (C/SPARSE error policy)"]
 fn rank_diagnostics_near_dependent_constraints_and_complex_phase() {
     for delta in [0., 1e-14, 1e-13] {
         let a = matrix(&[&[1., 1.], &[1., 1. + delta]]);
@@ -106,6 +107,7 @@ fn rank_diagnostics_duplicate_cancellation_and_overflow() {
 }
 
 #[test]
+#[ignore = "faer-control: the n-solve rank/conditioning diagnostic is removed (C/SPARSE error policy)"]
 fn rank_diagnostics_unit_pivots_do_not_establish_resolvable_conditioning() {
     // The unpermuted triangular LU has unit diagonal, but its inverse grows
     // geometrically. A pivot-only strategy would miss the conditioning.
@@ -121,6 +123,7 @@ fn rank_diagnostics_unit_pivots_do_not_establish_resolvable_conditioning() {
 }
 
 #[test]
+#[ignore = "faer-control: the n-solve rank/conditioning diagnostic is removed (C/SPARSE error policy)"]
 fn rank_diagnostics_balanced_nullspace_size_and_permutation_sweep() {
     // A cycle Laplacian has a distributed null vector, including at larger n.
     // Permute rows without permuting columns to vary pivoting, preserving rank.

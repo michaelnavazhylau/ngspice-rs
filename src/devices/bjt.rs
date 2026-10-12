@@ -1552,14 +1552,14 @@ fn stamp_charge(context: &mut StampContext<'_>, charge: &Charge) -> SpiceResult<
         if dt != coefficients.dt() {
             return Err(SpiceError::circuit("BJT charge timestep mismatch"));
         }
-        let mut history = vec![charge.value];
+        let mut history = crate::maths::integrator::ChargeHistory::new(charge.value);
         for age in 1..=coefficients.charge_history_len() {
             history.push(
                 context
                     .states
                     .accepted(age, slot)
                     .ok_or_else(|| SpiceError::circuit("missing accepted BJT charge"))?,
-            );
+            )?;
         }
         let previous = if coefficients.needs_previous_derivative() {
             Some(

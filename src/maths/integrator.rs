@@ -34,6 +34,46 @@
 
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
+/// The present charge followed by up to [`IntegrationMethod::MAX_GEAR_ORDER`]
+/// accepted charges, on the stack: device loads build one per charge per
+/// Newton iteration, so it must not allocate.
+#[derive(Debug, Clone, Copy)]
+pub struct ChargeHistory {
+    values: [Real; IntegrationMethod::MAX_GEAR_ORDER as usize + 1],
+    len: usize,
+}
+
+impl ChargeHistory {
+    /// A history holding only the present charge.
+    #[must_use]
+    pub const fn new(present: Real) -> Self {
+        let mut values = [0.0; IntegrationMethod::MAX_GEAR_ORDER as usize + 1];
+        values[0] = present;
+        Self { values, len: 1 }
+    }
+
+    /// Appends the next older accepted charge.
+    ///
+    /// # Errors
+    /// More points than the highest integration order can use.
+    pub fn push(&mut self, value: Real) -> SpiceResult<()> {
+        let slot = self
+            .values
+            .get_mut(self.len)
+            .ok_or_else(|| numerical("charge history exceeds the highest integration order"))?;
+        *slot = value;
+        self.len += 1;
+        Ok(())
+    }
+}
+
+impl std::ops::Deref for ChargeHistory {
+    type Target = [Real];
+    fn deref(&self) -> &[Real] {
+        &self.values[..self.len]
+    }
+}
+
 /// Which integration rule to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum IntegrationMethod {

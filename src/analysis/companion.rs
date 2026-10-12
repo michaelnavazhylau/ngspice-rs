@@ -464,6 +464,8 @@ struct Driver<'a> {
     /// `true` for rows that carry branch currents (`abstol`), else `vntol`.
     branch_row: Vec<bool>,
     stats: TransientStats,
+    /// faer symbolic analysis reused by linear timepoints.
+    ordering: std::cell::RefCell<Option<crate::maths::SparseLu>>,
 }
 
 /// Runs an ordinary `.tran` with the companion backend, returning the plot and
@@ -524,6 +526,7 @@ pub fn companion_transient(
         nonlinear: circuit.devices().iter().any(|d| d.is_nonlinear()),
         branch_row,
         stats: TransientStats::default(),
+        ordering: std::cell::RefCell::new(None),
     };
     driver.run()
 }
@@ -876,7 +879,7 @@ impl Driver<'_> {
                 history: &self.history,
                 forcing: None,
             },
-            &mut SparseMatrix::new(n, n),
+            &mut self.circuit.new_matrix(),
             &mut Vector::zeros(n),
             &mut trial,
         )?;
@@ -953,7 +956,7 @@ impl Driver<'_> {
                 crate::analysis::newton::PhasePolicy::Predicted,
                 None,
                 |x, phase, last| {
-                    let mut matrix = SparseMatrix::new(n, n);
+                    let mut matrix = self.circuit.new_matrix();
                     let mut rhs = Vector::zeros(n);
                     let state = load(x, &mut matrix, &mut rhs, phase, last)?;
                     Ok((matrix, rhs, state))
@@ -975,16 +978,19 @@ impl Driver<'_> {
         }
         // Linear circuits are exact after one solve; reload only to record
         // charge/flux at the solved point, with no Newton iteration loop.
-        let mut matrix = SparseMatrix::new(n, n);
+        let mut matrix = self.circuit.new_matrix();
         let mut rhs = Vector::zeros(n);
         let phase = crate::devices::IterationPhase::Predict;
         load(previous, &mut matrix, &mut rhs, phase, None)?;
         matrix.fold_duplicates();
-        let (matrix, rhs) = equilibrated(&matrix, &rhs)?;
-        let x = matrix.solve(&rhs)?;
+        let x = crate::maths::linear::solve_with_ordering(
+            &matrix,
+            &rhs,
+            &mut self.ordering.borrow_mut(),
+        )?;
         let state = load(
             &x,
-            &mut SparseMatrix::new(n, n),
+            &mut self.circuit.new_matrix(),
             &mut Vector::zeros(n),
             phase,
             None,
@@ -1061,38 +1067,6 @@ impl Driver<'_> {
         }
         Ok(limit)
     }
-}
-
-/// Row-equilibrated copy of `A x = b`: every row is divided by its largest
-/// entry, which leaves the solution unchanged.
-///
-/// A companion inductor row `v+ - v- - (L/h) i = veq` has a coefficient `L/h`
-/// (1e5 and more for small first steps) next to O(1) entries; elimination
-/// through it costs the digits the solver's backward-residual check demands
-/// as soon as the initial current is not zero. Dividing each row by its
-/// largest entry removes the disparity without touching any device stamp.
-fn equilibrated(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<(SparseMatrix, Vector)> {
-    let n = matrix.rows();
-    let mut largest = vec![0.; n];
-    for t in matrix.triplets() {
-        largest[t.row] = Real::max(largest[t.row], t.value.abs());
-    }
-    let scale = |row: usize| {
-        if largest[row] > 0. && largest[row].is_finite() {
-            1. / largest[row]
-        } else {
-            1.
-        }
-    };
-    let mut scaled = SparseMatrix::new(n, matrix.cols());
-    for t in matrix.triplets() {
-        scaled.add(t.row, t.col, t.value * scale(t.row))?;
-    }
-    let mut b = rhs.clone();
-    for (row, value) in b.as_mut_slice().iter_mut().enumerate() {
-        *value *= scale(row);
-    }
-    Ok((scaled, b))
 }
 
 fn push(plot: &mut Plot, time: Real, x: &Vector, observed: Vec<Complex>) -> SpiceResult<()> {

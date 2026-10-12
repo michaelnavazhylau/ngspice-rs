@@ -1,11 +1,10 @@
 //! Complex sparse LU for AC. Scalar conversion happens only at this boundary.
 use crate::maths::{
     SparseMatrix,
-    linear::{numerical, square},
+    linear::{Factor, Key, SparseSymbolic, numerical, square},
 };
 use crate::primitives::{Complex, SpiceResult};
-use faer::prelude::*;
-use faer::sparse::{SparseColMat, Triplet};
+use faer::c64;
 
 /// Complex assembled sparse matrix, independent of real stamping storage.
 #[derive(Debug, Clone)]
@@ -55,135 +54,88 @@ impl ComplexMatrix {
                 .collect(),
         })
     }
-    /// Owned faer complex LU with complete-basis numerical rank diagnostics.
-    /// The inherited guard is not a formal aggregate uniqueness certificate;
-    /// see `docs/port/SPARSE_RANK_DIAGNOSTICS.md`.
+    /// Owned faer complex LU (fresh symbolic analysis). As in
+    /// [`crate::maths::linear`], there is no rank probe or residual check:
+    /// structural singularity and non-finite solutions are the errors.
     /// # Errors
-    /// Structural/numeric singularity or failed rank residual.
+    /// Structural singularity.
     pub fn factorize(&self) -> SpiceResult<ComplexLu> {
-        let triplets: Vec<_> = self
-            .entries
-            .iter()
-            .map(|(r, c, v)| Triplet::new(*r, *c, c64::new(v.re, v.im)))
-            .collect();
-        let csc = SparseColMat::<usize, c64>::try_new_from_triplets(self.n, self.n, &triplets)
-            .map_err(|e| numerical("complex CSC", format!("{e:?}")))?;
-        let factor = csc
-            .sp_lu()
-            .map_err(|e| numerical("complex sparse LU", format!("{e:?}")))?;
-        let result = ComplexLu {
-            matrix: self.clone(),
-            factor,
-        };
-        let mut inverse_rows = vec![0.0; self.n];
-        for i in 0..self.n {
-            let mut rhs = vec![Complex::ZERO; self.n];
-            rhs[i] = Complex::real(1.);
-            let column = result.solve(&rhs)?;
-            for (sum, value) in inverse_rows.iter_mut().zip(column) {
-                *sum += value.magnitude();
-            }
-        }
-        let mut rows = vec![0.0; self.n];
-        for (r, _, v) in &self.entries {
-            rows[*r] += v.magnitude();
-        }
-        let condition =
-            rows.into_iter().fold(0.0, f64::max) * inverse_rows.into_iter().fold(0.0, f64::max);
-        if !condition.is_finite() || 128.0 * f64::EPSILON * (self.n as f64) * condition >= 0.5 {
-            return Err(numerical(
-                "complex LU rank diagnostic",
-                "numeric rank unresolved at this conditioning; rescale the system",
-            ));
-        }
+        let positions: Vec<_> = self.entries.iter().map(|&(r, c, _)| (r, c)).collect();
+        let symbolic = SparseSymbolic::analyse(
+            self.n,
+            Key::Triplets(std::sync::Arc::new(positions.clone())),
+            &positions,
+        )?;
+        let mut factor = Factor::new(symbolic, c64::new(0., 0.))?;
+        self.load(&mut factor)?;
+        let result = ComplexLu { n: self.n, factor };
+        // One fixed-RHS solve reports an exactly zero pivot here (see
+        // `SparseLu::new`); refactorizations in a sweep rely on their own solve.
+        result.solve(&vec![Complex::real(1.); self.n])?;
         Ok(result)
+    }
+
+    /// Refactors numerically with `previous`'s faer symbolic analysis and
+    /// storage when the pattern is identical (frequency sweeps); otherwise
+    /// analyses afresh. faer re-chooses row pivots in every numeric phase.
+    /// # Errors
+    /// Structural singularity.
+    pub fn factorize_reusing(&self, mut previous: ComplexLu) -> SpiceResult<ComplexLu> {
+        if previous.n != self.n
+            || !previous
+                .factor
+                .symbolic
+                .matches_positions(self.entries.iter().map(|&(r, c, _)| (r, c)))
+        {
+            return self.factorize();
+        }
+        self.load(&mut previous.factor)?;
+        Ok(previous)
+    }
+
+    fn load(&self, factor: &mut Factor<c64>) -> SpiceResult<()> {
+        factor.factor(
+            "complex sparse LU",
+            self.entries.iter().map(|(_, _, v)| c64::new(v.re, v.im)),
+        )
     }
 }
 /// Owned complex factors; subsequent real operator mutations cannot stale them.
 #[derive(Debug)]
 pub struct ComplexLu {
-    matrix: ComplexMatrix,
-    factor: faer::sparse::linalg::solvers::Lu<usize, c64>,
+    n: usize,
+    factor: Factor<c64>,
 }
 impl ComplexLu {
-    /// Solves and checks a row-scaled normwise complex backward residual.
+    /// Solves `A x = b`.
     /// # Errors
-    /// Wrong RHS size, non-finite RHS/solution or inaccurate solve.
+    /// Wrong RHS size, non-finite RHS or solution.
     pub fn solve(&self, rhs: &[Complex]) -> SpiceResult<Vec<Complex>> {
         self.solve_with(rhs, false)
     }
 
     /// Solves the transposed (not conjugated) system `A^T x = b` with the same
-    /// factors and checks the backward residual against `A^T`. This is the
-    /// adjoint solve of `.noise` (C `SMPcaSolve` in `NInzIter`).
+    /// factors. This is the adjoint solve of `.noise` (C `SMPcaSolve` in
+    /// `NInzIter`).
     /// # Errors
-    /// Wrong RHS size, non-finite RHS/solution or inaccurate solve.
+    /// Wrong RHS size, non-finite RHS or solution.
     pub fn solve_transposed(&self, rhs: &[Complex]) -> SpiceResult<Vec<Complex>> {
         self.solve_with(rhs, true)
     }
 
     fn solve_with(&self, rhs: &[Complex], transposed: bool) -> SpiceResult<Vec<Complex>> {
-        let n = self.matrix.n;
-        if rhs.len() != n || rhs.iter().any(|v| !v.is_finite()) {
+        if rhs.len() != self.n || rhs.iter().any(|v| !v.is_finite()) {
             return Err(numerical("complex solve", "invalid RHS"));
         }
-        let mut x = self.solve_unchecked(rhs, transposed);
-        // Bounded iterative refinement reuses the owned factors. Apply the
-        // original residual/rank policy unchanged, including basis solves.
-        for attempt in 0..=2 {
-            if x.iter().any(|v| !v.is_finite()) {
-                return Err(numerical(
-                    "complex solve",
-                    "non-finite solution/singular system",
-                ));
-            }
-            let max_x = x.iter().fold(0_f64, |m, v| m.max(v.magnitude()));
-            let mut residual = rhs.to_vec();
-            let mut ax = vec![Complex::ZERO; n];
-            let mut scale: Vec<_> = rhs.iter().map(|v| v.magnitude()).collect();
-            for (r, c, a) in &self.matrix.entries {
-                let (r, c) = if transposed { (*c, *r) } else { (*r, *c) };
-                ax[r] = ax[r] + *a * x[c];
-                scale[r] += a.magnitude() * max_x;
-            }
-            let mut failed = None;
-            for r in 0..n {
-                residual[r] = rhs[r] - ax[r];
-                let error = residual[r].magnitude();
-                if !error.is_finite() || !scale[r].is_finite() {
-                    return Err(numerical("complex solve", "non-finite residual/scale"));
-                }
-                if error > 128. * f64::EPSILON * (n as f64) * scale[r] {
-                    failed = Some(r);
-                }
-            }
-            let Some(row) = failed else {
-                return Ok(x);
-            };
-            if attempt == 2 {
-                return Err(numerical(
-                    "complex solve",
-                    format!("backward residual failed at row {row} after iterative refinement"),
-                ));
-            }
-            let correction = self.solve_unchecked(&residual, transposed);
-            for (value, delta) in x.iter_mut().zip(correction) {
-                *value = *value + delta;
-            }
+        let mut x: Vec<c64> = rhs.iter().map(|v| c64::new(v.re, v.im)).collect();
+        self.factor.solve_in_place(&mut x, transposed);
+        let x: Vec<Complex> = x.iter().map(|v| Complex::new(v.re, v.im)).collect();
+        if x.iter().any(|v| !v.is_finite()) {
+            return Err(numerical(
+                "complex solve",
+                "non-finite solution/singular system",
+            ));
         }
-        unreachable!("bounded refinement returns on its final attempt")
-    }
-
-    fn solve_unchecked(&self, rhs: &[Complex], transposed: bool) -> Vec<Complex> {
-        let n = self.matrix.n;
-        let mut x = Mat::from_fn(n, 1, |r, _| c64::new(rhs[r].re, rhs[r].im));
-        if transposed {
-            self.factor.solve_transpose_in_place(x.as_mut());
-        } else {
-            self.factor.solve_in_place(x.as_mut());
-        }
-        (0..n)
-            .map(|r| Complex::new(x[(r, 0)].re, x[(r, 0)].im))
-            .collect()
+        Ok(x)
     }
 }

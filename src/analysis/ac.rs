@@ -36,11 +36,19 @@ pub(crate) fn run(
         Some(("frequency", "frequency")),
         true,
     )?;
+    // faer-control: reuse faer's symbolic analysis across frequencies.
+    let mut previous: Option<crate::maths::complex::ComplexLu> = None;
     for f in grid {
         let x = small_signal.at_frequency(circuit, context, f, |system| {
             let matrix =
                 ComplexMatrix::from_operators(&system.a, &system.e, 2. * std::f64::consts::PI * f)?;
-            matrix.factorize()?.solve(&system.ac_rhs())
+            let factor = match previous.take() {
+                Some(previous) => matrix.factorize_reusing(previous)?,
+                None => matrix.factorize()?,
+            };
+            let x = factor.solve(&system.ac_rhs());
+            previous = Some(factor);
+            x
         })?;
         let mut point = vec![Complex::real(f)];
         point.extend(x);
