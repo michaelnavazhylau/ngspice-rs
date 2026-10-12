@@ -66,6 +66,13 @@ in `sparse13.rs`); nothing is taken from LGPL KLU.
 
 ## Benchmarks (C ngspice-47 KLU `-O2` vs Rust release, Apple M5)
 
+The table below is from a loaded machine. The quiet-machine measurement
+of the baseline, the faer control, this prototype and the merged line, by
+instructions retired, is in
+[M10.md](M10.md#after-wave-05-2026-10-12); it confirms the picture except
+for 2D meshes, where faer is far ahead (0.32x C's instructions on a
+50k-node mesh, against 1.51x for SPARSE).
+
 `scripts/bench/bench.py` decks, outputs checked vector by vector against C.
 The machine was shared and heavily loaded, so the table uses CPU time
 (user + sys) ratios, Rust / C; instructions retired (`/usr/bin/time -l`) were
