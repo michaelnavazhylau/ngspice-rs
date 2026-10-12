@@ -183,20 +183,23 @@ fn ic_without_uic_is_enforced_during_the_bias_then_released() {
 #[test]
 fn ic_duplicates_use_the_last_entry_and_node_names_are_case_insensitive() {
     let deck = "t\nv1 in 0 1\nr1 in OUT 1k\nc1 out 0 1u\n.ic v(out)=0.2\n.ic V(OUT)=0.4 v(out)=0.6\n.tran 10u 1m\n.end\n";
-    assert_eq!(column(&run(deck).unwrap(), "v(out)")[0], 0.6);
+    // INPevaluate("0.6") is 6 * 0.1.
+    assert_eq!(column(&run(deck).unwrap(), "v(out)")[0], 6. * 0.1);
 }
 
 #[test]
 fn ic_on_a_node_pinned_by_a_source_must_agree_with_it() {
     let body = "v1 in 0 1\nr1 in out 1k\nc1 out 0 1u\n";
-    // A consistent .ic on the source node is redundant: the source wins and
-    // the branch current stays exact (C returns 0 A there via its 1e10 hack).
+    // A consistent .ic on the source node is loaded as C loads it: the row
+    // keeps the source's branch column, so cktload.c replaces it with a 1e10
+    // conductance, and that row's equation leaves the branch current 0 A at
+    // t = 0 (live C: v(out)[0] = 0.25, i(v1)[0] = 0).
     let ok = run(&format!(
         "t\n{body}.ic v(in)=1 v(out)=0.25\n.tran 10u 1m\n.end\n"
     ))
     .unwrap();
     assert_eq!(column(&ok, "v(out)")[0], 0.25);
-    assert!((column(&ok, "i(v1)")[0] + 0.75e-3).abs() < 1e-15);
+    assert_eq!(column(&ok, "i(v1)")[0], 0.);
     // A contradicting one is an explicit error naming the entry, never a mess.
     let error = error_of(&format!("t\n{body}.ic v(in)=0\n.tran 10u 1m\n.end\n"));
     assert!(
@@ -246,7 +249,17 @@ fn nodeset_never_changes_a_linear_result_and_differs_from_ic() {
         "t\n{body}.nodeset v(out)=0.1 v(in)=7\n.tran 20u 4m\n.end\n"
     ))
     .unwrap();
-    assert_eq!(plain, hinted, "a nodeset is a convergence hint only");
+    // A nodeset is a convergence hint only: the operating point and the time
+    // grid are C's plain ones. Its forced rows change the values the first
+    // ordering sees, and so the pivots: later samples differ by rounding,
+    // exactly as live C's do.
+    assert_eq!(column(&plain, "time"), column(&hinted, "time"));
+    for name in ["v(out)", "i(v1)"] {
+        assert_eq!(column(&plain, name)[0], column(&hinted, name)[0]);
+        for (a, b) in column(&plain, name).iter().zip(column(&hinted, name)) {
+            assert!((a - b).abs() <= 1e-15, "{name}: {a} vs {b}");
+        }
+    }
     let pinned = run(&format!("t\n{body}.ic v(out)=0.1\n.tran 20u 4m\n.end\n")).unwrap();
     assert_eq!(column(&pinned, "v(out)")[0], 0.1);
     assert_eq!(column(&plain, "v(out)")[0], 0.75);
@@ -461,32 +474,6 @@ fn failed_initialization_is_atomic_no_accept_hook_no_plot() {
     assert_eq!(log.borrow()[0], Some(0.));
     // An unknown node fails before any assembly as well.
     let error = error_of("t\nr1 a 0 1k\nc1 a 0 1u\n.ic v(zz)=1\n.tran 1u 1m uic\n.end\n");
-    assert!(error.contains("zz"), "{error}");
-}
-
-// -------------------------------------------------------------------- backends
-
-#[test]
-fn diffsol_keeps_rejecting_ic_uic_and_instance_ic_explicitly() {
-    let tran = ".tran 10u 1m backend=diffsol method=bdf";
-    let base = "t\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u";
-    let error = error_of(&format!("{base}\n.ic v(out)=0.2\n{tran}\n.end\n"));
-    assert!(
-        error.contains(".ic") && error.contains("companion"),
-        "{error}"
-    );
-    assert!(error.contains("ic.cir:5"), "{error}");
-    let error = error_of(&format!("{base}\n{tran} uic\n.end\n"));
-    assert!(error.contains("uic"), "{error}");
-    let error = error_of(&format!(
-        "t\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u ic=0.5\n{tran}\n.end\n"
-    ));
-    assert!(error.contains("ic="), "{error}");
-    // A nodeset cannot change the linear bias: accepted (and validated).
-    let with = run(&format!("{base}\n.nodeset v(out)=0.2\n{tran}\n.end\n")).unwrap();
-    let without = run(&format!("{base}\n{tran}\n.end\n")).unwrap();
-    assert_eq!(with, without);
-    let error = error_of(&format!("{base}\n.nodeset v(zz)=0.2\n{tran}\n.end\n"));
     assert!(error.contains("zz"), "{error}");
 }
 

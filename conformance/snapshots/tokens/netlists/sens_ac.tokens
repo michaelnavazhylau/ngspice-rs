@@ -81,7 +81,7 @@ card 9 @netlists/sens_ac.cir:13:1 lines=13-13 continuations=0
   token 8 13:16 number "2" value=2e0
   token 9 13:18 word "scale"
   token 10 13:23 equals "="
-  token 11 13:24 number "1.2" value=1.2e0
+  token 11 13:24 number "1.2" value=1.2000000000000002e0
 card 10 @netlists/sens_ac.cir:14:1 lines=14-14 continuations=0
   raw: ".model cm c tc1=1e-3 tnom=30"
   kind: dot(.model)

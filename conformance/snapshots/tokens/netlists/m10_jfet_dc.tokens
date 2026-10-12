@@ -73,7 +73,7 @@ card 9 @netlists/m10_jfet_dc.cir:10:1 lines=10-10 continuations=0
   token 1 10:1 word "vs3"
   token 2 10:5 word "s3"
   token 3 10:8 number "0" value=0e0
-  token 4 10:10 number "0.3" value=3e-1
+  token 4 10:10 number "0.3" value=3.0000000000000004e-1
 card 10 @netlists/m10_jfet_dc.cir:11:1 lines=11-11 continuations=0
   raw: ".model jn njf(vto=-2 beta=1.2m lambda=0.03 rd=20 rs=15 is=1e-14 n=1.1 b=0.7 cgs=2p cgd=1p)"
   kind: dot(.model)
@@ -86,7 +86,7 @@ card 10 @netlists/m10_jfet_dc.cir:11:1 lines=11-11 continuations=0
   token 7 11:19 number "-2" value=-2e0
   token 8 11:22 word "beta"
   token 9 11:26 equals "="
-  token 10 11:27 number "1.2m" value=1.2e-3
+  token 10 11:27 number "1.2m" value=1.2000000000000001e-3
   token 11 11:32 word "lambda"
   token 12 11:38 equals "="
   token 13 11:39 number "0.03" value=3e-2
@@ -104,7 +104,7 @@ card 10 @netlists/m10_jfet_dc.cir:11:1 lines=11-11 continuations=0
   token 25 11:67 number "1.1" value=1.1e0
   token 26 11:71 word "b"
   token 27 11:72 equals "="
-  token 28 11:73 number "0.7" value=7e-1
+  token 28 11:73 number "0.7" value=7.000000000000001e-1
   token 29 11:77 word "cgs"
   token 30 11:80 equals "="
   token 31 11:81 number "2p" value=2e-12
@@ -130,7 +130,7 @@ card 11 @netlists/m10_jfet_dc.cir:12:1 lines=12-12 continuations=0
   token 13 12:41 number "0.02" value=2e-2
   token 14 12:46 word "b"
   token 15 12:47 equals "="
-  token 16 12:48 number "1.2" value=1.2e0
+  token 16 12:48 number "1.2" value=1.2000000000000002e0
   token 17 12:52 word "rs"
   token 18 12:54 equals "="
   token 19 12:55 number "10" value=1e1

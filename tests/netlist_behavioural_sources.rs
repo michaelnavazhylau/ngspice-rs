@@ -246,12 +246,16 @@ fn resolution_substitutes_parameters_and_expands_functions() {
          b1 o 0 v=k*v(in) + soft(1+1) + vd(2) + 1.23456789012345 + pi + time",
     );
     let v = expression(&netlist.devices[0], "v");
-    // `.param` values are exact, the literal keeps C's 11 digits, the .func
-    // argument is parenthesised and v(a) in a body names node `a` literally.
+    // `.param` values arrive as numparam's "% 23.15e" text read back by
+    // INPevaluate (3 is 3.0000000000000004), the literal keeps C's 11 digits
+    // and is read back by INPevaluate too (1.2345678901000001, as the
+    // reference binary's `b1 o 0 v=1.23456789012345` outputs),
+    // the .func argument is parenthesised and v(a) in a body names node `a`
+    // literally.
     assert_eq!(
         shape(&v.root),
-        "((((((3 * v(in)) + (tanh[(1 + 1)] * 3)) + (v(a) - (v(b) * 2))) + 1.2345678901) + pi) \
-         + time)"
+        "((((((3.0000000000000004 * v(in)) + (tanh[(1 + 1)] * 3.0000000000000004)) + (v(a) - \
+         (v(b) * 2))) + 1.2345678901000001) + pi) + time)"
     );
 }
 
@@ -259,7 +263,10 @@ fn resolution_substitutes_parameters_and_expands_functions() {
 fn verbatim_lines_evaluate_numparam_values_and_keep_full_precision() {
     let netlist = resolved(".param k=2\nb1 o 0 v=pwl(v(in), 0, 0, {k*1.5}, 1.23456789012345)");
     let v = expression(&netlist.devices[0], "v");
-    assert_eq!(shape(&v.root), "pwl[v(in),0,0,3,1.23456789012345]");
+    assert_eq!(
+        shape(&v.root),
+        "pwl[v(in),0,0,3.0000000000000004,1.23456789012345]"
+    );
     // C leaves bare names unsubstituted on such a line.
     let error = literalize(&parse(".param k=2\nb1 o 0 v=pwl(v(in), 0, 0, k, 1)")).unwrap_err();
     assert!(error.to_string().contains("bare name 'k'"), "{error}");

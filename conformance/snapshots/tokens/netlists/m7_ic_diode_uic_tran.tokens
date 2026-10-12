@@ -57,7 +57,7 @@ card 6 @netlists/m7_ic_diode_uic_tran.cir:12:1 lines=12-12 continuations=0
   token 7 12:16 number "1e-14" value=1e-14
   token 8 12:22 word "n"
   token 9 12:23 equals "="
-  token 10 12:24 number "1.2" value=1.2e0
+  token 10 12:24 number "1.2" value=1.2000000000000002e0
   token 11 12:28 word "rs"
   token 12 12:30 equals "="
   token 13 12:31 number "10" value=1e1

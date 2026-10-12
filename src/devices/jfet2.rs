@@ -19,39 +19,40 @@
 //!   the stamps; `jfet2acld.c` (`JFET2acLoad`), `jfet2trun.c`
 //!   (`JFET2trunc`), `jfet2ask.c` (`JFET2ask`) and `jfet2ic.c`.
 //!
+//! The load and the AC load follow C operation by operation through the
+//! level-1 frame they share (see [`crate::devices::jfet`]), so the port is
+//! bit-identical to a C build without fused multiply-adds.
+//!
 //! # State
 //!
-//! Besides the gate charges, the model keeps three filtered quantities from
-//! one accepted point to the next (C `JFET2vgstrap`, `JFET2vtrap`,
-//! `JFET2pave`): in transient each load evaluates
-//! `x = h x(accepted) + (1 - h) x(now)` with `h = (tau / (tau + dt / 4))^4`
-//! (`TAUG` for the gate voltages, `TAUD` for the power), reading only the
-//! last *accepted* value; a rejected or repeated trial leaves no trace
-//! because the trial state is committed only for accepted points. Outside
-//! transient `h = 0`. As in C the slots follow `PSids`' arguments, so in
-//! inverse mode the "gate-drain" trap holds the gate-source voltage.
+//! C's `JFET2numStates` layout. Besides the gate charges, the model keeps
+//! three filtered quantities from one accepted point to the next (C
+//! `JFET2vgstrap`, `JFET2vtrap`, `JFET2pave`): in transient each load
+//! evaluates `x = h x(accepted) + (1 - h) x(now)` with
+//! `h = (tau / (tau + dt / 4))^4` (`TAUG` for the gate voltages, `TAUD` for
+//! the power), reading only the last *accepted* value. Outside transient
+//! `h = 0`. As in C the slots follow `PSids`' arguments, so in inverse mode
+//! the "gate-drain" trap holds the gate-source voltage.
 //!
 //! The Statz gate charge of `PScharge` is incremental in transient:
 //! `qgs = qgs(accepted) + (q(vgs, vgd) - q(vgs1, vgd) + q(vgs, vgd1) -
 //! q(vgs1, vgd1)) / 2` with the accepted junction voltages `vgs1`, `vgd1`
-//! (and symmetrically for `qgd`). As in C the operating point stores zero
-//! charges, except the `uic` initial load and DC sweeps, which store the
-//! total charge in both slots (`PScharge` outside transient), so truncation
+//! (and symmetrically for `qgd`). As in C a plain operating point leaves the
+//! charge slots alone, while the `uic` initial load and DC sweeps store the
+//! total charge in both (`PScharge` outside transient), so truncation
 //! control (`jfet2trun.c`, `CKTterr` on both charges) sees C's values.
+//!
+//! As in C, the Newton matrix stamps each gate charge as a two-terminal
+//! capacitance (no `d qgs / d vgd` cross terms) and integrates `CDS * vds`
+//! into the drain current without stamping its conductance.
 //!
 //! # Deliberate divergences
 //!
-//! - As for level 1 (see [`crate::devices::jfet`]): no `MODEINITPRED`
-//!   extrapolation or bypass, any limited step keeps the load nonconvergent,
-//!   `off` uses the shared held-load rule, `FC > 0.95` is rejected instead of
-//!   clamped.
-//! - The Newton matrix is the exact Jacobian of C's equations: it adds the
-//!   companion conductance of the drain-source charge `CDS * vds` (which
-//!   `jfet2load.c` integrates into the drain current but leaves out of the
-//!   matrix) and the cross derivatives of the incremental gate charges
-//!   (`d qgs / d vgd`, `d qgd / d vgs`; C stamps each charge as a
-//!   two-terminal capacitance). The equations and their solution are C's;
-//!   only the iteration differs.
+//! - As for level 1: no bypass, the held `off` rule, and `FC > 0.95` is
+//!   rejected instead of clamped. `PSids` also writes `POWR_BEFORE` (`CKTstate1`) outside
+//!   transient; that value is only ever multiplied by `h = 0` there and is
+//!   replaced before the first transient step, so the port does not write
+//!   it.
 //! - C has no pole-zero load for level 2 (`DEVpzLoad = NULL`, so `.pz`
 //!   silently omits the device); the port refuses `.pz` explicitly.
 //! - Parameters whose zero or negative values divide by zero or take roots
@@ -62,9 +63,11 @@
 //! `.noise` (`jfet2noi.c`), `.disto` (C has no `DEVdisto` for level 2) and
 //! `.sens` fail with explicit errors.
 
-use crate::devices::jfet::{self, IC_COMPONENTS, Instance, Junctions, K_OVER_Q, p, required};
-use crate::devices::limiting::{self, Limiter};
-use crate::devices::linear::nodal_stamp;
+use crate::devices::jfet::{
+    self, IC_COMPONENTS, Instance, Junctions, K_OVER_Q, Loaded, p, required,
+};
+use crate::devices::limiting;
+use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
@@ -88,24 +91,20 @@ const FOURTH: Real = 0.25;
 /// `jfet2temp.c` uses a fixed 1.11 eV band gap for IS.
 const EG: Real = 1.11;
 
-/// Slots of the state vector (a subset of C's `JFET2numStates` layout, with
-/// every charge directly followed by its derivative).
+/// Slots of the state vector: C's `JFET2numStates` layout (`jfet2defs.h`),
+/// level 1's followed by the drain-source charge and the filters.
 mod slot {
-    /// Gate-source charge (C `JFET2qgs`) and its derivative (`JFET2cqgs`).
-    pub(super) const QGS: usize = 0;
-    /// Gate-drain charge (C `JFET2qgd`) and its derivative (`JFET2cqgd`).
-    pub(super) const QGD: usize = 2;
+    pub(super) use crate::devices::jfet::slot::*;
     /// Drain-source charge `CDS * vds` (C `JFET2qds`) and its derivative.
-    pub(super) const QDS: usize = 4;
-    /// Limited `vgs` and `vgd` of the load (C `JFET2vgs`, `JFET2vgd`).
-    pub(super) const VGS: usize = 6;
-    pub(super) const VGD: usize = 7;
-    /// Filtered gate voltages (C `JFET2vgstrap`, `JFET2vtrap`) and average
-    /// power (C `JFET2pave`).
-    pub(super) const VGSTRAP: usize = 8;
-    pub(super) const VGDTRAP: usize = 9;
-    pub(super) const PAVE: usize = 10;
-    pub(super) const COUNT: usize = 11;
+    pub(super) const QDS: usize = 13;
+    /// Average power (C `JFET2pave`) and filtered gate voltages (C
+    /// `JFET2vtrap`, `JFET2vgstrap`).
+    pub(super) const PAVE: usize = 15;
+    pub(super) const VGDTRAP: usize = 16;
+    pub(super) const VGSTRAP: usize = 17;
+    /// C `JFET2unknown`: allocated, never written.
+    pub(super) const UNKNOWN: usize = 18;
+    pub(super) const COUNT: usize = 19;
 }
 
 /// Model setters of `jfet2parm.h` with the defaults of `jfet2set.c`. The two
@@ -855,64 +854,53 @@ impl Jfet2 {
     }
 }
 
-/// Integrates the charge stored at `slot` (`NIintegrate`): writes the charge
-/// and its derivative and returns `(derivative, ag0)`.
-fn integrate(
-    context: &mut StampContext<'_>,
-    slot: usize,
-    charge: Real,
-) -> SpiceResult<(Real, Real)> {
-    let coefficients = context
-        .integration
-        .ok_or_else(|| SpiceError::circuit("JFET2 transient needs companion integration"))?;
-    let AnalysisMode::Transient { dt, .. } = context.mode else {
-        return Err(SpiceError::circuit(
-            "JFET2 charge companion outside transient",
-        ));
-    };
-    if dt != coefficients.dt() {
-        return Err(SpiceError::circuit("JFET2 charge timestep mismatch"));
-    }
-    let mut history = vec![charge];
-    for age in 1..=coefficients.charge_history_len() {
-        history.push(
-            context
-                .states
-                .accepted(age, slot)
-                .ok_or_else(|| SpiceError::circuit("missing accepted JFET2 charge"))?,
-        );
-    }
-    let previous = if coefficients.needs_previous_derivative() {
-        Some(
-            context
-                .states
-                .accepted(1, slot + 1)
-                .ok_or_else(|| SpiceError::circuit("missing accepted JFET2 charge current"))?,
-        )
-    } else {
-        None
-    };
-    let companion = coefficients.integrate(&history, previous, 0.)?;
-    context.states.set(slot, charge)?;
-    context.states.set(slot + 1, companion.derivative)?;
-    Ok((companion.derivative, coefficients.ag()[0]))
-}
-
-/// One current element of the load: normalized current from `ends[0]` to
-/// `ends[1]` and its partials with respect to the d', g, s' node voltages.
-struct Element {
-    ends: [NodeId; 2],
-    current: Real,
-    partials: [Real; 3],
-}
-
-/// Node partials over d', g, s' of a current depending on (`vgs`, `vgd`)
-/// with partials (`by_vgs`, `by_vgd`).
-fn junction_partials(by_vgs: Real, by_vgd: Real) -> [Real; 3] {
-    [-by_vgd, by_vgs + by_vgd, -by_vgs]
+/// Rewrites `slot` with its value before this load (C leaves CKTstate0
+/// untouched there): the previous load's, else the accepted or carried one,
+/// else zero.
+fn carry(states: &mut crate::devices::DeviceState<'_>, slot: usize) -> SpiceResult<()> {
+    let value = states
+        .iterate(slot)
+        .or_else(|| states.accepted(1, slot))
+        .or_else(|| states.carried(slot))
+        .filter(|v| v.is_finite())
+        .unwrap_or(0.);
+    states.set(slot, value)
 }
 
 impl Device for Jfet2 {
+    /// `jfet2set.c`: C's device type and `TSTALLOC` order.
+    fn c_device_type(&self) -> crate::devices::setup::CDeviceType {
+        crate::devices::setup::CDeviceType::Jfet2
+    }
+
+    /// `jfet2set.c` `TSTALLOC` order.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [d, g, s] = [self.terminals[0], self.terminals[1], self.terminals[2]];
+        let [dp, _, sp] = self.inner;
+        for (row, col) in [
+            (d, dp),
+            (g, dp),
+            (g, sp),
+            (s, sp),
+            (dp, d),
+            (dp, g),
+            (dp, sp),
+            (sp, g),
+            (sp, s),
+            (sp, dp),
+            (d, d),
+            (g, g),
+            (s, s),
+            (dp, dp),
+            (sp, sp),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     /// `jfet2ask.c` scalar asks: `area` (C reports `area * m`), `m`, `temp`,
     /// `dtemp`, `ic-vds` and `ic-vgs` (when given).
     fn observation_parameter(
@@ -992,7 +980,9 @@ impl Device for Jfet2 {
         device.operating(context)?;
         Ok(Box::new(device))
     }
-    #[allow(clippy::too_many_lines)]
+    /// `JFET2load` (`jfet2load.c`) without bypass, which ngspice disables by
+    /// default. As for level 1 the load's own `icheck`/`cghat`/`cdhat` test
+    /// is the convergence test (`DEVconvTest = NULL`).
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("JFET2 AC needs small-signal assembly"));
@@ -1000,170 +990,160 @@ impl Device for Jfet2 {
         let op = self.operating(&context.model_context())?;
         let pol = self.model.pol;
         let raw = self.normalized(self.inner.map(|n| context.node_voltage(n)));
-        let mut limiter = Limiter::new(&context.states);
         let ic =
             jfet::start_conditions(&self.terminals, &self.initial, |n| context.node_voltage(n));
-        let [vgs, vgd] = jfet::limit_junctions(
+        let integration = context.integration;
+        // C `xfact = CKTdelta / CKTdeltaOld[1]`; one in a `.dc` sweep.
+        let xfact = integration.map_or(1., crate::maths::integrator::Coefficients::predictor_ratio);
+        let ([vgs, vgd], start) = jfet::select_junctions(
             Junctions {
                 pol,
                 off: self.initial.off,
                 vt: op.vt,
                 vcrit: op.vcrit,
                 vto: self.model.vto,
-                slots: [slot::VGS, slot::VGD],
             },
-            &mut limiter,
             &context.states,
             raw,
             ic,
+            xfact,
         );
         let transient = context.mode.is_transient();
-        if transient && context.integration.is_none() {
+        if transient && integration.is_none() {
             return Err(SpiceError::circuit(
                 "JFET2 transient needs companion integration",
             ));
         }
-        let accepted = |s: usize, what: &str| {
-            context
-                .states
+        let state1 = |states: &crate::devices::DeviceState<'_>, s: usize, what: &str| {
+            states
                 .accepted(1, s)
                 .ok_or_else(|| self.numerical(&format!("missing accepted {what}")))
         };
+        // psmodel.h: TRAN_ANAL is MODETRAN, the `BEFORE` values CKTstate1
+        // and STEP `CKTdelta`.
         let memory = if let AnalysisMode::Transient { dt, .. } = context.mode {
             Some(Memory {
                 step: dt,
-                vgstrap: accepted(slot::VGSTRAP, "vgstrap")?,
-                vgdtrap: accepted(slot::VGDTRAP, "vtrap")?,
-                powr: accepted(slot::PAVE, "pave")?,
+                vgstrap: state1(&context.states, slot::VGSTRAP, "vgstrap")?,
+                vgdtrap: state1(&context.states, slot::VGDTRAP, "vtrap")?,
+                powr: state1(&context.states, slot::PAVE, "pave")?,
             })
         } else {
             None
         };
         let point = self.point(&op, vgs, vgd, context.gmin, memory.as_ref())?;
         let vds = vgs - vgd;
-        // PScharge and the drain-source charge, with their partials:
-        // (charge, d/dvgs, d/dvgd) for qgs and qgd, (charge, d/dvds) for qds.
-        let (qgs, qgd) = if transient {
-            let (vgs1, vgd1) = (accepted(slot::VGS, "vgs")?, accepted(slot::VGD, "vgd")?);
-            let (qgs1, qgd1) = (accepted(slot::QGS, "qgs")?, accepted(slot::QGD, "qgd")?);
-            let (qa, cgsna, cgdna) = self.model.qgg(&op, vgs, vgd);
-            let (qb, _, cgdnb) = self.model.qgg(&op, vgs1, vgd);
-            let (qc, cgsnc, _) = self.model.qgg(&op, vgs, vgd1);
-            let (qd, _, _) = self.model.qgg(&op, vgs1, vgd1);
-            (
+        let (cdrain, gm, gds) = point.channel;
+        let ((cgs, ggs), (cgd, ggd)) = (point.gs, point.gd);
+        let mut l = Loaded {
+            vgs,
+            vgd,
+            vds,
+            cg: cgs + cgd,
+            cgd,
+            cd: cdrain - cgd,
+            gm,
+            gds,
+            ggs,
+            ggd,
+        };
+        let initial_transient = context.states.phase() == crate::devices::IterationPhase::Predict
+            && context.states.initial_transient();
+
+        // Charge storage: C evaluates the charges in transient, `.dc` sweeps,
+        // MODEINITSMSIG and the `uic` operating point, and integrates them in
+        // transient only. Elsewhere the slots keep their previous values, as
+        // C's CKTstate0 does.
+        if transient || context.mode == AnalysisMode::DcSweep || context.states.initial_conditions()
+        {
+            let capds = op.capds;
+            let (qgs, qgd, capgs, capgd) = if transient {
+                // PScharge in transient: the Statz charge incremented from
+                // the accepted point (VGS1, VGD1, QGS_BEFORE, QGD_BEFORE).
+                let vgs1 = state1(&context.states, slot::VGS, "vgs")?;
+                let vgd1 = state1(&context.states, slot::VGD, "vgd")?;
+                let qgs1 = state1(&context.states, slot::QGS, "qgs")?;
+                let qgd1 = state1(&context.states, slot::QGD, "qgd")?;
+                let (qgga, cgsna, cgdna) = self.model.qgg(&op, vgs, vgd);
+                let (qggb, _, cgdnb) = self.model.qgg(&op, vgs1, vgd);
+                let (qggc, cgsnc, _) = self.model.qgg(&op, vgs, vgd1);
+                let (qggd, _, _) = self.model.qgg(&op, vgs1, vgd1);
                 (
-                    qgs1 + 0.5 * (qa - qb + qc - qd),
+                    qgs1 + 0.5 * (qgga - qggb + qggc - qggd),
+                    qgd1 + 0.5 * (qgga - qggc + qggb - qggd),
                     0.5 * (cgsna + cgsnc),
-                    0.5 * (cgdna - cgdnb),
-                ),
-                (
-                    qgd1 + 0.5 * (qa - qc + qb - qd),
-                    0.5 * (cgsna - cgsnc),
                     0.5 * (cgdna + cgdnb),
-                ),
-            )
-        } else if context.mode == AnalysisMode::DcSweep || context.states.initial_conditions() {
-            // PScharge outside transient: the total charge in both slots.
-            let (q, cgs, cgd) = self.model.qgg(&op, vgs, vgd);
-            ((q, cgs, 0.), (q, 0., cgd))
-        } else {
-            // jfet2load.c evaluates no charge in a plain operating point.
-            ((0., 0., 0.), (0., 0., 0.))
-        };
-        let qds = (op.capds * vds, op.capds);
-        if [qgs.0, qgs.1, qgs.2, qgd.0, qgd.1, qgd.2, qds.0]
-            .iter()
-            .any(|v| !v.is_finite())
-        {
-            return Err(self.numerical("nonfinite Statz gate charge"));
-        }
-        // Charge currents and companion conductances (zero outside
-        // transient).
-        let (cqgs, cqgd, cqds, ag0) = if transient {
-            let (cqgs, ag0) = integrate(context, slot::QGS, qgs.0)?;
-            let (cqgd, _) = integrate(context, slot::QGD, qgd.0)?;
-            let (cqds, _) = integrate(context, slot::QDS, qds.0)?;
-            (cqgs, cqgd, cqds, ag0)
-        } else {
-            for (s, q) in [(slot::QGS, qgs.0), (slot::QGD, qgd.0), (slot::QDS, qds.0)] {
-                context.states.set(s, q)?;
-                context.states.set(s + 1, 0.)?;
+                )
+            } else {
+                // PScharge outside transient: the total charge in both slots.
+                let (q, capgs, capgd) = self.model.qgg(&op, vgs, vgd);
+                (q, q, capgs, capgd)
+            };
+            let qds = capds * vds;
+            if [qgs, qgd, capgs, capgd, qds].iter().any(|v| !v.is_finite()) {
+                return Err(self.numerical("nonfinite Statz gate charge"));
             }
-            (0., 0., 0., 0.)
-        };
-        let [d, g, s] = self.inner;
-        let (cd, gm, gds) = point.channel;
-        let elements = [
-            Element {
-                ends: [d, s],
-                current: cd + cqds,
-                partials: [gds + ag0 * qds.1, gm, -gds - ag0 * qds.1 - gm],
-            },
-            Element {
-                ends: [g, s],
-                current: point.gs.0 + cqgs,
-                partials: junction_partials(point.gs.1 + ag0 * qgs.1, ag0 * qgs.2),
-            },
-            Element {
-                ends: [g, d],
-                current: point.gd.0 + cqgd,
-                partials: junction_partials(ag0 * qgd.1, point.gd.1 + ag0 * qgd.2),
-            },
-        ];
-        let m = self.instance.m;
-        // The intrinsic d', g, s' at the (limited) voltages, relative to s';
-        // every equation depends on voltage differences only.
-        let v = [pol * vds, pol * vgs, 0.];
-        let dot = |partials: &[Real; 3], x: [Real; 3]| -> Real {
-            partials.iter().zip(x).map(|(p, x)| p * x).sum()
-        };
-        // The held-off convergence test of the shared limiter: the drain
-        // (channel minus gate-drain element) and gate currents at the held
-        // voltages against their linear prediction at the iterate.
-        {
-            let node = |n: NodeId| context.node_voltage(n);
-            let iterate = [node(d) - node(s), node(g) - node(s), 0.];
-            let change = |e: &Element| m * (dot(&e.partials, iterate) - dot(&e.partials, v));
-            let held = |e: &Element| m * pol * e.current;
-            let [channel, gate_source, gate_drain] = &elements;
-            let drain = held(channel) - held(gate_drain);
-            let gate = held(gate_source) + held(gate_drain);
-            limiter.test_held(
-                &context.states,
-                &[
-                    (drain, drain + change(channel) - change(gate_drain)),
-                    (gate, gate + change(gate_source) + change(gate_drain)),
-                ],
-            );
-        }
-        for (ports, conductance) in jfet::series_ports(&self.terminals, self.inner)
-            .into_iter()
-            .zip(jfet::series_conductances(
-                self.instance.area,
-                self.model.rd,
-                self.model.rs,
-            ))
-        {
-            if conductance > 0. {
-                nodal_stamp(context.matrix, context.unknowns, ports, m * conductance)?;
+            if let Some(coefficients) = integration {
+                let AnalysisMode::Transient { dt, .. } = context.mode else {
+                    return Err(SpiceError::circuit(
+                        "JFET2 charge companion outside transient",
+                    ));
+                };
+                if dt != coefficients.dt() {
+                    return Err(SpiceError::circuit("JFET2 charge timestep mismatch"));
+                }
+                if initial_transient {
+                    context.states.patch_state1(slot::QGS, qgs)?;
+                    context.states.patch_state1(slot::QGD, qgd)?;
+                    context.states.patch_state1(slot::QDS, qds)?;
+                }
+                let point = |charge, capacitance| JunctionPoint {
+                    current: 0.,
+                    conductance: 0.,
+                    charge,
+                    capacitance,
+                };
+                let (geq, cqgs) =
+                    junction_companion(context, coefficients, point(qgs, capgs), slot::QGS)?;
+                l.ggs += geq;
+                l.cg += cqgs;
+                let (geq, cqgd) =
+                    junction_companion(context, coefficients, point(qgd, capgd), slot::QGD)?;
+                l.ggd += geq;
+                l.cg += cqgd;
+                l.cd -= cqgd;
+                l.cgd += cqgd;
+                // jfet2load.c integrates CDS * vds into the drain current
+                // but leaves its conductance out of the matrix.
+                let (_, cqds) =
+                    junction_companion(context, coefficients, point(qds, capds), slot::QDS)?;
+                l.cd += cqds;
+                if initial_transient {
+                    context.states.patch_state1(slot::QGS + 1, cqgs)?;
+                    context.states.patch_state1(slot::QGD + 1, cqgd)?;
+                    context.states.patch_state1(slot::QDS + 1, cqds)?;
+                }
+            } else {
+                for s in [slot::QGS + 1, slot::QGD + 1, slot::QDS + 1] {
+                    carry(&mut context.states, s)?;
+                }
+            }
+            context.states.set(slot::QGS, qgs)?;
+            context.states.set(slot::QGD, qgd)?;
+            context.states.set(slot::QDS, qds)?;
+        } else {
+            for s in [
+                slot::QGS,
+                slot::QGS + 1,
+                slot::QGD,
+                slot::QGD + 1,
+                slot::QDS,
+                slot::QDS + 1,
+            ] {
+                carry(&mut context.states, s)?;
             }
         }
-        for element in &elements {
-            let partials: Vec<(NodeId, Real)> = self
-                .inner
-                .iter()
-                .zip(element.partials)
-                .map(|(node, partial)| (*node, m * partial))
-                .collect();
-            let linearized = m * dot(&element.partials, v);
-            jfet::stamp_current(
-                context,
-                element.ends,
-                m * pol * element.current,
-                &partials,
-                linearized,
-            )?;
-        }
+        carry(&mut context.states, slot::UNKNOWN)?;
         for (s, value) in [
             (slot::VGSTRAP, point.vgstrap),
             (slot::VGDTRAP, point.vgdtrap),
@@ -1171,35 +1151,38 @@ impl Device for Jfet2 {
         ] {
             context.states.set(s, value)?;
         }
-        limiter.finish(&mut context.states, &[(slot::VGS, vgs), (slot::VGD, vgd)])
+        jfet::finish_load(
+            context,
+            start,
+            &l,
+            &self.terminals,
+            self.inner,
+            pol,
+            self.instance.m,
+            jfet::series_conductances(self.instance.area, self.model.rd, self.model.rs),
+        )
     }
-    /// `jfet2acld.c`: the bias conductances, `PSacload`'s frequency-dependent
-    /// transconductance and output conductance, and `j omega` times the
-    /// Statz gate capacitances (each a two-terminal element, as in C) and
-    /// `CDS`, every term scaled by `m`. The imaginary parts of `PSacload` go
-    /// into `E` divided by `omega`.
+    /// `jfet2acld.c` after C's `MODEINITSMSIG` load: `PSacload`'s
+    /// frequency-dependent transconductance and output conductance at the
+    /// stored `gm`, `gds` and `cd`, `CDS` added to the imaginary output
+    /// conductance, then the conductances and gate capacitances as for
+    /// level 1, every stamp scaled by `m` in C's order and grouping.
     fn assemble_small_signal(
         &self,
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
         let op = self.operating(context.model_context)?;
-        let v = self.inner.map(|n| {
-            context
-                .unknowns
-                .node_row(n)
-                .and_then(|r| bias.get(r))
-                .unwrap_or(0.)
-        });
-        let [vgs, vgd] = self.normalized(v);
+        let unknowns = context.unknowns;
+        let voltage = |n: NodeId| unknowns.node_row(n).and_then(|r| bias.get(r)).unwrap_or(0.);
+        let [vgs, vgd] = self.normalized(self.inner.map(voltage));
         let point = self.point(&op, vgs, vgd, context.model_context.gmin, None)?;
         let (_, capgs, capgd) = self.model.qgg(&op, vgs, vgd);
-        let omega = 2. * std::f64::consts::PI * context.model_context.frequency;
+        let omega = 2.0 * std::f64::consts::PI * context.model_context.frequency;
         // C passes the stored `JFET2cd` (channel minus gate-drain diode).
-        let (cd, gm, gds) = point.channel;
-        let (gm, xgm, gds, xgds) =
-            self.model
-                .acload(&op, vgs, vgd, cd - point.gd.0, omega, gm, gds);
+        let (cdrain, gm, gds) = point.channel;
+        let cd = cdrain - point.gd.0;
+        let (gm, xgm, gds, xgds) = self.model.acload(&op, vgs, vgd, cd, omega, gm, gds);
         if [capgs, capgd, gm, xgm, gds, xgds]
             .iter()
             .any(|v| !v.is_finite())
@@ -1207,49 +1190,36 @@ impl Device for Jfet2 {
             return Err(self.numerical("nonfinite small-signal load"));
         }
         let m = self.instance.m;
-        for (ports, conductance) in jfet::series_ports(&self.terminals, self.inner)
-            .into_iter()
-            .zip(jfet::series_conductances(
-                self.instance.area,
-                self.model.rd,
-                self.model.rs,
-            ))
-        {
-            if conductance > 0. {
-                context.nodal(ports, m * conductance, false)?;
+        let [dp, g, sp] = self.inner;
+        if self.small_signal_depends_on_frequency() {
+            // xgds += qds * CKTomega, with MODEINITSMSIG's qds = CDS * area.
+            let xgds = xgds + op.capds * omega;
+            for (row, col, terms, scale) in [
+                (dp, dp, &[xgds][..], m),
+                (sp, sp, &[xgds, xgm][..], m),
+                (dp, g, &[xgm][..], m),
+                (dp, sp, &[xgds, xgm][..], -m),
+                (sp, g, &[xgm][..], -m),
+                (sp, dp, &[xgds][..], -m),
+            ] {
+                context.prescaled_dynamic_sum(row, col, terms, scale)?;
+            }
+        } else {
+            // Without TAUG/TAUD, PSacload's imaginary parts are signed zeros,
+            // so `xgds + qds * CKTomega` is `CDS * area * omega` exactly.
+            for (row, col, scale) in [(dp, dp, m), (sp, sp, m), (dp, sp, -m), (sp, dp, -m)] {
+                context.scaled_dynamic_sum(row, col, &[op.capds], scale)?;
             }
         }
-        let [d, g, s] = self.inner;
-        let mut transfer = vec![(false, [gds, gm, -gds - gm])];
-        if omega > 0. {
-            let (xgm, xgds) = (xgm / omega, xgds / omega);
-            transfer.push((true, [xgds, xgm, -xgds - xgm]));
-        }
-        for (dynamic, partials) in transfer {
-            for (row, sign) in [(d, 1.), (s, -1.)] {
-                for (col, derivative) in self.inner.iter().zip(partials) {
-                    if let (Some(r), Some(c)) = (
-                        context.unknowns.node_row(row),
-                        context.unknowns.node_row(*col),
-                    ) {
-                        let matrix = if dynamic {
-                            &mut context.system.e
-                        } else {
-                            &mut context.system.a
-                        };
-                        matrix.add(r, c, sign * m * derivative)?;
-                    }
-                }
-            }
-        }
-        context.nodal([d, s], m * op.capds, true)?;
-        for (ports, conductance, capacitance) in
-            [([g, s], point.gs.1, capgs), ([g, d], point.gd.1, capgd)]
-        {
-            context.nodal(ports, m * conductance, false)?;
-            context.nodal(ports, m * capacitance, true)?;
-        }
-        Ok(())
+        jfet::ac_gate_capacitances(context, self.inner, m, capgs, capgd)?;
+        jfet::ac_conductances(
+            context,
+            &self.terminals,
+            self.inner,
+            m,
+            jfet::series_conductances(self.instance.area, self.model.rd, self.model.rs),
+            [gm, gds, point.gs.1, point.gd.1],
+        )
     }
     fn noise(
         &self,

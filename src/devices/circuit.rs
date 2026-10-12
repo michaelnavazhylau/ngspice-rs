@@ -6,8 +6,9 @@
 //!
 //! 1. nodes and devices are *added*, in deck order;
 //! 2. [`Circuit::rebuild_unknowns`] numbers the MNA unknowns, which must happen
-//!    after every node and device is known, because branch currents get rows
-//!    after the nodes.
+//!    after every node and device is known, because device-made unknowns
+//!    (internal nodes, branch currents) get rows after the parsed nodes, in
+//!    C's setup order.
 //!
 //! Step 2 is easy to forget, so the analyses call
 //! [`Circuit::finalize`], which validates the graph and rebuilds the numbering
@@ -17,7 +18,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use crate::maths::{Coefficients, SparseMatrix, Vector};
-use crate::primitives::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
+use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 use petgraph::graph::UnGraph;
 
 use crate::devices::linear::Forcing;
@@ -55,6 +56,18 @@ pub struct Circuit {
     nodes: NodeTable,
     unknowns: MnaUnknowns,
     devices: Vec<Box<dyn Device>>,
+    /// Per device, the model name it was parsed with (lowercase), or `None`
+    /// for its type's default model: C's model list membership.
+    models: Vec<Option<String>>,
+    /// Per device, the internal nodes its factory created, in creation order:
+    /// the nodes C's `DEVsetup` makes with `CKTmkVolt`.
+    internal_nodes: Vec<Vec<NodeId>>,
+    /// Per device, the ordinal of the URC line whose `URCsetup` created it
+    /// (and its model), or `None` for a parsed device.
+    generated_by: Vec<Option<usize>>,
+    /// Device ordinals in C's `CKTsetup`/`CKTload` order
+    /// ([`crate::devices::setup`]), computed by `finalize`.
+    order: Vec<usize>,
     branch_rows: Vec<std::ops::Range<usize>>,
     /// Per device, the branch rows of its controlling sources, or why they
     /// could not be resolved (reported by `finalize` and every load).
@@ -64,6 +77,17 @@ pub struct Circuit {
     /// Inductor pairs coupled by K devices, or why the K references could not
     /// be resolved (reported by `finalize` and every load).
     mutual: MutualBinding,
+    /// Element positions, numbered in C's `TSTALLOC` order: allocated by
+    /// `finalize` from [`Device::setup_matrix`] in setup order, extended when
+    /// a load touches a position no device declared. See
+    /// [`Circuit::new_matrix`].
+    pattern: std::cell::RefCell<Option<std::sync::Arc<crate::maths::Pattern>>>,
+    /// C's `CKTstate0` as the analyses run so far left it (C keeps one state
+    /// vector for the whole deck); see [`Circuit::inherit_from`].
+    carried_state: std::cell::RefCell<Option<Vec<Real>>>,
+    /// [`Circuit::unknown_names`], computed on first use after
+    /// [`Circuit::rebuild_unknowns`].
+    unknown_names: std::cell::RefCell<Option<crate::maths::UnknownNames>>,
 }
 
 /// One inductor pair coupled by a K device, by device ordinal.
@@ -81,6 +105,27 @@ struct MutualPair {
 struct MutualBinding {
     pairs: Vec<MutualPair>,
     error: Option<SpiceError>,
+}
+
+/// One device convergence test pass ([`Circuit::convergence_test`]).
+#[derive(Debug, Clone, Copy)]
+pub struct ConvergenceRequest<'a> {
+    /// The new iterate (C `CKTrhs`).
+    pub solution: &'a Vector,
+    /// The iterate the last load used (C `CKTrhsOld`).
+    pub previous: &'a Vector,
+    /// The last load's trial (C `CKTstate0`).
+    pub trial: &'a TrialState,
+    /// Temperatures and `gmin` of the solve.
+    pub model_context: &'a ModelContext,
+    /// Transient time, zero otherwise.
+    pub time: Real,
+    /// C `CKTreltol`.
+    pub reltol: Real,
+    /// C `CKTabstol`.
+    pub abstol: Real,
+    /// C `CKTvoltTol`.
+    pub vntol: Real,
 }
 
 /// The driver quantities [`Circuit::accept_transient_point`] and
@@ -181,19 +226,68 @@ impl Circuit {
         self.nodes.intern(name)
     }
 
-    /// Rebuilds the unknown numbering: one row per non-ground node, then one row
-    /// per branch current, in device order. State slots are numbered the same
-    /// way, in a separate namespace.
+    /// Rebuilds the unknown numbering as `CKTsetup` creates C's nodes: one row
+    /// per parsed (terminal) node, in node order, then the unknowns each
+    /// device makes in its `DEVsetup`, visiting devices in setup order
+    /// ([`crate::devices::setup`]): its internal nodes (`CKTmkVolt`) and branch
+    /// currents (`CKTmkCur`). `vsrcset.c` makes the branch before an RF port's
+    /// `res` node; the other setups make internal nodes first. State slots are
+    /// numbered in device order, in a separate namespace.
     pub fn rebuild_unknowns(&mut self) {
-        self.unknowns.rebuild(&self.nodes);
-        self.branch_rows.clear();
+        self.unknown_names.get_mut().take();
+        let owned: BTreeSet<NodeId> = self.internal_nodes.iter().flatten().copied().collect();
+        self.unknowns
+            .rebuild_deferring(&self.nodes, |node| owned.contains(&node));
+        use crate::devices::setup::CDeviceType;
+        self.branch_rows = vec![0..0; self.devices.len()];
+        // `CKTmkCur` runs once per device: in its own DEVsetup, or earlier
+        // when a CCCS/CCVS/CSW/ASRC setup asks `CKTfndBranch` for it
+        // (`VSRCfindBr`, `VCVSfindBr`, `CCVSfindBr` and `ASRCfindBr` make the
+        // branch on demand), so a controlling source's branch is numbered
+        // where its first user is set up.
+        let mut made = vec![false; self.devices.len()];
+        let make = |circuit: &mut Self, made: &mut [bool], index: usize| {
+            if made[index] {
+                return;
+            }
+            made[index] = true;
+            let count = circuit.devices[index].branch_currents();
+            let start = circuit.unknowns.len();
+            circuit.unknowns.add_rows(count);
+            circuit.branch_rows[index] = start..start + count;
+        };
+        for index in self.setup_order() {
+            let kind = self.devices[index].c_device_type();
+            // vsrcset.c, ccvsset.c and asrcset.c make their own branch before
+            // anything else; the other setups make internal nodes first.
+            let branches_first = matches!(kind, CDeviceType::Vsrc | CDeviceType::Ccvs)
+                || (kind == CDeviceType::Asrc && self.devices[index].branch_currents() > 0);
+            if branches_first {
+                make(self, &mut made, index);
+            }
+            // cccsset.c, ccvsset.c, cswsetup.c and asrcset.c call
+            // CKTfndBranch for each controlling source, in order.
+            let found: Vec<usize> = self.devices[index]
+                .controlling_sources()
+                .iter()
+                .filter_map(|control| {
+                    self.devices.iter().position(|other| {
+                        other.name().eq_ignore_ascii_case(&control.name)
+                            && other.findable_branch().is_some()
+                    })
+                })
+                .collect();
+            for target in found {
+                make(self, &mut made, target);
+            }
+            for &node in &self.internal_nodes[index] {
+                self.unknowns.assign_deferred(node);
+            }
+            make(self, &mut made, index);
+        }
         self.state_rows.clear();
         self.state_len = 0;
         for device in &self.devices {
-            let count = device.branch_currents();
-            let start = self.unknowns.len();
-            self.unknowns.add_rows(count);
-            self.branch_rows.push(start..start + count);
             let states = device.state_count();
             self.state_rows
                 .push(self.state_len..self.state_len + states);
@@ -317,7 +411,9 @@ impl Circuit {
         }
         let mut terms = vec![Vec::new(); self.devices.len()];
         let mut mutuals = Vec::with_capacity(self.mutual.pairs.len());
-        for pair in &self.mutual.pairs {
+        // INDload adds each K's flux in the MUT instance list's order, the
+        // last card first (instances are prepended).
+        for pair in self.mutual.pairs.iter().rev() {
             let (a, b) = (values[&pair.first], values[&pair.second]);
             let coefficient = device_at(pair.coupling)
                 .mutual_coupling()
@@ -333,13 +429,17 @@ impl Circuit {
             terms[pair.first].push(MutualTerm {
                 row: self.branch_rows[pair.second].start,
                 inductance,
+                initial: b.initial,
             });
             terms[pair.second].push(MutualTerm {
                 row: self.branch_rows[pair.first].start,
                 inductance,
+                initial: a.initial,
             });
             mutuals.push(inductance);
         }
+        // check_inductive_systems pairs these with self.mutual.pairs in order.
+        mutuals.reverse();
         self.check_inductive_systems(&values, &mutuals)?;
         Ok(terms)
     }
@@ -390,7 +490,10 @@ impl Circuit {
                     };
                     let scale =
                         (diagonal(&values[&pair.first]) * diagonal(&values[&pair.second])).sqrt();
-                    let normalized = mutual / scale;
+                    // A zero inductance (accepted, as in C) couples with
+                    // M = k sqrt(L1 L2) = 0: its row stays a unit diagonal,
+                    // which keeps the rest's definiteness.
+                    let normalized = if scale == 0.0 { 0.0 } else { mutual / scale };
                     matrix.add_to(i, j, normalized)?;
                     matrix.add_to(j, i, normalized)?;
                     couplings.push(pair.coupling);
@@ -536,58 +639,184 @@ impl Circuit {
         if let Some(error) = &self.mutual.error {
             return Err(error.clone());
         }
-        self.check_port_numbering()
+        self.check_port_numbering()?;
+        self.allocate_matrix()
     }
 
-    /// RHS changes for temporary DC source setters. In VSRCload order a PORT
-    /// without explicit DC inherits the preceding voltage-source change;
-    /// sweeping the PORT itself sets its DC-given flag for that point.
-    /// # Errors
-    /// Duplicate, unknown or nonfinite source values, or overflowing sums.
-    pub fn dc_source_changes(
+    /// Device ordinals in C's `CKTsetup`/`CKTload` order.
+    fn setup_order(&self) -> Vec<usize> {
+        let keys: Vec<crate::devices::setup::SetupKey> = self
+            .devices
+            .iter()
+            .enumerate()
+            .map(|(index, device)| crate::devices::setup::SetupKey {
+                device_type: device.c_device_type(),
+                model: self.models.get(index).cloned().flatten(),
+                generated_by: self.generated_by.get(index).copied().flatten(),
+            })
+            .collect();
+        crate::devices::setup::setup_order(&keys)
+    }
+
+    /// The matrix elements device `index` allocates in its `DEVsetup`
+    /// (`TSTALLOC` order; with `pole_zero` its `DEVpzSetup`), appended to
+    /// `elements`.
+    fn declare_elements(
         &self,
-        system: &crate::devices::LinearSystem,
-        overrides: &[(&str, Real)],
-    ) -> SpiceResult<Vector> {
-        let mut changes = Vector::zeros(self.unknown_count());
-        let mut names = BTreeSet::new();
-        for (name, value) in overrides {
-            if !value.is_finite()
-                || !names.insert(name.to_ascii_lowercase())
-                || !system
-                    .sources
-                    .iter()
-                    .any(|s| s.name.eq_ignore_ascii_case(name))
-            {
-                return Err(SpiceError::circuit(
-                    "invalid, duplicate or unknown DC source override",
-                ));
+        index: usize,
+        pole_zero: bool,
+        elements: &mut Vec<(usize, usize)>,
+    ) -> SpiceResult<()> {
+        let coupled: Vec<(usize, usize)> = self
+            .mutual
+            .pairs
+            .iter()
+            .rev()
+            .filter(|pair| pair.coupling == index)
+            .map(|pair| {
+                (
+                    self.branch_rows[pair.first].start,
+                    self.branch_rows[pair.second].start,
+                )
+            })
+            .collect();
+        let mut setup = crate::devices::setup::MatrixSetup {
+            unknowns: &self.unknowns,
+            branches: self.branch_rows[index].clone(),
+            controls: self.controls(index)?,
+            coupled: &coupled,
+            pole_zero,
+            elements,
+        };
+        self.devices[index].setup_matrix(&mut setup)?;
+        Ok(())
+    }
+
+    /// The `(row, col)` matrix elements device `index` allocates in its
+    /// `DEVsetup`, in `TSTALLOC` order (`.sens` replays them into its
+    /// perturbation matrix, `cktsens.c`).
+    ///
+    /// # Errors
+    /// Stale numbering or an ordinal out of range.
+    pub fn setup_elements(&self, index: usize) -> SpiceResult<Vec<(usize, usize)>> {
+        self.check_numbering()?;
+        if index >= self.devices.len() {
+            return Err(SpiceError::circuit("device ordinal out of range"));
+        }
+        let mut elements = Vec::new();
+        self.declare_elements(index, false, &mut elements)?;
+        Ok(elements)
+    }
+
+    /// C's `CKTsetup`: orders the devices and allocates the matrix elements
+    /// they declare, in that order. A pattern that already starts with the
+    /// same elements is kept, so its pivot order survives re-finalization
+    /// (C sets a circuit up once).
+    fn allocate_matrix(&mut self) -> SpiceResult<()> {
+        let order = self.setup_order();
+        let elements = self.ordered_elements(&order, false)?;
+        self.order = order;
+        let n = self.unknown_count();
+        let mut slot = self.pattern.borrow_mut();
+        if elements.is_empty() || n == 0 {
+            return Ok(());
+        }
+        let allocated = crate::maths::Pattern::new(n, elements);
+        let same = slot.as_ref().is_some_and(|current| {
+            current.order() == n
+                && current.len() >= allocated.len()
+                && (0..allocated.len()).all(|index| {
+                    let id = crate::maths::sparse::element_id(index);
+                    current.position(id) == allocated.position(id)
+                })
+        });
+        if !same {
+            *slot = Some(std::sync::Arc::new(allocated));
+        }
+        Ok(())
+    }
+
+    /// The matrix elements the devices declare ([`Device::setup_matrix`]),
+    /// visited in `order`: C's `CKTsetup`, or with `pole_zero` the
+    /// `DEVpzSetup` pass of `CKTpzSetup` (`cktpzset.c`) on a fresh matrix.
+    fn ordered_elements(
+        &self,
+        order: &[usize],
+        pole_zero: bool,
+    ) -> SpiceResult<Vec<(usize, usize)>> {
+        let mut elements = Vec::new();
+        for &index in order {
+            self.declare_elements(index, pole_zero, &mut elements)?;
+        }
+        Ok(elements)
+    }
+
+    /// The elements `CKTpzSetup` (`cktpzset.c`) allocates on its fresh
+    /// matrix before the drive, in allocation order: every device's
+    /// `DEVpzSetup` (its `DEVsetup`, except that `VSRCpzSetup` adds the
+    /// branch diagonal), then any element the circuit pattern learned from
+    /// a load of a device that declares none.
+    /// # Errors
+    /// Mismatched numbering or missing bindings.
+    pub fn pole_zero_elements(&self) -> SpiceResult<Vec<(usize, usize)>> {
+        self.check_numbering()?;
+        let mut elements = self.ordered_elements(&self.setup_order(), true)?;
+        if let Some(pattern) = self.matrix_pattern() {
+            let known: BTreeSet<(usize, usize)> = elements.iter().copied().collect();
+            for index in 0..pattern.len() {
+                let position = pattern.position(crate::maths::sparse::element_id(index));
+                if !known.contains(&position) {
+                    elements.push(position);
+                }
             }
         }
-        let mut previous_change = 0.;
-        for source in system.sources.iter().rev() {
-            let given = overrides
-                .iter()
-                .find(|(name, _)| source.name.eq_ignore_ascii_case(name));
-            let inherited = source.kind == crate::devices::SourceKind::Voltage
-                && self
-                    .device(&source.name)
-                    .is_some_and(|d| d.dc_accumulates_predecessor());
-            let change = given.map_or(
-                if inherited { previous_change } else { 0. },
-                |(_, value)| value - source.dc,
-            );
-            for (row, sign) in &source.rows {
-                changes.add_to(*row, sign * change)?;
-            }
-            if source.kind == crate::devices::SourceKind::Voltage {
-                previous_change = change;
+        Ok(elements)
+    }
+
+    /// C `CKTconvTest`: every device's convergence test, in `CKTload` order,
+    /// after a Newton pass whose iterate converged; `true` at the first
+    /// device that has not converged.
+    ///
+    /// # Errors
+    /// Mismatched numbering or a device evaluation failure.
+    pub fn convergence_test(&self, request: &ConvergenceRequest<'_>) -> SpiceResult<bool> {
+        self.check_numbering()?;
+        let n = self.unknown_count();
+        if request.solution.len() != n
+            || request.previous.len() != n
+            || request.trial.values().len() != self.state_len
+        {
+            return Err(SpiceError::circuit(
+                "convergence test does not match the circuit numbering",
+            ));
+        }
+        for index in self.load_order() {
+            let context = crate::devices::traits::ConvergenceContext {
+                unknowns: &self.unknowns,
+                solution: request.solution,
+                previous: request.previous,
+                controls: self.controls(index)?,
+                states: &request.trial.values()[self.state_rows[index].clone()],
+                model_context: request.model_context,
+                time: request.time,
+                reltol: request.reltol,
+                abstol: request.abstol,
+                vntol: request.vntol,
+            };
+            if self.devices[index].convergence_test(&context)? {
+                return Ok(true);
             }
         }
-        if !changes.is_finite() {
-            return Err(SpiceError::circuit("DC source changes overflow"));
+        Ok(false)
+    }
+
+    /// Device ordinals in `CKTload` order (card order before `finalize`).
+    pub(crate) fn load_order(&self) -> Vec<usize> {
+        if self.order.len() == self.devices.len() {
+            self.order.clone()
+        } else {
+            (0..self.devices.len()).collect()
         }
-        Ok(changes)
     }
 
     /// `vsrctemp.c` (`VSRCtemp`, run before every analysis): the RF port
@@ -687,13 +916,61 @@ impl Circuit {
                 device.name()
             )));
         }
+        let internal = device
+            .terminals()
+            .iter()
+            .copied()
+            .filter(|&node| {
+                self.nodes
+                    .node(node)
+                    .is_some_and(|node| node.kind == NodeKind::Internal)
+            })
+            .collect();
         self.devices.push(device);
+        self.models.push(None);
+        self.internal_nodes.push(internal);
+        self.generated_by.push(None);
         Ok(())
     }
 
     /// Branch rows by device ordinal, after finalization.
     pub fn branch_rows(&self, index: usize) -> Option<std::ops::Range<usize>> {
         self.branch_rows.get(index).cloned()
+    }
+
+    /// The name of every unknown by matrix row, as ngspice names them
+    /// (`CKTnodName`): the node name, or `<device>#branch` for a branch
+    /// current (`CKTmkCur`; a device's further branches add their ordinal).
+    /// Solver diagnostics use them (`singular matrix:  check node X`).
+    pub fn unknown_names(&self) -> crate::maths::UnknownNames {
+        let n = self.unknown_count();
+        if let Some(names) = &*self.unknown_names.borrow()
+            && names.len() == n
+        {
+            return std::sync::Arc::clone(names);
+        }
+        let mut names: Vec<String> = (0..n).map(|row| format!("row {row}")).collect();
+        for node in self.nodes.nodes() {
+            if let Some(row) = self.unknowns.node_row(node.id)
+                && let Some(name) = names.get_mut(row)
+            {
+                name.clone_from(&node.name);
+            }
+        }
+        for (device, range) in self.devices.iter().zip(&self.branch_rows) {
+            for (k, row) in range.clone().enumerate() {
+                if let Some(name) = names.get_mut(row) {
+                    *name = if k == 0 {
+                        format!("{}#branch", device.name())
+                    } else {
+                        format!("{}#branch{}", device.name(), k + 1)
+                    };
+                }
+            }
+        }
+        let names: crate::maths::UnknownNames = names.into();
+        *self.unknown_names.borrow_mut() = Some(std::sync::Arc::clone(&names));
+        names
     }
 
     /// State slots by device ordinal, after finalization. Slots are not
@@ -713,14 +990,16 @@ impl Circuit {
     /// [`crate::devices::delay::DelayLine`].
     #[must_use]
     pub fn state_history(&self) -> StateHistory {
-        StateHistory::new(self.state_len).with_delay_lines(
-            self.devices
-                .iter()
-                .enumerate()
-                .filter_map(|(index, device)| {
-                    device.delay_line().map(|line| (index, line.width()))
-                }),
-        )
+        StateHistory::new(self.state_len)
+            .with_carried(self.carried_state.borrow().clone())
+            .with_delay_lines(
+                self.devices
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, device)| {
+                        device.delay_line().map(|line| (index, line.width()))
+                    }),
+            )
     }
 
     /// Whether any device has a delay history (a transmission line).
@@ -729,6 +1008,44 @@ impl Circuit {
         self.devices
             .iter()
             .any(|device| device.delay_line().is_some())
+    }
+
+    /// C's `MODEINITSMSIG` load at the operating point `bias` (`acan.c`,
+    /// `distoan.c`, `noisean.c`, `pzan.c`) as far as it outlives the
+    /// analysis: the state slots devices write there and later analyses read
+    /// ([`Device::small_signal_state`]), recorded into the state vector this
+    /// circuit carries forward.
+    ///
+    /// # Errors
+    /// Stale numbering, a bias of the wrong size, or device physics errors.
+    pub fn record_small_signal_state(
+        &self,
+        context: &ModelContext,
+        bias: &crate::maths::Vector,
+    ) -> SpiceResult<()> {
+        self.check_numbering()?;
+        if bias.len() != self.unknown_count() {
+            return Err(SpiceError::circuit("small-signal state bias dimensions"));
+        }
+        let mut state = self
+            .carried_state
+            .borrow()
+            .clone()
+            .filter(|vector| vector.len() == self.state_len)
+            .unwrap_or_else(|| vec![0.; self.state_len]);
+        let operating = crate::devices::distortion::DistortionContext {
+            model_context: context,
+            unknowns: &self.unknowns,
+            bias,
+        };
+        for (index, device) in self.devices.iter().enumerate() {
+            let rows = self.state_rows[index].clone();
+            if let Some(slots) = state.get_mut(rows) {
+                device.small_signal_state(&operating, slots)?;
+            }
+        }
+        *self.carried_state.borrow_mut() = Some(state);
+        Ok(())
     }
 
     fn check_numbering(&self) -> SpiceResult<()> {
@@ -865,6 +1182,29 @@ impl Circuit {
         Ok(InstanceOverride::new(index, parameter, value))
     }
 
+    /// A DC value override of the independent V or I source `name`, as
+    /// `dctrcurv.c` applies it to the swept source (`dcValue`, `dcGiven`).
+    ///
+    /// # Errors
+    /// An unknown name, a device that is not an independent source, or a
+    /// nonfinite value.
+    pub fn source_override(
+        &self,
+        name: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<InstanceOverride> {
+        let index = self
+            .devices
+            .iter()
+            .position(|d| d.name().eq_ignore_ascii_case(name))
+            .filter(|&i| matches!(self.devices[i].designator().to_ascii_lowercase(), 'v' | 'i'))
+            .filter(|_| value.is_finite())
+            .ok_or_else(|| SpiceError::circuit("invalid or unknown DC source override"))?;
+        self.devices[index].with_instance_parameter("dc", value, context)?;
+        Ok(InstanceOverride::new(index, "dc", value))
+    }
+
     /// The Newton load of the single device at ordinal `index`, with `device`
     /// (the circuit's own or a stand-in with the same terminals, branch rows
     /// and state layout) in its place: C's `DEVload` of one isolated instance,
@@ -919,6 +1259,9 @@ impl Circuit {
             integration: request.integration,
             states,
             forcing: request.forcing,
+            source_factor: request.model_context.source_factor,
+            // An isolated load has no preceding voltage source.
+            voltage_source_value: &mut 0.,
         })
     }
 
@@ -1082,16 +1425,20 @@ impl Circuit {
                 1,
                 1,
             ))?;
+        matrix.set_pivot_tolerances(request.model_context.pivot);
+        matrix.set_unknown_names(Some(self.unknown_names()));
         let replacements = self.replacements(request.model_context)?;
         let mutual = self.mutual_terms(request.model_context)?;
-        for (index, device) in self.devices.iter().enumerate() {
+        let mut voltage_source_value = 0.;
+        for (position, index) in self.load_order().into_iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
-                None => &**device,
+                None => &*self.devices[index],
             };
             let states = request
                 .history
                 .device_of(trial, self.state_rows[index].clone(), index)?;
+            matrix.begin_device(position);
             device.stamp(&mut StampContext {
                 matrix: &mut *matrix,
                 rhs: &mut *rhs,
@@ -1109,9 +1456,98 @@ impl Circuit {
                 integration: request.integration,
                 states,
                 forcing: request.forcing,
+                source_factor: request.model_context.source_factor,
+                voltage_source_value: &mut voltage_source_value,
             })?;
         }
+        self.learn_pattern(matrix);
+        matrix.record_trace();
         Ok(())
+    }
+
+    /// A zeroed MNA matrix for [`Circuit::load`]: bound to the learned element
+    /// pattern (stamps accumulate by element, no triplet list or sort), or a
+    /// plain triplet matrix before the first load.
+    #[must_use]
+    pub fn new_matrix(&self) -> SparseMatrix {
+        let n = self.unknown_count();
+        match &*self.pattern.borrow() {
+            Some(pattern) if pattern.order() == n => SparseMatrix::bound(pattern.clone()),
+            _ => SparseMatrix::new(n, n),
+        }
+    }
+
+    /// Takes over `previous`'s matrix (C's one `CKTmatrix`, with its pivot
+    /// order and reorder flags) and carried state vector (C's `CKTstate0`) for
+    /// a freshly elaborated copy of the same circuit, as C runs every analysis
+    /// of a deck on the matrix and state vectors set up once.
+    /// The matrix is taken only when it starts with exactly the elements
+    /// this circuit has allocated (the rule `finalize` applies on
+    /// re-finalization); otherwise this circuit keeps its own.
+    pub fn inherit_from(&mut self, previous: &Self) {
+        self.carried_state
+            .borrow_mut()
+            .clone_from(&previous.carried_state.borrow());
+        let Some(inherited) = previous.pattern.borrow().clone() else {
+            return;
+        };
+        let mut slot = self.pattern.borrow_mut();
+        let compatible = slot.as_ref().is_none_or(|current| {
+            inherited.order() == current.order()
+                && inherited.len() >= current.len()
+                && (0..current.len()).all(|index| {
+                    let id = crate::maths::sparse::element_id(index);
+                    inherited.position(id) == current.position(id)
+                })
+        });
+        if compatible {
+            *slot = Some(inherited);
+        }
+    }
+
+    /// The circuit matrix's element pattern (C's one `CKTmatrix`), once
+    /// `finalize` or a load has created it for the present numbering.
+    #[must_use]
+    pub fn matrix_pattern(&self) -> Option<std::sync::Arc<crate::maths::Pattern>> {
+        self.pattern
+            .borrow()
+            .as_ref()
+            .filter(|pattern| pattern.order() == self.unknown_count())
+            .cloned()
+    }
+
+    /// Records the positions a load stamped: the first load defines the
+    /// pattern in stamp order; positions outside it are appended (which, as a
+    /// new SPARSE element does, forces the next factorization to reorder).
+    fn learn_pattern(&self, matrix: &SparseMatrix) {
+        let n = self.unknown_count();
+        let mut slot = self.pattern.borrow_mut();
+        let current = slot.as_ref().filter(|pattern| pattern.order() == n);
+        let next = if let Some((bound, mut extra)) = matrix.overflow() {
+            let mut extra = extra.by_ref().peekable();
+            if extra.peek().is_none() {
+                return;
+            }
+            match current {
+                Some(pattern) if std::sync::Arc::ptr_eq(pattern, bound) => pattern.extended(extra),
+                _ => return,
+            }
+        } else {
+            let positions = matrix.triplets().iter().map(|t| (t.row, t.col));
+            match current {
+                None => crate::maths::Pattern::new(n, positions),
+                Some(pattern) => {
+                    let mut missing = positions
+                        .filter(|&(row, col)| pattern.find(row, col).is_none())
+                        .peekable();
+                    if missing.peek().is_none() {
+                        return;
+                    }
+                    pattern.extended(missing)
+                }
+            }
+        };
+        *slot = Some(std::sync::Arc::new(next));
     }
 
     fn run_accept_hooks(
@@ -1182,7 +1618,7 @@ impl Circuit {
     /// Every update is computed and validated first, then the hooks run, the
     /// fixed state is committed and the delay updates are applied, so a
     /// failure leaves the history unchanged. Returns the breakpoints the
-    /// devices request (C `CKTsetBreak` from `DEVaccept`), in device order;
+    /// devices request (C `CKTsetBreak` from `DEVaccept`), in C's load order;
     /// a circuit without delay lines behaves exactly as
     /// [`Self::accept_point`] and returns none.
     ///
@@ -1204,7 +1640,9 @@ impl Circuit {
         }
         history.check(&trial)?;
         let mut updates = Vec::new();
-        for (index, device) in self.devices.iter().enumerate() {
+        // TRAaccept walks C's model/instance lists: the load order.
+        for index in self.load_order() {
+            let device = &self.devices[index];
             let Some(line) = device.delay_line() else {
                 continue;
             };
@@ -1334,10 +1772,12 @@ impl Circuit {
         let replacements = self.replacements(context)?;
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
-        for (index, device) in self.devices.iter().enumerate() {
+        system.a.set_pivot_tolerances(context.pivot);
+        system.a.set_unknown_names(Some(self.unknown_names()));
+        for index in self.load_order() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
-                None => &**device,
+                None => &*self.devices[index],
             };
             let range = &self.branch_rows[index];
             device.assemble_linear(&mut crate::devices::linear::LinearContext {
@@ -1351,7 +1791,9 @@ impl Circuit {
             })?;
         }
         system.a.fold_duplicates();
-        system.e.fold_duplicates();
+        // E stays unfolded: `CKTacLoad` scales every device term by
+        // `omega` before adding it (`xc = cap * omega`), so the complex
+        // assembly must scale each contribution, not their sum.
         Ok(system)
     }
 
@@ -1378,7 +1820,7 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
-        self.bias_linearized_system(context, bias, state, false)
+        self.bias_linearized_system(context, bias, state, false, None)
     }
 
     /// The pole-zero pencil `A + s E` at a solved bias point: every device's
@@ -1395,7 +1837,76 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
-        self.bias_linearized_system(context, bias, state, true)
+        self.bias_linearized_system(context, bias, state, true, None)
+    }
+
+    /// The pole-zero load as `CKTpzLoad` adds it: every device's
+    /// [`Device::assemble_pole_zero`] contributions in load order, one
+    /// [`crate::maths::pencil::PencilTerm`] per device and element. A
+    /// device's static stamps at one element are summed into its `g` and
+    /// its dynamic stamps into its `c` (one [`crate::maths::DynamicGroup`]
+    /// as `scale * (x1 + x2 + ...)`), as the C loads add `g + c * s`
+    /// (`diopzld.c` adds `geq + gspr + xceq * s->real`).
+    /// # Errors
+    /// As [`Self::pole_zero_system_at`].
+    pub fn pole_zero_terms_at(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&[Real]>,
+    ) -> SpiceResult<Vec<crate::maths::pencil::PencilTerm>> {
+        let mut ranges = Vec::new();
+        let system = self.bias_linearized_system(context, bias, state, true, Some(&mut ranges))?;
+        let a = system.a.triplets();
+        let e = system.e.triplets();
+        let mut terms = Vec::new();
+        for (a_range, e_range) in ranges {
+            let first = terms.len();
+            let slot = |terms: &mut Vec<crate::maths::pencil::PencilTerm>, row, col| {
+                if let Some(i) = terms[first..]
+                    .iter()
+                    .position(|t: &crate::maths::pencil::PencilTerm| t.row == row && t.col == col)
+                {
+                    first + i
+                } else {
+                    terms.push(crate::maths::pencil::PencilTerm {
+                        row,
+                        col,
+                        conductance: None,
+                        capacitance: None,
+                    });
+                    terms.len() - 1
+                }
+            };
+            for t in &a[a_range] {
+                let i = slot(&mut terms, t.row, t.col);
+                let g = &mut terms[i].conductance;
+                *g = Some(g.map_or(t.value, |g| g + t.value));
+            }
+            let mut index = e_range.start;
+            while index < e_range.end {
+                let t = &e[index];
+                let (value, next) = match system
+                    .e_groups
+                    .iter()
+                    .find(|g| g.range.start == index && g.range.end <= e_range.end)
+                {
+                    Some(group) => {
+                        let mut sum = group.terms.first().copied().unwrap_or(0.);
+                        for term in group.terms.iter().skip(1) {
+                            sum += term;
+                        }
+                        (group.scale * sum, group.range.end.max(index + 1))
+                    }
+                    None => (t.value, index + 1),
+                };
+                let i = slot(&mut terms, t.row, t.col);
+                let c = &mut terms[i].capacitance;
+                *c = Some(c.map_or(value, |c| c + value));
+                index = next;
+            }
+        }
+        Ok(terms)
     }
 
     fn bias_linearized_system(
@@ -1404,6 +1915,7 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
         pole_zero: bool,
+        mut ranges: Option<&mut Vec<(std::ops::Range<usize>, std::ops::Range<usize>)>>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
         self.check_numbering()?;
         if state.is_some_and(|state| state.len() != self.state_len) {
@@ -1424,10 +1936,12 @@ impl Circuit {
         let replacements = self.replacements(context)?;
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
-        for (index, device) in self.devices.iter().enumerate() {
+        system.a.set_pivot_tolerances(context.pivot);
+        system.a.set_unknown_names(Some(self.unknown_names()));
+        for index in self.load_order() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
-                None => &**device,
+                None => &*self.devices[index],
             };
             let range = &self.branch_rows[index];
             let mut linear = crate::devices::linear::LinearContext {
@@ -1446,14 +1960,30 @@ impl Circuit {
                     None => None,
                 },
             };
+            let start = (
+                linear.system.a.triplets().len(),
+                linear.system.e.triplets().len(),
+            );
             if pole_zero {
                 device.assemble_pole_zero(&mut linear, bias)?;
             } else {
                 device.assemble_small_signal(&mut linear, bias)?;
             }
+            if let Some(ranges) = ranges.as_deref_mut() {
+                ranges.push((
+                    start.0..system.a.triplets().len(),
+                    start.1..system.e.triplets().len(),
+                ));
+            }
+        }
+        if ranges.is_some() {
+            // The caller reads the unfolded stamps.
+            return Ok(system);
         }
         system.a.fold_duplicates();
-        system.e.fold_duplicates();
+        // E stays unfolded: `CKTacLoad` scales every device term by
+        // `omega` before adding it (`xc = cap * omega`), so the complex
+        // assembly must scale each contribution, not their sum.
         Ok(system)
     }
 
@@ -1502,12 +2032,16 @@ impl Circuit {
             .collect();
         let mut nodes = self.nodes.clone();
         let mut staged: Vec<Box<dyn Device>> = Vec::with_capacity(instances.len());
+        let mut internal: Vec<Vec<NodeId>> = Vec::with_capacity(instances.len());
+        let mut model_names: Vec<Option<String>> = Vec::with_capacity(instances.len());
+        let mut generated_by: Vec<Option<usize>> = Vec::with_capacity(instances.len());
         // Node names written on the batch's cards, which URC-generated
         // internal nodes must not reuse (crate::devices::urc::expand).
         let deck_nodes: BTreeSet<&str> = instances
             .iter()
             .flat_map(|instance| instance.nodes.iter().map(String::as_str))
             .collect();
+        let base = self.devices.len();
         for instance in instances {
             if !seen.insert(instance.name.to_lowercase()) {
                 return Err(SpiceError::circuit(format!(
@@ -1515,34 +2049,93 @@ impl Circuit {
                     instance.name
                 )));
             }
+            let first = nodes.len();
             // A URC line is expanded into its generated R/C/D elements
             // (urcsetup.c), which take its place under their own names.
             if instance.designator == 'u' {
-                for device in
-                    crate::devices::urc::expand(instance, &mut nodes, models, context, &deck_nodes)?
-                {
+                let expanded = crate::devices::urc::expand(
+                    instance,
+                    &mut nodes,
+                    models,
+                    context,
+                    &deck_nodes,
+                )?;
+                let created: Vec<&crate::primitives::Node> = nodes.nodes()[first..]
+                    .iter()
+                    .filter(|node| !instance.nodes.contains(&node.name))
+                    .collect();
+                let line = base + staged.len();
+                let lower = instance.name.to_lowercase();
+                for device in expanded {
                     // The URC instance itself keeps its (already checked) name.
-                    if !device.name().eq_ignore_ascii_case(&instance.name)
-                        && !seen.insert(device.name().to_lowercase())
-                    {
+                    let is_line = device.name().eq_ignore_ascii_case(&instance.name);
+                    if !is_line && !seen.insert(device.name().to_lowercase()) {
                         return Err(SpiceError::circuit(format!(
                             "duplicate instance name '{}' generated by URC {}",
                             device.name(),
                             instance.name
                         )));
                     }
+                    if is_line {
+                        // URCsetup's CKTmkVolt calls: the ladder nodes are
+                        // numbered at the URC line's own setup.
+                        internal.push(
+                            created
+                                .iter()
+                                .filter(|node| node.kind != NodeKind::Internal)
+                                .map(|node| node.id)
+                                .collect(),
+                        );
+                        model_names.push(instance.model.as_ref().map(|m| m.to_ascii_lowercase()));
+                        generated_by.push(None);
+                    } else {
+                        // A generated diode's own prime node (diosetup.c).
+                        internal.push(
+                            device
+                                .terminals()
+                                .iter()
+                                .copied()
+                                .filter(|id| {
+                                    created.iter().any(|node| {
+                                        node.id == *id && node.kind == NodeKind::Internal
+                                    })
+                                })
+                                .collect(),
+                        );
+                        // URCsetup's CKTmodCrt models `<name>#resmod`,
+                        // `#capmod` and `#diodemod`.
+                        let suffix = match device.c_device_type() {
+                            crate::devices::setup::CDeviceType::Res => "resmod",
+                            crate::devices::setup::CDeviceType::Cap => "capmod",
+                            _ => "diodemod",
+                        };
+                        model_names.push(Some(format!("{lower}#{suffix}")));
+                        generated_by.push(Some(line));
+                    }
                     staged.push(device);
                 }
                 continue;
             }
             // Builtin factories bind terminals in this staged table. Nothing
-            // fallible remains after committing the two containers together.
+            // fallible remains after committing the containers together.
             staged.push(crate::devices::factory::instantiate_with_models(
                 instance, &mut nodes, models, context,
             )?);
+            internal.push(
+                nodes.nodes()[first..]
+                    .iter()
+                    .filter(|node| node.kind == NodeKind::Internal)
+                    .map(|node| node.id)
+                    .collect(),
+            );
+            model_names.push(instance.model.as_ref().map(|m| m.to_ascii_lowercase()));
+            generated_by.push(None);
         }
         self.nodes = nodes;
         self.devices.extend(staged);
+        self.internal_nodes.extend(internal);
+        self.models.extend(model_names);
+        self.generated_by.extend(generated_by);
         Ok(())
     }
 

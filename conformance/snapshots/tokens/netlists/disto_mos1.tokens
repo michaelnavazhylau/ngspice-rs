@@ -184,7 +184,7 @@ card 14 @netlists/disto_mos1.cir:20:1 lines=20-21 continuations=1
   token 43 20:120 number "0.4" value=4e-1
   token 44 20:124 word "mjsw"
   token 45 20:128 equals "="
-  token 46 20:129 number "0.3" value=3e-1
+  token 46 20:129 number "0.3" value=3.0000000000000004e-1
   token 47 20:133 word "tox"
   token 48 20:136 equals "="
   token 49 20:137 number "20n" value=2e-8
@@ -268,7 +268,7 @@ card 18 @netlists/disto_mos1.cir:25:1 lines=25-25 continuations=0
   token 3 25:12 number "2" value=2e0
   token 4 25:14 number "1k" value=1e3
   token 5 25:17 number "10meg" value=1e7
-  token 6 25:23 number "0.7" value=7e-1
+  token 6 25:23 number "0.7" value=7.000000000000001e-1
 card 19 @netlists/disto_mos1.cir:26:1 lines=26-26 continuations=0
   raw: ".end"
   kind: dot(.end)

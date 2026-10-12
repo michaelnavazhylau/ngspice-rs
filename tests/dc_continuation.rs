@@ -2,7 +2,7 @@
 //!
 //! Every success must solve the *original* equations (full sources, zero
 //! artificial nodal gmin); continuation never accepts device state, runs accept
-//! hooks or edits a source value. Transient/diffsol do not read these options.
+//! hooks or edits a source value.
 use ngspice_rs::analysis::bias::{
     AttemptOutcome, ContinuationPolicy, ContinuationSchedule, DEFAULT_GMIN_SCHEDULE, DcOutcome,
     DcReport, DcSettings, DcStrategy, MAX_GMIN_STAGES, MAX_SOURCE_STEPS, MAX_TOTAL_ITERATIONS,
@@ -10,7 +10,9 @@ use ngspice_rs::analysis::bias::{
 };
 use ngspice_rs::analysis::newton::{NewtonOptions, StepLimiting};
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
-use ngspice_rs::devices::{AnalysisMode, Circuit, LoadRequest, ModelContext};
+use ngspice_rs::devices::{
+    AnalysisMode, Circuit, Forcing, Limit, LoadRequest, ModelContext, TransientTiming,
+};
 use ngspice_rs::maths::{SparseMatrix, Vector};
 use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
 use ngspice_rs::primitives::{AnalysisKind, SpiceError, SpiceResult};
@@ -24,6 +26,17 @@ const VT: f64 = (1.38064852e-23 / 1.6021766208e-19) * 300.15;
 const DIFFICULT: &str = "i1 0 a 1m\nd1 a 0 dm\n.model dm d(is=1m)";
 /// The same hard bias, with an AC unit drive so an `.ac` run must solve it first.
 const DIFFICULT_AC: &str = "i1 0 a dc 1m ac 1\nd1 a 0 dm\n.model dm d(is=1m)";
+
+/// Relative accuracy of a converged bias of [`DIFFICULT`] under ngspice's
+/// default Newton tolerances: NIiter accepts once the update is within
+/// `reltol |v| + vntol` (1e-3 relative plus 1e-6 V, 1.9e-5 V at this 18 mV
+/// bias) and returns the iterate the last load used (CKTrhsOld), so the bias
+/// is guaranteed only to about reltol. Measured in C ngspice (SPARSE): the
+/// direct solve misses `vt ln 2` by 1.7e-9 relative (its AC `v(a)` misses
+/// `vt / 2 mA` by 1.2e-9), but with `.options noopiter gminsteps=0
+/// srcsteps=20` its last uniform source step stops at 0.017936336109075593,
+/// 4.5e-4 relative from the root; the port returns the same value bit for bit.
+const NIITER_ACCURACY: f64 = 1e-3;
 
 fn parse(body: &str) -> Netlist {
     Parser::new()
@@ -96,6 +109,15 @@ struct Cubic {
     accepted: Rc<Cell<usize>>,
 }
 impl ngspice_rs::devices::Device for Cubic {
+    /// Like a C device's DEVsetup, allocate the conductance elements even
+    /// though the load stamps zero at v = 0 (where LoadGmin then acts).
+    fn setup_matrix(
+        &self,
+        setup: &mut ngspice_rs::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        setup.conductance(self.nodes[0], self.nodes[1]);
+        Ok(true)
+    }
     fn name(&self) -> &str {
         "x1"
     }
@@ -249,7 +271,7 @@ fn ac_bias_deck_continuation_options_use_last_set_wins_and_request_precedence() 
     close(
         solved.value("v(a)", 0).unwrap().re,
         1. / (2. * (1e-3 / VT)),
-        1e-6,
+        NIITER_ACCURACY,
         1e-9,
     );
     // Last deck occurrence wins: the later `srcsteps=20` re-enables the strategy.
@@ -301,7 +323,8 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
         ]
     );
     assert_eq!(failure.report.stages.len(), 1);
-    assert_eq!(failure.report.stages[0].iterations, 4);
+    // NIiter fails after the solve that exceeds the limit: 4 + 1 passes.
+    assert_eq!(failure.report.stages[0].iterations, 5);
     let message = failure.error.to_string();
     assert!(message.contains("gmin stepping: disabled"), "{message}");
     assert!(message.contains("source stepping: disabled"), "{message}");
@@ -369,8 +392,8 @@ fn difficult_diode_fails_bounded_direct_newton_but_the_configured_policy_solves_
     assert_original_equations_solved(report);
     // Success is checked against the unmodified equations, not the solver's own.
     let v = solved.solution.values.as_slice()[0];
-    close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
-    close(diode_residual(v) + 1e-3, 1e-3, 1e-7, 1e-12);
+    close(v, VT * 2_f64.ln(), NIITER_ACCURACY, 1e-12);
+    close(diode_residual(v) + 1e-3, 1e-3, NIITER_ACCURACY, 1e-12);
 
     // The ladder policy tries gmin stepping first, then source stepping.
     let defaults = run(ContinuationPolicy::ladder()).unwrap();
@@ -469,17 +492,18 @@ fn configured_gmin_schedule_rescues_a_singular_jacobian_without_source_stepping(
 fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
     let c = circuit(DIFFICULT);
     let context = ModelContext::default();
-    // The budget covers direct Newton (4 iterations) plus two more: the gmin
-    // stage is cut short, the attempt stops and nothing further runs.
+    // The budget covers direct Newton (its 4-iteration limit plus the pass
+    // NIiter makes before failing) plus two more: the gmin stage is cut
+    // short, the attempt stops and nothing further runs.
     let policy = ContinuationPolicy {
-        max_total_iterations: Some(6),
+        max_total_iterations: Some(7),
         ..ContinuationPolicy::ladder()
     };
     let failure =
         solve_dc_with(&c, &context, &settings(bounded(), policy), &[], None, None).unwrap_err();
     assert_eq!(failure.report.outcome, DcOutcome::BudgetExhausted);
-    assert_eq!(failure.report.budget, 6);
-    assert_eq!(failure.report.total_iterations, 6);
+    assert_eq!(failure.report.budget, 7);
+    assert_eq!(failure.report.total_iterations, 7);
     assert_eq!(failure.report.stages.len(), 2);
     assert_eq!(failure.report.stages[1].iterations, 2);
     assert_eq!(failure.report.attempts.len(), 2);
@@ -499,7 +523,8 @@ fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
     assert_eq!(failure.report.outcome, DcOutcome::BudgetExhausted);
     assert!(failure.report.total_iterations <= 1);
 
-    // Without an explicit budget the work is still bounded by stages * maxiter.
+    // Without an explicit budget the work is still bounded by
+    // stages * (maxiter + 1), the passes NIiter makes before failing.
     let failure = solve_dc_with(
         &c,
         &context,
@@ -509,7 +534,7 @@ fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
         None,
     )
     .unwrap_err();
-    assert_eq!(failure.report.budget, 4);
+    assert_eq!(failure.report.budget, 5);
     let defaults = solve_dc_with(
         &c,
         &context,
@@ -519,7 +544,8 @@ fn exhausted_schedules_and_total_budget_are_bounded_and_reported() {
         None,
     )
     .unwrap();
-    assert_eq!(defaults.report.budget, (1 + 11 + 22) * 4);
+    // Each solve: its limit plus the pass NIiter makes before failing.
+    assert_eq!(defaults.report.budget, (1 + 11 + 22) * (4 + 1));
 }
 
 #[test]
@@ -678,12 +704,12 @@ fn impossible_ideal_source_loops_fail_boundedly_without_a_regularized_answer() {
         );
         assert!(failure.report.total_iterations <= failure.report.budget);
     }
-    // Linear circuits keep the exact solve and report its failure unchanged.
+    // Linear circuits take CKTop's continuation too (ngspice tries gmin and
+    // source stepping on a singular linear matrix), and still fail.
     let linear = circuit("v1 a 0 1\nv2 a 0 2");
     let failure =
         solve_dc_with(&linear, &context, &DcSettings::default(), &[], None, None).unwrap_err();
-    assert_eq!(failure.report.outcome, DcOutcome::NonRetryableFailure);
-    assert_eq!(failure.report.attempts.len(), 1);
+    assert_eq!(failure.report.outcome, DcOutcome::Exhausted);
     assert_eq!(failure.report.attempts[0].outcome, AttemptOutcome::Failed);
     assert!(
         solve_dc(
@@ -786,27 +812,31 @@ fn easy_nonlinear_and_linear_solves_stay_direct_and_exact() {
     let linear = circuit("v1 a 0 1\nr1 a b 1k\nr2 b 0 1k");
     let solved = solve_dc_with(&linear, &context, &DcSettings::default(), &[], None, None).unwrap();
     assert_eq!(solved.report.stages.len(), 1);
-    assert_eq!(solved.solution.iterations, 1);
+    // CKTop's NIiter: MODEINITJCT, MODEINITFIX, then a converged MODEINITFLOAT.
+    assert_eq!(solved.solution.iterations, 3);
     close(solved.solution.values.as_slice()[1], 0.5, 1e-12, 1e-15);
-    // Even a hostile policy cannot affect (or reject) a linear solve.
-    let policy = ContinuationPolicy {
+    // A linear circuit is solved by the same NIiter (three passes), so a
+    // total budget of one stops it and one of four solves it.
+    let budget = |total| ContinuationPolicy {
         gmin_schedule: Vec::new(),
         source_stepping: None,
-        max_total_iterations: Some(1),
+        max_total_iterations: Some(total),
         stage_max_iterations: None,
         ..ContinuationPolicy::disabled()
     };
-    assert!(
+    let run = |total| {
         solve_dc_with(
             &linear,
             &context,
-            &settings(bounded(), policy),
+            &settings(NewtonOptions::default(), budget(total)),
             &[],
             None,
-            None
+            None,
         )
-        .is_ok()
-    );
+    };
+    assert!(run(1).is_err());
+    let solved = run(4);
+    assert!(solved.is_ok(), "{:?}", solved.err().map(|e| e.error));
 }
 
 #[test]
@@ -879,21 +909,35 @@ fn continuation_never_accepts_state_or_edits_sources_on_success_or_failure() {
     assert_eq!(accepted.get(), 0);
     assert_eq!(dc_rhs(&c), rhs_before);
 
-    // Forcing replaces source values for the solve only (transient 0- bias).
-    let mut forcing = Vector::zeros(c.unknown_count());
-    forcing.as_mut_slice().copy_from_slice(&dc_rhs(&c));
-    forcing.as_mut_slice().iter_mut().for_each(|v| *v *= 27.);
+    // Forcing makes the solve C's MODETRANOP bias: a source loads its time
+    // function at 0- (here the PULSE's 3 V) instead of its DC value, and the
+    // circuit's sources are untouched.
+    let pulsed = circuit("v1 a 0 dc 1 pulse(3 5 1m)\nr1 a 0 1k");
+    let pulsed_rhs = dc_rhs(&pulsed);
     let forced = solve_dc_with(
-        &c,
+        &pulsed,
         &context,
         &DcSettings::default(),
         &[],
         None,
-        Some(&forcing),
+        Some(Forcing {
+            limit: Limit::Left,
+            timing: TransientTiming::new(1e-4, 1e-2).unwrap(),
+        }),
     )
     .unwrap();
-    close(forced.solution.values.as_slice()[0], 3., 1e-8, 1e-12);
-    assert_eq!(dc_rhs(&c), rhs_before);
+    close(forced.solution.values.as_slice()[0], 3., 0., 0.);
+    assert_eq!(dc_rhs(&pulsed), pulsed_rhs);
+    let plain = solve_dc(
+        &pulsed,
+        &context,
+        &NewtonOptions::default(),
+        &[],
+        None,
+        None,
+    )
+    .unwrap();
+    close(plain.values.as_slice()[0], 1., 0., 0.);
 
     // Only an explicit accept runs hooks, exactly once, after the solve.
     let plain = solve_dc(&c, &context, &NewtonOptions::default(), &[], None, None).unwrap();
@@ -1078,8 +1122,9 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
         ".options gminsteps=0",
         &["maxiter=4", "limiting=global"],
     ));
-    close(v, VT * 2_f64.ln(), 1e-8, 1e-12);
-    // Deck default options (no DC options) use the default 200 iterations.
+    close(v, VT * 2_f64.ln(), NIITER_ACCURACY, 1e-12);
+    // Deck default options (no DC options) use the default 200 iterations;
+    // the direct solve is C's (1.7e-9 from the root, see NIITER_ACCURACY).
     close(ok(run_op("", &[])), VT * 2_f64.ln(), 1e-8, 1e-12);
 
     // Duplicate setters: last wins, in deck order, across option cards.
@@ -1087,7 +1132,7 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
         ".options gminsteps=0 srcsteps=0\n.options srcsteps=20",
         &["maxiter=4", "limiting=global"],
     );
-    close(ok(off_then_on), VT * 2_f64.ln(), 1e-8, 1e-12);
+    close(ok(off_then_on), VT * 2_f64.ln(), NIITER_ACCURACY, 1e-12);
     let on_then_off = run_op(
         ".options gminsteps=0 srcsteps=20\n.options srcsteps=0",
         &["maxiter=4", "limiting=global"],
@@ -1112,7 +1157,7 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
             &["maxiter=4", "limiting=global", "srcsteps=20"],
         )),
         VT * 2_f64.ln(),
-        1e-8,
+        NIITER_ACCURACY,
         1e-12,
     );
     let merged = RunConfig::from_netlist(&parse(&format!("{DIFFICULT}\n{deck} gminfactor=5")))
@@ -1134,7 +1179,7 @@ fn deck_options_resolve_with_last_set_wins_and_request_precedence() {
     close(
         ok(run_op("", &["maxiter=4", "limiting=global", "gminsteps=0"])),
         VT * 2_f64.ln(),
-        1e-8,
+        NIITER_ACCURACY,
         1e-12,
     );
 }
@@ -1144,7 +1189,6 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
     let config = |options: &str| RunConfig::from_netlist(&parse(&format!("r1 a 0 1k\n{options}")));
     for bad in [
         ".options itl1=10001",
-        ".options itl1=2.5",
         ".options itl1=abc",
         ".options srcsteps=-1",
         ".options srcsteps=1001",
@@ -1161,7 +1205,13 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
         assert!(!error.is_not_yet_ported(), "{bad}: {error}");
     }
     // niiter.c raises any limit below 100 (including 0) to 100.
-    for low in [".options itl1=0", ".options itl1=1", ".options itl1=99"] {
+    // IF_INTEGER: floor(0.5 + 2.5) = 3, raised to NIiter's 100.
+    for low in [
+        ".options itl1=0",
+        ".options itl1=1",
+        ".options itl1=99",
+        ".options itl1=2.5",
+    ] {
         assert_eq!(config(low).unwrap().dc().itl1, Some(100), "{low}");
     }
     // Disabling is valid for the count options only.
@@ -1192,7 +1242,7 @@ fn deck_dc_options_are_validated_and_unimplemented_neighbours_still_fail() {
 }
 
 #[test]
-fn companion_transient_reads_dc_options_and_diffsol_rejects_them() {
+fn companion_transient_reads_dc_options() {
     let config = RunConfig::from_netlist(&parse(
         "v1 a 0 1\nr1 a 0 1k\n.options itl1=50 srcsteps=4 gminsteps=3 gminfactor=20",
     ))
@@ -1214,13 +1264,6 @@ fn companion_transient_reads_dc_options_and_diffsol_rejects_them() {
         .unwrap()
         .run(&mut c, &tran, &AnalysisContext::default())
         .unwrap();
-    let diffsol = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "10u", "backend=diffsol", "method=bdf"],
-    );
-    let error = config.request(diffsol).unwrap_err();
-    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
-    assert!(error.to_string().contains("itl1"), "{error}");
     // DC analyses accept them; invalid explicit .tran bias settings fail.
     assert!(config.request(request(&[])).is_ok());
     let error = runner(AnalysisKind::Transient)
@@ -1251,7 +1294,7 @@ fn ac_bias_uses_the_configured_continuation() {
     close(
         solved.value("v(a)", 0).unwrap().re,
         1. / (2. * conductance),
-        1e-6,
+        NIITER_ACCURACY,
         1e-9,
     );
     assert!(ac(&["maxiter=4", "limiting=global", "gminsteps=0", "srcsteps=0"]).is_err());

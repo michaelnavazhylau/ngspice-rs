@@ -11,8 +11,7 @@
 //! (`CKTload`), iteration (`CKTiter`) and convergence machinery.
 //!
 //! Drivers support linear R/C/L/V/I equations. Nonlinear analyses remain
-//! unsupported; an ordinary `.tran` runs the trap/Gear companion driver and
-//! `backend=diffsol method=bdf` selects the BDF backend. The split
+//! unsupported; `.tran` runs the trap/Gear companion driver. The split
 //! between [`AnalysisRequest`] and the netlist AST is deliberate: the driver
 //! layer does not need to know where a request came from, and the AST does not
 //! need to know which analyses exist.
@@ -167,16 +166,21 @@ pub struct AnalysisContext {
     /// default [`crate::devices::DEFAULT_GMIN`]. See
     /// [`crate::devices::ModelContext::gmin`].
     pub gmin: Real,
+    /// SPARSE pivot thresholds of the circuit matrix (`.option pivtol`/
+    /// `pivrel`, C `CKTpivotAbsTol`/`CKTpivotRelTol`), default
+    /// [`crate::maths::PivotTolerances::DEFAULT`].
+    pub pivot: crate::maths::PivotTolerances,
 }
 
 impl AnalysisContext {
-    /// Copy temperature and junction-gmin settings into the lower-level device
-    /// context. Validation occurs at circuit elaboration/equation assembly; no
+    /// Copy temperature, junction-gmin and pivot settings into the lower-level
+    /// device context. Validation occurs at circuit elaboration/equation assembly; no
     /// global state is used.
     #[must_use]
     pub const fn model_context(&self) -> crate::devices::ModelContext {
         crate::devices::ModelContext::new(self.temperature, self.nominal_temperature)
             .with_gmin(self.gmin)
+            .with_pivot_tolerances(self.pivot)
     }
 }
 
@@ -186,6 +190,7 @@ impl Default for AnalysisContext {
             temperature: 27.0,
             nominal_temperature: 27.0,
             gmin: crate::devices::DEFAULT_GMIN,
+            pivot: crate::maths::PivotTolerances::DEFAULT,
         }
     }
 }
@@ -432,10 +437,8 @@ impl Analysis for Distortion {
     }
 }
 
-/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
-/// ([`crate::analysis::companion_transient`]), or the explicitly selected bounded diffsol
-/// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
-/// `.ic`/`uic` are implemented by the companion driver only; general DAEs remain unsupported.
+/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver
+/// ([`crate::analysis::companion_transient`]); `backend=diffsol` is rejected.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.

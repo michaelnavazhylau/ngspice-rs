@@ -38,7 +38,9 @@
 mod disto;
 
 use crate::devices::limiting::{self, Limiter, Linearization};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
@@ -734,69 +736,33 @@ impl Model {
     }
 }
 
-/// First BJT state slot of the limited `vbe`, `vbc`, `vsub` (C `BJTvbe`,
-/// `BJTvbc`, `BJTvsub`).
-const BJT_LIMITED_SLOTS: usize = 8;
+/// State slots (C `bjtdefs.h` names): each charge is followed by its
+/// integrated current, as `NIintegrate` stores them, then the load's branch
+/// voltages.
+mod slot {
+    /// `BJTqbe`, followed by `BJTcqbe`.
+    pub(super) const QBE: usize = 0;
+    /// `BJTqbc`, followed by `BJTcqbc`.
+    pub(super) const QBC: usize = 2;
+    /// `BJTqsub`, followed by `BJTcqsub`.
+    pub(super) const QSUB: usize = 4;
+    /// `BJTqbx`, followed by `BJTcqbx`.
+    pub(super) const QBX: usize = 6;
+    /// `BJTvbe` (limited).
+    pub(super) const VBE: usize = 8;
+    /// `BJTvbc` (limited).
+    pub(super) const VBC: usize = 9;
+    /// `BJTvsub` (limited).
+    pub(super) const VSUB: usize = 10;
+    /// `BJTvbx` (never limited).
+    pub(super) const VBX: usize = 11;
+    /// Number of slots.
+    pub(super) const COUNT: usize = 12;
+}
 /// `bjtdefs.h` `VCRIT_DISABLED`: the substrate critical voltage without ISS.
 const SUBSTRATE_VCRIT_DISABLED: Real = 50.;
 
 impl Thermal {
-    /// `bjtload.c`'s normalized junction voltages for this load:
-    /// `MODEINITJCT` starts at `vbe = tVcrit`, `vbc = vsub = 0`; later loads
-    /// apply `DEVpnjlim` (with `vt = kT/q`, no emission coefficient) to
-    /// `vbe`, `vbc` (`tVcrit` from `area * IS`) and `vsub` (`tSubVcrit` from
-    /// ISS, else `VCRIT_DISABLED`). `vbx` is never limited. `m` scales the
-    /// stamps, not `tSatCur`. Quasi-saturation (`vbcx`, `vrci`) is not ported.
-    ///
-    /// `start` is the `uic` initial bias (from `ICVBE`/`ICVCE`) and `off` the
-    /// instance flag, which holds every junction at zero in `MODEINITJCT`
-    /// and `MODEINITFIX`.
-    fn limit(
-        &self,
-        limiter: &mut Limiter,
-        states: &crate::devices::DeviceState<'_>,
-        raw: Bias,
-        start: Bias,
-        off: bool,
-    ) -> Bias {
-        let vcrit = limiting::critical_voltage(self.vt, self.is);
-        if limiter.mode() == Linearization::InitialConditions {
-            return start;
-        }
-        if limiter.holds_off(states, off) {
-            return Bias {
-                vbe: 0.,
-                vbc: 0.,
-                vbx: 0.,
-                vsub: 0.,
-            };
-        }
-        if limiter.mode() == Linearization::Initial {
-            return Bias {
-                vbe: vcrit,
-                vbc: 0.,
-                vbx: 0.,
-                vsub: 0.,
-            };
-        }
-        let sub_vcrit = self.iss.map_or(SUBSTRATE_VCRIT_DISABLED, |iss| {
-            limiting::critical_voltage(self.vt, iss)
-        });
-        let mut limited = raw;
-        for (index, (value, critical)) in [
-            (&mut limited.vbe, vcrit),
-            (&mut limited.vbc, vcrit),
-            (&mut limited.vsub, sub_vcrit),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let previous = limiter.previous(states, BJT_LIMITED_SLOTS + index);
-            *value = limiter.pn_junction(*value, previous, self.vt, critical);
-        }
-        limited
-    }
-
     fn validate(&self) -> SpiceResult<()> {
         let values = [
             self.vt,
@@ -855,44 +821,6 @@ impl Thermal {
     }
 }
 
-/// A junction current and its derivative, with C's cubic reverse continuation
-/// below `-3 vtn` (`bjtload.c`).
-fn pn(v: Real, vtn: Real, is: Real) -> (Real, Real) {
-    if v >= -3. * vtn {
-        let e = (v / vtn).exp();
-        (is * (e - 1.), is * e / vtn)
-    } else {
-        let arg = (3. * vtn / (v * std::f64::consts::E)).powi(3);
-        (-is * (1. + arg), is * 3. * arg / v)
-    }
-}
-
-/// Depletion charge and capacitance with the forward-bias linear-capacitance
-/// continuation above `fcp` (`bjtload.c`'s `f1`/`f2`/`f3` form).
-#[allow(clippy::too_many_arguments)]
-fn depletion(
-    v: Real,
-    cz: Real,
-    p: Real,
-    m: Real,
-    fcp: Real,
-    f1: Real,
-    f2: Real,
-    f3: Real,
-) -> (Real, Real) {
-    if v < fcp {
-        let arg = 1. - v / p;
-        let sarg = (-m * arg.ln()).exp();
-        (p * cz * (1. - arg * sarg) / (1. - m), cz * sarg)
-    } else {
-        let czf2 = cz / f2;
-        (
-            cz * f1 + czf2 * (f3 * (v - fcp) + (m / (p + p)) * (v * v - fcp * fcp)),
-            czf2 * (f3 + m * v / p),
-        )
-    }
-}
-
 /// Normalized branch voltages: `vbe`, `vbc` across the intrinsic junctions,
 /// `vbx` from the external base to the internal collector and `vsub` across
 /// the substrate junction, each multiplied by the device polarity (and the
@@ -903,283 +831,6 @@ struct Bias {
     vbc: Real,
     vbx: Real,
     vsub: Real,
-}
-
-/// A value with its derivatives with respect to `vbe` and `vbc`.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct Dual {
-    value: Real,
-    dvbe: Real,
-    dvbc: Real,
-}
-
-/// One evaluation of the normalized equations at a [`Bias`], per unit `m`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Evaluation {
-    /// Transport current from the internal collector to the internal emitter.
-    transport: Dual,
-    /// Base-emitter current `cbe/BF + cben` (including junction gmin).
-    base_emitter: Dual,
-    /// Base-collector current `cbc/BR + cbcn` (including junction gmin).
-    base_collector: Dual,
-    /// Substrate junction current (including junction gmin) and its derivative.
-    substrate: (Real, Real),
-    /// Base-resistance conductance `gx` and its bias derivatives (zero when
-    /// `RB = 0`, which has no internal base node).
-    base_conductance: Dual,
-    /// Base-emitter charge `qbe(vbe, vbc)`.
-    qbe: Dual,
-    /// Intrinsic base-collector charge `qbc(vbc)` (derivative in `dvbc`).
-    qbc: Dual,
-    /// External base to internal collector charge `qbx(vbx)` and capacitance.
-    qbx: (Real, Real),
-    /// Substrate junction charge `qsub(vsub)` and capacitance.
-    qsub: (Real, Real),
-}
-
-impl Evaluation {
-    fn validate(&self) -> SpiceResult<()> {
-        let duals = [
-            self.transport,
-            self.base_emitter,
-            self.base_collector,
-            self.base_conductance,
-            self.qbe,
-            self.qbc,
-        ];
-        let finite = duals
-            .iter()
-            .flat_map(|d| [d.value, d.dvbe, d.dvbc])
-            .chain([
-                self.substrate.0,
-                self.substrate.1,
-                self.qbx.0,
-                self.qbx.1,
-                self.qsub.0,
-                self.qsub.1,
-            ])
-            .all(Real::is_finite);
-        if !finite {
-            return Err(SpiceError::Numerical {
-                context: "BJT".into(),
-                message: "nonfinite Gummel-Poon current, charge or Jacobian".into(),
-            });
-        }
-        Ok(())
-    }
-}
-
-/// The Gummel-Poon equations of `bjtload.c` at one bias, with analytic
-/// derivatives. `gmin` is the junction gmin added to both base currents and
-/// the substrate junction.
-#[allow(clippy::too_many_lines)]
-fn evaluate(t: &Thermal, bias: Bias, gmin: Real) -> SpiceResult<Evaluation> {
-    let Bias {
-        vbe,
-        vbc,
-        vbx,
-        vsub,
-    } = bias;
-    let vt = t.vt;
-    let (cbe, gbe) = pn(vbe, vt * t.nf, t.is_be);
-    let (mut cben, mut gben) = if t.ise == 0. {
-        (0., 0.)
-    } else {
-        pn(vbe, vt * t.ne, t.ise)
-    };
-    gben += gmin;
-    cben += gmin * vbe;
-    let (cbc, gbc) = pn(vbc, vt * t.nr, t.is_bc);
-    let (mut cbcn, mut gbcn) = if t.isc == 0. {
-        (0., 0.)
-    } else {
-        pn(vbc, vt * t.nc, t.isc)
-    };
-    gbcn += gmin;
-    cbcn += gmin * vbc;
-    let substrate = match t.iss {
-        Some(iss) => {
-            let vts = vt * t.ns;
-            if vsub <= -3. * vts {
-                let arg = (3. * vts / (vsub * std::f64::consts::E)).powi(3);
-                (
-                    -iss * (1. + arg) + gmin * vsub,
-                    iss * 3. * arg / vsub + gmin,
-                )
-            } else {
-                let e = (vsub / vts).min(MAX_EXP_ARG).exp();
-                (iss * (e - 1.) + gmin * vsub, iss * e / vts + gmin)
-            }
-        }
-        None => (gmin * vsub, gmin),
-    };
-    // Base charge qb (Early effect and high injection).
-    let q1 = 1. / (1. - t.inv_vaf * vbc - t.inv_var * vbe);
-    let (qb, dqbdve, dqbdvc) = if t.inv_ikf == 0. && t.inv_ikr == 0. {
-        let qb = q1;
-        (qb, q1 * qb * t.inv_var, q1 * qb * t.inv_vaf)
-    } else {
-        let q2 = t.inv_ikf * cbe + t.inv_ikr * cbc;
-        let arg = (1. + 4. * q2).max(0.);
-        match t.nkf {
-            None => {
-                let sqarg = if arg == 0. { 1. } else { arg.sqrt() };
-                let qb = q1 * (1. + sqarg) / 2.;
-                (
-                    qb,
-                    q1 * (qb * t.inv_var + t.inv_ikf * gbe / sqarg),
-                    q1 * (qb * t.inv_vaf + t.inv_ikr * gbc / sqarg),
-                )
-            }
-            Some(nkf) => {
-                let sqarg = if arg == 0. { 1. } else { arg.powf(nkf) };
-                let qb = q1 * (1. + sqarg) / 2.;
-                (
-                    qb,
-                    q1 * (qb * t.inv_var + t.inv_ikf * gbe * 2. * sqarg * nkf / arg),
-                    q1 * (qb * t.inv_vaf + t.inv_ikr * gbc * 2. * sqarg * nkf / arg),
-                )
-            }
-        }
-    };
-    let transport = Dual {
-        value: (cbe - cbc) / qb,
-        dvbe: (gbe - (cbe - cbc) * dqbdve / qb) / qb,
-        dvbc: (-gbc - (cbe - cbc) * dqbdvc / qb) / qb,
-    };
-    let base_emitter = Dual {
-        value: cbe / t.bf + cben,
-        dvbe: gbe / t.bf + gben,
-        dvbc: 0.,
-    };
-    let base_collector = Dual {
-        value: cbc / t.br + cbcn,
-        dvbe: 0.,
-        dvbc: gbc / t.br + gbcn,
-    };
-    let base_conductance = if t.rb == 0. && t.rbm == 0. {
-        Dual::default()
-    } else {
-        base_conductance(t, qb, dqbdve, dqbdvc, base_emitter, base_collector)
-    };
-    // Base-emitter charge with the bias-dependent transit time.
-    let (mut cbe_tf, mut gbe_tf, mut geqcb) = (cbe, gbe, 0.);
-    if t.tf != 0. && vbe > 0. {
-        let (mut argtf, mut arg2, mut arg3) = (0., 0., 0.);
-        if t.xtf != 0. {
-            argtf = t.xtf;
-            if t.vtf_factor != 0. {
-                argtf *= (vbc * t.vtf_factor).exp();
-            }
-            arg2 = argtf;
-            if t.itf != 0. {
-                let temp = cbe / (cbe + t.itf);
-                argtf *= temp * temp;
-                arg2 = argtf * (3. - temp - temp);
-            }
-            arg3 = cbe * argtf * t.vtf_factor;
-        }
-        cbe_tf = cbe * (1. + argtf) / qb;
-        gbe_tf = (gbe * (1. + arg2) - cbe_tf * dqbdve) / qb;
-        geqcb = t.tf * (arg3 - cbe_tf * dqbdvc) / qb;
-    }
-    let (qbe_dep, cbe_dep) = depletion(vbe, t.cje, t.vje, t.mje, t.fc_vje, t.f1, t.f2, t.f3);
-    let qbe = Dual {
-        value: t.tf * cbe_tf + qbe_dep,
-        dvbe: t.tf * gbe_tf + cbe_dep,
-        dvbc: geqcb,
-    };
-    let czbc = t.cjc * t.xcjc;
-    let czbx = t.cjc - czbc;
-    let (qbc_dep, cbc_dep) = depletion(vbc, czbc, t.vjc, t.mjc, t.fc_vjc, t.f5, t.f6, t.f7);
-    let qbc = Dual {
-        value: t.tr * cbc + qbc_dep,
-        dvbe: 0.,
-        dvbc: t.tr * gbc + cbc_dep,
-    };
-    let qbx = depletion(vbx, czbx, t.vjc, t.mjc, t.fc_vjc, t.f5, t.f6, t.f7);
-    let qsub = if vsub < 0. {
-        let arg = 1. - vsub / t.vjs;
-        let sarg = (-t.mjs * arg.ln()).exp();
-        (
-            t.vjs * t.cjs * (1. - arg * sarg) / (1. - t.mjs),
-            t.cjs * sarg,
-        )
-    } else {
-        (
-            vsub * t.cjs * (1. + t.mjs * vsub / (2. * t.vjs)),
-            t.cjs * (1. + t.mjs * vsub / t.vjs),
-        )
-    };
-    let evaluation = Evaluation {
-        transport,
-        base_emitter,
-        base_collector,
-        substrate,
-        base_conductance,
-        qbe,
-        qbc,
-        qbx,
-        qsub,
-    };
-    evaluation.validate()?;
-    Ok(evaluation)
-}
-
-/// `gx`, the base-resistance conductance of `bjtload.c`: `RBM + (RB-RBM)/qb`,
-/// or the `IRB` current-crowding law, with its derivatives through `qb` or
-/// the base current `cb`.
-fn base_conductance(
-    t: &Thermal,
-    qb: Real,
-    dqbdve: Real,
-    dqbdvc: Real,
-    base_emitter: Dual,
-    base_collector: Dual,
-) -> Dual {
-    let rbpi = t.rb - t.rbm;
-    let (resistance, dr_dvbe, dr_dvbc) = if t.irb == 0. {
-        (
-            t.rbm + rbpi / qb,
-            -rbpi * dqbdve / (qb * qb),
-            -rbpi * dqbdvc / (qb * qb),
-        )
-    } else {
-        const K: Real = 14.59025;
-        const C: Real = 2.4317;
-        let cb = base_emitter.value + base_collector.value;
-        let ratio = cb / t.irb;
-        let (a, da_dvbe, da_dvbc) = if ratio > 1e-9 {
-            (
-                ratio,
-                (base_emitter.dvbe + base_collector.dvbe) / t.irb,
-                (base_emitter.dvbc + base_collector.dvbc) / t.irb,
-            )
-        } else {
-            (1e-9, 0., 0.)
-        };
-        let root = (1. + K * a).sqrt();
-        let z = (root - 1.) / C / a.sqrt();
-        let dz_da = K / (2. * root * C * a.sqrt()) - z / (2. * a);
-        let tz = z.tan();
-        let numerator = tz - z;
-        let denominator = z * tz * tz;
-        let f = numerator / denominator;
-        let sec2 = 1. + tz * tz;
-        let df_dz = (tz * tz * denominator - numerator * (tz * tz + 2. * z * tz * sec2))
-            / (denominator * denominator);
-        let dr_da = 3. * rbpi * df_dz * dz_da;
-        (t.rbm + 3. * rbpi * f, dr_da * da_dvbe, dr_da * da_dvbc)
-    };
-    if resistance == 0. {
-        return Dual::default();
-    }
-    let g = 1. / resistance;
-    Dual {
-        value: g,
-        dvbe: -g * g * dr_dvbe,
-        dvbc: -g * g * dr_dvbc,
-    }
 }
 
 /// The device's node roles. Primes are the internal (or, without the
@@ -1195,28 +846,6 @@ struct Nodes {
     bp: NodeId,
     ep: NodeId,
     sc: NodeId,
-}
-
-/// A current from `ends[0]` to `ends[1]` through the device, with its
-/// partial derivatives with respect to node voltages.
-struct Flow {
-    ends: [NodeId; 2],
-    value: Real,
-    partials: Vec<(NodeId, Real)>,
-    /// `sum(partial * dV)` for the difference between the (limited) junction
-    /// voltages the flow was evaluated at and the solution's: the Newton
-    /// linearization point is the evaluated one, as in `bjtload.c`.
-    shift: Real,
-}
-
-/// A charge on `ends[0]` (and its negative on `ends[1]`) with partials.
-struct Charge {
-    slot: usize,
-    ends: [NodeId; 2],
-    value: Real,
-    partials: Vec<(NodeId, Real)>,
-    /// As [`Flow::shift`], for the charge.
-    shift: Real,
 }
 
 /// Gummel-Poon level-1 BJT (`bjtload.c`), NPN or PNP.
@@ -1314,16 +943,7 @@ impl Bjt {
         };
         // Validate the temperature model and one evaluation before interning.
         let thermal = parameters.thermal(&instance, subs > 0., context)?;
-        evaluate(
-            &thermal,
-            Bias {
-                vbe: 0.,
-                vbc: 0.,
-                vbx: 0.,
-                vsub: 0.,
-            },
-            context.gmin,
-        )?;
+        c_point(&thermal, 0., 0., 0., 0., context.gmin)?;
         let mut staged = nodes.clone();
         let external: Vec<_> = i.nodes.iter().map(|n| staged.intern(n)).collect();
         let mut terminals = external.clone();
@@ -1402,230 +1022,451 @@ impl Bjt {
         }
     }
 
-    /// Physical terminal flows and charges, scaled by `m`. With
-    /// `exact_base_resistance`, the base-resistance current's bias dependence
-    /// enters the Jacobian (Newton); without, only `gx` (C's AC stamp).
-    /// `shift` is the evaluated (limited) bias minus the solution's bias.
-    fn flows(
+    /// `bjtload.c`'s branch voltages `(vbe, vbc, vbx, vsub)` for this load,
+    /// in C's order of mode tests:
+    ///
+    /// - `MODEINITTRAN`: `vbe`, `vbc`, `vbx` from `CKTstate1`, `vsub` from
+    ///   the solution (zero with `uic`, where C's `type*(ICVBE - ICVCE)` is
+    ///   the `vbx` the `uic` load stored in `CKTstate1`);
+    /// - the `uic` initial load (`MODEINITJCT | MODETRANOP | MODEUIC`):
+    ///   `vbe = type*ICVBE`, `vbc = vbx = vbe - type*ICVCE`, `vsub = 0`;
+    /// - `MODEINITJCT`: `vbe = tVcrit`, the rest zero (all zero when `OFF`,
+    ///   which also holds them at zero through `MODEINITFIX`);
+    /// - otherwise the solution's voltages (in `MODEINITPRED` the `DEVpred`
+    ///   extrapolation of each stored voltage, with `xfact = 1` in a `.dc`
+    ///   sweep where `dctrcurv.c` keeps `CKTdelta = CKTdeltaOld[1]`), then
+    ///   `DEVpnjlim` of `vbe`, `vbc` against `tVcrit` and of `vsub` against
+    ///   `tSubVcrit` (`VCRIT_DISABLED` without ISS), each relative to the
+    ///   previous load's value (`CKTstate1` in `MODEINITPRED`).
+    ///
+    /// Bypass is never taken (`CKTbypass` defaults to off).
+    fn voltages(
         &self,
-        e: &Evaluation,
         t: &Thermal,
-        voltage: impl Fn(NodeId) -> Real,
-        exact_base_resistance: bool,
-        shift: Bias,
-    ) -> (Vec<Flow>, Vec<Charge>) {
-        let n = self.nodes;
-        let m = self.instance.multiplier;
-        let pol = self.pol;
-        // Node differences b'-e', b'-c', s-sc are pol (* subs) times the
-        // normalized voltages.
-        let moved = |d: Dual| m * pol * (d.dvbe * shift.vbe + d.dvbc * shift.vbc);
-        let moved_substrate = |g: Real| m * g * pol * self.subs * shift.vsub;
-        // d(pol * f(vbe, vbc)) / dV over b', e', c'.
-        let intrinsic = |d: Dual| {
-            vec![
-                (n.bp, m * (d.dvbe + d.dvbc)),
-                (n.ep, -m * d.dvbe),
-                (n.cp, -m * d.dvbc),
-            ]
-        };
-        let mut flows = vec![
-            Flow {
-                ends: [n.cp, n.ep],
-                value: m * pol * e.transport.value,
-                partials: intrinsic(e.transport),
-                shift: moved(e.transport),
-            },
-            Flow {
-                ends: [n.bp, n.ep],
-                value: m * pol * e.base_emitter.value,
-                partials: intrinsic(e.base_emitter),
-                shift: moved(e.base_emitter),
-            },
-            Flow {
-                ends: [n.bp, n.cp],
-                value: m * pol * e.base_collector.value,
-                partials: intrinsic(e.base_collector),
-                shift: moved(e.base_collector),
-            },
-            Flow {
-                ends: [n.s, n.sc],
-                value: m * pol * self.subs * e.substrate.0,
-                partials: vec![(n.s, m * e.substrate.1), (n.sc, -m * e.substrate.1)],
-                shift: moved_substrate(e.substrate.1),
-            },
-        ];
-        if n.bp != n.b {
-            let gx = e.base_conductance;
-            let across = voltage(n.b) - voltage(n.bp);
-            let mut partials = vec![(n.b, m * gx.value), (n.bp, -m * gx.value)];
-            let mut moved_gx = 0.;
-            if exact_base_resistance {
-                // gx depends on pol*vbe and pol*vbc; the current does not
-                // carry the polarity (it is an ordinary resistor current).
-                let sensitivity = Dual {
-                    value: 0.,
-                    dvbe: pol * across * gx.dvbe,
-                    dvbc: pol * across * gx.dvbc,
-                };
-                partials.extend(intrinsic(sensitivity));
-                moved_gx = moved(sensitivity);
+        limiter: &mut Limiter,
+        context: &StampContext<'_>,
+    ) -> SpiceResult<(Real, Real, Real, Real)> {
+        let states = &context.states;
+        let voltage = |node| context.node_voltage(node);
+        let raw = self.bias(voltage);
+        let vcrit = limiting::critical_voltage(t.vt, t.is);
+        match limiter.mode() {
+            Linearization::InitialTransient => {
+                let state1 = |slot, fallback| states.accepted(1, slot).unwrap_or(fallback);
+                let vsub = if states.uic() { 0. } else { raw.vsub };
+                return Ok((
+                    state1(slot::VBE, raw.vbe),
+                    state1(slot::VBC, raw.vbc),
+                    state1(slot::VBX, raw.vbx),
+                    vsub,
+                ));
             }
-            flows.push(Flow {
-                ends: [n.b, n.bp],
-                value: m * gx.value * across,
-                partials,
-                shift: moved_gx,
-            });
+            Linearization::InitialConditions => {
+                let start = self.uic_bias(voltage);
+                return Ok((start.vbe, start.vbc, start.vbx, 0.));
+            }
+            _ => {}
         }
-        for (ends, g) in [([n.c, n.cp], t.gc), ([n.e, n.ep], t.ge)] {
-            if ends[0] != ends[1] {
-                flows.push(Flow {
-                    ends,
-                    value: m * g * (voltage(ends[0]) - voltage(ends[1])),
-                    partials: vec![(ends[0], m * g), (ends[1], -m * g)],
-                    shift: 0.,
+        if limiter.holds_off(states, self.initial.off) {
+            return Ok((0., 0., 0., 0.));
+        }
+        match limiter.mode() {
+            Linearization::Initial => Ok((vcrit, 0., 0., 0.)),
+            Linearization::Limited => {
+                let (mut vbe, mut vbc, vbx, mut vsub) =
+                    if states.phase() == crate::devices::IterationPhase::Predict {
+                        let xfact = context.integration.map_or(1., |c| c.predictor_ratio());
+                        let pred = |slot| {
+                            states
+                                .predicted(slot, xfact)
+                                .ok_or_else(|| SpiceError::circuit("missing accepted BJT voltages"))
+                        };
+                        (
+                            pred(slot::VBE)?,
+                            pred(slot::VBC)?,
+                            pred(slot::VBX)?,
+                            pred(slot::VSUB)?,
+                        )
+                    } else {
+                        (raw.vbe, raw.vbc, raw.vbx, raw.vsub)
+                    };
+                let vt = t.vt;
+                let sub_vcrit = t.iss.map_or(SUBSTRATE_VCRIT_DISABLED, |iss| {
+                    limiting::critical_voltage(vt, iss)
                 });
+                vbe = limiter.pn_junction(vbe, limiter.previous(states, slot::VBE), vt, vcrit);
+                vbc = limiter.pn_junction(vbc, limiter.previous(states, slot::VBC), vt, vcrit);
+                vsub =
+                    limiter.pn_junction(vsub, limiter.previous(states, slot::VSUB), vt, sub_vcrit);
+                Ok((vbe, vbc, vbx, vsub))
             }
+            _ => Ok((raw.vbe, raw.vbc, raw.vbx, raw.vsub)),
         }
-        let charges = vec![
-            Charge {
-                slot: 0,
-                ends: [n.bp, n.ep],
-                value: m * pol * e.qbe.value,
-                partials: intrinsic(e.qbe),
-                shift: moved(e.qbe),
-            },
-            Charge {
-                slot: 2,
-                ends: [n.bp, n.cp],
-                value: m * pol * e.qbc.value,
-                partials: intrinsic(e.qbc),
-                shift: moved(e.qbc),
-            },
-            Charge {
-                slot: 4,
-                ends: [n.s, n.sc],
-                value: m * pol * self.subs * e.qsub.0,
-                partials: vec![(n.s, m * e.qsub.1), (n.sc, -m * e.qsub.1)],
-                shift: moved_substrate(e.qsub.1),
-            },
-            Charge {
-                slot: 6,
-                ends: [n.b, n.cp],
-                value: m * pol * e.qbx.0,
-                partials: vec![(n.b, m * e.qbx.1), (n.cp, -m * e.qbx.1)],
-                shift: 0.,
-            },
-        ];
-        (flows, charges)
     }
 }
 
-/// Stamps a flow's Newton linearization: Jacobian `partials` and the
-/// equivalent current `value - sum(partial * V)`.
-fn stamp_flow(context: &mut StampContext<'_>, flow: &Flow) -> SpiceResult<()> {
-    let mut equivalent = flow.value - flow.shift;
-    for (node, derivative) in &flow.partials {
-        equivalent -= derivative * context.node_voltage(*node);
-    }
-    for (row, sign) in [(flow.ends[0], 1.), (flow.ends[1], -1.)] {
-        for (col, derivative) in &flow.partials {
-            context.stamp(row, *col, sign * derivative)?;
-        }
-        context.stamp_rhs(row, -sign * equivalent)?;
-    }
-    Ok(())
+/// The quantities `bjtload.c` computes at one set of branch voltages, in
+/// its variable names, before any transient companion is folded in (and
+/// what `bjtacld.c` reads back from `CKTstate0` after the `MODEINITSMSIG`
+/// load).
+#[derive(Debug, Clone, Copy)]
+struct Point {
+    cc: Real,
+    cb: Real,
+    gpi: Real,
+    gmu: Real,
+    gm: Real,
+    go: Real,
+    gx: Real,
+    gdsub: Real,
+    cdsub: Real,
+    /// The transit-time transcapacitance `d(qbe)/d(vbc)` (zero unless
+    /// `TF != 0` and `vbe > 0`), not yet multiplied by `ag0`.
+    geqcb: Real,
+    capbe: Real,
+    capbc: Real,
+    capbx: Real,
+    capsub: Real,
+    qbe: Real,
+    qbc: Real,
+    qbx: Real,
+    qsub: Real,
 }
 
-/// Integrates a charge with the trial companion coefficients (`NIintegrate`)
-/// and stamps its current; outside transient only the charge is recorded.
-/// `ag0 * dQ/dV` is the companion Jacobian, cross terms included.
-fn stamp_charge(context: &mut StampContext<'_>, charge: &Charge) -> SpiceResult<()> {
-    let slot = charge.slot;
-    if let Some(coefficients) = context.integration {
-        let crate::devices::AnalysisMode::Transient { dt, .. } = context.mode else {
-            return Err(SpiceError::circuit(
-                "BJT charge companion outside transient",
-            ));
-        };
-        if dt != coefficients.dt() {
-            return Err(SpiceError::circuit("BJT charge timestep mismatch"));
-        }
-        let mut history = vec![charge.value];
-        for age in 1..=coefficients.charge_history_len() {
-            history.push(
-                context
-                    .states
-                    .accepted(age, slot)
-                    .ok_or_else(|| SpiceError::circuit("missing accepted BJT charge"))?,
-            );
-        }
-        let previous = if coefficients.needs_previous_derivative() {
-            Some(
-                context
-                    .states
-                    .accepted(1, slot + 1)
-                    .ok_or_else(|| SpiceError::circuit("missing accepted BJT charge current"))?,
-            )
-        } else {
-            None
-        };
-        // With unit capacitance the companion conductance is ag0 itself.
-        let companion = coefficients.integrate(&history, previous, 1.)?;
-        let ag0 = companion.conductance;
-        stamp_flow(
-            context,
-            &Flow {
-                ends: charge.ends,
-                value: companion.derivative,
-                partials: charge
-                    .partials
-                    .iter()
-                    .map(|(node, dq)| (*node, ag0 * dq))
-                    .collect(),
-                shift: ag0 * charge.shift,
-            },
-        )?;
-        context.states.set(slot + 1, companion.derivative)?;
+/// `bjtload.c`'s junction exponential with the cubic reverse continuation
+/// below `-3 vtn`, in C's arithmetic.
+fn c_junction(v: Real, vtn: Real, is: Real) -> (Real, Real) {
+    if v >= -3. * vtn {
+        let ev = (v / vtn).exp();
+        (is * (ev - 1.), is * ev / vtn)
     } else {
-        if context.mode.is_transient() {
-            return Err(SpiceError::circuit(
-                "BJT transient needs companion integration",
-            ));
-        }
-        context.states.set(slot + 1, 0.)?;
+        let mut arg = 3. * vtn / (v * std::f64::consts::E);
+        arg = arg * arg * arg;
+        (-is * (1. + arg), is * 3. * arg / v)
     }
-    context.states.set(slot, charge.value)
 }
 
-/// Adds `partials` of a flow between `ends` into the AC conductance (`A`) or
-/// charge (`E`) operator.
-fn small_signal(
-    context: &mut LinearContext<'_>,
-    ends: [NodeId; 2],
-    partials: &[(NodeId, Real)],
-    dynamic: bool,
-) -> SpiceResult<()> {
-    for (row, sign) in [(ends[0], 1.), (ends[1], -1.)] {
-        for (col, derivative) in partials {
-            if let (Some(r), Some(c)) = (
-                context.unknowns.node_row(row),
-                context.unknowns.node_row(*col),
-            ) {
-                let matrix = if dynamic {
-                    &mut context.system.e
-                } else {
-                    &mut context.system.a
-                };
-                matrix.add(r, c, sign * derivative)?;
+/// `bjtload.c`'s depletion charge and capacitance of a junction with zero-bias
+/// capacitance `cz`, potential `p`, grading `xm`, linearized above `fcp` with
+/// `bjttemp.c`'s `f1`/`f2`/`f3` (`tf1..3` for BE, `tf5..7` for BC and BX).
+#[allow(clippy::too_many_arguments)]
+fn c_depletion(
+    v: Real,
+    cz: Real,
+    p: Real,
+    xm: Real,
+    fcp: Real,
+    f1: Real,
+    f2: Real,
+    f3: Real,
+) -> (Real, Real) {
+    if v < fcp {
+        let arg = 1. - v / p;
+        let sarg = (-xm * arg.ln()).exp();
+        (p * cz * (1. - arg * sarg) / (1. - xm), cz * sarg)
+    } else {
+        let czf2 = cz / f2;
+        (
+            cz * f1 + czf2 * (f3 * (v - fcp) + (xm / (p + p)) * (v * v - fcp * fcp)),
+            czf2 * (f3 + xm * v / p),
+        )
+    }
+}
+
+/// `bjtload.c` from "determine dc current and derivatives" through the
+/// charge storage block, expression for expression (excess phase and
+/// quasi-saturation are rejected at elaboration).
+#[allow(clippy::too_many_lines, clippy::many_single_char_names)]
+fn c_point(
+    t: &Thermal,
+    vbe: Real,
+    vbc: Real,
+    vbx: Real,
+    vsub: Real,
+    gmin: Real,
+) -> SpiceResult<Point> {
+    let vt = t.vt;
+    let rbpi = t.rb - t.rbm;
+    let vte = t.ne * vt;
+    let vtc = t.nc * vt;
+    let vtn = vt * t.nf;
+    let (mut cbe, mut gbe) = c_junction(vbe, vtn, t.is_be);
+    let (mut cben, mut gben) = if t.ise == 0. {
+        (0., 0.)
+    } else {
+        c_junction(vbe, vte, t.ise)
+    };
+    gben += gmin;
+    cben += gmin * vbe;
+    let vtn = vt * t.nr;
+    let (cbc, gbc) = c_junction(vbc, vtn, t.is_bc);
+    let (mut cbcn, mut gbcn) = if t.isc == 0. {
+        (0., 0.)
+    } else {
+        c_junction(vbc, vtc, t.isc)
+    };
+    gbcn += gmin;
+    cbcn += gmin * vbc;
+    let (gdsub, cdsub) = match t.iss {
+        Some(iss) => {
+            let vts = vt * t.ns;
+            if vsub <= -3. * vts {
+                let mut arg = 3. * vts / (vsub * std::f64::consts::E);
+                arg = arg * arg * arg;
+                (
+                    iss * 3. * arg / vsub + gmin,
+                    -iss * (1. + arg) + gmin * vsub,
+                )
+            } else {
+                let evsub = (vsub / vts).min(MAX_EXP_ARG).exp();
+                (iss * evsub / vts + gmin, iss * (evsub - 1.) + gmin * vsub)
+            }
+        }
+        None => (gmin, gmin * vsub),
+    };
+    // Base charge terms.
+    let q1 = 1. / (1. - t.inv_vaf * vbc - t.inv_var * vbe);
+    let (qb, dqbdve, dqbdvc);
+    if t.inv_ikf == 0. && t.inv_ikr == 0. {
+        qb = q1;
+        dqbdve = q1 * qb * t.inv_var;
+        dqbdvc = q1 * qb * t.inv_vaf;
+    } else {
+        let q2 = t.inv_ikf * cbe + t.inv_ikr * cbc;
+        let x = 1. + 4. * q2;
+        // C's MAX(0, x).
+        let arg = if 0. > x { 0. } else { x };
+        let mut sqarg = 1.;
+        match t.nkf {
+            None => {
+                if arg != 0. {
+                    sqarg = arg.sqrt();
+                }
+                qb = q1 * (1. + sqarg) / 2.;
+                dqbdve = q1 * (qb * t.inv_var + t.inv_ikf * gbe / sqarg);
+                dqbdvc = q1 * (qb * t.inv_vaf + t.inv_ikr * gbc / sqarg);
+            }
+            Some(nkf) => {
+                if arg != 0. {
+                    sqarg = arg.powf(nkf);
+                }
+                qb = q1 * (1. + sqarg) / 2.;
+                dqbdve = q1 * (qb * t.inv_var + t.inv_ikf * gbe * 2. * sqarg * nkf / arg);
+                dqbdvc = q1 * (qb * t.inv_vaf + t.inv_ikr * gbc * 2. * sqarg * nkf / arg);
             }
         }
     }
-    Ok(())
+    // Excess phase is rejected, so cc starts at zero and cex/gex are cbe/gbe.
+    let mut cc = 0.;
+    let cex = cbe;
+    let gex = gbe;
+    cc = cc + (cex - cbc) / qb - cbc / t.br - cbcn;
+    let cb = cbe / t.bf + cben + cbc / t.br + cbcn;
+    let mut gx = t.rbm + rbpi / qb;
+    if t.irb != 0. {
+        let ratio = cb / t.irb;
+        // C's MAX(cb/irb, 1e-9).
+        let mut arg1 = if ratio > 1e-9 { ratio } else { 1e-9 };
+        let arg2 = (-1. + (1. + 14.59025 * arg1).sqrt()) / 2.4317 / arg1.sqrt();
+        arg1 = arg2.tan();
+        gx = t.rbm + 3. * rbpi * (arg1 - arg2) / arg2 / arg1 / arg1;
+    }
+    if gx != 0. {
+        gx = 1. / gx;
+    }
+    let gpi = gbe / t.bf + gben;
+    let gmu = gbc / t.br + gbcn;
+    let go = (gbc + (cex - cbc) * dqbdvc / qb) / qb;
+    let gm = (gex - (cex - cbc) * dqbdve / qb) / qb - go;
+    // Charge storage elements.
+    let tf = t.tf;
+    let tr = t.tr;
+    let czbe = t.cje;
+    let pe = t.vje;
+    let xme = t.mje;
+    let ctot = t.cjc;
+    let czbc = ctot * t.xcjc;
+    let czbx = ctot - czbc;
+    let pc = t.vjc;
+    let xmc = t.mjc;
+    let fcpe = t.fc_vje;
+    let czsub = t.cjs;
+    let ps = t.vjs;
+    let xms = t.mjs;
+    let xtf = t.xtf;
+    let ovtf = t.vtf_factor;
+    let xjtf = t.itf;
+    let mut geqcb = 0.;
+    if tf != 0. && vbe > 0. {
+        let mut argtf = 0.;
+        let mut arg2 = 0.;
+        let mut arg3 = 0.;
+        if xtf != 0. {
+            argtf = xtf;
+            if ovtf != 0. {
+                argtf *= (vbc * ovtf).exp();
+            }
+            arg2 = argtf;
+            if xjtf != 0. {
+                let temp = cbe / (cbe + xjtf);
+                argtf = argtf * temp * temp;
+                arg2 = argtf * (3. - temp - temp);
+            }
+            arg3 = cbe * argtf * ovtf;
+        }
+        cbe = cbe * (1. + argtf) / qb;
+        gbe = (gbe * (1. + arg2) - cbe * dqbdve) / qb;
+        geqcb = tf * (arg3 - cbe * dqbdvc) / qb;
+    }
+    let (qbe, capbe) = if vbe < fcpe {
+        let arg = 1. - vbe / pe;
+        let sarg = (-xme * arg.ln()).exp();
+        (
+            tf * cbe + pe * czbe * (1. - arg * sarg) / (1. - xme),
+            tf * gbe + czbe * sarg,
+        )
+    } else {
+        let czbef2 = czbe / t.f2;
+        (
+            tf * cbe
+                + czbe * t.f1
+                + czbef2 * (t.f3 * (vbe - fcpe) + (xme / (pe + pe)) * (vbe * vbe - fcpe * fcpe)),
+            tf * gbe + czbef2 * (t.f3 + xme * vbe / pe),
+        )
+    };
+    let fcpc = t.fc_vjc;
+    let (qbc, capbc) = if vbc < fcpc {
+        let arg = 1. - vbc / pc;
+        let sarg = (-xmc * arg.ln()).exp();
+        (
+            tr * cbc + pc * czbc * (1. - arg * sarg) / (1. - xmc),
+            tr * gbc + czbc * sarg,
+        )
+    } else {
+        let czbcf2 = czbc / t.f6;
+        (
+            tr * cbc
+                + czbc * t.f5
+                + czbcf2 * (t.f7 * (vbc - fcpc) + (xmc / (pc + pc)) * (vbc * vbc - fcpc * fcpc)),
+            tr * gbc + czbcf2 * (t.f7 + xmc * vbc / pc),
+        )
+    };
+    let (qbx, capbx) = c_depletion(vbx, czbx, pc, xmc, fcpc, t.f5, t.f6, t.f7);
+    let (qsub, capsub) = if vsub < 0. {
+        let arg = 1. - vsub / ps;
+        let sarg = (-xms * arg.ln()).exp();
+        (ps * czsub * (1. - arg * sarg) / (1. - xms), czsub * sarg)
+    } else {
+        (
+            vsub * czsub * (1. + xms * vsub / (2. * ps)),
+            czsub * (1. + xms * vsub / ps),
+        )
+    };
+    let point = Point {
+        cc,
+        cb,
+        gpi,
+        gmu,
+        gm,
+        go,
+        gx,
+        gdsub,
+        cdsub,
+        geqcb,
+        capbe,
+        capbc,
+        capbx,
+        capsub,
+        qbe,
+        qbc,
+        qbx,
+        qsub,
+    };
+    let finite = [
+        cc, cb, gpi, gmu, gm, go, gx, gdsub, cdsub, geqcb, capbe, capbc, capbx, capsub, qbe, qbc,
+        qbx, qsub,
+    ]
+    .iter()
+    .all(|v| v.is_finite());
+    if !finite {
+        return Err(SpiceError::Numerical {
+            context: "BJT".into(),
+            message: "nonfinite Gummel-Poon current, charge or conductance".into(),
+        });
+    }
+    Ok(point)
 }
 
+/// The `NIintegrate` companion of the charge in `slot` with capacitance
+/// `cap`: `(geq, ccap)`, `ccap` stored in `slot + 1` (C `CKTstate0[q + 1]`).
+fn integrate(
+    context: &mut StampContext<'_>,
+    coefficients: &crate::maths::integrator::Coefficients,
+    charge: Real,
+    cap: Real,
+    slot: usize,
+) -> SpiceResult<(Real, Real)> {
+    crate::devices::nonlinear::junction_companion(
+        context,
+        coefficients,
+        crate::devices::nonlinear::JunctionPoint {
+            current: 0.,
+            conductance: 0.,
+            charge,
+            capacitance: cap,
+        },
+        slot,
+    )
+}
 impl Device for Bjt {
+    /// `bjtsetup.c` without quasi-saturation (`RCO`, which the port rejects),
+    /// so `collCX` is the collector prime; a three-terminal device's
+    /// substrate is ground and allocates nothing.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let Nodes {
+            c,
+            b,
+            e,
+            s,
+            cp,
+            bp,
+            ep,
+            sc,
+        } = self.nodes;
+        let cx = cp;
+        for (row, col) in [
+            (c, cx),
+            (b, bp),
+            (e, ep),
+            (cx, c),
+            (cp, bp),
+            (cp, ep),
+            (bp, b),
+            (bp, cp),
+            (bp, ep),
+            (ep, e),
+            (ep, cp),
+            (ep, bp),
+            (c, c),
+            (b, b),
+            (e, e),
+            (cp, cp),
+            (bp, bp),
+            (ep, ep),
+            (s, s),
+            (sc, s),
+            (s, sc),
+            (b, cp),
+            (cp, b),
+            (cx, cx),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         key: &str,
@@ -1658,9 +1499,9 @@ impl Device for Bjt {
         self.initial.off
     }
     /// `qbe`, `qbc`, `qsub`, `qbx`, each followed by its current, then the
-    /// limited `vbe`, `vbc`, `vsub`.
+    /// limited `vbe`, `vbc`, `vsub` and the unlimited `vbx` (see [`slot`]).
     fn state_count(&self) -> usize {
-        11
+        slot::COUNT
     }
     /// `bjttrunc.c`: `qbe`, `qbc`, `qsub`, and `qbx` only when `XCJC < 1`.
     fn truncation_slots(&self) -> Vec<usize> {
@@ -1746,85 +1587,196 @@ impl Device for Bjt {
             instance,
             initial,
         };
-        evaluate(
-            &device.thermal(context)?,
-            Bias {
-                vbe: 0.,
-                vbc: 0.,
-                vbx: 0.,
-                vsub: 0.,
-            },
-            context.gmin,
-        )?;
+        c_point(&device.thermal(context)?, 0., 0., 0., 0., context.gmin)?;
         Ok(Box::new(device))
     }
+    /// `bjtload.c`: [`Bjt::voltages`], [`c_point`], the transient companions
+    /// (`NIintegrate` of `qbe` and `qbc` folded into `gpi`, `gmu`, `cb`,
+    /// `cc` and `geqcb *= ag0`, then `qsub`, `qbx`; `MODEINITTRAN` copies
+    /// of the charges and currents into `CKTstate1`), and the right-hand
+    /// side and matrix stamps in C's sequence and expressions.
+    #[allow(clippy::too_many_lines)]
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("BJT AC requires small-signal assembly"));
         }
         let model_context = context.model_context();
-        let thermal = self.thermal(&model_context)?;
-        let voltage = |node| context.node_voltage(node);
-        let raw = self.bias(voltage);
+        let t = self.thermal(&model_context)?;
         let mut limiter = Limiter::new(&context.states);
-        let bias = thermal.limit(
-            &mut limiter,
-            &context.states,
-            raw,
-            self.uic_bias(voltage),
-            self.initial.off,
-        );
-        let evaluation = evaluate(&thermal, bias, context.gmin)?;
-        // BJTconvTest for an `off` instance held in MODEINITFIX: collector
-        // `cc = it - ibc` and base `cb = ibe + ibc` currents at the held bias
-        // against their linear prediction at the iterate's `vbe`, `vbc`.
+        let (vbe, vbc, vbx, vsub) = self.voltages(&t, &mut limiter, context)?;
+        let p = c_point(&t, vbe, vbc, vbx, vsub, context.gmin)?;
+        let Point {
+            mut cc,
+            mut cb,
+            mut gpi,
+            mut gmu,
+            gm,
+            go,
+            gx,
+            gdsub,
+            cdsub,
+            ..
+        } = p;
+        // BJTconvTest for an `off` instance held in MODEINITFIX: the held
+        // currents against their linearization at the iterate's voltages.
         {
-            let e = &evaluation;
-            let (dbe, dbc) = (raw.vbe - bias.vbe, raw.vbc - bias.vbc);
-            let predict = |d: [Dual; 2], sign: Real| {
-                (d[0].dvbe + sign * d[1].dvbe) * dbe + (d[0].dvbc + sign * d[1].dvbc) * dbc
+            let raw = self.bias(|node| context.node_voltage(node));
+            let delvbe = raw.vbe - vbe;
+            let delvbc = raw.vbc - vbc;
+            let cchat = cc + (gm + go) * delvbe - (go + gmu) * delvbc;
+            let cbhat = cb + gpi * delvbe + gmu * delvbc;
+            limiter.test_held(&context.states, &[(cc, cchat), (cb, cbhat)]);
+        }
+        let mut geqcb = 0.;
+        let (mut gcsub, mut geqbx) = (0., 0.);
+        let (cqsub, cqbx);
+        if let Some(coefficients) = context.integration {
+            let crate::devices::AnalysisMode::Transient { dt, .. } = context.mode else {
+                return Err(SpiceError::circuit(
+                    "BJT charge companion outside transient",
+                ));
             };
-            let cc = e.transport.value - e.base_collector.value;
-            let cb = e.base_emitter.value + e.base_collector.value;
-            limiter.test_held(
-                &context.states,
-                &[
-                    (cc, cc + predict([e.transport, e.base_collector], -1.)),
-                    (cb, cb + predict([e.base_emitter, e.base_collector], 1.)),
-                ],
-            );
+            if dt != coefficients.dt() {
+                return Err(SpiceError::circuit("BJT charge timestep mismatch"));
+            }
+            let initial = context.states.phase() == crate::devices::IterationPhase::Predict
+                && context.states.initial_transient();
+            if initial {
+                context.states.patch_state1(slot::QBE, p.qbe)?;
+                context.states.patch_state1(slot::QBC, p.qbc)?;
+                context.states.patch_state1(slot::QBX, p.qbx)?;
+                context.states.patch_state1(slot::QSUB, p.qsub)?;
+            }
+            let (geq, cqbe) = integrate(context, coefficients, p.qbe, p.capbe, slot::QBE)?;
+            geqcb = p.geqcb * coefficients.ag()[0];
+            gpi += geq;
+            cb += cqbe;
+            let (geq, cqbc) = integrate(context, coefficients, p.qbc, p.capbc, slot::QBC)?;
+            gmu += geq;
+            cb += cqbc;
+            cc -= cqbc;
+            if initial {
+                context.states.patch_state1(slot::QBE + 1, cqbe)?;
+                context.states.patch_state1(slot::QBC + 1, cqbc)?;
+            }
+            (gcsub, cqsub) = integrate(context, coefficients, p.qsub, p.capsub, slot::QSUB)?;
+            (geqbx, cqbx) = integrate(context, coefficients, p.qbx, p.capbx, slot::QBX)?;
+            if initial {
+                context.states.patch_state1(slot::QBX + 1, cqbx)?;
+                context.states.patch_state1(slot::QSUB + 1, cqsub)?;
+            }
+        } else {
+            if context.mode.is_transient() {
+                return Err(SpiceError::circuit(
+                    "BJT transient needs companion integration",
+                ));
+            }
+            for charge in [slot::QBE, slot::QBC] {
+                context.states.set(charge + 1, 0.)?;
+            }
+            // C never writes `cqsub`/`cqbx` outside transient and
+            // `MODEINITSMSIG`, yet reads them into `ceqsub`/`ceqbx`: a DC load
+            // after a small-signal analysis of the same deck sees the
+            // capacitances that analysis stored there.
+            for charge in [slot::QSUB, slot::QBX] {
+                let held = context
+                    .states
+                    .iterate(charge + 1)
+                    .or_else(|| context.states.carried(charge + 1))
+                    .unwrap_or(0.);
+                context.states.set(charge + 1, held)?;
+            }
+            cqsub = context.states.trial(slot::QSUB + 1).unwrap_or(0.);
+            cqbx = context.states.trial(slot::QBX + 1).unwrap_or(0.);
         }
-        let shift = Bias {
-            vbe: bias.vbe - raw.vbe,
-            vbc: bias.vbc - raw.vbc,
-            vbx: 0.,
-            vsub: bias.vsub - raw.vsub,
-        };
-        // The exact Jacobian unless the load asks for C's `bjtload.c` matrix
-        // (gx only), as `.tf` does.
-        let exact = !context.states.c_jacobian();
-        let (flows, charges) = self.flows(&evaluation, &thermal, voltage, exact, shift);
-        for flow in &flows {
-            stamp_flow(context, flow)?;
+        for (charge, value) in [
+            (slot::QBE, p.qbe),
+            (slot::QBC, p.qbc),
+            (slot::QSUB, p.qsub),
+            (slot::QBX, p.qbx),
+        ] {
+            context.states.set(charge, value)?;
         }
-        for charge in &charges {
-            stamp_charge(context, charge)?;
+        // Load the current excitation vector and the matrix.
+        let m = self.instance.multiplier;
+        let ty = self.pol;
+        let ttype = self.pol * self.subs;
+        let gcpr = t.gc;
+        let gepr = t.ge;
+        let geqsub = gcsub + gdsub;
+        let ceqsub = ttype * (cqsub + cdsub - vsub * geqsub);
+        let ceqbx = ty * (cqbx - vbx * geqbx);
+        let ceqbe = ty * (cc + cb - vbe * (gm + go + gpi) + vbc * (go - geqcb));
+        let ceqbc = ty * (-cc + vbe * (gm + go) - vbc * (gmu + go));
+        let Nodes {
+            c,
+            b,
+            e,
+            s,
+            cp,
+            bp,
+            ep,
+            sc,
+        } = self.nodes;
+        // Without quasi-saturation `collCX` is the collector prime.
+        let cx = cp;
+        context.stamp_rhs(b, m * (-ceqbx))?;
+        context.stamp_rhs(cp, m * (ceqbx + ceqbc))?;
+        context.stamp_rhs(sc, m * ceqsub)?;
+        context.stamp_rhs(bp, m * (-ceqbe - ceqbc))?;
+        context.stamp_rhs(ep, m * (ceqbe))?;
+        context.stamp_rhs(s, m * (-ceqsub))?;
+        for (row, col, value) in [
+            (c, c, m * (gcpr)),
+            (b, b, m * (gx + geqbx)),
+            (e, e, m * (gepr)),
+            (cp, cp, m * (gmu + go + geqbx)),
+            (cx, cx, m * (gcpr)),
+            (sc, sc, m * (geqsub)),
+            (bp, bp, m * (gx + gpi + gmu + geqcb)),
+            (ep, ep, m * (gpi + gepr + gm + go)),
+            (c, cx, m * (-gcpr)),
+            (b, bp, m * (-gx)),
+            (e, ep, m * (-gepr)),
+            (cx, c, m * (-gcpr)),
+            (cp, bp, m * (-gmu + gm)),
+            (cp, ep, m * (-gm - go)),
+            (bp, b, m * (-gx)),
+            (bp, cp, m * (-gmu - geqcb)),
+            (bp, ep, m * (-gpi)),
+            (ep, e, m * (-gepr)),
+            (ep, cp, m * (-go + geqcb)),
+            (ep, bp, m * (-gpi - gm - geqcb)),
+            (s, s, m * (geqsub)),
+            (sc, s, m * (-geqsub)),
+            (s, sc, m * (-geqsub)),
+            (b, cp, m * (-geqbx)),
+            (cp, b, m * (-geqbx)),
+        ] {
+            context.stamp(row, col, value)?;
         }
         limiter.finish(
             &mut context.states,
             &[
-                (BJT_LIMITED_SLOTS, bias.vbe),
-                (BJT_LIMITED_SLOTS + 1, bias.vbc),
-                (BJT_LIMITED_SLOTS + 2, bias.vsub),
+                (slot::VBE, vbe),
+                (slot::VBC, vbc),
+                (slot::VSUB, vsub),
+                (slot::VBX, vbx),
             ],
         )
     }
+    /// `bjtacld.c` after C's `MODEINITSMSIG` load: the conductances of the
+    /// last operating-point load (whose voltages are the solution's, the
+    /// final load never limiting) and the capacitances at `vbe`, `vbc`, `vbx`,
+    /// `vsub` of the solution, stamped in C's sequence. The real parts go to
+    /// `A`; the `j omega` parts (C's `xc* = cap * omega`) go to `E` as
+    /// capacitances.
     fn assemble_small_signal(
         &self,
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
-        let thermal = self.thermal(context.model_context)?;
+        let t = self.thermal(context.model_context)?;
         let unknowns = context.unknowns;
         let voltage = |node: NodeId| {
             unknowns
@@ -1832,29 +1784,91 @@ impl Device for Bjt {
                 .and_then(|r| bias.get(r))
                 .unwrap_or(0.)
         };
-        let evaluation = evaluate(&thermal, self.bias(voltage), context.model_context.gmin)?;
-        // bjtacld.c stamps the base resistance as the conductance gx only.
-        let (flows, charges) = self.flows(
-            &evaluation,
-            &thermal,
-            voltage,
-            false,
-            Bias {
-                vbe: 0.,
-                vbc: 0.,
-                vbx: 0.,
-                vsub: 0.,
-            },
-        );
-        for flow in &flows {
-            small_signal(context, flow.ends, &flow.partials, false)?;
-        }
-        for charge in &charges {
-            small_signal(context, charge.ends, &charge.partials, true)?;
+        let v = self.bias(voltage);
+        let p = c_point(&t, v.vbe, v.vbc, v.vbx, v.vsub, context.model_context.gmin)?;
+        let m = self.instance.multiplier;
+        let gcpr = t.gc;
+        let gepr = t.ge;
+        let Point {
+            gpi,
+            gmu,
+            gm,
+            go,
+            gx,
+            gdsub,
+            ..
+        } = p;
+        // C's `xc*` before the `CKTomega` factor, which the complex assembly
+        // applies term by term (`LinearContext::scaled_dynamic_sum`).
+        let xcpi = p.capbe;
+        let xcmu = p.capbc;
+        let xcbx = p.capbx;
+        let xcsub = p.capsub;
+        let xcmcb = p.geqcb;
+        let Nodes {
+            c,
+            b,
+            e,
+            s,
+            cp,
+            bp,
+            ep,
+            sc,
+        } = self.nodes;
+        let cx = cp;
+        let mut add = |row: NodeId, col: NodeId, value: Real| -> SpiceResult<()> {
+            if let (Some(r), Some(k)) = (unknowns.node_row(row), unknowns.node_row(col)) {
+                context.system.a.add(r, k, value)?;
+            }
+            Ok(())
+        };
+        add(c, c, m * (gcpr))?;
+        add(b, b, m * (gx))?;
+        add(e, e, m * (gepr))?;
+        add(cp, cp, m * (gmu + go))?;
+        add(cx, cx, m * (gcpr))?;
+        add(bp, bp, m * (gx + gpi + gmu))?;
+        add(ep, ep, m * (gpi + gepr + gm + go))?;
+        add(c, cx, m * (-gcpr))?;
+        add(b, bp, m * (-gx))?;
+        add(e, ep, m * (-gepr))?;
+        add(cx, c, m * (-gcpr))?;
+        add(cp, bp, m * (-gmu + gm))?;
+        add(cp, ep, m * (-gm - go))?;
+        add(bp, b, m * (-gx))?;
+        add(bp, cp, m * (-gmu))?;
+        add(bp, ep, m * (-gpi))?;
+        add(ep, e, m * (-gepr))?;
+        add(ep, cp, m * (-go))?;
+        add(ep, bp, m * (-gpi - gm))?;
+        add(sc, sc, m * (gdsub))?;
+        add(s, s, m * (gdsub))?;
+        add(sc, s, m * (-gdsub))?;
+        add(s, sc, m * (-gdsub))?;
+        // The `j omega` parts in C's order, each element's terms one
+        // `m * (x1 + x2 + ...)` sum of `cap * omega` values. C's excess-phase
+        // `xgm` is zero (rejected at elaboration) and left out.
+        for (row, col, terms) in [
+            (b, b, &[xcbx][..]),
+            (cp, cp, &[xcmu, xcbx][..]),
+            (sc, sc, &[xcsub][..]),
+            (bp, bp, &[xcpi, xcmu, xcmcb][..]),
+            (ep, ep, &[xcpi][..]),
+            (cp, bp, &[-xcmu][..]),
+            (bp, cp, &[-xcmu, -xcmcb][..]),
+            (bp, ep, &[-xcpi][..]),
+            (ep, cp, &[xcmcb][..]),
+            (ep, bp, &[-xcpi, -xcmcb][..]),
+            (s, s, &[xcsub][..]),
+            (sc, s, &[-xcsub][..]),
+            (s, sc, &[-xcsub][..]),
+            (b, cp, &[-xcbx][..]),
+            (cp, b, &[-xcbx][..]),
+        ] {
+            context.scaled_dynamic_sum(row, col, terms, m)?;
         }
         Ok(())
     }
-
     /// Pole-zero load: C `bjtpzld.c` (excess phase is rejected at elaboration) equals the AC load with `s` for `j omega`.
     fn assemble_pole_zero(
         &self,
@@ -1862,6 +1876,26 @@ impl Device for Bjt {
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+
+    /// `bjtload.c`'s `MODEINITSMSIG` load stores the substrate and B-X'
+    /// capacitances in the `cqsub`/`cqbx` current slots, where every later
+    /// non-transient load of the deck reads them back as companion currents
+    /// (`ceqsub`, `ceqbx`); the other slots it writes are not read again.
+    fn small_signal_state(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+        slots: &mut [Real],
+    ) -> SpiceResult<()> {
+        let t = self.thermal(context.model_context)?;
+        let v = self.bias(|node| context.voltage(node));
+        let p = c_point(&t, v.vbe, v.vbc, v.vbx, v.vsub, context.model_context.gmin)?;
+        for (slot, value) in [(slot::QSUB + 1, p.capsub), (slot::QBX + 1, p.capbx)] {
+            if let Some(target) = slots.get_mut(slot) {
+                *target = value;
+            }
+        }
+        Ok(())
     }
 
     /// `bjtdset.c`/`bjtdisto.c` at the operating point (see the `disto`
@@ -1882,14 +1916,17 @@ impl Device for Bjt {
     /// internal collector.
     fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
         let thermal = self.thermal(context.model_context)?;
-        let e = evaluate(
+        let v = self.bias(|node| context.voltage(node));
+        let p = c_point(
             &thermal,
-            self.bias(|node| context.voltage(node)),
+            v.vbe,
+            v.vbc,
+            v.vbx,
+            v.vsub,
             context.model_context.gmin,
         )?;
         let m = self.instance.multiplier;
-        let cc = e.transport.value - e.base_collector.value;
-        let cb = e.base_emitter.value + e.base_collector.value;
+        let (cc, cb) = (p.cc, p.cb);
         let temperature = self
             .instance
             .temp
@@ -1907,11 +1944,7 @@ impl Device for Bjt {
             sources: vec![
                 NoiseSource::new("_rc", [n.cp, n.c], thermal_noise(thermal.gc * m)),
                 NoiseSource::new("_rci", [n.cp, n.cp], thermal_noise(0.)),
-                NoiseSource::new(
-                    "_rb",
-                    [n.bp, n.b],
-                    thermal_noise(e.base_conductance.value * m),
-                ),
+                NoiseSource::new("_rb", [n.bp, n.b], thermal_noise(p.gx * m)),
                 NoiseSource::new("_re", [n.ep, n.e], thermal_noise(thermal.ge * m)),
                 NoiseSource::new("_ic", [n.cp, n.ep], NoiseKind::Shot { current: cc * m }),
                 NoiseSource::new("_ib", [n.bp, n.ep], NoiseKind::Shot { current: cb * m }),
@@ -1919,8 +1952,8 @@ impl Device for Bjt {
                     "_1overf",
                     [n.bp, n.ep],
                     NoiseKind::Flicker {
-                        coefficient: flicker,
-                        exponent: 1.,
+                        numerator: flicker,
+                        law: FlickerLaw::PerHertz,
                     },
                 ),
             ],
@@ -1957,9 +1990,10 @@ mod tests {
             .unwrap()
     }
 
-    type Pick = fn(&Evaluation) -> Dual;
-
-    /// Every slice's analytic derivative matches a central finite difference.
+    /// `bjtload.c`'s conductances and capacitances are the derivatives of
+    /// its currents and charges (C's own convergence test relies on it):
+    /// `cb` by `gpi`/`gmu`, `cc` by `gm + go`/`-(go + gmu)`, `qbe` by
+    /// `capbe`/`geqcb`, `qbc`, `qbx`, `qsub` and `cdsub` by their own.
     fn check_jacobian(t: &Thermal) {
         let gmin = 1e-12;
         let h = 1e-7;
@@ -1972,75 +2006,86 @@ mod tests {
             (0.1, -0.05),
             (-1.5, -3.),
         ];
+        let close = |what: &str, analytic: Real, numeric: Real, value: Real| {
+            let scale = analytic.abs().max(numeric.abs()).max(value.abs() * 1e-3);
+            assert!(
+                (analytic - numeric).abs() <= 2e-5 * scale + 1e-14,
+                "{what}: {analytic:e} vs {numeric:e}"
+            );
+        };
         for (vbe, vbc) in biases {
-            let at = |vbe: Real, vbc: Real| {
-                evaluate(
-                    t,
-                    Bias {
-                        vbe,
-                        vbc,
-                        vbx: vbc,
-                        vsub: -vbc,
-                    },
-                    gmin,
-                )
-                .unwrap()
+            let at = |vbe: Real, vbc: Real| c_point(t, vbe, vbc, vbc, -vbc, gmin).unwrap();
+            let p = at(vbe, vbc);
+            let d = |f: fn(&Point) -> Real, dvbe: Real, dvbc: Real| {
+                (f(&at(vbe + dvbe, vbc + dvbc)) - f(&at(vbe - dvbe, vbc - dvbc))) / (2. * h)
             };
-            let e = at(vbe, vbc);
-            let pick: [(&str, Pick); 6] = [
-                ("transport", |e| e.transport),
-                ("base_emitter", |e| e.base_emitter),
-                ("base_collector", |e| e.base_collector),
-                ("gx", |e| e.base_conductance),
-                ("qbe", |e| e.qbe),
-                ("qbc", |e| e.qbc),
-            ];
-            for (name, f) in pick {
-                let d = f(&e);
-                let dvbe = (f(&at(vbe + h, vbc)).value - f(&at(vbe - h, vbc)).value) / (2. * h);
-                let dvbc = (f(&at(vbe, vbc + h)).value - f(&at(vbe, vbc - h)).value) / (2. * h);
-                for (analytic, numeric, what) in [(d.dvbe, dvbe, "vbe"), (d.dvbc, dvbc, "vbc")] {
-                    let scale = analytic
-                        .abs()
-                        .max(numeric.abs())
-                        .max(f(&e).value.abs() * 1e-3);
-                    assert!(
-                        (analytic - numeric).abs() <= 2e-5 * scale + 1e-14,
-                        "{name} d/d{what} at ({vbe}, {vbc}): {analytic:e} vs {numeric:e}"
-                    );
-                }
-            }
-            // Single-voltage junctions: vbx (qbx) and vsub (substrate, qsub).
-            let single = |v: Real, which: usize| {
-                let e = evaluate(
-                    t,
-                    Bias {
-                        vbe,
-                        vbc,
-                        vbx: v,
-                        vsub: v,
-                    },
-                    gmin,
-                )
-                .unwrap();
-                [e.qbx, e.substrate, e.qsub][which]
-            };
-            for which in 0..3 {
-                for v in [vbc, -vbc, 0.3, -0.7] {
-                    let (_, analytic) = single(v, which);
-                    let numeric = (single(v + h, which).0 - single(v - h, which).0) / (2. * h);
-                    assert!(
-                        (analytic - numeric).abs()
-                            <= 2e-5 * analytic.abs().max(numeric.abs()) + 1e-14,
-                        "junction {which} at {v}: {analytic:e} vs {numeric:e}"
-                    );
-                }
+            let at_bias = format!("at ({vbe}, {vbc})");
+            close(
+                &format!("dcb/dvbe {at_bias}"),
+                p.gpi,
+                d(|p| p.cb, h, 0.),
+                p.cb,
+            );
+            close(
+                &format!("dcb/dvbc {at_bias}"),
+                p.gmu,
+                d(|p| p.cb, 0., h),
+                p.cb,
+            );
+            close(
+                &format!("dcc/dvbe {at_bias}"),
+                p.gm + p.go,
+                d(|p| p.cc, h, 0.),
+                p.cc,
+            );
+            close(
+                &format!("dcc/dvbc {at_bias}"),
+                -(p.go + p.gmu),
+                d(|p| p.cc, 0., h),
+                p.cc,
+            );
+            close(
+                &format!("dqbe/dvbe {at_bias}"),
+                p.capbe,
+                d(|p| p.qbe, h, 0.),
+                p.qbe,
+            );
+            close(
+                &format!("dqbe/dvbc {at_bias}"),
+                p.geqcb,
+                d(|p| p.qbe, 0., h),
+                p.qbe,
+            );
+            close(
+                &format!("dqbc/dvbc {at_bias}"),
+                p.capbc,
+                d(|p| p.qbc, 0., h),
+                p.qbc,
+            );
+            // Single-voltage junctions: vbx (qbx) and vsub (substrate).
+            for v in [vbc, -vbc, 0.3, -0.7] {
+                let single = |v: Real| c_point(t, vbe, vbc, v, v, gmin).unwrap();
+                let (lo, mid, hi) = (single(v - h), single(v), single(v + h));
+                let fd = |f: fn(&Point) -> Real| (f(&hi) - f(&lo)) / (2. * h);
+                close(&format!("dqbx at {v}"), mid.capbx, fd(|p| p.qbx), mid.qbx);
+                close(
+                    &format!("dqsub at {v}"),
+                    mid.capsub,
+                    fd(|p| p.qsub),
+                    mid.qsub,
+                );
+                close(
+                    &format!("dcdsub at {v}"),
+                    mid.gdsub,
+                    fd(|p| p.cdsub),
+                    mid.cdsub,
+                );
             }
         }
     }
 
     #[test]
-    fn gummel_poon_slices_have_exact_jacobians() {
+    fn bjtload_conductances_are_the_current_and_charge_derivatives() {
         for body in [
             // Ebers-Moll core with charges.
             "is=1e-15 bf=80 br=2 cje=2p cjc=1p tf=0.3n tr=5n",

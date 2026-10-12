@@ -185,7 +185,13 @@ pub enum Linearization {
     /// by [`crate::devices::TrialState::with_initial_conditions`] whatever the device
     /// limiting; never nonconvergent.
     InitialConditions,
-    /// Every other Newton load: the solution's voltages, limited relative to
+    /// The first load of the first transient timepoint (C `MODEINITTRAN`):
+    /// the device's junction voltages of `CKTstate1` (the operating point),
+    /// unlimited. As with `MODEINITJCT`, C's `Check` stays set, so the load
+    /// is nonconvergent.
+    InitialTransient,
+    /// Every other Newton load: the solution's voltages (in `MODEINITPRED`
+    /// the device's `DEVpred` extrapolation), limited relative to
     /// [`Limiter::previous`].
     Limited,
 }
@@ -210,12 +216,17 @@ impl Limiter {
             Linearization::Exact
         } else if states.phase() == IterationPhase::Junction {
             Linearization::Initial
+        } else if states.phase() == IterationPhase::Predict && states.initial_transient() {
+            Linearization::InitialTransient
         } else {
             Linearization::Limited
         };
         Self {
             mode,
-            nonconvergent: mode == Linearization::Initial,
+            nonconvergent: matches!(
+                mode,
+                Linearization::Initial | Linearization::InitialTransient
+            ),
             exempt: false,
         }
     }
@@ -308,23 +319,21 @@ impl Limiter {
     }
 
     /// `DEVfetlim` of a gate voltage `raw` against `previous` and threshold
-    /// `von`; any change makes the load nonconvergent.
+    /// `von`. As in C, this does not make the load nonconvergent; the
+    /// device's convergence test catches a limited step.
     pub fn fet_gate(&mut self, raw: Real, previous: Real, von: Real) -> Real {
         self.changed(raw, fetlim(raw, previous, von))
     }
 
-    /// `DEVlimvds` of a drain-source voltage `raw` against `previous`; any
-    /// change makes the load nonconvergent.
+    /// `DEVlimvds` of a drain-source voltage `raw` against `previous` (not
+    /// itself nonconvergent, as in C).
     pub fn drain_source(&mut self, raw: Real, previous: Real) -> Real {
         self.changed(raw, limvds(raw, previous))
     }
 
-    fn changed(&mut self, raw: Real, value: Real) -> Real {
+    fn changed(&mut self, _raw: Real, value: Real) -> Real {
         // C flags only `DEVpnjlim` steps (`Check`) and leaves FET limiting to
-        // the device convergence tests (`mos1conv.c`); the port refuses
-        // convergence on any limited load so the returned point is always an
-        // exact, physically checked evaluation.
-        self.nonconvergent |= value != raw;
+        // the device convergence tests (`mos1conv.c`).
         value
     }
 

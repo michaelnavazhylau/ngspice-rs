@@ -169,13 +169,13 @@ card 14 @netlists/m7_bjt_amp_ac.cir:15:1 lines=15-15 continuations=0
   token 64 15:166 number "3p" value=3e-12
   token 65 15:169 word "vjc"
   token 66 15:172 equals "="
-  token 67 15:173 number "0.6" value=6e-1
+  token 67 15:173 number "0.6" value=6.000000000000001e-1
   token 68 15:177 word "mjc"
   token 69 15:180 equals "="
   token 70 15:181 number "0.4" value=4e-1
   token 71 15:185 word "xcjc"
   token 72 15:189 equals "="
-  token 73 15:190 number "0.6" value=6e-1
+  token 73 15:190 number "0.6" value=6.000000000000001e-1
   token 74 15:194 word "cjs"
   token 75 15:197 equals "="
   token 76 15:198 number "2p" value=2e-12
@@ -184,7 +184,7 @@ card 14 @netlists/m7_bjt_amp_ac.cir:15:1 lines=15-15 continuations=0
   token 79 15:205 number "0.65" value=6.5e-1
   token 80 15:210 word "mjs"
   token 81 15:213 equals "="
-  token 82 15:214 number "0.35" value=3.5e-1
+  token 82 15:214 number "0.35" value=3.5000000000000003e-1
   token 83 15:219 word "tf"
   token 84 15:221 equals "="
   token 85 15:222 number "0.35n" value=3.5e-10
@@ -202,7 +202,7 @@ card 14 @netlists/m7_bjt_amp_ac.cir:15:1 lines=15-15 continuations=0
   token 97 15:251 number "40n" value=4e-8
   token 98 15:255 word "fc"
   token 99 15:257 equals "="
-  token 100 15:258 number "0.6" value=6e-1
+  token 100 15:258 number "0.6" value=6.000000000000001e-1
   token 101 15:262 word "xtb"
   token 102 15:265 equals "="
   token 103 15:266 number "1.5" value=1.5e0

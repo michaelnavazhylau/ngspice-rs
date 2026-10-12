@@ -22,7 +22,7 @@
 //! | --- | --- |
 //! | [`primitives`] | `Real`, `Complex`, SPICE numeric literals with scale factors, the node table and ground aliasing, the error type and the analysis taxonomy. Dependency-free vocabulary for every other module. |
 //! | [`netlist`] | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, semantic AST, the winnow parser, `.param` evaluation, subcircuit scopes, deck writing and snapshots. |
-//! | [`maths`] | Dense/sparse/complex storage, petgraph row-coupling topology, faer pivoted LU, bounded diffsol BDF integration and trapezoidal/Gear companion coefficients. |
+//! | [`maths`] | Dense/sparse/complex storage, petgraph row-coupling topology, a Rust port of SPARSE 1.3 sparse LU, the pole-zero root search and trapezoidal/Gear companion coefficients. |
 //! | [`devices`] | The [`devices::Device`] stamping contract, device state history, scalar R/C/L/V/I and model-backed passive/diode/BJT/MOS1 stamps, [`devices::Circuit`] and subcircuit expansion. |
 //! | [`analysis`] | The `.op`/`.dc`/`.ac`/`.tran` drivers, convergence policy, accepted points, `.measure`/`.four` post-processing and ASCII/binary rawfile I/O. |
 //! | [`cli`] | The `spice-rs` command-line front end: argument parsing, command dispatch and the exit-status contract. |

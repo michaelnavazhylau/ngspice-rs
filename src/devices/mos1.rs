@@ -1,4 +1,5 @@
-//! Shichman-Hodges MOS level 1 (`mos1`).
+//! Shichman-Hodges MOS level 1 (`mos1`) on the shared [`crate::devices::mos`]
+//! shell.
 //!
 //! C references, read as behaviour only:
 //!
@@ -7,56 +8,29 @@
 //! - `mos1/mos1temp.c` (`MOS1temp`): oxide capacitance, process extraction
 //!   (TOX/UO/NSUB/TPG/NSS), temperature scaling of KP/PHI/VBI/IS/JS/PB and the
 //!   junction capacitances, area/perimeter junction geometry and RD/RS/RSH;
-//! - `mos1/mos1load.c` (`MOS1load`): square-law channel with drain/source
-//!   reversal and body effect (forward body bias included), bulk junctions with
-//!   bottom and sidewall depletion charge, and Meyer gate charge in C's
-//!   state-averaging formulation;
-//! - `devices/devsup.c` (`DEVqmeyer`): Meyer's half capacitances;
-//! - `mos1/mos1acld.c` (`MOS1acLoad`) and `mos1/mos1trun.c` (`MOS1trunc`).
+//! - `mos1/mos1load.c` (`MOS1load`): the square-law channel with drain/source
+//!   reversal and body effect (forward body bias included), ported operation
+//!   by operation; the rest of the load (junctions, Meyer charge, limiting,
+//!   stamps) is the shell's;
+//! - `mos1/mos1noi.c` (`.noise`, through the shell) and `mos1dset.c`/
+//!   `mos1dist.c` (the `disto` submodule).
 //!
-//! The device frame (series resistance, bulk junctions, Meyer charge,
-//! limiting, loads and sweeps) is the shared [`crate::devices::mos`] shell;
-//! this module supplies the level-1 schema, process extraction and
-//! Shichman-Hodges drain current through [`MosLevel`].
-//!
-//! # Deliberate divergences
-//!
-//! - Newton limiting follows `mos1load.c` through [`crate::devices::limiting`]:
-//!   `MODEINITJCT` starts at `vbs = -1`, `vgs = type * tVto`, `vds = 0`, and
-//!   later loads apply `DEVfetlim`/`DEVlimvds`/`DEVpnjlim`. C's predictor
-//!   extrapolation (`MODEINITPRED`/`MODEINITTRAN`) and bypass are not ported:
-//!   a predicted load limits the iterate against the last accepted voltages.
-//! - The body-effect transconductance is the exact derivative of the drain
-//!   current. In forward body bias C stamps `gm * gamma / (2 sarg)`, which is
-//!   not the derivative of its own `von`; the converged point is the same.
-//! - C warns and continues for `L - 2 LD <= 0`, a nonpositive temperature-
-//!   adjusted PHI/PB, or RSH with zero drain squares (an infinite conductance).
-//!   Here they are explicit errors.
-//!
-//! Instance `off` and initial conditions follow `mos1load.c`: `MODEINITJCT`
-//! starts at the `IC` vector (`type * ICVDS/ICVGS/ICVBS`) whenever one
-//! component is nonzero, also without `uic`, and at the default start
-//! otherwise (except in the `uic` initial load, which keeps all-zero
-//! conditions); unset components are taken from the external terminals
-//! under `uic` (`mos1ic.c`) and are zero otherwise. An `off` instance starts
-//! at zero and is held there through `MODEINITFIX`. The `.noise` generators
-//! of `mos1noi.c` (RD/RS thermal noise, the NLEV channel thermal noise and
-//! the NLEV flicker laws with KF/AF/GDSNOI) are ported through
-//! [`Device::noise`]; C's SPICE3-compatibility flicker form is not
+//! See [`crate::devices::mos`] for the load's deliberate divergences and the
+//! `off`/`IC` start behaviour. C's SPICE3-compatibility flicker form is not
 //! selectable (no compatibility mode is ported).
 
 mod disto;
 
-use crate::devices::ResolvedModel;
 use crate::devices::mos::{
-    Common, DrainCurrent, EPSILON_0, Geometry, MosLevel, Mosfet, NoiseShape, Operating, ReverseLaw,
-    Temperatures, aliased, p, required,
+    CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, Junction, K_OVER_Q, MosLevel, Mosfet,
+    NoiseShape, Operating, REFTEMP, ReverseLaw, aliased, band_gap, p, potential_factor, required,
 };
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily};
+use crate::devices::noise::NoiseFamily;
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
-use crate::devices::{ModelContext, mos::CHARGE, mos::K_OVER_Q};
+use crate::devices::setup::CDeviceType;
+use crate::devices::{ModelContext, ResolvedModel};
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
 /// Intrinsic carrier density of silicon used by `mos1temp.c` (m^-3).
@@ -108,7 +82,7 @@ const MODEL: &[P] = &[
 /// Validated level-1 model card. `None` records C's "not given".
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Level1 {
-    common: Common,
+    pub(super) common: Common,
     vto: Option<Real>,
     kp: Option<Real>,
     gamma: Option<Real>,
@@ -119,6 +93,12 @@ pub(super) struct Level1 {
     nsub: Option<Real>,
     tpg: Option<Real>,
     nss: Option<Real>,
+}
+
+/// The level-1 channel parameters of one load.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Params {
+    pub(super) lambda: Real,
 }
 
 /// Process-derived model values (`mos1temp.c`, model loop).
@@ -132,15 +112,8 @@ struct Process {
     vto: Real,
 }
 
-/// The level-1 channel parameters of one load.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct Params {
-    pub(super) beta: Real,
-    pub(super) lambda: Real,
-}
-
 impl Level1 {
-    /// Effective channel length `L - 2 LD`.
+    /// C `EffectiveLength = l - 2 * latDiff`.
     fn length(&self, geometry: &Geometry) -> Real {
         geometry.l - 2. * self.common.ld
     }
@@ -170,7 +143,7 @@ impl Level1 {
                 )));
             }
             let vtnom = tnom * K_OVER_Q;
-            let egfet1 = crate::devices::mos::band_gap(tnom);
+            let egfet1 = band_gap(tnom);
             if self.phi.is_none() {
                 process.phi = (2. * vtnom * (density / INTRINSIC_DENSITY).ln()).max(0.1);
             }
@@ -184,7 +157,8 @@ impl Level1 {
             };
             let wkfngs = wkfng - (3.25 + 0.5 * egfet1 + fermis);
             if self.gamma.is_none() {
-                process.gamma = (2. * 11.70 * EPSILON_0 * CHARGE * density).sqrt() / cox;
+                // C's left-to-right product, `nsub * 1e6` last.
+                process.gamma = (2. * 11.70 * EPSILON_0 * CHARGE * nsub * 1e6).sqrt() / cox;
             }
             if self.vto.is_none() {
                 let vfb = wkfngs - self.nss.unwrap_or(0.) * 1e4 * CHARGE / cox;
@@ -199,14 +173,17 @@ impl MosLevel for Level1 {
     type Params = Params;
     const LEVEL: u8 = 1;
     const LABEL: &'static str = "MOS1";
+    const DEVICE_TYPE: CDeviceType = CDeviceType::Mos1;
+    const NOISE_FAMILY: NoiseFamily = NoiseFamily::Mos1;
+    /// `mos1set.c`: `CKTmkVolt(..., "drain")` / `"source"`.
     const PRIME_SUFFIXES: [&'static str; 2] = ["drain", "source"];
 
     fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
         let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
         let get = |name: &str| m.get(name).map(|v| v.value);
-        let common = Common::from_values(&m, resolved.family(), "MOS1", "mos1noi.c")?;
-        let model = Self {
-            common,
+        let tpg = get("tpg");
+        Ok(Self {
+            common: Common::from_values(&m, resolved.family(), tpg, "MOS1", "mos1noi.c")?,
             vto: aliased(&m, ["vto", "vt0"]),
             kp: get("kp"),
             gamma: get("gamma"),
@@ -215,11 +192,9 @@ impl MosLevel for Level1 {
             tox: get("tox"),
             u0: aliased(&m, ["u0", "uo"]),
             nsub: get("nsub"),
-            tpg: get("tpg"),
+            tpg,
             nss: get("nss"),
-        };
-        model.common.check(model.tpg, "MOS1")?;
-        Ok(model)
+        })
     }
 
     fn common(&self) -> &Common {
@@ -236,7 +211,7 @@ impl MosLevel for Level1 {
         Ok(())
     }
 
-    /// `mos1temp.c` and the start of `mos1load.c`.
+    /// `mos1temp.c` and the start of `mos1load.c`, in C's arithmetic.
     fn operating(
         &self,
         name: &str,
@@ -244,150 +219,199 @@ impl MosLevel for Level1 {
         context: &ModelContext,
     ) -> SpiceResult<Operating<Params>> {
         let model = &self.common;
-        let t = Temperatures::new(model.tnom, geometry, context, name, "MOS1")?;
-        let process = self.process(t.tnom)?;
-        let ratio = t.ratio;
+        let tnom = model.tnom.unwrap_or(context.nominal_temperature)
+            + crate::devices::mos::CELSIUS_TO_KELVIN;
+        // C: MOS1temp = CKTtemp + MOS1dtemp, with CKTtemp in kelvin.
+        let temp = geometry.kelvin(context);
+        if !(tnom.is_finite() && tnom > 0. && temp.is_finite() && temp > 0.) {
+            return Err(SpiceError::circuit(format!(
+                "{name}: invalid MOS1 temperature"
+            )));
+        }
+        let process = self.process(tnom)?;
+        let vt = temp * K_OVER_Q;
+        let vtnom = tnom * K_OVER_Q;
+        let (egfet, egfet1) = (band_gap(temp), band_gap(tnom));
+        let (fact1, fact2) = (tnom / REFTEMP, temp / REFTEMP);
+        let (pbfact, pbfact1) = (potential_factor(temp), potential_factor(tnom));
+        let ratio = temp / tnom;
         let kp = process.kp / (ratio * ratio.sqrt());
-        let phio = (process.phi - t.pbfact1) / t.fact1;
-        let phi = t.fact2 * phio + t.pbfact;
+        let phio = (process.phi - pbfact1) / fact1;
+        let phi = fact2 * phio + pbfact;
         let vbi = process.vto - model.pol * (process.gamma * process.phi.sqrt())
-            + 0.5 * (t.egfet1 - t.egfet)
+            + 0.5 * (egfet1 - egfet)
             + model.pol * 0.5 * (phi - process.phi);
-        let junctions = model.junctions(&t, geometry, ReverseLaw::Constant);
-        let potential = junctions.potential;
-        let [bottom, side] = junctions.factors;
+        let vto = vbi + model.pol * process.gamma * phi.sqrt();
+        let scale = (-egfet / vt + egfet1 / vtnom).exp();
+        let (saturation, density) = (model.is * scale, model.js * scale);
+        let pbo = (model.pb - pbfact1) / fact1;
+        let gmaold = (model.pb - pbo) / pbo;
+        let potential = fact2 * pbo + pbfact;
+        let gmanew = (potential - pbo) / pbo;
+        // mos1temp.c: divide out the nominal-temperature factor, then
+        // multiply by the device-temperature one, as two steps.
+        let nominal = |grading: Real| 1. / (1. + grading * (4e-4 * (tnom - REFTEMP) - gmaold));
+        let actual = |grading: Real| 1. + grading * (4e-4 * (temp - REFTEMP) - gmanew);
+        let (bottom, side) = (
+            [nominal(model.mj), actual(model.mj)],
+            [nominal(model.mjsw), actual(model.mjsw)],
+        );
         let m = geometry.m;
         let length = self.length(geometry);
+        // MOS1tCbd/MOS1tCbs/MOS1tCj and MOS1tCjsw.
+        let scaled = |c: Real, factor: [Real; 2]| c * factor[0] * factor[1];
+        let bottom_cap = |given: Option<Real>, area: Real| match (given, model.cj) {
+            (Some(c), _) => scaled(c, bottom) * m,
+            (None, Some(cj)) => scaled(cj, bottom) * m * area,
+            (None, None) => 0.,
+        };
+        let side_cap = |perimeter: Real| model.cjsw.map_or(0., |c| scaled(c, side) * perimeter * m);
+        let root2 = std::f64::consts::SQRT_2;
+        let (sat_d, sat_s, vcrit_d, vcrit_s) =
+            if density == 0. || geometry.ad == 0. || geometry.as_ == 0. {
+                let vcrit = vt * (vt / (root2 * m * saturation)).ln();
+                (m * saturation, m * saturation, vcrit, vcrit)
+            } else {
+                (
+                    density * m * geometry.ad,
+                    density * m * geometry.as_,
+                    vt * (vt / (root2 * m * density * geometry.ad)).ln(),
+                    vt * (vt / (root2 * m * density * geometry.as_)).ln(),
+                )
+            };
+        let junction = |saturation, vcrit, bottom, sidewall| {
+            Junction::new(
+                saturation,
+                vcrit,
+                bottom,
+                sidewall,
+                model.mj,
+                model.mjsw,
+                potential,
+                model.fc,
+                ReverseLaw::Constant,
+            )
+        };
         let operating = Operating {
-            vt: t.vt,
+            vt,
+            beta: kp * m * geometry.w / length,
             vbi,
             phi,
+            vto,
             gamma: process.gamma,
             oxide: process.cox * length * m * geometry.w,
-            drain: junctions.drain,
-            source: junctions.source,
+            drain: junction(
+                sat_d,
+                vcrit_d,
+                bottom_cap(model.cbd, geometry.ad),
+                side_cap(geometry.pd),
+            ),
+            source: junction(
+                sat_s,
+                vcrit_s,
+                bottom_cap(model.cbs, geometry.as_),
+                side_cap(geometry.ps),
+            ),
             overlap: [
                 model.overlap[0] * m * geometry.w,
                 model.overlap[1] * m * geometry.w,
                 model.overlap[2] * m * length,
             ],
             params: Params {
-                beta: kp * m * geometry.w / length,
                 lambda: self.lambda,
             },
         };
-        let finite = [
-            operating.vt,
-            operating.params.beta,
-            operating.vbi,
-            operating.gamma,
-            operating.oxide,
-            operating.drain.saturation,
-            operating.source.saturation,
-            operating.drain.bottom,
-            operating.drain.sidewall,
-            operating.source.bottom,
-            operating.source.sidewall,
-            operating.overlap[0],
-            operating.overlap[1],
-            operating.overlap[2],
-        ]
-        .iter()
-        .all(|v| v.is_finite());
-        if !(finite && phi.is_finite() && phi > 0. && potential.is_finite() && potential > 0.)
-            || operating.params.beta <= 0.
-            || operating.drain.saturation <= 0.
-            || operating.source.saturation <= 0.
-            || [bottom, side].iter().any(|f| !f.is_finite() || *f < 0.)
-        {
-            return Err(SpiceError::circuit(format!(
-                "{}: MOS1 parameters are out of range at {:.2} K \
-                 (nonfinite value, or nonpositive PHI/PB/KP/IS after temperature scaling)",
-                name, t.temp
-            )));
-        }
+        operating.check(
+            name,
+            "MOS1",
+            temp,
+            &[],
+            &[bottom[0], bottom[1], side[0], side[1]],
+        )?;
         Ok(operating)
     }
 
-    /// `mos1load.c`'s Shichman-Hodges channel with body effect (forward body
-    /// bias included).
+    /// `mos1load.c`'s Shichman-Hodges block, in C's operation order.
     fn drain_current(
         &self,
         op: &Operating<Params>,
-        vgs: Real,
-        vds: Real,
-        vbs: Real,
+        vgx: Real,
+        vdsm: Real,
+        vbx: Real,
     ) -> DrainCurrent {
-        let pol = self.common.pol;
-        let Params { beta, lambda } = op.params;
-        let root = op.phi.sqrt();
-        // `sarg` and its derivative with respect to vbs.
-        let (sarg, dsarg) = if vbs <= 0. {
-            let sarg = (op.phi - vbs).sqrt();
-            (sarg, -0.5 / sarg)
+        let lambda = op.params.lambda;
+        let sarg = if vbx <= 0. {
+            (op.phi - vbx).sqrt()
         } else {
-            let sarg = root - vbs / (root + root);
-            if sarg > 0. {
-                (sarg, -0.5 / root)
-            } else {
-                (0., 0.)
-            }
+            let root = op.phi.sqrt();
+            let sarg = root - vbx / (root + root);
+            // MAX(0, sarg)
+            if 0. > sarg { 0. } else { sarg }
         };
-        let von = op.vbi * pol + op.gamma * sarg;
-        let vgst = vgs - von;
-        let vdsat = vgst.max(0.);
-        let (current, gm, gds) = if vgst <= 0. {
-            (0., 0., 0.)
+        let von = (op.vbi * self.common.pol) + op.gamma * sarg;
+        let vgst = vgx - von;
+        let vdsat = if vgst > 0. { vgst } else { 0. };
+        let arg = if sarg <= 0. {
+            0.
         } else {
-            let betap = beta * (1. + lambda * vds);
-            if vgst <= vds {
+            op.gamma / (sarg + sarg)
+        };
+        let (cdrain, gm, gds, gmbs) = if vgst <= 0. {
+            (0., 0., 0., 0.)
+        } else {
+            let betap = op.beta * (1. + lambda * vdsm);
+            if vgst <= vdsm {
+                let gm = betap * vgst;
                 (
                     betap * vgst * vgst * 0.5,
-                    betap * vgst,
-                    lambda * beta * vgst * vgst * 0.5,
+                    gm,
+                    lambda * op.beta * vgst * vgst * 0.5,
+                    gm * arg,
                 )
             } else {
+                let gm = betap * vdsm;
                 (
-                    betap * vds * (vgst - 0.5 * vds),
-                    betap * vds,
-                    betap * (vgst - vds) + lambda * beta * vds * (vgst - 0.5 * vds),
+                    betap * vdsm * (vgst - 0.5 * vdsm),
+                    gm,
+                    betap * (vgst - vdsm) + lambda * op.beta * vdsm * (vgst - 0.5 * vdsm),
+                    gm * arg,
                 )
             }
         };
         DrainCurrent {
-            current,
+            cdrain,
             gm,
             gds,
-            gmbs: -gm * op.gamma * dsarg,
+            gmbs,
             von,
             vdsat,
         }
     }
 
-    /// `mos1dset.c`/`mos1dist.c` at the operating point (see the `disto`
-    /// submodule for C's distortion model).
+    /// `mos1noi.c`: `beta = tKP m W / (L - 2 LD)` (the load's `Beta`), the
+    /// drawn width, the effective length, and `Cox` for `TOX = 1e-7 m` when
+    /// the model has no oxide capacitance (`sqrt(coxSquared)` in the NLEV
+    /// laws).
+    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Params>) -> NoiseShape {
+        let cox = match self.tox.filter(|tox| *tox != 0.) {
+            Some(tox) => 3.9 * EPSILON_0 / tox,
+            None => 3.9 * 8.854214871e-12 / 1e-7,
+        };
+        let cox_squared = cox * cox;
+        NoiseShape {
+            beta: op.beta,
+            width: geometry.w,
+            length: self.length(geometry),
+            cox: cox_squared.sqrt(),
+            cox_squared,
+        }
+    }
+
+    /// `mos1dset.c`/`mos1dist.c` (the `disto` submodule).
     fn distortion(
         device: &Mos1,
         context: &crate::devices::distortion::DistortionContext<'_>,
     ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
         device.distortion_terms(context)
-    }
-
-    /// `mos1noi.c` at the operating point ([`Mosfet::classic_noise`]): the
-    /// NLEV 3 `beta` is the load's, the flicker laws use `W`, `L - 2 LD` and
-    /// `Cox` taken for `TOX = 1e-7 m` when the model has no oxide capacitance.
-    fn noise(device: &Mos1, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
-        let model = &device.model;
-        let geometry = &device.geometry;
-        device.classic_noise(context, |op| NoiseShape {
-            family: NoiseFamily::Mos1,
-            beta: op.params.beta,
-            width: geometry.w,
-            length: model.length(geometry),
-            cox: match model.tox.filter(|tox| *tox != 0.) {
-                Some(tox) => 3.9 * EPSILON_0 / tox,
-                None => 3.9 * 8.854214871e-12 / 1e-7,
-            },
-        })
     }
 }

@@ -88,7 +88,7 @@ impl StepLimiting {
 pub struct NewtonOptions {
     /// Maximum loads/solves per continuation stage.
     pub max_iterations: usize,
-    /// Relative iterate and equation-residual tolerance.
+    /// Relative iterate tolerance (C `CKTreltol`).
     pub reltol: Real,
     /// Absolute voltage tolerance (V).
     pub vntol: Real,
@@ -100,16 +100,27 @@ pub struct NewtonOptions {
     pub voltage_step: Real,
     /// Step control of [`solve_phased`]; see [`StepLimiting`].
     pub limiting: StepLimiting,
+    /// C `CKTdiagGmin`: the conductance gmin stepping adds to every
+    /// internal diagonal element of SPARSE's frame before each factorization
+    /// (`LoadGmin` in `SMPreorder`/`SMPluFac`); zero otherwise.
+    pub diag_gmin: Real,
+    /// C `MODEDC && CKThadNodeset`: the solve has nodesets, so `NIiter`'s
+    /// `ipass` keeps the first `MODEINITFLOAT` pass after `MODEINITFIX`
+    /// from converging.
+    pub had_nodeset: bool,
 }
 impl Default for NewtonOptions {
     fn default() -> Self {
         Self {
             max_iterations: 100,
-            reltol: 1e-8,
-            vntol: 1e-10,
+            // ngspice's defaults (cktntask.c): CKTreltol, CKTvoltTol, CKTabstol.
+            reltol: 1e-3,
+            vntol: 1e-6,
             abstol: 1e-12,
             voltage_step: 0.2,
             limiting: StepLimiting::Device,
+            diag_gmin: 0.,
+            had_nodeset: false,
         }
     }
 }
@@ -184,6 +195,8 @@ impl NewtonOptions {
             || [self.reltol, self.vntol, self.abstol, self.voltage_step]
                 .iter()
                 .any(|v| !v.is_finite() || *v <= 0.)
+            || !self.diag_gmin.is_finite()
+            || self.diag_gmin < 0.
         {
             return Err(failure(
                 "invalid Newton tolerances, voltage limit or iteration budget",
@@ -193,13 +206,16 @@ impl NewtonOptions {
     }
 }
 
-/// One solution whose disposable load was reevaluated at the solved point.
+/// A converged Newton solution and the trial of the load that produced it.
 #[derive(Debug)]
 pub struct NewtonSolution<T> {
     /// Converged physical MNA values.
     pub values: Vector,
     /// Trial data belonging to `values`, not to the preceding iterate.
     pub trial: T,
+    /// The solve of the last load (C's `CKTrhs` when `NIiter` returns: the
+    /// iterate after `values`, which `.sens` multiplies its `delta_Y` by).
+    pub next: Vector,
     /// Number of solves, bounded by [`NewtonOptions::max_iterations`].
     pub iterations: usize,
 }
@@ -208,9 +224,9 @@ pub struct NewtonSolution<T> {
 ///
 /// `branch_rows[r]` selects current tolerance for unknown `r` and voltage
 /// tolerance for its KVL equation. Other rows use voltage iterate/current KCL
-/// tolerances. Both iterate **and reloaded equation residual** must converge.
-/// The callback must not commit state or limit the evaluated voltage: residuals
-/// must represent the actual physical equations at the supplied solution.
+/// tolerances, as `NIiter` does (see [`solve_phased`]): no device convergence
+/// tests, and the global voltage-step damping of [`StepLimiting::Global`].
+/// The callback must not commit state.
 ///
 /// # Errors
 /// Invalid dimensions/settings, load failures, singular/nonfinite systems, or
@@ -232,6 +248,10 @@ pub struct NewtonFailure {
     /// Iterations started before the failure, at most
     /// [`NewtonOptions::max_iterations`]; zero when settings were rejected.
     pub iterations: usize,
+    /// At the iteration limit: the iterate the last load used. `NIiter`
+    /// returns `E_ITERLIM` before swapping `CKTrhs` and `CKTrhsOld`, so this is
+    /// the `CKTrhsOld` the next solve (`dctran.c`'s retry) starts from.
+    pub last_iterate: Option<Vector>,
 }
 
 /// [`solve`] that also reports the work a failed solve used, so a caller owning a
@@ -264,6 +284,7 @@ pub fn solve_counted_limited<T>(
     mut load: impl FnMut(&Vector) -> SpiceResult<(SparseMatrix, Vector, T)>,
 ) -> Result<NewtonSolution<T>, NewtonFailure> {
     let mut iterations = 0;
+    let mut last_iterate = None;
     iterate(
         initial,
         branch_rows,
@@ -274,11 +295,19 @@ pub fn solve_counted_limited<T>(
             previous: None,
             nonconvergent: |_: &T| false,
             damped: true,
+            initial_transient: false,
+            nodesets: options.had_nodeset,
         },
         |x: &Vector, _, _: Option<&T>| load(x),
+        |_: &Vector, _: &Vector, _: &T| Ok(false),
         &mut iterations,
+        &mut last_iterate,
     )
-    .map_err(|error| NewtonFailure { error, iterations })
+    .map_err(|error| NewtonFailure {
+        error,
+        iterations,
+        last_iterate,
+    })
 }
 
 /// How a phased solve starts (C `NIiter`'s initial `MODEINITF`).
@@ -290,6 +319,9 @@ pub enum PhasePolicy {
     /// A point continuing accepted history (a transient timepoint or a
     /// warm-started DC sweep point): `MODEINITPRED`, then `MODEINITFLOAT`.
     Predicted,
+    /// The first transient timepoint (`MODEINITTRAN`): loaded as
+    /// [`Self::Predicted`], but `NIiter` reorders on its first two passes.
+    InitialTransient,
 }
 
 /// [`solve_counted`] for device trials with C's Newton phases.
@@ -297,12 +329,11 @@ pub enum PhasePolicy {
 /// `load(x, phase, previous)` must build its trial with
 /// [`crate::devices::StateHistory::trial_in`]`(phase, previous)`. A load whose
 /// trial [`TrialState::is_nonconvergent`] never ends the solve (C: `CKTnoncon`
-/// set by a device). Convergence is checked, as in [`solve`], by reloading at
-/// the new iterate, here in `MODEINITFLOAT` with the producing load as the
-/// previous iterate; that reload must also be free of device nonconvergence.
-/// Under [`PhasePolicy::OperatingPoint`] the first such check also ends the
-/// `MODEINITFIX` phase, so the returned point was always checked under
-/// `MODEINITFLOAT`, like `NIiter`. A `continued` trial (the converged trial
+/// set by a device). Otherwise `NIconvTest` compares successive iterates and
+/// then calls `device_test(new, old, trial)`, the devices' convergence tests
+/// (C `CKTconvTest`, see [`crate::devices::Circuit::convergence_test`]),
+/// which returns `true` when a device has not converged. The mode sequence
+/// and reordering are `NIiter`'s; see `iterate`. A `continued` trial (the converged trial
 /// of a preceding continuation stage, as `cktop.c` continues its stepping
 /// stages in `MODEINITFLOAT` with `CKTstate0` intact) starts the solve in
 /// `MODEINITFLOAT` with that trial as the previous iterate instead. Devices
@@ -314,6 +345,7 @@ pub enum PhasePolicy {
 ///
 /// # Errors
 /// As [`solve_counted_limited`].
+#[allow(clippy::too_many_arguments)]
 pub fn solve_phased(
     initial: &Vector,
     branch_rows: &[bool],
@@ -326,12 +358,14 @@ pub fn solve_phased(
         IterationPhase,
         Option<&TrialState>,
     ) -> SpiceResult<(SparseMatrix, Vector, TrialState)>,
+    device_test: impl FnMut(&Vector, &Vector, &TrialState) -> SpiceResult<bool>,
 ) -> Result<NewtonSolution<TrialState>, NewtonFailure> {
     let mut iterations = 0;
+    let mut last_iterate = None;
     let first = match (policy, &continued) {
         (_, Some(_)) => IterationPhase::Float,
         (PhasePolicy::OperatingPoint, None) => IterationPhase::Junction,
-        (PhasePolicy::Predicted, None) => IterationPhase::Predict,
+        (PhasePolicy::Predicted | PhasePolicy::InitialTransient, None) => IterationPhase::Predict,
     };
     iterate(
         initial,
@@ -343,6 +377,8 @@ pub fn solve_phased(
             previous: continued,
             nonconvergent: TrialState::is_nonconvergent,
             damped: !options.limiting.is_device(),
+            initial_transient: policy == PhasePolicy::InitialTransient,
+            nodesets: options.had_nodeset,
         },
         |x: &Vector, phase, previous: Option<&TrialState>| {
             let loaded = load(x, phase, previous)?;
@@ -353,9 +389,15 @@ pub fn solve_phased(
             }
             Ok(loaded)
         },
+        device_test,
         &mut iterations,
+        &mut last_iterate,
     )
-    .map_err(|error| NewtonFailure { error, iterations })
+    .map_err(|error| NewtonFailure {
+        error,
+        iterations,
+        last_iterate,
+    })
 }
 
 struct Phases<T, F> {
@@ -364,8 +406,33 @@ struct Phases<T, F> {
     nonconvergent: F,
     /// Apply the global voltage-step damping ([`StepLimiting::Global`]).
     damped: bool,
+    /// `MODEINITTRAN`: `NIiter` reorders on the first iteration and again
+    /// after it.
+    initial_transient: bool,
+    /// `MODEDC` with nodesets (`CKThadNodeset`): the first `MODEINITFLOAT`
+    /// iterate after `MODEINITFIX` never converges (`ipass`).
+    nodesets: bool,
 }
 
+/// C `NIiter` (`niiter.c`, the SPARSE path) over disposable loads.
+///
+/// Each pass loads at the present iterate, factors the matrix of the
+/// circuit (reordering under `NISHOULDREORDER`: every `MODEINITJCT` load,
+/// the load after it, and the first two loads of `MODEINITTRAN`; otherwise
+/// refactoring, which after a zero pivot reloads at the same iterate and
+/// reorders) with `diag_gmin` on the diagonal, and solves. Past
+/// `max_iterations` it fails. A load that set `CKTnoncon` (a device trial
+/// marked nonconvergent) and the first pass never converge; otherwise
+/// `NIconvTest` compares the new iterate with the previous one (`reltol`
+/// with `vntol` for node rows and `abstol` for branch rows) and then runs the
+/// devices' convergence tests (`device_test(new, old, trial)`, C
+/// `CKTconvTest`). Mode changes follow `NIiter`: `MODEINITJCT` to
+/// `MODEINITFIX`, which ends at the first converged pass, `MODEINITPRED`
+/// (and `MODEINITTRAN`) to `MODEINITFLOAT`, where a converged pass returns
+/// the iterate that pass loaded (C's `CKTrhsOld`, within the tolerances of
+/// the new one) with that load's trial (C's `CKTstate0`); no further load
+/// is made.
+#[allow(clippy::too_many_arguments)]
 fn iterate<T, F: Fn(&T) -> bool>(
     initial: &Vector,
     branch_rows: &[bool],
@@ -373,7 +440,9 @@ fn iterate<T, F: Fn(&T) -> bool>(
     options: &NewtonOptions,
     phases: Phases<T, F>,
     mut load: impl FnMut(&Vector, IterationPhase, Option<&T>) -> SpiceResult<(SparseMatrix, Vector, T)>,
+    mut device_test: impl FnMut(&Vector, &Vector, &T) -> SpiceResult<bool>,
     started: &mut usize,
+    last_iterate: &mut Option<Vector>,
 ) -> SpiceResult<NewtonSolution<T>> {
     options.validate()?;
     let n = initial.len();
@@ -389,13 +458,33 @@ fn iterate<T, F: Fn(&T) -> bool>(
     let mut guess = initial.clone();
     let mut phase = phases.first;
     let mut previous = phases.previous;
-    for iteration in 1..=options.max_iterations {
-        *started = iteration;
+    let mut ordering = None;
+    let mut reorder = phases.initial_transient;
+    let mut ipass = false;
+    let mut iterno = 0;
+    loop {
         let (mut matrix, rhs, trial) = load(&guess, phase, previous.as_ref())?;
+        iterno += 1;
+        *started = iterno;
         let flagged = (phases.nonconvergent)(&trial);
         check(&matrix, &rhs, n)?;
         matrix.fold_duplicates();
-        let mut next = linearised_solve(&matrix, &rhs)?;
+        if phase == IterationPhase::Junction {
+            reorder = true;
+        }
+        let mut next = match linearised_solve(&matrix, &rhs, &mut ordering, reorder, options)? {
+            crate::maths::NiStep::Solved(next) => {
+                reorder = false;
+                next
+            }
+            crate::maths::NiStep::ZeroPivot => {
+                // E_SINGULAR from SMPluFac: NISHOULDREORDER and `continue`,
+                // reloading at the same iterate.
+                reorder = true;
+                previous = Some(trial);
+                continue;
+            }
+        };
         if phases.damped {
             damp(
                 &mut next,
@@ -408,34 +497,57 @@ fn iterate<T, F: Fn(&T) -> bool>(
         if !next.is_finite() {
             return Err(failure("nonfinite Newton iterate"));
         }
-        if !flagged && converged(&next, &guess, branch_rows, options) {
-            let (mut physical, rhs, checked) = load(&next, IterationPhase::Float, Some(&trial))?;
-            check(&physical, &rhs, n)?;
-            physical.fold_duplicates();
-            if !(phases.nonconvergent)(&checked)
-                && residual_ok(&physical, &rhs, &next, branch_rows, options)?
-            {
-                return Ok(NewtonSolution {
-                    values: next,
-                    trial: checked,
-                    iterations: iteration,
-                });
-            }
-            // NIiter: an iterate converged under MODEINITFIX ends that phase.
-            phase = IterationPhase::Float;
+        if iterno > options.max_iterations {
+            *last_iterate = Some(guess);
+            return Err(failure(format!(
+                "Newton iteration limit ({}) reached",
+                options.max_iterations
+            )));
+        }
+        let mut noncon = if flagged || iterno == 1 {
+            true
         } else {
-            phase = match phase {
-                IterationPhase::Junction | IterationPhase::Fix => IterationPhase::Fix,
-                IterationPhase::Predict | IterationPhase::Float => IterationPhase::Float,
-            };
+            !converged(&next, &guess, branch_rows, options) || device_test(&next, &guess, &trial)?
+        };
+        match phase {
+            IterationPhase::Float => {
+                if phases.nodesets {
+                    noncon |= ipass;
+                    ipass = false;
+                }
+                if !noncon {
+                    // NIiter returns before swapping CKTrhs and CKTrhsOld:
+                    // the solution ngspice keeps (CKTdump writes CKTrhsOld,
+                    // the next solve starts from it) is the iterate the last
+                    // load used, the one CKTstate0 belongs to.
+                    return Ok(NewtonSolution {
+                        values: guess,
+                        trial,
+                        next,
+                        iterations: iterno,
+                    });
+                }
+            }
+            IterationPhase::Junction => {
+                phase = IterationPhase::Fix;
+                reorder = true;
+            }
+            IterationPhase::Fix => {
+                if !noncon {
+                    phase = IterationPhase::Float;
+                }
+                ipass = true;
+            }
+            IterationPhase::Predict => {
+                if phases.initial_transient && iterno <= 1 {
+                    reorder = true;
+                }
+                phase = IterationPhase::Float;
+            }
         }
         previous = Some(trial);
         guess = next;
     }
-    Err(failure(format!(
-        "Newton iteration limit ({}) reached",
-        options.max_iterations
-    )))
 }
 /// [`StepLimiting::Global`]: scale the step so no watched nodal voltage moves
 /// by more than `limit` (all non-branch rows when `limited_rows` is `None`).
@@ -462,39 +574,16 @@ fn damp(
         }
     }
 }
-/// Iterative-refinement rounds of the balanced fallback solve.
-const REFINEMENT_STEPS: usize = 3;
-
-/// Solves one Newton linearisation: row-equilibrated first (the established
-/// path, unchanged for every system it accepts), then, only when that solve
-/// fails numerically, once more with Curtis-Reid row/column balancing and
-/// iterative refinement ([`crate::maths::EquilibratedSparseLu::new_balanced`],
-/// [`crate::maths::EquilibratedSparseLu::solve_refined`]).
-///
-/// The fallback exists for linearisations that are well posed but scaled
-/// across tens of decades through a coupling cycle. ngspice's `PTdivide`
-/// fudge gives `1/v(x)`, `sqrt(v(x))` or `log(v(x))` a slope of about `1e32`
-/// at a 0 V iterate (`src/spicelib/parser/ptfuncs.c`); SPARSE's threshold
-/// pivoting factors that matrix, whereas row scaling alone leaves the
-/// `v(out)` column `1e32` times weaker than its `v(in)` coupling and trips the
-/// conditioning guard. Balancing changes no equation: the factor is checked
-/// for rank/conditioning in scaled form and every solution is checked against
-/// the original snapshot in physical units; refinement then recovers small
-/// unknowns (a 2 V source beside a `-1e99` `log(0)` output) that the normwise
-/// residual bound alone would let the solve lose. When both attempts fail, the
-/// row-equilibrated error is reported, so diagnostics for genuinely singular
-/// systems are unchanged.
-fn linearised_solve(matrix: &SparseMatrix, rhs: &Vector) -> SpiceResult<Vector> {
-    let (scaled, scaled_rhs) = equilibrated(matrix, rhs)?;
-    match scaled.solve(&scaled_rhs) {
-        Ok(solution) => Ok(solution),
-        Err(error @ SpiceError::Numerical { .. }) => {
-            crate::maths::EquilibratedSparseLu::new_balanced(matrix, None)
-                .and_then(|factor| factor.solve_refined(rhs, REFINEMENT_STEPS))
-                .map_err(|_| error)
-        }
-        Err(error) => Err(error),
-    }
+/// One `NIiter` factor-and-solve on the raw matrix ([`crate::maths::solve_ni`]):
+/// there is no row equilibration or conditioning guard; ngspice has neither.
+fn linearised_solve(
+    matrix: &SparseMatrix,
+    rhs: &Vector,
+    ordering: &mut Option<crate::maths::SparseSymbolic>,
+    reorder: bool,
+    options: &NewtonOptions,
+) -> SpiceResult<crate::maths::NiStep> {
+    crate::maths::solve_ni(matrix, rhs, ordering, reorder, options.diag_gmin)
 }
 
 fn check(matrix: &SparseMatrix, rhs: &Vector, n: usize) -> SpiceResult<()> {
@@ -517,62 +606,6 @@ fn converged(new: &Vector, old: &Vector, branch: &[bool], options: &NewtonOption
                         options.vntol
                     }
         })
-}
-fn residual_ok(
-    matrix: &SparseMatrix,
-    rhs: &Vector,
-    x: &Vector,
-    branch: &[bool],
-    options: &NewtonOptions,
-) -> SpiceResult<bool> {
-    let mut residual: Vec<_> = rhs.as_slice().iter().map(|v| -*v).collect();
-    let mut scale: Vec<_> = rhs.as_slice().iter().map(|v| v.abs()).collect();
-    for t in matrix.triplets() {
-        let term = t.value * x.as_slice()[t.col];
-        residual[t.row] += term;
-        scale[t.row] += term.abs();
-    }
-    if residual.iter().chain(&scale).any(|v| !v.is_finite()) {
-        return Err(failure("nonfinite Newton physical residual"));
-    }
-    Ok(residual
-        .iter()
-        .zip(scale)
-        .zip(branch)
-        .all(|((residual, scale), branch)| {
-            residual.abs()
-                <= options.reltol * scale
-                    + if *branch {
-                        options.vntol
-                    } else {
-                        options.abstol
-                    }
-        }))
-}
-pub(crate) fn equilibrated(
-    matrix: &SparseMatrix,
-    rhs: &Vector,
-) -> SpiceResult<(SparseMatrix, Vector)> {
-    let mut largest = vec![0.; matrix.rows()];
-    for t in matrix.triplets() {
-        largest[t.row] = Real::max(largest[t.row], t.value.abs());
-    }
-    let scale = |row: usize| {
-        if largest[row] > 0. && largest[row].is_finite() {
-            1. / largest[row]
-        } else {
-            1.
-        }
-    };
-    let mut scaled = SparseMatrix::new(matrix.rows(), matrix.cols());
-    for t in matrix.triplets() {
-        scaled.add(t.row, t.col, t.value * scale(t.row))?;
-    }
-    let mut b = rhs.clone();
-    for (row, value) in b.as_mut_slice().iter_mut().enumerate() {
-        *value *= scale(row);
-    }
-    Ok((scaled, b))
 }
 fn failure(message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {
@@ -600,43 +633,36 @@ mod tests {
         assert_eq!(solution.trial, solution.values.as_slice()[0]);
     }
     #[test]
-    fn residual_prevents_false_small_step_success() {
-        let mut initial = Vector::zeros(1);
-        initial.add_to(0, 1e12).unwrap();
-        let options = NewtonOptions {
-            max_iterations: 2,
-            ..NewtonOptions::default()
-        };
-        let error = solve(&initial, &[false], &options, |_| {
-            let mut a = SparseMatrix::new(1, 1);
-            a.add(0, 0, 1.)?;
-            Ok((a, Vector::zeros(1), ()))
-        })
-        .unwrap_err();
-        assert!(error.to_string().contains("iteration limit"));
-    }
-    #[test]
     fn counted_solve_reports_the_iterations_used_by_success_and_failure() {
         let identity = |_: &Vector| -> SpiceResult<(SparseMatrix, Vector, ())> {
             let mut a = SparseMatrix::new(1, 1);
             a.add(0, 0, 1.)?;
             Ok((a, Vector::zeros(1), ()))
         };
-        let mut far = Vector::zeros(1);
-        far.add_to(0, 1e12).unwrap();
+        // x_{n+1} = x_n + 1 never converges.
+        let drifting = |x: &Vector| -> SpiceResult<(SparseMatrix, Vector, ())> {
+            let mut a = SparseMatrix::new(1, 1);
+            a.add(0, 0, 1.)?;
+            let mut b = Vector::zeros(1);
+            b.add_to(0, x.as_slice()[0] + 1.)?;
+            Ok((a, b, ()))
+        };
+        let far = Vector::zeros(1);
         let options = NewtonOptions {
             max_iterations: 3,
             ..NewtonOptions::default()
         };
-        let failure = solve_counted(&far, &[false], &options, identity).unwrap_err();
-        assert_eq!(failure.iterations, 3);
+        // NIiter fails after the solve that exceeds the limit: 3 + 1 passes.
+        let failure = solve_counted(&far, &[false], &options, drifting).unwrap_err();
+        assert_eq!(failure.iterations, 4);
         assert!(failure.error.to_string().contains("iteration limit"));
         assert_eq!(
-            solve(&far, &[false], &options, identity).unwrap_err(),
+            solve(&far, &[false], &options, drifting).unwrap_err(),
             failure.error
         );
+        // MODEINITJCT, MODEINITFIX, then a converged MODEINITFLOAT pass.
         let solved = solve_counted(&Vector::zeros(1), &[false], &options, identity).unwrap();
-        assert_eq!(solved.iterations, 1);
+        assert_eq!(solved.iterations, 3);
         let rejected = NewtonOptions {
             max_iterations: 0,
             ..options

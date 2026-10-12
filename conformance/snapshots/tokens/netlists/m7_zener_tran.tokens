@@ -74,7 +74,7 @@ card 6 @netlists/m7_zener_tran.cir:7:1 lines=7-7 continuations=0
   token 25 7:59 number "40p" value=4e-11
   token 26 7:63 word "vj"
   token 27 7:65 equals "="
-  token 28 7:66 number "0.7" value=7e-1
+  token 28 7:66 number "0.7" value=7.000000000000001e-1
   token 29 7:70 word "m"
   token 30 7:71 equals "="
   token 31 7:72 number "0.4" value=4e-1
@@ -92,10 +92,10 @@ card 6 @netlists/m7_zener_tran.cir:7:1 lines=7-7 continuations=0
   token 43 7:104 number "0.5p" value=5e-13
   token 44 7:109 word "vjsw"
   token 45 7:113 equals "="
-  token 46 7:114 number "0.6" value=6e-1
+  token 46 7:114 number "0.6" value=6.000000000000001e-1
   token 47 7:118 word "mjsw"
   token 48 7:122 equals "="
-  token 49 7:123 number "0.3" value=3e-1
+  token 49 7:123 number "0.3" value=3.0000000000000004e-1
   token 50 7:126 rparen ")"
 card 7 @netlists/m7_zener_tran.cir:8:1 lines=8-8 continuations=0
   raw: ".tran 5u 1.8m 0 5u"

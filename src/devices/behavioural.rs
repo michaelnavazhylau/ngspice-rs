@@ -186,7 +186,11 @@ impl Behavioural {
                 time,
                 temperature: context.temperature,
                 gmin: context.gmin,
-                frequency: context.frequency,
+                // ifeval.c PTeval: `hertz` is `CKTomega / 2. / M_PI`, with
+                // `CKTomega = 2.0 * M_PI * freq` (acan.c), not `freq` itself.
+                frequency: 2.0 * std::f64::consts::PI * context.frequency
+                    / 2.
+                    / std::f64::consts::PI,
             })
             .map_err(|error| match error {
                 SpiceError::Numerical { message, .. } => SpiceError::Numerical {
@@ -292,6 +296,79 @@ impl Behavioural {
 }
 
 impl Device for Behavioural {
+    /// `asrc`: `inpcom.c` rewrites the E/G/F/H VALUE/TABLE/POLY forms into
+    /// B sources before parsing.
+    fn c_device_type(&self) -> crate::devices::setup::CDeviceType {
+        crate::devices::setup::CDeviceType::Asrc
+    }
+
+    /// One trial slot: the expression value of the last load (C
+    /// `ASRCprev_value`).
+    fn state_count(&self) -> usize {
+        1
+    }
+
+    /// `ASRCconvTest` (`asrcconv.c`): the expression at the new iterate
+    /// against its value at the last load, within `reltol` and `vntol` (a
+    /// voltage source) or `abstol` (a current source).
+    fn convergence_test(
+        &self,
+        context: &crate::devices::ConvergenceContext<'_>,
+    ) -> SpiceResult<bool> {
+        let (evaluation, _, _) = self.evaluate(
+            context.solution,
+            context.unknowns,
+            context.controls,
+            context.time,
+            context.model_context,
+        )?;
+        let rhs = evaluation.value;
+        let prev = context.states.first().copied().unwrap_or(0.);
+        let absolute = match self.output {
+            BehaviouralOutput::Voltage => context.vntol,
+            BehaviouralOutput::Current => context.abstol,
+        };
+        let tol = context.reltol * rhs.abs().max(prev.abs()) + absolute;
+        Ok((prev - rhs).abs() > tol)
+    }
+
+    /// `asrcset.c`: a voltage source's branch elements, then one column per
+    /// expression variable (the branch row, or both output nodes).
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let (pos, neg) = (setup.node(self.terminals[0]), setup.node(self.terminals[1]));
+        let branch = match self.output {
+            BehaviouralOutput::Voltage => {
+                let branch = Some(setup.branch(0)?);
+                setup.element(pos, branch);
+                setup.element(neg, branch);
+                setup.element(branch, neg);
+                setup.element(branch, pos);
+                branch
+            }
+            BehaviouralOutput::Current => None,
+        };
+        for variable in &self.variables {
+            let column = match *variable {
+                Variable::Node(node) => setup.node(node),
+                Variable::Branch(index) => {
+                    Some(setup.controls.get(index).copied().ok_or_else(|| {
+                        SpiceError::circuit(format!("{}: unbound controlling source", self.name))
+                    })?)
+                }
+            };
+            match self.output {
+                BehaviouralOutput::Voltage => setup.element(branch, column),
+                BehaviouralOutput::Current => {
+                    setup.element(pos, column);
+                    setup.element(neg, column);
+                }
+            }
+        }
+        Ok(true)
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         ["temp", "dtemp", "tc1", "tc2", "m"]
             .into_iter()
@@ -435,6 +512,8 @@ impl Device for Behavioural {
             &context.model_context(),
         )?;
         let factor = self.checked_factor(context.temperature)?;
+        // asrcload.c: ASRCprev_value, the raw value ASRCconvTest compares.
+        context.states.set(0, evaluation.value)?;
         let branch = (!context.branches.is_empty()).then_some(context.branches.start);
         self.stamp_into(
             context.matrix,

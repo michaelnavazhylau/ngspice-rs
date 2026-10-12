@@ -93,10 +93,11 @@ fn invalid_dimensions_nonfinite_and_overflow() {
 }
 
 #[test]
-fn structural_and_numeric_singularity_even_with_zero_rhs() {
+fn structural_and_exact_singularity_even_with_zero_rhs() {
+    // A tiny but nonzero pivot is accepted, as spSMALL_PIVOT is in SPARSE 1.3.
     let (s, d) = matrices(&[&[1., 0.], &[0., 1e-30]]);
-    assert!(s.factorize().is_err());
-    assert!(d.lu_decompose().is_err());
+    assert!(s.factorize().is_ok());
+    assert!(d.lu_decompose().is_ok());
     for values in [
         &[&[1., 0.][..], &[0., 0.][..]][..],
         &[&[1., 2.][..], &[2., 4.][..]][..],

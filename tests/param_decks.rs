@@ -58,8 +58,8 @@ fn dc_ac_and_tran_arguments_match_literals() {
         "v1 a 0 dc 0 ac 1\nr1 a b 1k\nc1 b 0 2e-6\n.ac dec 5 10 10000",
     );
     same(
-        ".param tau=1m\nv1 in 0 dc 1\nr1 in out 1k\nc1 out 0 {tau/1k}\n.tran {tau/10} {tau*5} backend=diffsol method=bdf",
-        "v1 in 0 dc 1\nr1 in out 1k\nc1 out 0 1e-6\n.tran 1e-4 5e-3 backend=diffsol method=bdf",
+        ".param tau=1m\nv1 in 0 dc 1\nr1 in out 1k\nc1 out 0 {tau/1k}\n.tran {tau/10} {tau*5}",
+        "v1 in 0 dc 1\nr1 in out 1k\nc1 out 0 1e-6\n.tran 1e-4 5e-3",
     );
 }
 

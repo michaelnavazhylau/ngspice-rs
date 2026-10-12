@@ -148,7 +148,6 @@ fn missing_values_and_invalid_geometry_fail_without_c_fallbacks() {
         "r1 a 0 mdl l=2u\n.model mdl r(rsh=100 short=1u)",
         "r1 a 0 mdl w=2u\n.model mdl r(rsh=100 narrow=1u)",
         "c1 a 0 mdl\n.model mdl c(cj=1m)",
-        "c1 a 0 mdl l=1u\n.model mdl c",
         "c1 a 0 mdl l=2u\n.model mdl c(cj=1m short=2u)",
         "c1 a 0 mdl l=2u w=1u\n.model mdl c(cj=1m narrow=2u)",
         "l1 a 0 mdl\n.model mdl l",
@@ -179,11 +178,10 @@ fn all_raw_setters_are_validated_even_if_overwritten_or_unused_by_precedence() {
         assert!(parameters(&n, 0).is_err(), "{setter}");
     }
     for (d, setter) in [
-        ('r', "resistance=0 resistance=1k"),
         ('r', "w=0"),
         ('r', "m=0"),
         ('c', "capacitance=-1 capacitance=1u"),
-        ('l', "inductance=0"),
+        ('l', "inductance=-1"),
         ('l', "scale=-1"),
         ('r', "temp=-273.15"),
         ('r', "dtemp=1"),
@@ -234,7 +232,6 @@ fn nonfinite_programmatic_values_and_arithmetic_overflow_are_rejected() {
         "l1 a 0 mdl scale=2\n.model mdl l(ind=1e308)",
         "c1 a 0 mdl m=2\n.model mdl c(cap=1e308)",
         "r1 a 0 mdl m=1e308\n.model mdl r(r=1e-300)",
-        "l1 a 0 mdl m=1e308\n.model mdl l(ind=1e-300)",
         "r1 a 0 mdl\n.model mdl r(r=1e-320)",
         "r1 a 0 mdl temp=30\n.model mdl r(r=1 tc1=-1 tnom=20)",
         "c1 a 0 mdl temp=30\n.model mdl c(cap=1 tc1=-0.1 tnom=20)",
@@ -351,6 +348,8 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         integration: None,
         states: ngspice_rs::devices::DeviceState::none(),
         forcing: None,
+        source_factor: 1.,
+        voltage_source_value: &mut 0.,
     };
     circuit.devices_mut()[0].stamp(&mut context).unwrap();
     close(matrix.get(0, 0), 1.0 / 1500.0);
@@ -465,4 +464,33 @@ fn model_backed_capacitors_and_inductors_own_companion_state() {
     matrix.fold_duplicates();
     close(matrix.get(0, 0), 2.0);
     close(matrix.get(1, 1), -1e-3 / 1e-6);
+}
+
+/// C accepts these (`resparam.c` raises a resistance in `[0, RESMIN)` to
+/// `RESMIN = 1e-12` with a warning, a later setter replacing it; zero
+/// capacitance and inductance are legal values, and a geometry capacitor
+/// without `cj`/`cjsw` is zero), so the port does too.
+#[test]
+fn c_accepted_zero_and_tiny_values() {
+    assert_eq!(
+        effective("r1 a 0 mdl resistance=0\n.model mdl r").unwrap(),
+        1e-12
+    );
+    assert_eq!(
+        effective("r1 a 0 mdl resistance=-1e-15\n.model mdl r").unwrap(),
+        -1e-12
+    );
+    assert_eq!(
+        effective("r1 a 0 mdl resistance=0 resistance=1k\n.model mdl r").unwrap(),
+        1e3
+    );
+    assert_eq!(
+        effective("l1 a 0 mdl inductance=0\n.model mdl l").unwrap(),
+        0.0
+    );
+    assert_eq!(
+        effective("c1 a 0 mdl capacitance=0\n.model mdl c").unwrap(),
+        0.0
+    );
+    assert_eq!(effective("c1 a 0 mdl l=1u\n.model mdl c").unwrap(), 0.0);
 }

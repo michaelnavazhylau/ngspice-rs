@@ -255,19 +255,10 @@ fn switches_inside_subcircuits_sense_renamed_sources() {
 }
 
 #[test]
-fn unsupported_switch_analyses_fail_explicitly() {
+fn switch_nonlinear_uic_runs_on_the_companion_driver() {
     let deck = "vc c 0 pulse(0 2 1u 1u)\nvin in 0 1\nr1 in a 1k\nc1 a 0 1n\ns1 a 0 c 0 sm\n\
                 .model sm sw(vt=1)";
-    // The diffsol BDF backend needs immutable linear equations.
-    let error = run(
-        deck,
-        AnalysisKind::Transient,
-        &["1u", "10u", "backend=diffsol", "method=bdf"],
-    )
-    .unwrap_err();
-    assert!(error.to_string().contains("s1"), "{error}");
-    // Nonlinear uic initialization (#99) runs on the companion driver; the
-    // BDF backend keeps rejecting it.
+    // Nonlinear uic initialization (#99) runs on the companion driver.
     let mut c = circuit(deck).unwrap();
     let mut request = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "10u"]);
     request.uic = true;
@@ -275,17 +266,6 @@ fn unsupported_switch_analyses_fail_explicitly() {
         .unwrap()
         .run(&mut c, &request, &AnalysisContext::default())
         .unwrap();
-    let mut c = circuit(deck).unwrap();
-    let mut request = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "10u", "backend=diffsol", "method=bdf"],
-    );
-    request.uic = true;
-    let error = runner(AnalysisKind::Transient)
-        .unwrap()
-        .run(&mut c, &request, &AnalysisContext::default())
-        .unwrap_err();
-    assert!(!error.to_string().is_empty());
 }
 
 #[test]
@@ -320,6 +300,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
             b.add_to(0, 2.)?;
             Ok((a, b, trial))
         },
+        |_, _, _| Ok(false),
     )
     .unwrap();
     assert_eq!(solved.values.as_slice(), [2.]);
@@ -327,8 +308,9 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
     assert_eq!(solved.trial.phase(), IterationPhase::Float);
     // JCT, then FIX until the iterate converges, then FLOAT with the previous
     // load as the iterate; flagged float loads are never accepted.
-    // Load 1 (JCT) solves x = 2; load 2 (FIX) reproduces it, so the FLOAT
-    // check reload follows; the two flagged float loads keep iterating.
+    // Load 1 (JCT) solves x = 2; load 2 (FIX) reproduces it and ends FIX;
+    // the two flagged float loads keep iterating and the third converges
+    // (NIiter makes no extra check load).
     assert_eq!(phases[0], (IterationPhase::Junction, false));
     assert_eq!(phases[1], (IterationPhase::Fix, true));
     assert!(
@@ -337,7 +319,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
             .all(|step| *step == (IterationPhase::Float, true)),
         "{phases:?}"
     );
-    assert_eq!(floats, 4, "{phases:?}");
+    assert_eq!(floats, 3, "{phases:?}");
     // A predicted solve starts in MODEINITPRED.
     let mut first = None;
     solve_phased(
@@ -355,6 +337,7 @@ fn phased_newton_never_converges_on_a_load_marked_nonconvergent() {
             a.add(0, 0, 1.)?;
             Ok((a, Vector::zeros(1), trial))
         },
+        |_, _, _| Ok(false),
     )
     .unwrap();
     assert_eq!(first, Some(IterationPhase::Predict));
@@ -424,7 +407,7 @@ fn decimal_sweeps_decide_thresholds_at_cs_accumulated_values() {
         &["vc", "0", "2", "0.1"],
     )
     .unwrap();
-    let sweep = column(&plot, "sweep");
+    let sweep = column(&plot, "v(v-sweep)");
     assert_eq!(sweep[10], 0.9999999999999999);
     let a = column(&plot, "v(a)");
     close(a[10], OPEN, 1e-12);

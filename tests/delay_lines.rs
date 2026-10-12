@@ -292,7 +292,7 @@ fn backends_without_a_delay_formulation_refuse_delay_lines() {
         &["10u", "1m", "backend=diffsol", "method=bdf"],
     );
     // The companion entry point refuses diffsol options; the dispatcher
-    // refuses the backend.
+    // refuses the removed backend for every circuit.
     assert!(error.is_err());
     let error = ngspice_rs::analysis::runner(AnalysisKind::Transient)
         .and_then(|driver| {
@@ -306,7 +306,7 @@ fn backends_without_a_delay_formulation_refuse_delay_lines() {
             )
         })
         .unwrap_err();
-    assert!(error.to_string().contains("delayed wave"), "{error}");
+    assert!(error.to_string().contains("backend=diffsol"), "{error}");
     let mut uic = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["10u", "1m"]);
     uic.uic = true;
     let error = companion_transient(&mut circuit, &uic, &AnalysisContext::default()).unwrap_err();

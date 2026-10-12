@@ -29,10 +29,48 @@
 //! derivative histories, which are owned by the caller (devices) and passed in
 //! as slices.
 //!
-//! The separately selected [`crate::maths::diffsol`] BDF adapter does not implement
-//! this companion-model contract and never consumes these coefficients.
 
 use crate::primitives::{Real, SpiceError, SpiceResult};
+
+/// The present charge followed by up to [`IntegrationMethod::MAX_GEAR_ORDER`]
+/// accepted charges, on the stack: device loads build one per charge per
+/// Newton iteration, so it must not allocate.
+#[derive(Debug, Clone, Copy)]
+pub struct ChargeHistory {
+    values: [Real; IntegrationMethod::MAX_GEAR_ORDER as usize + 1],
+    len: usize,
+}
+
+impl ChargeHistory {
+    /// A history holding only the present charge.
+    #[must_use]
+    pub const fn new(present: Real) -> Self {
+        let mut values = [0.0; IntegrationMethod::MAX_GEAR_ORDER as usize + 1];
+        values[0] = present;
+        Self { values, len: 1 }
+    }
+
+    /// Appends the next older accepted charge.
+    ///
+    /// # Errors
+    /// More points than the highest integration order can use.
+    pub fn push(&mut self, value: Real) -> SpiceResult<()> {
+        let slot = self
+            .values
+            .get_mut(self.len)
+            .ok_or_else(|| numerical("charge history exceeds the highest integration order"))?;
+        *slot = value;
+        self.len += 1;
+        Ok(())
+    }
+}
+
+impl std::ops::Deref for ChargeHistory {
+    type Target = [Real];
+    fn deref(&self) -> &[Real] {
+        &self.values[..self.len]
+    }
+}
 
 /// Which integration rule to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -279,20 +317,13 @@ impl StepHistory {
         // nicomcof.c
         let mut ag = [0.0; HISTORY_LEN + 1];
         match (method, order) {
-            (_, 1) => ag[..2].copy_from_slice(&[1.0 / dt, -1.0 / dt]),
+            (IntegrationMethod::Trapezoidal, 1) => {
+                ag[..2].copy_from_slice(&[1.0 / dt, -1.0 / dt]);
+            }
             (IntegrationMethod::Trapezoidal, _) => {
                 ag[..2].copy_from_slice(&[1.0 / dt / (1.0 - xmu), xmu / (1.0 - xmu)]);
             }
-            (IntegrationMethod::Gear { .. }, 2) => {
-                // Closed form for t_{n+1}, t_n, t_{n-1}, kept from the
-                // original Gear-2 port so its results stay bit-identical;
-                // gear_corrector agrees to rounding (tested).
-                let h1 = deltas[1];
-                let r = 1.0 + h1 / dt;
-                let a2 = 1.0 / (r * h1);
-                let a1 = -a2 * r * r;
-                ag[..3].copy_from_slice(&[-(a1 + a2), a1, a2]);
-            }
+            // nicomcof.c: Gear order 1 falls through to the general case.
             (IntegrationMethod::Gear { .. }, _) => {
                 gear_corrector(&deltas, usize::from(order), &mut ag);
             }
@@ -343,26 +374,54 @@ impl StepHistory {
 ///
 /// The two agree to rounding; the result is exact for polynomials of degree
 /// `order` (tested), which is what defines the C coefficients.
+// Kept index-for-index with nicomcof.c so the arithmetic matches it.
+#[allow(clippy::needless_range_loop, clippy::assign_op_pattern)]
 fn gear_corrector(
     deltas: &[Real; HISTORY_LEN + 1],
     order: usize,
     ag: &mut [Real; HISTORY_LEN + 1],
 ) {
-    let h = deltas[0];
-    let mut sigma = [0.0; HISTORY_LEN + 1];
-    let mut sum = 0.0;
-    for i in 1..=order {
-        sum += deltas[i - 1];
-        sigma[i] = sum / h;
+    // nicomcof.c, `case GEAR`, verbatim: the corrector matrix built from
+    // (sum of h)/h, LU-decomposed without pivoting (its first column is
+    // 1 0 0 ...), then forward and backward substitution on CKTag.
+    let delta = deltas[0];
+    let mut mat = [[0.0; HISTORY_LEN + 1]; HISTORY_LEN + 1];
+    *ag = [0.0; HISTORY_LEN + 1];
+    ag[1] = -1. / delta;
+    for entry in mat[0].iter_mut().take(order + 1) {
+        *entry = 1.;
     }
-    ag[0] = (1..=order).map(|j| 1.0 / sigma[j]).sum::<Real>() / h;
+    for row in mat.iter_mut().take(order + 1).skip(1) {
+        row[0] = 0.;
+    }
+    let mut arg = 0.;
     for i in 1..=order {
-        let (mut numerator, mut denominator) = (1.0, -sigma[i]);
-        for j in (1..=order).filter(|&j| j != i) {
-            numerator *= sigma[j];
-            denominator *= sigma[j] - sigma[i];
+        arg += deltas[i - 1];
+        let mut arg1 = 1.;
+        for row in mat.iter_mut().take(order + 1).skip(1) {
+            arg1 *= arg / delta;
+            row[i] = arg1;
         }
-        ag[i] = numerator / denominator / h;
+    }
+    for i in 1..=order {
+        for j in i + 1..=order {
+            mat[j][i] /= mat[i][i];
+            for k in i + 1..=order {
+                mat[j][k] -= mat[j][i] * mat[i][k];
+            }
+        }
+    }
+    for i in 1..=order {
+        for j in i + 1..=order {
+            ag[j] -= mat[j][i] * ag[i];
+        }
+    }
+    ag[order] /= mat[order][order];
+    for i in (0..order).rev() {
+        for j in i + 1..=order {
+            ag[i] -= mat[i][j] * ag[j];
+        }
+        ag[i] /= mat[i][i];
     }
 }
 
@@ -500,8 +559,17 @@ impl Coefficients {
                 .ok_or_else(|| numerical("trapezoidal order 2 needs the previous derivative"))?;
             finite(previous, "previous derivative")?;
             -previous * self.ag[1] + self.ag[0] * (charge[0] - charge[1])
+        } else if self.method == IntegrationMethod::Trapezoidal {
+            // NIintegrate, trapezoidal order 1: ag0 q0 + ag1 q1.
+            self.ag[0] * charge[0] + self.ag[1] * charge[1]
         } else {
-            self.ag().iter().zip(charge).map(|(a, q)| a * q).sum()
+            // NIintegrate, Gear: zero, then ag[k] q[k] from the highest order
+            // down, ag[0] q0 last.
+            let mut sum = 0.;
+            for k in (1..needed).rev() {
+                sum += self.ag[k] * charge[k];
+            }
+            sum + self.ag[0] * charge[0]
         };
         let derivative = finite(derivative, "integrated derivative")?;
         Ok(Companion {
@@ -509,6 +577,12 @@ impl Coefficients {
             conductance: finite(self.ag[0] * capacitance, "companion conductance")?,
             current: finite(derivative - self.ag[0] * charge[0], "companion current")?,
         })
+    }
+
+    /// `CKTdelta / CKTdeltaOld[1]`, the ratio `DEVpred` extrapolates with.
+    #[must_use]
+    pub fn predictor_ratio(&self) -> Real {
+        self.deltas[0] / self.deltas[1]
     }
 
     /// Predicts one unknown at the trial time from accepted solutions, most

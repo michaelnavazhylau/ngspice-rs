@@ -13,17 +13,23 @@
 //! ```
 //!
 //! 1. The DC operating point is solved as for `.op`.
-//! 2. **DC**: `Y` is the operating-point Jacobian (C's `DEVload` matrix,
-//!    [`crate::devices::TrialState::with_c_jacobian`]) factored once and `x`
-//!    the operating point. **AC**: at every frequency the circuit is set up,
-//!    temperature-updated and assembled again from its (by then perturbed and
-//!    restored) records, `Y = A + j omega E` is factored and `x` solved.
+//! 2. **DC**: `Y` is the matrix the operating point's last Newton load left
+//!    factored (C's `CKTmatrix` after `CKTop`, as `.tf` uses it); the devices
+//!    are reloaded at that load's iterate (`CKTrhsOld`, with C's `DEVload`
+//!    matrix, [`crate::devices::TrialState::with_c_jacobian`]) and `x` is the
+//!    solve of that load (`CKTrhs`). **AC**: at every frequency the circuit
+//!    is set up, temperature-updated and assembled again from its (by then
+//!    perturbed and restored) records into a new matrix, `Y = A + j omega E`
+//!    is ordered from scratch (`CKTsetup` + `NIacIter`) and `x` solved.
 //! 3. For every parameter, in C's `sgen` order, the one device is loaded with
-//!    its current records (`dY0`, `dI0`), the parameter is set to `p + delta`
-//!    with `delta = 1e-6 p` (`1e-6` when `p = 0`), the device is loaded again
-//!    (`dY1`, `dI1`) and the parameter is set back to `p`. The sensitivity is
-//!    `Y^-1 ((dI1 - dI0) - (dY1 - dY0) x)` read at the output and divided by
-//!    `delta`.
+//!    its current records, the result negated, the parameter set to
+//!    `p + delta` with `delta = 1e-6 p` (`1e-6` when `p = 0`), the device
+//!    loaded again on top, and the parameter set back to `p`: element by
+//!    element `delta_Y = -dY0 + dY1` and `delta_I = -dI0 + dI1` in C's
+//!    accumulation order. The sensitivity is `Y^-1 (delta_I - delta_Y x)`
+//!    read at the output and divided by `delta`, with `delta_Y x` summed per
+//!    row in the internal column order of C's `delta_Y` (see
+//!    [`DeltaNumbering`]).
 //!
 //! The device side, including C's side effects of the in-place perturbation,
 //! lives in [`crate::devices::sensitivity`]; see `docs/port/SENSITIVITY.md`.
@@ -510,18 +516,113 @@ fn entries(members: &[Member<'_>], ac: bool, filters: &[String]) -> Vec<Entry> {
     entries
 }
 
-/// The difference `b - a` of two triplet matrices, entry by entry.
-fn difference(a: &SparseMatrix, b: &SparseMatrix) -> BTreeMap<(usize, usize), Real> {
-    let mut sum: BTreeMap<(usize, usize), (Real, Real)> = BTreeMap::new();
-    for triplet in a.triplets() {
-        sum.entry((triplet.row, triplet.col)).or_default().0 += triplet.value;
+/// The numbering of C's perturbation matrix `delta_Y` (`sens_sens()` in
+/// `cktsens.c`). SPARSE creates it once with `TRANSLATE`: an external row or
+/// column gets the next internal number the first time an element names it
+/// (`Translate()` in `spbuild.c`, row before column), and the first names
+/// come from the `DEVsetup` that `sens_sens()` runs on `delta_Y` for each
+/// device in `sgen` order. `SMPmultiply()` (`spMultiply()`) sums each row of
+/// `delta_Y * E` in that internal column order.
+struct DeltaNumbering {
+    internal: Vec<Option<usize>>,
+    next: usize,
+}
+
+impl DeltaNumbering {
+    fn new(n: usize) -> Self {
+        Self {
+            internal: vec![None; n],
+            next: 0,
+        }
     }
-    for triplet in b.triplets() {
-        sum.entry((triplet.row, triplet.col)).or_default().1 += triplet.value;
+
+    fn translate_one(&mut self, external: usize) {
+        if let Some(slot) = self.internal.get_mut(external)
+            && slot.is_none()
+        {
+            *slot = Some(self.next);
+            self.next += 1;
+        }
     }
-    sum.into_iter()
-        .map(|(position, (a, b))| (position, -a + b))
-        .collect()
+
+    /// `Translate()` of each element in order.
+    fn translate(&mut self, elements: impl IntoIterator<Item = (usize, usize)>) {
+        for (row, col) in elements {
+            self.translate_one(row);
+            self.translate_one(col);
+        }
+    }
+
+    fn rank(&self, external: usize) -> usize {
+        self.internal
+            .get(external)
+            .copied()
+            .flatten()
+            .unwrap_or(usize::MAX)
+    }
+}
+
+/// One `delta_Y` element as C accumulates it: the base load's contributions
+/// summed in stamp order from zero, the sum negated (`SMPconstMult(delta_Y,
+/// -1)`), then the perturbed load's contributions added in stamp order. The
+/// real and imaginary parts accumulate separately, as the loads stamp them.
+fn accumulate(
+    base: impl IntoIterator<Item = (usize, usize, Complex)>,
+    perturbed: impl IntoIterator<Item = (usize, usize, Complex)>,
+) -> BTreeMap<(usize, usize), Complex> {
+    let mut sums: BTreeMap<(usize, usize), Complex> = BTreeMap::new();
+    for (row, col, value) in base {
+        let entry = sums.entry((row, col)).or_insert(Complex::ZERO);
+        entry.re += value.re;
+        entry.im += value.im;
+    }
+    for value in sums.values_mut() {
+        value.re *= -1.;
+        value.im *= -1.;
+    }
+    for (row, col, value) in perturbed {
+        // A fresh element was cleared to zero and negated with the rest.
+        let entry = sums.entry((row, col)).or_insert(Complex::new(-0., -0.));
+        entry.re += value.re;
+        entry.im += value.im;
+    }
+    sums
+}
+
+/// `SMPmultiply(delta_Y, ..., E, ..., iE)` (`ComplexMatrixMultiply()` in
+/// `sputils.c`, `delta_Y` being complex): per row, `Sum += element * E[col]`
+/// with `CMPLX_MULT_ADD_ASSIGN`, over the row's elements in internal column
+/// order.
+fn multiply(
+    numbering: &DeltaNumbering,
+    elements: &BTreeMap<(usize, usize), Complex>,
+    x: &[Complex],
+) -> Vec<Complex> {
+    let mut rows: BTreeMap<usize, Vec<(usize, Complex)>> = BTreeMap::new();
+    for (&(row, col), &value) in elements {
+        rows.entry(row).or_default().push((col, value));
+    }
+    let mut product = vec![Complex::ZERO; x.len()];
+    for (row, mut entries) in rows {
+        entries.sort_by_key(|&(col, _)| numbering.rank(col));
+        let mut sum = Complex::ZERO;
+        for (col, a) in entries {
+            let b = x.get(col).copied().unwrap_or(Complex::ZERO);
+            sum.re += a.re * b.re - a.im * b.im;
+            sum.im += a.re * b.im + a.im * b.re;
+        }
+        if let Some(slot) = product.get_mut(row) {
+            *slot = sum;
+        }
+    }
+    product
+}
+
+fn real_stamps(matrix: &SparseMatrix) -> impl Iterator<Item = (usize, usize, Complex)> + '_ {
+    matrix
+        .triplets()
+        .iter()
+        .map(|t| (t.row, t.col, Complex::real(t.value)))
 }
 
 /// The device a sensitivity load stamps.
@@ -555,12 +656,19 @@ fn blocks(matrix: &SparseMatrix) -> Vec<usize> {
     (0..parent.len()).map(|x| root(&mut parent, x)).collect()
 }
 
-/// The DC state of the analysis: the operating-point factors and solution.
+/// The DC state of the analysis: C's operating-point factors and vectors.
 struct DcState<'a> {
-    factors: crate::maths::linear::SparseLu,
+    /// The circuit pattern whose last factors (`CKTop`'s final `NIiter`
+    /// load, at `load_point`) are C's `Y`.
+    pattern: std::sync::Arc<crate::maths::Pattern>,
     /// The connected block of every unknown in `Y`'s coupling.
     blocks: Vec<usize>,
-    solution: Vector,
+    /// C's `CKTrhsOld`: the iterate of the last load, where the devices are
+    /// loaded again.
+    load_point: Vector,
+    /// C's `CKTrhs` (`E`): the solve of that load, which `delta_Y`
+    /// multiplies.
+    solution: Vec<Complex>,
     model: crate::devices::ModelContext,
     history: crate::devices::StateHistory,
     trial: TrialState,
@@ -568,50 +676,61 @@ struct DcState<'a> {
 }
 
 impl DcState<'_> {
-    /// `(dI, dY)` contributions of one load: the device's rhs and matrix.
-    fn load(&self, index: usize, load: &SensitivityLoad) -> SpiceResult<(SparseMatrix, Vector)> {
-        let n = self.circuit.unknown_count();
-        let mut matrix = SparseMatrix::new(n, n);
-        let mut rhs = Vector::zeros(n);
+    /// One `DEVload` of the device into `matrix`/`rhs`.
+    fn load(
+        &self,
+        index: usize,
+        load: &SensitivityLoad,
+        matrix: &mut SparseMatrix,
+        rhs: &mut Vector,
+    ) -> SpiceResult<()> {
         let mut trial = self.trial.clone();
         self.circuit.load_device(
             index,
             stand_in(self.circuit, index, load),
             &LoadRequest {
                 mode: AnalysisMode::OperatingPoint,
-                solution: &self.solution,
+                solution: &self.load_point,
                 model_context: &self.model,
                 integration: None,
                 history: &self.history,
                 forcing: None,
             },
-            &mut matrix,
-            &mut rhs,
+            matrix,
+            rhs,
             &mut trial,
-        )?;
-        Ok((matrix, rhs))
+        )
     }
 
-    /// `Y^-1 (dI - dY x)` of a base and a perturbed load.
+    /// `Y^-1 (delta_I - delta_Y E)` of a base and a perturbed load, with
+    /// `delta_I` and `delta_Y` accumulated as `sens_sens()` does.
     fn delta(
         &self,
+        numbering: &mut DeltaNumbering,
         index: usize,
         base: &SensitivityLoad,
         perturbed: &SensitivityLoad,
     ) -> SpiceResult<Vec<Real>> {
-        let (y0, i0) = self.load(index, base)?;
-        let (y1, i1) = self.load(index, perturbed)?;
         let n = self.circuit.unknown_count();
-        let mut rhs = vec![0.; n];
-        for (row, value) in rhs.iter_mut().enumerate() {
-            *value = i1.get(row).unwrap_or(0.) - i0.get(row).unwrap_or(0.);
+        let (mut y0, mut y1) = (SparseMatrix::new(n, n), SparseMatrix::new(n, n));
+        let mut rhs = Vector::zeros(n);
+        self.load(index, base, &mut y0, &mut rhs)?;
+        // delta_I *= -1, then the perturbed load adds to it in place.
+        for value in rhs.as_mut_slice() {
+            *value *= -1.;
         }
-        let mut product = vec![0.; n];
-        for ((row, col), value) in difference(&y0, &y1) {
-            product[row] += value * self.solution.get(col).unwrap_or(0.);
-        }
-        for (value, product) in rhs.iter_mut().zip(product) {
-            *value -= product;
+        self.load(index, perturbed, &mut y1, &mut rhs)?;
+        numbering.translate(
+            y0.triplets()
+                .iter()
+                .chain(y1.triplets())
+                .map(|t| (t.row, t.col)),
+        );
+        let elements = accumulate(real_stamps(&y0), real_stamps(&y1));
+        let product = multiply(numbering, &elements, &self.solution);
+        let mut rhs = rhs.as_slice().to_vec();
+        for (value, product) in rhs.iter_mut().zip(&product) {
+            *value -= product.re;
         }
         // A nonfinite load difference (C's division by a zero knee current
         // in `dioload.c`) propagates through C's solve as NaN, through the
@@ -625,17 +744,20 @@ impl DcState<'_> {
                 *value = 0.;
             }
         }
-        let solved = self.factors.solve(&Vector::from_slice(&rhs))?;
+        let solved = crate::maths::solve_last_factors(&self.pattern, &Vector::from_slice(&rhs))?
+            .ok_or_else(|| SpiceError::Numerical {
+                context: ".sens".to_owned(),
+                message: "the operating point left no factored circuit matrix".to_owned(),
+            })?;
+        let mut x = solved.as_slice().to_vec();
         if !tainted.is_empty() {
-            let mut x = solved.as_slice().to_vec();
             for (row, value) in x.iter_mut().enumerate() {
                 if tainted.contains(&self.blocks[row]) {
                     *value = Real::NAN;
                 }
             }
-            return Ok(x);
         }
-        Ok(solved.as_slice().to_vec())
+        Ok(x)
     }
 }
 
@@ -664,8 +786,21 @@ impl AcState<'_> {
         Ok(system)
     }
 
+    /// The complex stamps of one `DEVacLoad`: the real contributions and
+    /// `omega` times the dynamic ones, each in stamp order.
+    fn stamps(&self, system: &LinearSystem) -> Vec<(usize, usize, Complex)> {
+        real_stamps(&system.a)
+            .chain(
+                crate::maths::complex::dynamic_terms(&system.e, &system.e_groups, self.omega)
+                    .into_iter()
+                    .map(|(row, col, value)| (row, col, Complex::new(0., value))),
+            )
+            .collect()
+    }
+
     fn delta(
         &self,
+        numbering: &mut DeltaNumbering,
         index: usize,
         base: &SensitivityLoad,
         perturbed: &SensitivityLoad,
@@ -673,13 +808,19 @@ impl AcState<'_> {
         let s0 = self.assemble(index, base)?;
         let s1 = self.assemble(index, perturbed)?;
         let (r0, r1) = (s0.ac_rhs(), s1.ac_rhs());
-        let mut rhs: Vec<Complex> = r1.iter().zip(&r0).map(|(a, b)| *a - *b).collect();
-        let x = &self.solution;
-        for ((row, col), value) in difference(&s0.a, &s1.a) {
-            rhs[row] = rhs[row] - Complex::real(value) * x[col];
-        }
-        for ((row, col), value) in difference(&s0.e, &s1.e) {
-            rhs[row] = rhs[row] - Complex::new(0., self.omega * value) * x[col];
+        // -(base) + perturbed, part by part (one source stamp per row).
+        let mut rhs: Vec<Complex> = r1
+            .iter()
+            .zip(&r0)
+            .map(|(a, b)| Complex::new(-b.re + a.re, -b.im + a.im))
+            .collect();
+        let (t0, t1) = (self.stamps(&s0), self.stamps(&s1));
+        numbering.translate(t0.iter().chain(&t1).map(|&(row, col, _)| (row, col)));
+        let elements = accumulate(t0, t1);
+        let product = multiply(numbering, &elements, &self.solution);
+        for (value, product) in rhs.iter_mut().zip(&product) {
+            value.re -= product.re;
+            value.im -= product.im;
         }
         self.factors.solve(&rhs)
     }
@@ -695,8 +836,18 @@ pub(crate) fn run(
     request: &AnalysisRequest,
     context: &AnalysisContext,
 ) -> SpiceResult<Plot> {
+    // Named `key=value` arguments are the operating point's Newton and
+    // continuation settings (the deck's `.options reltol=...`, which C's
+    // CKTop for `.sens` honours like any other analysis); DcSettings rejects
+    // any it does not know, so the card itself is the positional rest.
     let settings = crate::analysis::bias::DcSettings::from_request(request)?;
-    let card = parse(&request.arguments)?;
+    let positional: Vec<String> = request
+        .arguments
+        .iter()
+        .filter(|argument| !argument.contains('='))
+        .cloned()
+        .collect();
+    let card = parse(&positional)?;
     let grid = card.sweep.as_ref().map(frequencies).transpose()?;
     let ac = grid.is_some();
     circuit.finalize()?;
@@ -733,7 +884,7 @@ pub(crate) fn run(
     let hints = crate::analysis::initial::resolve(circuit, request)?;
     let nodes = crate::analysis::bias::NodeForcing {
         initial: Vec::new(),
-        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+        nodesets: crate::analysis::initial::forced_nodesets(&hints.nodesets),
     };
     let n = circuit.unknown_count();
     let mut seed = Vector::zeros(n);
@@ -774,6 +925,8 @@ pub(crate) fn run(
         }
     }
 
+    // `delta_Y` is created once, before the frequency loop.
+    let mut numbering = DeltaNumbering::new(n);
     if let Some(grid) = grid {
         let history = circuit.state_history();
         let state = history
@@ -784,6 +937,7 @@ pub(crate) fn run(
             // CKTsetup, CKTtemp and the AC load of the whole circuit in its
             // present (perturbed and restored) state.
             let mut system = LinearSystem::new(n);
+            system.a.set_pivot_tolerances(model.pivot);
             for (slot, member) in members.iter().enumerate() {
                 let (model_record, instance_record) = records.pair(member, slot);
                 member.sensitivity.setup(model_record, instance_record)?;
@@ -804,10 +958,28 @@ pub(crate) fn run(
                     &mut system,
                 )?;
             }
-            system.a.fold_duplicates();
-            system.e.fold_duplicates();
-            let factors =
-                ComplexMatrix::from_operators(&system.a, &system.e, omega)?.factorize()?;
+            // CKTunsetup/CKTsetup make a new circuit matrix (elements in
+            // setup order) and NIacIter reorders it from scratch.
+            let matrix = match circuit.matrix_pattern() {
+                Some(pattern) => ComplexMatrix::from_operators_grouped_on(
+                    &pattern,
+                    &system.a,
+                    &system.e,
+                    &system.e_groups,
+                    omega,
+                )?,
+                None => None,
+            };
+            let matrix = match matrix {
+                Some(matrix) => matrix,
+                None => ComplexMatrix::from_operators_grouped(
+                    &system.a,
+                    &system.e,
+                    &system.e_groups,
+                    omega,
+                )?,
+            };
+            let factors = matrix.factorize_new_matrix()?;
             let solution = factors.solve(&system.ac_rhs())?;
             let at = AcState {
                 omega,
@@ -825,7 +997,8 @@ pub(crate) fn run(
                 &entries,
                 SensitivityMode::Ac,
                 |index, base, perturbed, delta| {
-                    let dx = at.delta(index, base, perturbed)?;
+                    numbering.translate(circuit.setup_elements(index)?);
+                    let dx = at.delta(&mut numbering, index, base, perturbed)?;
                     let value = probe.read(&dx, Complex::ZERO);
                     point.push(Complex::new(value.re / delta, value.im / delta));
                     Ok(())
@@ -834,7 +1007,9 @@ pub(crate) fn run(
             plot.push_point(point)?;
         }
     } else {
-        // The Newton Jacobian at the operating point (C's matrix), as `.tf`.
+        // `Y` is the matrix CKTop's last NIiter load left factored (its
+        // load at CKTrhsOld), as for `.tf`; the devices are reloaded at that
+        // iterate and `delta_Y` multiplies its solve, CKTrhs.
         let history = circuit.state_history();
         let trial = history
             .trial_in(IterationPhase::Float, Some(&solved.trial))?
@@ -854,11 +1029,22 @@ pub(crate) fn run(
             &mut Vector::zeros(n),
             &mut trial.clone(),
         )?;
-        jacobian.fold_duplicates();
+        let pattern = circuit
+            .matrix_pattern()
+            .ok_or_else(|| SpiceError::Numerical {
+                context: ".sens".to_owned(),
+                message: "the operating point left no factored circuit matrix".to_owned(),
+            })?;
         let at = DcState {
-            factors: jacobian.factorize()?,
+            pattern,
             blocks: blocks(&jacobian),
-            solution: solved.values.clone(),
+            load_point: solved.values.clone(),
+            solution: solved
+                .next
+                .as_slice()
+                .iter()
+                .map(|&v| Complex::real(v))
+                .collect(),
             model,
             history,
             trial,
@@ -871,7 +1057,8 @@ pub(crate) fn run(
             &entries,
             SensitivityMode::Dc,
             |index, base, perturbed, delta| {
-                let dx = at.delta(index, base, perturbed)?;
+                numbering.translate(circuit.setup_elements(index)?);
+                let dx = at.delta(&mut numbering, index, base, perturbed)?;
                 point.push(Complex::real(probe.read(&dx, 0.) / delta));
                 Ok(())
             },

@@ -76,7 +76,7 @@ card 7 @netlists/m4_bjt_tran.cir:8:1 lines=8-8 continuations=0
   token 2 8:7 number "1n" value=1e-9
   token 3 8:10 number "100n" value=1.0000000000000001e-7
   token 4 8:15 number "0" value=0e0
-  token 5 8:17 number "0.1n" value=1.0000000000000002e-10
+  token 5 8:17 number "0.1n" value=1e-10
 card 8 @netlists/m4_bjt_tran.cir:9:1 lines=9-9 continuations=0
   raw: ".end"
   kind: dot(.end)

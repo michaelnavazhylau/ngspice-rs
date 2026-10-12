@@ -3,9 +3,9 @@
 //! [`literalize`] resolves the top-level `.param` cards ([`ParamScope`]) and
 //! produces a *copy* of the [`Netlist`] in which every top-level
 //! [`ParameterKind::Expression`] device/model parameter and every braced
-//! analysis argument is replaced by its finite value, spelled so that
-//! `parse_spice_number` reads back the exact `f64` (plain integer digits for
-//! integral values, otherwise `{:e}`). The input AST is
+//! analysis argument is replaced by its finite value, spelled as numparam
+//! spells it (`"% 23.15e"`, see [`format_literal`]), so reading it back gives
+//! ngspice's value. The input AST is
 //! never modified; the copy keeps `.param` cards, locations and card order. The
 //! original spelling and location of each replaced site are kept in
 //! [`ElaboratedNetlist::sites`].
@@ -140,16 +140,15 @@ fn resolved<'a>(entries: impl Iterator<Item = &'a NodeHint>) -> Vec<ResolvedNode
         .collect()
 }
 
-/// Spell a finite value so it parses back exactly.
+/// Spell an evaluated value as numparam splices it back into the card
+/// (`double_to_string`, `xpressn.c`: `"% 23.15e"`, without the padding).
+/// Reading the text back with [`crate::primitives::parse_spice_number`]
+/// (`INPevaluate`) then gives C's value, which can differ from `value` in the
+/// last bit (`3` becomes `3.0000000000000004`); integer arguments use C's
+/// `floor(0.5 + x)` ([`crate::primitives::c_integer`]).
 #[must_use]
 pub fn format_literal(value: Real) -> String {
-    // Integral values keep a plain integer spelling: count-like analysis
-    // arguments (`.ac dec 5 ..`) are parsed as integers by the drivers.
-    if value.fract() == 0.0 && value.abs() < 1e15 {
-        format!("{value:.0}")
-    } else {
-        format!("{value:e}")
-    }
+    crate::primitives::format_spice_number(value)
 }
 
 /// Resolve `.param` cards and literalize all top-level sites with default limits.
@@ -289,9 +288,11 @@ fn literalize_hints(
                 location: expression.span.start.clone(),
                 value,
             });
+            // numparam's text, read back by INPevaluate as the card is.
+            let text = format_literal(value);
             hint.value = NodeHintValue::Literal {
-                text: format_literal(value),
-                value,
+                value: crate::primitives::parse_spice_number(&text).unwrap_or(value),
+                text,
             };
         }
     }

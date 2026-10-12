@@ -13,6 +13,7 @@
 //! | --- | --- |
 //! | `temp`, `tnom` | [`AnalysisContext`] circuit/nominal temperature (Celsius, finite, above absolute zero) |
 //! | `gmin` | [`AnalysisContext::gmin`]: junction minimum conductance of every diode/BJT/MOS1 junction in all analyses (C `CKTgmin`, default 1e-12 S; finite, `>= 0`) |
+//! | `pivtol`, `pivrel` | [`AnalysisContext::pivot`]: SPARSE threshold-pivoting limits used whenever a circuit matrix is (re)ordered in any analysis (C `CKTpivotAbsTol`/`CKTpivotRelTol`, `SMPreorder`/`SMPcReorder`; defaults 1e-13 and 1e-3). `pivtol` must be finite and `>= 0`, `pivrel` in `(0, 1]`; C's `spOrderAndFactor` would silently use its default for other values |
 //! | `reltol` | transient relative tolerance (`rtol`): companion truncation/convergence, or diffsol BDF; also the DC/AC Newton `rtol` |
 //! | `vntol` | voltage absolute tolerance (companion Newton test; diffsol BDF; DC/AC Newton) |
 //! | `abstol` | branch-current absolute tolerance (companion truncation/Newton test; diffsol BDF; DC/AC Newton) |
@@ -33,8 +34,8 @@
 //! too); the raw `itl2` is kept separately for the step adaptation. When a deck
 //! sets `itl1` or `itl2`, the continuation stages use `itl2` (default 100) as in
 //! C; without either, every stage uses `itl1`'s default 100, which is the same
-//! number. Unlike C's `IF_INTEGER` options, a non-integer (`itl4=2.5`) is
-//! rejected rather than rounded.
+//! number. As C's `IF_INTEGER` options, a non-integer is rounded with
+//! `floor(0.5 + value)` (`itl4=2.5` is 3).
 //!
 //! The DC options reach `.op`, `.dc`, `.ac` and the companion `.tran` initial
 //! bias; with `backend=diffsol` they (and `itl4`, `xmu`) are rejected. They
@@ -140,10 +141,6 @@ const KNOWN_UNIMPLEMENTED: &[&str] = &[
     "ltetrtol",
     "newtrunc",
     "maxopalter",
-    // Sparse 1.3 pivot thresholds (TSKpivotAbsTol/TSKpivotRelTol); this port's
-    // faer partial-pivoting LU has no equivalent knob yet.
-    "pivtol",
-    "pivrel",
     "maxevtiter",
     "noopalter",
     "ramptime",
@@ -717,6 +714,8 @@ impl RunConfig {
             "temp"
                 | "tnom"
                 | "gmin"
+                | "pivtol"
+                | "pivrel"
                 | "reltol"
                 | "vntol"
                 | "abstol"
@@ -837,6 +836,20 @@ impl RunConfig {
                 }
                 self.context.gmin = gmin;
             }
+            "pivtol" | "pivrel" => {
+                let mut pivot = self.context.pivot;
+                let number = number("a finite number")?;
+                if name == "pivtol" {
+                    pivot.absolute = number;
+                } else {
+                    pivot.relative = number;
+                }
+                // spOrderAndFactor would silently keep its default for these.
+                pivot
+                    .validate()
+                    .map_err(|message| SpiceError::parse(value.location.clone(), message))?;
+                self.context.pivot = pivot;
+            }
             "temp" => {
                 self.context.temperature = temperature(number("a finite number")?, location, name)?;
             }
@@ -950,7 +963,8 @@ impl RunConfig {
 
     /// Add deck settings to a request. Explicit request arguments win.
     ///
-    /// * `.op`, `.dc`, `.ac`, `.tf`, `.sp`: `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
+    /// * `.op`, `.dc`, `.ac`, `.noise`, `.disto`, `.pz`, `.sens`, `.tf`, `.sp`:
+    ///   `reltol`/`vntol`/`abstol` (as `rtol`/`vntol`/
     ///   `abstol`), `itl1` (as `maxiter`), `srcsteps`, `gminsteps`,
     ///   `gminfactor` and, when the deck sets `itl1` or `itl2`, the
     ///   continuation stage limit `stagemaxiter` (`itl2`, else C's effective
@@ -986,7 +1000,9 @@ impl RunConfig {
                     | AnalysisKind::DcSweep
                     | AnalysisKind::Ac
                     | AnalysisKind::Noise
+                    | AnalysisKind::Distortion
                     | AnalysisKind::PoleZero
+                    | AnalysisKind::Sensitivity
                     | AnalysisKind::TransferFunction
                     | AnalysisKind::SParameter
             ) {
@@ -1132,6 +1148,8 @@ fn accepted(name: &str) -> bool {
                 | "temp"
                 | "tnom"
                 | "gmin"
+                | "pivtol"
+                | "pivrel"
                 | "reltol"
                 | "vntol"
                 | "abstol"
@@ -1172,9 +1190,10 @@ fn unsupported_integration(what: &str, location: &SourceLoc) -> SpiceError {
     }
 }
 
+/// C's `IF_INTEGER` option conversion, `floor(0.5 + value)`
+/// ([`crate::primitives::c_integer`]), limited to `u32`.
 fn integer_value(value: Real) -> Option<u32> {
-    (value.is_finite() && value.fract() == 0. && (0. ..=f64::from(u32::MAX)).contains(&value))
-        .then_some(value as u32)
+    crate::primitives::c_integer(value).and_then(|n| u32::try_from(n).ok())
 }
 
 fn temperature(value: Real, location: &SourceLoc, what: &str) -> SpiceResult<Real> {

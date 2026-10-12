@@ -200,10 +200,11 @@ impl Waveform {
                 if t <= p[0].0 {
                     return Ok(p[0].1);
                 }
+                // vsrcload.c, `case PWL`, in C's operation order.
                 for w in p.windows(2) {
-                    if t <= w[1].0 {
+                    if w[1].0 >= t {
                         let fraction = (t - w[0].0) / (w[1].0 - w[0].0);
-                        return Ok((1. - fraction) * w[0].1 + fraction * w[1].1);
+                        return Ok(w[0].1 + fraction * (w[1].1 - w[0].1));
                     }
                 }
                 p.last().map_or(0., |p| p.1)
@@ -379,6 +380,10 @@ pub struct LinearSystem {
     pub sources: Vec<LinearSource>,
     /// Rows with explicit device initial conditions (not yet supported).
     pub has_initial_conditions: bool,
+    /// Contributions of `e` that one device adds to one element as a single
+    /// `omega`-scaled sum ([`LinearContext::dynamic_sum`]); empty for most
+    /// systems.
+    pub e_groups: Vec<crate::maths::DynamicGroup>,
 }
 impl LinearSystem {
     /// Empty assembly for n unknowns.
@@ -388,6 +393,7 @@ impl LinearSystem {
             e: SparseMatrix::new(n, n),
             sources: vec![],
             has_initial_conditions: false,
+            e_groups: vec![],
         }
     }
     /// DC forcing, optionally overriding one independent source.
@@ -499,6 +505,102 @@ impl LinearContext<'_> {
             &mut self.system.a
         };
         nodal_stamp(matrix, self.unknowns, terminals, value)
+    }
+    /// Adds the dynamic terms `terms` to `E[row][col]` as C adds
+    /// `x1 + x2 + ...` (each `cap * CKTomega`) in one step: the complex
+    /// assembly scales each term by `omega` and adds their sum. Ground rows
+    /// or columns are skipped.
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn dynamic_sum(&mut self, row: NodeId, col: NodeId, terms: &[Real]) -> SpiceResult<()> {
+        self.scaled_dynamic_sum(row, col, terms, 1.)
+    }
+    /// [`Self::dynamic_sum`] multiplied by `scale` after the sum, as C's
+    /// `m * (x1 + x2 + ...)`.
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn scaled_dynamic_sum(
+        &mut self,
+        row: NodeId,
+        col: NodeId,
+        terms: &[Real],
+        scale: Real,
+    ) -> SpiceResult<()> {
+        let (Some(r), Some(c)) = (self.unknowns.node_row(row), self.unknowns.node_row(col)) else {
+            return Ok(());
+        };
+        self.dynamic_group(r, c, terms, scale, 1.)
+    }
+    /// Adds `scale * (x1 + x2 + ...)` to the imaginary part of the AC matrix
+    /// at (`row`, `col`), the `x` already including `CKTomega` (C's
+    /// frequency-dependent `PSacload` terms): unlike
+    /// [`Self::scaled_dynamic_sum`] the complex assembly does not multiply
+    /// them by `omega`. Only for a device whose small-signal load is
+    /// reassembled at every frequency
+    /// ([`crate::devices::Device::small_signal_depends_on_frequency`]).
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn prescaled_dynamic_sum(
+        &mut self,
+        row: NodeId,
+        col: NodeId,
+        terms: &[Real],
+        scale: Real,
+    ) -> SpiceResult<()> {
+        let (Some(r), Some(c)) = (self.unknowns.node_row(row), self.unknowns.node_row(col)) else {
+            return Ok(());
+        };
+        let start = self.system.e.triplets().len();
+        for term in terms {
+            self.system.e.add(r, c, scale * *term)?;
+        }
+        let end = self.system.e.triplets().len();
+        if end > start && self.system.e.overflow().is_none() {
+            self.system.e_groups.push(crate::maths::DynamicGroup {
+                range: start..end,
+                terms: terms.to_vec(),
+                scale,
+                divisor: 1.,
+                prescaled: true,
+            });
+        }
+        Ok(())
+    }
+    /// Adds `scale * (x1 + x2 + ...) / divisor` to `E[r][c]` (matrix rows,
+    /// not nodes), each `x` being a term times `omega`, as one C stamp.
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn dynamic_group(
+        &mut self,
+        r: usize,
+        c: usize,
+        terms: &[Real],
+        scale: Real,
+        divisor: Real,
+    ) -> SpiceResult<()> {
+        let start = self.system.e.triplets().len();
+        for term in terms {
+            self.system.e.add(r, c, scale * *term / divisor)?;
+        }
+        let end = self.system.e.triplets().len();
+        // Only an unbound (triplet-list) E keeps the contributions apart.
+        if end > start
+            && (terms.len() > 1 || scale != 1. || divisor != 1.)
+            && self.system.e.overflow().is_none()
+        {
+            self.system.e_groups.push(crate::maths::DynamicGroup {
+                range: start..end,
+                terms: terms.to_vec(),
+                scale,
+                divisor,
+                prescaled: false,
+            });
+        }
+        Ok(())
     }
     /// Stamps a voltage/inductor branch, positive current from terminal 0 to 1.
     pub fn branch(&mut self, terminals: [NodeId; 2]) -> SpiceResult<usize> {

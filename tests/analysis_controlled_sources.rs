@@ -82,20 +82,22 @@ fn operating_point_signs_follow_c() {
 #[test]
 fn an_ideal_op_amp_closes_inverting_and_non_inverting_loops() {
     let a = 1e6;
+    // The 1e6 loop gain amplifies solver rounding (~1e-11 relative with SPARSE's
+    // pivot order), so these are compared at 1e-9 relative.
     // Inverting amplifier, -R2/R1 = -10: KCL at the virtual ground gives
     // v(inv) = 10/(11 + A) and v(out) = -A v(inv).
     let p = op("vin in 0 dc 1\nr1 in inv 1k\nr2 inv out 10k\ne1 out 0 0 inv 1e6");
-    close(re(&p, "v(out)", 0), -10.0 * a / (11.0 + a), 1e-11);
+    close(re(&p, "v(out)", 0), -10.0 * a / (11.0 + a), 1e-9);
     close(re(&p, "v(inv)", 0), 10.0 / (11.0 + a), 1e-9);
     assert!((re(&p, "v(out)", 0) + 10.0).abs() < 1.2e-4);
     // Non-inverting amplifier, 1 + R2/R1 = 4.
     let p = op("vin in 0 dc 0.5\nrin in 0 1k\ne1 out 0 in fb 1e6\nr1 fb 0 1k\nr2 out fb 3k");
-    close(re(&p, "v(out)", 0), 2.0 / (1.0 + 4.0 / a), 1e-11);
+    close(re(&p, "v(out)", 0), 2.0 / (1.0 + 4.0 / a), 1e-9);
     // The op-amp supplies the feedback and load current through its branch.
-    close(re(&p, "i(e1)", 0), -re(&p, "v(out)", 0) / 4e3, 1e-11);
+    close(re(&p, "i(e1)", 0), -re(&p, "v(out)", 0) / 4e3, 1e-9);
     // A unity-gain follower driving a load from a high-impedance divider.
     let p = op("vin in 0 dc 1\nra in mid 1meg\nrb mid 0 1meg\ne1 out 0 mid out 1e6\nrl out 0 10");
-    close(re(&p, "v(out)", 0), 0.5 * a / (1.0 + a), 1e-11);
+    close(re(&p, "v(out)", 0), 0.5 * a / (1.0 + a), 1e-9);
 }
 
 #[test]
@@ -177,44 +179,37 @@ fn second_order(t: f64) -> f64 {
 }
 
 #[test]
-fn transients_match_analytic_responses_on_both_backends() {
-    for extra in [&[][..], &["backend=diffsol", "method=bdf"][..]] {
-        let mut c = circuit(TRANSIENT).unwrap();
-        let mut args = vec!["10u", "6m"];
-        args.extend(extra);
-        let p = run(&mut c, AnalysisKind::Transient, &args).unwrap();
-        let mut worst: f64 = 0.0;
-        for point in 0..p.point_count() {
-            let t = re(&p, "time", point);
-            let (a, b, cc) = (
-                re(&p, "v(a)", point),
-                re(&p, "v(b)", point),
-                re(&p, "v(c)", point),
+fn transients_match_analytic_responses() {
+    let mut c = circuit(TRANSIENT).unwrap();
+    let args = vec!["10u", "6m"];
+    let p = run(&mut c, AnalysisKind::Transient, &args).unwrap();
+    let mut worst: f64 = 0.0;
+    for point in 0..p.point_count() {
+        let t = re(&p, "time", point);
+        let (a, b, cc) = (
+            re(&p, "v(a)", point),
+            re(&p, "v(b)", point),
+            re(&p, "v(c)", point),
+        );
+        let ivs = re(&p, "i(vs)", point);
+        let relative = 1e-9;
+        let near = |got: f64, want: f64| {
+            assert!(
+                (got - want).abs() <= relative * want.abs() + 1e-12,
+                "t={t}: {got} vs {want}"
             );
-            let ivs = re(&p, "i(vs)", point);
-            // Algebraic relations hold at every point to the solver's
-            // tolerances. The companion driver solves them at each accepted
-            // point; BDF output samples are interpolated, so they satisfy the
-            // constraints only to its relative tolerance.
-            let relative = if extra.is_empty() { 1e-9 } else { 1e-6 };
-            let near = |got: f64, want: f64| {
-                assert!(
-                    (got - want).abs() <= relative * want.abs() + 1e-12,
-                    "{extra:?} t={t}: {got} vs {want}"
-                );
-            };
-            near(b, 2.0 * a);
-            near(ivs, cc / 1e3);
-            near(re(&p, "v(o4)", point), 2e3 * ivs);
-            near(re(&p, "v(o5)", point), 100.0 * ivs);
-            near(re(&p, "i(e1)", point), -b / 1e3);
-            near(re(&p, "i(h1)", point), -100.0 * ivs / 1e3);
-            worst = worst.max((cc - second_order(t)).abs());
-        }
-        // Integration error only: the default tolerances on a 10 us grid.
-        assert!(worst < 2e-3, "{extra:?}: worst {worst}");
-        close(re(&p, "time", p.point_count() - 1), 6e-3, 1e-12);
+        };
+        near(b, 2.0 * a);
+        near(ivs, cc / 1e3);
+        near(re(&p, "v(o4)", point), 2e3 * ivs);
+        near(re(&p, "v(o5)", point), 100.0 * ivs);
+        near(re(&p, "i(e1)", point), -b / 1e3);
+        near(re(&p, "i(h1)", point), -100.0 * ivs / 1e3);
+        worst = worst.max((cc - second_order(t)).abs());
     }
+    // Integration error only: the default tolerances on a 10 us grid.
+    assert!(worst < 2e-3, "worst {worst}");
+    close(re(&p, "time", p.point_count() - 1), 6e-3, 1e-12);
 }
 
 #[test]

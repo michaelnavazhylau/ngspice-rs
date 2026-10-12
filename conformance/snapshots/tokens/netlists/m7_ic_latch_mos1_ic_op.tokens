@@ -92,7 +92,7 @@ card 6 @netlists/m7_ic_latch_mos1_ic_op.cir:12:1 lines=12-12 continuations=0
   token 4 12:15 lparen "("
   token 5 12:16 word "vto"
   token 6 12:19 equals "="
-  token 7 12:20 number "0.7" value=7e-1
+  token 7 12:20 number "0.7" value=7.000000000000001e-1
   token 8 12:24 word "kp"
   token 9 12:26 equals "="
   token 10 12:27 number "60u" value=5.9999999999999995e-5

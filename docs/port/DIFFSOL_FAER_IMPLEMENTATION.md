@@ -69,11 +69,15 @@ All four analysis drivers pass `AnalysisContext` temperatures to immutable
 assembly. Repeated runs at different temperatures do not cumulatively adjust
 stored values; explicit model TNOM and instance TEMP retain precedence.
 
-`Circuit::rebuild_unknowns` records per-device branch row ranges. Node voltages
-come first, then branch currents in device order; ground is omitted. Positive
-source/inductor branch current flows from the first terminal to the second.
-Plots use `v(node)` and `i(instance)` names. Plot column order follows MNA order,
-not C's internal device-vector enumeration; conformance compares by name.
+`Circuit::rebuild_unknowns` records per-device branch row ranges. It numbers
+rows as C's `CKTsetup` creates nodes: parsed node voltages first, then, visiting
+devices in setup order, each device's internal nodes (`CKTmkVolt`) and branch
+currents (`CKTmkCur`; a voltage source makes its branch before an RF port's
+`res` node); ground is omitted. The row numbers decide sparse pivot ties, so
+this order is needed for bit-identical results. Positive source/inductor branch
+current flows from the first terminal to the second. Plots use `v(node)` and
+`i(instance)` names in row order, which is C's rawfile order; conformance
+compares by name.
 
 `Device::assemble_linear` and `LinearContext` assemble immutable operators:
 

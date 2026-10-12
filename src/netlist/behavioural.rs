@@ -619,6 +619,17 @@ fn compositions(
     current[index] = 0;
 }
 
+/// A parameter value as the B-source parser sees it: numparam splices the
+/// `"% 23.15e"` text into the expression and `PTlex` reads it back with
+/// `INPevaluate`, so `3` arrives as `3.0000000000000004`.
+fn spliced(value: Real) -> BExprKind {
+    let spelling = format_literal(value);
+    BExprKind::Number {
+        value: crate::primitives::parse_spice_number(&spelling).unwrap_or(value),
+        spelling,
+    }
+}
+
 fn lower_poly(device: &DeviceInstance) -> SpiceResult<DeviceInstance> {
     let voltage_controlled = matches!(device.designator, 'e' | 'g');
     let dimension = device
@@ -808,13 +819,7 @@ impl Resolver<'_> {
             BExprKind::Call { name, arguments } => {
                 return self.call(expr, name, arguments, depth);
             }
-            BExprKind::Value(value) => {
-                let number = self.scope.evaluate(value, self.budget)?;
-                BExprKind::Number {
-                    value: number,
-                    spelling: format_literal(number),
-                }
-            }
+            BExprKind::Value(value) => spliced(self.scope.evaluate(value, self.budget)?),
             BExprKind::Table(table) => {
                 let input = self.resolve(&table.input, depth + 1)?;
                 let mut points = Vec::with_capacity(table.points.len());
@@ -854,10 +859,7 @@ impl Resolver<'_> {
             )
         })?;
         Ok(BExpr {
-            kind: BExprKind::Number {
-                value,
-                spelling: format_literal(value),
-            },
+            kind: spliced(value),
             span: expr.span.clone(),
         })
     }

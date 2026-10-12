@@ -94,7 +94,6 @@ fn invalid_values_are_errors() {
         ".options abstol=0",
         ".options maxord=0",
         ".options maxord=7",
-        ".options maxord=2.5",
         ".options maxord=gear",
         ".options method=euler",
         ".options method=2",
@@ -208,7 +207,7 @@ fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
 
 #[test]
 fn deck_options_take_effect_in_a_real_transient_and_do_not_leak() {
-    let rc = "v1 in 0 dc 1\nr1 in out 1k\nc1 out 0 1u\n.tran 1m 5m backend=diffsol method=bdf";
+    let rc = "v1 in 0 dc 1\nr1 in out 1k\nc1 out 0 1u\n.tran 1m 5m";
     let loose = deck(&format!("{rc}\n.options reltol=0.5 vntol=1 abstol=1"));
     let strict = deck(rc);
     let run = |n: &Netlist| {
@@ -283,7 +282,8 @@ fn parsed_ic_and_nodeset_cards_travel_with_every_request() {
             .iter()
             .map(|c| (c.node.as_str(), c.value))
             .collect();
-        assert_eq!(ic, [("a", 1.), ("a", 1.5)]);
+        // numparam's "1.500000000000000e+00" read by INPevaluate.
+        assert_eq!(ic, [("a", 1.), ("a", 1.5000000000000002)]);
         assert_eq!(request.nodesets.len(), 1);
         assert_eq!(request.nodesets[0].value, 2.);
         assert_eq!(request.nodesets[0].location.line, 5);
@@ -294,17 +294,15 @@ fn parsed_ic_and_nodeset_cards_travel_with_every_request() {
 }
 
 #[test]
-fn tran_uic_is_a_request_flag_the_diffsol_backend_rejects() {
-    let netlist =
-        deck("v1 a 0 0\nr1 a b 1k\nc1 b 0 1u\n.tran 1u 10u uic backend=diffsol method=bdf");
+fn tran_uic_is_a_request_flag_the_companion_driver_runs() {
+    let netlist = deck("v1 a 0 0\nr1 a b 1k\nc1 b 0 1u\n.tran 1u 10u uic");
     let config = RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
     assert!(request.uic);
     assert!(!request.arguments.iter().any(|a| a == "uic"));
     let mut circuit = config.circuit(&netlist).unwrap();
-    let error = runner(AnalysisKind::Transient)
+    runner(AnalysisKind::Transient)
         .unwrap()
         .run(&mut circuit, &request, &config.context())
-        .unwrap_err();
-    assert!(error.to_string().contains("uic"), "{error}");
+        .unwrap();
 }

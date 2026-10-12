@@ -78,9 +78,10 @@ The file is ngspice's ASCII form (`set filetype=ascii`), written by
   `datestring()`, which writes local time and leaves an extra pre-year space;
   no committed comparator reads `Date:`. `Title:` keeps the deck's own casing
   where C lowercases it; no committed comparator reads `Title:` either;
-* a `.dc` plot's scale column is named `sweep` (C spells it `v(v-sweep)` or
-  `i(i-sweep)`; `cargo xtask golden verify` maps the name when it compares
-  against the committed C goldens);
+* a `.dc` plot's scale column carries C's name and type for its inner axis
+  (`v(v-sweep)`, `i(i-sweep)`, `temp-sweep`, `res-sweep` or
+  `v(param-sweep)`; see [DC_SWEEPS.md](DC_SWEEPS.md)), and a nested sweep has
+  no outer-value column, as in C;
 * a multi-analysis deck writes one plot per analysis, concatenated in batch
   order, each with the same three headers (the layout `raw_write()` produces for
   several plots, and what `RawFile::parse` reads back);

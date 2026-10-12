@@ -60,7 +60,10 @@ fn an_empty_geometric_schedule_still_validates_its_start() {
 }
 
 #[test]
-fn an_exact_linear_failure_records_the_attempt_without_continuation() {
+fn a_singular_linear_circuit_runs_the_continuation_strategies_as_ngspice() {
+    // ngspice (CKTop) treats a linear circuit like any other: after the
+    // direct NIiter fails on the singular matrix it tries dynamic gmin, true
+    // gmin and source stepping, which all fail here.
     let c = circuit("v1 a 0 1\nv2 a 0 1\nr1 a 0 1k");
     let failure = ngspice_rs::analysis::bias::solve_dc_with(
         &c,
@@ -71,13 +74,19 @@ fn an_exact_linear_failure_records_the_attempt_without_continuation() {
         None,
     )
     .unwrap_err();
-    assert_eq!(failure.report.outcome, DcOutcome::NonRetryableFailure);
-    assert_eq!(failure.report.attempts.len(), 1);
+    assert_eq!(failure.report.outcome, DcOutcome::Exhausted);
+    assert!(failure.report.attempts.len() > 1);
     assert_eq!(failure.report.attempts[0].strategy, DcStrategy::Direct);
     assert_eq!(failure.report.attempts[0].outcome, AttemptOutcome::Failed);
-    assert_eq!(failure.report.total_iterations, 1);
     assert!(failure.report.stages[0].error.is_some());
     assert!(failure.report.stages[0].is_unregularized());
+    assert!(
+        failure
+            .report
+            .attempts
+            .iter()
+            .all(|attempt| attempt.outcome != AttemptOutcome::Converged)
+    );
 }
 
 #[test]
@@ -135,7 +144,13 @@ fn dc_points_consume_deck_continuation_controls_and_request_overrides() {
         .unwrap();
     assert_eq!(plot.point_count(), 2);
     let vt = (1.38064852e-23 / 1.6021766208e-19) * 300.15;
-    assert!((plot.value("v(a)", 1).unwrap().re - vt * 2_f64.ln()).abs() < 1e-10);
+    // NIiter's accuracy, not exact: it accepts once the update is within
+    // reltol |v| + vntol (1e-3, 1e-6 V) and returns the iterate the last load
+    // used (CKTrhsOld). C ngspice's own 20-step uniform source stepping on
+    // this diode (`.options noopiter gminsteps=0 srcsteps=20`) stops at
+    // 0.017936336109075593 V, 8.1e-6 V (4.5e-4 relative) from vt ln 2.
+    let (v, exact) = (plot.value("v(a)", 1).unwrap().re, vt * 2_f64.ln());
+    assert!((v - exact).abs() < 1e-3 * exact + 1e-6, "{v} vs {exact}");
     let mut explicit = AnalysisRequest::from(&n.analyses[0]);
     explicit.arguments.push("srcsteps=0".into());
     let disabled = config.request(explicit).unwrap();

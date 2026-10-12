@@ -6,7 +6,7 @@ use std::path::Path;
 
 use ngspice_rs::devices::Circuit;
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use ngspice_rs::primitives::{Real, SpiceError};
+use ngspice_rs::primitives::{Real, SpiceError, format_spice_number, parse_spice_number};
 
 fn circuit(body: &str) -> Result<Circuit, SpiceError> {
     let netlist = Parser::new().parse_deck(&parse_deck_text(
@@ -14,6 +14,12 @@ fn circuit(body: &str) -> Result<Circuit, SpiceError> {
         &format!("functions\n{body}\n.end\n"),
     ))?;
     Circuit::from_netlist(&netlist)
+}
+
+/// A `{...}` value as ngspice's card sees it: numparam's "% 23.15e" text
+/// read back by INPevaluate.
+fn spliced(value: Real) -> Real {
+    parse_spice_number(&format_spice_number(value)).unwrap()
 }
 
 fn supplied(circuit: &Circuit, name: &str) -> Real {
@@ -46,9 +52,9 @@ fn free_names_in_a_body_resolve_in_the_instance_scope() {
          x1 n s w=7\nr0 n 0 {f(1)}\nv1 n 0 dc 1",
     )
     .unwrap();
-    assert_eq!(supplied(&c, "r.x1.r1"), 3.0);
-    assert_eq!(supplied(&c, "r.x1.r2"), 21.0);
-    assert_eq!(supplied(&c, "r0"), 2.0);
+    assert_eq!(supplied(&c, "r.x1.r1"), spliced(3.0));
+    assert_eq!(supplied(&c, "r.x1.r2"), spliced(21.0));
+    assert_eq!(supplied(&c, "r0"), spliced(2.0));
 }
 
 #[test]
@@ -76,8 +82,8 @@ fn functions_reach_formals_instance_values_and_body_params() {
          x1 n s\nx2 n s w='f(5)'\nv1 n 0 dc 1",
     )
     .unwrap();
-    assert_eq!(supplied(&c, "r.x1.r1"), 7.0);
-    assert_eq!(supplied(&c, "r.x2.r1"), 11.0);
+    assert_eq!(supplied(&c, "r.x1.r1"), spliced(7.0));
+    assert_eq!(supplied(&c, "r.x2.r1"), spliced(11.0));
 }
 
 #[test]

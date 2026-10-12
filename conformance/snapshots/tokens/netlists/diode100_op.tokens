@@ -1,0 +1,1440 @@
+# ngspice-rs token-dump v1
+file: netlists/diode100_op.cir
+title: "Diode chain operating point (100 junctions, MODEINITJCT start, pnjlim)" @netlists/diode100_op.cir:1:1
+card 1 @netlists/diode100_op.cir:7:1 lines=7-7 continuations=0
+  raw: "V1 n0 0 DC 100"
+  kind: device(v)
+  token 1 7:1 word "V1"
+  token 2 7:4 word "n0"
+  token 3 7:7 number "0" value=0e0
+  token 4 7:9 word "DC"
+  token 5 7:12 number "100" value=1e2
+card 2 @netlists/diode100_op.cir:8:1 lines=8-8 continuations=0
+  raw: ".model D1 D(IS=1e-14 N=1)"
+  kind: dot(.model)
+  token 1 8:1 word ".model"
+  token 2 8:8 word "D1"
+  token 3 8:11 word "D"
+  token 4 8:12 lparen "("
+  token 5 8:13 word "IS"
+  token 6 8:15 equals "="
+  token 7 8:16 number "1e-14" value=1e-14
+  token 8 8:22 word "N"
+  token 9 8:23 equals "="
+  token 10 8:24 number "1" value=1e0
+  token 11 8:25 rparen ")"
+card 3 @netlists/diode100_op.cir:9:1 lines=9-9 continuations=0
+  raw: "R0 n0 m0 100"
+  kind: device(r)
+  token 1 9:1 word "R0"
+  token 2 9:4 word "n0"
+  token 3 9:7 word "m0"
+  token 4 9:10 number "100" value=1e2
+card 4 @netlists/diode100_op.cir:10:1 lines=10-10 continuations=0
+  raw: "D0 m0 n1 D1"
+  kind: device(d)
+  token 1 10:1 word "D0"
+  token 2 10:4 word "m0"
+  token 3 10:7 word "n1"
+  token 4 10:10 word "D1"
+card 5 @netlists/diode100_op.cir:11:1 lines=11-11 continuations=0
+  raw: "R1 n1 m1 100"
+  kind: device(r)
+  token 1 11:1 word "R1"
+  token 2 11:4 word "n1"
+  token 3 11:7 word "m1"
+  token 4 11:10 number "100" value=1e2
+card 6 @netlists/diode100_op.cir:12:1 lines=12-12 continuations=0
+  raw: "D1 m1 n2 D1"
+  kind: device(d)
+  token 1 12:1 word "D1"
+  token 2 12:4 word "m1"
+  token 3 12:7 word "n2"
+  token 4 12:10 word "D1"
+card 7 @netlists/diode100_op.cir:13:1 lines=13-13 continuations=0
+  raw: "R2 n2 m2 100"
+  kind: device(r)
+  token 1 13:1 word "R2"
+  token 2 13:4 word "n2"
+  token 3 13:7 word "m2"
+  token 4 13:10 number "100" value=1e2
+card 8 @netlists/diode100_op.cir:14:1 lines=14-14 continuations=0
+  raw: "D2 m2 n3 D1"
+  kind: device(d)
+  token 1 14:1 word "D2"
+  token 2 14:4 word "m2"
+  token 3 14:7 word "n3"
+  token 4 14:10 word "D1"
+card 9 @netlists/diode100_op.cir:15:1 lines=15-15 continuations=0
+  raw: "R3 n3 m3 100"
+  kind: device(r)
+  token 1 15:1 word "R3"
+  token 2 15:4 word "n3"
+  token 3 15:7 word "m3"
+  token 4 15:10 number "100" value=1e2
+card 10 @netlists/diode100_op.cir:16:1 lines=16-16 continuations=0
+  raw: "D3 m3 n4 D1"
+  kind: device(d)
+  token 1 16:1 word "D3"
+  token 2 16:4 word "m3"
+  token 3 16:7 word "n4"
+  token 4 16:10 word "D1"
+card 11 @netlists/diode100_op.cir:17:1 lines=17-17 continuations=0
+  raw: "R4 n4 m4 100"
+  kind: device(r)
+  token 1 17:1 word "R4"
+  token 2 17:4 word "n4"
+  token 3 17:7 word "m4"
+  token 4 17:10 number "100" value=1e2
+card 12 @netlists/diode100_op.cir:18:1 lines=18-18 continuations=0
+  raw: "D4 m4 n5 D1"
+  kind: device(d)
+  token 1 18:1 word "D4"
+  token 2 18:4 word "m4"
+  token 3 18:7 word "n5"
+  token 4 18:10 word "D1"
+card 13 @netlists/diode100_op.cir:19:1 lines=19-19 continuations=0
+  raw: "R5 n5 m5 100"
+  kind: device(r)
+  token 1 19:1 word "R5"
+  token 2 19:4 word "n5"
+  token 3 19:7 word "m5"
+  token 4 19:10 number "100" value=1e2
+card 14 @netlists/diode100_op.cir:20:1 lines=20-20 continuations=0
+  raw: "D5 m5 n6 D1"
+  kind: device(d)
+  token 1 20:1 word "D5"
+  token 2 20:4 word "m5"
+  token 3 20:7 word "n6"
+  token 4 20:10 word "D1"
+card 15 @netlists/diode100_op.cir:21:1 lines=21-21 continuations=0
+  raw: "R6 n6 m6 100"
+  kind: device(r)
+  token 1 21:1 word "R6"
+  token 2 21:4 word "n6"
+  token 3 21:7 word "m6"
+  token 4 21:10 number "100" value=1e2
+card 16 @netlists/diode100_op.cir:22:1 lines=22-22 continuations=0
+  raw: "D6 m6 n7 D1"
+  kind: device(d)
+  token 1 22:1 word "D6"
+  token 2 22:4 word "m6"
+  token 3 22:7 word "n7"
+  token 4 22:10 word "D1"
+card 17 @netlists/diode100_op.cir:23:1 lines=23-23 continuations=0
+  raw: "R7 n7 m7 100"
+  kind: device(r)
+  token 1 23:1 word "R7"
+  token 2 23:4 word "n7"
+  token 3 23:7 word "m7"
+  token 4 23:10 number "100" value=1e2
+card 18 @netlists/diode100_op.cir:24:1 lines=24-24 continuations=0
+  raw: "D7 m7 n8 D1"
+  kind: device(d)
+  token 1 24:1 word "D7"
+  token 2 24:4 word "m7"
+  token 3 24:7 word "n8"
+  token 4 24:10 word "D1"
+card 19 @netlists/diode100_op.cir:25:1 lines=25-25 continuations=0
+  raw: "R8 n8 m8 100"
+  kind: device(r)
+  token 1 25:1 word "R8"
+  token 2 25:4 word "n8"
+  token 3 25:7 word "m8"
+  token 4 25:10 number "100" value=1e2
+card 20 @netlists/diode100_op.cir:26:1 lines=26-26 continuations=0
+  raw: "D8 m8 n9 D1"
+  kind: device(d)
+  token 1 26:1 word "D8"
+  token 2 26:4 word "m8"
+  token 3 26:7 word "n9"
+  token 4 26:10 word "D1"
+card 21 @netlists/diode100_op.cir:27:1 lines=27-27 continuations=0
+  raw: "R9 n9 m9 100"
+  kind: device(r)
+  token 1 27:1 word "R9"
+  token 2 27:4 word "n9"
+  token 3 27:7 word "m9"
+  token 4 27:10 number "100" value=1e2
+card 22 @netlists/diode100_op.cir:28:1 lines=28-28 continuations=0
+  raw: "D9 m9 n10 D1"
+  kind: device(d)
+  token 1 28:1 word "D9"
+  token 2 28:4 word "m9"
+  token 3 28:7 word "n10"
+  token 4 28:11 word "D1"
+card 23 @netlists/diode100_op.cir:29:1 lines=29-29 continuations=0
+  raw: "R10 n10 m10 100"
+  kind: device(r)
+  token 1 29:1 word "R10"
+  token 2 29:5 word "n10"
+  token 3 29:9 word "m10"
+  token 4 29:13 number "100" value=1e2
+card 24 @netlists/diode100_op.cir:30:1 lines=30-30 continuations=0
+  raw: "D10 m10 n11 D1"
+  kind: device(d)
+  token 1 30:1 word "D10"
+  token 2 30:5 word "m10"
+  token 3 30:9 word "n11"
+  token 4 30:13 word "D1"
+card 25 @netlists/diode100_op.cir:31:1 lines=31-31 continuations=0
+  raw: "R11 n11 m11 100"
+  kind: device(r)
+  token 1 31:1 word "R11"
+  token 2 31:5 word "n11"
+  token 3 31:9 word "m11"
+  token 4 31:13 number "100" value=1e2
+card 26 @netlists/diode100_op.cir:32:1 lines=32-32 continuations=0
+  raw: "D11 m11 n12 D1"
+  kind: device(d)
+  token 1 32:1 word "D11"
+  token 2 32:5 word "m11"
+  token 3 32:9 word "n12"
+  token 4 32:13 word "D1"
+card 27 @netlists/diode100_op.cir:33:1 lines=33-33 continuations=0
+  raw: "R12 n12 m12 100"
+  kind: device(r)
+  token 1 33:1 word "R12"
+  token 2 33:5 word "n12"
+  token 3 33:9 word "m12"
+  token 4 33:13 number "100" value=1e2
+card 28 @netlists/diode100_op.cir:34:1 lines=34-34 continuations=0
+  raw: "D12 m12 n13 D1"
+  kind: device(d)
+  token 1 34:1 word "D12"
+  token 2 34:5 word "m12"
+  token 3 34:9 word "n13"
+  token 4 34:13 word "D1"
+card 29 @netlists/diode100_op.cir:35:1 lines=35-35 continuations=0
+  raw: "R13 n13 m13 100"
+  kind: device(r)
+  token 1 35:1 word "R13"
+  token 2 35:5 word "n13"
+  token 3 35:9 word "m13"
+  token 4 35:13 number "100" value=1e2
+card 30 @netlists/diode100_op.cir:36:1 lines=36-36 continuations=0
+  raw: "D13 m13 n14 D1"
+  kind: device(d)
+  token 1 36:1 word "D13"
+  token 2 36:5 word "m13"
+  token 3 36:9 word "n14"
+  token 4 36:13 word "D1"
+card 31 @netlists/diode100_op.cir:37:1 lines=37-37 continuations=0
+  raw: "R14 n14 m14 100"
+  kind: device(r)
+  token 1 37:1 word "R14"
+  token 2 37:5 word "n14"
+  token 3 37:9 word "m14"
+  token 4 37:13 number "100" value=1e2
+card 32 @netlists/diode100_op.cir:38:1 lines=38-38 continuations=0
+  raw: "D14 m14 n15 D1"
+  kind: device(d)
+  token 1 38:1 word "D14"
+  token 2 38:5 word "m14"
+  token 3 38:9 word "n15"
+  token 4 38:13 word "D1"
+card 33 @netlists/diode100_op.cir:39:1 lines=39-39 continuations=0
+  raw: "R15 n15 m15 100"
+  kind: device(r)
+  token 1 39:1 word "R15"
+  token 2 39:5 word "n15"
+  token 3 39:9 word "m15"
+  token 4 39:13 number "100" value=1e2
+card 34 @netlists/diode100_op.cir:40:1 lines=40-40 continuations=0
+  raw: "D15 m15 n16 D1"
+  kind: device(d)
+  token 1 40:1 word "D15"
+  token 2 40:5 word "m15"
+  token 3 40:9 word "n16"
+  token 4 40:13 word "D1"
+card 35 @netlists/diode100_op.cir:41:1 lines=41-41 continuations=0
+  raw: "R16 n16 m16 100"
+  kind: device(r)
+  token 1 41:1 word "R16"
+  token 2 41:5 word "n16"
+  token 3 41:9 word "m16"
+  token 4 41:13 number "100" value=1e2
+card 36 @netlists/diode100_op.cir:42:1 lines=42-42 continuations=0
+  raw: "D16 m16 n17 D1"
+  kind: device(d)
+  token 1 42:1 word "D16"
+  token 2 42:5 word "m16"
+  token 3 42:9 word "n17"
+  token 4 42:13 word "D1"
+card 37 @netlists/diode100_op.cir:43:1 lines=43-43 continuations=0
+  raw: "R17 n17 m17 100"
+  kind: device(r)
+  token 1 43:1 word "R17"
+  token 2 43:5 word "n17"
+  token 3 43:9 word "m17"
+  token 4 43:13 number "100" value=1e2
+card 38 @netlists/diode100_op.cir:44:1 lines=44-44 continuations=0
+  raw: "D17 m17 n18 D1"
+  kind: device(d)
+  token 1 44:1 word "D17"
+  token 2 44:5 word "m17"
+  token 3 44:9 word "n18"
+  token 4 44:13 word "D1"
+card 39 @netlists/diode100_op.cir:45:1 lines=45-45 continuations=0
+  raw: "R18 n18 m18 100"
+  kind: device(r)
+  token 1 45:1 word "R18"
+  token 2 45:5 word "n18"
+  token 3 45:9 word "m18"
+  token 4 45:13 number "100" value=1e2
+card 40 @netlists/diode100_op.cir:46:1 lines=46-46 continuations=0
+  raw: "D18 m18 n19 D1"
+  kind: device(d)
+  token 1 46:1 word "D18"
+  token 2 46:5 word "m18"
+  token 3 46:9 word "n19"
+  token 4 46:13 word "D1"
+card 41 @netlists/diode100_op.cir:47:1 lines=47-47 continuations=0
+  raw: "R19 n19 m19 100"
+  kind: device(r)
+  token 1 47:1 word "R19"
+  token 2 47:5 word "n19"
+  token 3 47:9 word "m19"
+  token 4 47:13 number "100" value=1e2
+card 42 @netlists/diode100_op.cir:48:1 lines=48-48 continuations=0
+  raw: "D19 m19 n20 D1"
+  kind: device(d)
+  token 1 48:1 word "D19"
+  token 2 48:5 word "m19"
+  token 3 48:9 word "n20"
+  token 4 48:13 word "D1"
+card 43 @netlists/diode100_op.cir:49:1 lines=49-49 continuations=0
+  raw: "R20 n20 m20 100"
+  kind: device(r)
+  token 1 49:1 word "R20"
+  token 2 49:5 word "n20"
+  token 3 49:9 word "m20"
+  token 4 49:13 number "100" value=1e2
+card 44 @netlists/diode100_op.cir:50:1 lines=50-50 continuations=0
+  raw: "D20 m20 n21 D1"
+  kind: device(d)
+  token 1 50:1 word "D20"
+  token 2 50:5 word "m20"
+  token 3 50:9 word "n21"
+  token 4 50:13 word "D1"
+card 45 @netlists/diode100_op.cir:51:1 lines=51-51 continuations=0
+  raw: "R21 n21 m21 100"
+  kind: device(r)
+  token 1 51:1 word "R21"
+  token 2 51:5 word "n21"
+  token 3 51:9 word "m21"
+  token 4 51:13 number "100" value=1e2
+card 46 @netlists/diode100_op.cir:52:1 lines=52-52 continuations=0
+  raw: "D21 m21 n22 D1"
+  kind: device(d)
+  token 1 52:1 word "D21"
+  token 2 52:5 word "m21"
+  token 3 52:9 word "n22"
+  token 4 52:13 word "D1"
+card 47 @netlists/diode100_op.cir:53:1 lines=53-53 continuations=0
+  raw: "R22 n22 m22 100"
+  kind: device(r)
+  token 1 53:1 word "R22"
+  token 2 53:5 word "n22"
+  token 3 53:9 word "m22"
+  token 4 53:13 number "100" value=1e2
+card 48 @netlists/diode100_op.cir:54:1 lines=54-54 continuations=0
+  raw: "D22 m22 n23 D1"
+  kind: device(d)
+  token 1 54:1 word "D22"
+  token 2 54:5 word "m22"
+  token 3 54:9 word "n23"
+  token 4 54:13 word "D1"
+card 49 @netlists/diode100_op.cir:55:1 lines=55-55 continuations=0
+  raw: "R23 n23 m23 100"
+  kind: device(r)
+  token 1 55:1 word "R23"
+  token 2 55:5 word "n23"
+  token 3 55:9 word "m23"
+  token 4 55:13 number "100" value=1e2
+card 50 @netlists/diode100_op.cir:56:1 lines=56-56 continuations=0
+  raw: "D23 m23 n24 D1"
+  kind: device(d)
+  token 1 56:1 word "D23"
+  token 2 56:5 word "m23"
+  token 3 56:9 word "n24"
+  token 4 56:13 word "D1"
+card 51 @netlists/diode100_op.cir:57:1 lines=57-57 continuations=0
+  raw: "R24 n24 m24 100"
+  kind: device(r)
+  token 1 57:1 word "R24"
+  token 2 57:5 word "n24"
+  token 3 57:9 word "m24"
+  token 4 57:13 number "100" value=1e2
+card 52 @netlists/diode100_op.cir:58:1 lines=58-58 continuations=0
+  raw: "D24 m24 n25 D1"
+  kind: device(d)
+  token 1 58:1 word "D24"
+  token 2 58:5 word "m24"
+  token 3 58:9 word "n25"
+  token 4 58:13 word "D1"
+card 53 @netlists/diode100_op.cir:59:1 lines=59-59 continuations=0
+  raw: "R25 n25 m25 100"
+  kind: device(r)
+  token 1 59:1 word "R25"
+  token 2 59:5 word "n25"
+  token 3 59:9 word "m25"
+  token 4 59:13 number "100" value=1e2
+card 54 @netlists/diode100_op.cir:60:1 lines=60-60 continuations=0
+  raw: "D25 m25 n26 D1"
+  kind: device(d)
+  token 1 60:1 word "D25"
+  token 2 60:5 word "m25"
+  token 3 60:9 word "n26"
+  token 4 60:13 word "D1"
+card 55 @netlists/diode100_op.cir:61:1 lines=61-61 continuations=0
+  raw: "R26 n26 m26 100"
+  kind: device(r)
+  token 1 61:1 word "R26"
+  token 2 61:5 word "n26"
+  token 3 61:9 word "m26"
+  token 4 61:13 number "100" value=1e2
+card 56 @netlists/diode100_op.cir:62:1 lines=62-62 continuations=0
+  raw: "D26 m26 n27 D1"
+  kind: device(d)
+  token 1 62:1 word "D26"
+  token 2 62:5 word "m26"
+  token 3 62:9 word "n27"
+  token 4 62:13 word "D1"
+card 57 @netlists/diode100_op.cir:63:1 lines=63-63 continuations=0
+  raw: "R27 n27 m27 100"
+  kind: device(r)
+  token 1 63:1 word "R27"
+  token 2 63:5 word "n27"
+  token 3 63:9 word "m27"
+  token 4 63:13 number "100" value=1e2
+card 58 @netlists/diode100_op.cir:64:1 lines=64-64 continuations=0
+  raw: "D27 m27 n28 D1"
+  kind: device(d)
+  token 1 64:1 word "D27"
+  token 2 64:5 word "m27"
+  token 3 64:9 word "n28"
+  token 4 64:13 word "D1"
+card 59 @netlists/diode100_op.cir:65:1 lines=65-65 continuations=0
+  raw: "R28 n28 m28 100"
+  kind: device(r)
+  token 1 65:1 word "R28"
+  token 2 65:5 word "n28"
+  token 3 65:9 word "m28"
+  token 4 65:13 number "100" value=1e2
+card 60 @netlists/diode100_op.cir:66:1 lines=66-66 continuations=0
+  raw: "D28 m28 n29 D1"
+  kind: device(d)
+  token 1 66:1 word "D28"
+  token 2 66:5 word "m28"
+  token 3 66:9 word "n29"
+  token 4 66:13 word "D1"
+card 61 @netlists/diode100_op.cir:67:1 lines=67-67 continuations=0
+  raw: "R29 n29 m29 100"
+  kind: device(r)
+  token 1 67:1 word "R29"
+  token 2 67:5 word "n29"
+  token 3 67:9 word "m29"
+  token 4 67:13 number "100" value=1e2
+card 62 @netlists/diode100_op.cir:68:1 lines=68-68 continuations=0
+  raw: "D29 m29 n30 D1"
+  kind: device(d)
+  token 1 68:1 word "D29"
+  token 2 68:5 word "m29"
+  token 3 68:9 word "n30"
+  token 4 68:13 word "D1"
+card 63 @netlists/diode100_op.cir:69:1 lines=69-69 continuations=0
+  raw: "R30 n30 m30 100"
+  kind: device(r)
+  token 1 69:1 word "R30"
+  token 2 69:5 word "n30"
+  token 3 69:9 word "m30"
+  token 4 69:13 number "100" value=1e2
+card 64 @netlists/diode100_op.cir:70:1 lines=70-70 continuations=0
+  raw: "D30 m30 n31 D1"
+  kind: device(d)
+  token 1 70:1 word "D30"
+  token 2 70:5 word "m30"
+  token 3 70:9 word "n31"
+  token 4 70:13 word "D1"
+card 65 @netlists/diode100_op.cir:71:1 lines=71-71 continuations=0
+  raw: "R31 n31 m31 100"
+  kind: device(r)
+  token 1 71:1 word "R31"
+  token 2 71:5 word "n31"
+  token 3 71:9 word "m31"
+  token 4 71:13 number "100" value=1e2
+card 66 @netlists/diode100_op.cir:72:1 lines=72-72 continuations=0
+  raw: "D31 m31 n32 D1"
+  kind: device(d)
+  token 1 72:1 word "D31"
+  token 2 72:5 word "m31"
+  token 3 72:9 word "n32"
+  token 4 72:13 word "D1"
+card 67 @netlists/diode100_op.cir:73:1 lines=73-73 continuations=0
+  raw: "R32 n32 m32 100"
+  kind: device(r)
+  token 1 73:1 word "R32"
+  token 2 73:5 word "n32"
+  token 3 73:9 word "m32"
+  token 4 73:13 number "100" value=1e2
+card 68 @netlists/diode100_op.cir:74:1 lines=74-74 continuations=0
+  raw: "D32 m32 n33 D1"
+  kind: device(d)
+  token 1 74:1 word "D32"
+  token 2 74:5 word "m32"
+  token 3 74:9 word "n33"
+  token 4 74:13 word "D1"
+card 69 @netlists/diode100_op.cir:75:1 lines=75-75 continuations=0
+  raw: "R33 n33 m33 100"
+  kind: device(r)
+  token 1 75:1 word "R33"
+  token 2 75:5 word "n33"
+  token 3 75:9 word "m33"
+  token 4 75:13 number "100" value=1e2
+card 70 @netlists/diode100_op.cir:76:1 lines=76-76 continuations=0
+  raw: "D33 m33 n34 D1"
+  kind: device(d)
+  token 1 76:1 word "D33"
+  token 2 76:5 word "m33"
+  token 3 76:9 word "n34"
+  token 4 76:13 word "D1"
+card 71 @netlists/diode100_op.cir:77:1 lines=77-77 continuations=0
+  raw: "R34 n34 m34 100"
+  kind: device(r)
+  token 1 77:1 word "R34"
+  token 2 77:5 word "n34"
+  token 3 77:9 word "m34"
+  token 4 77:13 number "100" value=1e2
+card 72 @netlists/diode100_op.cir:78:1 lines=78-78 continuations=0
+  raw: "D34 m34 n35 D1"
+  kind: device(d)
+  token 1 78:1 word "D34"
+  token 2 78:5 word "m34"
+  token 3 78:9 word "n35"
+  token 4 78:13 word "D1"
+card 73 @netlists/diode100_op.cir:79:1 lines=79-79 continuations=0
+  raw: "R35 n35 m35 100"
+  kind: device(r)
+  token 1 79:1 word "R35"
+  token 2 79:5 word "n35"
+  token 3 79:9 word "m35"
+  token 4 79:13 number "100" value=1e2
+card 74 @netlists/diode100_op.cir:80:1 lines=80-80 continuations=0
+  raw: "D35 m35 n36 D1"
+  kind: device(d)
+  token 1 80:1 word "D35"
+  token 2 80:5 word "m35"
+  token 3 80:9 word "n36"
+  token 4 80:13 word "D1"
+card 75 @netlists/diode100_op.cir:81:1 lines=81-81 continuations=0
+  raw: "R36 n36 m36 100"
+  kind: device(r)
+  token 1 81:1 word "R36"
+  token 2 81:5 word "n36"
+  token 3 81:9 word "m36"
+  token 4 81:13 number "100" value=1e2
+card 76 @netlists/diode100_op.cir:82:1 lines=82-82 continuations=0
+  raw: "D36 m36 n37 D1"
+  kind: device(d)
+  token 1 82:1 word "D36"
+  token 2 82:5 word "m36"
+  token 3 82:9 word "n37"
+  token 4 82:13 word "D1"
+card 77 @netlists/diode100_op.cir:83:1 lines=83-83 continuations=0
+  raw: "R37 n37 m37 100"
+  kind: device(r)
+  token 1 83:1 word "R37"
+  token 2 83:5 word "n37"
+  token 3 83:9 word "m37"
+  token 4 83:13 number "100" value=1e2
+card 78 @netlists/diode100_op.cir:84:1 lines=84-84 continuations=0
+  raw: "D37 m37 n38 D1"
+  kind: device(d)
+  token 1 84:1 word "D37"
+  token 2 84:5 word "m37"
+  token 3 84:9 word "n38"
+  token 4 84:13 word "D1"
+card 79 @netlists/diode100_op.cir:85:1 lines=85-85 continuations=0
+  raw: "R38 n38 m38 100"
+  kind: device(r)
+  token 1 85:1 word "R38"
+  token 2 85:5 word "n38"
+  token 3 85:9 word "m38"
+  token 4 85:13 number "100" value=1e2
+card 80 @netlists/diode100_op.cir:86:1 lines=86-86 continuations=0
+  raw: "D38 m38 n39 D1"
+  kind: device(d)
+  token 1 86:1 word "D38"
+  token 2 86:5 word "m38"
+  token 3 86:9 word "n39"
+  token 4 86:13 word "D1"
+card 81 @netlists/diode100_op.cir:87:1 lines=87-87 continuations=0
+  raw: "R39 n39 m39 100"
+  kind: device(r)
+  token 1 87:1 word "R39"
+  token 2 87:5 word "n39"
+  token 3 87:9 word "m39"
+  token 4 87:13 number "100" value=1e2
+card 82 @netlists/diode100_op.cir:88:1 lines=88-88 continuations=0
+  raw: "D39 m39 n40 D1"
+  kind: device(d)
+  token 1 88:1 word "D39"
+  token 2 88:5 word "m39"
+  token 3 88:9 word "n40"
+  token 4 88:13 word "D1"
+card 83 @netlists/diode100_op.cir:89:1 lines=89-89 continuations=0
+  raw: "R40 n40 m40 100"
+  kind: device(r)
+  token 1 89:1 word "R40"
+  token 2 89:5 word "n40"
+  token 3 89:9 word "m40"
+  token 4 89:13 number "100" value=1e2
+card 84 @netlists/diode100_op.cir:90:1 lines=90-90 continuations=0
+  raw: "D40 m40 n41 D1"
+  kind: device(d)
+  token 1 90:1 word "D40"
+  token 2 90:5 word "m40"
+  token 3 90:9 word "n41"
+  token 4 90:13 word "D1"
+card 85 @netlists/diode100_op.cir:91:1 lines=91-91 continuations=0
+  raw: "R41 n41 m41 100"
+  kind: device(r)
+  token 1 91:1 word "R41"
+  token 2 91:5 word "n41"
+  token 3 91:9 word "m41"
+  token 4 91:13 number "100" value=1e2
+card 86 @netlists/diode100_op.cir:92:1 lines=92-92 continuations=0
+  raw: "D41 m41 n42 D1"
+  kind: device(d)
+  token 1 92:1 word "D41"
+  token 2 92:5 word "m41"
+  token 3 92:9 word "n42"
+  token 4 92:13 word "D1"
+card 87 @netlists/diode100_op.cir:93:1 lines=93-93 continuations=0
+  raw: "R42 n42 m42 100"
+  kind: device(r)
+  token 1 93:1 word "R42"
+  token 2 93:5 word "n42"
+  token 3 93:9 word "m42"
+  token 4 93:13 number "100" value=1e2
+card 88 @netlists/diode100_op.cir:94:1 lines=94-94 continuations=0
+  raw: "D42 m42 n43 D1"
+  kind: device(d)
+  token 1 94:1 word "D42"
+  token 2 94:5 word "m42"
+  token 3 94:9 word "n43"
+  token 4 94:13 word "D1"
+card 89 @netlists/diode100_op.cir:95:1 lines=95-95 continuations=0
+  raw: "R43 n43 m43 100"
+  kind: device(r)
+  token 1 95:1 word "R43"
+  token 2 95:5 word "n43"
+  token 3 95:9 word "m43"
+  token 4 95:13 number "100" value=1e2
+card 90 @netlists/diode100_op.cir:96:1 lines=96-96 continuations=0
+  raw: "D43 m43 n44 D1"
+  kind: device(d)
+  token 1 96:1 word "D43"
+  token 2 96:5 word "m43"
+  token 3 96:9 word "n44"
+  token 4 96:13 word "D1"
+card 91 @netlists/diode100_op.cir:97:1 lines=97-97 continuations=0
+  raw: "R44 n44 m44 100"
+  kind: device(r)
+  token 1 97:1 word "R44"
+  token 2 97:5 word "n44"
+  token 3 97:9 word "m44"
+  token 4 97:13 number "100" value=1e2
+card 92 @netlists/diode100_op.cir:98:1 lines=98-98 continuations=0
+  raw: "D44 m44 n45 D1"
+  kind: device(d)
+  token 1 98:1 word "D44"
+  token 2 98:5 word "m44"
+  token 3 98:9 word "n45"
+  token 4 98:13 word "D1"
+card 93 @netlists/diode100_op.cir:99:1 lines=99-99 continuations=0
+  raw: "R45 n45 m45 100"
+  kind: device(r)
+  token 1 99:1 word "R45"
+  token 2 99:5 word "n45"
+  token 3 99:9 word "m45"
+  token 4 99:13 number "100" value=1e2
+card 94 @netlists/diode100_op.cir:100:1 lines=100-100 continuations=0
+  raw: "D45 m45 n46 D1"
+  kind: device(d)
+  token 1 100:1 word "D45"
+  token 2 100:5 word "m45"
+  token 3 100:9 word "n46"
+  token 4 100:13 word "D1"
+card 95 @netlists/diode100_op.cir:101:1 lines=101-101 continuations=0
+  raw: "R46 n46 m46 100"
+  kind: device(r)
+  token 1 101:1 word "R46"
+  token 2 101:5 word "n46"
+  token 3 101:9 word "m46"
+  token 4 101:13 number "100" value=1e2
+card 96 @netlists/diode100_op.cir:102:1 lines=102-102 continuations=0
+  raw: "D46 m46 n47 D1"
+  kind: device(d)
+  token 1 102:1 word "D46"
+  token 2 102:5 word "m46"
+  token 3 102:9 word "n47"
+  token 4 102:13 word "D1"
+card 97 @netlists/diode100_op.cir:103:1 lines=103-103 continuations=0
+  raw: "R47 n47 m47 100"
+  kind: device(r)
+  token 1 103:1 word "R47"
+  token 2 103:5 word "n47"
+  token 3 103:9 word "m47"
+  token 4 103:13 number "100" value=1e2
+card 98 @netlists/diode100_op.cir:104:1 lines=104-104 continuations=0
+  raw: "D47 m47 n48 D1"
+  kind: device(d)
+  token 1 104:1 word "D47"
+  token 2 104:5 word "m47"
+  token 3 104:9 word "n48"
+  token 4 104:13 word "D1"
+card 99 @netlists/diode100_op.cir:105:1 lines=105-105 continuations=0
+  raw: "R48 n48 m48 100"
+  kind: device(r)
+  token 1 105:1 word "R48"
+  token 2 105:5 word "n48"
+  token 3 105:9 word "m48"
+  token 4 105:13 number "100" value=1e2
+card 100 @netlists/diode100_op.cir:106:1 lines=106-106 continuations=0
+  raw: "D48 m48 n49 D1"
+  kind: device(d)
+  token 1 106:1 word "D48"
+  token 2 106:5 word "m48"
+  token 3 106:9 word "n49"
+  token 4 106:13 word "D1"
+card 101 @netlists/diode100_op.cir:107:1 lines=107-107 continuations=0
+  raw: "R49 n49 m49 100"
+  kind: device(r)
+  token 1 107:1 word "R49"
+  token 2 107:5 word "n49"
+  token 3 107:9 word "m49"
+  token 4 107:13 number "100" value=1e2
+card 102 @netlists/diode100_op.cir:108:1 lines=108-108 continuations=0
+  raw: "D49 m49 n50 D1"
+  kind: device(d)
+  token 1 108:1 word "D49"
+  token 2 108:5 word "m49"
+  token 3 108:9 word "n50"
+  token 4 108:13 word "D1"
+card 103 @netlists/diode100_op.cir:109:1 lines=109-109 continuations=0
+  raw: "R50 n50 m50 100"
+  kind: device(r)
+  token 1 109:1 word "R50"
+  token 2 109:5 word "n50"
+  token 3 109:9 word "m50"
+  token 4 109:13 number "100" value=1e2
+card 104 @netlists/diode100_op.cir:110:1 lines=110-110 continuations=0
+  raw: "D50 m50 n51 D1"
+  kind: device(d)
+  token 1 110:1 word "D50"
+  token 2 110:5 word "m50"
+  token 3 110:9 word "n51"
+  token 4 110:13 word "D1"
+card 105 @netlists/diode100_op.cir:111:1 lines=111-111 continuations=0
+  raw: "R51 n51 m51 100"
+  kind: device(r)
+  token 1 111:1 word "R51"
+  token 2 111:5 word "n51"
+  token 3 111:9 word "m51"
+  token 4 111:13 number "100" value=1e2
+card 106 @netlists/diode100_op.cir:112:1 lines=112-112 continuations=0
+  raw: "D51 m51 n52 D1"
+  kind: device(d)
+  token 1 112:1 word "D51"
+  token 2 112:5 word "m51"
+  token 3 112:9 word "n52"
+  token 4 112:13 word "D1"
+card 107 @netlists/diode100_op.cir:113:1 lines=113-113 continuations=0
+  raw: "R52 n52 m52 100"
+  kind: device(r)
+  token 1 113:1 word "R52"
+  token 2 113:5 word "n52"
+  token 3 113:9 word "m52"
+  token 4 113:13 number "100" value=1e2
+card 108 @netlists/diode100_op.cir:114:1 lines=114-114 continuations=0
+  raw: "D52 m52 n53 D1"
+  kind: device(d)
+  token 1 114:1 word "D52"
+  token 2 114:5 word "m52"
+  token 3 114:9 word "n53"
+  token 4 114:13 word "D1"
+card 109 @netlists/diode100_op.cir:115:1 lines=115-115 continuations=0
+  raw: "R53 n53 m53 100"
+  kind: device(r)
+  token 1 115:1 word "R53"
+  token 2 115:5 word "n53"
+  token 3 115:9 word "m53"
+  token 4 115:13 number "100" value=1e2
+card 110 @netlists/diode100_op.cir:116:1 lines=116-116 continuations=0
+  raw: "D53 m53 n54 D1"
+  kind: device(d)
+  token 1 116:1 word "D53"
+  token 2 116:5 word "m53"
+  token 3 116:9 word "n54"
+  token 4 116:13 word "D1"
+card 111 @netlists/diode100_op.cir:117:1 lines=117-117 continuations=0
+  raw: "R54 n54 m54 100"
+  kind: device(r)
+  token 1 117:1 word "R54"
+  token 2 117:5 word "n54"
+  token 3 117:9 word "m54"
+  token 4 117:13 number "100" value=1e2
+card 112 @netlists/diode100_op.cir:118:1 lines=118-118 continuations=0
+  raw: "D54 m54 n55 D1"
+  kind: device(d)
+  token 1 118:1 word "D54"
+  token 2 118:5 word "m54"
+  token 3 118:9 word "n55"
+  token 4 118:13 word "D1"
+card 113 @netlists/diode100_op.cir:119:1 lines=119-119 continuations=0
+  raw: "R55 n55 m55 100"
+  kind: device(r)
+  token 1 119:1 word "R55"
+  token 2 119:5 word "n55"
+  token 3 119:9 word "m55"
+  token 4 119:13 number "100" value=1e2
+card 114 @netlists/diode100_op.cir:120:1 lines=120-120 continuations=0
+  raw: "D55 m55 n56 D1"
+  kind: device(d)
+  token 1 120:1 word "D55"
+  token 2 120:5 word "m55"
+  token 3 120:9 word "n56"
+  token 4 120:13 word "D1"
+card 115 @netlists/diode100_op.cir:121:1 lines=121-121 continuations=0
+  raw: "R56 n56 m56 100"
+  kind: device(r)
+  token 1 121:1 word "R56"
+  token 2 121:5 word "n56"
+  token 3 121:9 word "m56"
+  token 4 121:13 number "100" value=1e2
+card 116 @netlists/diode100_op.cir:122:1 lines=122-122 continuations=0
+  raw: "D56 m56 n57 D1"
+  kind: device(d)
+  token 1 122:1 word "D56"
+  token 2 122:5 word "m56"
+  token 3 122:9 word "n57"
+  token 4 122:13 word "D1"
+card 117 @netlists/diode100_op.cir:123:1 lines=123-123 continuations=0
+  raw: "R57 n57 m57 100"
+  kind: device(r)
+  token 1 123:1 word "R57"
+  token 2 123:5 word "n57"
+  token 3 123:9 word "m57"
+  token 4 123:13 number "100" value=1e2
+card 118 @netlists/diode100_op.cir:124:1 lines=124-124 continuations=0
+  raw: "D57 m57 n58 D1"
+  kind: device(d)
+  token 1 124:1 word "D57"
+  token 2 124:5 word "m57"
+  token 3 124:9 word "n58"
+  token 4 124:13 word "D1"
+card 119 @netlists/diode100_op.cir:125:1 lines=125-125 continuations=0
+  raw: "R58 n58 m58 100"
+  kind: device(r)
+  token 1 125:1 word "R58"
+  token 2 125:5 word "n58"
+  token 3 125:9 word "m58"
+  token 4 125:13 number "100" value=1e2
+card 120 @netlists/diode100_op.cir:126:1 lines=126-126 continuations=0
+  raw: "D58 m58 n59 D1"
+  kind: device(d)
+  token 1 126:1 word "D58"
+  token 2 126:5 word "m58"
+  token 3 126:9 word "n59"
+  token 4 126:13 word "D1"
+card 121 @netlists/diode100_op.cir:127:1 lines=127-127 continuations=0
+  raw: "R59 n59 m59 100"
+  kind: device(r)
+  token 1 127:1 word "R59"
+  token 2 127:5 word "n59"
+  token 3 127:9 word "m59"
+  token 4 127:13 number "100" value=1e2
+card 122 @netlists/diode100_op.cir:128:1 lines=128-128 continuations=0
+  raw: "D59 m59 n60 D1"
+  kind: device(d)
+  token 1 128:1 word "D59"
+  token 2 128:5 word "m59"
+  token 3 128:9 word "n60"
+  token 4 128:13 word "D1"
+card 123 @netlists/diode100_op.cir:129:1 lines=129-129 continuations=0
+  raw: "R60 n60 m60 100"
+  kind: device(r)
+  token 1 129:1 word "R60"
+  token 2 129:5 word "n60"
+  token 3 129:9 word "m60"
+  token 4 129:13 number "100" value=1e2
+card 124 @netlists/diode100_op.cir:130:1 lines=130-130 continuations=0
+  raw: "D60 m60 n61 D1"
+  kind: device(d)
+  token 1 130:1 word "D60"
+  token 2 130:5 word "m60"
+  token 3 130:9 word "n61"
+  token 4 130:13 word "D1"
+card 125 @netlists/diode100_op.cir:131:1 lines=131-131 continuations=0
+  raw: "R61 n61 m61 100"
+  kind: device(r)
+  token 1 131:1 word "R61"
+  token 2 131:5 word "n61"
+  token 3 131:9 word "m61"
+  token 4 131:13 number "100" value=1e2
+card 126 @netlists/diode100_op.cir:132:1 lines=132-132 continuations=0
+  raw: "D61 m61 n62 D1"
+  kind: device(d)
+  token 1 132:1 word "D61"
+  token 2 132:5 word "m61"
+  token 3 132:9 word "n62"
+  token 4 132:13 word "D1"
+card 127 @netlists/diode100_op.cir:133:1 lines=133-133 continuations=0
+  raw: "R62 n62 m62 100"
+  kind: device(r)
+  token 1 133:1 word "R62"
+  token 2 133:5 word "n62"
+  token 3 133:9 word "m62"
+  token 4 133:13 number "100" value=1e2
+card 128 @netlists/diode100_op.cir:134:1 lines=134-134 continuations=0
+  raw: "D62 m62 n63 D1"
+  kind: device(d)
+  token 1 134:1 word "D62"
+  token 2 134:5 word "m62"
+  token 3 134:9 word "n63"
+  token 4 134:13 word "D1"
+card 129 @netlists/diode100_op.cir:135:1 lines=135-135 continuations=0
+  raw: "R63 n63 m63 100"
+  kind: device(r)
+  token 1 135:1 word "R63"
+  token 2 135:5 word "n63"
+  token 3 135:9 word "m63"
+  token 4 135:13 number "100" value=1e2
+card 130 @netlists/diode100_op.cir:136:1 lines=136-136 continuations=0
+  raw: "D63 m63 n64 D1"
+  kind: device(d)
+  token 1 136:1 word "D63"
+  token 2 136:5 word "m63"
+  token 3 136:9 word "n64"
+  token 4 136:13 word "D1"
+card 131 @netlists/diode100_op.cir:137:1 lines=137-137 continuations=0
+  raw: "R64 n64 m64 100"
+  kind: device(r)
+  token 1 137:1 word "R64"
+  token 2 137:5 word "n64"
+  token 3 137:9 word "m64"
+  token 4 137:13 number "100" value=1e2
+card 132 @netlists/diode100_op.cir:138:1 lines=138-138 continuations=0
+  raw: "D64 m64 n65 D1"
+  kind: device(d)
+  token 1 138:1 word "D64"
+  token 2 138:5 word "m64"
+  token 3 138:9 word "n65"
+  token 4 138:13 word "D1"
+card 133 @netlists/diode100_op.cir:139:1 lines=139-139 continuations=0
+  raw: "R65 n65 m65 100"
+  kind: device(r)
+  token 1 139:1 word "R65"
+  token 2 139:5 word "n65"
+  token 3 139:9 word "m65"
+  token 4 139:13 number "100" value=1e2
+card 134 @netlists/diode100_op.cir:140:1 lines=140-140 continuations=0
+  raw: "D65 m65 n66 D1"
+  kind: device(d)
+  token 1 140:1 word "D65"
+  token 2 140:5 word "m65"
+  token 3 140:9 word "n66"
+  token 4 140:13 word "D1"
+card 135 @netlists/diode100_op.cir:141:1 lines=141-141 continuations=0
+  raw: "R66 n66 m66 100"
+  kind: device(r)
+  token 1 141:1 word "R66"
+  token 2 141:5 word "n66"
+  token 3 141:9 word "m66"
+  token 4 141:13 number "100" value=1e2
+card 136 @netlists/diode100_op.cir:142:1 lines=142-142 continuations=0
+  raw: "D66 m66 n67 D1"
+  kind: device(d)
+  token 1 142:1 word "D66"
+  token 2 142:5 word "m66"
+  token 3 142:9 word "n67"
+  token 4 142:13 word "D1"
+card 137 @netlists/diode100_op.cir:143:1 lines=143-143 continuations=0
+  raw: "R67 n67 m67 100"
+  kind: device(r)
+  token 1 143:1 word "R67"
+  token 2 143:5 word "n67"
+  token 3 143:9 word "m67"
+  token 4 143:13 number "100" value=1e2
+card 138 @netlists/diode100_op.cir:144:1 lines=144-144 continuations=0
+  raw: "D67 m67 n68 D1"
+  kind: device(d)
+  token 1 144:1 word "D67"
+  token 2 144:5 word "m67"
+  token 3 144:9 word "n68"
+  token 4 144:13 word "D1"
+card 139 @netlists/diode100_op.cir:145:1 lines=145-145 continuations=0
+  raw: "R68 n68 m68 100"
+  kind: device(r)
+  token 1 145:1 word "R68"
+  token 2 145:5 word "n68"
+  token 3 145:9 word "m68"
+  token 4 145:13 number "100" value=1e2
+card 140 @netlists/diode100_op.cir:146:1 lines=146-146 continuations=0
+  raw: "D68 m68 n69 D1"
+  kind: device(d)
+  token 1 146:1 word "D68"
+  token 2 146:5 word "m68"
+  token 3 146:9 word "n69"
+  token 4 146:13 word "D1"
+card 141 @netlists/diode100_op.cir:147:1 lines=147-147 continuations=0
+  raw: "R69 n69 m69 100"
+  kind: device(r)
+  token 1 147:1 word "R69"
+  token 2 147:5 word "n69"
+  token 3 147:9 word "m69"
+  token 4 147:13 number "100" value=1e2
+card 142 @netlists/diode100_op.cir:148:1 lines=148-148 continuations=0
+  raw: "D69 m69 n70 D1"
+  kind: device(d)
+  token 1 148:1 word "D69"
+  token 2 148:5 word "m69"
+  token 3 148:9 word "n70"
+  token 4 148:13 word "D1"
+card 143 @netlists/diode100_op.cir:149:1 lines=149-149 continuations=0
+  raw: "R70 n70 m70 100"
+  kind: device(r)
+  token 1 149:1 word "R70"
+  token 2 149:5 word "n70"
+  token 3 149:9 word "m70"
+  token 4 149:13 number "100" value=1e2
+card 144 @netlists/diode100_op.cir:150:1 lines=150-150 continuations=0
+  raw: "D70 m70 n71 D1"
+  kind: device(d)
+  token 1 150:1 word "D70"
+  token 2 150:5 word "m70"
+  token 3 150:9 word "n71"
+  token 4 150:13 word "D1"
+card 145 @netlists/diode100_op.cir:151:1 lines=151-151 continuations=0
+  raw: "R71 n71 m71 100"
+  kind: device(r)
+  token 1 151:1 word "R71"
+  token 2 151:5 word "n71"
+  token 3 151:9 word "m71"
+  token 4 151:13 number "100" value=1e2
+card 146 @netlists/diode100_op.cir:152:1 lines=152-152 continuations=0
+  raw: "D71 m71 n72 D1"
+  kind: device(d)
+  token 1 152:1 word "D71"
+  token 2 152:5 word "m71"
+  token 3 152:9 word "n72"
+  token 4 152:13 word "D1"
+card 147 @netlists/diode100_op.cir:153:1 lines=153-153 continuations=0
+  raw: "R72 n72 m72 100"
+  kind: device(r)
+  token 1 153:1 word "R72"
+  token 2 153:5 word "n72"
+  token 3 153:9 word "m72"
+  token 4 153:13 number "100" value=1e2
+card 148 @netlists/diode100_op.cir:154:1 lines=154-154 continuations=0
+  raw: "D72 m72 n73 D1"
+  kind: device(d)
+  token 1 154:1 word "D72"
+  token 2 154:5 word "m72"
+  token 3 154:9 word "n73"
+  token 4 154:13 word "D1"
+card 149 @netlists/diode100_op.cir:155:1 lines=155-155 continuations=0
+  raw: "R73 n73 m73 100"
+  kind: device(r)
+  token 1 155:1 word "R73"
+  token 2 155:5 word "n73"
+  token 3 155:9 word "m73"
+  token 4 155:13 number "100" value=1e2
+card 150 @netlists/diode100_op.cir:156:1 lines=156-156 continuations=0
+  raw: "D73 m73 n74 D1"
+  kind: device(d)
+  token 1 156:1 word "D73"
+  token 2 156:5 word "m73"
+  token 3 156:9 word "n74"
+  token 4 156:13 word "D1"
+card 151 @netlists/diode100_op.cir:157:1 lines=157-157 continuations=0
+  raw: "R74 n74 m74 100"
+  kind: device(r)
+  token 1 157:1 word "R74"
+  token 2 157:5 word "n74"
+  token 3 157:9 word "m74"
+  token 4 157:13 number "100" value=1e2
+card 152 @netlists/diode100_op.cir:158:1 lines=158-158 continuations=0
+  raw: "D74 m74 n75 D1"
+  kind: device(d)
+  token 1 158:1 word "D74"
+  token 2 158:5 word "m74"
+  token 3 158:9 word "n75"
+  token 4 158:13 word "D1"
+card 153 @netlists/diode100_op.cir:159:1 lines=159-159 continuations=0
+  raw: "R75 n75 m75 100"
+  kind: device(r)
+  token 1 159:1 word "R75"
+  token 2 159:5 word "n75"
+  token 3 159:9 word "m75"
+  token 4 159:13 number "100" value=1e2
+card 154 @netlists/diode100_op.cir:160:1 lines=160-160 continuations=0
+  raw: "D75 m75 n76 D1"
+  kind: device(d)
+  token 1 160:1 word "D75"
+  token 2 160:5 word "m75"
+  token 3 160:9 word "n76"
+  token 4 160:13 word "D1"
+card 155 @netlists/diode100_op.cir:161:1 lines=161-161 continuations=0
+  raw: "R76 n76 m76 100"
+  kind: device(r)
+  token 1 161:1 word "R76"
+  token 2 161:5 word "n76"
+  token 3 161:9 word "m76"
+  token 4 161:13 number "100" value=1e2
+card 156 @netlists/diode100_op.cir:162:1 lines=162-162 continuations=0
+  raw: "D76 m76 n77 D1"
+  kind: device(d)
+  token 1 162:1 word "D76"
+  token 2 162:5 word "m76"
+  token 3 162:9 word "n77"
+  token 4 162:13 word "D1"
+card 157 @netlists/diode100_op.cir:163:1 lines=163-163 continuations=0
+  raw: "R77 n77 m77 100"
+  kind: device(r)
+  token 1 163:1 word "R77"
+  token 2 163:5 word "n77"
+  token 3 163:9 word "m77"
+  token 4 163:13 number "100" value=1e2
+card 158 @netlists/diode100_op.cir:164:1 lines=164-164 continuations=0
+  raw: "D77 m77 n78 D1"
+  kind: device(d)
+  token 1 164:1 word "D77"
+  token 2 164:5 word "m77"
+  token 3 164:9 word "n78"
+  token 4 164:13 word "D1"
+card 159 @netlists/diode100_op.cir:165:1 lines=165-165 continuations=0
+  raw: "R78 n78 m78 100"
+  kind: device(r)
+  token 1 165:1 word "R78"
+  token 2 165:5 word "n78"
+  token 3 165:9 word "m78"
+  token 4 165:13 number "100" value=1e2
+card 160 @netlists/diode100_op.cir:166:1 lines=166-166 continuations=0
+  raw: "D78 m78 n79 D1"
+  kind: device(d)
+  token 1 166:1 word "D78"
+  token 2 166:5 word "m78"
+  token 3 166:9 word "n79"
+  token 4 166:13 word "D1"
+card 161 @netlists/diode100_op.cir:167:1 lines=167-167 continuations=0
+  raw: "R79 n79 m79 100"
+  kind: device(r)
+  token 1 167:1 word "R79"
+  token 2 167:5 word "n79"
+  token 3 167:9 word "m79"
+  token 4 167:13 number "100" value=1e2
+card 162 @netlists/diode100_op.cir:168:1 lines=168-168 continuations=0
+  raw: "D79 m79 n80 D1"
+  kind: device(d)
+  token 1 168:1 word "D79"
+  token 2 168:5 word "m79"
+  token 3 168:9 word "n80"
+  token 4 168:13 word "D1"
+card 163 @netlists/diode100_op.cir:169:1 lines=169-169 continuations=0
+  raw: "R80 n80 m80 100"
+  kind: device(r)
+  token 1 169:1 word "R80"
+  token 2 169:5 word "n80"
+  token 3 169:9 word "m80"
+  token 4 169:13 number "100" value=1e2
+card 164 @netlists/diode100_op.cir:170:1 lines=170-170 continuations=0
+  raw: "D80 m80 n81 D1"
+  kind: device(d)
+  token 1 170:1 word "D80"
+  token 2 170:5 word "m80"
+  token 3 170:9 word "n81"
+  token 4 170:13 word "D1"
+card 165 @netlists/diode100_op.cir:171:1 lines=171-171 continuations=0
+  raw: "R81 n81 m81 100"
+  kind: device(r)
+  token 1 171:1 word "R81"
+  token 2 171:5 word "n81"
+  token 3 171:9 word "m81"
+  token 4 171:13 number "100" value=1e2
+card 166 @netlists/diode100_op.cir:172:1 lines=172-172 continuations=0
+  raw: "D81 m81 n82 D1"
+  kind: device(d)
+  token 1 172:1 word "D81"
+  token 2 172:5 word "m81"
+  token 3 172:9 word "n82"
+  token 4 172:13 word "D1"
+card 167 @netlists/diode100_op.cir:173:1 lines=173-173 continuations=0
+  raw: "R82 n82 m82 100"
+  kind: device(r)
+  token 1 173:1 word "R82"
+  token 2 173:5 word "n82"
+  token 3 173:9 word "m82"
+  token 4 173:13 number "100" value=1e2
+card 168 @netlists/diode100_op.cir:174:1 lines=174-174 continuations=0
+  raw: "D82 m82 n83 D1"
+  kind: device(d)
+  token 1 174:1 word "D82"
+  token 2 174:5 word "m82"
+  token 3 174:9 word "n83"
+  token 4 174:13 word "D1"
+card 169 @netlists/diode100_op.cir:175:1 lines=175-175 continuations=0
+  raw: "R83 n83 m83 100"
+  kind: device(r)
+  token 1 175:1 word "R83"
+  token 2 175:5 word "n83"
+  token 3 175:9 word "m83"
+  token 4 175:13 number "100" value=1e2
+card 170 @netlists/diode100_op.cir:176:1 lines=176-176 continuations=0
+  raw: "D83 m83 n84 D1"
+  kind: device(d)
+  token 1 176:1 word "D83"
+  token 2 176:5 word "m83"
+  token 3 176:9 word "n84"
+  token 4 176:13 word "D1"
+card 171 @netlists/diode100_op.cir:177:1 lines=177-177 continuations=0
+  raw: "R84 n84 m84 100"
+  kind: device(r)
+  token 1 177:1 word "R84"
+  token 2 177:5 word "n84"
+  token 3 177:9 word "m84"
+  token 4 177:13 number "100" value=1e2
+card 172 @netlists/diode100_op.cir:178:1 lines=178-178 continuations=0
+  raw: "D84 m84 n85 D1"
+  kind: device(d)
+  token 1 178:1 word "D84"
+  token 2 178:5 word "m84"
+  token 3 178:9 word "n85"
+  token 4 178:13 word "D1"
+card 173 @netlists/diode100_op.cir:179:1 lines=179-179 continuations=0
+  raw: "R85 n85 m85 100"
+  kind: device(r)
+  token 1 179:1 word "R85"
+  token 2 179:5 word "n85"
+  token 3 179:9 word "m85"
+  token 4 179:13 number "100" value=1e2
+card 174 @netlists/diode100_op.cir:180:1 lines=180-180 continuations=0
+  raw: "D85 m85 n86 D1"
+  kind: device(d)
+  token 1 180:1 word "D85"
+  token 2 180:5 word "m85"
+  token 3 180:9 word "n86"
+  token 4 180:13 word "D1"
+card 175 @netlists/diode100_op.cir:181:1 lines=181-181 continuations=0
+  raw: "R86 n86 m86 100"
+  kind: device(r)
+  token 1 181:1 word "R86"
+  token 2 181:5 word "n86"
+  token 3 181:9 word "m86"
+  token 4 181:13 number "100" value=1e2
+card 176 @netlists/diode100_op.cir:182:1 lines=182-182 continuations=0
+  raw: "D86 m86 n87 D1"
+  kind: device(d)
+  token 1 182:1 word "D86"
+  token 2 182:5 word "m86"
+  token 3 182:9 word "n87"
+  token 4 182:13 word "D1"
+card 177 @netlists/diode100_op.cir:183:1 lines=183-183 continuations=0
+  raw: "R87 n87 m87 100"
+  kind: device(r)
+  token 1 183:1 word "R87"
+  token 2 183:5 word "n87"
+  token 3 183:9 word "m87"
+  token 4 183:13 number "100" value=1e2
+card 178 @netlists/diode100_op.cir:184:1 lines=184-184 continuations=0
+  raw: "D87 m87 n88 D1"
+  kind: device(d)
+  token 1 184:1 word "D87"
+  token 2 184:5 word "m87"
+  token 3 184:9 word "n88"
+  token 4 184:13 word "D1"
+card 179 @netlists/diode100_op.cir:185:1 lines=185-185 continuations=0
+  raw: "R88 n88 m88 100"
+  kind: device(r)
+  token 1 185:1 word "R88"
+  token 2 185:5 word "n88"
+  token 3 185:9 word "m88"
+  token 4 185:13 number "100" value=1e2
+card 180 @netlists/diode100_op.cir:186:1 lines=186-186 continuations=0
+  raw: "D88 m88 n89 D1"
+  kind: device(d)
+  token 1 186:1 word "D88"
+  token 2 186:5 word "m88"
+  token 3 186:9 word "n89"
+  token 4 186:13 word "D1"
+card 181 @netlists/diode100_op.cir:187:1 lines=187-187 continuations=0
+  raw: "R89 n89 m89 100"
+  kind: device(r)
+  token 1 187:1 word "R89"
+  token 2 187:5 word "n89"
+  token 3 187:9 word "m89"
+  token 4 187:13 number "100" value=1e2
+card 182 @netlists/diode100_op.cir:188:1 lines=188-188 continuations=0
+  raw: "D89 m89 n90 D1"
+  kind: device(d)
+  token 1 188:1 word "D89"
+  token 2 188:5 word "m89"
+  token 3 188:9 word "n90"
+  token 4 188:13 word "D1"
+card 183 @netlists/diode100_op.cir:189:1 lines=189-189 continuations=0
+  raw: "R90 n90 m90 100"
+  kind: device(r)
+  token 1 189:1 word "R90"
+  token 2 189:5 word "n90"
+  token 3 189:9 word "m90"
+  token 4 189:13 number "100" value=1e2
+card 184 @netlists/diode100_op.cir:190:1 lines=190-190 continuations=0
+  raw: "D90 m90 n91 D1"
+  kind: device(d)
+  token 1 190:1 word "D90"
+  token 2 190:5 word "m90"
+  token 3 190:9 word "n91"
+  token 4 190:13 word "D1"
+card 185 @netlists/diode100_op.cir:191:1 lines=191-191 continuations=0
+  raw: "R91 n91 m91 100"
+  kind: device(r)
+  token 1 191:1 word "R91"
+  token 2 191:5 word "n91"
+  token 3 191:9 word "m91"
+  token 4 191:13 number "100" value=1e2
+card 186 @netlists/diode100_op.cir:192:1 lines=192-192 continuations=0
+  raw: "D91 m91 n92 D1"
+  kind: device(d)
+  token 1 192:1 word "D91"
+  token 2 192:5 word "m91"
+  token 3 192:9 word "n92"
+  token 4 192:13 word "D1"
+card 187 @netlists/diode100_op.cir:193:1 lines=193-193 continuations=0
+  raw: "R92 n92 m92 100"
+  kind: device(r)
+  token 1 193:1 word "R92"
+  token 2 193:5 word "n92"
+  token 3 193:9 word "m92"
+  token 4 193:13 number "100" value=1e2
+card 188 @netlists/diode100_op.cir:194:1 lines=194-194 continuations=0
+  raw: "D92 m92 n93 D1"
+  kind: device(d)
+  token 1 194:1 word "D92"
+  token 2 194:5 word "m92"
+  token 3 194:9 word "n93"
+  token 4 194:13 word "D1"
+card 189 @netlists/diode100_op.cir:195:1 lines=195-195 continuations=0
+  raw: "R93 n93 m93 100"
+  kind: device(r)
+  token 1 195:1 word "R93"
+  token 2 195:5 word "n93"
+  token 3 195:9 word "m93"
+  token 4 195:13 number "100" value=1e2
+card 190 @netlists/diode100_op.cir:196:1 lines=196-196 continuations=0
+  raw: "D93 m93 n94 D1"
+  kind: device(d)
+  token 1 196:1 word "D93"
+  token 2 196:5 word "m93"
+  token 3 196:9 word "n94"
+  token 4 196:13 word "D1"
+card 191 @netlists/diode100_op.cir:197:1 lines=197-197 continuations=0
+  raw: "R94 n94 m94 100"
+  kind: device(r)
+  token 1 197:1 word "R94"
+  token 2 197:5 word "n94"
+  token 3 197:9 word "m94"
+  token 4 197:13 number "100" value=1e2
+card 192 @netlists/diode100_op.cir:198:1 lines=198-198 continuations=0
+  raw: "D94 m94 n95 D1"
+  kind: device(d)
+  token 1 198:1 word "D94"
+  token 2 198:5 word "m94"
+  token 3 198:9 word "n95"
+  token 4 198:13 word "D1"
+card 193 @netlists/diode100_op.cir:199:1 lines=199-199 continuations=0
+  raw: "R95 n95 m95 100"
+  kind: device(r)
+  token 1 199:1 word "R95"
+  token 2 199:5 word "n95"
+  token 3 199:9 word "m95"
+  token 4 199:13 number "100" value=1e2
+card 194 @netlists/diode100_op.cir:200:1 lines=200-200 continuations=0
+  raw: "D95 m95 n96 D1"
+  kind: device(d)
+  token 1 200:1 word "D95"
+  token 2 200:5 word "m95"
+  token 3 200:9 word "n96"
+  token 4 200:13 word "D1"
+card 195 @netlists/diode100_op.cir:201:1 lines=201-201 continuations=0
+  raw: "R96 n96 m96 100"
+  kind: device(r)
+  token 1 201:1 word "R96"
+  token 2 201:5 word "n96"
+  token 3 201:9 word "m96"
+  token 4 201:13 number "100" value=1e2
+card 196 @netlists/diode100_op.cir:202:1 lines=202-202 continuations=0
+  raw: "D96 m96 n97 D1"
+  kind: device(d)
+  token 1 202:1 word "D96"
+  token 2 202:5 word "m96"
+  token 3 202:9 word "n97"
+  token 4 202:13 word "D1"
+card 197 @netlists/diode100_op.cir:203:1 lines=203-203 continuations=0
+  raw: "R97 n97 m97 100"
+  kind: device(r)
+  token 1 203:1 word "R97"
+  token 2 203:5 word "n97"
+  token 3 203:9 word "m97"
+  token 4 203:13 number "100" value=1e2
+card 198 @netlists/diode100_op.cir:204:1 lines=204-204 continuations=0
+  raw: "D97 m97 n98 D1"
+  kind: device(d)
+  token 1 204:1 word "D97"
+  token 2 204:5 word "m97"
+  token 3 204:9 word "n98"
+  token 4 204:13 word "D1"
+card 199 @netlists/diode100_op.cir:205:1 lines=205-205 continuations=0
+  raw: "R98 n98 m98 100"
+  kind: device(r)
+  token 1 205:1 word "R98"
+  token 2 205:5 word "n98"
+  token 3 205:9 word "m98"
+  token 4 205:13 number "100" value=1e2
+card 200 @netlists/diode100_op.cir:206:1 lines=206-206 continuations=0
+  raw: "D98 m98 n99 D1"
+  kind: device(d)
+  token 1 206:1 word "D98"
+  token 2 206:5 word "m98"
+  token 3 206:9 word "n99"
+  token 4 206:13 word "D1"
+card 201 @netlists/diode100_op.cir:207:1 lines=207-207 continuations=0
+  raw: "R99 n99 m99 100"
+  kind: device(r)
+  token 1 207:1 word "R99"
+  token 2 207:5 word "n99"
+  token 3 207:9 word "m99"
+  token 4 207:13 number "100" value=1e2
+card 202 @netlists/diode100_op.cir:208:1 lines=208-208 continuations=0
+  raw: "D99 m99 n100 D1"
+  kind: device(d)
+  token 1 208:1 word "D99"
+  token 2 208:5 word "m99"
+  token 3 208:9 word "n100"
+  token 4 208:14 word "D1"
+card 203 @netlists/diode100_op.cir:209:1 lines=209-209 continuations=0
+  raw: "Rl n100 0 1k"
+  kind: device(r)
+  token 1 209:1 word "Rl"
+  token 2 209:4 word "n100"
+  token 3 209:9 number "0" value=0e0
+  token 4 209:11 number "1k" value=1e3
+card 204 @netlists/diode100_op.cir:210:1 lines=210-210 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 210:1 word ".op"
+card 205 @netlists/diode100_op.cir:211:1 lines=211-211 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 211:1 word ".end"

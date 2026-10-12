@@ -315,15 +315,25 @@ fn model_noise_selectors_are_validated() {
         "{deck}.model nm nmos(vto=1 nlev=5)\n.noise v(d) v1 dec 1 1 10\n.end\n"
     ));
     assert!(error.contains("NLEV"), "{error}");
+    // A drain biased through `r1` to a supply: both laws are noisy.
+    let biased = "m\nv1 g 0 2 ac 1\nvdd dd 0 5\nm1 d g 0 0 nm w=10u l=2u\nr1 d dd 1k\n";
     for (model, flicker) in [
         ("nlev=0", "kf=1e-25"),
         ("nlev=3 gdsnoi=2", "kf=1e-25 af=1.2"),
     ] {
         let plots = run(&format!(
-            "{deck}.model nm nmos(vto=1 {model} {flicker})\n.noise v(d) v1 dec 1 1 10 1\n.end\n"
+            "{biased}.model nm nmos(vto=1 {model} {flicker})\n.noise v(d) v1 dec 1 1 10 1\n.end\n"
         ));
         assert!(column(&plots[0], "onoise_m1_1overf")[0] > 0.0, "{model}");
     }
+    // With the drain at 0 V the NLEV 3 law `KF gm^2 / ...` is exactly zero,
+    // as in C (ngspice prints onoise_m1_1overf = 0 for this deck): the
+    // MODEINITSMSIG load rounds `vds = vgs - (vgs - vds)` to zero, so the
+    // linear-region gm vanishes.
+    let plots = run(&format!(
+        "{deck}.model nm nmos(vto=1 nlev=3 gdsnoi=2 kf=1e-25 af=1.2)\n.noise v(d) v1 dec 1 1 10 1\n.end\n"
+    ));
+    assert_eq!(column(&plots[0], "onoise_m1_1overf")[0], 0.0);
 }
 
 /// A device that implements nothing but its stamps: `.noise` must refuse it

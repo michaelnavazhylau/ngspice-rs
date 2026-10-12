@@ -44,6 +44,23 @@ impl ModelPassive {
     }
 }
 impl Device for ModelPassive {
+    /// `ressetup.c`, `capsetup.c` or `indsetup.c` by family.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [positive, negative] = self.terminals;
+        match self.parameters.family() {
+            ModelFamily::Resistor | ModelFamily::Capacitor => {
+                setup.conductance(positive, negative);
+            }
+            _ => {
+                let branch = setup.branch(0)?;
+                setup.inductor(positive, negative, branch);
+            }
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         keyword: &str,
@@ -169,6 +186,7 @@ impl Device for ModelPassive {
             Ok(InductanceValue {
                 effective: self.parameters.effective_value(context)?,
                 coupling_base: self.parameters.coupling_value(context)?,
+                initial: self.parameters.initial_condition().unwrap_or(0.),
             })
         })
     }

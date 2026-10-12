@@ -1,515 +1,1490 @@
-//! Finite roots of `det(A + s E) = 0` for a real, square, regular matrix
-//! pencil: the numerical core of pole-zero analysis.
+//! Roots of `det(A + s E) = 0`: ngspice's pole-zero root search.
 //!
-//! ngspice finds the roots of the circuit determinant with a deflated Muller
-//! search (`src/spicelib/analysis/cktpzstr.c`, `src/maths/ni/nipzmeth.c`).
-//! This module instead computes them as the finite generalized eigenvalues of
-//! the pencil (`docs/port/POLE_ZERO_ADR.md`). It is an independent algorithm,
-//! not a translation of the C search.
+//! A port of `CKTpzFindZeros` and its helpers
+//! (`src/spicelib/analysis/cktpzstr.c`) with `NIpzSym2`/`NIpzMuller`
+//! (`src/maths/ni/nipzmeth.c`). Each trial loads `A + s E` into one SPARSE
+//! matrix (`maths::sparse13`), reorders it as `SMPcReorder(1e-30, 0)`
+//! does (keeping the previous pivots when they pass the threshold test) and
+//! takes the determinant (`SMPcDProd`: SPARSE's base-10 mantissa converted to
+//! a base-2 mantissa/exponent pair). The search walks the real axis with the
+//! trial list kept sorted by `s`, brackets sign changes with a deflated
+//! quadratic fit (`NIpzSym2`), deflates every found root out of the stored
+//! trials (`CKTpzVerify`), and continues into the complex plane with Muller's
+//! method from the curvature hint `NIpzK`.
 //!
-//! MNA pencils are singular in `E` (resistive nodes, voltage-source and
-//! controlled-source rows), so most of their eigenvalues are infinite, and
-//! capacitor/voltage-source loops or inductor/current-source cutsets give
-//! infinite eigenvalues of index two and more. A QZ decomposition of the whole
-//! pencil perturbs such Jordan blocks at infinity into spurious *finite*
-//! eigenvalues of size `~1/sqrt(eps)`. [`pencil_roots`] therefore removes the
-//! infinite part first with orthogonal rank decisions:
-//!
-//! 1. Row-compress `E` with its SVD: `U^T E = [E1; 0]` where `E1` has the
-//!    `r` numerically nonzero singular directions. The other `k = n - r` rows
-//!    of `U^T A` are free of `s`; unless they have full row rank the pencil
-//!    is singular (`det == 0` for every `s`), which is an error.
-//! 2. Column-compress those rows with their SVD, `[A21 A22] Z = [0 A22']`.
-//!    Then `U^T (A + s E) Z = [[A11 + s E11, *], [0, A22']]` is block upper
-//!    triangular with a constant nonsingular `A22'`: `k` infinite eigenvalues
-//!    are deflated and the `r x r` pencil `(A11, E11)` keeps every finite
-//!    root. Repeat from step 1 (a singular `E11` is a higher-index block).
-//! 3. Once `E` is nonsingular the remaining roots are the eigenvalues of
-//!    `(A, -E)`, computed by faer's QZ (`faer::linalg::gevd::gevd_cplx`, see
-//!    [`finite_qz`] for why the complex variant).
-//!
-//! This is the infinite-eigenvalue part of the classical orthogonal
-//! staircase reduction of a pencil (Van Dooren 1979); no block is ever
-//! inverted, which matters for MNA pencils whose algebraic blocks routinely
-//! have condition numbers of `1e11` and more (a Schur-complement elimination
-//! lost several digits on the poles of a BJT amplifier).
-//!
-//! Every transformation is orthogonal, so the determinant changes only by a
-//! nonzero constant factor. Rank decisions use one tolerance
-//! [`RANK_TOLERANCE_FACTOR`]` * n * eps * max(||A||_F, ||E||_F)` after exact
-//! power-of-two row/column (Ruiz) and frequency scaling; the frequency scale
-//! is undone on the returned roots.
-
-use faer::Mat;
+//! C's file-scope state (`CKTpzTrapped`, `NIpzK`, the guess bounds, move
+//! history) lives in `Search`; `Last_Move` starts at zero for each search
+//! instead of carrying over from a previous one. C's warnings (iteration limit,
+//! numerical aberrations) go to standard error and the roots found so far are
+//! returned, as in C; a determinant that vanishes at every trial is C's
+//! `E_SHORT`.
 
 use crate::maths::Matrix;
-use crate::primitives::{Complex, Real, SpiceError, SpiceResult};
+use crate::maths::linear::numerical;
+use crate::maths::sparse13::{Sparse, Status};
+use crate::primitives::{Complex, Real, SpiceResult};
 
-/// Largest pencil dimension accepted. The reduction is dense (`O(n^3)` SVDs
-/// and QZ); larger circuits are rejected explicitly rather than run for an
-/// unbounded time.
-pub const MAX_PENCIL_DIMENSION: usize = 1000;
-
-/// Multiplier of `n * eps * max(||A||_F, ||E||_F)` in every rank decision.
-pub const RANK_TOLERANCE_FACTOR: Real = 16.0;
-
-/// Ruiz scaling sweeps (each also rebalances the frequency scale).
-const SCALING_SWEEPS: usize = 8;
-
-/// The finite roots of a pencil, see [`pencil_roots`].
+/// The roots of a pencil, see [`pencil_roots`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct PencilRoots {
-    /// Finite roots in ascending order of real part, then of `|imag|`. A
-    /// complex root is followed immediately by its conjugate, the positive
-    /// imaginary part first (the order `PZpost` in C's `pzan.c` writes).
+    /// Roots in `PZpost` order: ascending real part, then imaginary part,
+    /// repeated by multiplicity, each complex root followed by its conjugate.
     pub roots: Vec<Complex>,
-    /// How many of the `n` generalized eigenvalues are infinite (`n` minus
-    /// the number of roots).
-    pub infinite: usize,
-    /// The power-of-two frequency scale `omega` applied before the reduction
-    /// (roots were computed for `s / omega` and multiplied back).
-    pub frequency_scale: Real,
 }
 
-fn error(message: impl Into<String>) -> SpiceError {
-    SpiceError::Numerical {
-        context: "pole-zero pencil".to_owned(),
-        message: message.into(),
-    }
+/// One device's pole-zero contribution to one matrix element, as a C
+/// `DEVpzLoad` adds it: `*elt += g + c * s.real` and `*(elt + 1) += c *
+/// s.imag` (`diopzld.c`), `*elt += g` alone (`respzld.c`) or `c * s.real`
+/// alone (`cappzld.c`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PencilTerm {
+    /// Zero-based matrix row.
+    pub row: usize,
+    /// Zero-based matrix column.
+    pub col: usize,
+    /// The `s`-independent part `g`, if the device adds one.
+    pub conductance: Option<Real>,
+    /// The coefficient `c` of `s`, if the device adds one.
+    pub capacitance: Option<Real>,
 }
 
-/// The nearest power of two to a positive finite `x`.
-fn power_of_two(x: Real) -> Real {
-    let exponent = x.log2().round().clamp(-1000.0, 1000.0);
-    // Exact: integer exponents in this range are representable.
-    2_f64.powi(exponent as i32)
-}
-
-fn frobenius(m: &Mat<Real>) -> Real {
-    let mut sum = 0.0;
-    for j in 0..m.ncols() {
-        for i in 0..m.nrows() {
-            sum += m[(i, j)] * m[(i, j)];
+impl PencilTerm {
+    /// The value this term adds at `s`.
+    fn at(&self, s: Cx) -> Complex {
+        match (self.conductance, self.capacitance) {
+            (Some(g), Some(c)) => Complex::new(g + c * s.re, c * s.im),
+            (Some(g), None) => Complex::new(g, 0.0),
+            (None, Some(c)) => Complex::new(c * s.re, c * s.im),
+            (None, None) => Complex::ZERO,
         }
     }
-    sum.sqrt()
 }
 
-/// Exact power-of-two scaling: Ruiz row/column equilibration of `[A E]`
-/// interleaved with a frequency scale `omega` that balances `||A||` and
-/// `||omega E||`. Returns `omega`; the roots of the scaled pencil are
-/// `s / omega`.
-fn balance(a: &mut Mat<Real>, e: &mut Mat<Real>) -> Real {
-    let n = a.nrows();
-    let mut omega = 1.0;
-    for _ in 0..SCALING_SWEEPS {
-        let (na, ne) = (frobenius(a), frobenius(e));
-        if na > 0.0 && ne > 0.0 {
-            let w = power_of_two(na / ne);
-            if w != 1.0 {
-                for j in 0..n {
-                    for i in 0..n {
-                        e[(i, j)] *= w;
-                    }
-                }
-                omega *= w;
-            }
-        }
-        for i in 0..n {
-            let largest = (0..n).fold(0.0_f64, |m, j| m.max(a[(i, j)].abs()).max(e[(i, j)].abs()));
-            if largest > 0.0 {
-                let f = power_of_two(1.0 / largest.sqrt());
-                for j in 0..n {
-                    a[(i, j)] *= f;
-                    e[(i, j)] *= f;
-                }
-            }
-        }
-        for j in 0..n {
-            let largest = (0..n).fold(0.0_f64, |m, i| m.max(a[(i, j)].abs()).max(e[(i, j)].abs()));
-            if largest > 0.0 {
-                let f = power_of_two(1.0 / largest.sqrt());
-                for i in 0..n {
-                    a[(i, j)] *= f;
-                    e[(i, j)] *= f;
-                }
-            }
-        }
-    }
-    omega
+/// The matrix `CKTpzSetup` builds and `CKTpzLoad` (`cktpzld.c`) loads at
+/// each trial `s`: the elements are created in order (the circuit's setup
+/// elements, then the drive), every trial clears them, adds the device
+/// [`PencilTerm`]s in load order, adds the solution column to the balance
+/// column (`SMPcAddCol`), zeroes the solution column (`SMPcZeroCol`) and
+/// stores the unit drive `+1`/`-1` in the input rows of the solution column.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PencilLoad {
+    /// The matrix order.
+    pub order: usize,
+    /// Zero-based `(row, col)` elements to create before loading, in
+    /// creation order (SPARSE numbers rows and columns by first appearance).
+    /// Term and drive positions not listed are created after these.
+    pub elements: Vec<(usize, usize)>,
+    /// Device contributions in load order.
+    pub terms: Vec<PencilTerm>,
+    /// The solution column (`PZsolution_col`), if any.
+    pub solution: Option<usize>,
+    /// The balance column (`PZbalance_col`), if any.
+    pub balance: Option<usize>,
+    /// The rows receiving `+1` and `-1` in the solution column
+    /// (`PZdrive_pptr`/`PZdrive_nptr`).
+    pub drive: [Option<usize>; 2],
+    /// The relative pivot threshold the matrix holds. `CKTpzFindZeros`
+    /// reorders with `SMPcReorder(matrix, 1e-30, 0.0)`, and a relative
+    /// threshold outside `(0, 1]` keeps the one `ckt->CKTmatrix` stores: the
+    /// `.options pivrel` (`CKTpivotRelTol`) of the operating point's
+    /// `SMPreorder`. `0` keeps SPARSE's default, `1e-3`.
+    pub relative_threshold: f64,
 }
 
-/// A full SVD with singular values in nonincreasing order: `(U, sigma, V)`
-/// with `M = U diag(sigma) V^T` (`U` is `rows x rows`, `V` is `cols x cols`).
-fn ordered_svd(m: &Mat<Real>) -> SpiceResult<(Mat<Real>, Vec<Real>, Mat<Real>)> {
-    let (rows, cols) = (m.nrows(), m.ncols());
-    if rows == 0 || cols == 0 {
-        return Ok((
-            Mat::<Real>::identity(rows, rows),
-            Vec::new(),
-            Mat::<Real>::identity(cols, cols),
-        ));
-    }
-    let svd = m
-        .svd()
-        .map_err(|e| error(format!("SVD did not converge: {e:?}")))?;
-    let k = rows.min(cols);
-    let s = svd.S().column_vector();
-    let mut order: Vec<usize> = (0..k).collect();
-    order.sort_by(|&x, &y| s[y].total_cmp(&s[x]));
-    let sigma: Vec<Real> = order.iter().map(|&i| s[i]).collect();
-    // Permute the leading `k` singular vectors; the complementary columns
-    // (null-space bases) keep their positions.
-    let permute = |q: faer::MatRef<'_, Real>| {
-        Mat::<Real>::from_fn(q.nrows(), q.ncols(), |i, j| {
-            if j < k { q[(i, order[j])] } else { q[(i, j)] }
-        })
-    };
-    let (u, v) = (permute(svd.U()), permute(svd.V()));
-    if sigma.iter().any(|x| !x.is_finite()) || u.has_nan() || v.has_nan() {
-        return Err(error("SVD produced non-finite values"));
-    }
-    Ok((u, sigma, v))
-}
-
-fn rank(sigma: &[Real], tolerance: Real) -> usize {
-    sigma.iter().take_while(|&&x| x > tolerance).count()
-}
-
-fn block(m: &Mat<Real>, rows: std::ops::Range<usize>, cols: std::ops::Range<usize>) -> Mat<Real> {
-    m.as_ref()
-        .subrows(rows.start, rows.len())
-        .subcols(cols.start, cols.len())
-        .to_owned()
-}
-
-/// The finite roots of `det(A + s E) = 0`.
-///
-/// `A` and `E` are real, square and of equal dimension. An empty pencil has
-/// no roots. See the [module documentation](self) for the method.
-///
-/// # Errors
-///
-/// [`SpiceError::Numerical`] for mismatched or non-square dimensions,
-/// non-finite entries, a dimension above [`MAX_PENCIL_DIMENSION`], a singular
-/// pencil (`det(A + s E)` vanishes identically, so its roots are undefined) or
-/// a failed SVD/QZ decomposition.
-pub fn pencil_roots(a: &Matrix, e: &Matrix) -> SpiceResult<PencilRoots> {
-    let n = a.rows();
-    if a.cols() != n || e.rows() != n || e.cols() != n {
-        return Err(error(format!(
-            "A is {}x{} and E is {}x{}; both must be square and equal",
-            a.rows(),
-            a.cols(),
-            e.rows(),
-            e.cols()
-        )));
-    }
-    if n > MAX_PENCIL_DIMENSION {
-        return Err(error(format!(
-            "dimension {n} exceeds the dense pole-zero limit {MAX_PENCIL_DIMENSION}"
-        )));
-    }
-    if a.data().iter().chain(e.data()).any(|x| !x.is_finite()) {
-        return Err(error("non-finite matrix entry"));
-    }
-    let mut am = Mat::<Real>::from_fn(n, n, |i, j| a.data()[i * n + j]);
-    let mut em = Mat::<Real>::from_fn(n, n, |i, j| e.data()[i * n + j]);
-    let omega = balance(&mut am, &mut em);
-    let norm = frobenius(&am).max(frobenius(&em));
-    if n > 0 && norm == 0.0 {
-        return Err(error("singular pencil: A and E are both zero"));
-    }
-    let tolerance = RANK_TOLERANCE_FACTOR * (n.max(1) as Real) * Real::EPSILON * norm;
-    let scaled = reduce(am, em, tolerance)?;
-    let mut roots: Vec<Complex> = scaled
-        .into_iter()
-        .map(|z| Complex::new(z.re * omega, z.im * omega))
-        .collect();
-    if roots.iter().any(|z| !z.is_finite()) {
-        return Err(error("non-finite root"));
-    }
-    roots = order_roots(&roots)?;
-    Ok(PencilRoots {
-        infinite: n - roots.len(),
-        roots,
-        frequency_scale: omega,
-    })
-}
-
-/// Deflates the infinite eigenvalues and returns the finite roots of the
-/// scaled pencil, unordered. Orthogonal transformations only: no block of
-/// the pencil is ever inverted.
-fn reduce(mut am: Mat<Real>, mut em: Mat<Real>, tolerance: Real) -> SpiceResult<Vec<Complex>> {
-    loop {
-        let n = am.nrows();
-        if n == 0 {
-            return Ok(Vec::new());
-        }
-        let (u, sigma, _) = ordered_svd(&em)?;
-        let r = rank(&sigma, tolerance);
-        if r == n {
-            return finite_qz(&am, &em);
-        }
-        // Row compression: U^T E = [E1; ~0], whose last n - r rows are
-        // below the tolerance and are dropped as exact zeros.
-        let am_rows = u.transpose() * &am;
-        let em_rows = u.transpose() * &em;
-        let k = n - r;
-        // Those rows of U^T A must have full row rank: a combination of
-        // equations free of `s` that also vanishes in `A` makes the
-        // determinant identically zero.
-        let algebraic = block(&am_rows, r..n, 0..n);
-        let (_, s2, w) = ordered_svd(&algebraic)?;
-        if rank(&s2, tolerance) < k {
-            return Err(singular(k - rank(&s2, tolerance), n));
-        }
-        // Column compression of the algebraic rows: Z = [null, range], so
-        // U^T (A + s E) Z = [[A11 + s E11, *], [0, A22]] with A22 constant
-        // and nonsingular: k infinite eigenvalues are deflated.
-        let z = Mat::<Real>::from_fn(
-            n,
-            n,
-            |i, j| {
-                if j < r { w[(i, k + j)] } else { w[(i, j - r)] }
-            },
-        );
-        am = block(&(&am_rows * &z), 0..r, 0..r);
-        em = block(&(&em_rows * &z), 0..r, 0..r);
-    }
-}
-
-fn singular(deficiency: usize, n: usize) -> SpiceError {
-    error(format!(
-        "singular pencil: det(A + sE) vanishes for every s ({deficiency} algebraic row \
-         combination(s) of the {n}-dimensional pencil are rank deficient)"
-    ))
-}
-
-/// The eigenvalues of `(A, -E)` for a numerically nonsingular `E`, from
-/// faer's complex QZ without eigenvectors.
-///
-/// Two faer 0.24.4 paths are avoided deliberately: the high-level
-/// `Mat::generalized_eigen` also computes eigenvectors and under-sizes that
-/// workspace for small pencils (it panics), and the real QZ
-/// (`gevd_real`) returns visibly wrong eigenvalues for complex-conjugate
-/// 2x2 blocks (a series RLC pole pair off by 4 %, not conjugate). The real
-/// pencil is therefore decomposed in complex arithmetic and the conjugate
-/// pairs are restored by [`order_roots`].
-fn finite_qz(am: &Mat<Real>, em: &Mat<Real>) -> SpiceResult<Vec<Complex>> {
-    use faer::c64;
-    use faer::dyn_stack::{MemBuffer, MemStack};
-    use faer::linalg::evd::ComputeEigenvectors;
-    let n = am.nrows();
-    let mut a = Mat::<c64>::from_fn(n, n, |i, j| c64::new(am[(i, j)], 0.0));
-    let mut b = Mat::<c64>::from_fn(n, n, |i, j| c64::new(-em[(i, j)], 0.0));
-    let mut alpha = faer::diag::Diag::<c64>::zeros(n);
-    let mut beta = faer::diag::Diag::<c64>::zeros(n);
-    let par = faer::Par::Seq;
-    let mut buffer = MemBuffer::new(faer::linalg::gevd::gevd_scratch::<c64>(
-        n,
-        ComputeEigenvectors::No,
-        ComputeEigenvectors::No,
-        par,
-        Default::default(),
-    ));
-    faer::linalg::gevd::gevd_cplx(
-        a.as_mut(),
-        b.as_mut(),
-        alpha.as_mut(),
-        beta.as_mut(),
-        None,
-        None,
-        par,
-        MemStack::new(&mut buffer),
-        Default::default(),
-    )
-    .map_err(|e| error(format!("QZ did not converge: {e:?}")))?;
-    let (alpha, beta) = (alpha.column_vector(), beta.column_vector());
-    let mut roots = Vec::with_capacity(n);
-    for i in 0..n {
-        let (a, b) = (alpha[i], beta[i]);
-        let denominator = b.re * b.re + b.im * b.im;
-        if denominator == 0.0 || !denominator.is_finite() {
-            return Err(error(
-                "QZ returned an infinite eigenvalue after the infinite part was deflated",
+impl PencilLoad {
+    /// A load of the plain pencil `A + s E` with one term per nonzero
+    /// position and the elements created row by row.
+    ///
+    /// # Errors
+    /// Non-square or mismatched matrices.
+    pub fn from_dense(a: &Matrix, e: &Matrix) -> SpiceResult<Self> {
+        let n = a.rows();
+        if a.cols() != n || e.rows() != n || e.cols() != n {
+            return Err(numerical(
+                "pole-zero search",
+                format!(
+                    "needs square matrices of one size, got {}x{} and {}x{}",
+                    a.rows(),
+                    a.cols(),
+                    e.rows(),
+                    e.cols()
+                ),
             ));
         }
-        roots.push(Complex::new(
-            (a.re * b.re + a.im * b.im) / denominator,
-            (a.im * b.re - a.re * b.im) / denominator,
-        ));
+        let mut terms = Vec::new();
+        for row in 0..n {
+            for col in 0..n {
+                let g = a.get(row, col).unwrap_or(0.0);
+                let c = e.get(row, col).unwrap_or(0.0);
+                if g != 0.0 || c != 0.0 {
+                    terms.push(PencilTerm {
+                        row,
+                        col,
+                        conductance: Some(g),
+                        capacitance: (c != 0.0).then_some(c),
+                    });
+                }
+            }
+        }
+        Ok(Self {
+            order: n,
+            elements: terms.iter().map(|t| (t.row, t.col)).collect(),
+            terms,
+            ..Self::default()
+        })
     }
-    Ok(roots)
+
+    fn validate(&self) -> SpiceResult<()> {
+        let n = self.order;
+        if n == 0 {
+            return Err(numerical("pole-zero search", "needs a nonempty matrix"));
+        }
+        let inside = |i: usize| i < n;
+        let positions = self
+            .elements
+            .iter()
+            .copied()
+            .chain(self.terms.iter().map(|t| (t.row, t.col)));
+        if !positions.into_iter().all(|(r, c)| inside(r) && inside(c))
+            || ![self.solution, self.balance, self.drive[0], self.drive[1]]
+                .into_iter()
+                .flatten()
+                .all(inside)
+        {
+            return Err(numerical(
+                "pole-zero search",
+                "matrix position out of range",
+            ));
+        }
+        if self.terms.iter().any(|t| {
+            !t.conductance.unwrap_or(0.0).is_finite() || !t.capacitance.unwrap_or(0.0).is_finite()
+        }) {
+            return Err(numerical("pole-zero search", "non-finite matrix entry"));
+        }
+        Ok(())
+    }
 }
 
-/// Largest pairing distance `|z_i - conj(z_j)|` accepted when the computed
-/// roots are made conjugate-symmetric, relative to the largest root
-/// magnitude. Backward-stable QZ keeps well-conditioned roots of a real
-/// pencil within rounding of their conjugates; a multiple root splits by
-/// about `sqrt(eps)` of the scale. A larger asymmetry is reported instead of
-/// being symmetrised away.
-pub const CONJUGATE_PAIR_TOLERANCE: Real = 1e-6;
+const NITER_LIM: usize = 200;
 
-/// Restores the conjugate symmetry of a real pencil's spectrum and sorts the
-/// roots as C's `PZpost` lists them: ascending real part, then ascending
-/// imaginary part of the upper-half-plane root, each complex root followed
-/// by its conjugate (positive imaginary part first).
-///
-/// The complex QZ treats conjugate roots independently, so the computed set
-/// is symmetric only to rounding. Roots are paired greedily by the smallest
-/// `|z_i - conj(z_j)|` (pairing a root with itself, at cost `2 |imag|`, makes
-/// it real); a pair becomes `m, conj(m)` with `m = (z_i + conj(z_j)) / 2`.
-/// No tolerance decides what is real: a perturbed double real root may come
-/// back as two close real roots or as a narrow complex pair, as close to the
-/// exact pair as the computation can tell.
-fn order_roots(roots: &[Complex]) -> SpiceResult<Vec<Complex>> {
-    let n = roots.len();
-    let mut candidates: Vec<(Real, usize, usize)> = Vec::with_capacity(n * (n + 1) / 2);
-    for i in 0..n {
-        for j in i..n {
-            let (z, w) = (roots[i], roots[j]);
-            candidates.push(((z.re - w.re).hypot(z.im + w.im), i, j));
-        }
+const SHIFT_LEFT: u8 = 2;
+const SHIFT_RIGHT: u8 = 3;
+const SKIP_LEFT: u8 = 4;
+const SKIP_RIGHT: u8 = 5;
+const INIT: u8 = 6;
+const GUESS: u8 = 7;
+const SPLIT_LEFT: u8 = 8;
+const SPLIT_RIGHT: u8 = 9;
+const MULLER: u8 = 10;
+const SYM: u8 = 11;
+const SYM2: u8 = 12;
+const COMPLEX_INIT: u8 = 13;
+const COMPLEX_GUESS: u8 = 14;
+
+const NEAR_LEFT: u8 = 4;
+const MID_LEFT: u8 = 5;
+const FAR_LEFT: u8 = 6;
+const NEAR_RIGHT: u8 = 7;
+const FAR_RIGHT: u8 = 8;
+const MID_RIGHT: u8 = 9;
+
+const ISAROOT: u8 = 2;
+const ISAREPEAT: u8 = 4;
+const ISANABERRATION: u8 = 8;
+const ISAMINIMA: u8 = 16;
+
+/// `SPcomplex` arithmetic with the exact C macro formulas (`complex.h`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Cx {
+    re: Real,
+    im: Real,
+}
+
+impl Cx {
+    const ZERO: Self = Self { re: 0.0, im: 0.0 };
+    fn new(re: Real, im: Real) -> Self {
+        Self { re, im }
     }
-    candidates.sort_by(|x, y| x.0.total_cmp(&y.0));
-    let scale = roots.iter().fold(0.0_f64, |m, z| m.max(z.re.hypot(z.im)));
-    let mut used = vec![false; n];
-    let mut representatives = Vec::with_capacity(n);
-    for (cost, i, j) in candidates {
-        if used[i] || used[j] {
-            continue;
-        }
-        if cost > CONJUGATE_PAIR_TOLERANCE * scale {
-            return Err(error(format!(
-                "computed roots are not conjugate-symmetric (pairing distance {cost:e} at \
-                 root magnitude {scale:e})"
-            )));
-        }
-        used[i] = true;
-        used[j] = true;
-        let (z, w) = (roots[i], roots[j]);
-        if i == j {
-            representatives.push(Complex::new(z.re, 0.0));
-        } else {
-            let m = Complex::new(0.5 * (z.re + w.re), 0.5 * (z.im - w.im).abs());
-            if m.im == 0.0 {
-                representatives.push(m);
-                representatives.push(m);
+    fn scale(self, k: Real) -> Self {
+        Self::new(k * self.re, k * self.im)
+    }
+    /// `C_SUBEQ`.
+    fn sub(self, b: Self) -> Self {
+        Self::new(self.re - b.re, self.im - b.im)
+    }
+    /// `C_ADDEQ`.
+    fn add(self, b: Self) -> Self {
+        Self::new(self.re + b.re, self.im + b.im)
+    }
+    /// `C_MULEQ` / `C_MUL`.
+    fn mul(self, b: Self) -> Self {
+        Self::new(
+            self.re * b.re - self.im * b.im,
+            self.re * b.im + self.im * b.re,
+        )
+    }
+    /// `C_DIV` / `C_DIVEQ`.
+    fn div(self, b: Self) -> Self {
+        let mag = b.re * b.re + b.im * b.im;
+        Self::new(
+            (self.re * b.re + self.im * b.im) / mag,
+            (-self.re * b.im + self.im * b.re) / mag,
+        )
+    }
+    /// `C_MAG2`: squared modulus as the real part.
+    fn mag2(self) -> Self {
+        Self::new(self.re * self.re + self.im * self.im, 0.0)
+    }
+    /// `C_SQRT`.
+    fn sqrt(self) -> Self {
+        if self.im == 0.0 {
+            if self.re < 0.0 {
+                Self::new(0.0, (-self.re).sqrt())
             } else {
-                representatives.push(m);
+                Self::new(self.re.sqrt(), 0.0)
+            }
+        } else {
+            let mag = self.re.hypot(self.im);
+            let a = (mag - self.re) / 2.0;
+            if a <= 0.0 {
+                let re = mag.sqrt();
+                Self::new(re, self.im / (2.0 * re))
+            } else {
+                let a = a.sqrt();
+                Self::new(self.im / (2.0 * a), a)
             }
         }
     }
-    representatives.sort_by(|x, y| x.re.total_cmp(&y.re).then(x.im.total_cmp(&y.im)));
-    let mut ordered = Vec::with_capacity(n);
-    for z in representatives {
-        ordered.push(z);
-        if z.im > 0.0 {
-            ordered.push(Complex::new(z.re, -z.im));
+    fn is_zero(self) -> bool {
+        self.re == 0.0 && self.im == 0.0
+    }
+}
+
+/// `C_NORM`: scale `a` into `(0.5, 1]` per component, tracking the binary
+/// exponent in `mag` (set to zero for a zero value).
+fn c_norm(a: &mut Cx, mag: &mut i32) {
+    if a.is_zero() {
+        *mag = 0;
+        return;
+    }
+    while a.re.abs() > 1.0 || a.im.abs() > 1.0 {
+        *mag += 1;
+        a.re /= 2.0;
+        a.im /= 2.0;
+    }
+    while a.re.abs() <= 0.5 && a.im.abs() <= 0.5 {
+        *mag -= 1;
+        a.re *= 2.0;
+        a.im *= 2.0;
+    }
+}
+
+/// `R_NORM`.
+fn r_norm(a: &mut Real, mag: &mut i32) {
+    if *a == 0.0 {
+        *mag = 0;
+        return;
+    }
+    while a.abs() > 1.0 {
+        *mag += 1;
+        *a /= 2.0;
+    }
+    while a.abs() < 0.5 {
+        *mag -= 1;
+        *a *= 2.0;
+    }
+}
+
+/// `zaddeq`: `a * 2^amag = x * 2^xmag + y * 2^ymag`, normalized.
+fn zaddeq(x: Real, xmag: i32, y: Real, ymag: i32) -> (Real, i32) {
+    let (mut x, mut y) = (x, y);
+    let mut amag;
+    if xmag > ymag {
+        amag = xmag;
+        if xmag > 50 + ymag {
+            y = 0.0;
+        } else {
+            for _ in 0..(xmag - ymag) {
+                y /= 2.0;
+            }
+        }
+    } else {
+        amag = ymag;
+        if ymag > 50 + xmag {
+            x = 0.0;
+        } else {
+            for _ in 0..(ymag - xmag) {
+                x /= 2.0;
+            }
         }
     }
-    Ok(ordered)
+    let mut a = x + y;
+    if a == 0.0 {
+        amag = 0;
+    } else {
+        while a.abs() > 1.0 {
+            a /= 2.0;
+            amag += 1;
+        }
+        while a.abs() < 0.5 {
+            a *= 2.0;
+            amag -= 1;
+        }
+    }
+    (a, amag)
+}
+
+fn sgn(x: Real) -> i32 {
+    if x < 0.0 {
+        -1
+    } else if x == 0.0 {
+        0
+    } else {
+        1
+    }
+}
+
+/// C `logb`: the unbiased binary exponent of a nonzero finite value.
+fn logb(x: Real) -> Real {
+    let exponent = ((x.abs().to_bits() >> 52) & 0x7ff) as i32;
+    if exponent == 0 {
+        x.abs().log2().floor()
+    } else {
+        Real::from(exponent - 1023)
+    }
+}
+
+/// `SMPcDProd`: SPARSE's `mantissa * 10^p` as a base-2 mantissa/exponent.
+fn base2_determinant(mantissa: Complex, p: i32) -> (Cx, i32) {
+    let (mut re, mut im) = (mantissa.re, mantissa.im);
+    let mut y = Real::from(p) * std::f64::consts::LN_10 / std::f64::consts::LN_2;
+    let x = y.trunc();
+    y -= x;
+    let z = 2.0_f64.powf(y);
+    re *= z;
+    im *= z;
+    let (mut y, z) = if re != 0.0 {
+        (logb(re), if im != 0.0 { logb(im) } else { 0.0 })
+    } else if im != 0.0 {
+        (0.0, logb(im))
+    } else {
+        (0.0, 0.0)
+    };
+    if y < z {
+        y = z;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let exponent = (x + y) as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let shift = 2.0_f64.powi(-(y as i32));
+    (Cx::new(re * shift, im * shift), exponent)
+}
+
+#[derive(Debug, Clone)]
+struct Trial {
+    s: Cx,
+    f_def: Cx,
+    mag_def: i32,
+    multiplicity: u32,
+    flags: u8,
+    count: u32,
+    next: Option<usize>,
+    prev: Option<usize>,
+}
+
+type Set = [Option<usize>; 3];
+
+/// The SPARSE matrix, its element per term and its drive elements.
+type Loaded = (Sparse<Complex>, Vec<usize>, [Option<usize>; 2]);
+
+/// One `CKTpzFindZeros` run with its file-scope state.
+struct Search<'a> {
+    load: &'a PencilLoad,
+    sparse: Option<Loaded>,
+    structurally_singular: bool,
+    trials: Vec<Trial>,
+    head: Option<usize>,
+    zero_trial: Option<usize>,
+    nzeros: usize,
+    nflat: usize,
+    max_zeros: usize,
+    seq_num: usize,
+    guess_param: Real,
+    high_guess: Real,
+    low_guess: Real,
+    last_move: u8,
+    consec_moves: u32,
+    niter: usize,
+    aberr_num: usize,
+    trapped: u8,
+    pz_k: Real,
+    pz_k_mag: i32,
+}
+
+/// Roots of `det(A + s E)` found by ngspice's pole-zero search
+/// ([`PencilLoad::from_dense`] + [`pencil_load_roots`]).
+///
+/// # Errors
+/// As [`pencil_load_roots`], and non-square or mismatched matrices.
+pub fn pencil_roots(a: &Matrix, e: &Matrix) -> SpiceResult<PencilRoots> {
+    pencil_load_roots(&PencilLoad::from_dense(a, e)?)
+}
+
+/// Roots of the determinant of `load` as a function of `s`, found by
+/// ngspice's pole-zero search (`CKTpzFindZeros`).
+///
+/// # Errors
+/// An empty matrix, out-of-range positions or non-finite terms, a
+/// determinant that vanishes at every trial (C `E_SHORT`, reported as a
+/// "singular pencil"), or the search losing numerical stability (C
+/// `E_PANIC`).
+pub fn pencil_load_roots(load: &PencilLoad) -> SpiceResult<PencilRoots> {
+    load.validate()?;
+    let n = load.order;
+    let mut search = Search {
+        load,
+        sparse: None,
+        structurally_singular: false,
+        trials: Vec::new(),
+        head: None,
+        zero_trial: None,
+        nzeros: 0,
+        nflat: 0,
+        max_zeros: n,
+        seq_num: 1,
+        guess_param: 0.0,
+        high_guess: -1.0,
+        low_guess: 1.0,
+        last_move: 0,
+        consec_moves: 0,
+        niter: 0,
+        aberr_num: 0,
+        trapped: 0,
+        pz_k: 0.0,
+        pz_k_mag: 0,
+    };
+    search.find_zeros().map(|roots| PencilRoots { roots })
+}
+
+impl Search<'_> {
+    fn s(&self, i: Option<usize>) -> Cx {
+        self.trials[i.expect("C dereferences this neighborhood entry")].s
+    }
+
+    /// `CKTpzFindZeros`.
+    fn find_zeros(&mut self) -> SpiceResult<Vec<Complex>> {
+        let mut set: Set = [None; 3];
+        self.reset(&mut set);
+        loop {
+            let mut strat;
+            loop {
+                strat = self.strat(&set)?;
+                if !(strat < GUESS && self.trapped == 0) {
+                    break;
+                }
+                if !self.step(strat, &mut set) {
+                    strat = GUESS;
+                    break;
+                }
+            }
+            self.niter += 1;
+            let candidate = self.eval(strat, &set)?;
+            let new = self.run_trial(candidate, &set)?;
+            let flags = self.trials[new].flags;
+            if flags & ISAROOT != 0 {
+                if self.verify(new) {
+                    self.niter = 0;
+                    self.reset(&mut set);
+                } else {
+                    self.update_set(&mut set, new);
+                }
+            } else if flags & ISANABERRATION != 0 {
+                self.reset(&mut set);
+                self.aberr_num += 1;
+            } else if flags & ISAMINIMA != 0 {
+                set = [None, Some(new), None];
+            } else {
+                self.update_set(&mut set, new);
+            }
+            let spread = self.high_guess - self.low_guess;
+            let open = set[0].is_none()
+                || set[2].is_none()
+                || self.trapped != 0
+                || self.s(set[2]).re - self.s(set[0]).re < 1e22;
+            if !(spread < 1e40
+                && self.nzeros < self.max_zeros
+                && self.niter < NITER_LIM
+                && self.aberr_num < 3
+                && spread < 1e35
+                && open)
+            {
+                break;
+            }
+        }
+        if self.nzeros + 1 >= self.seq_num {
+            return Err(numerical(
+                "pole-zero search",
+                "singular pencil: the determinant vanished at every trial (C E_SHORT, \
+                 \"The input signal is shorted on the way to the output\")",
+            ));
+        }
+        if self.aberr_num > 2 {
+            eprintln!(
+                "warning: Pole-zero converging to numerical aberrations; giving up after {} trials",
+                self.seq_num
+            );
+        }
+        if self.niter >= NITER_LIM {
+            eprintln!(
+                "warning: Pole-zero iteration limit reached; giving up after {} trials",
+                self.seq_num
+            );
+        }
+        // clear_trials(0) and PZpost.
+        let mut roots = Vec::new();
+        let mut t = self.head;
+        while let Some(i) = t {
+            let trial = &self.trials[i];
+            if trial.flags & ISAROOT != 0 {
+                for _ in 0..trial.multiplicity {
+                    roots.push(Complex::new(trial.s.re, trial.s.im));
+                    if trial.s.im != 0.0 {
+                        roots.push(Complex::new(trial.s.re, -trial.s.im));
+                    }
+                }
+            }
+            t = trial.next;
+        }
+        Ok(roots)
+    }
+
+    /// `PZeval`: the next trial point for a strategy (not yet in the list).
+    fn eval(&mut self, strat: u8, set: &Set) -> SpiceResult<usize> {
+        let mut trial = Trial {
+            s: Cx::ZERO,
+            f_def: Cx::ZERO,
+            mag_def: 0,
+            multiplicity: 0,
+            flags: 0,
+            count: 0,
+            next: None,
+            prev: None,
+        };
+        self.seq_num += 1;
+        match strat {
+            GUESS => {
+                if self.high_guess < self.low_guess {
+                    self.guess_param = 0.0;
+                } else if self.guess_param > 0.0 {
+                    self.guess_param = if self.high_guess > 0.0 {
+                        self.high_guess * 10.0
+                    } else {
+                        1.0
+                    };
+                } else {
+                    self.guess_param = if self.low_guess < 0.0 {
+                        self.low_guess * 10.0
+                    } else {
+                        -1.0
+                    };
+                }
+                if self.high_guess < self.guess_param {
+                    self.high_guess = self.guess_param;
+                }
+                if self.low_guess > self.guess_param {
+                    self.low_guess = self.guess_param;
+                }
+                trial.s.re = self.guess_param;
+                trial.s.im = set[1].map_or(0.0, |i| self.trials[i].s.im);
+            }
+            SYM | SYM2 => {
+                trial.s = Cx::new(self.sym2(set)?, 0.0);
+                let (s0, s1) = (self.s(set[0]), self.s(set[1]));
+                match self.trapped {
+                    1 => {
+                        if trial.s.re < s0.re || trial.s.re > s1.re {
+                            trial.s.re = (s0.re + s1.re) / 2.0;
+                        }
+                    }
+                    2 => {
+                        let s2 = self.s(set[2]);
+                        if trial.s.re < s1.re || trial.s.re > s2.re {
+                            trial.s.re = (s1.re + s2.re) / 2.0;
+                        }
+                    }
+                    3 => {
+                        let s2 = self.s(set[2]);
+                        if trial.s.re <= s0.re
+                            || (trial.s.re == s1.re && trial.s.im == s1.im)
+                            || trial.s.re >= s2.re
+                        {
+                            trial.s.re = (s0.re + s2.re) / 2.0;
+                            if trial.s.re == s1.re {
+                                trial.s.re =
+                                    if self.last_move == MID_LEFT || self.last_move == NEAR_RIGHT {
+                                        (s0.re + s1.re) / 2.0
+                                    } else {
+                                        (s1.re + s2.re) / 2.0
+                                    };
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            COMPLEX_INIT => {
+                trial.s.re = self.s(set[1]).re;
+                if self.pz_k != 0.0 && self.pz_k_mag > -10 {
+                    while self.pz_k_mag > 0 {
+                        self.pz_k *= 2.0;
+                        self.pz_k_mag -= 1;
+                    }
+                    while self.pz_k_mag < 0 {
+                        self.pz_k /= 2.0;
+                        self.pz_k_mag += 1;
+                    }
+                    trial.s.im = self.pz_k;
+                } else {
+                    trial.s.im = 10000.0;
+                }
+                self.pz_k = 0.0;
+                self.pz_k_mag = 0;
+            }
+            COMPLEX_GUESS => {
+                trial.s.re = self.s(set[0]).re;
+                trial.s.im = if set[2].is_none() { 1.0e8 } else { 1.0e12 };
+            }
+            MULLER => trial.s = self.muller(set),
+            SPLIT_LEFT => {
+                trial.s.re = (self.s(set[0]).re + 2.0 * self.s(set[1]).re) / 3.0;
+            }
+            SPLIT_RIGHT => {
+                trial.s.re = (self.s(set[2]).re + 2.0 * self.s(set[1]).re) / 3.0;
+            }
+            _ => return Err(numerical("pole-zero search", "Step type unknown")),
+        }
+        self.trials.push(trial);
+        Ok(self.trials.len() - 1)
+    }
+
+    /// `CKTpzStrat`.
+    #[allow(clippy::needless_late_init)] // keeps C's branch structure
+    fn strat(&mut self, set: &Set) -> SpiceResult<u8> {
+        let mut new_trap = 0;
+        let suggestion;
+        let minima = set[1].is_some_and(|i| self.trials[i].flags & ISAMINIMA != 0);
+        if minima {
+            suggestion = COMPLEX_INIT;
+        } else if set[0].is_some_and(|i| self.trials[i].s.im != 0.0) {
+            suggestion = if set[1].is_none() || set[2].is_none() {
+                COMPLEX_GUESS
+            } else {
+                MULLER
+            };
+        } else if set.iter().any(Option::is_none) {
+            suggestion = INIT;
+        } else {
+            let t0 = &self.trials[set[0].unwrap_or_default()];
+            let t1 = &self.trials[set[1].unwrap_or_default()];
+            let t2 = &self.trials[set[2].unwrap_or_default()];
+            let mut chosen;
+            if sgn(t0.f_def.re) != sgn(t1.f_def.re) {
+                new_trap = 1;
+                chosen = SYM2;
+            } else if sgn(t1.f_def.re) != sgn(t2.f_def.re) {
+                new_trap = 2;
+                chosen = SYM2;
+            } else {
+                let (a, a_mag) = zaddeq(t1.f_def.re, t1.mag_def, -t0.f_def.re, t0.mag_def);
+                let (b, b_mag) = zaddeq(t2.f_def.re, t2.mag_def, -t1.f_def.re, t1.mag_def);
+                if self.trapped == 0 {
+                    let k1 = t1.s.re - t0.s.re;
+                    let k2 = t2.s.re - t1.s.re;
+                    chosen = if a_mag + 10 < t0.mag_def
+                        && a_mag + 10 < t1.mag_def
+                        && b_mag + 10 < t1.mag_def
+                        && b_mag + 10 < t2.mag_def
+                    {
+                        if k1 > k2 { SKIP_RIGHT } else { SKIP_LEFT }
+                    } else if sgn(a) != -sgn(b) {
+                        if a == 0.0 {
+                            SKIP_LEFT
+                        } else if b == 0.0 {
+                            SKIP_RIGHT
+                        } else if sgn(a) == sgn(t1.f_def.re) {
+                            SHIFT_LEFT
+                        } else {
+                            SHIFT_RIGHT
+                        }
+                    } else if sgn(a) == -sgn(t1.f_def.re) {
+                        new_trap = 3;
+                        SYM
+                    } else if k1 > k2 {
+                        SKIP_RIGHT
+                    } else {
+                        SKIP_LEFT
+                    };
+                } else {
+                    new_trap = 3;
+                    chosen = if sgn(a) != sgn(b) {
+                        SYM
+                    } else if a_mag > b_mag || (a_mag == b_mag && a.abs() > b.abs()) {
+                        SPLIT_LEFT
+                    } else {
+                        SPLIT_RIGHT
+                    };
+                }
+            }
+            if self.consec_moves >= 3 && self.trapped == new_trap {
+                new_trap = self.trapped;
+                chosen = if self.last_move == MID_LEFT || self.last_move == NEAR_RIGHT {
+                    SPLIT_LEFT
+                } else if self.last_move == MID_RIGHT || self.last_move == NEAR_LEFT {
+                    SPLIT_RIGHT
+                } else {
+                    return Err(numerical(
+                        "pole-zero search",
+                        "trapped search has no usable last move (C calls controlled_exit)",
+                    ));
+                };
+                self.consec_moves = 0;
+            }
+            suggestion = chosen;
+        }
+        self.trapped = new_trap;
+        Ok(suggestion)
+    }
+
+    /// Loads the matrix at `s` and returns SPARSE's determinant
+    /// (`CKTpzLoad`, `SMPcReorder(1e-30, 0)`, `SMPcDProd`), or `None` when
+    /// singular. The matrix is created on the first trial, unordered (C
+    /// runs no `SMPpreOrder` for SPARSE), and keeps its pivot order between
+    /// trials while the pivots pass the threshold test.
+    fn determinant_at(&mut self, s: Cx) -> Option<(Cx, i32)> {
+        if self.structurally_singular {
+            return None;
+        }
+        let load = self.load;
+        if self.sparse.is_none() {
+            let mut sparse = Sparse::new(load.order);
+            for &(row, col) in &load.elements {
+                sparse.get_element(row + 1, col + 1);
+            }
+            let handles = load
+                .terms
+                .iter()
+                .map(|t| sparse.get_element(t.row + 1, t.col + 1))
+                .collect();
+            let drive = match load.solution {
+                Some(col) => load
+                    .drive
+                    .map(|row| row.map(|row| sparse.get_element(row + 1, col + 1))),
+                None => [None, None],
+            };
+            if !sparse.fully_translated() {
+                self.structurally_singular = true;
+                return None;
+            }
+            self.sparse = Some((sparse, handles, drive));
+        }
+        let (sparse, handles, drive) = self.sparse.as_mut()?;
+        sparse.clear();
+        for (term, &handle) in load.terms.iter().zip(handles.iter()) {
+            sparse.add(handle, term.at(s));
+        }
+        if let Some(solution) = load.solution {
+            if let Some(balance) = load.balance {
+                sparse.add_col(balance + 1, solution + 1);
+            }
+            sparse.zero_col(solution + 1);
+        }
+        for (element, value) in drive.iter().zip([1.0, -1.0]) {
+            if let Some(element) = *element {
+                let im = sparse.value(element).im;
+                sparse.set(element, Complex::new(value, im));
+            }
+        }
+        match sparse.order_and_factor(load.relative_threshold, 1.0e-30) {
+            Status::Singular | Status::ZeroDiag => None,
+            Status::Okay | Status::SmallPivot => {
+                let (mantissa, exponent) = sparse.determinant();
+                Some(base2_determinant(mantissa, exponent))
+            }
+        }
+    }
+
+    /// `CKTpzRunTrial`: evaluates (or merges) a trial and links it into the
+    /// sorted list. Returns the trial now standing for it.
+    fn run_trial(&mut self, candidate: usize, set: &Set) -> SpiceResult<usize> {
+        let mut new = candidate;
+        if self.trials[new].s.im < 0.0 {
+            self.trials[new].s.im *= -1.0;
+        }
+        let mut pretest = false;
+        let mut shifted = false;
+        let mut repeat = false;
+        let mut def_frac;
+        let mut def_mag;
+        let mut prev;
+        let mut matched;
+        let mut hit = None;
+        loop {
+            def_mag = 0;
+            def_frac = Cx::new(1.0, 0.0);
+            let was_shifted = shifted;
+            shifted = false;
+            prev = None;
+            matched = None;
+            let mut p = self.head;
+            while let Some(pi) = p {
+                let diff = self.trials[pi].s.sub(self.trials[new].s);
+                if diff.re < 0.0 || (diff.re == 0.0 && diff.im < 0.0) {
+                    prev = Some(pi);
+                }
+                let root = self.trials[pi].flags & ISAROOT != 0;
+                let (abstol, reltol) = if root { (1e-5, 1e-6) } else { (1e-20, 1e-12) };
+                if diff.im == 0.0
+                    && diff.re.abs() / (self.trials[pi].s.re.abs() + abstol / reltol) < reltol
+                {
+                    if was_shifted
+                        || self.trials[pi].count >= 3
+                        || !self.alter(new, set[1], abstol, reltol)
+                    {
+                        self.trials[pi].count = 0;
+                        pretest = true;
+                        hit = Some(pi);
+                        break;
+                    }
+                    self.trials[pi].count += 1;
+                    shifted = true;
+                    break;
+                }
+                if self.trapped == 0 {
+                    self.trials[pi].count = 0;
+                }
+                if root {
+                    let mut diff = diff;
+                    let mut diff_mag = 0;
+                    c_norm(&mut diff, &mut diff_mag);
+                    if diff.im != 0.0 {
+                        diff = diff.mag2();
+                        diff_mag *= 2;
+                    }
+                    c_norm(&mut diff, &mut diff_mag);
+                    for _ in 0..self.trials[pi].multiplicity {
+                        def_frac = def_frac.mul(diff);
+                        def_mag += diff_mag;
+                        c_norm(&mut def_frac, &mut def_mag);
+                    }
+                } else if matched.is_none() {
+                    matched = Some(pi);
+                }
+                p = self.trials[pi].next;
+            }
+            if !shifted {
+                break;
+            }
+        }
+        let mut singular = false;
+        if pretest {
+            let p = hit.unwrap_or(new);
+            if self.trials[p].flags & ISAROOT == 0
+                && self.trapped == 3
+                && self.pz_k != 0.0
+                && self.pz_k_mag > -10
+            {
+                self.trials[p].flags |= ISAMINIMA;
+                new = p;
+                repeat = true;
+            } else if self.trials[p].flags & ISAROOT != 0 {
+                new = p;
+                self.trials[p].flags |= ISAREPEAT;
+                self.trials[p].multiplicity += 1;
+                repeat = true;
+            } else {
+                singular = true;
+            }
+        }
+        if !repeat {
+            let mut f_raw = Cx::ZERO;
+            let mut mag_raw = 0;
+            if !pretest {
+                match self.determinant_at(self.trials[new].s) {
+                    Some((f, mag)) => {
+                        f_raw = f;
+                        mag_raw = mag;
+                    }
+                    None => singular = true,
+                }
+            }
+            let trial = &mut self.trials[new];
+            if singular || f_raw.is_zero() {
+                trial.f_def = Cx::ZERO;
+                trial.mag_def = 0;
+                trial.flags = ISAROOT;
+            } else {
+                // PZnumswaps is always 1 after SMPcReorder.
+                trial.f_def = f_raw.div(def_frac);
+                trial.mag_def = mag_raw - def_mag;
+                c_norm(&mut trial.f_def, &mut trial.mag_def);
+            }
+            if let Some(prev) = prev {
+                let after = self.trials[prev].next;
+                self.trials[new].next = after;
+                if let Some(after) = after {
+                    self.trials[after].prev = Some(new);
+                }
+                self.trials[prev].next = Some(new);
+            } else {
+                match self.head {
+                    Some(head) => self.trials[head].prev = Some(new),
+                    None => self.zero_trial = Some(new),
+                }
+                self.trials[new].next = self.head;
+                self.head = Some(new);
+            }
+            self.trials[new].prev = prev;
+            if self.trials[new].flags & ISAROOT == 0 {
+                match matched {
+                    Some(m) => self.check_flat(m, new),
+                    None => self.nflat = 1,
+                }
+            }
+        }
+        Ok(new)
+    }
+
+    /// `CKTpzVerify`: count the root, deflate every stored non-root trial
+    /// by it and drop trials too close to it (always "verified").
+    fn verify(&mut self, new: usize) -> bool {
+        self.nzeros += 1;
+        let s = self.trials[new].s;
+        if s.im != 0.0 {
+            self.nzeros += 1;
+        }
+        self.nflat = 0;
+        if self.trials[new].multiplicity == 0 {
+            self.trials[new].flags |= ISAROOT;
+            self.trials[new].multiplicity = 1;
+        }
+        let mut prev: Option<usize> = None;
+        let mut t = self.head;
+        while let Some(ti) = t {
+            let next = self.trials[ti].next;
+            if self.trials[ti].flags & ISAROOT != 0 {
+                prev = Some(ti);
+                t = next;
+                continue;
+            }
+            let mut diff = s.sub(self.trials[ti].s);
+            if s.im != 0.0 {
+                diff = diff.mag2();
+            }
+            let tdiff = diff.re;
+            if diff.re != 0.0 {
+                let mut diff_mag = 0;
+                c_norm(&mut diff, &mut diff_mag);
+                diff_mag *= -1;
+                let trial = &mut self.trials[ti];
+                trial.f_def = trial.f_def.div(diff);
+                c_norm(&mut trial.f_def, &mut diff_mag);
+                trial.mag_def += diff_mag;
+            }
+            if self.trials[ti].s.im != 0.0 || tdiff.abs() / (s.re.abs() + 200.0) < 0.005 {
+                if let Some(p) = prev {
+                    self.trials[p].next = next;
+                }
+                if let Some(n) = next {
+                    self.trials[n].prev = prev;
+                }
+                if self.zero_trial == Some(ti) {
+                    self.zero_trial = next.or(self.trials[ti].prev);
+                }
+                if self.head == Some(ti) {
+                    self.head = next;
+                }
+            } else {
+                match prev {
+                    Some(p) => self.check_flat(p, ti),
+                    None => self.nflat = 1,
+                }
+                self.trials[ti].flags &= !ISAMINIMA;
+                prev = Some(ti);
+            }
+            t = next;
+        }
+        true
+    }
+
+    /// `pzseek`: the nearest non-root, non-minimum trial in a direction.
+    fn seek(&mut self, t: Option<usize>, dir: i32) -> Option<usize> {
+        self.guess_param = Real::from(dir);
+        let mut t = t?;
+        let skip = |trial: &Trial| trial.flags & (ISAROOT | ISAMINIMA) != 0;
+        if dir == 0 && !skip(&self.trials[t]) {
+            return Some(t);
+        }
+        loop {
+            let next = if dir >= 0 {
+                self.trials[t].next
+            } else {
+                self.trials[t].prev
+            };
+            t = next?;
+            if !skip(&self.trials[t]) {
+                return Some(t);
+            }
+        }
+    }
+
+    /// `CKTpzUpdateSet`.
+    fn update_set(&mut self, set: &mut Set, new: usize) {
+        let mut this_move = 0;
+        let trial = self.trials[new].clone();
+        let n = trial.s;
+        if n.im != 0.0 {
+            set[2] = set[1];
+            set[1] = set[0];
+            set[0] = Some(new);
+        } else if set[1].is_none() {
+            set[1] = Some(new);
+        } else if set[2].is_none() && n.re > self.s(set[1]).re {
+            set[2] = Some(new);
+        } else if set[0].is_none() {
+            set[0] = Some(new);
+        } else if trial.flags & ISAMINIMA != 0 {
+            set[1] = Some(new);
+        } else if n.re < self.s(set[0]).re {
+            set[2] = set[1];
+            set[1] = set[0];
+            set[0] = Some(new);
+            this_move = FAR_LEFT;
+        } else {
+            let middle = &self.trials[set[1].unwrap_or_default()];
+            let better = self.trapped == 0
+                || trial.mag_def < middle.mag_def
+                || (trial.mag_def == middle.mag_def
+                    && trial.f_def.re.abs() < middle.f_def.re.abs());
+            if n.re < middle.s.re {
+                if better {
+                    set[2] = set[1];
+                    set[1] = Some(new);
+                    this_move = MID_LEFT;
+                } else {
+                    set[0] = Some(new);
+                    this_move = NEAR_LEFT;
+                }
+            } else if set[2].is_some() && n.re < self.s(set[2]).re {
+                if better {
+                    set[0] = set[1];
+                    set[1] = Some(new);
+                    this_move = MID_RIGHT;
+                } else {
+                    set[2] = Some(new);
+                    this_move = NEAR_RIGHT;
+                }
+            } else {
+                set[0] = set[1];
+                set[1] = set[2];
+                set[2] = Some(new);
+                this_move = FAR_RIGHT;
+            }
+        }
+        if self.trapped != 0 && this_move == self.last_move {
+            self.consec_moves += 1;
+        } else {
+            self.consec_moves = 0;
+        }
+        self.last_move = this_move;
+    }
+
+    /// `check_flat`.
+    fn check_flat(&mut self, a: usize, b: usize) {
+        let (a, b) = (&self.trials[a], &self.trials[b]);
+        let diff_mag = a.mag_def - b.mag_def;
+        if diff_mag.abs() <= 1 {
+            let mult = match diff_mag {
+                1 => 2.0,
+                -1 => 0.5,
+                _ => 1.0,
+            };
+            let diff = a.f_def.scale(mult).sub(b.f_def).mag2();
+            if diff.re < 1.0e-20 {
+                self.nflat += 1;
+            }
+        }
+    }
+
+    /// `CKTpzStep`.
+    fn step(&mut self, strat: u8, set: &mut Set) -> bool {
+        match strat {
+            INIT => {
+                if set[1].is_none() {
+                    set[1] = self.seek(self.zero_trial, 0);
+                } else if set[2].is_none() {
+                    set[2] = self.seek(set[1], 1);
+                } else if set[0].is_none() {
+                    set[0] = self.seek(set[1], -1);
+                }
+            }
+            SKIP_LEFT => set[0] = self.seek(set[0], -1),
+            SKIP_RIGHT => set[2] = self.seek(set[2], 1),
+            SHIFT_LEFT => {
+                set[2] = set[1];
+                set[1] = set[0];
+                set[0] = self.seek(set[0], -1);
+            }
+            SHIFT_RIGHT => {
+                set[0] = set[1];
+                set[1] = set[2];
+                set[2] = self.seek(set[2], 1);
+            }
+            _ => {}
+        }
+        set.iter().all(Option::is_some)
+    }
+
+    /// `CKTpzReset`.
+    fn reset(&mut self, set: &mut Set) {
+        self.trapped = 0;
+        self.consec_moves = 0;
+        set[1] = self.seek(self.zero_trial, 0);
+        if set[1].is_some() {
+            set[0] = self.seek(set[1], -1);
+            set[2] = self.seek(set[1], 1);
+        } else {
+            set[0] = None;
+            set[2] = None;
+        }
+    }
+
+    /// `alter`: move a trial that collides with an existing one.
+    fn alter(&mut self, new: usize, nearto: Option<usize>, abstol: Real, reltol: Real) -> bool {
+        let Some(near) = nearto else {
+            return false;
+        };
+        let t = self.trials[near].clone();
+        let neighbor = |i: Option<usize>| i.map(|i| self.trials[i].s.re);
+        let (left, right) = (neighbor(t.prev), neighbor(t.next));
+        let root = t.flags & ISAROOT != 0;
+        let p1 = if self.trapped == 2 {
+            t.s.re
+        } else {
+            let mut p1 = t.s.re;
+            if root {
+                p1 -= 1e-6 * t.s.re + 1e-5;
+            }
+            match left {
+                Some(l) => p1 += l,
+                None => p1 -= 10.0 * (p1.abs() + 1.0),
+            }
+            p1 / 2.0
+        };
+        let p2 = if self.trapped == 1 {
+            t.s.re
+        } else {
+            let mut p2 = t.s.re;
+            if root {
+                p2 += 1e-6 * t.s.re + 1e-5;
+            }
+            match right {
+                Some(r) => p2 += r,
+                None => p2 += 10.0 * (p2.abs() + 1.0),
+            }
+            p2 / 2.0
+        };
+        // C's precedence: |p - x| / |x| + abstol / reltol < reltol.
+        if left.is_some_and(|l| (p1 - l).abs() / l.abs() + abstol / reltol < reltol)
+            || right.is_some_and(|r| (p2 - r).abs() / r.abs() + abstol / reltol < reltol)
+        {
+            return false;
+        }
+        self.trials[new].s.re = if self.trapped != 2 && t.s.re - p1 > p2 - t.s.re {
+            p1
+        } else {
+            p2
+        };
+        true
+    }
+
+    /// `NIpzSym2`: deflated quadratic fit through three real trials.
+    fn sym2(&mut self, set: &Set) -> SpiceResult<Real> {
+        let t = |i: Option<usize>| self.trials[i.unwrap_or_default()].clone();
+        let (t0, t1, t2) = (t(set[0]), t(set[1]), t(set[2]));
+        let mut dx0 = t1.s.re - t0.s.re;
+        let mut dx1 = t2.s.re - t1.s.re;
+        let x0 = (t0.s.re + t1.s.re) / 2.0;
+        let mut d2x = (t2.s.re - t0.s.re) / 2.0;
+
+        let (mut a, mut a_mag) = zaddeq(t1.f_def.re, t1.mag_def, -t0.f_def.re, t0.mag_def);
+        let mut tmag = 0;
+        r_norm(&mut dx0, &mut tmag);
+        a /= dx0;
+        a_mag -= tmag;
+        r_norm(&mut a, &mut a_mag);
+
+        let (mut b, mut b_mag) = zaddeq(t2.f_def.re, t2.mag_def, -t1.f_def.re, t1.mag_def);
+        tmag = 0;
+        r_norm(&mut dx1, &mut tmag);
+        b /= dx1;
+        b_mag -= tmag;
+        r_norm(&mut b, &mut b_mag);
+
+        let (mut c, mut c_mag) = zaddeq(b, b_mag, -a, a_mag);
+        tmag = 0;
+        r_norm(&mut d2x, &mut tmag);
+        c /= d2x;
+        c_mag -= tmag;
+        r_norm(&mut c, &mut c_mag);
+
+        if c == 0.0 || ((a == 0.0 || c_mag < a_mag - 40) && (b == 0.0 || c_mag < b_mag - 40)) {
+            if a == 0.0 {
+                a = b;
+                a_mag = b_mag;
+            }
+            if a == 0.0 {
+                return Ok(t1.s.re);
+            }
+            let mut s = -t1.f_def.re / a;
+            a_mag -= t1.mag_def;
+            while a_mag > 0 {
+                s /= 2.0;
+                a_mag -= 1;
+            }
+            while a_mag < 0 {
+                s *= 2.0;
+                a_mag += 1;
+            }
+            return Ok(s + t1.s.re);
+        }
+
+        a /= c;
+        r_norm(&mut a, &mut a_mag);
+        a_mag -= c_mag;
+        let mut diff = t1.s.re - x0;
+        tmag = 0;
+        r_norm(&mut diff, &mut tmag);
+        (a, a_mag) = zaddeq(a, a_mag, diff, tmag);
+
+        b = 2.0 * t1.f_def.re / c;
+        b_mag = t1.mag_def - c_mag;
+        r_norm(&mut b, &mut b_mag);
+
+        let (mut disc, mut disc_mag) = zaddeq(a * a, 2 * a_mag, -b, b_mag);
+        let mut complex = false;
+        if disc < 0.0 {
+            disc *= -1.0;
+            complex = true;
+        }
+        if disc_mag % 2 == 0 {
+            disc = disc.sqrt();
+        } else {
+            disc = (2.0 * disc).sqrt();
+            disc_mag -= 1;
+        }
+        disc_mag /= 2;
+        if complex {
+            if self.pz_k == 0.0 {
+                self.pz_k = disc;
+                self.pz_k_mag = disc_mag;
+            }
+            disc = 0.0;
+            disc_mag = 0;
+        }
+        (c, c_mag) = if a * disc >= 0.0 {
+            zaddeq(a, a_mag, disc, disc_mag)
+        } else {
+            zaddeq(a, a_mag, -disc, disc_mag)
+        };
+        if c != 0.0 {
+            b /= c;
+            b_mag -= c_mag;
+        } else {
+            b = 0.0;
+            b_mag = 0;
+        }
+        (b, b_mag) = zaddeq(t1.s.re, 0, -b, b_mag);
+        (c, c_mag) = zaddeq(t1.s.re, 0, -c, c_mag);
+        while b_mag > 0 {
+            b *= 2.0;
+            b_mag -= 1;
+        }
+        while b_mag < 0 {
+            b /= 2.0;
+            b_mag += 1;
+        }
+        while c_mag > 0 {
+            c *= 2.0;
+            c_mag -= 1;
+        }
+        while c_mag < 0 {
+            c /= 2.0;
+            c_mag += 1;
+        }
+        let outside = |x: Real| x < t0.s.re || x > t2.s.re;
+        Ok(if outside(b) {
+            if outside(c) {
+                match self.trapped {
+                    1 => (t0.s.re + t1.s.re) / 2.0,
+                    2 => (t1.s.re + t2.s.re) / 2.0,
+                    3 => {
+                        if (t1.s.re - c).abs() < (t1.s.re - b).abs() {
+                            (t1.s.re + c) / 2.0
+                        } else {
+                            (t1.s.re + b) / 2.0
+                        }
+                    }
+                    _ => {
+                        return Err(numerical("pole-zero search", "Lost numerical stability"));
+                    }
+                }
+            } else {
+                c
+            }
+        } else if outside(c) || a > 0.0 {
+            b
+        } else {
+            c
+        })
+    }
+
+    /// `NIpzMuller`.
+    fn muller(&self, set: &Set) -> Cx {
+        let t: [&Trial; 3] = std::array::from_fn(|i| &self.trials[set[i].unwrap_or_default()]);
+        let mut min = -999_999;
+        let mut count = 0;
+        let mut total = 0;
+        for trial in t {
+            if !trial.f_def.is_zero() {
+                if min < trial.mag_def - 50 {
+                    min = trial.mag_def - 50;
+                }
+                total += trial.mag_def;
+                count += 1;
+            }
+        }
+        let mut magx = if count != 0 { total / count } else { total };
+        if magx < min {
+            magx = min;
+        }
+        let mut scale = [1.0; 3];
+        for (i, trial) in t.iter().enumerate() {
+            let mut mag = trial.mag_def - magx;
+            while mag > 0 {
+                scale[i] *= 2.0;
+                mag -= 1;
+            }
+            if mag < -90 {
+                scale[i] = 0.0;
+            } else {
+                while mag < 0 {
+                    scale[i] /= 2.0;
+                    mag += 1;
+                }
+            }
+        }
+        let f: [Cx; 3] = std::array::from_fn(|i| t[i].f_def.scale(scale[i]));
+        let h0 = t[0].s.sub(t[1].s);
+        let h1 = t[1].s.sub(t[2].s);
+        let lambda = h0.div(h1);
+        let mut delta = lambda;
+        delta.re += 1.0;
+
+        let mut a = f[2].mul(lambda);
+        let mut c = f[1].mul(delta);
+        a = a.sub(c);
+        a = a.add(f[0]);
+        a = a.mul(lambda);
+
+        let mut b = lambda.mul(lambda);
+        b = b.mul(f[2]);
+        c = delta.mul(delta);
+        c = c.mul(f[1]);
+        b = b.sub(c);
+        c = lambda.add(delta);
+        c = c.mul(f[0]);
+        b = b.add(c);
+
+        c = delta.mul(f[0]);
+
+        while a.re.abs() > 1.0
+            || a.im.abs() > 1.0
+            || b.re.abs() > 1.0
+            || b.im.abs() > 1.0
+            || c.re.abs() > 1.0
+            || c.im.abs() > 1.0
+        {
+            a = a.scale(0.5);
+            b = b.scale(0.5);
+            c = c.scale(0.5);
+        }
+        let mut d = b.mul(b);
+        let e = a.scale(4.0).mul(c);
+        d = d.sub(e);
+        d = d.sqrt();
+        let q = b.re * d.re + b.im * d.im;
+        b = if q > 0.0 { b.add(d) } else { b.sub(d) };
+        c = c.div(b.scale(-0.5));
+        h0.mul(c).add(t[0].s)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn matrix(n: usize, values: &[Real]) -> Matrix {
-        let mut m = Matrix::zeros(n, n);
-        m.data_mut().copy_from_slice(values);
+    fn matrix(rows: &[&[Real]]) -> Matrix {
+        let mut m = Matrix::zeros(rows.len(), rows.len());
+        for (r, row) in rows.iter().enumerate() {
+            for (c, value) in row.iter().enumerate() {
+                m.set(r, c, *value).unwrap();
+            }
+        }
         m
     }
 
-    fn close(z: Complex, re: Real, im: Real) -> bool {
-        let scale = re.abs().max(im.abs()).max(1.0);
-        (z.re - re).abs() <= 1e-10 * scale && (z.im - im).abs() <= 1e-10 * scale
+    fn close(found: &[Complex], expected: &[Complex]) {
+        assert_eq!(found.len(), expected.len(), "{found:?}");
+        for (f, e) in found.iter().zip(expected) {
+            assert!(
+                (f.re - e.re).abs() <= 1e-6 * e.re.abs().max(1.0)
+                    && (f.im - e.im).abs() <= 1e-6 * e.im.abs().max(1.0),
+                "{found:?} vs {expected:?}"
+            );
+        }
     }
 
     #[test]
-    fn diagonal_pencils_give_their_ratios() {
-        // (1 + s) (4 + 2 s): roots -1 and -2.
-        let roots =
-            pencil_roots(&matrix(2, &[1., 0., 0., 4.]), &matrix(2, &[1., 0., 0., 2.])).unwrap();
-        assert_eq!(roots.roots.len(), 2);
-        assert!(close(roots.roots[0], -2., 0.), "{roots:?}");
-        assert!(close(roots.roots[1], -1., 0.), "{roots:?}");
-        assert_eq!(roots.infinite, 0);
-    }
-
-    #[test]
-    fn complex_pairs_are_conjugate_and_positive_first() {
-        // s^2 + 2 s + 5 as a companion pencil: roots -1 +- 2j.
-        let a = matrix(2, &[0., -1., 5., 2.]);
-        let e = matrix(2, &[1., 0., 0., 1.]);
+    fn real_roots_of_an_rc_ladder() {
+        // det(A + sE) = (1 + s)(2 + s) for a diagonal pencil.
+        let a = matrix(&[&[1.0, 0.0], &[0.0, 2.0]]);
+        let e = matrix(&[&[1.0, 0.0], &[0.0, 1.0]]);
         let roots = pencil_roots(&a, &e).unwrap().roots;
-        assert_eq!(roots.len(), 2);
-        assert!(close(roots[0], -1., 2.), "{roots:?}");
-        assert_eq!(roots[1], Complex::new(roots[0].re, -roots[0].im));
+        close(&roots, &[Complex::new(-2.0, 0.0), Complex::new(-1.0, 0.0)]);
     }
 
     #[test]
-    fn index_one_infinite_eigenvalues_are_deflated() {
-        // RC node with a resistive neighbour: E has rank 1.
-        let a = matrix(2, &[2e-3, -1e-3, -1e-3, 1e-3]);
-        let e = matrix(2, &[0., 0., 0., 1e-6]);
-        let roots = pencil_roots(&a, &e).unwrap();
-        // det = 2e-3 (1e-3 + 1e-6 s) - 1e-6 = 1e-6 + 2e-9 s => s = -500.
-        assert_eq!(roots.roots.len(), 1);
-        assert!(close(roots.roots[0], -500., 0.), "{roots:?}");
-        assert_eq!(roots.infinite, 1);
-    }
-
-    #[test]
-    fn index_two_blocks_do_not_leak_spurious_roots() {
-        // A capacitor directly across an ideal voltage source (a CV loop),
-        // plus an RC section: x = [v1, v2, i].
-        //   KCL v1: C1 s v1 + g (v1 - v2) + i = 0
-        //   KCL v2: C2 s v2 + g (v2 - v1) + g v2 = 0
-        //   source: v1 = 0
-        let (g, c1, c2) = (1e-3, 1e-6, 2e-6);
-        let a = matrix(3, &[g, -g, 1., -g, 2. * g, 0., 1., 0., 0.]);
-        let e = matrix(3, &[c1, 0., 0., 0., c2, 0., 0., 0., 0.]);
-        let roots = pencil_roots(&a, &e).unwrap();
-        assert_eq!(roots.roots.len(), 1, "{roots:?}");
-        assert!(close(roots.roots[0], -2. * g / c2, 0.), "{roots:?}");
-        assert_eq!(roots.infinite, 2);
-    }
-
-    #[test]
-    fn singular_pencils_and_bad_input_are_errors() {
-        // A floating node: a zero row and column in both A and E.
-        let a = matrix(2, &[1., 0., 0., 0.]);
-        let e = matrix(2, &[1., 0., 0., 0.]);
-        let error = pencil_roots(&a, &e).unwrap_err();
-        assert!(error.to_string().contains("singular pencil"), "{error}");
-        let error = pencil_roots(&Matrix::zeros(2, 2), &Matrix::zeros(3, 3)).unwrap_err();
-        assert!(error.to_string().contains("square"), "{error}");
-        let error = pencil_roots(&matrix(1, &[Real::NAN]), &matrix(1, &[1.])).unwrap_err();
-        assert!(error.to_string().contains("non-finite"), "{error}");
-        assert!(
-            pencil_roots(&Matrix::zeros(0, 0), &Matrix::zeros(0, 0))
-                .unwrap()
-                .roots
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn purely_algebraic_regular_pencils_have_no_roots() {
-        let roots = pencil_roots(&matrix(2, &[1., 2., 3., 4.]), &Matrix::zeros(2, 2)).unwrap();
-        assert!(roots.roots.is_empty());
-        assert_eq!(roots.infinite, 2);
-    }
-
-    #[test]
-    fn widely_scaled_pencils_keep_their_roots() {
-        // Poles at -1e3 and -1e9 rad/s from 1 nF/1 uF and kohm/ohm values.
-        let a = matrix(2, &[1e-3, 0., 0., 1.]);
-        let e = matrix(2, &[1e-6, 0., 0., 1e-9]);
+    fn complex_pair_of_an_lc_tank() {
+        // s^2 + 0.2 s + 1: roots -0.1 +- j sqrt(0.99).
+        let a = matrix(&[&[0.2, 1.0], &[-1.0, 0.0]]);
+        let e = matrix(&[&[1.0, 0.0], &[0.0, 1.0]]);
         let roots = pencil_roots(&a, &e).unwrap().roots;
-        assert!(close(roots[0], -1e9, 0.), "{roots:?}");
-        assert!(close(roots[1], -1e3, 0.), "{roots:?}");
+        let w = 0.99_f64.sqrt();
+        close(&roots, &[Complex::new(-0.1, w), Complex::new(-0.1, -w)]);
+    }
+
+    #[test]
+    fn a_pencil_without_finite_roots_has_none() {
+        let a = matrix(&[&[1.0, 0.0], &[0.0, 1.0]]);
+        let e = matrix(&[&[0.0, 0.0], &[0.0, 0.0]]);
+        assert!(pencil_roots(&a, &e).unwrap().roots.is_empty());
+    }
+
+    #[test]
+    fn a_determinant_vanishing_everywhere_is_c_e_short() {
+        let a = matrix(&[&[1.0, 1.0], &[1.0, 1.0]]);
+        let e = matrix(&[&[1.0, 1.0], &[1.0, 1.0]]);
+        let error = pencil_roots(&a, &e).unwrap_err().to_string();
+        assert!(error.contains("singular pencil"), "{error}");
     }
 }

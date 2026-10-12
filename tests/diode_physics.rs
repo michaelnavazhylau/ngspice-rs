@@ -27,13 +27,13 @@ fn real(plot: &Plot, name: &str, point: usize) -> f64 {
     plot.value(name, point).unwrap().re
 }
 
-/// `diotemp.c` breakdown matching, stopped like C at its default RELTOL.
-fn matched_breakdown(bv: f64, ibv: f64, is: f64, vt: f64, nbv: f64) -> f64 {
+/// `diotemp.c` breakdown matching, stopped like C at RELTOL (`CKTreltol`).
+fn matched_breakdown(bv: f64, ibv: f64, is: f64, vt: f64, nbv: f64, reltol: f64) -> f64 {
     let mut x = bv - nbv * vt * (1. + ibv / is).ln();
     for _ in 0..25 {
         x = bv - nbv * vt * (ibv / is + 1. - x / vt).ln();
         let matched = is * (((bv - x) / (nbv * vt)).exp() - 1. + x / vt);
-        if (matched - ibv).abs() <= 1e-3 * ibv {
+        if (matched - ibv).abs() <= reltol * ibv {
             break;
         }
     }
@@ -42,16 +42,24 @@ fn matched_breakdown(bv: f64, ibv: f64, is: f64, vt: f64, nbv: f64) -> f64 {
 
 #[test]
 fn zener_regulator_operating_point_satisfies_the_breakdown_law() {
+    // Tight tolerances: with ngspice's defaults (reltol 1e-3, vntol 1e-6)
+    // NIiter returns the iterate its last load used (CKTrhsOld), and C
+    // ngspice (SPARSE) gives v(out) = 5.186604179174052 (the port's value
+    // bit for bit), where the junction current misses the breakdown law by
+    // 2.4e-3 relative (8e-5 V of the 5.19 V). RELTOL also stops diotemp.c's
+    // breakdown matching, mirrored by `matched_breakdown`.
+    let reltol = 1e-12;
     let p = simulate(
         "vin in 0 dc 12\nrs in out 100\ndz 0 out dz\nrl out 0 2k\n\
-         .model dz d(is=5e-14 n=1.05 bv=5.1 ibv=5m nbv=1.3)\n.op",
+         .model dz d(is=5e-14 n=1.05 bv=5.1 ibv=5m nbv=1.3)\n\
+         .options reltol=1e-12 vntol=1e-15 abstol=1e-18\n.op",
     );
     let vout = real(&p, "v(out)", 0);
     assert!((5.1..5.4).contains(&vout), "{vout}");
     // Current from anode (ground) to cathode (out) through the junction.
     let id = -((12. - vout) / 100. - vout / 2000.);
     let vt = K_OVER_Q * 300.15;
-    let xbv = matched_breakdown(5.1, 5e-3, 5e-14, vt, 1.3);
+    let xbv = matched_breakdown(5.1, 5e-3, 5e-14, vt, 1.3, reltol);
     let vd = -vout;
     let law = -5e-14 * (-(xbv + vd) / (1.3 * vt)).exp() + GMIN * vd;
     assert!((id - law).abs() <= 1e-7 * law.abs(), "{id} vs {law}");
@@ -67,8 +75,12 @@ fn temperature_sweep_follows_the_saturation_current_law() {
     let p = simulate(
         "i1 0 a dc 1m\nd1 a 0 dm\n\
          .model dm d(is=2e-14 n=1.05 eg=1.2 xti=2.5 tnom=35 rs=5 trs1=3m)\n\
+         .options reltol=1e-12 vntol=1e-15 abstol=1e-18\n\
          .dc temp -40 125 15",
     );
+    // Tight tolerances, as for the zener: with ngspice's defaults C ngspice
+    // (SPARSE) sweeps v(a) = 0.8296523385601169, 0.8026055747083235, ...
+    // (the port's values bit for bit), 1.4e-4 V from the law at -25 C.
     assert_eq!(p.point_count(), 12);
     let tn = 35. + 273.15;
     let mut previous = f64::INFINITY;

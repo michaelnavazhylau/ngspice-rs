@@ -189,9 +189,10 @@ impl Matrix {
         self.lu_decompose()?.solve(rhs)
     }
 
-    /// Eigenvalues of a real symmetric matrix, in nondecreasing order (faer's
-    /// self-adjoint eigensolver). Used for definiteness checks of small
-    /// coupled-inductance matrices; it is not a general eigensolver API.
+    /// Eigenvalues of a real symmetric matrix, in nondecreasing order, by
+    /// cyclic Jacobi rotations (accurate to a few ulps of the largest
+    /// eigenvalue). Used for definiteness checks of small coupled-inductance
+    /// matrices; it is not a general eigensolver API.
     ///
     /// # Errors
     ///
@@ -222,15 +223,63 @@ impl Matrix {
                 }
             }
         }
-        let matrix = faer::Mat::<Real>::from_fn(n, n, |row, col| self.data[row * n + col]);
-        let values = matrix
-            .self_adjoint_eigenvalues(faer::Side::Lower)
-            .map_err(|e| error(format!("decomposition failed: {e:?}")))?;
+        let values = jacobi_eigenvalues(self.data.clone(), n)
+            .ok_or_else(|| error("Jacobi rotations did not converge".to_owned()))?;
         if values.iter().any(|value| !value.is_finite()) {
             return Err(error("nonfinite eigenvalue".to_owned()));
         }
         Ok(values)
     }
+}
+
+/// Cyclic Jacobi eigenvalues of the symmetric row-major `a` (n x n), sorted.
+/// `None` if the off-diagonal mass fails to vanish within the sweep budget.
+fn jacobi_eigenvalues(mut a: Vec<Real>, n: usize) -> Option<Vec<Real>> {
+    let off = |a: &[Real]| -> Real {
+        let mut sum = 0.0;
+        for row in 0..n {
+            for col in 0..n {
+                if row != col {
+                    sum += a[row * n + col] * a[row * n + col];
+                }
+            }
+        }
+        sum
+    };
+    let total: Real = a.iter().map(|v| v * v).sum();
+    for _sweep in 0..100 {
+        if off(&a) <= Real::EPSILON * Real::EPSILON * total {
+            let mut values: Vec<Real> = (0..n).map(|i| a[i * n + i]).collect();
+            values.sort_by(Real::total_cmp);
+            return Some(values);
+        }
+        for p in 0..n {
+            for q in p + 1..n {
+                let apq = a[p * n + q];
+                if apq == 0.0 {
+                    continue;
+                }
+                let theta = (a[q * n + q] - a[p * n + p]) / (2.0 * apq);
+                let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+                let t = if theta == 0.0 { 1.0 } else { t };
+                let c = 1.0 / (t * t + 1.0).sqrt();
+                let s = t * c;
+                for k in 0..n {
+                    let akp = a[k * n + p];
+                    let akq = a[k * n + q];
+                    a[k * n + p] = c * akp - s * akq;
+                    a[k * n + q] = s * akp + c * akq;
+                }
+                for k in 0..n {
+                    let apk = a[p * n + k];
+                    let aqk = a[q * n + k];
+                    a[p * n + k] = c * apk - s * aqk;
+                    a[q * n + k] = s * apk + c * aqk;
+                }
+            }
+        }
+    }
+    None
 }
 
 /// A dense real vector, used for the MNA right-hand side and the solution.

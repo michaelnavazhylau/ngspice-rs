@@ -56,7 +56,7 @@ card 5 @parser/flags_ic.cir:6:1 lines=6-6 continuations=0
   token 7 6:18 word "off"
   token 8 6:22 word "ic"
   token 9 6:24 equals "="
-  token 10 6:25 number ".6" value=6e-1
+  token 10 6:25 number ".6" value=6.000000000000001e-1
   token 11 6:27 comma ","
   token 12 6:28 number "2" value=2e0
   token 13 6:30 word "icvce"
@@ -64,7 +64,7 @@ card 5 @parser/flags_ic.cir:6:1 lines=6-6 continuations=0
   token 15 6:36 number "3" value=3e0
   token 16 6:38 word "ic"
   token 17 6:40 equals "="
-  token 18 6:41 number ".7" value=7e-1
+  token 18 6:41 number ".7" value=7.000000000000001e-1
   token 19 6:43 comma ","
   token 20 6:44 number "4" value=4e0
   token 21 6:46 word "area"
@@ -139,10 +139,10 @@ card 8 @parser/flags_ic.cir:9:1 lines=9-9 continuations=0
   token 16 9:42 number "5" value=5e0
   token 17 9:44 word "icvbs"
   token 18 9:49 equals "="
-  token 19 9:50 number "-.3" value=-3e-1
+  token 19 9:50 number "-.3" value=-3.0000000000000004e-1
   token 20 9:54 word "ic"
   token 21 9:56 equals "="
-  token 22 9:57 number ".3" value=3e-1
+  token 22 9:57 number ".3" value=3.0000000000000004e-1
   token 23 9:59 comma ","
   token 24 9:60 number "6" value=6e0
   token 25 9:62 word "ic"

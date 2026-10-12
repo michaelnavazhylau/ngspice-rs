@@ -432,6 +432,41 @@ impl TransmissionLine {
 }
 
 impl Device for TransmissionLine {
+    /// `trasetup.c` `TSTALLOC` order. The branch "currents" `i1`/`i2` are
+    /// node unknowns made with `CKTmkVolt`, numbered with `int1`/`int2`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [pos1, neg1, pos2, neg2, ibr1, ibr2, int1, int2] = self.terminals;
+        for (row, col) in [
+            (ibr1, ibr2),
+            (ibr1, int1),
+            (ibr1, neg1),
+            (ibr1, neg2),
+            (ibr1, pos2),
+            (ibr2, ibr1),
+            (ibr2, int2),
+            (ibr2, neg1),
+            (ibr2, neg2),
+            (ibr2, pos1),
+            (int1, ibr1),
+            (int1, int1),
+            (int1, pos1),
+            (int2, ibr2),
+            (int2, int2),
+            (int2, pos2),
+            (neg1, ibr1),
+            (neg2, ibr2),
+            (pos1, int1),
+            (pos1, pos1),
+            (pos2, int2),
+            (pos2, pos2),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn name(&self) -> &str {
         &self.name
     }

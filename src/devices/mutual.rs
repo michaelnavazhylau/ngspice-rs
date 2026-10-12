@@ -130,6 +130,17 @@ impl MutualInductance {
 }
 
 impl Device for MutualInductance {
+    /// `mutsetup.c`: `(br1,br2) (br2,br1)` per coupled pair.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        for &(first, second) in setup.coupled {
+            setup.elements.push((first, second));
+            setup.elements.push((second, first));
+        }
+        Ok(true)
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         matches!(keyword.to_ascii_lowercase().as_str(), "k" | "coefficient").then_some("k")
     }

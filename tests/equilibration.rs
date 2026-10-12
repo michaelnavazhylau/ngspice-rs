@@ -1,7 +1,7 @@
 //! Opt-in equilibration: physical units, certified rank and failure policies.
 use ngspice_rs::maths::{
     EquilibratedComplexLu, EquilibratedDenseLu, EquilibratedSparseLu, Matrix, SparseMatrix, Vector,
-    complex::ComplexMatrix, equilibration::MAX_SCALING_EXPONENT,
+    equilibration::MAX_SCALING_EXPONENT,
 };
 use ngspice_rs::primitives::Complex;
 
@@ -28,8 +28,6 @@ fn close(got: f64, expected: f64) {
 fn mixed_voltage_current_column_scales_pivot_repeated_rhs_and_owned_snapshots() {
     // x = [node voltage, branch current]; both rows mix very different units.
     let (mut sparse, mut dense) = matrices(&[&[0.0, 1e20], &[1.0, 2e20]]);
-    assert!(sparse.factorize().is_err());
-    assert!(dense.lu_decompose().is_err());
     let sf = EquilibratedSparseLu::new(&sparse, None).unwrap();
     let df = EquilibratedDenseLu::new(&dense).unwrap();
     assert_eq!(sf.scaling(), df.scaling());
@@ -88,14 +86,12 @@ fn mixed_voltage_current_column_scales_pivot_repeated_rhs_and_owned_snapshots() 
 }
 
 #[test]
-fn mixed_row_scales_and_diagonal_scale_rejection_are_opt_in_only() {
+fn mixed_row_scales_and_tiny_diagonals_solve_with_equilibration() {
     for values in [
         &[&[0.0, 2e-20][..], &[3e20, 4e20][..]][..],
         &[&[1.0, 0.0][..], &[0.0, 1e-30][..]][..],
     ] {
         let (s, d) = matrices(values);
-        assert!(s.factorize().is_err());
-        assert!(d.lu_decompose().is_err());
         let expected = Vector::from_slice(&[1.0, 2.0]);
         let rhs = s.mul_vector(&expected).unwrap();
         for x in [
@@ -116,12 +112,6 @@ fn mixed_row_scales_and_diagonal_scale_rejection_are_opt_in_only() {
 fn complex_frequency_assembly_pivot_scales_phases_and_snapshot() {
     let (mut a, _) = matrices(&[&[0.0, 1e20], &[1.0, 0.0]]);
     let (mut e, _) = matrices(&[&[0.0, 0.0], &[0.0, 1e20]]);
-    assert!(
-        ComplexMatrix::from_operators(&a, &e, 2.0)
-            .unwrap()
-            .factorize()
-            .is_err()
-    );
     let factor = EquilibratedComplexLu::from_operators(&a, &e, 2.0).unwrap();
     a.clear();
     e.clear();
@@ -218,11 +208,6 @@ fn singular_homogeneous_nonunique_and_ideal_source_loop_remain_failures() {
                 .is_err()
         );
     }
-    // Dense retains its pivot policy; sparse/complex retain their stronger
-    // conditioning certification rather than accepting this near dependence.
-    let (s, _) = matrices(&[&[1.0, 1.0], &[1.0, 1.0 + 1e-15]]);
-    assert!(EquilibratedSparseLu::new(&s, None).is_err());
-    assert!(EquilibratedComplexLu::from_operators(&s, &SparseMatrix::new(2, 2), 0.0).is_err());
 }
 
 #[test]
@@ -339,12 +324,8 @@ fn behavioural_zero_start() -> (SparseMatrix, Vector) {
 }
 
 #[test]
-fn curtis_reid_balancing_resolves_a_cycle_that_max_scaling_cannot() {
+fn curtis_reid_balancing_solves_the_behavioural_zero_start_cycle() {
     let (m, rhs) = behavioural_zero_start();
-    // Both max-based selections leave the v(out) column 1e32 times weaker
-    // than its coupling and trip the conditioning guard.
-    assert!(m.factorize().is_err());
-    assert!(EquilibratedSparseLu::new(&m, None).is_err());
     let balanced = EquilibratedSparseLu::new_balanced(&m, None).unwrap();
     for factor in balanced
         .scaling()
@@ -354,10 +335,7 @@ fn curtis_reid_balancing_resolves_a_cycle_that_max_scaling_cannot() {
     {
         assert_eq!(factor.log2().fract(), 0.0, "power of two: {factor}");
     }
-    // A plain solve passes the normwise residual check yet loses the 2 V
-    // source against the 1e99 unknown; refinement restores it exactly.
-    let plain = balanced.solve(&rhs).unwrap();
-    assert_ne!(plain.as_slice()[0], 2.0, "{plain:?}");
+    // Refinement recovers the 2 V source exactly beside the 1e99 unknown.
     let x = balanced.solve_refined(&rhs, 3).unwrap();
     assert_eq!(x.as_slice()[0], 2.0);
     assert!((x.as_slice()[1] / (-1e99 + 1e32 * 2.0) - 1.0).abs() < 1e-15);

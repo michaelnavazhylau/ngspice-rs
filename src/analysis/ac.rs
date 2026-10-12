@@ -1,4 +1,4 @@
-//! Linear complex small-signal analysis, using faer (not diffsol).
+//! Linear complex small-signal analysis on the SPARSE 1.3 complex LU.
 //!
 //! The frequency grid ([`frequency_grid`]) and the linearized system
 //! ([`SmallSignal`]) are shared with the `.sp` driver
@@ -27,7 +27,7 @@ pub(crate) fn run(
     if positional.len() != 4 {
         return Err(unsupported(".ac lin|dec|oct points start stop"));
     }
-    let grid = frequency_grid(&positional)?;
+    let grid = frequency_grid(&positional, settings.newton.reltol, GridKind::Ac)?;
     let mut small_signal = SmallSignal::prepare(circuit, request, context, settings)?;
     let mut plot = plot(
         circuit,
@@ -36,11 +36,16 @@ pub(crate) fn run(
         Some(("frequency", "frequency")),
         true,
     )?;
+    // NIacIter on the circuit's own matrix: the first AC solve of the
+    // circuit reorders (`SMPcReorder`, starting from the real pivot order),
+    // later frequencies refactor (`SMPcLUfac`) and reorder only after a zero
+    // pivot. See [`ac_matrix`].
+    let shared: &Circuit = circuit;
     for f in grid {
-        let x = small_signal.at_frequency(circuit, context, f, |system| {
-            let matrix =
-                ComplexMatrix::from_operators(&system.a, &system.e, 2. * std::f64::consts::PI * f)?;
-            matrix.factorize()?.solve(&system.ac_rhs())
+        let x = small_signal.at_frequency(shared, context, f, |system| {
+            ac_matrix(shared, system, 2. * std::f64::consts::PI * f)?
+                .factorize()?
+                .solve(&system.ac_rhs())
         })?;
         let mut point = vec![Complex::real(f)];
         point.extend(x);
@@ -50,63 +55,115 @@ pub(crate) fn run(
     Ok(plot)
 }
 
+/// Which C frequency loop a grid follows: `acan.c` has a special decade delta
+/// that `span.c` lacks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GridKind {
+    /// `.ac` (`ACan`).
+    Ac,
+    /// `.sp` (`SPan`).
+    Sp,
+}
+
 /// The `acan.c`/`span.c` frequency grid of `lin|dec|oct points start stop`,
-/// the first four positional arguments of the card.
-pub(crate) fn frequency_grid(arguments: &[String]) -> SpiceResult<Vec<Real>> {
+/// the first four positional arguments of the card, generated as C does:
+/// iteratively (`freq *= delta` or `freq += delta`) while
+/// `freq <= stop + freqTol`, with `freqTol = delta * stop * reltol` (log) or
+/// `delta * reltol` (linear).
+///
+/// C quirks kept on purpose: a linear sweep of fewer than three points uses
+/// `delta = 0` and so yields only the start frequency (Richard McRoberts'
+/// patch tests `ACnumberSteps - 1 > 1`); `.ac dec` spanning a decade or more
+/// uses `delta = exp(ln(stop/start) / floor(|log10(stop/start)| * points))`
+/// so the last point lands on `stop`.
+pub(crate) fn frequency_grid(
+    arguments: &[String],
+    reltol: Real,
+    kind: GridKind,
+) -> SpiceResult<Vec<Real>> {
     let argument = |index: usize| arguments.get(index).map(String::as_str);
     let mode = argument(0).unwrap_or_default().to_ascii_lowercase();
+    // ACnumberSteps is IF_INTEGER: floor(0.5 + value).
     let points: usize = argument(1)
-        .and_then(|s| s.parse().ok())
+        .and_then(crate::primitives::parse_spice_number)
+        .and_then(crate::primitives::c_integer)
         .filter(|n| *n > 0 && *n <= 100_000)
+        .map(|n| n as usize)
         .ok_or_else(|| unsupported("AC points must be in 1..=100000"))?;
     let start = number(argument(2), "start frequency")?;
-    let end = number(argument(3), "stop frequency")?;
-    if start <= 0. || end < start {
+    let stop = number(argument(3), "stop frequency")?;
+    let steps = points as Real;
+    let logarithmic = mode != "lin";
+    if logarithmic && start <= 0. {
+        // acan.c/span.c: "ERROR: AC startfreq <= 0", E_PARMVAL.
+        return Err(unsupported("AC start frequency must be > 0 for dec/oct"));
+    }
+    if start < 0. || stop < start {
         return Err(unsupported("invalid AC frequency bounds"));
     }
-    let grid = match mode.as_str() {
-        "lin" => (0..points)
-            .map(|i| {
-                if points == 1 {
-                    start
-                } else {
-                    (1. - (i as f64) / ((points - 1) as f64)) * start
-                        + (i as f64) / ((points - 1) as f64) * end
-                }
-            })
-            .collect::<Vec<_>>(),
-        "dec" | "oct" => {
-            let base: f64 = if mode == "dec" { 10. } else { 2. };
-            let span = (end.ln() - start.ln()) / base.ln();
-            let steps = span * (points as f64);
-            // Logarithms can put an exact integer span just below that integer
-            // (3 points/decade, 1..1000 gives 8.999999999999998). Snap only
-            // within a small floating-arithmetic bound, preserving the endpoint.
-            // This does not relax any golden/value comparison tolerance.
-            let rounded = steps.round();
-            let steps = if (steps - rounded).abs() <= 32. * f64::EPSILON * steps.abs().max(1.) {
-                rounded
-            } else {
-                steps
-            };
-            let count = steps.floor() + 1.;
-            if !count.is_finite() || count > 100_000. {
-                return Err(unsupported("AC sample limit exceeded"));
-            }
-            (0..count as usize)
-                .map(|i| {
-                    (start.ln() + base.ln() * (i as f64) / (points as f64))
-                        .exp()
-                        .min(end)
-                })
-                .collect()
+    let delta = match mode.as_str() {
+        "dec" if kind == GridKind::Ac && stop / 10. >= start => {
+            let num_steps = ((stop / start).log10().abs() * steps).floor();
+            ((stop / start).ln() / num_steps).exp()
         }
+        "dec" if stop == start && kind == GridKind::Ac => 1.,
+        "dec" => (10f64.ln() / steps).exp(),
+        "oct" => (2f64.ln() / steps).exp(),
+        "lin" if points - 1 > 1 => (stop - start) / (steps - 1.),
+        "lin" => 0.,
         _ => return Err(unsupported("AC sweep mode must be lin, dec or oct")),
     };
-    if grid.windows(2).any(|w| w[0] >= w[1]) {
-        return Err(unsupported("AC frequency grid makes no progress"));
+    let tolerance = if logarithmic {
+        delta * stop * reltol
+    } else {
+        delta * reltol
+    };
+    let mut grid = Vec::new();
+    let mut freq = start;
+    while freq <= stop + tolerance {
+        if grid.len() >= 100_000 {
+            return Err(unsupported("AC sample limit exceeded"));
+        }
+        grid.push(freq);
+        if logarithmic {
+            freq *= delta;
+            if delta == 1. {
+                break;
+            }
+        } else {
+            freq += delta;
+            if delta == 0. {
+                break;
+            }
+        }
     }
     Ok(grid)
+}
+
+/// `CKTacLoad`: the small-signal system at `omega` loaded into the circuit's
+/// own matrix, so that factoring it shares SPARSE's frame and pivot order
+/// with the real solves (`NIacIter`). Falls back to a standalone matrix when
+/// a small-signal stamp lies outside the circuit's allocated elements.
+///
+/// # Errors
+/// Invalid assembly.
+pub(crate) fn ac_matrix(
+    circuit: &Circuit,
+    system: &LinearSystem,
+    omega: Real,
+) -> SpiceResult<ComplexMatrix> {
+    if let Some(pattern) = circuit.matrix_pattern()
+        && let Some(matrix) = ComplexMatrix::from_operators_grouped_on(
+            &pattern,
+            &system.a,
+            &system.e,
+            &system.e_groups,
+            omega,
+        )?
+    {
+        return Ok(matrix);
+    }
+    ComplexMatrix::from_operators_grouped(&system.a, &system.e, &system.e_groups, omega)
 }
 
 /// The circuit linearized at its DC operating point, as `acan.c` and `span.c`
@@ -136,7 +193,7 @@ impl SmallSignal {
         let hints = crate::analysis::initial::resolve(circuit, request)?;
         let nodes = crate::analysis::bias::NodeForcing {
             initial: Vec::new(),
-            nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+            nodesets: crate::analysis::initial::forced_nodesets(&hints.nodesets),
         };
         let mut seed = Vector::zeros(circuit.unknown_count());
         for hint in hints.nodesets {
@@ -153,6 +210,9 @@ impl SmallSignal {
             &nodes,
         )?
         .solution;
+        // The MODEINITSMSIG load's state writes outlive the analysis (C keeps
+        // one CKTstate0 per deck): later analyses read them back.
+        circuit.record_small_signal_state(&context.model_context(), &solved.values)?;
         // acan.c reloads with MODEINITSMSIG after CKTop, and SWload/CSWload then
         // copy CKTstate1 into CKTstate0. CKTop never accepts or rotates states, so
         // CKTstate1 is still the zero ("really off") vector: the AC conductance of

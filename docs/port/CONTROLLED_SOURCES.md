@@ -145,13 +145,12 @@ the solution, so `.ic`/`uic` are reduced against it like V sources, except the
 check happens after the solve:
 
 - `.ic` (no `uic`) on a node tied to ground or to an imposed `.ic` node through
-  a chain that includes an E/H output is not imposed as a row constraint. The
-  initial bias is solved with the remaining entries and the node's solved
-  voltage must agree with the `.ic` value (`reltol`/`vntol`); otherwise it is
-  a positioned error. C keeps the E/H relation too (its `cktload.c` adds a
-  `1e10` conductance that only loads the ideal output, so v(o) stays at the
-  E/H value) and silently ignores the contradicting `.ic`; the port rejects
-  it, as it does for ideal V sources.
+  a chain that includes an E/H output is loaded as C loads it: the row keeps
+  the output's branch column, so `cktload.c` puts a `1e10` conductance there
+  that only loads the ideal output, and v(o) stays at the E/H value. The
+  node's solved voltage must then agree with the `.ic` value
+  (`reltol`/`vntol`); otherwise it is a positioned error where C silently
+  ignores the contradicting `.ic`, as for ideal V sources.
 - `uic`: a capacitor in a loop closed by an E/H output (an op-amp load
   capacitor) leaves the instantaneous `t = 0+` system and its starting voltage
   is compared with the solved one; a mismatch is an impulse error naming the

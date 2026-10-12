@@ -115,7 +115,7 @@ card 12 @netlists/disto_diode.cir:20:1 lines=20-20 continuations=0
   token 7 20:18 number "1e-14" value=1e-14
   token 8 20:24 word "n"
   token 9 20:25 equals "="
-  token 10 20:26 number "1.2" value=1.2e0
+  token 10 20:26 number "1.2" value=1.2000000000000002e0
   token 11 20:30 word "rs"
   token 12 20:32 equals "="
   token 13 20:33 number "5" value=5e0
@@ -124,7 +124,7 @@ card 12 @netlists/disto_diode.cir:20:1 lines=20-20 continuations=0
   token 16 20:39 number "2p" value=2e-12
   token 17 20:42 word "vj"
   token 18 20:44 equals "="
-  token 19 20:45 number "0.7" value=7e-1
+  token 19 20:45 number "0.7" value=7.000000000000001e-1
   token 20 20:49 word "m"
   token 21 20:50 equals "="
   token 22 20:51 number "0.4" value=4e-1
@@ -139,10 +139,10 @@ card 12 @netlists/disto_diode.cir:20:1 lines=20-20 continuations=0
   token 31 20:76 number "0.5p" value=5e-13
   token 32 20:81 word "vjsw"
   token 33 20:85 equals "="
-  token 34 20:86 number "0.6" value=6e-1
+  token 34 20:86 number "0.6" value=6.000000000000001e-1
   token 35 20:90 word "mjsw"
   token 36 20:94 equals "="
-  token 37 20:95 number "0.3" value=3e-1
+  token 37 20:95 number "0.3" value=3.0000000000000004e-1
   token 38 20:98 rparen ")"
 card 13 @netlists/disto_diode.cir:21:1 lines=21-21 continuations=0
   raw: ".model dvar d(is=1e-15 cjo=10p vj=0.8 m=0.5 fc=0.5)"
@@ -179,7 +179,7 @@ card 14 @netlists/disto_diode.cir:22:1 lines=22-22 continuations=0
   token 7 22:16 number "1e-14" value=1e-14
   token 8 22:22 word "bv"
   token 9 22:24 equals "="
-  token 10 22:25 number "5.1" value=5.1e0
+  token 10 22:25 number "5.1" value=5.1000000000000005e0
   token 11 22:29 word "ibv"
   token 12 22:32 equals "="
   token 13 22:33 number "1m" value=1e-3

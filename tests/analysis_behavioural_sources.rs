@@ -44,16 +44,35 @@ fn close(got: f64, want: f64, relative: f64) {
 #[test]
 fn a_nonlinear_operating_point_satisfies_the_device_equations() {
     // A diode-like B current from a 1 V source through 1k: the solved node
-    // must satisfy KCL with the exponential exactly (to Newton tolerance).
+    // must satisfy KCL with the exponential (to Newton tolerance).
+    let deck = "vin in 0 dc 1\nr1 in a 1k\nb1 a 0 i=1e-14*(exp(v(a)/0.025852)-1)";
+    let kcl = |a: f64| (1. - a) / 1e3 - 1e-14 * ((a / 0.025852).exp() - 1.);
+    // ngspice's NIiter defaults (reltol 1e-3, vntol 1e-6) stop once the
+    // update is within tolerance and return the iterate the last load used
+    // (CKTrhsOld). C ngspice (SPARSE) gives v(a) = 0.6291468590192147 for
+    // this deck, bit-identical to the port, with a KCL residual of
+    // -2.16e-12 A, i.e. 5.8e-9 of the 3.7e-4 A branch current.
+    let plot = run(deck, AnalysisKind::OperatingPoint, &[]).unwrap();
+    let a = value(&plot, "v(a)", 0);
+    close(a, 0.629_146_859_019_214_7, 1e-13);
+    assert!(
+        kcl(a).abs() < 1e-11,
+        "KCL residual {} at v(a) = {a}",
+        kcl(a)
+    );
+    // Requesting tighter Newton tolerances solves the law exactly.
     let plot = run(
-        "vin in 0 dc 1\nr1 in a 1k\nb1 a 0 i=1e-14*(exp(v(a)/0.025852)-1)",
+        deck,
         AnalysisKind::OperatingPoint,
-        &[],
+        &["rtol=1e-9", "vntol=1e-12"],
     )
     .unwrap();
     let a = value(&plot, "v(a)", 0);
-    let kcl = (1. - a) / 1e3 - 1e-14 * ((a / 0.025852).exp() - 1.);
-    assert!(kcl.abs() < 1e-12, "KCL residual {kcl} at v(a) = {a}");
+    assert!(
+        kcl(a).abs() < 1e-15,
+        "KCL residual {} at v(a) = {a}",
+        kcl(a)
+    );
     assert!(a > 0.5 && a < 0.8, "{a}");
 }
 
@@ -173,26 +192,17 @@ fn transient_time_functions_are_evaluated_at_each_accepted_time() {
         };
         let o = (2. * std::f64::consts::PI * 1e3 * t).sin() + pwl;
         close(value(&plot, "v(o)", point), o, 1e-9);
-        close(value(&plot, "v(p)", point), o * o, 1e-9);
+        // b2 reads v(o) of the iterate its load used: NIiter returns that
+        // iterate (CKTrhsOld) once successive iterates agree within vntol, so
+        // v(p) may lag one pass by NIconvTest's tolerance, reltol |v| +
+        // vntol (1e-3, 1e-6 V), as in ngspice.
+        let p = value(&plot, "v(p)", point);
+        assert!(
+            (p - o * o).abs() <= 1e-3 * (o * o) + 1e-6,
+            "{p} != {}",
+            o * o
+        );
     }
-}
-
-#[test]
-fn the_bdf_backend_rejects_behavioural_sources_explicitly() {
-    let error = run(
-        "b1 o 0 v=sin(2*pi*1k*time)\nr1 o 0 1k\nc1 o 0 1n",
-        AnalysisKind::Transient,
-        &["10u", "1m", "backend=diffsol", "method=bdf"],
-    )
-    .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            ngspice_rs::primitives::SpiceError::Unsupported { .. }
-                | ngspice_rs::primitives::SpiceError::NotYetPorted { .. }
-        ),
-        "{error}"
-    );
 }
 
 #[test]
@@ -238,8 +248,9 @@ fn singular_slopes_at_the_zero_start_converge_in_every_analysis() {
 #[test]
 fn infinite_slopes_at_the_zero_start_name_the_offending_derivative() {
     // pwr(0, -0.5) is infinite, so v(in)^0.5 has an infinite slope at the
-    // 0 V start. C loads it and carries a NaN iterate; the port stops with
-    // the value and the derivative it could not use.
+    // 0 V start (the derivative tree `0.5 * pwr(v, -0.5)`). C loads it and
+    // carries a NaN iterate; the port stops naming the derivative node and
+    // its arguments.
     let error = run(
         "vin in 0 dc 2\nrin in 0 1k\nb1 o 0 v=v(in)^0.5\nr1 o 0 1k",
         AnalysisKind::OperatingPoint,
@@ -247,9 +258,7 @@ fn infinite_slopes_at_the_zero_start_name_the_offending_derivative() {
     )
     .unwrap_err();
     assert!(
-        error
-            .to_string()
-            .contains("non-finite derivative inf (value 0) in '^'"),
+        error.to_string().contains("0, -0.5 out of range for pwr()"),
         "{error}"
     );
 }

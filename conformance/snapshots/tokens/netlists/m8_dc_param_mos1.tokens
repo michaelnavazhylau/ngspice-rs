@@ -74,7 +74,7 @@ card 6 @netlists/m8_dc_param_mos1.cir:7:1 lines=7-7 continuations=0
   token 7 7:22 number "1" value=1e0
   token 8 7:24 word "vto"
   token 9 7:27 equals "="
-  token 10 7:28 number "0.7" value=7e-1
+  token 10 7:28 number "0.7" value=7.000000000000001e-1
   token 11 7:32 word "kp"
   token 12 7:34 equals "="
   token 13 7:35 number "50u" value=4.9999999999999996e-5
@@ -83,7 +83,7 @@ card 6 @netlists/m8_dc_param_mos1.cir:7:1 lines=7-7 continuations=0
   token 16 7:45 number "0.4" value=4e-1
   token 17 7:49 word "phi"
   token 18 7:52 equals "="
-  token 19 7:53 number "0.6" value=6e-1
+  token 19 7:53 number "0.6" value=6.000000000000001e-1
   token 20 7:57 word "lambda"
   token 21 7:63 equals "="
   token 22 7:64 number "0.02" value=2e-2

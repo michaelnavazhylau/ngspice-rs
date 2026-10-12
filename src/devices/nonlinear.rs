@@ -22,7 +22,9 @@
 //! start at `tVcrit`, `DEVpnjlim`, reflected about BV in breakdown) through
 //! [`crate::devices::limiting`]; C's predictor and bypass are not ported.
 use crate::devices::limiting::{self, Limiter, Linearization};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::schema::{
     ScalarDomain as Domain, ScalarParameter as Parameter, ScalarSchema, ScalarUnit as Unit,
     ScalarValues,
@@ -424,7 +426,8 @@ impl Diode {
         ];
         let mut terminals = external.to_vec();
         let positive = if p.rs > 0. {
-            let name = format!("{}#anode", instance.name);
+            // diosetup.c: CKTmkVolt(ckt, &tmp, DIOname, "internal").
+            let name = format!("{}#internal", instance.name);
             if staged.get(&name).is_some() {
                 return Err(SpiceError::circuit("diode internal-node name collision"));
             }
@@ -569,8 +572,11 @@ impl DiodeParameters {
 
     /// `diotemp.c::DIOtempUpdate` at this run's instance temperature.
     fn thermal(&self, context: &ModelContext) -> SpiceResult<Thermal> {
-        // diotemp.c::DIOtemp: TEMP, else circuit temperature plus DTEMP.
-        let t = self.temperature.unwrap_or(context.temperature + self.dtemp) + 273.15;
+        // diotemp.c::DIOtemp: TEMP (dioparam.c adds CONSTCtoK), else the
+        // circuit temperature in Kelvin (CKTtemp) plus DTEMP, in C's order.
+        let t = self
+            .temperature
+            .map_or(context.temperature + 273.15 + self.dtemp, |t| t + 273.15);
         let tn = self.nominal.unwrap_or(context.nominal_temperature) + 273.15;
         if !t.is_finite() || t <= 0. || !tn.is_finite() || tn <= 0. {
             return Err(SpiceError::circuit("invalid diode temperature"));
@@ -579,8 +585,10 @@ impl DiodeParameters {
         let vtnom = K_OVER_Q * tn;
         let dt = t - tn;
         let ln_ratio = (t / tn).ln();
-        let scale = self.area * self.multiplier;
-        let perimeter = self.perimeter * self.multiplier;
+        // diosetup.c/diotemp.c scale every instance quantity as
+        // `value * AREA * M` (or `* PJ * M`), left to right.
+        let scale = |v: Real| v * self.area * self.multiplier;
+        let perimeter = |v: Real| v * self.perimeter * self.multiplier;
 
         let factor = 1. + self.tm1 * dt + self.tm2 * dt * dt;
         let grading = self.grading * factor;
@@ -618,9 +626,9 @@ impl DiodeParameters {
                 (cap * (1. + ct * (t - REFTEMP)), pot - tp * (t - REFTEMP))
             }
         };
-        let (cjo, vj) = depletion(self.cjo * scale, self.vj, grading, self.cta, self.tpb);
+        let (cjo, vj) = depletion(scale(self.cjo), self.vj, grading, self.cta, self.tpb);
         let (cjsw, vjsw) = depletion(
-            self.cjsw * perimeter,
+            perimeter(self.cjsw),
             self.vjsw,
             self.mjsw,
             self.ctp,
@@ -629,6 +637,8 @@ impl DiodeParameters {
 
         // Saturation currents: `n` is the emission coefficient, `xti` the
         // exponent and `k` the band-gap factor (KEG for tunnelling).
+        // `k` is 1 for the plain laws (exact in every product) and KEG for
+        // tunnelling. `base` is already instance-scaled (diotemp.c).
         let saturation = |base: Real, n: Real, xti: Real, k: Real| {
             let vte = n * vt;
             let exponent = if self.tlev == 2 {
@@ -638,10 +648,10 @@ impl DiodeParameters {
             };
             base * exponent.exp()
         };
-        let csat = saturation(self.is * scale, self.n, self.xti, 1.);
-        let csatsw = saturation(self.jsw.unwrap_or(0.) * perimeter, self.ns, self.xti, 1.);
-        let tunnel = |j: Option<Real>, s: Real| {
-            j.map(|j| saturation(j * s, self.ntun, self.xtitun, self.keg))
+        let csat = saturation(scale(self.is), self.n, self.xti, 1.);
+        let csatsw = saturation(perimeter(self.jsw.unwrap_or(0.)), self.ns, self.xti, 1.);
+        let tunnel = |j: Option<Real>, s: &dyn Fn(Real) -> Real| {
+            j.map(|j| saturation(s(j), self.ntun, self.xtitun, self.keg))
         };
         let breakdown = match self.bv {
             Some(bv) => Some(breakdown_voltage(
@@ -667,7 +677,8 @@ impl DiodeParameters {
                     message: "nonpositive temperature-adjusted series resistance".into(),
                 });
             }
-            scale / self.rs / factor
+            // diosetup.c: DIOconductance = 1/RS; diotemp.c scales then divides.
+            scale(1. / self.rs) / factor
         } else {
             0.
         };
@@ -681,13 +692,13 @@ impl DiodeParameters {
             breakdown,
             recombination: self
                 .isr
-                .map(|isr| (saturation(isr * scale, self.nr, self.xti, 1.), self.nr)),
-            tunnel: tunnel(self.jtun, scale),
-            tunnel_sidewall: tunnel(self.jtunsw, perimeter),
+                .map(|isr| (saturation(scale(isr), self.nr, self.xti, 1.), self.nr)),
+            tunnel: tunnel(self.jtun, &scale),
+            tunnel_sidewall: tunnel(self.jtunsw, &perimeter),
             ntun: self.ntun,
-            ikf: self.ikf.map(|k| k * scale),
-            ikr: self.ikr.map(|k| k * scale),
-            ikp: self.ikp.map(|k| k * perimeter),
+            ikf: self.ikf.map(scale),
+            ikr: self.ikr.map(scale),
+            ikp: self.ikp.map(perimeter),
             cjo,
             vj,
             grading,
@@ -803,6 +814,10 @@ impl Thermal {
         if limiter.mode() == Linearization::Initial {
             return vcrit;
         }
+        // dioload.c MODEINITTRAN: vd = *(CKTstate1 + DIOvoltage), unlimited.
+        if limiter.mode() == Linearization::InitialTransient {
+            return states.accepted(1, DIODE_VOLTAGE_SLOT).unwrap_or(raw);
+        }
         let previous = limiter.previous(states, DIODE_VOLTAGE_SLOT);
         let vtebrk = self.nbv * self.vt;
         match self.breakdown {
@@ -891,12 +906,14 @@ impl Thermal {
             };
         }
         let (mut cdb, mut gdb) = characteristic(vd, vte, self.csat, breakdown)?;
-        // C's small-signal bottom conductance (differs only with ISR).
+        // The exact derivative (Newton) and C's conductance (small signal,
+        // `.tf`/`.sens`) differ only with ISR.
         let mut ac_gdb = gdb;
         if let Some((crec, nr)) = self.recombination {
             let vterec = nr * self.vt;
+            // dioload.c: t1 = pow(1 - vd/VJ, 2) + 0.005, gen_fac = pow(t1, M/2).
             let generation = |v: Real| {
-                let t1 = (1. - v / self.vj).powi(2) + 0.005;
+                let t1 = (1. - v / self.vj).powf(2.) + 0.005;
                 (t1, t1.powf(self.grading / 2.))
             };
             if forward {
@@ -913,9 +930,10 @@ impl Thermal {
                 // omits 1/VJ; its root is unaffected, its AC conductance is.
                 ac_gdb += conductance * factor + current * factor * derivative;
             } else {
-                // Reverse and breakdown: the constant value at -3*N*Vt.
+                // Reverse and breakdown: the constant value at -3*N*Vt,
+                // `cdb = -csat*(..) + gen_fac*cdb_rec` (dioload.c).
                 let (_, factor) = generation(-3. * vte);
-                cdb += factor * crec * ((-3. * vte / vterec).exp() - 1.);
+                cdb += factor * (crec * ((-3. * vte / vterec).exp() - 1.));
             }
         }
         let vtetun = self.ntun * self.vt;
@@ -937,32 +955,30 @@ impl Thermal {
             self.ikr.filter(|_| cdb < -1e-18)
         };
         if let Some(k) = knee {
-            let factor;
-            (cdb, factor) = high_injection(cdb, k);
-            gdb *= factor;
-            ac_gdb *= factor;
+            let current = cdb;
+            (cdb, gdb) = high_injection(current, gdb, k, forward);
+            ac_gdb = high_injection(current, ac_gdb, k, forward).1;
         }
         if let Some(k) = self.ikp.filter(|_| cdsw > 1e-18) {
-            let factor;
-            (cdsw, factor) = high_injection(cdsw, k);
-            gdsw *= factor;
+            (cdsw, gdsw) = high_injection(cdsw, gdsw, k, true);
         }
         let current = cdb + cdsw + gmin * vd;
         let conductance = gdb + gdsw + gmin;
         let ac_conductance = ac_gdb + gdsw + gmin;
-        let (charge, capacitance) = depletion_charge(vd, self.cjo, self.vj, self.grading, self.fc);
+        let (charge, capacitance) = c_depletion(vd, self.cjo, self.vj, self.grading, self.fc);
         let (charge_sw, capacitance_sw) =
-            depletion_charge(vd, self.cjsw, self.vjsw, self.mjsw, self.fcs);
+            c_depletion(vd, self.cjsw, self.vjsw, self.mjsw, self.fcs);
+        // dioload.c, in its order: diffusion (TT times the current including
+        // gmin), bottom depletion, sidewall depletion.
         let point = DiodePoint {
             junction: JunctionPoint {
                 current,
                 conductance,
-                // dioload.c: diffusion charge TT*cd includes the gmin current.
-                charge: charge + charge_sw + self.tt * current,
-                capacitance: capacitance + capacitance_sw + self.tt * conductance,
+                charge: self.tt * current + charge + charge_sw,
+                capacitance: self.tt * conductance + capacitance + capacitance_sw,
             },
             ac_conductance,
-            ac_capacitance: capacitance + capacitance_sw + self.tt * ac_conductance,
+            ac_capacitance: self.tt * ac_conductance + capacitance + capacitance_sw,
         };
         Ok(point)
     }
@@ -994,15 +1010,25 @@ fn characteristic(
     }
 }
 
-/// `dioload.c` high-injection knee: `i/(1+sqrt(i/k))` with `k` signed like
-/// `i`. Returns the limited current and the factor applied to its conductance.
-fn high_injection(current: Real, knee: Real) -> (Real, Real) {
-    let ratio = (current / knee).abs();
-    let root = ratio.sqrt();
-    (
-        current / (1. + root),
-        ((1. + root) - ratio / (2. * root)) / (1. + 2. * root + ratio),
-    )
+/// `dioload.c` high-injection knee: `i/(1+sqrt(i/k))`, with `k` the positive
+/// IKF/IKP (`forward`) or IKR (reverse, `i < 0`). Returns the limited current
+/// and conductance in C's arithmetic.
+fn high_injection(cdb: Real, gdb: Real, knee: Real, forward: bool) -> (Real, Real) {
+    if forward {
+        let sqrt_ikx = (cdb / knee).sqrt();
+        (
+            cdb / (1. + sqrt_ikx),
+            ((1. + sqrt_ikx) * gdb - cdb * gdb / (2. * sqrt_ikx * knee))
+                / (1. + 2. * sqrt_ikx + cdb / knee),
+        )
+    } else {
+        let sqrt_ikx = (cdb / (-knee)).sqrt();
+        (
+            cdb / (1. + sqrt_ikx),
+            ((1. + sqrt_ikx) * gdb + cdb * gdb / (2. * sqrt_ikx * knee))
+                / (1. + 2. * sqrt_ikx - cdb / knee),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1049,21 +1075,64 @@ pub(crate) fn junction_current(v: Real, vt: Real, is: Real) -> SpiceResult<(Real
     }
     Ok(result)
 }
-pub(crate) fn depletion_charge(v: Real, c: Real, p: Real, m: Real, fc: Real) -> (Real, Real) {
-    let boundary = fc * p;
-    let at = |v: Real| {
-        let arg = 1. - v / p;
-        (c * p * (1. - arg.powf(1. - m)) / (1. - m), c * arg.powf(-m))
-    };
-    if v < boundary {
-        at(v)
+/// `dioload.c`'s depletion charge and capacitance, in C's arithmetic:
+/// `sarg = exp(-m ln(1 - v/p))` below `FC p`, and above it the linear
+/// capacitance with `diotemp.c`'s `F1 = p (1 - exp((1-m) xfc)) / (1-m)`,
+/// `F2 = exp((1+m) xfc)` and `F3 = 1 - FC (1+m)`, `xfc = ln(1 - FC)`.
+pub(crate) fn c_depletion(v: Real, czero: Real, pot: Real, m: Real, fc: Real) -> (Real, Real) {
+    let depcap = fc * pot;
+    if v < depcap {
+        let arg = 1. - v / pot;
+        let sarg = (-m * arg.ln()).exp();
+        (pot * czero * (1. - arg * sarg) / (1. - m), czero * sarg)
     } else {
-        let (q0, c0) = at(boundary);
-        let dc = c0 * m / (p - boundary);
-        let delta = v - boundary;
-        (q0 + c0 * delta + 0.5 * dc * delta * delta, c0 + dc * delta)
+        let xfc = (1. - fc).ln();
+        let f1 = pot * (1. - ((1. - m) * xfc).exp()) / (1. - m);
+        let f2 = ((1. + m) * xfc).exp();
+        let f3 = 1. - fc * (1. + m);
+        let czof2 = czero / f2;
+        (
+            czero * f1
+                + czof2 * (f3 * (v - depcap) + (m / (pot + pot)) * (v * v - depcap * depcap)),
+            czof2 * (f3 + m * v / pot),
+        )
     }
 }
+
+/// `NIintegrate` for a junction charge in `slot` (its derivative in
+/// `slot + 1`): `(geq, ccap)` with `geq = ag0 cap` and `ccap` the charge
+/// derivative, stored in the derivative slot.
+pub(crate) fn junction_companion(
+    context: &mut StampContext<'_>,
+    coefficients: &crate::maths::integrator::Coefficients,
+    p: JunctionPoint,
+    slot: usize,
+) -> SpiceResult<(Real, Real)> {
+    let mut history = crate::maths::integrator::ChargeHistory::new(p.charge);
+    for age in 1..=coefficients.charge_history_len() {
+        history.push(
+            context
+                .states
+                .accepted(age, slot)
+                .ok_or_else(|| SpiceError::circuit("missing accepted junction charge"))?,
+        )?;
+    }
+    let previous = if coefficients.needs_previous_derivative() {
+        Some(
+            context
+                .states
+                .accepted(1, slot + 1)
+                .ok_or_else(|| SpiceError::circuit("missing accepted junction derivative"))?,
+        )
+    } else {
+        None
+    };
+    let companion = coefficients.integrate(&history, previous, p.capacitance)?;
+    context.states.set(slot + 1, companion.derivative)?;
+    Ok((companion.conductance, companion.derivative))
+}
+
+#[allow(dead_code)] // No in-tree caller since MOS1 follows mos1load.c directly.
 pub(crate) fn stamp_junction(
     context: &mut StampContext<'_>,
     nodes: [NodeId; 2],
@@ -1080,14 +1149,14 @@ pub(crate) fn stamp_junction(
         if dt != coefficients.dt() {
             return Err(SpiceError::circuit("junction timestep mismatch"));
         }
-        let mut history = vec![p.charge];
+        let mut history = crate::maths::integrator::ChargeHistory::new(p.charge);
         for age in 1..=coefficients.charge_history_len() {
             history.push(
                 context
                     .states
                     .accepted(age, slot)
                     .ok_or_else(|| SpiceError::circuit("missing accepted junction charge"))?,
-            );
+            )?;
         }
         let previous = if coefficients.needs_previous_derivative() {
             Some(
@@ -1119,6 +1188,27 @@ pub(crate) fn stamp_junction(
     context.stamp_rhs(nodes[1], equivalent)
 }
 impl Device for Diode {
+    /// `diosetup.c` (without sidewall resistance or self-heating, which the
+    /// port rejects); `posPrime` is the external anode when `RS = 0`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [pos, neg] = [self.terminals[0], self.terminals[1]];
+        let prime = self.junction[0];
+        for (row, col) in [
+            (pos, prime),
+            (neg, prime),
+            (prime, pos),
+            (prime, neg),
+            (pos, pos),
+            (neg, neg),
+            (prime, prime),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         key: &str,
@@ -1264,10 +1354,24 @@ impl Device for Diode {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit("diode AC needs small-signal assembly"));
         }
-        let raw = context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]);
         let model = context.model_context();
         let thermal = self.parameters.thermal(&model)?;
         let mut limiter = Limiter::new(&context.states);
+        // dioload.c: MODEINITPRED extrapolates the junction voltage
+        // (`DEVpred`) before limiting it; otherwise the iterate's. Outside
+        // transient a predicted load is a `.dc` sweep point (dctrcurv.c),
+        // where `CKTdelta` and every `CKTdeltaOld` are the first axis's step,
+        // so DEVpred's ratio is 1: `2 state1 - state2`.
+        let raw = match (context.states.phase(), limiter.mode()) {
+            (crate::devices::IterationPhase::Predict, Linearization::Limited) => {
+                let ratio = context.integration.map_or(1., |c| c.predictor_ratio());
+                context
+                    .states
+                    .predicted(DIODE_VOLTAGE_SLOT, ratio)
+                    .ok_or_else(|| SpiceError::circuit("missing accepted diode voltage"))?
+            }
+            _ => context.node_voltage(self.junction[0]) - context.node_voltage(self.junction[1]),
+        };
         // diogetic.c takes the uic start across the external terminals unless
         // `DIOinitCondGiven`, which no C setter ever sets (`dioparam.c`
         // stores `ic=` without it): the instance `ic=` never reaches the load.
@@ -1290,15 +1394,45 @@ impl Device for Diode {
             &context.states,
             &[(held, held + p.junction.conductance * (raw - v))],
         );
-        if self.parameters.rs > 0. {
-            crate::devices::linear::nodal_stamp(
-                context.matrix,
-                context.unknowns,
-                [self.terminals[0], self.junction[0]],
-                thermal.conductance,
-            )?;
+        // dioload.c from here: the charge companion folds into gd and cd,
+        // then cdeq = cd - gd vd and the stamps, in C's order.
+        let gspr = if self.parameters.rs > 0. {
+            thermal.conductance
+        } else {
+            0.
+        };
+        let (mut gd, mut cd) = (p.junction.conductance, p.junction.current);
+        if let Some(coefficients) = context.integration {
+            let crate::devices::AnalysisMode::Transient { dt, .. } = context.mode else {
+                return Err(SpiceError::circuit("junction companion outside transient"));
+            };
+            if dt != coefficients.dt() {
+                return Err(SpiceError::circuit("junction timestep mismatch"));
+            }
+            let (geq, ccap) = junction_companion(context, coefficients, p.junction, 0)?;
+            gd += geq;
+            cd += ccap;
+        } else {
+            if context.mode.is_transient() {
+                return Err(SpiceError::circuit(
+                    "junction transient needs companion integration",
+                ));
+            }
+            context.states.set(1, 0.)?;
         }
-        stamp_junction(context, self.junction, v, p.junction, 0)?;
+        context.states.set(0, p.junction.charge)?;
+        let cdeq = cd - gd * v;
+        let [pos, neg] = [self.terminals[0], self.terminals[1]];
+        let prime = self.junction[0];
+        context.stamp_rhs(neg, cdeq)?;
+        context.stamp_rhs(prime, -cdeq)?;
+        context.stamp(pos, pos, gspr)?;
+        context.stamp(neg, neg, gd)?;
+        context.stamp(prime, prime, gd + gspr)?;
+        context.stamp(pos, prime, -gspr)?;
+        context.stamp(neg, prime, -gd)?;
+        context.stamp(prime, pos, -gspr)?;
+        context.stamp(prime, neg, -gd)?;
         limiter.finish(&mut context.states, &[(DIODE_VOLTAGE_SLOT, v)])
     }
     /// `dioacld.c`: series conductance, C's small-signal junction conductance
@@ -1349,8 +1483,10 @@ impl Device for Diode {
     /// the transit-time diffusion charge, and the depletion charges graded
     /// against the model's **unadjusted** VJ/VJSW below the temperature-
     /// adjusted `FC*VJ` (`DIOtDepCap`, which C applies to the sidewall too).
-    /// The charge term is omitted when its second-order coefficient is zero,
-    /// as `diodisto.c` skips it.
+    /// The charge's `j omega` current is folded into the junction current's
+    /// term ([`crate::devices::distortion::DistortionTerm::with_charge`]),
+    /// and omitted when its second-order coefficient is zero, as
+    /// `diodisto.c` does.
     fn distortion(
         &self,
         context: &crate::devices::distortion::DistortionContext<'_>,
@@ -1406,21 +1542,18 @@ impl Device for Diode {
         let (cjunc2, cjunc3) = junction(t.cjo, p.vj, t.grading, f2);
         let (sw2, sw3) = junction(t.cjsw, p.vjsw, p.mjsw, f2_sw);
         let (cap2, cap3) = (cdiff2 + (cjunc2 + sw2), cdiff3 + (cjunc3 + sw3));
-        let control = || vec![Control::between(self.junction[0], self.junction[1])];
-        let mut terms = vec![DistortionTerm::new(
+        let mut term = DistortionTerm::new(
             Response::Current,
             self.junction,
-            control(),
+            vec![Control::between(self.junction[0], self.junction[1])],
             Taylor::single(g2, g3),
-        )];
+        );
         if cap2 != 0. {
-            terms.push(DistortionTerm::new(
-                Response::Charge,
-                self.junction,
-                control(),
-                Taylor::single(cap2, cap3),
-            ));
+            // diodisto.c folds the charge's `j omega` current into the
+            // junction current's value before loading it.
+            term = term.with_charge(Taylor::single(cap2, cap3));
         }
+        let terms = vec![term];
         Ok(DeviceDistortion::Terms(terms))
     }
 
@@ -1442,7 +1575,9 @@ impl Device for Diode {
             .unwrap_or(context.model_context.temperature + p.dtemp)
             + 273.15;
         let m = p.multiplier;
-        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp() * m;
+        // dionoise.c: `DIOfNcoef * exp(DIOfNexp * log(MAX(fabs(cd / DIOm),
+        // N_MINLOG))) / freq * DIOm`.
+        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp();
         let [anode, cathode] = self.junction;
         let external = self.terminals[0];
         Ok(DeviceNoise::Sources {
@@ -1463,8 +1598,8 @@ impl Device for Diode {
                     "_1overf",
                     self.junction,
                     NoiseKind::Flicker {
-                        coefficient: flicker,
-                        exponent: 1.,
+                        numerator: flicker,
+                        law: FlickerLaw::PerHertzTimes { multiplier: m },
                     },
                 ),
                 NoiseSource::new(
@@ -1480,8 +1615,8 @@ impl Device for Diode {
                     "_1overfsw",
                     [anode, cathode],
                     NoiseKind::Flicker {
-                        coefficient: 0.,
-                        exponent: 1.,
+                        numerator: 0.,
+                        law: FlickerLaw::PerHertzTimes { multiplier: m },
                     },
                 ),
             ],
@@ -1574,9 +1709,9 @@ mod tests {
     fn charge_derivative_and_current_jacobian_are_consistent() {
         for v in [-1., -0.08, -0.02, 0., 0.49, 0.5, 0.51, 0.7] {
             let h = 1e-7;
-            let (q, c) = depletion_charge(v, 2e-12, 1., 0.5, 0.5);
-            let derivative = (depletion_charge(v + h, 2e-12, 1., 0.5, 0.5).0
-                - depletion_charge(v - h, 2e-12, 1., 0.5, 0.5).0)
+            let (q, c) = c_depletion(v, 2e-12, 1., 0.5, 0.5);
+            let derivative = (c_depletion(v + h, 2e-12, 1., 0.5, 0.5).0
+                - c_depletion(v - h, 2e-12, 1., 0.5, 0.5).0)
                 / (2. * h);
             assert!(
                 (derivative - c).abs() < 1e-8 * c.abs(),
@@ -1749,7 +1884,8 @@ mod tests {
     #[test]
     fn aliases_keep_last_set_precedence() {
         let p = parameters("cj0=1p cjo=2p cj=3p pb=0.6 mj=0.3 vb=7 ib=1u nz=2", "").unwrap();
-        assert_eq!((p.cjo, p.vj, p.grading), (3e-12, 0.6, 0.3));
+        // INPevaluate values: `0.6` is 6 * 0.1 and `0.3` is 3 * 0.1.
+        assert_eq!((p.cjo, p.vj, p.grading), (3e-12, 6. * 0.1, 3. * 0.1));
         assert_eq!((p.bv, p.ibv, p.nbv), (Some(7.), 1e-6, 2.));
         let p = parameters("cjo=2p cj0=1p", "").unwrap();
         assert_eq!(p.cjo, 1e-12);

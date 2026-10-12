@@ -21,6 +21,7 @@
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
 //! | [`sweep`] | physical resistor metadata, immutable per-point resistor and instance-parameter overrides | typed `.dc` resistor and `@inst[param]` targets |
 //! | [`noise`] | `.noise` generators: the [`Device::noise`] hook, thermal/shot/flicker laws and C's instance order | R, D, Q, MOS1, S/W; explicit `Noiseless` for C's noise-free devices |
+//! | [`setup`] | C's `CKTsetup`/`CKTload` device order and `TSTALLOC` element allocation | type table, model/instance order |
 //! | [`subckt`] | `X` instance expansion: port binding, hierarchical names, scoped parameters and models | top-level definitions, named overrides, `.global` nodes |
 //! | [`urc`] | `U` uniform RC lines expanded into lumped R/C/D sections (`urcsetup.c`) | factory expansion into existing devices |
 //!
@@ -42,6 +43,8 @@
 pub mod behavioural;
 pub mod binning;
 pub mod bjt;
+pub mod breaks;
+pub use breaks::{BreakTable, SourceBreaks};
 pub mod circuit;
 pub mod controlled;
 pub mod delay;
@@ -87,12 +90,13 @@ pub use pulse::{Pulse, PulseBreakpoints, PulseSpec, TransientTiming};
 pub use sources::{IndependentSource, RfPort};
 pub use subckt::{ExpandedNetlist, SubcircuitLimits, expand_subcircuits};
 pub mod rlc;
+pub mod setup;
 pub mod state;
 pub mod traits;
 
 pub use behavioural::{Behavioural, BehaviouralOutput, BehaviouralScale};
 pub use circuit::{Circuit, CircuitGraph, CircuitVertex};
-pub use circuit::{DelayAcceptance, LoadRequest};
+pub use circuit::{ConvergenceRequest, DelayAcceptance, LoadRequest};
 pub use controlled::{ControlledKind, ControlledSource};
 pub use mutual::MutualInductance;
 pub use registry::{DeviceEntry, DeviceSupport, Registry};
@@ -104,8 +108,9 @@ pub use sweep::{
 };
 pub use switch::{Switch, SwitchKind, SwitchState};
 pub use traits::{
-    AcceptContext, AnalysisMode, ControlReference, Device, InductanceValue, MnaUnknowns,
-    MutualCoupling, MutualTerm, StampContext, StorageElement, StorageKind, TruncationContext,
+    AcceptContext, AnalysisMode, ControlReference, ConvergenceContext, Device, InductanceValue,
+    MnaUnknowns, MutualCoupling, MutualTerm, StampContext, StorageElement, StorageKind,
+    TruncationContext,
 };
 
 /// The C reference for the device framework, used in `NotYetPorted` errors.

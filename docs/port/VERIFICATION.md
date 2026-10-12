@@ -1,3 +1,27 @@
+# M10 0.5h: card budget, long diode chains, 402-FET transient
+
+- `diode100_op`: one new C golden, captured once with `cargo xtask golden
+  capture --netlist diode100_op`. No existing golden was recaptured and no
+  tolerance changed. It is 100 stages of 100 ohm and a 1e-14 A diode, driven
+  from 100 V into 1 kohm, so every junction conducts (about 2.9 mA). The
+  default and no-FMA C builds agree to 1e-12 relative, well inside
+  `compare::NONLINEAR`, and the port matches the no-FMA build bit for bit. The
+  5 V benchmark chain (`scripts/bench`) is not a golden: its current (about
+  1e-13 A) is below ABSTOL, so the two C builds differ by up to 14 times the
+  NONLINEAR bound. `tests/convergence.rs` instead pins it at 100 stages (direct
+  Newton, 7 iterations) and 1000 stages (direct Newton fails, dynamic gmin, 216
+  iterations), with values bitwise equal to the no-FMA C build. Where every
+  `CKTop` strategy fails in C too (for example 1 ohm stages at 5 V), C goes on
+  to `OPtran`. The port's solves are identical to C's up to that point, and it
+  stops with the explicit "OPtran not ported" error.
+- The source card budget (`SourceLimits::max_cards`) default is now 1,000,000
+  (it was 100,000). It still stops runaway repeated includes; see
+  `tests/sources.rs` and [FRONTEND_STRUCTURE.md](FRONTEND_STRUCTURE.md).
+- The 201-stage MOS1 inverter-chain transient from the benchmark suite
+  (`inv201_tran`, 402 FETs) now matches the no-FMA C build bit for bit,
+  including all 4758 time points. The default C build agrees within 1.1e-11 V,
+  so the 0.26 V end-of-chain miss recorded in the performance baseline is gone.
+
 # M8 follow-up regressions (#128–131)
 
 Complex LU now retries failed original-system residuals with at most two
@@ -331,8 +355,8 @@ fixtures.
 
 The nonlinear decks set `.options reltol=1e-8`: at C's default the
 warm-started diode points stop ~3e-4 V short of the root. `golden verify` now
-also projects C's `res-sweep` (type `res-sweep`) and `v(param-sweep)` (type
-voltage) scales onto the Rust `sweep` column. The opt-in
+also covers C's `res-sweep` (type `res-sweep`) and `v(param-sweep)` (type
+voltage) scales, which the port now writes under the same names. The opt-in
 `c_dc_param_sweep_reference` runs 15 further decks against the live binary
 (linear at `1e-12 |C| + 1e-15`, nonlinear at the `NONLINEAR` bound); it also
 detects C's BJT AREAB quirk (a variant that rescaled AREAB with AREA failed at
@@ -482,10 +506,9 @@ reltol with bypass stops these sweeps about 4e-4 from the converged root, far
 outside the 1 ppm `compare::NONLINEAR` bound; with it the worst DC/AC errors are
 below 0.1 of that bound and the transient's 0.039 of `compare::TRAN`.
 
-`golden verify` projects two C naming conventions onto the Rust plot: a
-temperature scale becomes `temp-sweep` (name and unit), and the Rust-only
-`sweep(<outer>)` column of a nested sweep is dropped (C writes the points
-without it; the outer value is still visible through the circuit's voltages).
+DC sweep plots use C's scale names and types (a temperature scale is
+`temp-sweep`, name and unit) and, like C, write no outer-value column for a
+nested sweep; the outer value is visible through the circuit's voltages.
 The three new `c_bjt_reference` live-C comparisons are opt-in via `NGSPICE_BIN`. Ten new parser snapshots were blessed;
 existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#bjt).
 

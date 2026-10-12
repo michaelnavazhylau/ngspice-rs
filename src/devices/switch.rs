@@ -566,6 +566,18 @@ impl Switch {
 }
 
 impl Device for Switch {
+    /// `swsetup.c`/`cswsetup.c`: `(p,p) (p,n) (n,p) (n,n)`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [p, n] = [self.terminals[0], self.terminals[1]];
+        setup.nodes(p, p);
+        setup.nodes(p, n);
+        setup.nodes(n, p);
+        setup.nodes(n, n);
+        Ok(true)
+    }
     /// Linear in `.disto`: C gives this device no distortion routine
     /// (`DEVdisto = NULL`, `sw/swinit.c`, `csw/cswinit.c`; the switch enters through its small-signal on/off conductance), so it enters only through its
     /// small-signal matrix.
