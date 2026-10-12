@@ -22,7 +22,9 @@
 //! start at `tVcrit`, `DEVpnjlim`, reflected about BV in breakdown) through
 //! [`crate::devices::limiting`]; C's predictor and bypass are not ported.
 use crate::devices::limiting::{self, Limiter, Linearization};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::schema::{
     ScalarDomain as Domain, ScalarParameter as Parameter, ScalarSchema, ScalarUnit as Unit,
     ScalarValues,
@@ -1556,7 +1558,9 @@ impl Device for Diode {
             .unwrap_or(context.model_context.temperature + p.dtemp)
             + 273.15;
         let m = p.multiplier;
-        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp() * m;
+        // dionoise.c: `DIOfNcoef * exp(DIOfNexp * log(MAX(fabs(cd / DIOm),
+        // N_MINLOG))) / freq * DIOm`.
+        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp();
         let [anode, cathode] = self.junction;
         let external = self.terminals[0];
         Ok(DeviceNoise::Sources {
@@ -1577,8 +1581,8 @@ impl Device for Diode {
                     "_1overf",
                     self.junction,
                     NoiseKind::Flicker {
-                        coefficient: flicker,
-                        exponent: 1.,
+                        numerator: flicker,
+                        law: FlickerLaw::PerHertzTimes { multiplier: m },
                     },
                 ),
                 NoiseSource::new(
@@ -1594,8 +1598,8 @@ impl Device for Diode {
                     "_1overfsw",
                     [anode, cathode],
                     NoiseKind::Flicker {
-                        coefficient: 0.,
-                        exponent: 1.,
+                        numerator: 0.,
+                        law: FlickerLaw::PerHertzTimes { multiplier: m },
                     },
                 ),
             ],
