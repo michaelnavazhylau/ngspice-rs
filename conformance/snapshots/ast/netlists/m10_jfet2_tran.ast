@@ -1,0 +1,117 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_jfet2_tran.cir
+title: "JFET level 2 transient: gate-lag and self-heating filters (TAUG/TAUD), Statz charge, CDS, PJF stage" @netlists/m10_jfet2_tran.cir:1:1
+scope root
+  cards (14):
+    [0] device[0] @netlists/m10_jfet2_tran.cir:2:1 "vdd vdd 0 10"
+    [1] device[1] @netlists/m10_jfet2_tran.cir:3:1 "vin in 0 sin(-0.8 0.7 5meg)"
+    [2] device[2] @netlists/m10_jfet2_tran.cir:4:1 "rg in g 1k"
+    [3] device[3] @netlists/m10_jfet2_tran.cir:5:1 "rl vdd d 1k"
+    [4] device[4] @netlists/m10_jfet2_tran.cir:6:1 "j1 d g 0 jn"
+    [5] model[0] @netlists/m10_jfet2_tran.cir:7:1 ".model jn njf(level=2 vto=-2 beta=2m lambda=0.02 rd=5 rs=5 cgs=4p cgd=1.5p cds=0.5p acgam=0.1 xc=0.1 delta=0.5 taud=100n lfgam=0.05 lfg1=0.01 hfgam=0.01 taug=200n vst=0.05 xi=20 z=0.5)"
+    [6] device[5] @netlists/m10_jfet2_tran.cir:8:1 "vdd2 dd2 0 -6"
+    [7] device[6] @netlists/m10_jfet2_tran.cir:9:1 "rl2 dd2 d2 3k"
+    [8] device[7] @netlists/m10_jfet2_tran.cir:10:1 "vin2 g2 0 sin(0 0.4 4meg)"
+    [9] device[8] @netlists/m10_jfet2_tran.cir:11:1 "j2 d2 g2 0 jp"
+    [10] model[1] @netlists/m10_jfet2_tran.cir:12:1 ".model jp pjf(level=2 vto=-1.8 beta=1m cgs=3p cgd=3p pb=0.9 fc=0.3 taug=50n lfgam=0.03)"
+    [11] options[0] @netlists/m10_jfet2_tran.cir:13:1 ".options reltol=1e-6 vntol=1e-11 abstol=1e-15"
+    [12] analysis[0] @netlists/m10_jfet2_tran.cir:14:1 ".tran 2n 1u 0 0.25n"
+    [13] end @netlists/m10_jfet2_tran.cir:15:1 ".end"
+  devices (9):
+    device [0] name="vdd" designator=v @netlists/m10_jfet2_tran.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="10" @netlists/m10_jfet2_tran.cir:2:11
+    device [1] name="vin" designator=v @netlists/m10_jfet2_tran.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="sin" kind=waveform value="(-0.8 0.7 5meg)" @netlists/m10_jfet2_tran.cir:3:10
+          sin
+            vo: "-0.8"@netlists/m10_jfet2_tran.cir:3:14
+            va: "0.7"@netlists/m10_jfet2_tran.cir:3:19
+            freq: "5meg"@netlists/m10_jfet2_tran.cir:3:23
+    device [2] name="rg" designator=r @netlists/m10_jfet2_tran.cir:4:1
+      nodes: "in" "g"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m10_jfet2_tran.cir:4:9
+    device [3] name="rl" designator=r @netlists/m10_jfet2_tran.cir:5:1
+      nodes: "vdd" "d"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m10_jfet2_tran.cir:5:10
+    device [4] name="j1" designator=j @netlists/m10_jfet2_tran.cir:6:1
+      nodes: "d" "g" "0"
+      model: "jn"
+      parameters (0):
+    device [5] name="vdd2" designator=v @netlists/m10_jfet2_tran.cir:8:1
+      nodes: "dd2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-6" @netlists/m10_jfet2_tran.cir:8:12
+    device [6] name="rl2" designator=r @netlists/m10_jfet2_tran.cir:9:1
+      nodes: "dd2" "d2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="3k" @netlists/m10_jfet2_tran.cir:9:12
+    device [7] name="vin2" designator=v @netlists/m10_jfet2_tran.cir:10:1
+      nodes: "g2" "0"
+      model: none
+      parameters (1):
+        [0] name="sin" kind=waveform value="(0 0.4 4meg)" @netlists/m10_jfet2_tran.cir:10:11
+          sin
+            vo: "0"@netlists/m10_jfet2_tran.cir:10:15
+            va: "0.4"@netlists/m10_jfet2_tran.cir:10:17
+            freq: "4meg"@netlists/m10_jfet2_tran.cir:10:21
+    device [8] name="j2" designator=j @netlists/m10_jfet2_tran.cir:11:1
+      nodes: "d2" "g2" "0"
+      model: "jp"
+      parameters (0):
+  models (2):
+    model [0] name="jn" base="njf" level=2e0 @netlists/m10_jfet2_tran.cir:7:1
+      parameters (20):
+        [0] name="level" kind=scalar value="2" @netlists/m10_jfet2_tran.cir:7:15
+        [1] name="vto" kind=scalar value="-2" @netlists/m10_jfet2_tran.cir:7:23
+        [2] name="beta" kind=scalar value="2m" @netlists/m10_jfet2_tran.cir:7:30
+        [3] name="lambda" kind=scalar value="0.02" @netlists/m10_jfet2_tran.cir:7:38
+        [4] name="rd" kind=scalar value="5" @netlists/m10_jfet2_tran.cir:7:50
+        [5] name="rs" kind=scalar value="5" @netlists/m10_jfet2_tran.cir:7:55
+        [6] name="cgs" kind=scalar value="4p" @netlists/m10_jfet2_tran.cir:7:60
+        [7] name="cgd" kind=scalar value="1.5p" @netlists/m10_jfet2_tran.cir:7:67
+        [8] name="cds" kind=scalar value="0.5p" @netlists/m10_jfet2_tran.cir:7:76
+        [9] name="acgam" kind=scalar value="0.1" @netlists/m10_jfet2_tran.cir:7:85
+        [10] name="xc" kind=scalar value="0.1" @netlists/m10_jfet2_tran.cir:7:95
+        [11] name="delta" kind=scalar value="0.5" @netlists/m10_jfet2_tran.cir:7:102
+        [12] name="taud" kind=scalar value="100n" @netlists/m10_jfet2_tran.cir:7:112
+        [13] name="lfgam" kind=scalar value="0.05" @netlists/m10_jfet2_tran.cir:7:122
+        [14] name="lfg1" kind=scalar value="0.01" @netlists/m10_jfet2_tran.cir:7:133
+        [15] name="hfgam" kind=scalar value="0.01" @netlists/m10_jfet2_tran.cir:7:143
+        [16] name="taug" kind=scalar value="200n" @netlists/m10_jfet2_tran.cir:7:154
+        [17] name="vst" kind=scalar value="0.05" @netlists/m10_jfet2_tran.cir:7:164
+        [18] name="xi" kind=scalar value="20" @netlists/m10_jfet2_tran.cir:7:173
+        [19] name="z" kind=scalar value="0.5" @netlists/m10_jfet2_tran.cir:7:179
+    model [1] name="jp" base="pjf" level=2e0 @netlists/m10_jfet2_tran.cir:12:1
+      parameters (9):
+        [0] name="level" kind=scalar value="2" @netlists/m10_jfet2_tran.cir:12:15
+        [1] name="vto" kind=scalar value="-1.8" @netlists/m10_jfet2_tran.cir:12:23
+        [2] name="beta" kind=scalar value="1m" @netlists/m10_jfet2_tran.cir:12:32
+        [3] name="cgs" kind=scalar value="3p" @netlists/m10_jfet2_tran.cir:12:40
+        [4] name="cgd" kind=scalar value="3p" @netlists/m10_jfet2_tran.cir:12:47
+        [5] name="pb" kind=scalar value="0.9" @netlists/m10_jfet2_tran.cir:12:54
+        [6] name="fc" kind=scalar value="0.3" @netlists/m10_jfet2_tran.cir:12:61
+        [7] name="taug" kind=scalar value="50n" @netlists/m10_jfet2_tran.cir:12:68
+        [8] name="lfgam" kind=scalar value="0.03" @netlists/m10_jfet2_tran.cir:12:77
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_jfet2_tran.cir:14:1
+      arguments: "2n" "1u" "0" "0.25n"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_jfet2_tran.cir:13:1
+      setting [0] name="reltol" value="1e-6"@netlists/m10_jfet2_tran.cir:13:17 @netlists/m10_jfet2_tran.cir:13:10
+      setting [1] name="vntol" value="1e-11"@netlists/m10_jfet2_tran.cir:13:28 @netlists/m10_jfet2_tran.cir:13:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_jfet2_tran.cir:13:41 @netlists/m10_jfet2_tran.cir:13:34
+  globals (0):

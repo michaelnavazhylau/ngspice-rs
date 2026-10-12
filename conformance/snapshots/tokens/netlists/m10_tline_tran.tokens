@@ -1,0 +1,100 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_tline_tran.cir
+title: "Lossless transmission lines, matched and mismatched transient" @netlists/m10_tline_tran.cir:1:1
+card 1 @netlists/m10_tline_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "v1 in 0 pwl(0 0 1n 0 1.5n 1 6n 1 6.5n 0)"
+  kind: device(v)
+  token 1 9:1 word "v1"
+  token 2 9:4 word "in"
+  token 3 9:7 number "0" value=0e0
+  token 4 9:9 word "pwl"
+  token 5 9:12 lparen "("
+  token 6 9:13 number "0" value=0e0
+  token 7 9:15 number "0" value=0e0
+  token 8 9:17 number "1n" value=1e-9
+  token 9 9:20 number "0" value=0e0
+  token 10 9:22 number "1.5n" value=1.5000000000000002e-9
+  token 11 9:27 number "1" value=1e0
+  token 12 9:29 number "6n" value=6.000000000000001e-9
+  token 13 9:32 number "1" value=1e0
+  token 14 9:34 number "6.5n" value=6.5e-9
+  token 15 9:39 number "0" value=0e0
+  token 16 9:40 rparen ")"
+card 2 @netlists/m10_tline_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "rs1 in a 50"
+  kind: device(r)
+  token 1 10:1 word "rs1"
+  token 2 10:5 word "in"
+  token 3 10:8 word "a"
+  token 4 10:10 number "50" value=5e1
+card 3 @netlists/m10_tline_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "t1 a 0 b 0 z0=50 td=2n rel=1e-3 abs=1e3"
+  kind: device(t)
+  token 1 11:1 word "t1"
+  token 2 11:4 word "a"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 word "b"
+  token 5 11:10 number "0" value=0e0
+  token 6 11:12 word "z0"
+  token 7 11:14 equals "="
+  token 8 11:15 number "50" value=5e1
+  token 9 11:18 word "td"
+  token 10 11:20 equals "="
+  token 11 11:21 number "2n" value=2e-9
+  token 12 11:24 word "rel"
+  token 13 11:27 equals "="
+  token 14 11:28 number "1e-3" value=1e-3
+  token 15 11:33 word "abs"
+  token 16 11:36 equals "="
+  token 17 11:37 number "1e3" value=1e3
+card 4 @netlists/m10_tline_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "rl1 b 0 50"
+  kind: device(r)
+  token 1 12:1 word "rl1"
+  token 2 12:5 word "b"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 number "50" value=5e1
+card 5 @netlists/m10_tline_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "rs2 in c 25"
+  kind: device(r)
+  token 1 13:1 word "rs2"
+  token 2 13:5 word "in"
+  token 3 13:8 word "c"
+  token 4 13:10 number "25" value=2.5e1
+card 6 @netlists/m10_tline_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "t2 c 0 d 0 z0=50 td=1n rel=1e-3 abs=1e3"
+  kind: device(t)
+  token 1 14:1 word "t2"
+  token 2 14:4 word "c"
+  token 3 14:6 number "0" value=0e0
+  token 4 14:8 word "d"
+  token 5 14:10 number "0" value=0e0
+  token 6 14:12 word "z0"
+  token 7 14:14 equals "="
+  token 8 14:15 number "50" value=5e1
+  token 9 14:18 word "td"
+  token 10 14:20 equals "="
+  token 11 14:21 number "1n" value=1e-9
+  token 12 14:24 word "rel"
+  token 13 14:27 equals "="
+  token 14 14:28 number "1e-3" value=1e-3
+  token 15 14:33 word "abs"
+  token 16 14:36 equals "="
+  token 17 14:37 number "1e3" value=1e3
+card 7 @netlists/m10_tline_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "rl2 d 0 200"
+  kind: device(r)
+  token 1 15:1 word "rl2"
+  token 2 15:5 word "d"
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "200" value=2e2
+card 8 @netlists/m10_tline_tran.cir:16:1 lines=16-16 continuations=0
+  raw: ".tran 0.05n 12n"
+  kind: dot(.tran)
+  token 1 16:1 word ".tran"
+  token 2 16:7 number "0.05n" value=5.000000000000001e-11
+  token 3 16:13 number "12n" value=1.2000000000000002e-8
+card 9 @netlists/m10_tline_tran.cir:17:1 lines=17-17 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 17:1 word ".end"

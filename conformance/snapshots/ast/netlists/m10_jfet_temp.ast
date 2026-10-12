@@ -1,0 +1,125 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_jfet_temp.cir
+title: "JFET temperature scaling: TNOM, TCV/VTOTC, BEX/BETATCE, XTI/EG, TEMP/DTEMP" @netlists/m10_jfet_temp.cir:1:1
+scope root
+  cards (18):
+    [0] device[0] @netlists/m10_jfet_temp.cir:2:1 "vd d 0 5"
+    [1] device[1] @netlists/m10_jfet_temp.cir:3:1 "vg g 0 -0.8"
+    [2] device[2] @netlists/m10_jfet_temp.cir:4:1 "vgf gf 0 0.45"
+    [3] device[3] @netlists/m10_jfet_temp.cir:5:1 "j1 d g 0 ja"
+    [4] device[4] @netlists/m10_jfet_temp.cir:6:1 "j2 d g 0 jb temp=60"
+    [5] device[5] @netlists/m10_jfet_temp.cir:7:1 "j3 d g 0 jc dtemp=-20"
+    [6] device[6] @netlists/m10_jfet_temp.cir:8:1 "j4 d gf 0 jd"
+    [7] device[7] @netlists/m10_jfet_temp.cir:9:1 "vdp dp 0 -4"
+    [8] device[8] @netlists/m10_jfet_temp.cir:10:1 "vgp gp 0 0.6"
+    [9] device[9] @netlists/m10_jfet_temp.cir:11:1 "j5 dp gp 0 je"
+    [10] model[0] @netlists/m10_jfet_temp.cir:12:1 ".model ja njf(vto=-2 beta=1m tcv=2.5m bex=-1.5 tnom=20 is=1e-14)"
+    [11] model[1] @netlists/m10_jfet_temp.cir:13:1 ".model jb njf(vto=-2 beta=1m vtotc=-2m betatce=-0.5 xti=3 eg=1.2)"
+    [12] model[2] @netlists/m10_jfet_temp.cir:14:1 ".model jc njf(vto=-1.5 beta=0.5m lambda=0.01 is=5e-15 n=1.3 xti=2 tnom=35)"
+    [13] model[3] @netlists/m10_jfet_temp.cir:15:1 ".model jd njf(vto=-2 beta=1m is=1e-13 n=1.2 eg=1.1 xti=4 pb=0.75)"
+    [14] model[4] @netlists/m10_jfet_temp.cir:16:1 ".model je pjf(vto=-1.6 beta=0.7m tcv=-1.5m bex=-2 rs=50)"
+    [15] options[0] @netlists/m10_jfet_temp.cir:17:1 ".options reltol=1e-7 vntol=1e-12 abstol=1e-15"
+    [16] analysis[0] @netlists/m10_jfet_temp.cir:18:1 ".dc temp -40 125 15"
+    [17] end @netlists/m10_jfet_temp.cir:19:1 ".end"
+  devices (10):
+    device [0] name="vd" designator=v @netlists/m10_jfet_temp.cir:2:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m10_jfet_temp.cir:2:8
+    device [1] name="vg" designator=v @netlists/m10_jfet_temp.cir:3:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.8" @netlists/m10_jfet_temp.cir:3:8
+    device [2] name="vgf" designator=v @netlists/m10_jfet_temp.cir:4:1
+      nodes: "gf" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.45" @netlists/m10_jfet_temp.cir:4:10
+    device [3] name="j1" designator=j @netlists/m10_jfet_temp.cir:5:1
+      nodes: "d" "g" "0"
+      model: "ja"
+      parameters (0):
+    device [4] name="j2" designator=j @netlists/m10_jfet_temp.cir:6:1
+      nodes: "d" "g" "0"
+      model: "jb"
+      parameters (1):
+        [0] name="temp" kind=scalar value="60" @netlists/m10_jfet_temp.cir:6:13
+    device [5] name="j3" designator=j @netlists/m10_jfet_temp.cir:7:1
+      nodes: "d" "g" "0"
+      model: "jc"
+      parameters (1):
+        [0] name="dtemp" kind=scalar value="-20" @netlists/m10_jfet_temp.cir:7:13
+    device [6] name="j4" designator=j @netlists/m10_jfet_temp.cir:8:1
+      nodes: "d" "gf" "0"
+      model: "jd"
+      parameters (0):
+    device [7] name="vdp" designator=v @netlists/m10_jfet_temp.cir:9:1
+      nodes: "dp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-4" @netlists/m10_jfet_temp.cir:9:10
+    device [8] name="vgp" designator=v @netlists/m10_jfet_temp.cir:10:1
+      nodes: "gp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.6" @netlists/m10_jfet_temp.cir:10:10
+    device [9] name="j5" designator=j @netlists/m10_jfet_temp.cir:11:1
+      nodes: "dp" "gp" "0"
+      model: "je"
+      parameters (0):
+  models (5):
+    model [0] name="ja" base="njf" level=none @netlists/m10_jfet_temp.cir:12:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="-2" @netlists/m10_jfet_temp.cir:12:15
+        [1] name="beta" kind=scalar value="1m" @netlists/m10_jfet_temp.cir:12:22
+        [2] name="tcv" kind=scalar value="2.5m" @netlists/m10_jfet_temp.cir:12:30
+        [3] name="bex" kind=scalar value="-1.5" @netlists/m10_jfet_temp.cir:12:39
+        [4] name="tnom" kind=scalar value="20" @netlists/m10_jfet_temp.cir:12:48
+        [5] name="is" kind=scalar value="1e-14" @netlists/m10_jfet_temp.cir:12:56
+    model [1] name="jb" base="njf" level=none @netlists/m10_jfet_temp.cir:13:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="-2" @netlists/m10_jfet_temp.cir:13:15
+        [1] name="beta" kind=scalar value="1m" @netlists/m10_jfet_temp.cir:13:22
+        [2] name="vtotc" kind=scalar value="-2m" @netlists/m10_jfet_temp.cir:13:30
+        [3] name="betatce" kind=scalar value="-0.5" @netlists/m10_jfet_temp.cir:13:40
+        [4] name="xti" kind=scalar value="3" @netlists/m10_jfet_temp.cir:13:53
+        [5] name="eg" kind=scalar value="1.2" @netlists/m10_jfet_temp.cir:13:59
+    model [2] name="jc" base="njf" level=none @netlists/m10_jfet_temp.cir:14:1
+      parameters (7):
+        [0] name="vto" kind=scalar value="-1.5" @netlists/m10_jfet_temp.cir:14:15
+        [1] name="beta" kind=scalar value="0.5m" @netlists/m10_jfet_temp.cir:14:24
+        [2] name="lambda" kind=scalar value="0.01" @netlists/m10_jfet_temp.cir:14:34
+        [3] name="is" kind=scalar value="5e-15" @netlists/m10_jfet_temp.cir:14:46
+        [4] name="n" kind=scalar value="1.3" @netlists/m10_jfet_temp.cir:14:55
+        [5] name="xti" kind=scalar value="2" @netlists/m10_jfet_temp.cir:14:61
+        [6] name="tnom" kind=scalar value="35" @netlists/m10_jfet_temp.cir:14:67
+    model [3] name="jd" base="njf" level=none @netlists/m10_jfet_temp.cir:15:1
+      parameters (7):
+        [0] name="vto" kind=scalar value="-2" @netlists/m10_jfet_temp.cir:15:15
+        [1] name="beta" kind=scalar value="1m" @netlists/m10_jfet_temp.cir:15:22
+        [2] name="is" kind=scalar value="1e-13" @netlists/m10_jfet_temp.cir:15:30
+        [3] name="n" kind=scalar value="1.2" @netlists/m10_jfet_temp.cir:15:39
+        [4] name="eg" kind=scalar value="1.1" @netlists/m10_jfet_temp.cir:15:45
+        [5] name="xti" kind=scalar value="4" @netlists/m10_jfet_temp.cir:15:52
+        [6] name="pb" kind=scalar value="0.75" @netlists/m10_jfet_temp.cir:15:58
+    model [4] name="je" base="pjf" level=none @netlists/m10_jfet_temp.cir:16:1
+      parameters (5):
+        [0] name="vto" kind=scalar value="-1.6" @netlists/m10_jfet_temp.cir:16:15
+        [1] name="beta" kind=scalar value="0.7m" @netlists/m10_jfet_temp.cir:16:24
+        [2] name="tcv" kind=scalar value="-1.5m" @netlists/m10_jfet_temp.cir:16:34
+        [3] name="bex" kind=scalar value="-2" @netlists/m10_jfet_temp.cir:16:44
+        [4] name="rs" kind=scalar value="50" @netlists/m10_jfet_temp.cir:16:51
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m10_jfet_temp.cir:18:1
+      arguments: "temp" "-40" "125" "15"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_jfet_temp.cir:17:1
+      setting [0] name="reltol" value="1e-7"@netlists/m10_jfet_temp.cir:17:17 @netlists/m10_jfet_temp.cir:17:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_jfet_temp.cir:17:28 @netlists/m10_jfet_temp.cir:17:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_jfet_temp.cir:17:41 @netlists/m10_jfet_temp.cir:17:34
+  globals (0):

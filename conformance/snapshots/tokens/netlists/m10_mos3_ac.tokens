@@ -1,0 +1,249 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_mos3_ac.cir
+title: "MOS3 small signal: active-load common-source stage, Meyer and junction charge at 75 C" @netlists/m10_mos3_ac.cir:1:1
+card 1 @netlists/m10_mos3_ac.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd vdd 0 5"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 word "vdd"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 number "5" value=5e0
+card 2 @netlists/m10_mos3_ac.cir:3:1 lines=3-3 continuations=0
+  raw: "vin gate 0 dc 1.3 ac 1"
+  kind: device(v)
+  token 1 3:1 word "vin"
+  token 2 3:5 word "gate"
+  token 3 3:10 number "0" value=0e0
+  token 4 3:12 word "dc"
+  token 5 3:15 number "1.3" value=1.3e0
+  token 6 3:19 word "ac"
+  token 7 3:22 number "1" value=1e0
+card 3 @netlists/m10_mos3_ac.cir:4:1 lines=4-4 continuations=0
+  raw: "vbias pg 0 3.6"
+  kind: device(v)
+  token 1 4:1 word "vbias"
+  token 2 4:7 word "pg"
+  token 3 4:10 number "0" value=0e0
+  token 4 4:12 number "3.6" value=3.6e0
+card 4 @netlists/m10_mos3_ac.cir:5:1 lines=5-5 continuations=0
+  raw: "m1 drain gate 0 0 mn w=8u l=1.2u m=2 ad=24p as=24p pd=22u ps=22u"
+  kind: device(m)
+  token 1 5:1 word "m1"
+  token 2 5:4 word "drain"
+  token 3 5:10 word "gate"
+  token 4 5:15 number "0" value=0e0
+  token 5 5:17 number "0" value=0e0
+  token 6 5:19 word "mn"
+  token 7 5:22 word "w"
+  token 8 5:23 equals "="
+  token 9 5:24 number "8u" value=8e-6
+  token 10 5:27 word "l"
+  token 11 5:28 equals "="
+  token 12 5:29 number "1.2u" value=1.2e-6
+  token 13 5:34 word "m"
+  token 14 5:35 equals "="
+  token 15 5:36 number "2" value=2e0
+  token 16 5:38 word "ad"
+  token 17 5:40 equals "="
+  token 18 5:41 number "24p" value=2.4e-11
+  token 19 5:45 word "as"
+  token 20 5:47 equals "="
+  token 21 5:48 number "24p" value=2.4e-11
+  token 22 5:52 word "pd"
+  token 23 5:54 equals "="
+  token 24 5:55 number "22u" value=2.2e-5
+  token 25 5:59 word "ps"
+  token 26 5:61 equals "="
+  token 27 5:62 number "22u" value=2.2e-5
+card 5 @netlists/m10_mos3_ac.cir:6:1 lines=6-6 continuations=0
+  raw: "m2 drain pg vdd vdd mp w=16u l=1.2u ad=48p as=48p pd=38u ps=38u"
+  kind: device(m)
+  token 1 6:1 word "m2"
+  token 2 6:4 word "drain"
+  token 3 6:10 word "pg"
+  token 4 6:13 word "vdd"
+  token 5 6:17 word "vdd"
+  token 6 6:21 word "mp"
+  token 7 6:24 word "w"
+  token 8 6:25 equals "="
+  token 9 6:26 number "16u" value=1.6e-5
+  token 10 6:30 word "l"
+  token 11 6:31 equals "="
+  token 12 6:32 number "1.2u" value=1.2e-6
+  token 13 6:37 word "ad"
+  token 14 6:39 equals "="
+  token 15 6:40 number "48p" value=4.8e-11
+  token 16 6:44 word "as"
+  token 17 6:46 equals "="
+  token 18 6:47 number "48p" value=4.8e-11
+  token 19 6:51 word "pd"
+  token 20 6:53 equals "="
+  token 21 6:54 number "38u" value=3.7999999999999995e-5
+  token 22 6:58 word "ps"
+  token 23 6:60 equals "="
+  token 24 6:61 number "38u" value=3.7999999999999995e-5
+card 6 @netlists/m10_mos3_ac.cir:7:1 lines=7-7 continuations=0
+  raw: "cl drain 0 50f"
+  kind: device(c)
+  token 1 7:1 word "cl"
+  token 2 7:4 word "drain"
+  token 3 7:10 number "0" value=0e0
+  token 4 7:12 number "50f" value=5e-14
+card 7 @netlists/m10_mos3_ac.cir:8:1 lines=8-10 continuations=2
+  raw: ".model mn nmos(level=3 vto=0.75 tox=20n nsub=1.2e16 xj=0.25u ld=0.1u uo=520 vmax=1.2e5 nfs=1e11 eta=0.25 theta=0.07 kappa=0.4 delta=0.5 cgso=0.4n cgdo=0.4n cgbo=0.2n cj=0.5m cjsw=0.4n mjsw=0.33 rd=40 rs=30)"
+  kind: dot(.model)
+  token 1 8:1 word ".model"
+  token 2 8:8 word "mn"
+  token 3 8:11 word "nmos"
+  token 4 8:15 lparen "("
+  token 5 8:16 word "level"
+  token 6 8:21 equals "="
+  token 7 8:22 number "3" value=3e0
+  token 8 8:24 word "vto"
+  token 9 8:27 equals "="
+  token 10 8:28 number "0.75" value=7.5e-1
+  token 11 8:33 word "tox"
+  token 12 8:36 equals "="
+  token 13 8:37 number "20n" value=2e-8
+  token 14 8:41 word "nsub"
+  token 15 8:45 equals "="
+  token 16 8:46 number "1.2e16" value=1.2e16
+  token 17 8:53 word "xj"
+  token 18 8:55 equals "="
+  token 19 8:56 number "0.25u" value=2.5e-7
+  token 20 8:62 word "ld"
+  token 21 8:64 equals "="
+  token 22 8:65 number "0.1u" value=1e-7
+  token 23 8:70 word "uo"
+  token 24 8:72 equals "="
+  token 25 8:73 number "520" value=5.2e2
+  token 26 8:77 word "vmax"
+  token 27 8:81 equals "="
+  token 28 8:82 number "1.2e5" value=1.2e5
+  token 29 8:88 word "nfs"
+  token 30 8:91 equals "="
+  token 31 8:92 number "1e11" value=1e11
+  token 32 8:97 word "eta"
+  token 33 8:100 equals "="
+  token 34 8:101 number "0.25" value=2.5e-1
+  token 35 8:106 word "theta"
+  token 36 8:111 equals "="
+  token 37 8:112 number "0.07" value=7e-2
+  token 38 8:117 word "kappa"
+  token 39 8:122 equals "="
+  token 40 8:123 number "0.4" value=4e-1
+  token 41 8:127 word "delta"
+  token 42 8:132 equals "="
+  token 43 8:133 number "0.5" value=5e-1
+  token 44 8:137 word "cgso"
+  token 45 8:141 equals "="
+  token 46 8:142 number "0.4n" value=4.0000000000000007e-10
+  token 47 8:147 word "cgdo"
+  token 48 8:151 equals "="
+  token 49 8:152 number "0.4n" value=4.0000000000000007e-10
+  token 50 8:157 word "cgbo"
+  token 51 8:161 equals "="
+  token 52 8:162 number "0.2n" value=2.0000000000000003e-10
+  token 53 8:167 word "cj"
+  token 54 8:169 equals "="
+  token 55 8:170 number "0.5m" value=5e-4
+  token 56 8:175 word "cjsw"
+  token 57 8:179 equals "="
+  token 58 8:180 number "0.4n" value=4.0000000000000007e-10
+  token 59 8:185 word "mjsw"
+  token 60 8:189 equals "="
+  token 61 8:190 number "0.33" value=3.3e-1
+  token 62 8:195 word "rd"
+  token 63 8:197 equals "="
+  token 64 8:198 number "40" value=4e1
+  token 65 8:201 word "rs"
+  token 66 8:203 equals "="
+  token 67 8:204 number "30" value=3e1
+  token 68 8:206 rparen ")"
+card 8 @netlists/m10_mos3_ac.cir:11:1 lines=11-12 continuations=1
+  raw: ".model mp pmos(level=3 vto=-0.85 tox=20n nsub=1.5e16 xj=0.25u ld=0.1u uo=210 vmax=1e5 eta=0.2 theta=0.1 kappa=0.5 cgso=0.4n cgdo=0.4n cgbo=0.2n cj=0.6m cjsw=0.45n js=1e-4)"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "mp"
+  token 3 11:11 word "pmos"
+  token 4 11:15 lparen "("
+  token 5 11:16 word "level"
+  token 6 11:21 equals "="
+  token 7 11:22 number "3" value=3e0
+  token 8 11:24 word "vto"
+  token 9 11:27 equals "="
+  token 10 11:28 number "-0.85" value=-8.5e-1
+  token 11 11:34 word "tox"
+  token 12 11:37 equals "="
+  token 13 11:38 number "20n" value=2e-8
+  token 14 11:42 word "nsub"
+  token 15 11:46 equals "="
+  token 16 11:47 number "1.5e16" value=1.5e16
+  token 17 11:54 word "xj"
+  token 18 11:56 equals "="
+  token 19 11:57 number "0.25u" value=2.5e-7
+  token 20 11:63 word "ld"
+  token 21 11:65 equals "="
+  token 22 11:66 number "0.1u" value=1e-7
+  token 23 11:71 word "uo"
+  token 24 11:73 equals "="
+  token 25 11:74 number "210" value=2.1e2
+  token 26 11:78 word "vmax"
+  token 27 11:82 equals "="
+  token 28 11:83 number "1e5" value=1e5
+  token 29 11:87 word "eta"
+  token 30 11:90 equals "="
+  token 31 11:91 number "0.2" value=2e-1
+  token 32 11:95 word "theta"
+  token 33 11:100 equals "="
+  token 34 11:101 number "0.1" value=1e-1
+  token 35 11:105 word "kappa"
+  token 36 11:110 equals "="
+  token 37 11:111 number "0.5" value=5e-1
+  token 38 11:115 word "cgso"
+  token 39 11:119 equals "="
+  token 40 11:120 number "0.4n" value=4.0000000000000007e-10
+  token 41 11:125 word "cgdo"
+  token 42 11:129 equals "="
+  token 43 11:130 number "0.4n" value=4.0000000000000007e-10
+  token 44 11:135 word "cgbo"
+  token 45 11:139 equals "="
+  token 46 11:140 number "0.2n" value=2.0000000000000003e-10
+  token 47 11:145 word "cj"
+  token 48 11:147 equals "="
+  token 49 11:148 number "0.6m" value=6e-4
+  token 50 11:153 word "cjsw"
+  token 51 11:157 equals "="
+  token 52 11:158 number "0.45n" value=4.5000000000000005e-10
+  token 53 11:164 word "js"
+  token 54 11:166 equals "="
+  token 55 11:167 number "1e-4" value=1e-4
+  token 56 11:171 rparen ")"
+card 9 @netlists/m10_mos3_ac.cir:15:1 lines=15-15 continuations=0
+  raw: ".options temp=75 reltol=1e-7 vntol=1e-12 abstol=1e-18"
+  kind: dot(.options)
+  token 1 15:1 word ".options"
+  token 2 15:10 word "temp"
+  token 3 15:14 equals "="
+  token 4 15:15 number "75" value=7.5e1
+  token 5 15:18 word "reltol"
+  token 6 15:24 equals "="
+  token 7 15:25 number "1e-7" value=1e-7
+  token 8 15:30 word "vntol"
+  token 9 15:35 equals "="
+  token 10 15:36 number "1e-12" value=1e-12
+  token 11 15:42 word "abstol"
+  token 12 15:48 equals "="
+  token 13 15:49 number "1e-18" value=1e-18
+card 10 @netlists/m10_mos3_ac.cir:16:1 lines=16-16 continuations=0
+  raw: ".ac dec 5 1k 10g"
+  kind: dot(.ac)
+  token 1 16:1 word ".ac"
+  token 2 16:5 word "dec"
+  token 3 16:9 number "5" value=5e0
+  token 4 16:11 number "1k" value=1e3
+  token 5 16:14 number "10g" value=1e10
+card 11 @netlists/m10_mos3_ac.cir:17:1 lines=17-17 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 17:1 word ".end"

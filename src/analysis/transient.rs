@@ -45,6 +45,19 @@ fn run_diffsol(
             "backend=diffsol requires method=bdf (diffsol adaptive BDF is not ngspice trap/Gear;              omit backend= for the companion trap/gear driver)",
         ));
     }
+    if let Some(line) = circuit
+        .devices()
+        .iter()
+        .find(|device| device.delay_line().is_some())
+    {
+        // A delay `v(t - TD)` is not an index-one DAE `E x' + A x = b(t)`;
+        // its immutable assembly is only the DC (wire) relation.
+        return Err(unsupported(format!(
+            "transmission line {}: the diffsol BDF backend cannot integrate a delayed wave \
+             (not an index-one DAE); omit backend=diffsol for the companion driver",
+            line.name()
+        )));
+    }
     if request.uic {
         return Err(unsupported(
             ".tran uic is implemented only by the companion driver (omit backend=diffsol); \

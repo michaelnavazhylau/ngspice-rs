@@ -117,6 +117,10 @@ pub(crate) struct SmallSignal {
     system: LinearSystem,
     /// A `hertz`-dependent device forces a new operating point per frequency.
     varies: bool,
+    /// A device whose small-signal stamp depends on the frequency (a
+    /// transmission line) forces a reassembly, not a new operating point,
+    /// per frequency.
+    reassemble: bool,
     previous: Vector,
 }
 
@@ -170,11 +174,16 @@ impl SmallSignal {
             .devices()
             .iter()
             .any(|device| device.depends_on_frequency());
+        let reassemble = circuit
+            .devices()
+            .iter()
+            .any(|device| device.small_signal_depends_on_frequency());
         Ok(Self {
             settings,
             state1,
             system,
             varies,
+            reassemble,
             previous: solved.values,
         })
     }
@@ -222,6 +231,12 @@ impl SmallSignal {
             )?
             .solution
             .values;
+            self.system =
+                circuit.small_signal_system_at(&model, &self.previous, Some(&self.state1))?;
+        } else if self.reassemble {
+            // traacld.c loads exp(-j omega TD) at every frequency; the
+            // operating point itself does not depend on it.
+            let model = context.model_context().with_frequency(f);
             self.system =
                 circuit.small_signal_system_at(&model, &self.previous, Some(&self.state1))?;
         }

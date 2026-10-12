@@ -1,0 +1,103 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_urc_tran.cir
+title: "Uniform distributed RC lines in a transient (urcsetup.c expansion)" @netlists/m10_urc_tran.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m10_urc_tran.cir:7:1 "v1 in 0 pulse(0 1 100n 20n 20n 4u 10u)"
+    [1] device[1] @netlists/m10_urc_tran.cir:8:1 "rs in a 1k"
+    [2] device[2] @netlists/m10_urc_tran.cir:9:1 "u1 a out 0 rline1 l=1m"
+    [3] device[3] @netlists/m10_urc_tran.cir:10:1 "rl out 0 100k"
+    [4] device[4] @netlists/m10_urc_tran.cir:11:1 "cl out 0 2p"
+    [5] device[5] @netlists/m10_urc_tran.cir:12:1 "vref ref 0 dc 0.5"
+    [6] device[6] @netlists/m10_urc_tran.cir:13:1 "u2 in b ref rline2 l=5m n=4"
+    [7] device[7] @netlists/m10_urc_tran.cir:14:1 "rb b 0 20k"
+    [8] device[8] @netlists/m10_urc_tran.cir:15:1 "u3 in c 0 rline3 l=10u"
+    [9] device[9] @netlists/m10_urc_tran.cir:16:1 "rc c 0 50k"
+    [10] model[0] @netlists/m10_urc_tran.cir:17:1 ".model rline1 urc(k=2 fmax=1g rperl=1e7 cperl=1e-7)"
+    [11] model[1] @netlists/m10_urc_tran.cir:18:1 ".model rline2 urc(cperl=40n)"
+    [12] model[2] @netlists/m10_urc_tran.cir:19:1 ".model rline3 urc urc rperl=1e8 cperl=2e-7"
+    [13] analysis[0] @netlists/m10_urc_tran.cir:20:1 ".tran 20n 10u"
+    [14] end @netlists/m10_urc_tran.cir:21:1 ".end"
+  devices (10):
+    device [0] name="v1" designator=v @netlists/m10_urc_tran.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1 100n 20n 20n 4u 10u)" @netlists/m10_urc_tran.cir:7:9
+          pulse
+            initial: "0"@netlists/m10_urc_tran.cir:7:15
+            pulsed: "1"@netlists/m10_urc_tran.cir:7:17
+            delay: "100n"@netlists/m10_urc_tran.cir:7:19
+            rise: "20n"@netlists/m10_urc_tran.cir:7:24
+            fall: "20n"@netlists/m10_urc_tran.cir:7:28
+            width: "4u"@netlists/m10_urc_tran.cir:7:32
+            period: "10u"@netlists/m10_urc_tran.cir:7:35
+    device [1] name="rs" designator=r @netlists/m10_urc_tran.cir:8:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m10_urc_tran.cir:8:9
+    device [2] name="u1" designator=u @netlists/m10_urc_tran.cir:9:1
+      nodes: "a" "out" "0"
+      model: "rline1"
+      parameters (1):
+        [0] name="l" kind=scalar value="1m" @netlists/m10_urc_tran.cir:9:19
+    device [3] name="rl" designator=r @netlists/m10_urc_tran.cir:10:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100k" @netlists/m10_urc_tran.cir:10:10
+    device [4] name="cl" designator=c @netlists/m10_urc_tran.cir:11:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="2p" @netlists/m10_urc_tran.cir:11:10
+    device [5] name="vref" designator=v @netlists/m10_urc_tran.cir:12:1
+      nodes: "ref" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m10_urc_tran.cir:12:12
+    device [6] name="u2" designator=u @netlists/m10_urc_tran.cir:13:1
+      nodes: "in" "b" "ref"
+      model: "rline2"
+      parameters (2):
+        [0] name="l" kind=scalar value="5m" @netlists/m10_urc_tran.cir:13:20
+        [1] name="n" kind=scalar value="4" @netlists/m10_urc_tran.cir:13:25
+    device [7] name="rb" designator=r @netlists/m10_urc_tran.cir:14:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="20k" @netlists/m10_urc_tran.cir:14:8
+    device [8] name="u3" designator=u @netlists/m10_urc_tran.cir:15:1
+      nodes: "in" "c" "0"
+      model: "rline3"
+      parameters (1):
+        [0] name="l" kind=scalar value="10u" @netlists/m10_urc_tran.cir:15:18
+    device [9] name="rc" designator=r @netlists/m10_urc_tran.cir:16:1
+      nodes: "c" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50k" @netlists/m10_urc_tran.cir:16:8
+  models (3):
+    model [0] name="rline1" base="urc" level=none @netlists/m10_urc_tran.cir:17:1
+      parameters (4):
+        [0] name="k" kind=scalar value="2" @netlists/m10_urc_tran.cir:17:19
+        [1] name="fmax" kind=scalar value="1g" @netlists/m10_urc_tran.cir:17:23
+        [2] name="rperl" kind=scalar value="1e7" @netlists/m10_urc_tran.cir:17:31
+        [3] name="cperl" kind=scalar value="1e-7" @netlists/m10_urc_tran.cir:17:41
+    model [1] name="rline2" base="urc" level=none @netlists/m10_urc_tran.cir:18:1
+      parameters (1):
+        [0] name="cperl" kind=scalar value="40n" @netlists/m10_urc_tran.cir:18:19
+    model [2] name="rline3" base="urc" level=none @netlists/m10_urc_tran.cir:19:1
+      parameters (3):
+        [0] name="urc" kind=flag value="" @netlists/m10_urc_tran.cir:19:19
+        [1] name="rperl" kind=scalar value="1e8" @netlists/m10_urc_tran.cir:19:23
+        [2] name="cperl" kind=scalar value="2e-7" @netlists/m10_urc_tran.cir:19:33
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_urc_tran.cir:20:1
+      arguments: "20n" "10u"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

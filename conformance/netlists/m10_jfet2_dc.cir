@@ -1,0 +1,16 @@
+JFET level 2 (Parker-Skellern) output/transfer sweep: subthreshold, power laws, feedback, self-heating, breakdown, RD/RS, inverse mode, area/m, PJF
+vds d 0 0
+vgs g 0 0
+j1 d g 0 jn
+vds2 d2 0 -3
+vgs2 g2 0 0.5
+j2 d2 g2 0 jp 2 m=3
+vds3 d3 0 0
+j3 d3 g s3 jt area=0.5
+vs3 s3 0 0.3
+.model jn njf(level=2 vto=-2 beta=1.2m lambda=0.03 rd=20 rs=15 is=1e-14 n=1.1 vst=0.08 mvst=0.1 xi=12 mxi=0.05 z=0.6 p=2.2 q=2.05 delta=0.2 lfgam=0.04 lfg1=0.01 lfg2=0.006 ibd=1e-9 vbd=1.5 cgs=2p cgd=1p)
+.model jp pjf(level=2 vto=-1.5 beta=0.8m lambda=0.02 rs=10 vst=0.05 delta=0.1 lfgam=0.03 xi=50)
+.model jt njf(level=2 vt0=-1 vto=-1.8 vbi=0.7 pb=0.9 beta=2m rd=5 hfgam=0.2 pjf njf)
+.options reltol=1e-7 vntol=1e-12 abstol=1e-15
+.dc vds -2 6 0.25 vgs -2.5 0.5 0.5
+.end

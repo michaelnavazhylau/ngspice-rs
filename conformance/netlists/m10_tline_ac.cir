@@ -1,0 +1,13 @@
+Lossless transmission line quarter-wave resonance, AC sweep
+* t1 (td = 1 ns, quarter wave at 250 MHz) transforms its 1k load to
+* Z0^2/RL = 2.5 ohm at the input there; t2, shorted at its far end and
+* specified by f=250meg nl=0.25 (td = nl/f = 1 ns), is an open circuit at
+* 250 MHz and a short at 500 MHz. The cross terms carry exp(-j omega td)
+* exactly (traacld.c).
+vin in 0 dc 0 ac 1
+rs in a 50
+t1 a 0 b 0 z0=50 td=1n
+rl b 0 1k
+t2 a 0 0 0 zo=75 f=250meg nl=0.25
+.ac lin 101 1meg 601meg
+.end

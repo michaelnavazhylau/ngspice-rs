@@ -143,7 +143,7 @@ impl InstanceOverride {
 /// as `DCTfindInstParam` (`dctrcurv.c`) accepts them: `IF_SET | IF_REAL`
 /// entries of each device's `*pTable` (`res.c`, `cap.c`, `ind.c`, `vsrc.c`,
 /// `isrc.c`, `vcvs.c`, `vccs.c`, `cccs.c`, `ccvs.c`, `asrc.c`, `dio.c`,
-/// `bjt.c`, `mos1.c`; K couplings live in `ind.c`'s `MUTpTable`; the S/W
+/// `bjt.c`, `mos1.c`, `jfet.c`; K couplings live in `ind.c`'s `MUTpTable`; the S/W
 /// switches have none). Aliases are listed separately.
 ///
 /// Only used to tell a parameter C would sweep but this port does not yet
@@ -209,6 +209,7 @@ pub fn c_instance_parameter_known(designator: char, keyword: &str) -> bool {
             "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
             "dtemp",
         ],
+        'j' => &["area", "m", "ic-vds", "ic-vgs", "temp", "dtemp"],
         _ => &[],
     };
     keywords.iter().any(|k| k.eq_ignore_ascii_case(keyword))

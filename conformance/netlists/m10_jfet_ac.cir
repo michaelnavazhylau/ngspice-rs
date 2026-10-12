@@ -1,0 +1,11 @@
+JFET common-source amplifier: gate depletion capacitance, RD/RS, area and m
+vdd vdd 0 15
+vin in 0 dc 0 ac 1
+rg in g 50k
+rl vdd d 4.7k
+rsrc s 0 1k
+cs s 0 10u
+j1 d g s jn 1.5 m=2
+.model jn njf(vto=-2.2 beta=0.9m lambda=0.015 rd=30 rs=25 cgs=4p cgd=1.5p pb=0.7 fc=0.4 b=0.85 is=2e-14 n=1.05)
+.ac dec 10 10 1g
+.end

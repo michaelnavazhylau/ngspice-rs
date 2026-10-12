@@ -1,0 +1,19 @@
+MOS3 CMOS inverter: Meyer gate charge, series resistance, junction geometry, cubic reverse law
+vdd vdd 0 3.3
+vin in 0 pulse(0 3.3 1n 0.5n 0.5n 4n 10n)
+mn out in 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u nrd=2 nrs=2
+mp out in vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u
+cl out 0 20f
+* Gear-2 avoids the trapezoidal ringing of the gate currents on the flat
+* input and reltol=1e-5 keeps both step sequences tight through the edges
+* (as in m7_ic_mos1_uic_tran); the bounded step keeps both simulators'
+* discretization error well inside the transient bound.
+.model nch nmos(level=3 vto=0.65 tox=9n nsub=3e16 xj=0.15u ld=0.04u uo=450 vmax=1.5e5
++ nfs=5e11 eta=0.1 theta=0.15 kappa=0.3 delta=0.5 cgso=0.3n cgdo=0.3n cgbo=0.1n
++ cj=0.9m mj=0.5 cjsw=0.25n pb=0.9 rsh=20 js=1e-4)
+.model pch pmos(level=3 vto=-0.75 tox=9n nsub=2.5e16 xj=0.15u ld=0.04u uo=180 vmax=1.2e5
++ nfs=5e11 eta=0.1 theta=0.18 kappa=0.4 cgso=0.3n cgdo=0.3n cgbo=0.1n
++ cj=1m cjsw=0.3n pb=0.9 rd=30 rs=30)
+.options method=gear reltol=1e-5
+.tran 0.05n 20n 0 2p
+.end

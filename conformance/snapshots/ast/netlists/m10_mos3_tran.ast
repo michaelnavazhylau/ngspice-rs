@@ -1,0 +1,119 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_mos3_tran.cir
+title: "MOS3 CMOS inverter: Meyer gate charge, series resistance, junction geometry, cubic reverse law" @netlists/m10_mos3_tran.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/m10_mos3_tran.cir:2:1 "vdd vdd 0 3.3"
+    [1] device[1] @netlists/m10_mos3_tran.cir:3:1 "vin in 0 pulse(0 3.3 1n 0.5n 0.5n 4n 10n)"
+    [2] device[2] @netlists/m10_mos3_tran.cir:4:1 "mn out in 0 0 nch w=2u l=0.5u ad=2p as=2p pd=6u ps=6u nrd=2 nrs=2"
+    [3] device[3] @netlists/m10_mos3_tran.cir:5:1 "mp out in vdd vdd pch w=5u l=0.5u ad=5p as=5p pd=12u ps=12u"
+    [4] device[4] @netlists/m10_mos3_tran.cir:6:1 "cl out 0 20f"
+    [5] model[0] @netlists/m10_mos3_tran.cir:11:1 ".model nch nmos(level=3 vto=0.65 tox=9n nsub=3e16 xj=0.15u ld=0.04u uo=450 vmax=1.5e5 nfs=5e11 eta=0.1 theta=0.15 kappa=0.3 delta=0.5 cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n pb=0.9 rsh=20 js=1e-4)"
+    [6] model[1] @netlists/m10_mos3_tran.cir:14:1 ".model pch pmos(level=3 vto=-0.75 tox=9n nsub=2.5e16 xj=0.15u ld=0.04u uo=180 vmax=1.2e5 nfs=5e11 eta=0.1 theta=0.18 kappa=0.4 cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m cjsw=0.3n pb=0.9 rd=30 rs=30)"
+    [7] options[0] @netlists/m10_mos3_tran.cir:17:1 ".options method=gear reltol=1e-5"
+    [8] analysis[0] @netlists/m10_mos3_tran.cir:18:1 ".tran 0.05n 20n 0 2p"
+    [9] end @netlists/m10_mos3_tran.cir:19:1 ".end"
+  devices (5):
+    device [0] name="vdd" designator=v @netlists/m10_mos3_tran.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3.3" @netlists/m10_mos3_tran.cir:2:11
+    device [1] name="vin" designator=v @netlists/m10_mos3_tran.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 3.3 1n 0.5n 0.5n 4n 10n)" @netlists/m10_mos3_tran.cir:3:10
+          pulse
+            initial: "0"@netlists/m10_mos3_tran.cir:3:16
+            pulsed: "3.3"@netlists/m10_mos3_tran.cir:3:18
+            delay: "1n"@netlists/m10_mos3_tran.cir:3:22
+            rise: "0.5n"@netlists/m10_mos3_tran.cir:3:25
+            fall: "0.5n"@netlists/m10_mos3_tran.cir:3:30
+            width: "4n"@netlists/m10_mos3_tran.cir:3:35
+            period: "10n"@netlists/m10_mos3_tran.cir:3:38
+    device [2] name="mn" designator=m @netlists/m10_mos3_tran.cir:4:1
+      nodes: "out" "in" "0" "0"
+      model: "nch"
+      parameters (8):
+        [0] name="w" kind=scalar value="2u" @netlists/m10_mos3_tran.cir:4:19
+        [1] name="l" kind=scalar value="0.5u" @netlists/m10_mos3_tran.cir:4:24
+        [2] name="ad" kind=scalar value="2p" @netlists/m10_mos3_tran.cir:4:31
+        [3] name="as" kind=scalar value="2p" @netlists/m10_mos3_tran.cir:4:37
+        [4] name="pd" kind=scalar value="6u" @netlists/m10_mos3_tran.cir:4:43
+        [5] name="ps" kind=scalar value="6u" @netlists/m10_mos3_tran.cir:4:49
+        [6] name="nrd" kind=scalar value="2" @netlists/m10_mos3_tran.cir:4:55
+        [7] name="nrs" kind=scalar value="2" @netlists/m10_mos3_tran.cir:4:61
+    device [3] name="mp" designator=m @netlists/m10_mos3_tran.cir:5:1
+      nodes: "out" "in" "vdd" "vdd"
+      model: "pch"
+      parameters (6):
+        [0] name="w" kind=scalar value="5u" @netlists/m10_mos3_tran.cir:5:23
+        [1] name="l" kind=scalar value="0.5u" @netlists/m10_mos3_tran.cir:5:28
+        [2] name="ad" kind=scalar value="5p" @netlists/m10_mos3_tran.cir:5:35
+        [3] name="as" kind=scalar value="5p" @netlists/m10_mos3_tran.cir:5:41
+        [4] name="pd" kind=scalar value="12u" @netlists/m10_mos3_tran.cir:5:47
+        [5] name="ps" kind=scalar value="12u" @netlists/m10_mos3_tran.cir:5:54
+    device [4] name="cl" designator=c @netlists/m10_mos3_tran.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="20f" @netlists/m10_mos3_tran.cir:6:10
+  models (2):
+    model [0] name="nch" base="nmos" level=3e0 @netlists/m10_mos3_tran.cir:11:1
+      parameters (22):
+        [0] name="level" kind=scalar value="3" @netlists/m10_mos3_tran.cir:11:17
+        [1] name="vto" kind=scalar value="0.65" @netlists/m10_mos3_tran.cir:11:25
+        [2] name="tox" kind=scalar value="9n" @netlists/m10_mos3_tran.cir:11:34
+        [3] name="nsub" kind=scalar value="3e16" @netlists/m10_mos3_tran.cir:11:41
+        [4] name="xj" kind=scalar value="0.15u" @netlists/m10_mos3_tran.cir:11:51
+        [5] name="ld" kind=scalar value="0.04u" @netlists/m10_mos3_tran.cir:11:60
+        [6] name="uo" kind=scalar value="450" @netlists/m10_mos3_tran.cir:11:69
+        [7] name="vmax" kind=scalar value="1.5e5" @netlists/m10_mos3_tran.cir:11:76
+        [8] name="nfs" kind=scalar value="5e11" @netlists/m10_mos3_tran.cir:11:87
+        [9] name="eta" kind=scalar value="0.1" @netlists/m10_mos3_tran.cir:11:96
+        [10] name="theta" kind=scalar value="0.15" @netlists/m10_mos3_tran.cir:11:104
+        [11] name="kappa" kind=scalar value="0.3" @netlists/m10_mos3_tran.cir:11:115
+        [12] name="delta" kind=scalar value="0.5" @netlists/m10_mos3_tran.cir:11:125
+        [13] name="cgso" kind=scalar value="0.3n" @netlists/m10_mos3_tran.cir:11:135
+        [14] name="cgdo" kind=scalar value="0.3n" @netlists/m10_mos3_tran.cir:11:145
+        [15] name="cgbo" kind=scalar value="0.1n" @netlists/m10_mos3_tran.cir:11:155
+        [16] name="cj" kind=scalar value="0.9m" @netlists/m10_mos3_tran.cir:11:165
+        [17] name="mj" kind=scalar value="0.5" @netlists/m10_mos3_tran.cir:11:173
+        [18] name="cjsw" kind=scalar value="0.25n" @netlists/m10_mos3_tran.cir:11:180
+        [19] name="pb" kind=scalar value="0.9" @netlists/m10_mos3_tran.cir:11:191
+        [20] name="rsh" kind=scalar value="20" @netlists/m10_mos3_tran.cir:11:198
+        [21] name="js" kind=scalar value="1e-4" @netlists/m10_mos3_tran.cir:11:205
+    model [1] name="pch" base="pmos" level=3e0 @netlists/m10_mos3_tran.cir:14:1
+      parameters (20):
+        [0] name="level" kind=scalar value="3" @netlists/m10_mos3_tran.cir:14:17
+        [1] name="vto" kind=scalar value="-0.75" @netlists/m10_mos3_tran.cir:14:25
+        [2] name="tox" kind=scalar value="9n" @netlists/m10_mos3_tran.cir:14:35
+        [3] name="nsub" kind=scalar value="2.5e16" @netlists/m10_mos3_tran.cir:14:42
+        [4] name="xj" kind=scalar value="0.15u" @netlists/m10_mos3_tran.cir:14:54
+        [5] name="ld" kind=scalar value="0.04u" @netlists/m10_mos3_tran.cir:14:63
+        [6] name="uo" kind=scalar value="180" @netlists/m10_mos3_tran.cir:14:72
+        [7] name="vmax" kind=scalar value="1.2e5" @netlists/m10_mos3_tran.cir:14:79
+        [8] name="nfs" kind=scalar value="5e11" @netlists/m10_mos3_tran.cir:14:90
+        [9] name="eta" kind=scalar value="0.1" @netlists/m10_mos3_tran.cir:14:99
+        [10] name="theta" kind=scalar value="0.18" @netlists/m10_mos3_tran.cir:14:107
+        [11] name="kappa" kind=scalar value="0.4" @netlists/m10_mos3_tran.cir:14:118
+        [12] name="cgso" kind=scalar value="0.3n" @netlists/m10_mos3_tran.cir:14:128
+        [13] name="cgdo" kind=scalar value="0.3n" @netlists/m10_mos3_tran.cir:14:138
+        [14] name="cgbo" kind=scalar value="0.1n" @netlists/m10_mos3_tran.cir:14:148
+        [15] name="cj" kind=scalar value="1m" @netlists/m10_mos3_tran.cir:14:158
+        [16] name="cjsw" kind=scalar value="0.3n" @netlists/m10_mos3_tran.cir:14:164
+        [17] name="pb" kind=scalar value="0.9" @netlists/m10_mos3_tran.cir:14:174
+        [18] name="rd" kind=scalar value="30" @netlists/m10_mos3_tran.cir:14:181
+        [19] name="rs" kind=scalar value="30" @netlists/m10_mos3_tran.cir:14:187
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_mos3_tran.cir:18:1
+      arguments: "0.05n" "20n" "0" "2p"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_mos3_tran.cir:17:1
+      setting [0] name="method" value="gear"@netlists/m10_mos3_tran.cir:17:17 @netlists/m10_mos3_tran.cir:17:10
+      setting [1] name="reltol" value="1e-5"@netlists/m10_mos3_tran.cir:17:29 @netlists/m10_mos3_tran.cir:17:22
+  globals (0):

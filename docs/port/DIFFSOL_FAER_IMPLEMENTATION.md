@@ -157,7 +157,9 @@ constraints `Wᵀ (b - A x) = 0` for the source's right-hand value at time zero,
 moving only along `ker E`, so `E x` (capacitor charges, inductor fluxes) is
 preserved. Consistent derivatives use the block pseudo-inverse of `E` plus the
 differentiated constraints. Explicit `ic=`/`.ic`/`uic` semantics are not implemented and transient
-rejects them. The numeric adapter also rejects inconsistent supplied algebraic
+rejects them. Circuits with a transmission line (`T`, any `Device::delay_line`)
+are refused before assembly: a delayed wave is not an index-one
+`E x' + A x = b(t)` ([TRANSMISSION_LINES.md](TRANSMISSION_LINES.md)). The numeric adapter also rejects inconsistent supplied algebraic
 initial conditions instead of silently changing them.
 
 `IndependentSource` exposes validated Constant, right-continuous Step and continuous

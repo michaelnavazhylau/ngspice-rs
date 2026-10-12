@@ -37,6 +37,10 @@ fn terminal(device: &dyn Device, key: &str) -> Option<usize> {
         ('q', "ib") | ('m', "ig") => Some(1),
         ('q', "ie") | ('m', "is") => Some(2),
         ('m', "ib") => Some(3),
+        // jfetask.c JFET_CD, JFET_CG, JFET_CS.
+        ('j', "id") => Some(0),
+        ('j', "ig") => Some(1),
+        ('j', "is") => Some(2),
         _ => None,
     }
 }
@@ -49,7 +53,7 @@ pub fn unit(name: &str) -> &'static str {
         return "voltage";
     }
     match key {
-        "i" | "current" | "id" | "ic" | "ib" | "ie" | "is" | "ig" => "current",
+        "i" | "current" | "id" | "ic" | "ib" | "ie" | "is" | "ig" | "igd" => "current",
         "r" | "resistance" => "resistance",
         "conductance" | "g" => "conductance",
         "c" | "cap" | "capacitance" => "capacitance",
@@ -175,6 +179,11 @@ impl Circuit {
                         }
                         sum
                     };
+                    let current = if matches!(key, "i" | "current") {
+                        current
+                    } else {
+                        current * device.observation_current_sign()
+                    };
                     if power {
                         let voltage = |node| {
                             self.unknowns()
@@ -192,9 +201,23 @@ impl Circuit {
                         .map(|(_, value)| *value)
                         .or(device.observation_parameter(key, request.model_context)?)
                         .ok_or_else(|| gap(name))?
+                } else if let Some(value) =
+                    device.observation_parameter(key, request.model_context)?
+                {
+                    value
                 } else {
+                    let voltage = |node: crate::primitives::NodeId| {
+                        self.unknowns()
+                            .node_row(node)
+                            .map_or(0., |r| request.solution.as_slice()[r])
+                    };
                     device
-                        .observation_parameter(key, request.model_context)?
+                        .observation_operating(
+                            key,
+                            request.model_context,
+                            &voltage,
+                            time.is_some(),
+                        )?
                         .ok_or_else(|| gap(name))?
                 };
                 if !value.is_finite() {

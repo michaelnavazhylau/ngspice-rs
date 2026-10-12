@@ -1,0 +1,18 @@
+Uniform distributed RC line with distributed diodes (urcsetup.c ISPERL path)
+* ISPERL selects the diode ladder: every shunt capacitor becomes a diode
+* (anode on the line, cathode on the reference) of the generated model
+* u1#diodemod (cjo = c1, is = i1, rs = l * lumps * RSPERL, area = K^(i-1)).
+* The reference sits at 0.8 V: the line's diodes conduct near the positive
+* peaks (about 0.6 V forward) and are reverse biased by up to 2.3 V on the
+* negative half; at t = 0 only their reverse leakage (IS plus gmin) flows.
+* RELTOL is tightened so that both integrators' truncation error in the small
+* source currents near the zero crossings sits well inside the TRAN bound.
+.options reltol=1e-6
+v1 in 0 sin(0 1.5 200k)
+rs in a 2k
+vref ref 0 dc 0.8
+u1 a out ref dline l=1m
+rl out 0 50k
+.model dline urc(k=1.8 fmax=1g rperl=1e7 cperl=2e-8 isperl=1e-11 rsperl=1e4)
+.tran 20n 10u
+.end

@@ -114,7 +114,7 @@ output:
 | B (`asrc`) | yes | refused |
 | S, W | yes | refused |
 | D | yes | refused |
-| Q (Gummel-Poon), M (MOS1), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
+| Q (Gummel-Poon), M (MOS1, MOS3), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit

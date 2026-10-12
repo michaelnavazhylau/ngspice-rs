@@ -1,0 +1,159 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_jfet_tran.cir
+title: "JFET transient: source follower and PJF common-source stage with gate charge" @netlists/m10_jfet_tran.cir:1:1
+card 1 @netlists/m10_jfet_tran.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd vdd 0 12"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 word "vdd"
+  token 3 2:9 number "0" value=0e0
+  token 4 2:11 number "12" value=1.2e1
+card 2 @netlists/m10_jfet_tran.cir:3:1 lines=3-3 continuations=0
+  raw: "vin in 0 pulse(-1 1 50n 20n 20n 200n 500n)"
+  kind: device(v)
+  token 1 3:1 word "vin"
+  token 2 3:5 word "in"
+  token 3 3:8 number "0" value=0e0
+  token 4 3:10 word "pulse"
+  token 5 3:15 lparen "("
+  token 6 3:16 number "-1" value=-1e0
+  token 7 3:19 number "1" value=1e0
+  token 8 3:21 number "50n" value=5.0000000000000004e-8
+  token 9 3:25 number "20n" value=2e-8
+  token 10 3:29 number "20n" value=2e-8
+  token 11 3:33 number "200n" value=2.0000000000000002e-7
+  token 12 3:38 number "500n" value=5.000000000000001e-7
+  token 13 3:42 rparen ")"
+card 3 @netlists/m10_jfet_tran.cir:4:1 lines=4-4 continuations=0
+  raw: "rg in g 10k"
+  kind: device(r)
+  token 1 4:1 word "rg"
+  token 2 4:4 word "in"
+  token 3 4:7 word "g"
+  token 4 4:9 number "10k" value=1e4
+card 4 @netlists/m10_jfet_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "j1 vdd g s jn"
+  kind: device(j)
+  token 1 5:1 word "j1"
+  token 2 5:4 word "vdd"
+  token 3 5:8 word "g"
+  token 4 5:10 word "s"
+  token 5 5:12 word "jn"
+card 5 @netlists/m10_jfet_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "rs s 0 2k"
+  kind: device(r)
+  token 1 6:1 word "rs"
+  token 2 6:4 word "s"
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 number "2k" value=2e3
+card 6 @netlists/m10_jfet_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "cl s 0 5p"
+  kind: device(c)
+  token 1 7:1 word "cl"
+  token 2 7:4 word "s"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "5p" value=5e-12
+card 7 @netlists/m10_jfet_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "vdd2 dd2 0 -6"
+  kind: device(v)
+  token 1 8:1 word "vdd2"
+  token 2 8:6 word "dd2"
+  token 3 8:10 number "0" value=0e0
+  token 4 8:12 number "-6" value=-6e0
+card 8 @netlists/m10_jfet_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "rl2 dd2 d2 3k"
+  kind: device(r)
+  token 1 9:1 word "rl2"
+  token 2 9:5 word "dd2"
+  token 3 9:9 word "d2"
+  token 4 9:12 number "3k" value=3e3
+card 9 @netlists/m10_jfet_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "vin2 g2 0 sin(0 0.8 4meg)"
+  kind: device(v)
+  token 1 10:1 word "vin2"
+  token 2 10:6 word "g2"
+  token 3 10:9 number "0" value=0e0
+  token 4 10:11 word "sin"
+  token 5 10:14 lparen "("
+  token 6 10:15 number "0" value=0e0
+  token 7 10:17 number "0.8" value=8e-1
+  token 8 10:21 number "4meg" value=4e6
+  token 9 10:25 rparen ")"
+card 10 @netlists/m10_jfet_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "j2 d2 g2 0 jp"
+  kind: device(j)
+  token 1 11:1 word "j2"
+  token 2 11:4 word "d2"
+  token 3 11:7 word "g2"
+  token 4 11:10 number "0" value=0e0
+  token 5 11:12 word "jp"
+card 11 @netlists/m10_jfet_tran.cir:12:1 lines=12-12 continuations=0
+  raw: ".model jn njf(vto=-2 beta=1.5m lambda=0.02 cgs=6p cgd=2p rd=10 rs=10 b=0.9)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "jn"
+  token 3 12:11 word "njf"
+  token 4 12:14 lparen "("
+  token 5 12:15 word "vto"
+  token 6 12:18 equals "="
+  token 7 12:19 number "-2" value=-2e0
+  token 8 12:22 word "beta"
+  token 9 12:26 equals "="
+  token 10 12:27 number "1.5m" value=1.5e-3
+  token 11 12:32 word "lambda"
+  token 12 12:38 equals "="
+  token 13 12:39 number "0.02" value=2e-2
+  token 14 12:44 word "cgs"
+  token 15 12:47 equals "="
+  token 16 12:48 number "6p" value=6e-12
+  token 17 12:51 word "cgd"
+  token 18 12:54 equals "="
+  token 19 12:55 number "2p" value=2e-12
+  token 20 12:58 word "rd"
+  token 21 12:60 equals "="
+  token 22 12:61 number "10" value=1e1
+  token 23 12:64 word "rs"
+  token 24 12:66 equals "="
+  token 25 12:67 number "10" value=1e1
+  token 26 12:70 word "b"
+  token 27 12:71 equals "="
+  token 28 12:72 number "0.9" value=9e-1
+  token 29 12:75 rparen ")"
+card 12 @netlists/m10_jfet_tran.cir:13:1 lines=13-13 continuations=0
+  raw: ".model jp pjf(vto=-1.8 beta=1m cgs=3p cgd=3p pb=0.9 fc=0.3)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "jp"
+  token 3 13:11 word "pjf"
+  token 4 13:14 lparen "("
+  token 5 13:15 word "vto"
+  token 6 13:18 equals "="
+  token 7 13:19 number "-1.8" value=-1.8e0
+  token 8 13:24 word "beta"
+  token 9 13:28 equals "="
+  token 10 13:29 number "1m" value=1e-3
+  token 11 13:32 word "cgs"
+  token 12 13:35 equals "="
+  token 13 13:36 number "3p" value=3e-12
+  token 14 13:39 word "cgd"
+  token 15 13:42 equals "="
+  token 16 13:43 number "3p" value=3e-12
+  token 17 13:46 word "pb"
+  token 18 13:48 equals "="
+  token 19 13:49 number "0.9" value=9e-1
+  token 20 13:53 word "fc"
+  token 21 13:55 equals "="
+  token 22 13:56 number "0.3" value=3e-1
+  token 23 13:59 rparen ")"
+card 13 @netlists/m10_jfet_tran.cir:14:1 lines=14-14 continuations=0
+  raw: ".tran 2n 1u 0 0.25n"
+  kind: dot(.tran)
+  token 1 14:1 word ".tran"
+  token 2 14:7 number "2n" value=2e-9
+  token 3 14:10 number "1u" value=1e-6
+  token 4 14:13 number "0" value=0e0
+  token 5 14:15 number "0.25n" value=2.5e-10
+card 14 @netlists/m10_jfet_tran.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

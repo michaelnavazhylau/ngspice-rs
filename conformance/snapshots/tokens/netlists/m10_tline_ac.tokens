@@ -1,0 +1,70 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_tline_ac.cir
+title: "Lossless transmission line quarter-wave resonance, AC sweep" @netlists/m10_tline_ac.cir:1:1
+card 1 @netlists/m10_tline_ac.cir:7:1 lines=7-7 continuations=0
+  raw: "vin in 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 7:1 word "vin"
+  token 2 7:5 word "in"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "dc"
+  token 5 7:13 number "0" value=0e0
+  token 6 7:15 word "ac"
+  token 7 7:18 number "1" value=1e0
+card 2 @netlists/m10_tline_ac.cir:8:1 lines=8-8 continuations=0
+  raw: "rs in a 50"
+  kind: device(r)
+  token 1 8:1 word "rs"
+  token 2 8:4 word "in"
+  token 3 8:7 word "a"
+  token 4 8:9 number "50" value=5e1
+card 3 @netlists/m10_tline_ac.cir:9:1 lines=9-9 continuations=0
+  raw: "t1 a 0 b 0 z0=50 td=1n"
+  kind: device(t)
+  token 1 9:1 word "t1"
+  token 2 9:4 word "a"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 word "b"
+  token 5 9:10 number "0" value=0e0
+  token 6 9:12 word "z0"
+  token 7 9:14 equals "="
+  token 8 9:15 number "50" value=5e1
+  token 9 9:18 word "td"
+  token 10 9:20 equals "="
+  token 11 9:21 number "1n" value=1e-9
+card 4 @netlists/m10_tline_ac.cir:10:1 lines=10-10 continuations=0
+  raw: "rl b 0 1k"
+  kind: device(r)
+  token 1 10:1 word "rl"
+  token 2 10:4 word "b"
+  token 3 10:6 number "0" value=0e0
+  token 4 10:8 number "1k" value=1e3
+card 5 @netlists/m10_tline_ac.cir:11:1 lines=11-11 continuations=0
+  raw: "t2 a 0 0 0 zo=75 f=250meg nl=0.25"
+  kind: device(t)
+  token 1 11:1 word "t2"
+  token 2 11:4 word "a"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "0" value=0e0
+  token 5 11:10 number "0" value=0e0
+  token 6 11:12 word "zo"
+  token 7 11:14 equals "="
+  token 8 11:15 number "75" value=7.5e1
+  token 9 11:18 word "f"
+  token 10 11:19 equals "="
+  token 11 11:20 number "250meg" value=2.5e8
+  token 12 11:27 word "nl"
+  token 13 11:29 equals "="
+  token 14 11:30 number "0.25" value=2.5e-1
+card 6 @netlists/m10_tline_ac.cir:12:1 lines=12-12 continuations=0
+  raw: ".ac lin 101 1meg 601meg"
+  kind: dot(.ac)
+  token 1 12:1 word ".ac"
+  token 2 12:5 word "lin"
+  token 3 12:9 number "101" value=1.01e2
+  token 4 12:13 number "1meg" value=1e6
+  token 5 12:18 number "601meg" value=6.01e8
+card 7 @netlists/m10_tline_ac.cir:13:1 lines=13-13 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 13:1 word ".end"

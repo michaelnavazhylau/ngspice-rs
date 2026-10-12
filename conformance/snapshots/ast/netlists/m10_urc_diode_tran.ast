@@ -1,0 +1,63 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_urc_diode_tran.cir
+title: "Uniform distributed RC line with distributed diodes (urcsetup.c ISPERL path)" @netlists/m10_urc_diode_tran.cir:1:1
+scope root
+  cards (9):
+    [0] options[0] @netlists/m10_urc_diode_tran.cir:10:1 ".options reltol=1e-6"
+    [1] device[0] @netlists/m10_urc_diode_tran.cir:11:1 "v1 in 0 sin(0 1.5 200k)"
+    [2] device[1] @netlists/m10_urc_diode_tran.cir:12:1 "rs in a 2k"
+    [3] device[2] @netlists/m10_urc_diode_tran.cir:13:1 "vref ref 0 dc 0.8"
+    [4] device[3] @netlists/m10_urc_diode_tran.cir:14:1 "u1 a out ref dline l=1m"
+    [5] device[4] @netlists/m10_urc_diode_tran.cir:15:1 "rl out 0 50k"
+    [6] model[0] @netlists/m10_urc_diode_tran.cir:16:1 ".model dline urc(k=1.8 fmax=1g rperl=1e7 cperl=2e-8 isperl=1e-11 rsperl=1e4)"
+    [7] analysis[0] @netlists/m10_urc_diode_tran.cir:17:1 ".tran 20n 10u"
+    [8] end @netlists/m10_urc_diode_tran.cir:18:1 ".end"
+  devices (5):
+    device [0] name="v1" designator=v @netlists/m10_urc_diode_tran.cir:11:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="sin" kind=waveform value="(0 1.5 200k)" @netlists/m10_urc_diode_tran.cir:11:9
+          sin
+            vo: "0"@netlists/m10_urc_diode_tran.cir:11:13
+            va: "1.5"@netlists/m10_urc_diode_tran.cir:11:15
+            freq: "200k"@netlists/m10_urc_diode_tran.cir:11:19
+    device [1] name="rs" designator=r @netlists/m10_urc_diode_tran.cir:12:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m10_urc_diode_tran.cir:12:9
+    device [2] name="vref" designator=v @netlists/m10_urc_diode_tran.cir:13:1
+      nodes: "ref" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.8" @netlists/m10_urc_diode_tran.cir:13:12
+    device [3] name="u1" designator=u @netlists/m10_urc_diode_tran.cir:14:1
+      nodes: "a" "out" "ref"
+      model: "dline"
+      parameters (1):
+        [0] name="l" kind=scalar value="1m" @netlists/m10_urc_diode_tran.cir:14:20
+    device [4] name="rl" designator=r @netlists/m10_urc_diode_tran.cir:15:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50k" @netlists/m10_urc_diode_tran.cir:15:10
+  models (1):
+    model [0] name="dline" base="urc" level=none @netlists/m10_urc_diode_tran.cir:16:1
+      parameters (6):
+        [0] name="k" kind=scalar value="1.8" @netlists/m10_urc_diode_tran.cir:16:18
+        [1] name="fmax" kind=scalar value="1g" @netlists/m10_urc_diode_tran.cir:16:24
+        [2] name="rperl" kind=scalar value="1e7" @netlists/m10_urc_diode_tran.cir:16:32
+        [3] name="cperl" kind=scalar value="2e-8" @netlists/m10_urc_diode_tran.cir:16:42
+        [4] name="isperl" kind=scalar value="1e-11" @netlists/m10_urc_diode_tran.cir:16:53
+        [5] name="rsperl" kind=scalar value="1e4" @netlists/m10_urc_diode_tran.cir:16:66
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_urc_diode_tran.cir:17:1
+      arguments: "20n" "10u"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_urc_diode_tran.cir:10:1
+      setting [0] name="reltol" value="1e-6"@netlists/m10_urc_diode_tran.cir:10:17 @netlists/m10_urc_diode_tran.cir:10:10
+  globals (0):
