@@ -29,6 +29,11 @@ pub struct DynamicGroup {
     /// The divisor C applies after scaling (`indacld.c`'s
     /// `CKTomega * INDinduct / m`); `1` for none.
     pub divisor: f64,
+    /// The terms are imaginary parts that already include `CKTomega`
+    /// (`jfet2acld.c`'s `PSacload` outputs), so they are summed unscaled.
+    /// Only a load reassembled at every frequency may use them
+    /// ([`crate::devices::Device::small_signal_depends_on_frequency`]).
+    pub prescaled: bool,
 }
 
 /// `omega` times each of `e`'s contributions in stamp order, except that
@@ -52,7 +57,10 @@ pub(crate) fn dynamic_terms(
         let t = &triplets[i];
         match groups.peek() {
             Some(g) if g.range.start == i && g.range.end <= triplets.len() => {
-                let mut terms = g.terms.iter().map(|term| omega * term);
+                let mut terms = g
+                    .terms
+                    .iter()
+                    .map(|term| if g.prescaled { *term } else { omega * term });
                 let mut sum = terms.next().unwrap_or(0.);
                 for term in terms {
                     sum += term;

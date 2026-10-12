@@ -533,6 +533,42 @@ impl LinearContext<'_> {
         };
         self.dynamic_group(r, c, terms, scale, 1.)
     }
+    /// Adds `scale * (x1 + x2 + ...)` to the imaginary part of the AC matrix
+    /// at (`row`, `col`), the `x` already including `CKTomega` (C's
+    /// frequency-dependent `PSacload` terms): unlike
+    /// [`Self::scaled_dynamic_sum`] the complex assembly does not multiply
+    /// them by `omega`. Only for a device whose small-signal load is
+    /// reassembled at every frequency
+    /// ([`crate::devices::Device::small_signal_depends_on_frequency`]).
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn prescaled_dynamic_sum(
+        &mut self,
+        row: NodeId,
+        col: NodeId,
+        terms: &[Real],
+        scale: Real,
+    ) -> SpiceResult<()> {
+        let (Some(r), Some(c)) = (self.unknowns.node_row(row), self.unknowns.node_row(col)) else {
+            return Ok(());
+        };
+        let start = self.system.e.triplets().len();
+        for term in terms {
+            self.system.e.add(r, c, scale * *term)?;
+        }
+        let end = self.system.e.triplets().len();
+        if end > start && self.system.e.overflow().is_none() {
+            self.system.e_groups.push(crate::maths::DynamicGroup {
+                range: start..end,
+                terms: terms.to_vec(),
+                scale,
+                divisor: 1.,
+                prescaled: true,
+            });
+        }
+        Ok(())
+    }
     /// Adds `scale * (x1 + x2 + ...) / divisor` to `E[r][c]` (matrix rows,
     /// not nodes), each `x` being a term times `omega`, as one C stamp.
     ///
@@ -561,6 +597,7 @@ impl LinearContext<'_> {
                 terms: terms.to_vec(),
                 scale,
                 divisor,
+                prescaled: false,
             });
         }
         Ok(())

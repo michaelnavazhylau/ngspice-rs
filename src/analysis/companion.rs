@@ -935,6 +935,7 @@ impl Driver<'_> {
                 .history
                 .trial_in(phase, previous)?
                 .with_device_limiting(options.limiting.is_device())
+                .with_convergence_tolerances(options.reltol, options.abstol)
                 .with_initial_transient(initial && phase == crate::devices::IterationPhase::Predict)
                 .with_uic(self.uic);
             self.circuit.load(
