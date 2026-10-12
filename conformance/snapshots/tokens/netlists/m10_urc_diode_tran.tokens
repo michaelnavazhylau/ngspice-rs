@@ -1,0 +1,91 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_urc_diode_tran.cir
+title: "Uniform distributed RC line with distributed diodes (urcsetup.c ISPERL path)" @netlists/m10_urc_diode_tran.cir:1:1
+card 1 @netlists/m10_urc_diode_tran.cir:10:1 lines=10-10 continuations=0
+  raw: ".options reltol=1e-6"
+  kind: dot(.options)
+  token 1 10:1 word ".options"
+  token 2 10:10 word "reltol"
+  token 3 10:16 equals "="
+  token 4 10:17 number "1e-6" value=1e-6
+card 2 @netlists/m10_urc_diode_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "v1 in 0 sin(0 1.5 200k)"
+  kind: device(v)
+  token 1 11:1 word "v1"
+  token 2 11:4 word "in"
+  token 3 11:7 number "0" value=0e0
+  token 4 11:9 word "sin"
+  token 5 11:12 lparen "("
+  token 6 11:13 number "0" value=0e0
+  token 7 11:15 number "1.5" value=1.5e0
+  token 8 11:19 number "200k" value=2e5
+  token 9 11:23 rparen ")"
+card 3 @netlists/m10_urc_diode_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "rs in a 2k"
+  kind: device(r)
+  token 1 12:1 word "rs"
+  token 2 12:4 word "in"
+  token 3 12:7 word "a"
+  token 4 12:9 number "2k" value=2e3
+card 4 @netlists/m10_urc_diode_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "vref ref 0 dc 0.8"
+  kind: device(v)
+  token 1 13:1 word "vref"
+  token 2 13:6 word "ref"
+  token 3 13:10 number "0" value=0e0
+  token 4 13:12 word "dc"
+  token 5 13:15 number "0.8" value=8e-1
+card 5 @netlists/m10_urc_diode_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "u1 a out ref dline l=1m"
+  kind: device(u)
+  token 1 14:1 word "u1"
+  token 2 14:4 word "a"
+  token 3 14:6 word "out"
+  token 4 14:10 word "ref"
+  token 5 14:14 word "dline"
+  token 6 14:20 word "l"
+  token 7 14:21 equals "="
+  token 8 14:22 number "1m" value=1e-3
+card 6 @netlists/m10_urc_diode_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "rl out 0 50k"
+  kind: device(r)
+  token 1 15:1 word "rl"
+  token 2 15:4 word "out"
+  token 3 15:8 number "0" value=0e0
+  token 4 15:10 number "50k" value=5e4
+card 7 @netlists/m10_urc_diode_tran.cir:16:1 lines=16-16 continuations=0
+  raw: ".model dline urc(k=1.8 fmax=1g rperl=1e7 cperl=2e-8 isperl=1e-11 rsperl=1e4)"
+  kind: dot(.model)
+  token 1 16:1 word ".model"
+  token 2 16:8 word "dline"
+  token 3 16:14 word "urc"
+  token 4 16:17 lparen "("
+  token 5 16:18 word "k"
+  token 6 16:19 equals "="
+  token 7 16:20 number "1.8" value=1.8e0
+  token 8 16:24 word "fmax"
+  token 9 16:28 equals "="
+  token 10 16:29 number "1g" value=1e9
+  token 11 16:32 word "rperl"
+  token 12 16:37 equals "="
+  token 13 16:38 number "1e7" value=1e7
+  token 14 16:42 word "cperl"
+  token 15 16:47 equals "="
+  token 16 16:48 number "2e-8" value=2e-8
+  token 17 16:53 word "isperl"
+  token 18 16:59 equals "="
+  token 19 16:60 number "1e-11" value=1e-11
+  token 20 16:66 word "rsperl"
+  token 21 16:72 equals "="
+  token 22 16:73 number "1e4" value=1e4
+  token 23 16:76 rparen ")"
+card 8 @netlists/m10_urc_diode_tran.cir:17:1 lines=17-17 continuations=0
+  raw: ".tran 20n 10u"
+  kind: dot(.tran)
+  token 1 17:1 word ".tran"
+  token 2 17:7 number "20n" value=2e-8
+  token 3 17:11 number "10u" value=9.999999999999999e-6
+card 9 @netlists/m10_urc_diode_tran.cir:18:1 lines=18-18 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 18:1 word ".end"

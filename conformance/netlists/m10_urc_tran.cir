@@ -1,0 +1,21 @@
+Uniform distributed RC lines in a transient (urcsetup.c expansion)
+* U1: FMAX rule, K=2 (wnorm = 2 pi FMAX r0 c0 = 6283 -> 10 sections).
+*     r0 = 10k, c0 = 100p (tau 1 us), driven through 1k, loaded by 100k + 2p.
+* U2: explicit n=4 with the default K/FMAX/RPERL; its reference terminal is a
+*     DC-biased node, not ground.
+* U3: a short line (wnorm < 35 -> C's minimum of 3 sections).
+v1 in 0 pulse(0 1 100n 20n 20n 4u 10u)
+rs in a 1k
+u1 a out 0 rline1 l=1m
+rl out 0 100k
+cl out 0 2p
+vref ref 0 dc 0.5
+u2 in b ref rline2 l=5m n=4
+rb b 0 20k
+u3 in c 0 rline3 l=10u
+rc c 0 50k
+.model rline1 urc(k=2 fmax=1g rperl=1e7 cperl=1e-7)
+.model rline2 urc(cperl=40n)
+.model rline3 urc urc rperl=1e8 cperl=2e-7
+.tran 20n 10u
+.end

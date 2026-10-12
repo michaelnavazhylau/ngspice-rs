@@ -1,0 +1,52 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_tline_ac.cir
+title: "Lossless transmission line quarter-wave resonance, AC sweep" @netlists/m10_tline_ac.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/m10_tline_ac.cir:7:1 "vin in 0 dc 0 ac 1"
+    [1] device[1] @netlists/m10_tline_ac.cir:8:1 "rs in a 50"
+    [2] device[2] @netlists/m10_tline_ac.cir:9:1 "t1 a 0 b 0 z0=50 td=1n"
+    [3] device[3] @netlists/m10_tline_ac.cir:10:1 "rl b 0 1k"
+    [4] device[4] @netlists/m10_tline_ac.cir:11:1 "t2 a 0 0 0 zo=75 f=250meg nl=0.25"
+    [5] analysis[0] @netlists/m10_tline_ac.cir:12:1 ".ac lin 101 1meg 601meg"
+    [6] end @netlists/m10_tline_ac.cir:13:1 ".end"
+  devices (5):
+    device [0] name="vin" designator=v @netlists/m10_tline_ac.cir:7:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_tline_ac.cir:7:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m10_tline_ac.cir:7:18
+        [2] name="acphase" kind=scalar value="0" @netlists/m10_tline_ac.cir:7:15
+    device [1] name="rs" designator=r @netlists/m10_tline_ac.cir:8:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_tline_ac.cir:8:9
+    device [2] name="t1" designator=t @netlists/m10_tline_ac.cir:9:1
+      nodes: "a" "0" "b" "0"
+      model: none
+      parameters (2):
+        [0] name="z0" kind=scalar value="50" @netlists/m10_tline_ac.cir:9:12
+        [1] name="td" kind=scalar value="1n" @netlists/m10_tline_ac.cir:9:18
+    device [3] name="rl" designator=r @netlists/m10_tline_ac.cir:10:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m10_tline_ac.cir:10:8
+    device [4] name="t2" designator=t @netlists/m10_tline_ac.cir:11:1
+      nodes: "a" "0" "0" "0"
+      model: none
+      parameters (3):
+        [0] name="zo" kind=scalar value="75" @netlists/m10_tline_ac.cir:11:12
+        [1] name="f" kind=scalar value="250meg" @netlists/m10_tline_ac.cir:11:18
+        [2] name="nl" kind=scalar value="0.25" @netlists/m10_tline_ac.cir:11:27
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m10_tline_ac.cir:12:1
+      arguments: "lin" "101" "1meg" "601meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

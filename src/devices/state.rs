@@ -52,8 +52,20 @@
 //! `BJTicVBE`/`BJTicVCE`, `MOS1icVDS`/`VGS`/`VBS`), defaulted from the node
 //! values of the supplied solution as `diogetic.c`/`bjtgetic.c`/`mos1ic.c`
 //! do, independently of device limiting.
+//!
+//! # Delay histories
+//!
+//! Devices with a [`crate::devices::delay::DelayLine`] (transmission lines)
+//! also own a variable-length [`DelayHistory`] of accepted samples, kept here
+//! by device ordinal next to the fixed slots. Loads read it through
+//! [`DeviceState::delay_history`]; only
+//! [`crate::devices::Circuit::accept_transient_point`] changes it, after the
+//! fixed state is committed, and [`StateHistory::commit`] alone never does.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
+
+use crate::devices::delay::{DelayHistory, DelayUpdate};
 
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
@@ -79,6 +91,9 @@ pub struct StateHistory {
     /// every analysis on the same state vectors), read through
     /// [`DeviceState::carried`].
     carried: Option<Vec<Real>>,
+    /// Delay histories by device ordinal (empty for circuits without delay
+    /// lines).
+    delays: BTreeMap<usize, DelayHistory>,
 }
 
 impl StateHistory {
@@ -89,6 +104,7 @@ impl StateHistory {
             len,
             accepted: Vec::new(),
             carried: None,
+            delays: BTreeMap::new(),
         }
     }
 
@@ -98,6 +114,55 @@ impl StateHistory {
     pub fn with_carried(mut self, carried: Option<Vec<Real>>) -> Self {
         self.carried = carried.filter(|vector| vector.len() == self.len);
         self
+    }
+
+    /// The same history with an empty [`DelayHistory`] of `width` values per
+    /// sample for each `(device ordinal, width)`.
+    #[must_use]
+    pub fn with_delay_lines(mut self, lines: impl IntoIterator<Item = (usize, usize)>) -> Self {
+        self.delays = lines
+            .into_iter()
+            .map(|(device, width)| (device, DelayHistory::new(width)))
+            .collect();
+        self
+    }
+
+    /// The delay history of the device with ordinal `device`, if it has one.
+    #[must_use]
+    pub fn delay(&self, device: usize) -> Option<&DelayHistory> {
+        self.delays.get(&device)
+    }
+
+    /// Checks one delay update per listed device without applying any.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] for a device without a delay history or an
+    /// update [`DelayHistory::check`] rejects.
+    pub fn check_delays(&self, updates: &[(usize, DelayUpdate)]) -> SpiceResult<()> {
+        for (device, update) in updates {
+            self.delays
+                .get(device)
+                .ok_or_else(|| state_error(format!("device {device} has no delay history")))?
+                .check(update)?;
+        }
+        Ok(())
+    }
+
+    /// Applies delay updates that [`Self::check_delays`] accepted; nothing
+    /// changes on error.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::check_delays`].
+    pub(crate) fn apply_delays(&mut self, updates: &[(usize, DelayUpdate)]) -> SpiceResult<()> {
+        self.check_delays(updates)?;
+        for (device, update) in updates {
+            if let Some(history) = self.delays.get_mut(device) {
+                history.apply(update)?;
+            }
+        }
+        Ok(())
     }
 
     /// Number of state slots per vector.
@@ -226,9 +291,13 @@ impl StateHistory {
         Ok(())
     }
 
-    /// Forgets every accepted vector, e.g. when a run restarts.
+    /// Forgets every accepted vector and delay sample, e.g. when a run
+    /// restarts.
     pub fn clear(&mut self) {
         self.accepted.clear();
+        for history in self.delays.values_mut() {
+            history.clear();
+        }
     }
 
     /// The per-device window for slots `range` of `trial`.
@@ -240,6 +309,30 @@ impl StateHistory {
         &'a self,
         trial: &'a mut TrialState,
         range: Range<usize>,
+    ) -> SpiceResult<DeviceState<'a>> {
+        self.window(trial, range, None)
+    }
+
+    /// [`Self::device`] for the device with ordinal `device`, whose window
+    /// also exposes its delay history, if any ([`DeviceState::delay_history`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::device`].
+    pub fn device_of<'a>(
+        &'a self,
+        trial: &'a mut TrialState,
+        range: Range<usize>,
+        device: usize,
+    ) -> SpiceResult<DeviceState<'a>> {
+        self.window(trial, range, self.delays.get(&device))
+    }
+
+    fn window<'a>(
+        &'a self,
+        trial: &'a mut TrialState,
+        range: Range<usize>,
+        delay: Option<&'a DelayHistory>,
     ) -> SpiceResult<DeviceState<'a>> {
         if trial.values.len() != self.len || range.end > self.len || range.start > range.end {
             return Err(state_error("device state range out of bounds"));
@@ -285,6 +378,7 @@ impl StateHistory {
             uic: *uic,
             offset: range.start,
             patches: Some(patches),
+            delay,
         })
     }
 }
@@ -443,6 +537,7 @@ pub struct DeviceState<'a> {
     /// This window's first absolute slot.
     offset: usize,
     patches: Option<&'a mut Vec<(usize, Real)>>,
+    delay: Option<&'a DelayHistory>,
 }
 
 impl DeviceState<'_> {
@@ -465,6 +560,7 @@ impl DeviceState<'_> {
             uic: false,
             offset: 0,
             patches: None,
+            delay: None,
         }
     }
 
@@ -482,6 +578,13 @@ impl DeviceState<'_> {
             patches.push((self.offset + slot, value));
         }
         Ok(())
+    }
+
+    /// The device's accepted delay history (read-only), when it has one and
+    /// the window was opened with [`StateHistory::device_of`].
+    #[must_use]
+    pub const fn delay_history(&self) -> Option<&DelayHistory> {
+        self.delay
     }
 
     /// The `(reltol, abstol)` of the Newton solve this load belongs to, when

@@ -107,6 +107,16 @@ asymmetric with the root scope, where an unused declaration is an explicit
 physics can be silently discarded, while a root declaration is visible to the
 whole deck.
 
+An `M` reference also matches a frame's binning set, as `subckt.c` compares
+with `model_name_match`: when a frame has no `<name>` but declares
+`<name>.<digits>` models, that frame captures the reference, emits the whole set
+(declaration order) and rewrites the reference to `<path>.<name>`; the resolver
+then picks the bin by L/W. The innermost frame with an exact or binned match
+wins even if none of its bins fits, exactly as in C. Rules, C evidence and the
+per-family gate are in [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md#model-binning-109).
+A root declaration that would join or shadow a body's set (`.model x1.nch.7`,
+`.model x1.nch`) is rejected for the same reason as the rename collision below.
+
 A rename may not collide with another flattened model. `<path>.<name>` is a
 legal deck spelling (`.model x1.am r(...)` is a usable name), and the resolver
 keeps the first declaration for a name, so a collision would silently solve the

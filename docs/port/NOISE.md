@@ -83,7 +83,7 @@ Every analysis writes C's plots, in C's order:
   | R | `_thermal`, `_1overf` |
   | D | `_rs`, `_id`, `_1overf`, `_rsw`, `_idsw`, `_1overfsw` |
   | Q | `_rc`, `_rci`, `_rb`, `_re`, `_ic`, `_ib`, `_1overf` |
-  | M (MOS1) | `_rd`, `_rs`, `_id`, `_1overf` |
+  | M (MOS1, MOS3) | `_rd`, `_rs`, `_id`, `_1overf` |
   | S, W | one generator, named `onoise_<inst>`, no separate total |
 
 * A `.noise` card therefore occupies two batch plot names (`noise1 noise2`, or
@@ -129,6 +129,7 @@ kind and whether its card gave an `ac` value.
 | D | `dionoise.c` | RS thermal at the instance temperature; shot of the junction current `cd` (gmin current included, as `DIOcurrent`); flicker `KF abs(cd/m)^AF m / f`; the RSW sidewall generators are zero (RSW is not ported) |
 | Q | `bjtnoise.c` | RC/RE thermal (`m` included) and RB thermal of the bias-dependent `gx` (RBM/IRB); shot of `cc` and `cb` (`m` included); flicker `m KF abs(cb)^AF / f` between the internal base and emitter; `_rci` zero (no quasi-saturation) |
 | M (MOS1) | `mos1noi.c` | RD/RS thermal; channel thermal `2/3 abs(gm)` (NLEV < 3) or the GDSNOI region formula (NLEV 3); flicker NLEV 0 `m KF abs(cd/m)^AF / (f Leff^2 Cox)`, NLEV 1 `... / (f W Leff Cox)`, NLEV 2/3 `KF gm^2 / m / (f^AF W Leff Cox)`, `Cox` for `TOX = 1e-7 m` when the model has none; defaults KF 0, AF 1, NLEV 2, GDSNOI 1 |
+| M (MOS3) | `mos3noi.c` | the MOS1 generators through the shared `devices::mos` shell; the flicker laws use `W - 2 WD` and `L - 2 LD` (C ignores XW/XL there) and the model `Cox` (TOX defaults to 1e-7 m), the NLEV 3 `beta` is `tKP m W / (L - 2 LD)` with the drawn width; checked against live C by `tests/c_noise_reference.rs` (`mos3_noise_matches_c`, also in the SPICE3 flicker form) |
 | S, W | `swnoise.c`, `cswnoise.c` | thermal of the on or off conductance at the circuit temperature, decided from the small-signal state (any non-zero code is on) |
 
 `KF`/`AF` on D, Q and M models, `KF`/`AF`/`EF`/`LF`/`WF` on R models, MOS1

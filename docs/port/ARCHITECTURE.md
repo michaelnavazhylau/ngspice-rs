@@ -38,7 +38,7 @@ examples, not a CLI simulation command.
 | `primitives` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
 | `netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
 | `maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF, trap/Gear coefficient/history/truncation APIs | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
-| `devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch and state-slot binding, trial-versus-accepted state (`StateHistory`/`TrialState`, `&self` stamping, atomic `Circuit::accept_point`), immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver, bounded passive geometry/temperature recipes and diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
+| `devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch and state-slot binding, trial-versus-accepted state (`StateHistory`/`TrialState`, `&self` stamping, atomic `Circuit::accept_point`; device delay histories and breakpoints in `devices::delay`, changed only by `Circuit::accept_transient_point`), immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver, bounded passive geometry/temperature recipes and diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
 | `analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, adaptive trap/Gear-2 companion `.tran`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
 | `cli` | CLI argument parsing, dispatch and reporting; the `spice-rs` binary is `src/bin/spice-rs.rs` | `src/frontend/main.c`, `src/ngspice.c` |
 | `xtask` (separate package) | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
@@ -213,7 +213,10 @@ ground belongs to elaboration. M requires four ports and refuses a declared
 model in the bulk slot. Model names are never ground-aliased. Bounded bare OFF,
 model-family flags, Q/M IC vectors and PULSE/PWL now parse; arities, omissions,
 C references and stricter delimiter policy are in [FRONTEND_VALUES.md](FRONTEND_VALUES.md).
-Extra/thermal terminals, sensitivity flags, model binning, CIDER and numeric-looking
+An M card also accepts a binned reference (a name with only declared
+`<name>.<digits>` models); `devices::binning`/`ModelResolver` choose the bin
+(see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md#model-binning-109)), never the parser.
+Extra/thermal terminals, sensitivity flags, CIDER and numeric-looking
 Q/M model names remain outside this grammar. Purely numeric Q model names produce Parse
 errors: C's front end requires an alphabetic character; ngspice-47+ also rejects
 the scaled-numeric `123n` probe. Ordinary alpha-named models containing digits

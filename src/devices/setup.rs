@@ -144,28 +144,51 @@ pub(crate) struct SetupKey {
     /// The model name (lowercase, after subcircuit scoping), or `None` for
     /// the type's default model.
     pub(crate) model: Option<String>,
+    /// For an element `URCsetup` creates (`urcsetup.c`), the ordinal of its
+    /// URC line: its model is created during setup, after every parsed one.
+    pub(crate) generated_by: Option<usize>,
 }
 
 /// The `CKTsetup`/`CKTload` traversal of devices given in parse (card)
 /// order: by C type, then models from the last created to the first (a model
 /// is created at its first instance), then instances from the last to the
 /// first.
+///
+/// `URCsetup` runs first (the URC type leads `static_devices[]`) and creates
+/// one resistor, capacitor or diode model per URC line with `CKTmodCrt`, so
+/// those models are newer than every parsed model, in the order the URC
+/// lines are set up; their instances are created (and prepended) in the
+/// order [`crate::devices::urc`] lists them.
 pub(crate) fn setup_order(keys: &[SetupKey]) -> Vec<usize> {
+    let traverse = |created: &[usize]| {
+        let mut order: Vec<usize> = (0..keys.len()).collect();
+        order.sort_by(|&a, &b| {
+            keys[a]
+                .device_type
+                .cmp(&keys[b].device_type)
+                .then(created[b].cmp(&created[a]))
+                .then(b.cmp(&a))
+        });
+        order
+    };
     let mut first_reference = std::collections::HashMap::new();
-    let created: Vec<usize> = keys
+    let mut created: Vec<usize> = keys
         .iter()
         .enumerate()
         .map(|(index, key)| *first_reference.entry(key).or_insert(index))
         .collect();
-    let mut order: Vec<usize> = (0..keys.len()).collect();
-    order.sort_by(|&a, &b| {
-        keys[a]
-            .device_type
-            .cmp(&keys[b].device_type)
-            .then(created[b].cmp(&created[a]))
-            .then(b.cmp(&a))
-    });
-    order
+    if keys.iter().all(|key| key.generated_by.is_none()) {
+        return traverse(&created);
+    }
+    // The URC lines' own setup order decides when their models are made.
+    let parsed = traverse(&created);
+    for (index, key) in keys.iter().enumerate() {
+        if let Some(line) = key.generated_by {
+            let rank = parsed.iter().position(|&i| i == line).unwrap_or(line);
+            created[index] = keys.len() + rank;
+        }
+    }
+    traverse(&created)
 }
 
 /// One device's matrix allocation (`DEVsetup`'s `TSTALLOC` calls).
@@ -254,6 +277,7 @@ mod tests {
         SetupKey {
             device_type,
             model: model.map(str::to_owned),
+            generated_by: None,
         }
     }
 

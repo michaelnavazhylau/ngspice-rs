@@ -56,7 +56,10 @@
 //!   `CKTtime + (CKTbreaks[0] - CKTtime)`), or the distance is halved when
 //!   `t + 1.9 dt` passes it; the step ending at a breakpoint evaluates the
 //!   forcing with the left limit, other steps with the right (only port-only
-//!   jumps tell them apart).
+//!   jumps tell them apart). Devices with a delay history (transmission lines,
+//!   [`crate::devices::delay`]) add entries through the same `CKTsetBreak`
+//!   when they accept a point (`TRAaccept`), in C's `CKTaccept` type order
+//!   between the current and the voltage sources.
 //! * **Failures**: a step at or below the minimum is retried once at the
 //!   minimum, then the run fails ("timestep too small"); a work limit bounds
 //!   accepted + rejected steps (C has none); accept-hook and solver failures
@@ -89,7 +92,7 @@
 
 use crate::devices::{
     AnalysisMode, BreakTable, Circuit, Forcing, LinearSystem, LoadRequest, SourceBreaks,
-    TransientTiming, TrialState,
+    SourceKind, TransientTiming, TrialState,
 };
 use crate::maths::integrator::{DEFAULT_XMU, TruncationTolerances};
 use crate::maths::{Coefficients, IntegrationMethod, SparseMatrix, StepHistory, Vector};
@@ -417,6 +420,21 @@ pub fn companion_transient(
 ) -> SpiceResult<(Plot, TransientStats)> {
     let settings = Settings::from_request(request)?;
     let bias = settings.bias(request)?;
+    if request.uic
+        && let Some(line) = circuit.devices().iter().find(|d| d.delay_line().is_some())
+    {
+        // traload.c starts the delayed waves from the instance
+        // `ic=`/`v1 i1 v2 i2` under MODEUIC, but the port's impulse check
+        // (initial::check_impulse_free) has no transmission-line
+        // formulation yet.
+        return Err(SpiceError::not_yet_ported(
+            format!(
+                ".tran uic with transmission line {} (initial waves from its ic=)",
+                line.name()
+            ),
+            "src/spicelib/devices/tra/traload.c (MODEINITTRAN | MODEUIC)",
+        ));
+    }
     // Unknown/ground nodes in .ic/.nodeset fail before anything is assembled.
     let hints = initial::resolve(circuit, request)?;
     let model_context = context.model_context();
@@ -490,10 +508,32 @@ impl Driver<'_> {
         let mut forced;
         // The accepted point's forcing limit and observations.
         let mut observed = Vec::new();
+        // The delay lines' CKTsetBreak requests of the last accepted point.
+        let mut device_breaks: Vec<Real> = Vec::new();
         loop {
             // nextTime: CKTaccept (device hooks ran when the point was
             // committed), the sources' breakpoint requests, then output.
-            sources.accept(self.system, t, at_break, &self.timing, &mut breaks)?;
+            // CKTaccept runs DEVaccept in dev.c type order: isrc, then tra
+            // (the delay lines' requests), then vsrc.
+            sources.accept(
+                self.system,
+                SourceKind::Current,
+                t,
+                at_break,
+                &self.timing,
+                &mut breaks,
+            )?;
+            for time in std::mem::take(&mut device_breaks) {
+                breaks.set(t, time)?;
+            }
+            sources.accept(
+                self.system,
+                SourceKind::Voltage,
+                t,
+                at_break,
+                &self.timing,
+                &mut breaks,
+            )?;
             if t > breaks.first() {
                 breaks.clear();
             }
@@ -595,7 +635,12 @@ impl Driver<'_> {
                         let mut next = delta;
                         if !first {
                             // CKTtrunc: newdelta = MIN(2 * delta, device bounds).
-                            next = (2. * delta).min(self.truncation_limit(&coefficients, &state)?);
+                            next = (2. * delta).min(self.truncation_limit(
+                                &coefficients,
+                                &state,
+                                &x_new,
+                                t,
+                            )?);
                             if next > 0.9 * delta {
                                 accept = true;
                                 // Don't raise the order for backward Euler.
@@ -605,7 +650,8 @@ impl Driver<'_> {
                                     let probe =
                                         self.steps.trial(method, 2, delta, self.settings.xmu)?;
                                     order = 2;
-                                    next = (2. * delta).min(self.truncation_limit(&probe, &state)?);
+                                    next = (2. * delta)
+                                        .min(self.truncation_limit(&probe, &state, &x_new, t)?);
                                     if next <= 1.05 * delta {
                                         order = 1;
                                     }
@@ -642,8 +688,16 @@ impl Driver<'_> {
                             } else {
                                 Vec::new()
                             };
-                            self.circuit
-                                .accept_point(&x_new, Some(t), &mut self.history, state)?;
+                            // CKTaccept: TRAaccept's history update and
+                            // breakpoint requests (set at nextTime below).
+                            let acceptance = self.delay_acceptance(coefficients.dt(), false);
+                            device_breaks = self.circuit.accept_transient_point(
+                                &x_new,
+                                t,
+                                &mut self.history,
+                                state,
+                                &acceptance,
+                            )?;
                             self.steps.accept(&coefficients);
                             self.record_step(delta, at_break);
                             x = x_new;
@@ -797,8 +851,16 @@ impl Driver<'_> {
         // C copies CKTstate0 into CKTstate1..3; the derivative is zero. The
         // port fills every retained vector (ACCEPTED_DEPTH, sized for Gear
         // order 6); dctran.c's orders 1-2 never read beyond CKTstate3.
-        self.circuit
-            .accept_point(&x, Some(0.), &mut self.history, trial.clone())?;
+        // The t = 0 point also starts every transmission line's delay
+        // history (traload.c, MODEINITTRAN); it requests no breakpoints.
+        let acceptance = self.delay_acceptance(self.settings.max_step, true);
+        self.circuit.accept_transient_point(
+            &x,
+            0.,
+            &mut self.history,
+            trial.clone(),
+            &acceptance,
+        )?;
         for _ in 1..crate::devices::ACCEPTED_DEPTH {
             self.history.commit(trial.clone())?;
         }
@@ -943,13 +1005,32 @@ impl Driver<'_> {
         }
     }
 
-    /// C `CKTtrunc`: the smallest step bound over every charge-storage element
-    /// and every discrete-state device ([`crate::devices::Device::timestep_limit`],
-    /// `swtrunc.c`), from the trial point and the accepted history.
+    /// The delay-line quantities of an accepted point or a converged trial
+    /// whose step is `dt`: C `CKTdeltaOld[0..3]` (`dt`, then the two latest
+    /// accepted steps; steps not taken yet read as the maximum step, as
+    /// `dctran.c` initializes `CKTdeltaOld`) and the `CKTminBreak` that
+    /// `TRAaccept` compares sample spacing with: the XSPICE build's
+    /// `10 CKTdelmin`, the same merge distance as the [`BreakTable`].
+    fn delay_acceptance(&self, dt: Real, start: bool) -> crate::devices::DelayAcceptance {
+        let accepted = self.steps.accepted();
+        let older = |age: usize| accepted.get(age).copied().unwrap_or(self.settings.max_step);
+        crate::devices::DelayAcceptance {
+            steps: [dt, older(0), older(1)],
+            min_break: 10. * self.settings.min_step(),
+            start,
+        }
+    }
+
+    /// C `CKTtrunc`: the smallest step bound over every charge-storage element,
+    /// every discrete-state device ([`crate::devices::Device::timestep_limit`],
+    /// `swtrunc.c`) and every delay line (`tratrunc.c`), from the converged
+    /// trial `solution` at `time` and the accepted history.
     fn truncation_limit(
         &self,
         coefficients: &Coefficients,
         trial: &TrialState,
+        solution: &Vector,
+        time: Real,
     ) -> SpiceResult<Real> {
         let tolerances = &self.settings.tolerances;
         let tolerances = TruncationTolerances {
@@ -1009,6 +1090,14 @@ impl Driver<'_> {
                     limit = limit.min(bound);
                 }
             }
+        }
+        if let Some(bound) = self.circuit.delay_timestep_limit(
+            &self.history,
+            solution,
+            time,
+            &self.delay_acceptance(coefficients.dt(), false),
+        )? {
+            limit = limit.min(bound);
         }
         Ok(limit)
     }

@@ -147,21 +147,28 @@ impl SourceBreaks {
         }
     }
 
-    /// The sources' `DEVaccept` breakpoint requests at the accepted time `now`
-    /// (`CKTtime`). `at_break` is C's `CKTbreak` (the accepted step was cut to
-    /// land on a breakpoint, or `now` is the initial point).
+    /// The `DEVaccept` breakpoint requests of the sources of one `kind`
+    /// (`ISRCaccept` or `VSRCaccept`) at the accepted time `now` (`CKTtime`),
+    /// in system (load) order. `CKTaccept` calls the two types separately, in
+    /// `dev.c` order: current sources, the other accepting devices, then
+    /// voltage sources. `at_break` is C's `CKTbreak` (the accepted step was
+    /// cut to land on a breakpoint, or `now` is the initial point).
     ///
     /// # Errors
     /// A request in the past, or unresolved PULSE/function defaults.
     pub fn accept(
         &mut self,
         system: &LinearSystem,
+        kind: SourceKind,
         now: Real,
         at_break: bool,
         timing: &TransientTiming,
         table: &mut BreakTable,
     ) -> SpiceResult<()> {
         for (source, break_time) in system.sources.iter().zip(&mut self.break_time) {
+            if source.kind != kind {
+                continue;
+            }
             let request = Request {
                 now,
                 at_break,

@@ -62,6 +62,9 @@ pub struct Circuit {
     /// Per device, the internal nodes its factory created, in creation order:
     /// the nodes C's `DEVsetup` makes with `CKTmkVolt`.
     internal_nodes: Vec<Vec<NodeId>>,
+    /// Per device, the ordinal of the URC line whose `URCsetup` created it
+    /// (and its model), or `None` for a parsed device.
+    generated_by: Vec<Option<usize>>,
     /// Device ordinals in C's `CKTsetup`/`CKTload` order
     /// ([`crate::devices::setup`]), computed by `finalize`.
     order: Vec<usize>,
@@ -120,6 +123,19 @@ pub struct ConvergenceRequest<'a> {
     pub abstol: Real,
     /// C `CKTvoltTol`.
     pub vntol: Real,
+}
+
+/// The driver quantities [`Circuit::accept_transient_point`] and
+/// [`Circuit::delay_timestep_limit`] pass to delay lines.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DelayAcceptance {
+    /// C `CKTdeltaOld[0..3]` ([`crate::devices::delay::DeltaOld`]).
+    pub steps: crate::devices::delay::DeltaOld,
+    /// C `CKTminBreak` as delay lines see it: the smallest sample spacing
+    /// recorded.
+    pub min_break: Real,
+    /// The `t = 0` point that initializes the delay histories.
+    pub start: bool,
 }
 
 /// One trial load of every device (C `CKTload`).
@@ -629,6 +645,7 @@ impl Circuit {
             .map(|(index, device)| crate::devices::setup::SetupKey {
                 device_type: device.c_device_type(),
                 model: self.models.get(index).cloned().flatten(),
+                generated_by: self.generated_by.get(index).copied().flatten(),
             })
             .collect();
         crate::devices::setup::setup_order(&keys)
@@ -905,6 +922,7 @@ impl Circuit {
         self.devices.push(device);
         self.models.push(None);
         self.internal_nodes.push(internal);
+        self.generated_by.push(None);
         Ok(())
     }
 
@@ -925,10 +943,29 @@ impl Circuit {
         self.state_len
     }
 
-    /// An empty accepted-state history sized for this circuit.
+    /// An empty accepted-state history sized for this circuit, with an empty
+    /// delay history for every device that has a
+    /// [`crate::devices::delay::DelayLine`].
     #[must_use]
     pub fn state_history(&self) -> StateHistory {
-        StateHistory::new(self.state_len).with_carried(self.carried_state.borrow().clone())
+        StateHistory::new(self.state_len)
+            .with_carried(self.carried_state.borrow().clone())
+            .with_delay_lines(
+                self.devices
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, device)| {
+                        device.delay_line().map(|line| (index, line.width()))
+                    }),
+            )
+    }
+
+    /// Whether any device has a delay history (a transmission line).
+    #[must_use]
+    pub fn has_delay_lines(&self) -> bool {
+        self.devices
+            .iter()
+            .any(|device| device.delay_line().is_some())
     }
 
     /// C's `MODEINITSMSIG` load at the operating point `bias` (`acan.c`,
@@ -1162,7 +1199,7 @@ impl Circuit {
         let mutual = self.mutual_terms(request.model_context)?;
         let states = request
             .history
-            .device(trial, self.state_rows[index].clone())?;
+            .device_of(trial, self.state_rows[index].clone(), index)?;
         device.stamp(&mut StampContext {
             matrix,
             rhs,
@@ -1357,7 +1394,7 @@ impl Circuit {
             };
             let states = request
                 .history
-                .device(trial, self.state_rows[index].clone())?;
+                .device_of(trial, self.state_rows[index].clone(), index)?;
             matrix.begin_device(position);
             device.stamp(&mut StampContext {
                 matrix: &mut *matrix,
@@ -1527,6 +1564,135 @@ impl Circuit {
         history.check(&trial)?;
         self.run_accept_hooks(solution, time, Some(&trial))?;
         history.commit(trial)
+    }
+
+    /// Accepts a companion-transient point: [`Self::accept_point`] plus the
+    /// delay histories of transmission lines ([`crate::devices::delay`]).
+    ///
+    /// With `delay.start` (the `t = 0` point) every delay line initializes
+    /// its history ([`crate::devices::delay::DelayLine::start`]); otherwise it
+    /// records the accepted sample ([`crate::devices::delay::DelayLine::accept`]).
+    /// Every update is computed and validated first, then the hooks run, the
+    /// fixed state is committed and the delay updates are applied, so a
+    /// failure leaves the history unchanged. Returns the breakpoints the
+    /// devices request (C `CKTsetBreak` from `DEVaccept`), in C's load order;
+    /// a circuit without delay lines behaves exactly as
+    /// [`Self::accept_point`] and returns none.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::accept_point`], and delay-line failures or invalid updates.
+    pub fn accept_transient_point(
+        &self,
+        solution: &Vector,
+        time: Real,
+        history: &mut StateHistory,
+        trial: TrialState,
+        delay: &DelayAcceptance,
+    ) -> SpiceResult<Vec<Real>> {
+        if history.len() != self.state_len {
+            return Err(SpiceError::circuit(
+                "state history does not match the circuit numbering",
+            ));
+        }
+        history.check(&trial)?;
+        let mut updates = Vec::new();
+        // TRAaccept walks C's model/instance lists: the load order.
+        for index in self.load_order() {
+            let device = &self.devices[index];
+            let Some(line) = device.delay_line() else {
+                continue;
+            };
+            let samples = history.delay(index).ok_or_else(|| {
+                SpiceError::circuit(format!(
+                    "{}: the state history has no delay history (use Circuit::state_history)",
+                    device.name()
+                ))
+            })?;
+            let context = crate::devices::delay::DelayContext {
+                solution,
+                unknowns: &self.unknowns,
+                time,
+                steps: delay.steps,
+                min_break: delay.min_break,
+                initial_conditions: trial.initial_conditions(),
+            };
+            let update = if delay.start {
+                let update = line.start(&context)?;
+                if update.reset.is_none() {
+                    return Err(SpiceError::circuit(format!(
+                        "{}: a delay-line start must reset its history",
+                        device.name()
+                    )));
+                }
+                update
+            } else {
+                if samples.is_empty() {
+                    return Err(SpiceError::circuit(format!(
+                        "{}: delay history used before the transient start",
+                        device.name()
+                    )));
+                }
+                line.accept(samples, &context)?
+            };
+            updates.push((index, update));
+        }
+        history.check_delays(&updates)?;
+        self.run_accept_hooks(solution, Some(time), Some(&trial))?;
+        history.commit(trial)?;
+        history.apply_delays(&updates)?;
+        Ok(updates
+            .into_iter()
+            .flat_map(|(_, update)| update.breakpoints)
+            .collect())
+    }
+
+    /// The tightest step bound of every delay line for a converged transient
+    /// trial at `time` (C `DEVtrunc` of `TRA`), or `None` without delay lines.
+    ///
+    /// # Errors
+    ///
+    /// A missing delay history or a device failure.
+    pub fn delay_timestep_limit(
+        &self,
+        history: &StateHistory,
+        solution: &Vector,
+        time: Real,
+        delay: &DelayAcceptance,
+    ) -> SpiceResult<Option<Real>> {
+        let mut limit: Option<Real> = None;
+        for (index, device) in self.devices.iter().enumerate() {
+            let Some(line) = device.delay_line() else {
+                continue;
+            };
+            let samples = history
+                .delay(index)
+                .filter(|h| !h.is_empty())
+                .ok_or_else(|| {
+                    SpiceError::circuit(format!(
+                        "{}: delay history used before the transient start",
+                        device.name()
+                    ))
+                })?;
+            let context = crate::devices::delay::DelayContext {
+                solution,
+                unknowns: &self.unknowns,
+                time,
+                steps: delay.steps,
+                min_break: delay.min_break,
+                initial_conditions: false,
+            };
+            if let Some(bound) = line.timestep_limit(samples, &context)? {
+                if bound.is_nan() {
+                    return Err(SpiceError::circuit(format!(
+                        "{}: NaN timestep limit",
+                        device.name()
+                    )));
+                }
+                limit = Some(limit.map_or(bound, |l| l.min(bound)));
+            }
+        }
+        Ok(limit)
     }
 
     /// Accepts a point of an analysis that tracks no device state (linear
@@ -1822,6 +1988,15 @@ impl Circuit {
         let mut nodes = self.nodes.clone();
         let mut staged: Vec<Box<dyn Device>> = Vec::with_capacity(instances.len());
         let mut internal: Vec<Vec<NodeId>> = Vec::with_capacity(instances.len());
+        let mut model_names: Vec<Option<String>> = Vec::with_capacity(instances.len());
+        let mut generated_by: Vec<Option<usize>> = Vec::with_capacity(instances.len());
+        // Node names written on the batch's cards, which URC-generated
+        // internal nodes must not reuse (crate::devices::urc::expand).
+        let deck_nodes: BTreeSet<&str> = instances
+            .iter()
+            .flat_map(|instance| instance.nodes.iter().map(String::as_str))
+            .collect();
+        let base = self.devices.len();
         for instance in instances {
             if !seen.insert(instance.name.to_lowercase()) {
                 return Err(SpiceError::circuit(format!(
@@ -1829,9 +2004,75 @@ impl Circuit {
                     instance.name
                 )));
             }
-            // Builtin factories bind terminals in this staged table. Nothing
-            // fallible remains after committing the two containers together.
             let first = nodes.len();
+            // A URC line is expanded into its generated R/C/D elements
+            // (urcsetup.c), which take its place under their own names.
+            if instance.designator == 'u' {
+                let expanded = crate::devices::urc::expand(
+                    instance,
+                    &mut nodes,
+                    models,
+                    context,
+                    &deck_nodes,
+                )?;
+                let created: Vec<&crate::primitives::Node> = nodes.nodes()[first..]
+                    .iter()
+                    .filter(|node| !instance.nodes.contains(&node.name))
+                    .collect();
+                let line = base + staged.len();
+                let lower = instance.name.to_lowercase();
+                for device in expanded {
+                    // The URC instance itself keeps its (already checked) name.
+                    let is_line = device.name().eq_ignore_ascii_case(&instance.name);
+                    if !is_line && !seen.insert(device.name().to_lowercase()) {
+                        return Err(SpiceError::circuit(format!(
+                            "duplicate instance name '{}' generated by URC {}",
+                            device.name(),
+                            instance.name
+                        )));
+                    }
+                    if is_line {
+                        // URCsetup's CKTmkVolt calls: the ladder nodes are
+                        // numbered at the URC line's own setup.
+                        internal.push(
+                            created
+                                .iter()
+                                .filter(|node| node.kind != NodeKind::Internal)
+                                .map(|node| node.id)
+                                .collect(),
+                        );
+                        model_names.push(instance.model.as_ref().map(|m| m.to_ascii_lowercase()));
+                        generated_by.push(None);
+                    } else {
+                        // A generated diode's own prime node (diosetup.c).
+                        internal.push(
+                            device
+                                .terminals()
+                                .iter()
+                                .copied()
+                                .filter(|id| {
+                                    created.iter().any(|node| {
+                                        node.id == *id && node.kind == NodeKind::Internal
+                                    })
+                                })
+                                .collect(),
+                        );
+                        // URCsetup's CKTmodCrt models `<name>#resmod`,
+                        // `#capmod` and `#diodemod`.
+                        let suffix = match device.c_device_type() {
+                            crate::devices::setup::CDeviceType::Res => "resmod",
+                            crate::devices::setup::CDeviceType::Cap => "capmod",
+                            _ => "diodemod",
+                        };
+                        model_names.push(Some(format!("{lower}#{suffix}")));
+                        generated_by.push(Some(line));
+                    }
+                    staged.push(device);
+                }
+                continue;
+            }
+            // Builtin factories bind terminals in this staged table. Nothing
+            // fallible remains after committing the containers together.
             staged.push(crate::devices::factory::instantiate_with_models(
                 instance, &mut nodes, models, context,
             )?);
@@ -1842,15 +2083,14 @@ impl Circuit {
                     .map(|node| node.id)
                     .collect(),
             );
+            model_names.push(instance.model.as_ref().map(|m| m.to_ascii_lowercase()));
+            generated_by.push(None);
         }
         self.nodes = nodes;
         self.devices.extend(staged);
         self.internal_nodes.extend(internal);
-        self.models.extend(
-            instances
-                .iter()
-                .map(|instance| instance.model.as_ref().map(|m| m.to_ascii_lowercase())),
-        );
+        self.models.extend(model_names);
+        self.generated_by.extend(generated_by);
         Ok(())
     }
 
@@ -1924,12 +2164,11 @@ impl Circuit {
         let referenced: BTreeSet<_> = expanded
             .devices
             .iter()
-            .filter_map(|instance| {
-                instance
-                    .model
-                    .as_ref()
-                    .map(|name| name.to_ascii_lowercase())
-            })
+            .filter_map(|instance| instance.model.as_ref())
+            // A binned reference uses its whole `<name>.<n>` set (C's
+            // `mark_all_binned`), not only the selected bin.
+            .flat_map(|name| models.declarations_for(name))
+            .map(|card| card.name.to_ascii_lowercase())
             .collect();
         if let Some(model) = netlist
             .models

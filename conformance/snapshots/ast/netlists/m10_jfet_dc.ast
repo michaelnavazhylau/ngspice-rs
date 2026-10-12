@@ -1,0 +1,108 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_jfet_dc.cir
+title: "JFET level 1 output/transfer sweep: Sydney B tail, RD/RS, inverse mode, area/m, PJF" @netlists/m10_jfet_dc.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m10_jfet_dc.cir:2:1 "vds d 0 0"
+    [1] device[1] @netlists/m10_jfet_dc.cir:3:1 "vgs g 0 0"
+    [2] device[2] @netlists/m10_jfet_dc.cir:4:1 "j1 d g 0 jn"
+    [3] device[3] @netlists/m10_jfet_dc.cir:5:1 "vds2 d2 0 0"
+    [4] device[4] @netlists/m10_jfet_dc.cir:6:1 "vgs2 g2 0 0.5"
+    [5] device[5] @netlists/m10_jfet_dc.cir:7:1 "j2 d2 g2 0 jp 2 m=3"
+    [6] device[6] @netlists/m10_jfet_dc.cir:8:1 "vds3 d3 0 0"
+    [7] device[7] @netlists/m10_jfet_dc.cir:9:1 "j3 d3 g s3 jt area=0.5"
+    [8] device[8] @netlists/m10_jfet_dc.cir:10:1 "vs3 s3 0 0.3"
+    [9] model[0] @netlists/m10_jfet_dc.cir:11:1 ".model jn njf(vto=-2 beta=1.2m lambda=0.03 rd=20 rs=15 is=1e-14 n=1.1 b=0.7 cgs=2p cgd=1p)"
+    [10] model[1] @netlists/m10_jfet_dc.cir:12:1 ".model jp pjf(vto=-1.5 beta=0.8m lambda=0.02 b=1.2 rs=10)"
+    [11] model[2] @netlists/m10_jfet_dc.cir:13:1 ".model jt njf(level=1 vt0=-1 vto=-1.8 beta=2m b=1 rd=5 pjf njf)"
+    [12] options[0] @netlists/m10_jfet_dc.cir:14:1 ".options reltol=1e-7 vntol=1e-12 abstol=1e-15"
+    [13] analysis[0] @netlists/m10_jfet_dc.cir:15:1 ".dc vds -2 6 0.25 vgs -2.5 0.5 0.5"
+    [14] end @netlists/m10_jfet_dc.cir:16:1 ".end"
+  devices (9):
+    device [0] name="vds" designator=v @netlists/m10_jfet_dc.cir:2:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_jfet_dc.cir:2:9
+    device [1] name="vgs" designator=v @netlists/m10_jfet_dc.cir:3:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_jfet_dc.cir:3:9
+    device [2] name="j1" designator=j @netlists/m10_jfet_dc.cir:4:1
+      nodes: "d" "g" "0"
+      model: "jn"
+      parameters (0):
+    device [3] name="vds2" designator=v @netlists/m10_jfet_dc.cir:5:1
+      nodes: "d2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_jfet_dc.cir:5:11
+    device [4] name="vgs2" designator=v @netlists/m10_jfet_dc.cir:6:1
+      nodes: "g2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m10_jfet_dc.cir:6:11
+    device [5] name="j2" designator=j @netlists/m10_jfet_dc.cir:7:1
+      nodes: "d2" "g2" "0"
+      model: "jp"
+      parameters (2):
+        [0] name="m" kind=scalar value="3" @netlists/m10_jfet_dc.cir:7:17
+        [1] name="area" kind=scalar value="2" @netlists/m10_jfet_dc.cir:7:15
+    device [6] name="vds3" designator=v @netlists/m10_jfet_dc.cir:8:1
+      nodes: "d3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_jfet_dc.cir:8:11
+    device [7] name="j3" designator=j @netlists/m10_jfet_dc.cir:9:1
+      nodes: "d3" "g" "s3"
+      model: "jt"
+      parameters (1):
+        [0] name="area" kind=scalar value="0.5" @netlists/m10_jfet_dc.cir:9:15
+    device [8] name="vs3" designator=v @netlists/m10_jfet_dc.cir:10:1
+      nodes: "s3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.3" @netlists/m10_jfet_dc.cir:10:10
+  models (3):
+    model [0] name="jn" base="njf" level=none @netlists/m10_jfet_dc.cir:11:1
+      parameters (10):
+        [0] name="vto" kind=scalar value="-2" @netlists/m10_jfet_dc.cir:11:15
+        [1] name="beta" kind=scalar value="1.2m" @netlists/m10_jfet_dc.cir:11:22
+        [2] name="lambda" kind=scalar value="0.03" @netlists/m10_jfet_dc.cir:11:32
+        [3] name="rd" kind=scalar value="20" @netlists/m10_jfet_dc.cir:11:44
+        [4] name="rs" kind=scalar value="15" @netlists/m10_jfet_dc.cir:11:50
+        [5] name="is" kind=scalar value="1e-14" @netlists/m10_jfet_dc.cir:11:56
+        [6] name="n" kind=scalar value="1.1" @netlists/m10_jfet_dc.cir:11:65
+        [7] name="b" kind=scalar value="0.7" @netlists/m10_jfet_dc.cir:11:71
+        [8] name="cgs" kind=scalar value="2p" @netlists/m10_jfet_dc.cir:11:77
+        [9] name="cgd" kind=scalar value="1p" @netlists/m10_jfet_dc.cir:11:84
+    model [1] name="jp" base="pjf" level=none @netlists/m10_jfet_dc.cir:12:1
+      parameters (5):
+        [0] name="vto" kind=scalar value="-1.5" @netlists/m10_jfet_dc.cir:12:15
+        [1] name="beta" kind=scalar value="0.8m" @netlists/m10_jfet_dc.cir:12:24
+        [2] name="lambda" kind=scalar value="0.02" @netlists/m10_jfet_dc.cir:12:34
+        [3] name="b" kind=scalar value="1.2" @netlists/m10_jfet_dc.cir:12:46
+        [4] name="rs" kind=scalar value="10" @netlists/m10_jfet_dc.cir:12:52
+    model [2] name="jt" base="njf" level=1e0 @netlists/m10_jfet_dc.cir:13:1
+      parameters (8):
+        [0] name="level" kind=scalar value="1" @netlists/m10_jfet_dc.cir:13:15
+        [1] name="vt0" kind=scalar value="-1" @netlists/m10_jfet_dc.cir:13:23
+        [2] name="vto" kind=scalar value="-1.8" @netlists/m10_jfet_dc.cir:13:30
+        [3] name="beta" kind=scalar value="2m" @netlists/m10_jfet_dc.cir:13:39
+        [4] name="b" kind=scalar value="1" @netlists/m10_jfet_dc.cir:13:47
+        [5] name="rd" kind=scalar value="5" @netlists/m10_jfet_dc.cir:13:51
+        [6] name="pjf" kind=flag value="" @netlists/m10_jfet_dc.cir:13:56
+        [7] name="njf" kind=flag value="" @netlists/m10_jfet_dc.cir:13:60
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m10_jfet_dc.cir:15:1
+      arguments: "vds" "-2" "6" "0.25" "vgs" "-2.5" "0.5" "0.5"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_jfet_dc.cir:14:1
+      setting [0] name="reltol" value="1e-7"@netlists/m10_jfet_dc.cir:14:17 @netlists/m10_jfet_dc.cir:14:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_jfet_dc.cir:14:28 @netlists/m10_jfet_dc.cir:14:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_jfet_dc.cir:14:41 @netlists/m10_jfet_dc.cir:14:34
+  globals (0):

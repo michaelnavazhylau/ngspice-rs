@@ -189,6 +189,27 @@ fn a_bjt_stage_and_a_differential_input_match_c() {
     );
 }
 
+/// MOS3 (#89): `mos3pzld.c` is the AC load with `s` for `j omega`, Meyer
+/// and overlap capacitances over the effective channel, junction charges.
+#[test]
+#[ignore = "needs NGSPICE_BIN (absolute path to the C ngspice binary)"]
+fn a_mos3_stage_matches_c() {
+    check(
+        "mos3",
+        "vdd vdd 0 5
+vin gate 0 dc 1.4 ac 1
+rs gate g 1k
+rd vdd drain 10k
+cl drain 0 1p
+         m1 drain g 0 0 mm w=10u l=1u ad=20p as=20p pd=24u ps=24u
+         .model mm nmos(level=3 vto=0.8 tox=20n nsub=1e16 xj=0.2u vmax=1e5 theta=0.05 eta=0.1
+         + kappa=0.3 ld=0.1u wd=0.1u cj=0.4m cjsw=0.3n cgso=4e-10 cgdo=3e-10 cgbo=2e-10)
+         .options reltol=1e-7
+.pz g 0 drain 0 vol pz
+",
+    );
+}
+
 #[test]
 #[ignore = "needs NGSPICE_BIN (absolute path to the C ngspice binary)"]
 fn c_negates_the_ccvs_gain_in_its_pole_zero_load() {

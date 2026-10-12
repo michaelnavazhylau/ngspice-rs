@@ -1,0 +1,19 @@
+Breakpoint propagation through transmission lines, periodic pulse
+* A 5 ns-period pulse (corners b at 0.5, 0.7, 1.7, 1.9 ns + 5k ns) enters
+* t1 (td = 1.25 ns) from a matched 50 ohm source into a matched load, so
+* the far end b sees the pulse 1.25 ns later. A unity-gain buffer drives
+* t2 (td = 0.75 ns) through 50 ohm into an open end (1 meg): its far end e
+* doubles at b + 2 ns and the reflection returns to d at b + 2.75 ns, where
+* the matched source absorbs it. Each line sets its breakpoints from its own
+* accepted waves (rel=1e-3 abs=1e3), so both simulators land on b + 1.25,
+* b + 2 and b + 2.75 ns.
+v1 in 0 pulse(0 1 0.5n 0.2n 0.2n 1n 5n)
+rs in a 50
+t1 a 0 b 0 z0=50 td=1.25n rel=1e-3 abs=1e3
+rl b 0 50
+e1 c 0 b 0 2
+rs2 c d 50
+t2 d 0 e 0 z0=50 td=0.75n rel=1e-3 abs=1e3
+ro e 0 1meg
+.tran 0.05n 16n
+.end

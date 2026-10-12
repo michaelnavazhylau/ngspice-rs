@@ -28,6 +28,10 @@ pub(super) fn model(input: &mut Input<'_>, base: &str) -> Result<ParameterAssign
                 // SW_MOD_SW / CSW_CSW: "just says that this is a switch".
                 "sw" => key == "sw",
                 "csw" => key == "csw",
+                // JFETmPTable: JFET_MOD_NJF / JFET_MOD_PJF set the type.
+                "njf" | "pjf" => matches!(key.as_str(), "njf" | "pjf"),
+                // URC_MOD_URC: "already know we are a URC" (urcmpar.c no-op).
+                "urc" => key == "urc",
                 _ => false,
             }
         })

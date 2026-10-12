@@ -1,0 +1,77 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_jfet_ac.cir
+title: "JFET common-source amplifier: gate depletion capacitance, RD/RS, area and m" @netlists/m10_jfet_ac.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/m10_jfet_ac.cir:2:1 "vdd vdd 0 15"
+    [1] device[1] @netlists/m10_jfet_ac.cir:3:1 "vin in 0 dc 0 ac 1"
+    [2] device[2] @netlists/m10_jfet_ac.cir:4:1 "rg in g 50k"
+    [3] device[3] @netlists/m10_jfet_ac.cir:5:1 "rl vdd d 4.7k"
+    [4] device[4] @netlists/m10_jfet_ac.cir:6:1 "rsrc s 0 1k"
+    [5] device[5] @netlists/m10_jfet_ac.cir:7:1 "cs s 0 10u"
+    [6] device[6] @netlists/m10_jfet_ac.cir:8:1 "j1 d g s jn 1.5 m=2"
+    [7] model[0] @netlists/m10_jfet_ac.cir:9:1 ".model jn njf(vto=-2.2 beta=0.9m lambda=0.015 rd=30 rs=25 cgs=4p cgd=1.5p pb=0.7 fc=0.4 b=0.85 is=2e-14 n=1.05)"
+    [8] analysis[0] @netlists/m10_jfet_ac.cir:10:1 ".ac dec 10 10 1g"
+    [9] end @netlists/m10_jfet_ac.cir:11:1 ".end"
+  devices (7):
+    device [0] name="vdd" designator=v @netlists/m10_jfet_ac.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="15" @netlists/m10_jfet_ac.cir:2:11
+    device [1] name="vin" designator=v @netlists/m10_jfet_ac.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_jfet_ac.cir:3:10
+        [1] name="acmag" kind=scalar value="1" @netlists/m10_jfet_ac.cir:3:18
+        [2] name="acphase" kind=scalar value="0" @netlists/m10_jfet_ac.cir:3:15
+    device [2] name="rg" designator=r @netlists/m10_jfet_ac.cir:4:1
+      nodes: "in" "g"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50k" @netlists/m10_jfet_ac.cir:4:9
+    device [3] name="rl" designator=r @netlists/m10_jfet_ac.cir:5:1
+      nodes: "vdd" "d"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="4.7k" @netlists/m10_jfet_ac.cir:5:10
+    device [4] name="rsrc" designator=r @netlists/m10_jfet_ac.cir:6:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m10_jfet_ac.cir:6:10
+    device [5] name="cs" designator=c @netlists/m10_jfet_ac.cir:7:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10u" @netlists/m10_jfet_ac.cir:7:8
+    device [6] name="j1" designator=j @netlists/m10_jfet_ac.cir:8:1
+      nodes: "d" "g" "s"
+      model: "jn"
+      parameters (2):
+        [0] name="m" kind=scalar value="2" @netlists/m10_jfet_ac.cir:8:17
+        [1] name="area" kind=scalar value="1.5" @netlists/m10_jfet_ac.cir:8:13
+  models (1):
+    model [0] name="jn" base="njf" level=none @netlists/m10_jfet_ac.cir:9:1
+      parameters (12):
+        [0] name="vto" kind=scalar value="-2.2" @netlists/m10_jfet_ac.cir:9:15
+        [1] name="beta" kind=scalar value="0.9m" @netlists/m10_jfet_ac.cir:9:24
+        [2] name="lambda" kind=scalar value="0.015" @netlists/m10_jfet_ac.cir:9:34
+        [3] name="rd" kind=scalar value="30" @netlists/m10_jfet_ac.cir:9:47
+        [4] name="rs" kind=scalar value="25" @netlists/m10_jfet_ac.cir:9:53
+        [5] name="cgs" kind=scalar value="4p" @netlists/m10_jfet_ac.cir:9:59
+        [6] name="cgd" kind=scalar value="1.5p" @netlists/m10_jfet_ac.cir:9:66
+        [7] name="pb" kind=scalar value="0.7" @netlists/m10_jfet_ac.cir:9:75
+        [8] name="fc" kind=scalar value="0.4" @netlists/m10_jfet_ac.cir:9:82
+        [9] name="b" kind=scalar value="0.85" @netlists/m10_jfet_ac.cir:9:89
+        [10] name="is" kind=scalar value="2e-14" @netlists/m10_jfet_ac.cir:9:96
+        [11] name="n" kind=scalar value="1.05" @netlists/m10_jfet_ac.cir:9:105
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m10_jfet_ac.cir:10:1
+      arguments: "dec" "10" "10" "1g"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
