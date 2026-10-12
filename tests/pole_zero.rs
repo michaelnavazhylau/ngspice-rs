@@ -283,20 +283,24 @@ fn simulate_writes_c_layout_and_composes_with_other_analyses() {
     fs::create_dir_all(&dir).unwrap();
     let deck =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("conformance/netlists/multi_analysis_pz.cir");
+    let simulate = |format: &str, output: &Path| {
+        let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
+            .arg("simulate")
+            .args(["--format", format])
+            .arg("--output")
+            .arg(output)
+            .arg(&deck)
+            .output()
+            .unwrap();
+        assert!(
+            run.status.success(),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        String::from_utf8_lossy(&run.stderr).into_owned()
+    };
     let output = dir.join("out.raw");
-    let run = Command::new(env!("CARGO_BIN_EXE_spice-rs"))
-        .arg("simulate")
-        .args(["--format", "ascii"])
-        .arg("--output")
-        .arg(&output)
-        .arg(&deck)
-        .output()
-        .unwrap();
-    assert!(
-        run.status.success(),
-        "{}",
-        String::from_utf8_lossy(&run.stderr)
-    );
+    let warnings = simulate("binary", &output);
     let raw = RawFile::load(&output).unwrap();
     let plotnames: Vec<_> = raw.plots.iter().map(|p| p.plot.plotname.as_str()).collect();
     assert_eq!(
@@ -318,16 +322,21 @@ fn simulate_writes_c_layout_and_composes_with_other_analyses() {
             .collect()
     };
     assert_eq!(names(2), ["v(zero(1))", "v(zero(2))", "v(zero(3))"]);
-    // KNOWN DIVERGENCE FROM C: C reports 3 poles here. The real pole near
-    // -7.97e4 is reached on the real axis by C's search, but by this port's
-    // Muller search (different rounding) it comes back as a complex pair with
-    // an imaginary part of about 3e-36, so the port lists 4 roots.
-    assert_eq!(
-        names(3),
-        ["v(pole(1))", "v(pole(2))", "v(pole(3))", "v(pole(4))"]
+    // The port follows C's Muller search bit for bit. On this deck the
+    // search is sensitive to the last bit of every determinant: the C
+    // reference built with `-ffp-contract=off` (no FMA contraction, which the
+    // port matches) hits the iteration limit in the pole search, warns and
+    // writes an empty real pole plot, as here; an FMA-contracted C build
+    // happens to find 3 poles instead.
+    assert!(names(3).is_empty(), "{:?}", names(3));
+    assert!(
+        warnings.contains("Pole-zero iteration limit reached; giving up after 201 trials"),
+        "{warnings}"
     );
-    let text = fs::read_to_string(&output).unwrap();
-    assert!(text.contains("\t0\tv(pole(1))\tvoltage\n"), "{text}");
+    let ascii = dir.join("out.txt");
+    simulate("ascii", &ascii);
+    let text = fs::read_to_string(&ascii).unwrap();
+    assert!(text.contains("\t0\tv(zero(1))\tvoltage\n"), "{text}");
     let _ = fs::remove_dir_all(&dir);
 }
 

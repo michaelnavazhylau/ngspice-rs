@@ -609,30 +609,7 @@ impl Circuit {
     /// (C sets a circuit up once).
     fn allocate_matrix(&mut self) -> SpiceResult<()> {
         let order = self.setup_order();
-        let mut elements = Vec::new();
-        for &index in &order {
-            let coupled: Vec<(usize, usize)> = self
-                .mutual
-                .pairs
-                .iter()
-                .rev()
-                .filter(|pair| pair.coupling == index)
-                .map(|pair| {
-                    (
-                        self.branch_rows[pair.first].start,
-                        self.branch_rows[pair.second].start,
-                    )
-                })
-                .collect();
-            let mut setup = crate::devices::setup::MatrixSetup {
-                unknowns: &self.unknowns,
-                branches: self.branch_rows[index].clone(),
-                controls: self.controls(index)?,
-                coupled: &coupled,
-                elements: &mut elements,
-            };
-            self.devices[index].setup_matrix(&mut setup)?;
-        }
+        let elements = self.setup_elements(&order, false)?;
         self.order = order;
         let n = self.unknown_count();
         let mut slot = self.pattern.borrow_mut();
@@ -652,6 +629,60 @@ impl Circuit {
             *slot = Some(std::sync::Arc::new(allocated));
         }
         Ok(())
+    }
+
+    /// The matrix elements the devices declare ([`Device::setup_matrix`]),
+    /// visited in `order`: C's `CKTsetup`, or with `pole_zero` the
+    /// `DEVpzSetup` pass of `CKTpzSetup` (`cktpzset.c`) on a fresh matrix.
+    fn setup_elements(&self, order: &[usize], pole_zero: bool) -> SpiceResult<Vec<(usize, usize)>> {
+        let mut elements = Vec::new();
+        for &index in order {
+            let coupled: Vec<(usize, usize)> = self
+                .mutual
+                .pairs
+                .iter()
+                .rev()
+                .filter(|pair| pair.coupling == index)
+                .map(|pair| {
+                    (
+                        self.branch_rows[pair.first].start,
+                        self.branch_rows[pair.second].start,
+                    )
+                })
+                .collect();
+            let mut setup = crate::devices::setup::MatrixSetup {
+                unknowns: &self.unknowns,
+                branches: self.branch_rows[index].clone(),
+                controls: self.controls(index)?,
+                coupled: &coupled,
+                pole_zero,
+                elements: &mut elements,
+            };
+            self.devices[index].setup_matrix(&mut setup)?;
+        }
+        Ok(elements)
+    }
+
+    /// The elements `CKTpzSetup` (`cktpzset.c`) allocates on its fresh
+    /// matrix before the drive, in allocation order: every device's
+    /// `DEVpzSetup` (its `DEVsetup`, except that `VSRCpzSetup` adds the
+    /// branch diagonal), then any element the circuit pattern learned from
+    /// a load of a device that declares none.
+    /// # Errors
+    /// Mismatched numbering or missing bindings.
+    pub fn pole_zero_elements(&self) -> SpiceResult<Vec<(usize, usize)>> {
+        self.check_numbering()?;
+        let mut elements = self.setup_elements(&self.setup_order(), true)?;
+        if let Some(pattern) = self.matrix_pattern() {
+            let known: BTreeSet<(usize, usize)> = elements.iter().copied().collect();
+            for index in 0..pattern.len() {
+                let position = pattern.position(crate::maths::sparse::element_id(index));
+                if !known.contains(&position) {
+                    elements.push(position);
+                }
+            }
+        }
+        Ok(elements)
     }
 
     /// C `CKTconvTest`: every device's convergence test, in `CKTload` order,
@@ -1449,7 +1480,7 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
-        self.bias_linearized_system(context, bias, state, false)
+        self.bias_linearized_system(context, bias, state, false, None)
     }
 
     /// The pole-zero pencil `A + s E` at a solved bias point: every device's
@@ -1466,7 +1497,76 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
-        self.bias_linearized_system(context, bias, state, true)
+        self.bias_linearized_system(context, bias, state, true, None)
+    }
+
+    /// The pole-zero load as `CKTpzLoad` adds it: every device's
+    /// [`Device::assemble_pole_zero`] contributions in load order, one
+    /// [`crate::maths::pencil::PencilTerm`] per device and element. A
+    /// device's static stamps at one element are summed into its `g` and
+    /// its dynamic stamps into its `c` (one [`crate::maths::DynamicGroup`]
+    /// as `scale * (x1 + x2 + ...)`), as the C loads add `g + c * s`
+    /// (`diopzld.c` adds `geq + gspr + xceq * s->real`).
+    /// # Errors
+    /// As [`Self::pole_zero_system_at`].
+    pub fn pole_zero_terms_at(
+        &self,
+        context: &ModelContext,
+        bias: &Vector,
+        state: Option<&[Real]>,
+    ) -> SpiceResult<Vec<crate::maths::pencil::PencilTerm>> {
+        let mut ranges = Vec::new();
+        let system = self.bias_linearized_system(context, bias, state, true, Some(&mut ranges))?;
+        let a = system.a.triplets();
+        let e = system.e.triplets();
+        let mut terms = Vec::new();
+        for (a_range, e_range) in ranges {
+            let first = terms.len();
+            let slot = |terms: &mut Vec<crate::maths::pencil::PencilTerm>, row, col| {
+                if let Some(i) = terms[first..]
+                    .iter()
+                    .position(|t: &crate::maths::pencil::PencilTerm| t.row == row && t.col == col)
+                {
+                    first + i
+                } else {
+                    terms.push(crate::maths::pencil::PencilTerm {
+                        row,
+                        col,
+                        conductance: None,
+                        capacitance: None,
+                    });
+                    terms.len() - 1
+                }
+            };
+            for t in &a[a_range] {
+                let i = slot(&mut terms, t.row, t.col);
+                let g = &mut terms[i].conductance;
+                *g = Some(g.map_or(t.value, |g| g + t.value));
+            }
+            let mut index = e_range.start;
+            while index < e_range.end {
+                let t = &e[index];
+                let (value, next) = match system
+                    .e_groups
+                    .iter()
+                    .find(|g| g.range.start == index && g.range.end <= e_range.end)
+                {
+                    Some(group) => {
+                        let mut sum = group.terms.first().copied().unwrap_or(0.);
+                        for term in group.terms.iter().skip(1) {
+                            sum += term;
+                        }
+                        (group.scale * sum, group.range.end.max(index + 1))
+                    }
+                    None => (t.value, index + 1),
+                };
+                let i = slot(&mut terms, t.row, t.col);
+                let c = &mut terms[i].capacitance;
+                *c = Some(c.map_or(value, |c| c + value));
+                index = next;
+            }
+        }
+        Ok(terms)
     }
 
     fn bias_linearized_system(
@@ -1475,6 +1575,7 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
         pole_zero: bool,
+        mut ranges: Option<&mut Vec<(std::ops::Range<usize>, std::ops::Range<usize>)>>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
         self.check_numbering()?;
         if state.is_some_and(|state| state.len() != self.state_len) {
@@ -1518,11 +1619,25 @@ impl Circuit {
                     None => None,
                 },
             };
+            let start = (
+                linear.system.a.triplets().len(),
+                linear.system.e.triplets().len(),
+            );
             if pole_zero {
                 device.assemble_pole_zero(&mut linear, bias)?;
             } else {
                 device.assemble_small_signal(&mut linear, bias)?;
             }
+            if let Some(ranges) = ranges.as_deref_mut() {
+                ranges.push((
+                    start.0..system.a.triplets().len(),
+                    start.1..system.e.triplets().len(),
+                ));
+            }
+        }
+        if ranges.is_some() {
+            // The caller reads the unfolded stamps.
+            return Ok(system);
         }
         system.a.fold_duplicates();
         // E stays unfolded: `CKTacLoad` scales every device term by
