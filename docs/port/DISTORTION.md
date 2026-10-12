@@ -108,6 +108,15 @@ in `CKTload` device order, as `CKTdisto` does; the diode folds its charge's
 forms `vbd`/`vgd`/`vgb` from the kernels' `vgs`/`vbs`/`vds` differences
 (`mos1dist.c`).
 
+Analyses of one deck share C's matrix and state vectors: a later analysis
+inherits the pivot order (`Circuit::inherit_from`) and the state slots C's
+`MODEINITSMSIG` load leaves behind (`Circuit::record_small_signal_state`,
+`Device::small_signal_state`). For the BJT these are the substrate and B-X'
+capacitances `bjtload.c` stores in its `cqsub`/`cqbx` current slots, which the
+next operating point of the deck reads as `ceqsub`/`ceqbx` companion currents
+(so a second `.disto` card converges to a slightly different bias, as in C).
+State left behind by a transient run is not carried yet.
+
 | Device | C | `.disto` behaviour |
 | --- | --- | --- |
 | R, C, L, K, E/F/G/H (linear), S, W, model passives | no `DEVdisto` | `Linear`: only their AC matrix (a switch's on/off conductance at C's small-signal state) |

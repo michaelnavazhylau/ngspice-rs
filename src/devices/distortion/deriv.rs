@@ -5,7 +5,13 @@
 //! its partial derivatives up to the third order (derivatives, not Taylor
 //! coefficients: `d2_p2` is the second derivative).
 
-#![allow(clippy::suspicious_operation_groupings, clippy::many_single_char_names)]
+// The statement-by-statement transcription (fields assigned in C's order,
+// later ones reading earlier ones) is deliberate.
+#![allow(
+    clippy::suspicious_operation_groupings,
+    clippy::many_single_char_names,
+    clippy::field_reassign_with_default
+)]
 
 use crate::primitives::Real;
 

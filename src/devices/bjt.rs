@@ -1628,7 +1628,8 @@ impl Device for Bjt {
             limiter.test_held(&context.states, &[(cc, cchat), (cb, cbhat)]);
         }
         let mut geqcb = 0.;
-        let (mut gcsub, mut geqbx, mut cqsub, mut cqbx) = (0., 0., 0., 0.);
+        let (mut gcsub, mut geqbx) = (0., 0.);
+        let (cqsub, cqbx);
         if let Some(coefficients) = context.integration {
             let crate::devices::AnalysisMode::Transient { dt, .. } = context.mode else {
                 return Err(SpiceError::circuit(
@@ -1670,9 +1671,23 @@ impl Device for Bjt {
                     "BJT transient needs companion integration",
                 ));
             }
-            for charge in [slot::QBE, slot::QBC, slot::QSUB, slot::QBX] {
+            for charge in [slot::QBE, slot::QBC] {
                 context.states.set(charge + 1, 0.)?;
             }
+            // C never writes `cqsub`/`cqbx` outside transient and
+            // `MODEINITSMSIG`, yet reads them into `ceqsub`/`ceqbx`: a DC load
+            // after a small-signal analysis of the same deck sees the
+            // capacitances that analysis stored there.
+            for charge in [slot::QSUB, slot::QBX] {
+                let held = context
+                    .states
+                    .iterate(charge + 1)
+                    .or_else(|| context.states.carried(charge + 1))
+                    .unwrap_or(0.);
+                context.states.set(charge + 1, held)?;
+            }
+            cqsub = context.states.trial(slot::QSUB + 1).unwrap_or(0.);
+            cqbx = context.states.trial(slot::QBX + 1).unwrap_or(0.);
         }
         for (charge, value) in [
             (slot::QBE, p.qbe),
@@ -1861,6 +1876,26 @@ impl Device for Bjt {
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+
+    /// `bjtload.c`'s `MODEINITSMSIG` load stores the substrate and B-X'
+    /// capacitances in the `cqsub`/`cqbx` current slots, where every later
+    /// non-transient load of the deck reads them back as companion currents
+    /// (`ceqsub`, `ceqbx`); the other slots it writes are not read again.
+    fn small_signal_state(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+        slots: &mut [Real],
+    ) -> SpiceResult<()> {
+        let t = self.thermal(context.model_context)?;
+        let v = self.bias(|node| context.voltage(node));
+        let p = c_point(&t, v.vbe, v.vbc, v.vbx, v.vsub, context.model_context.gmin)?;
+        for (slot, value) in [(slot::QSUB + 1, p.capsub), (slot::QBX + 1, p.capbx)] {
+            if let Some(target) = slots.get_mut(slot) {
+                *target = value;
+            }
+        }
+        Ok(())
     }
 
     /// `bjtdset.c`/`bjtdisto.c` at the operating point (see the `disto`

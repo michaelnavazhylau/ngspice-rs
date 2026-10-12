@@ -220,17 +220,17 @@ pub fn run_with_format(
     let mut raw_plots = Vec::with_capacity(jobs.len());
     let mut plots = Vec::with_capacity(jobs.len());
     for (entry, request, driver) in jobs {
-        // Each analysis starts from a freshly elaborated circuit: no device
-        // state from an earlier analysis leaks into a later one.
-        // C runs every analysis on the matrix set up once (`CKTmatrix`, its
-        // pivot order and reorder flags), so the circuit inherits the previous
-        // analysis's matrix.
+        // Each analysis starts from a freshly elaborated circuit; only what C
+        // keeps across the analyses of a deck is inherited below.
+        // C runs every analysis on the matrix and state vectors set up once
+        // (`CKTmatrix` with its pivot order and reorder flags, `CKTstate0`),
+        // so the circuit inherits them from the previous analysis.
         let mut circuit = match first_circuit.take() {
             Some(circuit) => circuit,
             None => {
                 let mut circuit = config.circuit(netlist)?;
                 if let Some(previous) = &previous_circuit {
-                    circuit.inherit_matrix(previous);
+                    circuit.inherit_from(previous);
                 }
                 circuit
             }
