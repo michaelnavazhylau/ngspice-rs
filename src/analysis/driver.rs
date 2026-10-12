@@ -53,7 +53,7 @@ pub struct AnalysisRequest {
     pub arguments: Vec<String>,
     /// The `.tran` `uic` flag (use initial conditions), kept apart from the
     /// positional time arguments. The companion transient driver implements it
-    /// (`dctran.c` `MODEUIC`); `backend=diffsol` rejects it explicitly.
+    /// (`dctran.c` `MODEUIC`).
     pub uic: bool,
     /// The deck's `.ic` entries in deck order (see [`NodeCondition`]). Enforced
     /// by the companion transient initial operating point unless `uic`; ignored
@@ -438,7 +438,8 @@ impl Analysis for Distortion {
 }
 
 /// `.tran` — the adaptive trapezoidal / Gear-2 companion driver
-/// ([`crate::analysis::companion_transient`]); `backend=diffsol` is rejected.
+/// ([`crate::analysis::companion_transient`]); `backend=diffsol`, the removed
+/// adaptive BDF backend, is an explicit error.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.

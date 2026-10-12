@@ -5,8 +5,7 @@ E/G/F/H forms `VALUE=`/`VOL=`/`CUR=`, `TABLE`, `POLY(n)` and the implicit
 spice2g6 `POLY(1)`, for `.op`, `.dc`, `.ac` and the companion `.tran`
 (trapezoidal/Gear-2).** `LAPLACE`, `ddt()` and the statistical functions
 (`agauss`, `gauss`, `aunif`, `unif`, `limit`) are explicit `NotYetPorted`
-errors; the diffsol BDF backend rejects behavioural sources
-like every nonlinear device.
+errors.
 
 C references (read-only behaviour): `src/spicelib/parser/inp2b.c`,
 `inpptree.c`, `inpptree-parser.y`, `ptfuncs.c`, `ifeval.c`;
@@ -285,5 +284,3 @@ rewritten and must name a findable branch (V, E, H or voltage B).
 - An E/H written with a named `gain=` counts as a simple linear source here;
   C inserts a measurement source for it (`=` on the card), which changes only
   vector names.
-- The diffsol BDF backend rejects behavioural sources; use the default
-  companion driver.

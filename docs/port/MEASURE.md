@@ -155,9 +155,6 @@ discontinuity because the drivers guarantee a sample on every source breakpoint:
   every breakpoint inside the run has a sample; ... the sample at a breakpoint is
   the left limit and the next sample is the first step of the right-hand
   segment" (`src/analysis/companion.rs:50-56`);
-* the diffsol segments likewise break at every source breakpoint and restart the
-  state from the right (`src/analysis/transient.rs`, the
-  `DaeSegment` loop);
 * the forcing rule itself never spans a jump: transient loads evaluate a step
   that ends at a breakpoint with `Limit::Left` and the next one with
   `Limit::Right` (`src/devices/linear.rs:4-19`).

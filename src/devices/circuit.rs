@@ -1739,7 +1739,7 @@ impl Circuit {
     }
 
     /// Accepts a point of an analysis that tracks no device state (linear
-    /// DC/AC and the explicit diffsol BDF backend). Hooks see `states: None`.
+    /// DC/AC). Hooks see `states: None`.
     ///
     /// # Errors
     ///

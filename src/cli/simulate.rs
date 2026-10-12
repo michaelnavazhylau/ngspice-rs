@@ -38,7 +38,7 @@
 //!   rawfile behind (the temporary file is removed on every failure path that
 //!   can run; only process death or a failing cleanup leaves one);
 //! * an unadorned `.tran` runs the companion trap/Gear driver the engine
-//!   defaults to; this command never injects `backend=diffsol`.
+//!   defaults to; this command never injects a `backend=`.
 
 use std::fs;
 use std::io::ErrorKind;

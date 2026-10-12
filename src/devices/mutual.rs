@@ -20,8 +20,7 @@
 //!
 //! - DC: coupled inductors remain shorts (no mutual term).
 //! - AC: `-j omega M` between the two branch rows (`E` entries of the
-//!   immutable `E x' + A x = b` assembly, so the explicit diffsol BDF backend
-//!   integrates the same coupled mass matrix).
+//!   immutable `E x' + A x = b` assembly).
 //! - Companion transient: the integrated quantity is the coupled flux, so the
 //!   trap/Gear-2 history, the truncation-error estimate (`INDtrunc` on
 //!   `INDflux`) and the `uic` starting flux `L ic + sum(M ic_k)` all include

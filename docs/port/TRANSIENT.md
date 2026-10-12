@@ -2,10 +2,8 @@
 
 Ordinary `.tran tstep tstop [tstart [tmax]]` runs the adaptive trapezoidal /
 Gear-2 **companion-model** driver, `analysis::companion_transient`
-(`src/analysis/companion.rs`). It is a separate implementation from
-the explicitly selected diffsol BDF backend (see
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md)); companion stamps
-are never handed to diffsol and diffsol equations are never discretized again.
+(`src/analysis/companion.rs`), the only transient backend; the diffsol BDF
+backend was removed in M10 wave 0.5 ([NATIVE_SOLVER.md](NATIVE_SOLVER.md)).
 C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 `niinteg.c`, `nicomcof.c`, `traninit.c`, `captrunc.c`, `indtrunc.c`.
 
@@ -19,17 +17,16 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 | `maxord=1` | backward Euler throughout (C: `CKTmaxOrder > 1` is required to raise the order) |
 | `maxord=2..6` (gear or trap) | identical runs: `dctran.c` only raises the order from 1 to 2, see [Gear `maxord` 3–6](#gear-maxord-36-98) |
 | `maxord=0`, `7` and above, non-integer | explicit `Unsupported` error (C clamps to `1..=6` with a warning) |
-| `backend=diffsol method=bdf` | explicit diffsol BDF, unchanged |
-| `backend=diffsol` without `method=bdf`, `method=bdf` without the backend, unknown backend/method, unknown or duplicate options | explicit errors |
-| `uic`, `.ic`, instance `ic=` with `backend=diffsol` | explicit `Unsupported` errors (the BDF backend has no IC formulation; `.nodeset` is validated and otherwise a no-op) |
+| `backend=companion` | the same driver |
+| `backend=diffsol` (with any method or options) | explicit `Unsupported` error from the `.tran` dispatcher (`src/analysis/transient.rs`): the BDF backend was removed |
+| `method=bdf`, unknown backend/method, unknown or duplicate options | explicit errors |
 | `uic`, `.ic`, `.nodeset`, instance `ic=` on the companion driver | implemented for linear and nonlinear circuits, see [Initial conditions](#initial-conditions-27) and [Nonlinear initial conditions](#nonlinear-initial-conditions-99) |
 
 `.option method=`, `maxord=`, `reltol=`, `vntol=`, `abstol=`, `chgtol=` and
 `trtol=` are forwarded by `RunConfig::request_for` as the request arguments
 `method=`, `maxord=`, `rtol=`, `vntol=`, `abstol=`, `chgtol=`, `trtol=` unless
-the request already states them (explicit request > deck > defaults). With
-`backend=diffsol` a deck `method`/`maxord`/`chgtol`/`trtol` is an error, not
-silently ignored. `maxsteps=` bounds accepted + rejected steps.
+the request already states them (explicit request > deck > defaults).
+`maxsteps=` bounds accepted + rejected steps.
 `.option itl4` bounds the Newton iterations of each nonlinear trial: C's
 nominal `CKTtranMaxIter` default is 10, but `NIiter()` (`niiter.c`) raises any
 limit below 100 to 100, so the effective default is 100 and the deck value is
@@ -37,12 +34,10 @@ forwarded as request `tranmaxiter=max(itl4, 100)` (the request key itself is a
 literal `1..=10000` port knob),
 `.option xmu` (request `xmu=`, `0..=0.5`, default 0.5) is the trapezoidal
 weighting of `nicomcof.c`, and `itl1`/`itl2`/`srcsteps`/`gminsteps`/`gminfactor`
-(requests `maxiter=`, `stagemaxiter=` etc.) configure the nonlinear initial bias (#110). All of
-them are rejected with `backend=diffsol`.
+(requests `maxiter=`, `stagemaxiter=` etc.) configure the nonlinear initial bias (#110).
 
 Defaults are ngspice's: `reltol` 1e-3, `vntol` 1e-6 V, `abstol` 1e-12 A,
-`chgtol` 1e-14 C, `trtol` 7, `maxsteps` 1,000,000 (range 1 to 10,000,000). The
-diffsol backend keeps its own tighter defaults (rtol 1e-7, vntol 1e-9 V).
+`chgtol` 1e-14 C, `trtol` 7, `maxsteps` 1,000,000 (range 1 to 10,000,000).
 
 ## Algorithm
 
@@ -55,7 +50,7 @@ the run with an error; no partial plot is returned.
 
 * **Initial point.** Without `uic`: `A x = b(0-)`, the DC operating point with
   the sources at their left limit at `t = 0` (C evaluates the waveform in
-  `MODETRANOP`), the same policy as the diffsol backend, with `.ic` node
+  `MODETRANOP`), with `.ic` node
   voltages imposed (below). With `uic`: no solve, see below. The charge/flux
   state, with zero derivative, fills the whole accepted history (C copies
   `CKTstate0` into `CKTstate1..3`). Floating capacitor nodes or ideal-source
@@ -272,10 +267,7 @@ C; a voltage PULSE requests only the TD/TR/PW/TF corners of its
 not-yet-truncated ramp (a ramp cut by a short period is crossed, not landed
 on), and a count-limited PULSE stops requesting once `time > NP*PER`.
 `Waveform::breakpoints_in` still enumerates a waveform's corners as a public
-utility but no longer drives the transient step control. The diffsol BDF backend rejects SIN/EXP/SFFM/AM (its segments
-interpolate forcing linearly between breakpoints); PULSE counts and PWL
-`td=`/`r=` (including discontinuous repeats, segmented at every boundary) are
-piecewise linear and run there.
+utility but no longer drives the transient step control.
 
 Deliberate differences, all explicit errors rather than approximations:
 negative delays (SIN/SFFM/AM `TD`, EXP `TD1`/`TD2`, as for PULSE `TD`); `r=`
@@ -450,15 +442,11 @@ both limits of the single in-run breakpoint; worst error 0.000 of the bound).
 ## Limits
 
 * Devices: those `spice-rs devices` lists as `ported` or `bounded`; each
-  device guide states its transient limits (the diffsol BDF backend rejects
-  nonlinear devices and switches).
+  device guide states its transient limits.
 * No order above 2 is ever used (as in C; `maxord` 3–6 are accepted and run
   as 2); `.ic`/`uic`/instance `ic=` exist only on this
-  driver (explicit errors with `backend=diffsol`).
+  driver.
 * No predictor (`PREDICTOR` is optional in C); the previous solution seeds Newton.
 * No `gmin`/source stepping: a floating or source-looped DC bias is an error.
-* General DAE structure is not analysed (no index check as in the diffsol
-  backend); a singular trial matrix is an explicit numerical error.
-* Companion inductor rows are row-equilibrated before the solve
-  (`companion.rs::equilibrated`); without it a nonzero initial inductor current
-  with `L/dt` of 1e5 or more tripped the solver's backward-residual check.
+* General DAE structure is not analysed (no index check); a singular trial
+  matrix is an explicit error naming the unknown, as `NIiter` reports it.

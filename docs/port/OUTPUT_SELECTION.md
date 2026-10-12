@@ -311,8 +311,7 @@ companion transient currents include the integrated charge contribution.
 Supported scalar asks include R/C/L values and applicable geometry, multiplicity,
 temperature and instance fields for D/Q/MOS1. Unsupported keywords fail with a
 `NotYetPorted` error naming the C ask routines. AC supports scalar parameter asks;
-AC current/power asks, coincident terminal currents and diffsol observations are
-explicitly refused. Other analysis drivers that cannot emit an observation fail
+AC current/power asks and coincident terminal currents are explicitly refused. Other analysis drivers that cannot emit an observation fail
 when resolving the requested vector. These bounds do not imply every upstream
 ask or model is implemented.
 

@@ -601,8 +601,8 @@ pub trait Device: fmt::Debug {
     /// device reads its history while stamping
     /// ([`crate::devices::DeviceState::delay_history`]), and the companion
     /// transient driver records accepted samples, device breakpoints and step
-    /// bounds through it. Backends that cannot integrate a delay (diffsol
-    /// BDF) must refuse circuits containing one.
+    /// bounds through it. Any future backend that cannot integrate a delay
+    /// must refuse circuits containing one.
     fn delay_line(&self) -> Option<&dyn crate::devices::delay::DelayLine> {
         None
     }

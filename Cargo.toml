@@ -14,9 +14,10 @@
 # dependency order. Keep that layering intact in the source layout even though
 # the compiler can no longer enforce it.
 #
-# M0/M1a started dependency-free. Semantic parsing now uses winnow; production
-# linear algebra/BDF use faer/diffsol, and topology uses petgraph. Cargo.lock
-# pins the graph, whose MSRV is 1.89. Offline builds require cached dependencies.
+# M0/M1a started dependency-free. Semantic parsing uses winnow and topology uses
+# petgraph; the linear algebra is a Rust port of ngspice's SPARSE 1.3, with no
+# external solver crate. Cargo.lock pins the graph. Offline builds require
+# cached dependencies.
 
 [package]
 name = "ngspice-rs"

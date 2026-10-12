@@ -1,4 +1,4 @@
-//! Complex assembly and solver guardrails at the faer scalar boundary.
+//! Complex assembly and solver guardrails of the SPARSE 1.3 complex LU.
 use ngspice_rs::maths::{SparseMatrix, complex::ComplexMatrix};
 use ngspice_rs::primitives::Complex;
 #[test]

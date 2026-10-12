@@ -161,12 +161,12 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 | `temp`, `tnom` | effect | circuit / nominal temperature (C) | `TSKtemp`/`TSKnomTemp` |
 | `gmin` | effect | `AnalysisContext::gmin` = `ModelContext::gmin`: parallel junction conductance of diode, BJT (B-E, B-C and the default substrate junction: collector for NPN/vertical, base for PNP/lateral; scaled by the instance `m`, not by `area`) and MOS1 (B-D, B-S) in every analysis; finite, `>= 0`, default 1e-12. It does **not** move the artificial DC gmin-stepping ladder (C's `spice3_gmin` starts at `gmin * gminfactor^gminsteps` and `dynamic_gmin` stops at `max(gmin, gshunt)`; this port's ladder starts at 1e-3 S and ends with a zero-artificial-gmin solve, see DC_CONTINUATION.md) | `CKTgmin` in `dioload.c`, `bjtload.c` (`m *` every conductance), `mos1load.c` |
 | `reltol`, `vntol`, `abstol` | effect | `rtol`/`vntol`/`abstol` for `.op`/`.dc`/`.ac` Newton and `.tran` | `TSKreltol`/`TSKvoltTol`/`TSKabstol` |
-| `chgtol`, `trtol` | effect | companion truncation control; rejected with `backend=diffsol` | `CKTterr` |
-| `method`, `maxord` | effect | companion trap/Gear-2, `maxord` 1..6 (as in `dctran.c`, 2..6 all run orders 1–2, #98); rejected with diffsol | `TSKintegrateMethod`/`TSKmaxOrder` |
-| `xmu` | effect | companion trapezoidal weighting `0..=0.5` (`xmu`); rejected with diffsol | `CKTxmu` in `nicomcof.c` (C accepts any value; > 0.5 is an explicit error here) |
+| `chgtol`, `trtol` | effect | companion truncation control | `CKTterr` |
+| `method`, `maxord` | effect | companion trap/Gear-2, `maxord` 1..6 (as in `dctran.c`, 2..6 all run orders 1–2, #98) | `TSKintegrateMethod`/`TSKmaxOrder` |
+| `xmu` | effect | companion trapezoidal weighting `0..=0.5` (`xmu`) | `CKTxmu` in `nicomcof.c` (C accepts any value; > 0.5 is an explicit error here) |
 | `itl1` | effect | Newton limit of the direct DC solve (`maxiter` = `max(itl1, 100)`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias | `CKTdcMaxIter` in `cktop.c` (`dcop.c`, `acan.c`, `dctrcurv.c`, `dctran.c` call `CKTop`); `NIiter()` raises any limit below 100 to 100 (`niiter.c`). Unset, 100 as in C (#106), see DC_CONTINUATION.md |
 | `itl2` | effect | Newton limit of every gmin/source-stepping stage of that DC bias (gmin stepping's closing zero-gmin solve keeps the `itl1` limit, as C's `NIiter(ckt, iterlim)`) (`stagemaxiter` = `max(itl2, 100)`, or 100 when only `itl1` is set) in `.op`/`.dc`/`.ac`/`.tran`; on `.dc` also the warm-started Newton limit at every point after the first (`trcvmaxiter`), falling back to the full bias | `CKTdcTrcvMaxIter` in `cktop.c` stepping stages and `dctrcurv.c` (same `niiter.c` floor; C default 50, effectively 100). The raw value also adapts the step of `dynamic_gmin`/`new_gmin`/`gillespie_src` (`iters <= itl2/4`, #106; DC_CONTINUATION.md) |
-| `itl4` | effect | companion Newton iterations per timepoint (`tranmaxiter` = `max(itl4, 100)`; unset, 100); rejected with diffsol | `CKTtranMaxIter` in `dctran.c`: nominal default 10, but `niiter.c` raises it (and any value below 100) to 100 |
+| `itl4` | effect | companion Newton iterations per timepoint (`tranmaxiter` = `max(itl4, 100)`; unset, 100) | `CKTtranMaxIter` in `dctran.c`: nominal default 10, but `niiter.c` raises it (and any value below 100) to 100 |
 | `srcsteps`, `itl6` | effect | C's source stepping: `1` `gillespie_src`, `n > 1` `spice3_src`, `0` off (`itl6` is the same setting) | `OPT_SRCSTEPS` (both names), `cktop.c` |
 | `gminsteps`, `gminfactor` | effect | C's gmin stepping: `1` `dynamic_gmin` then `new_gmin`, `n > 1` `spice3_gmin`, `0` off | `cktop.c`, see DC_CONTINUATION.md |
 | `pivtol`, `pivrel` | effect | SPARSE threshold-pivoting limits whenever a circuit matrix is ordered, in every analysis (`AnalysisContext::pivot`); `pivtol` finite `>= 0`, `pivrel` in `(0, 1]` | `CKTpivotAbsTol`/`CKTpivotRelTol` passed to `SMPreorder`/`SMPcReorder` (`niiter.c`, `niaciter.c`, `cktsens.c`); C's `spOrderAndFactor` silently keeps its default for out-of-range values, which are explicit errors here |
@@ -182,8 +182,8 @@ C references: `cktsopt.c` (`OPTtbl`, `CKTsetOpt`), `inpdoopt.c`,
 
 No-ops are recorded with their reason in `RunConfig::ignored()` (`IgnoredOption`)
 and named by `spice-rs parse` ("options without effect"); `applied()` lists only
-settings with an effect. With `backend=diffsol`, any deck `itl1`/`itl2`/
-`srcsteps`/`itl6`/`gminsteps`/`gminfactor`/`itl4`/`xmu` is `Unsupported`.
+settings with an effect. A `.tran` naming the removed `backend=diffsol` fails
+at dispatch (`Unsupported`), whatever the deck's options.
 
 Iteration limits follow C's *effective* values: `NIiter()` (`niiter.c`) raises
 every `maxIter` below 100 to 100, so `itl1`/`itl2`/`itl4` take integers in

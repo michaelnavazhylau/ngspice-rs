@@ -4,7 +4,7 @@ Milestones group bounded deliverables; issue-level dependencies, not an entire
 previous milestone, determine what can start in parallel. The historical M0/M1
 completion notes below describe those stages, not current solver availability.
 [TODO.md](../../TODO.md) is the only detailed implementation checklist;
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) records current
+[NATIVE_SOLVER.md](NATIVE_SOLVER.md) records current
 production limits. Each deliverable must retain green workspace validation and,
 where observable from a deck, production comparisons against C data.
 
@@ -134,7 +134,8 @@ directives inside a body. Subcircuit flattening/scoping (#18) is implemented
 ## M2 follow-up — Linear-core verification and documentation
 
 The original linear-core goal is implemented: scalar R/C/L/V/I elaboration,
-faer dense/sparse real/complex LU, `.op`, independent-source `.dc` and complex
+dense/sparse real/complex LU (faer at the time; the SPARSE 1.3 port since
+M10 wave 0.5), `.op`, independent-source `.dc` and complex
 `.ac`. Production DC comparisons retain **1e-12 relative + 1e-15 absolute**;
 AC retains **1e-10 + 1e-12**. M2 is follow-up, not a solver reimplementation.
 
@@ -154,8 +155,8 @@ Preserve finite/rank/residual checks and explicit unsupported cases.
 
 ## M3 — Reactive elements and transient analysis
 
-Main includes complex AC and a separately selected, bounded
-adaptive BDF API. This does **not** complete M3 or change its trap/Gear-2 goal.
+Main included complex AC and a separately selected, bounded adaptive BDF API
+(diffsol, removed in M10 wave 0.5). This did **not** complete M3 or change its trap/Gear-2 goal.
 Trap/Gear order-1/2 integration (#23), trial-versus-accepted device state (#24),
 C/L companion stamps (#25), PULSE/PWL evaluation (#9) and the adaptive companion
 driver for linear circuits (#26, [TRANSIENT.md](TRANSIENT.md)) exist. The

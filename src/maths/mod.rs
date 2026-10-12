@@ -14,7 +14,7 @@
 //! (SPARSE 1.3, Berkeley permissive notice), `src/maths/KLU/` (LGPLv2 — see the
 //! licensing note in `docs/port/MAPPING.md`) and `src/maths/ni/`. The sparse LU
 //! is a Rust port of SPARSE 1.3 (`sparse13`); nothing is taken from KLU and no
-//! external solver crate is used. See `docs/port/NATIVE_SOLVER_PROTOTYPE.md`.
+//! external solver crate is used. See `docs/port/NATIVE_SOLVER.md`.
 
 pub mod complex;
 pub use complex::DynamicGroup;

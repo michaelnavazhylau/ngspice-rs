@@ -28,7 +28,7 @@
 //! | DC (`.op`, `.dc`, transient bias) | the delay is zero: `v(int1) - v(n1) = v(p2) - v(n2) + (1 - gmin) Z0 i2` (and symmetrically) | `traload.c`, `MODEDC` |
 //! | AC, `.sp` | the exact factor `exp(-j omega TD)` on the cross terms, reassembled at every frequency ([`Device::small_signal_depends_on_frequency`]) | `traacld.c` |
 //! | transient (companion driver) | `input1/2` interpolated quadratically from the accepted history at `t - TD` ([`DelayLine`]); history appended and pruned only on accepted points; device breakpoints and step bound | `traload.c`, `traacct.c`, `tratrunc.c` |
-//! | diffsol BDF, pole-zero, noise, distortion, sensitivity, `uic` | explicit errors | C has no `DEVpzLoad`/`DEVnoise`/`DEVdisto`/`DEVsen*` for TRA |
+//! | pole-zero, noise, distortion, sensitivity, `uic` | explicit errors | C has no `DEVpzLoad`/`DEVnoise`/`DEVdisto`/`DEVsen*` for TRA |
 //!
 //! AC: the companion pencil is `A + j omega E`, which cannot hold
 //! `exp(-j omega TD)`; at each frequency the real part of every complex

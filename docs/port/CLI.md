@@ -62,9 +62,9 @@ The command, in order:
    one ASCII rawfile at `<path>`.
 
 An unadorned `.tran` runs the companion trapezoidal/Gear-2 driver the engine
-defaults to; `simulate` never injects `backend=diffsol`, and an explicit
-`backend=diffsol method=bdf` on the card is passed through unchanged (and fails
-where that backend does not apply, e.g. with `uic` or `.ic`). See
+defaults to, the only transient backend; an explicit `backend=diffsol` on the
+card is passed through unchanged and fails with an `Unsupported` error (the
+diffsol BDF backend was removed in M10 wave 0.5). See
 [TRANSIENT.md](TRANSIENT.md).
 
 ### The rawfile
@@ -155,7 +155,7 @@ in one job; the scheduling rules live in `analysis::batch`:
   `.option` settings to each analysis exactly as for a single-analysis deck, so
   a DC continuation option (`itl1`, `itl2`, `srcsteps`, `gminsteps`,
   `gminfactor`) in a deck that also runs `.tran` bounds the companion `.tran`
-  initial bias as well (#110); `backend=diffsol` still rejects them explicitly.
+  initial bias as well (#110).
 
 Divergences from C, all deliberate:
 

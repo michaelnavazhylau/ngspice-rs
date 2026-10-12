@@ -21,8 +21,8 @@ behaviour only: `src/spicelib/analysis/noisean.c` (`NOISEan`), `cktnoise.c`
    assembled through `Device::assemble_small_signal` with C's
    `MODEINITSMSIG` state (the zero accepted state, so switches are open, as in
    C).
-2. At every frequency `A + j omega E` is factored once (faer complex LU, the
-   `.ac` path with its rank and residual guards) and solved twice:
+2. At every frequency `A + j omega E` is factored once (the SPARSE 1.3
+   complex LU of the `.ac` path, `maths::complex`) and solved twice:
    * **forward**, with a unit excitation of the input source only (C's
      `MODEACNOISE`: every other AC source is zero and the input is driven with
      `1 + 0j` whatever its `ac` value), giving the gain `H` from the input to

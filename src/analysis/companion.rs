@@ -257,8 +257,8 @@ impl Settings {
             None => IntegrationMethod::Trapezoidal,
             Some(name) if name.eq_ignore_ascii_case("bdf") => {
                 return Err(unsupported(
-                    "method=bdf is the diffsol backend; select it with backend=diffsol \
-                     (companion methods are trap and gear)",
+                    "method=bdf: ngspice has no BDF integrator (the diffsol backend was \
+                     removed); the companion methods are trap and gear",
                 ));
             }
             Some(name) => IntegrationMethod::parse(name, max_order).ok_or_else(|| {
