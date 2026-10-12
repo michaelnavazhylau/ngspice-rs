@@ -1,13 +1,23 @@
 //! Rust port of Kenneth Kundert's SPARSE 1.3, ngspice's native sparse LU.
 //!
 //! C: `src/maths/sparse/` (`spbuild.c`, `spfactor.c`, `spsolve.c`,
-//! `sputils.c`), driven through `spsmp.c`. SPARSE is distributed under the
-//! permissive Berkeley notice reproduced in its headers ("Permission to use,
-//! copy, modify, and distribute this software ... provided that the copyright
-//! notices appear in all copies"), so unlike KLU it may be ported here:
+//! `sputils.c`), driven through `spsmp.c`. SPARSE (author Kenneth S.
+//! Kundert, advising professor Alberto Sangiovanni-Vincentelli, UC Berkeley)
+//! is distributed under the permissive Berkeley notice in its headers, so
+//! unlike KLU it may be ported here; the notice is reproduced in full as it
+//! requires (also in `NOTICE`):
 //!
-//! > Copyright (c) 1985,86,87,88,89,90 by Kenneth S. Kundert and the
-//! > University of California.
+//! > Copyright (c) 1985,86,87,88,89,90
+//! > by Kenneth S. Kundert and the University of California.
+//! >
+//! > Permission to use, copy, modify, and distribute this software and
+//! > its documentation for any purpose and without fee is hereby granted,
+//! > provided that the copyright notices appear in all copies and
+//! > supporting documentation and that the authors and the University of
+//! > California are properly credited.  The authors and the University of
+//! > California make no representations as to the suitability of this
+//! > software for any purpose.  It is provided `as is', without express
+//! > or implied warranty.
 //!
 //! The configuration matches ngspice's `spconfig.h`: `TRANSLATE`,
 //! `EXPANDABLE` (storage is allocated for the external size up front, and

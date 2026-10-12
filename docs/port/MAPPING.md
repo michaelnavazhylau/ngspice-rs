@@ -46,6 +46,9 @@ therefore the central risk of this port — see
 | `src/maths/dense/`, `src/maths/sparse/` scaling (behavioral reference) | — | `maths::equilibration` | bounded opt-in dense/sparse/complex wrappers (#46); independent power-of-two policy, original-unit residuals, unchanged defaults ([EQUILIBRATION.md](EQUILIBRATION.md)) |
 | `src/maths/sparse/` diagnostics (behavioral reference) | — | `maths::linear`, `complex` | #47 audits locked faer APIs and retains numerical guards; example-only batching/benchmarks, formal aggregate-proof caveat tracked in #68 ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)) |
 | `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; faer supplies real/complex LU, see licensing below |
+| `src/maths/sparse/sp{alloc,build,factor,solve,utils}.c` (SPARSE 1.3, Berkeley notice) | — | `maths::sparse13` | **translated** (native-solver line; supersedes the faer rows above): Markowitz ordering with diagonal/threshold pivoting, fill-ins, `spMNA_Preorder`, `spFactor` refactor, real/complex/transposed solves, `spDeterminant`; `Translate` numbering (an unreferenced unknown stays untranslated and keeps its RHS, as in C); `spSMALL_PIVOT` located for the port's warning. Copyright notice reproduced in the module and `NOTICE` |
+| `src/maths/sparse/spsmp.c`, `src/maths/ni/niiter.c`, `niaciter.c` (factor/reorder/error handling) | — | `maths::linear` (`solve_ni`, `factor_shared_complex`, `check_status`), `maths::complex` | `SMPpreOrder`/`SMPreorder`/`SMPluFac`/`SMPcReorder`/`SMPcLUfac`/`LoadGmin`/`SMPgetError`; `.options pivtol`/`pivrel` at every reorder; `E_SINGULAR` on refactor sets the reorder flag and retries; singular errors name the unknown as `NIiter` does (`singular matrix:  check node X`); `spSMALL_PIVOT` is `OK` (port adds a warning); no rank probe or residual check ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md) superseded) |
+| `src/spicelib/devices/res/resparam.c` (`RES_RESIST`, `RESMIN`) | — | `devices::rlc::res_resist` | a resistance in `(-1e-12, 1e-12)` is clamped to `±1e-12` with C's warning; zero capacitance/inductance accepted as in C |
 | `src/maths/ni/` | 1,961 | `maths::integrator`, separate `maths::diffsol` | trap orders 1–2 and variable-step Gear orders 1–6 (#98) coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history (six steps, seven state vectors); the `dctran.c` order policy never selects an order above 2; explicit adaptive BDF supports index-one DAEs including floating/coupled capacitor mass blocks (higher-index rejected), not ngspice trap/Gear parity |
 | `src/maths/cmaths/` | 4,054 | `primitives::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
 | `src/maths/poly/`, `deriv/`, `fft/`, `misc/` | 6,358 | `maths` (planned modules) | **not ported** |
@@ -110,3 +113,10 @@ not absorb LGPL code:
   license. The locked diffsol-la/nalgebra graph requires Rust **1.89**.
 - **SPARSE 1.3** is MIT licensed, so translation is permitted with attribution,
   but it should still be reviewed before code is copied rather than reimplemented.
+- **SPARSE 1.3 is translated** on the native-solver line (`maths::sparse13`).
+  Its Berkeley notice (Copyright (c) 1985–90 Kenneth S. Kundert and the
+  University of California; permission to use, copy, modify and distribute
+  provided the copyright notices appear in all copies and supporting
+  documentation and the authors and the University are credited) is
+  reproduced in full in `src/maths/sparse13.rs` and in `NOTICE`, which
+  satisfies its only condition. KLU remains untranslated.
