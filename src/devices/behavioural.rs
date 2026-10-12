@@ -186,7 +186,11 @@ impl Behavioural {
                 time,
                 temperature: context.temperature,
                 gmin: context.gmin,
-                frequency: context.frequency,
+                // ifeval.c PTeval: `hertz` is `CKTomega / 2. / M_PI`, with
+                // `CKTomega = 2.0 * M_PI * freq` (acan.c), not `freq` itself.
+                frequency: 2.0 * std::f64::consts::PI * context.frequency
+                    / 2.
+                    / std::f64::consts::PI,
             })
             .map_err(|error| match error {
                 SpiceError::Numerical { message, .. } => SpiceError::Numerical {
