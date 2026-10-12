@@ -27,6 +27,12 @@ pub struct SourceLimits {
     /// Total UTF-8 source bytes read, including unselected library sections.
     pub max_bytes: usize,
     /// Total processed cards, including directives and structural terminators.
+    ///
+    /// C ngspice (`inpcom.c`, `inp_readall`) has no such cap; the port keeps one
+    /// only as a budget against runaway repeated includes. The default is four
+    /// times the default subcircuit device budget (`SubcircuitLimits::max_devices`
+    /// in the devices layer, 250,000), so a flat deck that the expansion budget
+    /// accepts is not rejected here for its size.
     pub max_cards: usize,
 }
 
@@ -36,7 +42,7 @@ impl Default for SourceLimits {
             max_depth: 64,
             max_files: 1024,
             max_bytes: 16 * 1024 * 1024,
-            max_cards: 100_000,
+            max_cards: 1_000_000,
         }
     }
 }
@@ -133,7 +139,10 @@ impl Resolver {
             if self.cards >= self.limits.max_cards {
                 return Err(SpiceError::parse(
                     line.location.clone(),
-                    "source card work limit exceeded",
+                    format!(
+                        "source card work limit exceeded ({} cards, counting repeated includes)",
+                        self.limits.max_cards
+                    ),
                 ));
             }
             self.cards += 1;

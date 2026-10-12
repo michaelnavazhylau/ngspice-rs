@@ -363,3 +363,55 @@ fn noopiter_is_a_flag_and_the_limiting_key_is_validated() {
     assert!(DcSettings::from_request(&request(&["limiting=sometimes"])).is_err());
     assert!(DcSettings::from_request(&request(&["noopiter=2"])).is_err());
 }
+
+/// The benchmark diode chain (`scripts/bench/bench.py`, `diode_chain`): `n`
+/// stages of 100 ohm and a 1e-14 A diode from a 5 V source, 1 kohm load.
+fn diode_chain(n: usize) -> String {
+    let mut body = String::from("v1 n0 0 dc 5\n.model d1 d(is=1e-14 n=1)\n");
+    for i in 0..n {
+        body.push_str(&format!("r{i} n{i} m{i} 100\nd{i} m{i} n{} d1\n", i + 1));
+    }
+    body.push_str(&format!("rl n{n} 0 1k"));
+    body
+}
+
+/// Long diode chains once failed `.op` where C converges (M10 0.5h). The
+/// expected strategies, Newton totals (`rusage all`: "Total iterations") and
+/// values are those of C ngspice built without FMA contraction, which the port
+/// reproduces bit for bit. The default (FMA) C build differs from these values
+/// at Newton-tolerance level only: the chain current is below ABSTOL.
+#[test]
+fn long_diode_chains_take_the_c_continuation_path() {
+    // 100 stages: C's direct Newton converges in 7 iterations.
+    let body = diode_chain(100);
+    let (solution, report) = solve(&body, &[]);
+    solution.unwrap();
+    assert_eq!(
+        attempts(&report),
+        [(DcStrategy::Direct, AttemptOutcome::Converged)]
+    );
+    assert_eq!(report.total_iterations, 7);
+    let plot = operating_point(&body);
+    assert_eq!(value(&plot, "v(n1)"), 4.950001782213789);
+    assert_eq!(value(&plot, "v(n100)"), 1.0911436345166466e-10);
+    assert_eq!(value(&plot, "i(v1)"), -1.0909328995722944e-13);
+
+    // 1000 stages: direct Newton exhausts ITL1, dynamic gmin stepping
+    // converges ("Note: Dynamic gmin stepping completed"), 216 in total.
+    let body = diode_chain(1000);
+    let (solution, report) = solve(&body, &[]);
+    solution.unwrap();
+    assert_eq!(
+        attempts(&report),
+        [
+            (DcStrategy::Direct, AttemptOutcome::Failed),
+            (DcStrategy::GminStepping, AttemptOutcome::Converged),
+        ]
+    );
+    assert_eq!(report.total_iterations, 216);
+    assert_original_equations_solved(&report);
+    let plot = operating_point(&body);
+    assert_eq!(value(&plot, "v(n1)"), 4.9949340993026805);
+    assert_eq!(value(&plot, "v(n1000)"), 7.145072049497449e-12);
+    assert_eq!(value(&plot, "i(v1)"), -7.230327447871332e-15);
+}

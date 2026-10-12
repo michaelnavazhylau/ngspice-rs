@@ -804,6 +804,49 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vcc)", 0, -4.878536874438588e-03, 0.),
         ],
     },
+    // M10 0.5h: 100 stages of 100 ohm and a diode (IS=1e-14) from 100 V into
+    // 1 kohm. The chain current is 2.886 mA (i(v1) negative: it leaves the
+    // source's positive terminal), so v(n100) = 1k * 2.886 mA = 2.886 V; each
+    // junction drops Vt ln(I/IS) = 0.02585 * ln(2.886e11) = 0.6825 V, and
+    // v(n1) = 100 - 100 * 2.886 mA - 0.6825 = 99.029 V.
+    Expectation {
+        fixture: "diode100_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(n0)", "v(m0)", "v(m1)", "v(m2)", "v(m3)", "v(m4)", "v(m5)", "v(m6)", "v(m7)",
+            "v(m8)", "v(m9)", "v(m10)", "v(m11)", "v(m12)", "v(m13)", "v(m14)", "v(m15)", "v(m16)",
+            "v(m17)", "v(m18)", "v(m19)", "v(m20)", "v(m21)", "v(m22)", "v(m23)", "v(m24)",
+            "v(m25)", "v(m26)", "v(m27)", "v(m28)", "v(m29)", "v(m30)", "v(m31)", "v(m32)",
+            "v(m33)", "v(m34)", "v(m35)", "v(m36)", "v(m37)", "v(m38)", "v(m39)", "v(m40)",
+            "v(m41)", "v(m42)", "v(m43)", "v(m44)", "v(m45)", "v(m46)", "v(m47)", "v(m48)",
+            "v(m49)", "v(m50)", "v(m51)", "v(m52)", "v(m53)", "v(m54)", "v(m55)", "v(m56)",
+            "v(m57)", "v(m58)", "v(m59)", "v(m60)", "v(m61)", "v(m62)", "v(m63)", "v(m64)",
+            "v(m65)", "v(m66)", "v(m67)", "v(m68)", "v(m69)", "v(m70)", "v(m71)", "v(m72)",
+            "v(m73)", "v(m74)", "v(m75)", "v(m76)", "v(m77)", "v(m78)", "v(m79)", "v(m80)",
+            "v(m81)", "v(m82)", "v(m83)", "v(m84)", "v(m85)", "v(m86)", "v(m87)", "v(m88)",
+            "v(m89)", "v(m90)", "v(m91)", "v(m92)", "v(m93)", "v(m94)", "v(m95)", "v(m96)",
+            "v(m97)", "v(m98)", "v(m99)", "v(n1)", "v(n2)", "v(n3)", "v(n4)", "v(n5)", "v(n6)",
+            "v(n7)", "v(n8)", "v(n9)", "v(n10)", "v(n11)", "v(n12)", "v(n13)", "v(n14)", "v(n15)",
+            "v(n16)", "v(n17)", "v(n18)", "v(n19)", "v(n20)", "v(n21)", "v(n22)", "v(n23)",
+            "v(n24)", "v(n25)", "v(n26)", "v(n27)", "v(n28)", "v(n29)", "v(n30)", "v(n31)",
+            "v(n32)", "v(n33)", "v(n34)", "v(n35)", "v(n36)", "v(n37)", "v(n38)", "v(n39)",
+            "v(n40)", "v(n41)", "v(n42)", "v(n43)", "v(n44)", "v(n45)", "v(n46)", "v(n47)",
+            "v(n48)", "v(n49)", "v(n50)", "v(n51)", "v(n52)", "v(n53)", "v(n54)", "v(n55)",
+            "v(n56)", "v(n57)", "v(n58)", "v(n59)", "v(n60)", "v(n61)", "v(n62)", "v(n63)",
+            "v(n64)", "v(n65)", "v(n66)", "v(n67)", "v(n68)", "v(n69)", "v(n70)", "v(n71)",
+            "v(n72)", "v(n73)", "v(n74)", "v(n75)", "v(n76)", "v(n77)", "v(n78)", "v(n79)",
+            "v(n80)", "v(n81)", "v(n82)", "v(n83)", "v(n84)", "v(n85)", "v(n86)", "v(n87)",
+            "v(n88)", "v(n89)", "v(n90)", "v(n91)", "v(n92)", "v(n93)", "v(n94)", "v(n95)",
+            "v(n96)", "v(n97)", "v(n98)", "v(n99)", "v(n100)", "i(v1)",
+        ],
+        values: &[
+            ("v(n1)", 0, 9.902886072266693e+01, 0.),
+            ("v(n100)", 0, 2.886072266312082e+00, 0.),
+            ("i(v1)", 0, -2.886072266255135e-03, 0.),
+        ],
+    },
     // `noopiter` with gillespie_src (srcsteps=1, no gmin stepping): the
     // adaptive source ramp tracks the same balanced point, to C's RELTOL.
     Expectation {
