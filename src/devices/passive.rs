@@ -3,7 +3,8 @@
 //! References: `res/{ressetup,restemp}.c`, `cap/{capsetup,captemp}.c`,
 //! `ind/{indsetup,indtemp}.c`, `cap/capacld.c` and `ind/indacld.c`.
 //! Geometry/precedence follows those routines, without C's missing-resistance
-//! fallback, tiny-resistor clamps, global geometry scale or ignored keywords.
+//! fallback, global geometry scale or ignored keywords. A tiny instance
+//! resistance is clamped to `RESMIN` as `resparam.c` does (`rlc::res_resist`).
 //! Coil/Lundin geometry, exponential TC, DTEMP and AC-only resistance are gaps.
 //!
 //! ```
@@ -336,7 +337,11 @@ impl ResolvedModel<'_> {
         .validate(&instance.parameters, &instance.location)?;
         let location = &instance.location;
         let base = if let Some(value) = optional(&instance_values, primary) {
-            value
+            if family == ModelFamily::Resistor {
+                crate::devices::rlc::res_resist(&instance.name, value)
+            } else {
+                value
+            }
         } else {
             model_value(family, &model, &instance_values, location)?
         };
@@ -473,10 +478,13 @@ fn instance_schema(family: ModelFamily, primary: &'static str) -> Vec<ScalarPara
         ModelFamily::Capacitor => U::Farad,
         _ => U::Henry,
     };
+    // resparam.c clamps a tiny resistance (see `res_resist`) and C accepts a
+    // zero capacitance or inductance; the effective value is checked by
+    // `valid_value`.
     let domain = if family == ModelFamily::Resistor {
-        D::NonZero
+        D::Finite
     } else {
-        D::Positive
+        D::NonNegative
     };
     let mut definitions = vec![
         p(primary, unit, domain, None),
@@ -549,8 +557,11 @@ fn valid_value(family: ModelFamily, value: Real, location: &SourceLoc) -> SpiceR
                 "resistance must be nonzero with finite conductance",
             ));
         }
-    } else {
-        positive(value, location, "effective passive value")?;
+    } else if value < 0.0 {
+        return Err(SpiceError::parse(
+            location.clone(),
+            "effective passive value must be nonnegative",
+        ));
     }
     Ok(())
 }

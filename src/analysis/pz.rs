@@ -233,12 +233,14 @@ pub(crate) fn run(
             Input::Voltage => Some(input),
             Input::Current => None,
         };
-        let load = modified_load(order, &elements, &terms, input, output);
+        let mut load = modified_load(order, &elements, &terms, input, output);
+        load.relative_threshold = context.pivot.relative;
         poles = roots(&load, "poles")?;
     }
     let mut zeros = Vec::new();
     if card.zeros {
-        let load = modified_load(order, &elements, &terms, input, Some([out_pos, out_neg]));
+        let mut load = modified_load(order, &elements, &terms, input, Some([out_pos, out_neg]));
+        load.relative_threshold = context.pivot.relative;
         zeros = roots(&load, "zeros")?;
     }
     let flags = if poles.is_empty() && zeros.is_empty() {

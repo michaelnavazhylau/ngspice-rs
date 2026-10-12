@@ -24,7 +24,8 @@ pub mod equilibration;
 pub mod integrator;
 pub mod linear;
 pub use linear::{
-    DenseLu, NiStep, PivotTolerances, SparseLu, SparseSymbolic, solve_last_factors, solve_ni,
+    DenseLu, NiStep, PivotTolerances, SparseLu, SparseSymbolic, UnknownNames, solve_last_factors,
+    solve_ni,
 };
 pub mod pencil;
 pub mod sparse;

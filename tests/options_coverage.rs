@@ -722,7 +722,12 @@ fn pivot_thresholds_reach_every_circuit_factorization() {
     let dc = "i1 0 a 1.1\ni2 0 b 2.3";
     let ac = "i1 0 a dc 0 ac 1.1\ni2 0 b dc 0 ac 2.3";
     let loose = ".options pivrel=1e-30 pivtol=0";
-    for (sources, analysis) in [(dc, ".op"), (ac, ".ac lin 1 1k 1k"), (dc, ".tran 1u 2u")] {
+    for (sources, analysis) in [
+        (dc, ".op"),
+        (dc, ".dc i1 1.1 1.1 1"),
+        (ac, ".ac lin 1 1k 1k"),
+        (dc, ".tran 1u 2u"),
+    ] {
         close(run(sources, analysis, ""), exact, 1e-9, 0.);
         let lost = run(sources, analysis, loose);
         assert!((lost - exact).abs() > 0.1, "{analysis}: v(a) = {lost}");
