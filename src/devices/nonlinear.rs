@@ -22,7 +22,9 @@
 //! start at `tVcrit`, `DEVpnjlim`, reflected about BV in breakdown) through
 //! [`crate::devices::limiting`]; C's predictor and bypass are not ported.
 use crate::devices::limiting::{self, Limiter, Linearization};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::schema::{
     ScalarDomain as Domain, ScalarParameter as Parameter, ScalarSchema, ScalarUnit as Unit,
     ScalarValues,
@@ -570,8 +572,11 @@ impl DiodeParameters {
 
     /// `diotemp.c::DIOtempUpdate` at this run's instance temperature.
     fn thermal(&self, context: &ModelContext) -> SpiceResult<Thermal> {
-        // diotemp.c::DIOtemp: TEMP, else circuit temperature plus DTEMP.
-        let t = self.temperature.unwrap_or(context.temperature + self.dtemp) + 273.15;
+        // diotemp.c::DIOtemp: TEMP (dioparam.c adds CONSTCtoK), else the
+        // circuit temperature in Kelvin (CKTtemp) plus DTEMP, in C's order.
+        let t = self
+            .temperature
+            .map_or(context.temperature + 273.15 + self.dtemp, |t| t + 273.15);
         let tn = self.nominal.unwrap_or(context.nominal_temperature) + 273.15;
         if !t.is_finite() || t <= 0. || !tn.is_finite() || tn <= 0. {
             return Err(SpiceError::circuit("invalid diode temperature"));
@@ -580,8 +585,10 @@ impl DiodeParameters {
         let vtnom = K_OVER_Q * tn;
         let dt = t - tn;
         let ln_ratio = (t / tn).ln();
-        let scale = self.area * self.multiplier;
-        let perimeter = self.perimeter * self.multiplier;
+        // diosetup.c/diotemp.c scale every instance quantity as
+        // `value * AREA * M` (or `* PJ * M`), left to right.
+        let scale = |v: Real| v * self.area * self.multiplier;
+        let perimeter = |v: Real| v * self.perimeter * self.multiplier;
 
         let factor = 1. + self.tm1 * dt + self.tm2 * dt * dt;
         let grading = self.grading * factor;
@@ -619,9 +626,9 @@ impl DiodeParameters {
                 (cap * (1. + ct * (t - REFTEMP)), pot - tp * (t - REFTEMP))
             }
         };
-        let (cjo, vj) = depletion(self.cjo * scale, self.vj, grading, self.cta, self.tpb);
+        let (cjo, vj) = depletion(scale(self.cjo), self.vj, grading, self.cta, self.tpb);
         let (cjsw, vjsw) = depletion(
-            self.cjsw * perimeter,
+            perimeter(self.cjsw),
             self.vjsw,
             self.mjsw,
             self.ctp,
@@ -630,6 +637,8 @@ impl DiodeParameters {
 
         // Saturation currents: `n` is the emission coefficient, `xti` the
         // exponent and `k` the band-gap factor (KEG for tunnelling).
+        // `k` is 1 for the plain laws (exact in every product) and KEG for
+        // tunnelling. `base` is already instance-scaled (diotemp.c).
         let saturation = |base: Real, n: Real, xti: Real, k: Real| {
             let vte = n * vt;
             let exponent = if self.tlev == 2 {
@@ -639,10 +648,10 @@ impl DiodeParameters {
             };
             base * exponent.exp()
         };
-        let csat = saturation(self.is * scale, self.n, self.xti, 1.);
-        let csatsw = saturation(self.jsw.unwrap_or(0.) * perimeter, self.ns, self.xti, 1.);
-        let tunnel = |j: Option<Real>, s: Real| {
-            j.map(|j| saturation(j * s, self.ntun, self.xtitun, self.keg))
+        let csat = saturation(scale(self.is), self.n, self.xti, 1.);
+        let csatsw = saturation(perimeter(self.jsw.unwrap_or(0.)), self.ns, self.xti, 1.);
+        let tunnel = |j: Option<Real>, s: &dyn Fn(Real) -> Real| {
+            j.map(|j| saturation(s(j), self.ntun, self.xtitun, self.keg))
         };
         let breakdown = match self.bv {
             Some(bv) => Some(breakdown_voltage(
@@ -668,7 +677,8 @@ impl DiodeParameters {
                     message: "nonpositive temperature-adjusted series resistance".into(),
                 });
             }
-            scale / self.rs / factor
+            // diosetup.c: DIOconductance = 1/RS; diotemp.c scales then divides.
+            scale(1. / self.rs) / factor
         } else {
             0.
         };
@@ -682,13 +692,13 @@ impl DiodeParameters {
             breakdown,
             recombination: self
                 .isr
-                .map(|isr| (saturation(isr * scale, self.nr, self.xti, 1.), self.nr)),
-            tunnel: tunnel(self.jtun, scale),
-            tunnel_sidewall: tunnel(self.jtunsw, perimeter),
+                .map(|isr| (saturation(scale(isr), self.nr, self.xti, 1.), self.nr)),
+            tunnel: tunnel(self.jtun, &scale),
+            tunnel_sidewall: tunnel(self.jtunsw, &perimeter),
             ntun: self.ntun,
-            ikf: self.ikf.map(|k| k * scale),
-            ikr: self.ikr.map(|k| k * scale),
-            ikp: self.ikp.map(|k| k * perimeter),
+            ikf: self.ikf.map(scale),
+            ikr: self.ikr.map(scale),
+            ikp: self.ikp.map(perimeter),
             cjo,
             vj,
             grading,
@@ -896,12 +906,14 @@ impl Thermal {
             };
         }
         let (mut cdb, mut gdb) = characteristic(vd, vte, self.csat, breakdown)?;
-        // C's small-signal bottom conductance (differs only with ISR).
+        // The exact derivative (Newton) and C's conductance (small signal,
+        // `.tf`/`.sens`) differ only with ISR.
         let mut ac_gdb = gdb;
         if let Some((crec, nr)) = self.recombination {
             let vterec = nr * self.vt;
+            // dioload.c: t1 = pow(1 - vd/VJ, 2) + 0.005, gen_fac = pow(t1, M/2).
             let generation = |v: Real| {
-                let t1 = (1. - v / self.vj).powi(2) + 0.005;
+                let t1 = (1. - v / self.vj).powf(2.) + 0.005;
                 (t1, t1.powf(self.grading / 2.))
             };
             if forward {
@@ -918,9 +930,10 @@ impl Thermal {
                 // omits 1/VJ; its root is unaffected, its AC conductance is.
                 ac_gdb += conductance * factor + current * factor * derivative;
             } else {
-                // Reverse and breakdown: the constant value at -3*N*Vt.
+                // Reverse and breakdown: the constant value at -3*N*Vt,
+                // `cdb = -csat*(..) + gen_fac*cdb_rec` (dioload.c).
                 let (_, factor) = generation(-3. * vte);
-                cdb += factor * crec * ((-3. * vte / vterec).exp() - 1.);
+                cdb += factor * (crec * ((-3. * vte / vterec).exp() - 1.));
             }
         }
         let vtetun = self.ntun * self.vt;
@@ -942,15 +955,12 @@ impl Thermal {
             self.ikr.filter(|_| cdb < -1e-18)
         };
         if let Some(k) = knee {
-            let factor;
-            (cdb, factor) = high_injection(cdb, k);
-            gdb *= factor;
-            ac_gdb *= factor;
+            let current = cdb;
+            (cdb, gdb) = high_injection(current, gdb, k, forward);
+            ac_gdb = high_injection(current, ac_gdb, k, forward).1;
         }
         if let Some(k) = self.ikp.filter(|_| cdsw > 1e-18) {
-            let factor;
-            (cdsw, factor) = high_injection(cdsw, k);
-            gdsw *= factor;
+            (cdsw, gdsw) = high_injection(cdsw, gdsw, k, true);
         }
         let current = cdb + cdsw + gmin * vd;
         let conductance = gdb + gdsw + gmin;
@@ -1000,15 +1010,25 @@ fn characteristic(
     }
 }
 
-/// `dioload.c` high-injection knee: `i/(1+sqrt(i/k))` with `k` signed like
-/// `i`. Returns the limited current and the factor applied to its conductance.
-fn high_injection(current: Real, knee: Real) -> (Real, Real) {
-    let ratio = (current / knee).abs();
-    let root = ratio.sqrt();
-    (
-        current / (1. + root),
-        ((1. + root) - ratio / (2. * root)) / (1. + 2. * root + ratio),
-    )
+/// `dioload.c` high-injection knee: `i/(1+sqrt(i/k))`, with `k` the positive
+/// IKF/IKP (`forward`) or IKR (reverse, `i < 0`). Returns the limited current
+/// and conductance in C's arithmetic.
+fn high_injection(cdb: Real, gdb: Real, knee: Real, forward: bool) -> (Real, Real) {
+    if forward {
+        let sqrt_ikx = (cdb / knee).sqrt();
+        (
+            cdb / (1. + sqrt_ikx),
+            ((1. + sqrt_ikx) * gdb - cdb * gdb / (2. * sqrt_ikx * knee))
+                / (1. + 2. * sqrt_ikx + cdb / knee),
+        )
+    } else {
+        let sqrt_ikx = (cdb / (-knee)).sqrt();
+        (
+            cdb / (1. + sqrt_ikx),
+            ((1. + sqrt_ikx) * gdb + cdb * gdb / (2. * sqrt_ikx * knee))
+                / (1. + 2. * sqrt_ikx - cdb / knee),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1555,7 +1575,9 @@ impl Device for Diode {
             .unwrap_or(context.model_context.temperature + p.dtemp)
             + 273.15;
         let m = p.multiplier;
-        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp() * m;
+        // dionoise.c: `DIOfNcoef * exp(DIOfNexp * log(MAX(fabs(cd / DIOm),
+        // N_MINLOG))) / freq * DIOm`.
+        let flicker = p.kf * (p.af * (cd / m).abs().max(1e-38).ln()).exp();
         let [anode, cathode] = self.junction;
         let external = self.terminals[0];
         Ok(DeviceNoise::Sources {
@@ -1576,8 +1598,8 @@ impl Device for Diode {
                     "_1overf",
                     self.junction,
                     NoiseKind::Flicker {
-                        coefficient: flicker,
-                        exponent: 1.,
+                        numerator: flicker,
+                        law: FlickerLaw::PerHertzTimes { multiplier: m },
                     },
                 ),
                 NoiseSource::new(
@@ -1593,8 +1615,8 @@ impl Device for Diode {
                     "_1overfsw",
                     [anode, cathode],
                     NoiseKind::Flicker {
-                        coefficient: 0.,
-                        exponent: 1.,
+                        numerator: 0.,
+                        law: FlickerLaw::PerHertzTimes { multiplier: m },
                     },
                 ),
             ],

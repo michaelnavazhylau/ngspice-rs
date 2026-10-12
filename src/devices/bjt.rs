@@ -38,7 +38,9 @@
 mod disto;
 
 use crate::devices::limiting::{self, Limiter, Linearization};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
@@ -1915,8 +1917,8 @@ impl Device for Bjt {
                     "_1overf",
                     [n.bp, n.ep],
                     NoiseKind::Flicker {
-                        coefficient: flicker,
-                        exponent: 1.,
+                        numerator: flicker,
+                        law: FlickerLaw::PerHertz,
                     },
                 ),
             ],
