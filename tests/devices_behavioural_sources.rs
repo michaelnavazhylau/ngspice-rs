@@ -500,5 +500,14 @@ fn derivative_trees_evaluate_like_cs_ptdifferentiate() {
     let program = program("1.0000000000e-03*log(v(in))/v(in)");
     let x = [2.757_542_198_308_712_5];
     let evaluation = program.evaluate(&environment(&x)).unwrap();
-    assert_eq!(evaluation.gradient, vec![-1.885_810_314_559_648_2e-6]);
+    let c = -1.885_810_314_559_648_2e-6;
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        // The libm the C reference value was captured with.
+        assert_eq!(evaluation.gradient, vec![c]);
+    } else {
+        // Another libm may round `log`/`pow` differently in the last bit.
+        assert_eq!(evaluation.gradient.len(), 1);
+        let ulps = ((evaluation.gradient[0] - c) / (c.abs() * f64::EPSILON)).abs();
+        assert!(ulps <= 4., "{} vs C {c:e}", evaluation.gradient[0]);
+    }
 }
