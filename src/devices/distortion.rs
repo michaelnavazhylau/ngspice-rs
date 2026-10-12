@@ -33,6 +33,8 @@ use crate::devices::{Circuit, MnaUnknowns, ModelContext};
 use crate::maths::Vector;
 use crate::primitives::{Complex, NodeId, Real, SpiceError, SpiceResult};
 
+mod dloadfns;
+
 /// A controlling voltage: the sum of the node differences `v(a) - v(b)` of
 /// its pairs. Almost always one pair; C occasionally forms sums (the BJT's
 /// `vbx` kernel is `(vb - vb') + (vb' - vc')`).
@@ -46,6 +48,10 @@ pub struct Control {
     /// resistance kernel `i1hm2z` lacks the minus sign). Empty except for
     /// that BJT quirk.
     pub unconjugated_in_f1_minus_f2: Vec<[NodeId; 2]>,
+    /// Pairs subtracted from the sum of [`Self::pairs`], as `mos1dist.c`
+    /// forms `vbd` as `vbs - vds` from the kernels' differences (rather than
+    /// `vb - vd`, which rounds differently). Empty for most controls.
+    pub minus: Vec<[NodeId; 2]>,
 }
 
 impl Control {
@@ -61,6 +67,17 @@ impl Control {
         Self {
             pairs,
             unconjugated_in_f1_minus_f2: Vec::new(),
+            minus: Vec::new(),
+        }
+    }
+
+    /// The difference `(v(a) - v(b)) - (v(c) - v(d))` of two node
+    /// differences, evaluated in that order on the kernels.
+    #[must_use]
+    pub fn difference(plus: [NodeId; 2], minus: [NodeId; 2]) -> Self {
+        Self {
+            minus: vec![minus],
+            ..Self::between(plus[0], plus[1])
         }
     }
 
@@ -86,15 +103,24 @@ impl Control {
     /// The control's value in the node solution `x` (ground is zero).
     #[must_use]
     pub fn value(&self, unknowns: &MnaUnknowns, x: &[Complex]) -> Complex {
-        Self::sum_of(&self.pairs, unknowns, x)
-            + Self::sum_of(&self.unconjugated_in_f1_minus_f2, unknowns, x)
+        self.signed(unknowns, x) + Self::sum_of(&self.unconjugated_in_f1_minus_f2, unknowns, x)
+    }
+
+    /// The [`Self::pairs`] sum less the [`Self::minus`] sum.
+    fn signed(&self, unknowns: &MnaUnknowns, x: &[Complex]) -> Complex {
+        let sum = Self::sum_of(&self.pairs, unknowns, x);
+        if self.minus.is_empty() {
+            sum
+        } else {
+            sum - Self::sum_of(&self.minus, unknowns, x)
+        }
     }
 
     /// The control's `H1(-f2)` value from the `H1(f2)` solution `x` in the
     /// `f1 - f2` product: conjugated, except the
     /// [`Self::unconjugated_in_f1_minus_f2`] pairs.
     fn minus_f2_value(&self, unknowns: &MnaUnknowns, x: &[Complex]) -> Complex {
-        Self::sum_of(&self.pairs, unknowns, x).conj()
+        self.signed(unknowns, x).conj()
             + Self::sum_of(&self.unconjugated_in_f1_minus_f2, unknowns, x)
     }
 }
@@ -196,6 +222,11 @@ pub struct DistortionTerm {
     /// `r2H11ptr` is meant). Set by [`Self::with_first_order_im3_kernel`] for
     /// MOS1 terms so that `2f1 - f2` reproduces C.
     pub first_order_im3_kernel: bool,
+    /// A charge polynomial in the same controls whose `j omega` current C
+    /// folds into this (current) term's value before loading it
+    /// (`diodisto.c`'s `temp += -omega * D1i(...)`), set by
+    /// [`Self::with_charge`].
+    pub charge: Option<Taylor>,
 }
 
 impl DistortionTerm {
@@ -213,7 +244,16 @@ impl DistortionTerm {
             controls,
             taylor,
             first_order_im3_kernel: false,
+            charge: None,
         }
+    }
+
+    /// Folds the charge polynomial `charge` into this term as `diodisto.c`
+    /// does (see [`Self::charge`]).
+    #[must_use]
+    pub fn with_charge(mut self, charge: Taylor) -> Self {
+        self.charge = Some(charge);
+        self
     }
 
     /// Marks the term with `mos1dist.c`'s `2f1 - f2` kernel quirk (see
@@ -345,7 +385,7 @@ pub fn circuit_distortion(
                             device.name()
                         )));
                     }
-                    if !term.taylor.is_finite() {
+                    if !term.taylor.is_finite() || !term.charge.is_none_or(|c| c.is_finite()) {
                         return Err(SpiceError::Numerical {
                             context: format!("distortion of {}", device.name()),
                             message: "nonfinite Taylor coefficient".into(),
@@ -388,13 +428,34 @@ pub struct Kernels<'a> {
     pub h2_minus: Option<&'a [Complex]>,
 }
 
-fn scaled(c: Complex, k: Real) -> Complex {
-    Complex::new(c.re * k, c.im * k)
+/// A term's control values in the kernels a [`Product`] reads.
+enum KernelValues {
+    TwoF1(dloadfns::Values),
+    ThreeF1(dloadfns::Values, dloadfns::Values),
+    F12(dloadfns::Values, dloadfns::Values),
+    TwoF1MinusF2(
+        dloadfns::Values,
+        dloadfns::Values,
+        dloadfns::Values,
+        dloadfns::Values,
+    ),
+}
+
+impl KernelValues {
+    fn evaluate(&self, t: &Taylor) -> Complex {
+        match *self {
+            Self::TwoF1(x) => dloadfns::two_f1(t, x),
+            Self::ThreeF1(x, x2) => dloadfns::three_f1(t, x, x2),
+            Self::F12(x, b) => dloadfns::f12(t, x, b),
+            Self::TwoF1MinusF2(x, b, x2, m) => dloadfns::two_f1_minus_f2(t, x, b, x2, m),
+        }
+    }
 }
 
 /// Adds every term's contribution to `rhs` for `product` (C `DEVdisto` with
-/// the `dloadfns.c` polynomial evaluators): with `X`, `B`, `X2`, `M` the
-/// control values in `H1(f1)`, `H1(+-f2)`, `H2(f1,f1)` and `H2(f1,-f2)`,
+/// the `dloadfns.c` polynomial evaluators, [`dloadfns`]): with `X`, `B`,
+/// `X2`, `M` the control values in `H1(f1)`, `H1(+-f2)`, `H2(f1,f1)` and
+/// `H2(f1,-f2)`,
 ///
 /// | product | value of `c_ij v_i v_j` / `c_ijk v_i v_j v_k` |
 /// | --- | --- |
@@ -404,7 +465,9 @@ fn scaled(c: Complex, k: Real) -> Complex {
 /// | `2f1 - f2` | `(2 (X_i M_j + X_j M_i) + B_i X2_j + B_j X2_i) / 3` / `(X_i X_j B_k + X_i X_k B_j + X_j X_k B_i) / 3` |
 ///
 /// A charge's value is multiplied by `j omega`, `omega` being the response's
-/// angular frequency (negative for `f1 - f2` below `f2`, as in C).
+/// angular frequency (negative for `f1 - f2` below `f2`, as in C). The sums
+/// are evaluated in C's operand order and grouping, so the right-hand side
+/// rounds exactly as C's does.
 ///
 /// # Errors
 /// A kernel the product needs is missing, or `rhs` has the wrong size.
@@ -431,43 +494,27 @@ pub fn add_products(
     need(kernels.h2)?;
     need(kernels.h2_minus)?;
     for term in terms {
-        let values = |kernel: &[Complex]| -> [Complex; 3] {
+        let values = |kernel: &[Complex]| -> dloadfns::Values {
             let mut v = [Complex::ZERO; 3];
             for (slot, control) in v.iter_mut().zip(&term.controls) {
                 *slot = control.value(unknowns, kernel);
             }
             v
         };
+        let minus_f2 = |kernel: &[Complex]| -> dloadfns::Values {
+            let mut v = [Complex::ZERO; 3];
+            for (slot, control) in v.iter_mut().zip(&term.controls) {
+                *slot = control.minus_f2_value(unknowns, kernel);
+            }
+            v
+        };
         let x = values(kernels.h1);
-        let second = term.taylor.second();
-        let third = term.taylor.third();
-        let mut sum = Complex::ZERO;
-        match product {
-            Product::TwoF1 => {
-                for (i, j, c) in second {
-                    sum = sum + scaled(x[i] * x[j], c);
-                }
-            }
-            Product::ThreeF1 => {
-                let x2 = values(kernels.h2.ok_or_else(missing)?);
-                for (i, j, c) in second {
-                    sum = sum + scaled(x[i] * x2[j] + x[j] * x2[i], c);
-                }
-                for (i, j, k, c) in third {
-                    sum = sum + scaled(x[i] * x[j] * x[k], c);
-                }
-            }
-            Product::F1PlusF2 | Product::F1MinusF2 => {
-                let h1_f2 = kernels.h1_f2.ok_or_else(missing)?;
-                let mut b = values(h1_f2);
-                if product == Product::F1MinusF2 {
-                    for (slot, control) in b.iter_mut().zip(&term.controls) {
-                        *slot = control.minus_f2_value(unknowns, h1_f2);
-                    }
-                }
-                for (i, j, c) in second {
-                    sum = sum + scaled(x[i] * b[j] + x[j] * b[i], 0.5 * c);
-                }
+        let inputs = match product {
+            Product::TwoF1 => KernelValues::TwoF1(x),
+            Product::ThreeF1 => KernelValues::ThreeF1(x, values(kernels.h2.ok_or_else(missing)?)),
+            Product::F1PlusF2 => KernelValues::F12(x, values(kernels.h1_f2.ok_or_else(missing)?)),
+            Product::F1MinusF2 => {
+                KernelValues::F12(x, minus_f2(kernels.h1_f2.ok_or_else(missing)?))
             }
             Product::TwoF1MinusF2 => {
                 let b = values(kernels.h1_f2.ok_or_else(missing)?).map(Complex::conj);
@@ -477,30 +524,31 @@ pub fn add_products(
                     values(kernels.h2.ok_or_else(missing)?)
                 };
                 let m = values(kernels.h2_minus.ok_or_else(missing)?);
-                let mut inner = Complex::ZERO;
-                for (i, j, c) in second {
-                    let mixed = x[i] * m[j] + x[j] * m[i];
-                    inner = inner + scaled(scaled(mixed, 2.) + b[i] * x2[j] + b[j] * x2[i], c);
-                }
-                for (i, j, k, c) in third {
-                    inner = inner
-                        + scaled(
-                            x[i] * x[j] * b[k] + x[i] * x[k] * b[j] + x[k] * x[j] * b[i],
-                            c,
-                        );
-                }
-                sum = scaled(inner, 1. / 3.);
+                KernelValues::TwoF1MinusF2(x, b, x2, m)
             }
-        }
-        if term.response == Response::Charge {
-            sum = Complex::new(-omega * sum.im, omega * sum.re);
+        };
+        let value = inputs.evaluate(&term.taylor);
+        // A charge's current is `j omega` times its polynomial: C's `temp =
+        // -omega * DFi(...)`, `itemp = omega * DFn(...)`.
+        let (mut temp, mut itemp) = match term.response {
+            Response::Current => (value.re, value.im),
+            Response::Charge => (-omega * value.im, omega * value.re),
+        };
+        if let Some(charge) = &term.charge {
+            // diodisto.c: `temp += -omega * D1i(...)`, `itemp += omega *
+            // D1n(...)` onto the junction current's polynomial.
+            let charge = inputs.evaluate(charge);
+            temp += -omega * charge.im;
+            itemp += omega * charge.re;
         }
         let [a, b] = term.nodes;
         if let Some(row) = unknowns.node_row(a) {
-            rhs[row] = rhs[row] - sum;
+            rhs[row].re -= temp;
+            rhs[row].im -= itemp;
         }
         if let Some(row) = unknowns.node_row(b) {
-            rhs[row] = rhs[row] + sum;
+            rhs[row].re += temp;
+            rhs[row].im += itemp;
         }
     }
     Ok(())
