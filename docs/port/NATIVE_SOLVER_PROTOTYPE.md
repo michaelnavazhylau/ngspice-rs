@@ -49,8 +49,11 @@ in `sparse13.rs`); nothing is taken from LGPL KLU.
 - **Error policy.** As in C, ill-conditioned systems are accepted (small
   pivots are `OK`); only structural singularity, exact zero pivots and
   non-finite solutions fail. This **removes the rank-diagnostic guardrail** in
-  `AGENTS.md` and `SPARSE_RANK_DIAGNOSTICS.md`; adopting it means changing that
-  policy deliberately.
+  `AGENTS.md` and `SPARSE_RANK_DIAGNOSTICS.md`. Adopted by M10 item 0.5a:
+  singular errors name the unknown as `NIiter` does (`singular matrix:  check
+  node X`), small pivots print a warning, an unknown with no matrix element
+  keeps its right-hand side as in C, tiny resistances are clamped to `RESMIN`
+  and zero C/L accepted (`tests/solver_robustness.rs` checks each against C).
 - **Pole-zero.** The search is C's algorithm, including its failure modes
   (iteration limit, giving up). It is sensitive to rounding: on
   `multi_analysis_pz.cir` the port reaches the real pole at -7.97e4 via Muller

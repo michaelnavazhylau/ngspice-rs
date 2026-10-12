@@ -82,6 +82,9 @@ pub struct Circuit {
     /// C's `CKTstate0` as the analyses run so far left it (C keeps one state
     /// vector for the whole deck); see [`Circuit::inherit_from`].
     carried_state: std::cell::RefCell<Option<Vec<Real>>>,
+    /// [`Circuit::unknown_names`], computed on first use after
+    /// [`Circuit::rebuild_unknowns`].
+    unknown_names: std::cell::RefCell<Option<crate::maths::UnknownNames>>,
 }
 
 /// One inductor pair coupled by a K device, by device ordinal.
@@ -215,6 +218,7 @@ impl Circuit {
     /// `res` node; the other setups make internal nodes first. State slots are
     /// numbered in device order, in a separate namespace.
     pub fn rebuild_unknowns(&mut self) {
+        self.unknown_names.get_mut().take();
         let owned: BTreeSet<NodeId> = self.internal_nodes.iter().flatten().copied().collect();
         self.unknowns
             .rebuild_deferring(&self.nodes, |node| owned.contains(&node));
@@ -470,7 +474,10 @@ impl Circuit {
                     };
                     let scale =
                         (diagonal(&values[&pair.first]) * diagonal(&values[&pair.second])).sqrt();
-                    let normalized = mutual / scale;
+                    // A zero inductance (accepted, as in C) couples with
+                    // M = k sqrt(L1 L2) = 0: its row stays a unit diagonal,
+                    // which keeps the rest's definiteness.
+                    let normalized = if scale == 0.0 { 0.0 } else { mutual / scale };
                     matrix.add_to(i, j, normalized)?;
                     matrix.add_to(j, i, normalized)?;
                     couplings.push(pair.coupling);
@@ -913,6 +920,41 @@ impl Circuit {
         self.branch_rows.get(index).cloned()
     }
 
+    /// The name of every unknown by matrix row, as ngspice names them
+    /// (`CKTnodName`): the node name, or `<device>#branch` for a branch
+    /// current (`CKTmkCur`; a device's further branches add their ordinal).
+    /// Solver diagnostics use them (`singular matrix:  check node X`).
+    pub fn unknown_names(&self) -> crate::maths::UnknownNames {
+        let n = self.unknown_count();
+        if let Some(names) = &*self.unknown_names.borrow()
+            && names.len() == n
+        {
+            return std::sync::Arc::clone(names);
+        }
+        let mut names: Vec<String> = (0..n).map(|row| format!("row {row}")).collect();
+        for node in self.nodes.nodes() {
+            if let Some(row) = self.unknowns.node_row(node.id)
+                && let Some(name) = names.get_mut(row)
+            {
+                name.clone_from(&node.name);
+            }
+        }
+        for (device, range) in self.devices.iter().zip(&self.branch_rows) {
+            for (k, row) in range.clone().enumerate() {
+                if let Some(name) = names.get_mut(row) {
+                    *name = if k == 0 {
+                        format!("{}#branch", device.name())
+                    } else {
+                        format!("{}#branch{}", device.name(), k + 1)
+                    };
+                }
+            }
+        }
+        let names: crate::maths::UnknownNames = names.into();
+        *self.unknown_names.borrow_mut() = Some(std::sync::Arc::clone(&names));
+        names
+    }
+
     /// State slots by device ordinal, after finalization. Slots are not
     /// matrix rows.
     pub fn state_rows(&self, index: usize) -> Option<std::ops::Range<usize>> {
@@ -1347,6 +1389,7 @@ impl Circuit {
                 1,
             ))?;
         matrix.set_pivot_tolerances(request.model_context.pivot);
+        matrix.set_unknown_names(Some(self.unknown_names()));
         let replacements = self.replacements(request.model_context)?;
         let mutual = self.mutual_terms(request.model_context)?;
         let mut voltage_source_value = 0.;
@@ -1564,6 +1607,7 @@ impl Circuit {
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
         system.a.set_pivot_tolerances(context.pivot);
+        system.a.set_unknown_names(Some(self.unknown_names()));
         for index in self.load_order() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
@@ -1727,6 +1771,7 @@ impl Circuit {
         let mutual = self.mutual_terms(context)?;
         let mut system = crate::devices::linear::LinearSystem::new(self.unknown_count());
         system.a.set_pivot_tolerances(context.pivot);
+        system.a.set_unknown_names(Some(self.unknown_names()));
         for index in self.load_order() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,

@@ -345,6 +345,9 @@ pub struct SparseMatrix {
     bound: Option<Bound>,
     /// Thresholds used when this matrix is (re)ordered.
     pivot: crate::maths::PivotTolerances,
+    /// Per row, the circuit unknown's name (C `NODENAME`), used by solver
+    /// diagnostics; `None` for a standalone matrix.
+    names: Option<crate::maths::UnknownNames>,
 }
 
 impl SparseMatrix {
@@ -358,6 +361,7 @@ impl SparseMatrix {
             folded: false,
             bound: None,
             pivot: crate::maths::PivotTolerances::DEFAULT,
+            names: None,
         }
     }
 
@@ -381,6 +385,7 @@ impl SparseMatrix {
                 view: OnceCell::new(),
             }),
             pivot: crate::maths::PivotTolerances::DEFAULT,
+            names: None,
         }
     }
 
@@ -395,6 +400,19 @@ impl SparseMatrix {
     /// by the caller (see [`crate::maths::PivotTolerances::validate`]).
     pub const fn set_pivot_tolerances(&mut self, pivot: crate::maths::PivotTolerances) {
         self.pivot = pivot;
+    }
+
+    /// The circuit unknowns' names by row, when set: solver warnings and
+    /// singular-matrix errors name nodes as ngspice's `NIiter` does
+    /// (`singular matrix:  check node ...`) instead of row numbers.
+    #[must_use]
+    pub fn unknown_names(&self) -> Option<&crate::maths::UnknownNames> {
+        self.names.as_ref()
+    }
+
+    /// Sets (or clears) the per-row unknown names used in diagnostics.
+    pub fn set_unknown_names(&mut self, names: Option<crate::maths::UnknownNames>) {
+        self.names = names;
     }
 
     /// The pattern and per-element values when bound with no overflow: the

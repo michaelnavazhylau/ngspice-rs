@@ -266,6 +266,10 @@ pub(crate) fn instantiate(
                 })?;
                 pwl_repeat = Some((number, p.location.clone()));
             }
+            // resparam.c RES_RESIST raises a tiny resistance to RESMIN.
+            _ if instance.designator == 'r' => {
+                value = Some(crate::devices::rlc::res_resist(&instance.name, number));
+            }
             _ => value = Some(number),
         }
     }

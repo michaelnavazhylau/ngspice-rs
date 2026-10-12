@@ -536,7 +536,9 @@ fn unavailable_factories_and_failures_leave_existing_circuit_state_unchanged() {
         "c2 new 0 mdl\n.model mdl c(cap=0)",
         "l2 new 0 mdl\n.model mdl l(ind=0)",
         "r1 new 0 1k",
-        "r2 new 0 0",
+        // A zero resistance is clamped to RESMIN as resparam.c does; a
+        // negative capacitance is still refused.
+        "c2 new 0 -1",
         "r2 new 0 1k tc1=1",
     ] {
         let n = deck(body);
