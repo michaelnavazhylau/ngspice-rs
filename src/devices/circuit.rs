@@ -692,7 +692,7 @@ impl Circuit {
     }
 
     /// Device ordinals in `CKTload` order (card order before `finalize`).
-    fn load_order(&self) -> Vec<usize> {
+    pub(crate) fn load_order(&self) -> Vec<usize> {
         if self.order.len() == self.devices.len() {
             self.order.clone()
         } else {
@@ -1261,6 +1261,30 @@ impl Circuit {
         match &*self.pattern.borrow() {
             Some(pattern) if pattern.order() == n => SparseMatrix::bound(pattern.clone()),
             _ => SparseMatrix::new(n, n),
+        }
+    }
+
+    /// Takes over `previous`'s matrix (C's one `CKTmatrix`, with its pivot
+    /// order and reorder flags) for a freshly elaborated copy of the same
+    /// circuit, as C runs every analysis of a deck on the matrix set up once.
+    /// The matrix is taken only when it starts with exactly the elements
+    /// this circuit has allocated (the rule `finalize` applies on
+    /// re-finalization); otherwise this circuit keeps its own.
+    pub fn inherit_matrix(&mut self, previous: &Self) {
+        let Some(inherited) = previous.pattern.borrow().clone() else {
+            return;
+        };
+        let mut slot = self.pattern.borrow_mut();
+        let compatible = slot.as_ref().is_none_or(|current| {
+            inherited.order() == current.order()
+                && inherited.len() >= current.len()
+                && (0..current.len()).all(|index| {
+                    let id = crate::maths::sparse::element_id(index);
+                    inherited.position(id) == current.position(id)
+                })
+        });
+        if compatible {
+            *slot = Some(inherited);
         }
     }
 

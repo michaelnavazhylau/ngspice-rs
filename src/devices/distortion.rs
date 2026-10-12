@@ -25,14 +25,15 @@
 //! default is an explicit `NotYetPorted` error, so a device whose distortion
 //! is not ported can never be treated as linear by accident.
 //!
-//! [`Series3`] is the truncated three-variable Taylor arithmetic standing in
-//! for C's `Dderivs` (`src/maths/deriv/*.c`), which `bjtdset.c` uses to
-//! differentiate the Gummel-Poon expressions.
+//! `deriv::Dderivs` transcribes C's derivative arithmetic (`Dderivs`,
+//! `src/maths/deriv/*.c`), which `bjtdset.c` uses to differentiate the
+//! Gummel-Poon expressions, and the `dloadfns` module C's load functions.
 
 use crate::devices::{Circuit, MnaUnknowns, ModelContext};
 use crate::maths::Vector;
 use crate::primitives::{Complex, NodeId, Real, SpiceError, SpiceResult};
 
+pub(crate) mod deriv;
 mod dloadfns;
 
 /// A controlling voltage: the sum of the node differences `v(a) - v(b)` of
@@ -360,7 +361,10 @@ pub fn circuit_distortion(
         unknowns: circuit.unknowns(),
         bias,
     };
-    for device in circuit.devices() {
+    // CKTdisto visits the devices in CKTload order, which fixes the order the
+    // terms accumulate into each right-hand-side entry.
+    for index in circuit.load_order() {
+        let device = &circuit.devices()[index];
         match device.distortion(&distortion_context)? {
             DeviceDistortion::Linear => {}
             DeviceDistortion::Input { f1, f2 } => {
@@ -554,250 +558,65 @@ pub fn add_products(
     Ok(())
 }
 
-/// The monomials `p^a q^b r^c` with `a + b + c <= 3`, in [`Series3`] order.
-const MONOMIALS: [[u8; 3]; 20] = [
-    [0, 0, 0],
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1],
-    [2, 0, 0],
-    [0, 2, 0],
-    [0, 0, 2],
-    [1, 1, 0],
-    [0, 1, 1],
-    [1, 0, 1],
-    [3, 0, 0],
-    [0, 3, 0],
-    [0, 0, 3],
-    [2, 1, 0],
-    [2, 0, 1],
-    [1, 2, 0],
-    [0, 2, 1],
-    [1, 0, 2],
-    [0, 1, 2],
-    [1, 1, 1],
-];
-
-fn monomial(exponents: [u8; 3]) -> Option<usize> {
-    MONOMIALS.iter().position(|m| *m == exponents)
-}
-
-/// A function of three variables `p`, `q`, `r` as its Taylor polynomial at a
-/// point, truncated after the third order: C's `Dderivs`
-/// (`src/include/ngspice/distodef.h`, `src/maths/deriv/*.c`) in coefficient
-/// rather than derivative form (`d2_p2 = 2 c_pp`, `d2_pq = c_pq`,
-/// `d3_p3 = 6 c_ppp`, `d3_p2q = 2 c_ppq`, `d3_pqr = c_pqr`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Series3 {
-    c: [Real; 20],
-}
-
-impl Series3 {
-    /// The constant `value`.
-    #[must_use]
-    pub fn constant(value: Real) -> Self {
-        let mut c = [0.; 20];
-        c[0] = value;
-        Self { c }
-    }
-
-    /// The variable `p`, `q` or `r` (`index` 0, 1, 2) at `value`.
-    #[must_use]
-    pub fn variable(index: usize, value: Real) -> Self {
-        let mut s = Self::constant(value);
-        s.c[1 + index.min(2)] = 1.;
-        s
-    }
-
-    /// A function of one variable (`index`) from its value and derivatives
-    /// `d1`, `d2`, `d3` (C's pattern of setting `value`, `d1_p`, `d2_p2`,
-    /// `d3_p3` directly).
-    #[must_use]
-    pub fn univariate(index: usize, value: Real, d1: Real, d2: Real, d3: Real) -> Self {
-        let i = index.min(2);
-        let mut s = Self::constant(value);
-        let mut e = [0u8; 3];
-        e[i] = 1;
-        s.c[monomial(e).unwrap_or(0)] = d1;
-        e[i] = 2;
-        s.c[monomial(e).unwrap_or(0)] = d2 / 2.;
-        e[i] = 3;
-        s.c[monomial(e).unwrap_or(0)] = d3 / 6.;
-        s
-    }
-
-    /// The value at the expansion point.
-    #[must_use]
-    pub const fn value(&self) -> Real {
-        self.c[0]
-    }
-
-    /// The Taylor coefficient of `p^a q^b r^c` (zero beyond third order).
-    #[must_use]
-    pub fn coefficient(&self, exponents: [u8; 3]) -> Real {
-        monomial(exponents).map_or(0., |i| self.c[i])
-    }
-
-    /// Sets the Taylor coefficient of `p^a q^b r^c` (ignored beyond third
-    /// order).
-    pub fn set_coefficient(&mut self, exponents: [u8; 3], value: Real) {
-        if let Some(i) = monomial(exponents) {
-            self.c[i] = value;
-        }
-    }
-
-    /// `self + other` (C `PlusDeriv`).
-    #[must_use]
-    pub fn plus(&self, other: &Self) -> Self {
-        let mut c = self.c;
-        for (a, b) in c.iter_mut().zip(other.c) {
-            *a += b;
-        }
-        Self { c }
-    }
-
-    /// `k * self` (C `TimesDeriv`).
-    #[must_use]
-    pub fn times(&self, k: Real) -> Self {
-        Self {
-            c: self.c.map(|v| k * v),
-        }
-    }
-
-    /// `self + k` (C's `value += k`).
-    #[must_use]
-    pub fn offset(&self, k: Real) -> Self {
-        let mut s = *self;
-        s.c[0] += k;
-        s
-    }
-
-    /// `self * other`, truncated (C `MultDeriv`).
-    #[must_use]
-    pub fn mul(&self, other: &Self) -> Self {
-        let mut c = [0.; 20];
-        for (i, a) in MONOMIALS.iter().enumerate() {
-            if self.c[i] == 0. {
-                continue;
-            }
-            for (j, b) in MONOMIALS.iter().enumerate() {
-                let e = [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-                if let Some(k) = monomial(e) {
-                    c[k] += self.c[i] * other.c[j];
-                }
-            }
-        }
-        Self { c }
-    }
-
-    /// `f(self)` for `f` given by its value and first three derivatives at
-    /// `self.value()`.
-    fn compose(&self, f: [Real; 4]) -> Self {
-        let mut delta = *self;
-        delta.c[0] = 0.;
-        let delta2 = delta.mul(&delta);
-        let delta3 = delta2.mul(&delta);
-        Self::constant(f[0])
-            .plus(&delta.times(f[1]))
-            .plus(&delta2.times(f[2] / 2.))
-            .plus(&delta3.times(f[3] / 6.))
-    }
-
-    /// `1 / self` (C `InvDeriv`).
-    #[must_use]
-    pub fn inv(&self) -> Self {
-        let v = self.value();
-        let r = 1. / v;
-        self.compose([r, -r * r, 2. * r * r * r, -6. * r * r * r * r])
-    }
-
-    /// `self / other` (C `DivDeriv`).
-    #[must_use]
-    pub fn div(&self, other: &Self) -> Self {
-        self.mul(&other.inv())
-    }
-
-    /// `sqrt(self)` (C `SqrtDeriv`, whose derivatives are all zero at a zero
-    /// argument).
-    #[must_use]
-    pub fn sqrt(&self) -> Self {
-        let v = self.value();
-        let s = v.sqrt();
-        if v == 0. {
-            return Self::constant(s);
-        }
-        self.compose([s, 0.5 / s, -0.25 / (v * s), 0.375 / (v * v * s)])
-    }
-
-    /// `exp(self)` (C `ExpDeriv`).
-    #[must_use]
-    pub fn exp(&self) -> Self {
-        let e = self.value().exp();
-        self.compose([e, e, e, e])
-    }
-
-    /// `tan(self)` (C `TanDeriv`).
-    #[must_use]
-    pub fn tan(&self) -> Self {
-        let t = self.value().tan();
-        let s = 1. + t * t;
-        self.compose([t, s, 2. * t * s, 2. * s * (1. + 3. * t * t)])
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Series3, Taylor};
+    use super::{Taylor, deriv::Dderivs};
 
-    /// A function and its exact Taylor coefficients at a point.
-    fn check(s: &Series3, f: impl Fn(f64, f64, f64) -> f64, at: [f64; 3]) {
-        // Central finite differences of the closed form.
+    /// A variable at `value` (C's `d_p` with its value set).
+    fn var(index: usize, value: f64) -> Dderivs {
+        let mut d = Dderivs::variable(index);
+        d.value = value;
+        d
+    }
+
+    /// Checks a derivative structure against central finite differences of
+    /// its closed form.
+    fn check(d: &Dderivs, f: impl Fn(f64, f64, f64) -> f64, at: [f64; 3]) {
         let h = 1e-3;
-        let value = f(at[0], at[1], at[2]);
-        assert!((s.value() - value).abs() <= 1e-12 * value.abs().max(1.));
-        let d = |e: [i32; 3]| {
-            let point = |dp: f64, dq: f64, dr: f64| f(at[0] + dp, at[1] + dq, at[2] + dr);
-            match e {
-                [1, 0, 0] => (point(h, 0., 0.) - point(-h, 0., 0.)) / (2. * h),
-                [0, 1, 0] => (point(0., h, 0.) - point(0., -h, 0.)) / (2. * h),
-                [2, 0, 0] => (point(h, 0., 0.) - 2. * value + point(-h, 0., 0.)) / (h * h) / 2.,
-                [1, 1, 0] => {
-                    (point(h, h, 0.) - point(h, -h, 0.) - point(-h, h, 0.) + point(-h, -h, 0.))
-                        / (4. * h * h)
-                }
-                [3, 0, 0] => {
-                    (point(2. * h, 0., 0.) - 2. * point(h, 0., 0.) + 2. * point(-h, 0., 0.)
-                        - point(-2. * h, 0., 0.))
-                        / (2. * h * h * h)
-                        / 6.
-                }
-                _ => unreachable!(),
-            }
-        };
-        for e in [[1, 0, 0], [0, 1, 0], [2, 0, 0], [1, 1, 0], [3, 0, 0]] {
-            let want = d(e);
-            let got = s.coefficient([e[0] as u8, e[1] as u8, e[2] as u8]);
+        let point = |dp: f64, dq: f64| f(at[0] + dp, at[1] + dq, at[2]);
+        let value = point(0., 0.);
+        assert!((d.value - value).abs() <= 1e-12 * value.abs().max(1.));
+        let wanted = [
+            (d.d1_p, (point(h, 0.) - point(-h, 0.)) / (2. * h)),
+            (d.d1_q, (point(0., h) - point(0., -h)) / (2. * h)),
+            (
+                d.d2_p2,
+                (point(h, 0.) - 2. * value + point(-h, 0.)) / (h * h),
+            ),
+            (
+                d.d2_pq,
+                (point(h, h) - point(h, -h) - point(-h, h) + point(-h, -h)) / (4. * h * h),
+            ),
+            (
+                d.d3_p3,
+                (point(2. * h, 0.) - 2. * point(h, 0.) + 2. * point(-h, 0.) - point(-2. * h, 0.))
+                    / (2. * h * h * h),
+            ),
+        ];
+        for (index, (got, want)) in wanted.into_iter().enumerate() {
             assert!(
                 (got - want).abs() <= 1e-4 * want.abs().max(1e-3),
-                "{e:?}: {got} vs {want}"
+                "{index}: {got} vs {want}"
             );
         }
     }
 
     #[test]
-    fn series_arithmetic_matches_closed_forms() {
+    fn derivative_arithmetic_matches_closed_forms() {
         let at = [0.3, 0.7, -0.2];
-        let p = Series3::variable(0, at[0]);
-        let q = Series3::variable(1, at[1]);
-        let r = Series3::variable(2, at[2]);
-        let f = p.mul(&q).plus(&r).exp().div(&q.offset(1.).sqrt());
+        let p = var(0, at[0]);
+        let q = var(1, at[1]);
+        let r = var(2, at[2]);
+        let mut q1 = q;
+        q1.value += 1.;
+        let f = p.mul(&q).plus(&r).exp().div(&q1.sqrt());
         check(&f, |p, q, r| (p * q + r).exp() / (q + 1.).sqrt(), at);
         let g = p.times(2.).tan().mul(&p.inv());
         check(&g, |p, _, _| (2. * p).tan() / p, at);
-        // The mixed third-order coefficient of p q r is exactly 1.
-        let pqr = p.mul(&q).mul(&r);
-        assert_eq!(pqr.coefficient([1, 1, 1]), 1.);
-        assert_eq!(Series3::constant(0.).sqrt(), Series3::constant(0.));
+        // The mixed third derivative of p q r is exactly 1.
+        assert_eq!(p.mul(&q).mul(&r).d3_pqr, 1.);
+        // sqrtder.c: all derivatives vanish at a zero argument.
+        assert_eq!(Dderivs::default().sqrt(), Dderivs::default());
         let t = Taylor::single(2., 3.);
         assert_eq!((t.xx, t.xxx, t.yy), (2., 3., 0.));
     }

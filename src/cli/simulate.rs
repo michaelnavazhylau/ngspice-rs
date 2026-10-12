@@ -208,6 +208,7 @@ pub fn run_with_format(
         jobs.push((entry, request, driver));
     }
     let mut first_circuit = Some(config.circuit(netlist)?);
+    let mut previous_circuit: Option<crate::devices::Circuit> = None;
     batch::check_targets(
         &schedule,
         &parsed.output,
@@ -221,9 +222,18 @@ pub fn run_with_format(
     for (entry, request, driver) in jobs {
         // Each analysis starts from a freshly elaborated circuit: no device
         // state from an earlier analysis leaks into a later one.
+        // C runs every analysis on the matrix set up once (`CKTmatrix`, its
+        // pivot order and reorder flags), so the circuit inherits the previous
+        // analysis's matrix.
         let mut circuit = match first_circuit.take() {
             Some(circuit) => circuit,
-            None => config.circuit(netlist)?,
+            None => {
+                let mut circuit = config.circuit(netlist)?;
+                if let Some(previous) = &previous_circuit {
+                    circuit.inherit_matrix(previous);
+                }
+                circuit
+            }
         };
         let observations = crate::analysis::observations::requests(
             entry.kind,
@@ -303,6 +313,7 @@ pub fn run_with_format(
             });
             raw_plots.push(raw_plot);
         }
+        previous_circuit = Some(circuit);
     }
 
     let rawfile = RawFile { plots: raw_plots };
