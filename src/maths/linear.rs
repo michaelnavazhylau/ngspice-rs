@@ -248,6 +248,43 @@ pub struct SparseSymbolic {
     /// SPARSE element per triplet (folded order) or per [`crate::maths::ElementId`].
     handles: Arc<Vec<usize>>,
     sparse: Arc<Sparse<f64>>,
+    /// What `sparse`'s factors were computed from, when they came from a
+    /// clean `NIiter` refactorization ([`solve_ni`]); `None` after anything
+    /// else wrote the frame (an AC factorization, a fresh order, a zero or
+    /// small pivot), which forces the next step to factor.
+    factored: Option<Arc<FactoredInputs>>,
+}
+
+/// The inputs of one clean `spFactor` in [`solve_ni`]: the loaded element
+/// values (as bits, in handle order), `LoadGmin`'s `diag_gmin` and the pivot
+/// thresholds. Refactoring identical inputs with the same pivot order
+/// reproduces the same factors bit for bit, so [`solve_ni`] reuses them.
+#[derive(Debug, PartialEq, Eq)]
+struct FactoredInputs {
+    values: Vec<u64>,
+    diag_gmin: u64,
+    pivot: (u64, u64),
+}
+
+impl FactoredInputs {
+    fn new(values: &[f64], diag_gmin: f64, pivot: PivotTolerances) -> Self {
+        Self {
+            values: values.iter().map(|v| v.to_bits()).collect(),
+            diag_gmin: diag_gmin.to_bits(),
+            pivot: (pivot.relative.to_bits(), pivot.absolute.to_bits()),
+        }
+    }
+
+    fn matches(&self, values: &[f64], diag_gmin: f64, pivot: PivotTolerances) -> bool {
+        self.diag_gmin == diag_gmin.to_bits()
+            && self.pivot == (pivot.relative.to_bits(), pivot.absolute.to_bits())
+            && self.values.len() == values.len()
+            && self
+                .values
+                .iter()
+                .zip(values)
+                .all(|(a, b)| *a == b.to_bits())
+    }
 }
 
 impl SparseSymbolic {
@@ -383,6 +420,7 @@ pub(crate) fn factor_shared_complex(
         key: Key::Pattern(Arc::downgrade(pattern)),
         handles: Arc::clone(&handles),
         sparse: Arc::new(sparse.retyped::<f64>()),
+        factored: None,
     }));
     result.map(|()| (sparse, handles))
 }
@@ -419,6 +457,7 @@ fn fresh_frame(matrix: &SparseMatrix) -> SpiceResult<(Sparse<f64>, SparseSymboli
             key: Key::Pattern(Arc::downgrade(pattern)),
             handles: Arc::new(handles),
             sparse: Arc::new(Sparse::new(0)),
+            factored: None,
         };
         return Ok((sparse, symbolic));
     }
@@ -440,6 +479,7 @@ fn fresh_frame(matrix: &SparseMatrix) -> SpiceResult<(Sparse<f64>, SparseSymboli
         key: Key::Triplets(Arc::new(pattern)),
         handles: Arc::new(handles),
         sparse: Arc::new(Sparse::new(0)),
+        factored: None,
     };
     Ok((sparse, symbolic))
 }
@@ -483,6 +523,25 @@ fn ni_step(
 ) -> SpiceResult<NiStep> {
     let pivot = matrix.pivot_tolerances();
     let previous = ordering.take().filter(|previous| previous.matches(matrix));
+    // spFactor of the very inputs the frame's factors came from, with the
+    // same pivot order, recomputes them bit for bit: solve with them as they
+    // are (a linear circuit's later Newton iterations and sweep points, a
+    // fixed-step linear transient).
+    let reuse = !reorder
+        && matrix.bound_values().is_some_and(|(_, values)| {
+            previous.as_ref().is_some_and(|previous| {
+                previous
+                    .factored
+                    .as_ref()
+                    .is_some_and(|inputs| inputs.matches(values, diag_gmin, pivot))
+            })
+        });
+    if reuse && let Some(previous) = previous {
+        let lu = SparseLu { symbolic: previous };
+        let result = lu.solve(rhs).map(NiStep::Solved);
+        *ordering = Some(lu.symbolic);
+        return result;
+    }
     let (mut sparse, symbolic, fresh) = match previous {
         Some(previous) => {
             let mut sparse =
@@ -508,6 +567,7 @@ fn ni_step(
             }
             let symbolic = SparseSymbolic {
                 sparse: Arc::new(Sparse::new(0)),
+                factored: None,
                 ..previous
             };
             (sparse, symbolic, false)
@@ -544,8 +604,18 @@ fn ni_step(
     } else {
         check_status("sparse LU", status, &sparse, matrix.unknown_names())
     };
+    // Only a clean refactorization of a bound matrix is reusable: a fresh
+    // order or a reorder may change the pivots, and a small or zero pivot
+    // keeps its diagnostics.
+    let inputs = match matrix.bound_values() {
+        Some((_, values)) if !fresh && !reorder && status == Status::Okay => {
+            Some(Arc::new(FactoredInputs::new(values, diag_gmin, pivot)))
+        }
+        _ => None,
+    };
     let factored = SparseSymbolic {
         sparse: Arc::new(sparse),
+        factored: inputs,
         ..symbolic
     };
     let result = checked.and_then(|()| {
@@ -662,6 +732,7 @@ impl SparseLu {
                     key: Key::Pattern(Arc::downgrade(pattern)),
                     handles: Arc::new(handles),
                     sparse: Arc::new(sparse),
+                    factored: None,
                 },
             });
         }
@@ -691,6 +762,7 @@ impl SparseLu {
                 key: Key::Triplets(Arc::new(pattern)),
                 handles: Arc::new(handles),
                 sparse: Arc::new(sparse),
+                factored: None,
             },
         })
     }
@@ -703,6 +775,7 @@ impl SparseLu {
             key,
             handles,
             sparse,
+            factored: _,
         } = previous;
         let mut sparse = Arc::try_unwrap(sparse).unwrap_or_else(|shared| (*shared).clone());
         let owned: Vec<f64>;
@@ -740,6 +813,7 @@ impl SparseLu {
                 key,
                 handles,
                 sparse: Arc::new(sparse),
+                factored: None,
             },
         })
     }
