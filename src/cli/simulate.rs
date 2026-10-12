@@ -208,6 +208,7 @@ pub fn run_with_format(
         jobs.push((entry, request, driver));
     }
     let mut first_circuit = Some(config.circuit(netlist)?);
+    let mut previous_circuit: Option<crate::devices::Circuit> = None;
     batch::check_targets(
         &schedule,
         &parsed.output,
@@ -219,11 +220,20 @@ pub fn run_with_format(
     let mut raw_plots = Vec::with_capacity(jobs.len());
     let mut plots = Vec::with_capacity(jobs.len());
     for (entry, request, driver) in jobs {
-        // Each analysis starts from a freshly elaborated circuit: no device
-        // state from an earlier analysis leaks into a later one.
+        // Each analysis starts from a freshly elaborated circuit; only what C
+        // keeps across the analyses of a deck is inherited below.
+        // C runs every analysis on the matrix and state vectors set up once
+        // (`CKTmatrix` with its pivot order and reorder flags, `CKTstate0`),
+        // so the circuit inherits them from the previous analysis.
         let mut circuit = match first_circuit.take() {
             Some(circuit) => circuit,
-            None => config.circuit(netlist)?,
+            None => {
+                let mut circuit = config.circuit(netlist)?;
+                if let Some(previous) = &previous_circuit {
+                    circuit.inherit_from(previous);
+                }
+                circuit
+            }
         };
         let observations = crate::analysis::observations::requests(
             entry.kind,
@@ -303,6 +313,7 @@ pub fn run_with_format(
             });
             raw_plots.push(raw_plot);
         }
+        previous_circuit = Some(circuit);
     }
 
     let rawfile = RawFile { plots: raw_plots };

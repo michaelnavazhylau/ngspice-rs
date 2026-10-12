@@ -79,6 +79,9 @@ pub struct Circuit {
     /// a load touches a position no device declared. See
     /// [`Circuit::new_matrix`].
     pattern: std::cell::RefCell<Option<std::sync::Arc<crate::maths::Pattern>>>,
+    /// C's `CKTstate0` as the analyses run so far left it (C keeps one state
+    /// vector for the whole deck); see [`Circuit::inherit_from`].
+    carried_state: std::cell::RefCell<Option<Vec<Real>>>,
 }
 
 /// One inductor pair coupled by a K device, by device ordinal.
@@ -784,7 +787,7 @@ impl Circuit {
     }
 
     /// Device ordinals in `CKTload` order (card order before `finalize`).
-    fn load_order(&self) -> Vec<usize> {
+    pub(crate) fn load_order(&self) -> Vec<usize> {
         if self.order.len() == self.devices.len() {
             self.order.clone()
         } else {
@@ -925,7 +928,45 @@ impl Circuit {
     /// An empty accepted-state history sized for this circuit.
     #[must_use]
     pub fn state_history(&self) -> StateHistory {
-        StateHistory::new(self.state_len)
+        StateHistory::new(self.state_len).with_carried(self.carried_state.borrow().clone())
+    }
+
+    /// C's `MODEINITSMSIG` load at the operating point `bias` (`acan.c`,
+    /// `distoan.c`, `noisean.c`, `pzan.c`) as far as it outlives the
+    /// analysis: the state slots devices write there and later analyses read
+    /// ([`Device::small_signal_state`]), recorded into the state vector this
+    /// circuit carries forward.
+    ///
+    /// # Errors
+    /// Stale numbering, a bias of the wrong size, or device physics errors.
+    pub fn record_small_signal_state(
+        &self,
+        context: &ModelContext,
+        bias: &crate::maths::Vector,
+    ) -> SpiceResult<()> {
+        self.check_numbering()?;
+        if bias.len() != self.unknown_count() {
+            return Err(SpiceError::circuit("small-signal state bias dimensions"));
+        }
+        let mut state = self
+            .carried_state
+            .borrow()
+            .clone()
+            .filter(|vector| vector.len() == self.state_len)
+            .unwrap_or_else(|| vec![0.; self.state_len]);
+        let operating = crate::devices::distortion::DistortionContext {
+            model_context: context,
+            unknowns: &self.unknowns,
+            bias,
+        };
+        for (index, device) in self.devices.iter().enumerate() {
+            let rows = self.state_rows[index].clone();
+            if let Some(slots) = state.get_mut(rows) {
+                device.small_signal_state(&operating, slots)?;
+            }
+        }
+        *self.carried_state.borrow_mut() = Some(state);
+        Ok(())
     }
 
     fn check_numbering(&self) -> SpiceResult<()> {
@@ -1353,6 +1394,34 @@ impl Circuit {
         match &*self.pattern.borrow() {
             Some(pattern) if pattern.order() == n => SparseMatrix::bound(pattern.clone()),
             _ => SparseMatrix::new(n, n),
+        }
+    }
+
+    /// Takes over `previous`'s matrix (C's one `CKTmatrix`, with its pivot
+    /// order and reorder flags) and carried state vector (C's `CKTstate0`) for
+    /// a freshly elaborated copy of the same circuit, as C runs every analysis
+    /// of a deck on the matrix and state vectors set up once.
+    /// The matrix is taken only when it starts with exactly the elements
+    /// this circuit has allocated (the rule `finalize` applies on
+    /// re-finalization); otherwise this circuit keeps its own.
+    pub fn inherit_from(&mut self, previous: &Self) {
+        self.carried_state
+            .borrow_mut()
+            .clone_from(&previous.carried_state.borrow());
+        let Some(inherited) = previous.pattern.borrow().clone() else {
+            return;
+        };
+        let mut slot = self.pattern.borrow_mut();
+        let compatible = slot.as_ref().is_none_or(|current| {
+            inherited.order() == current.order()
+                && inherited.len() >= current.len()
+                && (0..current.len()).all(|index| {
+                    let id = crate::maths::sparse::element_id(index);
+                    inherited.position(id) == current.position(id)
+                })
+        });
+        if compatible {
+            *slot = Some(inherited);
         }
     }
 

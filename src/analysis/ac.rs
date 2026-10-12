@@ -206,6 +206,9 @@ impl SmallSignal {
             &nodes,
         )?
         .solution;
+        // The MODEINITSMSIG load's state writes outlive the analysis (C keeps
+        // one CKTstate0 per deck): later analyses read them back.
+        circuit.record_small_signal_state(&context.model_context(), &solved.values)?;
         // acan.c reloads with MODEINITSMSIG after CKTop, and SWload/CSWload then
         // copy CKTstate1 into CKTstate0. CKTop never accepts or rotates states, so
         // CKTstate1 is still the zero ("really off") vector: the AC conductance of

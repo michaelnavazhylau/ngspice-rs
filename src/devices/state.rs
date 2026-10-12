@@ -75,6 +75,10 @@ fn state_error(message: impl Into<String>) -> SpiceError {
 pub struct StateHistory {
     len: usize,
     accepted: Vec<Vec<Real>>,
+    /// C's `CKTstate0` as the previous analysis of the deck left it (C runs
+    /// every analysis on the same state vectors), read through
+    /// [`DeviceState::carried`].
+    carried: Option<Vec<Real>>,
 }
 
 impl StateHistory {
@@ -84,7 +88,16 @@ impl StateHistory {
         Self {
             len,
             accepted: Vec::new(),
+            carried: None,
         }
+    }
+
+    /// This history with `carried` as the state vector the previous analysis
+    /// left behind (ignored unless it has [`Self::len`] slots).
+    #[must_use]
+    pub fn with_carried(mut self, carried: Option<Vec<Real>>) -> Self {
+        self.carried = carried.filter(|vector| vector.len() == self.len);
+        self
     }
 
     /// Number of state slots per vector.
@@ -248,6 +261,7 @@ impl StateHistory {
             uic,
             patches,
         } = trial;
+        let carried = self.carried.as_deref().map(|vector| &vector[range.clone()]);
         let previous: Option<&'a [Real]> = match previous {
             Some(vector) => {
                 let vector: &'a Vec<Real> = vector;
@@ -257,6 +271,7 @@ impl StateHistory {
         };
         Ok(DeviceState {
             previous,
+            carried,
             trial: &mut values[range.clone()],
             accepted,
             depth: self.accepted.len(),
@@ -417,6 +432,7 @@ pub struct DeviceState<'a> {
     depth: usize,
     phase: IterationPhase,
     previous: Option<&'a [Real]>,
+    carried: Option<&'a [Real]>,
     nonconvergent: Option<&'a mut bool>,
     device_limiting: bool,
     initial_conditions: bool,
@@ -439,6 +455,7 @@ impl DeviceState<'_> {
             depth: 0,
             phase: IterationPhase::Junction,
             previous: None,
+            carried: None,
             nonconvergent: None,
             device_limiting: false,
             initial_conditions: false,
@@ -543,6 +560,14 @@ impl DeviceState<'_> {
         self.previous
             .and_then(|previous| previous.get(slot))
             .copied()
+    }
+
+    /// The value of `slot` in the state vector an earlier analysis of the
+    /// deck left behind (C's `CKTstate0` at the start of this analysis, which
+    /// C does not reset between analyses), if any.
+    #[must_use]
+    pub fn carried(&self, slot: usize) -> Option<Real> {
+        self.carried.and_then(|carried| carried.get(slot)).copied()
     }
 
     /// Marks this load as not converged (C `CKTnoncon++`): a discrete state

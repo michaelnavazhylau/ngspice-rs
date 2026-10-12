@@ -1483,8 +1483,10 @@ impl Device for Diode {
     /// the transit-time diffusion charge, and the depletion charges graded
     /// against the model's **unadjusted** VJ/VJSW below the temperature-
     /// adjusted `FC*VJ` (`DIOtDepCap`, which C applies to the sidewall too).
-    /// The charge term is omitted when its second-order coefficient is zero,
-    /// as `diodisto.c` skips it.
+    /// The charge's `j omega` current is folded into the junction current's
+    /// term ([`crate::devices::distortion::DistortionTerm::with_charge`]),
+    /// and omitted when its second-order coefficient is zero, as
+    /// `diodisto.c` does.
     fn distortion(
         &self,
         context: &crate::devices::distortion::DistortionContext<'_>,
@@ -1540,21 +1542,18 @@ impl Device for Diode {
         let (cjunc2, cjunc3) = junction(t.cjo, p.vj, t.grading, f2);
         let (sw2, sw3) = junction(t.cjsw, p.vjsw, p.mjsw, f2_sw);
         let (cap2, cap3) = (cdiff2 + (cjunc2 + sw2), cdiff3 + (cjunc3 + sw3));
-        let control = || vec![Control::between(self.junction[0], self.junction[1])];
-        let mut terms = vec![DistortionTerm::new(
+        let mut term = DistortionTerm::new(
             Response::Current,
             self.junction,
-            control(),
+            vec![Control::between(self.junction[0], self.junction[1])],
             Taylor::single(g2, g3),
-        )];
+        );
         if cap2 != 0. {
-            terms.push(DistortionTerm::new(
-                Response::Charge,
-                self.junction,
-                control(),
-                Taylor::single(cap2, cap3),
-            ));
+            // diodisto.c folds the charge's `j omega` current into the
+            // junction current's value before loading it.
+            term = term.with_charge(Taylor::single(cap2, cap3));
         }
+        let terms = vec![term];
         Ok(DeviceDistortion::Terms(terms))
     }
 

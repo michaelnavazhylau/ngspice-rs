@@ -808,6 +808,23 @@ pub trait Device: fmt::Debug {
         None
     }
 
+    /// The state slots C's `MODEINITSMSIG` load writes at the operating
+    /// point that later analyses of the deck read back (C keeps one
+    /// `CKTstate0` for the whole deck): `slots` is this device's window of
+    /// the carried state vector ([`crate::devices::Circuit::record_small_signal_state`]).
+    /// The default writes nothing.
+    ///
+    /// # Errors
+    /// Invalid bias physics.
+    fn small_signal_state(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+        slots: &mut [Real],
+    ) -> SpiceResult<()> {
+        let _ = (context, slots);
+        Ok(())
+    }
+
     /// The device's `.disto` nonlinearities at the operating point
     /// ([`crate::devices::distortion`], C `DEVdisto`). Devices C gives no
     /// distortion routine but simulates through their AC load return

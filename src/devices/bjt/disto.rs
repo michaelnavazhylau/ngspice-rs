@@ -32,34 +32,39 @@
 //! control equals `vbe`.
 
 use crate::devices::distortion::{
-    Control, DeviceDistortion, DistortionContext, DistortionTerm, Response, Series3, Taylor,
+    Control, DeviceDistortion, DistortionContext, DistortionTerm, Response, Taylor, deriv::Dderivs,
 };
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
 use super::Bjt;
 
-/// The `dloadfns.c` coefficients of a `bjtdset.c` series in `p`, `q`, `r`
-/// (C's `x`, `y`, `z`/`w`), the second-order ones times the polarity.
-fn taylor(s: &Series3, polarity: Real) -> Taylor {
-    let c = |e: [u8; 3]| s.coefficient(e);
+/// The `dloadfns.c` coefficients `bjtdset.c` stores from a derivative
+/// structure in `p`, `q`, `r` (C's `x`, `y`, `z`/`w`): `0.5*type*d2_p2`,
+/// `type*d2_pq`, `d3_p3/6.`, `0.5*d3_p2q`, `d3_pqr`.
+fn taylor(d: &Dderivs, polarity: Real) -> Taylor {
     Taylor {
-        xx: polarity * c([2, 0, 0]),
-        yy: polarity * c([0, 2, 0]),
-        zz: polarity * c([0, 0, 2]),
-        xy: polarity * c([1, 1, 0]),
-        yz: polarity * c([0, 1, 1]),
-        xz: polarity * c([1, 0, 1]),
-        xxx: c([3, 0, 0]),
-        yyy: c([0, 3, 0]),
-        zzz: c([0, 0, 3]),
-        xxy: c([2, 1, 0]),
-        xxz: c([2, 0, 1]),
-        xyy: c([1, 2, 0]),
-        yyz: c([0, 2, 1]),
-        xzz: c([1, 0, 2]),
-        yzz: c([0, 1, 2]),
-        xyz: c([1, 1, 1]),
+        xx: 0.5 * polarity * d.d2_p2,
+        yy: 0.5 * polarity * d.d2_q2,
+        zz: 0.5 * polarity * d.d2_r2,
+        xy: polarity * d.d2_pq,
+        yz: polarity * d.d2_qr,
+        xz: polarity * d.d2_pr,
+        xxx: d.d3_p3 / 6.,
+        yyy: d.d3_q3 / 6.,
+        zzz: d.d3_r3 / 6.,
+        xxy: 0.5 * d.d3_p2q,
+        xxz: 0.5 * d.d3_p2r,
+        xyy: 0.5 * d.d3_pq2,
+        yyz: 0.5 * d.d3_q2r,
+        xzz: 0.5 * d.d3_pr2,
+        yzz: 0.5 * d.d3_qr2,
+        xyz: d.d3_pqr,
     }
+}
+
+/// C's `MAX(a, b)`.
+fn c_max(a: Real, b: Real) -> Real {
+    if a > b { a } else { b }
 }
 
 /// The second- and third-order coefficients of a depletion charge with zero-
@@ -158,138 +163,192 @@ impl Bjt {
             cbcn = gbcn * vbc;
         }
 
-        // Base charge qb(p = vbe, q = vbc).
-        let mut early = Series3::constant(1. - t.inv_vaf * vbc - t.inv_var * vbe);
-        early.set_coefficient([1, 0, 0], -t.inv_var);
-        early.set_coefficient([0, 1, 0], -t.inv_vaf);
-        let q1 = early.inv();
-        let qb = if oik == 0. && oikr == 0. {
-            q1
+        // bjtdset.c's derivative structures: p = vbe, q = vbc, r = vbed (the
+        // delayed vbe) for ic; r = vbb for ibb.
+        let d_p = Dderivs::variable(0);
+        let d_q = Dderivs::variable(1);
+        let d_r = Dderivs::variable(2);
+
+        // Base charge qb(p, q).
+        let mut d_dummy = d_p;
+        d_dummy.value = 1. - t.inv_vaf * vbc - t.inv_var * vbe;
+        d_dummy.d1_p = -t.inv_var;
+        d_dummy.d1_q = -t.inv_vaf;
+        let d_q1 = d_dummy.inv();
+        let d_qb = if oik == 0. && oikr == 0. {
+            d_q1
         } else {
-            let q2 =
-                Series3::univariate(0, oik * cbe + oikr * cbc, oik * gbe, oik * gbe2, oik * gbe3)
-                    .plus(&Series3::univariate(
-                        1,
-                        0.,
-                        oikr * gbc,
-                        oikr * gbc2,
-                        oikr * gbc3,
-                    ));
-            let arg = (1. + 4. * q2.value()).max(0.);
-            let sqarg = if arg == 0. {
-                Series3::constant(1.)
+            let q2 = oik * cbe + oikr * cbc;
+            let mut d_q2 = d_p;
+            d_q2.value = q2;
+            d_q2.d1_p = oik * gbe;
+            d_q2.d1_q = oikr * gbc;
+            d_q2.d2_p2 = oik * gbe2;
+            d_q2.d2_q2 = oikr * gbc2;
+            d_q2.d3_p3 = oik * gbe3;
+            d_q2.d3_q3 = oikr * gbc3;
+            let arg = c_max(0., 1. + 4. * q2);
+            let d_arg = if arg == 0. {
+                let mut d = d_p;
+                d.d1_p = 0.;
+                d
             } else {
-                q2.times(4.).offset(1.).sqrt()
+                let mut d = d_q2.times(4.0);
+                d.value += 1.;
+                d
             };
-            q1.mul(&sqarg.offset(1.)).times(0.5)
+            let mut d_sqarg = d_p;
+            d_sqarg.value = 1.0;
+            d_sqarg.d1_p = 0.0;
+            if arg != 0. {
+                d_sqarg = d_arg.sqrt();
+            }
+            let mut d_dummy = d_sqarg;
+            d_dummy.value += 1.0;
+            d_q1.mul(&d_dummy).times(0.5)
         };
 
-        // Collector current ic(p = vbe, q = vbc, r = delayed vbe).
-        let transport = Series3::univariate(2, cbe - cbc, gbe, gbe2, gbe3)
-            .plus(&Series3::univariate(1, 0., -gbc, -gbc2, -gbc3));
-        let ic = transport.div(&qb).plus(
-            &Series3::univariate(
-                1,
-                cbc / t.br + cbcn,
-                gbc / t.br + gbcn,
-                gbc2 / t.br + gbcn2,
-                gbc3 / t.br + gbcn3,
-            )
-            .times(-1.),
-        );
+        // Collector current ic(p, q, r).
+        let mut d_dummy = d_p;
+        d_dummy.d1_p = 0.0;
+        d_dummy.value = cbe - cbc;
+        d_dummy.d1_r = gbe;
+        d_dummy.d2_r2 = gbe2;
+        d_dummy.d3_r3 = gbe3;
+        d_dummy.d1_q = -gbc;
+        d_dummy.d2_q2 = -gbc2;
+        d_dummy.d3_q3 = -gbc3;
+        let mut d_ic = d_dummy.div(&d_qb);
+        d_ic.value -= cbc / t.br + cbcn;
+        d_ic.d1_q -= gbc / t.br + gbcn;
+        d_ic.d2_q2 -= gbc2 / t.br + gbcn2;
+        d_ic.d3_q3 -= gbc3 / t.br + gbcn3;
 
-        // Base resistance current ibb(p, q, r = vbb).
+        // Base resistance current ibb.
         let has_base_resistance = !(self.model.rbm == 0. && self.model.rb == self.model.rbm);
-        let ibb = if rbpr == 0. && rbpi == 0. {
-            Series3::constant(0.)
+        let d_ibb = if rbpr == 0.0 && rbpi == 0.0 {
+            let mut d = d_p;
+            d.d1_p = 0.0;
+            d
         } else {
             let cb = cbe / t.bf + cben + cbc / t.br + cbcn;
-            if cb == 0. {
-                // Linear in vbb only: no distortion.
-                Series3::constant(0.)
-            } else if xjrb != 0. && rbpi != 0. {
+            if cb == 0.0 {
+                let mut d = d_r;
+                if rbpr != 0.0 {
+                    d.d1_r = 1. / rbpr;
+                }
+                d
+            } else if xjrb != 0.0 && rbpi != 0.0 {
                 // p stands for the base current here.
-                let ratio = (cb / xjrb).max(1e-9);
-                let low = Series3::univariate(0, ratio, 1. / xjrb, 0., 0.)
-                    .sqrt()
-                    .times(2.4317);
-                let high = Series3::univariate(0, 1. + 14.59025 * ratio, 14.59025 / xjrb, 0., 0.)
-                    .sqrt()
-                    .offset(-1.);
-                let z = high.div(&low);
-                let tanz = z.tan();
-                let numerator = tanz.plus(&z.times(-1.));
-                let denominator = tanz.mul(&tanz).mul(&z);
-                let rbb = numerator.div(&denominator).times(3. * rbpi).offset(rbpr);
-                let vbb_of_ib = rbb.mul(&Series3::variable(0, 0.));
-                let d1 = vbb_of_ib.coefficient([1, 0, 0]);
-                let d2 = 2. * vbb_of_ib.coefficient([2, 0, 0]);
-                let d3 = 6. * vbb_of_ib.coefficient([3, 0, 0]);
-                if d1 == 0. {
+                let mut d_dummy = d_p;
+                d_dummy.value = c_max(cb / xjrb, 1e-9);
+                d_dummy.d1_p = 1. / xjrb;
+                let d_dummy = d_dummy.sqrt().times(2.4317);
+                let mut d_dummy2 = d_p;
+                d_dummy2.value = 1. + 14.59025 * c_max(cb / xjrb, 1e-9);
+                d_dummy2.d1_p = 14.59025 / xjrb;
+                let mut d_dummy2 = d_dummy2.sqrt();
+                d_dummy2.value -= 1.0;
+                let d_z = d_dummy2.div(&d_dummy);
+                let d_tanz = d_z.tan();
+                let d_dummy = d_z.times(-1.0).plus(&d_tanz);
+                let d_dummy2 = d_tanz.mul(&d_tanz).mul(&d_z);
+                let mut d_rbb = d_dummy.div(&d_dummy2).times(3.0 * rbpi);
+                d_rbb.value += rbpr;
+                let d_vbb = d_rbb.mul(&d_p);
+                if d_vbb.d1_p == 0. {
                     return Err(SpiceError::Numerical {
                         context: format!("distortion of {}", self.name),
                         message: "zero base-resistance derivative (bjtdset.c d_vbb.d1_p = 0)"
                             .into(),
                     });
                 }
-                let gbb1 = 1. / d1;
-                let gbb2 = -(d2 * 0.5) * gbb1 * gbb1;
-                let gbb3 =
-                    gbb1 * gbb1 * gbb1 * gbb1 * (-(d3 / 6.) + 2. * (d2 * 0.5) * (d2 * 0.5) * gbb1);
-                Series3::univariate(2, cb, gbb1, 2. * gbb2, 6. * gbb3)
+                // Power series inversion to the conductance derivatives.
+                let gbb1 = 1. / d_vbb.d1_p;
+                let gbb2 = -(d_vbb.d2_p2 * 0.5) * gbb1 * gbb1;
+                let gbb3 = gbb1
+                    * gbb1
+                    * gbb1
+                    * gbb1
+                    * (-(d_vbb.d3_p3 / 6.0)
+                        + 2. * (d_vbb.d2_p2 * 0.5) * (d_vbb.d2_p2 * 0.5) * gbb1);
+                let mut d = d_r;
+                d.value = cb;
+                d.d1_r = gbb1;
+                d.d2_r2 = 2. * gbb2;
+                d.d3_r3 = 6.0 * gbb3;
+                d
             } else {
-                let rbb = if rbpi == 0. {
-                    Series3::constant(0.)
-                } else {
-                    qb.inv().times(rbpi)
+                let mut d_rbb = d_p;
+                d_rbb.d1_p = 0.0;
+                if rbpi != 0.0 {
+                    d_rbb = d_qb.inv().times(rbpi);
                 }
-                .offset(rbpr);
-                Series3::variable(2, vbb).div(&rbb)
+                d_rbb.value += rbpr;
+                let mut d_ibb = d_r;
+                d_ibb.value = vbb;
+                d_ibb.div(&d_rbb)
             }
         };
 
         // Base current ib(p, q).
-        let ib = Series3::univariate(
-            0,
-            0.,
-            gbe / t.bf + gben,
-            gbe2 / t.bf + gben2,
-            gbe3 / t.bf + gben3,
-        )
-        .plus(&Series3::univariate(
-            1,
-            0.,
-            gbc / t.br + gbcn,
-            gbc2 / t.br + gbcn2,
-            gbc3 / t.br + gbcn3,
-        ));
+        let mut d_ib = d_p;
+        d_ib.d1_p = gbe / t.bf + gben;
+        d_ib.d2_p2 = gbe2 / t.bf + gben2;
+        d_ib.d3_p3 = gbe3 / t.bf + gben3;
+        d_ib.d1_q = gbc / t.br + gbcn;
+        d_ib.d2_q2 = gbc2 / t.br + gbcn2;
+        d_ib.d3_q3 = gbc3 / t.br + gbcn3;
 
         // B-E charge qbe(p, q): diffusion plus depletion.
         let tf = t.tf;
         let xtf = t.xtf;
         let ovtf = t.vtf_factor;
         let xjtf = t.itf * m;
-        let mut qbe = if tf != 0. && vbe > 0. {
-            let cbe_series = Series3::univariate(0, cbe, gbe, gbe2, gbe3);
-            let tff = if xtf == 0. {
-                Series3::constant(tf)
+        let mut d_qbe = if tf != 0. && vbe > 0. {
+            let mut d_cbe = d_p;
+            d_cbe.value = cbe;
+            d_cbe.d1_p = gbe;
+            d_cbe.d2_p2 = gbe2;
+            d_cbe.d3_p3 = gbe3;
+            let d_tff = if xtf != 0. {
+                let d_dummy = if ovtf != 0. {
+                    let mut d = d_q;
+                    d.value = vbc * ovtf;
+                    d.d1_q = ovtf;
+                    d.exp()
+                } else {
+                    let mut d = d_p;
+                    d.value = 1.0;
+                    d.d1_p = 0.0;
+                    d
+                };
+                let d_dummy2 = if xjtf != 0. {
+                    let mut d = d_cbe;
+                    d.value += xjtf;
+                    let d = d_cbe.div(&d);
+                    d.mul(&d)
+                } else {
+                    let mut d = d_p;
+                    d.value = 1.0;
+                    d.d1_p = 0.0;
+                    d
+                };
+                let mut d = d_dummy.mul(&d_dummy2).times(tf * xtf);
+                d.value += tf;
+                d
             } else {
-                let vbc_factor = if ovtf == 0. {
-                    Series3::constant(1.)
-                } else {
-                    Series3::univariate(1, vbc * ovtf, ovtf, 0., 0.).exp()
-                };
-                let current_factor = if xjtf == 0. {
-                    Series3::constant(1.)
-                } else {
-                    let ratio = cbe_series.div(&cbe_series.offset(xjtf));
-                    ratio.mul(&ratio)
-                };
-                vbc_factor.mul(&current_factor).times(tf * xtf).offset(tf)
+                let mut d = d_p;
+                d.value = tf;
+                d.d1_p = 0.0;
+                d
             };
-            tff.div(&qb).mul(&cbe_series)
+            d_tff.div(&d_qb).mul(&d_cbe)
         } else {
-            Series3::constant(0.)
+            let mut d = d_p;
+            d.value = 0.0;
+            d.d1_p = 0.0;
+            d
         };
         let czbe = t.cje * self.instance.area * m;
         let (pe, xme) = (t.vje, t.mje);
@@ -298,8 +357,8 @@ impl Bjt {
         } else {
             (0.5 * xme * (czbe / t.f2) / pe, 0.)
         };
-        qbe.set_coefficient([2, 0, 0], qbe.coefficient([2, 0, 0]) + capbe2);
-        qbe.set_coefficient([3, 0, 0], qbe.coefficient([3, 0, 0]) + capbe3);
+        d_qbe.d2_p2 += capbe2 * 2.;
+        d_qbe.d3_p3 += capbe3 * 6.;
 
         // B-C, B-X and substrate depletion charges (unsigned coefficients).
         let ctot = t.cjc * m;
@@ -330,13 +389,13 @@ impl Bjt {
                 Response::Current,
                 [n.cp, n.ep],
                 vec![vbe_control(), vbc_control(), vbe_control()],
-                taylor(&ic, pol),
+                taylor(&d_ic, pol),
             ),
             DistortionTerm::new(
                 Response::Current,
                 [n.bp, n.ep],
                 vec![vbe_control(), vbc_control()],
-                taylor(&ib, pol),
+                taylor(&d_ib, pol),
             ),
         ];
         if has_base_resistance {
@@ -348,14 +407,14 @@ impl Bjt {
                     vbc_control(),
                     Control::sum(Vec::new()).with_unconjugated_in_f1_minus_f2(vec![[n.b, n.bp]]),
                 ],
-                taylor(&ibb, pol),
+                taylor(&d_ibb, pol),
             ));
         }
         terms.push(DistortionTerm::new(
             Response::Charge,
             [n.bp, n.ep],
             vec![vbe_control(), vbc_control()],
-            taylor(&qbe, pol),
+            taylor(&d_qbe, pol),
         ));
         // bjtdisto.c: `z = vbx = vb - vc'` is formed as the previous `z` plus
         // `vbc`, the previous `z` being `vb - vb'` after the base-resistance

@@ -98,10 +98,24 @@ pub struct DistortionTerm {
 
 `Device::distortion(&DistortionContext)` sees only the operating point; its
 default is `NotYetPorted`, so a device whose distortion is not ported is never
-treated as linear. `Series3` is the truncated three-variable Taylor arithmetic
-(`plus`, `times`, `mul`, `div`, `inv`, `sqrt`, `exp`, `tan`) standing in for
-C's `Dderivs`; it keeps coefficients, not derivatives, and is checked against
-finite differences.
+treated as linear. `distortion::deriv::Dderivs` transcribes C's derivative
+arithmetic (`src/maths/deriv/*.c`: `plus`, `times`, `mul`, `div`, `inv`,
+`sqrt`, `exp`, `tan`) expression by expression, and `distortion::dloadfns`
+the `dloadfns.c` load functions with their exact grouping, so that the
+Taylor coefficients and right-hand sides round as C's do. Terms are visited
+in `CKTload` device order, as `CKTdisto` does; the diode folds its charge's
+`j omega` current into its junction current's term (`diodisto.c`), and MOS1
+forms `vbd`/`vgd`/`vgb` from the kernels' `vgs`/`vbs`/`vds` differences
+(`mos1dist.c`).
+
+Analyses of one deck share C's matrix and state vectors: a later analysis
+inherits the pivot order (`Circuit::inherit_from`) and the state slots C's
+`MODEINITSMSIG` load leaves behind (`Circuit::record_small_signal_state`,
+`Device::small_signal_state`). For the BJT these are the substrate and B-X'
+capacitances `bjtload.c` stores in its `cqsub`/`cqbx` current slots, which the
+next operating point of the deck reads as `ceqsub`/`ceqbx` companion currents
+(so a second `.disto` card converges to a slightly different bias, as in C).
+State left behind by a transient run is not carried yet.
 
 | Device | C | `.disto` behaviour |
 | --- | --- | --- |
@@ -161,7 +175,7 @@ C binary (removing any of them breaks the C comparison):
   a value, and the three IM kernels (1e-9 relative); a linear RC with zero
   distortion, C's names and the `lin` sweep's `pts + 2` frequencies; every card
   and device refusal.
-* `src/devices/distortion.rs` unit tests: `Series3` against finite
+* `src/devices/distortion.rs` unit tests: `Dderivs` against finite
   differences; `src/analysis/disto.rs`: plot counts and C's sweeps;
   `src/analysis/batch.rs`: `disto<n>` plot names in C's batch order.
 * C goldens (`conformance/netlists/disto_*.cir`, batch fixtures in

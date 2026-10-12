@@ -261,6 +261,10 @@ impl Mos1 {
         let vgs_control = || Control::between(g, sp);
         let vbs_control = || Control::between(b, sp);
         let vds_control = || Control::between(dp, sp);
+        // mos1dist.c forms vbd, vgd and vgb from the kernels' vgs, vbs and
+        // vds (`r1h1y - r1h1z`, ...), not from the node differences.
+        let vbd_control = || Control::difference([b, sp], [dp, sp]);
+        let vgd_control = || Control::difference([g, sp], [dp, sp]);
         let current = |nodes, control: Control, c2, c3| {
             DistortionTerm::new(
                 Response::Current,
@@ -285,12 +289,17 @@ impl Mos1 {
                 cdr,
             ),
             current([b, sp], vbs_control(), gbs2, gbs3),
-            current([b, dp], Control::between(b, dp), gbd2, gbd3),
+            current([b, dp], vbd_control(), gbd2, gbd3),
             charge([g, sp], vgs_control(), gs.0, gs.1),
-            charge([g, dp], Control::between(g, dp), gd.0, gd.1),
-            charge([g, b], Control::between(g, b), pol * capgb2, capgb3),
+            charge([g, dp], vgd_control(), gd.0, gd.1),
+            charge(
+                [g, b],
+                Control::difference([g, sp], [b, sp]),
+                pol * capgb2,
+                capgb3,
+            ),
             charge([b, sp], vbs_control(), capbs2, capbs3),
-            charge([b, dp], Control::between(b, dp), capbd2, capbd3),
+            charge([b, dp], vbd_control(), capbd2, capbd3),
         ];
         // mos1dist.c's D_2F1MF2 reads H1(f1) where H2(f1, f1) is meant.
         Ok(DeviceDistortion::Terms(
