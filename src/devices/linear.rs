@@ -380,10 +380,10 @@ pub struct LinearSystem {
     pub sources: Vec<LinearSource>,
     /// Rows with explicit device initial conditions (not yet supported).
     pub has_initial_conditions: bool,
-    /// Ranges of `e`'s unfolded contributions that one device adds to one
-    /// element as a single `omega`-scaled sum
-    /// ([`LinearContext::dynamic_sum`]); empty for most systems.
-    pub e_groups: Vec<std::ops::Range<usize>>,
+    /// Contributions of `e` that one device adds to one element as a single
+    /// `omega`-scaled sum ([`LinearContext::dynamic_sum`]); empty for most
+    /// systems.
+    pub e_groups: Vec<crate::maths::DynamicGroup>,
 }
 impl LinearSystem {
     /// Empty assembly for n unknowns.
@@ -514,17 +514,35 @@ impl LinearContext<'_> {
     /// # Errors
     /// An out-of-range position.
     pub fn dynamic_sum(&mut self, row: NodeId, col: NodeId, terms: &[Real]) -> SpiceResult<()> {
+        self.scaled_dynamic_sum(row, col, terms, 1.)
+    }
+    /// [`Self::dynamic_sum`] multiplied by `scale` after the sum, as C's
+    /// `m * (x1 + x2 + ...)`.
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn scaled_dynamic_sum(
+        &mut self,
+        row: NodeId,
+        col: NodeId,
+        terms: &[Real],
+        scale: Real,
+    ) -> SpiceResult<()> {
         let (Some(r), Some(c)) = (self.unknowns.node_row(row), self.unknowns.node_row(col)) else {
             return Ok(());
         };
         let start = self.system.e.triplets().len();
         for term in terms {
-            self.system.e.add(r, c, *term)?;
+            self.system.e.add(r, c, scale * *term)?;
         }
         let end = self.system.e.triplets().len();
         // Only an unbound (triplet-list) E keeps the contributions apart.
-        if end - start > 1 && self.system.e.overflow().is_none() {
-            self.system.e_groups.push(start..end);
+        if end > start && (terms.len() > 1 || scale != 1.) && self.system.e.overflow().is_none() {
+            self.system.e_groups.push(crate::maths::DynamicGroup {
+                range: start..end,
+                terms: terms.to_vec(),
+                scale,
+            });
         }
         Ok(())
     }

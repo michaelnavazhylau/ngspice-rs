@@ -1781,8 +1781,8 @@ impl Device for Bjt {
             gdsub,
             ..
         } = p;
-        // C's xgm (excess phase, rejected at elaboration).
-        let xgm = 0.;
+        // C's `xc*` before the `CKTomega` factor, which the complex assembly
+        // applies term by term (`LinearContext::scaled_dynamic_sum`).
         let xcpi = p.capbe;
         let xcmu = p.capbc;
         let xcbx = p.capbx;
@@ -1799,56 +1799,58 @@ impl Device for Bjt {
             sc,
         } = self.nodes;
         let cx = cp;
-        let mut add = |row: NodeId, col: NodeId, value: Real, dynamic: bool| -> SpiceResult<()> {
+        let mut add = |row: NodeId, col: NodeId, value: Real| -> SpiceResult<()> {
             if let (Some(r), Some(k)) = (unknowns.node_row(row), unknowns.node_row(col)) {
-                let matrix = if dynamic {
-                    &mut context.system.e
-                } else {
-                    &mut context.system.a
-                };
-                matrix.add(r, k, value)?;
+                context.system.a.add(r, k, value)?;
             }
             Ok(())
         };
-        add(c, c, m * (gcpr), false)?;
-        add(b, b, m * (gx), false)?;
-        add(b, b, m * (xcbx), true)?;
-        add(e, e, m * (gepr), false)?;
-        add(cp, cp, m * (gmu + go), false)?;
-        add(cx, cx, m * (gcpr), false)?;
-        add(cp, cp, m * (xcmu + xcbx), true)?;
-        add(sc, sc, m * (xcsub), true)?;
-        add(bp, bp, m * (gx + gpi + gmu), false)?;
-        add(bp, bp, m * (xcpi + xcmu + xcmcb), true)?;
-        add(ep, ep, m * (gpi + gepr + gm + go), false)?;
-        add(ep, ep, m * (xcpi + xgm), true)?;
-        add(c, cx, m * (-gcpr), false)?;
-        add(b, bp, m * (-gx), false)?;
-        add(e, ep, m * (-gepr), false)?;
-        add(cx, c, m * (-gcpr), false)?;
-        add(cp, bp, m * (-gmu + gm), false)?;
-        add(cp, bp, m * (-xcmu + xgm), true)?;
-        add(cp, ep, m * (-gm - go), false)?;
-        add(cp, ep, m * (-xgm), true)?;
-        add(bp, b, m * (-gx), false)?;
-        add(bp, cp, m * (-gmu), false)?;
-        add(bp, cp, m * (-xcmu - xcmcb), true)?;
-        add(bp, ep, m * (-gpi), false)?;
-        add(bp, ep, m * (-xcpi), true)?;
-        add(ep, e, m * (-gepr), false)?;
-        add(ep, cp, m * (-go), false)?;
-        add(ep, cp, m * (xcmcb), true)?;
-        add(ep, bp, m * (-gpi - gm), false)?;
-        add(ep, bp, m * (-xcpi - xgm - xcmcb), true)?;
-        add(s, s, m * (xcsub), true)?;
-        add(sc, s, m * (-xcsub), true)?;
-        add(s, sc, m * (-xcsub), true)?;
-        add(b, cp, m * (-xcbx), true)?;
-        add(cp, b, m * (-xcbx), true)?;
-        add(sc, sc, m * (gdsub), false)?;
-        add(s, s, m * (gdsub), false)?;
-        add(sc, s, m * (-gdsub), false)?;
-        add(s, sc, m * (-gdsub), false)
+        add(c, c, m * (gcpr))?;
+        add(b, b, m * (gx))?;
+        add(e, e, m * (gepr))?;
+        add(cp, cp, m * (gmu + go))?;
+        add(cx, cx, m * (gcpr))?;
+        add(bp, bp, m * (gx + gpi + gmu))?;
+        add(ep, ep, m * (gpi + gepr + gm + go))?;
+        add(c, cx, m * (-gcpr))?;
+        add(b, bp, m * (-gx))?;
+        add(e, ep, m * (-gepr))?;
+        add(cx, c, m * (-gcpr))?;
+        add(cp, bp, m * (-gmu + gm))?;
+        add(cp, ep, m * (-gm - go))?;
+        add(bp, b, m * (-gx))?;
+        add(bp, cp, m * (-gmu))?;
+        add(bp, ep, m * (-gpi))?;
+        add(ep, e, m * (-gepr))?;
+        add(ep, cp, m * (-go))?;
+        add(ep, bp, m * (-gpi - gm))?;
+        add(sc, sc, m * (gdsub))?;
+        add(s, s, m * (gdsub))?;
+        add(sc, s, m * (-gdsub))?;
+        add(s, sc, m * (-gdsub))?;
+        // The `j omega` parts in C's order, each element's terms one
+        // `m * (x1 + x2 + ...)` sum of `cap * omega` values. C's excess-phase
+        // `xgm` is zero (rejected at elaboration) and left out.
+        for (row, col, terms) in [
+            (b, b, &[xcbx][..]),
+            (cp, cp, &[xcmu, xcbx][..]),
+            (sc, sc, &[xcsub][..]),
+            (bp, bp, &[xcpi, xcmu, xcmcb][..]),
+            (ep, ep, &[xcpi][..]),
+            (cp, bp, &[-xcmu][..]),
+            (bp, cp, &[-xcmu, -xcmcb][..]),
+            (bp, ep, &[-xcpi][..]),
+            (ep, cp, &[xcmcb][..]),
+            (ep, bp, &[-xcpi, -xcmcb][..]),
+            (s, s, &[xcsub][..]),
+            (sc, s, &[-xcsub][..]),
+            (s, sc, &[-xcsub][..]),
+            (b, cp, &[-xcbx][..]),
+            (cp, b, &[-xcbx][..]),
+        ] {
+            context.scaled_dynamic_sum(row, col, terms, m)?;
+        }
+        Ok(())
     }
     /// Pole-zero load: C `bjtpzld.c` (excess phase is rejected at elaboration) equals the AC load with `s` for `j omega`.
     fn assemble_pole_zero(

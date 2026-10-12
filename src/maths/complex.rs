@@ -13,14 +13,28 @@ use crate::maths::{
 };
 use crate::primitives::{Complex, SpiceResult};
 
+/// Contributions of `E` (a range of its unfolded triplets, all at one
+/// position) that one device adds to an element as `scale * (x1 + x2 + ...)`,
+/// each `x` being `cap * CKTomega`: `mos1acld.c` adds `xgd + xgs + xgb`,
+/// `bjtacld.c` adds `m * (xcpi + xcmu + xcmcb)`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DynamicGroup {
+    /// The contributions it replaces, as indices into `E`'s triplets (which
+    /// hold `scale * term`, zero terms dropped).
+    pub range: std::ops::Range<usize>,
+    /// The unscaled terms (capacitances), in C's order.
+    pub terms: Vec<f64>,
+    /// The factor C applies to the sum (the instance multiplier `m`).
+    pub scale: f64,
+}
+
 /// `omega` times each of `e`'s contributions in stamp order, except that
-/// the contributions indexed by one of `groups` (ranges into `e`'s unfolded
-/// triplets, all at one position) are scaled one by one and summed into a
-/// single value first: a device such as `mos1acld.c` adds
-/// `xgd + xgs + xgb` (each `cap * CKTomega`) to an element in one step.
+/// the contributions of one of `groups` are scaled one by one, summed and
+/// multiplied by the group's scale into a single value first
+/// ([`DynamicGroup`]).
 fn dynamic_terms(
     e: &SparseMatrix,
-    groups: &[std::ops::Range<usize>],
+    groups: &[DynamicGroup],
     omega: f64,
 ) -> Vec<(usize, usize, f64)> {
     let triplets = e.triplets();
@@ -28,16 +42,20 @@ fn dynamic_terms(
     let mut groups = groups.iter().peekable();
     let mut i = 0;
     while i < triplets.len() {
-        while groups.next_if(|g| g.end <= i || g.is_empty()).is_some() {}
+        while groups
+            .next_if(|g| g.range.end <= i || g.range.is_empty())
+            .is_some()
+        {}
         let t = &triplets[i];
         match groups.peek() {
-            Some(g) if g.start == i && g.end <= triplets.len() => {
-                let mut sum = 0.;
-                for u in &triplets[g.start..g.end] {
-                    sum += omega * u.value;
+            Some(g) if g.range.start == i && g.range.end <= triplets.len() => {
+                let mut terms = g.terms.iter().map(|term| omega * term);
+                let mut sum = terms.next().unwrap_or(0.);
+                for term in terms {
+                    sum += term;
                 }
-                out.push((t.row, t.col, sum));
-                i = g.end;
+                out.push((t.row, t.col, g.scale * sum));
+                i = g.range.end;
             }
             _ => {
                 out.push((t.row, t.col, omega * t.value));
@@ -74,7 +92,7 @@ impl ComplexMatrix {
     pub fn from_operators_grouped(
         a: &SparseMatrix,
         e: &SparseMatrix,
-        groups: &[std::ops::Range<usize>],
+        groups: &[DynamicGroup],
         omega: f64,
     ) -> SpiceResult<Self> {
         square(a.rows(), a.cols())?;
@@ -147,7 +165,7 @@ impl ComplexMatrix {
         pattern: &Arc<crate::maths::Pattern>,
         a: &SparseMatrix,
         e: &SparseMatrix,
-        groups: &[std::ops::Range<usize>],
+        groups: &[DynamicGroup],
         omega: f64,
     ) -> SpiceResult<Option<Self>> {
         let n = pattern.order();

@@ -17,6 +17,7 @@
 //! external solver crate is used. See `docs/port/NATIVE_SOLVER_PROTOTYPE.md`.
 
 pub mod complex;
+pub use complex::DynamicGroup;
 pub mod dense;
 pub mod dense_complex;
 pub mod equilibration;
