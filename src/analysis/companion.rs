@@ -691,9 +691,9 @@ impl Driver<'_> {
     /// accepted charge/flux state filling the whole history.
     ///
     /// * Ordinary run (C `CKTop` with `MODETRANOP`): `A x = b(0-)` with the
-    ///   sources at their left limit; `.ic` node voltages are enforced as hard
-    ///   row constraints during this solve only ([`initial::constrained_bias`],
-    ///   or forced rows of the nonlinear bias, [`crate::analysis::bias::NodeForcing`]),
+    ///   sources at their left limit; `.ic` node voltages are enforced as
+    ///   `cktload.c`'s forced rows during this solve only
+    ///   ([`crate::analysis::bias::NodeForcing`]),
     ///   instance `ic=` of C/L/D/Q is ignored (MOS1 `ic=` only moves its
     ///   `MODEINITJCT` start) and `.nodeset` cannot change a linear point.
     /// * `uic` (C `NIiter` returns after one `CKTload`): no solve; charges and
@@ -749,17 +749,16 @@ impl Driver<'_> {
                 for hint in self.hints.nodesets.iter().chain(&self.hints.initial) {
                     seed.as_mut_slice()[hint.row] = hint.value;
                 }
+                // Every entry is forced, as cktload.c does;
+                // `irredundant_constraints` only rejects contradictions.
                 let nodes = crate::analysis::bias::NodeForcing {
-                    initial: constraints
-                        .imposed
+                    initial: self
+                        .hints
+                        .initial
                         .iter()
                         .map(|hint| (hint.row, hint.value))
                         .collect(),
-                    nodesets: initial::forced_nodesets(
-                        self.circuit,
-                        &self.hints.nodesets,
-                        &self.hints.initial,
-                    ),
+                    nodesets: initial::forced_nodesets(&self.hints.nodesets),
                 };
                 let solution = crate::analysis::bias::solve_dc_forced(
                     self.circuit,

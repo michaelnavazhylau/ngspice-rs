@@ -602,7 +602,7 @@ pub(crate) fn run(
     // (the first point of each inner sweep and every CKTop restart).
     let nodes = crate::analysis::bias::NodeForcing {
         initial: Vec::new(),
-        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+        nodesets: crate::analysis::initial::forced_nodesets(&hints.nodesets),
     };
     let axes = resolve(circuit, request, context)?;
     let (point_iterations, settings) = sweep_settings(request)?;

@@ -135,9 +135,9 @@ the reference binary): `inppas3.c`/`cktsetnp.c` (storing `.ic`/`.nodeset`),
 | --- | --- | --- |
 | duplicate `.ic`/`.nodeset` for a node | each entry overwrites the node field: last wins | same (deck order, across cards) |
 | unknown node | warning "IC on non-existent node ... ignored" (any analysis) | **error** with the entry location, in every analysis and backend |
-| `.ic`, no `uic` | enforced in every iteration of the `.tran` initial bias only (`cktload.c`, `MODETRANOP`, not `MODEUIC`); row replaced by `v = ic`, or by a `1e10` conductance when the row holds a branch-current entry | node rows replaced by `x[row] = ic` **exactly** (the KCL residual is the current of the hidden constraint), for every row. Nodes on ideal sources/inductors (DC shorts) are resolved structurally, below |
+| `.ic`, no `uic` | enforced in every iteration of the `.tran` initial bias only (`cktload.c`, `MODETRANOP`, not `MODEUIC`); row replaced by `v = ic`, or by a `1e10` conductance when the row holds a branch-current entry | same: `ZeroNoncurRow` zeroes the row in place (so the sparse ordering is C's), then `v = ic`, or the `1e10` conductance and RHS when a branch-current column remains. Entries contradicting ideal sources/inductors (DC shorts) are errors, below |
 | `.ic` in `.op`, `.dc`, `.ac` | ignored (`MODETRANOP` only) | accepted, ignored, nodes validated |
-| `.nodeset`, no `uic` | stamped only in `MODEINITJCT`/`MODEINITFIX` iterations, then released; a convergence hint | linear circuits have one solution, so it is validated and has no effect (tested bit-identical); `.op`, `.dc`, `.ac`, both backends |
+| `.nodeset`, no `uic` | stamped only in `MODEINITJCT`/`MODEINITFIX` iterations, then released; a convergence hint | same, linear circuits included (`.op`, `.dc`, `.ac`, transient bias): the result is the plain one up to rounding, since the forced rows change the values the first ordering sees, bit-identical to C |
 | instance `ic=` (C, L), no `uic` | ignored (`capload.c`/`indload.c` use it only for `MODEUIC`) | ignored |
 | `uic` | `NIiter` returns after one `CKTload`, no solve; `CKTic` copies `.nodeset` then `.ic` into the node vector; `CAPgetic` takes an unset capacitor `ic` from those node values (instance `ic=` always wins); inductor current = `ic=` else 0; no `t = 0` row is written; a breakpoint at the `.tran` step is added (`CKTsetBreak(CKTstep)`) | same, including `.nodeset` acting as a node IC and the missing `t = 0` row and the step breakpoint; the first row is the first accepted time |
 
@@ -146,15 +146,16 @@ nodes in `A x = b(0-)`; the result is the `t = 0` row, and the charge/flux state
 is `C v`, `L i` of that point. Then the constraint is released: the run is an
 ordinary transient (verified against `1 - 0.75 exp(-t/tau)`, max error
 2.3e-6 V at 10 us steps, and against C at 1.6e-9 of the C tolerance bound).
-Nodes whose voltage is already fixed by ideal voltage sources and inductors (DC
-shorts) chained to ground, or to another constrained node, are solved
-structurally (petgraph spanning forest with `UnionFind` membership of the `v+ - v- = value` relations): an `.ic`
-that agrees within `reltol`/`vntol` is dropped (the source wins; C returns a
-wrong `i(v1)` of 0 at `t = 0` for this case because of its `1e10` hack, this port
-returns the exact branch current), one that disagrees, or two entries on rigidly
-tied nodes, is an explicit error instead of C's meaningless `1e10` compromise
-(`i(v1) = -1e10`). A node with only capacitors (no DC point) becomes solvable
-through its `.ic`.
+Every entry is forced as `cktload.c` forces it. A row that keeps a branch-current
+column (a node on a voltage source or inductor) gets C's `1e10` conductance, so
+for `v1 in 0 1` with `.ic v(in)=1` the branch current at `t = 0` is C's 0 A,
+not the physical current. Nodes whose voltage is already fixed by ideal voltage
+sources and inductors (DC shorts) chained to ground, or to another constrained
+node, are checked structurally first (petgraph spanning forest with `UnionFind`
+membership of the `v+ - v- = value` relations): an `.ic` that disagrees beyond
+`reltol`/`vntol`, or two entries on rigidly tied nodes, is an explicit error
+instead of C's meaningless `1e10` compromise (`i(v1) = -1e10`). A node with
+only capacitors (no DC point) becomes solvable through its `.ic`.
 
 **With `uic`.** Capacitor charge is `C ic` (instance `ic=`, else the difference of
 the `.nodeset`/`.ic` node values, else 0), inductor flux is `L ic` (default 0
@@ -174,10 +175,9 @@ source, a step source whose right limit at `t = 0` differs from the capacitor
 reported as ill-posed. Failed initialization returns before any state exists
 (tested with an accept-hook probe: zero hooks called).
 
-Numerical consequences and divergences from C: no `1e10` scaling anywhere; `i(v1)`
-at `t = 0` is exact where C's artifact differs (compared after `t = 0` in the
-opt-in test); `.ic` entries contradicting a source and impulsive `uic` states are
-errors where C produces garbage or a first-step spike; unknown nodes are errors.
+Divergences from C: `.ic` entries contradicting a source and impulsive `uic`
+states are errors where C produces garbage or a first-step spike; unknown nodes
+are errors. Consistent entries load exactly C's rows, `1e10` included.
 Coupled inductors (K, #80) start from the coupled fluxes `L ic + sum(M ic_k)`;
 see [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md). Nonlinear circuits and the
 `off`/`ic=` of diodes and transistors follow in the next section (#99). Not
@@ -202,8 +202,8 @@ in [M4_NONLINEAR.md](M4_NONLINEAR.md#nonlinear-initial-conditions-99); in short:
 * **`.ic` without `uic`.** The transient operating point is the nonlinear DC
   solve (`CKTop`) with the `.ic` rows forced in **every** Newton load of every
   continuation stage (`bias::NodeForcing`, scaled by the source-stepping
-  factor as `CKTsrcFact` scales them), after `initial::irredundant_constraints`
-  resolved nodes ideal sources already fix. The Newton guess holds the
+  factor as `CKTsrcFact` scales them); `initial::irredundant_constraints`
+  first rejects entries that contradict ideal sources. The Newton guess holds the
   `.nodeset` then the `.ic` values (`CKTic`). The point's trial state (charges,
   limited junction voltages, switch states) fills the accepted history; the
   constraint is released for the first step.

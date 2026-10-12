@@ -189,7 +189,7 @@ impl SmallSignal {
         let hints = crate::analysis::initial::resolve(circuit, request)?;
         let nodes = crate::analysis::bias::NodeForcing {
             initial: Vec::new(),
-            nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+            nodesets: crate::analysis::initial::forced_nodesets(&hints.nodesets),
         };
         let mut seed = Vector::zeros(circuit.unknown_count());
         for hint in hints.nodesets {

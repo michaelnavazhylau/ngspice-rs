@@ -447,6 +447,52 @@ impl SparseMatrix {
         }
     }
 
+    /// Zeroes every element of `row` whose column `keep` rejects, keeping it
+    /// in the structure (C `ZeroNoncurRow` in `cktload.c` stores `0.0`
+    /// through `SMPfindElt`). Returns whether a kept column holds an element.
+    pub fn zero_row(&mut self, row: usize, keep: impl Fn(usize) -> bool) -> bool {
+        let mut kept = false;
+        if let Some(bound) = &mut self.bound {
+            bound.view.take();
+            for (index, value) in bound.values.iter_mut().enumerate() {
+                let (r, c) = bound.pattern.position(ElementId(to_u32(index)));
+                if r == row {
+                    if keep(c) {
+                        kept = true;
+                    } else {
+                        *value = 0.0;
+                    }
+                }
+            }
+        }
+        for triplet in self.triplets.iter_mut().filter(|t| t.row == row) {
+            if keep(triplet.col) {
+                kept = true;
+            } else {
+                triplet.value = 0.0;
+            }
+        }
+        kept
+    }
+
+    /// Overwrites the value at a position (C `*ptr = value` on an element),
+    /// creating the position if it is not stored.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] when the position is out of range.
+    pub fn set(&mut self, row: usize, col: usize, value: Real) -> SpiceResult<()> {
+        self.triplets.retain(|t| t.row != row || t.col != col);
+        if let Some(bound) = &mut self.bound
+            && let Some(id) = bound.pattern.find(row, col)
+        {
+            bound.view.take();
+            bound.values[id.index()] = value;
+            return Ok(());
+        }
+        self.add(row, col, value)
+    }
+
     /// Number of rows.
     #[must_use]
     pub const fn rows(&self) -> usize {

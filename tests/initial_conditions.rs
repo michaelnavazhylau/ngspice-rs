@@ -190,14 +190,16 @@ fn ic_duplicates_use_the_last_entry_and_node_names_are_case_insensitive() {
 #[test]
 fn ic_on_a_node_pinned_by_a_source_must_agree_with_it() {
     let body = "v1 in 0 1\nr1 in out 1k\nc1 out 0 1u\n";
-    // A consistent .ic on the source node is redundant: the source wins and
-    // the branch current stays exact (C returns 0 A there via its 1e10 hack).
+    // A consistent .ic on the source node is loaded as C loads it: the row
+    // keeps the source's branch column, so cktload.c replaces it with a 1e10
+    // conductance, and that row's equation leaves the branch current 0 A at
+    // t = 0 (live C: v(out)[0] = 0.25, i(v1)[0] = 0).
     let ok = run(&format!(
         "t\n{body}.ic v(in)=1 v(out)=0.25\n.tran 10u 1m\n.end\n"
     ))
     .unwrap();
     assert_eq!(column(&ok, "v(out)")[0], 0.25);
-    assert!((column(&ok, "i(v1)")[0] + 0.75e-3).abs() < 1e-15);
+    assert_eq!(column(&ok, "i(v1)")[0], 0.);
     // A contradicting one is an explicit error naming the entry, never a mess.
     let error = error_of(&format!("t\n{body}.ic v(in)=0\n.tran 10u 1m\n.end\n"));
     assert!(
@@ -247,7 +249,17 @@ fn nodeset_never_changes_a_linear_result_and_differs_from_ic() {
         "t\n{body}.nodeset v(out)=0.1 v(in)=7\n.tran 20u 4m\n.end\n"
     ))
     .unwrap();
-    assert_eq!(plain, hinted, "a nodeset is a convergence hint only");
+    // A nodeset is a convergence hint only: the operating point and the time
+    // grid are C's plain ones. Its forced rows change the values the first
+    // ordering sees, and so the pivots: later samples differ by rounding,
+    // exactly as live C's do.
+    assert_eq!(column(&plain, "time"), column(&hinted, "time"));
+    for name in ["v(out)", "i(v1)"] {
+        assert_eq!(column(&plain, name)[0], column(&hinted, name)[0]);
+        for (a, b) in column(&plain, name).iter().zip(column(&hinted, name)) {
+            assert!((a - b).abs() <= 1e-15, "{name}: {a} vs {b}");
+        }
+    }
     let pinned = run(&format!("t\n{body}.ic v(out)=0.1\n.tran 20u 4m\n.end\n")).unwrap();
     assert_eq!(column(&pinned, "v(out)")[0], 0.1);
     assert_eq!(column(&plain, "v(out)")[0], 0.75);

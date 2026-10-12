@@ -9,25 +9,25 @@
 //!   error ([`resolve`]).
 //! * `cktload.c` enforces `.ic` only while `MODETRANOP` and not `MODEUIC`, i.e.
 //!   during the initial operating point of an ordinary `.tran`. Each constrained
-//!   node row is replaced by `v = ic` (`ZeroNoncurRow`), or, when the row also
-//!   holds a branch-current entry (a node on a voltage source or inductor), by a
-//!   `1e10` conductance that makes the result inexact. [`constrained_bias`]
-//!   performs the exact row replacement for every node and
-//!   [`irredundant_constraints`] first resolves the branch-attached cases
-//!   structurally, so no `1e10` scaling and no numerical compromise exists.
+//!   node row is zeroed in place (`ZeroNoncurRow`) and replaced by `v = ic`, or,
+//!   when the row also holds a branch-current entry (a node on a voltage source,
+//!   inductor or E/H output), by a `1e10` conductance. The port loads exactly
+//!   these rows ([`crate::analysis::bias::NodeForcing`]);
+//!   [`irredundant_constraints`] only rejects entries that contradict ideal
+//!   sources, where C would return a meaningless compromise.
 //! * A node held by an E/H output (directly or through other ideal relations)
-//!   keeps the controlled-source relation in C as well (the `1e10`
-//!   conductance only loads the ideal output). Such `.ic` entries are not
-//!   imposed; [`check_implied`] compares them with the solved bias, and under
-//!   `uic` a capacitor across such an output is checked the same way.
+//!   keeps the controlled-source relation in C (the `1e10` conductance only
+//!   loads the ideal output). [`check_implied`] compares such `.ic` entries
+//!   with the solved bias, and under `uic` a capacitor across such an output
+//!   is checked the same way.
 //! * `.nodeset` is stamped by `cktload.c` only in the first (`MODEINITJCT`,
-//!   `MODEINITFIX`) iterations of a DC iteration and then released; it can only
-//!   steer convergence, never change the unique solution of a linear circuit.
-//!   Nonlinear solves force it through [`crate::analysis::bias::NodeForcing`] after
-//!   [`forced_nodesets`] dropped the rows ideal relations already fix.
+//!   `MODEINITFIX`) iterations of a DC iteration and then released; it only
+//!   steers convergence (in a linear circuit it changes rounding, as in C).
+//!   Every solve forces it through [`crate::analysis::bias::NodeForcing`]
+//!   ([`forced_nodesets`]).
 //! * Nonlinear `.ic` without `uic` uses the same row replacement in every
 //!   Newton load of the transient operating point (C `CKTop` in
-//!   `MODETRANOP`), with [`irredundant_constraints`] applied first, and
+//!   `MODETRANOP`), after [`irredundant_constraints`], and
 //!   instance `ic=`/`off` of D/Q/M devices act through their loads
 //!   (`crate::devices::limiting`). Under `uic` the one load C performs is the
 //!   device-flagged initial load of [`uic_start`]'s vector.
@@ -284,12 +284,12 @@ impl Rigid {
 /// The `.ic` constraints of the initial bias, split by how they are handled.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Constraints {
-    /// Rows replaced by `v = ic` in [`constrained_bias`].
+    /// Entries no ideal relation fixes.
     pub imposed: Vec<RowHint>,
     /// Nodes already fixed by an E/H output relation (whose value is only
     /// known after the solve): C keeps the controlled source's relation (its
-    /// `1e10` conductance just loads the ideal output), so the entry is not
-    /// imposed and [`check_implied`] compares it with the solution instead.
+    /// `1e10` conductance just loads the ideal output), so [`check_implied`]
+    /// compares the entry with the solution.
     pub implied: Vec<RowHint>,
 }
 
@@ -318,15 +318,15 @@ pub(crate) fn check_implied(
     Ok(())
 }
 
-/// The `.ic` constraints that actually have to be imposed on the operating
-/// point `A x = rhs`, in ascending row order.
+/// Classifies the `.ic` constraints of the operating point `A x = rhs`, in
+/// entry order. Every entry is still loaded, as C loads it.
 ///
 /// A node whose voltage is already fixed by ideal voltage sources and
 /// inductors (shorts at DC) chained to ground, or to another constrained node,
-/// is determined by the circuit: the entry is dropped when it agrees with that
-/// value within `tolerance` (the source wins) and is an error when it does not.
-/// Every other entry is returned unchanged. `rhs` holds the source values at
-/// the `t = 0` left limit.
+/// is determined by the circuit: the entry is left out of both lists when it
+/// agrees with that value within `tolerance` and is an error when it does not.
+/// Every other entry is [`Constraints::imposed`]. `rhs` holds the source values
+/// at the `t = 0` left limit.
 ///
 /// A node tied to ground (or to a constrained node) through a chain that
 /// includes an E/H output is determined by the circuit too, but the value is
@@ -380,37 +380,13 @@ pub(crate) fn irredundant_constraints(
     Ok(kept)
 }
 
-/// The `.nodeset` rows a nonlinear DC solve forces in its `MODEINITJCT`/
-/// `MODEINITFIX` loads ([`crate::analysis::bias::NodeForcing::nodesets`]).
-///
-/// A nodeset on a node whose voltage is already tied to ground by ideal
-/// relations (independent voltage sources, inductors as DC shorts, E/H
-/// outputs, the imposed `.ic` rows or an earlier kept nodeset) is dropped: it
-/// is only a hint, and the relation wins. C instead loads such a row with a
-/// `1e10` conductance (`cktload.c`) and enforces a compromise during those
-/// iterations. A nodeset on an `.ic` node is dropped too (C overwrites the
-/// row with the `.ic`).
-pub(crate) fn forced_nodesets(
-    circuit: &Circuit,
-    nodesets: &[RowHint],
-    imposed: &[RowHint],
-) -> Vec<(usize, Real)> {
-    let n = circuit.unknown_count();
-    let mut rigid = Rigid::new(n + 1, &controlled_output_edges(circuit));
-    for (p, q, _) in source_relations(circuit, &Vector::zeros(n), true) {
-        rigid.components.union(p, q);
-    }
-    for hint in imposed {
-        rigid.components.union(hint.row + 1, 0);
-    }
-    let mut kept = Vec::new();
-    for hint in nodesets {
-        if !rigid.components.equiv(hint.row + 1, 0) {
-            rigid.components.union(hint.row + 1, 0);
-            kept.push((hint.row, hint.value));
-        }
-    }
-    kept
+/// The `.nodeset` rows a DC solve forces in its `MODEINITJCT`/`MODEINITFIX`
+/// loads ([`crate::analysis::bias::NodeForcing::nodesets`]): every entry, as
+/// `cktload.c` loads them. A node a source or an E/H output also ties gets
+/// C's `1e10` row ([`crate::analysis::bias::NodeForcing`]); an `.ic` on the
+/// same node overrides the nodeset there, as C's later `.ic` loop does.
+pub(crate) fn forced_nodesets(nodesets: &[RowHint]) -> Vec<(usize, Real)> {
+    nodesets.iter().map(|hint| (hint.row, hint.value)).collect()
 }
 
 /// The `uic` starting point: node voltages for the first load and the charge

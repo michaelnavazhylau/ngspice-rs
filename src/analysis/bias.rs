@@ -823,9 +823,9 @@ pub(crate) fn branch_rows(circuit: &Circuit) -> Vec<bool> {
 ///   `Junction`/`Fix`) and released afterwards, so they select a solution
 ///   without changing it. A row in both lists is forced to its `.ic` value.
 ///
-/// Rows whose voltage ideal sources already fix must have been removed
-/// (C's `1e10` compromise for such rows is not reproduced; see
-/// `crate::analysis::initial`). Linear circuits ignore the nodesets (one solution).
+/// A row that keeps a branch-current entry (a node on a voltage source,
+/// inductor or E/H output) gets C's `1e10` conductance instead of the unit
+/// diagonal (see `crate::analysis::initial`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct NodeForcing {
     /// `(row, value)` pairs of the `.ic` constraints.
@@ -853,35 +853,37 @@ impl NodeForcing {
         Ok(())
     }
 
-    /// Replaces the forced rows of `a x = b` (see the type docs); `nodesets`
-    /// selects whether the `.nodeset` rows are forced in this load.
+    /// Replaces the forced rows of `a x = b` (see the type docs) as
+    /// `cktload.c` does: `ZeroNoncurRow` zeroes the row's elements in place
+    /// (they stay in the matrix structure, so its ordering is kept), then the
+    /// diagonal is set to 1 and the RHS to the scaled value. `nodesets`
+    /// selects whether the `.nodeset` rows are forced in this load; `branch`
+    /// flags the branch-current rows, whose columns C leaves alone.
     fn apply(
         &self,
         a: &mut SparseMatrix,
         b: &mut Vector,
         scale: Real,
         nodesets: bool,
+        branch: &[bool],
     ) -> SpiceResult<()> {
         let mut rows = std::collections::BTreeMap::new();
         if nodesets {
             rows.extend(self.nodesets.iter().copied());
         }
         rows.extend(self.initial.iter().copied());
-        if rows.is_empty() {
-            return Ok(());
-        }
-        let mut forced = SparseMatrix::new(a.rows(), a.cols());
-        forced.set_pivot_tolerances(a.pivot_tolerances());
-        for t in a.triplets() {
-            if !rows.contains_key(&t.row) {
-                forced.add(t.row, t.col, t.value)?;
-            }
-        }
         for (row, value) in rows {
-            forced.add(row, row, 1.)?;
-            b.as_mut_slice()[row] = value * scale;
+            // A row that keeps a branch-current entry gets C's `1e10`
+            // conductance (`= 1e10` for a nodeset, `+= 1e10` onto the zeroed
+            // diagonal for an `.ic`: the same value).
+            let currents = a.zero_row(row, |col| branch.get(col).copied().unwrap_or(false));
+            a.set(row, row, if currents { 1e10 } else { 1. })?;
+            b.as_mut_slice()[row] = if currents {
+                1e10 * value * scale
+            } else {
+                value * scale
+            };
         }
-        *a = forced;
         Ok(())
     }
 }
@@ -1207,7 +1209,8 @@ impl Engine<'_> {
                 // cktload.c: .nodeset rows in MODEINITJCT/MODEINITFIX only,
                 // .ic rows in every load, both scaled by CKTsrcFact.
                 let hinted = matches!(phase, IterationPhase::Junction | IterationPhase::Fix);
-                self.nodes.apply(&mut a, &mut b, scale, hinted)?;
+                self.nodes
+                    .apply(&mut a, &mut b, scale, hinted, &self.branches)?;
                 Ok((a, b, trial))
             },
             |new, old, trial| {

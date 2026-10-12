@@ -345,7 +345,7 @@ pub(crate) fn run(
     let hints = crate::analysis::initial::resolve(circuit, request)?;
     let nodes = crate::analysis::bias::NodeForcing {
         initial: Vec::new(),
-        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+        nodesets: crate::analysis::initial::forced_nodesets(&hints.nodesets),
     };
     let n = circuit.unknown_count();
     let mut seed = Vector::zeros(n);

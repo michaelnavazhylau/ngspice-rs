@@ -122,12 +122,14 @@ fn the_plot_has_c_names_units_and_order() {
         names,
         [
             ("frequency", "frequency", false),
+            // C's node list: parsed nodes, then each source's branch and
+            // `res` node in setup order (the last card first).
             ("v(1)", "voltage", false),
-            ("v(v1#res)", "voltage", false),
             ("v(2)", "voltage", false),
+            ("i(v2)", "current", false),
             ("v(v2#res)", "voltage", false),
             ("i(v1)", "current", false),
-            ("i(v2)", "current", false),
+            ("v(v1#res)", "voltage", false),
             ("S_1_1", "s-param", false),
             ("S_1_2", "s-param", false),
             ("S_2_1", "s-param", false),

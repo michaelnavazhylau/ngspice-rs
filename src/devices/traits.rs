@@ -168,8 +168,9 @@ impl AnalysisMode {
 /// Maps circuit unknowns to MNA matrix rows.
 ///
 /// Ground is not an unknown: it is the reference and its row is eliminated.
-/// Branch currents are unknowns too, and get rows after every node, in the order
-/// the devices were bound.
+/// Branch currents are unknowns too, and get rows after the nodes; the circuit
+/// numbers them, and device-internal nodes, in C's setup order
+/// ([`crate::devices::Circuit::rebuild_unknowns`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MnaUnknowns {
     node_rows: Vec<Option<usize>>,
@@ -192,11 +193,34 @@ impl MnaUnknowns {
     /// The whole mapping is rebuilt, so call this after the circuit's nodes are
     /// all known.
     pub fn rebuild(&mut self, nodes: &NodeTable) {
+        self.rebuild_deferring(nodes, |_| false);
+    }
+
+    /// Like [`Self::rebuild`], but leaves the nodes `deferred` selects without
+    /// a row, for [`Self::assign_deferred`] to number later. C numbers the
+    /// nodes a device creates in `DEVsetup` (`CKTmkVolt`) after every parsed
+    /// node, interleaved with branch currents (`CKTmkCur`).
+    pub fn rebuild_deferring(&mut self, nodes: &NodeTable, deferred: impl Fn(NodeId) -> bool) {
         self.node_rows.clear();
         self.next_row = 0;
         for node in nodes.nodes() {
-            self.push(node);
+            if deferred(node.id) {
+                self.node_rows.push(None);
+            } else {
+                self.push(node);
+            }
         }
+    }
+
+    /// Numbers a node [`Self::rebuild_deferring`] deferred with the next free
+    /// row and returns its row. A node that already has a row keeps it.
+    pub fn assign_deferred(&mut self, node: NodeId) -> Option<usize> {
+        let slot = self.node_rows.get_mut(node.index())?;
+        if slot.is_none() {
+            *slot = Some(self.next_row);
+            self.next_row += 1;
+        }
+        *slot
     }
 
     fn push(&mut self, node: &Node) -> Option<usize> {

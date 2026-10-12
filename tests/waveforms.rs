@@ -143,7 +143,8 @@ fn build_error(body: &str) -> String {
 
 #[test]
 fn source_functions_bind_with_c_defaults_and_signs() {
-    // #94. Rows: v(a)=0, v(b)=1, i(v1)=2, i(v2)=3.
+    // #94. Rows: v(a)=0, v(b)=1, then the branches in C's setup order (the
+    // last card first): i(v2)=2, i(v1)=3.
     let mut s = system(
         "v1 a 0 sin(1 2)\nv2 b 0 exp(0 1)\ni1 a b sffm(0 1m)\ni2 b 0 am(0 1m 0.5 1k 10k)\nr1 a b 1k\nr2 b 0 1k",
     );
@@ -154,10 +155,10 @@ fn source_functions_bind_with_c_defaults_and_signs() {
     // SIN: FREQ = 1/stop = 1 Hz.
     let t = 0.125;
     let rhs = rhs(&s, t, Limit::Right);
-    assert!((rhs[2] - (1. + 2. * (2. * PI * t).sin())).abs() < 1e-12);
+    assert!((rhs[3] - (1. + 2. * (2. * PI * t).sin())).abs() < 1e-12);
     // EXP: TD1 = TAU1 = step, TD2 = 2*step, TAU2 = step.
     let exp = |t: f64| (1. - (-(t - 1e-3) / 1e-3).exp()) - (1. - (-(t - 2e-3) / 1e-3).exp());
-    assert!((rhs[3] - exp(t)).abs() < 1e-12);
+    assert!((rhs[2] - exp(t)).abs() < 1e-12);
     // SFFM: FC = 5 Hz, FM = 500 Hz, MDI limited to 0.01; I1 flows a -> b.
     let sffm = 1e-3 * ((2. * PI * 5. * t) + 0.01 * (2. * PI * 500. * t).sin()).sin();
     let am = (1e-3 + 0.5 * (2. * PI * 1e3 * t).sin()) * (2. * PI * 1e4 * t).sin();
@@ -177,7 +178,8 @@ fn dc_levels_are_the_c_time_zero_values() {
          v5 e 0 dc 7 sin(1 2)\nv6 f 0 pwl(0 1 1m 2) td=-0.5m\nr1 a 0 1\nr2 b 0 1\nr3 c 0 1\nr4 d 0 1\nr5 e 0 1\nr6 f 0 1",
     );
     let dc = s.dc_rhs(None).unwrap();
-    let dc = &dc.as_slice()[6..];
+    // Branch rows follow C's setup order, the last card first.
+    let dc: Vec<f64> = dc.as_slice()[6..].iter().rev().copied().collect();
     assert!((dc[0] - 2.).abs() < 1e-12, "{dc:?}");
     assert_eq!(&dc[1..], [3., 0., 0., 7., 1.5]);
 }

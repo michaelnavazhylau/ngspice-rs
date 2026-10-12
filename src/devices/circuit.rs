@@ -6,8 +6,9 @@
 //!
 //! 1. nodes and devices are *added*, in deck order;
 //! 2. [`Circuit::rebuild_unknowns`] numbers the MNA unknowns, which must happen
-//!    after every node and device is known, because branch currents get rows
-//!    after the nodes.
+//!    after every node and device is known, because device-made unknowns
+//!    (internal nodes, branch currents) get rows after the parsed nodes, in
+//!    C's setup order.
 //!
 //! Step 2 is easy to forget, so the analyses call
 //! [`Circuit::finalize`], which validates the graph and rebuilds the numbering
@@ -17,7 +18,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use crate::maths::{Coefficients, SparseMatrix, Vector};
-use crate::primitives::{NodeId, NodeTable, Real, SpiceError, SpiceResult};
+use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 use petgraph::graph::UnGraph;
 
 use crate::devices::linear::Forcing;
@@ -58,6 +59,9 @@ pub struct Circuit {
     /// Per device, the model name it was parsed with (lowercase), or `None`
     /// for its type's default model: C's model list membership.
     models: Vec<Option<String>>,
+    /// Per device, the internal nodes its factory created, in creation order:
+    /// the nodes C's `DEVsetup` makes with `CKTmkVolt`.
+    internal_nodes: Vec<Vec<NodeId>>,
     /// Device ordinals in C's `CKTsetup`/`CKTload` order
     /// ([`crate::devices::setup`]), computed by `finalize`.
     order: Vec<usize>,
@@ -200,19 +204,39 @@ impl Circuit {
         self.nodes.intern(name)
     }
 
-    /// Rebuilds the unknown numbering: one row per non-ground node, then one row
-    /// per branch current, in device order. State slots are numbered the same
-    /// way, in a separate namespace.
+    /// Rebuilds the unknown numbering as `CKTsetup` creates C's nodes: one row
+    /// per parsed (terminal) node, in node order, then the unknowns each
+    /// device makes in its `DEVsetup`, visiting devices in setup order
+    /// ([`crate::devices::setup`]): its internal nodes (`CKTmkVolt`) and branch
+    /// currents (`CKTmkCur`). `vsrcset.c` makes the branch before an RF port's
+    /// `res` node; the other setups make internal nodes first. State slots are
+    /// numbered in device order, in a separate namespace.
     pub fn rebuild_unknowns(&mut self) {
-        self.unknowns.rebuild(&self.nodes);
-        self.branch_rows.clear();
+        let owned: BTreeSet<NodeId> = self.internal_nodes.iter().flatten().copied().collect();
+        self.unknowns
+            .rebuild_deferring(&self.nodes, |node| owned.contains(&node));
+        self.branch_rows = vec![0..0; self.devices.len()];
+        for index in self.setup_order() {
+            let device = &self.devices[index];
+            let count = device.branch_currents();
+            let branches_first = device.c_device_type() == crate::devices::setup::CDeviceType::Vsrc;
+            if branches_first {
+                let start = self.unknowns.len();
+                self.unknowns.add_rows(count);
+                self.branch_rows[index] = start..start + count;
+            }
+            for &node in &self.internal_nodes[index] {
+                self.unknowns.assign_deferred(node);
+            }
+            if !branches_first {
+                let start = self.unknowns.len();
+                self.unknowns.add_rows(count);
+                self.branch_rows[index] = start..start + count;
+            }
+        }
         self.state_rows.clear();
         self.state_len = 0;
         for device in &self.devices {
-            let count = device.branch_currents();
-            let start = self.unknowns.len();
-            self.unknowns.add_rows(count);
-            self.branch_rows.push(start..start + count);
             let states = device.state_count();
             self.state_rows
                 .push(self.state_len..self.state_len + states);
@@ -565,11 +589,8 @@ impl Circuit {
         self.allocate_matrix()
     }
 
-    /// C's `CKTsetup`: orders the devices and allocates the matrix elements
-    /// they declare, in that order. A pattern that already starts with the
-    /// same elements is kept, so its pivot order survives re-finalization
-    /// (C sets a circuit up once).
-    fn allocate_matrix(&mut self) -> SpiceResult<()> {
+    /// Device ordinals in C's `CKTsetup`/`CKTload` order.
+    fn setup_order(&self) -> Vec<usize> {
         let keys: Vec<crate::devices::setup::SetupKey> = self
             .devices
             .iter()
@@ -579,7 +600,15 @@ impl Circuit {
                 model: self.models.get(index).cloned().flatten(),
             })
             .collect();
-        let order = crate::devices::setup::setup_order(&keys);
+        crate::devices::setup::setup_order(&keys)
+    }
+
+    /// C's `CKTsetup`: orders the devices and allocates the matrix elements
+    /// they declare, in that order. A pattern that already starts with the
+    /// same elements is kept, so its pivot order survives re-finalization
+    /// (C sets a circuit up once).
+    fn allocate_matrix(&mut self) -> SpiceResult<()> {
+        let order = self.setup_order();
         let mut elements = Vec::new();
         for &index in &order {
             let coupled: Vec<(usize, usize)> = self
@@ -768,8 +797,19 @@ impl Circuit {
                 device.name()
             )));
         }
+        let internal = device
+            .terminals()
+            .iter()
+            .copied()
+            .filter(|&node| {
+                self.nodes
+                    .node(node)
+                    .is_some_and(|node| node.kind == NodeKind::Internal)
+            })
+            .collect();
         self.devices.push(device);
         self.models.push(None);
+        self.internal_nodes.push(internal);
         Ok(())
     }
 
@@ -1536,6 +1576,7 @@ impl Circuit {
             .collect();
         let mut nodes = self.nodes.clone();
         let mut staged: Vec<Box<dyn Device>> = Vec::with_capacity(instances.len());
+        let mut internal: Vec<Vec<NodeId>> = Vec::with_capacity(instances.len());
         for instance in instances {
             if !seen.insert(instance.name.to_lowercase()) {
                 return Err(SpiceError::circuit(format!(
@@ -1545,12 +1586,21 @@ impl Circuit {
             }
             // Builtin factories bind terminals in this staged table. Nothing
             // fallible remains after committing the two containers together.
+            let first = nodes.len();
             staged.push(crate::devices::factory::instantiate_with_models(
                 instance, &mut nodes, models, context,
             )?);
+            internal.push(
+                nodes.nodes()[first..]
+                    .iter()
+                    .filter(|node| node.kind == NodeKind::Internal)
+                    .map(|node| node.id)
+                    .collect(),
+            );
         }
         self.nodes = nodes;
         self.devices.extend(staged);
+        self.internal_nodes.extend(internal);
         self.models.extend(
             instances
                 .iter()
