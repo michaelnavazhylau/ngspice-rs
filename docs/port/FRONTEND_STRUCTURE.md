@@ -100,9 +100,13 @@ Default limits per parse:
 | Include nesting below root | 64 |
 | File reads, including root/repeated sources | 1,024 |
 | Aggregate bytes, including unselected sections | 16 MiB |
-| Processed expanded cards, including directives/terminators | 100,000 |
+| Processed expanded cards, including directives/terminators | 1,000,000 |
 
-Depth settings above 64 are rejected to protect the call stack. Bytes are read
+C has no card cap; the port's default is four times the 250,000-device
+subcircuit-expansion budget (`SubcircuitLimits`), so it only stops runaway
+repeated includes, not large flat decks (it was 100,000, which rejected a
+50,000-stage RC ladder). Depth settings above 64 are rejected to protect the
+call stack. Bytes are read
 with a bounded reader **before** constructing fragments; byte/card/file limits
 also bound repeated acyclic work. UTF-8 input is required. These are explicit
 port safety policies, not C parity claims. No environment/home/search-path

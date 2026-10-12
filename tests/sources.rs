@@ -374,3 +374,47 @@ fn malformed_source_cards_require_complete_consumption() {
         assert!(Parser::new().parse_deck(&deck).is_err(), "{body}");
     }
 }
+
+/// C has no card cap (`inpcom.c`, `inp_readall`), so the default card budget
+/// must accept a large flat deck: 150,000 cards was rejected by the former
+/// 100,000-card default (a 50,000-stage RC ladder needs about 100,000).
+#[test]
+fn default_card_budget_accepts_a_large_flat_deck() {
+    let f = Files::new();
+    let mut deck = String::from("large flat deck\nv1 n0 0 1\n");
+    for i in 0..149_997 {
+        deck.push_str(&format!("r{i} n{i} n{} 1\n", i + 1));
+    }
+    deck.push_str(".op\n.end\n");
+    f.write("main.cir", &deck);
+    let netlist = f.parse("main.cir").unwrap();
+    assert_eq!(netlist.devices.len(), 149_998);
+}
+
+/// The budget still stops runaway repeated includes with an explicit error
+/// naming the limit, before the file (1,024) or byte (16 MiB) budgets: 600
+/// reads of a 2,000-card file are 1.2 million cards in about 12 MB.
+#[test]
+fn default_card_budget_stops_runaway_repeated_includes() {
+    let f = Files::new();
+    let mut body = String::new();
+    for i in 0..2_000 {
+        body.push_str(&format!("r{i} a 0 1\n"));
+    }
+    f.write("body.inc", &body);
+    let mut deck = String::from("runaway includes\n");
+    for _ in 0..600 {
+        deck.push_str(".include body.inc\n");
+    }
+    deck.push_str(".end\n");
+    f.write("main.cir", &deck);
+    let error = f.parse("main.cir").unwrap_err();
+    assert!(matches!(error, SpiceError::Parse { .. }), "{error}");
+    assert!(
+        error
+            .to_string()
+            .contains("source card work limit exceeded (1000000 cards"),
+        "{error}"
+    );
+    assert!(error.to_string().contains("body.inc"), "{error}");
+}

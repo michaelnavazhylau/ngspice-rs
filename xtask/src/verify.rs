@@ -528,6 +528,16 @@ const SUPPORTED: &[Supported] = &[
         },
     },
     tran("m7_conv_latch_tran"),
+    // M10 0.5h: a 100-junction diode chain (MODEINITJCT start and DEVpnjlim on
+    // every junction), once a `.op` failure where ngspice converges.
+    Supported {
+        name: "diode100_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
     // Nonlinear initial conditions (#99): a diode/RC `uic` start from the
     // `.ic` node vector (the diode's own `ic=` has no effect in C), a BJT
     // flip-flop whose `.ic` selects the state through the forced transient
