@@ -10,7 +10,7 @@
 //! | --- | --- | --- |
 //! | thermal | `4 k T g` | `THERMNOISE` |
 //! | shot | `2 q abs(I)` | `SHOTNOISE` |
-//! | flicker | `coefficient / f^exponent` | `N_GAIN` times the device's own law |
+//! | flicker | `numerator` over the device's frequency law ([`FlickerLaw`]) | `N_GAIN` times the device's own law |
 //!
 //! and the output noise it causes is that density times the squared magnitude
 //! of the transfer impedance from the generator's node pair to the output, which
@@ -79,14 +79,71 @@ pub enum NoiseKind {
         /// DC current in amperes.
         current: Real,
     },
-    /// Flicker noise: `coefficient / f^exponent` (C `N_GAIN` times the
-    /// device's own 1/f law).
+    /// Flicker noise: `numerator` times the device's frequency law (C
+    /// `N_GAIN` times the device's own 1/f expression).
     Flicker {
-        /// The density at 1 Hz, A²/Hz.
-        coefficient: Real,
-        /// The frequency exponent (`1`, or a model's `AF`/`EF`).
+        /// The bias-dependent part of the device's flicker expression, the
+        /// operand C evaluates before its frequency division.
+        numerator: Real,
+        /// How the device divides by frequency, in C's operation order.
+        law: FlickerLaw,
+    },
+}
+
+/// The frequency part of a device's flicker density, kept apart from the
+/// numerator so the density is evaluated with exactly C's operand grouping
+/// (`gain *= numerator / denominator(f)`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FlickerLaw {
+    /// `resnoise.c`: `numerator / (area * pow(f, ef))`.
+    Area {
+        /// C `RESeffNoiseArea`.
+        area: Real,
+        /// C `RESef`.
         exponent: Real,
     },
+    /// `bjtnoise.c`: `numerator / f`.
+    PerHertz,
+    /// `dionoise.c`: `numerator / f * m`.
+    PerHertzTimes {
+        /// C `DIOm`.
+        multiplier: Real,
+    },
+    /// `mos1noi.c`: `numerator / (((fx * a) * b) * c)` with `fx = f`, or
+    /// `pow(f, AF)` for NLEV 2 and 3.
+    Channel {
+        /// `Some(AF)` for C's `pow(data->freq, AF)`, `None` for plain `f`.
+        exponent: Option<Real>,
+        /// The three denominator factors after the frequency term.
+        factors: [Real; 3],
+    },
+}
+
+impl FlickerLaw {
+    /// `numerator` over this law's denominator at `frequency`, grouped as C.
+    #[must_use]
+    pub fn apply(&self, numerator: Real, frequency: Real) -> Real {
+        match *self {
+            Self::Area { area, exponent } => numerator / (area * frequency.powf(exponent)),
+            Self::PerHertz => numerator / frequency,
+            Self::PerHertzTimes { multiplier } => numerator / frequency * multiplier,
+            Self::Channel { exponent, factors } => {
+                let f = exponent.map_or(frequency, |e| frequency.powf(e));
+                numerator / (f * factors[0] * factors[1] * factors[2])
+            }
+        }
+    }
+
+    fn validate(&self) -> bool {
+        match *self {
+            Self::Area { area, exponent } => area.is_finite() && exponent.is_finite(),
+            Self::PerHertz => true,
+            Self::PerHertzTimes { multiplier } => multiplier.is_finite(),
+            Self::Channel { exponent, factors } => {
+                exponent.is_none_or(Real::is_finite) && factors.iter().all(|f| f.is_finite())
+            }
+        }
+    }
 }
 
 impl NoiseKind {
@@ -100,17 +157,8 @@ impl NoiseKind {
                 temperature,
             } => gain * 4.0 * BOLTZMANN * temperature * conductance,
             Self::Shot { current } => gain * 2.0 * CHARGE * current.abs(),
-            Self::Flicker {
-                coefficient,
-                exponent,
-            } => {
-                let power = if exponent == 1.0 {
-                    frequency
-                } else {
-                    frequency.powf(exponent)
-                };
-                gain * coefficient / power
-            }
+            // C: `noizDens = gain; noizDens *= <numerator> / <denominator>`.
+            Self::Flicker { numerator, law } => gain * law.apply(numerator, frequency),
         }
     }
 
@@ -121,10 +169,7 @@ impl NoiseKind {
                 temperature,
             } => conductance.is_finite() && temperature.is_finite() && temperature > 0.0,
             Self::Shot { current } => current.is_finite(),
-            Self::Flicker {
-                coefficient,
-                exponent,
-            } => coefficient.is_finite() && exponent.is_finite(),
+            Self::Flicker { numerator, law } => numerator.is_finite() && law.validate(),
         }
     }
 }
@@ -336,7 +381,7 @@ pub fn circuit_noise(
 
 #[cfg(test)]
 mod tests {
-    use super::{BOLTZMANN, CHARGE, NoiseKind};
+    use super::{BOLTZMANN, CHARGE, FlickerLaw, NoiseKind};
 
     #[test]
     fn densities_follow_nevalsrc() {
@@ -351,13 +396,16 @@ mod tests {
         let shot = NoiseKind::Shot { current: -1e-3 };
         assert_eq!(shot.output_density(1.0, 1.0), 2.0 * CHARGE * 1e-3);
         let flicker = NoiseKind::Flicker {
-            coefficient: 1e-12,
-            exponent: 1.0,
+            numerator: 1e-12,
+            law: FlickerLaw::PerHertz,
         };
         assert_eq!(flicker.output_density(1.0, 100.0), 1e-14);
         let steep = NoiseKind::Flicker {
-            coefficient: 1e-12,
-            exponent: 2.0,
+            numerator: 1e-12,
+            law: FlickerLaw::Area {
+                area: 1.0,
+                exponent: 2.0,
+            },
         };
         assert!((steep.output_density(1.0, 10.0) - 1e-14).abs() < 1e-28);
     }
@@ -374,8 +422,8 @@ mod tests {
         assert!(!NoiseKind::Shot { current: f64::NAN }.validate());
         assert!(
             NoiseKind::Flicker {
-                coefficient: 0.0,
-                exponent: 1.0
+                numerator: 0.0,
+                law: FlickerLaw::PerHertz
             }
             .validate()
         );
