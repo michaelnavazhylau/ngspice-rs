@@ -441,16 +441,19 @@ fn decks_round_trip_through_the_writer() {
 }
 
 #[test]
-fn the_transient_jacobian_matches_finite_differences_with_filters_and_charges() {
+fn the_transient_jacobian_matches_finite_differences_with_filters() {
     use ngspice_rs::devices::{Forcing, Limit, TransientTiming};
     use ngspice_rs::maths::integrator::{DEFAULT_XMU, IntegrationMethod, StepHistory};
-    // The incremental Statz charges (with their cross derivatives), CDS, the
-    // TAUG/TAUD filters and both modes: the Newton matrix is the exact
-    // derivative of the load's residual.
+    // The TAUG/TAUD filters in both modes: `PSids`' gm/gds are the exact
+    // derivatives of the filtered channel. The charges are zeroed because
+    // jfet2load.c stamps each Statz charge as a two-terminal capacitance
+    // (no cross derivatives) and leaves CDS's conductance out of the matrix,
+    // which the port reproduces.
     for (vd, vg) in [(3., -1.), (-0.6, -1.), (0.3, 0.4)] {
         let c = circuit(&format!(
             "vd d 0 {vd}\nvg g 0 {vg}\nj1 d g 0 jm 1.5 m=2\n\
-             .model jm njf(level=2 {FULL} acgam=0.1 xc=0.2 taug=20n taud=50n)"
+             .model jm njf(level=2 {FULL} acgam=0.1 xc=0.2 taug=20n taud=50n \
+             cgs=0 cgd=0 cds=0)"
         ))
         .unwrap();
         let solved = ngspice_rs::analysis::bias::solve_dc(
