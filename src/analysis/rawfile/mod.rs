@@ -52,7 +52,8 @@
 // They are intentional: they show the exact byte layout ngspice writes.
 #![allow(clippy::tabs_in_doc_comments)]
 
-use std::fs;
+use std::fs::{self, File};
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 
 use crate::primitives::{Complex, Real, SpiceError, SpiceResult};
@@ -223,42 +224,49 @@ impl RawFile {
     /// `complex` plot is written as `re,0.0` (see [`Variable::is_real`]).
     ///
     /// Trailing whitespace in header values is not reproduced, because parsing
-    /// trims it.
+    /// trims it. [`RawFile::write`] streams the same bytes to a file without
+    /// building them in memory.
     #[must_use]
     pub fn to_ascii(&self) -> String {
-        let mut out = String::new();
+        let mut bytes = Vec::new();
+        // Writing to a `Vec` cannot fail, and every byte comes from a `str`.
+        self.write_ascii(&mut bytes)
+            .expect("writing to a Vec<u8> is infallible");
+        String::from_utf8(bytes).expect("the ASCII form is rendered from UTF-8 text")
+    }
+
+    /// Streams the ASCII form into `out`; see [`RawFile::to_ascii`].
+    fn write_ascii(&self, out: &mut impl Write) -> io::Result<()> {
         for raw_plot in &self.plots {
             let plot = &raw_plot.plot;
-            render_header(&mut out, raw_plot);
-            out.push_str("Values:\n");
+            render_header(out, raw_plot)?;
+            out.write_all(b"Values:\n")?;
             for (point_index, point) in plot.points.iter().enumerate() {
-                out.push_str(&format!(" {point_index}"));
+                write!(out, " {point_index}")?;
                 for (column, value) in point.iter().enumerate() {
                     let is_real = plot
                         .variables
                         .get(column)
                         .is_some_and(|variable| variable.is_real);
-                    out.push_str(&format!(
-                        "\t{}\n",
-                        format_value(*value, plot.flags, is_real)
-                    ));
+                    writeln!(out, "\t{}", format_value(*value, plot.flags, is_real))?;
                 }
-                out.push('\n');
+                out.write_all(b"\n")?;
             }
         }
-        out
+        Ok(())
     }
 
     /// Writes the rawfile in ASCII format.
+    ///
+    /// The file is streamed through a buffer, so its contents are never held
+    /// in memory as a whole.
     ///
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] from [`RawFile::validate`], or
     /// [`SpiceError::Io`] when the file cannot be written.
     pub fn write(&self, path: impl AsRef<Path>) -> SpiceResult<()> {
-        self.validate()?;
-        let path = path.as_ref();
-        fs::write(path, self.to_ascii()).map_err(|error| SpiceError::io(path, &error))
+        self.write_with_format(path, RawFormat::Ascii)
     }
 
     /// Renders the rawfile in ngspice's binary format, little-endian.
@@ -282,27 +290,35 @@ impl RawFile {
     ///
     /// [`SpiceError::Numerical`] from [`RawFile::validate`].
     pub fn to_binary_with(&self, byte_order: BinaryByteOrder) -> SpiceResult<Vec<u8>> {
-        binary::render(self, byte_order)
+        self.validate()?;
+        let mut bytes = Vec::new();
+        binary::write(self, &mut bytes, byte_order).expect("writing to a Vec<u8> is infallible");
+        Ok(bytes)
     }
 
     /// Writes the rawfile in the requested encoding.
     ///
     /// [`RawFormat::Ascii`] writes exactly [`RawFile::to_ascii`];
-    /// [`RawFormat::Binary`] writes exactly [`RawFile::to_binary`].
+    /// [`RawFormat::Binary`] writes exactly [`RawFile::to_binary`]. Either is
+    /// streamed through a buffer rather than rendered in memory first, so
+    /// writing a long transient costs no second copy of its data.
     ///
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] from [`RawFile::validate`], or
     /// [`SpiceError::Io`] when the file cannot be written.
     pub fn write_with_format(&self, path: impl AsRef<Path>, format: RawFormat) -> SpiceResult<()> {
+        self.validate()?;
+        let path = path.as_ref();
+        let io_error = |error: io::Error| SpiceError::io(path, &error);
+        let mut out = BufWriter::new(File::create(path).map_err(io_error)?);
         match format {
-            RawFormat::Ascii => self.write(path),
-            RawFormat::Binary => {
-                let bytes = self.to_binary()?;
-                let path = path.as_ref();
-                fs::write(path, bytes).map_err(|error| SpiceError::io(path, &error))
-            }
+            RawFormat::Ascii => self.write_ascii(&mut out),
+            RawFormat::Binary => binary::write(self, &mut out, BinaryByteOrder::LittleEndian),
         }
+        .map_err(io_error)?;
+        // Flushed explicitly: dropping a `BufWriter` discards a write error.
+        out.flush().map_err(io_error)
     }
 }
 
@@ -312,22 +328,20 @@ impl RawFile {
 /// The ASCII form appends `Values:` and text; the binary form appends `Binary:`
 /// and a `double` payload. Keeping one renderer makes the two headers identical
 /// by construction.
-fn render_header(out: &mut String, raw_plot: &RawPlot) {
+fn render_header(out: &mut impl Write, raw_plot: &RawPlot) -> io::Result<()> {
     let plot = &raw_plot.plot;
-    out.push_str(&format!("Title: {}\n", raw_plot.title));
-    out.push_str(&format!("Date: {}\n", raw_plot.date));
-    out.push_str(&format!("Command: {}\n", raw_plot.command));
-    out.push_str(&format!("Plotname: {}\n", plot.plotname));
-    out.push_str(&format!("Flags: {}\n", plot.flags.as_rawfile()));
-    out.push_str(&format!("No. Variables: {}\n", plot.variables.len()));
-    out.push_str(&format!("No. Points: {}\n", plot.points.len()));
-    out.push_str("Variables:\n");
+    writeln!(out, "Title: {}", raw_plot.title)?;
+    writeln!(out, "Date: {}", raw_plot.date)?;
+    writeln!(out, "Command: {}", raw_plot.command)?;
+    writeln!(out, "Plotname: {}", plot.plotname)?;
+    writeln!(out, "Flags: {}", plot.flags.as_rawfile())?;
+    writeln!(out, "No. Variables: {}", plot.variables.len())?;
+    writeln!(out, "No. Points: {}", plot.points.len())?;
+    writeln!(out, "Variables:")?;
     for (index, variable) in plot.variables.iter().enumerate() {
-        out.push_str(&format!(
-            "\t{index}\t{}\t{}\n",
-            variable.name, variable.unit
-        ));
+        writeln!(out, "\t{index}\t{}\t{}", variable.name, variable.unit)?;
     }
+    Ok(())
 }
 
 /// A line cursor over rawfile text.
