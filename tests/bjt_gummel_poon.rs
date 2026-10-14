@@ -60,7 +60,13 @@ fn operating_point_obeys_independent_gummel_poon_equations_and_kcl() {
             pol * 3.,
             pol * 0.78
         ));
-        let p = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+        // Tight Newton tolerances: ngspice's defaults (reltol 1e-3) stop
+        // well short of the 1e-7 agreement checked here.
+        let p = run(
+            &mut c,
+            AnalysisKind::OperatingPoint,
+            &["rtol=1e-12", "vntol=1e-12"],
+        );
         let v = |name: &str| pol * p.value(&format!("v({name})"), 0).unwrap().re;
         let (vb, vc, ve) = (v("q1#base"), v("q1#collcx"), v("q1#emitter"));
         let (vbe, vbc) = (vb - ve, vb - vc);
@@ -172,11 +178,13 @@ fn residual(a: &SparseMatrix, b: &Vector, x: &Vector) -> Vec<f64> {
     r
 }
 
-/// The Newton matrix of every load is the exact Jacobian of its residual,
-/// in DC and with companion charges (including the `qbe(vbc)` cross term).
+/// The Newton matrix of every load (`bjtload.c`'s) is the exact Jacobian of
+/// its residual, in DC and with companion charges (including the
+/// `qbe(vbc)` cross term), when the base resistance is bias independent:
+/// like C, the load stamps `gx` alone and omits `d(gx)/dV`.
 #[test]
 fn newton_and_companion_jacobians_are_exact() {
-    let c = circuit(FULL);
+    let c = circuit(&FULL.replace("rb=200 rbm=20 irb=0.1m", "rb=200"));
     for temperature in [27., 90.] {
         let context = ModelContext::new(temperature, 27.);
         let (bias, history) = solved(&c, &context);

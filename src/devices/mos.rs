@@ -2,42 +2,74 @@
 //!
 //! ngspice implements every classic MOS level (`mos1/`, `mos2/`, `mos3/`,
 //! `mos6/`, `mos9/`) as a copy of one device frame around a level-specific
-//! drain-current routine. This module holds that frame once:
+//! drain-current block: `mos3load.c` is `mos1load.c` with the `moseq3`
+//! current, the effective width `W - 2 WD + XW` and length `L - 2 LD + XL`,
+//! and the cubic reverse junction law; `mos3acld.c`, `mos3pzld.c`,
+//! `mos3conv.c`, `mos3trun.c` and `mos3set.c`'s matrix allocation equal their
+//! level-1 counterparts. This module holds that frame once, as an
+//! operation-by-operation port of `mos1load.c`:
 //!
-//! - instance geometry and its schema (`mos1par.c`/`mos3par.c` share the same
-//!   setters), `off` and the `IC` vector;
-//! - the drain/source series resistances and the internal prime nodes
-//!   (`mos1set.c`/`mos1temp.c`);
-//! - the shared temperature quantities and the bulk junctions: saturation
-//!   currents, the two-step capacitance temperature factor and the depletion
-//!   charge with its `FC` continuation (`mos1temp.c`, `mos1load.c`);
+//! - voltage selection per `MODEINIT*` phase with `DEVpred`, `DEVfetlim`/
+//!   `DEVlimvds`/`DEVpnjlim` limiting and `Check`;
+//! - the bulk junction currents ([`ReverseLaw`]) and depletion charges with
+//!   their `f2/f3/f4` continuation above `FC * PB` (`mos1temp.c`);
 //! - Meyer's gate capacitances (`devsup.c` `DEVqmeyer`) and C's
-//!   state-averaged gate charge;
-//! - Newton limiting and start voltages (`DEVfetlim`/`DEVlimvds`/`DEVpnjlim`,
-//!   `MODEINITJCT`, `MODEINITFIX`), the `MOSconvTest` held-`off` check;
-//! - the real, small-signal (`mos1acld.c`) and pole-zero (`mos1pzld.c`) loads,
-//!   the truncation slots (`mos1trun.c`), `.dc @m[...]` instance sweeps and
-//!   instance observations.
+//!   state-averaged gate charge with `NIintegrate`;
+//! - the stamps in C's order, `MOS1convTest`, `MOS1acLoad`, the pole-zero
+//!   load, `MOS1trunc`'s slots, `.dc @m[...]` instance sweeps and the
+//!   `mos1noi.c` generators.
 //!
-//! A level plugs in through [`MosLevel`]: it owns its model schema and
-//! validated card, the temperature/process derivation that fills
-//! [`Operating`] (using [`Temperatures`] and [`Common::junctions`]), and the
-//! drain current with its derivatives in C's normalized device frame
-//! ([`MosLevel::drain_current`]). Levels choose the bulk-junction reverse law
-//! ([`ReverseLaw`]) and the internal node suffixes, and may provide `.noise`
-//! and `.disto` generators; the defaults are explicit `NotYetPorted` errors,
-//! never zeros. Levels whose frame differs (BSIM charge models, MOS6's
-//! separate channel model) can reuse the helpers without the generic device.
+//! A level plugs in through [`MosLevel`]: its model schema and validated
+//! card, its `mosXtemp.c` port that fills [`Operating`], the effective
+//! channel geometry and the drain current with its derivatives in C's
+//! normalized device frame ([`MosLevel::drain_current`]).
+//!
+//! The state vector holds C's `MOS1numStates` slots plus the instance values
+//! C keeps between loads.
+//!
+//! # Deliberate divergences
+//!
+//! - Bypass (`.options bypass`, off by default in ngspice) and `.sens`
+//!   perturbation loads are not ported; `.options fixlimit` is not ported
+//!   (C's default `DEVlimvds` in reverse mode always applies).
+//! - C's next-timepoint limiting reads `MOS1von` of the last load ever made,
+//!   which after a rejected timestep belongs to the rejected attempt; here it
+//!   is the last accepted point's.
+//! - The small-signal loads evaluate the bias unlimited: C's
+//!   `MODEINITSMSIG` load limits against the converged load's `CKTstate0`,
+//!   which the small-signal contexts do not supply (identical whenever the
+//!   converged load limited nothing).
+//! - `mos3load.c` stores `MODEINITSMSIG` gate charges from the
+//!   state-averaged capacitances where `mos1load.c` uses `2 * CKTstate0`;
+//!   no load or stamp reads those charges, and the shell keeps the level-1
+//!   form for both.
+//! - C warns and continues for a nonpositive effective length (level 1),
+//!   a nonpositive temperature-adjusted PHI/PB, or RSH with zero drain
+//!   squares (an infinite conductance). Here they are explicit errors.
+//!
+//! Instance `off` and initial conditions follow `mos1load.c`: `MODEINITJCT`
+//! starts at the `IC` vector (`type * ICVDS/ICVGS/ICVBS`) whenever one
+//! component is nonzero, also without `uic`, and at the default start
+//! otherwise (except in the `uic` initial load, which keeps all-zero
+//! conditions); unset components are taken from the external terminals
+//! under `uic` (`mos1ic.c`) and are zero otherwise. An `off` instance starts
+//! at zero and is held there through `MODEINITFIX`.
+
+use std::cell::OnceCell;
 
 use crate::devices::initial::InstanceInitial;
-use crate::devices::limiting::{self, Limiter, Linearization};
-use crate::devices::linear::nodal_stamp;
-use crate::devices::nonlinear::{JunctionPoint, stamp_junction};
+use crate::devices::limiting;
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
+use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
+use crate::devices::setup::CDeviceType;
 use crate::devices::{
-    Device, LinearContext, ModelContext, ModelFamily, ResolvedModel, StampContext,
+    Device, DeviceState, IterationPhase, LinearContext, ModelContext, ModelFamily, ResolvedModel,
+    StampContext,
 };
 use crate::maths::Vector;
 use crate::netlist::ast::DeviceInstance;
@@ -60,24 +92,44 @@ pub(super) const MAX_EXP_ARG: Real = 709.;
 /// `DEVqmeyer`'s lower bound on the saturation voltage.
 const MEYER_MIN_VDSAT: Real = 0.025;
 
-/// Slots of the state vector (C `MOS1numStates` layout, reordered so that
-/// every charge is directly followed by its derivative).
+/// Slots of the state vector: C's `MOS1numStates` layout (reordered so that
+/// every charge is directly followed by its derivative, as
+/// [`junction_companion`] expects), followed by the instance quantities C
+/// keeps in `MOS1instance` between loads. All values are device-frame
+/// (multiplied by the type), as in C.
 pub(super) mod slot {
+    /// C `MOS1qbd` (`MOS1cqbd` follows).
     pub(in crate::devices) const QBD: usize = 0;
+    /// C `MOS1qbs` (`MOS1cqbs` follows).
     pub(in crate::devices) const QBS: usize = 2;
-    /// Gate-source, gate-drain and gate-bulk Meyer charges (and derivatives).
+    /// C `MOS1qgs`, `MOS1qgd`, `MOS1qgb` (each followed by its current).
     pub(in crate::devices) const QG: [usize; 3] = [4, 6, 8];
-    /// Physical gate-source/gate-drain/gate-bulk voltages of the load.
-    pub(in crate::devices) const VG: [usize; 3] = [10, 11, 12];
-    /// Meyer half capacitances of the load (C `MOS1capgs`, ...).
-    pub(in crate::devices) const HALF: [usize; 3] = [13, 14, 15];
-    /// Limited `vbs`, `vgs`, `vds` and the load's `von` (C `MOS1vbs`,
-    /// `MOS1vgs`, `MOS1vds`, `MOS1von`), for the next load's limiting.
-    pub(in crate::devices) const LIMITED: usize = 16;
-    pub(in crate::devices) const COUNT: usize = 20;
+    /// C `MOS1vbs`, `MOS1vbd`, `MOS1vgs`, `MOS1vds`.
+    pub(in crate::devices) const VBS: usize = 10;
+    pub(in crate::devices) const VBD: usize = 11;
+    pub(in crate::devices) const VGS: usize = 12;
+    pub(in crate::devices) const VDS: usize = 13;
+    /// C `MOS1capgs`, `MOS1capgd`, `MOS1capgb` (`DEVqmeyer` halves).
+    pub(in crate::devices) const CAPG: [usize; 3] = [14, 15, 16];
+    /// C instance values: `MOS1von`, `MOS1vdsat`, `MOS1mode`, `MOS1cd`,
+    /// `MOS1cbs`, `MOS1cbd`, `MOS1gm`, `MOS1gds`, `MOS1gmbs`, `MOS1gbd`,
+    /// `MOS1gbs`, `MOS1capbd`, `MOS1capbs`.
+    pub(in crate::devices) const VON: usize = 17;
+    pub(in crate::devices) const VDSAT: usize = 18;
+    pub(in crate::devices) const MODE: usize = 19;
+    pub(in crate::devices) const CD: usize = 20;
+    pub(in crate::devices) const CBS: usize = 21;
+    pub(in crate::devices) const CBD: usize = 22;
+    pub(in crate::devices) const GM: usize = 23;
+    pub(in crate::devices) const GDS: usize = 24;
+    pub(in crate::devices) const GMBS: usize = 25;
+    pub(in crate::devices) const GBD: usize = 26;
+    pub(in crate::devices) const GBS: usize = 27;
+    pub(in crate::devices) const CAPBD: usize = 28;
+    pub(in crate::devices) const CAPBS: usize = 29;
+    pub(in crate::devices) const COUNT: usize = 30;
 }
 
-/// A schema entry.
 pub(super) const fn p(name: &'static str, unit: U, domain: D, default: Option<Real>) -> P {
     P {
         name,
@@ -87,8 +139,8 @@ pub(super) const fn p(name: &'static str, unit: U, domain: D, default: Option<Re
     }
 }
 
-/// Instance setters (`mos1par.c`, identical in `mos3par.c`). Defaults are
-/// C's `CKTdefaultMos*` values, whose `.options defl/defw/defad/defas/defm`
+/// Instance setters (`mos1par.c`; `mos3par.c` has the same set). Defaults
+/// are C's `CKTdefaultMos*` values, whose `.options defl/defw/defad/defas/defm`
 /// are rejected by the options layer.
 const INSTANCE: &[P] = &[
     p("m", U::Dimensionless, D::Positive, Some(1.)),
@@ -107,7 +159,7 @@ const INSTANCE: &[P] = &[
 /// The `IC` vector components (`mos1par.c`): `ICVDS`, `ICVGS`, `ICVBS`.
 const IC_COMPONENTS: [&str; 3] = ["icvds", "icvgs", "icvbs"];
 
-/// A schema value that has a default, so it is always present.
+/// A schema-defaulted value; `label` names the level in the diagnostic.
 pub(super) fn required(values: &ScalarValues, name: &str, label: &str) -> SpiceResult<Real> {
     values
         .get(name)
@@ -125,20 +177,21 @@ pub(super) fn aliased(values: &ScalarValues, names: [&str; 2]) -> Option<Real> {
         .map(|v| v.value)
 }
 
-/// Band gap of silicon at `kelvin` (`mos1temp.c`).
+/// Band gap of silicon at `kelvin` (`mos1temp.c`, `mos3temp.c`).
 pub(super) fn band_gap(kelvin: Real) -> Real {
     1.16 - (7.02e-4 * kelvin * kelvin) / (kelvin + 1108.)
 }
 
-/// The `pbfact` potential correction of `mos1temp.c` at `kelvin`.
-fn potential_factor(kelvin: Real) -> Real {
+/// The `pbfact` potential correction of `mos1temp.c`/`mos3temp.c` at
+/// `kelvin`.
+pub(super) fn potential_factor(kelvin: Real) -> Real {
     let vt = kelvin * K_OVER_Q;
     let kt = BOLTZMANN * kelvin;
     let arg = -band_gap(kelvin) / (kt + kt) + 1.1150877 / (BOLTZMANN * (REFTEMP + REFTEMP));
     -2. * vt * (1.5 * (kelvin / REFTEMP).ln() + CHARGE * arg)
 }
 
-/// Model setters every classic level shares, validated from the level's own
+/// Model setters every classic level shares, read from the level's own
 /// schema (which must contain these names, with defaults where C defaults
 /// them). `None` records C's "not given".
 #[derive(Debug, Clone, Copy)]
@@ -171,18 +224,21 @@ pub(super) struct Common {
 }
 
 impl Common {
-    /// The shared setters of a validated model card. `noise_file` names the
-    /// level's C noise routine in the NLEV diagnostic.
+    /// The shared setters of a validated model card, with C's shared checks
+    /// (TPG is an integer setter, the junction gradings stay below one).
+    /// `label` names the level and `noise_file` its C noise routine in
+    /// diagnostics.
     pub(super) fn from_values(
         m: &ScalarValues,
         family: ModelFamily,
+        tpg: Option<Real>,
         label: &str,
         noise_file: &str,
     ) -> SpiceResult<Self> {
         let pol = if family == ModelFamily::Pmos { -1. } else { 1. };
         let get = |name: &str| m.get(name).map(|v| v.value);
         let required = |name: &str| required(m, name, label);
-        Ok(Self {
+        let common = Self {
             pol,
             rd: get("rd"),
             rs: get("rs"),
@@ -216,103 +272,26 @@ impl Common {
                 rounded as u8
             },
             gdsnoi: required("gdsnoi")?,
-        })
-    }
-
-    /// C's checks every level shares after the card is read: TPG is an
-    /// integer setter and the junction gradings stay below one.
-    pub(super) fn check(&self, tpg: Option<Real>, label: &str) -> SpiceResult<()> {
+        };
         if tpg.is_some_and(|tpg| tpg.fract() != 0.) {
             return Err(SpiceError::circuit(format!(
                 "{label} TPG must be an integer"
             )));
         }
-        if self.mj >= 1. || self.mjsw >= 1. || self.fc >= 1. {
+        if common.mj >= 1. || common.mjsw >= 1. || common.fc >= 1. {
             return Err(SpiceError::circuit(format!(
                 "{label} requires MJ, MJSW and FC below 1"
             )));
         }
-        Ok(())
-    }
-
-    /// The bulk junctions of one instance at the temperatures `t`
-    /// (`mos1temp.c`/`mos3temp.c`, identical in both levels): temperature-
-    /// scaled saturation currents (area-scaled through JS when both areas are
-    /// given), the junction potential and the two-step capacitance factor.
-    pub(super) fn junctions(
-        &self,
-        t: &Temperatures,
-        geometry: &Geometry,
-        reverse: ReverseLaw,
-    ) -> Junctions {
-        let scale = (-t.egfet / t.vt + t.egfet1 / t.vtnom).exp();
-        let (saturation, density) = (self.is * scale, self.js * scale);
-        let pbo = (self.pb - t.pbfact1) / t.fact1;
-        let gmaold = (self.pb - pbo) / pbo;
-        let potential = t.fact2 * pbo + t.pbfact;
-        let gmanew = (potential - pbo) / pbo;
-        let (temp, tnom) = (t.temp, t.tnom);
-        // Two-step capacitance temperature factor of `mos1temp.c`.
-        let factor = |grading: Real| {
-            (1. + grading * (4e-4 * (temp - REFTEMP) - gmanew))
-                / (1. + grading * (4e-4 * (tnom - REFTEMP) - gmaold))
-        };
-        let (bottom, side) = (factor(self.mj), factor(self.mjsw));
-        let m = geometry.m;
-        let bottom_cap = |given: Option<Real>, area: Real| match (given, self.cj) {
-            (Some(c), _) => c * bottom * m,
-            (None, Some(cj)) => cj * bottom * m * area,
-            (None, None) => 0.,
-        };
-        let side_cap = |perimeter: Real| self.cjsw.map_or(0., |c| c * side * perimeter * m);
-        let (sat_d, sat_s) = if density == 0. || geometry.ad == 0. || geometry.as_ == 0. {
-            (m * saturation, m * saturation)
-        } else {
-            (density * m * geometry.ad, density * m * geometry.as_)
-        };
-        let junction = |saturation, bottom, sidewall| Junction {
-            saturation,
-            bottom,
-            sidewall,
-            mj: self.mj,
-            mjsw: self.mjsw,
-            potential,
-            fc: self.fc,
-            reverse,
-        };
-        Junctions {
-            drain: junction(
-                sat_d,
-                bottom_cap(self.cbd, geometry.ad),
-                side_cap(geometry.pd),
-            ),
-            source: junction(
-                sat_s,
-                bottom_cap(self.cbs, geometry.as_),
-                side_cap(geometry.ps),
-            ),
-            potential,
-            factors: [bottom, side],
-        }
+        Ok(common)
     }
 }
 
-/// The two bulk junctions of an instance.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct Junctions {
-    pub(super) drain: Junction,
-    pub(super) source: Junction,
-    /// C `MOSxtBulkPot`.
-    pub(super) potential: Real,
-    /// The bottom and sidewall capacitance temperature factors.
-    pub(super) factors: [Real; 2],
-}
-
-/// Validated instance geometry.
+/// Validated instance geometry (drawn sizes; the level derives the
+/// effective channel).
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Geometry {
     pub(super) m: Real,
-    /// Drawn length and width (the level derives the effective ones).
     pub(super) l: Real,
     pub(super) w: Real,
     pub(super) ad: Real,
@@ -325,82 +304,50 @@ pub(super) struct Geometry {
     pub(super) dtemp: Real,
 }
 
-/// The nominal and device temperatures of one load and the `mos1temp.c`
-/// quantities derived from them.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct Temperatures {
-    /// Nominal (TNOM) and device temperature in kelvin.
-    pub(super) tnom: Real,
-    pub(super) temp: Real,
-    pub(super) vt: Real,
-    pub(super) vtnom: Real,
-    pub(super) egfet: Real,
-    pub(super) egfet1: Real,
-    pub(super) fact1: Real,
-    pub(super) fact2: Real,
-    pub(super) pbfact: Real,
-    pub(super) pbfact1: Real,
-    /// `temp / tnom`.
-    pub(super) ratio: Real,
-}
-
-impl Temperatures {
-    /// TNOM defaults to `.options tnom`; the instance runs at TEMP, or the
-    /// circuit temperature plus DTEMP.
-    pub(super) fn new(
-        tnom: Option<Real>,
-        geometry: &Geometry,
-        context: &ModelContext,
-        name: &str,
-        label: &str,
-    ) -> SpiceResult<Self> {
-        let tnom = tnom.unwrap_or(context.nominal_temperature) + CELSIUS_TO_KELVIN;
-        let temp = geometry
-            .temp
-            .unwrap_or(context.temperature + geometry.dtemp)
-            + CELSIUS_TO_KELVIN;
-        if !(tnom.is_finite() && tnom > 0. && temp.is_finite() && temp > 0.) {
-            return Err(SpiceError::circuit(format!(
-                "{name}: invalid {label} temperature"
-            )));
+impl Geometry {
+    /// C's instance temperature in kelvin: `TEMP`, or `CKTtemp + DTEMP`
+    /// with `CKTtemp` in kelvin.
+    pub(super) fn kelvin(&self, context: &ModelContext) -> Real {
+        match self.temp {
+            Some(t) => t + CELSIUS_TO_KELVIN,
+            None => (context.temperature + CELSIUS_TO_KELVIN) + self.dtemp,
         }
-        Ok(Self {
-            tnom,
-            temp,
-            vt: temp * K_OVER_Q,
-            vtnom: tnom * K_OVER_Q,
-            egfet: band_gap(temp),
-            egfet1: band_gap(tnom),
-            fact1: tnom / REFTEMP,
-            fact2: temp / REFTEMP,
-            pbfact: potential_factor(temp),
-            pbfact1: potential_factor(tnom),
-            ratio: temp / tnom,
-        })
     }
 }
 
 /// The bulk-junction current below `-3 Vt` in reverse bias.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ReverseLaw {
-    /// `mos1load.c`: the constant reverse saturation current `-Is`.
+    /// `mos1load.c`: `gbs = gmin`, `cbs = gbs * vbs - Is`.
     Constant,
-    /// `mos3load.c`: `-Is (1 + (3 Vt / (v e))^3)` with its derivative, which
-    /// joins the forward law with continuous value and slope.
+    /// `mos3load.c`: `-Is (1 + (3 Vt / (v e))^3) + gmin v` with its
+    /// derivative, which joins the forward law with continuous value and
+    /// slope.
     Cubic,
 }
 
-/// One side's bulk junction: zero-bias bottom/sidewall capacitances at the
-/// device temperature and the temperature-adjusted potential.
+/// One side's bulk junction at the device temperature (`mos1temp.c`), in
+/// C's instance quantities.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Junction {
+    /// C `DrainSatCur`/`SourceSatCur` of `mos1load.c` (M included).
     pub(super) saturation: Real,
+    /// C `MOS1drainVcrit`/`MOS1sourceVcrit`.
+    pub(super) vcrit: Real,
+    /// C `MOS1Cbd`/`MOS1Cbs` (bottom) and `MOS1Cbdsw`/`MOS1Cbssw`.
     pub(super) bottom: Real,
     pub(super) sidewall: Real,
     pub(super) mj: Real,
     pub(super) mjsw: Real,
+    /// C `MOS1tBulkPot`.
     pub(super) potential: Real,
     pub(super) fc: Real,
+    /// C `MOS1tDepCap`.
+    pub(super) depletion: Real,
+    /// C `MOS1f2d/f3d/f4d` (or the `s` set).
+    pub(super) f2: Real,
+    pub(super) f3: Real,
+    pub(super) f4: Real,
     pub(super) reverse: ReverseLaw,
 }
 
@@ -414,89 +361,120 @@ fn grading_power(arg: Real, grading: Real) -> Real {
 }
 
 impl Junction {
-    /// Depletion charge and capacitance at the polarity-normalized bulk
-    /// voltage `v` (`mos1load.c`, linear continuation above `FC * PB` with the
-    /// `f2/f3/f4` coefficients of `mos1temp.c`).
-    pub(super) fn charge(&self, v: Real) -> (Real, Real) {
-        if self.bottom == 0. && self.sidewall == 0. {
-            return (0., 0.);
-        }
-        let pb = self.potential;
-        if v < self.fc * pb {
-            let arg = 1. - v / pb;
-            let sarg = grading_power(arg, self.mj);
-            let sargsw = grading_power(arg, self.mjsw);
-            (
-                pb * (self.bottom * (1. - arg * sarg) / (1. - self.mj)
-                    + self.sidewall * (1. - arg * sargsw) / (1. - self.mjsw)),
-                self.bottom * sarg + self.sidewall * sargsw,
-            )
-        } else {
-            let arg = 1. - self.fc;
-            let sarg = (-self.mj * arg.ln()).exp();
-            let sargsw = (-self.mjsw * arg.ln()).exp();
-            let f2 = self.bottom * (1. - self.fc * (1. + self.mj)) * sarg / arg
-                + self.sidewall * (1. - self.fc * (1. + self.mjsw)) * sargsw / arg;
-            let f3 = self.bottom * self.mj * sarg / arg / pb
-                + self.sidewall * self.mjsw * sargsw / arg / pb;
-            let depletion = self.fc * pb;
-            let f4 = self.bottom * pb * (1. - arg * sarg) / (1. - self.mj)
-                + self.sidewall * pb * (1. - arg * sargsw) / (1. - self.mjsw)
-                - f3 / 2. * depletion * depletion
-                - depletion * f2;
-            (f4 + v * (f2 + v * f3 / 2.), f2 + f3 * v)
+    /// `mos1temp.c`/`mos3temp.c`: the junction of one side from its
+    /// zero-bias bottom and sidewall capacitances, with the `f2/f3/f4` linear
+    /// continuation above `FC * PB` in C's arithmetic.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new(
+        saturation: Real,
+        vcrit: Real,
+        bottom: Real,
+        sidewall: Real,
+        mj: Real,
+        mjsw: Real,
+        potential: Real,
+        fc: Real,
+        reverse: ReverseLaw,
+    ) -> Self {
+        let depletion = fc * potential;
+        let arg = 1. - fc;
+        let sarg = (-mj * arg.ln()).exp();
+        let sargsw = (-mjsw * arg.ln()).exp();
+        let f2 = bottom * (1. - fc * (1. + mj)) * sarg / arg
+            + sidewall * (1. - fc * (1. + mjsw)) * sargsw / arg;
+        let f3 = bottom * mj * sarg / arg / potential + sidewall * mjsw * sargsw / arg / potential;
+        let f4 = bottom * potential * (1. - arg * sarg) / (1. - mj)
+            + sidewall * potential * (1. - arg * sargsw) / (1. - mjsw)
+            - f3 / 2. * (depletion * depletion)
+            - depletion * f2;
+        Self {
+            saturation,
+            vcrit,
+            bottom,
+            sidewall,
+            mj,
+            mjsw,
+            potential,
+            fc,
+            depletion,
+            f2,
+            f3,
+            f4,
+            reverse,
         }
     }
 
-    /// Current, conductance (with `gmin`), charge and capacitance in physical
-    /// terms for the bulk-to-node voltage `v` ([`ReverseLaw`] below `-3 Vt`).
-    pub(super) fn point(
-        &self,
-        v: Real,
-        pol: Real,
-        vt: Real,
-        gmin: Real,
-    ) -> SpiceResult<JunctionPoint> {
-        let normalized = pol * v;
-        let (current, conductance) = if normalized <= -3. * vt {
+    /// Depletion charge and capacitance at the device-frame bulk voltage `v`
+    /// (`mos1load.c`). Above `FC * PB` C writes the bulk-drain and
+    /// bulk-source polynomials with different association, kept here.
+    pub(super) fn charge(&self, v: Real, drain: bool) -> (Real, Real) {
+        if self.bottom == 0. && self.sidewall == 0. {
+            return (0., 0.);
+        }
+        if v < self.depletion {
+            let arg = 1. - v / self.potential;
+            let sarg = grading_power(arg, self.mj);
+            let sargsw = grading_power(arg, self.mjsw);
+            (
+                self.potential
+                    * (self.bottom * (1. - arg * sarg) / (1. - self.mj)
+                        + self.sidewall * (1. - arg * sargsw) / (1. - self.mjsw)),
+                self.bottom * sarg + self.sidewall * sargsw,
+            )
+        } else if drain {
+            (
+                self.f4 + v * (self.f2 + v * self.f3 / 2.),
+                self.f2 + v * self.f3,
+            )
+        } else {
+            (
+                self.f4 + v * (self.f2 + v * (self.f3 / 2.)),
+                self.f2 + self.f3 * v,
+            )
+        }
+    }
+
+    /// The junction current and conductance with `gmin` at the device-frame
+    /// voltage `v` (`mos1load.c`, `mos3load.c`).
+    pub(super) fn current(&self, v: Real, vt: Real, gmin: Real) -> (Real, Real) {
+        if v <= -3. * vt {
             match self.reverse {
-                ReverseLaw::Constant => (-self.saturation, 0.),
+                ReverseLaw::Constant => (gmin * v - self.saturation, gmin),
                 ReverseLaw::Cubic => {
-                    let arg = 3. * vt / (normalized * std::f64::consts::E);
+                    // C `CONSTe` is exp(1.0).
+                    let arg = 3. * vt / (v * std::f64::consts::E);
                     let arg = arg * arg * arg;
                     (
-                        -self.saturation * (1. + arg),
-                        self.saturation * 3. * arg / normalized,
+                        -self.saturation * (1. + arg) + gmin * v,
+                        self.saturation * 3. * arg / v + gmin,
                     )
                 }
             }
         } else {
-            let e = (normalized / vt).min(MAX_EXP_ARG).exp();
-            (self.saturation * (e - 1.), self.saturation * e / vt)
-        };
-        let (charge, capacitance) = self.charge(normalized);
-        let point = JunctionPoint {
-            current: pol * current + gmin * v,
-            conductance: conductance + gmin,
-            charge: pol * charge,
-            capacitance,
-        };
-        point.validate()?;
-        Ok(point)
+            let e = (v / vt).min(MAX_EXP_ARG).exp();
+            (
+                self.saturation * (e - 1.) + gmin * v,
+                self.saturation * e / vt + gmin,
+            )
+        }
     }
 }
 
-/// Every temperature- and geometry-dependent quantity of one load. The
-/// fields are what the shell needs; `params` is the level's own part.
+/// Every temperature- and geometry-dependent quantity of one load (the
+/// `mosXtemp.c` instance values and the start of `mosXload.c`); `params`
+/// is the level's own part.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Operating<C> {
     pub(super) vt: Real,
+    /// C `Beta`: `tKP * m * Weff / Leff`.
+    pub(super) beta: Real,
     /// C `MOSxtVbi`.
     pub(super) vbi: Real,
     /// C `MOSxtPhi`.
     pub(super) phi: Real,
-    /// The model GAMMA (given or extracted), for `tVto = tVbi + type gamma
-    /// sqrt(tPhi)`.
+    /// C `MOSxtVto`.
+    pub(super) vto: Real,
+    /// The model GAMMA (given or extracted).
     pub(super) gamma: Real,
     /// C `OxideCap`: `cox * Leff * m * Weff`.
     pub(super) oxide: Real,
@@ -508,13 +486,69 @@ pub(super) struct Operating<C> {
     pub(super) params: C,
 }
 
+impl<C> Operating<C> {
+    /// The shell's range checks after a level's temperature derivation:
+    /// `extra` are further level values that must be finite, `factors` the
+    /// junction capacitance temperature factors that must be nonnegative.
+    ///
+    /// # Errors
+    /// A nonfinite value, or a nonpositive PHI/PB/Beta/saturation current
+    /// after temperature scaling.
+    pub(super) fn check(
+        &self,
+        name: &str,
+        label: &str,
+        temp: Real,
+        extra: &[Real],
+        factors: &[Real],
+    ) -> SpiceResult<()> {
+        let finite = [
+            self.vt,
+            self.beta,
+            self.vbi,
+            self.vto,
+            self.gamma,
+            self.oxide,
+            self.drain.saturation,
+            self.source.saturation,
+            self.drain.vcrit,
+            self.source.vcrit,
+            self.drain.bottom,
+            self.drain.sidewall,
+            self.source.bottom,
+            self.source.sidewall,
+            self.drain.f4,
+            self.source.f4,
+            self.overlap[0],
+            self.overlap[1],
+            self.overlap[2],
+        ]
+        .iter()
+        .chain(extra)
+        .all(|v| v.is_finite());
+        let (phi, potential) = (self.phi, self.drain.potential);
+        if !(finite && phi.is_finite() && phi > 0. && potential.is_finite() && potential > 0.)
+            || self.beta <= 0.
+            || self.drain.saturation <= 0.
+            || self.source.saturation <= 0.
+            || factors.iter().any(|f| !f.is_finite() || *f < 0.)
+        {
+            return Err(SpiceError::circuit(format!(
+                "{name}: {label} parameters are out of range at {temp:.2} K \
+                 (nonfinite value, or nonpositive PHI/PB/KP/IS after temperature scaling)"
+            )));
+        }
+        Ok(())
+    }
+}
+
 /// A level's drain current in C's normalized device frame (`vds >= 0` after
 /// the drain/source interchange, polarity removed), with C's derivatives
-/// (`MOSxgm`, `MOSxgds`, `MOSxgmbs`) and the `von`/`vdsat` its Meyer
+/// (`MOSxgm`, `MOSxgds`, `MOSxgmbs`) and the local `von`/`vdsat` the Meyer
 /// capacitances and limiting use.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct DrainCurrent {
-    pub(super) current: Real,
+    pub(super) cdrain: Real,
     pub(super) gm: Real,
     pub(super) gds: Real,
     pub(super) gmbs: Real,
@@ -522,28 +556,33 @@ pub(super) struct DrainCurrent {
     pub(super) vdsat: Real,
 }
 
-/// The level-specific inputs of [`Mosfet::classic_noise`].
+/// The level-specific inputs of the `mosXnoi.c` generators.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct NoiseShape {
-    /// C's device type, for the `.noise` visiting order.
-    pub(super) family: crate::devices::noise::NoiseFamily,
     /// The NLEV 3 channel-noise `beta`.
     pub(super) beta: Real,
-    /// Width, length and oxide capacitance per area of the flicker laws.
+    /// Width and length of the flicker laws.
     pub(super) width: Real,
     pub(super) length: Real,
+    /// The oxide capacitance factor the NLEV 0..3 laws divide by, and the
+    /// square the SPICE3-compatible law divides by.
     pub(super) cox: Real,
+    pub(super) cox_squared: Real,
 }
 
 /// What a MOS level supplies to the shared shell. See the module
 /// documentation.
-pub(super) trait MosLevel: std::fmt::Debug + Clone + Sized + 'static {
+pub(super) trait MosLevel: std::fmt::Debug + Clone + Copy + Sized + 'static {
     /// The level's temperature-dependent channel parameters.
     type Params: std::fmt::Debug + Clone + Copy;
     /// The model `level` selector this implementation serves.
     const LEVEL: u8;
     /// Diagnostic label, e.g. `MOS1`.
     const LABEL: &'static str;
+    /// The C device type (`mos1`, `mos3`) for the setup/load order.
+    const DEVICE_TYPE: CDeviceType;
+    /// C's device type for the `.noise` visiting order.
+    const NOISE_FAMILY: NoiseFamily;
     /// `CKTmkVolt` suffixes of the internal drain and source nodes.
     const PRIME_SUFFIXES: [&'static str; 2];
 
@@ -563,7 +602,8 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Sized + 'static {
     /// A nonpositive effective length or width.
     fn check_geometry(&self, name: &str, geometry: &Geometry) -> SpiceResult<()>;
 
-    /// The temperature-, process- and geometry-dependent values of one load.
+    /// The temperature-, process- and geometry-dependent values of one load
+    /// (`mosXtemp.c` and the start of `mosXload.c`).
     ///
     /// # Errors
     /// Parameters out of range at the device temperature.
@@ -574,33 +614,19 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Sized + 'static {
         context: &ModelContext,
     ) -> SpiceResult<Operating<Self::Params>>;
 
-    /// The drain current at normalized device-frame `vgs`, `vds >= 0`,
-    /// `vbs` (`vgd`/`vbd` of the instance in inverse mode).
+    /// The drain-current block of `mosXload.c` at the normalized
+    /// device-frame gate voltage `vgx` (`vgs`, or `vgd` in inverse mode),
+    /// `vdsm = vds * mode >= 0` and bulk voltage `vbx` (`vbs` or `vbd`).
     fn drain_current(
         &self,
         op: &Operating<Self::Params>,
-        vgs: Real,
-        vds: Real,
-        vbs: Real,
+        vgx: Real,
+        vdsm: Real,
+        vbx: Real,
     ) -> DrainCurrent;
 
-    /// `.noise` generators (`mosXnoi.c`).
-    ///
-    /// # Errors
-    /// [`SpiceError::NotYetPorted`] unless the level ports its noise routine.
-    fn noise(
-        device: &Mosfet<Self>,
-        _context: &crate::devices::noise::NoiseContext<'_>,
-    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
-        Err(SpiceError::not_yet_ported(
-            format!("{} noise of {}", Self::LABEL, device.name),
-            format!(
-                "src/spicelib/devices/mos{}/mos{}noi.c",
-                Self::LEVEL,
-                Self::LEVEL
-            ),
-        ))
-    }
+    /// The `mosXnoi.c` beta, width, length and oxide capacitance factors.
+    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Self::Params>) -> NoiseShape;
 
     /// `.disto` terms (`mosXdset.c`/`mosXdist.c`).
     ///
@@ -621,26 +647,9 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Sized + 'static {
     }
 }
 
-/// The channel at one bias, in physical terms.
-#[derive(Debug, Clone, Copy)]
-pub(super) struct Channel {
-    /// Effective drain and source (swapped in inverse mode).
-    pub(super) ports: [NodeId; 2],
-    /// Current from `ports[0]` through the channel to `ports[1]`.
-    pub(super) current: Real,
-    /// `[(drain, gds), (gate, gm), (source, -gds - gm - gmbs), (bulk, gmbs)]`.
-    pub(super) partials: [(NodeId, Real); 4],
-    /// Polarity-normalized `von` and `vdsat` (`mos1load.c` locals).
-    pub(super) von: Real,
-    pub(super) vdsat: Real,
-    pub(super) normal: bool,
-    /// `sum(partial * voltage)` at the evaluated voltages (the Newton
-    /// linearization point, which limiting may move off the iterate).
-    pub(super) linearized: Real,
-}
-
-/// `DEVqmeyer`: half of the bias-dependent gate-source, gate-drain and
-/// gate-bulk capacitances, from polarity-normalized voltages.
+/// `DEVqmeyer` (`devsup.c`): half of the bias-dependent gate-source,
+/// gate-drain and gate-bulk capacitances `[capgs, capgd, capgb]`, from
+/// device-frame voltages, in C's arithmetic.
 pub(super) fn meyer(
     vgs: Real,
     vgd: Real,
@@ -650,52 +659,100 @@ pub(super) fn meyer(
     cox: Real,
 ) -> [Real; 3] {
     let vgst = vgs - von;
-    let vdsat = vdsat.max(MEYER_MIN_VDSAT);
-    let vds = vgs - vgd;
-    // The drain share of a capacitance `c` below saturation.
-    let split = |c: Real| {
-        let vddif = 2. * vdsat - vds;
-        let vddif1 = vdsat - vds;
-        let vddif2 = vddif * vddif;
-        (
-            c * (1. - vddif1 * vddif1 / vddif2),
-            c * (1. - vdsat * vdsat / vddif2),
-        )
+    let vdsat = if vdsat > MEYER_MIN_VDSAT {
+        vdsat
+    } else {
+        MEYER_MIN_VDSAT
     };
     if vgst <= -phi {
         [0., 0., cox / 2.]
     } else if vgst <= -phi / 2. {
         [0., 0., -vgst * cox / (2. * phi)]
     } else if vgst <= 0. {
-        let gb = -vgst * cox / (2. * phi);
-        let gs = vgst * cox / (1.5 * phi) + cox / 3.;
+        let capgb = -vgst * cox / (2. * phi);
+        let capgs = vgst * cox / (1.5 * phi) + cox / 3.;
+        let vds = vgs - vgd;
         if vds >= vdsat {
-            [gs, 0., gb]
+            [capgs, 0., capgb]
         } else {
-            let (gs, gd) = split(gs);
-            [gs, gd, gb]
+            let vddif = 2.0 * vdsat - vds;
+            let vddif1 = vdsat - vds;
+            let vddif2 = vddif * vddif;
+            [
+                capgs * (1.0 - vddif1 * vddif1 / vddif2),
+                capgs * (1.0 - vdsat * vdsat / vddif2),
+                capgb,
+            ]
         }
-    } else if vdsat <= vds {
-        [cox / 3., 0., 0.]
     } else {
-        let (gs, gd) = split(cox / 3.);
-        [gs, gd, 0.]
+        let vds = vgs - vgd;
+        if vdsat <= vds {
+            [cox / 3., 0., 0.]
+        } else {
+            let vddif = 2.0 * vdsat - vds;
+            let vddif1 = vdsat - vds;
+            let vddif2 = vddif * vddif;
+            [
+                cox * (1.0 - vddif1 * vddif1 / vddif2) / 3.,
+                cox * (1.0 - vdsat * vdsat / vddif2) / 3.,
+                0.,
+            ]
+        }
     }
 }
 
-/// Everything one bias point loads.
+/// What one `MOS1load` evaluation computes at device-frame voltages, before
+/// any charge integration (C keeps most of it in the instance).
 #[derive(Debug, Clone, Copy)]
-pub(super) struct Point {
-    pub(super) channel: Channel,
-    pub(super) bd: JunctionPoint,
-    pub(super) bs: JunctionPoint,
-    /// Physical `vgs`, `vgd`, `vgb` (internal drain/source nodes).
-    pub(super) gate: [Real; 3],
-    /// Meyer half capacitances for gate-source, gate-drain, gate-bulk.
+pub(super) struct Eval {
+    pub(super) vbs: Real,
+    pub(super) vbd: Real,
+    pub(super) vgs: Real,
+    pub(super) vds: Real,
+    pub(super) vgd: Real,
+    pub(super) vgb: Real,
+    /// C `MOS1mode` (1 normal, -1 inverse).
+    pub(super) mode: Real,
+    pub(super) cdrain: Real,
+    pub(super) gm: Real,
+    pub(super) gds: Real,
+    pub(super) gmbs: Real,
+    pub(super) gbs: Real,
+    pub(super) cbs: Real,
+    pub(super) gbd: Real,
+    pub(super) cbd: Real,
+    /// C `MOS1cd`: `mode * cdrain - cbd`.
+    pub(super) cd: Real,
+    /// `mos1load.c`'s local (device-frame) `von` and `vdsat`.
+    pub(super) von: Real,
+    pub(super) vdsat: Real,
+    pub(super) qbs: Real,
+    pub(super) capbs: Real,
+    pub(super) qbd: Real,
+    pub(super) capbd: Real,
+    /// `DEVqmeyer`'s `[capgs, capgd, capgb]` (C `CKTstate0` `MOS1capgs`...).
     pub(super) half: [Real; 3],
 }
 
-/// A classic MOSFET: the shared frame around level `L`'s drain current.
+/// How `mos1load.c` obtained the voltages of one load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Start {
+    /// The `uic` initial load (`MODETRANOP | MODEUIC | MODEINITJCT`).
+    Conditions,
+    /// A load outside a device-limited Newton solve: the supplied solution.
+    Exact,
+    /// `MODEINITJCT`: start voltages, always nonconvergent.
+    Junction,
+    /// An `off` instance in `MODEINITFIX`: zero, exempt from `Check`.
+    HeldOff,
+    /// `MODEINITPRED`/`MODEINITTRAN` (`DEVpred` extrapolation) or
+    /// `MODEINITFLOAT`/`MODEINITFIX` (the iterate), then limited.
+    Limited,
+}
+
+/// A classic MOSFET: the shared frame around level `L`'s drain current, with
+/// series resistance, junction geometry, Meyer gate charge and temperature
+/// scaling.
 #[derive(Debug)]
 pub(super) struct Mosfet<L: MosLevel> {
     pub(super) name: String,
@@ -709,12 +766,16 @@ pub(super) struct Mosfet<L: MosLevel> {
     pub(super) geometry: Geometry,
     /// Drain/source series conductances (zero without an internal node).
     pub(super) series: [Real; 2],
-    /// `OFF` and `ICVDS`/`ICVGS`/`ICVBS` (C `MOSxoff`, `MOSxicV*`).
+    /// `OFF` and `ICVDS`/`ICVGS`/`ICVBS` (C `MOS1off`, `MOS1icV*`).
     pub(super) initial: InstanceInitial,
+    /// The derivation at the first circuit and nominal temperature it was
+    /// asked for, which C's `MOSxtemp` computes once; it depends on nothing
+    /// else, so loads reuse it.
+    pub(super) derived: OnceCell<(Real, Real, Operating<L::Params>)>,
 }
 
 impl<L: MosLevel> Mosfet<L> {
-    pub(super) fn instantiate(
+    pub(crate) fn instantiate(
         i: &DeviceInstance,
         nodes: &mut NodeTable,
         resolved: &ResolvedModel<'_>,
@@ -758,6 +819,7 @@ impl<L: MosLevel> Mosfet<L> {
             geometry,
             series,
             initial,
+            derived: OnceCell::new(),
         };
         // Validate every derivation before interning nodes.
         device.operating(context)?;
@@ -812,150 +874,259 @@ impl<L: MosLevel> Mosfet<L> {
 
     /// The temperature-, process- and geometry-dependent values of one load.
     pub(super) fn operating(&self, context: &ModelContext) -> SpiceResult<Operating<L::Params>> {
-        self.model.operating(&self.name, &self.geometry, context)
-    }
-
-    /// The channel evaluation at physical voltages `v` of d', g, s', b:
-    /// C's drain/source interchange around the level's drain current.
-    pub(super) fn channel(&self, op: &Operating<L::Params>, v: [Real; 4]) -> SpiceResult<Channel> {
-        let pol = self.model.common().pol;
-        let [d, g, s, b] = self.inner;
-        let normal = pol * (v[0] - v[2]) >= 0.;
-        let (drain, source, vd, vs) = if normal {
-            (d, s, v[0], v[2])
-        } else {
-            (s, d, v[2], v[0])
-        };
-        let vds = pol * (vd - vs);
-        let vgs = pol * (v[1] - vs);
-        let vbs = pol * (v[3] - vs);
-        let DrainCurrent {
-            current,
-            gm,
-            gds,
-            gmbs: gmb,
-            von,
-            vdsat,
-        } = self.model.drain_current(op, vgs, vds, vbs);
-        if [current, gm, gds, gmb, von].iter().any(|v| !v.is_finite()) {
-            return Err(SpiceError::Numerical {
-                context: format!("{} {}", L::LABEL, self.name),
-                message: "nonfinite channel current/Jacobian".into(),
-            });
+        if let Some(op) = self.cached(context.temperature, context.nominal_temperature) {
+            return Ok(*op);
         }
-        Ok(Channel {
-            ports: [drain, source],
-            current: pol * current,
-            partials: [(drain, gds), (g, gm), (source, -gds - gm - gmb), (b, gmb)],
-            von,
-            vdsat,
-            normal,
-            linearized: gds * vd + gm * v[1] - (gds + gm + gmb) * vs + gmb * v[3],
-        })
+        let op = self.model.operating(&self.name, &self.geometry, context)?;
+        let _ = self
+            .derived
+            .set((context.temperature, context.nominal_temperature, op));
+        Ok(op)
     }
 
-    /// Every bias-dependent quantity at physical node voltages `v` of the
-    /// intrinsic d', g, s', b.
-    pub(super) fn point(
+    /// The cached derivation when it was made at these circuit and nominal
+    /// temperatures.
+    #[inline]
+    fn cached(&self, temperature: Real, nominal: Real) -> Option<&Operating<L::Params>> {
+        self.derived
+            .get()
+            .filter(|(t, n, _)| {
+                t.to_bits() == temperature.to_bits() && n.to_bits() == nominal.to_bits()
+            })
+            .map(|(_, _, op)| op)
+    }
+
+    /// `mos1load.c` from `vbd = vbs - vds` on, at the device-frame
+    /// `[vbs, vgs, vds]`: junction currents with `gmin`, the level's
+    /// channel, the depletion charges and `DEVqmeyer`, before any charge
+    /// integration. Every expression keeps C's operation order.
+    pub(super) fn evaluate(
         &self,
         op: &Operating<L::Params>,
-        v: [Real; 4],
+        [vbs, vgs, vds]: [Real; 3],
         gmin: Real,
-    ) -> SpiceResult<Point> {
-        let pol = self.model.common().pol;
-        let channel = self.channel(op, v)?;
-        let bd = op.drain.point(v[3] - v[0], pol, op.vt, gmin)?;
-        let bs = op.source.point(v[3] - v[2], pol, op.vt, gmin)?;
-        let gate = [v[1] - v[2], v[1] - v[0], v[1] - v[3]];
-        let (vgs, vgd) = (pol * gate[0], pol * gate[1]);
-        let half = if channel.normal {
-            meyer(vgs, vgd, channel.von, channel.vdsat, op.phi, op.oxide)
+    ) -> SpiceResult<Eval> {
+        let vt = op.vt;
+        let vbd = vbs - vds;
+        let vgd = vgs - vds;
+        let vgb = vgs - vbs;
+        let (cbs, gbs) = op.source.current(vbs, vt, gmin);
+        let (cbd, gbd) = op.drain.current(vbd, vt, gmin);
+        let mode: Real = if vds >= 0. { 1. } else { -1. };
+        let normal = mode == 1.;
+        let DrainCurrent {
+            cdrain,
+            gm,
+            gds,
+            gmbs,
+            von,
+            vdsat,
+        } = self.model.drain_current(
+            op,
+            if normal { vgs } else { vgd },
+            vds * mode,
+            if normal { vbs } else { vbd },
+        );
+        let (qbs, capbs) = op.source.charge(vbs, false);
+        let (qbd, capbd) = op.drain.charge(vbd, true);
+        let half = if normal {
+            meyer(vgs, vgd, von, vdsat, op.phi, op.oxide)
         } else {
-            let [gd, gs, gb] = meyer(vgd, vgs, channel.von, channel.vdsat, op.phi, op.oxide);
-            [gs, gd, gb]
+            let [capgd, capgs, capgb] = meyer(vgd, vgs, von, vdsat, op.phi, op.oxide);
+            [capgs, capgd, capgb]
         };
-        Ok(Point {
-            channel,
-            bd,
-            bs,
-            gate,
+        let eval = Eval {
+            vbs,
+            vbd,
+            vgs,
+            vds,
+            vgd,
+            vgb,
+            mode,
+            cdrain,
+            gm,
+            gds,
+            gmbs,
+            gbs,
+            cbs,
+            gbd,
+            cbd,
+            cd: mode * cdrain - cbd,
+            von,
+            vdsat,
+            qbs,
+            capbs,
+            qbd,
+            capbd,
             half,
-        })
+        };
+        let values = [
+            eval.cdrain,
+            eval.gm,
+            eval.gds,
+            eval.gmbs,
+            eval.gbs,
+            eval.cbs,
+            eval.gbd,
+            eval.cbd,
+            eval.von,
+            eval.qbs,
+            eval.capbs,
+            eval.qbd,
+            eval.capbd,
+            half[0],
+            half[1],
+            half[2],
+        ];
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(SpiceError::Numerical {
+                context: format!("{} {}", L::LABEL, self.name),
+                message: "nonfinite channel/junction values".into(),
+            });
+        }
+        Ok(eval)
     }
 
-    /// `mos1load.c`'s device-frame `[vbs, vgs, vds]` for this load:
-    /// `MODEINITJCT` starts at `vbs = -1`, `vgs = type * tVto`, `vds = 0`;
-    /// later loads limit the gate voltage with `DEVfetlim` against the
-    /// previous `von` (through `vgs`, or `vgd` when the previous `vds` was
-    /// negative), `vds` with `DEVlimvds` and the forward-biased bulk junction
-    /// with `DEVpnjlim` (`vt = kT/q`, source/drain `vcrit` from their
-    /// saturation currents).
-    ///
-    /// The start voltages follow `mos1load.c`'s `MODEINITJCT` branch: an
-    /// `off` instance starts at zero (and is held there in `MODEINITFIX`);
-    /// otherwise the `IC` vector `type * [ICVBS, ICVGS, ICVDS]` (`ic`,
-    /// device frame `[vbs, vgs, vds]`), replaced by the default start when
-    /// all three are zero, except in the `uic` initial load.
+    /// `mos1load.c`'s limiting of the candidate `[vbs, vgs, vds]` against
+    /// the previous load's (C `CKTstate0`) `old = [vbs, vbd, vgs, vds]` and
+    /// `MOS1von`: `DEVfetlim` on the gate voltage (`vgs`, or `vgd` when the
+    /// old `vds` is negative), `DEVlimvds` and `DEVpnjlim` on the forward
+    /// junction. Returns the voltages and C's `Check` (from `DEVpnjlim`).
     fn limit(
         &self,
         op: &Operating<L::Params>,
-        limiter: &mut Limiter,
-        states: &crate::devices::DeviceState<'_>,
         raw: [Real; 3],
-        ic: [Real; 3],
-    ) -> [Real; 3] {
-        let pol = self.model.common().pol;
-        let mode = limiter.mode();
-        if mode != Linearization::InitialConditions && limiter.holds_off(states, self.initial.off) {
-            return [0.; 3];
-        }
-        match mode {
-            Linearization::InitialConditions if self.initial.off => return [0.; 3],
-            Linearization::InitialConditions => return ic.map(|v| pol * v),
-            Linearization::Initial => {
-                if ic.iter().any(|v| *v != 0.) {
-                    return ic.map(|v| pol * v);
-                }
-                let tvto = op.vbi + pol * op.gamma * op.phi.sqrt();
-                return [-1., pol * tvto, 0.];
-            }
-            _ => {}
-        }
-        let previous: Vec<_> = (0..4)
-            .map(|k| limiter.previous(states, slot::LIMITED + k))
-            .collect();
-        let [Some(vbs_old), Some(vgs_old), Some(vds_old), Some(von)] = previous[..] else {
-            return raw;
-        };
+        old: [Real; 4],
+        here_von: Real,
+    ) -> ([Real; 3], bool) {
         let [mut vbs, mut vgs, mut vds] = raw;
-        let vgd = vgs - vds;
-        if vds_old >= 0. {
-            vgs = limiter.fet_gate(vgs, vgs_old, von);
-            vds = limiter.drain_source(vgs - vgd, vds_old);
+        let [old_vbs, old_vbd, old_vgs, old_vds] = old;
+        let mut vbd = vbs - vds;
+        let mut vgd = vgs - vds;
+        let vgdo = old_vgs - old_vds;
+        let von = self.model.common().pol * here_von;
+        if old_vds >= 0. {
+            vgs = limiting::fetlim(vgs, old_vgs, von);
+            vds = vgs - vgd;
+            vds = limiting::limvds(vds, old_vds);
         } else {
-            let vgd = limiter.fet_gate(vgd, vgs_old - vds_old, von);
-            vds = -limiter.drain_source(-(vgs - vgd), -vds_old);
+            vgd = limiting::fetlim(vgd, vgdo, von);
+            vds = vgs - vgd;
+            // C skips this under `.options fixlimit`, which is not ported.
+            vds = -limiting::limvds(-vds, -old_vds);
             vgs = vgd + vds;
         }
-        if vds >= 0. {
-            let vcrit = limiting::critical_voltage(op.vt, op.source.saturation);
-            vbs = limiter.pn_junction(vbs, Some(vbs_old), op.vt, vcrit);
+        let check = if vds >= 0. {
+            let limited = limiting::pnjlim(vbs, old_vbs, op.vt, op.source.vcrit);
+            vbs = limited.value;
+            limited.limited
         } else {
-            let vcrit = limiting::critical_voltage(op.vt, op.drain.saturation);
-            let vbd = limiter.pn_junction(vbs - vds, Some(vbs_old - vds_old), op.vt, vcrit);
+            let limited = limiting::pnjlim(vbd, old_vbd, op.vt, op.drain.vcrit);
+            vbd = limited.value;
             vbs = vbd + vds;
+            limited.limited
+        };
+        ([vbs, vgs, vds], check)
+    }
+
+    /// `mos1load.c`'s device-frame `[vbs, vgs, vds]` for this load and how
+    /// they were obtained, with C's `Check`.
+    ///
+    /// `raw` is the iterate's (C `CKTrhsOld`) and `ic` the instance initial
+    /// conditions of [`Self::start_conditions`]. `MODEINITJCT` starts an
+    /// `off` instance at zero, otherwise at `type * IC` unless all three
+    /// are zero, where it takes `vbs = -1`, `vgs = type * tVto`, `vds = 0`;
+    /// the `uic` initial load keeps all-zero conditions. An `off` instance
+    /// is held at zero through `MODEINITFIX`. `MODEINITPRED`/`MODEINITTRAN`
+    /// extrapolate the accepted voltages with `DEVpred`'s
+    /// `(1 + xfact) state1 - xfact state2` (`xfact = 1` in a `.dc` sweep,
+    /// whose `CKTdelta` equals every `CKTdeltaOld`) and limit against
+    /// `CKTstate1` (copied into `CKTstate0` there); other loads limit the
+    /// iterate against the previous load.
+    fn select(
+        &self,
+        op: &Operating<L::Params>,
+        states: &DeviceState<'_>,
+        raw: [Real; 3],
+        ic: [Real; 3],
+        xfact: Real,
+    ) -> ([Real; 3], Start, bool) {
+        let pol = self.model.common().pol;
+        let off = self.initial.off;
+        if states.initial_conditions() {
+            let v = if off { [0.; 3] } else { ic.map(|v| pol * v) };
+            return (v, Start::Conditions, true);
         }
-        [vbs, vgs, vds]
+        if !states.device_limiting() {
+            return (raw, Start::Exact, false);
+        }
+        match states.phase() {
+            IterationPhase::Junction => {
+                let v = if off {
+                    [0.; 3]
+                } else {
+                    let v = ic.map(|v| pol * v);
+                    if v.iter().all(|v| *v == 0.) {
+                        [-1., pol * op.vto, 0.]
+                    } else {
+                        v
+                    }
+                };
+                (v, Start::Junction, true)
+            }
+            IterationPhase::Fix if off => ([0.; 3], Start::HeldOff, true),
+            IterationPhase::Predict => {
+                let accepted = |slot: usize| states.accepted(1, slot);
+                let predicted = |slot: usize| states.predicted(slot, xfact);
+                let (
+                    Some(vbs),
+                    Some(vgs),
+                    Some(vds),
+                    Some(old_vbs),
+                    Some(old_vgs),
+                    Some(old_vds),
+                    Some(von),
+                ) = (
+                    predicted(slot::VBS),
+                    predicted(slot::VGS),
+                    predicted(slot::VDS),
+                    accepted(slot::VBS),
+                    accepted(slot::VGS),
+                    accepted(slot::VDS),
+                    accepted(slot::VON),
+                )
+                else {
+                    return (raw, Start::Exact, false);
+                };
+                let old = [old_vbs, old_vbs - old_vds, old_vgs, old_vds];
+                let (v, check) = self.limit(op, [vbs, vgs, vds], old, von);
+                (v, Start::Limited, check)
+            }
+            IterationPhase::Fix | IterationPhase::Float => {
+                let previous = |slot: usize| states.iterate(slot).filter(|v| v.is_finite());
+                let (Some(old_vbs), Some(old_vbd), Some(old_vgs), Some(old_vds), Some(von)) = (
+                    previous(slot::VBS),
+                    previous(slot::VBD),
+                    previous(slot::VGS),
+                    previous(slot::VDS),
+                    previous(slot::VON),
+                ) else {
+                    return (raw, Start::Exact, false);
+                };
+                let (v, check) = self.limit(op, raw, [old_vbs, old_vbd, old_vgs, old_vds], von);
+                (v, Start::Limited, check)
+            }
+        }
     }
 
     /// The instance initial conditions `[ICVBS, ICVGS, ICVDS]` for this
     /// load: unset components are the external terminal voltages of the
     /// solution in the `uic` initial load (`mos1ic.c`, called by `CKTic`
     /// only under `MODEUIC`) and zero (C's unset default) otherwise.
-    fn start_conditions(&self, limiter: &Limiter, voltage: impl Fn(NodeId) -> Real) -> [Real; 3] {
+    fn start_conditions(&self, conditions: bool, voltage: impl Fn(NodeId) -> Real) -> [Real; 3] {
         let [vds, vgs, vbs] = [0, 1, 2].map(|k| self.initial.values[k]);
         let [d, g, s, b] = [0, 1, 2, 3].map(|k| self.terminals[k]);
-        if limiter.mode() == Linearization::InitialConditions {
+        if conditions {
             [
                 vbs.unwrap_or_else(|| voltage(b) - voltage(s)),
                 vgs.unwrap_or_else(|| voltage(g) - voltage(s)),
@@ -966,113 +1137,36 @@ impl<L: MosLevel> Mosfet<L> {
         }
     }
 
-    /// The `mos1noi.c`/`mos3noi.c` generators at the operating point: RD/RS
-    /// thermal noise and the channel thermal noise `Sid` at the instance
-    /// temperature, and the flicker law of NLEV between the internal drain
-    /// and source. NLEV < 3 uses `Sid = 2/3 abs(gm)`; NLEV 3 the
-    /// `GDSNOI`-scaled region formula with the level's `beta`. Flicker: NLEV 0
-    /// `m KF abs(cd/m)^AF / (f L^2 Cox)`, NLEV 1 `m KF abs(cd/m)^AF / (f W L
-    /// Cox)`, NLEV 2/3 `KF gm^2 / m / (f^AF W L Cox)`, with `cd` C's `MOSxcd`
-    /// (channel current in the device frame minus the bulk-drain junction
-    /// current) and the level's noise `W`, `L` and `Cox` ([`NoiseShape`]).
-    pub(super) fn classic_noise(
+    /// The `MODEINITSMSIG` evaluation the small-signal loads read
+    /// (`acan.c`, `noisean.c`, `pzan.c` load once in that mode after the
+    /// operating point). C limits the bias voltages against the converged
+    /// load's `CKTstate0` there (`mos1load.c`). The small-signal contexts
+    /// supply the accepted `CKTstate1` instead, so the limiting is replayed
+    /// against the bias itself: when the converged load limited nothing
+    /// (it stored its own iterate up to the rounding of `vds = vgs - vgd`,
+    /// and of `vgs = vgd + vds` for a reversed device), every limiter is the
+    /// identity and only that rounding remains, which is what C evaluates.
+    pub(super) fn small_signal_eval(
         &self,
-        context: &crate::devices::noise::NoiseContext<'_>,
-        shape: impl FnOnce(&Operating<L::Params>) -> NoiseShape,
-    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
-        use crate::devices::noise::{DeviceNoise, NoiseKind, NoiseSource};
-        let (common, geometry) = (self.model.common(), &self.geometry);
-        let op = self.operating(context.model_context)?;
-        let v = self.inner.map(|node| context.voltage(node));
-        let point = self.point(&op, v, context.model_context.gmin)?;
-        let channel = point.channel;
-        let pol = common.pol;
-        let shape = shape(&op);
-        let gm = channel.partials[1].1;
-        let sid = if common.nlev < 3 {
-            2.0 / 3.0 * gm.abs()
-        } else {
-            let (vd, vs) = if channel.normal {
-                (v[0], v[2])
-            } else {
-                (v[2], v[0])
-            };
-            let vds = pol * (vd - vs);
-            let vgst = pol * (v[1] - vs) - channel.von;
-            if vgst > 0. {
-                let alpha = if vgst <= vds {
-                    0.
-                } else {
-                    1. - vds / channel.vdsat
-                };
-                2.0 / 3.0 * shape.beta * vgst * (1. + alpha + alpha * alpha) / (1. + alpha)
-                    * common.gdsnoi
-            } else {
-                0.
-            }
-        };
-        let mode = if channel.normal { 1. } else { -1. };
-        let cd = mode * (pol * channel.current) - pol * point.bd.current;
-        let cox = shape.cox;
-        let m = geometry.m;
-        let (width, length) = (shape.width, shape.length);
-        let (kf, af) = (common.kf, common.af);
-        let current_law = || m * kf * (af * (cd / m).abs().max(1e-38).ln()).exp();
-        let (coefficient, exponent) = if context.model_context.spice3_noise {
-            (current_law() / (width * length * cox * cox), 1.)
-        } else {
-            match common.nlev {
-                0 => (current_law() / (length * length * cox), 1.),
-                1 => (current_law() / (width * length * cox), 1.),
-                _ => (kf * gm * gm / m / (width * length * cox), af),
-            }
-        };
-        let temperature = geometry
-            .temp
-            .unwrap_or(context.model_context.temperature + geometry.dtemp)
-            + CELSIUS_TO_KELVIN;
-        let [d, _, s, _] = self.inner;
-        let thermal = |conductance: Real| NoiseKind::Thermal {
-            conductance,
-            temperature,
-        };
-        Ok(DeviceNoise::Sources {
-            family: shape.family,
-            model: Some(self.model_name.clone()),
-            total: true,
-            sources: vec![
-                NoiseSource::new("_rd", [d, self.terminals[0]], thermal(self.series[0])),
-                NoiseSource::new("_rs", [s, self.terminals[2]], thermal(self.series[1])),
-                NoiseSource::new("_id", [d, s], thermal(sid)),
-                NoiseSource::new(
-                    "_1overf",
-                    [d, s],
-                    NoiseKind::Flicker {
-                        coefficient,
-                        exponent,
-                    },
-                ),
-            ],
-        })
-    }
-
-    /// Nodes of the drain/source series resistors and the gate charges.
-    fn series_ports(&self) -> [[NodeId; 2]; 2] {
-        [
-            [self.terminals[0], self.inner[0]],
-            [self.terminals[2], self.inner[2]],
-        ]
-    }
-    fn gate_ports(&self) -> [[NodeId; 2]; 3] {
-        let [d, g, s, b] = self.inner;
-        [[g, s], [g, d], [g, b]]
+        op: &Operating<L::Params>,
+        voltage: impl Fn(NodeId) -> Real,
+        gmin: Real,
+    ) -> SpiceResult<Eval> {
+        let pol = self.model.common().pol;
+        let [dp, g, sp, b] = self.inner.map(&voltage);
+        let raw = [pol * (b - sp), pol * (g - sp), pol * (dp - sp)];
+        let [vbs, vgs, vds] = raw;
+        // DEVfetlim/DEVpnjlim/DEVlimvds leave an unchanged voltage alone
+        // whatever `von` is.
+        let (limited, _) = self.limit(op, raw, [vbs, vbs - vds, vgs, vds], 0.);
+        self.evaluate(op, limited, gmin)
     }
 }
 
-/// `mos1temp.c`: RD/RS take precedence over RSH times the number of squares.
-/// `mos1set.c` creates the internal node exactly when the conductance is
-/// nonzero, except for combinations C leaves singular or infinite, which are
-/// rejected here.
+/// `mos1temp.c`/`mos3temp.c`: RD/RS take precedence over RSH times the
+/// number of squares. `mos1set.c` creates the internal node exactly when the
+/// conductance is nonzero, except for combinations C leaves singular or
+/// infinite, which are rejected here.
 fn series_conductance(
     resistance: Option<Real>,
     sheet: Option<Real>,
@@ -1111,42 +1205,53 @@ fn series_conductance(
     Ok(conductance)
 }
 
-fn stamp_current(
-    context: &mut StampContext<'_>,
-    output: [NodeId; 2],
-    current: Real,
-    partials: &[(NodeId, Real)],
-    linearized: Real,
-) -> SpiceResult<()> {
-    let equivalent = current - linearized;
-    for (row, sign) in [(output[0], 1.), (output[1], -1.)] {
-        for (col, derivative) in partials {
-            context.stamp(row, *col, sign * derivative)?;
-        }
-        context.stamp_rhs(row, -sign * equivalent)?;
-    }
-    Ok(())
-}
-
-fn linear_current(
-    context: &mut LinearContext<'_>,
-    output: [NodeId; 2],
-    partials: &[(NodeId, Real)],
-) -> SpiceResult<()> {
-    for (row, sign) in [(output[0], 1.), (output[1], -1.)] {
-        for (col, derivative) in partials {
-            if let (Some(r), Some(c)) = (
-                context.unknowns.node_row(row),
-                context.unknowns.node_row(*col),
-            ) {
-                context.system.a.add(r, c, sign * derivative)?;
-            }
-        }
-    }
-    Ok(())
-}
-
 impl<L: MosLevel> Device for Mosfet<L> {
+    /// `mos1set.c`, `mos3set.c`.
+    fn c_device_type(&self) -> CDeviceType {
+        L::DEVICE_TYPE
+    }
+
+    /// `mos1set.c` (`mos3set.c` allocates the same elements in the same
+    /// order).
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [d, g, s, b] = [
+            self.terminals[0],
+            self.terminals[1],
+            self.terminals[2],
+            self.terminals[3],
+        ];
+        let [dp, _, sp, _] = self.inner;
+        for (row, col) in [
+            (d, d),
+            (g, g),
+            (s, s),
+            (b, b),
+            (dp, dp),
+            (sp, sp),
+            (d, dp),
+            (g, b),
+            (g, dp),
+            (g, sp),
+            (s, sp),
+            (b, dp),
+            (b, sp),
+            (dp, sp),
+            (dp, d),
+            (b, g),
+            (dp, g),
+            (sp, g),
+            (sp, s),
+            (dp, b),
+            (sp, b),
+            (sp, dp),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn observation_parameter(
         &self,
         key: &str,
@@ -1191,7 +1296,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         slot::QG.to_vec()
     }
     /// `mos1.c` `MOS1pTable` (and `MOS3pTable`): M, L, W, AD, AS, PD, PS,
-    /// NRD, NRS, TEMP and DTEMP, which the temperature/load routines re-derive
+    /// NRD, NRS, TEMP and DTEMP, which `mosXtemp.c`/`mosXload.c` re-derive
     /// (`dctrcurv.c` `DCTsetInstParam`).
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         [
@@ -1201,7 +1306,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         .into_iter()
         .find(|name| name.eq_ignore_ascii_case(keyword))
     }
-    /// `MOSxparam` then `MOSxtemp`, with the instance schema domains. M, NRD
+    /// `MOS1param` then `MOS1temp`, with the instance schema domains. M, NRD
     /// and NRS re-derive the drain/source series conductances; a value that
     /// would create or remove an internal node (`mos1set.c` decides those once,
     /// at setup) is rejected rather than changing the topology mid-sweep.
@@ -1285,14 +1390,18 @@ impl<L: MosLevel> Device for Mosfet<L> {
             model_name: self.model_name.clone(),
             terminals: self.terminals.clone(),
             inner: self.inner,
-            model: self.model.clone(),
+            model: self.model,
             geometry,
             series,
             initial,
+            derived: OnceCell::new(),
         };
         device.operating(context)?;
         Ok(Box::new(device))
     }
+    /// `MOS1load` (`mos1load.c`; `mos3load.c` for level 3), without bypass,
+    /// which ngspice disables by default, and without `.sens` perturbation.
+    #[allow(clippy::needless_range_loop)] // C's three gate charges, side by side.
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::circuit(format!(
@@ -1300,141 +1409,350 @@ impl<L: MosLevel> Device for Mosfet<L> {
                 L::LABEL
             )));
         }
-        let op = self.operating(&context.model_context())?;
-        let node = self.inner.map(|n| context.node_voltage(n));
+        let fresh;
+        let op = match self.cached(context.temperature, context.nominal_temperature) {
+            Some(op) => op,
+            None => {
+                fresh = self.operating(&context.model_context())?;
+                &fresh
+            }
+        };
         let pol = self.model.common().pol;
-        let raw = [node[3] - node[2], node[1] - node[2], node[0] - node[2]].map(|x| pol * x);
-        let mut limiter = Limiter::new(&context.states);
-        let ic = self.start_conditions(&limiter, |n| context.node_voltage(n));
-        let [vbs, vgs, vds] = self.limit(&op, &mut limiter, &context.states, raw, ic);
-        // The intrinsic d', g, s', b at the (limited) voltages, relative to
-        // s'; every equation below depends on voltage differences only.
-        let v = [vds, vgs, 0., vbs].map(|x| pol * x);
-        let point = self.point(&op, v, context.gmin)?;
-        // MOSconvTest for an `off` instance held in MODEINITFIX: the drain
-        // (channel minus bulk-drain) and bulk currents at the held voltages
-        // against their linear prediction at the iterate's node voltages.
-        {
-            let node_voltage = |n: NodeId| context.node_voltage(n);
-            let [d, _, s, b] = self.inner;
-            let channel = &point.channel;
-            let channel_change: Real = channel
-                .partials
-                .iter()
-                .map(|(node, partial)| partial * node_voltage(*node))
-                .sum::<Real>()
-                - channel.linearized;
-            let bd_change =
-                point.bd.conductance * (node_voltage(b) - node_voltage(d) - (v[3] - v[0]));
-            let bs_change =
-                point.bs.conductance * (node_voltage(b) - node_voltage(s) - (v[3] - v[2]));
-            let drain = channel.current - point.bd.current;
-            let bulk = point.bd.current + point.bs.current;
-            limiter.test_held(
-                &context.states,
-                &[
-                    (drain, drain + channel_change - bd_change),
-                    (bulk, bulk + bd_change + bs_change),
-                ],
-            );
+        let [dpv, gv, spv, bv] = self.inner.map(|n| context.node_voltage(n));
+        let raw = [pol * (bv - spv), pol * (gv - spv), pol * (dpv - spv)];
+        let ic = self.start_conditions(context.states.initial_conditions(), |n| {
+            context.node_voltage(n)
+        });
+        let integration = context.integration;
+        let transient = integration.is_some();
+        let phase = context.states.phase();
+        // C `xfact = CKTdelta / CKTdeltaOld[1]`; one in a `.dc` sweep.
+        let xfact = integration.map_or(1., crate::maths::integrator::Coefficients::predictor_ratio);
+        let (v, start, check) = self.select(op, &context.states, raw, ic, xfact);
+        let mut e = self.evaluate(op, v, context.gmin)?;
+        let states = &mut context.states;
+
+        // Bulk junction charges (C computes them in MODETRAN, MODETRANOP and
+        // MODEINITSMSIG; computing them in every load changes no stamp) and
+        // their NIintegrate companions folded into gbd/cbd/cd and gbs/cbs.
+        states.set(slot::QBD, e.qbd)?;
+        states.set(slot::QBS, e.qbs)?;
+        let mut ag0 = 0.;
+        if let Some(coefficients) = &integration {
+            ag0 = coefficients.ag()[0];
+            let companion = |context: &mut StampContext<'_>, charge, capacitance, slot| {
+                junction_companion(
+                    context,
+                    coefficients,
+                    JunctionPoint {
+                        current: 0.,
+                        conductance: 0.,
+                        charge,
+                        capacitance,
+                    },
+                    slot,
+                )
+            };
+            let (geq, ccap) = companion(context, e.qbd, e.capbd, slot::QBD)?;
+            e.gbd += geq;
+            e.cbd += ccap;
+            e.cd -= ccap;
+            let (geq, ccap) = companion(context, e.qbs, e.capbs, slot::QBS)?;
+            e.gbs += geq;
+            e.cbs += ccap;
+        } else {
+            context.states.set(slot::QBD + 1, 0.)?;
+            context.states.set(slot::QBS + 1, 0.)?;
         }
-        for (ports, conductance) in self.series_ports().into_iter().zip(self.series) {
-            if conductance > 0. {
-                nodal_stamp(context.matrix, context.unknowns, ports, conductance)?;
+        let states = &mut context.states;
+        // C: `if (off == 0 || !(MODEINITFIX | MODEINITSMSIG)) if (Check)
+        // CKTnoncon++`; loads outside a limited solve never report.
+        let report = match start {
+            Start::Junction => true,
+            Start::Limited => check,
+            Start::Conditions | Start::Exact | Start::HeldOff => false,
+        };
+        if report {
+            states.report_nonconvergence()?;
+        }
+        for (slot, value) in [
+            (slot::VBS, e.vbs),
+            (slot::VBD, e.vbd),
+            (slot::VGS, e.vgs),
+            (slot::VDS, e.vds),
+            (slot::VON, pol * e.von),
+            (slot::VDSAT, pol * e.vdsat),
+            (slot::MODE, e.mode),
+        ] {
+            states.set(slot, value)?;
+        }
+
+        // Meyer gate capacitances and charges.
+        let initial_transient =
+            transient && phase == IterationPhase::Predict && states.initial_transient();
+        let s1 = |states: &DeviceState<'_>, slot: usize| {
+            states.accepted(1, slot).ok_or_else(|| {
+                SpiceError::circuit(format!(
+                    "{}: missing accepted {} state",
+                    self.name,
+                    L::LABEL
+                ))
+            })
+        };
+        let gate = [e.vgs, e.vgd, e.vgb];
+        let mut cap = [0.; 3];
+        let mut charge = [0.; 3];
+        for k in 0..3 {
+            states.set(slot::CAPG[k], e.half[k])?;
+            cap[k] = if transient {
+                e.half[k] + s1(states, slot::CAPG[k])? + op.overlap[k]
+            } else {
+                2. * e.half[k] + op.overlap[k]
+            };
+        }
+        if transient && phase == IterationPhase::Predict {
+            for k in 0..3 {
+                charge[k] = states.predicted(slot::QG[k], xfact).ok_or_else(|| {
+                    SpiceError::circuit(format!(
+                        "{}: missing accepted {} charge",
+                        self.name,
+                        L::LABEL
+                    ))
+                })?;
+            }
+        } else if transient {
+            let vgs1 = s1(states, slot::VGS)?;
+            let gate1 = [
+                vgs1,
+                vgs1 - s1(states, slot::VDS)?,
+                vgs1 - s1(states, slot::VBS)?,
+            ];
+            for k in 0..3 {
+                charge[k] = (gate[k] - gate1[k]) * cap[k] + s1(states, slot::QG[k])?;
+            }
+        } else {
+            for k in 0..3 {
+                charge[k] = gate[k] * cap[k];
             }
         }
-        let channel = point.channel;
-        stamp_current(
-            context,
-            channel.ports,
-            channel.current,
-            &channel.partials,
-            channel.linearized,
-        )?;
-        let [d, _, s, b] = self.inner;
-        stamp_junction(context, [b, d], v[3] - v[0], point.bd, slot::QBD)?;
-        stamp_junction(context, [b, s], v[3] - v[2], point.bs, slot::QBS)?;
-        // Meyer gate charge (`mos1load.c`): at an operating point the charge
-        // is `v * (2 half + overlap)`; in transient it advances from the last
-        // accepted point with the average of both points' half capacitances,
-        // `q = q1 + (v - v1) * (half + half1 + overlap)`, whose Jacobian is
-        // that averaged capacitance.
-        for (k, ports) in self.gate_ports().into_iter().enumerate() {
-            let voltage = point.gate[k];
-            let half = point.half[k];
-            context.states.set(slot::VG[k], voltage)?;
-            context.states.set(slot::HALF[k], half)?;
-            let (charge, capacitance) = if context.integration.is_some() {
-                let accepted = |s: usize| {
-                    context.states.accepted(1, s).ok_or_else(|| {
-                        SpiceError::circuit(format!(
-                            "{}: missing accepted {} state",
-                            self.name,
-                            L::LABEL
-                        ))
-                    })
-                };
-                let capacitance = half + accepted(slot::HALF[k])? + op.overlap[k];
-                (
-                    accepted(slot::QG[k])? + (voltage - accepted(slot::VG[k])?) * capacitance,
-                    capacitance,
-                )
-            } else {
-                let capacitance = 2. * half + op.overlap[k];
-                (voltage * capacitance, capacitance)
-            };
-            stamp_junction(
-                context,
-                ports,
-                voltage,
-                JunctionPoint {
-                    current: 0.,
-                    conductance: 0.,
-                    charge,
-                    capacitance,
-                },
-                slot::QG[k],
-            )?;
+        for k in 0..3 {
+            states.set(slot::QG[k], charge[k])?;
         }
-        limiter.finish(
-            &mut context.states,
-            &[
-                (slot::LIMITED, vbs),
-                (slot::LIMITED + 1, vgs),
-                (slot::LIMITED + 2, vds),
-                (slot::LIMITED + 3, channel.von),
-            ],
-        )
+        let mut gcg = [0.; 3];
+        let mut ceqg = [0.; 3];
+        match &integration {
+            Some(coefficients) if !initial_transient => {
+                for k in 0..3 {
+                    let (geq, ccap) = junction_companion(
+                        context,
+                        coefficients,
+                        JunctionPoint {
+                            current: 0.,
+                            conductance: 0.,
+                            charge: charge[k],
+                            capacitance: cap[k],
+                        },
+                        slot::QG[k],
+                    )?;
+                    gcg[k] = geq;
+                    ceqg[k] = ccap - ag0 * charge[k];
+                }
+                for k in 0..3 {
+                    ceqg[k] = ceqg[k] - gcg[k] * gate[k] + ag0 * charge[k];
+                }
+            }
+            _ => {
+                for k in 0..3 {
+                    context.states.set(slot::QG[k] + 1, 0.)?;
+                }
+            }
+        }
+        let [gcgs, gcgd, gcgb] = gcg;
+        let [ceqgs, ceqgd, ceqgb] = ceqg;
+
+        // What MOS1convTest and the small-signal loads read (C `here`).
+        for (slot, value) in [
+            (slot::CD, e.cd),
+            (slot::CBS, e.cbs),
+            (slot::CBD, e.cbd),
+            (slot::GM, e.gm),
+            (slot::GDS, e.gds),
+            (slot::GMBS, e.gmbs),
+            (slot::GBD, e.gbd),
+            (slot::GBS, e.gbs),
+            (slot::CAPBD, e.capbd),
+            (slot::CAPBS, e.capbs),
+        ] {
+            context.states.set(slot, value)?;
+        }
+
+        // Current vector and Y matrix, in mos1load.c's order and arithmetic.
+        let t = pol;
+        let ceqbs = t * (e.cbs - e.gbs * e.vbs);
+        let ceqbd = t * (e.cbd - e.gbd * e.vbd);
+        let (xnrm, xrev, cdreq) = if e.mode >= 0. {
+            (
+                1.,
+                0.,
+                t * (e.cdrain - e.gds * e.vds - e.gm * e.vgs - e.gmbs * e.vbs),
+            )
+        } else {
+            (
+                0.,
+                1.,
+                -t * (e.cdrain - e.gds * (-e.vds) - e.gm * e.vgd - e.gmbs * e.vbd),
+            )
+        };
+        let [d, g, s, b] = [
+            self.terminals[0],
+            self.terminals[1],
+            self.terminals[2],
+            self.terminals[3],
+        ];
+        let [dp, _, sp, _] = self.inner;
+        let [gdr, gsr] = self.series;
+        let (gm, gds, gmbs, gbd, gbs) = (e.gm, e.gds, e.gmbs, e.gbd, e.gbs);
+        context.stamp_rhs(g, -(t * (ceqgs + ceqgb + ceqgd)))?;
+        context.stamp_rhs(b, -(ceqbs + ceqbd - t * ceqgb))?;
+        context.stamp_rhs(dp, ceqbd - cdreq + t * ceqgd)?;
+        context.stamp_rhs(sp, cdreq + ceqbs + t * ceqgs)?;
+        context.stamp_fixed([
+            (d, d, gdr),
+            (g, g, gcgd + gcgs + gcgb),
+            (s, s, gsr),
+            (b, b, gbd + gbs + gcgb),
+            (dp, dp, gdr + gds + gbd + xrev * (gm + gmbs) + gcgd),
+            (sp, sp, gsr + gds + gbs + xnrm * (gm + gmbs) + gcgs),
+            (d, dp, -gdr),
+            (g, b, -gcgb),
+            (g, dp, -gcgd),
+            (g, sp, -gcgs),
+            (s, sp, -gsr),
+            (b, g, -gcgb),
+            (b, dp, -gbd),
+            (b, sp, -gbs),
+            (dp, d, -gdr),
+            (dp, g, (xnrm - xrev) * gm - gcgd),
+            (dp, b, -gbd + (xnrm - xrev) * gmbs),
+            (dp, sp, -gds - xnrm * (gm + gmbs)),
+            (sp, g, -(xnrm - xrev) * gm - gcgs),
+            (sp, s, -gsr),
+            (sp, b, -gbs - (xnrm - xrev) * gmbs),
+            (sp, dp, -gds - xrev * (gm + gmbs)),
+        ])?;
+        Ok(())
     }
-    /// `mos1acld.c`/`mos3acld.c`: conductances at the bias plus `jω` times the
-    /// junction capacitances and the Meyer capacitances `2 half + overlap`.
+    /// `MOS1convTest` (`mos1conv.c`, equal to `mos3conv.c`): the drain and
+    /// bulk currents predicted linearly from the last load at the new
+    /// iterate (`CKTrhs`) against their loaded values, in C's arithmetic.
+    fn convergence_test(
+        &self,
+        context: &crate::devices::ConvergenceContext<'_>,
+    ) -> SpiceResult<bool> {
+        let at = |k: usize| context.states.get(k).copied().unwrap_or(0.);
+        let pol = self.model.common().pol;
+        let [dp, g, sp, b] = self.inner.map(|n| context.voltage(n));
+        let vbs = pol * (b - sp);
+        let vgs = pol * (g - sp);
+        let vds = pol * (dp - sp);
+        let vbd = vbs - vds;
+        let vgd = vgs - vds;
+        let vgdo = at(slot::VGS) - at(slot::VDS);
+        let delvbs = vbs - at(slot::VBS);
+        let delvbd = vbd - at(slot::VBD);
+        let delvgs = vgs - at(slot::VGS);
+        let delvds = vds - at(slot::VDS);
+        let delvgd = vgd - vgdo;
+        let (cd, gbd, gmbs, gm, gds) = (
+            at(slot::CD),
+            at(slot::GBD),
+            at(slot::GMBS),
+            at(slot::GM),
+            at(slot::GDS),
+        );
+        let (cbs, cbd, gbs) = (at(slot::CBS), at(slot::CBD), at(slot::GBS));
+        let cdhat = if at(slot::MODE) >= 0. {
+            cd - gbd * delvbd + gmbs * delvbs + gm * delvgs + gds * delvds
+        } else {
+            cd - (gbd - gmbs) * delvbd - gm * delvgd + gds * delvds
+        };
+        let cbhat = cbs + cbd + gbd * delvbd + gbs * delvbs;
+        let tol = context.reltol * cdhat.abs().max(cd.abs()) + context.abstol;
+        if (cdhat - cd).abs() >= tol {
+            return Ok(true);
+        }
+        let tol = context.reltol * cbhat.abs().max((cbs + cbd).abs()) + context.abstol;
+        Ok((cbhat - (cbs + cbd)).abs() > tol)
+    }
+
+    /// `mos1acld.c` (`mos3acld.c` with the effective width): the
+    /// conductances of the `MODEINITSMSIG` load plus `j omega` times its
+    /// junction capacitances and the Meyer capacitances
+    /// `half + half + overlap`, stamped in C's order; each element's dynamic
+    /// terms are one [`LinearContext::dynamic_sum`], as C adds
+    /// `xgd + xgs + xgb` in one step.
     fn assemble_small_signal(
         &self,
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
         let op = self.operating(context.model_context)?;
-        let v = self.inner.map(|n| {
-            context
-                .unknowns
-                .node_row(n)
-                .and_then(|r| bias.get(r))
-                .unwrap_or(0.)
-        });
-        let point = self.point(&op, v, context.model_context.gmin)?;
-        for (ports, conductance) in self.series_ports().into_iter().zip(self.series) {
-            if conductance > 0. {
-                context.nodal(ports, conductance, false)?;
+        let unknowns = context.unknowns;
+        let voltage = |n: NodeId| unknowns.node_row(n).and_then(|r| bias.get(r)).unwrap_or(0.);
+        let e = self.small_signal_eval(&op, voltage, context.model_context.gmin)?;
+        let cap: [Real; 3] = std::array::from_fn(|k| e.half[k] + e.half[k] + op.overlap[k]);
+        let [capgs, capgd, capgb] = cap;
+        let (xnrm, xrev) = if e.mode < 0. { (0., 1.) } else { (1., 0.) };
+        let [d, g, s, b] = [
+            self.terminals[0],
+            self.terminals[1],
+            self.terminals[2],
+            self.terminals[3],
+        ];
+        let [dp, _, sp, _] = self.inner;
+        let [gdr, gsr] = self.series;
+        let (gm, gds, gmbs, gbd, gbs) = (e.gm, e.gds, e.gmbs, e.gbd, e.gbs);
+        let (capbd, capbs) = (e.capbd, e.capbs);
+        for (row, col, terms) in [
+            (g, g, &[capgd, capgs, capgb][..]),
+            (b, b, &[capgb, capbd, capbs][..]),
+            (dp, dp, &[capgd, capbd][..]),
+            (sp, sp, &[capgs, capbs][..]),
+            (g, b, &[-capgb][..]),
+            (g, dp, &[-capgd][..]),
+            (g, sp, &[-capgs][..]),
+            (b, g, &[-capgb][..]),
+            (b, dp, &[-capbd][..]),
+            (b, sp, &[-capbs][..]),
+            (dp, g, &[-capgd][..]),
+            (dp, b, &[-capbd][..]),
+            (sp, g, &[-capgs][..]),
+            (sp, b, &[-capbs][..]),
+        ] {
+            context.dynamic_sum(row, col, terms)?;
+        }
+        for (row, col, value) in [
+            (d, d, gdr),
+            (s, s, gsr),
+            (b, b, gbd + gbs),
+            (dp, dp, gdr + gds + gbd + xrev * (gm + gmbs)),
+            (sp, sp, gsr + gds + gbs + xnrm * (gm + gmbs)),
+            (d, dp, -gdr),
+            (s, sp, -gsr),
+            (b, dp, -gbd),
+            (b, sp, -gbs),
+            (dp, d, -gdr),
+            (dp, g, (xnrm - xrev) * gm),
+            (dp, b, -gbd + (xnrm - xrev) * gmbs),
+            (dp, sp, -(gds + xnrm * (gm + gmbs))),
+            (sp, g, -((xnrm - xrev) * gm)),
+            (sp, s, -gsr),
+            (sp, b, -(gbs + (xnrm - xrev) * gmbs)),
+            (sp, dp, -(gds + xrev * (gm + gmbs))),
+        ] {
+            if let (Some(r), Some(c)) = (unknowns.node_row(row), unknowns.node_row(col)) {
+                context.system.a.add(r, c, value)?;
             }
-        }
-        linear_current(context, point.channel.ports, &point.channel.partials)?;
-        let [d, _, s, b] = self.inner;
-        for (ports, junction) in [([b, d], point.bd), ([b, s], point.bs)] {
-            context.nodal(ports, junction.conductance, false)?;
-            context.nodal(ports, junction.capacitance, true)?;
-        }
-        for (k, ports) in self.gate_ports().into_iter().enumerate() {
-            context.nodal(ports, 2. * point.half[k] + op.overlap[k], true)?;
         }
         Ok(())
     }
@@ -1449,6 +1767,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         self.assemble_small_signal(context, bias)
     }
 
+    /// The level's `.disto` routine ([`MosLevel::distortion`]).
     fn distortion(
         &self,
         context: &crate::devices::distortion::DistortionContext<'_>,
@@ -1456,11 +1775,98 @@ impl<L: MosLevel> Device for Mosfet<L> {
         L::distortion(self, context)
     }
 
-    fn noise(
-        &self,
-        context: &crate::devices::noise::NoiseContext<'_>,
-    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
-        L::noise(self, context)
+    /// `mos1noi.c`/`mos3noi.c` at the operating point: RD/RS thermal noise
+    /// and the channel thermal noise `Sid` at the instance temperature, and
+    /// the flicker law of NLEV between the internal drain and source. NLEV <
+    /// 3 uses `Sid = 2/3 abs(gm)`; NLEV 3 the `GDSNOI`-scaled region formula
+    /// with the level's `beta`. Flicker: NLEV 0 `m KF abs(cd/m)^AF / (f L^2
+    /// Cox)`, NLEV 1 `m KF abs(cd/m)^AF / (f W L Cox)`, NLEV 2/3
+    /// `KF gm^2 / m / (f^AF W L Cox)`, with `cd` C's `MOS1cd` (channel
+    /// current in the device frame minus the bulk-drain junction current)
+    /// and the level's `W`, `L` and `Cox` ([`NoiseShape`]).
+    fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
+        let (common, geometry) = (self.model.common(), &self.geometry);
+        let op = self.operating(context.model_context)?;
+        let shape = self.model.noise_shape(geometry, &op);
+        let e = self.small_signal_eval(
+            &op,
+            |node| context.voltage(node),
+            context.model_context.gmin,
+        )?;
+        let gm = e.gm;
+        let sid = if common.nlev < 3 {
+            2.0 / 3.0 * gm.abs()
+        } else {
+            let vgst = (if e.mode == 1. { e.vgs } else { e.vgd }) - e.von;
+            if vgst > 0. {
+                let alpha = if vgst <= e.vds * e.mode {
+                    0.
+                } else {
+                    1.0 - (e.vds * e.mode / e.vdsat)
+                };
+                2.0 / 3.0 * shape.beta * vgst * (1.0 + alpha + alpha * alpha) / (1.0 + alpha)
+                    * common.gdsnoi
+            } else {
+                0.
+            }
+        };
+        let cd = e.cd;
+        let m = geometry.m;
+        let length = shape.length;
+        let current_law = || m * common.kf * (common.af * (cd / m).abs().max(1e-38).ln()).exp();
+        let (numerator, law) = if context.model_context.spice3_noise {
+            (
+                current_law(),
+                FlickerLaw::Channel {
+                    exponent: None,
+                    factors: [shape.width, length, shape.cox_squared],
+                },
+            )
+        } else {
+            match common.nlev {
+                0 => (
+                    current_law(),
+                    FlickerLaw::Channel {
+                        exponent: None,
+                        factors: [length, length, shape.cox],
+                    },
+                ),
+                1 => (
+                    current_law(),
+                    FlickerLaw::Channel {
+                        exponent: None,
+                        factors: [shape.width, length, shape.cox],
+                    },
+                ),
+                _ => (
+                    common.kf * gm * gm / m,
+                    FlickerLaw::Channel {
+                        exponent: Some(common.af),
+                        factors: [shape.width, length, shape.cox],
+                    },
+                ),
+            }
+        };
+        let temperature = geometry
+            .temp
+            .unwrap_or(context.model_context.temperature + geometry.dtemp)
+            + CELSIUS_TO_KELVIN;
+        let [d, _, s, _] = self.inner;
+        let thermal = |conductance: Real| NoiseKind::Thermal {
+            conductance,
+            temperature,
+        };
+        Ok(DeviceNoise::Sources {
+            family: L::NOISE_FAMILY,
+            model: Some(self.model_name.clone()),
+            total: true,
+            sources: vec![
+                NoiseSource::new("_rd", [d, self.terminals[0]], thermal(self.series[0])),
+                NoiseSource::new("_rs", [s, self.terminals[2]], thermal(self.series[1])),
+                NoiseSource::new("_id", [d, s], thermal(sid)),
+                NoiseSource::new("_1overf", [d, s], NoiseKind::Flicker { numerator, law }),
+            ],
+        })
     }
 }
 
@@ -1469,16 +1875,17 @@ mod tests {
     use super::*;
 
     fn junction(bottom: Real, sidewall: Real, mj: Real, mjsw: Real) -> Junction {
-        Junction {
-            saturation: 1e-14,
+        Junction::new(
+            1e-14,
+            0.7,
             bottom,
             sidewall,
             mj,
             mjsw,
-            potential: 0.8,
-            fc: 0.5,
-            reverse: ReverseLaw::Constant,
-        }
+            0.8,
+            0.5,
+            ReverseLaw::Constant,
+        )
     }
 
     #[test]
@@ -1488,43 +1895,48 @@ mod tests {
             junction(1e-12, 2e-13, 0.5, 0.33),
             junction(0., 3e-13, 0.4, 0.33),
         ] {
-            for v in [-3., -0.5, 0., 0.39, 0.4, 0.41, 0.7] {
-                let h = 1e-6;
-                let (_, c) = j.charge(v);
-                let numerical = (j.charge(v + h).0 - j.charge(v - h).0) / (2. * h);
-                assert!((numerical - c).abs() <= 1e-7 * c, "{v}: {numerical} {c}");
+            // Bulk-drain and bulk-source polynomials (C associates them
+            // differently above FC*PB).
+            for drain in [true, false] {
+                for v in [-3., -0.5, 0., 0.39, 0.4, 0.41, 0.7] {
+                    let h = 1e-6;
+                    let (_, c) = j.charge(v, drain);
+                    let numerical =
+                        (j.charge(v + h, drain).0 - j.charge(v - h, drain).0) / (2. * h);
+                    assert!((numerical - c).abs() <= 1e-7 * c, "{v}: {numerical} {c}");
+                }
+                // Charge and capacitance are continuous at FC*PB.
+                let edge = 0.5 * 0.8;
+                let (below, above) = (j.charge(edge - 1e-12, drain), j.charge(edge, drain));
+                assert!((below.0 - above.0).abs() <= 1e-9 * above.0.abs());
+                assert!((below.1 - above.1).abs() <= 1e-9 * above.1);
             }
-            // Charge and capacitance are continuous at FC*PB.
-            let edge = 0.5 * 0.8;
-            let (below, above) = (j.charge(edge - 1e-12), j.charge(edge));
-            assert!((below.0 - above.0).abs() <= 1e-9 * above.0.abs());
-            assert!((below.1 - above.1).abs() <= 1e-9 * above.1);
         }
     }
 
     #[test]
-    fn cubic_reverse_law_is_continuous_and_differentiable_at_minus_three_vt() {
+    fn cubic_reverse_law_matches_mos3load_and_joins_the_forward_law() {
         let mut j = junction(0., 0., 0.5, 0.5);
         j.reverse = ReverseLaw::Cubic;
-        let vt = 0.025852;
+        let vt = 0.0258;
+        // mos3load.c below -3 vt.
+        let v = -0.5;
+        let (current, conductance) = j.current(v, vt, 0.);
+        let arg = (3. * vt / (v * std::f64::consts::E)).powi(3);
+        assert!((current + 1e-14 * (1. + arg)).abs() < 1e-28);
+        assert!((conductance - 1e-14 * 3. * arg / v).abs() < 1e-30);
+        // Continuous value and slope at -3 vt.
         let edge = -3. * vt;
-        for pol in [1., -1.] {
-            let (below, above) = (
-                j.point(pol * (edge - 1e-12), pol, vt, 0.).unwrap(),
-                j.point(pol * (edge + 1e-12), pol, vt, 0.).unwrap(),
-            );
-            assert!((below.current - above.current).abs() <= 1e-9 * j.saturation);
-            assert!((below.conductance - above.conductance).abs() <= 1e-6 * above.conductance);
-        }
-        // The conductance is the current's derivative deep in reverse bias.
-        for v in [-0.1, -0.5, -3.] {
-            let h = 1e-4;
-            let g = j.point(v, 1., vt, 0.).unwrap().conductance;
-            let numerical = (j.point(v + h, 1., vt, 0.).unwrap().current
-                - j.point(v - h, 1., vt, 0.).unwrap().current)
-                / (2. * h);
-            assert!((numerical - g).abs() <= 1e-5 * g, "{v}: {numerical} {g}");
-        }
+        let (below, g_below) = j.current(edge, vt, 0.);
+        let (above, g_above) = j.current(edge + 1e-9, vt, 0.);
+        assert!(
+            (below - above).abs() <= 1e-8 * j.saturation,
+            "{below} {above}"
+        );
+        assert!(
+            (g_below - g_above).abs() <= 1e-6 * g_above.abs(),
+            "{g_below} {g_above}"
+        );
     }
 
     #[test]

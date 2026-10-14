@@ -12,8 +12,8 @@ card 1 @netlists/m10_tline_pulse.cir:10:1 lines=10-10 continuations=0
   token 6 10:15 number "0" value=0e0
   token 7 10:17 number "1" value=1e0
   token 8 10:19 number "0.5n" value=5e-10
-  token 9 10:24 number "0.2n" value=2.0000000000000003e-10
-  token 10 10:29 number "0.2n" value=2.0000000000000003e-10
+  token 9 10:24 number "0.2n" value=2e-10
+  token 10 10:29 number "0.2n" value=2e-10
   token 11 10:34 number "1n" value=1e-9
   token 12 10:37 number "5n" value=5e-9
   token 13 10:39 rparen ")"
@@ -80,7 +80,7 @@ card 7 @netlists/m10_tline_pulse.cir:16:1 lines=16-16 continuations=0
   token 8 16:15 number "50" value=5e1
   token 9 16:18 word "td"
   token 10 16:20 equals "="
-  token 11 16:21 number "0.75n" value=7.500000000000001e-10
+  token 11 16:21 number "0.75n" value=7.5e-10
   token 12 16:27 word "rel"
   token 13 16:30 equals "="
   token 14 16:31 number "1e-3" value=1e-3
@@ -98,7 +98,7 @@ card 9 @netlists/m10_tline_pulse.cir:18:1 lines=18-18 continuations=0
   raw: ".tran 0.05n 16n"
   kind: dot(.tran)
   token 1 18:1 word ".tran"
-  token 2 18:7 number "0.05n" value=5.000000000000001e-11
+  token 2 18:7 number "0.05n" value=4.9999999999999995e-11
   token 3 18:13 number "16n" value=1.6e-8
 card 10 @netlists/m10_tline_pulse.cir:19:1 lines=19-19 continuations=0
   raw: ".end"

@@ -457,13 +457,17 @@ impl DeviceSensitivity for ReactiveSensitivity {
         let i = current.instance;
         let m = i.value("m")?;
         let value = match self.kind {
-            ReactiveKind::Capacitor => i.value("capac")? * m,
-            ReactiveKind::Inductor => i.value("induct")? / m,
+            ReactiveKind::Capacitor => i.value("capac")?,
+            ReactiveKind::Inductor => i.value("induct")?,
         };
-        if !value.is_finite() {
+        let effective = match self.kind {
+            ReactiveKind::Capacitor => value * m,
+            ReactiveKind::Inductor => value / m,
+        };
+        if !effective.is_finite() {
             return Err(SpiceError::Numerical {
                 context: format!("sensitivity of {}", self.name),
-                message: format!("nonfinite perturbed value {value}"),
+                message: format!("nonfinite perturbed value {effective}"),
             });
         }
         Ok(SensitivityLoad::Replacement(Box::new(ReactiveStandIn {
@@ -471,6 +475,7 @@ impl DeviceSensitivity for ReactiveSensitivity {
             kind: self.kind,
             terminals: self.terminals,
             value,
+            m,
         })))
     }
 }
@@ -481,7 +486,10 @@ struct ReactiveStandIn {
     name: String,
     kind: ReactiveKind,
     terminals: [NodeId; 2],
+    /// `CAPcapac` or `INDinduct`.
     value: Real,
+    /// The instance multiplier.
+    m: Real,
 }
 
 impl Device for ReactiveStandIn {
@@ -513,10 +521,19 @@ impl Device for ReactiveStandIn {
 
     fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
         match self.kind {
-            ReactiveKind::Capacitor => context.nodal(self.terminals, self.value, true),
+            // capacld.c: `m * (CKTomega * CAPcapac)` into the four elements.
+            ReactiveKind::Capacitor => {
+                let [p, n] = self.terminals;
+                let terms = [self.value];
+                context.scaled_dynamic_sum(p, p, &terms, self.m)?;
+                context.scaled_dynamic_sum(n, n, &terms, self.m)?;
+                context.scaled_dynamic_sum(p, n, &terms, -self.m)?;
+                context.scaled_dynamic_sum(n, p, &terms, -self.m)
+            }
+            // indacld.c: `-= CKTomega * INDinduct / m` on the branch diagonal.
             ReactiveKind::Inductor => {
                 let branch = context.branch(self.terminals)?;
-                context.system.e.add(branch, branch, -self.value)?;
+                context.dynamic_group(branch, branch, &[self.value], -1., self.m)?;
                 for term in context.mutual {
                     context.system.e.add(branch, term.row, -term.inductance)?;
                 }

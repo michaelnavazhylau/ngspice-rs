@@ -43,9 +43,9 @@ scope root
                 name "time" span=8:61..65
                 number "0" value=0e0 span=8:67..68
                 number "0" value=0e0 span=8:69..70
-                number "0.3m" value=3e-4 span=8:72..76
+                number "0.3m" value=3.0000000000000003e-4 span=8:72..76
                 number "0.5" value=5e-1 span=8:77..80
-                number "0.6m" value=6e-4 span=8:82..86
+                number "0.6m" value=6.000000000000001e-4 span=8:82..86
                 number "0.5" value=5e-1 span=8:87..90
                 number "1m" value=1e-3 span=8:92..94
                 unary minus span=8:95..100
@@ -71,7 +71,7 @@ scope root
               call "tanh" span=11:17..33
                 binary "/" span=11:22..32
                   voltage "out" span=11:22..28
-                  number "0.3" value=3e-1 span=11:29..32
+                  number "0.3" value=3.0000000000000004e-1 span=11:29..32
     device [4] name="b3" designator=b @netlists/bsource_tran.cir:12:1
       nodes: "sq" "0"
       model: none

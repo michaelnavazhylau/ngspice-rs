@@ -148,10 +148,11 @@ fn elaboration_evaluates_expression_values_in_order() {
     let elaborated = literalize(&netlist).unwrap();
     let ic = elaborated.initial_conditions();
     assert_eq!(ic.len(), 2);
-    assert_eq!((ic[0].node, ic[0].value), ("a", 1.5));
+    // numparam's "1.500000000000000e+00" read by INPevaluate, as ngspice.
+    assert_eq!((ic[0].node, ic[0].value), ("a", 1.5000000000000002));
     assert_eq!((ic[1].node, ic[1].value), ("b", 1.0));
     assert_eq!(ic[0].location.line, 4);
-    assert_eq!(elaborated.nodesets()[0].value, 3.0);
+    assert_eq!(elaborated.nodesets()[0].value, 3.0000000000000004);
     assert!(
         elaborated
             .sites

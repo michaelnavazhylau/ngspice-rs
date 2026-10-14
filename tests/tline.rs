@@ -284,7 +284,10 @@ fn invalid_and_unsupported_uses_are_explicit_errors() {
     let deck = "v1 in 0 pulse(0 1 1n 1n 1n 5n 20n) ac 1\nrs in a 50\nt1 a 0 b 0 z0=50 td=1n\n\
                 rl b 0 100\n";
     for (analysis, needle) in [
-        (".tran 0.1n 10n backend=diffsol method=bdf", "diffsol BDF"),
+        (
+            ".tran 0.1n 10n backend=diffsol method=bdf",
+            "backend=diffsol",
+        ),
         (".tran 0.1n 10n uic", "uic"),
         (".pz in 0 b 0 vol pz", "pole-zero"),
         (".noise v(b) v1 dec 2 1meg 10meg", ".noise"),

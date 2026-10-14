@@ -140,10 +140,10 @@ card 16 @netlists/switch_dc.cir:23:1 lines=23-23 continuations=0
   token 4 23:14 lparen "("
   token 5 23:15 word "vt"
   token 6 23:17 equals "="
-  token 7 23:18 number "1.2" value=1.2e0
+  token 7 23:18 number "1.2" value=1.2000000000000002e0
   token 8 23:22 word "vh"
   token 9 23:24 equals "="
-  token 10 23:25 number "-0.3" value=-3e-1
+  token 10 23:25 number "-0.3" value=-3.0000000000000004e-1
   token 11 23:30 word "ron"
   token 12 23:33 equals "="
   token 13 23:34 number "20" value=2e1
@@ -180,7 +180,7 @@ card 18 @netlists/switch_dc.cir:25:1 lines=25-25 continuations=0
   token 7 25:18 number "1m" value=1e-3
   token 8 25:21 word "ih"
   token 9 25:23 equals "="
-  token 10 25:24 number "0.6m" value=6e-4
+  token 10 25:24 number "0.6m" value=6.000000000000001e-4
   token 11 25:29 word "ron"
   token 12 25:32 equals "="
   token 13 25:33 number "50" value=5e1

@@ -121,8 +121,12 @@ Every parse-time message carries the offending token's `SourceLoc`
 ## The axis
 
 The axis is the driver's scale vector of the plot, addressed by name:
-`time` for `.tran`, `frequency` for `.ac`, `sweep` for `.dc` — the same columns
-`beginPlot()` puts first and that the rawfile writes first.
+`time` for `.tran`, `frequency` for `.ac`, and for `.dc` the first of
+`v(v-sweep)`, `i(i-sweep)`, `temp-sweep`, `res-sweep` the plot carries (C's
+lookup order in `com_measure2.c`) — the same columns `beginPlot()` puts first
+and that the rawfile writes first. C stops there, so it cannot measure a
+`.dc @inst[param]` plot ("no such scale vector"); the port also accepts its
+`v(param-sweep)` scale, a deliberate divergence.
 
 * The axis must be **finite** and **non-decreasing**. A descending axis (a
   descending `.dc` sweep, e.g. `dc v1 2 0 -0.5`) or a nested `.dc` sweep (whose
@@ -151,9 +155,6 @@ discontinuity because the drivers guarantee a sample on every source breakpoint:
   every breakpoint inside the run has a sample; ... the sample at a breakpoint is
   the left limit and the next sample is the first step of the right-hand
   segment" (`src/analysis/companion.rs:50-56`);
-* the diffsol segments likewise break at every source breakpoint and restart the
-  state from the right (`src/analysis/transient.rs`, the
-  `DaeSegment` loop);
 * the forcing rule itself never spans a jump: transient loads evaluate a step
   that ends at a breakpoint with `Limit::Left` and the next one with
   `Limit::Right` (`src/devices/linear.rs:4-19`).

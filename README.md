@@ -125,18 +125,20 @@ is `0` on success, `1` for a bad command line, `2` for a bad deck or failed run,
 and `3` when the deck needs something the port does not support yet. Details are
 in [CLI.md](docs/port/CLI.md).
 
-The engine can also be used as a library; `examples/rc_diffsol.rs`
-shows the production simulation API.
+The engine can also be used as a library: parse a deck, build a `Circuit`
+and run `analysis::runner(kind)` (see
+[NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)).
 
 ## Transient solvers
 
 An ordinary `.tran` uses the adaptive trapezoidal / Gear-2 companion driver with
 truncation-error control and breakpoint handling, matching ngspice's approach
-([TRANSIENT.md](docs/port/TRANSIENT.md)). Adding `backend=diffsol method=bdf` to
-the `.tran` card selects an alternative adaptive BDF integrator from
-[diffsol](https://github.com/martinjrobins/diffsol); it supports linear index-one
-DAEs only and is not equivalent to ngspice's integration methods. Linear systems
-are factored with [faer](https://github.com/sarah-quinones/faer-rs).
+([TRANSIENT.md](docs/port/TRANSIENT.md)); it is the only transient backend.
+Linear systems are factored by a Rust port of ngspice's own sparse solver,
+SPARSE 1.3, with C's pivoting and error policy
+([NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)). The earlier diffsol BDF
+backend and faer LU were removed in M10 wave 0.5; `backend=diffsol` is an
+explicit error.
 
 ## Verification
 
@@ -150,8 +152,9 @@ cargo xtask golden verify                            # Rust engine vs committed 
 NGSPICE_BIN=/path/to/ngspice cargo xtask golden check  # C output still reproduces
 ```
 
-`golden verify` currently verifies all 86 golden fixtures (two of them
-four-plot and two three-plot multi-analysis decks) with no exclusions.
+`golden verify` verifies every committed golden fixture except
+`multi_analysis_pz`, whose pole search depends on the C build's fused
+multiply-adds (see [VERIFICATION.md](docs/port/VERIFICATION.md)).
 [VERIFICATION.md](docs/port/VERIFICATION.md) describes the harness, tolerances
 and its limits.
 
@@ -160,13 +163,13 @@ and its limits.
 ```
 src/primitives       numbers, units, nodes, errors, analysis taxonomy
 src/netlist          deck loading, tokenizer, winnow parser, AST, parameter evaluation
-src/maths            dense/sparse/complex LU (faer), BDF integration (diffsol)
+src/maths            dense/sparse/complex LU (SPARSE 1.3 port), trap/Gear integration
 src/devices          device models, MNA stamping, device registry
 src/analysis         analysis drivers, plots, measurements, rawfile I/O
 src/cli              CLI argument parsing, dispatch and reporting
 src/bin/spice-rs.rs  the `spice-rs` binary
 tests/               integration tests, one target per file
-examples/            library-level examples (diffsol transient, rank, equilibration)
+examples/            library-level examples (equilibration benchmark)
 xtask/               golden capture/verification, snapshots, CI (unpublished
                      workspace member, not part of the published package)
 conformance/         fixture decks and captured ngspice output
@@ -199,7 +202,7 @@ docs/port/           architecture, C-to-Rust mapping, roadmap and feature guides
 - Output: [CLI.md](docs/port/CLI.md), [RAWFILES.md](docs/port/RAWFILES.md),
   [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md),
   [MEASURE.md](docs/port/MEASURE.md), [FOURIER.md](docs/port/FOURIER.md)
-- Numerics: [DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md),
+- Numerics: [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md),
   [EQUILIBRATION.md](docs/port/EQUILIBRATION.md),
   [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md),
   [HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)
@@ -211,5 +214,5 @@ Modified BSD, the same license as ngspice. This is a **derivative work**: the Ru
 code reimplements behaviour defined by ngspice's C sources. [COPYING](COPYING) is
 reproduced verbatim from upstream and covers the few contributions with different
 terms; [AUTHORS](AUTHORS) is upstream's attribution. See [NOTICE](NOTICE). The
-Rust dependencies (winnow, petgraph, faer, diffsol) are permissively licensed, and
-no LGPL KLU code is used.
+Rust dependencies (winnow, petgraph) are permissively licensed, and no LGPL KLU
+code is used; the SPARSE 1.3 port carries its Berkeley notice.

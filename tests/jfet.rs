@@ -427,6 +427,30 @@ fn transient_gate_charge_drives_the_source_follower() {
 }
 
 #[test]
+fn off_instances_reach_the_c_operating_point() {
+    // jfetload.c keeps a held `off` load nonconvergent through MODEINITFIX,
+    // so C (built with -ffp-contract=off) finds this point only through
+    // OPtran after every continuation fails. The port's held-off rule
+    // reaches the same point without optran.c. C values, `print all` with
+    // `numdgt=17`; the two paths round differently.
+    let mut c = circuit(
+        "vdd d 0 5\nvg g 0 -0.5\nrd d dd 1k\nj1 dd g 0 jn off\nj2 d g2 0 jp 2 off\n\
+         rg g2 0 1meg\n.model jn njf(vto=-2 beta=1m rd=10 rs=10)\n\
+         .model jp njf(level=2 vto=-2 beta=1m)",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+    for (name, expected) in [
+        ("v(dd)", 2.815_070_490_181_647),
+        ("v(g2)", 5.019_986_077_956_033e-6),
+        ("i(vdd)", -1.017_141_964_021_33e-2),
+        ("i(vg)", 3.835_068_846_896_077e-12),
+    ] {
+        close(value(&plot, name, 0), expected, 1e-8, 1e-18);
+    }
+}
+
+#[test]
 fn decks_round_trip_through_the_writer() {
     let netlist = deck(
         "j1 d g s jm 2 off ic=1,-0.5 m=3 temp=40\nj2 d g s jp ic-vds=0.2 dtemp=3\n\

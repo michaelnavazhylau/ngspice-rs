@@ -53,7 +53,7 @@ card 5 @netlists/pz_diode.cir:8:1 lines=8-8 continuations=0
   token 16 8:36 number "20p" value=2e-11
   token 17 8:40 word "vj"
   token 18 8:42 equals "="
-  token 19 8:43 number "0.7" value=7e-1
+  token 19 8:43 number "0.7" value=7.000000000000001e-1
   token 20 8:47 word "m"
   token 21 8:48 equals "="
   token 22 8:49 number "0.5" value=5e-1

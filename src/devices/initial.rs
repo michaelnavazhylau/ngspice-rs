@@ -116,7 +116,8 @@ mod tests {
         )
         .unwrap();
         assert!(initial.off);
-        assert_eq!(initial.values, [Some(0.6), Some(3.)]);
+        // INPevaluate(".6") is 6 * 0.1, as in ngspice.
+        assert_eq!(initial.values, [Some(6. * 0.1), Some(3.)]);
         assert_eq!(rest.len(), 1);
         assert_eq!(rest[0].name, "area");
 

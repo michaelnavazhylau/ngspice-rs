@@ -57,14 +57,18 @@ The command, in order:
    deck runs — all before the first analysis starts;
 5. runs each analysis through the production driver on a freshly elaborated
    circuit and resolves its `.save`/`.print`/`.measure`/`.four` outputs against
-   the full plot;
-6. only when every analysis and every output card succeeded, writes all plots as
-   one ASCII rawfile at `<path>`.
+   the full plot, writing each plot into a temporary file beside `<path>` as
+   soon as it is done. A `.tran` plot that no `.print`, `.measure` or `.four`
+   card reads is never stored: its accepted points stream through the
+   `.save`/`.print` selection into the temporary file as they are accepted;
+6. only when every analysis and every output card succeeded, renames the
+   temporary file to `<path>`; on any failure it is removed and `<path>` is
+   left untouched.
 
 An unadorned `.tran` runs the companion trapezoidal/Gear-2 driver the engine
-defaults to; `simulate` never injects `backend=diffsol`, and an explicit
-`backend=diffsol method=bdf` on the card is passed through unchanged (and fails
-where that backend does not apply, e.g. with `uic` or `.ic`). See
+defaults to, the only transient backend; an explicit `backend=diffsol` on the
+card is passed through unchanged and fails with an `Unsupported` error (the
+diffsol BDF backend was removed in M10 wave 0.5). See
 [TRANSIENT.md](TRANSIENT.md).
 
 ### The rawfile
@@ -78,9 +82,10 @@ The file is ngspice's ASCII form (`set filetype=ascii`), written by
   `datestring()`, which writes local time and leaves an extra pre-year space;
   no committed comparator reads `Date:`. `Title:` keeps the deck's own casing
   where C lowercases it; no committed comparator reads `Title:` either;
-* a `.dc` plot's scale column is named `sweep` (C spells it `v(v-sweep)` or
-  `i(i-sweep)`; `cargo xtask golden verify` maps the name when it compares
-  against the committed C goldens);
+* a `.dc` plot's scale column carries C's name and type for its inner axis
+  (`v(v-sweep)`, `i(i-sweep)`, `temp-sweep`, `res-sweep` or
+  `v(param-sweep)`; see [DC_SWEEPS.md](DC_SWEEPS.md)), and a nested sweep has
+  no outer-value column, as in C;
 * a multi-analysis deck writes one plot per analysis, concatenated in batch
   order, each with the same three headers (the layout `raw_write()` produces for
   several plots, and what `RawFile::parse` reads back);
@@ -154,7 +159,7 @@ in one job; the scheduling rules live in `analysis::batch`:
   `.option` settings to each analysis exactly as for a single-analysis deck, so
   a DC continuation option (`itl1`, `itl2`, `srcsteps`, `gminsteps`,
   `gminfactor`) in a deck that also runs `.tran` bounds the companion `.tran`
-  initial bias as well (#110); `backend=diffsol` still rejects them explicitly.
+  initial bias as well (#110).
 
 Divergences from C, all deliberate:
 

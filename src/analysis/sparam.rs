@@ -31,13 +31,12 @@
 //! singular conversion) is written as zeros, C's `cinverse` contract for an
 //! exactly singular matrix.
 
-use crate::analysis::ac::{SmallSignal, frequency_grid};
+use crate::analysis::ac::{GridKind, SmallSignal, frequency_grid};
 use crate::analysis::linear::{plot, unsupported};
 use crate::analysis::results::Variable;
 use crate::analysis::{AnalysisRequest, Plot};
 use crate::devices::Circuit;
 use crate::devices::linear::SourceKind;
-use crate::maths::complex::ComplexMatrix;
 use crate::maths::dense_complex::DenseComplex;
 use crate::primitives::{Complex, Real, SpiceError, SpiceResult, parse_spice_number};
 
@@ -84,7 +83,7 @@ pub(crate) fn run(
         donoise = (value + 0.5).floor() == 1.;
     }
 
-    let grid = frequency_grid(&positional)?;
+    let grid = frequency_grid(&positional, settings.newton.reltol, GridKind::Sp)?;
     circuit.finalize()?;
     let ports = bind_ports(circuit)?;
     let mut small_signal = SmallSignal::prepare(circuit, request, context, settings)?;
@@ -126,12 +125,9 @@ pub(crate) fn run(
     for f in grid {
         let (last, matrices, factor) =
             small_signal.at_frequency(circuit, context, f, |system| {
-                let matrix = ComplexMatrix::from_operators(
-                    &system.a,
-                    &system.e,
-                    2. * std::f64::consts::PI * f,
-                )?
-                .factorize()?;
+                let matrix =
+                    crate::analysis::ac::ac_matrix(circuit, system, 2. * std::f64::consts::PI * f)?
+                        .factorize()?;
                 let mut incident = DenseComplex::zeros(ports.len());
                 let mut scattered = DenseComplex::zeros(ports.len());
                 let mut last = Vec::new();

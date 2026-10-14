@@ -34,16 +34,15 @@ fn tran() -> AnalysisRequest {
     AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m"])
 }
 
-fn diffsol() -> AnalysisRequest {
-    AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "1m", "backend=diffsol", "method=bdf"],
-    )
-}
-
 fn dc() -> AnalysisRequest {
     AnalysisRequest::with_arguments(AnalysisKind::DcSweep, ["v1", "0", "1", "0.1"])
 }
+
+/// ngspice's default Newton tolerances (`CKTreltol`, `CKTvoltTol`): two
+/// converged solutions of one circuit reached along different iterates
+/// agree only to these (NIiter stops once the update is within them).
+const NIITER_RELTOL: f64 = 1e-3;
+const NIITER_VNTOL: f64 = 1e-6;
 
 fn close(a: f64, b: f64, rel: f64, abs: f64) {
     assert!(
@@ -79,7 +78,7 @@ fn gmin_is_the_junction_gmin_of_every_analysis() {
     )
     .unwrap();
     close(ac.value("i(v1)", 0).unwrap().re.abs(), 1e-6, 1e-6, 0.);
-    // Transient (companion and diffsol) see it through the same context.
+    // The transient sees it through the same context.
     let tran =
         simulate("v1 a 0 -10\nd1 a 0 dm\n.model dm d(is=1e-14)\n.options gmin=1u\n.tran 1u 10u")
             .unwrap();
@@ -146,7 +145,6 @@ fn itl1_reaches_dc_analyses_and_the_companion_initial_bias() {
     }
     assert_eq!(c.request(dc()).unwrap().named("maxiter"), Some("100"));
     assert_eq!(c.request(tran()).unwrap().named("maxiter"), Some("100"));
-    assert!(c.request(diffsol()).is_err());
     let above = config(".options itl1=250").unwrap();
     assert_eq!(above.request(dc()).unwrap().named("maxiter"), Some("250"));
     for low in ["0", "1", "99", "100"] {
@@ -243,15 +241,22 @@ fn itl2_bounds_the_warm_started_dc_sweep_points() {
     let plot = deck_with_request(&format!("{sweep}\n.options itl2=5"), &tight).unwrap();
     let reference = simulate(sweep).unwrap();
     assert_eq!(plot.point_count(), 2);
+    // Two converged solves of one point along different iterates agree to
+    // NIiter's tolerance (update within reltol |v| + vntol, returning the
+    // last load's iterate, CKTrhsOld), not exactly: here 2.9e-4 relative.
     close(
         plot.value("v(b)", 1).unwrap().re,
         reference.value("v(b)", 1).unwrap().re,
-        1e-6,
-        1e-9,
+        NIITER_RELTOL,
+        NIITER_VNTOL,
     );
-    for bad in [".options itl2=1.5", ".options itl2=10001"] {
+    for bad in [".options itl2=10001", ".options itl2=abc"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
     }
+    // IF_INTEGER rounds: floor(0.5 + 1.5) = 2 (raised to 100 for the limit).
+    let rounded = config(".options itl2=1.5").unwrap();
+    assert_eq!(rounded.dc().itl2, Some(100));
+    assert_eq!(rounded.dc().itl2_written, Some(2));
     assert_eq!(config(".options itl2=0").unwrap().dc().itl2, Some(100));
     // The request key is validated by the sweep driver.
     let mut circuit = RunConfig::from_netlist(&deck(sweep))
@@ -302,12 +307,6 @@ fn itl2_bounds_every_continuation_stage_of_the_dc_bias() {
             );
         }
     }
-    // backend=diffsol runs no continuation ladder, so it cannot honour itl2.
-    let error = config(".options itl2=300")
-        .unwrap()
-        .request(diffsol())
-        .unwrap_err();
-    assert!(error.to_string().contains("itl2"), "{error}");
     let c = config(".options itl1=5000").unwrap();
     assert_eq!(
         c.request(op.clone()).unwrap().named("maxiter"),
@@ -344,7 +343,13 @@ fn itl2_bounds_every_continuation_stage_of_the_dc_bias() {
         let limited = format!("{body}\n{analysis}\n.options itl2=5");
         let plot = deck_with_request(&limited, &tight).unwrap();
         if analysis == ".op" {
-            close(plot.value("v(b)", 0).unwrap().re, expected, 1e-6, 1e-9);
+            // As above: NIiter's tolerance (here 4.9e-6 relative apart).
+            close(
+                plot.value("v(b)", 0).unwrap().re,
+                expected,
+                NIITER_RELTOL,
+                NIITER_VNTOL,
+            );
         }
         // The stage limit is the bound, not the direct-solve limit: a literal
         // stagemaxiter=3 fails as before.
@@ -375,13 +380,14 @@ fn stage_iteration_limit_is_separate_from_the_direct_limit() {
     let solved = solve_dc_with(&circuit, &context, &settings, &[], None, None).unwrap();
     let stages = &solved.report.stages;
     assert_eq!(stages[0].strategy, DcStrategy::Direct);
-    assert_eq!(stages[0].iterations, 3);
+    // NIiter fails after the pass that exceeds the limit: 3 + 1.
+    assert_eq!(stages[0].iterations, 4);
     assert!(
         stages[1..]
             .iter()
             .all(|s| s.strategy == DcStrategy::GminStepping)
     );
-    assert!(stages[1..].iter().all(|s| s.iterations <= 40));
+    assert!(stages[1..].iter().all(|s| s.iterations <= 41));
     assert!(stages[1..].iter().any(|s| s.iterations > 3), "{stages:?}");
     // Gmin stepping's closing zero-gmin solve is bounded by the direct limit
     // (itl1), not the stage limit: C's `spice3_gmin`/`dynamic_gmin`/`new_gmin`
@@ -391,8 +397,12 @@ fn stage_iteration_limit_is_separate_from_the_direct_limit() {
     assert_eq!(closing.gmin, 0.);
     assert!(closing.iterations <= 3, "{closing:?}");
     // Budget: the direct limit for the direct and closing solves, plus the
-    // stage limit for every gmin stage in between.
-    assert_eq!(solved.report.budget, 2 * 3 + (stages.len() - 2) * 40);
+    // stage limit for every gmin stage in between, each plus the pass a
+    // failing NIiter makes beyond its limit.
+    assert_eq!(
+        solved.report.budget,
+        2 * (3 + 1) + (stages.len() - 2) * (40 + 1)
+    );
     for bad in ["stagemaxiter=0", "stagemaxiter=10001", "stagemaxiter=2.5"] {
         let request = AnalysisRequest::with_arguments(AnalysisKind::OperatingPoint, [bad]);
         assert!(DcSettings::from_request(&request).is_err(), "{bad}");
@@ -415,8 +425,6 @@ fn itl4_is_the_companion_newton_limit_per_timepoint() {
             .named("tranmaxiter"),
         None
     );
-    let error = c.request(diffsol()).unwrap_err();
-    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
     let deck_text = "v1 a 0 pulse(0 5 1u 1u 1u 5u 20u)\nr1 a b 1k\nd1 b 0 dm\n\
                      .model dm d(is=1e-14)\n.tran 0.1u 3u";
     let stats = |options: &str, extra: &[&str]| {
@@ -446,17 +454,25 @@ fn itl4_is_the_companion_newton_limit_per_timepoint() {
         starved.rejected > default.rejected,
         "{starved:?} vs {default:?}"
     );
-    for bad in [".options itl4=2.5", ".options itl4", ".options itl4=10001"] {
+    for bad in [".options itl4", ".options itl4=10001"] {
         assert!(!config(bad).unwrap_err().is_not_yet_ported(), "{bad}");
     }
+    // IF_INTEGER rounds 2.5 to 3, which NIiter raises to 100.
+    assert_eq!(
+        config(".options itl4=2.5").unwrap().transient().itl4,
+        Some(100)
+    );
 }
 
 #[test]
 fn xmu_weights_the_companion_trapezoidal_rule() {
     let c = config(".options xmu=0.3").unwrap();
-    assert_eq!(c.transient().xmu, Some(0.3));
-    assert_eq!(c.request(tran()).unwrap().named("xmu"), Some("3e-1"));
-    assert!(c.request(diffsol()).is_err());
+    // INPevaluate("0.3") is 3 * 0.1.
+    assert_eq!(c.transient().xmu, Some(3. * 0.1));
+    assert_eq!(
+        c.request(tran()).unwrap().named("xmu"),
+        Some("3.0000000000000004e-1")
+    );
     let rc = "v1 a 0 pulse(0 1 0 1n 1n 1 2)\nr1 a b 1k\nc1 b 0 1u\n.tran 10u 2m";
     let at = |plot: &Plot, t: f64| {
         let time = plot.column("time").unwrap();
@@ -523,6 +539,31 @@ fn existing_effective_options_are_still_applied() {
     assert!(c.ignored().is_empty());
 }
 
+#[test]
+fn every_analysis_with_an_operating_point_gets_the_deck_tolerances() {
+    // C's CKTop reads CKTreltol/CKTvoltTol/CKTabstol for every analysis that
+    // solves an operating point; `.disto` and `.sens` once dropped them, so
+    // their operating points ran at the default reltol (the disto_* and
+    // sens_diode goldens tighten RELTOL and depend on it).
+    let c = config(".options reltol=1e-9 vntol=2u abstol=3p").unwrap();
+    for kind in [
+        AnalysisKind::OperatingPoint,
+        AnalysisKind::DcSweep,
+        AnalysisKind::Ac,
+        AnalysisKind::Noise,
+        AnalysisKind::Distortion,
+        AnalysisKind::PoleZero,
+        AnalysisKind::Sensitivity,
+        AnalysisKind::TransferFunction,
+        AnalysisKind::SParameter,
+    ] {
+        let request = c.request(AnalysisRequest::new(kind)).unwrap();
+        for key in ["rtol", "vntol", "abstol"] {
+            assert!(request.named(key).is_some(), "{kind:?} lacks {key}");
+        }
+    }
+}
+
 // ---- documented no-ops ------------------------------------------------------
 
 #[test]
@@ -583,7 +624,8 @@ fn options_c_ignores_are_documented_no_ops() {
         assert!(config(&format!(".options {name}=abc")).is_err(), "{name}");
         assert!(config(&format!(".options {name}")).is_err(), "{name}");
     }
-    assert!(config(".options itl3=2.5").is_err());
+    // Validated as C's IF_INTEGER: 2.5 rounds, a word does not parse.
+    assert!(config(".options itl3=2.5").is_ok());
     assert!(config(".options cptime=2.5").is_ok());
 }
 
@@ -605,19 +647,73 @@ fn unread_frontend_variables_and_bypass_are_documented_no_ops() {
     assert!(!config(".options bypass").unwrap_err().is_not_yet_ported());
 }
 
+/// A 1e-17 S diagonal at node `a` with the lowest Markowitz product, coupled
+/// by VCCSs to `b`: SPARSE takes it as the first pivot only when `pivrel`
+/// lets it, and then loses `v(a)` to cancellation. ngspice with
+/// `.options sparse` gives v(a) = -3.45016 by default and -9.89 with
+/// `pivrel=1e-30 pivtol=0`.
+const TINY_PIVOT_DECK: &str = "r1 a 0 1e17
+g1 a 0 b 0 -0.7
+g2 b 0 a 0 -1.3
+r2 b 0 1.7
+r3 b c 1.1
+r4 c 0 2.9
+r5 c d 1.3
+r6 d 0 3.1
+r7 b d 0.9
+r8 c e 1
+r9 e 0 1
+r10 d e 1";
+
 #[test]
-fn pivot_thresholds_are_not_yet_ported() {
-    // C sets Sparse's TSKpivotAbsTol/TSKpivotRelTol from them (cktsopt.c);
-    // this port's LU has no matching knob, so they are explicit gaps rather
-    // than no-ops.
-    for options in [
-        ".options pivtol=1e-13",
-        ".options pivrel=1e-3",
-        ".options pivtol={1e-13}",
+fn pivot_thresholds_reach_every_circuit_factorization() {
+    let c = config(".options pivtol=1e-10 pivrel=0.5").unwrap();
+    assert_eq!(c.context().pivot.absolute, 1e-10);
+    assert_eq!(c.context().pivot.relative, 0.5);
+    assert_eq!(c.context().model_context().pivot, c.context().pivot);
+    assert_eq!(c.applied().len(), 2);
+    let defaults = config("").unwrap().context().pivot;
+    assert_eq!((defaults.absolute, defaults.relative), (1e-13, 1e-3));
+    assert_eq!(
+        config(".param p=1e-12\n.options pivtol={p}")
+            .unwrap()
+            .context()
+            .pivot
+            .absolute,
+        1e-12
+    );
+    // spOrderAndFactor would silently fall back to its default here.
+    for bad in [
+        ".options pivtol=-1e-13",
+        ".options pivrel=0",
+        ".options pivrel=1.5",
+        ".options pivrel=abc",
+        ".options pivtol",
     ] {
-        let error = config(options).unwrap_err();
-        assert!(error.is_not_yet_ported(), "{options}: {error}");
-        assert!(error.to_string().contains("piv"), "{error}");
+        let error = config(bad).unwrap_err();
+        assert!(!error.is_not_yet_ported(), "{bad}: {error}");
+    }
+
+    let exact = -3.450_156_379_816_799;
+    let run = |sources: &str, analysis: &str, options: &str| {
+        let plot = simulate(&format!(
+            "{TINY_PIVOT_DECK}\n{sources}\n{options}\n{analysis}"
+        ))
+        .unwrap();
+        plot.value("v(a)", plot.point_count() - 1).unwrap().re
+    };
+    let dc = "i1 0 a 1.1\ni2 0 b 2.3";
+    let ac = "i1 0 a dc 0 ac 1.1\ni2 0 b dc 0 ac 2.3";
+    let loose = ".options pivrel=1e-30 pivtol=0";
+    for (sources, analysis) in [
+        (dc, ".op"),
+        (dc, ".dc i1 1.1 1.1 1"),
+        (ac, ".ac lin 1 1k 1k"),
+        (dc, ".tran 1u 2u"),
+    ] {
+        close(run(sources, analysis, ""), exact, 1e-9, 0.);
+        let lost = run(sources, analysis, loose);
+        assert!((lost - exact).abs() > 0.1, "{analysis}: v(a) = {lost}");
     }
 }
 
@@ -678,7 +774,7 @@ fn option_expression_failures_are_explicit() {
         "{undefined}"
     );
     // Range checks apply to the evaluated value.
-    assert!(config(".param n=2.5\n.options itl1={n}").is_err());
+    assert!(config(".param n=10001\n.options itl1={n}").is_err());
     assert!(config(".param n=-1\n.options reltol={n}").is_err());
     assert!(config(".options temp={-300}").is_err());
     // method takes a word.
@@ -698,4 +794,27 @@ fn option_expression_failures_are_explicit() {
     let n = deck("r1 a 0 1k\n.param t=40\n.options temp={t}");
     let error = RunConfig::from_options(&n.options, &RunOverrides::default()).unwrap_err();
     assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+}
+
+#[test]
+fn removed_diffsol_backend_is_rejected_whatever_the_deck_options() {
+    // RunConfig forwards deck options without interpreting `backend=`; the
+    // `.tran` dispatcher refuses the removed adaptive BDF backend explicitly,
+    // so no option can be reported as honoured by it.
+    for options in [
+        "",
+        ".options itl2=300",
+        ".options itl4=20 xmu=0.3",
+        ".options method=gear maxord=2 trtol=3 chgtol=1e-13",
+    ] {
+        let error = simulate(&format!(
+            "v1 a 0 dc 1\nr1 a b 1k\nc1 b 0 1u\n{options}\n.tran 1u 10u backend=diffsol"
+        ))
+        .unwrap_err();
+        assert!(
+            matches!(error, SpiceError::Unsupported { .. })
+                && error.to_string().contains("backend=diffsol"),
+            "{options}: {error}"
+        );
+    }
 }

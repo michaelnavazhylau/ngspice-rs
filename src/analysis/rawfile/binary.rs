@@ -29,11 +29,12 @@
 //! length of an unpadded one is not derivable from the header, and the port's
 //! [`Plot`] is rectangular.
 
+use std::io::{self, Write};
 use std::str;
 
 use crate::primitives::{Complex, Real, SpiceResult};
 
-use super::{Cursor, Header, RawFile, RawPlot, Section, parse_header, render_header, unsupported};
+use super::{Cursor, Header, RawFile, RawPlot, Section, parse_header, unsupported};
 use crate::analysis::results::{Plot, PlotFlags};
 
 /// Bytes in one stored `double`.
@@ -389,40 +390,42 @@ fn find_section_line(bytes: &[u8], from: usize) -> Option<(usize, Section)> {
     }
 }
 
-/// Renders every plot in the binary form, as `raw_write()` does when
-/// `set filetype=binary` sends it down its `if (binary)` branch.
-///
-/// # Errors
-///
-/// [`crate::primitives::SpiceError::Numerical`] from [`RawFile::validate`].
-pub(super) fn render(rawfile: &RawFile, byte_order: BinaryByteOrder) -> SpiceResult<Vec<u8>> {
-    rawfile.validate()?;
-    let mut bytes = Vec::new();
-    for raw_plot in &rawfile.plots {
-        let plot = &raw_plot.plot;
-        // One header renderer serves both encodings, so they cannot drift apart.
-        let mut header = String::new();
-        render_header(&mut header, raw_plot);
-        bytes.extend_from_slice(header.as_bytes());
-        bytes.extend_from_slice(b"Binary:\n");
-        for point in &plot.points {
-            for (column, value) in point.iter().enumerate() {
-                match plot.flags {
-                    PlotFlags::Real => bytes.extend_from_slice(&byte_order.encode(value.re)),
-                    PlotFlags::Complex => {
-                        // `raw_write()` writes `(re, 0.0)` for a vector it has
-                        // flagged real, exactly as the ASCII writer does.
-                        let is_real = plot
-                            .variables
-                            .get(column)
-                            .is_some_and(|variable| variable.is_real);
-                        let imaginary = if is_real { 0.0 } else { value.im };
-                        bytes.extend_from_slice(&byte_order.encode(value.re));
-                        bytes.extend_from_slice(&byte_order.encode(imaginary));
-                    }
-                }
+/// Writes the binary payload of every point of `plot`, as `raw_write()` does
+/// when `set filetype=binary` sends it down its `if (binary)` branch.
+pub(super) fn write_points(
+    out: &mut impl Write,
+    plot: &Plot,
+    byte_order: BinaryByteOrder,
+) -> io::Result<()> {
+    out.write_all(b"Binary:\n")?;
+    plot.points
+        .iter()
+        .try_for_each(|point| write_point(out, plot, point, byte_order))
+}
+
+/// Writes one point of `plot`: a `double` per value in a `real` plot, `re`
+/// then `im` in a `complex` one.
+pub(super) fn write_point(
+    out: &mut impl Write,
+    plot: &Plot,
+    point: &[Complex],
+    byte_order: BinaryByteOrder,
+) -> io::Result<()> {
+    for (column, value) in point.iter().enumerate() {
+        match plot.flags {
+            PlotFlags::Real => out.write_all(&byte_order.encode(value.re))?,
+            PlotFlags::Complex => {
+                // `raw_write()` writes `(re, 0.0)` for a vector it has flagged
+                // real, exactly as the ASCII writer does.
+                let is_real = plot
+                    .variables
+                    .get(column)
+                    .is_some_and(|variable| variable.is_real);
+                let imaginary = if is_real { 0.0 } else { value.im };
+                out.write_all(&byte_order.encode(value.re))?;
+                out.write_all(&byte_order.encode(imaginary))?;
             }
         }
     }
-    Ok(bytes)
+    Ok(())
 }

@@ -28,7 +28,7 @@
 //! | DC (`.op`, `.dc`, transient bias) | the delay is zero: `v(int1) - v(n1) = v(p2) - v(n2) + (1 - gmin) Z0 i2` (and symmetrically) | `traload.c`, `MODEDC` |
 //! | AC, `.sp` | the exact factor `exp(-j omega TD)` on the cross terms, reassembled at every frequency ([`Device::small_signal_depends_on_frequency`]) | `traacld.c` |
 //! | transient (companion driver) | `input1/2` interpolated quadratically from the accepted history at `t - TD` ([`DelayLine`]); history appended and pruned only on accepted points; device breakpoints and step bound | `traload.c`, `traacct.c`, `tratrunc.c` |
-//! | diffsol BDF, pole-zero, noise, distortion, sensitivity, `uic` | explicit errors | C has no `DEVpzLoad`/`DEVnoise`/`DEVdisto`/`DEVsen*` for TRA |
+//! | pole-zero, noise, distortion, sensitivity, `uic` | explicit errors | C has no `DEVpzLoad`/`DEVnoise`/`DEVdisto`/`DEVsen*` for TRA |
 //!
 //! AC: the companion pencil is `A + j omega E`, which cannot hold
 //! `exp(-j omega TD)`; at each frequency the real part of every complex
@@ -432,6 +432,41 @@ impl TransmissionLine {
 }
 
 impl Device for TransmissionLine {
+    /// `trasetup.c` `TSTALLOC` order. The branch "currents" `i1`/`i2` are
+    /// node unknowns made with `CKTmkVolt`, numbered with `int1`/`int2`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [pos1, neg1, pos2, neg2, ibr1, ibr2, int1, int2] = self.terminals;
+        for (row, col) in [
+            (ibr1, ibr2),
+            (ibr1, int1),
+            (ibr1, neg1),
+            (ibr1, neg2),
+            (ibr1, pos2),
+            (ibr2, ibr1),
+            (ibr2, int2),
+            (ibr2, neg1),
+            (ibr2, neg2),
+            (ibr2, pos1),
+            (int1, ibr1),
+            (int1, int1),
+            (int1, pos1),
+            (int2, ibr2),
+            (int2, int2),
+            (int2, pos2),
+            (neg1, ibr1),
+            (neg2, ibr2),
+            (pos1, int1),
+            (pos1, pos1),
+            (pos2, int2),
+            (pos2, pos2),
+        ] {
+            setup.nodes(row, col);
+        }
+        Ok(true)
+    }
     fn name(&self) -> &str {
         &self.name
     }

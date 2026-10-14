@@ -1,8 +1,7 @@
 # K mutual inductance (#80)
 
 **Implemented: K cards coupling two or more inductors for `.op`, `.dc`, `.ac`
-and `.tran` (companion trapezoidal/Gear-2 and the explicit `backend=diffsol
-method=bdf`), including K cards inside subcircuits, model-backed inductors and
+and `.tran` (companion trapezoidal/Gear-2), including K cards inside subcircuits, model-backed inductors and
 coupled `ic=`/`uic`.** Coupled multiconductor lines (`cpl`) and nonlinear cores
 are out of scope.
 
@@ -56,7 +55,6 @@ v+ - v- = d/dt (L i + sum(M i_k))
 | companion `.tran` | the integrated quantity is the coupled flux `L i + sum(M i_k)` (`indload.c` adds it to `INDflux`); the row gains `-ag0 M` in each coupled branch column (`MUTbr1br2Ptr`); `veq` comes from the coupled-flux history |
 | truncation | `INDtrunc` on `INDflux`: the LTE estimate sees the coupled flux |
 | `uic` | starting fluxes `L ic + sum(M ic_k)` with unset `ic=` taken as 0 (`indload.c` `MODEUIC`) |
-| diffsol BDF | the same off-diagonal `E` entries; the adapter's dense SVD analysis of coupled mass blocks handles them (`k = 1` gives a rank-deficient block that the index-one analysis accepts) |
 
 The K device has no terminals, branches or state and stamps nothing itself;
 `Circuit` resolves its names after elaboration and passes each inductor its
@@ -90,15 +88,11 @@ The opt-in test `c_mutual_inductance` shows that C only warns for `k = 1.5`.
   `transformer_ic_uic_tran` (coupled `ic=` free decay, `uic`, Gear-2) and
   `transformer_model_uic_tran` (model-backed coupled inductors with TC and
   `m = 2` at 50 C decaying from instance `ic=`, `uic`, Gear-2), all
-  with `compare::TRAN` and worst error 0.000 of the bound. `transformer_tran`
-  has no BDF variant: C's backward-Euler restart error after the 1 us pulse
-  corner (1 % of `i(l1)` at 2 us against a reltol = 1e-7 reference) exceeds
-  even `compare::TRAN_RESTART`, while the BDF result matches that reference to
-  1.2e-7 A (`the_bdf_backend_integrates_the_coupled_mass_matrix`).
+  with `compare::TRAN` and worst error 0.000 of the bound.
 - `tests/analysis_mutual_inductance.rs`: DC shorts; AC against
   the two-loop closed form for positive, negative, ideal and duplicated
   couplings; a multi-inductor card equals one card per pair; an ideal (k = 1)
-  transformer keeps `v(s) = 2 v(p)` to 1e-12 on trap, Gear-2 and BDF; coupled
+  transformer keeps `v(s) = 2 v(p)` to 1e-12 on trap and Gear-2; coupled
   RL decays against the matrix exponential from `uic` `ic=` (2.7e-7 A trap,
   1.1e-6 A Gear-2) and from the operating point (2.1e-6 / 7.1e-6 A); explicit
   failures in `.op`/`.ac`/`.tran`.

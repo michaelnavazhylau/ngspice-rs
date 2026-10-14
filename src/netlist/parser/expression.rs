@@ -12,7 +12,7 @@
 //! Every failure after a recognised prefix is a committed error carrying a
 //! byte column. Nothing is evaluated.
 
-use crate::primitives::{SourceLoc, SpiceError, SpiceResult, parse_spice_number_prefix};
+use crate::primitives::{SourceLoc, SpiceError, SpiceResult, parse_numparam_number_prefix};
 use winnow::Parser as _;
 use winnow::combinator::{Infix, alt, expression, opt, peek, repeat, separated};
 use winnow::error::{AddContext, ErrMode, ModalResult, ParserError};
@@ -319,7 +319,8 @@ fn operand(input: &mut In<'_>) -> Res<Expr> {
 fn number(input: &mut In<'_>) -> Res<Expr> {
     let start = input.eof_offset();
     let before = input.input;
-    let Some(parsed) = parse_spice_number_prefix(before) else {
+    // numparam's fetchnumber(): %lG plus parseunit(), not INPevaluate.
+    let Some(parsed) = parse_numparam_number_prefix(before) else {
         return Err(cut(start, "malformed numeric literal"));
     };
     let digits = input.input[..parsed.consumed].chars().count();

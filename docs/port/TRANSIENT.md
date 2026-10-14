@@ -2,10 +2,8 @@
 
 Ordinary `.tran tstep tstop [tstart [tmax]]` runs the adaptive trapezoidal /
 Gear-2 **companion-model** driver, `analysis::companion_transient`
-(`src/analysis/companion.rs`). It is a separate implementation from
-the explicitly selected diffsol BDF backend (see
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md)); companion stamps
-are never handed to diffsol and diffsol equations are never discretized again.
+(`src/analysis/companion.rs`), the only transient backend; the diffsol BDF
+backend was removed in M10 wave 0.5 ([NATIVE_SOLVER.md](NATIVE_SOLVER.md)).
 C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 `niinteg.c`, `nicomcof.c`, `traninit.c`, `captrunc.c`, `indtrunc.c`.
 
@@ -19,17 +17,16 @@ C references (read-only behaviour): `dctran.c`, `ckttrunc.c`, `cktterr.c`,
 | `maxord=1` | backward Euler throughout (C: `CKTmaxOrder > 1` is required to raise the order) |
 | `maxord=2..6` (gear or trap) | identical runs: `dctran.c` only raises the order from 1 to 2, see [Gear `maxord` 3–6](#gear-maxord-36-98) |
 | `maxord=0`, `7` and above, non-integer | explicit `Unsupported` error (C clamps to `1..=6` with a warning) |
-| `backend=diffsol method=bdf` | explicit diffsol BDF, unchanged |
-| `backend=diffsol` without `method=bdf`, `method=bdf` without the backend, unknown backend/method, unknown or duplicate options | explicit errors |
-| `uic`, `.ic`, instance `ic=` with `backend=diffsol` | explicit `Unsupported` errors (the BDF backend has no IC formulation; `.nodeset` is validated and otherwise a no-op) |
+| `backend=companion` | the same driver |
+| `backend=diffsol` (with any method or options) | explicit `Unsupported` error from the `.tran` dispatcher (`src/analysis/transient.rs`): the BDF backend was removed |
+| `method=bdf`, unknown backend/method, unknown or duplicate options | explicit errors |
 | `uic`, `.ic`, `.nodeset`, instance `ic=` on the companion driver | implemented for linear and nonlinear circuits, see [Initial conditions](#initial-conditions-27) and [Nonlinear initial conditions](#nonlinear-initial-conditions-99) |
 
 `.option method=`, `maxord=`, `reltol=`, `vntol=`, `abstol=`, `chgtol=` and
 `trtol=` are forwarded by `RunConfig::request_for` as the request arguments
 `method=`, `maxord=`, `rtol=`, `vntol=`, `abstol=`, `chgtol=`, `trtol=` unless
-the request already states them (explicit request > deck > defaults). With
-`backend=diffsol` a deck `method`/`maxord`/`chgtol`/`trtol` is an error, not
-silently ignored. `maxsteps=` bounds accepted + rejected steps.
+the request already states them (explicit request > deck > defaults).
+`maxsteps=` bounds accepted + rejected steps.
 `.option itl4` bounds the Newton iterations of each nonlinear trial: C's
 nominal `CKTtranMaxIter` default is 10, but `NIiter()` (`niiter.c`) raises any
 limit below 100 to 100, so the effective default is 100 and the deck value is
@@ -37,12 +34,10 @@ forwarded as request `tranmaxiter=max(itl4, 100)` (the request key itself is a
 literal `1..=10000` port knob),
 `.option xmu` (request `xmu=`, `0..=0.5`, default 0.5) is the trapezoidal
 weighting of `nicomcof.c`, and `itl1`/`itl2`/`srcsteps`/`gminsteps`/`gminfactor`
-(requests `maxiter=`, `stagemaxiter=` etc.) configure the nonlinear initial bias (#110). All of
-them are rejected with `backend=diffsol`.
+(requests `maxiter=`, `stagemaxiter=` etc.) configure the nonlinear initial bias (#110).
 
 Defaults are ngspice's: `reltol` 1e-3, `vntol` 1e-6 V, `abstol` 1e-12 A,
-`chgtol` 1e-14 C, `trtol` 7, `maxsteps` 1,000,000 (range 1 to 10,000,000). The
-diffsol backend keeps its own tighter defaults (rtol 1e-7, vntol 1e-9 V).
+`chgtol` 1e-14 C, `trtol` 7, `maxsteps` 1,000,000 (range 1 to 10,000,000).
 
 ## Algorithm
 
@@ -55,7 +50,7 @@ the run with an error; no partial plot is returned.
 
 * **Initial point.** Without `uic`: `A x = b(0-)`, the DC operating point with
   the sources at their left limit at `t = 0` (C evaluates the waveform in
-  `MODETRANOP`), the same policy as the diffsol backend, with `.ic` node
+  `MODETRANOP`), with `.ic` node
   voltages imposed (below). With `uic`: no solve, see below. The charge/flux
   state, with zero derivative, fills the whole accepted history (C copies
   `CKTstate0` into `CKTstate1..3`). Floating capacitor nodes or ideal-source
@@ -63,8 +58,17 @@ the run with an error; no partial plot is returned.
 * **Step sizes** (`traninit.c`, `dctran.c`). `maxstep = tmax` if given, else
   `min(tstep, (tstop - tstart)/50)`; `delmin = 1e-11 maxstep`; first step
   `min(tstop/100, tstep)/10`, cut at the `t = 0` breakpoint to
-  `0.1 min(tstop/50, gap to next breakpoint)` and divided by ten, at least
-  `2 delmin`. `tstep` limits the step; it is not an output spacing.
+  `0.1 min(tstop/50, gap to next breakpoint)` and divided by ten (the
+  XSPICE build of `dctran.c`, which the reference binary is, has no
+  `2 delmin` floor there). `tstep` limits the step; it is not an output
+  spacing. The driver is a literal port of the `dctran.c` loop (XSPICE
+  branches, no event-driven instances): `CKTtime += CKTdelta` per trial and
+  `CKTtime -= CKTdelta` on rejection (never a restored or assigned time),
+  `CKTsaveDelta`, `CKTbreak`, `firsttime`, the end test
+  `AlmostEqualUlps(CKTtime, CKTfinalTime, 100)`, and each trial's Newton
+  solve starting from the previous trial's last iterate (`CKTrhsOld`, also
+  after a rejected or non-converged trial), so accepted time points are
+  bit-identical to ngspice whenever the device loads are.
 * **Truncation error** (`CKTterr`, via `Coefficients::truncation_timestep`) for
   every device with `Device::truncation_slot()` (capacitors, inductors) from
   divided differences of the charge/flux over the trial and accepted points,
@@ -82,24 +86,32 @@ the run with an error; no partial plot is returned.
   second step uses `maxstep` placeholders for the not-yet-existing older steps
   (`StepHistory::with_fill`). Non-convergence of a nonlinear trial divides the
   step by eight and returns to order 1.
-* **Breakpoints.** Source corners and jumps are consumed lazily from
-  `LinearSystem::breakpoints_in`, merged within `5e-5 maxstep` (`CKTminBreak`)
-  and bracketed by `0` and `tstop`; devices may add breakpoints when they
-  accept a point (transmission lines, see
+* **Breakpoints.** C's table `CKTbreaks` (`devices::BreakTable`, starting as
+  `{0, tstop}`, `CKTsetBreak`/`CKTclrBreak` merge rules with `CKTminBreak =
+  10 delmin`, the XSPICE default) is filled at every accepted point by the
+  sources' accept hooks (`devices::SourceBreaks`, `VSRCaccept`/`ISRCaccept`):
+  a voltage PULSE or any PWL requests its *next* corner after
+  `time + CKTminBreak`, computed from the accepted time in C's operation
+  order; a current PULSE keeps ISRC's older `CKTbreak`/`SAMETIME` scheme;
+  SIN/EXP/SFFM/AM request none. Devices add entries through the same
+  `CKTsetBreak` rules when they accept a point (transmission lines, see
   [Device-driven breakpoints](#device-driven-breakpoints-and-delay-history-adr-84)).
-  A step is cut to land exactly on the next
-  breakpoint (the step end is assigned the breakpoint time, not `t + dt`), or
-  halved when the following step would otherwise be tiny. The step **ending** at a
-  breakpoint evaluates the forcing with `Limit::Left`; later steps use
-  `Limit::Right` at their (later) end time. History is *not* cleared at a
+  At each step the driver clears entries at or
+  within `CKTminBreak` of the current time, cuts the step to `CKTbreaks[0] -
+  CKTtime` when it would pass it (the landing time is `CKTtime + CKTdelta`,
+  not the breakpoint value), or halves the distance when `t + 1.9 dt` passes
+  it (unless `t + dt` is the stop time). The step ending at a breakpoint
+  evaluates the forcing with `Limit::Left`, others with `Limit::Right`; only
+  port-only jumps (repeated-PWL boundaries, `Waveform::Step`) distinguish
+  them. History is *not* cleared at a
   breakpoint (C does not); only the order resets, so the post-breakpoint
   backward-Euler step re-derives the capacitor current/inductor voltage from
   continuous charge/flux. Source stamping is part of the device load
   (`IndependentSource::stamp` with `Forcing { limit, timing }`).
 * **Minimum step and limits.** At or below `delmin` after a rejection the step is
   retried once at `delmin`, then the run fails with "timestep too small"
-  (`dctran.c`). `t + dt <= t` is a "no progress" error. Accepted + rejected steps
-  and pulled breakpoints are bounded by `maxsteps`.
+  (`dctran.c`). Accepted + rejected steps are bounded by `maxsteps` (C has no
+  such bound).
 * **Newton structure.** `load -> solve -> converged?` per trial. Linear circuits
   take one solve and then a matrix-free reload at the solution for the trial
   state (one factorization per trial). Nonlinear devices iterate up to 10 times
@@ -121,9 +133,9 @@ the reference binary): `inppas3.c`/`cktsetnp.c` (storing `.ic`/`.nodeset`),
 | --- | --- | --- |
 | duplicate `.ic`/`.nodeset` for a node | each entry overwrites the node field: last wins | same (deck order, across cards) |
 | unknown node | warning "IC on non-existent node ... ignored" (any analysis) | **error** with the entry location, in every analysis and backend |
-| `.ic`, no `uic` | enforced in every iteration of the `.tran` initial bias only (`cktload.c`, `MODETRANOP`, not `MODEUIC`); row replaced by `v = ic`, or by a `1e10` conductance when the row holds a branch-current entry | node rows replaced by `x[row] = ic` **exactly** (the KCL residual is the current of the hidden constraint), for every row. Nodes on ideal sources/inductors (DC shorts) are resolved structurally, below |
+| `.ic`, no `uic` | enforced in every iteration of the `.tran` initial bias only (`cktload.c`, `MODETRANOP`, not `MODEUIC`); row replaced by `v = ic`, or by a `1e10` conductance when the row holds a branch-current entry | same: `ZeroNoncurRow` zeroes the row in place (so the sparse ordering is C's), then `v = ic`, or the `1e10` conductance and RHS when a branch-current column remains. Entries contradicting ideal sources/inductors (DC shorts) are errors, below |
 | `.ic` in `.op`, `.dc`, `.ac` | ignored (`MODETRANOP` only) | accepted, ignored, nodes validated |
-| `.nodeset`, no `uic` | stamped only in `MODEINITJCT`/`MODEINITFIX` iterations, then released; a convergence hint | linear circuits have one solution, so it is validated and has no effect (tested bit-identical); `.op`, `.dc`, `.ac`, both backends |
+| `.nodeset`, no `uic` | stamped only in `MODEINITJCT`/`MODEINITFIX` iterations, then released; a convergence hint | same, linear circuits included (`.op`, `.dc`, `.ac`, transient bias): the result is the plain one up to rounding, since the forced rows change the values the first ordering sees, bit-identical to C |
 | instance `ic=` (C, L), no `uic` | ignored (`capload.c`/`indload.c` use it only for `MODEUIC`) | ignored |
 | `uic` | `NIiter` returns after one `CKTload`, no solve; `CKTic` copies `.nodeset` then `.ic` into the node vector; `CAPgetic` takes an unset capacitor `ic` from those node values (instance `ic=` always wins); inductor current = `ic=` else 0; no `t = 0` row is written; a breakpoint at the `.tran` step is added (`CKTsetBreak(CKTstep)`) | same, including `.nodeset` acting as a node IC and the missing `t = 0` row and the step breakpoint; the first row is the first accepted time |
 
@@ -132,15 +144,16 @@ nodes in `A x = b(0-)`; the result is the `t = 0` row, and the charge/flux state
 is `C v`, `L i` of that point. Then the constraint is released: the run is an
 ordinary transient (verified against `1 - 0.75 exp(-t/tau)`, max error
 2.3e-6 V at 10 us steps, and against C at 1.6e-9 of the C tolerance bound).
-Nodes whose voltage is already fixed by ideal voltage sources and inductors (DC
-shorts) chained to ground, or to another constrained node, are solved
-structurally (petgraph spanning forest with `UnionFind` membership of the `v+ - v- = value` relations): an `.ic`
-that agrees within `reltol`/`vntol` is dropped (the source wins; C returns a
-wrong `i(v1)` of 0 at `t = 0` for this case because of its `1e10` hack, this port
-returns the exact branch current), one that disagrees, or two entries on rigidly
-tied nodes, is an explicit error instead of C's meaningless `1e10` compromise
-(`i(v1) = -1e10`). A node with only capacitors (no DC point) becomes solvable
-through its `.ic`.
+Every entry is forced as `cktload.c` forces it. A row that keeps a branch-current
+column (a node on a voltage source or inductor) gets C's `1e10` conductance, so
+for `v1 in 0 1` with `.ic v(in)=1` the branch current at `t = 0` is C's 0 A,
+not the physical current. Nodes whose voltage is already fixed by ideal voltage
+sources and inductors (DC shorts) chained to ground, or to another constrained
+node, are checked structurally first (petgraph spanning forest with `UnionFind`
+membership of the `v+ - v- = value` relations): an `.ic` that disagrees beyond
+`reltol`/`vntol`, or two entries on rigidly tied nodes, is an explicit error
+instead of C's meaningless `1e10` compromise (`i(v1) = -1e10`). A node with
+only capacitors (no DC point) becomes solvable through its `.ic`.
 
 **With `uic`.** Capacitor charge is `C ic` (instance `ic=`, else the difference of
 the `.nodeset`/`.ic` node values, else 0), inductor flux is `L ic` (default 0
@@ -160,10 +173,9 @@ source, a step source whose right limit at `t = 0` differs from the capacitor
 reported as ill-posed. Failed initialization returns before any state exists
 (tested with an accept-hook probe: zero hooks called).
 
-Numerical consequences and divergences from C: no `1e10` scaling anywhere; `i(v1)`
-at `t = 0` is exact where C's artifact differs (compared after `t = 0` in the
-opt-in test); `.ic` entries contradicting a source and impulsive `uic` states are
-errors where C produces garbage or a first-step spike; unknown nodes are errors.
+Divergences from C: `.ic` entries contradicting a source and impulsive `uic`
+states are errors where C produces garbage or a first-step spike; unknown nodes
+are errors. Consistent entries load exactly C's rows, `1e10` included.
 Coupled inductors (K, #80) start from the coupled fluxes `L ic + sum(M ic_k)`;
 see [MUTUAL_INDUCTANCE.md](MUTUAL_INDUCTANCE.md). Nonlinear circuits and the
 `off`/`ic=` of diodes and transistors follow in the next section (#99). Not
@@ -188,8 +200,8 @@ in [M4_NONLINEAR.md](M4_NONLINEAR.md#nonlinear-initial-conditions-99); in short:
 * **`.ic` without `uic`.** The transient operating point is the nonlinear DC
   solve (`CKTop`) with the `.ic` rows forced in **every** Newton load of every
   continuation stage (`bias::NodeForcing`, scaled by the source-stepping
-  factor as `CKTsrcFact` scales them), after `initial::irredundant_constraints`
-  resolved nodes ideal sources already fix. The Newton guess holds the
+  factor as `CKTsrcFact` scales them); `initial::irredundant_constraints`
+  first rejects entries that contradict ideal sources. The Newton guess holds the
   `.nodeset` then the `.ic` values (`CKTic`). The point's trial state (charges,
   limited junction voltages, switch states) fills the accepted history; the
   constraint is released for the first step.
@@ -236,40 +248,26 @@ except the noise/random/external ones. Syntax lives in
 Phases are degrees. Before its delay a SIN holds `VO + VA sin(PHASE)` and an
 EXP holds V1, but SFFM and AM hold **zero** (C returns 0 for `time <= TD`), so
 they jump at their delay unless `VO + VA sin(...)` vanishes there. A repeating
-PWL jumps at each repetition boundary when `v(r) != v(t_last)`. Every jump has
-distinct left/right limits (`Limit`), including every repeated-PWL boundary
-(left `v(t_last)`, right `v(r)`, also a few ulps either side of the port's own
-breakpoint times), so the step ending at a boundary integrates toward
-`v(t_last)` in the companion driver and the diffsol segments see the full ramp.
-This deliberately differs from C, which evaluates a boundary instant once: its
-next PWL breakpoint is accumulated from the previous landing time
-(`VSRCaccept`), and depending on which side of `t_last` that time's fold
-rounds, `vsrcload.c` loads `v(t_last)` or `v(r)` there. Bit-identical landing
-would require reproducing C's stateful breakpoint chain and its
-`CKTtime += CKTdelta` landing arithmetic, which the port does not do. The
-effect is bounded by one step of the jump: with tau = 0.1 ms and 7-10 us steps
-the worst RC `v(out)` difference from C is 0.024-0.036 V for a 1 V sawtooth
-(`pwl(0 0 1m 1) r=0`, `pwl(0 0 0.3m 1) r=0`, and a delayed partial repeat).
+PWL jumps at each repetition boundary when `v(r) != v(t_last)`. Like C, the
+source is evaluated once at a boundary (`vsrcload.c`'s fold: `v(t_last)` or
+`v(r)` depending on which side the landing time rounds to); since the driver
+reproduces C's breakpoint chain and `CKTtime += CKTdelta` landing arithmetic,
+discontinuous repeats (`pwl(0 0 1m 1) r=0`, `pwl(0 0 0.3m 1) r=0`, a delayed
+partial repeat) are bit-identical to ngspice.
 OP/DC analyses without an explicit DC
 value use C's time-zero value (`Waveform::time_zero`); the transient initial
 point uses the left limit at `t = 0`, as C's `MODETRANOP` load does (an explicit
 `dc` value only affects OP/DC, as in C).
 
-Breakpoints are lazy (`Waveform::breakpoints_in`). PULSE/PWL corners are the
-ones `VSRCaccept` sets, including every repeated PWL knot; a count-limited
-PULSE stops after `TD + NP*PER` except for C's final request (the next corner)
-and, for a fractional count, the jump where the train is cut. C sets **no**
-breakpoints for SIN/EXP/SFFM/AM; the port deliberately lands on SIN/SFFM/AM
-`TD` and EXP `TD1`/`TD2` so it never integrates across a slope corner or the
-SFFM/AM delay jump. Measured on RC decks (tau = 0.1 ms) without marker
-sources, this changes the worst `v(out)` difference from C to 2e-5 V (SIN with
-`TD`), 8e-5 V (EXP), 1.1e-3 V (SFFM/AM delay jump), 9e-3 V (EXP with
-`TD2 < TD1`, a jump at `TD1`) and 1e-3 V (PULSE with a fractional count); the
-opt-in `unmarked_decks_diverge_from_c_only_within_documented_bounds` keeps
-these bounded. The diffsol BDF backend rejects SIN/EXP/SFFM/AM (its segments
-interpolate forcing linearly between breakpoints); PULSE counts and PWL
-`td=`/`r=` (including discontinuous repeats, segmented at every boundary) are
-piecewise linear and run there.
+The companion driver schedules breakpoints at accept time exactly like
+`VSRCaccept`/`ISRCaccept` (`devices::SourceBreaks`, see the step-control
+bullets above): C sets **no** breakpoints for SIN/EXP/SFFM/AM and neither does
+the port, so steps cross their delay corners and the SFFM/AM delay jump as in
+C; a voltage PULSE requests only the TD/TR/PW/TF corners of its
+not-yet-truncated ramp (a ramp cut by a short period is crossed, not landed
+on), and a count-limited PULSE stops requesting once `time > NP*PER`.
+`Waveform::breakpoints_in` still enumerates a waveform's corners as a public
+utility but no longer drives the transient step control.
 
 Deliberate differences, all explicit errors rather than approximations:
 negative delays (SIN/SFFM/AM `TD`, EXP `TD1`/`TD2`, as for PULSE `TD`); `r=`
@@ -290,10 +288,10 @@ response under trap and Gear-2 and a `.four` of a SIN-driven RC: fundamental
 gain/phase of the low-pass within 1e-3 and THD below 0.1 %). C goldens
 `rc_sin_tran`, `rc_exp_tran`, `rc_sffm_am_tran` (AM as a current source),
 `rc_pwl_repeat_tran` (continuous `r=` repeat) and `rc_pulse_count_tran`
-verify under `compare::TRAN` with worst error 0.000 of the bound. There is no
-golden for a discontinuous `r=` repeat because of the boundary difference
-above; `source_functions.rs` checks one against the analytic RC response under
-both backends instead. Because C sets no SIN/EXP breakpoints, the
+verify under `compare::TRAN` with worst error 0.000 of the bound (and, with
+the C-faithful step control, bit-identically). There is no golden for a
+discontinuous `r=` repeat; `source_functions.rs` checks one against the
+analytic RC response instead. Because C sets no SIN/EXP breakpoints, the
 SIN and EXP decks carry a constant PWL marker source whose knots make C land on
 the corners too; otherwise the comparison would interpolate C's plot across a
 slope corner. Opt-in `c_source_functions.rs` compares 22 V/I sources (all forms
@@ -328,40 +326,35 @@ history (unpruned) and breakpoint path.
   the delay updates, so a failure anywhere leaves both histories untouched.
   `accept_point` (DC sweeps, tests) never touches delay histories; a
   transient load without a started history is an explicit error.
-* *Breakpoints.* The companion driver's lazy `Breaks` queue keeps an ordered
-  list of explicit requests (previously only the `uic` step) merged with the
-  source sequence in time order. A device request `time` at accepted time
-  `now` follows `cktsetbk.c`: an existing entry at most `CKTminBreak` later
-  is replaced by the earlier request, a request at most `CKTminBreak` after
-  an existing entry is dropped, requests not later than `now + CKTminBreak`
-  (C's XSPICE loop discards those before the next step) or not before
-  `stop - CKTminBreak` are ignored. The step that lands on a device
-  breakpoint is treated exactly like one landing on a source corner: forced
-  landing, `Limit::Left` forcing at the step end, order 1 and the `0.1`
-  restart step after it. Left/right source limits are unchanged; a device
-  breakpoint is not a source discontinuity.
+* *Breakpoints.* Device requests go into C's breakpoint table
+  (`devices::BreakTable`, `CKTsetBreak`) like the sources' own: at each
+  accepted point the driver applies the `DEVaccept` requests in `dev.c`
+  type order, current sources (`ISRCaccept`), then delay lines
+  (`TRAaccept`, in load order), then voltage sources (`VSRCaccept`), with
+  `CKTsetBreak`'s merge rules (an existing entry at most `CKTminBreak`
+  later is replaced by the earlier request, a request at most `CKTminBreak`
+  after an existing entry is dropped, a request in the past is C's
+  "breakpoint in the past" error). The step that lands on a device
+  breakpoint is treated exactly like one landing on a source corner. Left/
+  right source limits are unchanged; a device breakpoint is not a source
+  discontinuity.
 * *Step bound.* `Driver::truncation_limit` also takes the tightest
   `DelayLine::timestep_limit` of the converged trial (solution and time),
   with C's `CKTdeltaOld` indices. A bound at or below zero rejects the trial
   and is then raised to `delmin`, as `dctran.c` does.
 * *Step history quantities.* Delay lines see `CKTdeltaOld[0..3]` (`[dt,
   previous, the one before]`, not-yet-taken steps as `CKTmaxStep`) and the
-  sample-spacing threshold of `TRAaccept`. The reference binary is an XSPICE
-  build (`CKTminBreak = 10 CKTdelmin`), so samples are recorded down to
-  that spacing, while the driver's breakpoint merging keeps its existing
-  `5e-5 CKTmaxStep`; this keeps the line's history, and so its breakpoints,
-  identical to C's on every fixture.
-* *Other backends.* The diffsol BDF backend refuses any circuit with a delay
-  line (a delay is not an index-one `E x' + A x = b(t)`), before assembling
-  anything; `uic` with a delay line is `NotYetPorted` (the impulse check has
-  no line formulation).
+  sample-spacing threshold of `TRAaccept`, the XSPICE build's `CKTminBreak =
+  10 CKTdelmin`, the same distance the breakpoint table merges with.
+* *Other backends.* There is no other transient backend: `backend=diffsol`
+  is an explicit error for every circuit. `uic` with a delay line is
+  `NotYetPorted` (the impulse check has no line formulation).
 
 **Consequences.** Circuits without delay lines take exactly the old path:
-`Breaks` with no device requests yields the same sequence (unit-tested), and
-`accept_transient_point` reduces to `accept_point`; every existing golden and
-test is unchanged. LTRA can reuse the history (with `drop_front = 0`), the
-breakpoint queue and the step-bound hook; it needs only its own
-`DelayLine`. Device code is in [TRANSMISSION_LINES.md](TRANSMISSION_LINES.md).
+no device requests reach the table, and `accept_transient_point` reduces to
+`accept_point`; every existing golden and test is unchanged. LTRA can reuse
+the history (with `drop_front = 0`), the breakpoint table and the step-bound
+hook; it needs only its own `DelayLine`. Device code is in [TRANSMISSION_LINES.md](TRANSMISSION_LINES.md).
 Tests: `tests/delay_lines.rs` (a probe device: exact landing on a requested
 breakpoint, history equal to the accepted points under forced rejections,
 atomic failure, backend refusals) and `companion.rs` unit tests of the
@@ -409,6 +402,13 @@ inside an interval between two samples (never across a breakpoint), as the
 comparator does. The simulation always starts at `t = 0`; `tstart` only
 suppresses earlier rows.
 
+The rows need not be stored. `companion_transient_into` (and
+`Analysis::run_into`) hands each row to a `PointSink` as it is accepted, the
+same rows in the same order, after announcing the plot's variables before the
+initial operating point; `spice-rs simulate` uses it to stream a `.tran` plot
+straight into the rawfile, as C's `CKTdump`/`OUTpData` do, whenever no
+`.print`, `.measure` or `.four` card needs the whole plot.
+
 ## Measured accuracy (physical-error limits)
 
 Analytic cases (`tests/companion_transient.rs`), unit step
@@ -449,15 +449,11 @@ both limits of the single in-run breakpoint; worst error 0.000 of the bound).
 ## Limits
 
 * Devices: those `spice-rs devices` lists as `ported` or `bounded`; each
-  device guide states its transient limits (the diffsol BDF backend rejects
-  nonlinear devices and switches).
+  device guide states its transient limits.
 * No order above 2 is ever used (as in C; `maxord` 3–6 are accepted and run
   as 2); `.ic`/`uic`/instance `ic=` exist only on this
-  driver (explicit errors with `backend=diffsol`).
+  driver.
 * No predictor (`PREDICTOR` is optional in C); the previous solution seeds Newton.
 * No `gmin`/source stepping: a floating or source-looped DC bias is an error.
-* General DAE structure is not analysed (no index check as in the diffsol
-  backend); a singular trial matrix is an explicit numerical error.
-* Companion inductor rows are row-equilibrated before the solve
-  (`companion.rs::equilibrated`); without it a nonzero initial inductor current
-  with `L/dt` of 1e5 or more tripped the solver's backward-residual check.
+* General DAE structure is not analysed (no index check); a singular trial
+  matrix is an explicit error naming the unknown, as `NIiter` reports it.

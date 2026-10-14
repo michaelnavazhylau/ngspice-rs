@@ -24,8 +24,7 @@
 //! `n-` through itself, and F does the same with `beta i(vc)`. All four are
 //! state-independent: the same real stamps serve OP, DC sweeps, AC (no
 //! frequency dependence, `*acld` equals `*load`), companion transients and the
-//! immutable `E x' + A x = b(t)` assembly used by the diffsol BDF backend. They
-//! add nothing to `E` or `b`.
+//! immutable `E x' + A x = b(t)` assembly. They add nothing to `E` or `b`.
 //!
 //! # Setter semantics
 //!
@@ -287,6 +286,52 @@ impl ControlledSource {
 }
 
 impl Device for ControlledSource {
+    /// `vccsset.c`, `cccsset.c`, `vcvsset.c`, `ccvsset.c`.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        let [p, n] = [self.terminals[0], self.terminals[1]];
+        let control = || {
+            setup.controls.first().copied().ok_or_else(|| {
+                SpiceError::circuit(format!(
+                    "{}: controlling source branch is not bound",
+                    self.name
+                ))
+            })
+        };
+        match self.kind {
+            ControlledKind::Vccs => {
+                let (cp, cn) = (self.terminals[2], self.terminals[3]);
+                setup.nodes(p, cp);
+                setup.nodes(p, cn);
+                setup.nodes(n, cp);
+                setup.nodes(n, cn);
+            }
+            ControlledKind::Cccs => {
+                let control = Some(control()?);
+                setup.element(setup.node(p), control);
+                setup.element(setup.node(n), control);
+            }
+            ControlledKind::Vcvs => {
+                let branch = Some(setup.branch(0)?);
+                let (cp, cn) = (self.terminals[2], self.terminals[3]);
+                setup.element(setup.node(p), branch);
+                setup.element(setup.node(n), branch);
+                setup.element(branch, setup.node(p));
+                setup.element(branch, setup.node(n));
+                setup.element(branch, setup.node(cp));
+                setup.element(branch, setup.node(cn));
+            }
+            ControlledKind::Ccvs => {
+                let control = control()?;
+                let branch = setup.branch(0)?;
+                setup.voltage_branch(p, n, branch);
+                setup.element(Some(branch), Some(control));
+            }
+        }
+        Ok(true)
+    }
     /// Linear in `.disto`: C gives this device no distortion routine
     /// (`DEVdisto = NULL`, `vcvs`/`vccs`/`cccs`/`ccvs` `*init.c`), so it enters only through its
     /// small-signal matrix.

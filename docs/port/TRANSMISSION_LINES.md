@@ -87,8 +87,8 @@ merge threshold).
 
 ## Unsupported (explicit errors)
 
-* `backend=diffsol method=bdf`: a delay is not an index-one `E x' + A x =
-  b(t)`; the backend refuses any circuit with a delay line.
+* `backend=diffsol`: the removed BDF backend is an explicit error for every
+  circuit (a delay is not an index-one `E x' + A x = b(t)` either).
 * `.tran ... uic` with a line (`NotYetPorted`, `traload.c` `MODEUIC`): the
   instance `ic=`/`v1 i1 v2 i2` values are parsed and reported but only C's
   `uic` start uses them, and the port's impulse-free check has no line

@@ -200,7 +200,7 @@ card 18 @netlists/m7_bjt_temp.cir:19:1 lines=19-19 continuations=0
   token 22 19:54 number "1e-14" value=1e-14
   token 23 19:60 word "nc"
   token 24 19:62 equals "="
-  token 25 19:63 number "1.7" value=1.7e0
+  token 25 19:63 number "1.7" value=1.7000000000000002e0
   token 26 19:67 word "rb"
   token 27 19:69 equals "="
   token 28 19:70 number "80" value=8e1
@@ -262,7 +262,7 @@ card 19 @netlists/m7_bjt_temp.cir:20:1 lines=20-20 continuations=0
   token 10 20:28 number "2e-15" value=2e-15
   token 11 20:34 word "ibc"
   token 12 20:37 equals "="
-  token 13 20:38 number "3e-15" value=3e-15
+  token 13 20:38 number "3e-15" value=3.0000000000000002e-15
   token 14 20:44 word "bf"
   token 15 20:46 equals "="
   token 16 20:47 number "90" value=9e1
@@ -271,7 +271,7 @@ card 19 @netlists/m7_bjt_temp.cir:20:1 lines=20-20 continuations=0
   token 19 20:54 number "5m" value=5e-3
   token 20 20:57 word "nkf"
   token 21 20:60 equals "="
-  token 22 20:61 number "0.6" value=6e-1
+  token 22 20:61 number "0.6" value=6.000000000000001e-1
   token 23 20:65 word "ise"
   token 24 20:68 equals "="
   token 25 20:69 number "1e-14" value=1e-14

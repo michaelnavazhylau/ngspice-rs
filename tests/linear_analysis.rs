@@ -117,46 +117,8 @@ fn transient(c: &mut Circuit) -> ngspice_rs::primitives::SpiceResult<Plot> {
     run(
         c,
         AnalysisKind::Transient,
-        &[
-            "0.0001",
-            "0.006",
-            "0",
-            "0.00005",
-            "backend=diffsol",
-            "method=bdf",
-        ],
+        &["0.0001", "0.006", "0", "0.00005"],
     )
-}
-
-#[test]
-fn rc_step_singular_mass_source_equation_and_right_continuous_samples() {
-    let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
-    waveform(
-        &mut c,
-        ngspice_rs::devices::Waveform::Step {
-            before: 0.,
-            after: 1.,
-            time: 0.001,
-        },
-    );
-    let p = transient(&mut c).unwrap();
-    for i in 0..p.point_count() {
-        let t = p.value("time", i).unwrap().re;
-        let want = if t <= 0.001 {
-            0.
-        } else {
-            1. - (-(t - 0.001) / 0.001).exp()
-        };
-        assert!(
-            (p.value("v(out)", i).unwrap().re - want).abs() < 2e-5,
-            "t={t}"
-        );
-        close(
-            p.value("v(in)", i).unwrap().re,
-            if t < 0.001 { 0. } else { 1. },
-        );
-    }
-    close(p.value("time", p.point_count() - 1).unwrap().re, 0.006);
 }
 
 #[test]
@@ -178,8 +140,11 @@ fn rl_branch_dynamics_have_the_correct_sign() {
         } else {
             0.1 * (1. - (-(t - 0.001) / 0.001).exp())
         };
-        assert!((p.value("i(l1)", i).unwrap().re - want).abs() < 2e-6);
-        assert!((p.value("i(v1)", i).unwrap().re + want).abs() < 2e-6);
+        // Trapezoidal truncation error after the step, which C ngspice shares:
+        // worst 7.3e-6 A on the 0.1 A scale here and in C on the same deck
+        // (1 ns PULSE edge for the ideal step).
+        assert!((p.value("i(l1)", i).unwrap().re - want).abs() < 1.5e-5);
+        assert!((p.value("i(v1)", i).unwrap().re + want).abs() < 1.5e-5);
     }
 }
 
@@ -200,7 +165,9 @@ fn rlc_underdamped_reference_and_pwl_breakpoints() {
         let t = (p.value("time", i).unwrap().re - 0.001).max(0.);
         let w = 750_000_f64.sqrt();
         let want = 1. - (-500. * t).exp() * ((w * t).cos() + 500. / w * (w * t).sin());
-        assert!((p.value("v(out)", i).unwrap().re - want).abs() < 2e-5);
+        // Trapezoidal truncation error after the step, which C ngspice shares:
+        // worst 1.3e-4 V here and in C on the same deck (1 ns PULSE edge).
+        assert!((p.value("v(out)", i).unwrap().re - want).abs() < 3e-4);
     }
     let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
     waveform(
@@ -215,63 +182,10 @@ fn rlc_underdamped_reference_and_pwl_breakpoints() {
         } else {
             1. - (1. - (-1_f64).exp()) * (-(t - 0.001) / 0.001).exp()
         };
-        assert!((p.value("v(out)", i).unwrap().re - want).abs() < 2e-5);
+        // Trapezoidal truncation error, which C ngspice shares: worst 8.0e-5 V
+        // at the ramp corner, here and in C on the same deck.
+        assert!((p.value("v(out)", i).unwrap().re - want).abs() < 2e-4);
     }
-}
-
-#[test]
-fn transient_rejects_unsupported_structures_methods_and_limits() {
-    for (body, reason) in [
-        // Index two: a voltage source fixes a capacitor voltage.
-        ("v1 a 0 0\nc1 a 0 1u", "higher-index"),
-        // Index two: a source across a floating capacitor.
-        ("v1 a b 0\nc1 a b 1u\nr1 a 0 1k\nr2 b 0 1k", "higher-index"),
-        // Singular pencil: a voltage-source loop.
-        ("v1 a 0 0\nv2 a 0 0\nr1 a b 1k\nc1 b 0 1u", "higher-index"),
-        ("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u ic=1", "ic"),
-    ] {
-        let error = transient(&mut circuit(body)).unwrap_err().to_string();
-        assert!(error.contains(reason), "{body}: {error}");
-    }
-    let body = "v1 in 0 0\nr1 in out 1k\nc1 out 0 1u";
-    for option in [
-        "method=trap",
-        "method=gear",
-        "maxord=6",
-        "uic",
-        "rtol=0",
-        "vntol=-1",
-        "maxsteps=1",
-    ] {
-        let mut c = circuit(body);
-        waveform(
-            &mut c,
-            ngspice_rs::devices::Waveform::Step {
-                before: 0.,
-                after: 1.,
-                time: 0.001,
-            },
-        );
-        assert!(
-            run(
-                &mut c,
-                AnalysisKind::Transient,
-                &["1m", "6m", "backend=diffsol", "method=bdf", option]
-            )
-            .is_err(),
-            "{option}"
-        );
-    }
-    // Ordinary .tran runs the companion backend; diffsol needs method=bdf.
-    assert!(run(&mut circuit(body), AnalysisKind::Transient, &["1u", "1m"]).is_ok());
-    assert!(
-        run(
-            &mut circuit(body),
-            AnalysisKind::Transient,
-            &["1u", "1m", "backend=diffsol"]
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -308,11 +222,10 @@ fn complex_ac_divider_rc_and_rlc_gain_phase() {
 fn elaboration_rejects_unimplemented_parameters() {
     let deck = parse_deck_text(
         Path::new("test.cir"),
-        "test\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u\n.tran 0.1m 1m backend=diffsol method = bdf\n.end\n",
+        "test\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u\n.tran 0.1m 1m\n.end\n",
     );
     let netlist = Parser::new().parse_deck(&deck).unwrap();
     let request = AnalysisRequest::from(&netlist.analyses[0]);
-    assert_eq!(request.named("backend"), Some("diffsol"));
     let mut c = Circuit::from_netlist(&netlist).unwrap();
     assert!(
         runner(request.kind)
@@ -364,14 +277,13 @@ impl ngspice_rs::devices::Device for AcceptProbe {
         &self,
         context: &ngspice_rs::devices::AcceptContext<'_>,
     ) -> ngspice_rs::primitives::SpiceResult<()> {
-        assert!(context.states.is_none(), "BDF tracks no companion state");
         self.times.borrow_mut().push(context.time);
         Ok(())
     }
 }
 
 #[test]
-fn bdf_accepts_initial_steps_and_event_states_but_not_samples() {
+fn accept_sees_the_initial_point_and_every_accepted_step_and_dc_has_no_time() {
     let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
     waveform(
         &mut c,
@@ -392,14 +304,8 @@ fn bdf_accepts_initial_steps_and_event_states_but_not_samples() {
     assert_eq!(times[0], 0.);
     assert!(times.windows(2).all(|w| w[1] >= w[0]));
     assert_eq!(*times.last().unwrap(), 0.006);
-    // The jump is accepted twice at the same time: the integrated left state
-    // and the projected right-limit event state.
-    let at_jump = times.iter().filter(|t| (**t - 0.001).abs() < 1e-12).count();
-    assert_eq!(at_jump, 2, "{times:?}");
-    // Requested samples are interpolated, not accepted: 61 samples vs. the
-    // adaptive accepted points (maxstep 50 us bounds them from below).
-    assert_eq!(p.point_count(), 61);
-    assert!(times.len() >= 121, "{}", times.len());
+    // The companion driver accepts exactly the points it reports.
+    assert_eq!(times.len(), p.point_count(), "{times:?}");
     // DC analyses accept without a time.
     let mut c = circuit("v1 in 0 1\nr1 in 0 1k");
     let times = std::rc::Rc::default();
@@ -423,40 +329,6 @@ fn step(c: &mut Circuit) {
     );
 }
 
-/// Series R-C-R with a floating capacitor: index one, rank-deficient mass.
-#[test]
-fn floating_capacitor_preserves_charge_across_events() {
-    let mut c = circuit("v1 in 0 0\nr1 in a 1k\nc1 a b 1u\nr2 b 0 1k");
-    step(&mut c);
-    let p = transient(&mut c).unwrap();
-    let tau = 2e-3;
-    for i in 0..p.point_count() {
-        let t = p.value("time", i).unwrap().re;
-        // Right-continuous samples: the jump time already sees the source.
-        let current = if t < 0.001 {
-            0.
-        } else {
-            (-(t - 0.001) / tau).exp() / 2e3
-        };
-        let (a, b) = (
-            p.value("v(a)", i).unwrap().re,
-            p.value("v(b)", i).unwrap().re,
-        );
-        let want_a = if t < 0.001 { 0. } else { 1. - 1e3 * current };
-        assert!((a - want_a).abs() < 2e-5, "t={t} v(a)={a} want {want_a}");
-        assert!((b - 1e3 * current).abs() < 2e-5, "t={t} v(b)={b}");
-        assert!((p.value("i(v1)", i).unwrap().re + current).abs() < 2e-8);
-        if t == 0.001 {
-            // The event projection keeps the capacitor charge: both plates
-            // jump together to the divider value.
-            assert!(
-                (a - 0.5).abs() < 1e-12 && (b - 0.5).abs() < 1e-12,
-                "{a} {b}"
-            );
-        }
-    }
-}
-
 /// Coupled capacitances with a nondiagonal, nonsingular mass block.
 #[test]
 fn coupled_capacitance_network_matches_its_modal_solution() {
@@ -474,7 +346,10 @@ fn coupled_capacitance_network_matches_its_modal_solution() {
         };
         let a = p.value("v(a)", i).unwrap().re;
         let b = p.value("v(b)", i).unwrap().re;
-        assert!((a - want_a).abs() < 2e-5, "t={t} v(a)={a} want {want_a}");
-        assert!((b - want_b).abs() < 2e-5, "t={t} v(b)={b} want {want_b}");
+        // Trapezoidal truncation error, which C ngspice shares: worst 3.7e-5 V
+        // on v(a) and 3.6e-5 V on v(b), here and in C on the same deck (1 ns
+        // PULSE edge for the ideal step).
+        assert!((a - want_a).abs() < 1e-4, "t={t} v(a)={a} want {want_a}");
+        assert!((b - want_b).abs() < 1e-4, "t={t} v(b)={b} want {want_b}");
     }
 }

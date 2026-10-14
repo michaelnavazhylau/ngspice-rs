@@ -9,7 +9,8 @@
 //! for the remaining differences from ngspice.
 use crate::analysis::newton::{self, NewtonFailure, NewtonOptions, NewtonSolution, PhasePolicy};
 use crate::devices::{
-    AnalysisMode, Circuit, IterationPhase, LoadRequest, ModelContext, StateHistory, TrialState,
+    AnalysisMode, Circuit, Forcing, IterationPhase, LoadRequest, ModelContext, StateHistory,
+    TrialState,
 };
 use crate::maths::{SparseMatrix, Vector};
 use crate::primitives::{Real, SpiceError, SpiceResult};
@@ -822,9 +823,9 @@ pub(crate) fn branch_rows(circuit: &Circuit) -> Vec<bool> {
 ///   `Junction`/`Fix`) and released afterwards, so they select a solution
 ///   without changing it. A row in both lists is forced to its `.ic` value.
 ///
-/// Rows whose voltage ideal sources already fix must have been removed
-/// (C's `1e10` compromise for such rows is not reproduced; see
-/// `crate::analysis::initial`). Linear circuits ignore the nodesets (one solution).
+/// A row that keeps a branch-current entry (a node on a voltage source,
+/// inductor or E/H output) gets C's `1e10` conductance instead of the unit
+/// diagonal (see `crate::analysis::initial`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct NodeForcing {
     /// `(row, value)` pairs of the `.ic` constraints.
@@ -852,34 +853,37 @@ impl NodeForcing {
         Ok(())
     }
 
-    /// Replaces the forced rows of `a x = b` (see the type docs); `nodesets`
-    /// selects whether the `.nodeset` rows are forced in this load.
+    /// Replaces the forced rows of `a x = b` (see the type docs) as
+    /// `cktload.c` does: `ZeroNoncurRow` zeroes the row's elements in place
+    /// (they stay in the matrix structure, so its ordering is kept), then the
+    /// diagonal is set to 1 and the RHS to the scaled value. `nodesets`
+    /// selects whether the `.nodeset` rows are forced in this load; `branch`
+    /// flags the branch-current rows, whose columns C leaves alone.
     fn apply(
         &self,
         a: &mut SparseMatrix,
         b: &mut Vector,
         scale: Real,
         nodesets: bool,
+        branch: &[bool],
     ) -> SpiceResult<()> {
         let mut rows = std::collections::BTreeMap::new();
         if nodesets {
             rows.extend(self.nodesets.iter().copied());
         }
         rows.extend(self.initial.iter().copied());
-        if rows.is_empty() {
-            return Ok(());
-        }
-        let mut forced = SparseMatrix::new(a.rows(), a.cols());
-        for t in a.triplets() {
-            if !rows.contains_key(&t.row) {
-                forced.add(t.row, t.col, t.value)?;
-            }
-        }
         for (row, value) in rows {
-            forced.add(row, row, 1.)?;
-            b.as_mut_slice()[row] = value * scale;
+            // A row that keeps a branch-current entry gets C's `1e10`
+            // conductance (`= 1e10` for a nodeset, `+= 1e10` onto the zeroed
+            // diagonal for an `.ic`: the same value).
+            let currents = a.zero_row(row, |col| branch.get(col).copied().unwrap_or(false));
+            a.set(row, row, if currents { 1e10 } else { 1. })?;
+            b.as_mut_slice()[row] = if currents {
+                1e10 * value * scale
+            } else {
+                value * scale
+            };
         }
-        *a = forced;
         Ok(())
     }
 }
@@ -897,7 +901,7 @@ pub fn solve_dc(
     options: &NewtonOptions,
     overrides: &[(&str, f64)],
     initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    forcing: Option<Forcing>,
 ) -> SpiceResult<NewtonSolution<TrialState>> {
     let settings = DcSettings {
         newton: *options,
@@ -910,8 +914,10 @@ pub fn solve_dc(
 
 /// Solve a finalized circuit under explicit [`DcSettings`], reporting attempts.
 ///
-/// Independent source overrides are typed, checked, and applied to a temporary
-/// RHS only. `forcing` replaces source DC values for the transient bias at 0-.
+/// Independent source overrides are typed, checked, and loaded as the sources'
+/// DC values (`dctrcurv.c` sets `dcValue` and `dcGiven`); the circuit is not
+/// modified. `forcing` makes the solve C's MODETRANOP bias: sources load their
+/// time functions at 0 with its one-sided limit, scaled by `CKTsrcFact`.
 /// Direct Newton runs first. Only a [`SpiceError::Numerical`] failure starts
 /// continuation (gmin stepping, then source stepping, as enabled and within the
 /// total iteration budget); any other error is returned at once, unretried.
@@ -928,7 +934,7 @@ pub fn solve_dc_with(
     settings: &DcSettings,
     overrides: &[(&str, f64)],
     initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    forcing: Option<Forcing>,
 ) -> Result<DcSolution, DcFailure> {
     solve_dc_forced(
         circuit,
@@ -954,7 +960,7 @@ pub fn solve_dc_forced(
     settings: &DcSettings,
     overrides: &[(&str, f64)],
     initial: Option<&Vector>,
-    forcing: Option<&Vector>,
+    forcing: Option<Forcing>,
     nodes: &NodeForcing,
 ) -> Result<DcSolution, DcFailure> {
     solve(
@@ -1013,7 +1019,7 @@ pub fn solve_dc_from(
 /// the direct attempt's Newton phase policy.
 struct Start<'a> {
     initial: Option<&'a Vector>,
-    forcing: Option<&'a Vector>,
+    forcing: Option<Forcing>,
     history: &'a StateHistory,
     policy: PhasePolicy,
     nodes: &'a NodeForcing,
@@ -1078,8 +1084,8 @@ struct Engine<'a> {
     branches: Vec<bool>,
     /// Rows watched by Newton's voltage-step damping ([`limited_rows`]).
     limited: Option<Vec<bool>>,
-    target: Vector,
-    original: Vector,
+    /// MODETRANOP source forcing ([`Start::forcing`]).
+    forcing: Option<Forcing>,
     nodes: &'a NodeForcing,
     newton: NewtonOptions,
     /// Per-stage limit of the gmin/source-stepping strategies.
@@ -1129,7 +1135,10 @@ impl Engine<'_> {
             Some(junction) => format!("scale {scale}, junction gmin {junction:e} S"),
             None => format!("scale {scale}, gmin {gmin:e} S"),
         };
-        if self.remaining == 0 {
+        // A Newton solve needs two passes at least (the first never
+        // converges), and a failing one uses `max_iterations + 1` (NIiter
+        // fails after the solve that exceeds the limit).
+        if self.remaining < 2 {
             return Err(Halt::Budget(format!(
                 "total iteration budget ({}) exhausted before {}",
                 report.budget,
@@ -1149,14 +1158,21 @@ impl Engine<'_> {
             _ => self.stage_limit,
         };
         let options = NewtonOptions {
-            max_iterations: limit.min(self.remaining),
+            max_iterations: limit.min(self.remaining - 1),
+            // cktop.c's gmin stepping sets CKTdiagGmin, which SMPreorder and
+            // SMPluFac add to SPARSE's diagonal (LoadGmin).
+            diag_gmin: gmin,
+            had_nodeset: !self.nodes.nodesets.is_empty(),
             ..self.newton
         };
         let reduced = options.max_iterations < limit;
         let history = self.history;
         let device_limiting = options.limiting.is_device();
         let (reltol, abstol) = (options.reltol, options.abstol);
-        let context = junction.map_or(*self.context, |junction| self.context.with_gmin(junction));
+        // Sources load their value scaled by CKTsrcFact (vsrcload.c).
+        let context = junction
+            .map_or(*self.context, |junction| self.context.with_gmin(junction))
+            .with_source_factor(scale);
         let result = newton::solve_phased(
             guess,
             &self.branches,
@@ -1171,7 +1187,7 @@ impl Engine<'_> {
             },
             continued,
             |x, phase, previous| {
-                let mut a = SparseMatrix::new(n, n);
+                let mut a = self.circuit.new_matrix();
                 let mut b = Vector::zeros(n);
                 let mut trial = history
                     .trial_in(phase, previous)?
@@ -1184,31 +1200,38 @@ impl Engine<'_> {
                         model_context: &context,
                         integration: None,
                         history,
-                        forcing: None,
+                        forcing: self.forcing,
                     },
                     &mut a,
                     &mut b,
                     &mut trial,
                 )?;
-                for (row, branch) in self.branches.iter().enumerate() {
-                    b.add_to(
-                        row,
-                        scale * self.target.as_slice()[row] - self.original.as_slice()[row],
-                    )?;
-                    if !branch && gmin > 0. {
-                        a.add(row, row, gmin)?;
-                    }
-                }
                 // cktload.c: .nodeset rows in MODEINITJCT/MODEINITFIX only,
                 // .ic rows in every load, both scaled by CKTsrcFact.
                 let hinted = matches!(phase, IterationPhase::Junction | IterationPhase::Fix);
-                self.nodes.apply(&mut a, &mut b, scale, hinted)?;
+                self.nodes
+                    .apply(&mut a, &mut b, scale, hinted, &self.branches)?;
                 Ok((a, b, trial))
+            },
+            |new, old, trial| {
+                self.circuit
+                    .convergence_test(&crate::devices::ConvergenceRequest {
+                        solution: new,
+                        previous: old,
+                        trial,
+                        model_context: &context,
+                        time: 0.,
+                        reltol: options.reltol,
+                        abstol: options.abstol,
+                        vntol: options.vntol,
+                    })
             },
         );
         let (iterations, error) = match &result {
             Ok(solved) => (solved.iterations, None),
-            Err(NewtonFailure { error, iterations }) => (*iterations, Some(error)),
+            Err(NewtonFailure {
+                error, iterations, ..
+            }) => (*iterations, Some(error)),
         };
         self.remaining = self.remaining.saturating_sub(iterations);
         report.total_iterations += iterations;
@@ -1547,80 +1570,13 @@ fn run(
         ));
     }
     let zero = Vector::zeros(n);
-    let system = circuit.small_signal_system(context, &zero)?;
-    let original = system.dc_rhs(None)?;
-    let mut target = forcing.cloned().unwrap_or_else(|| original.clone());
-    if target.len() != n || !target.is_finite() {
-        return Err(SpiceError::circuit("invalid DC forcing"));
+    let mut loaded = *context;
+    for (name, value) in overrides {
+        loaded = loaded.with_instance_override(circuit.source_override(name, *value, context)?)?;
     }
-    let changes = circuit.dc_source_changes(&system, overrides)?;
-    for (row, change) in changes.as_slice().iter().enumerate() {
-        target.add_to(row, *change)?;
-    }
-    // Preserve exact linear solving (no nonlinear damping or continuation).
-    if !circuit.devices().iter().any(|device| device.is_nonlinear()) {
-        let result = (|| {
-            // A linear point is unique: nodesets cannot change it, .ic rows can.
-            let values = if nodes.initial.is_empty() {
-                system.a.solve(&target)?
-            } else {
-                let (mut a, mut b) = (system.a.clone(), target.clone());
-                let initial = NodeForcing {
-                    initial: nodes.initial.clone(),
-                    nodesets: Vec::new(),
-                };
-                initial.apply(&mut a, &mut b, 1., false)?;
-                a.fold_duplicates();
-                a.solve(&b)?
-            };
-            let mut trial = history.trial();
-            circuit.load(
-                &LoadRequest {
-                    mode: AnalysisMode::OperatingPoint,
-                    solution: &values,
-                    model_context: context,
-                    integration: None,
-                    history,
-                    forcing: None,
-                },
-                &mut SparseMatrix::new(n, n),
-                &mut Vector::zeros(n),
-                &mut trial,
-            )?;
-            Ok(NewtonSolution {
-                values,
-                trial,
-                iterations: 1,
-            })
-        })();
-        let error = result.as_ref().err().map(ToString::to_string);
-        report.budget = 1;
-        report.total_iterations = 1;
-        report.stages.push(DcStage {
-            strategy: DcStrategy::Direct,
-            source_scale: 1.,
-            gmin: 0.,
-            junction_gmin: None,
-            iterations: 1,
-            error: error.clone(),
-        });
-        report.attempts.push(DcAttempt {
-            strategy: DcStrategy::Direct,
-            outcome: if error.is_none() {
-                AttemptOutcome::Converged
-            } else {
-                AttemptOutcome::Failed
-            },
-            detail: error.unwrap_or_default(),
-        });
-        report.outcome = if result.is_ok() {
-            DcOutcome::Converged(DcStrategy::Direct)
-        } else {
-            // An exact linear failure is not rescued with fictitious gmin.
-            DcOutcome::NonRetryableFailure
-        };
-        return result;
-    }
+    let context = &loaded;
+    // Linear circuits take the same CKTop/NIiter path as nonlinear ones, as
+    // in ngspice: the same iterations, pivot order and continuation fallbacks.
     let seed = initial.unwrap_or(&zero);
     let stage_limit = policy
         .stage_max_iterations
@@ -1723,10 +1679,11 @@ fn run(
         direct_count -= 1;
         stage_count += 1;
     }
+    // Each solve may take its limit plus the pass that exceeds it (NIiter).
     let budget = policy.max_total_iterations.unwrap_or_else(|| {
         direct_count
-            .saturating_mul(options.max_iterations)
-            .saturating_add(stage_count.saturating_mul(stage_limit))
+            .saturating_mul(options.max_iterations.saturating_add(1))
+            .saturating_add(stage_count.saturating_mul(stage_limit.saturating_add(1)))
     });
     report.budget = budget;
     let mut engine = Engine {
@@ -1736,8 +1693,7 @@ fn run(
         policy: phases,
         branches: branch_rows(circuit),
         limited: limited_rows(circuit),
-        target,
-        original,
+        forcing,
         nodes,
         newton: *options,
         stage_limit,

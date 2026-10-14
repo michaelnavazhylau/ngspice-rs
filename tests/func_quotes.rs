@@ -427,13 +427,21 @@ fn single_quotes_are_braces_at_every_expression_site() {
     assert_eq!(n.analyses[0].expressions.len(), 1);
     let elaborated = literalize(&n).unwrap();
     let r = &elaborated.netlist.devices[0].parameters;
-    assert_eq!(r[0].value, "7");
-    assert_eq!(r[1].value, "3e-3");
-    assert_eq!(elaborated.netlist.analyses[0].arguments[0], "3e-6");
-    assert_eq!(elaborated.netlist.models[0].parameters[0].value, "3e-14");
+    // numparam splices "% 23.15e" text.
+    assert_eq!(r[0].value, "7.000000000000000e+00");
+    assert_eq!(r[1].value, "3.000000000000000e-03");
+    assert_eq!(
+        elaborated.netlist.analyses[0].arguments[0],
+        "3.000000000000000e-06"
+    );
+    assert_eq!(
+        elaborated.netlist.models[0].parameters[0].value,
+        "3.000000000000000e-14"
+    );
+    // INPevaluate("3.000000000000000e+00") is 3e15 * 1e-15.
     assert_eq!(
         elaborated.netlist.initial_conditions[0].entries[0].literal(),
-        Some(3.0)
+        Some(3.0000000000000004)
     );
     // X and .subckt parameter sites.
     let n = deck("x1 a b sub w='2*k'\n.subckt sub a b params: w='1+1'\n.ends");

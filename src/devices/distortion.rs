@@ -25,13 +25,16 @@
 //! default is an explicit `NotYetPorted` error, so a device whose distortion
 //! is not ported can never be treated as linear by accident.
 //!
-//! [`Series3`] is the truncated three-variable Taylor arithmetic standing in
-//! for C's `Dderivs` (`src/maths/deriv/*.c`), which `bjtdset.c` uses to
-//! differentiate the Gummel-Poon expressions.
+//! `deriv::Dderivs` transcribes C's derivative arithmetic (`Dderivs`,
+//! `src/maths/deriv/*.c`), which `bjtdset.c` uses to differentiate the
+//! Gummel-Poon expressions, and the `dloadfns` module C's load functions.
 
 use crate::devices::{Circuit, MnaUnknowns, ModelContext};
 use crate::maths::Vector;
 use crate::primitives::{Complex, NodeId, Real, SpiceError, SpiceResult};
+
+pub(crate) mod deriv;
+mod dloadfns;
 
 /// A controlling voltage: the sum of the node differences `v(a) - v(b)` of
 /// its pairs. Almost always one pair; C occasionally forms sums (the BJT's
@@ -46,6 +49,10 @@ pub struct Control {
     /// resistance kernel `i1hm2z` lacks the minus sign). Empty except for
     /// that BJT quirk.
     pub unconjugated_in_f1_minus_f2: Vec<[NodeId; 2]>,
+    /// Pairs subtracted from the sum of [`Self::pairs`], as `mos1dist.c`
+    /// forms `vbd` as `vbs - vds` from the kernels' differences (rather than
+    /// `vb - vd`, which rounds differently). Empty for most controls.
+    pub minus: Vec<[NodeId; 2]>,
 }
 
 impl Control {
@@ -61,6 +68,17 @@ impl Control {
         Self {
             pairs,
             unconjugated_in_f1_minus_f2: Vec::new(),
+            minus: Vec::new(),
+        }
+    }
+
+    /// The difference `(v(a) - v(b)) - (v(c) - v(d))` of two node
+    /// differences, evaluated in that order on the kernels.
+    #[must_use]
+    pub fn difference(plus: [NodeId; 2], minus: [NodeId; 2]) -> Self {
+        Self {
+            minus: vec![minus],
+            ..Self::between(plus[0], plus[1])
         }
     }
 
@@ -86,15 +104,24 @@ impl Control {
     /// The control's value in the node solution `x` (ground is zero).
     #[must_use]
     pub fn value(&self, unknowns: &MnaUnknowns, x: &[Complex]) -> Complex {
-        Self::sum_of(&self.pairs, unknowns, x)
-            + Self::sum_of(&self.unconjugated_in_f1_minus_f2, unknowns, x)
+        self.signed(unknowns, x) + Self::sum_of(&self.unconjugated_in_f1_minus_f2, unknowns, x)
+    }
+
+    /// The [`Self::pairs`] sum less the [`Self::minus`] sum.
+    fn signed(&self, unknowns: &MnaUnknowns, x: &[Complex]) -> Complex {
+        let sum = Self::sum_of(&self.pairs, unknowns, x);
+        if self.minus.is_empty() {
+            sum
+        } else {
+            sum - Self::sum_of(&self.minus, unknowns, x)
+        }
     }
 
     /// The control's `H1(-f2)` value from the `H1(f2)` solution `x` in the
     /// `f1 - f2` product: conjugated, except the
     /// [`Self::unconjugated_in_f1_minus_f2`] pairs.
     fn minus_f2_value(&self, unknowns: &MnaUnknowns, x: &[Complex]) -> Complex {
-        Self::sum_of(&self.pairs, unknowns, x).conj()
+        self.signed(unknowns, x).conj()
             + Self::sum_of(&self.unconjugated_in_f1_minus_f2, unknowns, x)
     }
 }
@@ -196,6 +223,11 @@ pub struct DistortionTerm {
     /// `r2H11ptr` is meant). Set by [`Self::with_first_order_im3_kernel`] for
     /// MOS1 terms so that `2f1 - f2` reproduces C.
     pub first_order_im3_kernel: bool,
+    /// A charge polynomial in the same controls whose `j omega` current C
+    /// folds into this (current) term's value before loading it
+    /// (`diodisto.c`'s `temp += -omega * D1i(...)`), set by
+    /// [`Self::with_charge`].
+    pub charge: Option<Taylor>,
 }
 
 impl DistortionTerm {
@@ -213,7 +245,16 @@ impl DistortionTerm {
             controls,
             taylor,
             first_order_im3_kernel: false,
+            charge: None,
         }
+    }
+
+    /// Folds the charge polynomial `charge` into this term as `diodisto.c`
+    /// does (see [`Self::charge`]).
+    #[must_use]
+    pub fn with_charge(mut self, charge: Taylor) -> Self {
+        self.charge = Some(charge);
+        self
     }
 
     /// Marks the term with `mos1dist.c`'s `2f1 - f2` kernel quirk (see
@@ -320,7 +361,10 @@ pub fn circuit_distortion(
         unknowns: circuit.unknowns(),
         bias,
     };
-    for device in circuit.devices() {
+    // CKTdisto visits the devices in CKTload order, which fixes the order the
+    // terms accumulate into each right-hand-side entry.
+    for index in circuit.load_order() {
+        let device = &circuit.devices()[index];
         match device.distortion(&distortion_context)? {
             DeviceDistortion::Linear => {}
             DeviceDistortion::Input { f1, f2 } => {
@@ -345,7 +389,7 @@ pub fn circuit_distortion(
                             device.name()
                         )));
                     }
-                    if !term.taylor.is_finite() {
+                    if !term.taylor.is_finite() || !term.charge.is_none_or(|c| c.is_finite()) {
                         return Err(SpiceError::Numerical {
                             context: format!("distortion of {}", device.name()),
                             message: "nonfinite Taylor coefficient".into(),
@@ -388,13 +432,34 @@ pub struct Kernels<'a> {
     pub h2_minus: Option<&'a [Complex]>,
 }
 
-fn scaled(c: Complex, k: Real) -> Complex {
-    Complex::new(c.re * k, c.im * k)
+/// A term's control values in the kernels a [`Product`] reads.
+enum KernelValues {
+    TwoF1(dloadfns::Values),
+    ThreeF1(dloadfns::Values, dloadfns::Values),
+    F12(dloadfns::Values, dloadfns::Values),
+    TwoF1MinusF2(
+        dloadfns::Values,
+        dloadfns::Values,
+        dloadfns::Values,
+        dloadfns::Values,
+    ),
+}
+
+impl KernelValues {
+    fn evaluate(&self, t: &Taylor) -> Complex {
+        match *self {
+            Self::TwoF1(x) => dloadfns::two_f1(t, x),
+            Self::ThreeF1(x, x2) => dloadfns::three_f1(t, x, x2),
+            Self::F12(x, b) => dloadfns::f12(t, x, b),
+            Self::TwoF1MinusF2(x, b, x2, m) => dloadfns::two_f1_minus_f2(t, x, b, x2, m),
+        }
+    }
 }
 
 /// Adds every term's contribution to `rhs` for `product` (C `DEVdisto` with
-/// the `dloadfns.c` polynomial evaluators): with `X`, `B`, `X2`, `M` the
-/// control values in `H1(f1)`, `H1(+-f2)`, `H2(f1,f1)` and `H2(f1,-f2)`,
+/// the `dloadfns.c` polynomial evaluators, [`dloadfns`]): with `X`, `B`,
+/// `X2`, `M` the control values in `H1(f1)`, `H1(+-f2)`, `H2(f1,f1)` and
+/// `H2(f1,-f2)`,
 ///
 /// | product | value of `c_ij v_i v_j` / `c_ijk v_i v_j v_k` |
 /// | --- | --- |
@@ -404,7 +469,9 @@ fn scaled(c: Complex, k: Real) -> Complex {
 /// | `2f1 - f2` | `(2 (X_i M_j + X_j M_i) + B_i X2_j + B_j X2_i) / 3` / `(X_i X_j B_k + X_i X_k B_j + X_j X_k B_i) / 3` |
 ///
 /// A charge's value is multiplied by `j omega`, `omega` being the response's
-/// angular frequency (negative for `f1 - f2` below `f2`, as in C).
+/// angular frequency (negative for `f1 - f2` below `f2`, as in C). The sums
+/// are evaluated in C's operand order and grouping, so the right-hand side
+/// rounds exactly as C's does.
 ///
 /// # Errors
 /// A kernel the product needs is missing, or `rhs` has the wrong size.
@@ -431,43 +498,27 @@ pub fn add_products(
     need(kernels.h2)?;
     need(kernels.h2_minus)?;
     for term in terms {
-        let values = |kernel: &[Complex]| -> [Complex; 3] {
+        let values = |kernel: &[Complex]| -> dloadfns::Values {
             let mut v = [Complex::ZERO; 3];
             for (slot, control) in v.iter_mut().zip(&term.controls) {
                 *slot = control.value(unknowns, kernel);
             }
             v
         };
+        let minus_f2 = |kernel: &[Complex]| -> dloadfns::Values {
+            let mut v = [Complex::ZERO; 3];
+            for (slot, control) in v.iter_mut().zip(&term.controls) {
+                *slot = control.minus_f2_value(unknowns, kernel);
+            }
+            v
+        };
         let x = values(kernels.h1);
-        let second = term.taylor.second();
-        let third = term.taylor.third();
-        let mut sum = Complex::ZERO;
-        match product {
-            Product::TwoF1 => {
-                for (i, j, c) in second {
-                    sum = sum + scaled(x[i] * x[j], c);
-                }
-            }
-            Product::ThreeF1 => {
-                let x2 = values(kernels.h2.ok_or_else(missing)?);
-                for (i, j, c) in second {
-                    sum = sum + scaled(x[i] * x2[j] + x[j] * x2[i], c);
-                }
-                for (i, j, k, c) in third {
-                    sum = sum + scaled(x[i] * x[j] * x[k], c);
-                }
-            }
-            Product::F1PlusF2 | Product::F1MinusF2 => {
-                let h1_f2 = kernels.h1_f2.ok_or_else(missing)?;
-                let mut b = values(h1_f2);
-                if product == Product::F1MinusF2 {
-                    for (slot, control) in b.iter_mut().zip(&term.controls) {
-                        *slot = control.minus_f2_value(unknowns, h1_f2);
-                    }
-                }
-                for (i, j, c) in second {
-                    sum = sum + scaled(x[i] * b[j] + x[j] * b[i], 0.5 * c);
-                }
+        let inputs = match product {
+            Product::TwoF1 => KernelValues::TwoF1(x),
+            Product::ThreeF1 => KernelValues::ThreeF1(x, values(kernels.h2.ok_or_else(missing)?)),
+            Product::F1PlusF2 => KernelValues::F12(x, values(kernels.h1_f2.ok_or_else(missing)?)),
+            Product::F1MinusF2 => {
+                KernelValues::F12(x, minus_f2(kernels.h1_f2.ok_or_else(missing)?))
             }
             Product::TwoF1MinusF2 => {
                 let b = values(kernels.h1_f2.ok_or_else(missing)?).map(Complex::conj);
@@ -477,279 +528,95 @@ pub fn add_products(
                     values(kernels.h2.ok_or_else(missing)?)
                 };
                 let m = values(kernels.h2_minus.ok_or_else(missing)?);
-                let mut inner = Complex::ZERO;
-                for (i, j, c) in second {
-                    let mixed = x[i] * m[j] + x[j] * m[i];
-                    inner = inner + scaled(scaled(mixed, 2.) + b[i] * x2[j] + b[j] * x2[i], c);
-                }
-                for (i, j, k, c) in third {
-                    inner = inner
-                        + scaled(
-                            x[i] * x[j] * b[k] + x[i] * x[k] * b[j] + x[k] * x[j] * b[i],
-                            c,
-                        );
-                }
-                sum = scaled(inner, 1. / 3.);
+                KernelValues::TwoF1MinusF2(x, b, x2, m)
             }
-        }
-        if term.response == Response::Charge {
-            sum = Complex::new(-omega * sum.im, omega * sum.re);
+        };
+        let value = inputs.evaluate(&term.taylor);
+        // A charge's current is `j omega` times its polynomial: C's `temp =
+        // -omega * DFi(...)`, `itemp = omega * DFn(...)`.
+        let (mut temp, mut itemp) = match term.response {
+            Response::Current => (value.re, value.im),
+            Response::Charge => (-omega * value.im, omega * value.re),
+        };
+        if let Some(charge) = &term.charge {
+            // diodisto.c: `temp += -omega * D1i(...)`, `itemp += omega *
+            // D1n(...)` onto the junction current's polynomial.
+            let charge = inputs.evaluate(charge);
+            temp += -omega * charge.im;
+            itemp += omega * charge.re;
         }
         let [a, b] = term.nodes;
         if let Some(row) = unknowns.node_row(a) {
-            rhs[row] = rhs[row] - sum;
+            rhs[row].re -= temp;
+            rhs[row].im -= itemp;
         }
         if let Some(row) = unknowns.node_row(b) {
-            rhs[row] = rhs[row] + sum;
+            rhs[row].re += temp;
+            rhs[row].im += itemp;
         }
     }
     Ok(())
 }
 
-/// The monomials `p^a q^b r^c` with `a + b + c <= 3`, in [`Series3`] order.
-const MONOMIALS: [[u8; 3]; 20] = [
-    [0, 0, 0],
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1],
-    [2, 0, 0],
-    [0, 2, 0],
-    [0, 0, 2],
-    [1, 1, 0],
-    [0, 1, 1],
-    [1, 0, 1],
-    [3, 0, 0],
-    [0, 3, 0],
-    [0, 0, 3],
-    [2, 1, 0],
-    [2, 0, 1],
-    [1, 2, 0],
-    [0, 2, 1],
-    [1, 0, 2],
-    [0, 1, 2],
-    [1, 1, 1],
-];
-
-fn monomial(exponents: [u8; 3]) -> Option<usize> {
-    MONOMIALS.iter().position(|m| *m == exponents)
-}
-
-/// A function of three variables `p`, `q`, `r` as its Taylor polynomial at a
-/// point, truncated after the third order: C's `Dderivs`
-/// (`src/include/ngspice/distodef.h`, `src/maths/deriv/*.c`) in coefficient
-/// rather than derivative form (`d2_p2 = 2 c_pp`, `d2_pq = c_pq`,
-/// `d3_p3 = 6 c_ppp`, `d3_p2q = 2 c_ppq`, `d3_pqr = c_pqr`).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Series3 {
-    c: [Real; 20],
-}
-
-impl Series3 {
-    /// The constant `value`.
-    #[must_use]
-    pub fn constant(value: Real) -> Self {
-        let mut c = [0.; 20];
-        c[0] = value;
-        Self { c }
-    }
-
-    /// The variable `p`, `q` or `r` (`index` 0, 1, 2) at `value`.
-    #[must_use]
-    pub fn variable(index: usize, value: Real) -> Self {
-        let mut s = Self::constant(value);
-        s.c[1 + index.min(2)] = 1.;
-        s
-    }
-
-    /// A function of one variable (`index`) from its value and derivatives
-    /// `d1`, `d2`, `d3` (C's pattern of setting `value`, `d1_p`, `d2_p2`,
-    /// `d3_p3` directly).
-    #[must_use]
-    pub fn univariate(index: usize, value: Real, d1: Real, d2: Real, d3: Real) -> Self {
-        let i = index.min(2);
-        let mut s = Self::constant(value);
-        let mut e = [0u8; 3];
-        e[i] = 1;
-        s.c[monomial(e).unwrap_or(0)] = d1;
-        e[i] = 2;
-        s.c[monomial(e).unwrap_or(0)] = d2 / 2.;
-        e[i] = 3;
-        s.c[monomial(e).unwrap_or(0)] = d3 / 6.;
-        s
-    }
-
-    /// The value at the expansion point.
-    #[must_use]
-    pub const fn value(&self) -> Real {
-        self.c[0]
-    }
-
-    /// The Taylor coefficient of `p^a q^b r^c` (zero beyond third order).
-    #[must_use]
-    pub fn coefficient(&self, exponents: [u8; 3]) -> Real {
-        monomial(exponents).map_or(0., |i| self.c[i])
-    }
-
-    /// Sets the Taylor coefficient of `p^a q^b r^c` (ignored beyond third
-    /// order).
-    pub fn set_coefficient(&mut self, exponents: [u8; 3], value: Real) {
-        if let Some(i) = monomial(exponents) {
-            self.c[i] = value;
-        }
-    }
-
-    /// `self + other` (C `PlusDeriv`).
-    #[must_use]
-    pub fn plus(&self, other: &Self) -> Self {
-        let mut c = self.c;
-        for (a, b) in c.iter_mut().zip(other.c) {
-            *a += b;
-        }
-        Self { c }
-    }
-
-    /// `k * self` (C `TimesDeriv`).
-    #[must_use]
-    pub fn times(&self, k: Real) -> Self {
-        Self {
-            c: self.c.map(|v| k * v),
-        }
-    }
-
-    /// `self + k` (C's `value += k`).
-    #[must_use]
-    pub fn offset(&self, k: Real) -> Self {
-        let mut s = *self;
-        s.c[0] += k;
-        s
-    }
-
-    /// `self * other`, truncated (C `MultDeriv`).
-    #[must_use]
-    pub fn mul(&self, other: &Self) -> Self {
-        let mut c = [0.; 20];
-        for (i, a) in MONOMIALS.iter().enumerate() {
-            if self.c[i] == 0. {
-                continue;
-            }
-            for (j, b) in MONOMIALS.iter().enumerate() {
-                let e = [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-                if let Some(k) = monomial(e) {
-                    c[k] += self.c[i] * other.c[j];
-                }
-            }
-        }
-        Self { c }
-    }
-
-    /// `f(self)` for `f` given by its value and first three derivatives at
-    /// `self.value()`.
-    fn compose(&self, f: [Real; 4]) -> Self {
-        let mut delta = *self;
-        delta.c[0] = 0.;
-        let delta2 = delta.mul(&delta);
-        let delta3 = delta2.mul(&delta);
-        Self::constant(f[0])
-            .plus(&delta.times(f[1]))
-            .plus(&delta2.times(f[2] / 2.))
-            .plus(&delta3.times(f[3] / 6.))
-    }
-
-    /// `1 / self` (C `InvDeriv`).
-    #[must_use]
-    pub fn inv(&self) -> Self {
-        let v = self.value();
-        let r = 1. / v;
-        self.compose([r, -r * r, 2. * r * r * r, -6. * r * r * r * r])
-    }
-
-    /// `self / other` (C `DivDeriv`).
-    #[must_use]
-    pub fn div(&self, other: &Self) -> Self {
-        self.mul(&other.inv())
-    }
-
-    /// `sqrt(self)` (C `SqrtDeriv`, whose derivatives are all zero at a zero
-    /// argument).
-    #[must_use]
-    pub fn sqrt(&self) -> Self {
-        let v = self.value();
-        let s = v.sqrt();
-        if v == 0. {
-            return Self::constant(s);
-        }
-        self.compose([s, 0.5 / s, -0.25 / (v * s), 0.375 / (v * v * s)])
-    }
-
-    /// `exp(self)` (C `ExpDeriv`).
-    #[must_use]
-    pub fn exp(&self) -> Self {
-        let e = self.value().exp();
-        self.compose([e, e, e, e])
-    }
-
-    /// `tan(self)` (C `TanDeriv`).
-    #[must_use]
-    pub fn tan(&self) -> Self {
-        let t = self.value().tan();
-        let s = 1. + t * t;
-        self.compose([t, s, 2. * t * s, 2. * s * (1. + 3. * t * t)])
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Series3, Taylor};
+    use super::{Taylor, deriv::Dderivs};
 
-    /// A function and its exact Taylor coefficients at a point.
-    fn check(s: &Series3, f: impl Fn(f64, f64, f64) -> f64, at: [f64; 3]) {
-        // Central finite differences of the closed form.
+    /// A variable at `value` (C's `d_p` with its value set).
+    fn var(index: usize, value: f64) -> Dderivs {
+        let mut d = Dderivs::variable(index);
+        d.value = value;
+        d
+    }
+
+    /// Checks a derivative structure against central finite differences of
+    /// its closed form.
+    fn check(d: &Dderivs, f: impl Fn(f64, f64, f64) -> f64, at: [f64; 3]) {
         let h = 1e-3;
-        let value = f(at[0], at[1], at[2]);
-        assert!((s.value() - value).abs() <= 1e-12 * value.abs().max(1.));
-        let d = |e: [i32; 3]| {
-            let point = |dp: f64, dq: f64, dr: f64| f(at[0] + dp, at[1] + dq, at[2] + dr);
-            match e {
-                [1, 0, 0] => (point(h, 0., 0.) - point(-h, 0., 0.)) / (2. * h),
-                [0, 1, 0] => (point(0., h, 0.) - point(0., -h, 0.)) / (2. * h),
-                [2, 0, 0] => (point(h, 0., 0.) - 2. * value + point(-h, 0., 0.)) / (h * h) / 2.,
-                [1, 1, 0] => {
-                    (point(h, h, 0.) - point(h, -h, 0.) - point(-h, h, 0.) + point(-h, -h, 0.))
-                        / (4. * h * h)
-                }
-                [3, 0, 0] => {
-                    (point(2. * h, 0., 0.) - 2. * point(h, 0., 0.) + 2. * point(-h, 0., 0.)
-                        - point(-2. * h, 0., 0.))
-                        / (2. * h * h * h)
-                        / 6.
-                }
-                _ => unreachable!(),
-            }
-        };
-        for e in [[1, 0, 0], [0, 1, 0], [2, 0, 0], [1, 1, 0], [3, 0, 0]] {
-            let want = d(e);
-            let got = s.coefficient([e[0] as u8, e[1] as u8, e[2] as u8]);
+        let point = |dp: f64, dq: f64| f(at[0] + dp, at[1] + dq, at[2]);
+        let value = point(0., 0.);
+        assert!((d.value - value).abs() <= 1e-12 * value.abs().max(1.));
+        let wanted = [
+            (d.d1_p, (point(h, 0.) - point(-h, 0.)) / (2. * h)),
+            (d.d1_q, (point(0., h) - point(0., -h)) / (2. * h)),
+            (
+                d.d2_p2,
+                (point(h, 0.) - 2. * value + point(-h, 0.)) / (h * h),
+            ),
+            (
+                d.d2_pq,
+                (point(h, h) - point(h, -h) - point(-h, h) + point(-h, -h)) / (4. * h * h),
+            ),
+            (
+                d.d3_p3,
+                (point(2. * h, 0.) - 2. * point(h, 0.) + 2. * point(-h, 0.) - point(-2. * h, 0.))
+                    / (2. * h * h * h),
+            ),
+        ];
+        for (index, (got, want)) in wanted.into_iter().enumerate() {
             assert!(
                 (got - want).abs() <= 1e-4 * want.abs().max(1e-3),
-                "{e:?}: {got} vs {want}"
+                "{index}: {got} vs {want}"
             );
         }
     }
 
     #[test]
-    fn series_arithmetic_matches_closed_forms() {
+    fn derivative_arithmetic_matches_closed_forms() {
         let at = [0.3, 0.7, -0.2];
-        let p = Series3::variable(0, at[0]);
-        let q = Series3::variable(1, at[1]);
-        let r = Series3::variable(2, at[2]);
-        let f = p.mul(&q).plus(&r).exp().div(&q.offset(1.).sqrt());
+        let p = var(0, at[0]);
+        let q = var(1, at[1]);
+        let r = var(2, at[2]);
+        let mut q1 = q;
+        q1.value += 1.;
+        let f = p.mul(&q).plus(&r).exp().div(&q1.sqrt());
         check(&f, |p, q, r| (p * q + r).exp() / (q + 1.).sqrt(), at);
         let g = p.times(2.).tan().mul(&p.inv());
         check(&g, |p, _, _| (2. * p).tan() / p, at);
-        // The mixed third-order coefficient of p q r is exactly 1.
-        let pqr = p.mul(&q).mul(&r);
-        assert_eq!(pqr.coefficient([1, 1, 1]), 1.);
-        assert_eq!(Series3::constant(0.).sqrt(), Series3::constant(0.));
+        // The mixed third derivative of p q r is exactly 1.
+        assert_eq!(p.mul(&q).mul(&r).d3_pqr, 1.);
+        // sqrtder.c: all derivatives vanish at a zero argument.
+        assert_eq!(Dderivs::default().sqrt(), Dderivs::default());
         let t = Taylor::single(2., 3.);
         assert_eq!((t.xx, t.xxx, t.yy), (2., 3., 0.));
     }

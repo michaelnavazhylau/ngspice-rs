@@ -1,7 +1,7 @@
 # Architecture of the Rust port
 
 Current capabilities and numerical limits are recorded in
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md); the central
+[NATIVE_SOLVER.md](NATIVE_SOLVER.md); the central
 [TODO.md](../../TODO.md) tracks remaining work. Rust edition 2024 / MSRV **1.89**
 applies to the locked workspace, not the historical dependency-free scaffold.
 
@@ -37,9 +37,9 @@ examples, not a CLI simulation command.
 | --- | --- | --- |
 | `primitives` | `Real`, `Complex`, SPICE numeric literals with scale factors, node table and ground aliasing, error type, analysis taxonomy | `src/include/ngspice/`, parts of `src/spicelib/parser/inpeval.c`, `src/frontend/inpcom.c` |
 | `netlist` | Deck loading (title line, `+` continuations, comments), tokenizer, card classification, AST, incremental parser | `src/frontend/inp.c`, `src/frontend/inpcom.c`, `src/spicelib/parser/inp*.c`; future `.param` work: `src/frontend/numparam/` |
-| `maths` | Dense/sparse/complex storage, petgraph row-coupling topology, faer LU, bounded diffsol BDF, trap/Gear coefficient/history/truncation APIs | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
+| `maths` | Dense/sparse/complex storage, petgraph row-coupling topology, SPARSE 1.3 LU port (`sparse13`), trap/Gear coefficient/history/truncation APIs | `src/maths/dense/`, `src/maths/sparse/`, `src/maths/KLU/`, `src/maths/ni/` |
 | `devices` | `Device` trait, scalar R/C/L/V/I factories/stamps, branch and state-slot binding, trial-versus-accepted state (`StateHistory`/`TrialState`, `&self` stamping, atomic `Circuit::accept_point`; device delay histories and breakpoints in `devices::delay`, changed only by `Circuit::accept_transient_point`), immutable linear operators, `Circuit`, petgraph incidence topology, top-level model resolver, bounded passive geometry/temperature recipes and diode input schemas; nonlinear arithmetic pending | `src/spicelib/devices/` |
-| `analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, adaptive trap/Gear-2 companion `.tran`, explicitly selected bounded BDF, plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
+| `analysis` | Linear `.op`, single-source `.dc`, complex `.ac`, adaptive trap/Gear-2 companion `.tran` (the only transient backend), plots and ASCII rawfiles | `src/spicelib/analysis/`, `src/frontend/rawfile.c` |
 | `cli` | CLI argument parsing, dispatch and reporting; the `spice-rs` binary is `src/bin/spice-rs.rs` | `src/frontend/main.c`, `src/ngspice.c` |
 | `xtask` (separate package) | Automation: C golden capture/drift checks, Rust-engine numerical verify, CI | — |
 
@@ -67,17 +67,25 @@ examples, not a CLI simulation command.
 
 `maths::equilibration` (#46) owns explicit dense/sparse/complex scaling
 wrappers and original-unit diagnostics, not device semantics or a new default
-analysis policy ([EQUILIBRATION.md](EQUILIBRATION.md)). The existing sparse/complex
-rank policy is unchanged by #47's audit; its aggregate-certification proof
-limitation is explicit and tracked separately in #68
-([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)). Preserve the current
-guards without representing finite regression coverage as a universal proof.
+analysis policy ([EQUILIBRATION.md](EQUILIBRATION.md)).
 
-`maths::diffsol::higher_index` (#29) is an experimental numeric prototype
-with supplied smooth forcing jets and a bounded constrained-RLC class. It is not
-selected by `LinearDae`/the analysis runner. Production topology/waveform/error
-control/accepted-state/event semantics require the separate #69–#72 gates
-([HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md)).
+The linear solver's error policy is ngspice's. The sparse LU is a port of
+SPARSE 1.3 (`maths::sparse13`), ordered and refactored as `spsmp.c`/`niiter.c`
+/`niaciter.c` do (`maths::linear`, `maths::complex`): one pivot order per
+circuit pattern, `.options pivtol`/`pivrel` at every reorder, a reorder after a
+zero pivot on refactor. Its status is the policy: `spSINGULAR`/`spZERO_DIAG`
+fail, naming the unknown as `NIiter`'s warning does (`singular matrix:  check
+node v1#branch`, from `Circuit::unknown_names`); `spSMALL_PIVOT` is accepted
+(ngspice's `OK`) with a solver warning; a circuit unknown with no matrix
+element keeps its right-hand side, as C's untranslated row does. There is no
+rank probe, condition estimate or residual check, because C has none; the
+faer-era rank diagnostics of #47 are superseded
+([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)). Non-finite inputs,
+duplicate-sum overflow and non-finite solutions are still errors.
+
+The #29 higher-index DAE prototype (`maths::diffsol::higher_index`) was
+removed with diffsol in M10 wave 0.5; [HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md)
+is a historical record and the code is recoverable from git history.
 
 ## Graph representations: prefer petgraph
 
@@ -110,8 +118,8 @@ are snapshot-local handles, not domain IDs or matrix numbering. A structural
 path through a capacitor or multiport device does not prove a conductive DC
 path. Disconnected matrix blocks may all be nonsingular, and connected matrices
 may be singular. Do not reject circuits/blocks based on generic connectivity;
-analysis-specific topology rules remain bounded; production LU performs
-numerical rank/residual diagnostics. Graph construction does not validate
+analysis-specific topology rules remain bounded; production LU reports
+SPARSE's singular statuses as C does (see above). Graph construction does not validate
 finite matrix values.
 
 Snapshots rebuild on demand so mutations through `devices_mut()`, late nodes,
@@ -126,9 +134,7 @@ remains dependency-free and SPICE node IDs/ground aliasing remain unchanged.
 The semantic parser is implemented with winnow 1.0.4 (MIT), replacing M1a's
 manual token cursor. Only `netlist` directly depends on it; default
 features are disabled and only `std`/`parser` enabled. Its declared MSRV is 1.65,
-below this workspace's historical 1.85 requirement. The diffsol/faer integration
-raises the workspace MSRV to 1.89 because the locked diffsol-la/nalgebra graph
-requires it; minimum-version CI tests that graph. `Cargo.lock` pins the resolved graph;
+below the workspace's declared MSRV of 1.89, which minimum-version CI tests. `Cargo.lock` pins the resolved graph;
 offline builds require the registry dependencies to have been cached first.
 
 - `parser/grammar.rs`: `Stateful<TokenSlice<Token>, Context>` over borrowed

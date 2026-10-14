@@ -12,11 +12,15 @@
 //! # What is computed
 //!
 //! After the operating point, the circuit is linearised exactly as for AC
-//! (`MODEINITSMSIG`) into the pencil `Y(s) = A + s E`
-//! ([`Circuit::pole_zero_system_at`]): every C pole-zero load is affine in
-//! `s`. An independent voltage source with an AC value is removed (its
-//! current forced to zero, `vsrcpzld.c`): the analysis drives the input with
-//! a unit current instead. `CKTpzSetup`/`CKTpzLoad` then modify `Y`:
+//! (`MODEINITSMSIG`); every C pole-zero load is affine in `s`, so each
+//! device contributes `g + c s` per matrix element
+//! ([`Circuit::pole_zero_terms_at`]). An independent voltage source with an
+//! AC value is removed (its current forced to zero, `vsrcpzld.c`): the
+//! analysis drives the input with a unit current instead. As `CKTpzSetup`
+//! does, each search (poles, then zeros) gets a fresh matrix holding the
+//! `DEVpzSetup` elements ([`Circuit::pole_zero_elements`]) and the drive
+//! elements, and every trial `s` is loaded as `CKTpzLoad` does, device by
+//! device in load order, before the matrix `Y(s)` is modified:
 //!
 //! * the *solution column* (the output node, or the input node for `vol`
 //!   poles) is zeroed and receives the drive `+1`/`-1` in the input rows; a
@@ -29,11 +33,8 @@
 //! transimpedance from the input current to the solution voltage, so its
 //! roots are the zeros of `Vout/Iin` (`zer`) and the zeros of `Vin/Iin`,
 //! i.e. the poles of `Vout/Vin` (`vol pol`); `cur pol` takes the roots of
-//! `det Y(s)`. C searches for these roots with a deflated Muller iteration;
-//! the port computes them as the finite eigenvalues of the modified pencil
-//! ([`crate::maths::pencil`]), see `docs/port/POLE_ZERO_ADR.md` for the
-//! decision and every divergence (ordering, accuracy, C's search failures,
-//! singular pencils).
+//! `det Y(s)`. The roots are found with C's deflated Muller search on
+//! SPARSE determinants ([`crate::maths::pencil`]).
 //!
 //! # Output
 //!
@@ -48,8 +49,7 @@ use crate::analysis::linear::unsupported;
 use crate::analysis::results::{PlotFlags, Variable};
 use crate::analysis::{AnalysisRequest, Plot};
 use crate::devices::Circuit;
-use crate::maths::Matrix;
-use crate::maths::pencil::pencil_roots;
+use crate::maths::pencil::{PencilLoad, PencilTerm, pencil_load_roots};
 use crate::primitives::{Complex, NodeId, SpiceError, SpiceResult};
 
 /// `cur` or `vol` (C `PZ_IN_CUR`/`PZ_IN_VOL`).
@@ -117,54 +117,50 @@ fn short(message: &str) -> SpiceError {
     SpiceError::circuit(format!("pole-zero analysis: {message}"))
 }
 
-/// The pencil whose roots are the requested poles or zeros, built as
-/// `CKTpzSetup` + `CKTpzLoad` modify the circuit matrix.
-fn modified_pencil(
-    a: &Matrix,
-    e: &Matrix,
+/// The matrix whose determinant's roots are the requested poles or zeros:
+/// `CKTpzSetup` (`cktpzset.c`) picks the solution and balance columns and
+/// allocates the drive elements, which `CKTpzLoad` (`cktpzld.c`) fills.
+/// `output` is `None` for `cur` poles (C clears every node number, so the
+/// matrix is loaded unmodified).
+fn modified_load(
+    order: usize,
+    elements: &[(usize, usize)],
+    terms: &[PencilTerm],
     input: [Option<usize>; 2],
-    output: [Option<usize>; 2],
-) -> SpiceResult<(Matrix, Matrix)> {
-    let (mut a, mut e) = (a.clone(), e.clone());
-    let n = a.rows();
+    output: Option<[Option<usize>; 2]>,
+) -> PencilLoad {
+    let mut load = PencilLoad {
+        order,
+        elements: elements.to_vec(),
+        terms: terms.to_vec(),
+        ..PencilLoad::default()
+    };
+    let Some(output) = output else {
+        return load;
+    };
     let [mut input_pos, mut input_neg] = input;
     let (solution, balance) = match output {
         [Some(pos), neg] => (Some(pos), neg),
         [None, neg] => {
-            // `CKTpzSetup`: a ground positive output takes the negative node
-            // as the solution column and swaps the drive.
+            // A ground positive output takes the negative node as the
+            // solution column and swaps the drive.
             std::mem::swap(&mut input_pos, &mut input_neg);
             (neg, None)
         }
     };
-    let Some(solution) = solution else {
-        return Ok((a, e));
-    };
-    for m in [&mut a, &mut e] {
-        if let Some(balance) = balance {
-            for row in 0..n {
-                let value = m.get(row, solution).unwrap_or(0.0);
-                m.add_to(row, balance, value)?;
-            }
-        }
-        for row in 0..n {
-            m.set(row, solution, 0.0)?;
-        }
+    if solution.is_some() {
+        load.solution = solution;
+        load.balance = balance;
+        load.drive = [input_pos, input_neg];
     }
-    if let Some(row) = input_pos {
-        a.set(row, solution, 1.0)?;
-    }
-    if let Some(row) = input_neg {
-        a.set(row, solution, -1.0)?;
-    }
-    Ok((a, e))
+    load
 }
 
 /// The finite roots of a modified pencil. A pencil whose determinant
 /// vanishes for every `s` has no defined roots; C reports that case (its
 /// search finds a "root" at every trial) as `E_SHORT`.
-fn roots(a: &Matrix, e: &Matrix, what: &str) -> SpiceResult<Vec<Complex>> {
-    pencil_roots(a, e)
+fn roots(load: &PencilLoad, what: &str) -> SpiceResult<Vec<Complex>> {
+    pencil_load_roots(load)
         .map(|roots| roots.roots)
         .map_err(|error| match error {
             SpiceError::Numerical { message, .. } if message.starts_with("singular pencil") => {
@@ -182,14 +178,6 @@ fn roots(a: &Matrix, e: &Matrix, what: &str) -> SpiceResult<Vec<Complex>> {
             },
             other => other,
         })
-}
-
-fn dense(matrix: &crate::maths::SparseMatrix) -> SpiceResult<Matrix> {
-    let mut dense = Matrix::zeros(matrix.rows(), matrix.cols());
-    for triplet in matrix.triplets() {
-        dense.add_to(triplet.row, triplet.col, triplet.value)?;
-    }
-    Ok(dense)
 }
 
 pub(crate) fn run(
@@ -229,26 +217,31 @@ pub(crate) fn run(
     // PZan uses the same CKTop/MODEINITSMSIG preparation as acan.c.
     let small_signal =
         crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
-    let system = circuit.pole_zero_system_at(
+    let terms = circuit.pole_zero_terms_at(
         &context.model_context(),
         small_signal.bias(),
         Some(small_signal.state()),
     )?;
-    let (a, e) = (dense(&system.a)?, dense(&system.e)?);
-    // `PZan` runs the pole search before the zero search; `PZpost` lists
-    // poles first.
+    let elements = circuit.pole_zero_elements()?;
+    let order = circuit.unknown_count();
+    let input = [in_pos, in_neg];
+    // `PZan` runs the pole search before the zero search, each on a fresh
+    // `CKTpzSetup` matrix; `PZpost` lists poles first.
     let mut poles = Vec::new();
     if card.poles {
-        let (a, e) = match card.input {
-            Input::Voltage => modified_pencil(&a, &e, [in_pos, in_neg], [in_pos, in_neg])?,
-            Input::Current => (a.clone(), e.clone()),
+        let output = match card.input {
+            Input::Voltage => Some(input),
+            Input::Current => None,
         };
-        poles = roots(&a, &e, "poles")?;
+        let mut load = modified_load(order, &elements, &terms, input, output);
+        load.relative_threshold = context.pivot.relative;
+        poles = roots(&load, "poles")?;
     }
     let mut zeros = Vec::new();
     if card.zeros {
-        let (a, e) = modified_pencil(&a, &e, [in_pos, in_neg], [out_pos, out_neg])?;
-        zeros = roots(&a, &e, "zeros")?;
+        let mut load = modified_load(order, &elements, &terms, input, Some([out_pos, out_neg]));
+        load.relative_threshold = context.pivot.relative;
+        zeros = roots(&load, "zeros")?;
     }
     let flags = if poles.is_empty() && zeros.is_empty() {
         PlotFlags::Real
@@ -305,23 +298,25 @@ mod tests {
 
     #[test]
     fn the_solution_column_takes_the_drive() {
-        // Y = [[1, 2], [3, 4]] + s I; zeros for in = row 0, out = row 1.
-        let mut a = Matrix::zeros(2, 2);
-        a.data_mut().copy_from_slice(&[1., 2., 3., 4.]);
-        let mut e = Matrix::zeros(2, 2);
-        e.data_mut().copy_from_slice(&[1., 0., 0., 1.]);
-        let (ma, me) = modified_pencil(&a, &e, [Some(0), None], [Some(1), None]).unwrap();
-        assert_eq!(ma.data(), &[1., 1., 3., 0.]);
-        assert_eq!(me.data(), &[1., 0., 0., 0.]);
-        // Differential output: column 0 += column 1, then column 1 replaced.
-        let (ma, me) = modified_pencil(&a, &e, [Some(0), None], [Some(1), Some(0)]).unwrap();
-        assert_eq!(ma.data(), &[3., 1., 7., 0.]);
-        assert_eq!(me.data(), &[1., 0., 1., 0.]);
+        let terms = [PencilTerm {
+            row: 0,
+            col: 0,
+            conductance: Some(1.),
+            capacitance: Some(1.),
+        }];
+        let load = modified_load(2, &[(0, 0)], &terms, [Some(0), None], Some([Some(1), None]));
+        assert_eq!((load.solution, load.balance), (Some(1), None));
+        assert_eq!(load.drive, [Some(0), None]);
+        // Differential output: the negative node is the balance column.
+        let load = modified_load(2, &[], &terms, [Some(0), None], Some([Some(1), Some(0)]));
+        assert_eq!((load.solution, load.balance), (Some(1), Some(0)));
         // Ground positive output: the negative node is the column and the
         // drive is swapped.
-        let (ma, _) = modified_pencil(&a, &e, [Some(0), None], [None, Some(1)]).unwrap();
-        assert_eq!(ma.data(), &[1., -1., 3., 0.]);
-        let (ma, _) = modified_pencil(&a, &e, [None, Some(0)], [None, Some(1)]).unwrap();
-        assert_eq!(ma.data(), &[1., 1., 3., 0.]);
+        let load = modified_load(2, &[], &terms, [Some(0), None], Some([None, Some(1)]));
+        assert_eq!((load.solution, load.balance), (Some(1), None));
+        assert_eq!(load.drive, [None, Some(0)]);
+        // `cur` poles load the matrix unmodified.
+        let load = modified_load(2, &[], &terms, [Some(0), None], None);
+        assert_eq!((load.solution, load.drive), (None, [None, None]));
     }
 }

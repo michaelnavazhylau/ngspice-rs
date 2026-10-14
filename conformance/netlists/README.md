@@ -39,11 +39,12 @@ existing golden is touched). Design rules they follow: sample spacing (`tstep`,
 which is also the default maximum step) is small against the circuit time
 constants and source edges so that comparing resampled waveforms measures
 integration error, not interpolation error; source corners of the decks that also
-run on the explicit BDF backend lie on the `.tran` output grid and the stop time
+ran on the former explicit BDF backend (removed in M10 wave 0.5) lie on the
+`.tran` output grid and the stop time
 is an exact multiple of `tstep`; `.ac` uses `lin` because the Rust rawfile writer
 does not reproduce ngspice's `grid=` header attribute for `dec`/`oct`. The four initialized-state decks (`rc_ic_uic_tran` ... `floating_cap_ic_tran`, GitHub
-#27/#48) were captured the same way; they have no BDF variants because the diffsol
-backend rejects `.ic`/`uic`/`ic=`. With `uic` C writes no `t = 0` row and adds a
+#27/#48) were captured the same way; they never had BDF variants because the
+removed diffsol backend rejected `.ic`/`uic`/`ic=`. With `uic` C writes no `t = 0` row and adds a
 breakpoint at the `.tran` step; the comparator starts at the first common sample.
 
 | Fixture | Analysis | Exercises |
@@ -123,6 +124,7 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m7_conv_latch_spice3_gmin_op` | `.op` | the same latch with `noopiter gminsteps=4`: `spice3_gmin` |
 | `m7_conv_latch_spice3_src_op` | `.op` | the same latch with `noopiter gminsteps=0 srcsteps=4`: `spice3_src`, which lands in a stable state |
 | `m7_conv_latch_tran` | `.tran` | a cross-coupled pair switched by set/reset PULSEs through junction charges (10 ns maximum step, `reltol=1e-7`) |
+| `diode100_op` | `.op` | 100 series 100 ohm/diode stages from 100 V (M10 0.5h): the `MODEINITJCT` start and `DEVpnjlim` on every junction of a long chain, which once failed where C converges |
 | `m7_conv_bjt_schmitt` | `.dc` `.dc` `.op` | emitter-coupled BJT Schmitt trigger swept up and down through its hysteresis (warm-started `.dc` points) and an `.op` inside the band |
 | `m7_conv_cmos_schmitt` | `.dc` `.dc` `.op` | six-transistor MOS1 Schmitt trigger swept up and down and an `.op` inside the band (`reltol=1e-8 vntol=1e-12`) |
 | `m7_ic_diode_uic_tran` | `.tran` | `uic` diode/RC discharge (#99): capacitor `ic=2`, the other capacitor and the diode junction (CJO, TT, RS) from `.ic v(b)=0.5`; the diode's own `ic=0.4` has no effect in C (`reltol=1e-5`) |

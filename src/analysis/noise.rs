@@ -56,7 +56,6 @@ use crate::analysis::results::{Plot, PlotFlags, Variable};
 use crate::analysis::{AnalysisContext, AnalysisRequest};
 use crate::devices::noise::{InstanceNoise, circuit_noise};
 use crate::devices::{Circuit, LinearSystem, SourceKind};
-use crate::maths::complex::ComplexMatrix;
 use crate::primitives::{Complex, NodeId, Real, SpiceError, SpiceResult, parse_spice_number};
 
 /// C `N_MINLOG`: the smallest number whose logarithm is taken.
@@ -111,18 +110,7 @@ fn integer(text: Option<&str>, what: &str) -> SpiceResult<i64> {
     Ok(rounded as i64)
 }
 
-/// `AlmostEqualUlps(a, b, max_ulps)` (`src/misc/equality.c`).
-fn almost_equal_ulps(a: Real, b: Real, max_ulps: i64) -> bool {
-    if a == b {
-        return true;
-    }
-    // Lexicographically ordered integer representations.
-    let ordered = |x: Real| {
-        let bits = x.to_bits() as i64;
-        if bits < 0 { i64::MIN - bits } else { bits }
-    };
-    (ordered(a) - ordered(b)).unsigned_abs() <= max_ulps.unsigned_abs()
-}
+use crate::primitives::almost_equal_ulps;
 
 /// The positional tokens of a `.noise` card: `v ( out [, ref] ) src type pts
 /// fstart fstop [pts_per_summary]`, the output spelled as one or several
@@ -497,11 +485,8 @@ pub(crate) fn run(
         }
         let input_name = card.input.as_str();
         let (forward, adjoint) = small.at_frequency(circuit, context, freq, |system| {
-            let matrix = ComplexMatrix::from_operators(
-                &system.a,
-                &system.e,
-                2. * std::f64::consts::PI * freq,
-            )?;
+            let matrix =
+                crate::analysis::ac::ac_matrix(circuit, system, 2. * std::f64::consts::PI * freq)?;
             let lu = matrix.factorize()?;
             Ok((
                 lu.solve(&input_rhs(system, input_name)?)?,

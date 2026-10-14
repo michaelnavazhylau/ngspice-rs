@@ -46,7 +46,7 @@ card 4 @netlists/m4_diode_ac.cir:5:1 lines=5-5 continuations=0
   token 16 5:36 number "20p" value=2e-11
   token 17 5:40 word "vj"
   token 18 5:42 equals "="
-  token 19 5:43 number "0.7" value=7e-1
+  token 19 5:43 number "0.7" value=7.000000000000001e-1
   token 20 5:47 word "m"
   token 21 5:48 equals "="
   token 22 5:49 number "0.5" value=5e-1

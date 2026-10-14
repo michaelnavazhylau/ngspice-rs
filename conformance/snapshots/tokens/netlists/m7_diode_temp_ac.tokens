@@ -107,10 +107,10 @@ card 11 @netlists/m7_diode_temp_ac.cir:12:1 lines=12-12 continuations=0
   token 16 12:42 number "2p" value=2e-12
   token 17 12:45 word "vjsw"
   token 18 12:49 equals "="
-  token 19 12:50 number "0.6" value=6e-1
+  token 19 12:50 number "0.6" value=6.000000000000001e-1
   token 20 12:54 word "mjsw"
   token 21 12:58 equals "="
-  token 22 12:59 number "0.3" value=3e-1
+  token 22 12:59 number "0.3" value=3.0000000000000004e-1
   token 23 12:63 word "fcs"
   token 24 12:66 equals "="
   token 25 12:67 number "0.4" value=4e-1
@@ -171,7 +171,7 @@ card 13 @netlists/m7_diode_temp_ac.cir:14:1 lines=14-14 continuations=0
   token 22 14:56 number "2" value=2e0
   token 23 14:58 word "vj"
   token 24 14:60 equals "="
-  token 25 14:61 number "0.7" value=7e-1
+  token 25 14:61 number "0.7" value=7.000000000000001e-1
   token 26 14:65 word "m"
   token 27 14:66 equals "="
   token 28 14:67 number "0.4" value=4e-1

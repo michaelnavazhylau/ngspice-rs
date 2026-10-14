@@ -33,10 +33,7 @@ with `pwr`/`freq` inherits the previous value with zero amplitude. Without
 explicit DC the operating point evaluates this accumulation at zero;
 source sweeps propagate changes through the same chain. An explicit DC value
 overrides it in DC analyses. Later waveform setters replace PORT; `phase` is
-stored but unused, as in C. Both transient backends support PORT. diffsol
-requires its inherited baseline to be piecewise linear and retains its
-existing index-one DAE restrictions; ordinary SIN/EXP/SFFM/AM still require
-the companion backend.
+stored but unused, as in C. The companion transient driver supports PORT.
 
 PORT accumulation is checked at full excitation and at source events. DC
 continuation retains the port's existing uniform RHS source scaling; C's
@@ -67,7 +64,7 @@ equations match; this is not a claim of identical nonlinear branch selection.
 4. `S = B A^-1`; `Z = Gn^-1 (E - S)^-1 (S Z0 + Z0) Gn`;
    `Y = Gn^-1 (S Z0 + Z0)^-1 (E - S) Gn`, `Z0 = diag(z0)`, `Gn = diag(2 ki)`
    (`CKTspCalcSMatrix`). These are `N x N` port matrices
-   (`maths::dense_complex`); the circuit solves use the faer complex sparse LU
+   (`maths::dense_complex`); the circuit solves use the SPARSE 1.3 complex LU
    of `.ac`, one factorization per frequency and one solve per port.
 
 With several ports with different `z0`, S is the power-wave S matrix

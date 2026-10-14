@@ -42,9 +42,12 @@ pub(crate) fn plot(
     if let Some((name, unit)) = scale {
         plot.push_variable(var(name.into(), unit));
     }
+    // One vector per unknown, in row order: the order C's node list (and so
+    // its rawfile) has, since rows are numbered as `CKTsetup` creates nodes.
+    let mut names: Vec<Option<(String, &str)>> = vec![None; circuit.unknown_count()];
     for node in circuit.nodes().nodes() {
-        if circuit.unknowns().node_row(node.id).is_some() {
-            plot.push_variable(var(format!("v({})", node.name), "voltage"));
+        if let Some(row) = circuit.unknowns().node_row(node.id) {
+            names[row] = Some((format!("v({})", node.name), "voltage"));
         }
     }
     for (index, device) in circuit.devices().iter().enumerate() {
@@ -54,9 +57,12 @@ pub(crate) fn plot(
                 "multiple branch currents per device in linear plots",
             ));
         }
-        if !range.is_empty() {
-            plot.push_variable(var(format!("i({})", device.name()), "current"));
+        for row in range {
+            names[row] = Some((format!("i({})", device.name()), "current"));
         }
+    }
+    for (name, unit) in names.into_iter().flatten() {
+        plot.push_variable(var(name, unit));
     }
     for name in circuit.observations() {
         plot.push_variable(Variable::new(name, crate::devices::observe::unit(name)));
@@ -83,7 +89,7 @@ pub(crate) fn op(
     let hints = crate::analysis::initial::resolve(circuit, request)?;
     let nodes = crate::analysis::bias::NodeForcing {
         initial: Vec::new(),
-        nodesets: crate::analysis::initial::forced_nodesets(circuit, &hints.nodesets, &[]),
+        nodesets: crate::analysis::initial::forced_nodesets(&hints.nodesets),
     };
     let mut seed = crate::maths::Vector::zeros(circuit.unknown_count());
     for hint in hints.nodesets {

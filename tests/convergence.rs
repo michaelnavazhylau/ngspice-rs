@@ -160,8 +160,12 @@ fn device_limiting_solves_an_overdriven_junction_directly_at_an_exact_point() {
     assert_original_equations_solved(&report);
     // C's itl1 default bounds the direct solve.
     assert!(report.stages[0].iterations <= 100, "{report:?}");
-    // The returned point satisfies the unmodified KCL at the junction: the
-    // limited loads never converge, so the last load was exact.
+    // The returned point satisfies the unmodified KCL at the junction to
+    // NIiter's accuracy: the limited loads never converge, so the last load
+    // was exact, but NIiter returns that load's iterate (CKTrhsOld) once the
+    // next update is within reltol 1e-3 / vntol 1e-6. C ngspice (SPARSE)
+    // returns the same v(b) = 0.8909291905866813 bit for bit, where the diode
+    // current exceeds the resistor's by 6.7e-6 relative.
     let circuit = Circuit::from_netlist(&parse(HARD_DIODE)).unwrap();
     let row = |name: &str| {
         circuit
@@ -174,13 +178,16 @@ fn device_limiting_solves_an_overdriven_junction_directly_at_an_exact_point() {
     let diode = 1e-14 * ((vb / VT).exp() - 1.) + 1e-12 * vb;
     let resistor = va - vb;
     assert!(
-        (diode - resistor).abs() <= 1e-6 * resistor,
+        (diode - resistor).abs() <= 1e-5 * resistor,
         "{diode} vs {resistor}"
     );
-    // The port's legacy global damping reaches the same root.
+    // The port's legacy global damping reaches the same root, through other
+    // iterates: the two stop within NIiter's tolerance of it (here
+    // 1.7e-7 V apart, the device-limited point being C's above).
     let (global, report) = solve(HARD_DIODE, &["limiting=global"]);
     assert_original_equations_solved(&report);
-    assert!((global.unwrap().as_slice()[row("b")] - vb).abs() < 1e-9);
+    let global = global.unwrap().as_slice()[row("b")];
+    assert!((global - vb).abs() < 1e-6, "{global} vs {vb}");
 }
 
 #[test]
@@ -356,3 +363,81 @@ fn noopiter_is_a_flag_and_the_limiting_key_is_validated() {
     assert!(DcSettings::from_request(&request(&["limiting=sometimes"])).is_err());
     assert!(DcSettings::from_request(&request(&["noopiter=2"])).is_err());
 }
+
+/// The benchmark diode chain (`scripts/bench/bench.py`, `diode_chain`): `n`
+/// stages of 100 ohm and a 1e-14 A diode from a 5 V source, 1 kohm load.
+fn diode_chain(n: usize) -> String {
+    let mut body = String::from("v1 n0 0 dc 5\n.model d1 d(is=1e-14 n=1)\n");
+    for i in 0..n {
+        body.push_str(&format!("r{i} n{i} m{i} 100\nd{i} m{i} n{} d1\n", i + 1));
+    }
+    body.push_str(&format!("rl n{n} 0 1k"));
+    body
+}
+
+/// Long diode chains once failed `.op` where C converges (M10 0.5h). The
+/// expected strategies, Newton totals (`rusage all`: "Total iterations") and
+/// values are those of C ngspice built without FMA contraction, which the port
+/// reproduces bit for bit. The default (FMA) C build differs from these values
+/// at Newton-tolerance level only: the chain current is below ABSTOL.
+#[test]
+fn long_diode_chains_take_the_c_continuation_path() {
+    // 100 stages: C's direct Newton converges in 7 iterations.
+    let body = diode_chain(100);
+    let (solution, report) = solve(&body, &[]);
+    solution.unwrap();
+    assert_eq!(
+        attempts(&report),
+        [(DcStrategy::Direct, AttemptOutcome::Converged)]
+    );
+    assert_eq!(report.total_iterations, 7);
+    let plot = operating_point(&body);
+    assert_eq!(value(&plot, "v(n1)"), 4.950001782213789);
+    assert_eq!(value(&plot, "v(n100)"), 1.0911436345166466e-10);
+    assert_eq!(value(&plot, "i(v1)"), -1.0909328995722944e-13);
+
+    // 1000 stages: direct Newton exhausts ITL1, dynamic gmin stepping
+    // converges ("Note: Dynamic gmin stepping completed"), 216 in total.
+    let body = diode_chain(1000);
+    let (solution, report) = solve(&body, &[]);
+    solution.unwrap();
+    assert_eq!(
+        attempts(&report),
+        [
+            (DcStrategy::Direct, AttemptOutcome::Failed),
+            (DcStrategy::GminStepping, AttemptOutcome::Converged),
+        ]
+    );
+    assert_original_equations_solved(&report);
+    let plot = operating_point(&body);
+    let expected = [
+        ("v(n1)", 4.9949340993026805),
+        ("v(n1000)", 7.145072049497449e-12),
+        ("i(v1)", -7.230327447871332e-15),
+    ];
+    if C_ORACLE_LIBM {
+        assert_eq!(report.total_iterations, 216);
+        for (name, c) in expected {
+            assert_eq!(value(&plot, name), c, "{name}");
+        }
+    } else {
+        // Another libm rounds exp/ln differently in the last bit, which moves
+        // this rounding-sensitive chain's Newton path (glibc: 229
+        // iterations) as FMA contraction moves C's: the point agrees to the
+        // Newton tolerances (reltol 1e-3, vntol 1e-6 V, abstol 1e-12 A).
+        for (name, c) in expected {
+            let v = value(&plot, name);
+            let bound = if name.starts_with("i(") {
+                1e-12
+            } else {
+                1e-3 * c.abs() + 1e-6
+            };
+            assert!((v - c).abs() <= bound, "{name}: {v:e} vs C {c:e}");
+        }
+    }
+}
+
+/// Whether this target's libm is the one the C oracle values above were
+/// captured with (macOS arm64): only then are bit-exact Newton paths of
+/// rounding-sensitive decks expected.
+const C_ORACLE_LIBM: bool = cfg!(all(target_os = "macos", target_arch = "aarch64"));

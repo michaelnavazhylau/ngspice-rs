@@ -1,8 +1,7 @@
 //! Event-aware transient comparison on a shared physical time grid.
 //!
-//! C (adaptive trap/Gear) and Rust (the companion trap/Gear driver, or diffsol
-//! BDF) choose different internal timepoints, so sample sequences are never
-//! compared. Both plots are evaluated at common output times instead:
+//! C (adaptive trap/Gear) and Rust (the companion trap/Gear driver) choose
+//! different internal timepoints, so sample sequences are never compared. Both plots are evaluated at common output times instead:
 //!
 //! * **Smooth interval**: a value at `t` is the linear interpolation of the two
 //!   neighbouring samples of that plot. Interpolation is refused (an error, not
@@ -950,104 +949,6 @@ mod tests {
         run(&jump_plot(0.5), &jump_plot(0.2), &bps).unwrap();
     }
 
-    /// The only transient engine today is explicit diffsol BDF. PWL deck
-    /// evaluation (#9) is not merged, so the AST supplies the breakpoints and
-    /// knots while the circuit's source is swapped for the runtime waveform
-    /// (as `c_linear_reference.rs` does). The reference is the analytic RC
-    /// response sampled on an unrelated, denser grid. Today's engine emits only
-    /// its requested output grid (no extra sample at an off-grid event), so the
-    /// corners 1 ms and 1.1 ms are chosen on that grid; a future driver must
-    /// emit samples at every breakpoint (see the module docs).
-    #[test]
-    fn diffsol_bdf_rc_ramp_matches_analytic_on_a_common_grid() {
-        use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, runner};
-        use ngspice_rs::devices::{Circuit, IndependentSource, Waveform};
-        use ngspice_rs::primitives::AnalysisKind;
-
-        let (tau, stop, t0, tr, high) = (1e-3, 6e-3, 1e-3, 1e-4, 5.0);
-        let pwl = deck("v1 in 0 pwl(0 0 1m 0 1.1m 5 6m 5)");
-        let bps = breakpoints(&pwl, 1e-4, stop).unwrap();
-        assert_eq!(bps.len(), 2);
-        let Some(SourceWaveform::Pwl(knots)) =
-            pwl.devices[0]
-                .parameters
-                .iter()
-                .find_map(|p| match &p.kind {
-                    ParameterKind::Waveform(w) => Some(w.clone()),
-                    _ => None,
-                })
-        else {
-            panic!("no PWL waveform")
-        };
-        let knots: Vec<(f64, f64)> = knots
-            .iter()
-            .map(|k| {
-                (
-                    parse_spice_number(&k.time.text).unwrap(),
-                    parse_spice_number(&k.value.text).unwrap(),
-                )
-            })
-            .collect();
-        let dc = Parser::new()
-            .parse_deck(&parse_deck_text(
-                Path::new("rc.cir"),
-                "rc\nv1 in 0 dc 0\nr1 in out 1k\nc1 out 0 1u\n.end\n",
-            ))
-            .unwrap();
-        let mut circuit = Circuit::from_netlist(&dc).unwrap();
-        let terminals = circuit.devices()[0].terminals();
-        let nodes = [terminals[0], terminals[1]];
-        circuit.devices_mut()[0] = Box::new(
-            IndependentSource::new("v1", nodes, true, 0.0, Complex::ZERO, Waveform::Pwl(knots))
-                .unwrap(),
-        );
-        let request = AnalysisRequest::with_arguments(
-            AnalysisKind::Transient,
-            ["1e-4", "6e-3", "0", "5e-5", "backend=diffsol", "method=bdf"],
-        );
-        let got = runner(request.kind)
-            .unwrap()
-            .run(&mut circuit, &request, &AnalysisContext::default())
-            .unwrap();
-        let slope = high / tr;
-        let ramp = |x: f64| slope * (x - tau * (1.0 - (-x / tau).exp()));
-        let analytic = |t: f64| {
-            if t <= t0 {
-                0.0
-            } else if t <= t0 + tr {
-                ramp(t - t0)
-            } else {
-                high + (ramp(tr) - high) * (-(t - t0 - tr) / tau).exp()
-            }
-        };
-        let mut reference_times: Vec<f64> = (0..=3000).map(|i| i as f64 * 2e-6).collect();
-        reference_times.push(t0 + tr);
-        reference_times.sort_by(f64::total_cmp);
-        reference_times.dedup_by(|b, a| (*b - *a).abs() < 1e-12);
-        let mut want = sampled(&reference_times, analytic);
-        want.variables[1].name = "v(out)".into();
-        let mut got_v = Plot::new("tran1", "Transient Analysis", PlotFlags::Real);
-        got_v.variables = vec![
-            Variable::new("time", "time"),
-            Variable::new("v(out)", "voltage"),
-        ];
-        got_v.points = (0..got.point_count())
-            .map(|i| {
-                vec![
-                    got.value("time", i).unwrap(),
-                    got.value("v(out)", i).unwrap(),
-                ]
-            })
-            .collect();
-        let grid = Grid {
-            start: 0.0,
-            stop,
-            step: 1e-4,
-        };
-        let summary = transient(&got_v, &want, compare::TRAN, &grid, &bps).unwrap();
-        assert_eq!(summary.limits, 4);
-    }
-
     #[test]
     fn a_uic_style_start_after_zero_is_compared_from_that_instant_only() {
         // C with `uic` has no t = 0 row: both plots begin at the first accepted
@@ -1093,7 +994,10 @@ mod tests {
         // Pointwise bound at t = 0 is only 1e-6 V: TRAN rejects, the peak-scaled
         // bound (1e-3 * 1 V) accepts.
         assert!(run(&near_zero, &want, &[]).is_err());
-        let scaled = compare::TRAN_RESTART;
+        let scaled = compare::TranTolerance {
+            peak_relative: 1e-3,
+            ..compare::TRAN
+        };
         assert!(transient(&near_zero, &want, scaled, &grid(), &[]).is_ok());
         // An error above reltol * peak is still rejected, and the bound follows
         // the peak of C's data rather than a fixed constant.

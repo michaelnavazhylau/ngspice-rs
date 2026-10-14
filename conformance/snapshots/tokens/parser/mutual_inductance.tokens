@@ -183,7 +183,7 @@ card 25 @parser/mutual_inductance.cir:29:1 lines=29-29 continuations=0
   token 1 29:1 word "kx"
   token 2 29:4 word "l4"
   token 3 29:7 word "l.x1.la"
-  token 4 29:15 number "0.3" value=3e-1
+  token 4 29:15 number "0.3" value=3.0000000000000004e-1
 card 26 @parser/mutual_inductance.cir:30:1 lines=30-30 continuations=0
   raw: ".ac lin 1 1k 1k"
   kind: dot(.ac)

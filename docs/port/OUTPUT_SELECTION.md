@@ -105,7 +105,8 @@ is therefore the default output, not "`v(out)` only".
 **Ordering.** A selection only ever narrows, and writes in C's `dbs` order:
 every `.save` request in card order, then every applicable `.print` request in
 card order. A sweep keeps its independent vector first (C's `beginPlot()` pass
-0): `.dc` keeps `sweep`, `.ac` keeps `frequency`, `.tran` keeps `time`. An
+0): `.dc` keeps its scale (e.g. `v(v-sweep)`), `.ac` keeps `frequency`,
+`.tran` keeps `time`. An
 operating-point result has no independent vector, so only the requests are
 written. Requests keep their order even when the driver orders the same columns
 differently: `.save v(out) v(in)` writes `v(out)` then `v(in)`, while the
@@ -168,10 +169,17 @@ values: complex as `re,im` with 15 fractional digits, except that a component wh
       0  1.000000000000000e+02,0.000000000000000e+00  7.169568003248978e-01,-4.504772433683886e-01  …
 ```
 
-**The full plot is kept.** The selection is a projection applied only to what is
-written. `Selection::apply` builds a new plot; the driver's plot stays
-untouched for the measurement work that follows (`simulate` keeps it in scope
-until after the rawfile is written).
+**The full plot is kept while anything reads it.** The selection is a
+projection applied only to what is written. `Selection::apply` builds a new
+plot; the driver's plot stays untouched for the measurement work that follows.
+The selection depends only on the plot's variables, so it can also be applied
+one row at a time (`Selection::header`, `Selection::apply_point`): when no
+`.print`, `.measure` or `.four` card reads a `.tran` plot
+(`batch::needs_full_plot`), `simulate` resolves the selection against the
+header the driver announces and streams each accepted point through it into the
+rawfile, keeping no plot at all, as C's batch output does. Both paths write the
+same bytes, and an unresolvable request still fails before anything is
+published.
 
 ## Divergence from C
 
@@ -237,9 +245,8 @@ existing consumer of `Netlist` is untouched.
 
 * ASCII `.plot` and device observations have the bounded M9 support described
   below; unsupported rendering options and device asks fail explicitly.
-* A `.dc` scale column is named `sweep` by the port's driver (C writes
-  `v(v-sweep)`); a selection keeps whatever the driver produced, and the
-  committed-golden comparator maps the name (see [CLI.md](CLI.md)).
+* A `.dc` scale column carries C's name (`v(v-sweep)`, `i(i-sweep)`,
+  `temp-sweep`, `res-sweep` or `v(param-sweep)`); a selection keeps it first.
 * The text table is a bounded rendering of the selected vectors: no `xlimit`,
   no column-width formatting options, and no interactive `print`/`plot`
   commands.
@@ -311,8 +318,7 @@ companion transient currents include the integrated charge contribution.
 Supported scalar asks include R/C/L values and applicable geometry, multiplicity,
 temperature and instance fields for D/Q/MOS1. Unsupported keywords fail with a
 `NotYetPorted` error naming the C ask routines. AC supports scalar parameter asks;
-AC current/power asks, coincident terminal currents and diffsol observations are
-explicitly refused. Other analysis drivers that cannot emit an observation fail
+AC current/power asks and coincident terminal currents are explicitly refused. Other analysis drivers that cannot emit an observation fail
 when resolving the requested vector. These bounds do not imply every upstream
 ask or model is implemented.
 

@@ -1,4 +1,4 @@
-//! Complex assembly and solver guardrails at the faer scalar boundary.
+//! Complex assembly and solver guardrails of the SPARSE 1.3 complex LU.
 use ngspice_rs::maths::{SparseMatrix, complex::ComplexMatrix};
 use ngspice_rs::primitives::Complex;
 #[test]
@@ -85,18 +85,20 @@ fn transposed_solves_use_the_same_factors_without_conjugation() {
 }
 
 #[test]
-fn singular_and_unresolved_near_singular_homogeneous_systems_are_rejected() {
-    for delta in [0., 1e-14] {
+fn exactly_singular_homogeneous_systems_are_rejected() {
+    // A duplicate row (rank one) and a zero row are errors with SPARSE
+    // semantics; merely ill-conditioned systems are no longer rejected.
+    for entries in [
+        &[(0, 0, 1.), (0, 1, 1.), (1, 0, 1.), (1, 1, 1.)][..],
+        &[(0, 0, 1.), (0, 1, 1.)][..],
+    ] {
         let mut a = SparseMatrix::new(2, 2);
-        for (r, c, v) in [(0, 0, 1.), (0, 1, 1.), (1, 0, 1.), (1, 1, 1. + delta)] {
-            a.add(r, c, v).unwrap();
+        for (r, c, v) in entries {
+            a.add(*r, *c, *v).unwrap();
         }
         let result = ComplexMatrix::from_operators(&a, &SparseMatrix::new(2, 2), 0.)
             .unwrap()
             .factorize();
-        assert!(
-            result.is_err(),
-            "homogeneous rank guard accepted delta={delta}"
-        );
+        assert!(result.is_err(), "singular system accepted: {entries:?}");
     }
 }

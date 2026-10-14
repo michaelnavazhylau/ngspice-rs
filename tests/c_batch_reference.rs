@@ -99,11 +99,7 @@ fn compare_with_c_batch(name: &str, deck_text: &str) {
         let names = |plot: &ngspice_rs::analysis::Plot| -> Vec<String> {
             plot.variables
                 .iter()
-                .map(|variable| match variable.name.as_str() {
-                    // The port's DC scale name; C wraps the source name.
-                    "sweep" => "v(v-sweep)".to_owned(),
-                    other => other.to_owned(),
-                })
+                .map(|variable| variable.name.clone())
                 .collect()
         };
         assert_eq!(names(got), names(want), "{name}: plot {index}");

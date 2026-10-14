@@ -1,5 +1,12 @@
 # ADR #29: bounded higher-index source-constraint formulation
 
+> **Historical record (M10 wave 0.5).** The prototype described here
+> (`maths::diffsol::higher_index`) and the index-one diffsol BDF backend it
+> extended (`LinearDae`) were removed with diffsol when the native SPARSE 1.3
+> solver replaced faer/diffsol (PR #137). No current code implements this ADR;
+> the module is recoverable from git history. The only transient backend is
+> the companion trap/Gear driver ([TRANSIENT.md](TRANSIENT.md)).
+
 Status: **numeric prototype for review; production enablement declined**.
 Prerequisite #28 is merged (base `803fcb5`). This ADR does not enable a deck,
 change `LinearDae`/analysis initialization, or claim general DAE support.

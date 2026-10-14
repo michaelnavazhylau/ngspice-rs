@@ -11,8 +11,7 @@
 //! (`CKTload`), iteration (`CKTiter`) and convergence machinery.
 //!
 //! Drivers support linear R/C/L/V/I equations. Nonlinear analyses remain
-//! unsupported; an ordinary `.tran` runs the trap/Gear companion driver and
-//! `backend=diffsol method=bdf` selects the BDF backend. The split
+//! unsupported; `.tran` runs the trap/Gear companion driver. The split
 //! between [`AnalysisRequest`] and the netlist AST is deliberate: the driver
 //! layer does not need to know where a request came from, and the AST does not
 //! need to know which analyses exist.
@@ -24,7 +23,7 @@ use crate::netlist::ast::AnalysisCard;
 use crate::primitives::{AnalysisKind, Real, SourceLoc, SpiceError, SpiceResult};
 
 use crate::analysis::C_REFERENCE_ANALYSIS;
-use crate::analysis::results::Plot;
+use crate::analysis::results::{Plot, PointSink};
 
 /// One evaluated `.ic` or `.nodeset` entry, `V(node)=value`, as the analyses
 /// receive it: the canonical node name, the finite value in volts and where the
@@ -54,7 +53,7 @@ pub struct AnalysisRequest {
     pub arguments: Vec<String>,
     /// The `.tran` `uic` flag (use initial conditions), kept apart from the
     /// positional time arguments. The companion transient driver implements it
-    /// (`dctran.c` `MODEUIC`); `backend=diffsol` rejects it explicitly.
+    /// (`dctran.c` `MODEUIC`).
     pub uic: bool,
     /// The deck's `.ic` entries in deck order (see [`NodeCondition`]). Enforced
     /// by the companion transient initial operating point unless `uic`; ignored
@@ -167,16 +166,21 @@ pub struct AnalysisContext {
     /// default [`crate::devices::DEFAULT_GMIN`]. See
     /// [`crate::devices::ModelContext::gmin`].
     pub gmin: Real,
+    /// SPARSE pivot thresholds of the circuit matrix (`.option pivtol`/
+    /// `pivrel`, C `CKTpivotAbsTol`/`CKTpivotRelTol`), default
+    /// [`crate::maths::PivotTolerances::DEFAULT`].
+    pub pivot: crate::maths::PivotTolerances,
 }
 
 impl AnalysisContext {
-    /// Copy temperature and junction-gmin settings into the lower-level device
-    /// context. Validation occurs at circuit elaboration/equation assembly; no
+    /// Copy temperature, junction-gmin and pivot settings into the lower-level
+    /// device context. Validation occurs at circuit elaboration/equation assembly; no
     /// global state is used.
     #[must_use]
     pub const fn model_context(&self) -> crate::devices::ModelContext {
         crate::devices::ModelContext::new(self.temperature, self.nominal_temperature)
             .with_gmin(self.gmin)
+            .with_pivot_tolerances(self.pivot)
     }
 }
 
@@ -186,6 +190,7 @@ impl Default for AnalysisContext {
             temperature: 27.0,
             nominal_temperature: 27.0,
             gmin: crate::devices::DEFAULT_GMIN,
+            pivot: crate::maths::PivotTolerances::DEFAULT,
         }
     }
 }
@@ -228,6 +233,35 @@ pub trait Analysis: fmt::Debug {
         let mut plots = operating_point_prelude(self.kind(), circuit, request, context)?;
         plots.push(self.run(circuit, request, context)?);
         Ok(plots)
+    }
+
+    /// Runs the analysis like [`Self::run`] but hands the plot's points to
+    /// `sink` instead of storing them, and returns the plot without points.
+    ///
+    /// `.tran` streams each accepted point as it is accepted, as C's batch
+    /// output does (`OUTpData`), so a long transient never holds its whole
+    /// result. The default runs [`Self::run`] and then replays the stored
+    /// points, which gives the same sink calls without the memory saving.
+    /// Only the single plot of [`Self::run`] is produced: a caller that needs
+    /// the extra plots of [`Self::run_plots`] uses that instead.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::run`], and whatever `sink` reports.
+    fn run_into(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+        sink: &mut dyn PointSink,
+    ) -> SpiceResult<Plot> {
+        let mut plot = self.run(circuit, request, context)?;
+        let points = std::mem::take(&mut plot.points);
+        sink.begin(&plot)?;
+        for point in &points {
+            sink.point(point)?;
+        }
+        Ok(plot)
     }
 }
 
@@ -432,10 +466,9 @@ impl Analysis for Distortion {
     }
 }
 
-/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver by default
-/// ([`crate::analysis::companion_transient`]), or the explicitly selected bounded diffsol
-/// adaptive BDF (`backend=diffsol method=bdf`, not ngspice trap/Gear).
-/// `.ic`/`uic` are implemented by the companion driver only; general DAEs remain unsupported.
+/// `.tran` — the adaptive trapezoidal / Gear-2 companion driver
+/// ([`crate::analysis::companion_transient`]); `backend=diffsol`, the removed
+/// adaptive BDF backend, is an explicit error.
 ///
 /// C: the transient path in `dctran.c`, plus the timestep control that lives
 /// there and the integration in `src/maths/ni/`.
@@ -458,6 +491,16 @@ impl Analysis for Transient {
         context: &AnalysisContext,
     ) -> SpiceResult<Plot> {
         crate::analysis::transient::run(circuit, request, context)
+    }
+
+    fn run_into(
+        &self,
+        circuit: &mut Circuit,
+        request: &AnalysisRequest,
+        context: &AnalysisContext,
+        sink: &mut dyn PointSink,
+    ) -> SpiceResult<Plot> {
+        crate::analysis::transient::run_into(circuit, request, context, sink)
     }
 }
 

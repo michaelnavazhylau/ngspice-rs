@@ -88,7 +88,7 @@ card 8 @netlists/m10_jfet_ac.cir:9:1 lines=9-9 continuations=0
   token 25 9:70 number "1.5p" value=1.5e-12
   token 26 9:75 word "pb"
   token 27 9:77 equals "="
-  token 28 9:78 number "0.7" value=7e-1
+  token 28 9:78 number "0.7" value=7.000000000000001e-1
   token 29 9:82 word "fc"
   token 30 9:84 equals "="
   token 31 9:85 number "0.4" value=4e-1

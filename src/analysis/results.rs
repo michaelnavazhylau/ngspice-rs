@@ -8,6 +8,30 @@
 
 use crate::primitives::{Complex, Real, SpiceError, SpiceResult};
 
+/// Receives an analysis's points as they are produced, in place of a [`Plot`]
+/// storing them.
+///
+/// C's batch output (`outitf.c`: `OUTpBeginPlot`, then `OUTpData` per point)
+/// writes every point to the rawfile as it is computed and keeps no plot in
+/// memory; [`crate::analysis::Analysis::run_into`] offers the same, so a long
+/// transient costs memory for one point rather than for the whole run.
+pub trait PointSink {
+    /// Called once, before the first point, with the plot's names, flags and
+    /// variables. The header holds no points.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the sink reports; the analysis stops with that error.
+    fn begin(&mut self, header: &Plot) -> SpiceResult<()>;
+
+    /// One point, one value per variable of the header, in point order.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the sink reports; the analysis stops with that error.
+    fn point(&mut self, values: &[Complex]) -> SpiceResult<()>;
+}
+
 /// Whether a plot's data is real or complex.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlotFlags {
@@ -148,6 +172,17 @@ impl Plot {
     /// [`SpiceError::Numerical`] when the point does not have one value per
     /// variable.
     pub fn push_point(&mut self, values: Vec<Complex>) -> SpiceResult<()> {
+        self.check_point(&values)?;
+        self.points.push(values);
+        Ok(())
+    }
+
+    /// Checks that `values` could be appended: one value per variable.
+    ///
+    /// # Errors
+    ///
+    /// As [`Plot::push_point`].
+    pub fn check_point(&self, values: &[Complex]) -> SpiceResult<()> {
         if values.len() != self.variables.len() {
             return Err(SpiceError::Numerical {
                 context: format!("plot {}", self.name),
@@ -158,7 +193,6 @@ impl Plot {
                 ),
             });
         }
-        self.points.push(values);
         Ok(())
     }
 

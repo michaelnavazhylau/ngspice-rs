@@ -58,7 +58,7 @@ card 6 @netlists/m7_zener_dc.cir:7:1 lines=7-7 continuations=0
   token 13 7:32 number "1.5" value=1.5e0
   token 14 7:36 word "bv"
   token 15 7:38 equals "="
-  token 16 7:39 number "5.1" value=5.1e0
+  token 16 7:39 number "5.1" value=5.1000000000000005e0
   token 17 7:43 word "ibv"
   token 18 7:46 equals "="
   token 19 7:47 number "5m" value=5e-3

@@ -203,10 +203,11 @@ fn the_forward_dc_sweep_writes_the_requested_grid() {
     assert_eq!(plot.plotname, "DC transfer characteristic");
     assert_eq!(plot.flags, PlotFlags::Real);
     let names: Vec<&str> = plot.variables.iter().map(|v| v.name.as_str()).collect();
-    assert_eq!(names, ["sweep", "v(in)", "v(out)", "i(v1)"]);
+    // C's dctrcurv.c scale for a voltage-source sweep, as its rawfile names it.
+    assert_eq!(names, ["v(v-sweep)", "v(in)", "v(out)", "i(v1)"]);
     assert_eq!(plot.point_count(), 6, "0, 1, 2, 3, 4 and 5 volts");
     for point in 0..plot.point_count() {
-        let volts = plot.value("sweep", point).unwrap().re;
+        let volts = plot.value("v(v-sweep)", point).unwrap().re;
         assert!((volts - point as f64).abs() < 1e-12, "point {point}");
         assert!((plot.value("v(in)", point).unwrap().re - volts).abs() < 1e-12);
         assert!((plot.value("v(out)", point).unwrap().re - volts / 2.0).abs() < 1e-12);
@@ -229,7 +230,7 @@ fn the_reverse_dc_sweep_descends_through_the_same_grid() {
     let written = RawFile::load(&output).expect("parses");
     let plot = written.single_plot().unwrap();
     let volts: Vec<f64> = plot
-        .column("sweep")
+        .column("v(v-sweep)")
         .expect("the sweep column")
         .iter()
         .map(|value| value.re)
@@ -282,9 +283,9 @@ fn a_plain_transient_runs_the_engine_default_and_matches_the_golden() {
 
 #[test]
 fn uic_and_ic_transients_prove_the_companion_driver_not_diffsol() {
-    // `.tran uic` and instance `ic=` exist only in the companion driver: the
-    // diffsol BDF backend rejects both explicitly. A successful run here shows
-    // that `simulate` did not inject `backend=diffsol`.
+    // `.tran uic` and instance `ic=` run in the companion driver. A successful
+    // run here shows that `simulate` did not inject `backend=diffsol`, which is
+    // now rejected as Unsupported.
     let dir = scratch("tran-uic");
     let output = dir.join("uic.raw");
     let run = simulate(&output, &fixture("rc_ic_uic_tran"));
@@ -295,42 +296,10 @@ fn uic_and_ic_transients_prove_the_companion_driver_not_diffsol() {
 }
 
 #[test]
-fn explicit_bdf_succeeds_on_a_grounded_capacitor_circuit() {
-    let dir = scratch("bdf");
-    // A grounded capacitor charges from a pulse source: the explicit BDF backend
-    // needs the capacitor to have a resistive DC path on both nodes.
-    let deck = write_deck(
-        &dir,
-        "rc charging\nv1 in 0 pulse(0 1 0 1n 1n 1 2m)\nr1 in out 1k\nc1 out 0 1u\n\
-         .tran 1u 100u backend=diffsol method=bdf\n.end\n",
-    );
-    let output = dir.join("bdf.raw");
-    let run = simulate(&output, &deck);
-    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
-
-    let written = RawFile::load(&output).expect("parses");
-    let plot = written.single_plot().unwrap();
-    assert_eq!(plot.plotname, "Transient Analysis");
-    let names: Vec<&str> = plot.variables.iter().map(|v| v.name.as_str()).collect();
-    assert_eq!(names, ["time", "v(in)", "v(out)", "i(v1)"]);
-    assert_eq!(plot.point_count(), 101, "the 1 us grid up to 100 us");
-    // tau = R C = 1 ms: v(out) = 1 - exp(-t/tau), from a 0 V operating point.
-    for point in [0, 50, 100] {
-        let time = plot.value("time", point).unwrap().re;
-        let volts = plot.value("v(out)", point).unwrap().re;
-        let expected = 1.0 - (-time / 1e-3).exp();
-        assert!(
-            (volts - expected).abs() < 1e-3,
-            "point {point}: {volts} != {expected}"
-        );
-    }
-    fs::remove_dir_all(&dir).unwrap();
-}
-
-#[test]
 fn an_explicit_diffsol_selection_is_honoured() {
-    // The same circuit and `uic` as `rc_ic_uic_tran`, but with the backend named
-    // on the card: the engine's explicit rejection must reach the exit status.
+    // The same circuit and `uic` as `rc_ic_uic_tran`, but with the removed
+    // diffsol backend named on the card: the engine's Unsupported error must
+    // reach the exit status.
     let dir = scratch("bdf-uic");
     let deck = write_deck(
         &dir,
@@ -340,7 +309,7 @@ fn an_explicit_diffsol_selection_is_honoured() {
     let output = dir.join("out.raw");
     let run = simulate(&output, &deck);
     assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
-    assert!(stderr(&run).contains("uic"), "{}", stderr(&run));
+    assert!(stderr(&run).contains("backend=diffsol"), "{}", stderr(&run));
     assert!(!output.exists());
     assert_eq!(entries(&dir), ["deck.cir"]);
     fs::remove_dir_all(&dir).unwrap();
@@ -430,7 +399,7 @@ fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
         "{report}"
     );
 
-    let mut written = RawFile::load(&output).expect("parses");
+    let written = RawFile::load(&output).expect("parses");
     let committed = golden("multi_analysis_rc");
     assert_eq!(plotnames(&written), plotnames(&committed));
     assert_eq!(
@@ -449,9 +418,7 @@ fn a_multi_analysis_deck_writes_one_plot_per_analysis_in_c_batch_order() {
             "{raw_plot:?}"
         );
     }
-    // The port names the DC scale `sweep`; C writes `v(v-sweep)` (CLI.md).
-    assert_eq!(written.plots[1].plot.variables[0].name, "sweep");
-    written.plots[1].plot.variables[0].name = "v(v-sweep)".to_owned();
+    assert_eq!(written.plots[1].plot.variables[0].name, "v(v-sweep)");
     for (index, (got, want)) in written.plots.iter().zip(&committed.plots).enumerate() {
         let (relative, absolute) = if got.plot.flags == PlotFlags::Complex {
             (1e-10, 1e-12)
@@ -506,7 +473,7 @@ fn same_type_analyses_run_in_reverse_deck_order_with_c_plot_names() {
         ]
     );
     let last_sweep = |plot: &ngspice_rs::analysis::Plot| {
-        plot.value("sweep", plot.point_count() - 1)
+        plot.value("v(v-sweep)", plot.point_count() - 1)
             .expect("a sweep column")
             .re
     };
@@ -518,7 +485,9 @@ fn same_type_analyses_run_in_reverse_deck_order_with_c_plot_names() {
     assert_eq!(last_sweep(&written.plots[1].plot), 1.0);
     let report = stdout(&run);
     assert_eq!(
-        report.matches("print: 2 vector(s): sweep v(out)").count(),
+        report
+            .matches("print: 2 vector(s): v(v-sweep) v(out)")
+            .count(),
         2,
         "one table per dc plot: {report}"
     );
@@ -876,28 +845,31 @@ fn a_dc_print_card_selects_and_prints_the_requested_vectors() {
     assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
     let report = stdout(&run);
     assert!(
-        report.contains("variables: sweep v(out) i(v1)"),
+        report.contains("variables: v(v-sweep) v(out) i(v1)"),
         "a sweep keeps its scale column first: {report}"
     );
     assert!(
-        report.contains("print: 3 vector(s): sweep v(out) i(v1)"),
+        report.contains("print: 3 vector(s): v(v-sweep) v(out) i(v1)"),
         "{report}"
     );
     assert!(
         report.contains("values: real with 15 fractional digits"),
         "{report}"
     );
-    assert!(report.contains("  point  sweep  v(out)  i(v1)"), "{report}");
+    assert!(
+        report.contains("  point  v(v-sweep)  v(out)  i(v1)"),
+        "{report}"
+    );
 
     let written = RawFile::load(&output).expect("parses");
     let plot = written.single_plot().unwrap();
     assert_eq!(plot.variable_count(), 3);
     assert_eq!(plot.point_count(), 6);
     for point in 0..plot.point_count() {
-        let volts = plot.value("sweep", point).unwrap().re;
+        let volts = plot.value("v(v-sweep)", point).unwrap().re;
         // The table spells the values exactly as the rawfile does.
         for (name, value) in [
-            ("sweep", plot.value("sweep", point).unwrap()),
+            ("v(v-sweep)", plot.value("v(v-sweep)", point).unwrap()),
             ("v(out)", plot.value("v(out)", point).unwrap()),
             ("i(v1)", plot.value("i(v1)", point).unwrap()),
         ] {
@@ -1594,9 +1566,6 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     // order differs for this deck).
     for (got, want) in written.plots.iter().zip(&committed.plots) {
         let mut want_names = variable_names(&want.plot);
-        if want_names.first() == Some(&"v(v-sweep)") {
-            want_names[0] = "sweep";
-        }
         let mut got_names = variable_names(&got.plot);
         got_names.sort_unstable();
         want_names.sort_unstable();
@@ -1632,7 +1601,7 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     );
     // DC: the secondary shorts v(s1) to ground, so v(out) = -9 vref, and the
     // limiter and sense follow it exactly at every point.
-    let sweep = column(1, "sweep");
+    let sweep = column(1, "v(v-sweep)");
     let (out, lim, isense) = (
         column(1, "v(out)"),
         column(1, "v(lim)"),
@@ -1662,12 +1631,17 @@ fn the_m6_gate_deck_runs_every_analysis_end_to_end() {
     );
     let peak = out.iter().map(|value| value.re.abs()).fold(0., f64::max);
     assert!((1.5..2.5).contains(&peak), "peak {peak}");
+    // The B source is linearized at the previous Newton iterate and NIiter
+    // returns the iterate its last load used (CKTrhsOld), so the limiter
+    // holds to the deck's reltol (1e-4), not exactly: C ngspice (SPARSE)
+    // misses 2 tanh(v(out)/2) by up to 1.0e-4 relative (1.5e-4 V) on this
+    // deck, the port by the same at the same time points.
     for point in 0..out.len() {
         close(
             "tran limiter",
             lim[point].re,
             2. * (out[point].re / 2.).tanh(),
-            1e-6,
+            2e-4,
         );
         close("tran sense", isense[point].re, lim[point].re / 10., 1e-6);
     }
@@ -1893,4 +1867,91 @@ fn fourier_frontend_settings_reach_the_cli() {
     assert_eq!(config.fourier_settings().unwrap().polydegree, 3);
     let written = ngspice_rs::netlist::write_netlist(&parsed).unwrap();
     assert!(written.contains("set nfreqs=5 nperiods=2 polydegree=3 fourgridsize=256"));
+}
+
+const STREAMED_RC: &str =
+    "streamed rc\nv1 in 0 pulse(0 1 1m 1u 1u 1m 2m)\nr1 in out 1k\nc1 out 0 1u\n";
+
+/// Runs `deck` with `--format <format>` into `dir/<name>` and returns the
+/// rawfile's bytes without its `Date:` line.
+fn rawfile_without_date(dir: &Path, name: &str, deck: &Path, format: &str) -> Vec<u8> {
+    let output = dir.join(name);
+    let run = cli(&[
+        "simulate",
+        "--format",
+        format,
+        "--output",
+        output.to_str().unwrap(),
+        deck.to_str().unwrap(),
+    ]);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let bytes = fs::read(&output).unwrap();
+    let date = bytes
+        .windows(6)
+        .position(|window| window == b"Date: ")
+        .expect("a Date: header");
+    let end = date
+        + bytes[date..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .unwrap()
+        + 1;
+    [&bytes[..date], &bytes[end..]].concat()
+}
+
+#[test]
+fn a_streamed_transient_writes_exactly_what_a_stored_one_writes() {
+    // Without a .measure/.four/.print the .tran plot streams into the rawfile
+    // (M10 0.5g); a .measure card makes the run keep the full plot. Neither
+    // changes the rawfile, with or without a .save selection.
+    let dir = scratch("streamed-tran");
+    for save in ["", ".save v(out)\n"] {
+        let streamed = write_deck(&dir, &format!("{STREAMED_RC}.tran 0.1m 6m\n{save}.end\n"));
+        let streamed_path = dir.join("streamed.cir");
+        fs::rename(&streamed, &streamed_path).unwrap();
+        let stored = write_deck(
+            &dir,
+            &format!("{STREAMED_RC}.tran 0.1m 6m\n{save}.measure tran top max v(out)\n.end\n"),
+        );
+        for format in ["ascii", "binary"] {
+            let want = rawfile_without_date(&dir, "stored.raw", &stored, format);
+            let got = rawfile_without_date(&dir, "streamed.raw", &streamed_path, format);
+            assert_eq!(got, want, "{format} {save:?}");
+        }
+        let written = RawFile::load(dir.join("streamed.raw")).unwrap();
+        let plot = written.single_plot().unwrap();
+        assert!(plot.point_count() > 60, "every accepted point is written");
+        if save.is_empty() {
+            assert_eq!(variable_names(plot), ["time", "v(in)", "v(out)", "i(v1)"]);
+        } else {
+            assert_eq!(variable_names(plot), ["time", "v(out)"]);
+        }
+    }
+    assert_eq!(
+        entries(&dir),
+        ["deck.cir", "stored.raw", "streamed.cir", "streamed.raw"]
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_streamed_transient_that_fails_publishes_nothing_and_leaves_no_spool() {
+    let dir = scratch("streamed-failure");
+    let output = dir.join("keep.raw");
+    for (tail, message) in [
+        // Fails at the header, before the initial operating point.
+        (".tran 0.1m 6m\n.save v(nosuch)\n", "v(nosuch)"),
+        // Fails mid-run, after points were already spooled.
+        (".tran 0.1m 6m maxsteps=20\n", "work limit of 20"),
+    ] {
+        fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+        let deck = write_deck(&dir, &format!("{STREAMED_RC}.op\n{tail}.end\n"));
+        let run = simulate(&output, &deck);
+        assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+        assert!(stderr(&run).contains(message), "{}", stderr(&run));
+        assert!(run.stdout.is_empty(), "{}", stdout(&run));
+        assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
+        assert_eq!(entries(&dir), ["deck.cir", "keep.raw"], "{tail}");
+    }
+    fs::remove_dir_all(&dir).unwrap();
 }

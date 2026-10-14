@@ -173,23 +173,29 @@ fn contextual_model_rc_transient_matches_the_analytic_step() {
     let p = run(
         &mut c,
         AnalysisKind::Transient,
-        &["0.1m", "5m", "0", "0.05m", "backend=diffsol", "method=bdf"],
+        &["0.1m", "5m", "0", "0.05m"],
         &context,
     )
     .unwrap();
     for point in 0..p.point_count() {
         let time = p.value("time", point).unwrap().re;
         let expected = 1.5 * (1.0 - (-time / (1500.0 * 1.1e-6)).exp());
-        close(p.value("v(a)", point).unwrap().re, expected, 0.0, 2e-5);
+        // Trapezoidal truncation error, which C ngspice shares: worst 4.1e-5 V
+        // on this 1.5 V step, and the same deck (1 ns PULSE edge, `.options
+        // temp=77`) gives 4.08e-5 V in both C and the port.
+        close(p.value("v(a)", point).unwrap().re, expected, 0.0, 8e-5);
     }
 }
 
 #[test]
 fn logarithmic_ac_preserves_integer_span_endpoints_without_adding_out_of_range_points() {
+    // ngspice (acan.c) steps `freq *= delta` while `freq <= stop + freqTol`;
+    // `.ac dec` over a decade or more stretches delta so the last point lands
+    // on `stop` (`dec 3 1 999` ends at 999, not 10^(8/3)).
     for (mode, end, count, last) in [
         ("dec", "1000", 10, 1000.0),
         ("oct", "8", 10, 8.0),
-        ("dec", "999", 9, 10f64.powf(8.0 / 3.0)),
+        ("dec", "999", 9, 999.0),
     ] {
         let mut c = circuit("v1 a 0 1 ac 1\nr1 a 0 1k");
         let p = run(
@@ -210,7 +216,7 @@ fn logarithmic_ac_preserves_integer_span_endpoints_without_adding_out_of_range_p
 }
 
 #[test]
-fn invalid_runtime_temperatures_factors_and_ic_remain_explicit_failures() {
+fn invalid_runtime_temperatures_and_factors_remain_explicit_failures() {
     let mut c = circuit("v1 a 0 1 ac 1\nr1 a 0 mdl\nc1 a 0 1u\n.model mdl r(r=1k tc1=-0.1)");
     let context = AnalysisContext {
         temperature: 77.0,
@@ -221,10 +227,7 @@ fn invalid_runtime_temperatures_factors_and_ic_remain_explicit_failures() {
         (AnalysisKind::OperatingPoint, vec![]),
         (AnalysisKind::DcSweep, vec!["v1", "0", "1", "1"]),
         (AnalysisKind::Ac, vec!["lin", "1", "10", "10"]),
-        (
-            AnalysisKind::Transient,
-            vec!["1u", "1m", "backend=diffsol", "method=bdf"],
-        ),
+        (AnalysisKind::Transient, vec!["1u", "1m"]),
     ] {
         assert!(run(&mut c, kind, &args, &context).is_err());
         let invalid = AnalysisContext {
@@ -242,17 +245,5 @@ fn invalid_runtime_temperatures_factors_and_ic_remain_explicit_failures() {
             &AnalysisContext::default()
         )
         .is_ok()
-    );
-    let mut ic = circuit("v1 a 0 1\nr1 a b 1k\nc1 b 0 mdl ic=1\n.model mdl c(cap=1u)");
-    assert!(
-        run(
-            &mut ic,
-            AnalysisKind::Transient,
-            &["1u", "1m", "backend=diffsol", "method=bdf"],
-            &AnalysisContext::default()
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("ic=")
     );
 }

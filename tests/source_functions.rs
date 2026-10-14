@@ -1,7 +1,6 @@
 //! SIN/EXP/SFFM/AM sources, the PULSE count and PWL `td=`/`r=` (#94, #95)
 //! through the production deck -> runner path: OP time-zero values, analytic
-//! transient responses (trap and Gear-2), explicit rejection by the diffsol
-//! BDF backend, and `.four` of a SIN drive.
+//! transient responses (trap and Gear-2), and `.four` of a SIN drive.
 use std::f64::consts::PI;
 use std::path::Path;
 
@@ -76,10 +75,15 @@ fn exp_rc_follows_the_analytic_response_with_trap_and_gear() {
         let mut corner = false;
         for ((t, v), u) in time.iter().zip(&out).zip(&input) {
             let want = exp_rc(*t, 0.2e-3, 0.3e-3, 1e-4);
-            // Gear-2 restarts at TD1 with a first-order step: 5e-5 V covers its
-            // local error near the corner on a 1 V scale.
+            // Like C (`vsrcacct.c` sets no EXP breakpoint), the driver steps
+            // across the slope corner at TD1; the trapezoidal steps within
+            // 15 us after it carry up to ~8e-5 V of the straddling step's
+            // error (bit-identical to ngspice). Elsewhere 5e-5 V covers the
+            // local error on a 1 V scale.
+            let near_corner = *t > 0.2e-3 && *t < 0.215e-3;
+            let absolute = if near_corner { 1e-4 } else { 5e-5 };
             assert!(
-                (v - want).abs() <= 2e-3 * want.abs() + 5e-5,
+                (v - want).abs() <= 2e-3 * want.abs() + absolute,
                 "{label} t={t}: {v} vs {want}"
             );
             let source = if *t <= 0.2e-3 {
@@ -90,8 +94,8 @@ fn exp_rc_follows_the_analytic_response_with_trap_and_gear() {
             assert!((u - source).abs() < 1e-12, "{label} t={t}");
             corner |= (t - 0.2e-3).abs() < 1e-15;
         }
-        // The port lands on TD1 (C itself sets no EXP breakpoint).
-        assert!(corner, "{label}: no sample at TD1");
+        // Neither C nor the port lands on TD1.
+        assert!(!corner, "{label}: unexpected sample at TD1");
     }
 }
 
@@ -193,48 +197,6 @@ fn four_of_a_sin_driven_rc_has_the_analytic_spectrum() {
     }
 }
 
-#[test]
-fn the_bdf_backend_refuses_non_piecewise_linear_forcing() {
-    // Its segments interpolate the forcing linearly between breakpoints, which
-    // would silently approximate these functions.
-    for source in ["sin(0 1 1k)", "exp(0 1)", "sffm(0 1)", "am(0 1)"] {
-        let netlist = Parser::new()
-            .parse_deck(&parse_deck_text(
-                Path::new("s.cir"),
-                &format!(
-                    "s\nv1 in 0 {source}\nr1 in out 1k\nc1 out 0 1u\n\
-                     .tran 1u 1m 0 1u backend=diffsol method=bdf\n.end\n"
-                ),
-            ))
-            .unwrap();
-        let config = RunConfig::from_netlist(&netlist).unwrap();
-        let request = config.request_for(&netlist.analyses[0]).unwrap();
-        let mut circuit = config.circuit(&netlist).unwrap();
-        let error = runner(request.kind)
-            .unwrap()
-            .run(&mut circuit, &request, &AnalysisContext::default())
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("companion driver"), "{source}: {error}");
-    }
-    // Piecewise-linear PWL options and the PULSE count remain supported there.
-    let plot = run(
-        "v1 in 0 pwl(0 0 1m 1 2m 0) r=0 td=0.5m\nv2 b 0 pulse(0 1 0 1u 1u 1m 2m 1)\n\
-         r1 in x 1k\nr2 b y 1k\nc1 x 0 1n\nc2 y 0 1n\n.tran 0.1m 5m 0 0.1m backend=diffsol method=bdf",
-    );
-    let (time, v) = (column(&plot, "time"), column(&plot, "v(in)"));
-    let at = |t: f64| v[time.iter().position(|x| (x - t).abs() < 1e-12).unwrap()];
-    assert!((at(1e-3) - 0.5).abs() < 1e-9);
-    assert!(at(2.5e-3).abs() < 1e-9);
-    assert!((at(3.5e-3) - 1.).abs() < 1e-9);
-    assert!((at(4e-3) - 0.5).abs() < 1e-9);
-    let b = column(&plot, "v(b)");
-    assert_eq!(
-        b[time.iter().position(|x| (x - 3e-3).abs() < 1e-12).unwrap()],
-        0.
-    );
-}
-
 /// Analytic RC (tau = 0.1 ms) response to the sawtooth `pwl(0 0 1m 1) r=0`:
 /// within each ramp `v' = (t_local / P - v) / tau`, with `v` continuous across
 /// the jumps of the source.
@@ -255,47 +217,48 @@ fn sawtooth_rc(t: f64) -> f64 {
 }
 
 #[test]
-fn a_discontinuous_repeated_pwl_ramps_every_repetition_in_both_backends() {
-    // Every repetition boundary is a 1 V -> 0 V jump: the step ending there
-    // takes the left limit, so the diffsol segments interpolate the full ramp
-    // instead of holding the restart value.
-    for backend in ["", " backend=diffsol method=bdf"] {
-        let plot = run(&format!(
-            "v1 in 0 pwl(0 0 1m 1) r=0\nr1 in out 1k\nc1 out 0 0.1u\n.tran 10u 4m 0 10u{backend}"
-        ));
-        let (time, vin, vout) = (
-            column(&plot, "time"),
-            column(&plot, "v(in)"),
-            column(&plot, "v(out)"),
-        );
-        for (i, t) in time.iter().enumerate() {
-            let local = t - 1e-3 * (t / 1e-3).floor();
-            // Away from a jump the input is the ramp itself (to the BDF
-            // solver tolerance on algebraic rows).
-            if local > 1e-9 && local < 1e-3 - 1e-9 {
-                assert!(
-                    (vin[i] - local / 1e-3).abs() < 1e-6,
-                    "{backend} v(in) at {t:e}: {}",
-                    vin[i]
-                );
-            }
-            let want = sawtooth_rc(*t);
+fn a_discontinuous_repeated_pwl_ramps_every_repetition() {
+    // Every repetition boundary is a 1 V -> 0 V jump. Like ngspice (whose
+    // step sequence and values the port reproduces bit for bit), the step
+    // ending exactly on a later boundary loads the restart value 0
+    // (`vsrcload.c` folds `time > end_time`), so v(out) there lags the
+    // analytic response by up to ~0.04 V for one step; the first boundary
+    // (`time == end_time`) is not folded and takes the ramp top.
+    let plot = run("v1 in 0 pwl(0 0 1m 1) r=0\nr1 in out 1k\nc1 out 0 0.1u\n.tran 10u 4m 0 10u");
+    let (time, vin, vout) = (
+        column(&plot, "time"),
+        column(&plot, "v(in)"),
+        column(&plot, "v(out)"),
+    );
+    for (i, t) in time.iter().enumerate() {
+        let local = t - 1e-3 * (t / 1e-3).floor();
+        // Away from a jump the input is the ramp itself.
+        if local > 1e-9 && local < 1e-3 - 1e-9 {
             assert!(
-                (vout[i] - want).abs() < 5e-3,
-                "{backend} v(out) at {t:e}: {} vs {want}",
-                vout[i]
+                (vin[i] - local / 1e-3).abs() < 1e-6,
+                "v(in) at {t:e}: {}",
+                vin[i]
             );
         }
-        // Every later repetition reaches the top of the ramp again.
-        for k in 1..4 {
-            let start = f64::from(k) * 1e-3;
-            let peak = time
-                .iter()
-                .zip(&vin)
-                .filter(|(t, _)| **t > start + 1e-9 && **t < start + 1e-3 - 1e-9)
-                .map(|(_, v)| *v)
-                .fold(0., f64::max);
-            assert!(peak > 0.95, "{backend} repetition {k}: peak {peak}");
-        }
+        let want = sawtooth_rc(*t);
+        assert!(
+            (vout[i] - want).abs() < 4e-2,
+            "v(out) at {t:e}: {} vs {want}",
+            vout[i]
+        );
+    }
+    let at = |when: f64| time.iter().position(|t| *t == when).unwrap();
+    assert_eq!(vin[at(1e-3)], 1.);
+    assert_eq!(vin[at(2e-3)], 0.);
+    // Every later repetition reaches the top of the ramp again.
+    for k in 1..4 {
+        let start = f64::from(k) * 1e-3;
+        let peak = time
+            .iter()
+            .zip(&vin)
+            .filter(|(t, _)| **t > start + 1e-9 && **t < start + 1e-3 - 1e-9)
+            .map(|(_, v)| *v)
+            .fold(0., f64::max);
+        assert!(peak > 0.95, "repetition {k}: peak {peak}");
     }
 }

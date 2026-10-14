@@ -159,7 +159,7 @@ card 17 @netlists/switch_dc_decimal.cir:26:1 lines=26-26 continuations=0
   token 4 26:13 lparen "("
   token 5 26:14 word "vt"
   token 6 26:16 equals "="
-  token 7 26:17 number "1.2" value=1.2e0
+  token 7 26:17 number "1.2" value=1.2000000000000002e0
   token 8 26:21 word "vh"
   token 9 26:23 equals "="
   token 10 26:24 number "0.85" value=8.5e-1

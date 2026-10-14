@@ -134,6 +134,4 @@ simulation tolerance.
 ## Not covered
 
 - `.sens` (above); `.dc @u1[l]` sweeps (refused: the instance exposes no
-  sweepable parameter, and C would not re-run `URCsetup` either); the diffsol
-  BDF backend is untested with URC decks (the generated devices apply their
-  own backend rules).
+  sweepable parameter, and C would not re-run `URCsetup` either).

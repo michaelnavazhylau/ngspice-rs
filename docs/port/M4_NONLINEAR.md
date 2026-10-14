@@ -20,7 +20,8 @@ files: symlinking editable files between branches would violate isolation.
   charge integration. `bjt`: the Gummel-Poon BJT (#87). `mos1`: the MOS
   level-1 factory/equations (completed by #88, see [MOS1](#mos1)).
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
-  and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
+  and charge Jacobians at an explicit bias. This is **not** the immutable
+  `E x' + A x = b` linear assembly.
 - `devices::limiting`: ngspice's junction/FET voltage limiting
   (`DEVpnjlim`, `DEVfetlim`, `DEVlimvds`) and the `MODEINITJCT` start, used by
   the diode, BJT and MOS1 loads (#106).
@@ -207,13 +208,14 @@ Level 1 NMOS/PMOS in `devices::mos1` (#88). C references, read as
 behaviour only: `mos1/mos1set.c`, `mos1temp.c`, `mos1load.c`, `mos1acld.c`,
 `mos1trun.c` and `devices/devsup.c` (`DEVqmeyer`).
 
-Since M10 (#89) the level-independent frame described below (series
-resistance and internal nodes, bulk junctions, Meyer gate charge, limiting and
-start voltages, real/AC/pole-zero loads, truncation slots, instance sweeps and
-observations) lives in the shared `devices::mos` shell; `devices::mos1`
-supplies only the level-1 schema, process extraction, Shichman-Hodges drain
-current, noise and distortion through the `MosLevel` trait. The extraction
-changed no MOS1 output: every MOS1 deck's Rust rawfile is byte-identical.
+Since M10 (#89) the level-independent frame (the operation-by-operation port
+of `mos1load.c`: voltage selection with `DEVpred` and limiting, bulk
+junctions, Meyer gate charge, stamps, `MOS1convTest`, real/AC/pole-zero loads,
+truncation slots, instance sweeps, observations and the `mos1noi.c`
+generators) lives in the shared `devices::mos` shell; `devices::mos1`
+supplies the level-1 schema, `mos1temp.c`, the Shichman-Hodges drain-current
+block and distortion through the `MosLevel` trait. The extraction changed no
+MOS1 arithmetic: every MOS1 deck stays bit-identical to C.
 
 Model setters (C defaults; *derived* means C's `...Given` logic applies):
 `VTO`/`VT0` (0 V or derived), `KP` (2e-5 A/V² or derived), `GAMMA` (0 or
@@ -420,10 +422,9 @@ Linear circuits retain exact solving and source-only sweeps reuse LU factors.
 Typed targets: independent V/I sources, circuit temperature and scalar resistance
 (including supported model-backed resistors). One optional outer axis, inner axis
 varying fastest; <=100000 Cartesian points, inclusive reachable endpoints, finite
-signed steps, explicit no-progress/duplicate-target errors. Nested plots append an
-explicit `sweep(outer-name)` column. Immutable point overrides preserve originals
-on success/failure; R/TEMP axes rebuild numerical operators while source-only linear
-axes retain LU reuse. See [DC_SWEEPS.md](DC_SWEEPS.md) for supplied/effective semantics,
+signed steps, explicit no-progress/duplicate-target errors. As in C, nested plots
+carry only the inner axis' scale. Immutable point overrides preserve originals
+on success/failure; every point runs Newton, as in C (no LU reuse across points). See [DC_SWEEPS.md](DC_SWEEPS.md) for supplied/effective semantics,
 analytic tests and eight opt-in live C comparisons. Arbitrary model-setter sweeps
 and >2 axes remain unsupported. Local #34/#35 follow-ups are not yet published.
 
@@ -431,8 +432,8 @@ AC solves G(bias)+j*w*dQ/dx(bias) after a valid nonlinear DC point.
 Companion transient uses the same Newton kernel, M3 breakpoint/order/work policy,
 actual nonlinear Q history and **a0*dQ/dV**, not a0*Q/V. Loads and residual reloads
 write only disposable trials; accept hooks run before atomic history commit.
-Nonlinear `.ic`/`uic`/instance IC run on the companion driver (#99, below); the
-explicit diffsol nonlinear backend is rejected. Trap/Gear orders above 2 and
+Nonlinear `.ic`/`uic`/instance IC run on the companion driver (#99, below), the
+only transient backend. Trap/Gear orders above 2 and
 advanced DAE support remain unclaimed.
 
 ## Nonlinear initial conditions (#99)
@@ -448,8 +449,8 @@ C references: `cktic.c`, `cktload.c` (`.nodeset`/`.ic` row stamping),
 
 | Input | ngspice | This port |
 | --- | --- | --- |
-| `.ic`, no `uic`, nonlinear | row `v = ic * srcFact` (or a `1e10` conductance on branch rows) in every load of the `MODETRANOP` `CKTop`, released for the transient | exact row replacement in every Newton load of every continuation stage, scaled by the source factor; source-fixed nodes resolved structurally (agreeing entries dropped, contradictions errors) as for linear circuits |
-| `.nodeset`, nonlinear | row forced in `MODEINITJCT`/`MODEINITFIX` loads of every DC operating point (`.op`, `.dc` first points and restarts, `.ac` bias, transient bias), then released | same, after dropping hints on nodes ideal sources/E/H outputs/`.ic` rows already fix (C's `1e10` compromise there is not reproduced) |
+| `.ic`, no `uic`, nonlinear | row `v = ic * srcFact` (or a `1e10` conductance on branch rows) in every load of the `MODETRANOP` `CKTop`, released for the transient | same, in every Newton load of every continuation stage, scaled by the source factor; entries contradicting ideal sources are errors, as for linear circuits |
+| `.nodeset`, nonlinear | row forced in `MODEINITJCT`/`MODEINITFIX` loads of every DC operating point (`.op`, `.dc` first points and restarts, `.ac` bias, transient bias), then released | same, `1e10` rows included; an `.ic` on the node overrides the nodeset |
 | `uic` | one `MODETRANOP + MODEUIC + MODEINITJCT` load, no solve: devices at their IC voltages, charges from them | one device-flagged initial load at the `uic` node vector; junction charges and limited voltages from it fill the accepted history |
 | D/Q/M `OFF` | junctions at 0 in `MODEINITJCT`/`MODEINITFIX`; the `MODEINITFIX` load skips its own noncon check but `NIconvTest` runs the device convergence test against the held state | same: the held `MODEINITFIX` load is nonconvergent exactly when C's test (`reltol`, `abstol` of the solve) fails, so an `OFF` device whose iterate voltages sit volts from zero keeps the direct iteration in `MODEINITFIX` until `itl1`, and continuation (dynamic gmin) decides the state, as in C |
 | MOS1 `ic=` without `uic` | `MODEINITJCT` start voltages | same |
@@ -458,7 +459,7 @@ C references: `cktic.c`, `cktload.c` (`.nodeset`/`.ic` row stamping),
 
 `OFF` and MOS1 start voltages need the device-limited Newton loads: under the
 port's legacy `limiting=global` they are an explicit `Unsupported` error.
-The BDF backend keeps rejecting `.ic`/`uic`. The `uic` impulse check covers
+The `uic` impulse check covers
 capacitors and inductors only; junction charges are not part of it (C checks
 nothing). A `uic` node vector that forward-biases a junction by volts (for
 example a MOS1 drain `.ic` above a supply node that has no `.ic`, so C's node
@@ -500,8 +501,8 @@ Each new transient compares 96 physical instants and ten breakpoint limits.
 
 C's default saved signals omit simulator-created internal nodes: verification
 projects only known `NodeKind::Internal` columns from the Rust plot, then retains
-exact external variable-set/unit checks. The public Rust `sweep` scale name is
-normalized to C's `v(v-sweep)`/`i(i-sweep)` naming for verification only.
+exact external variable-set/unit checks. DC scales carry C's own names
+(`v(v-sweep)`, `i(i-sweep)`, ...), so no renaming is needed.
 No model quantities or external signals are excluded to hide an error.
 
 `tests/m4_gate.rs` additionally pins polarity and finite gain,

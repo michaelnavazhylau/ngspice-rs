@@ -20,8 +20,7 @@
 //!
 //! - DC: coupled inductors remain shorts (no mutual term).
 //! - AC: `-j omega M` between the two branch rows (`E` entries of the
-//!   immutable `E x' + A x = b` assembly, so the explicit diffsol BDF backend
-//!   integrates the same coupled mass matrix).
+//!   immutable `E x' + A x = b` assembly).
 //! - Companion transient: the integrated quantity is the coupled flux, so the
 //!   trap/Gear-2 history, the truncation-error estimate (`INDtrunc` on
 //!   `INDflux`) and the `uic` starting flux `L ic + sum(M ic_k)` all include
@@ -130,6 +129,17 @@ impl MutualInductance {
 }
 
 impl Device for MutualInductance {
+    /// `mutsetup.c`: `(br1,br2) (br2,br1)` per coupled pair.
+    fn setup_matrix(
+        &self,
+        setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        for &(first, second) in setup.coupled {
+            setup.elements.push((first, second));
+            setup.elements.push((second, first));
+        }
+        Ok(true)
+    }
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         matches!(keyword.to_ascii_lowercase().as_str(), "k" | "coefficient").then_some("k")
     }

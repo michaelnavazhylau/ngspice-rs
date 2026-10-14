@@ -253,14 +253,3 @@ fn start_settings_need_device_limiting() {
         assert!(error.to_string().contains("limiting=global"), "{error}");
     }
 }
-
-#[test]
-fn the_bdf_backend_still_rejects_nonlinear_initial_conditions() {
-    let deck = "v1 a 0 1\nr1 a b 1k\nd1 b 0 dm\nc1 b 0 1n\n.model dm d\n";
-    for tail in [
-        ".tran 1u 10u uic backend=diffsol method=bdf",
-        ".ic v(b)=0.1\n.tran 1u 10u backend=diffsol method=bdf",
-    ] {
-        assert!(run(&format!("{deck}{tail}")).is_err(), "{tail}");
-    }
-}

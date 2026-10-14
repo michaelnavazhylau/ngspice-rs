@@ -4,7 +4,7 @@ Paths in the tables below are paths **in the upstream ngspice tree**, relative t
 its source root. The Rust port does not vendor the C sources; see
 [NOTICE](../../NOTICE). “Ported” below means the stated bounded behavior, not a
 line-by-line C translation or full SPICE parity. Current production APIs and
-limits: [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md).
+limits: [NATIVE_SOLVER.md](NATIVE_SOLVER.md).
 Remaining work is tracked only in [TODO.md](../../TODO.md).
 
 Line counts are real counts (`.c` + `.h`) from the C tree this worktree was
@@ -41,12 +41,15 @@ therefore the central risk of this port — see
 
 | C | Lines | Rust module | Status |
 | --- | --- | --- | --- |
-| `src/maths/dense/` | 1,742 | `maths::dense` | row-major storage and owned faer pivoted LU with checked solves |
-| `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `maths::sparse` | triplet storage, petgraph row-coupling projection and owned faer sparse LU; finite/rank/residual checks and exact-pattern symbolic reuse |
+| `src/maths/dense/` | 1,742 | `maths::dense` | row-major storage; owned pivoted LU through the SPARSE 1.3 port (`maths::sparse13`) |
+| `src/maths/sparse/` (SPARSE 1.3, MIT) | 10,465 | `maths::sparse` | triplet storage, petgraph row-coupling projection and bound element patterns; LU through `maths::sparse13` (row below) |
 | `src/maths/dense/`, `src/maths/sparse/` scaling (behavioral reference) | — | `maths::equilibration` | bounded opt-in dense/sparse/complex wrappers (#46); independent power-of-two policy, original-unit residuals, unchanged defaults ([EQUILIBRATION.md](EQUILIBRATION.md)) |
-| `src/maths/sparse/` diagnostics (behavioral reference) | — | `maths::linear`, `complex` | #47 audits locked faer APIs and retains numerical guards; example-only batching/benchmarks, formal aggregate-proof caveat tracked in #68 ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)) |
-| `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; faer supplies real/complex LU, see licensing below |
-| `src/maths/ni/` | 1,961 | `maths::integrator`, separate `maths::diffsol` | trap orders 1–2 and variable-step Gear orders 1–6 (#98) coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history (six steps, seven state vectors); the `dctran.c` order policy never selects an order above 2; explicit adaptive BDF supports index-one DAEs including floating/coupled capacitor mass blocks (higher-index rejected), not ngspice trap/Gear parity |
+| `src/maths/sparse/` diagnostics (behavioral reference) | — | `maths::linear`, `complex` | the faer-era #47 rank/residual guards are superseded by C's error policy (M10 0.5a, [SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md)) |
+| `src/maths/KLU/` (LGPLv2) | 18,353 | behavioral reference only | **not translated or linked**; the SPARSE 1.3 port supplies real/complex LU, see licensing below |
+| `src/maths/sparse/sp{alloc,build,factor,solve,utils}.c` (SPARSE 1.3, Berkeley notice) | — | `maths::sparse13` | **translated** (supersedes the removed faer LU): Markowitz ordering with diagonal/threshold pivoting, fill-ins, `spMNA_Preorder`, `spFactor` refactor, real/complex/transposed solves, `spDeterminant`; `Translate` numbering (an unreferenced unknown stays untranslated and keeps its RHS, as in C); `spSMALL_PIVOT` located for the port's warning. Copyright notice reproduced in the module and `NOTICE` |
+| `src/maths/sparse/spsmp.c`, `src/maths/ni/niiter.c`, `niaciter.c` (factor/reorder/error handling) | — | `maths::linear` (`solve_ni`, `factor_shared_complex`, `check_status`), `maths::complex` | `SMPpreOrder`/`SMPreorder`/`SMPluFac`/`SMPcReorder`/`SMPcLUfac`/`LoadGmin`/`SMPgetError`; `.options pivtol`/`pivrel` at every reorder; `E_SINGULAR` on refactor sets the reorder flag and retries; singular errors name the unknown as `NIiter` does (`singular matrix:  check node X`); `spSMALL_PIVOT` is `OK` (port adds a warning); no rank probe or residual check ([SPARSE_RANK_DIAGNOSTICS.md](SPARSE_RANK_DIAGNOSTICS.md) superseded) |
+| `src/spicelib/devices/res/resparam.c` (`RES_RESIST`, `RESMIN`) | — | `devices::rlc::res_resist` | a resistance in `(-1e-12, 1e-12)` is clamped to `±1e-12` with C's warning; zero capacitance/inductance accepted as in C |
+| `src/maths/ni/` | 1,961 | `maths::integrator` | trap orders 1–2 and variable-step Gear orders 1–6 (#98) coefficients, `NIintegrate`/`NIpred`/`CKTterr` operations and accepted step history (six steps, seven state vectors); the `dctran.c` order policy never selects an order above 2 |
 | `src/maths/cmaths/` | 4,054 | `primitives::value::Complex` | arithmetic/magnitude/phase/conjugation ported; not the full C transcendental library |
 | `src/maths/poly/`, `deriv/`, `fft/`, `misc/` | 6,358 | `maths` (planned modules) | **not ported** |
 
@@ -78,12 +81,12 @@ translate all of it; the roadmap targets a small, useful subset first.
 
 | C | Lines | Rust crate | Status |
 | --- | --- | --- | --- |
-| `src/spicelib/analysis/` (whole directory) | 21,993 | `analysis::driver` | trait/runner, linear `.op`, single-independent-source `.dc`, complex `.ac`, the adaptive trap/Gear-2 companion `.tran` driver (`companion.rs`: `dctran.c`, `ckttrunc.c`, `cktterr.c` policy, linear circuits) and explicitly selected restricted diffsol BDF; nonlinear/other analyses pending |
-| ↳ `pzan.c`, `cktpzset.c`, `cktpzld.c`, `cktpzstr.c`; `maths/ni/nipzmeth.c`; device `*pzld.c` | 2,118 (without the device loads) | `analysis::pz`, `maths::pencil`, `Device::assemble_pole_zero` | `.pz` with C's card, `PZinit` checks, drive/column modification and plot layout; roots by orthogonal staircase deflation plus QZ instead of the Muller search ([POLE_ZERO_ADR.md](POLE_ZERO_ADR.md)) |
+| `src/spicelib/analysis/` (whole directory) | 21,993 | `analysis::driver` | trait/runner, linear `.op`, single-independent-source `.dc`, complex `.ac`, the adaptive trap/Gear-2 companion `.tran` driver (`companion.rs`: `dctran.c`, `ckttrunc.c`, `cktterr.c` policy), the only transient backend; see the rows below for the other analyses |
+| ↳ `pzan.c`, `cktpzset.c`, `cktpzld.c`, `cktpzstr.c`; `maths/ni/nipzmeth.c`; device `*pzld.c` | 2,118 (without the device loads) | `analysis::pz`, `maths::pencil`, `Device::assemble_pole_zero` | `.pz` with C's card, `PZinit` checks, drive/column modification and plot layout; roots by a port of C's deflated Muller search (`cktpzstr.c`, `nipzmeth.c`), including its iteration limit ([POLE_ZERO_ADR.md](POLE_ZERO_ADR.md)) |
 | ↳ `cktdojob.c`, `dctran.c`, `dcop.c`, `acan.c`, `cktload.c` | 2,060 | `analysis::driver` | bounded linear assembly/factor/solve/plot orchestration; no nonlinear Newton/stepping or SPICE trap/Gear driver |
 | ↳ `noisean.c`, `cktnoise.c`, `nevalsrc.c`, `ninteg.c`; `maths/ni/niniter.c` | — | `analysis::noise`, `devices::noise`, `maths::complex` (`solve_transposed`) | `.noise` adjoint spectra, per-generator `Nintegrate` totals and C's two plots (#100, [NOISE.md](NOISE.md)) |
+| ↳ `distoan.c`, `cktdisto.c`, `dkerproc.c`, `dloadfns.c`, `dsetparm.c`; `parser/inp2dot.c` `dot_disto`; `maths/deriv/*.c` | — | `analysis::disto`, `devices::distortion` (`deriv::Dderivs`, `dloadfns`) | `.disto` harmonics and IM products on C's sweep with C's plot names and batch order (#104, [DISTORTION.md](DISTORTION.md)) |
 | `res/resnoise.c`, `dio/dionoise.c`, `bjt/bjtnoise.c`, `mos1/mos1noi.c`, `mos3/mos3noi.c`, `sw/swnoise.c`, `csw/cswnoise.c` | — | `Device::noise` in `devices::{rlc,passive,nonlinear,bjt,mos,mos1,mos3,switch}` | thermal/shot/flicker generators at the bias point; noiseless devices explicit, unported noise refused ([NOISE.md](NOISE.md)) |
-| ↳ `distoan.c`, `cktdisto.c`, `dkerproc.c`, `dloadfns.c`, `dsetparm.c`; `parser/inp2dot.c` `dot_disto`; `maths/deriv/*.c` | — | `analysis::disto`, `devices::distortion` (`Series3` for `Dderivs`) | `.disto` harmonics and IM products on C's sweep with C's plot names and batch order (#104, [DISTORTION.md](DISTORTION.md)) |
 | `dio/diodset.c` + `diodisto.c`, `bjt/bjtdset.c` + `bjtdisto.c`, `mos1/mos1dset.c` + `mos1dist.c`; `vsrc`/`isrc` `distof1`/`distof2` setters | — | `Device::distortion` in `devices::{nonlinear,bjt/disto,mos1/disto,sources}` | Taylor terms of C's simplified distortion models at the bias point, four C defects reproduced; linear devices explicit, B sources/code models refused ([DISTORTION.md](DISTORTION.md)) |
 | ↳ `cktsens.c`, `cktsgen.c`, `senssetp.c`; `parser/inp2dot.c` `dot_sens` | — | `analysis::sens`, `devices::sensitivity`, `Device::sensitivity` | `.sens` finite-difference DC/AC sensitivities with C's parameter lists, names, filters, stepping and in-place perturbation side effects; Q/MOS1/MOS3/code models and AC nonlinear devices refused (#102, [SENSITIVITY.md](SENSITIVITY.md)) |
 | `res/{res,resparam,resmpar,ressetup,restemp,resload}.c`, `cap/`, `ind/`, `vsrc/`, `isrc/`, `vcvs/`, `vccs/`, `cccs/`, `ccvs/`, `asrc/`, `sw/`, `csw/`, `dio/{dio,diompar,dioparam,diomask,dioask,diosetup,diotemp}.c` | — | `devices::sensitivity::{res,reactive,source,controlled,misc}`, `devices::nonlinear::sens` | C's records and setter/setup/temperature routines replayed for `.sens` ([SENSITIVITY.md](SENSITIVITY.md)) |
@@ -92,11 +95,9 @@ translate all of it; the roadmap targets a small, useful subset first.
 | `src/frontend/rawfile.c` | 863 | `analysis::rawfile` | ASCII read **and** write ported, plus binary real/complex read **and** write with explicit byte order and validated payload lengths (#45); see [RAWFILES.md](RAWFILES.md) |
 | `src/frontend/plotting/` | 9,380 | `analysis::results` | production result tables; interactive plotting not ported |
 
-The #29 experimental `maths::diffsol::higher_index` module is an independent
-numeric constrained-RLC formulation, with `CAPload`/`INDload`/`DCtran` as read-only
-physical/event references, not a port of the C transient scheduler. Default
-index-one guards remain intact; prototype evidence and runtime enabling gates
-#69–#72 are recorded in [HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md).
+The #29 experimental `maths::diffsol::higher_index` module was removed with
+diffsol in M10 wave 0.5; its formulation and gates #69–#72 remain recorded in
+[HIGHER_INDEX_DAE_ADR.md](HIGHER_INDEX_DAE_ADR.md) and the code in git history.
 
 ## Licensing notes
 
@@ -105,12 +106,16 @@ index-one guards remain intact; prototype evidence and runtime enabling gates
 (DFSG-compatible). A from-scratch Rust port distributed under Modified BSD must
 not absorb LGPL code:
 
-- **KLU** is a behavioral reference only: no LGPL algorithms are copied and
-  neither KLU nor SPARSE 1.3 is translated into the Rust solver. Production
-  real/complex LU uses **faer 0.24.4 (MIT)**; bounded adaptive BDF uses
-  **diffsol 0.17.1 (MIT)**. SuiteSparse/SUNDIALS features remain disabled; no
-  external native solver or FFI is required. This backend choice resolves the
-  historical pre-M2 licensing gate without changing the port's BSD-3-Clause
-  license. The locked diffsol-la/nalgebra graph requires Rust **1.89**.
+- **KLU** is a behavioral reference only: no LGPL algorithms are copied or
+  linked. Production real/complex LU is the SPARSE 1.3 port below; no external
+  solver crate, native solver or FFI is required (faer and diffsol were removed
+  in M10 wave 0.5). The only dependencies are winnow and petgraph.
 - **SPARSE 1.3** is MIT licensed, so translation is permitted with attribution,
   but it should still be reviewed before code is copied rather than reimplemented.
+- **SPARSE 1.3 is translated** on the native-solver line (`maths::sparse13`).
+  Its Berkeley notice (Copyright (c) 1985–90 Kenneth S. Kundert and the
+  University of California; permission to use, copy, modify and distribute
+  provided the copyright notices appear in all copies and supporting
+  documentation and the authors and the University are credited) is
+  reproduced in full in `src/maths/sparse13.rs` and in `NOTICE`, which
+  satisfies its only condition. KLU remains untranslated.

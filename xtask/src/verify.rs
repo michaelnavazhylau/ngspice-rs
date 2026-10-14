@@ -34,53 +34,18 @@ enum Gate {
     },
 }
 
-/// An additional Rust-only run of the same deck against the same C golden.
-///
-/// `extra` tokens are appended to the request after the deck's own settings,
-/// so a variant can select a backend that C itself cannot parse (for example
-/// the explicit diffsol BDF `backend=diffsol method=bdf`, which ngspice
-/// rejects). The deck text, the golden and the tolerance are unchanged, so the
-/// variant must reproduce the very same C waveform; it never loosens a bound.
-struct Variant {
-    label: &'static str,
-    extra: &'static [&'static str],
-    /// Overrides the fixture's transient tolerance for this run.
-    tolerance: compare::TranTolerance,
-}
-
-/// The explicit adaptive BDF backend (not ngspice trapezoidal/Gear-2) under the
-/// default C-parity bound: for decks whose C reference has no restart artefact
-/// exceeding it.
-const DIFFSOL_BDF: Variant = Variant {
-    label: "diffsol-bdf",
-    extra: &["backend=diffsol", "method=bdf"],
-    tolerance: compare::TRAN,
-};
-
-/// The same backend under `compare::TRAN_RESTART` (peak-scaled), for decks with
-/// source corners where C's backward-Euler restart error exceeds `TRAN` at small
-/// values; see that constant for the justification.
-const DIFFSOL_BDF_RESTART: Variant = Variant {
-    label: "diffsol-bdf, peak-scaled",
-    extra: &["backend=diffsol", "method=bdf"],
-    tolerance: compare::TRAN_RESTART,
-};
-
 struct Supported {
     name: &'static str,
     kind: AnalysisKind,
     gate: Gate,
-    /// Extra runs against the same golden, in addition to the deck's own run.
-    variants: &'static [Variant],
 }
 
-/// Transient registry entry: `compare::TRAN`, no variants unless listed.
-const fn tran(name: &'static str, variants: &'static [Variant]) -> Supported {
+/// Transient registry entry: `compare::TRAN`.
+const fn tran(name: &'static str) -> Supported {
     Supported {
         name,
         kind: AnalysisKind::Transient,
         gate: Gate::Transient(compare::TRAN),
-        variants,
     }
 }
 
@@ -92,7 +57,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "mos_inverter",
@@ -101,7 +65,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "diode_dc",
@@ -110,7 +73,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::LEGACY_DIODE_DC,
         },
-        variants: &[],
     },
     Supported {
         name: "m4_diode_ac",
@@ -119,7 +81,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m4_bjt_ac",
@@ -128,7 +89,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m4_mos1_ac",
@@ -137,19 +97,18 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m4_diode_tran", &[]),
-    tran("m4_bjt_tran", &[]),
-    tran("m4_mos1_tran", &[]),
+    tran("m4_diode_tran"),
+    tran("m4_bjt_tran"),
+    tran("m4_mos1_tran"),
     // MOS1 completion (#88): Meyer gate charge (TOX), series resistance,
     // junction geometry, process extraction and temperature. The transient
     // decks bound the maximum step so that both simulators' discretization
     // error sits well inside `compare::TRAN`; the DC deck tightens RELTOL so
     // that C's own Newton stopping error does not exceed `NONLINEAR` (see
     // docs/port/VERIFICATION.md).
-    tran("m7_mos1_inverter_tran", &[]),
-    tran("m7_mos1_ring_tran", &[]),
+    tran("m7_mos1_inverter_tran"),
+    tran("m7_mos1_ring_tran"),
     Supported {
         name: "m7_mos1_meyer_ac",
         kind: AnalysisKind::Ac,
@@ -157,7 +116,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_mos1_process_dc",
@@ -166,7 +124,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // MOS level 3 on the shared MOS shell (#89): short-channel threshold,
     // weak inversion, velocity saturation, channel-length modulation and
@@ -179,7 +136,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m10_mos3_ac",
@@ -188,9 +144,8 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m10_mos3_tran", &[]),
+    tran("m10_mos3_tran"),
     Supported {
         name: "rc_divider",
         kind: AnalysisKind::OperatingPoint,
@@ -198,7 +153,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     Supported {
         name: "rc_lowpass_ac",
@@ -207,10 +161,9 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
-    tran("rc_transient", &[]),
-    tran("m9_scoped_frontend", &[]),
+    tran("rc_transient"),
+    tran("m9_scoped_frontend"),
     Supported {
         name: "rlc_series",
         kind: AnalysisKind::OperatingPoint,
@@ -218,7 +171,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     // Subcircuit elaboration (#18): one `X` instance is flattened through the
     // production `.op` path. The deck is a purely resistive divider, so it keeps
@@ -230,7 +182,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     // `.func` definitions and single-quoted values (#107): top-level and
     // body-local functions, quoted device/instance values, flattened through
@@ -242,51 +193,38 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     // M3 exit-gate fixtures (#48). All use `compare::TRAN`; the physical bound is
     // the simulator's own default accuracy (see `compare.rs`), no fixture-specific
     // tolerance exists. The companion driver (trap, or Gear-2 via
-    // `.options method=gear`) runs each deck as written. `DIFFSOL_BDF` variants
-    // add the Rust-only BDF tokens: used only where every source corner lies on
-    // the `.tran` output grid (the BDF backend emits the requested grid, and the
-    // comparator demands a sample at each breakpoint) and only for decks with no
-    // `.options method=` (the deck's trap/Gear choice cannot be combined with
-    // diffsol and is rejected explicitly by `RunConfig::request`).
-    tran("rl_pulse_tran", &[DIFFSOL_BDF_RESTART]),
-    tran("rc_gear_tran", &[]),
-    tran("rc_pwl_tran", &[DIFFSOL_BDF_RESTART]),
-    // The RLC pulse corners restart C's trapezoidal rule with a backward-Euler
-    // step, whose error (about 3e-6 V / 2e-6 A near the ringing zero crossings,
-    // measured against an independent RK4 solution) exceeds `compare::TRAN`'s
-    // 1e-6 V / 1e-12 A near-zero floor; BDF is the more accurate side, so it
-    // runs under `compare::TRAN_RESTART`.
-    tran("rlc_series_tran", &[DIFFSOL_BDF_RESTART]),
-    tran("rlc_series_gear_tran", &[]),
+    // `.options method=gear`) runs each deck as written.
+    tran("rl_pulse_tran"),
+    tran("rc_gear_tran"),
+    tran("rc_pwl_tran"),
+    tran("rlc_series_tran"),
+    tran("rlc_series_gear_tran"),
     // `maxord=6` (#98): C's dctran.c only toggles orders 1 and 2, so this is
     // the Gear-2 integration again (C data equal rlc_series_gear_tran).
-    tran("rlc_series_gear_maxord6_tran", &[]),
-    tran("floating_cap_tran", &[DIFFSOL_BDF]),
-    tran("coupled_cap_tran", &[DIFFSOL_BDF_RESTART]),
-    // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. No
-    // BDF variants: the diffsol backend deliberately rejects `.ic`, `uic` and
-    // instance `ic=` (asserted by a test below). With `uic` C writes no `t = 0`
+    tran("rlc_series_gear_maxord6_tran"),
+    tran("floating_cap_tran"),
+    tran("coupled_cap_tran"),
+    // Initialized-state fixtures (#27, #48): `uic` / instance `ic=` / `.ic`. With `uic` C writes no `t = 0`
     // row and adds a breakpoint at the `.tran` step; the Rust driver reproduces
     // both and the comparator (which only demands samples at source breakpoints)
     // needs no special case.
-    tran("rc_ic_uic_tran", &[]),
-    tran("rlc_ic_uic_tran", &[]),
-    tran("rc_ic_node_tran", &[]),
-    tran("floating_cap_ic_tran", &[]),
+    tran("rc_ic_uic_tran"),
+    tran("rlc_ic_uic_tran"),
+    tran("rc_ic_node_tran"),
+    tran("floating_cap_ic_tran"),
     // M6 source waveforms (#94, #95), companion trap driver under `compare::TRAN`.
     // C sets no breakpoints for SIN/EXP/SFFM/AM, so those decks are compared on
     // the grid only (`tran::breakpoints`); PULSE count and repeated PWL corners
     // are C breakpoints.
-    tran("rc_sin_tran", &[]),
-    tran("rc_exp_tran", &[]),
-    tran("rc_sffm_am_tran", &[]),
-    tran("rc_pwl_repeat_tran", &[]),
-    tran("rc_pulse_count_tran", &[]),
+    tran("rc_sin_tran"),
+    tran("rc_exp_tran"),
+    tran("rc_sffm_am_tran"),
+    tran("rc_pwl_repeat_tran"),
+    tran("rc_pulse_count_tran"),
     Supported {
         name: "rlc_series_ac",
         kind: AnalysisKind::Ac,
@@ -294,7 +232,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     }, // `.option` coverage (#110/#107): `gmin={gj}` (evaluated against
     // `.param`) is the junction gmin of the reverse-biased diode/BJT junctions,
     // with itl1/itl2 and documented no-ops; the reverse region is nearly linear,
@@ -306,11 +243,9 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    // Trapezoidal `xmu=0.2` and `itl4` on the companion driver. No BDF variant:
-    // backend=diffsol rejects both options explicitly.
-    tran("options_xmu_tran", &[]),
+    // Trapezoidal `xmu=0.2` and `itl4` on the companion driver.
+    tran("options_xmu_tran"),
     // Linear controlled sources (#78): E/F/G/H in an operating point (with an
     // F/H controlled by an E branch and by a voltage source inside a
     // subcircuit), an AC sweep and a PULSE transient. All four devices are
@@ -322,7 +257,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     Supported {
         name: "controlled_ac",
@@ -331,24 +265,13 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
-    // Its PULSE corners lie on the output grid like `rl_pulse_tran`, and like
-    // that deck C's backward-Euler restart after each corner exceeds the plain
-    // `compare::TRAN` floor at small values (about 1e-8 A on the sub-uA
-    // currents right after the 20 us edge), so the BDF run is peak-scaled.
-    tran("controlled_tran", &[DIFFSOL_BDF_RESTART]),
+    tran("controlled_tran"),
     // K mutual inductance (#80): a 1:2 transformer, a three-winding K inside a
     // subcircuit and a negative coupling in AC; a PULSE transformer transient
     // (trapezoidal companions on the coupled flux); and coupled `ic=` free
     // decay under `uic` with Gear-2. All linear: the linear AC bound and
-    // `compare::TRAN`. No BDF variant for `transformer_tran`: the k = 0.99
-    // leakage time constant (about 0.6 us) is shorter than C's backward-Euler
-    // restart step after each pulse corner, and C's resulting error (1 % of
-    // i(l1) at t = 2 us, measured against a reltol = 1e-7 companion run that
-    // the BDF result matches to 1e-6) exceeds even `compare::TRAN_RESTART`.
-    // The BDF backend's coupled mass matrix is instead checked against that
-    // tight reference in `tests/mutual_inductance.rs`.
+    // `compare::TRAN`.
     Supported {
         name: "transformer_ac",
         kind: AnalysisKind::Ac,
@@ -356,11 +279,10 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
-    tran("transformer_tran", &[]),
-    tran("transformer_ic_uic_tran", &[]),
-    tran("transformer_model_uic_tran", &[]),
+    tran("transformer_tran"),
+    tran("transformer_ic_uic_tran"),
+    tran("transformer_model_uic_tran"),
     // S/W switches (#81): hysteresis bands, ON/OFF flags, gmin off conductance
     // and a W latch at an operating point, and a downward `.dc` sweep whose
     // points continue the previous point's accepted switch state. Switches
@@ -372,7 +294,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "switch_dc",
@@ -381,15 +302,13 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // PULSE/SIN-controlled S, a self-controlled relaxation oscillator and W
     // switches sensing SIN/PULSE currents. Every plotted node is a source or
     // capacitor node, so no plotted value jumps between samples where a switch
-    // flips. No BDF variant: the diffsol backend rejects switches (no
-    // immutable linear assembly).
-    tran("switch_tran", &[]),
-    tran("switch_w_tran", &[]),
+    // flips.
+    tran("switch_tran"),
+    tran("switch_w_tran"),
     // A `.dc` with a decimal step: C's accumulated sweep values decide
     // switches at their thresholds (`dctrcurv.c` `value += step`).
     Supported {
@@ -399,7 +318,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // AC uses C's MODEINITSMSIG switch state (the zero CKTstate1: open), not
     // the operating point's.
@@ -410,7 +328,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
     // Behavioural sources (#79): B sources over node voltages, branch
     // currents, time and temper in OP, a DC sweep, the AC linearisation at the
@@ -418,8 +335,7 @@ const SUPPORTED: &[Supported] = &[
     // sources (also inside a subcircuit), E/G TABLE onto the XSPICE pwl
     // transfer and E/G/F/H POLY onto spice2poly (captured with those code
     // models, `* xtask-codemodels:`). Newton-solved, so the nonlinear 1 ppm
-    // bound; the transient keeps `compare::TRAN` (the diffsol BDF backend
-    // rejects nonlinear devices, so there is no variant).
+    // bound; the transient keeps `compare::TRAN`.
     Supported {
         name: "bsource_op",
         kind: AnalysisKind::OperatingPoint,
@@ -427,7 +343,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "bsource_dc",
@@ -436,7 +351,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "bsource_ac",
@@ -445,9 +359,8 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("bsource_tran", &[]),
+    tran("bsource_tran"),
     Supported {
         name: "evalue_op",
         kind: AnalysisKind::OperatingPoint,
@@ -455,7 +368,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "gtable_dc",
@@ -464,7 +376,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "epoly_dc",
@@ -473,7 +384,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // B sources whose sqrt/log/reciprocal/division slopes are ~1e32 (or whose
     // log() is -1e99) at the 0 V Newton start, in OP, a DC sweep and a
@@ -485,7 +395,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "bsource_zero_dc",
@@ -494,9 +403,8 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("bsource_zero_tran", &[]),
+    tran("bsource_zero_tran"),
     // Diode physics (#86): a Zener regulator swept through forward conduction
     // and reverse breakdown, recombination/tunnelling/knee/sidewall currents,
     // a `.dc temp` sweep of the EG/XTI/TLEV/TCV/DTEMP temperature laws, the
@@ -511,7 +419,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_diode_physics_dc",
@@ -520,7 +427,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_diode_temp_dc",
@@ -529,7 +435,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // #97: `.dc @instance[parameter]` (C `param-sweep`) and the `res-sweep`
     // scale of a resistor target.
@@ -540,7 +445,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m8_dc_param_mos1",
@@ -549,7 +453,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m8_dc_param_gain",
@@ -558,7 +461,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     Supported {
         name: "m8_dc_res_temp",
@@ -567,7 +469,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_diode_temp_ac",
@@ -576,17 +477,15 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m7_zener_tran", &[]),
+    tran("m7_zener_tran"),
     // Gummel-Poon BJT (#87): a Gummel plot (VBC = 0 sweep of VBE), nested
     // output characteristics (VCE inner, IB outer), a temperature sweep of
     // NPN/PNP/TLEV=3 devices with series resistances and a substrate junction,
     // and a CE amplifier's AC response and transient with every charge. The
     // DC/AC decks set `.option reltol=1e-8` so that C's convergence test (and
     // bypass) leave a result within the nonlinear 1 ppm bound of the shared
-    // root; the transient keeps `compare::TRAN`. No BDF variant: the diffsol
-    // backend rejects nonlinear devices.
+    // root; the transient keeps `compare::TRAN`.
     Supported {
         name: "m7_bjt_gummel",
         kind: AnalysisKind::DcSweep,
@@ -594,7 +493,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_bjt_output",
@@ -603,7 +501,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_bjt_temp",
@@ -612,7 +509,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_bjt_amp_ac",
@@ -621,9 +517,8 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m7_bjt_amp_tran", &[]),
+    tran("m7_bjt_amp_tran"),
     // Convergence parity (#106): a BJT latch whose operating point depends on
     // the Newton path (MODEINITJCT start, `DEVpnjlim`, `dynamic_gmin`), the
     // same latch under `.options noopiter` with each of ngspice's other
@@ -639,7 +534,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_conv_latch_gillespie_op",
@@ -648,7 +542,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_conv_latch_spice3_gmin_op",
@@ -657,7 +550,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_conv_latch_spice3_src_op",
@@ -666,9 +558,18 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m7_conv_latch_tran", &[]),
+    tran("m7_conv_latch_tran"),
+    // M10 0.5h: a 100-junction diode chain (MODEINITJCT start and DEVpnjlim on
+    // every junction), once a `.op` failure where ngspice converges.
+    Supported {
+        name: "diode100_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
     // Nonlinear initial conditions (#99): a diode/RC `uic` start from the
     // `.ic` node vector (the diode's own `ic=` has no effect in C), a BJT
     // flip-flop whose `.ic` selects the state through the forced transient
@@ -680,10 +581,10 @@ const SUPPORTED: &[Supported] = &[
     // operating points the nonlinear 1 ppm bound; decks tighten `reltol` (and
     // the MOS1 deck uses Gear-2) where C's own step error would be close to
     // the bound.
-    tran("m7_ic_diode_uic_tran", &[]),
-    tran("m7_ic_bjt_flipflop_tran", &[]),
-    tran("m7_ic_bjt_off_tran", &[]),
-    tran("m7_ic_mos1_uic_tran", &[]),
+    tran("m7_ic_diode_uic_tran"),
+    tran("m7_ic_bjt_flipflop_tran"),
+    tran("m7_ic_bjt_off_tran"),
+    tran("m7_ic_mos1_uic_tran"),
     Supported {
         name: "m7_ic_latch_nodeset_op",
         kind: AnalysisKind::OperatingPoint,
@@ -691,7 +592,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m7_ic_latch_mos1_ic_op",
@@ -700,15 +600,14 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // Lossless transmission lines (#84, M10 slice 3). The transient decks set
     // each line's `rel`/`abs` so that it lands on a breakpoint wherever a
     // wave changes slope; the echoes are listed per deck (see the decks'
     // comments). Both simulators take the same steps (the port follows
     // dctran.c/traacct.c/tratrunc.c), so `compare::TRAN` holds with margin.
-    // No diffsol variants: the BDF backend refuses delay lines. The AC deck
-    // carries exp(-j omega td) exactly and keeps the linear AC bound.
+    // The AC deck carries exp(-j omega td) exactly and keeps the linear AC
+    // bound.
     Supported {
         name: "m10_tline_tran",
         kind: AnalysisKind::Transient,
@@ -720,7 +619,6 @@ const SUPPORTED: &[Supported] = &[
                 1e-9, 2e-9, 3e-9, 4e-9, 5e-9, 6e-9, 7e-9, 8e-9, 9e-9, 10e-9, 11e-9,
             ],
         },
-        variants: &[],
     },
     Supported {
         name: "m10_tline_ac",
@@ -729,7 +627,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
     Supported {
         name: "m10_tline_pulse",
@@ -740,7 +637,6 @@ const SUPPORTED: &[Supported] = &[
             // the buffer, open end): b + 1.25 + 0.75 and b + 1.25 + 2*0.75.
             offsets: &[1.25e-9, 2e-9, 2.75e-9],
         },
-        variants: &[],
     },
     // Pole-zero analysis (#103): C's Muller search against the port's
     // generalized eigenvalues, compared as unordered root sets under
@@ -766,7 +662,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     Supported {
         name: "m8_tf_controlled",
@@ -775,7 +670,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::DC,
         },
-        variants: &[],
     },
     Supported {
         name: "m8_tf_bjt",
@@ -784,7 +678,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // `.sens` (#102): C's finite-difference sensitivities, every parameter
     // `sgen` perturbs. Linear decks (DC, a hot deck with C's in-place
@@ -798,7 +691,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::SENSITIVITY,
         },
-        variants: &[],
     },
     Supported {
         name: "sens_hot",
@@ -807,7 +699,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "sens_diode",
@@ -816,7 +707,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "sens_ac",
@@ -825,7 +715,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::SENSITIVITY,
         },
-        variants: &[],
     },
     // `.sp` (#105): linear port decks, so the AC bound applies to every
     // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
@@ -837,7 +726,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
     Supported {
         name: "sp_rc",
@@ -846,7 +734,6 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
     // JFET level 1 (#82, M10 slice 1): output/transfer sweeps of both
     // polarities (inverse mode, forward gate bias, RD/RS, area/m, OFF), a
@@ -861,7 +748,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m10_jfet_ac",
@@ -870,9 +756,8 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m10_jfet_tran", &[]),
+    tran("m10_jfet_tran"),
     Supported {
         name: "m10_jfet_temp",
         kind: AnalysisKind::DcSweep,
@@ -880,7 +765,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // JFET level 2, Parker-Skellern (#82, M10 slice 6): output/transfer
     // sweeps (subthreshold, power laws, drain feedback, self-heating,
@@ -898,7 +782,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     Supported {
         name: "m10_jfet2_ac",
@@ -907,9 +790,8 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
-    tran("m10_jfet2_tran", &[]),
+    tran("m10_jfet2_tran"),
     Supported {
         name: "m10_jfet2_temp",
         kind: AnalysisKind::DcSweep,
@@ -917,7 +799,6 @@ const SUPPORTED: &[Supported] = &[
             axis: None,
             tolerance: compare::NONLINEAR,
         },
-        variants: &[],
     },
     // URC lines (#85): urcsetup.c's R/C (and R/D) ladders with C's names. The
     // R/C decks are linear (AC bound, default TRAN); the ISPERL deck runs the
@@ -929,19 +810,17 @@ const SUPPORTED: &[Supported] = &[
             axis: Some("frequency"),
             tolerance: compare::AC,
         },
-        variants: &[],
     },
-    tran("m10_urc_tran", &[]),
-    tran("m10_urc_diode_tran", &[]),
+    tran("m10_urc_tran"),
+    tran("m10_urc_diode_tran"),
 ];
 
-/// Pole-zero registry entry: `compare::POLE_ZERO`, no variants.
+/// Pole-zero registry entry: `compare::POLE_ZERO`.
 const fn pole_zero(name: &'static str) -> Supported {
     Supported {
         name,
         kind: AnalysisKind::PoleZero,
         gate: Gate::Roots(compare::POLE_ZERO),
-        variants: &[],
     }
 }
 /// One plot of a multi-analysis fixture: the analysis type expected at this
@@ -1294,35 +1173,6 @@ const BATCH: &[Batch] = &[
             },
         ],
     },
-    // `.op`, `.ac` and two `.pz` cards (#103): ngspice runs the later `.pz`
-    // (zeros) first, so `pz1` holds the zeros and `pz2` the poles.
-    Batch {
-        name: "multi_analysis_pz",
-        stages: &[
-            Stage {
-                kind: AnalysisKind::Ac,
-                gate: Gate::Points {
-                    axis: Some("frequency"),
-                    tolerance: compare::AC,
-                },
-            },
-            Stage {
-                kind: AnalysisKind::OperatingPoint,
-                gate: Gate::Points {
-                    axis: None,
-                    tolerance: compare::DC,
-                },
-            },
-            Stage {
-                kind: AnalysisKind::PoleZero,
-                gate: Gate::Roots(compare::POLE_ZERO),
-            },
-            Stage {
-                kind: AnalysisKind::PoleZero,
-                gate: Gate::Roots(compare::POLE_ZERO),
-            },
-        ],
-    },
 ];
 
 /// The two plots of one `.noise` card (#100): the spectrum along `frequency`
@@ -1346,11 +1196,26 @@ const fn noise_stages(tolerance: compare::Tolerance) -> [Stage; 2] {
     ]
 }
 
-/// Fixtures whose deck the Rust engine deliberately does not run yet. Empty:
-/// every committed deck, including `subckt_divider`, is verified through its
-/// own production path. A requested excluded fixture still fails the run, so a
-/// future entry cannot be reported as a success by accident.
-const EXCLUDED: &[(&str, &str)] = &[];
+/// Fixtures whose deck the Rust engine does not reproduce. A requested excluded
+/// fixture still fails the run, so an entry cannot be reported as a success by
+/// accident.
+///
+/// `multi_analysis_pz` (`.op`, `.ac` and two `.pz` cards, #103) is excluded
+/// because its pole search is decided by floating-point contraction, not by the
+/// C source. The port of the deflated Muller search (`cktpzstr.c`,
+/// `nipzmeth.c`) reproduces a `-ffp-contract=off` build of the same ngspice
+/// commit bit for bit: both list the zeros, then give up on the poles after 201
+/// trials ("Pole-zero iteration limit reached") and write an empty `pz2` plot.
+/// The committed golden comes from the reference build, whose fused
+/// multiply-adds let the search converge to three poles (the real pole near
+/// -7.97e4 and a complex pair), and its zeros differ from the port's in the last
+/// digits. The golden is unchanged; the AC and operating-point stages of this
+/// deck are covered by the other fixtures.
+const EXCLUDED: &[(&str, &str)] = &[(
+    "multi_analysis_pz",
+    "FMA-dependent: matches -ffp-contract=off C (pole search gives up after 201 trials) \
+     but not the FMA-built golden (3 poles)",
+)];
 
 pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
     let only = match arguments {
@@ -1378,10 +1243,8 @@ fn run_with_registry(
 
 /// The verification loop, parameterized by the fixture registry.
 ///
-/// `EXCLUDED` is empty while every committed deck verifies, so the
-/// `requested unsupported fixture` path has no committed fixture to exercise it;
-/// this signature lets a unit test drive that branch with a synthetic entry
-/// instead of leaving it untested until an excluded fixture reappears.
+/// This signature lets a unit test drive the `requested unsupported fixture`
+/// branch with a synthetic exclusion.
 fn run_with_registries(
     root: &Path,
     only: Option<&str>,
@@ -1463,27 +1326,15 @@ fn run_with_registries(
     }
 }
 
-/// Detail lines for a verified fixture: one per run (the deck's own, then each
-/// variant).
+/// Detail lines for a verified fixture (one run: the deck as written).
 fn fixture_result(root: &Path, path: &Path, fixture: &Supported) -> Result<Vec<String>, String> {
-    let mut details = vec![run_variant(root, path, fixture, None)?];
-    for variant in fixture.variants {
-        let detail = run_variant(root, path, fixture, Some(variant))
-            .map_err(|error| format!("variant {}: {error}", variant.label))?;
-        details.push(format!("[{}] {detail}", variant.label));
-    }
-    Ok(details)
+    Ok(vec![run_deck(root, path, fixture)?])
 }
 
-/// One Rust run of the deck (optionally with a [`Variant`]'s extra request
-/// tokens) compared with the committed C golden. Deck `.option` cards are
-/// applied through `RunConfig`, exactly as for an ordinary run.
-fn run_variant(
-    root: &Path,
-    path: &Path,
-    fixture: &Supported,
-    variant: Option<&Variant>,
-) -> Result<String, String> {
+/// One Rust run of the deck compared with the committed C golden. Deck
+/// `.option` cards are applied through `RunConfig`, exactly as for an ordinary
+/// run.
+fn run_deck(root: &Path, path: &Path, fixture: &Supported) -> Result<String, String> {
     let netlist = Parser::new().parse_file(path).map_err(|e| e.to_string())?;
     if netlist.analyses.len() != 1 {
         return Err(format!(
@@ -1492,8 +1343,7 @@ fn run_variant(
         ));
     }
     let config = RunConfig::from_netlist(&netlist).map_err(|e| e.to_string())?;
-    let extra = variant.map_or(&[][..], |variant| variant.extra);
-    let (request, got) = run_card(&netlist, &config, &netlist.analyses[0], extra)?;
+    let (request, got) = run_card(&netlist, &config, &netlist.analyses[0], &[])?;
     if request.kind != fixture.kind {
         return Err(format!(
             "registry expects {:?}, deck requests {:?}",
@@ -1504,20 +1354,15 @@ fn run_variant(
     if want.plots.len() != 1 {
         return Err(format!("expected one C plot, found {}", want.plots.len()));
     }
-    let gate = match (&fixture.gate, variant) {
-        (Gate::Transient(_), Some(variant)) => Gate::Transient(variant.tolerance),
-        (Gate::Transient(tolerance), None) => Gate::Transient(*tolerance),
-        (Gate::Points { axis, tolerance }, _) => Gate::Points {
+    let gate = match &fixture.gate {
+        Gate::Transient(tolerance) => Gate::Transient(*tolerance),
+        Gate::Points { axis, tolerance } => Gate::Points {
             axis: *axis,
             tolerance: *tolerance,
         },
-        (Gate::Roots(tolerance), _) => Gate::Roots(*tolerance),
-        (Gate::Echoes { tolerance, offsets }, None) => Gate::Echoes {
+        Gate::Roots(tolerance) => Gate::Roots(*tolerance),
+        Gate::Echoes { tolerance, offsets } => Gate::Echoes {
             tolerance: *tolerance,
-            offsets,
-        },
-        (Gate::Echoes { offsets, .. }, Some(variant)) => Gate::Echoes {
-            tolerance: variant.tolerance,
             offsets,
         },
     };
@@ -1640,7 +1485,7 @@ fn run_card_plots(
         .collect();
     let plots = plots
         .into_iter()
-        .map(|plot| project(plot, request.kind, &internal))
+        .map(|plot| project(plot, &internal))
         .collect();
     Ok((request, plots))
 }
@@ -1657,48 +1502,15 @@ fn is_tline_node(name: &str) -> bool {
         })
 }
 
-/// Projects one Rust plot onto C's default save set and naming (see
-/// [`run_card_plots`]).
-fn project(
-    mut got: ngspice_rs::analysis::Plot,
-    kind: AnalysisKind,
-    internal: &[String],
-) -> ngspice_rs::analysis::Plot {
+/// Projects one Rust plot onto C's default save set (see
+/// [`run_card_plots`]). Vector names already follow C, including the DC
+/// sweep scales (`dctrcurv.c`).
+fn project(mut got: ngspice_rs::analysis::Plot, internal: &[String]) -> ngspice_rs::analysis::Plot {
     for column in (0..got.variables.len()).rev() {
         if internal.contains(&got.variables[column].name) {
             got.variables.remove(column);
             for row in &mut got.points {
                 row.remove(column);
-            }
-        }
-    }
-    if kind == AnalysisKind::DcSweep && got.variables.first().is_some_and(|v| v.name == "sweep") {
-        // Rust's public DC scale name predates the nonlinear gate; C wraps its
-        // independent-source scale in the voltage/current naming convention,
-        // and names a temperature scale (and its unit) `temp-sweep`, a
-        // resistance scale `res-sweep` and an `@inst[param]` scale
-        // `param-sweep`, which its rawfile writes as a voltage
-        // (`dctrcurv.c`).
-        let (name, unit) = match got.variables[0].unit.as_str() {
-            "voltage" => ("v(v-sweep)", None),
-            "temperature" => ("temp-sweep", Some("temp-sweep")),
-            "resistance" => ("res-sweep", Some("res-sweep")),
-            "parameter" => ("v(param-sweep)", Some("voltage")),
-            _ => ("i(i-sweep)", None),
-        };
-        got.variables[0].name = name.into();
-        if let Some(unit) = unit {
-            got.variables[0].unit = unit.into();
-        }
-        // A nested sweep's outer value is a Rust-only `sweep(<name>)` column;
-        // C writes every point of a nested `.dc` without it (the outer source
-        // value is still checked through the node voltages and currents).
-        for column in (1..got.variables.len()).rev() {
-            if got.variables[column].name.starts_with("sweep(") {
-                got.variables.remove(column);
-                for row in &mut got.points {
-                    row.remove(column);
-                }
             }
         }
     }
@@ -1840,64 +1652,7 @@ mod tests {
     }
 
     #[test]
-    fn rust_only_variants_select_the_explicit_diffsol_bdf_backend() {
-        let mut with_variants = 0;
-        for fixture in SUPPORTED {
-            for variant in fixture.variants {
-                with_variants += 1;
-                assert_eq!(fixture.kind, AnalysisKind::Transient, "{}", fixture.name);
-                assert_eq!(variant.extra, ["backend=diffsol", "method=bdf"]);
-                // Trap/Gear selections in the deck cannot be combined with BDF
-                // (`RunConfig::request` rejects them); the fixture must not set one.
-                let deck = fs::read_to_string(
-                    workspace_root().join(format!("conformance/netlists/{}.cir", fixture.name)),
-                )
-                .unwrap();
-                assert!(!deck.to_ascii_lowercase().contains("method"), "{deck}");
-            }
-        }
-        assert_eq!(with_variants, 6);
-        // The same deck with a deck-level Gear selection and the BDF tokens is an
-        // explicit error, never a silent downgrade.
-        let temp = Temp::with(&["rc_gear_tran"]);
-        let fixture = Supported {
-            variants: &[DIFFSOL_BDF],
-            ..tran("rc_gear_tran", &[])
-        };
-        let path = temp.0.join("conformance/netlists/rc_gear_tran.cir");
-        let error = fixture_result(&temp.0, &path, &fixture).unwrap_err();
-        assert!(error.contains("variant diffsol-bdf"), "{error}");
-    }
-
-    #[test]
-    fn bdf_variants_of_initialized_state_decks_are_rejected_explicitly() {
-        // The diffsol backend deliberately has no `.ic`/`uic`/`ic=` support, so
-        // the initialized-state fixtures register no BDF variant, and asking for
-        // one is an explicit error rather than a silent downgrade.
-        for name in [
-            "rc_ic_uic_tran",
-            "rlc_ic_uic_tran",
-            "rc_ic_node_tran",
-            "floating_cap_ic_tran",
-        ] {
-            let entry = SUPPORTED.iter().find(|f| f.name == name).unwrap();
-            assert!(entry.variants.is_empty(), "{name}");
-            let path = workspace_root().join(format!("conformance/netlists/{name}.cir"));
-            let fixture = Supported {
-                variants: &[DIFFSOL_BDF],
-                ..tran(name, &[])
-            };
-            let error = fixture_result(&workspace_root(), &path, &fixture).unwrap_err();
-            assert!(error.contains("variant diffsol-bdf"), "{name}: {error}");
-            assert!(
-                error.contains("unsupported") || error.contains("uic") || error.contains(".ic"),
-                "{name}: {error}"
-            );
-        }
-    }
-
-    #[test]
-    fn corrupted_transient_goldens_fail_both_the_companion_and_bdf_runs() {
+    fn corrupted_transient_goldens_fail_the_companion_run() {
         let temp = Temp::with(&["floating_cap_tran"]);
         let raw = temp.0.join("conformance/golden/floating_cap_tran.raw");
         let original = fs::read_to_string(&raw).unwrap();
@@ -1926,18 +1681,12 @@ mod tests {
         fs::write(&raw, lines.join("\n") + "\n").unwrap();
         let error = run(&temp.0, Some("floating_cap_tran")).unwrap_err();
         assert!(error.contains("transient mismatch"), "{error}");
-        // The BDF variant alone also detects it.
-        let path = temp.0.join("conformance/netlists/floating_cap_tran.cir");
-        let fixture = tran("floating_cap_tran", &[]);
-        assert!(run_variant(&temp.0, &path, &fixture, Some(&DIFFSOL_BDF)).is_err());
     }
 
     #[test]
     fn requested_unsupported_unknown_and_bad_options_fail() {
-        // `EXCLUDED` is empty now that every committed deck is verified. Drive
-        // the excluded branch with a synthetic entry so the
-        // `requested unsupported fixture` report stays tested, rather than
-        // waiting for a future excluded fixture to exercise it.
+        // Drive the excluded branch with a synthetic entry as well as the
+        // committed exclusions below.
         let error = run_with_registry(
             &workspace_root(),
             Some("rc_divider"),

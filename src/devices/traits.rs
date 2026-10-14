@@ -87,6 +87,9 @@ pub struct MutualTerm {
     pub row: usize,
     /// Mutual inductance in henries (may be negative).
     pub inductance: Real,
+    /// The coupled inductor's `ic=` (C `INDinitCond`, zero when absent),
+    /// which `INDload` uses for the mutual flux of a `uic` first step.
+    pub initial: Real,
 }
 
 /// The inductance of an inductor, as mutual coupling sees it
@@ -99,6 +102,8 @@ pub struct InductanceValue {
     /// `INDinduct`, after temperature and scale but before dividing by the
     /// multiplicity `m`).
     pub coupling_base: Real,
+    /// The `ic=` initial current (C `INDinitCond`, zero when absent).
+    pub initial: Real,
 }
 
 /// What a K (mutual inductance) device couples: every pair of the named
@@ -163,8 +168,9 @@ impl AnalysisMode {
 /// Maps circuit unknowns to MNA matrix rows.
 ///
 /// Ground is not an unknown: it is the reference and its row is eliminated.
-/// Branch currents are unknowns too, and get rows after every node, in the order
-/// the devices were bound.
+/// Branch currents are unknowns too, and get rows after the nodes; the circuit
+/// numbers them, and device-internal nodes, in C's setup order
+/// ([`crate::devices::Circuit::rebuild_unknowns`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MnaUnknowns {
     node_rows: Vec<Option<usize>>,
@@ -187,11 +193,34 @@ impl MnaUnknowns {
     /// The whole mapping is rebuilt, so call this after the circuit's nodes are
     /// all known.
     pub fn rebuild(&mut self, nodes: &NodeTable) {
+        self.rebuild_deferring(nodes, |_| false);
+    }
+
+    /// Like [`Self::rebuild`], but leaves the nodes `deferred` selects without
+    /// a row, for [`Self::assign_deferred`] to number later. C numbers the
+    /// nodes a device creates in `DEVsetup` (`CKTmkVolt`) after every parsed
+    /// node, interleaved with branch currents (`CKTmkCur`).
+    pub fn rebuild_deferring(&mut self, nodes: &NodeTable, deferred: impl Fn(NodeId) -> bool) {
         self.node_rows.clear();
         self.next_row = 0;
         for node in nodes.nodes() {
-            self.push(node);
+            if deferred(node.id) {
+                self.node_rows.push(None);
+            } else {
+                self.push(node);
+            }
         }
+    }
+
+    /// Numbers a node [`Self::rebuild_deferring`] deferred with the next free
+    /// row and returns its row. A node that already has a row keeps it.
+    pub fn assign_deferred(&mut self, node: NodeId) -> Option<usize> {
+        let slot = self.node_rows.get_mut(node.index())?;
+        if slot.is_none() {
+            *slot = Some(self.next_row);
+            self.next_row += 1;
+        }
+        *slot
     }
 
     fn push(&mut self, node: &Node) -> Option<usize> {
@@ -222,6 +251,7 @@ impl MnaUnknowns {
 
     /// The matrix row for a node, or `None` for ground.
     #[must_use]
+    #[inline(always)]
     pub fn node_row(&self, node: NodeId) -> Option<usize> {
         self.node_rows.get(node.index()).copied().flatten()
     }
@@ -254,6 +284,42 @@ impl MnaUnknowns {
 impl Default for MnaUnknowns {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// What a device's convergence test ([`Device::convergence_test`]) sees.
+#[derive(Debug)]
+pub struct ConvergenceContext<'a> {
+    /// Where the unknowns live.
+    pub unknowns: &'a MnaUnknowns,
+    /// The new iterate (C `CKTrhs`).
+    pub solution: &'a Vector,
+    /// The iterate the last load used (C `CKTrhsOld`).
+    pub previous: &'a Vector,
+    /// Branch rows of [`Device::controlling_sources`], in order.
+    pub controls: &'a [usize],
+    /// This device's slots of the last load's trial (C `CKTstate0`).
+    pub states: &'a [Real],
+    /// Temperatures, `gmin` and frequency of the solve.
+    pub model_context: &'a crate::devices::ModelContext,
+    /// The time of a transient solve, zero otherwise (C `CKTtime`).
+    pub time: Real,
+    /// C `CKTreltol`.
+    pub reltol: Real,
+    /// C `CKTabstol`.
+    pub abstol: Real,
+    /// C `CKTvoltTol`.
+    pub vntol: Real,
+}
+
+impl ConvergenceContext<'_> {
+    /// The new iterate's value at a node, zero at ground.
+    #[must_use]
+    pub fn voltage(&self, node: NodeId) -> Real {
+        self.unknowns
+            .node_row(node)
+            .and_then(|row| self.solution.get(row))
+            .unwrap_or(0.0)
     }
 }
 
@@ -295,6 +361,12 @@ pub struct StampContext<'a> {
     pub states: DeviceState<'a>,
     /// Source-forcing context of a companion transient load; `None` otherwise.
     pub forcing: Option<Forcing>,
+    /// C's `CKTsrcFact`, [`crate::devices::ModelContext::source_factor`].
+    pub source_factor: Real,
+    /// C's running `value` in `VSRCload`: the value the previous voltage
+    /// source in load order loaded (0 before the first). Each independent
+    /// voltage source writes its own; a PORT adds its cosine to it.
+    pub voltage_source_value: &'a mut Real,
 }
 
 impl StampContext<'_> {
@@ -338,6 +410,7 @@ impl StampContext<'_> {
     ///
     /// [`crate::primitives::SpiceError::Numerical`] if a row is out of range, which
     /// would be a bug in the caller rather than bad input.
+    #[inline(always)]
     pub fn stamp(&mut self, row: NodeId, col: NodeId, value: Real) -> SpiceResult<()> {
         let (Some(row), Some(col)) = (self.unknowns.node_row(row), self.unknowns.node_row(col))
         else {
@@ -346,11 +419,48 @@ impl StampContext<'_> {
         self.matrix.add(row, col, value)
     }
 
+    /// [`Self::stamp`] for each entry in order, for a device whose element
+    /// positions are the same on every load (C stamps them through the
+    /// pointers `DEVsetup` took with `TSTALLOC`). Once a load has verified
+    /// the batch against the matrix's recorded stamp sequence, later loads
+    /// add the values by element ([`SparseMatrix::add_fixed`]); the matrix
+    /// receives the same additions in the same order either way.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::stamp`].
+    #[inline]
+    pub fn stamp_fixed<const N: usize>(
+        &mut self,
+        entries: [(NodeId, NodeId, Real); N],
+    ) -> SpiceResult<()> {
+        if self.matrix.add_fixed(&entries.map(|(_, _, value)| value)) {
+            return Ok(());
+        }
+        let start = self.matrix.fixed_start();
+        let mut mask = 0;
+        for (k, (row, col, value)) in entries.into_iter().enumerate() {
+            if let (Some(row), Some(col)) =
+                (self.unknowns.node_row(row), self.unknowns.node_row(col))
+            {
+                // Batches longer than a mask holds are never verified.
+                mask |= u32::try_from(k)
+                    .ok()
+                    .and_then(|k| 1u64.checked_shl(k))
+                    .unwrap_or(0);
+                self.matrix.add(row, col, value)?;
+            }
+        }
+        self.matrix.verify_fixed(start, N, mask);
+        Ok(())
+    }
+
     /// Adds `value` to `b[row]`, ignoring ground.
     ///
     /// # Errors
     ///
     /// [`crate::primitives::SpiceError::Numerical`] if the row is out of range.
+    #[inline(always)]
     pub fn stamp_rhs(&mut self, row: NodeId, value: Real) -> SpiceResult<()> {
         let Some(row) = self.unknowns.node_row(row) else {
             return Ok(());
@@ -360,6 +470,7 @@ impl StampContext<'_> {
 
     /// The present solution value at a node, or zero at ground.
     #[must_use]
+    #[inline(always)]
     pub fn node_voltage(&self, node: NodeId) -> Real {
         self.unknowns
             .node_row(node)
@@ -464,11 +575,6 @@ pub trait Device: fmt::Debug {
         None
     }
 
-    /// Whether this voltage source inherits its predecessor DC value (VSRC PORT without DC).
-    fn dc_accumulates_predecessor(&self) -> bool {
-        false
-    }
-
     /// Binds the previous voltage-source value in C VSRCload's reverse-deck
     /// traversal. Non-voltage devices return None; PORT adds to that value.
     /// # Errors
@@ -535,8 +641,8 @@ pub trait Device: fmt::Debug {
     /// device reads its history while stamping
     /// ([`crate::devices::DeviceState::delay_history`]), and the companion
     /// transient driver records accepted samples, device breakpoints and step
-    /// bounds through it. Backends that cannot integrate a delay (diffsol
-    /// BDF) must refuse circuits containing one.
+    /// bounds through it. Any future backend that cannot integrate a delay
+    /// must refuse circuits containing one.
     fn delay_line(&self) -> Option<&dyn crate::devices::delay::DelayLine> {
         None
     }
@@ -610,6 +716,42 @@ pub trait Device: fmt::Debug {
     /// Device-specific failures, and [`crate::primitives::SpiceError::NotYetPorted`] for
     /// devices that have not been ported.
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()>;
+
+    /// C's `DEVconvTest`, run by `NIconvTest` (`CKTconvTest`) after the node
+    /// voltages and branch currents of a Newton pass converged: `true` when
+    /// this device has not converged. Only devices whose C type has a
+    /// convergence test override it; for the diode and BJT C's test passes
+    /// whenever the load did not already report nonconvergence (it measures
+    /// limiting at the load point), so they rely on the load's flag.
+    ///
+    /// # Errors
+    /// An evaluation failure (C `E_BADPARM`).
+    fn convergence_test(&self, _context: &ConvergenceContext<'_>) -> SpiceResult<bool> {
+        Ok(false)
+    }
+
+    /// The C device type whose `DEVsetup`/`DEVload` handles this instance,
+    /// which places it in [`crate::devices::setup`]'s traversal. The default
+    /// maps the designator; devices whose type depends on the model (MOS
+    /// levels, the lowered behavioural forms) override it.
+    fn c_device_type(&self) -> crate::devices::setup::CDeviceType {
+        crate::devices::setup::CDeviceType::of_designator(self.designator())
+            .unwrap_or(crate::devices::setup::CDeviceType::CodeModel)
+    }
+
+    /// Allocates this device's matrix elements in its C `DEVsetup`
+    /// `TSTALLOC` order, including elements whose value may be zero in some
+    /// analyses. Returns `false` when the device does not declare them, in
+    /// which case its elements are learned from its first load and appended.
+    ///
+    /// # Errors
+    /// Missing branch or control bindings.
+    fn setup_matrix(
+        &self,
+        _setup: &mut crate::devices::setup::MatrixSetup<'_>,
+    ) -> SpiceResult<bool> {
+        Ok(false)
+    }
 
     /// Assembles immutable, state-independent linear equations.
     ///
@@ -749,6 +891,23 @@ pub trait Device: fmt::Debug {
     /// `None` (the default) for every other device.
     fn input_source(&self) -> Option<crate::devices::noise::InputSource> {
         None
+    }
+
+    /// The state slots C's `MODEINITSMSIG` load writes at the operating
+    /// point that later analyses of the deck read back (C keeps one
+    /// `CKTstate0` for the whole deck): `slots` is this device's window of
+    /// the carried state vector ([`crate::devices::Circuit::record_small_signal_state`]).
+    /// The default writes nothing.
+    ///
+    /// # Errors
+    /// Invalid bias physics.
+    fn small_signal_state(
+        &self,
+        context: &crate::devices::distortion::DistortionContext<'_>,
+        slots: &mut [Real],
+    ) -> SpiceResult<()> {
+        let _ = (context, slots);
+        Ok(())
     }
 
     /// The device's `.disto` nonlinearities at the operating point

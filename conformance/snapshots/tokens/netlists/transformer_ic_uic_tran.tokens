@@ -41,7 +41,7 @@ card 5 @netlists/transformer_ic_uic_tran.cir:10:1 lines=10-10 continuations=0
   token 1 10:1 word "k1"
   token 2 10:4 word "l1"
   token 3 10:7 word "l2"
-  token 4 10:10 number "0.7" value=7e-1
+  token 4 10:10 number "0.7" value=7.000000000000001e-1
 card 6 @netlists/transformer_ic_uic_tran.cir:11:1 lines=11-11 continuations=0
   raw: ".options method=gear"
   kind: dot(.options)

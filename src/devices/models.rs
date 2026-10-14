@@ -460,6 +460,12 @@ pub struct ModelContext {
     /// (C `CKTomega / 2 pi`): the AC frequency while an AC analysis re-solves
     /// the operating point for a frequency-dependent circuit, 0 otherwise.
     pub frequency: Real,
+    /// SPARSE pivot thresholds for every circuit matrix a load or assembly
+    /// fills (C `CKTpivotAbsTol`/`CKTpivotRelTol`, `.option pivtol`/`pivrel`).
+    pub pivot: crate::maths::PivotTolerances,
+    /// C's `CKTsrcFact`: the source-stepping factor independent sources
+    /// scale their loaded value by (1 outside source stepping).
+    pub source_factor: Real,
 }
 
 /// ngspice's default junction `gmin` (`cktntask.c`: `TSKgmin = 1e-12`).
@@ -482,7 +488,24 @@ impl ModelContext {
             gmin: DEFAULT_GMIN,
             frequency: 0.,
             spice3_noise: false,
+            pivot: crate::maths::PivotTolerances::DEFAULT,
+            source_factor: 1.,
         }
+    }
+
+    /// This context with the matrix pivot thresholds replaced (validated on
+    /// use, see [`crate::maths::PivotTolerances::validate`]).
+    #[must_use]
+    pub const fn with_pivot_tolerances(mut self, pivot: crate::maths::PivotTolerances) -> Self {
+        self.pivot = pivot;
+        self
+    }
+
+    /// This context with C's `CKTsrcFact` replaced ([`Self::source_factor`]).
+    #[must_use]
+    pub const fn with_source_factor(mut self, factor: Real) -> Self {
+        self.source_factor = factor;
+        self
     }
 
     /// This context with the `hertz` frequency replaced (validated on use).
@@ -566,7 +589,9 @@ impl ModelContext {
                 ),
             ));
         }
-        Ok(())
+        self.pivot
+            .validate()
+            .map_err(|message| SpiceError::parse(location.clone(), message))
     }
 }
 

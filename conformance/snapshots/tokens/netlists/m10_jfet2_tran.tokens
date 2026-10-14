@@ -17,7 +17,7 @@ card 2 @netlists/m10_jfet2_tran.cir:3:1 lines=3-3 continuations=0
   token 4 3:10 word "sin"
   token 5 3:13 lparen "("
   token 6 3:14 number "-0.8" value=-8e-1
-  token 7 3:19 number "0.7" value=7e-1
+  token 7 3:19 number "0.7" value=7.000000000000001e-1
   token 8 3:23 number "5meg" value=5e6
   token 9 3:27 rparen ")"
 card 3 @netlists/m10_jfet2_tran.cir:4:1 lines=4-4 continuations=0
@@ -171,7 +171,7 @@ card 11 @netlists/m10_jfet2_tran.cir:12:1 lines=12-12 continuations=0
   token 22 12:57 number "0.9" value=9e-1
   token 23 12:61 word "fc"
   token 24 12:63 equals "="
-  token 25 12:64 number "0.3" value=3e-1
+  token 25 12:64 number "0.3" value=3.0000000000000004e-1
   token 26 12:68 word "taug"
   token 27 12:72 equals "="
   token 28 12:73 number "50n" value=5.0000000000000004e-8
@@ -199,7 +199,7 @@ card 13 @netlists/m10_jfet2_tran.cir:14:1 lines=14-14 continuations=0
   token 2 14:7 number "2n" value=2e-9
   token 3 14:10 number "1u" value=1e-6
   token 4 14:13 number "0" value=0e0
-  token 5 14:15 number "0.25n" value=2.5e-10
+  token 5 14:15 number "0.25n" value=2.4999999999999996e-10
 card 14 @netlists/m10_jfet2_tran.cir:15:1 lines=15-15 continuations=0
   raw: ".end"
   kind: dot(.end)

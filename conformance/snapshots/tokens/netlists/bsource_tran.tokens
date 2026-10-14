@@ -36,11 +36,11 @@ card 2 @netlists/bsource_tran.cir:8:1 lines=8-8 continuations=0
   token 23 8:68 comma ","
   token 24 8:69 number "0" value=0e0
   token 25 8:70 comma ","
-  token 26 8:72 number "0.3m" value=3e-4
+  token 26 8:72 number "0.3m" value=3.0000000000000003e-4
   token 27 8:76 comma ","
   token 28 8:77 number "0.5" value=5e-1
   token 29 8:80 comma ","
-  token 30 8:82 number "0.6m" value=6e-4
+  token 30 8:82 number "0.6m" value=6.000000000000001e-4
   token 31 8:86 comma ","
   token 32 8:87 number "0.5" value=5e-1
   token 33 8:90 comma ","

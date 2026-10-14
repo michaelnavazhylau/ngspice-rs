@@ -300,6 +300,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M10 transmission-line decks (#84) are gated by `xtask golden verify`,
     // `tests/tline.rs` and the opt-in `tests/c_tline_reference.rs`.
     on_disk.retain(|name| !name.starts_with("m10_tline_"));
+    // The M10 0.5h diode-chain deck is gated by `xtask golden verify` and
+    // `tests/convergence.rs`.
+    on_disk.retain(|name| name != "diode100_op");
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

@@ -304,35 +304,24 @@ fn nonlinear_sp_noise_matches_c() {
 
 #[test]
 #[ignore = "requires NGSPICE_BIN"]
-fn power_port_load_order_matches_c_and_both_transient_backends() {
+fn power_port_load_order_matches_c() {
     let body = "PORT waveform\nvnon n 0 freq 10\nv1 a 0 portnum 1 pwr 2m freq 2k phase 73\nv2 b 0 dc 0.2 portnum 2 pwr 1m freq 1k\nvbase base 0 pwl(0 0.2 50u 0.3 100u 0.3)\nrn n 0 100\nr1 a 0 50\nr2 b 0 50\nrb base 0 100\nc1 a 0 1u\n";
     compare("power-port-op", &format!("{body}.op\n.end\n"), false);
     let deck = format!("{body}.tran 1u 100u\n.end\n");
-    for backend in ["", " backend=diffsol method=bdf"] {
-        let rust_deck = deck.replace(".tran 1u 100u", &format!(".tran 1u 100u{backend}"));
-        let (got, want) = run_both_decks(
-            if backend.is_empty() {
-                "power-companion"
-            } else {
-                "power-bdf"
-            },
-            &deck,
-            &rust_deck,
-        );
-        for raw in [&got, &want] {
-            let plot = &raw.plots[0].plot;
-            for point in 0..plot.point_count() {
-                let t = plot.value("time", point).unwrap().re;
-                let baseline = 0.2 + 2000. * t.min(50e-6);
-                let two = baseline + 0.2_f64.sqrt() * (2. * std::f64::consts::PI * 1e3 * t).cos();
-                let one = two + 0.4_f64.sqrt() * (2. * std::f64::consts::PI * 2e3 * t).cos();
-                for (name, expected) in [("v(v2#res)", two), ("v(v1#res)", one), ("v(n)", one)] {
-                    let actual = plot.value(name, point).unwrap().re;
-                    assert!(
-                        (actual - expected).abs() < 1e-9,
-                        "{backend} {name} t={t}: {actual} != {expected}"
-                    );
-                }
+    let (got, want) = run_both_decks("power-companion", &deck, &deck);
+    for raw in [&got, &want] {
+        let plot = &raw.plots[0].plot;
+        for point in 0..plot.point_count() {
+            let t = plot.value("time", point).unwrap().re;
+            let baseline = 0.2 + 2000. * t.min(50e-6);
+            let two = baseline + 0.2_f64.sqrt() * (2. * std::f64::consts::PI * 1e3 * t).cos();
+            let one = two + 0.4_f64.sqrt() * (2. * std::f64::consts::PI * 2e3 * t).cos();
+            for (name, expected) in [("v(v2#res)", two), ("v(v1#res)", one), ("v(n)", one)] {
+                let actual = plot.value(name, point).unwrap().re;
+                assert!(
+                    (actual - expected).abs() < 1e-9,
+                    "{name} t={t}: {actual} != {expected}"
+                );
             }
         }
     }
