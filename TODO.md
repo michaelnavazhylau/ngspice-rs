@@ -349,7 +349,11 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   straight into the rawfile (`Analysis::run_into`, `PointSink`,
   `RawFileWriter`); `ladder100_tran_long` peak RSS 914 MB → 5.8 MB (C 5.1 MB),
   bytes unchanged. `.ac` is not streamed yet.
-- [ ] Wave 0.5e: MOS device-load cost (see M10.md).
+- [x] Wave 0.5e, MOS device-load cost: cached MOS temperature derivation,
+  allocation-free truncation control, inlined state/stamp helpers and fixed
+  stamp batches added by element (`StampContext::stamp_fixed`,
+  `SparseMatrix::add_fixed`); `inv201_tran` 5.4x → 2.6x C wall time
+  (102G → 44G instructions), rawfiles byte-identical.
 
 - [x] JFET level 1 (#82, slice 1, `work/m10-jfet`): `J` grammar (`inp2j.c`),
   `njf`/`pjf` model family with level 0/1 selection (level 2 since slice 6;

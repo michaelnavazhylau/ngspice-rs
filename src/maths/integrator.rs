@@ -54,6 +54,7 @@ impl ChargeHistory {
     ///
     /// # Errors
     /// More points than the highest integration order can use.
+    #[inline]
     pub fn push(&mut self, value: Real) -> SpiceResult<()> {
         let slot = self
             .values
@@ -187,12 +188,25 @@ fn numerical(message: impl Into<String>) -> SpiceError {
     }
 }
 
+#[inline(always)]
 fn finite(value: Real, what: &str) -> SpiceResult<Real> {
     if value.is_finite() {
         Ok(value)
     } else {
-        Err(numerical(format!("{what} is not finite")))
+        Err(not_finite(what))
     }
+}
+
+#[cold]
+#[inline(never)]
+fn not_finite(what: &str) -> SpiceError {
+    numerical(format!("{what} is not finite"))
+}
+
+#[cold]
+#[inline(never)]
+fn cold_numerical(message: &str) -> SpiceError {
+    numerical(message)
 }
 
 /// Accepted step sizes, most recent first — C `CKTdeltaOld[1..]`.
@@ -510,6 +524,7 @@ impl Coefficients {
     /// trial one: the order for Gear and trapezoidal order 1, one for
     /// trapezoidal order 2.
     #[must_use]
+    #[inline]
     pub fn charge_history_len(&self) -> usize {
         if self.needs_previous_derivative() {
             1
@@ -520,8 +535,9 @@ impl Coefficients {
 
     /// True when [`Self::integrate`] needs the previous accepted derivative.
     #[must_use]
+    #[inline]
     pub fn needs_previous_derivative(&self) -> bool {
-        self.method == IntegrationMethod::Trapezoidal && self.order == 2
+        matches!(self.method, IntegrationMethod::Trapezoidal) && self.order == 2
     }
 
     /// Integrates one element, as `NIintegrate` does.
@@ -535,6 +551,7 @@ impl Coefficients {
     ///
     /// [`SpiceError::Numerical`] for a short history, a missing derivative,
     /// nonfinite inputs/capacitance or nonfinite results.
+    #[inline]
     pub fn integrate(
         &self,
         charge: &[Real],
@@ -542,21 +559,18 @@ impl Coefficients {
         capacitance: Real,
     ) -> SpiceResult<Companion> {
         let needed = self.charge_history_len() + 1;
-        if charge.len() < needed {
-            return Err(numerical(format!(
-                "order {} {} integration needs {needed} charge values, got {}",
-                self.order,
-                self.method.as_str(),
-                charge.len()
-            )));
-        }
-        let charge = &charge[..needed];
+        let Some(charge) = charge.get(..needed) else {
+            return Err(self.short_history(needed, charge.len()));
+        };
         if charge.iter().any(|q| !q.is_finite()) || !capacitance.is_finite() {
-            return Err(numerical("nonfinite charge history or capacitance"));
+            return Err(cold_numerical("nonfinite charge history or capacitance"));
         }
         let derivative = if self.needs_previous_derivative() {
-            let previous = previous_derivative
-                .ok_or_else(|| numerical("trapezoidal order 2 needs the previous derivative"))?;
+            let Some(previous) = previous_derivative else {
+                return Err(cold_numerical(
+                    "trapezoidal order 2 needs the previous derivative",
+                ));
+            };
             finite(previous, "previous derivative")?;
             -previous * self.ag[1] + self.ag[0] * (charge[0] - charge[1])
         } else if self.method == IntegrationMethod::Trapezoidal {
@@ -577,6 +591,17 @@ impl Coefficients {
             conductance: finite(self.ag[0] * capacitance, "companion conductance")?,
             current: finite(derivative - self.ag[0] * charge[0], "companion current")?,
         })
+    }
+
+    /// [`Self::integrate`]'s error for a history shorter than `needed`.
+    #[cold]
+    #[inline(never)]
+    fn short_history(&self, needed: usize, got: usize) -> SpiceError {
+        numerical(format!(
+            "order {} {} integration needs {needed} charge values, got {got}",
+            self.order,
+            self.method.as_str(),
+        ))
     }
 
     /// `CKTdelta / CKTdeltaOld[1]`, the ratio `DEVpred` extrapolates with.

@@ -38,7 +38,7 @@ pub use equilibration::{
 pub use integrator::{
     Coefficients, Companion, IntegrationMethod, StepHistory, TruncationTolerances,
 };
-pub use sparse::{ElementId, Pattern, SparseMatrix, Triplet};
+pub use sparse::{ElementId, FixedStamps, Pattern, SparseMatrix, Triplet};
 
 /// The C reference for the dense solver, used in `NotYetPorted` errors.
 pub const C_REFERENCE_DENSE: &str = "src/maths/dense/";

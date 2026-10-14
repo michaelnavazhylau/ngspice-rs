@@ -392,6 +392,9 @@ struct Driver<'a> {
     uic: bool,
     /// `true` for rows that carry branch currents (`abstol`), else `vntol`.
     branch_row: Vec<bool>,
+    /// Each device's state rows and the absolute state index of every
+    /// charge it hands `CKTterr` (`truncation_slots`), fixed for the run.
+    truncation: Vec<(std::ops::Range<usize>, Vec<usize>)>,
     stats: TransientStats,
 }
 
@@ -483,6 +486,22 @@ fn companion(
             branch_row[row] = true;
         }
     }
+    let truncation = circuit
+        .devices()
+        .iter()
+        .enumerate()
+        .map(|(index, device)| {
+            let rows = circuit
+                .state_rows(index)
+                .ok_or_else(|| failure("missing state range"))?;
+            let bases = device
+                .truncation_slots()
+                .into_iter()
+                .map(|slot| rows.start + slot)
+                .collect();
+            Ok((rows, bases))
+        })
+        .collect::<SpiceResult<_>>()?;
     let driver = Driver {
         circuit,
         system: &system,
@@ -495,6 +514,7 @@ fn companion(
         hints,
         uic: request.uic,
         branch_row,
+        truncation,
         stats: TransientStats::default(),
     };
     driver.run(sink)
@@ -1080,14 +1100,8 @@ impl Driver<'_> {
         };
         let order = usize::from(coefficients.order());
         let mut limit = Real::INFINITY;
-        for (index, device) in self.circuit.devices().iter().enumerate() {
-            for slot in device.truncation_slots() {
-                let base = self
-                    .circuit
-                    .state_rows(index)
-                    .ok_or_else(|| failure("missing state range"))?
-                    .start
-                    + slot;
+        for (device, (rows, bases)) in self.circuit.devices().iter().zip(&self.truncation) {
+            for &base in bases {
                 let accepted = |age: usize, offset: usize| {
                     self.history
                         .accepted(age)
@@ -1095,28 +1109,29 @@ impl Driver<'_> {
                         .copied()
                         .ok_or_else(|| failure("accepted state history is too short"))
                 };
-                let mut charge = vec![trial.values()[base]];
-                for age in 1..=order + 1 {
-                    charge.push(accepted(age, 0)?);
+                // The trial charge, then `order + 1` accepted ones.
+                let mut storage = [0.0; IntegrationMethod::MAX_GEAR_ORDER as usize + 2];
+                let charge = storage
+                    .get_mut(..order + 2)
+                    .ok_or_else(|| failure("integration order out of range"))?;
+                charge[0] = trial.values()[base];
+                for (age, value) in charge.iter_mut().enumerate().skip(1) {
+                    *value = accepted(age, 0)?;
                 }
                 let derivative = [trial.values()[base + 1], accepted(1, 1)?];
-                limit = limit.min(coefficients.truncation_timestep(
-                    &charge,
-                    derivative,
-                    &tolerances,
-                )?);
+                limit =
+                    limit.min(coefficients.truncation_timestep(charge, derivative, &tolerances)?);
             }
             // Discrete-state bounds (`swtrunc.c`), from the same trial.
-            let rows = self
-                .circuit
-                .state_rows(index)
-                .ok_or_else(|| failure("missing state range"))?;
             if !rows.is_empty() {
                 let bound = device.timestep_limit(&crate::devices::TruncationContext {
                     trial: trial
                         .slice(rows.clone())
                         .ok_or_else(|| failure("trial state is too short"))?,
-                    accepted: self.history.accepted(1).and_then(|vector| vector.get(rows)),
+                    accepted: self
+                        .history
+                        .accepted(1)
+                        .and_then(|vector| vector.get(rows.clone())),
                     dt: coefficients.dt(),
                 })?;
                 if let Some(bound) = bound {

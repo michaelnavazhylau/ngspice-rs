@@ -251,6 +251,7 @@ impl MnaUnknowns {
 
     /// The matrix row for a node, or `None` for ground.
     #[must_use]
+    #[inline(always)]
     pub fn node_row(&self, node: NodeId) -> Option<usize> {
         self.node_rows.get(node.index()).copied().flatten()
     }
@@ -409,6 +410,7 @@ impl StampContext<'_> {
     ///
     /// [`crate::primitives::SpiceError::Numerical`] if a row is out of range, which
     /// would be a bug in the caller rather than bad input.
+    #[inline(always)]
     pub fn stamp(&mut self, row: NodeId, col: NodeId, value: Real) -> SpiceResult<()> {
         let (Some(row), Some(col)) = (self.unknowns.node_row(row), self.unknowns.node_row(col))
         else {
@@ -417,11 +419,48 @@ impl StampContext<'_> {
         self.matrix.add(row, col, value)
     }
 
+    /// [`Self::stamp`] for each entry in order, for a device whose element
+    /// positions are the same on every load (C stamps them through the
+    /// pointers `DEVsetup` took with `TSTALLOC`). Once a load has verified
+    /// the batch against the matrix's recorded stamp sequence, later loads
+    /// add the values by element ([`SparseMatrix::add_fixed`]); the matrix
+    /// receives the same additions in the same order either way.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::stamp`].
+    #[inline]
+    pub fn stamp_fixed<const N: usize>(
+        &mut self,
+        entries: [(NodeId, NodeId, Real); N],
+    ) -> SpiceResult<()> {
+        if self.matrix.add_fixed(&entries.map(|(_, _, value)| value)) {
+            return Ok(());
+        }
+        let start = self.matrix.fixed_start();
+        let mut mask = 0;
+        for (k, (row, col, value)) in entries.into_iter().enumerate() {
+            if let (Some(row), Some(col)) =
+                (self.unknowns.node_row(row), self.unknowns.node_row(col))
+            {
+                // Batches longer than a mask holds are never verified.
+                mask |= u32::try_from(k)
+                    .ok()
+                    .and_then(|k| 1u64.checked_shl(k))
+                    .unwrap_or(0);
+                self.matrix.add(row, col, value)?;
+            }
+        }
+        self.matrix.verify_fixed(start, N, mask);
+        Ok(())
+    }
+
     /// Adds `value` to `b[row]`, ignoring ground.
     ///
     /// # Errors
     ///
     /// [`crate::primitives::SpiceError::Numerical`] if the row is out of range.
+    #[inline(always)]
     pub fn stamp_rhs(&mut self, row: NodeId, value: Real) -> SpiceResult<()> {
         let Some(row) = self.unknowns.node_row(row) else {
             return Ok(());
@@ -431,6 +470,7 @@ impl StampContext<'_> {
 
     /// The present solution value at a node, or zero at ground.
     #[must_use]
+    #[inline(always)]
     pub fn node_voltage(&self, node: NodeId) -> Real {
         self.unknowns
             .node_row(node)

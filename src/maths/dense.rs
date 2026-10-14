@@ -349,19 +349,14 @@ impl Vector {
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] when the index is out of range.
+    #[inline(always)]
     pub fn add_to(&mut self, index: usize, value: Real) -> SpiceResult<()> {
         match self.data.get_mut(index) {
             Some(slot) => {
                 *slot += value;
                 Ok(())
             }
-            None => Err(SpiceError::Numerical {
-                context: "dense vector".to_owned(),
-                message: format!(
-                    "index {index} is out of range for length {}",
-                    self.data.len()
-                ),
-            }),
+            None => Err(out_of_range(index, self.data.len())),
         }
     }
 
@@ -410,6 +405,16 @@ impl Vector {
     #[must_use]
     pub fn is_finite(&self) -> bool {
         self.data.iter().all(|value| value.is_finite())
+    }
+}
+
+/// [`Vector::add_to`]'s error, out of its hot path.
+#[cold]
+#[inline(never)]
+fn out_of_range(index: usize, len: usize) -> SpiceError {
+    SpiceError::Numerical {
+        context: "dense vector".to_owned(),
+        message: format!("index {index} is out of range for length {len}"),
     }
 }
 

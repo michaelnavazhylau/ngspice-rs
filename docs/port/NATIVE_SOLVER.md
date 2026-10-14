@@ -40,7 +40,12 @@ configuration matches ngspice's `spconfig.h`: `TRANSLATE`, `EXPANDABLE`,
   creation order, and Markowitz ties are broken by it, so this order plus
   C's unknown numbering (`Circuit::rebuild_unknowns`: node voltages, then
   each device's internal nodes and branch currents in setup order) is what
-  makes pivot sequences, and hence results, bit-identical to C.
+  makes pivot sequences, and hence results, bit-identical to C. Each load
+  replays the pattern's recorded stamp sequence (per device) instead of
+  looking elements up; a device with a fixed element list (the MOSFETs,
+  `StampContext::stamp_fixed`) adds its values by element once a load has
+  verified the list against that sequence, as C stamps through its
+  `TSTALLOC` pointers.
 - **Newton (`NIiter`).** `solve_ni` performs one load-then-solve step. A
   pattern never ordered is MNA-preordered once (`SMPpreOrder`). With
   `reorder` (`NISHOULDREORDER`) it calls `spOrderAndFactor`, which keeps the
@@ -145,8 +150,9 @@ singular systems).
   where the faer control needed 0.32x (the "After wave 0.5" benchmark in
   M10.md). SPARSE stays for fidelity; an alternative ordering is the lever if
   large meshes matter.
-- Remaining performance work, device-load cost, is tracked as M10 item 0.5e;
-  complex AC assembly (0.5f) and plot memory (0.5g) are done.
+- The M10 wave 0.5 performance items are done: device-load cost (0.5e:
+  MOS inverter transients 2.4–2.6x C wall time), complex AC assembly (0.5f)
+  and plot memory (0.5g). `.ac` plots are not streamed yet (M10.md, 0.5g).
 
 ## Validation
 

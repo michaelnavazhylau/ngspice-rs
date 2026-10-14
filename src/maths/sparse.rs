@@ -83,6 +83,36 @@ struct Trace {
     starts: Vec<u32>,
 }
 
+/// One circuit's verified fixed stamp batches ([`SparseMatrix::add_fixed`]):
+/// the trace they were verified against and, per device load position, the
+/// batch length and which of its entries were stamped (0 until verified).
+/// The circuit keeps it between loads and lends it to each bound matrix.
+#[derive(Debug, Clone, Default)]
+pub struct FixedStamps {
+    trace: Option<Arc<Trace>>,
+    masks: Vec<u64>,
+}
+
+impl FixedStamps {
+    /// Drops every verification, for a circuit whose devices or numbering
+    /// changed.
+    pub fn forget(&mut self) {
+        self.trace = None;
+        self.masks.clear();
+    }
+}
+
+impl PartialEq for FixedStamps {
+    /// A cache of how a matrix may be stamped, not part of its value.
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+/// [`FixedStamps`] mask encoding: verified flag, batch length, entry mask.
+const FIXED_VERIFIED: u64 = 1 << 63;
+const FIXED_MAX: usize = 32;
+
 impl Clone for Pattern {
     /// A copy without the cached pivot order.
     fn clone(&self) -> Self {
@@ -260,14 +290,19 @@ struct Bound {
     /// part of its segment still to match.
     trace: Arc<Trace>,
     device: usize,
+    /// Where the present device's segment of `trace` starts.
+    start: usize,
     cursor: usize,
     end: usize,
     /// This load's own sequence, once any device diverged from `trace`.
     recording: Option<Trace>,
+    /// The circuit's verified fixed batches, while it loads this matrix.
+    fixed: FixedStamps,
 }
 
 impl Bound {
     /// Starts device `index`'s stamps: replay resumes at its segment.
+    #[inline]
     fn begin_device(&mut self, index: usize) {
         self.device = index;
         if let Some(recording) = &mut self.recording {
@@ -278,19 +313,38 @@ impl Bound {
             self.trace.starts.get(index + 1),
         ) {
             (Some(&start), Some(&end)) => {
+                self.start = start as usize;
                 self.cursor = start as usize;
                 self.end = end as usize;
             }
             _ => {
+                self.start = 0;
                 self.cursor = 0;
                 self.end = 0;
             }
         }
     }
 
+    /// The device's next traced element when it is at `(row, col)` and this
+    /// load is not recording its own trace (otherwise [`Self::element`]).
+    #[inline(always)]
+    fn replay(&mut self, row: usize, col: usize) -> Option<ElementId> {
+        if self.cursor >= self.end || self.recording.is_some() {
+            return None;
+        }
+        let (r, c, id) = *self.trace.entries.get(self.cursor)?;
+        if r as usize == row && c as usize == col {
+            self.cursor += 1;
+            Some(ElementId(id))
+        } else {
+            None
+        }
+    }
+
     /// The element at `(row, col)`: the device's next traced stamp when it
     /// matches (two comparisons), otherwise a pattern lookup that switches
     /// this load to recording its own sequence.
+    #[inline]
     fn element(&mut self, row: usize, col: usize) -> Option<ElementId> {
         let (r, c) = (u32::try_from(row).ok()?, u32::try_from(col).ok()?);
         if self.cursor < self.end {
@@ -378,9 +432,11 @@ impl SparseMatrix {
                 values: vec![0.0; pattern.len()],
                 trace: pattern.trace(),
                 device: 0,
+                start: 0,
                 cursor: 0,
                 end: 0,
                 recording: None,
+                fixed: FixedStamps::default(),
                 pattern,
                 view: OnceCell::new(),
             }),
@@ -435,9 +491,108 @@ impl SparseMatrix {
 
     /// Marks the start of device `index`'s stamps within a load, so a
     /// diverging device only affects its own trace segment.
+    #[inline]
     pub fn begin_device(&mut self, index: usize) {
         if let Some(bound) = &mut self.bound {
             bound.begin_device(index);
+        }
+    }
+
+    /// Lends a circuit's verified fixed batches to this bound matrix for one
+    /// load of `devices` devices; they are reset unless they were verified
+    /// against this matrix's trace. An unbound matrix hands them back
+    /// untouched.
+    #[must_use]
+    pub fn lend_fixed(&mut self, mut fixed: FixedStamps, devices: usize) -> Option<FixedStamps> {
+        let Some(bound) = &mut self.bound else {
+            return Some(fixed);
+        };
+        let same = fixed
+            .trace
+            .as_ref()
+            .is_some_and(|trace| Arc::ptr_eq(trace, &bound.trace));
+        if !same || fixed.masks.len() != devices {
+            fixed.trace = Some(Arc::clone(&bound.trace));
+            fixed.masks.clear();
+            fixed.masks.resize(devices, 0);
+        }
+        bound.fixed = fixed;
+        None
+    }
+
+    /// Returns the batches lent by [`Self::lend_fixed`], with those this load
+    /// verified.
+    pub fn return_fixed(&mut self) -> FixedStamps {
+        self.bound
+            .as_mut()
+            .map(|bound| std::mem::take(&mut bound.fixed))
+            .unwrap_or_default()
+    }
+
+    /// Adds a device's fixed batch by element when an earlier load verified
+    /// it against this trace: `values[k]` for each entry `k` stamped then, in
+    /// order, as [`Self::add`] would. Returns `false` (adding nothing) when
+    /// the batch must be stamped entry by entry instead.
+    ///
+    /// The caller guarantees that the batch's positions are the same on every
+    /// load (C's `TSTALLOC` pointers); only its values change.
+    #[inline]
+    pub fn add_fixed<const N: usize>(&mut self, values: &[Real; N]) -> bool {
+        let Some(bound) = &mut self.bound else {
+            return false;
+        };
+        let code = bound.fixed.masks.get(bound.device).copied().unwrap_or(0);
+        if N > FIXED_MAX
+            || code & FIXED_VERIFIED == 0
+            || (code >> FIXED_MAX) & 0x7fff_ffff != N as u64
+            || bound.recording.is_some()
+            || bound.cursor != bound.start
+        {
+            return false;
+        }
+        let mask = code & 0xffff_ffff;
+        let Some(traced) = bound.trace.entries.get(bound.start..bound.end) else {
+            return false;
+        };
+        if traced.len() != mask.count_ones() as usize {
+            return false;
+        }
+        bound.view.take();
+        let mut traced = traced.iter();
+        for (k, value) in values.iter().enumerate() {
+            if mask & (1 << k) != 0
+                && let Some(&(_, _, id)) = traced.next()
+            {
+                bound.values[id as usize] += value;
+            }
+        }
+        bound.cursor = bound.end;
+        true
+    }
+
+    /// The trace position a fixed batch starts at, for
+    /// [`Self::verify_fixed`].
+    #[must_use]
+    pub fn fixed_start(&self) -> Option<usize> {
+        self.bound.as_ref().map(|bound| bound.cursor)
+    }
+
+    /// After a device stamped its fixed batch entry by entry from `start`
+    /// ([`Self::fixed_start`]), records it as verified when those stamps were
+    /// exactly the device's whole traced segment: the entries in `mask`, of
+    /// `len`, replayed in order with nothing recorded.
+    pub fn verify_fixed(&mut self, start: Option<usize>, len: usize, mask: u64) {
+        let Some(bound) = &mut self.bound else {
+            return;
+        };
+        if len <= FIXED_MAX
+            && start == Some(bound.start)
+            && bound.recording.is_none()
+            && bound.cursor == bound.end
+            && bound.end - bound.start == mask.count_ones() as usize
+            && let Some(slot) = bound.fixed.masks.get_mut(bound.device)
+        {
+            *slot = FIXED_VERIFIED | ((len as u64) << FIXED_MAX) | mask;
         }
     }
 
@@ -549,7 +704,24 @@ impl SparseMatrix {
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] when the position is out of range.
+    #[inline(always)]
     pub fn add(&mut self, row: usize, col: usize, value: Real) -> SpiceResult<()> {
+        // The common case: the device's next traced stamp, which lies in the
+        // pattern and hence in range.
+        if let Some(bound) = &mut self.bound
+            && let Some(id) = bound.replay(row, col)
+        {
+            bound.view.take();
+            bound.values[id.index()] += value;
+            return Ok(());
+        }
+        self.add_untraced(row, col, value)
+    }
+
+    /// [`Self::add`] off the replayed trace: range check, pattern lookup
+    /// (which may start this load's own trace) or a triplet.
+    #[inline(never)]
+    fn add_untraced(&mut self, row: usize, col: usize, value: Real) -> SpiceResult<()> {
         if row >= self.rows || col >= self.cols {
             return Err(SpiceError::Numerical {
                 context: "sparse matrix".to_owned(),
@@ -747,8 +919,106 @@ impl SparseMatrix {
 
 #[cfg(test)]
 mod tests {
-    use super::SparseMatrix;
+    use std::sync::Arc;
+
+    use super::{FixedStamps, Pattern, SparseMatrix};
     use crate::maths::dense::Vector;
+
+    /// One device's load of `stamps` into a fresh matrix bound to `pattern`,
+    /// as a fixed batch (`mask` marks the stamped, non-ground entries of a
+    /// batch of `len`). Returns the matrix, whether the batch went by
+    /// element, and the verifications to lend to the next load.
+    fn fixed_load(
+        pattern: &Arc<Pattern>,
+        fixed: FixedStamps,
+        stamps: &[(usize, usize, f64)],
+        mask: u64,
+        values: &[f64; 3],
+    ) -> (SparseMatrix, bool, FixedStamps) {
+        let mut matrix = SparseMatrix::bound(Arc::clone(pattern));
+        assert!(matrix.lend_fixed(fixed, 1).is_none());
+        matrix.begin_device(0);
+        let by_element = matrix.add_fixed(values);
+        if !by_element {
+            let start = matrix.fixed_start();
+            for &(row, col, value) in stamps {
+                matrix.add(row, col, value).unwrap();
+            }
+            matrix.verify_fixed(start, values.len(), mask);
+        }
+        let fixed = matrix.return_fixed();
+        matrix.record_trace();
+        (matrix, by_element, fixed)
+    }
+
+    #[test]
+    fn a_verified_fixed_batch_is_added_by_element() {
+        let pattern = Arc::new(Pattern::new(2, [(0, 0), (1, 1), (0, 1)]));
+        // Entry 1 of the batch is at ground and never stamped.
+        let stamps = [(1, 1, 1.0), (0, 1, 2.0)];
+        let values = [1.0, 7.0, 2.0];
+        // The first load records the trace, the second verifies the batch
+        // against it, the third adds by element.
+        let (_, by_element, fixed) =
+            fixed_load(&pattern, FixedStamps::default(), &stamps, 0b101, &values);
+        assert!(!by_element);
+        let (_, by_element, fixed) = fixed_load(&pattern, fixed, &stamps, 0b101, &values);
+        assert!(!by_element);
+        let (matrix, by_element, fixed) = fixed_load(&pattern, fixed, &stamps, 0b101, &values);
+        assert!(by_element);
+        assert_eq!(matrix.get(1, 1), 1.0);
+        assert_eq!(matrix.get(0, 1), 2.0);
+        assert_eq!(matrix.get(0, 0), 0.0);
+        // A batch of another length is not the verified one.
+        let mut other = SparseMatrix::bound(Arc::clone(&pattern));
+        assert!(other.lend_fixed(fixed, 1).is_none());
+        other.begin_device(0);
+        assert!(!other.add_fixed(&[1.0, 2.0]));
+    }
+
+    #[test]
+    fn a_new_trace_or_a_partial_batch_is_not_verified() {
+        let pattern = Arc::new(Pattern::new(2, [(0, 0), (1, 1), (0, 1)]));
+        let stamps = [(1, 1, 1.0), (0, 1, 2.0)];
+        let values = [1.0, 7.0, 2.0];
+        let (_, _, fixed) = fixed_load(&pattern, FixedStamps::default(), &stamps, 0b101, &values);
+        let (_, _, fixed) = fixed_load(&pattern, fixed, &stamps, 0b101, &values);
+        // A load that diverges records a new trace: the verification was
+        // made against the old one and is dropped.
+        let mut diverging = SparseMatrix::bound(Arc::clone(&pattern));
+        assert!(diverging.lend_fixed(fixed, 1).is_none());
+        diverging.begin_device(0);
+        diverging.add(0, 0, 5.0).unwrap();
+        let fixed = diverging.return_fixed();
+        diverging.record_trace();
+        let (_, by_element, fixed) = fixed_load(&pattern, fixed, &[(0, 0, 5.0)], 0b1, &values);
+        assert!(!by_element, "verified against a replaced trace");
+        // Stamps after the batch: the batch is not the device's whole
+        // segment, so it is never verified.
+        let mut partial = SparseMatrix::bound(Arc::clone(&pattern));
+        assert!(partial.lend_fixed(fixed, 1).is_none());
+        partial.begin_device(0);
+        let start = partial.fixed_start();
+        partial.add(0, 0, 5.0).unwrap();
+        partial.verify_fixed(start, 1, 0b1);
+        let fixed = partial.return_fixed();
+        let mut next = SparseMatrix::bound(Arc::clone(&pattern));
+        assert!(next.lend_fixed(fixed, 1).is_none());
+        next.begin_device(0);
+        assert!(next.add_fixed(&[5.0]), "the whole segment verifies");
+        // The same verification after forget() does not.
+        let mut fixed = next.return_fixed();
+        fixed.forget();
+        let mut forgotten = SparseMatrix::bound(Arc::clone(&pattern));
+        assert!(forgotten.lend_fixed(fixed, 1).is_none());
+        forgotten.begin_device(0);
+        assert!(!forgotten.add_fixed(&[5.0]));
+        // Unbound matrices never add by element.
+        let mut unbound = SparseMatrix::new(2, 2);
+        assert!(unbound.lend_fixed(FixedStamps::default(), 1).is_some());
+        unbound.begin_device(0);
+        assert!(!unbound.add_fixed(&[5.0]));
+    }
 
     #[test]
     fn zero_contributions_are_not_stored() {

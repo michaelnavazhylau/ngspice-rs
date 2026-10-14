@@ -88,6 +88,9 @@ pub struct Circuit {
     /// [`Circuit::unknown_names`], computed on first use after
     /// [`Circuit::rebuild_unknowns`].
     unknown_names: std::cell::RefCell<Option<crate::maths::UnknownNames>>,
+    /// Devices' verified fixed stamp batches, lent to each bound load
+    /// ([`crate::maths::SparseMatrix::lend_fixed`]).
+    fixed_stamps: std::cell::RefCell<crate::maths::FixedStamps>,
 }
 
 /// One inductor pair coupled by a K device, by device ordinal.
@@ -203,6 +206,8 @@ impl Circuit {
 
     /// The device instances, mutable, so an analysis can refresh them.
     pub fn devices_mut(&mut self) -> &mut [Box<dyn Device>] {
+        // A replaced device may stamp other positions.
+        self.fixed_stamps.get_mut().forget();
         &mut self.devices
     }
 
@@ -235,6 +240,7 @@ impl Circuit {
     /// numbered in device order, in a separate namespace.
     pub fn rebuild_unknowns(&mut self) {
         self.unknown_names.get_mut().take();
+        self.fixed_stamps.get_mut().forget();
         let owned: BTreeSet<NodeId> = self.internal_nodes.iter().flatten().copied().collect();
         self.unknowns
             .rebuild_deferring(&self.nodes, |node| owned.contains(&node));
@@ -902,6 +908,7 @@ impl Circuit {
     ///
     /// [`SpiceError::Circuit`] on a dangling terminal or a duplicate name.
     pub fn add_device(&mut self, device: Box<dyn Device>) -> SpiceResult<()> {
+        self.fixed_stamps.get_mut().forget();
         for terminal in device.terminals() {
             if self.nodes.node(*terminal).is_none() {
                 return Err(SpiceError::circuit(format!(
@@ -1430,6 +1437,36 @@ impl Circuit {
         let replacements = self.replacements(request.model_context)?;
         let mutual = self.mutual_terms(request.model_context)?;
         let mut voltage_source_value = 0.;
+        let unlent = matrix.lend_fixed(self.fixed_stamps.take(), self.devices.len());
+        let stamped = self.stamp_devices(
+            request,
+            matrix,
+            rhs,
+            trial,
+            &replacements,
+            &mutual,
+            &mut voltage_source_value,
+        );
+        self.fixed_stamps
+            .replace(unlent.unwrap_or_else(|| matrix.return_fixed()));
+        stamped?;
+        self.learn_pattern(matrix);
+        matrix.record_trace();
+        Ok(())
+    }
+
+    /// [`Circuit::load`]'s device loop: each device stamps in load order.
+    #[allow(clippy::too_many_arguments)]
+    fn stamp_devices(
+        &self,
+        request: &LoadRequest<'_>,
+        matrix: &mut SparseMatrix,
+        rhs: &mut Vector,
+        trial: &mut TrialState,
+        replacements: &[(usize, Box<dyn Device>)],
+        mutual: &[Vec<MutualTerm>],
+        voltage_source_value: &mut Real,
+    ) -> SpiceResult<()> {
         for (position, index) in self.load_order().into_iter().enumerate() {
             let device: &dyn Device = match replacements.iter().find(|(i, _)| *i == index) {
                 Some((_, replacement)) => &**replacement,
@@ -1457,11 +1494,9 @@ impl Circuit {
                 states,
                 forcing: request.forcing,
                 source_factor: request.model_context.source_factor,
-                voltage_source_value: &mut voltage_source_value,
+                voltage_source_value: &mut *voltage_source_value,
             })?;
         }
-        self.learn_pattern(matrix);
-        matrix.record_trace();
         Ok(())
     }
 
@@ -1485,6 +1520,7 @@ impl Circuit {
     /// this circuit has allocated (the rule `finalize` applies on
     /// re-finalization); otherwise this circuit keeps its own.
     pub fn inherit_from(&mut self, previous: &Self) {
+        self.fixed_stamps.get_mut().forget();
         self.carried_state
             .borrow_mut()
             .clone_from(&previous.carried_state.borrow());
