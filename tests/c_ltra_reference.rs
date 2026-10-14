@@ -75,17 +75,14 @@ fn column(plot: &Plot, name: &str) -> Vec<Complex> {
         .unwrap_or_else(|| panic!("no {name} in {:?}", plot.variables))
 }
 
-/// Same rows, and every C vector within `relative |C| + absolute` (C's
-/// `.dc` scale `v-sweep` is the port's `sweep`).
+/// Same rows, and every C vector within `relative |C| + absolute`. Both
+/// simulators name a `.dc` voltage-source sweep `v(v-sweep)`: the port follows
+/// C's DC sweep names since M10 wave 0.5h.
 fn same_rows(ours: &Plot, theirs: &Plot, relative: f64, absolute: f64) {
     assert_eq!(ours.point_count(), theirs.point_count());
     for variable in &theirs.variables {
         let name = variable.name.to_ascii_lowercase();
-        let mine = if name == "v(v-sweep)" {
-            "sweep"
-        } else {
-            name.as_str()
-        };
+        let mine = name.as_str();
         for (k, (x, y)) in column(ours, mine)
             .iter()
             .zip(column(theirs, &variable.name))

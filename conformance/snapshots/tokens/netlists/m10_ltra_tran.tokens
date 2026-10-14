@@ -13,7 +13,7 @@ card 1 @netlists/m10_ltra_tran.cir:15:1 lines=15-15 continuations=0
   token 7 15:15 number "0" value=0e0
   token 8 15:17 number "1n" value=1e-9
   token 9 15:20 number "0" value=0e0
-  token 10 15:22 number "1.5n" value=1.5000000000000002e-9
+  token 10 15:22 number "1.5n" value=1.5e-9
   token 11 15:27 number "1" value=1e0
   token 12 15:29 number "6n" value=6.000000000000001e-9
   token 13 15:32 number "1" value=1e0
@@ -155,7 +155,7 @@ card 15 @netlists/m10_ltra_tran.cir:29:1 lines=29-29 continuations=0
   raw: ".tran 0.05n 40n"
   kind: dot(.tran)
   token 1 29:1 word ".tran"
-  token 2 29:7 number "0.05n" value=5.000000000000001e-11
+  token 2 29:7 number "0.05n" value=4.9999999999999995e-11
   token 3 29:13 number "40n" value=4e-8
 card 16 @netlists/m10_ltra_tran.cir:30:1 lines=30-30 continuations=0
   raw: ".end"

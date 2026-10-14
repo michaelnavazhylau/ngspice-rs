@@ -341,7 +341,10 @@ fn unsupported_lines_and_analyses_are_explicit() {
         ),
         (".disto dec 1 1k 10k", ".disto with lossy transmission line"),
         (".sens v(c)", "sensitivity"),
-        (".tran 1n 10n backend=diffsol method=bdf", "diffsol BDF"),
+        (
+            ".tran 1n 10n backend=diffsol method=bdf",
+            "the adaptive BDF backend was removed",
+        ),
     ] {
         let error = line(lc, analysis).unwrap_err();
         assert!(error.to_string().contains(text), "{analysis}: {error}");
