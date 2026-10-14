@@ -52,7 +52,7 @@ pub mod sweep;
 mod tf;
 mod transient;
 
-pub use companion::{TransientStats, companion_transient};
+pub use companion::{TransientStats, companion_transient, companion_transient_into};
 pub use config::{
     AppliedOption, DcOptions, IgnoredOption, RunConfig, RunOverrides, TransientSettings,
 };
@@ -62,8 +62,10 @@ pub use driver::{
 };
 pub use fourier::{FourierAnalysis, FourierWindow, Harmonic};
 pub use measure::{MeasureEvents, MeasureSpan, Measurement};
-pub use rawfile::{BinaryByteOrder, RawFile, RawFileReader, RawFormat, RawPlot};
-pub use results::{Plot, PlotFlags, Variable};
+pub use rawfile::{
+    BinaryByteOrder, RawFile, RawFileReader, RawFileWriter, RawFormat, RawPlot, StreamedPlot,
+};
+pub use results::{Plot, PlotFlags, PointSink, Variable};
 pub use selection::{Selection, print_requests, write_requests};
 
 /// The C reference for the analysis drivers, used in `NotYetPorted` errors.

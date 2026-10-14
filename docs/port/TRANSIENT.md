@@ -402,6 +402,13 @@ inside an interval between two samples (never across a breakpoint), as the
 comparator does. The simulation always starts at `t = 0`; `tstart` only
 suppresses earlier rows.
 
+The rows need not be stored. `companion_transient_into` (and
+`Analysis::run_into`) hands each row to a `PointSink` as it is accepted, the
+same rows in the same order, after announcing the plot's variables before the
+initial operating point; `spice-rs simulate` uses it to stream a `.tran` plot
+straight into the rawfile, as C's `CKTdump`/`OUTpData` do, whenever no
+`.print`, `.measure` or `.four` card needs the whole plot.
+
 ## Measured accuracy (physical-error limits)
 
 Analytic cases (`tests/companion_transient.rs`), unit step

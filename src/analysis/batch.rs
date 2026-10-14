@@ -383,28 +383,125 @@ pub fn resolve_outputs_with_scope(
     scope: &crate::netlist::eval::ParamScope,
 ) -> SpiceResult<PlotOutputs> {
     let kind = scheduled.kind;
-    if matches!(
-        plot.plotname.as_str(),
-        "AC Operating Point" | "NOISE Operating Point" | "Distortion Operating Point"
-    ) {
+    if is_operating_point_prelude(plot) {
         return Ok(PlotOutputs {
-            written: Selection::resolve(
-                plot,
-                AnalysisKind::OperatingPoint,
-                &selection::write_requests(
-                    &OutputCards {
-                        saves: output.saves.clone(),
-                        prints: Vec::new(),
-                    },
-                    AnalysisKind::OperatingPoint,
-                )?,
-            )?
-            .apply(plot)?,
+            written: written_selection(plot, scheduled, output)?.apply(plot)?,
             printed: None,
             measurements: Vec::new(),
             fourier: Vec::new(),
         });
     }
+    let own = own_cards(plot, scheduled, output)?;
+    let selection = written_selection(plot, scheduled, output)?;
+    let print_requests = selection::print_requests(&own, kind)?;
+    let mut printed = if print_requests.is_empty() {
+        None
+    } else {
+        Some(Selection::resolve(plot, kind, &print_requests)?.to_text(plot)?)
+    };
+    for card in own
+        .prints
+        .iter()
+        .filter(|card| card.ascii_plot && !card.requests.is_empty())
+    {
+        let selected = Selection::resolve(plot, kind, &card.requests)?.apply(plot)?;
+        printed
+            .get_or_insert_with(String::new)
+            .push_str(&super::asciiplot::render(&selected)?);
+    }
+    let measurements = if scheduled.last_of_kind {
+        let own: Vec<MeasureCard> = measures
+            .iter()
+            .filter(|card| card.analysis == kind)
+            .cloned()
+            .collect();
+        measure::resolve_with_scope(plot, kind, &own, scope)?
+    } else {
+        Vec::new()
+    };
+    let fourier = if scheduled.last_of_kind && kind == AnalysisKind::Transient {
+        fourier::resolve(plot, kind, fourier_cards)?
+    } else {
+        Vec::new()
+    };
+    let written = selection.apply(plot)?;
+    Ok(PlotOutputs {
+        written,
+        printed,
+        measurements,
+        fourier,
+    })
+}
+
+/// The `.save`/`.print` selection one scheduled plot is written with: the
+/// selection [`resolve_outputs`] applies to make [`PlotOutputs::written`].
+///
+/// It depends only on the plot's variables, so the points-free header a
+/// [`crate::analysis::PointSink`] receives resolves to the same selection as
+/// the full plot.
+///
+/// # Errors
+///
+/// As [`Selection::resolve`], and for a `.noise` total that a single-frequency
+/// run cannot produce.
+pub fn written_selection(
+    plot: &Plot,
+    scheduled: &ScheduledAnalysis,
+    output: &OutputCards,
+) -> SpiceResult<Selection> {
+    if is_operating_point_prelude(plot) {
+        let kind = AnalysisKind::OperatingPoint;
+        let saves_only = OutputCards {
+            saves: output.saves.clone(),
+            prints: Vec::new(),
+        };
+        return Selection::resolve(plot, kind, &selection::write_requests(&saves_only, kind)?);
+    }
+    let kind = scheduled.kind;
+    let own = own_cards(plot, scheduled, output)?;
+    Selection::resolve(plot, kind, &selection::write_requests(&own, kind)?)
+}
+
+/// Whether [`resolve_outputs`] reads more of this scheduled plot than its
+/// written selection: a `.print` card of its type (a table or an ASCII plot),
+/// or, on the last plot of its type, a `.measure` card of its type or a
+/// `.four` card for `.tran`.
+///
+/// When it does not, the plot's points are only ever written, so a caller may
+/// stream them into the rawfile through [`written_selection`] instead of
+/// storing the whole plot, as C's batch output does.
+#[must_use]
+pub fn needs_full_plot(
+    scheduled: &ScheduledAnalysis,
+    output: &OutputCards,
+    measures: &[MeasureCard],
+    fourier_cards: &[FourierCard],
+) -> bool {
+    let kind = scheduled.kind;
+    output.prints.iter().any(|card| card.analysis == kind)
+        || (scheduled.last_of_kind
+            && (measures.iter().any(|card| card.analysis == kind)
+                || (kind == AnalysisKind::Transient && !fourier_cards.is_empty())))
+}
+
+/// The bias plot `.option keepopinfo` adds before a small-signal sweep; only
+/// the deck's `.save` cards apply to it.
+fn is_operating_point_prelude(plot: &Plot) -> bool {
+    matches!(
+        plot.plotname.as_str(),
+        "AC Operating Point" | "NOISE Operating Point" | "Distortion Operating Point"
+    )
+}
+
+/// The output cards that apply to this plot: every `.save`, the `.print`
+/// cards naming its type, and for `.noise` only the requests its plot (the
+/// spectrum or the integrated noise) can satisfy.
+fn own_cards(
+    plot: &Plot,
+    scheduled: &ScheduledAnalysis,
+    output: &OutputCards,
+) -> SpiceResult<OutputCards> {
+    let kind = scheduled.kind;
     let mut own = OutputCards {
         saves: output.saves.clone(),
         prints: output
@@ -458,46 +555,7 @@ pub fn resolve_outputs_with_scope(
                 .collect::<SpiceResult<_>>()?;
         }
     }
-    let requests = selection::write_requests(&own, kind)?;
-    let selection = Selection::resolve(plot, kind, &requests)?;
-    let print_requests = selection::print_requests(&own, kind)?;
-    let mut printed = if print_requests.is_empty() {
-        None
-    } else {
-        Some(Selection::resolve(plot, kind, &print_requests)?.to_text(plot)?)
-    };
-    for card in own
-        .prints
-        .iter()
-        .filter(|card| card.ascii_plot && !card.requests.is_empty())
-    {
-        let selected = Selection::resolve(plot, kind, &card.requests)?.apply(plot)?;
-        printed
-            .get_or_insert_with(String::new)
-            .push_str(&super::asciiplot::render(&selected)?);
-    }
-    let measurements = if scheduled.last_of_kind {
-        let own: Vec<MeasureCard> = measures
-            .iter()
-            .filter(|card| card.analysis == kind)
-            .cloned()
-            .collect();
-        measure::resolve_with_scope(plot, kind, &own, scope)?
-    } else {
-        Vec::new()
-    };
-    let fourier = if scheduled.last_of_kind && kind == AnalysisKind::Transient {
-        fourier::resolve(plot, kind, fourier_cards)?
-    } else {
-        Vec::new()
-    };
-    let written = selection.apply(plot)?;
-    Ok(PlotOutputs {
-        written,
-        printed,
-        measurements,
-        fourier,
-    })
+    Ok(own)
 }
 
 #[cfg(test)]

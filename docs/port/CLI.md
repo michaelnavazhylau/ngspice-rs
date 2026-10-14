@@ -57,9 +57,13 @@ The command, in order:
    deck runs — all before the first analysis starts;
 5. runs each analysis through the production driver on a freshly elaborated
    circuit and resolves its `.save`/`.print`/`.measure`/`.four` outputs against
-   the full plot;
-6. only when every analysis and every output card succeeded, writes all plots as
-   one ASCII rawfile at `<path>`.
+   the full plot, writing each plot into a temporary file beside `<path>` as
+   soon as it is done. A `.tran` plot that no `.print`, `.measure` or `.four`
+   card reads is never stored: its accepted points stream through the
+   `.save`/`.print` selection into the temporary file as they are accepted;
+6. only when every analysis and every output card succeeded, renames the
+   temporary file to `<path>`; on any failure it is removed and `<path>` is
+   left untouched.
 
 An unadorned `.tran` runs the companion trapezoidal/Gear-2 driver the engine
 defaults to, the only transient backend; an explicit `backend=diffsol` on the

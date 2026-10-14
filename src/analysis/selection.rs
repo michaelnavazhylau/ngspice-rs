@@ -4,8 +4,11 @@
 //! and `.print <analysis> ...` (analysis-specific). Both are parsed by
 //! `netlist` into positioned [`OutputCards`]; this module turns those
 //! requests into an ordered projection of the **full** in-memory [`Plot`] the
-//! driver produced. The full plot is never discarded: the caller keeps it for
+//! driver produced. The full plot is never altered: the caller keeps it for
 //! the measurement work that follows and only the written plot is narrowed.
+//! The selection depends only on the plot's variables, so a caller that
+//! streams the points ([`crate::analysis::PointSink`]) applies it one row at a
+//! time ([`Selection::header`], [`Selection::apply_point`]).
 //!
 //! C reference: `ft_dotsaves()`/`ft_savedotargs()` in `src/frontend/dotcards.c`
 //! collect the deck's cards into the `dbs` save list via `com_save()`
@@ -217,7 +220,22 @@ impl Selection {
         if self.full {
             return Ok(plot.clone());
         }
+        let mut selected = self.header(plot);
+        for point in &plot.points {
+            selected.push_point(self.apply_point(point)?)?;
+        }
+        Ok(selected)
+    }
+
+    /// The written plot's names, flags and variables, without points: what
+    /// [`Selection::apply`] returns before its first row.
+    #[must_use]
+    pub fn header(&self, plot: &Plot) -> Plot {
         let mut selected = Plot::new(plot.name.clone(), plot.plotname.clone(), plot.flags);
+        if self.full {
+            selected.variables = plot.variables.clone();
+            return selected;
+        }
         for column in &self.columns {
             selected.push_variable(Variable {
                 name: column.name.clone(),
@@ -225,14 +243,23 @@ impl Selection {
                 is_real: column.is_real,
             });
         }
-        for point in &plot.points {
-            let mut row = Vec::with_capacity(self.columns.len());
-            for column in &self.columns {
-                row.push(column.value(point)?);
-            }
-            selected.push_point(row)?;
+        selected
+    }
+
+    /// The written row for one full-plot `point`, for a caller that receives
+    /// the points one at a time ([`crate::analysis::PointSink`]).
+    ///
+    /// # Errors
+    ///
+    /// The same [`SpiceError::Numerical`] as [`Selection::apply`].
+    pub fn apply_point(&self, point: &[Complex]) -> SpiceResult<Vec<Complex>> {
+        if self.full {
+            return Ok(point.to_vec());
         }
-        Ok(selected)
+        self.columns
+            .iter()
+            .map(|column| column.value(point))
+            .collect()
     }
 
     /// Renders the written vectors of `plot` as text, for the CLI's report.

@@ -52,9 +52,9 @@
 // They are intentional: they show the exact byte layout ngspice writes.
 #![allow(clippy::tabs_in_doc_comments)]
 
-use std::fs::{self, File};
-use std::io::{self, BufWriter, Write};
-use std::path::Path;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, BufWriter, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 
 use crate::primitives::{Complex, Real, SpiceError, SpiceResult};
 
@@ -198,21 +198,9 @@ impl RawFile {
     /// [`SpiceError::Numerical`] when a point does not have one value per
     /// variable.
     pub fn validate(&self) -> SpiceResult<()> {
-        for raw_plot in &self.plots {
-            let expected = raw_plot.plot.variables.len();
-            for (index, point) in raw_plot.plot.points.iter().enumerate() {
-                if point.len() != expected {
-                    return Err(SpiceError::Numerical {
-                        context: format!("plot {}", raw_plot.plot.name),
-                        message: format!(
-                            "point {index} has {} value(s) but the plot has {expected} variable(s)",
-                            point.len()
-                        ),
-                    });
-                }
-            }
-        }
-        Ok(())
+        self.plots
+            .iter()
+            .try_for_each(|raw_plot| validate_plot(&raw_plot.plot))
     }
 
     /// Renders the rawfile in ngspice's ASCII format.
@@ -237,23 +225,9 @@ impl RawFile {
 
     /// Streams the ASCII form into `out`; see [`RawFile::to_ascii`].
     fn write_ascii(&self, out: &mut impl Write) -> io::Result<()> {
-        for raw_plot in &self.plots {
-            let plot = &raw_plot.plot;
-            render_header(out, raw_plot)?;
-            out.write_all(b"Values:\n")?;
-            for (point_index, point) in plot.points.iter().enumerate() {
-                write!(out, " {point_index}")?;
-                for (column, value) in point.iter().enumerate() {
-                    let is_real = plot
-                        .variables
-                        .get(column)
-                        .is_some_and(|variable| variable.is_real);
-                    writeln!(out, "\t{}", format_value(*value, plot.flags, is_real))?;
-                }
-                out.write_all(b"\n")?;
-            }
-        }
-        Ok(())
+        self.plots
+            .iter()
+            .try_for_each(|raw_plot| write_plot(out, raw_plot, RawFormat::Ascii))
     }
 
     /// Writes the rawfile in ASCII format.
@@ -292,7 +266,11 @@ impl RawFile {
     pub fn to_binary_with(&self, byte_order: BinaryByteOrder) -> SpiceResult<Vec<u8>> {
         self.validate()?;
         let mut bytes = Vec::new();
-        binary::write(self, &mut bytes, byte_order).expect("writing to a Vec<u8> is infallible");
+        for raw_plot in &self.plots {
+            render_header(&mut bytes, raw_plot, raw_plot.plot.points.len())
+                .and_then(|()| binary::write_points(&mut bytes, &raw_plot.plot, byte_order))
+                .expect("writing to a Vec<u8> is infallible");
+        }
         Ok(bytes)
     }
 
@@ -309,16 +287,260 @@ impl RawFile {
     /// [`SpiceError::Io`] when the file cannot be written.
     pub fn write_with_format(&self, path: impl AsRef<Path>, format: RawFormat) -> SpiceResult<()> {
         self.validate()?;
-        let path = path.as_ref();
-        let io_error = |error: io::Error| SpiceError::io(path, &error);
-        let mut out = BufWriter::new(File::create(path).map_err(io_error)?);
-        match format {
-            RawFormat::Ascii => self.write_ascii(&mut out),
-            RawFormat::Binary => binary::write(self, &mut out, BinaryByteOrder::LittleEndian),
+        let mut writer = RawFileWriter::create(path, format)?;
+        for raw_plot in &self.plots {
+            writer.write_plot(raw_plot)?;
         }
-        .map_err(io_error)?;
+        writer.finish()
+    }
+}
+
+/// Writes a rawfile one plot at a time, so no plot has to stay in memory until
+/// the whole file is known.
+///
+/// [`RawFileWriter::write_plot`] writes a finished plot. A plot whose points
+/// arrive one by one, as `.tran` produces them, starts with
+/// [`RawFileWriter::begin_plot`]: its points are encoded into a spool file as
+/// they arrive and [`RawFileWriter::finish_plot`] writes the header, whose
+/// `No. Points:` is only then known, followed by the spooled points. The
+/// result is byte for byte what [`RawFile::write_with_format`] writes for the
+/// same plots. (C's batch writer, `outitf.c`, instead patches the count into a
+/// padded header field in place; the port keeps `raw_write()`'s unpadded
+/// header.)
+#[derive(Debug)]
+pub struct RawFileWriter {
+    out: BufWriter<File>,
+    path: PathBuf,
+    format: RawFormat,
+}
+
+impl RawFileWriter {
+    /// Creates `path`, or truncates it when it exists.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Io`] when the file cannot be created.
+    pub fn create(path: impl AsRef<Path>, format: RawFormat) -> SpiceResult<Self> {
+        let path = path.as_ref().to_path_buf();
+        let file = File::create(&path).map_err(|error| SpiceError::io(&path, &error))?;
+        Ok(Self {
+            out: BufWriter::new(file),
+            path,
+            format,
+        })
+    }
+
+    /// The encoding this writer uses.
+    #[must_use]
+    pub fn format(&self) -> RawFormat {
+        self.format
+    }
+
+    /// Writes one complete plot: its header and every point.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] when a point does not have one value per
+    /// variable (nothing is written then), or [`SpiceError::Io`].
+    pub fn write_plot(&mut self, raw_plot: &RawPlot) -> SpiceResult<()> {
+        validate_plot(&raw_plot.plot)?;
+        write_plot(&mut self.out, raw_plot, self.format).map_err(|error| self.io_error(&error))
+    }
+
+    /// Starts a plot whose points are pushed one at a time with
+    /// [`StreamedPlot::push_point`].
+    ///
+    /// `header` supplies the headers and the variables; its points, if any, are
+    /// ignored. The encoded points go to a new file at `spool`, which must not
+    /// exist yet; it is removed when the [`StreamedPlot`] is finished or
+    /// dropped. Put it beside the rawfile, so it lives on the same filesystem.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Io`] when the spool file cannot be created (including
+    /// when it already exists).
+    pub fn begin_plot(
+        &self,
+        header: RawPlot,
+        spool: impl AsRef<Path>,
+    ) -> SpiceResult<StreamedPlot> {
+        let path = spool.as_ref().to_path_buf();
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|error| SpiceError::io(&path, &error))?;
+        let mut header = header;
+        header.plot.points = Vec::new();
+        Ok(StreamedPlot {
+            header,
+            format: self.format,
+            point_count: 0,
+            spool: Some(BufWriter::new(file)),
+            path,
+        })
+    }
+
+    /// Writes a streamed plot: its header with the final point count, then the
+    /// spooled points. The spool file is removed.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Io`] when the spool cannot be read back or the rawfile
+    /// cannot be written.
+    pub fn finish_plot(&mut self, mut plot: StreamedPlot) -> SpiceResult<()> {
+        let spool_error = |error: io::Error| SpiceError::io(&plot.path, &error);
+        let Some(spool) = plot.spool.take() else {
+            return Ok(());
+        };
+        let mut file = spool
+            .into_inner()
+            .map_err(|error| spool_error(error.into_error()))?;
+        file.seek(SeekFrom::Start(0)).map_err(spool_error)?;
+        render_header(&mut self.out, &plot.header, plot.point_count)
+            .and_then(|()| self.out.write_all(section_line(self.format)))
+            .map_err(|error| self.io_error(&error))?;
+        io::copy(&mut file, &mut self.out).map_err(|error| self.io_error(&error))?;
+        Ok(())
+    }
+
+    /// Flushes everything written so far and closes the file.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Io`] when the buffered data cannot be written.
+    pub fn finish(mut self) -> SpiceResult<()> {
         // Flushed explicitly: dropping a `BufWriter` discards a write error.
-        out.flush().map_err(io_error)
+        self.out.flush().map_err(|error| self.io_error(&error))
+    }
+
+    fn io_error(&self, error: &io::Error) -> SpiceError {
+        SpiceError::io(&self.path, error)
+    }
+}
+
+/// A rawfile plot being written point by point; see
+/// [`RawFileWriter::begin_plot`].
+///
+/// Dropping it without [`RawFileWriter::finish_plot`] abandons the plot and
+/// removes its spool file.
+#[derive(Debug)]
+pub struct StreamedPlot {
+    /// The headers and variables; `points` stays empty.
+    header: RawPlot,
+    format: RawFormat,
+    point_count: usize,
+    /// `None` once finished.
+    spool: Option<BufWriter<File>>,
+    path: PathBuf,
+}
+
+impl StreamedPlot {
+    /// The plot's headers and variables (it holds no points).
+    #[must_use]
+    pub fn header(&self) -> &RawPlot {
+        &self.header
+    }
+
+    /// How many points were pushed.
+    #[must_use]
+    pub fn point_count(&self) -> usize {
+        self.point_count
+    }
+
+    /// Encodes one point, one value per variable.
+    ///
+    /// # Errors
+    ///
+    /// [`SpiceError::Numerical`] when the point does not have one value per
+    /// variable, or [`SpiceError::Io`] when the spool cannot be written.
+    pub fn push_point(&mut self, values: &[Complex]) -> SpiceResult<()> {
+        self.header.plot.check_point(values)?;
+        let Some(spool) = self.spool.as_mut() else {
+            return Err(unsupported("point pushed to a finished rawfile plot"));
+        };
+        write_point(
+            spool,
+            &self.header.plot,
+            self.format,
+            self.point_count,
+            values,
+        )
+        .map_err(|error| SpiceError::io(&self.path, &error))?;
+        self.point_count += 1;
+        Ok(())
+    }
+}
+
+impl Drop for StreamedPlot {
+    fn drop(&mut self) {
+        // Close before removing; a failed removal leaves only a stray spool
+        // file beside the rawfile, never a partial rawfile.
+        self.spool = None;
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Checks that every point of `plot` has one value per variable.
+fn validate_plot(plot: &Plot) -> SpiceResult<()> {
+    let expected = plot.variables.len();
+    for (index, point) in plot.points.iter().enumerate() {
+        if point.len() != expected {
+            return Err(SpiceError::Numerical {
+                context: format!("plot {}", plot.name),
+                message: format!(
+                    "point {index} has {} value(s) but the plot has {expected} variable(s)",
+                    point.len()
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The line that ends the header in `format`.
+fn section_line(format: RawFormat) -> &'static [u8] {
+    match format {
+        RawFormat::Ascii => b"Values:\n",
+        RawFormat::Binary => b"Binary:\n",
+    }
+}
+
+/// Writes one plot, header and points, in `format` (binary little-endian).
+fn write_plot(out: &mut impl Write, raw_plot: &RawPlot, format: RawFormat) -> io::Result<()> {
+    let plot = &raw_plot.plot;
+    render_header(out, raw_plot, plot.points.len())?;
+    out.write_all(section_line(format))?;
+    for (index, point) in plot.points.iter().enumerate() {
+        write_point(out, plot, format, index, point)?;
+    }
+    Ok(())
+}
+
+/// Writes point `index` of `plot` in `format`, as `raw_write()` does: in ASCII
+/// the index, one tab-led line per value and a blank line; in binary one
+/// little-endian `double` (or `re, im` pair) per value.
+fn write_point(
+    out: &mut impl Write,
+    plot: &Plot,
+    format: RawFormat,
+    index: usize,
+    point: &[Complex],
+) -> io::Result<()> {
+    match format {
+        RawFormat::Ascii => {
+            write!(out, " {index}")?;
+            for (column, value) in point.iter().enumerate() {
+                let is_real = plot
+                    .variables
+                    .get(column)
+                    .is_some_and(|variable| variable.is_real);
+                writeln!(out, "\t{}", format_value(*value, plot.flags, is_real))?;
+            }
+            out.write_all(b"\n")
+        }
+        RawFormat::Binary => binary::write_point(out, plot, point, BinaryByteOrder::LittleEndian),
     }
 }
 
@@ -328,7 +550,7 @@ impl RawFile {
 /// The ASCII form appends `Values:` and text; the binary form appends `Binary:`
 /// and a `double` payload. Keeping one renderer makes the two headers identical
 /// by construction.
-fn render_header(out: &mut impl Write, raw_plot: &RawPlot) -> io::Result<()> {
+fn render_header(out: &mut impl Write, raw_plot: &RawPlot, point_count: usize) -> io::Result<()> {
     let plot = &raw_plot.plot;
     writeln!(out, "Title: {}", raw_plot.title)?;
     writeln!(out, "Date: {}", raw_plot.date)?;
@@ -336,7 +558,7 @@ fn render_header(out: &mut impl Write, raw_plot: &RawPlot) -> io::Result<()> {
     writeln!(out, "Plotname: {}", plot.plotname)?;
     writeln!(out, "Flags: {}", plot.flags.as_rawfile())?;
     writeln!(out, "No. Variables: {}", plot.variables.len())?;
-    writeln!(out, "No. Points: {}", plot.points.len())?;
+    writeln!(out, "No. Points: {point_count}")?;
     writeln!(out, "Variables:")?;
     for (index, variable) in plot.variables.iter().enumerate() {
         writeln!(out, "\t{index}\t{}\t{}", variable.name, variable.unit)?;

@@ -100,7 +100,7 @@ use crate::primitives::{Complex, Real, SpiceError, SpiceResult, almost_equal_ulp
 
 use crate::analysis::initial::{self, Hints, VoltageTolerance};
 use crate::analysis::linear::{number, plot, unsupported};
-use crate::analysis::{AnalysisContext, AnalysisRequest, Plot};
+use crate::analysis::{AnalysisContext, AnalysisRequest, Plot, PointSink};
 
 /// C's *effective* default `CKTtranMaxIter` (`.option itl4`): Newton
 /// iterations per timepoint. `cktntask.c` sets 10, but `NIiter()`
@@ -418,6 +418,35 @@ pub fn companion_transient(
     request: &AnalysisRequest,
     context: &AnalysisContext,
 ) -> SpiceResult<(Plot, TransientStats)> {
+    companion(circuit, request, context, None)
+}
+
+/// [`companion_transient`], handing every accepted point to `sink` as it is
+/// accepted instead of storing it, as C's `dctran.c` hands each one to
+/// `CKTdump`/`OUTpData`.
+///
+/// `sink` receives the plot header before the initial operating point is
+/// solved and then exactly the rows [`companion_transient`] would store. The
+/// returned plot has the variables but no points.
+///
+/// # Errors
+///
+/// As [`companion_transient`], and whatever `sink` reports.
+pub fn companion_transient_into(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &AnalysisContext,
+    sink: &mut dyn PointSink,
+) -> SpiceResult<(Plot, TransientStats)> {
+    companion(circuit, request, context, Some(sink))
+}
+
+fn companion(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &AnalysisContext,
+    sink: Option<&mut dyn PointSink>,
+) -> SpiceResult<(Plot, TransientStats)> {
     let settings = Settings::from_request(request)?;
     let bias = settings.bias(request)?;
     if request.uic
@@ -468,11 +497,11 @@ pub fn companion_transient(
         branch_row,
         stats: TransientStats::default(),
     };
-    driver.run()
+    driver.run(sink)
 }
 
 impl Driver<'_> {
-    fn run(mut self) -> SpiceResult<(Plot, TransientStats)> {
+    fn run(mut self, mut sink: Option<&mut dyn PointSink>) -> SpiceResult<(Plot, TransientStats)> {
         let Settings {
             step,
             stop,
@@ -494,6 +523,9 @@ impl Driver<'_> {
             Some(("time", "time")),
             false,
         )?;
+        if let Some(sink) = sink.as_deref_mut() {
+            sink.begin(&plot)?;
+        }
         // dctran.c: delta = MIN(CKTfinalTime/100, CKTstep)/10.
         let mut delta = (stop / 100.).min(step) / 10.;
         let mut x = self.initialize()?;
@@ -560,10 +592,16 @@ impl Driver<'_> {
                         )),
                         None,
                     )?;
-                    push(&mut plot, 0., &x, observed)?;
+                    push(&mut plot, sink.as_deref_mut(), 0., &x, observed)?;
                 }
             } else if t >= start {
-                push(&mut plot, t, &x, std::mem::take(&mut observed))?;
+                push(
+                    &mut plot,
+                    sink.as_deref_mut(),
+                    t,
+                    &x,
+                    std::mem::take(&mut observed),
+                )?;
             }
             if almost_equal_ulps(t, stop, 100) {
                 break;
@@ -1104,9 +1142,22 @@ impl Driver<'_> {
     }
 }
 
-fn push(plot: &mut Plot, time: Real, x: &Vector, observed: Vec<Complex>) -> SpiceResult<()> {
+/// Stores an accepted point in `plot`, or hands it to `sink` when there is one.
+fn push<'s>(
+    plot: &mut Plot,
+    sink: Option<&mut (dyn PointSink + 's)>,
+    time: Real,
+    x: &Vector,
+    observed: Vec<Complex>,
+) -> SpiceResult<()> {
     let mut point = vec![Complex::real(time)];
     point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
     point.extend(observed);
-    plot.push_point(point)
+    match sink {
+        Some(sink) => {
+            plot.check_point(&point)?;
+            sink.point(&point)
+        }
+        None => plot.push_point(point),
+    }
 }

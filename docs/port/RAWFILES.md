@@ -124,7 +124,21 @@ rawfile.write_with_format(path, RawFormat::Binary)?;      // == to_binary()
 rawfile.write_with_format(path, RawFormat::Ascii)?;       // == to_ascii()
 let bytes = rawfile.to_binary()?;                         // little-endian
 let bytes = rawfile.to_binary_with(BinaryByteOrder::BigEndian)?;
+
+// Write plot by plot; a streamed plot spools its points until its count is known.
+let mut writer = RawFileWriter::create(path, RawFormat::Binary)?;
+writer.write_plot(&raw_plot)?;                            // a finished plot
+let mut streamed = writer.begin_plot(header, spool_path)?; // header: no points
+streamed.push_point(&values)?;                            // one row at a time
+writer.finish_plot(streamed)?;                            // header, then the rows
+writer.finish()?;
 ```
+
+`write_with_format` and `RawFileWriter` stream through a buffer; only
+`to_ascii`/`to_binary` build the file in memory. A streamed plot's bytes are
+identical to `write_plot`'s: the header keeps `raw_write()`'s unpadded
+`No. Points:` line, so the rows wait in the spool file until the count is known
+instead of being patched in place as C's batch writer (`outitf.c`) does.
 
 `RawFile::parse` still sees text only and still refuses a binary file; binary
 bytes never pass through `str` beyond the (text) header, and the header is the

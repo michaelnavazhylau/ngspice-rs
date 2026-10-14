@@ -344,7 +344,12 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
 - [x] Wave 0.5f, bound complex AC assembly: already in place since PR #137
   (`ComplexMatrix::from_operators_grouped_on`); `ladder1000_ac` 1.4x and
   `ladder10000_ac` 1.9x C wall time (target 2x).
-- [ ] Wave 0.5e and 0.5g: MOS device-load cost, plot memory (see M10.md).
+- [x] Wave 0.5g, plot memory: rawfiles stream through a buffered writer, and
+  `simulate` streams a `.tran` plot that no `.print`/`.measure`/`.four` reads
+  straight into the rawfile (`Analysis::run_into`, `PointSink`,
+  `RawFileWriter`); `ladder100_tran_long` peak RSS 914 MB → 5.8 MB (C 5.1 MB),
+  bytes unchanged. `.ac` is not streamed yet.
+- [ ] Wave 0.5e: MOS device-load cost (see M10.md).
 
 - [x] JFET level 1 (#82, slice 1, `work/m10-jfet`): `J` grammar (`inp2j.c`),
   `njf`/`pjf` model family with level 0/1 selection (level 2 since slice 6;

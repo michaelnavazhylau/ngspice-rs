@@ -169,10 +169,17 @@ values: complex as `re,im` with 15 fractional digits, except that a component wh
       0  1.000000000000000e+02,0.000000000000000e+00  7.169568003248978e-01,-4.504772433683886e-01  …
 ```
 
-**The full plot is kept.** The selection is a projection applied only to what is
-written. `Selection::apply` builds a new plot; the driver's plot stays
-untouched for the measurement work that follows (`simulate` keeps it in scope
-until after the rawfile is written).
+**The full plot is kept while anything reads it.** The selection is a
+projection applied only to what is written. `Selection::apply` builds a new
+plot; the driver's plot stays untouched for the measurement work that follows.
+The selection depends only on the plot's variables, so it can also be applied
+one row at a time (`Selection::header`, `Selection::apply_point`): when no
+`.print`, `.measure` or `.four` card reads a `.tran` plot
+(`batch::needs_full_plot`), `simulate` resolves the selection against the
+header the driver announces and streams each accepted point through it into the
+rawfile, keeping no plot at all, as C's batch output does. Both paths write the
+same bytes, and an unresolvable request still fails before anything is
+published.
 
 ## Divergence from C
 

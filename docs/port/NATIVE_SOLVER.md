@@ -145,8 +145,8 @@ singular systems).
   where the faer control needed 0.32x (the "After wave 0.5" benchmark in
   M10.md). SPARSE stays for fidelity; an alternative ordering is the lever if
   large meshes matter.
-- Remaining performance work (device-load cost, complex AC assembly, plot
-  memory) is tracked as M10 items 0.5e–0.5g.
+- Remaining performance work, device-load cost, is tracked as M10 item 0.5e;
+  complex AC assembly (0.5f) and plot memory (0.5g) are done.
 
 ## Validation
 
