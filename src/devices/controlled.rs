@@ -24,8 +24,7 @@
 //! `n-` through itself, and F does the same with `beta i(vc)`. All four are
 //! state-independent: the same real stamps serve OP, DC sweeps, AC (no
 //! frequency dependence, `*acld` equals `*load`), companion transients and the
-//! immutable `E x' + A x = b(t)` assembly used by the diffsol BDF backend. They
-//! add nothing to `E` or `b`.
+//! immutable `E x' + A x = b(t)` assembly. They add nothing to `E` or `b`.
 //!
 //! # Setter semantics
 //!

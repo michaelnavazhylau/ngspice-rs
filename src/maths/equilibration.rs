@@ -1,14 +1,14 @@
 //! Explicit, bounded row/column equilibration around the existing checked LU APIs.
 //!
-//! Sparse/complex factors retain the existing numerical rank guard and its
-//! aggregate-certification proof caveat (`docs/port/SPARSE_RANK_DIAGNOSTICS.md`).
-//! Scaling does not supply a new uniqueness theorem or forward-error guarantee.
+//! Scaling does not supply a uniqueness theorem or forward-error guarantee.
 //!
 //! For `M x = b`, factors solve `(R M C) y = R b` and return `x = C y`.
 //! Original assembled snapshots check residuals in physical units. This is a
-//! maths-library opt-in, not a new default; its one production use is Newton's
-//! fallback after a failed row-equilibrated solve
-//! (`analysis/src/newton.rs`, Curtis-Reid balancing plus refinement).
+//! maths-library opt-in with no production caller: the circuit solves follow
+//! ngspice, which neither scales nor checks residuals (`spconfig.h` builds
+//! SPARSE without `SCALING`), so Newton's former equilibrated fallback was
+//! removed with the native solver (M10 wave 0.5,
+//! `docs/port/SPARSE_RANK_DIAGNOSTICS.md`).
 //! `src/maths/sparse/sputils.c::spScale` is the read-only behavioral reference
 //! for row/RHS and column/solution transforms; the bounded max-based and
 //! Curtis-Reid selections here are independent policies, not a copied solver

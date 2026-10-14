@@ -1868,3 +1868,90 @@ fn fourier_frontend_settings_reach_the_cli() {
     let written = ngspice_rs::netlist::write_netlist(&parsed).unwrap();
     assert!(written.contains("set nfreqs=5 nperiods=2 polydegree=3 fourgridsize=256"));
 }
+
+const STREAMED_RC: &str =
+    "streamed rc\nv1 in 0 pulse(0 1 1m 1u 1u 1m 2m)\nr1 in out 1k\nc1 out 0 1u\n";
+
+/// Runs `deck` with `--format <format>` into `dir/<name>` and returns the
+/// rawfile's bytes without its `Date:` line.
+fn rawfile_without_date(dir: &Path, name: &str, deck: &Path, format: &str) -> Vec<u8> {
+    let output = dir.join(name);
+    let run = cli(&[
+        "simulate",
+        "--format",
+        format,
+        "--output",
+        output.to_str().unwrap(),
+        deck.to_str().unwrap(),
+    ]);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let bytes = fs::read(&output).unwrap();
+    let date = bytes
+        .windows(6)
+        .position(|window| window == b"Date: ")
+        .expect("a Date: header");
+    let end = date
+        + bytes[date..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .unwrap()
+        + 1;
+    [&bytes[..date], &bytes[end..]].concat()
+}
+
+#[test]
+fn a_streamed_transient_writes_exactly_what_a_stored_one_writes() {
+    // Without a .measure/.four/.print the .tran plot streams into the rawfile
+    // (M10 0.5g); a .measure card makes the run keep the full plot. Neither
+    // changes the rawfile, with or without a .save selection.
+    let dir = scratch("streamed-tran");
+    for save in ["", ".save v(out)\n"] {
+        let streamed = write_deck(&dir, &format!("{STREAMED_RC}.tran 0.1m 6m\n{save}.end\n"));
+        let streamed_path = dir.join("streamed.cir");
+        fs::rename(&streamed, &streamed_path).unwrap();
+        let stored = write_deck(
+            &dir,
+            &format!("{STREAMED_RC}.tran 0.1m 6m\n{save}.measure tran top max v(out)\n.end\n"),
+        );
+        for format in ["ascii", "binary"] {
+            let want = rawfile_without_date(&dir, "stored.raw", &stored, format);
+            let got = rawfile_without_date(&dir, "streamed.raw", &streamed_path, format);
+            assert_eq!(got, want, "{format} {save:?}");
+        }
+        let written = RawFile::load(dir.join("streamed.raw")).unwrap();
+        let plot = written.single_plot().unwrap();
+        assert!(plot.point_count() > 60, "every accepted point is written");
+        if save.is_empty() {
+            assert_eq!(variable_names(plot), ["time", "v(in)", "v(out)", "i(v1)"]);
+        } else {
+            assert_eq!(variable_names(plot), ["time", "v(out)"]);
+        }
+    }
+    assert_eq!(
+        entries(&dir),
+        ["deck.cir", "stored.raw", "streamed.cir", "streamed.raw"]
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_streamed_transient_that_fails_publishes_nothing_and_leaves_no_spool() {
+    let dir = scratch("streamed-failure");
+    let output = dir.join("keep.raw");
+    for (tail, message) in [
+        // Fails at the header, before the initial operating point.
+        (".tran 0.1m 6m\n.save v(nosuch)\n", "v(nosuch)"),
+        // Fails mid-run, after points were already spooled.
+        (".tran 0.1m 6m maxsteps=20\n", "work limit of 20"),
+    ] {
+        fs::write(&output, "PREVIOUS CONTENT\n").unwrap();
+        let deck = write_deck(&dir, &format!("{STREAMED_RC}.op\n{tail}.end\n"));
+        let run = simulate(&output, &deck);
+        assert_eq!(run.status.code(), Some(2), "{}", stderr(&run));
+        assert!(stderr(&run).contains(message), "{}", stderr(&run));
+        assert!(run.stdout.is_empty(), "{}", stdout(&run));
+        assert_eq!(fs::read_to_string(&output).unwrap(), "PREVIOUS CONTENT\n");
+        assert_eq!(entries(&dir), ["deck.cir", "keep.raw"], "{tail}");
+    }
+    fs::remove_dir_all(&dir).unwrap();
+}

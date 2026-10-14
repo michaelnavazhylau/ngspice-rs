@@ -180,8 +180,9 @@ fn contextual_model_rc_transient_matches_the_analytic_step() {
     for point in 0..p.point_count() {
         let time = p.value("time", point).unwrap().re;
         let expected = 1.5 * (1.0 - (-time / (1500.0 * 1.1e-6)).exp());
-        // Companion trapezoidal truncation error (worst 4.1e-5 on this 1.5 V
-        // step); the removed BDF backend was tighter (2e-5 held).
+        // Trapezoidal truncation error, which C ngspice shares: worst 4.1e-5 V
+        // on this 1.5 V step, and the same deck (1 ns PULSE edge, `.options
+        // temp=77`) gives 4.08e-5 V in both C and the port.
         close(p.value("v(a)", point).unwrap().re, expected, 0.0, 8e-5);
     }
 }

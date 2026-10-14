@@ -39,11 +39,12 @@ existing golden is touched). Design rules they follow: sample spacing (`tstep`,
 which is also the default maximum step) is small against the circuit time
 constants and source edges so that comparing resampled waveforms measures
 integration error, not interpolation error; source corners of the decks that also
-run on the explicit BDF backend lie on the `.tran` output grid and the stop time
+ran on the former explicit BDF backend (removed in M10 wave 0.5) lie on the
+`.tran` output grid and the stop time
 is an exact multiple of `tstep`; `.ac` uses `lin` because the Rust rawfile writer
 does not reproduce ngspice's `grid=` header attribute for `dec`/`oct`. The four initialized-state decks (`rc_ic_uic_tran` ... `floating_cap_ic_tran`, GitHub
-#27/#48) were captured the same way; they have no BDF variants because the diffsol
-backend rejects `.ic`/`uic`/`ic=`. With `uic` C writes no `t = 0` row and adds a
+#27/#48) were captured the same way; they never had BDF variants because the
+removed diffsol backend rejected `.ic`/`uic`/`ic=`. With `uic` C writes no `t = 0` row and adds a
 breakpoint at the `.tran` step; the comparator starts at the first common sample.
 
 | Fixture | Analysis | Exercises |

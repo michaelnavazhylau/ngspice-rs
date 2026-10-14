@@ -1102,6 +1102,7 @@ pub(crate) fn c_depletion(v: Real, czero: Real, pot: Real, m: Real, fc: Real) ->
 /// `NIintegrate` for a junction charge in `slot` (its derivative in
 /// `slot + 1`): `(geq, ccap)` with `geq = ag0 cap` and `ccap` the charge
 /// derivative, stored in the derivative slot.
+#[inline]
 pub(crate) fn junction_companion(
     context: &mut StampContext<'_>,
     coefficients: &crate::maths::integrator::Coefficients,
@@ -1110,26 +1111,29 @@ pub(crate) fn junction_companion(
 ) -> SpiceResult<(Real, Real)> {
     let mut history = crate::maths::integrator::ChargeHistory::new(p.charge);
     for age in 1..=coefficients.charge_history_len() {
-        history.push(
-            context
-                .states
-                .accepted(age, slot)
-                .ok_or_else(|| SpiceError::circuit("missing accepted junction charge"))?,
-        )?;
+        let Some(charge) = context.states.accepted(age, slot) else {
+            return Err(missing_history("missing accepted junction charge"));
+        };
+        history.push(charge)?;
     }
     let previous = if coefficients.needs_previous_derivative() {
-        Some(
-            context
-                .states
-                .accepted(1, slot + 1)
-                .ok_or_else(|| SpiceError::circuit("missing accepted junction derivative"))?,
-        )
+        let Some(derivative) = context.states.accepted(1, slot + 1) else {
+            return Err(missing_history("missing accepted junction derivative"));
+        };
+        Some(derivative)
     } else {
         None
     };
     let companion = coefficients.integrate(&history, previous, p.capacitance)?;
     context.states.set(slot + 1, companion.derivative)?;
     Ok((companion.conductance, companion.derivative))
+}
+
+/// [`junction_companion`]'s error for a short accepted history.
+#[cold]
+#[inline(never)]
+fn missing_history(message: &str) -> SpiceError {
+    SpiceError::circuit(message)
 }
 
 #[allow(dead_code)] // No in-tree caller since MOS1 follows mos1load.c directly.

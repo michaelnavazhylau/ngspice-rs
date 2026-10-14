@@ -55,6 +55,8 @@
 //! under `uic` (`mos1ic.c`) and are zero otherwise. An `off` instance starts
 //! at zero and is held there through `MODEINITFIX`.
 
+use std::cell::OnceCell;
+
 use crate::devices::initial::InstanceInitial;
 use crate::devices::limiting;
 use crate::devices::noise::{
@@ -766,6 +768,10 @@ pub(super) struct Mosfet<L: MosLevel> {
     pub(super) series: [Real; 2],
     /// `OFF` and `ICVDS`/`ICVGS`/`ICVBS` (C `MOS1off`, `MOS1icV*`).
     pub(super) initial: InstanceInitial,
+    /// The derivation at the first circuit and nominal temperature it was
+    /// asked for, which C's `MOSxtemp` computes once; it depends on nothing
+    /// else, so loads reuse it.
+    pub(super) derived: OnceCell<(Real, Real, Operating<L::Params>)>,
 }
 
 impl<L: MosLevel> Mosfet<L> {
@@ -813,6 +819,7 @@ impl<L: MosLevel> Mosfet<L> {
             geometry,
             series,
             initial,
+            derived: OnceCell::new(),
         };
         // Validate every derivation before interning nodes.
         device.operating(context)?;
@@ -867,7 +874,26 @@ impl<L: MosLevel> Mosfet<L> {
 
     /// The temperature-, process- and geometry-dependent values of one load.
     pub(super) fn operating(&self, context: &ModelContext) -> SpiceResult<Operating<L::Params>> {
-        self.model.operating(&self.name, &self.geometry, context)
+        if let Some(op) = self.cached(context.temperature, context.nominal_temperature) {
+            return Ok(*op);
+        }
+        let op = self.model.operating(&self.name, &self.geometry, context)?;
+        let _ = self
+            .derived
+            .set((context.temperature, context.nominal_temperature, op));
+        Ok(op)
+    }
+
+    /// The cached derivation when it was made at these circuit and nominal
+    /// temperatures.
+    #[inline]
+    fn cached(&self, temperature: Real, nominal: Real) -> Option<&Operating<L::Params>> {
+        self.derived
+            .get()
+            .filter(|(t, n, _)| {
+                t.to_bits() == temperature.to_bits() && n.to_bits() == nominal.to_bits()
+            })
+            .map(|(_, _, op)| op)
     }
 
     /// `mos1load.c` from `vbd = vbs - vds` on, at the device-frame
@@ -1368,6 +1394,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
             geometry,
             series,
             initial,
+            derived: OnceCell::new(),
         };
         device.operating(context)?;
         Ok(Box::new(device))
@@ -1382,22 +1409,27 @@ impl<L: MosLevel> Device for Mosfet<L> {
                 L::LABEL
             )));
         }
-        let op = self.operating(&context.model_context())?;
+        let fresh;
+        let op = match self.cached(context.temperature, context.nominal_temperature) {
+            Some(op) => op,
+            None => {
+                fresh = self.operating(&context.model_context())?;
+                &fresh
+            }
+        };
         let pol = self.model.common().pol;
         let [dpv, gv, spv, bv] = self.inner.map(|n| context.node_voltage(n));
         let raw = [pol * (bv - spv), pol * (gv - spv), pol * (dpv - spv)];
         let ic = self.start_conditions(context.states.initial_conditions(), |n| {
             context.node_voltage(n)
         });
-        let integration = context.integration.cloned();
+        let integration = context.integration;
         let transient = integration.is_some();
         let phase = context.states.phase();
         // C `xfact = CKTdelta / CKTdeltaOld[1]`; one in a `.dc` sweep.
-        let xfact = integration
-            .as_ref()
-            .map_or(1., crate::maths::integrator::Coefficients::predictor_ratio);
-        let (v, start, check) = self.select(&op, &context.states, raw, ic, xfact);
-        let mut e = self.evaluate(&op, v, context.gmin)?;
+        let xfact = integration.map_or(1., crate::maths::integrator::Coefficients::predictor_ratio);
+        let (v, start, check) = self.select(op, &context.states, raw, ic, xfact);
+        let mut e = self.evaluate(op, v, context.gmin)?;
         let states = &mut context.states;
 
         // Bulk junction charges (C computes them in MODETRAN, MODETRANOP and
@@ -1584,7 +1616,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         context.stamp_rhs(b, -(ceqbs + ceqbd - t * ceqgb))?;
         context.stamp_rhs(dp, ceqbd - cdreq + t * ceqgd)?;
         context.stamp_rhs(sp, cdreq + ceqbs + t * ceqgs)?;
-        for (row, col, value) in [
+        context.stamp_fixed([
             (d, d, gdr),
             (g, g, gcgd + gcgs + gcgb),
             (s, s, gsr),
@@ -1607,9 +1639,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
             (sp, s, -gsr),
             (sp, b, -gbs - (xnrm - xrev) * gmbs),
             (sp, dp, -gds - xrev * (gm + gmbs)),
-        ] {
-            context.stamp(row, col, value)?;
-        }
+        ])?;
         Ok(())
     }
     /// `MOS1convTest` (`mos1conv.c`, equal to `mos3conv.c`): the drain and

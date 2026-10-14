@@ -140,8 +140,9 @@ fn rl_branch_dynamics_have_the_correct_sign() {
         } else {
             0.1 * (1. - (-(t - 0.001) / 0.001).exp())
         };
-        // Companion trapezoid truncation error after the step (worst 7.3e-6 A on the 0.1 A scale;
-        // the removed BDF backend held 2e-6).
+        // Trapezoidal truncation error after the step, which C ngspice shares:
+        // worst 7.3e-6 A on the 0.1 A scale here and in C on the same deck
+        // (1 ns PULSE edge for the ideal step).
         assert!((p.value("i(l1)", i).unwrap().re - want).abs() < 1.5e-5);
         assert!((p.value("i(v1)", i).unwrap().re + want).abs() < 1.5e-5);
     }
@@ -164,8 +165,8 @@ fn rlc_underdamped_reference_and_pwl_breakpoints() {
         let t = (p.value("time", i).unwrap().re - 0.001).max(0.);
         let w = 750_000_f64.sqrt();
         let want = 1. - (-500. * t).exp() * ((w * t).cos() + 500. / w * (w * t).sin());
-        // Companion trapezoid truncation error after the step (worst 1.3e-4 V;
-        // the removed BDF backend held 2e-5).
+        // Trapezoidal truncation error after the step, which C ngspice shares:
+        // worst 1.3e-4 V here and in C on the same deck (1 ns PULSE edge).
         assert!((p.value("v(out)", i).unwrap().re - want).abs() < 3e-4);
     }
     let mut c = circuit("v1 in 0 0\nr1 in out 1k\nc1 out 0 1u");
@@ -181,7 +182,8 @@ fn rlc_underdamped_reference_and_pwl_breakpoints() {
         } else {
             1. - (1. - (-1_f64).exp()) * (-(t - 0.001) / 0.001).exp()
         };
-        // Companion trapezoid truncation error (worst 8.0e-5 V).
+        // Trapezoidal truncation error, which C ngspice shares: worst 8.0e-5 V
+        // at the ramp corner, here and in C on the same deck.
         assert!((p.value("v(out)", i).unwrap().re - want).abs() < 2e-4);
     }
 }
@@ -344,8 +346,9 @@ fn coupled_capacitance_network_matches_its_modal_solution() {
         };
         let a = p.value("v(a)", i).unwrap().re;
         let b = p.value("v(b)", i).unwrap().re;
-        // Companion trapezoid truncation error (worst ~2e-5 V; the removed BDF
-        // backend held 2e-5 with margin).
+        // Trapezoidal truncation error, which C ngspice shares: worst 3.7e-5 V
+        // on v(a) and 3.6e-5 V on v(b), here and in C on the same deck (1 ns
+        // PULSE edge for the ideal step).
         assert!((a - want_a).abs() < 1e-4, "t={t} v(a)={a} want {want_a}");
         assert!((b - want_b).abs() < 1e-4, "t={t} v(b)={b} want {want_b}");
     }

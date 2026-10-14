@@ -100,7 +100,7 @@ use crate::primitives::{Complex, Real, SpiceError, SpiceResult, almost_equal_ulp
 
 use crate::analysis::initial::{self, Hints, VoltageTolerance};
 use crate::analysis::linear::{number, plot, unsupported};
-use crate::analysis::{AnalysisContext, AnalysisRequest, Plot};
+use crate::analysis::{AnalysisContext, AnalysisRequest, Plot, PointSink};
 
 /// C's *effective* default `CKTtranMaxIter` (`.option itl4`): Newton
 /// iterations per timepoint. `cktntask.c` sets 10, but `NIiter()`
@@ -257,8 +257,8 @@ impl Settings {
             None => IntegrationMethod::Trapezoidal,
             Some(name) if name.eq_ignore_ascii_case("bdf") => {
                 return Err(unsupported(
-                    "method=bdf is the diffsol backend; select it with backend=diffsol \
-                     (companion methods are trap and gear)",
+                    "method=bdf: ngspice has no BDF integrator (the diffsol backend was \
+                     removed); the companion methods are trap and gear",
                 ));
             }
             Some(name) => IntegrationMethod::parse(name, max_order).ok_or_else(|| {
@@ -392,6 +392,9 @@ struct Driver<'a> {
     uic: bool,
     /// `true` for rows that carry branch currents (`abstol`), else `vntol`.
     branch_row: Vec<bool>,
+    /// Each device's state rows and the absolute state index of every
+    /// charge it hands `CKTterr` (`truncation_slots`), fixed for the run.
+    truncation: Vec<(std::ops::Range<usize>, Vec<usize>)>,
     stats: TransientStats,
 }
 
@@ -417,6 +420,35 @@ pub fn companion_transient(
     circuit: &mut Circuit,
     request: &AnalysisRequest,
     context: &AnalysisContext,
+) -> SpiceResult<(Plot, TransientStats)> {
+    companion(circuit, request, context, None)
+}
+
+/// [`companion_transient`], handing every accepted point to `sink` as it is
+/// accepted instead of storing it, as C's `dctran.c` hands each one to
+/// `CKTdump`/`OUTpData`.
+///
+/// `sink` receives the plot header before the initial operating point is
+/// solved and then exactly the rows [`companion_transient`] would store. The
+/// returned plot has the variables but no points.
+///
+/// # Errors
+///
+/// As [`companion_transient`], and whatever `sink` reports.
+pub fn companion_transient_into(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &AnalysisContext,
+    sink: &mut dyn PointSink,
+) -> SpiceResult<(Plot, TransientStats)> {
+    companion(circuit, request, context, Some(sink))
+}
+
+fn companion(
+    circuit: &mut Circuit,
+    request: &AnalysisRequest,
+    context: &AnalysisContext,
+    sink: Option<&mut dyn PointSink>,
 ) -> SpiceResult<(Plot, TransientStats)> {
     let settings = Settings::from_request(request)?;
     let bias = settings.bias(request)?;
@@ -454,6 +486,22 @@ pub fn companion_transient(
             branch_row[row] = true;
         }
     }
+    let truncation = circuit
+        .devices()
+        .iter()
+        .enumerate()
+        .map(|(index, device)| {
+            let rows = circuit
+                .state_rows(index)
+                .ok_or_else(|| failure("missing state range"))?;
+            let bases = device
+                .truncation_slots()
+                .into_iter()
+                .map(|slot| rows.start + slot)
+                .collect();
+            Ok((rows, bases))
+        })
+        .collect::<SpiceResult<_>>()?;
     let driver = Driver {
         circuit,
         system: &system,
@@ -466,13 +514,14 @@ pub fn companion_transient(
         hints,
         uic: request.uic,
         branch_row,
+        truncation,
         stats: TransientStats::default(),
     };
-    driver.run()
+    driver.run(sink)
 }
 
 impl Driver<'_> {
-    fn run(mut self) -> SpiceResult<(Plot, TransientStats)> {
+    fn run(mut self, mut sink: Option<&mut dyn PointSink>) -> SpiceResult<(Plot, TransientStats)> {
         let Settings {
             step,
             stop,
@@ -494,6 +543,9 @@ impl Driver<'_> {
             Some(("time", "time")),
             false,
         )?;
+        if let Some(sink) = sink.as_deref_mut() {
+            sink.begin(&plot)?;
+        }
         // dctran.c: delta = MIN(CKTfinalTime/100, CKTstep)/10.
         let mut delta = (stop / 100.).min(step) / 10.;
         let mut x = self.initialize()?;
@@ -560,10 +612,16 @@ impl Driver<'_> {
                         )),
                         None,
                     )?;
-                    push(&mut plot, 0., &x, observed)?;
+                    push(&mut plot, sink.as_deref_mut(), 0., &x, observed)?;
                 }
             } else if t >= start {
-                push(&mut plot, t, &x, std::mem::take(&mut observed))?;
+                push(
+                    &mut plot,
+                    sink.as_deref_mut(),
+                    t,
+                    &x,
+                    std::mem::take(&mut observed),
+                )?;
             }
             if almost_equal_ulps(t, stop, 100) {
                 break;
@@ -1042,14 +1100,8 @@ impl Driver<'_> {
         };
         let order = usize::from(coefficients.order());
         let mut limit = Real::INFINITY;
-        for (index, device) in self.circuit.devices().iter().enumerate() {
-            for slot in device.truncation_slots() {
-                let base = self
-                    .circuit
-                    .state_rows(index)
-                    .ok_or_else(|| failure("missing state range"))?
-                    .start
-                    + slot;
+        for (device, (rows, bases)) in self.circuit.devices().iter().zip(&self.truncation) {
+            for &base in bases {
                 let accepted = |age: usize, offset: usize| {
                     self.history
                         .accepted(age)
@@ -1057,28 +1109,29 @@ impl Driver<'_> {
                         .copied()
                         .ok_or_else(|| failure("accepted state history is too short"))
                 };
-                let mut charge = vec![trial.values()[base]];
-                for age in 1..=order + 1 {
-                    charge.push(accepted(age, 0)?);
+                // The trial charge, then `order + 1` accepted ones.
+                let mut storage = [0.0; IntegrationMethod::MAX_GEAR_ORDER as usize + 2];
+                let charge = storage
+                    .get_mut(..order + 2)
+                    .ok_or_else(|| failure("integration order out of range"))?;
+                charge[0] = trial.values()[base];
+                for (age, value) in charge.iter_mut().enumerate().skip(1) {
+                    *value = accepted(age, 0)?;
                 }
                 let derivative = [trial.values()[base + 1], accepted(1, 1)?];
-                limit = limit.min(coefficients.truncation_timestep(
-                    &charge,
-                    derivative,
-                    &tolerances,
-                )?);
+                limit =
+                    limit.min(coefficients.truncation_timestep(charge, derivative, &tolerances)?);
             }
             // Discrete-state bounds (`swtrunc.c`), from the same trial.
-            let rows = self
-                .circuit
-                .state_rows(index)
-                .ok_or_else(|| failure("missing state range"))?;
             if !rows.is_empty() {
                 let bound = device.timestep_limit(&crate::devices::TruncationContext {
                     trial: trial
                         .slice(rows.clone())
                         .ok_or_else(|| failure("trial state is too short"))?,
-                    accepted: self.history.accepted(1).and_then(|vector| vector.get(rows)),
+                    accepted: self
+                        .history
+                        .accepted(1)
+                        .and_then(|vector| vector.get(rows.clone())),
                     dt: coefficients.dt(),
                 })?;
                 if let Some(bound) = bound {
@@ -1104,9 +1157,22 @@ impl Driver<'_> {
     }
 }
 
-fn push(plot: &mut Plot, time: Real, x: &Vector, observed: Vec<Complex>) -> SpiceResult<()> {
+/// Stores an accepted point in `plot`, or hands it to `sink` when there is one.
+fn push<'s>(
+    plot: &mut Plot,
+    sink: Option<&mut (dyn PointSink + 's)>,
+    time: Real,
+    x: &Vector,
+    observed: Vec<Complex>,
+) -> SpiceResult<()> {
     let mut point = vec![Complex::real(time)];
     point.extend(x.as_slice().iter().map(|v| Complex::real(*v)));
     point.extend(observed);
-    plot.push_point(point)
+    match sink {
+        Some(sink) => {
+            plot.check_point(&point)?;
+            sink.point(&point)
+        }
+        None => plot.push_point(point),
+    }
 }

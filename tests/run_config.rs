@@ -25,10 +25,7 @@ fn defaults_are_unchanged() {
     assert_eq!(c.context().nominal_temperature, 27.0);
     assert_eq!(*c.transient(), Default::default());
     assert!(c.applied().is_empty() && c.method().is_none() && c.maxord().is_none());
-    let tran = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "1m", "backend=diffsol", "method=bdf"],
-    );
+    let tran = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m"]);
     assert_eq!(c.request(tran.clone()).unwrap(), tran);
 }
 
@@ -65,10 +62,8 @@ fn overrides_beat_deck_and_request_arguments_beat_deck() {
         .is_err()
     );
 
-    let request = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "1m", "backend=diffsol", "method=bdf", "RTOL=5e-5"],
-    );
+    let request =
+        AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m", "RTOL=5e-5"]);
     let merged = c.request(request).unwrap();
     assert_eq!(merged.named("rtol"), Some("5e-5"));
     assert_eq!(merged.named("vntol"), Some("2e-6"));
@@ -140,13 +135,9 @@ fn unknown_unimplemented_and_conflicting_options_are_errors() {
 }
 
 #[test]
-fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
+fn method_and_maxord_reach_the_companion_driver() {
     let c = config(".options method=Gear maxord=2").unwrap();
     assert_eq!((c.method(), c.maxord()), (Some("gear"), Some(2)));
-    let diffsol = AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "1m", "backend=diffsol", "method=bdf"],
-    );
     let ordinary = AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m"]);
     for (options, forwarded) in [
         (".options method=trap", vec!["method=trap"]),
@@ -159,11 +150,6 @@ fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
         ),
     ] {
         let c = config(options).unwrap();
-        let error = c.request(diffsol.clone()).unwrap_err();
-        assert!(
-            matches!(error, SpiceError::Unsupported { .. }),
-            "{options}: {error}"
-        );
         let mut want = ordinary.clone();
         want.arguments
             .extend(forwarded.into_iter().map(String::from));
@@ -201,7 +187,6 @@ fn method_and_maxord_reach_the_companion_driver_and_are_rejected_for_diffsol() {
         (request.named("trtol"), request.named("chgtol")),
         (Some("3e0"), Some("1e-13"))
     );
-    assert!(c.request(diffsol).is_err());
     assert!(config(".options trtol=0").is_err());
 }
 

@@ -34,13 +34,6 @@ fn tran() -> AnalysisRequest {
     AnalysisRequest::with_arguments(AnalysisKind::Transient, ["1u", "1m"])
 }
 
-fn diffsol() -> AnalysisRequest {
-    AnalysisRequest::with_arguments(
-        AnalysisKind::Transient,
-        ["1u", "1m", "backend=diffsol", "method=bdf"],
-    )
-}
-
 fn dc() -> AnalysisRequest {
     AnalysisRequest::with_arguments(AnalysisKind::DcSweep, ["v1", "0", "1", "0.1"])
 }
@@ -85,7 +78,7 @@ fn gmin_is_the_junction_gmin_of_every_analysis() {
     )
     .unwrap();
     close(ac.value("i(v1)", 0).unwrap().re.abs(), 1e-6, 1e-6, 0.);
-    // Transient (companion and diffsol) see it through the same context.
+    // The transient sees it through the same context.
     let tran =
         simulate("v1 a 0 -10\nd1 a 0 dm\n.model dm d(is=1e-14)\n.options gmin=1u\n.tran 1u 10u")
             .unwrap();
@@ -152,7 +145,6 @@ fn itl1_reaches_dc_analyses_and_the_companion_initial_bias() {
     }
     assert_eq!(c.request(dc()).unwrap().named("maxiter"), Some("100"));
     assert_eq!(c.request(tran()).unwrap().named("maxiter"), Some("100"));
-    assert!(c.request(diffsol()).is_err());
     let above = config(".options itl1=250").unwrap();
     assert_eq!(above.request(dc()).unwrap().named("maxiter"), Some("250"));
     for low in ["0", "1", "99", "100"] {
@@ -315,12 +307,6 @@ fn itl2_bounds_every_continuation_stage_of_the_dc_bias() {
             );
         }
     }
-    // backend=diffsol runs no continuation ladder, so it cannot honour itl2.
-    let error = config(".options itl2=300")
-        .unwrap()
-        .request(diffsol())
-        .unwrap_err();
-    assert!(error.to_string().contains("itl2"), "{error}");
     let c = config(".options itl1=5000").unwrap();
     assert_eq!(
         c.request(op.clone()).unwrap().named("maxiter"),
@@ -439,8 +425,6 @@ fn itl4_is_the_companion_newton_limit_per_timepoint() {
             .named("tranmaxiter"),
         None
     );
-    let error = c.request(diffsol()).unwrap_err();
-    assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
     let deck_text = "v1 a 0 pulse(0 5 1u 1u 1u 5u 20u)\nr1 a b 1k\nd1 b 0 dm\n\
                      .model dm d(is=1e-14)\n.tran 0.1u 3u";
     let stats = |options: &str, extra: &[&str]| {
@@ -489,7 +473,6 @@ fn xmu_weights_the_companion_trapezoidal_rule() {
         c.request(tran()).unwrap().named("xmu"),
         Some("3.0000000000000004e-1")
     );
-    assert!(c.request(diffsol()).is_err());
     let rc = "v1 a 0 pulse(0 1 0 1n 1n 1 2)\nr1 a b 1k\nc1 b 0 1u\n.tran 10u 2m";
     let at = |plot: &Plot, t: f64| {
         let time = plot.column("time").unwrap();
@@ -811,4 +794,27 @@ fn option_expression_failures_are_explicit() {
     let n = deck("r1 a 0 1k\n.param t=40\n.options temp={t}");
     let error = RunConfig::from_options(&n.options, &RunOverrides::default()).unwrap_err();
     assert!(matches!(error, SpiceError::Unsupported { .. }), "{error}");
+}
+
+#[test]
+fn removed_diffsol_backend_is_rejected_whatever_the_deck_options() {
+    // RunConfig forwards deck options without interpreting `backend=`; the
+    // `.tran` dispatcher refuses the removed adaptive BDF backend explicitly,
+    // so no option can be reported as honoured by it.
+    for options in [
+        "",
+        ".options itl2=300",
+        ".options itl4=20 xmu=0.3",
+        ".options method=gear maxord=2 trtol=3 chgtol=1e-13",
+    ] {
+        let error = simulate(&format!(
+            "v1 a 0 dc 1\nr1 a b 1k\nc1 b 0 1u\n{options}\n.tran 1u 10u backend=diffsol"
+        ))
+        .unwrap_err();
+        assert!(
+            matches!(error, SpiceError::Unsupported { .. })
+                && error.to_string().contains("backend=diffsol"),
+            "{options}: {error}"
+        );
+    }
 }

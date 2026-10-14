@@ -14,12 +14,12 @@
 //! | `temp`, `tnom` | [`AnalysisContext`] circuit/nominal temperature (Celsius, finite, above absolute zero) |
 //! | `gmin` | [`AnalysisContext::gmin`]: junction minimum conductance of every diode/BJT/MOS1 junction in all analyses (C `CKTgmin`, default 1e-12 S; finite, `>= 0`) |
 //! | `pivtol`, `pivrel` | [`AnalysisContext::pivot`]: SPARSE threshold-pivoting limits used whenever a circuit matrix is (re)ordered in any analysis (C `CKTpivotAbsTol`/`CKTpivotRelTol`, `SMPreorder`/`SMPcReorder`; defaults 1e-13 and 1e-3). `pivtol` must be finite and `>= 0`, `pivrel` in `(0, 1]`; C's `spOrderAndFactor` would silently use its default for other values |
-//! | `reltol` | transient relative tolerance (`rtol`): companion truncation/convergence, or diffsol BDF; also the DC/AC Newton `rtol` |
-//! | `vntol` | voltage absolute tolerance (companion Newton test; diffsol BDF; DC/AC Newton) |
-//! | `abstol` | branch-current absolute tolerance (companion truncation/Newton test; diffsol BDF; DC/AC Newton) |
-//! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor; **rejected with `backend=diffsol`** |
-//! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 to 6; `dctran.c` never runs above order 2, so 2 to 6 behave alike); **rejected with `backend=diffsol`**, which is neither |
-//! | `xmu` | companion trapezoidal weighting (`nicomcof.c`, default 0.5, `0..=0.5`); **rejected with `backend=diffsol`** |
+//! | `reltol` | transient relative tolerance (`rtol`): companion truncation/convergence; also the DC/AC Newton `rtol` |
+//! | `vntol` | voltage absolute tolerance (companion Newton test; DC/AC Newton) |
+//! | `abstol` | branch-current absolute tolerance (companion truncation/Newton test; DC/AC Newton) |
+//! | `chgtol`, `trtol` | companion local-truncation-error charge floor and overestimation factor |
+//! | `method`, `maxord` | retained as [`RunConfig::method`]/[`RunConfig::maxord`] and forwarded to the companion driver (`trap`/`trapezoidal`/`gear`, `maxord` 1 to 6; `dctran.c` never runs above order 2, so 2 to 6 behave alike) |
+//! | `xmu` | companion trapezoidal weighting (`nicomcof.c`, default 0.5, `0..=0.5`) |
 //! | `itl1` | Newton iteration limit of the direct DC solve and of the gmin strategies' closing solve (`maxiter`) for `.op`/`.dc`/`.ac` and the companion `.tran` initial bias (C `CKTdcMaxIter`; `dcop.c`, `acan.c`, `dctran.c` call `CKTop`); default 100 |
 //! | `itl2` | Newton limit of every other gmin/source-stepping stage of that DC bias (`stagemaxiter`, C `CKTdcTrcvMaxIter` in `cktop.c`); as written, the step adaptation of `dynamic_gmin`/`new_gmin`/`gillespie_src` (`adaptiter`, `iters <= itl2/4`); on `.dc` also the warm-started solve at every sweep point after the first (`trcvmaxiter`, `dctrcurv.c`), whose failure falls back to the full bias |
 //! | `itl4` | companion `.tran` Newton iterations per timepoint (`tranmaxiter`; effective default 100 as in C) |
@@ -38,8 +38,7 @@
 //! `floor(0.5 + value)` (`itl4=2.5` is 3).
 //!
 //! The DC options reach `.op`, `.dc`, `.ac` and the companion `.tran` initial
-//! bias; with `backend=diffsol` they (and `itl4`, `xmu`) are rejected. They
-//! follow C's `CKTop` strategies (#106); the port-only request keys
+//! bias. They follow C's `CKTop` strategies (#106); the port-only request keys
 //! `continuation=ladder` and `limiting=global` select the port's earlier fixed
 //! ladders and global damping instead. C's `OPtran` fallback, `gshunt`,
 //! `oldlimit`, predictor and bypass are not ported; see
@@ -89,9 +88,10 @@
 //! `gminsteps=`, `gminfactor=`, `noopiter=`, `adaptiter=`, `trcvmaxiter=`),
 //! then the deck's options, then driver defaults (27 C). Each name is resolved independently, so a request
 //! `gminsteps=` combines with a deck `gminfactor`.
-//! Defaults are the backend's: the companion driver uses ngspice's (reltol 1e-3,
-//! vntol 1e-6, abstol 1e-12, chgtol 1e-14, trtol 7); diffsol BDF keeps rtol 1e-7,
-//! vntol 1e-9, abstol 1e-12.
+//! Defaults are ngspice's (reltol 1e-3, vntol 1e-6, abstol 1e-12, chgtol 1e-14,
+//! trtol 7). A request's `backend=` is not interpreted here: the `.tran`
+//! dispatcher accepts only the companion driver and rejects `backend=diffsol`
+//! explicitly, whatever the deck's options.
 //! Repeated options override in deck order, last wins (`itl6` and `srcsteps`
 //! are one setting); giving one name both as a flag and with a value is a
 //! conflict error. A [`RunConfig`] is a plain value computed per deck, so
@@ -254,9 +254,6 @@ const DC_OPTIONS: [&str; 7] = [
 /// C's default `itl2` (`cktntask.c`: `TSKdcTrcvMaxIter = 50`) as `NIiter()`
 /// applies it: raised to [`NIITER_MIN_ITERATIONS`].
 pub const C_DEFAULT_ITL2_EFFECTIVE: usize = NIITER_MIN_ITERATIONS;
-
-/// Options only the companion transient driver implements.
-const COMPANION_ONLY: [&str; 2] = ["itl4", "xmu"];
 
 /// Deck-supplied DC settings (last occurrence wins). `None` leaves the default;
 /// `Some(0)` disables source/gmin stepping.
@@ -975,10 +972,8 @@ impl RunConfig {
     ///   for the companion driver.
     ///
     /// # Errors
-    /// [`SpiceError::Unsupported`] when the deck selected `method`/`maxord`,
-    /// `chgtol`/`trtol`, `itl4`, `xmu` or a DC option and the transient request
-    /// names `backend=diffsol`, which implements none of them, so the selection
-    /// cannot be honoured and is not silently ignored.
+    /// [`SpiceError::Unsupported`] when the deck's `method`/`maxord` selection
+    /// is not available at run time (`IntegrationMethod::validate_runtime`).
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
         request.squared_noise |= self.squared_noise;
         request.spice3_noise |= self.spice3_noise;
@@ -1024,60 +1019,18 @@ impl RunConfig {
             }
             return Ok(request);
         }
-        let diffsol = request
-            .named("backend")
-            .is_some_and(|name| name.eq_ignore_ascii_case("diffsol"));
-        if diffsol
-            && let Some(option) = self.applied.iter().find(|option| {
-                DC_OPTIONS.contains(&option.name.as_str())
-                    || COMPANION_ONLY.contains(&option.name.as_str())
-            })
-        {
-            return Err(SpiceError::Unsupported {
-                feature: format!(
-                    ".option {}: backend=diffsol implements neither the companion Newton/\
-                     trapezoidal settings nor the DC initial-bias continuation options \
-                     (omit backend= to run the companion driver)",
-                    option.name
-                ),
-                location: Some(option.location.clone()),
-            });
-        }
-        if let Some((name, location)) = &self.method {
+        if let Some((name, _)) = &self.method {
             let order = self.maxord.as_ref().map_or(2, |(order, _)| *order);
             let method = IntegrationMethod::parse(name, order).expect("validated at parse");
             method.validate_runtime()?;
-            if diffsol {
-                return Err(unsupported_integration(&format!("method={name}"), location));
-            }
             if request.named("method").is_none() {
                 request.arguments.push(format!("method={name}"));
             }
         }
-        if let Some((order, location)) = &self.maxord {
-            if diffsol {
-                return Err(unsupported_integration(
-                    &format!("maxord={order}"),
-                    location,
-                ));
-            }
-            if request.named("maxord").is_none() {
-                request.arguments.push(format!("maxord={order}"));
-            }
-        }
-        for (key, value) in [
-            ("chgtol", self.transient.chgtol),
-            ("trtol", self.transient.trtol),
-        ] {
-            if value.is_some() && diffsol {
-                return Err(SpiceError::Unsupported {
-                    feature: format!(
-                        ".option {key}: local-truncation control belongs to the companion \
-                         trap/Gear driver, not backend=diffsol"
-                    ),
-                    location: None,
-                });
-            }
+        if let Some((order, _)) = &self.maxord
+            && request.named("maxord").is_none()
+        {
+            request.arguments.push(format!("maxord={order}"));
         }
         for (key, value) in [
             ("rtol", self.transient.rtol),
@@ -1177,16 +1130,6 @@ fn push_real(request: &mut AnalysisRequest, key: &str, value: Option<Real>) {
 fn push_count(request: &mut AnalysisRequest, key: &str, value: Option<usize>) {
     if let (Some(value), None) = (value, request.named(key)) {
         request.arguments.push(format!("{key}={value}"));
-    }
-}
-
-fn unsupported_integration(what: &str, location: &SourceLoc) -> SpiceError {
-    SpiceError::Unsupported {
-        feature: format!(
-            ".option {what}: backend=diffsol is adaptive BDF, not ngspice trap/Gear; \
-             omit backend= to run the companion driver"
-        ),
-        location: Some(location.clone()),
     }
 }
 

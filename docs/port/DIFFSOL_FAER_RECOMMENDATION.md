@@ -1,12 +1,16 @@
 # diffsol/faer solver integration recommendation
 
-> **Historical design record, not current capability documentation.** The
-> baseline below predates the implemented linear engine. Production faer
-> real/complex LU, scalar R/C/L/V/I `.op`/`.dc`/`.ac` and restricted explicitly
-> selected diffsol BDF now exist. Rust **1.89** is declared and validated; the
-> old 1.85 toolchain concern below is resolved. See
-> [DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) for current
-> APIs/limits and the central [TODO.md](../../TODO.md) for remaining work.
+> **Superseded (M10 wave 0.5, PR #137).** The native SPARSE 1.3 solver
+> (`src/maths/sparse13.rs`, driven by `src/maths/linear.rs` as `spsmp.c` and
+> `niiter.c` drive SPARSE) replaced faer, and the diffsol BDF backend was
+> removed: `.tran` runs only the companion trap/Gear driver and
+> `backend=diffsol` is an explicit error. The reasons were fidelity to C (pivot
+> order, error semantics, the `.pz` determinant search) and a dependency graph
+> of winnow and petgraph only; the measurements, including a faer control, are
+> in [NATIVE_SOLVER_PROTOTYPE.md](NATIVE_SOLVER_PROTOTYPE.md) and
+> [M10.md](M10.md). This recommendation and the faer/diffsol implementation it
+> led to are kept as the historical record and describe no current code. See
+> [NATIVE_SOLVER.md](NATIVE_SOLVER.md) for current APIs and limits.
 >
 > Sections below describe findings/recommendations **at the inspection
 > baseline**, not outstanding implementation tasks or a fresh test run.

@@ -3,9 +3,8 @@
 **Implemented: S (`sw` model) and W (`csw` model) switches for `.op`, `.dc`,
 `.ac` and the companion `.tran` (trapezoidal/Gear-2), with C's hysteresis
 rules, `on`/`off` initial flags, Newton-phase state handling, accepted switch
-state and `swtrunc.c` step control.** The explicit diffsol BDF backend rejects
-switches (they have no immutable linear form), and nonlinear `.ic`/`uic`
-initialization stays unsupported for them as for every nonlinear device.
+state and `swtrunc.c` step control.** Nonlinear `.ic`/`uic` initialization
+runs on the companion driver (#99).
 
 C references (read-only): `src/spicelib/parser/inp2s.c`, `inp2w.c`;
 `src/spicelib/devices/sw/` (`sw.c`, `swsetup.c`, `swmparam.c`, `swparam.c`,
@@ -135,8 +134,8 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
   threshold crossings, flag/band decisions, `Float` nonconvergence, W branch
   sensing, `swtrunc.c` limits and the `SWacLoad` small-signal rule.
 * `tests/analysis_switches.rs`: production `.op`/`.dc`/`.ac`/`.tran`,
-  step control on a resistive ramp, the phased Newton contract and explicit
-  diffsol/`uic` failures.
+  step control on a resistive ramp, the phased Newton contract and `uic` on
+  the companion driver.
 * Opt-in live C (`NGSPICE_BIN=... cargo test -p ngspice-rs --test
   c_switches -- --ignored`): a resistive ramp (identical steps), negative
   hysteresis with a PULSE and an ON-flagged W, switches in a subcircuit, up
@@ -168,4 +167,4 @@ operating point) and the opt-in `c_switches::ac_uses_cs_minitsmsig_state`.
   the same `MODEINITSMSIG` state). Switch noise (`swnoise.c`/`cswnoise.c`)
   is ported for `.noise` (#100, [NOISE.md](NOISE.md)). Not ported:
   `@s1[i]`/`@s1[p]` queries (`swask.c`), C's `optran` fallback for operating
-  points that do not converge, and the diffsol BDF backend.
+  points that do not converge.

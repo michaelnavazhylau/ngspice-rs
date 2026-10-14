@@ -57,14 +57,18 @@ The command, in order:
    deck runs — all before the first analysis starts;
 5. runs each analysis through the production driver on a freshly elaborated
    circuit and resolves its `.save`/`.print`/`.measure`/`.four` outputs against
-   the full plot;
-6. only when every analysis and every output card succeeded, writes all plots as
-   one ASCII rawfile at `<path>`.
+   the full plot, writing each plot into a temporary file beside `<path>` as
+   soon as it is done. A `.tran` plot that no `.print`, `.measure` or `.four`
+   card reads is never stored: its accepted points stream through the
+   `.save`/`.print` selection into the temporary file as they are accepted;
+6. only when every analysis and every output card succeeded, renames the
+   temporary file to `<path>`; on any failure it is removed and `<path>` is
+   left untouched.
 
 An unadorned `.tran` runs the companion trapezoidal/Gear-2 driver the engine
-defaults to; `simulate` never injects `backend=diffsol`, and an explicit
-`backend=diffsol method=bdf` on the card is passed through unchanged (and fails
-where that backend does not apply, e.g. with `uic` or `.ic`). See
+defaults to, the only transient backend; an explicit `backend=diffsol` on the
+card is passed through unchanged and fails with an `Unsupported` error (the
+diffsol BDF backend was removed in M10 wave 0.5). See
 [TRANSIENT.md](TRANSIENT.md).
 
 ### The rawfile
@@ -155,7 +159,7 @@ in one job; the scheduling rules live in `analysis::batch`:
   `.option` settings to each analysis exactly as for a single-analysis deck, so
   a DC continuation option (`itl1`, `itl2`, `srcsteps`, `gminsteps`,
   `gminfactor`) in a deck that also runs `.tran` bounds the companion `.tran`
-  initial bias as well (#110); `backend=diffsol` still rejects them explicitly.
+  initial bias as well (#110).
 
 Divergences from C, all deliberate:
 

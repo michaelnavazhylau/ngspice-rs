@@ -81,7 +81,7 @@ fn current_source_pulse_drives_the_expected_polarity() {
     let mut c = circuit("i1 0 out pulse(0 2m 0 1u 1u 5m 10m)\nr1 out 0 1k\nc1 out 0 1n");
     let p = tran(&mut c, &["1m", "4m", "0", "1m"]).unwrap();
     // Trapezoidal rings around the steady state (alternating ~2.6e-5 V with
-    // steps of ~1 ms against tau = 1 us); the old BDF backend settled to 1e-6.
+    // steps of ~1 ms against tau = 1 us); C ngspice rings identically.
     assert!((at(&p, "v(out)", 3e-3) - 2.).abs() < 1e-4);
 }
 

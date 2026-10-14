@@ -10,7 +10,7 @@
 //! | [`batch`] | ngspice batch order, plot names and per-plot `.save`/`.print`/`.measure`/`.four` targeting for multi-analysis decks | ported (`docs/port/CLI.md`) |
 //! | `pz` | `.pz` poles and zeros at the operating point (`pzan.c`), roots from [`crate::maths::pencil`] | ported (`docs/port/POLE_ZERO_ADR.md`) |
 //! | [`noise`] | `.noise`: adjoint small-signal noise spectra and integrated totals | resistor, diode, BJT, MOS1 and switch generators (`docs/port/NOISE.md`) |
-//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran`/`.pz`/`.tf`/`.sp`/`.noise` drivers | linear DC/AC, adaptive trap/Gear-2 companion transient and explicitly selected bounded diffsol transient |
+//! | [`driver`] | the [`Analysis`] trait and the `.op`/`.dc`/`.ac`/`.tran`/`.pz`/`.tf`/`.sp`/`.noise` drivers | linear DC/AC and the adaptive trap/Gear-2 companion transient |
 //! | `tf` | `.tf` DC small-signal gain, input and output resistance at the bias point | ported (`tfanal.c`; see [`driver::TransferFunction`]) |
 //! | `sparam` | `.sp` S-parameter analysis over RF port sources (S, Y, Z) | ported without `donoise` (`docs/port/SPARAM.md`) |
 //!
@@ -23,9 +23,9 @@
 //! rather than by prose. `cargo xtask golden verify` runs supported Rust fixtures
 //! against that data without C. Binary rawfiles are read and written through the
 //! byte-level API in [`rawfile`], whose layout, provenance and rejected variants
-//! are documented in `docs/port/RAWFILES.md`. See `docs/port/VERIFICATION.md` and
-//! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and `docs/port/TRANSIENT.md` for
-//! current limits. Bounded nonlinear D/Q/M DC/AC and charge-companion support is
+//! are documented in `docs/port/RAWFILES.md`. See `docs/port/VERIFICATION.md`,
+//! `docs/port/NATIVE_SOLVER.md` and `docs/port/TRANSIENT.md` for current
+//! limits. Bounded nonlinear D/Q/M DC/AC and charge-companion support is
 //! documented in `docs/port/M4_NONLINEAR.md`; general physics/DAEs remain rejected; `.ic`/`.nodeset`/instance `ic=`/`uic` are implemented by the companion
 //! transient driver only (`docs/port/TRANSIENT.md`); the CLI still inspects/parses only.
 
@@ -52,7 +52,7 @@ pub mod sweep;
 mod tf;
 mod transient;
 
-pub use companion::{TransientStats, companion_transient};
+pub use companion::{TransientStats, companion_transient, companion_transient_into};
 pub use config::{
     AppliedOption, DcOptions, IgnoredOption, RunConfig, RunOverrides, TransientSettings,
 };
@@ -62,8 +62,10 @@ pub use driver::{
 };
 pub use fourier::{FourierAnalysis, FourierWindow, Harmonic};
 pub use measure::{MeasureEvents, MeasureSpan, Measurement};
-pub use rawfile::{BinaryByteOrder, RawFile, RawFileReader, RawFormat, RawPlot};
-pub use results::{Plot, PlotFlags, Variable};
+pub use rawfile::{
+    BinaryByteOrder, RawFile, RawFileReader, RawFileWriter, RawFormat, RawPlot, StreamedPlot,
+};
+pub use results::{Plot, PlotFlags, PointSink, Variable};
 pub use selection::{Selection, print_requests, write_requests};
 
 /// The C reference for the analysis drivers, used in `NotYetPorted` errors.

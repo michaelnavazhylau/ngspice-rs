@@ -1,7 +1,7 @@
 //! Resistor, capacitor and inductor — the first porting targets.
 //!
-//! Static and state-independent dynamic operators feed DC/AC and the explicit
-//! diffsol BDF backend through [`Device::assemble_linear`]. Separately,
+//! Static and state-independent dynamic operators feed linear DC/AC through
+//! [`Device::assemble_linear`]. Separately,
 //! [`Device::stamp`] implements the SPICE trap/Gear companion models for C and
 //! L from accepted charge/flux history (roadmap M3); the two paths never mix.
 //! Each type follows its C counterpart:

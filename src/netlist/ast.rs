@@ -1073,7 +1073,7 @@ pub enum ScopedCardKind {
 /// flattening, parameter evaluation or simulation. `.param` cards are parsed
 /// but unevaluated; `.option` cards are applied by `crate::analysis::RunConfig`,
 /// not by the AST. See
-/// `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
+/// `docs/port/FRONTEND_STRUCTURE.md` and the central `TODO.md`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Netlist {
     /// The deck's title line.

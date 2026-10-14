@@ -75,6 +75,18 @@ use crate::primitives::{Real, SpiceError, SpiceResult};
 /// truncation-error estimate (seven).
 pub const ACCEPTED_DEPTH: usize = crate::maths::IntegrationMethod::MAX_GEAR_ORDER as usize + 1;
 
+/// Why [`DeviceState::set`] refused `value` for `slot`: a nonfinite value,
+/// otherwise an out-of-range slot.
+#[cold]
+#[inline(never)]
+fn set_error(slot: usize, value: Real) -> SpiceError {
+    if value.is_finite() {
+        state_error(format!("state slot {slot} out of range"))
+    } else {
+        state_error(format!("nonfinite trial value for slot {slot}"))
+    }
+}
+
 fn state_error(message: impl Into<String>) -> SpiceError {
     SpiceError::Numerical {
         context: "device state".to_owned(),
@@ -631,6 +643,7 @@ impl DeviceState<'_> {
     /// accepted vector exists (dctran.c copies state1 into state2 after the
     /// first step).
     #[must_use]
+    #[inline]
     pub fn predicted(&self, slot: usize, ratio: Real) -> Option<Real> {
         let s1 = self.accepted(1, slot)?;
         let s2 = self.accepted(2, slot).unwrap_or(s1);
@@ -718,22 +731,20 @@ impl DeviceState<'_> {
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] for an out-of-range slot or a nonfinite value.
+    #[inline(always)]
     pub fn set(&mut self, slot: usize, value: Real) -> SpiceResult<()> {
-        if !value.is_finite() {
-            return Err(state_error(format!(
-                "nonfinite trial value for slot {slot}"
-            )));
+        match self.trial.get_mut(slot) {
+            Some(entry) if value.is_finite() => {
+                *entry = value;
+                Ok(())
+            }
+            _ => Err(set_error(slot, value)),
         }
-        let entry = self
-            .trial
-            .get_mut(slot)
-            .ok_or_else(|| state_error(format!("state slot {slot} out of range")))?;
-        *entry = value;
-        Ok(())
     }
 
     /// The accepted value of `slot`, `age` points back (1 is the latest).
     #[must_use]
+    #[inline(always)]
     pub fn accepted(&self, age: usize, slot: usize) -> Option<Real> {
         if age == 1
             && let Some(patches) = self.patches.as_deref()

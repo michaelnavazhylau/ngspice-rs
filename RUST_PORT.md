@@ -85,18 +85,18 @@ period over the full plot with physical-grid quadrature, DC/peak amplitude,
 window-referenced phase in radians and THD (1–100 harmonics). All six bounded
 M5 deliverables are implemented; `.plot`, interactive Fourier commands and the
 documented extended forms remain unported.
-Main implements scalar R/C/L/V/I elaboration and equations, real/complex faer
-LU, linear `.op`, single-source `.dc`, complex `.ac`, and explicitly selected
-an adaptive trapezoidal / Gear-2 companion `.tran` driver (ordinary `.tran`,
-linear circuits) and an explicitly selected bounded diffsol BDF transient.
+Main implements scalar R/C/L/V/I elaboration and equations, real/complex LU
+through a Rust port of SPARSE 1.3, linear `.op`, single-source `.dc`, complex
+`.ac`, and the adaptive trapezoidal / Gear-2 companion `.tran` driver, the only
+transient backend (the diffsol BDF backend was removed in M10 wave 0.5).
 This worktree extends the companion/DC/AC paths with M4's bounded D/Q/M equations.
-`.ic`/`uic` on diffsol or nonlinear companion circuits, physics outside the M4
-allowlists, general DAEs and remaining usability work remain unimplemented. Unsupported cases
+Physics outside the M4 allowlists, general DAEs and remaining usability work
+remain unimplemented. Unsupported cases
 fail explicitly; pending ports use
 [`SpiceError::NotYetPorted`](src/primitives/error.rs) naming a C reference.
 See [TODO.md](TODO.md) for the central checklist and
-[DIFFSOL_FAER_IMPLEMENTATION.md](docs/port/DIFFSOL_FAER_IMPLEMENTATION.md) for
-production APIs, numerical policies, recorded validation and limits.
+[NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md) for production solver APIs,
+numerical policies and limits.
 
 What already works for real:
 
@@ -108,18 +108,18 @@ What already works for real:
 | Card tokenizer and `.command` classification | `netlist` | `inppas2.c` / `inp2dot.c` dispatch |
 | Winnow semantic parser | `netlist` | borrowed token-stream combinators; scalar R/C/L, DC/AC V/I, models, bounded D/Q/M flags/IC vectors, PULSE/PWL, opaque analyses, scoped subcircuits/X, resolved includes/libraries; 8/8 fixture parses, not simulation |
 | Opt-in live parser oracle | `netlist` tests | compares scalar AST parameters and Q/M terminal order with live C queries |
-| Real/complex MNA storage and LU | `maths` | faer factors, rank/finite/residual diagnostics and owned snapshots |
+| Real/complex MNA storage and LU | `maths` | SPARSE 1.3 port (`sparse13`) with C's pivoting and singular-matrix policy, owned factors |
 | Model resolver and initial scalar schemas | `devices` | first-declaration lookup, family/level checks, diode input projection plus bounded M4 model-aware D/Q/M factories |
 | Bounded model-backed passives | `devices`, `analysis` | R sheet/C area-perimeter geometry, model L, contextual TC1/TC2, scale/multiplicity; no coil geometry |
 | Scalar R/C/L/V/I elaboration and equations | `devices` | ground elimination, branch binding, immutable linear operators |
-| Linear DC/AC and bounded transient | `analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran` (ordinary) and explicit diffsol BDF; linear only |
+| Linear DC/AC and bounded transient | `analysis` | `.op`, single-source `.dc`, complex `.ac`, trap/Gear-2 companion `.tran`; linear only |
 | Petgraph topology APIs | `devices`, `maths` | circuit incidence/per-port edges and assembled matrix-row coupling; no DC-path/solvability claim |
 | Rawfile read *and* write: ASCII and binary | `analysis` | `src/frontend/rawfile.c` layout; binary real/complex read/write with explicit byte order, validated payload lengths and rejected variants documented in [RAWFILES.md](docs/port/RAWFILES.md) |
 | Output selection (`.save`/`.print`) | `netlist`, `analysis`, `cli` | bounded typed request parsing and projection into the written rawfile in C `dbs` order with first-wins dedup; `.print` text table; unresolvable/unsupported requests fail before publishing; `.plot` unported ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
 | Measurements (`.measure`/`.meas`) | `netlist`, `analysis`, `cli` | bounded `FIND <operand> AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG` and `TRIG … TARG …` subset evaluated over the full plot before output selection narrows it; a failing card fails the run ([MEASURE.md](docs/port/MEASURE.md)) |
 | Conformance fixtures and goldens | `conformance/`, `xtask` | 20 decks (original 8, 8 M3 gate decks, 4 initialized-state decks), captured from `ngspice-47+` |
 | Golden-data capture and drift check | `xtask` | drives the C `ngspice` binary |
-| Rust-engine numerical verify | `xtask` | 26 verified fixtures (op, AC, trap/Gear-2/BDF transients, `.ic`/`uic`/`ic=` transients, nonlinear and flattened-subcircuit decks); no exclusions, no C invocation |
+| Rust-engine numerical verify | `xtask` | 26 verified fixtures (op, AC, trap/Gear-2 transients, `.ic`/`uic`/`ic=` transients, nonlinear and flattened-subcircuit decks); no exclusions, no C invocation |
 
 ## Quick start
 
@@ -133,9 +133,9 @@ cargo xtask golden check             # re-run C ngspice, diff against the golden
 cargo xtask ci                       # fmt --check + clippy -D warnings + test
 ```
 
-The workspace uses Rust edition 2024 and MSRV **1.89**. faer and diffsol are
-MIT-licensed backends, not translations of LGPL KLU; SuiteSparse/SUNDIALS are
-disabled. `cargo test` needs Rust and the locked registry dependencies; the goldens are
+The workspace uses Rust edition 2024 and MSRV **1.89**. The sparse solver is a
+port of SPARSE 1.3 (Berkeley notice), not a translation of LGPL KLU; there are
+no native solver dependencies. `cargo test` needs Rust and the locked registry dependencies; the goldens are
 committed data, so no C toolchain is required. Run `cargo fetch --locked` once
 before `cargo test --workspace --locked --offline` for offline use.
 `cargo xtask golden capture` needs a built C `ngspice` binary. Point at one with
@@ -153,7 +153,7 @@ Parsing succeeds for all eight (the M1 round-trip gate is
 writes an ASCII rawfile** ([CLI.md](docs/port/CLI.md)); it honours the bounded
 `.save`/`.print` output selection ([OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md))
 and reports the bounded `.measure`/`.meas` measurements ([MEASURE.md](docs/port/MEASURE.md)). The same APIs remain
-available directly, e.g. `cargo run -p ngspice-rs --example rc_diffsol`.
+available directly through `ngspice_rs::analysis::runner`.
 
 ```sh
 cargo run -p ngspice-rs -- conformance/netlists/rc_divider.cir    # deck summary
@@ -174,7 +174,8 @@ cargo run -p ngspice-rs -- analyses                              # analysis cove
 ## Development setup
 
 The optional local setup includes `ngspice-rs` (development main with C
-references), `ngspice-rs-diffsol-faer` (solver integration), `ngspice-rs-dist`
+references), `ngspice-rs-diffsol-faer` (historical solver-integration
+worktree), `ngspice-rs-dist`
 (Rust-only publication) and `ngspice_test` (C oracle). Inspect the chosen branch
 and status; do not assume these checkouts are synchronized.
 

@@ -177,8 +177,8 @@ deck's `.option` values (last occurrence wins), then the defaults.
 | — | `limiting` | `device` (default) or `global`; port-only |
 
 Propagation: `.op`, `.ac` (bias), `.dc` and the companion `.tran` initial bias
-receive the deck values through `RunConfig::request`; with `backend=diffsol` a
-deck DC option is `Unsupported`. `.dc` warm-starts every point after the first
+receive the deck values through `RunConfig::request` (a `.tran` naming
+`backend=diffsol` fails at dispatch, whatever its options). `.dc` warm-starts every point after the first
 with a plain Newton solve bounded by `trcvmaxiter` (C `dctrcurv.c`
 `NIiter(CKTdcTrcvMaxIter)`, effective 100 by default under the ngspice
 schedule) in `MODEINITPRED`, and falls back to the full `CKTop` sequence on a

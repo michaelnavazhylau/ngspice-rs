@@ -97,7 +97,8 @@ existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
   than the voltage/current floor. Nonlinear circuit internal nodes omitted
   by C batch output are excluded from the layout comparison; every C vector
   is compared. Waveforms are checked against analytic values at both C's and
-  Rust's physical sample times, including diffsol samples and a PWL corner.
+  Rust's physical sample times, including a PWL corner (at the time also on
+  diffsol samples; that backend was removed in M10 wave 0.5).
 - `c_noise_reference`: squared titles/names/units/values for voltage/current
   inputs and SPICE3 MOS1 flicker (C initialized with `ngbehavior=s3` before
   loading). `c_measure_reference` compares SP measurements with C using
@@ -113,9 +114,9 @@ existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
 
 The tracked M8 follow-ups are implemented with the documented backend and model
 bounds. No fixtures were recaptured or comparison thresholds relaxed. This does
-not claim full SPICE parity. Front-end controls remain bounded pre-run settings;
-diffsol retains its index-one structure restrictions and requires a piecewise
-linear baseline beneath PORT cosines.
+not claim full SPICE parity. Front-end controls remain bounded pre-run settings.
+(The diffsol backend's PORT restrictions noted at the time no longer apply: it
+was removed in M10 wave 0.5.)
 
 # Verification
 
@@ -233,7 +234,7 @@ flags, variable names, units and root counts must match exactly.
 | `pz_cv_loop` | capacitor across an ideal supply (index-two block) | 1.5e-10 of bound |
 | `pz_diode` | junction linearized at the operating point, `rs` internal node | 1.3e-3 of bound |
 | `pz_mos1` | MOS1 Meyer/overlap charge, pole at the origin, RHP zero | 5.3e-7 of bound |
-| `multi_analysis_pz` | `.ac`, `.op`, two `.pz` (`pz1` zeros, `pz2` poles) in batch order | 7.0e-10 of bound |
+| `multi_analysis_pz` | `.ac`, `.op`, two `.pz` (`pz1` zeros, `pz2` poles) in batch order | 7.0e-10 of bound with the M8 eigenvalue method; **excluded** from `golden verify` since M10 0.5c (see below) |
 
 `cargo xtask golden check` reproduces all seven with the C binary. After merging
 `work/m8` (`.tf`, `.sp`, Gear 3-6, instance sweeps): `cargo test --workspace
@@ -435,8 +436,8 @@ unstable equilibrium, which the port reproduces to 1e-8 of the bound).
 Rust-only evidence: `tests/nonlinear_initial.rs`
 (state selection by `.nodeset` and MOS1 `ic=`, exact forced `.ic` rows and
 their release, explicit `.ic` contradictions, `uic` starts of D/Q/M and the
-diode `ic=` quirk, `OFF` through dynamic gmin, `limiting=global` and BDF
-rejections) and the `Limiter` unit tests in `devices::limiting`.
+diode `ic=` quirk, `OFF` through dynamic gmin, `limiting=global` and, until
+diffsol's removal in M10 wave 0.5, BDF rejections) and the `Limiter` unit tests in `devices::limiting`.
 
 ## M7 convergence parity (#106)
 
@@ -742,9 +743,8 @@ Three new C goldens, each captured once with `cargo xtask golden capture
 registered in `golden verify`: `transformer_ac` (linear AC bound),
 `transformer_tran` and `transformer_ic_uic_tran` (`compare::TRAN`, worst error
 0.000 of the bound); this slice reports 41 verified fixtures and `golden check`
-reproduces the three. `transformer_tran` has no BDF variant because C's own
-restart error after the 1 us pulse corner exceeds `compare::TRAN_RESTART`; the
-BDF backend is instead checked against a reltol = 1e-7 companion reference.
+reproduces the three. (At the time `transformer_tran` had no BDF variant; BDF
+variants and the diffsol backend were removed in M10 wave 0.5.)
 A review follow-up added a fourth golden, `transformer_model_uic_tran`
 (model-backed coupled inductors with instance `ic=` under `uic`, captured the
 same way; 42 verified fixtures), after model-backed C/L gained their
@@ -1135,8 +1135,8 @@ finite/range/overflow errors, explicit unsupported setters, real stamping,
 initial-condition retention and atomic failure across every circuit namespace.
 `tests/analysis_passive_models.rs` adds **7** checks comparing model/literal
 DC, source sweeps and complex AC; repeated default/nondefault TEMP/TNOM runs;
-explicit TEMP/TNOM overrides; runtime errors; contextual RC BDF against its
-analytic step; and logarithmic-AC endpoint arithmetic. A new module doctest
+explicit TEMP/TNOM overrides; runtime errors; contextual RC BDF (now the
+companion driver) against its analytic step; and logarithmic-AC endpoint arithmetic. A new module doctest
 exercises contextual passive assembly.
 
 Two opt-in tests in `tests/c_passive_models.rs` compare effective
@@ -1144,8 +1144,9 @@ values and production DC/complex AC against live C at both 27/27 and 77/22
 Celsius. `conformance/parser/passive_elaboration.cir` exercises R/C geometry,
 model/default/instance precedence, repeated setters, TC1/TC2, scale and
 multiplicity. Query comparisons use **1e-12 relative + 1e-24 absolute**. Production
-DC retains **1e-12 + 1e-15** and AC **1e-10 + 1e-12**; analytic BDF retains
-**2e-5 V**. No comparison bounds or committed goldens were changed.
+DC retains **1e-12 + 1e-15** and AC **1e-10 + 1e-12**; analytic BDF retained
+**2e-5 V** (on the companion driver since M10 wave 0.5 the bound is 8e-5 V,
+C's own trapezoidal error on that deck). No comparison bounds or committed goldens were changed.
 
 Live C exposed that capacitor DEFL is not applied to instances; it is now an
 explicit gap and geometry requires instance L. It also exposed an existing AC
@@ -1171,7 +1172,6 @@ RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
 NGSPICE_BIN=/absolute/path/to/ngspice cargo test --workspace --locked -- --ignored
 cargo xtask golden verify
 cargo xtask golden verify --netlist rc_lowpass_ac
-cargo run -p ngspice-rs --example rc_diffsol --locked
 ```
 
 [PASSIVE_MODELS.md](PASSIVE_MODELS.md) lists the exhaustive setter/units/default/
@@ -1191,7 +1191,8 @@ malformed/overflow/advanced forms and first-error/.end behavior.
 
 #9 adds `tests/waveforms.rs` (deck binding, C defaults, limits,
 merged lazy breakpoints), `tests/source_waveforms.rs` (parsed
-PWL/PULSE decks through diffsol BDF, jump sampling, budgets) and opt-in
+PWL/PULSE decks, then through diffsol BDF and now the companion driver, jump
+sampling, budgets) and opt-in
 `parsed_pulse_rc_matches_c_on_requested_samples` / `parsed_pwl_rc_matches_c_on_requested_samples`
 in `c_linear_reference.rs`.
 
@@ -1279,8 +1280,8 @@ capacitance transient tests, and opt-in live C Pwl comparisons for the RC,
 floating-capacitor and coupled-capacitance decks (`c_linear_reference.rs`, `2e-5` V
 on the requested 100 µs grid through the 1 ms/1.01 ms knots), use common physical
 output grids rather than identical adaptive internal timesteps. See
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md) for test coverage,
-recorded stable/MSRV validation, error bounds and numerical restrictions.
+[NATIVE_SOLVER.md](NATIVE_SOLVER.md) for the solver's numerical policy and
+limits.
 
 These tests exercise Rust production interfaces, unlike `golden check`, which
 only checks reproducibility of captured C output. Topology and rawfile regression
@@ -1312,12 +1313,13 @@ unregistered new fixtures and missing default supported decks fail explicitly.
 Verify accepts only `--netlist`; it neither locates/executes C nor writes fixtures,
 goldens or scratch output. Capture/check/list retain their existing behavior.
 
-The extension registry is `xtask/src/verify.rs` (`SUPPORTED`/`EXCLUDED`). A
-`SUPPORTED` entry may list `Variant`s: additional Rust-only runs of the same deck
-against the *same* golden whose extra request tokens are appended to the deck's
-own (today `backend=diffsol method=bdf`, a syntax C rejects), each with its own
-tolerance. Variants never edit decks or goldens, and are refused by `RunConfig` if
-the deck selects `method=trap/gear` (no silent downgrade). Add an
+The extension registry is `xtask/src/verify.rs` (`SUPPORTED`/`BATCH`/
+`EXCLUDED`). The Rust-only `Variant` runs (`backend=diffsol method=bdf` against
+the same golden) were removed with the diffsol backend in M10 wave 0.5.
+`EXCLUDED` holds `multi_analysis_pz`: the port matches a `-ffp-contract=off` C
+build bit for bit, which hits the 201-trial pole-search limit and writes an
+empty `pz2` plot, while the committed golden came from the FMA-built reference
+(3 poles); a requested excluded fixture still fails the run. Add an
 analysis kind, axis identity and comparison policy only after demonstrating
 production support, not merely parser support. A `SUPPORTED` entry requires
 exactly one deck analysis and one C plot; multi-analysis decks are registered in
@@ -1371,10 +1373,9 @@ the port-internal tests in `options_coverage.rs`.
 All twelve transient fixtures (`rc_transient`, seven gate decks, four initialized-state decks) are
 registered in `golden verify` against their committed goldens (see above). The opt-in live comparisons in
 `tests/c_companion_reference.rs` cover the PULSE/PWL RC and
-series RLC decks for trap and Gear. C rejects `backend=diffsol method=bdf` tokens on `.tran`
-("Cannot compute substitute"), so the BDF backend is compared with the committed
-goldens only through the registry's Rust-only `Variant`s (same deck text plus
-BDF tokens) and otherwise with analytic solutions.
+series RLC decks for trap and Gear. (Until M10 wave 0.5 the diffsol BDF backend
+was also compared with the goldens through Rust-only `Variant`s; the items below
+that mention BDF, `TRAN_RESTART` and variants are that historical record.)
 
 * Timestep sequences are never compared. Both plots are evaluated on a shared
   grid `0, step, ..., stop` (`tran::Grid`); linear interpolation is used only
@@ -1385,8 +1386,7 @@ BDF tokens) and otherwise with analytic solutions.
   defaults, never from the data. At a breakpoint the left and right limits are
   compared separately: two samples at one instant are (left, right); one sample
   serves as both limits; no sample at a breakpoint is an error (ngspice lands a
-  step on every breakpoint; the companion driver emits one, the diffsol BDF
-  requested-grid output only on-grid events).
+  step on every breakpoint, and so does the companion driver).
 * `uic` runs: C writes no `t = 0` row (the first row is the first accepted step) and
   adds a breakpoint at the `.tran` step. `tran::Grid` has a `start` (0 normally);
   for a `uic` deck `verify.rs` passes the golden's first time and **both** plots must
@@ -1402,7 +1402,7 @@ BDF tokens) and otherwise with analytic solutions.
   floors, not values fitted to a fixture. Every companion (trap/Gear-2) run in the
   registry uses it unchanged; measured worst errors against the committed goldens
   are 0.000 of the bound (the port reproduces C's step sequence).
-* `compare::TRAN_RESTART` adds `reltol * max|C signal|` to that bound. It is used
+* Historical (removed with the BDF variants): `compare::TRAN_RESTART` added `reltol * max|C signal|` to that bound. It is used
   **only** for Rust-only BDF variants of decks with source corners
   (`rl_pulse_tran`, `rc_pwl_tran`, `rlc_series_tran`, `coupled_cap_tran`). Reason: C restarts its
   trapezoidal rule with a backward-Euler step after every breakpoint (`dctran.c`),
@@ -1417,7 +1417,7 @@ BDF tokens) and otherwise with analytic solutions.
   `rl_pulse_tran` passes the pointwise `TRAN` bound too, but at 0.94 of it, so it
   uses the same policy as its siblings. `floating_cap_tran` keeps the pointwise
   `TRAN` bound (0.11).
-* Registry design guard: BDF variants require every source corner on the `.tran`
+* Historical registry design guard: BDF variants required every source corner on the `.tran`
   output grid (the BDF backend emits the requested grid, and the comparator demands
   a sample at each breakpoint) and a stop time that is an exact multiple of `tstep`
   (otherwise the BDF grid ends with a duplicate sample one ulp before the stop,
@@ -1426,8 +1426,8 @@ BDF tokens) and otherwise with analytic solutions.
 Tests use only synthetic and committed data (no C): grid alignment on unrelated
 timesteps, in-segment interpolation, refusal across breakpoints, jump left/right
 limits, end-time mismatch, missing signals, nonfinite data, AST breakpoints, and
-an end-to-end diffsol BDF RC PWL ramp against its analytic response (worst
-error 4e-5 of the bound).
+and, until M10 wave 0.5, an end-to-end diffsol BDF RC PWL ramp against its
+analytic response (worst error 4e-5 of the bound).
 
 ## Initialized-state fixtures (#27, #48)
 
@@ -1444,10 +1444,8 @@ first step and step breakpoint).
 | `rc_ic_node_tran` | `.ic v(out)=0.25`, no `uic`, 1 V source | constrained bias row at `t = 0`, then release |
 | `floating_cap_ic_tran` | `uic`, `c1 ic=2` between floating a/b, ramp drive | plate charge changes only by the current through r1 |
 
-The diffsol BDF backend deliberately rejects `.ic`, `uic` and instance `ic=`, so these
-decks have **no BDF variants**; `bdf_variants_of_initialized_state_decks_are_rejected_explicitly`
-(xtask) and `the_diffsol_bdf_backend_rejects_every_initialized_state_deck_explicitly`
-(`m3_gate.rs`) assert the explicit error.
+These decks never had BDF variants: the diffsol BDF backend (removed in M10
+wave 0.5) rejected `.ic`, `uic` and instance `ic=`.
 
 Gate checks in `m3_gate.rs` (Rust and the C golden against the same exact solution
 from `t = 0`; budgets at most twice the measurement, relative to the device scale):
@@ -1488,13 +1486,13 @@ semantics. Budgets are measured physical error limits relative to the device sca
 | `rlc_series_gear_tran` | Gear-2 | 7.5e-4 | 1.5e-3 |
 | `floating_cap_tran` | trap | 1.8e-6 | 4e-6 |
 | `coupled_cap_tran` | trap | 3.7e-6 | 8e-6 |
-| all of the above | explicit BDF | 1.3e-7 to 3.6e-7 | 7e-7 |
+| all of the above | explicit BDF (removed in M10 wave 0.5) | 1.3e-7 to 3.6e-7 | 7e-7 |
 
 Halving `tmax` on the RLC decks reduces the error by 3.98 then 3.99 (order 2, trap
 and Gear). KCL holds to rounding at every accepted point (floating and coupled
 networks included). Capacitor charge is conserved to 8e-8 to 1.6e-7 of the peak
 plate charge (floating and coupled), energy balance `supplied = stored +
-dissipated` to 1.3e-5 to 1.6e-4 of the peak supplied energy; BDF conserves the
+dissipated` to 1.3e-5 to 1.6e-4 of the peak supplied energy; BDF conserved the
 floating charge to 2.1e-6 and KCL to 1.6e-8. The `.ac` sweep matches
 `H = 1/(1 - w^2 LC + jwRC)`, KCL and KVL to 1e-9. Production-API tests cover: only
 accepted points in the output, exact landing on `tstop`, default and explicit
@@ -1507,7 +1505,7 @@ time is rejected at parse time ("strictly increasing"), so a true source jump is
 only reachable through the device API (`companion_transient.rs`); with an extreme
 `trtol` on the RLC deck the row-equilibrated companion solves stay well conditioned
 and the run ends at the `maxsteps` work limit rather than "timestep too small" (an
-explicit failure either way). The BDF requested grid used to end with a duplicate
+explicit failure either way). The (since removed) BDF requested grid used to end with a duplicate
 sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 `tstep` (e.g. `.tran 50u 3m`); it now ends with exactly one `tstop` sample
 (`source_waveforms.rs`).
@@ -1515,8 +1513,7 @@ sample one ulp beside `tstop` when `tstop` was not an exact binary multiple of
 **Still blocked, not claimed:** higher-index source constraints (#29), nonlinear
 charge and devices (M4), integration above order 2 (`dctran.c` never selects
 it; `maxord` 3–6 run as 2, see the Gear `maxord` section below) and
-nonlinear device initial conditions on the BDF backend (the companion driver
-gained them with #99, above), and general MNA DAEs: only the index-one
+and general MNA DAEs: only the index-one
 structures demonstrated above are covered.
 
 ## Gear `maxord` 3–6 (#98)

@@ -1,8 +1,7 @@
 # Linear controlled sources E/F/G/H (#78)
 
 **Implemented: the linear gain forms of E (VCVS), F (CCCS), G (VCCS) and H
-(CCVS) for `.op`, `.dc`, `.ac` and `.tran` (companion trapezoidal/Gear-2 and
-the explicit `backend=diffsol method=bdf`).** `POLY(n)`, `VALUE=`/`VOL=`/`CUR=`,
+(CCVS) for `.op`, `.dc`, `.ac` and `.tran` (companion trapezoidal/Gear-2).** `POLY(n)`, `VALUE=`/`VOL=`/`CUR=`,
 `TABLE` and the implicit spice2g6 polynomial are lowered onto behavioural
 sources since #79 (see [BEHAVIOURAL_SOURCES.md](BEHAVIOURAL_SOURCES.md));
 `LAPLACE` remains an explicit `SpiceError::NotYetPorted` error.
@@ -72,8 +71,8 @@ delivering power has a negative current.
 
 The stamps are state independent: the same real entries serve OP, DC sweeps,
 AC (no frequency dependence; C's `*acld.c` equals `*load.c`), companion
-transient loads and the immutable `E x' + A x = b(t)` assembly used by the BDF
-backend. Nothing is added to `E` or `b`. E/H whose outputs share a node are
+transient loads and the immutable `E x' + A x = b(t)` assembly of the linear
+DC/AC paths. Nothing is added to `E` or `b`. E/H whose outputs share a node are
 rejected like `VCVSsetup`/`CCVSsetup` ("instance e1 is a shorted VCVS").
 
 ## Controlling sources
@@ -118,8 +117,7 @@ targets.
 - C goldens: `controlled_op` (all four devices, an F controlled by an E branch,
   an H inside a subcircuit, the HSPICE keyword and parentheses), `controlled_ac`
   (finite-gain integrator, G into an RC, F/H sensing a load current) and
-  `controlled_tran` (PULSE, both backends; BDF under the peak-scaled
-  `TRAN_RESTART` bound like `rl_pulse_tran`), all in `cargo xtask golden verify`
+  `controlled_tran` (PULSE, companion driver), all in `cargo xtask golden verify`
   with the existing linear tolerances.
 
 ## Limits

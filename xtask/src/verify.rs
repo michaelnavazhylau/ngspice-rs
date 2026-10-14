@@ -1201,15 +1201,20 @@ const fn noise_stages(tolerance: compare::Tolerance) -> [Stage; 2] {
 /// accident.
 ///
 /// `multi_analysis_pz` (`.op`, `.ac` and two `.pz` cards, #103) is excluded
-/// because of a known divergence from C introduced with the native solver: the
-/// pole-zero search is a port of C's deflated Muller iteration, and for the
-/// `pz2` deck C reaches the real pole near -7.97e4 on the real axis (3 poles)
-/// while the port's search reaches it as a complex pair with an imaginary part
-/// of about 3e-36 (4 poles). The golden is unchanged; the AC and operating-point
-/// stages of this deck are still covered by the other fixtures.
+/// because its pole search is decided by floating-point contraction, not by the
+/// C source. The port of the deflated Muller search (`cktpzstr.c`,
+/// `nipzmeth.c`) reproduces a `-ffp-contract=off` build of the same ngspice
+/// commit bit for bit: both list the zeros, then give up on the poles after 201
+/// trials ("Pole-zero iteration limit reached") and write an empty `pz2` plot.
+/// The committed golden comes from the reference build, whose fused
+/// multiply-adds let the search converge to three poles (the real pole near
+/// -7.97e4 and a complex pair), and its zeros differ from the port's in the last
+/// digits. The golden is unchanged; the AC and operating-point stages of this
+/// deck are covered by the other fixtures.
 const EXCLUDED: &[(&str, &str)] = &[(
     "multi_analysis_pz",
-    "known divergence: pz2 lists 4 poles (real pole returned as a complex pair) where C lists 3",
+    "FMA-dependent: matches -ffp-contract=off C (pole search gives up after 201 trials) \
+     but not the FMA-built golden (3 poles)",
 )];
 
 pub(crate) fn main(arguments: &[String]) -> Result<(), String> {

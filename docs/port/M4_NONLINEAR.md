@@ -20,7 +20,8 @@ files: symlinking editable files between branches would violate isolation.
   charge integration. `bjt`: the Gummel-Poon BJT (#87). `mos1`: the MOS
   level-1 factory/equations (completed by #88, see [MOS1](#mos1)).
 - `Device::assemble_small_signal` / `Circuit::small_signal_system`: conductance
-  and charge Jacobians at an explicit bias. This is **not** immutable BDF assembly.
+  and charge Jacobians at an explicit bias. This is **not** the immutable
+  `E x' + A x = b` linear assembly.
 - `devices::limiting`: ngspice's junction/FET voltage limiting
   (`DEVpnjlim`, `DEVfetlim`, `DEVlimvds`) and the `MODEINITJCT` start, used by
   the diode, BJT and MOS1 loads (#106).
@@ -431,8 +432,8 @@ AC solves G(bias)+j*w*dQ/dx(bias) after a valid nonlinear DC point.
 Companion transient uses the same Newton kernel, M3 breakpoint/order/work policy,
 actual nonlinear Q history and **a0*dQ/dV**, not a0*Q/V. Loads and residual reloads
 write only disposable trials; accept hooks run before atomic history commit.
-Nonlinear `.ic`/`uic`/instance IC run on the companion driver (#99, below); the
-explicit diffsol nonlinear backend is rejected. Trap/Gear orders above 2 and
+Nonlinear `.ic`/`uic`/instance IC run on the companion driver (#99, below), the
+only transient backend. Trap/Gear orders above 2 and
 advanced DAE support remain unclaimed.
 
 ## Nonlinear initial conditions (#99)
@@ -458,7 +459,7 @@ C references: `cktic.c`, `cktload.c` (`.nodeset`/`.ic` row stamping),
 
 `OFF` and MOS1 start voltages need the device-limited Newton loads: under the
 port's legacy `limiting=global` they are an explicit `Unsupported` error.
-The BDF backend keeps rejecting `.ic`/`uic`. The `uic` impulse check covers
+The `uic` impulse check covers
 capacitors and inductors only; junction charges are not part of it (C checks
 nothing). A `uic` node vector that forward-biases a junction by volts (for
 example a MOS1 drain `.ic` above a supply node that has no `.ic`, so C's node

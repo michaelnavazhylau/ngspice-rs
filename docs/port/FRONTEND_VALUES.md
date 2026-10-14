@@ -2,7 +2,7 @@
 
 The waveform and flag/IC forms are **syntax** contracts. PULSE/PWL V/I
 setters are elaborated into time forcing by #9 (see
-[DIFFSOL_FAER_IMPLEMENTATION.md](DIFFSOL_FAER_IMPLEMENTATION.md)); D/Q/M
+[TRANSIENT.md](TRANSIENT.md)); D/Q/M
 factories remain unavailable. A successful parse does not
 implement initialization, `.ic`/`uic`, nonlinear physics or trap/Gear integration.
 Constant/Step/Pwl device-API forcing is unchanged.

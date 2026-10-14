@@ -38,7 +38,7 @@
 //! Constant/Step/Pwl/Pulse forcing is available both through the device API and
 //! from numeric `PULSE(...)`/`PWL(...)` source setters; `SIN`/`EXP`/`SFFM`/`AM`
 //! and PWL `td=`/`r=` elaborate to [`functions`] forcing. See
-//! `docs/port/DIFFSOL_FAER_IMPLEMENTATION.md` and the central `TODO.md`.
+//! `docs/port/NATIVE_SOLVER.md` and the central `TODO.md`.
 
 pub mod behavioural;
 pub mod binning;

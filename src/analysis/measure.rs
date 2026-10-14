@@ -253,10 +253,9 @@ const DC_SCALES: [&str; 5] = [
 
 /// The ordered physical axis of a plot: the driver's scale vector.
 ///
-/// The companion and diffsol transient drivers keep every accepted time point
-/// and land exactly on every source breakpoint, so consecutive samples never
-/// straddle a source discontinuity (`crates/analysis/src/companion.rs`,
-/// "Output"). This module therefore interpolates only between consecutive
+/// The companion transient driver keeps every accepted time point and lands
+/// exactly on every source breakpoint, so consecutive samples never straddle a
+/// source discontinuity (`src/analysis/companion.rs`, "Output"). This module therefore interpolates only between consecutive
 /// samples, and treats two samples that share an axis value as a jump (see
 /// [`value_at`] and [`crossing`]).
 struct Axis {
