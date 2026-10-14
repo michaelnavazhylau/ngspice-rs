@@ -41,6 +41,7 @@ mod ic;
 mod jfet;
 mod linear;
 mod measure;
+mod mesfet;
 mod model;
 mod mutual;
 mod options;

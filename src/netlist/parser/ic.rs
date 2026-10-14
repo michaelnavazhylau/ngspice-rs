@@ -19,6 +19,8 @@ pub(super) fn vector(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             Some('q') => &["icvbe", "icvce"],
             // jfetpar.c JFET_IC: the vector fills IC-VDS, then IC-VGS.
             Some('j') => &["ic-vds", "ic-vgs"],
+            // mesparam.c MES_IC: the vector fills ICVDS, then ICVGS.
+            Some('z') => &["icvds", "icvgs"],
             _ => &["icvds", "icvgs", "icvbs"],
         };
         let vector = numeric(input, components.len())?;

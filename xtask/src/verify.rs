@@ -813,6 +813,30 @@ const SUPPORTED: &[Supported] = &[
     },
     tran("m10_urc_tran"),
     tran("m10_urc_diode_tran"),
+    // MESFET level 1, Statz (#83, M10 wave 3): output/transfer sweeps of
+    // both polarities (inverse mode, forward gate bias, RD/RS, area/m, VTO
+    // alias, tail type flags) and a common-source AC stage under the
+    // nonlinear 1 ppm bound (the DC deck tightens RELTOL/VNTOL/ABSTOL so C's
+    // own Newton stopping error stays below it), and an NMF switching/PMF
+    // stage transient under `compare::TRAN` with `tmax` 0.1 ns bounding both
+    // integrators' step error on the Statz gate charge.
+    Supported {
+        name: "m10_mesfet_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesfet_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    tran("m10_mesfet_tran"),
 ];
 
 /// Pole-zero registry entry: `compare::POLE_ZERO`.
