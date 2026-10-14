@@ -64,10 +64,11 @@
 //! errors.
 
 use crate::devices::jfet::{self, BOLTZMANN, CHARGE, REFTEMP, p};
-use crate::devices::jfet2::{self, Element, Intrinsic, junction_partials};
-use crate::devices::limiting::{self, Limiter};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind, NoiseSource};
-use crate::devices::nonlinear::junction_current;
+use crate::devices::limiting;
+use crate::devices::noise::{
+    DeviceNoise, FlickerLaw, NoiseContext, NoiseFamily, NoiseKind, NoiseSource,
+};
+use crate::devices::nonlinear::{JunctionPoint, junction_companion, junction_current};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
@@ -89,18 +90,13 @@ const VMAX: Real = 0.5;
 /// C `N_MINLOG` (`noisedef.h`).
 const N_MINLOG: Real = 1e-38;
 
-/// Slots of the state vector (a subset of C's `MESnumStates` layout, with
-/// every charge directly followed by its derivative).
-mod slot {
-    /// Gate-source charge (C `MESqgs`) and its derivative (`MEScqgs`).
-    pub(super) const QGS: usize = 0;
-    /// Gate-drain charge (C `MESqgd`) and its derivative (`MEScqgd`).
-    pub(super) const QGD: usize = 2;
-    /// Limited `vgs` and `vgd` of the load (C `MESvgs`, `MESvgd`).
-    pub(super) const VGS: usize = 4;
-    pub(super) const VGD: usize = 5;
-    pub(super) const COUNT: usize = 6;
-}
+// The state vector follows the shared JFET-family layout
+// ([`crate::devices::jfet::slot`]) -- `VGS`/`VGD`, the load currents and
+// conductances, then the gate charges -- so that `mesload.c`'s port shares
+// `jfet::select_junctions` and `jfet::finish_load` with the JFETs. C's
+// `MESnumStates` carries the same slots in a different order, which the port
+// does not need to reproduce.
+use crate::devices::jfet::slot;
 
 /// Model setters of `MESmPTable` with the defaults of `messetup.c`. The two
 /// spellings of VTO (`vt0` and its `IOPR` alias `vto`) have no schema
@@ -636,34 +632,50 @@ impl Device for Mesfet {
         let op = self.operating()?;
         let pol = self.model.pol;
         let raw = self.normalized(self.inner.map(|n| context.node_voltage(n)));
-        let mut limiter = Limiter::new(&context.states);
         // mesgetic.c: unset initial conditions come from the external nodes.
         let ic =
             jfet::start_conditions(&self.terminals, &self.initial, |n| context.node_voltage(n));
-        let [vgs, vgd] = jfet::limit_junctions(
+        let integration = context.integration;
+        // C `xfact = CKTdelta / CKTdeltaOld[1]`; one in a `.dc` sweep.
+        let xfact = integration.map_or(1., crate::maths::integrator::Coefficients::predictor_ratio);
+        let ([vgs, vgd], start) = jfet::select_junctions(
             jfet::Junctions {
                 pol,
                 off: self.initial.off,
                 vt: VT0,
                 vcrit: op.vcrit,
                 vto: self.model.vto,
-                slots: [slot::VGS, slot::VGD],
             },
-            &mut limiter,
             &context.states,
             raw,
             ic,
+            xfact,
         );
         let transient = context.mode.is_transient();
-        if transient && context.integration.is_none() {
+        if transient && integration.is_none() {
             return Err(SpiceError::circuit(
                 "MESFET transient needs companion integration",
             ));
         }
         let point = self.point(&op, vgs, vgd, context.gmin)?;
-        // The incremental Statz charges with their partials: (charge,
+        let vds = vgs - vgd;
+        let (cdrain, gm, gds) = (point.channel.current, point.channel.gm, point.channel.gds);
+        let ((cgs, ggs), (cgd, ggd)) = (point.gs, point.gd);
+        let mut l = jfet::Loaded {
+            vgs,
+            vgd,
+            vds,
+            cg: cgs + cgd,
+            cgd,
+            cd: cdrain - cgd,
+            gm,
+            gds,
+            ggs,
+            ggd,
+        };
+        // The incremental Statz charges with their capacitances: (charge,
         // d/dvgs, d/dvgd) for qgs and qgd.
-        let (qgs, qgd) = if transient {
+        let (qgs, qgd, capgs, capgd) = if transient {
             let accepted = |s: usize, what: &str| {
                 context
                     .states
@@ -673,20 +685,17 @@ impl Device for Mesfet {
             let (vgs1, vgd1) = (accepted(slot::VGS, "vgs")?, accepted(slot::VGD, "vgd")?);
             let (qgs1, qgd1) = (accepted(slot::QGS, "qgs")?, accepted(slot::QGD, "qgd")?);
             let (qa, cgsna, cgdna) = self.charge(&op, vgs, vgd)?;
-            let (qb, _, cgdnb) = self.charge(&op, vgs1, vgd)?;
-            let (qc, cgsnc, _) = self.charge(&op, vgs, vgd1)?;
+            let (qb, _, _) = self.charge(&op, vgs1, vgd)?;
+            let (qc, _, _) = self.charge(&op, vgs, vgd1)?;
             let (qd, _, _) = self.charge(&op, vgs1, vgd1)?;
+            // mesload.c takes the incremental charges from CKTstate1 and the
+            // capacitances of the *first* evaluation (`capgs = cgsna`,
+            // `capgd = cgdna`), not an average of the four calls.
             (
-                (
-                    qgs1 + 0.5 * (qa - qb + qc - qd),
-                    0.5 * (cgsna + cgsnc),
-                    0.5 * (cgdna - cgdnb),
-                ),
-                (
-                    qgd1 + 0.5 * (qa - qc + qb - qd),
-                    0.5 * (cgsna - cgsnc),
-                    0.5 * (cgdna + cgdnb),
-                ),
+                qgs1 + 0.5 * (qa - qb + qc - qd),
+                qgd1 + 0.5 * (qa - qc + qb - qd),
+                cgsna,
+                cgdna,
             )
         } else {
             // Outside transient the total charge goes to both slots: what
@@ -699,52 +708,46 @@ impl Device for Mesfet {
             // analysis C completes (a transient then fails in `charge`).
             let q = self.model.qgg(&op, vgs, vgd).0;
             let q = if q.is_finite() { q } else { 0. };
-            ((q, 0., 0.), (q, 0., 0.))
+            (q, q, 0., 0.)
         };
-        let (cqgs, cqgd, ag0) = if transient {
-            let (cqgs, ag0) = jfet2::integrate(context, slot::QGS, qgs.0, "MESFET")?;
-            let (cqgd, _) = jfet2::integrate(context, slot::QGD, qgd.0, "MESFET")?;
-            (cqgs, cqgd, ag0)
+        if transient {
+            let coefficients = integration.ok_or_else(|| {
+                SpiceError::circuit("MESFET transient needs companion integration")
+            })?;
+            let companion = |charge, capacitance| JunctionPoint {
+                current: 0.,
+                conductance: 0.,
+                charge,
+                capacitance,
+            };
+            let (geq, cqgs) =
+                junction_companion(context, coefficients, companion(qgs, capgs), slot::QGS)?;
+            l.ggs += geq;
+            l.cg += cqgs;
+            let (geq, cqgd) =
+                junction_companion(context, coefficients, companion(qgd, capgd), slot::QGD)?;
+            l.ggd += geq;
+            l.cg += cqgd;
+            l.cd -= cqgd;
+            l.cgd += cqgd;
+            context.states.set(slot::QGS, qgs)?;
+            context.states.set(slot::QGD, qgd)?;
         } else {
-            for (s, q) in [(slot::QGS, qgs.0), (slot::QGD, qgd.0)] {
+            for (s, q) in [(slot::QGS, qgs), (slot::QGD, qgd)] {
                 context.states.set(s, q)?;
                 context.states.set(s + 1, 0.)?;
             }
-            (0., 0., 0.)
-        };
-        let [d, g, s] = self.inner;
-        let c = point.channel;
-        let elements = [
-            Element {
-                ends: [d, s],
-                current: c.current,
-                partials: [c.gds, c.gm, -c.gds - c.gm],
-            },
-            Element {
-                ends: [g, s],
-                current: point.gs.0 + cqgs,
-                partials: junction_partials(point.gs.1 + ag0 * qgs.1, ag0 * qgs.2),
-            },
-            Element {
-                ends: [g, d],
-                current: point.gd.0 + cqgd,
-                partials: junction_partials(ag0 * qgd.1, point.gd.1 + ag0 * qgd.2),
-            },
-        ];
-        jfet2::stamp_elements(
+        }
+        jfet::finish_load(
             context,
-            &mut limiter,
-            Intrinsic {
-                terminals: &self.terminals,
-                inner: self.inner,
-                series: jfet::series_conductances(self.instance.area, self.model.rd, self.model.rs),
-                m: self.instance.m,
-                pol,
-            },
-            &elements,
-            [vgs, vgd],
-        )?;
-        limiter.finish(&mut context.states, &[(slot::VGS, vgs), (slot::VGD, vgd)])
+            start,
+            &l,
+            &self.terminals,
+            self.inner,
+            pol,
+            self.instance.m,
+            jfet::series_conductances(self.instance.area, self.model.rd, self.model.rs),
+        )
     }
     /// `mesacl.c`: conductances at the bias plus `j omega` times `qggnew`'s
     /// gate-source and gate-drain capacitances (each a two-terminal element,
@@ -835,8 +838,8 @@ impl Device for Mesfet {
                     "_1overf",
                     [d, s],
                     NoiseKind::Flicker {
-                        coefficient: flicker,
-                        exponent: 1.,
+                        numerator: flicker,
+                        law: FlickerLaw::PerHertz,
                     },
                 ),
             ],

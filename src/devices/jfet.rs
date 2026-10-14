@@ -1120,6 +1120,11 @@ pub(super) fn series_conductances(area: Real, rd: Real, rs: Real) -> [Real; 2] {
     [conductance(rd), conductance(rs)]
 }
 
+/// The d-d' and s-s' ports of the series resistances.
+pub(super) fn series_ports(terminals: &[NodeId], inner: [NodeId; 3]) -> [[NodeId; 2]; 2] {
+    [[terminals[0], inner[0]], [terminals[2], inner[2]]]
+}
+
 /// `jfetask.c`/`jfet2ask.c` scalar asks: `area` (C reports `area * m`),
 /// `m`, `temp`, `dtemp`, `ic-vds` and `ic-vgs` (when given).
 pub(super) fn observation_parameter(
