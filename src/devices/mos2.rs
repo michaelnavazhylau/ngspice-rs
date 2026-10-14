@@ -52,13 +52,15 @@
 use crate::devices::ModelContext;
 use crate::devices::ResolvedModel;
 use crate::devices::mos::{
-    CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, K_OVER_Q, MosLevel, Mosfet, NoiseShape,
-    Operating, ReverseLaw, Temperatures, aliased, band_gap, p, required,
+    CELSIUS_TO_KELVIN, CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, Junction, K_OVER_Q,
+    MosLevel, Mosfet, NoiseShape, Operating, REFTEMP, ReverseLaw, aliased, band_gap, p,
+    potential_factor, required,
 };
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily};
+use crate::devices::noise::NoiseFamily;
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
+use crate::devices::setup::CDeviceType;
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
 /// `EPSSIL` of `mos2temp.c`/`mos2load.c`: the permittivity of silicon (F/m).
@@ -165,8 +167,7 @@ pub(super) struct Params {
     /// Effective length `L - 2 LD` and the drawn width.
     length: Real,
     width: Real,
-    /// C `MOS2tTransconductance` and `Beta = tKP W m / Leff`.
-    kp: Real,
+    /// C `Beta = tKP W m / Leff`.
     beta: Real,
     /// C `MOS2oxideCapFactor` and `unscaledOxideCap = Cox Leff W`.
     cox: Real,
@@ -239,13 +240,15 @@ impl MosLevel for Level2 {
     type Params = Params;
     const LEVEL: u8 = 2;
     const LABEL: &'static str = "MOS2";
+    const DEVICE_TYPE: CDeviceType = CDeviceType::Mos2;
+    const NOISE_FAMILY: Option<NoiseFamily> = Some(NoiseFamily::Mos2);
     const PRIME_SUFFIXES: [&'static str; 2] = ["internal#drain", "internal#source"];
 
     fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
         let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         let required = |name: &str| required(&m, name, "MOS2");
-        let common = Common::from_values(&m, resolved.family(), "MOS2", "mos2noi.c")?;
+        let common = Common::from_values(&m, resolved.family(), get("tpg"), "MOS2", "mos2noi.c")?;
         let model = Self {
             common,
             vto: aliased(&m, ["vto", "vt0"]),
@@ -266,7 +269,6 @@ impl MosLevel for Level2 {
             neff: required("neff")?,
             nfs: required("nfs")?,
         };
-        model.common.check(model.tpg, "MOS2")?;
         Ok(model)
     }
 
@@ -294,31 +296,100 @@ impl MosLevel for Level2 {
         context: &ModelContext,
     ) -> SpiceResult<Operating<Params>> {
         let model = &self.common;
-        let t = Temperatures::new(model.tnom, geometry, context, name, "MOS2")?;
-        let process = self.process(t.tnom)?;
-        let ratio = t.ratio;
+        let tnom = model.tnom.unwrap_or(context.nominal_temperature) + CELSIUS_TO_KELVIN;
+        let temp = geometry.kelvin(context);
+        if !(tnom.is_finite() && tnom > 0. && temp.is_finite() && temp > 0.) {
+            return Err(SpiceError::circuit(format!(
+                "{name}: invalid MOS2 temperature"
+            )));
+        }
+        let process = self.process(tnom)?;
+        let vt = temp * K_OVER_Q;
+        let vtnom = tnom * K_OVER_Q;
+        let (egfet, egfet1) = (band_gap(temp), band_gap(tnom));
+        let (fact1, fact2) = (tnom / REFTEMP, temp / REFTEMP);
+        let (pbfact, pbfact1) = (potential_factor(temp), potential_factor(tnom));
+        let ratio = temp / tnom;
         let ratio4 = ratio * ratio.sqrt();
         let kp = process.kp / ratio4;
-        let phio = (process.phi - t.pbfact1) / t.fact1;
-        let phi = t.fact2 * phio + t.pbfact;
+        let phio = (process.phi - pbfact1) / fact1;
+        let phi = fact2 * phio + pbfact;
         let vbi = process.vto - model.pol * (process.gamma * process.phi.sqrt())
-            + 0.5 * (t.egfet1 - t.egfet)
+            + 0.5 * (egfet1 - egfet)
             + model.pol * 0.5 * (phi - process.phi);
-        let junctions = model.junctions(&t, geometry, ReverseLaw::Constant);
-        let potential = junctions.potential;
-        let [bottom, side] = junctions.factors;
+        let vto = vbi + model.pol * process.gamma * phi.sqrt();
+        // mos2temp.c: divide out the nominal-temperature factor, then
+        // multiply by the device-temperature one, as two steps.
+        let scale = (-egfet / vt + egfet1 / vtnom).exp();
+        let (saturation, density) = (model.is * scale, model.js * scale);
+        let pbo = (model.pb - pbfact1) / fact1;
+        let gmaold = (model.pb - pbo) / pbo;
+        let potential = fact2 * pbo + pbfact;
+        let gmanew = (potential - pbo) / pbo;
+        let factor = |grading: Real| {
+            (1. + grading * (4e-4 * (temp - REFTEMP) - gmanew))
+                / (1. + grading * (4e-4 * (tnom - REFTEMP) - gmaold))
+        };
+        let (bottom, side) = (factor(model.mj), factor(model.mjsw));
         let m = geometry.m;
         let length = self.length(geometry);
         let width = geometry.w;
+        let bottom_cap = |given: Option<Real>, area: Real| match (given, model.cj) {
+            (Some(c), _) => c * bottom * m,
+            (None, Some(cj)) => cj * bottom * m * area,
+            (None, None) => 0.,
+        };
+        let side_cap = |perimeter: Real| model.cjsw.map_or(0., |c| c * side * perimeter * m);
+        let root2 = std::f64::consts::SQRT_2;
+        // mos2temp.c scales the critical voltage by `MOS2m`, as mos1temp.c
+        // does.
+        let (sat_d, sat_s, vcrit_d, vcrit_s) =
+            if density == 0. || geometry.ad == 0. || geometry.as_ == 0. {
+                let vcrit = vt * (vt / (root2 * m * saturation)).ln();
+                (m * saturation, m * saturation, vcrit, vcrit)
+            } else {
+                (
+                    density * m * geometry.ad,
+                    density * m * geometry.as_,
+                    vt * (vt / (root2 * m * density * geometry.ad)).ln(),
+                    vt * (vt / (root2 * m * density * geometry.as_)).ln(),
+                )
+            };
+        let junction = |saturation, vcrit, bottom, sidewall| {
+            Junction::new(
+                saturation,
+                vcrit,
+                bottom,
+                sidewall,
+                model.mj,
+                model.mjsw,
+                potential,
+                model.fc,
+                ReverseLaw::Constant,
+            )
+        };
+        let beta = kp * width * m / length;
         let unscaled_oxide = process.cox * length * width;
         let operating = Operating {
-            vt: t.vt,
+            vt,
+            beta,
             vbi,
             phi,
+            vto,
             gamma: process.gamma,
             oxide: unscaled_oxide * m,
-            drain: junctions.drain,
-            source: junctions.source,
+            drain: junction(
+                sat_d,
+                vcrit_d,
+                bottom_cap(model.cbd, geometry.ad),
+                side_cap(geometry.pd),
+            ),
+            source: junction(
+                sat_s,
+                vcrit_s,
+                bottom_cap(model.cbs, geometry.as_),
+                side_cap(geometry.ps),
+            ),
             overlap: [
                 model.overlap[0] * m * width,
                 model.overlap[1] * m * width,
@@ -327,8 +398,7 @@ impl MosLevel for Level2 {
             params: Params {
                 length,
                 width,
-                kp,
-                beta: kp * width * m / length,
+                beta,
                 cox: process.cox,
                 unscaled_oxide,
                 mobility: process.u0,
@@ -340,6 +410,8 @@ impl MosLevel for Level2 {
         let p = &operating.params;
         let finite = [
             operating.vt,
+            operating.beta,
+            operating.vto,
             p.beta,
             p.unscaled_oxide,
             p.xd,
@@ -348,6 +420,8 @@ impl MosLevel for Level2 {
             operating.oxide,
             operating.drain.saturation,
             operating.source.saturation,
+            operating.drain.vcrit,
+            operating.source.vcrit,
             operating.drain.bottom,
             operating.drain.sidewall,
             operating.source.bottom,
@@ -367,7 +441,7 @@ impl MosLevel for Level2 {
             return Err(SpiceError::circuit(format!(
                 "{}: MOS2 parameters are out of range at {:.2} K \
                  (nonfinite value, or nonpositive PHI/PB/KP/IS after temperature scaling)",
-                name, t.temp
+                name, temp
             )));
         }
         Ok(operating)
@@ -472,7 +546,7 @@ impl MosLevel for Level2 {
         let mut von = vbin + gamasd * sarg1;
         let mut vdsat = 0.0;
         let off = |von: Real, vdsat: Real, gds: Real| DrainCurrent {
-            current: 0.0,
+            cdrain: 0.0,
             gm: 0.0,
             gds,
             gmbs: 0.0,
@@ -694,7 +768,7 @@ impl MosLevel for Level2 {
             };
             let tmp = gmw * (lvgs - von) / xn;
             return DrainCurrent {
-                current: cdrain,
+                cdrain,
                 gm,
                 gds: gdson * expg - gm * dodvds - tmp * dxndvd,
                 gmbs: gbson * expg - gm * dodvbs - tmp * dxndvb,
@@ -728,7 +802,7 @@ impl MosLevel for Level2 {
             (cdrain, gm, gds, gmbs)
         };
         DrainCurrent {
-            current: cdrain,
+            cdrain,
             gm,
             gds,
             gmbs,
@@ -737,19 +811,17 @@ impl MosLevel for Level2 {
         }
     }
 
-    /// `mos2noi.c` ([`Mosfet::classic_noise`]): the NLEV 3 `beta` is
-    /// `tKP m W / (L - 2 LD)`, the flicker laws use `W`, `L - 2 LD` and the
-    /// model's `Cox`.
-    fn noise(device: &Mos2, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
-        let model = &device.model;
-        let geometry = &device.geometry;
-        let length = model.length(geometry);
-        device.classic_noise(context, |op| NoiseShape {
-            family: NoiseFamily::Mos2,
-            beta: op.params.kp * geometry.m * geometry.w / length,
+    /// `mos2noi.c`: the NLEV 3 `beta` is `tKP m W / (L - 2 LD)` (the load's
+    /// `Beta`), the flicker laws use `W`, `L - 2 LD` and the model's `Cox`.
+    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Params>) -> Option<NoiseShape> {
+        let length = self.length(geometry);
+        let cox = op.params.cox;
+        Some(NoiseShape {
+            beta: op.params.beta,
             width: geometry.w,
             length,
-            cox: op.params.cox,
+            cox,
+            cox_squared: cox * cox,
         })
     }
 }
@@ -943,21 +1015,21 @@ mod tests {
         let op = op(&level);
         // Cutoff (no NFS): no current; `von` is the threshold.
         let cut = level.drain_current(&op, 0.1, 1., -0.5);
-        assert_eq!([cut.current, cut.gm, cut.gds, cut.gmbs], [0.; 4]);
+        assert_eq!([cut.cdrain, cut.gm, cut.gds, cut.gmbs], [0.; 4]);
         assert!(cut.von > 0.1);
         // vds = 0: no current but C's channel conductance.
         let zero = level.drain_current(&op, 2., 0., 0.);
-        assert_eq!(zero.current, 0.);
+        assert_eq!(zero.cdrain, 0.);
         assert!(zero.gds > 0.);
         // Linear and saturated currents grow with vds; saturation flattens.
         let linear = level.drain_current(&op, 2., 0.1, 0.);
         let saturated = level.drain_current(&op, 2., 3., 0.);
-        assert!(linear.current > 0. && saturated.current > linear.current);
+        assert!(linear.cdrain > 0. && saturated.cdrain > linear.cdrain);
         assert!(0.1 < linear.vdsat && linear.vdsat < 3.);
         assert!(saturated.gds < linear.gds);
         // Body bias raises the threshold and lowers the current.
         let biased = level.drain_current(&op, 2., 3., -2.);
-        assert!(biased.von > saturated.von && biased.current < saturated.current);
+        assert!(biased.von > saturated.von && biased.cdrain < saturated.cdrain);
         // Weak inversion with NFS: an exponential tail below von that joins
         // the strong-inversion current at von.
         let weak = super::tests::level(1e11, 0., true, 0.);
@@ -965,18 +1037,18 @@ mod tests {
         let below = weak.drain_current(&op_weak, 0.6, 1., 0.);
         let further = weak.drain_current(&op_weak, 0.5, 1., 0.);
         assert!(below.von > 0.6);
-        assert!(further.current > 0. && further.current < below.current);
+        assert!(further.cdrain > 0. && further.cdrain < below.cdrain);
         let von = below.von;
         let (left, right) = (
             weak.drain_current(&op_weak, von - 1e-9, 1., 0.),
             weak.drain_current(&op_weak, von + 1e-9, 1., 0.),
         );
-        assert!((left.current - right.current).abs() <= 1e-6 * right.current);
+        assert!((left.cdrain - right.cdrain).abs() <= 1e-6 * right.cdrain);
         // Velocity saturation (Baum's quartic) lowers vdsat and the current.
         let fast = super::tests::level(0., 5e4, true, 0.);
         let op_fast = super::tests::op(&fast);
         let limited = fast.drain_current(&op_fast, 2., 3., 0.);
-        assert!(limited.vdsat < saturated.vdsat && limited.current < saturated.current);
+        assert!(limited.vdsat < saturated.vdsat && limited.cdrain < saturated.cdrain);
         // A given LAMBDA replaces the XD-derived channel-length modulation.
         let mut clm = super::tests::level(0., 0., true, 0.05);
         clm.xj = 0.;
@@ -986,7 +1058,7 @@ mod tests {
             clm.drain_current(&op_clm, 2., 4., 0.),
         );
         let expected = (1. - 0.05 * 3.) / (1. - 0.05 * 4.);
-        assert!((high.current / low.current - expected).abs() < 1e-12);
+        assert!((high.cdrain / low.cdrain - expected).abs() < 1e-12);
     }
 
     #[test]
@@ -1023,13 +1095,13 @@ mod tests {
         skip: impl Fn(Real, Real, Real, &DrainCurrent) -> bool,
     ) -> Real {
         let op = op(level);
-        let current = |vgs, vds, vbs| level.drain_current(&op, vgs, vds, vbs).current;
+        let current = |vgs, vds, vbs| level.drain_current(&op, vgs, vds, vbs).cdrain;
         let mut worst: Real = 0.;
         for vgs in [0.45, 0.7, 1.0, 1.5, 2.5, 4.] {
             for vds in [0.01, 0.05, 0.4, 1.5, 4.] {
                 for vbs in [-2., -0.3, 0.2] {
                     let point = level.drain_current(&op, vgs, vds, vbs);
-                    if point.current == 0. || skip(vgs, vds, vbs, &point) {
+                    if point.cdrain == 0. || skip(vgs, vds, vbs, &point) {
                         continue;
                     }
                     let h = 1e-6;
@@ -1126,7 +1198,7 @@ mod tests {
         let l = level(0., 0., false, 0.);
         let op = op(&l);
         let point = l.drain_current(&op, 0.45, 1., -2.);
-        assert_eq!(point.current, 0.);
+        assert_eq!(point.cdrain, 0.);
         assert_eq!(point.vdsat, 0.);
         assert!(point.gm < 0. && point.von > 0.45);
     }
@@ -1146,7 +1218,7 @@ mod tests {
                     let (vgs, vds) = (Real::from(i) * 0.1, Real::from(j) * 0.1);
                     let point = l.drain_current(&op, vgs, vds, vbs);
                     assert!(
-                        [point.current, point.gm, point.gds, point.gmbs, point.vdsat]
+                        [point.cdrain, point.gm, point.gds, point.gmbs, point.vdsat]
                             .iter()
                             .all(|v| v.is_finite()),
                         "{vgs} {vds} {vbs}: {point:?}"

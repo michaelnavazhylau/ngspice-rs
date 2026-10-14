@@ -103,7 +103,7 @@ card 6 @netlists/m10_mos2_tran.cir:11:1 lines=11-13 continuations=2
   token 7 11:23 number "2" value=2e0
   token 8 11:25 word "vto"
   token 9 11:28 equals "="
-  token 10 11:29 number "0.7" value=7e-1
+  token 10 11:29 number "0.7" value=7.000000000000001e-1
   token 11 11:33 word "tox"
   token 12 11:36 equals "="
   token 13 11:37 number "15n" value=1.5000000000000002e-8
@@ -145,7 +145,7 @@ card 6 @netlists/m10_mos2_tran.cir:11:1 lines=11-13 continuations=2
   token 49 11:147 number "0.3n" value=3e-10
   token 50 11:152 word "cgbo"
   token 51 11:156 equals "="
-  token 52 11:157 number "0.1n" value=1.0000000000000002e-10
+  token 52 11:157 number "0.1n" value=1e-10
   token 53 11:162 word "cj"
   token 54 11:164 equals "="
   token 55 11:165 number "0.9m" value=9.000000000000001e-4
@@ -154,7 +154,7 @@ card 6 @netlists/m10_mos2_tran.cir:11:1 lines=11-13 continuations=2
   token 58 11:173 number "0.5" value=5e-1
   token 59 11:177 word "cjsw"
   token 60 11:181 equals "="
-  token 61 11:182 number "0.25n" value=2.5e-10
+  token 61 11:182 number "0.25n" value=2.4999999999999996e-10
   token 62 11:188 word "pb"
   token 63 11:190 equals "="
   token 64 11:191 number "0.9" value=9e-1
@@ -210,7 +210,7 @@ card 7 @netlists/m10_mos2_tran.cir:14:1 lines=14-16 continuations=2
   token 40 14:125 number "0.3n" value=3e-10
   token 41 14:130 word "cgbo"
   token 42 14:134 equals "="
-  token 43 14:135 number "0.1n" value=1.0000000000000002e-10
+  token 43 14:135 number "0.1n" value=1e-10
   token 44 14:140 word "cj"
   token 45 14:142 equals "="
   token 46 14:143 number "1m" value=1e-3
@@ -241,7 +241,7 @@ card 9 @netlists/m10_mos2_tran.cir:18:1 lines=18-18 continuations=0
   raw: ".tran 0.05n 20n 0 2p"
   kind: dot(.tran)
   token 1 18:1 word ".tran"
-  token 2 18:7 number "0.05n" value=5.000000000000001e-11
+  token 2 18:7 number "0.05n" value=4.9999999999999995e-11
   token 3 18:13 number "20n" value=2e-8
   token 4 18:17 number "0" value=0e0
   token 5 18:19 number "2p" value=2e-12

@@ -45,11 +45,12 @@
 use crate::devices::ModelContext;
 use crate::devices::ResolvedModel;
 use crate::devices::mos::{
-    CELSIUS_TO_KELVIN, Common, DrainCurrent, Geometry, MosLevel, Mosfet, Operating,
+    CELSIUS_TO_KELVIN, Common, DrainCurrent, Geometry, MosLevel, Mosfet, NoiseShape, Operating,
 };
 use crate::devices::mos3::{Level3, MODEL_WITHOUT_NOISE_SELECTORS, Params};
-use crate::devices::noise::{DeviceNoise, NoiseContext, NoiseFamily, NoiseKind};
+use crate::devices::noise::NoiseFamily;
 use crate::devices::schema::ScalarSchema;
+use crate::devices::setup::CDeviceType;
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
 /// `mos9temp.c`: the smallest effective channel length and width (m).
@@ -67,6 +68,8 @@ impl MosLevel for Level9 {
     type Params = Params;
     const LEVEL: u8 = 9;
     const LABEL: &'static str = "MOS9";
+    const DEVICE_TYPE: CDeviceType = CDeviceType::Mos9;
+    const NOISE_FAMILY: Option<NoiseFamily> = Some(NoiseFamily::Mos9);
     const PRIME_SUFFIXES: [&'static str; 2] = ["internal#drain", "internal#source"];
 
     /// `mos9mpar.c`/`mos9set.c`: the level-3 setters and defaults, minus
@@ -125,34 +128,22 @@ impl MosLevel for Level9 {
         self.0.drain_current(op, vgs, vds, vbs)
     }
 
-    /// `mos9noi.c`: the shell's generators with `NLEV = 2` channel noise,
-    /// the `spice3` flicker law and every thermal generator at the circuit
-    /// temperature (C `NevalSrc`).
-    fn noise(device: &Mos9, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
-        let model_context = ModelContext {
-            spice3_noise: true,
-            ..*context.model_context
-        };
-        let shape = device
-            .model
-            .0
-            .noise_shape(&device.geometry, NoiseFamily::Mos9);
-        let mut noise = device.classic_noise(
-            &NoiseContext {
-                model_context: &model_context,
+    /// `mos9noi.c`: `mos3noi.c`'s factors for the same card.
+    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Params>) -> Option<NoiseShape> {
+        MosLevel::noise_shape(&self.0, geometry, op)
+    }
+
+    /// `mos9noi.c` evaluates the flicker density with the SPICE3-compatible
+    /// law and every thermal generator with `NevalSrc`, i.e. at the circuit
+    /// temperature rather than the instance's.
+    fn noise_environment(context: &ModelContext, _geometry: &Geometry) -> (ModelContext, Real) {
+        (
+            ModelContext {
+                spice3_noise: true,
                 ..*context
             },
-            shape,
-        )?;
-        let circuit = context.model_context.temperature + CELSIUS_TO_KELVIN;
-        if let DeviceNoise::Sources { sources, .. } = &mut noise {
-            for source in sources {
-                if let NoiseKind::Thermal { temperature, .. } = &mut source.kind {
-                    *temperature = circuit;
-                }
-            }
-        }
-        Ok(noise)
+            context.temperature + CELSIUS_TO_KELVIN,
+        )
     }
 }
 

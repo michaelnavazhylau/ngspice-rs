@@ -7,7 +7,7 @@ card 1 @netlists/m10_mos6_tran.cir:2:1 lines=2-2 continuations=0
   token 1 2:1 word "vdd"
   token 2 2:5 word "vdd"
   token 3 2:9 number "0" value=0e0
-  token 4 2:11 number "3.3" value=3.3e0
+  token 4 2:11 number "3.3" value=3.3000000000000003e0
 card 2 @netlists/m10_mos6_tran.cir:3:1 lines=3-3 continuations=0
   raw: "vin in 0 pulse(0 3.3 1n 0.5n 0.5n 4n 10n)"
   kind: device(v)
@@ -17,7 +17,7 @@ card 2 @netlists/m10_mos6_tran.cir:3:1 lines=3-3 continuations=0
   token 4 3:10 word "pulse"
   token 5 3:15 lparen "("
   token 6 3:16 number "0" value=0e0
-  token 7 3:18 number "3.3" value=3.3e0
+  token 7 3:18 number "3.3" value=3.3000000000000003e0
   token 8 3:22 number "1n" value=1e-9
   token 9 3:25 number "0.5n" value=5e-10
   token 10 3:30 number "0.5n" value=5e-10
@@ -115,7 +115,7 @@ card 6 @netlists/m10_mos6_tran.cir:10:1 lines=10-12 continuations=2
   token 19 10:51 number "1.1" value=1.1e0
   token 20 10:55 word "nv"
   token 21 10:57 equals "="
-  token 22 10:58 number "0.7" value=7e-1
+  token 22 10:58 number "0.7" value=7.000000000000001e-1
   token 23 10:62 word "nc"
   token 24 10:64 equals "="
   token 25 10:65 number "1.3" value=1.3e0
@@ -139,7 +139,7 @@ card 6 @netlists/m10_mos6_tran.cir:10:1 lines=10-12 continuations=2
   token 43 10:127 number "0.3n" value=3e-10
   token 44 10:132 word "cgbo"
   token 45 10:136 equals "="
-  token 46 10:137 number "0.1n" value=1.0000000000000002e-10
+  token 46 10:137 number "0.1n" value=1e-10
   token 47 10:142 word "cj"
   token 48 10:144 equals "="
   token 49 10:145 number "0.9m" value=9.000000000000001e-4
@@ -148,7 +148,7 @@ card 6 @netlists/m10_mos6_tran.cir:10:1 lines=10-12 continuations=2
   token 52 10:153 number "0.5" value=5e-1
   token 53 10:157 word "cjsw"
   token 54 10:161 equals "="
-  token 55 10:162 number "0.25n" value=2.5e-10
+  token 55 10:162 number "0.25n" value=2.4999999999999996e-10
   token 56 10:168 word "pb"
   token 57 10:170 equals "="
   token 58 10:171 number "0.9" value=9e-1
@@ -180,10 +180,10 @@ card 7 @netlists/m10_mos6_tran.cir:13:1 lines=13-14 continuations=1
   token 16 13:45 number "180" value=1.8e2
   token 17 13:49 word "kv"
   token 18 13:51 equals "="
-  token 19 13:52 number "1.4" value=1.4e0
+  token 19 13:52 number "1.4" value=1.4000000000000001e0
   token 20 13:56 word "nv"
   token 21 13:58 equals "="
-  token 22 13:59 number "0.6" value=6e-1
+  token 22 13:59 number "0.6" value=6.000000000000001e-1
   token 23 13:63 word "nc"
   token 24 13:65 equals "="
   token 25 13:66 number "1.25" value=1.25e0
@@ -201,7 +201,7 @@ card 7 @netlists/m10_mos6_tran.cir:13:1 lines=13-14 continuations=1
   token 37 13:110 number "0.3n" value=3e-10
   token 38 13:115 word "cgbo"
   token 39 13:119 equals "="
-  token 40 13:120 number "0.1n" value=1.0000000000000002e-10
+  token 40 13:120 number "0.1n" value=1e-10
   token 41 13:125 word "cj"
   token 42 13:127 equals "="
   token 43 13:128 number "1m" value=1e-3
@@ -235,7 +235,7 @@ card 9 @netlists/m10_mos6_tran.cir:16:1 lines=16-16 continuations=0
   raw: ".tran 0.05n 20n 0 2p"
   kind: dot(.tran)
   token 1 16:1 word ".tran"
-  token 2 16:7 number "0.05n" value=5.000000000000001e-11
+  token 2 16:7 number "0.05n" value=4.9999999999999995e-11
   token 3 16:13 number "20n" value=2e-8
   token 4 16:17 number "0" value=0e0
   token 5 16:19 number "2p" value=2e-12

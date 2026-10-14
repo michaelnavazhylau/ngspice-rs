@@ -256,13 +256,18 @@ impl Common {
             fc: required("fc")?,
             ld: required("ld")?,
             tnom: get("tnom"),
-            kf: required("kf")?,
-            af: required("af")?,
+            // Levels whose C device has no noise routine (MOS6) or whose card
+            // lacks the noise selectors (MOS9) have no KF/AF/NLEV/GDSNOI
+            // setters; those levels either refuse `.noise` or noise's own
+            // C defaults apply, so the neutral values below are unused or
+            // are C's defaults for the levels that do have the setters.
+            kf: get("kf").unwrap_or(0.),
+            af: get("af").unwrap_or(1.),
             nlev: {
                 // IF_INTEGER setter: floor(value + 0.5). C's switch has no
                 // case outside 0..=3 (the flicker density is then the bare
                 // gain), which the port rejects.
-                let raw = required("nlev")?;
+                let raw = get("nlev").unwrap_or(2.);
                 let rounded = (raw + 0.5).floor();
                 if !(0. ..=3.).contains(&rounded) {
                     return Err(SpiceError::circuit(format!(
@@ -271,7 +276,7 @@ impl Common {
                 }
                 rounded as u8
             },
-            gdsnoi: required("gdsnoi")?,
+            gdsnoi: get("gdsnoi").unwrap_or(1.),
         };
         if tpg.is_some_and(|tpg| tpg.fract() != 0.) {
             return Err(SpiceError::circuit(format!(
@@ -581,8 +586,10 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Copy + Sized + 'static {
     const LABEL: &'static str;
     /// The C device type (`mos1`, `mos3`) for the setup/load order.
     const DEVICE_TYPE: CDeviceType;
-    /// C's device type for the `.noise` visiting order.
-    const NOISE_FAMILY: NoiseFamily;
+    /// C's device type for the `.noise` visiting order, or `None` when C's
+    /// level has no `mosXnoi.c` routine at all (level 6): `.noise` then
+    /// refuses instead of returning zeros.
+    const NOISE_FAMILY: Option<NoiseFamily> = None;
     /// `CKTmkVolt` suffixes of the internal drain and source nodes.
     const PRIME_SUFFIXES: [&'static str; 2];
 
@@ -625,8 +632,72 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Copy + Sized + 'static {
         vbx: Real,
     ) -> DrainCurrent;
 
-    /// The `mosXnoi.c` beta, width, length and oxide capacitance factors.
-    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Self::Params>) -> NoiseShape;
+    /// The `mosXnoi.c` beta, width, length and oxide capacitance factors, or
+    /// `None` when C's level has no noise routine (level 6, see
+    /// [`MosLevel::NOISE_FAMILY`]).
+    fn noise_shape(
+        &self,
+        _geometry: &Geometry,
+        _op: &Operating<Self::Params>,
+    ) -> Option<NoiseShape> {
+        None
+    }
+
+    /// The refusal `.noise` raises when the level has no generators to offer:
+    /// C's level 6 registers `DEVnoise = NULL`, so C contributes nothing to a
+    /// noise analysis rather than a model of the device.
+    fn noise_refusal(device: &Mosfet<Self>) -> SpiceError {
+        SpiceError::not_yet_ported(
+            format!("{} noise of {}", Self::LABEL, device.name),
+            format!(
+                "src/spicelib/devices/mos{}/mos{}noi.c",
+                Self::LEVEL,
+                Self::LEVEL
+            ),
+        )
+    }
+
+    /// The model context and thermal-noise temperature of the level's
+    /// `.noise` generators. The classic levels use their own flicker law and
+    /// `NevalSrcInstanceTemp` (the instance temperature); `mos9noi.c` uses
+    /// the SPICE3-compatible law and `NevalSrc` at the circuit temperature.
+    fn noise_environment(context: &ModelContext, geometry: &Geometry) -> (ModelContext, Real) {
+        let temperature = geometry
+            .temp
+            .unwrap_or(context.temperature + geometry.dtemp)
+            + CELSIUS_TO_KELVIN;
+        (*context, temperature)
+    }
+
+    /// Instance checks that need to know which setters the card gave (the
+    /// geometry carries C's defaults). The default accepts every instance.
+    ///
+    /// # Errors
+    /// Setter combinations the level refuses.
+    fn check_instance(
+        &self,
+        _name: &str,
+        _setters: &crate::devices::schema::ScalarValues,
+    ) -> SpiceResult<()> {
+        Ok(())
+    }
+
+    /// The `gmin` the bulk junctions add in a load. C's level 6
+    /// (`mos6load.c`) multiplies its whole stamp, `gmin` included, by `M`;
+    /// the other classic levels scale the currents and add `gmin` once (the
+    /// default).
+    fn junction_gmin(gmin: Real, _geometry: &Geometry) -> Real {
+        gmin
+    }
+
+    /// Refuses a small-signal (`"AC"`) or pole-zero (`"pole-zero"`) load the
+    /// level's C device does not have. The default accepts both.
+    ///
+    /// # Errors
+    /// The level has no such C load.
+    fn small_signal(_device: &Mosfet<Self>, _analysis: &str) -> SpiceResult<()> {
+        Ok(())
+    }
 
     /// `.disto` terms (`mosXdset.c`/`mosXdist.c`).
     ///
@@ -809,6 +880,7 @@ impl<L: MosLevel> Mosfet<L> {
             dtemp: required("dtemp")?,
         };
         model.check_geometry(&i.name, &geometry)?;
+        model.check_instance(&i.name, &v)?;
         let series = Self::series(&model, &geometry)?;
         let mut device = Self {
             name: i.name.clone(),
@@ -1429,7 +1501,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         // C `xfact = CKTdelta / CKTdeltaOld[1]`; one in a `.dc` sweep.
         let xfact = integration.map_or(1., crate::maths::integrator::Coefficients::predictor_ratio);
         let (v, start, check) = self.select(op, &context.states, raw, ic, xfact);
-        let mut e = self.evaluate(op, v, context.gmin)?;
+        let mut e = self.evaluate(op, v, L::junction_gmin(context.gmin, &self.geometry))?;
         let states = &mut context.states;
 
         // Bulk junction charges (C computes them in MODETRAN, MODETRANOP and
@@ -1696,10 +1768,20 @@ impl<L: MosLevel> Device for Mosfet<L> {
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
+        // Only a load at a solved bias point (AC and the analyses built on it)
+        // carries the bias state; the zero-bias structural assemblies of the
+        // DC and transient drivers do not, and stay level-independent.
+        if context.states.is_some() {
+            L::small_signal(self, "AC")?;
+        }
         let op = self.operating(context.model_context)?;
         let unknowns = context.unknowns;
         let voltage = |n: NodeId| unknowns.node_row(n).and_then(|r| bias.get(r)).unwrap_or(0.);
-        let e = self.small_signal_eval(&op, voltage, context.model_context.gmin)?;
+        let e = self.small_signal_eval(
+            &op,
+            voltage,
+            L::junction_gmin(context.model_context.gmin, &self.geometry),
+        )?;
         let cap: [Real; 3] = std::array::from_fn(|k| e.half[k] + e.half[k] + op.overlap[k]);
         let [capgs, capgd, capgb] = cap;
         let (xnrm, xrev) = if e.mode < 0. { (0., 1.) } else { (1., 0.) };
@@ -1764,6 +1846,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         context: &mut crate::devices::linear::LinearContext<'_>,
         bias: &crate::maths::Vector,
     ) -> crate::primitives::SpiceResult<()> {
+        L::small_signal(self, "pole-zero")?;
         self.assemble_small_signal(context, bias)
     }
 
@@ -1786,13 +1869,13 @@ impl<L: MosLevel> Device for Mosfet<L> {
     /// and the level's `W`, `L` and `Cox` ([`NoiseShape`]).
     fn noise(&self, context: &NoiseContext<'_>) -> SpiceResult<DeviceNoise> {
         let (common, geometry) = (self.model.common(), &self.geometry);
-        let op = self.operating(context.model_context)?;
-        let shape = self.model.noise_shape(geometry, &op);
-        let e = self.small_signal_eval(
-            &op,
-            |node| context.voltage(node),
-            context.model_context.gmin,
-        )?;
+        let (model_context, temperature) = L::noise_environment(context.model_context, geometry);
+        let op = self.operating(&model_context)?;
+        let (Some(family), Some(shape)) = (L::NOISE_FAMILY, self.model.noise_shape(geometry, &op))
+        else {
+            return Err(L::noise_refusal(self));
+        };
+        let e = self.small_signal_eval(&op, |node| context.voltage(node), model_context.gmin)?;
         let gm = e.gm;
         let sid = if common.nlev < 3 {
             2.0 / 3.0 * gm.abs()
@@ -1814,7 +1897,7 @@ impl<L: MosLevel> Device for Mosfet<L> {
         let m = geometry.m;
         let length = shape.length;
         let current_law = || m * common.kf * (common.af * (cd / m).abs().max(1e-38).ln()).exp();
-        let (numerator, law) = if context.model_context.spice3_noise {
+        let (numerator, law) = if model_context.spice3_noise {
             (
                 current_law(),
                 FlickerLaw::Channel {
@@ -1847,17 +1930,13 @@ impl<L: MosLevel> Device for Mosfet<L> {
                 ),
             }
         };
-        let temperature = geometry
-            .temp
-            .unwrap_or(context.model_context.temperature + geometry.dtemp)
-            + CELSIUS_TO_KELVIN;
         let [d, _, s, _] = self.inner;
         let thermal = |conductance: Real| NoiseKind::Thermal {
             conductance,
             temperature,
         };
         Ok(DeviceNoise::Sources {
-            family: L::NOISE_FAMILY,
+            family,
             model: Some(self.model_name.clone()),
             total: true,
             sources: vec![

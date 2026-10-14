@@ -137,19 +137,19 @@ card 7 @netlists/m10_mos2_ac.cir:8:1 lines=8-10 continuations=2
   token 43 8:127 number "0.5" value=5e-1
   token 44 8:131 word "cgso"
   token 45 8:135 equals "="
-  token 46 8:136 number "0.4n" value=4.0000000000000007e-10
+  token 46 8:136 number "0.4n" value=4e-10
   token 47 8:141 word "cgdo"
   token 48 8:145 equals "="
-  token 49 8:146 number "0.4n" value=4.0000000000000007e-10
+  token 49 8:146 number "0.4n" value=4e-10
   token 50 8:151 word "cgbo"
   token 51 8:155 equals "="
-  token 52 8:156 number "0.2n" value=2.0000000000000003e-10
+  token 52 8:156 number "0.2n" value=2e-10
   token 53 8:161 word "cj"
   token 54 8:163 equals "="
   token 55 8:164 number "0.5m" value=5e-4
   token 56 8:169 word "cjsw"
   token 57 8:173 equals "="
-  token 58 8:174 number "0.4n" value=4.0000000000000007e-10
+  token 58 8:174 number "0.4n" value=4e-10
   token 59 8:179 word "mjsw"
   token 60 8:183 equals "="
   token 61 8:184 number "0.33" value=3.3e-1
@@ -199,19 +199,19 @@ card 8 @netlists/m10_mos2_ac.cir:11:1 lines=11-12 continuations=1
   token 34 11:103 number "0.04" value=4e-2
   token 35 11:108 word "cgso"
   token 36 11:112 equals "="
-  token 37 11:113 number "0.4n" value=4.0000000000000007e-10
+  token 37 11:113 number "0.4n" value=4e-10
   token 38 11:118 word "cgdo"
   token 39 11:122 equals "="
-  token 40 11:123 number "0.4n" value=4.0000000000000007e-10
+  token 40 11:123 number "0.4n" value=4e-10
   token 41 11:128 word "cgbo"
   token 42 11:132 equals "="
-  token 43 11:133 number "0.2n" value=2.0000000000000003e-10
+  token 43 11:133 number "0.2n" value=2e-10
   token 44 11:138 word "cj"
   token 45 11:140 equals "="
-  token 46 11:141 number "0.6m" value=6e-4
+  token 46 11:141 number "0.6m" value=6.000000000000001e-4
   token 47 11:146 word "cjsw"
   token 48 11:150 equals "="
-  token 49 11:151 number "0.45n" value=4.5000000000000005e-10
+  token 49 11:151 number "0.45n" value=4.5e-10
   token 50 11:157 word "js"
   token 51 11:159 equals "="
   token 52 11:160 number "1e-4" value=1e-4

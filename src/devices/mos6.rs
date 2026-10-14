@@ -36,9 +36,11 @@
 //!
 //! - `mos6load.c` multiplies its whole stamp by `M`; the shell scales the
 //!   currents, charges and conductances instead, which is the same except for
-//!   `gmin` and the junction `vcrit`, which the level hooks keep per unit
-//!   device as C does. C's convergence test compares per-unit currents
-//!   (`MOS6convTest`); the port's Newton test is circuit-wide.
+//!   `gmin`, which [`MosLevel::junction_gmin`] keeps per unit device, and the
+//!   junction `vcrit`, which [`Level6::operating`] derives from the
+//!   per-unit-device saturation current as `mos6temp.c` does. C's convergence
+//!   test compares per-unit currents (`MOS6convTest`); the port's Newton test
+//!   is circuit-wide.
 //! - `mos6set.c` gives NRD/NRS no default, so RSH without an explicit nonzero
 //!   NRD (NRS) creates no internal node and, in C, no resistance at all; the
 //!   port refuses that combination rather than silently dropping RSH. An
@@ -54,12 +56,14 @@
 use crate::devices::ModelContext;
 use crate::devices::ResolvedModel;
 use crate::devices::mos::{
-    CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, K_OVER_Q, MosLevel, Mosfet, Operating,
-    ReverseLaw, Temperatures, aliased, band_gap, p, required,
+    CELSIUS_TO_KELVIN, CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, Junction, K_OVER_Q,
+    MosLevel, Mosfet, Operating, REFTEMP, ReverseLaw, aliased, band_gap, p, potential_factor,
+    required,
 };
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
+use crate::devices::setup::CDeviceType;
 use crate::primitives::{Real, SpiceError, SpiceResult};
 
 /// Intrinsic carrier density of silicon used by `mos6temp.c` (m^-3).
@@ -224,13 +228,20 @@ impl MosLevel for Level6 {
     type Params = Params;
     const LEVEL: u8 = 6;
     const LABEL: &'static str = "MOS6";
+    const DEVICE_TYPE: CDeviceType = CDeviceType::Mos6;
     const PRIME_SUFFIXES: [&'static str; 2] = ["drain", "source"];
 
     fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
         let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         let required = |name: &str| required(&m, name, "MOS6");
-        let common = Common::from_values(&m, resolved.family(), "MOS6", "mos6init.c")?;
+        let common = Common::from_values(
+            &m,
+            resolved.family(),
+            get("tpg"),
+            "MOS6",
+            "mos6init.c (DEVnoise = NULL)",
+        )?;
         let model = Self {
             common,
             vto: aliased(&m, ["vto", "vt0"]),
@@ -250,7 +261,6 @@ impl MosLevel for Level6 {
             tpg: get("tpg"),
             nss: get("nss"),
         };
-        model.common.check(model.tpg, "MOS6")?;
         Ok(model)
     }
 
@@ -307,35 +317,106 @@ impl MosLevel for Level6 {
         context: &ModelContext,
     ) -> SpiceResult<Operating<Params>> {
         let model = &self.common;
-        let t = Temperatures::new(model.tnom, geometry, context, name, "MOS6")?;
-        let process = self.process(t.tnom)?;
-        let ratio = t.ratio;
+        let tnom = model.tnom.unwrap_or(context.nominal_temperature) + CELSIUS_TO_KELVIN;
+        let temp = geometry.kelvin(context);
+        if !(tnom.is_finite() && tnom > 0. && temp.is_finite() && temp > 0.) {
+            return Err(SpiceError::circuit(format!(
+                "{name}: invalid MOS6 temperature"
+            )));
+        }
+        let process = self.process(tnom)?;
+        let vt = temp * K_OVER_Q;
+        let vtnom = tnom * K_OVER_Q;
+        let (egfet, egfet1) = (band_gap(temp), band_gap(tnom));
+        let (fact1, fact2) = (tnom / REFTEMP, temp / REFTEMP);
+        let (pbfact, pbfact1) = (potential_factor(temp), potential_factor(tnom));
+        let ratio = temp / tnom;
         let kc = process.kc / (ratio * ratio.sqrt());
-        let phio = (process.phi - t.pbfact1) / t.fact1;
-        let phi = t.fact2 * phio + t.pbfact;
+        let phio = (process.phi - pbfact1) / fact1;
+        let phi = fact2 * phio + pbfact;
         let vbi = process.vto - model.pol * (process.gamma * process.phi.sqrt())
-            + 0.5 * (t.egfet1 - t.egfet)
+            + 0.5 * (egfet1 - egfet)
             + model.pol * 0.5 * (phi - process.phi);
-        let junctions = model.junctions(&t, geometry, ReverseLaw::Constant);
-        let potential = junctions.potential;
-        let [bottom, side] = junctions.factors;
+        let vto = vbi + model.pol * process.gamma * phi.sqrt();
+        // mos6temp.c: divide out the nominal-temperature factor, then
+        // multiply by the device-temperature one, as two steps.
+        let scale = (-egfet / vt + egfet1 / vtnom).exp();
+        let (saturation, density) = (model.is * scale, model.js * scale);
+        let pbo = (model.pb - pbfact1) / fact1;
+        let gmaold = (model.pb - pbo) / pbo;
+        let potential = fact2 * pbo + pbfact;
+        let gmanew = (potential - pbo) / pbo;
+        let factor = |grading: Real| {
+            (1. + grading * (4e-4 * (temp - REFTEMP) - gmanew))
+                / (1. + grading * (4e-4 * (tnom - REFTEMP) - gmaold))
+        };
+        let (bottom, side) = (factor(model.mj), factor(model.mjsw));
         let m = geometry.m;
         let length = self.length(geometry);
+        let bottom_cap = |given: Option<Real>, area: Real| match (given, model.cj) {
+            (Some(c), _) => c * bottom * m,
+            (None, Some(cj)) => cj * bottom * m * area,
+            (None, None) => 0.,
+        };
+        let side_cap = |perimeter: Real| model.cjsw.map_or(0., |c| c * side * perimeter * m);
+        let root2 = std::f64::consts::SQRT_2;
+        // mos6temp.c derives `vcrit` from the per-unit-device saturation
+        // current -- its expression has no `MOS6m`, where mos1temp.c scales
+        // by `MOS1m` -- while the stamped saturation keeps the `M` factor of
+        // mos6load.c's whole-stamp multiplication.
+        let (sat_d, sat_s, vcrit_d, vcrit_s) =
+            if density == 0. || geometry.ad == 0. || geometry.as_ == 0. {
+                let vcrit = vt * (vt / (root2 * saturation)).ln();
+                (m * saturation, m * saturation, vcrit, vcrit)
+            } else {
+                (
+                    density * m * geometry.ad,
+                    density * m * geometry.as_,
+                    vt * (vt / (root2 * density * geometry.ad)).ln(),
+                    vt * (vt / (root2 * density * geometry.as_)).ln(),
+                )
+            };
+        let junction = |saturation, vcrit, bottom, sidewall| {
+            Junction::new(
+                saturation,
+                vcrit,
+                bottom,
+                sidewall,
+                model.mj,
+                model.mjsw,
+                potential,
+                model.fc,
+                ReverseLaw::Constant,
+            )
+        };
+        let betac = kc * m * geometry.w / length;
         let operating = Operating {
-            vt: t.vt,
+            vt,
+            beta: betac,
             vbi,
             phi,
+            vto,
             gamma: process.gamma,
             oxide: process.cox * length * m * geometry.w,
-            drain: junctions.drain,
-            source: junctions.source,
+            drain: junction(
+                sat_d,
+                vcrit_d,
+                bottom_cap(model.cbd, geometry.ad),
+                side_cap(geometry.pd),
+            ),
+            source: junction(
+                sat_s,
+                vcrit_s,
+                bottom_cap(model.cbs, geometry.as_),
+                side_cap(geometry.ps),
+            ),
             overlap: [
                 model.overlap[0] * m * geometry.w,
                 model.overlap[1] * m * geometry.w,
                 model.overlap[2] * m * length,
             ],
             params: Params {
-                betac: kc * m * geometry.w / length,
+                betac,
                 kv: self.kv,
                 nv: self.nv,
                 nc: self.nc,
@@ -347,12 +428,15 @@ impl MosLevel for Level6 {
         };
         let finite = [
             operating.vt,
-            operating.params.betac,
+            operating.beta,
+            operating.vto,
             operating.vbi,
             operating.gamma,
             operating.oxide,
             operating.drain.saturation,
             operating.source.saturation,
+            operating.drain.vcrit,
+            operating.source.vcrit,
             operating.drain.bottom,
             operating.drain.sidewall,
             operating.source.bottom,
@@ -372,7 +456,7 @@ impl MosLevel for Level6 {
             return Err(SpiceError::circuit(format!(
                 "{}: MOS6 parameters are out of range at {:.2} K \
                  (nonfinite value, or nonpositive PHI/PB/IS after temperature scaling)",
-                name, t.temp
+                name, temp
             )));
         }
         Ok(operating)
@@ -400,7 +484,7 @@ impl MosLevel for Level6 {
         let vgon = vgs - von;
         if vgon <= 0. {
             return DrainCurrent {
-                current: 0.,
+                cdrain: 0.,
                 gm: 0.,
                 gds: 0.,
                 gmbs: 0.,
@@ -438,7 +522,7 @@ impl MosLevel for Level6 {
             gmbs = gmbs * vdst2 + ivdst1 * vdstg * vonbm;
         }
         DrainCurrent {
-            current,
+            cdrain: current,
             gm,
             gds,
             gmbs,
@@ -467,15 +551,18 @@ impl MosLevel for Level6 {
         })
     }
 
-    /// C's level 6 has no noise routine (`mos6init.c`: `DEVnoise = NULL`).
-    fn noise(
-        device: &Mos6,
-        _context: &crate::devices::noise::NoiseContext<'_>,
-    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
-        Err(SpiceError::not_yet_ported(
-            format!("MOS6 noise of {}", device.name),
-            "src/spicelib/devices/mos6/mos6init.c (DEVnoise = NULL: C has no level-6 noise)",
-        ))
+    /// `mos6init.c` registers no `DEVnoise` (`NULL`): C contributes nothing
+    /// to a noise analysis, which is refused rather than reproduced.
+    fn noise_refusal(device: &Mos6) -> SpiceError {
+        SpiceError::Unsupported {
+            feature: format!(
+                "noise analysis of MOS6 instance {}: C's level 6 registers no DEVnoise \
+                 (src/spicelib/devices/mos6/mos6init.c), so ngspice contributes nothing to the \
+                 noise analysis",
+                device.name
+            ),
+            location: None,
+        }
     }
 
     /// C's level 6 has no distortion routine (`mos6init.c`: `DEVdisto =
@@ -495,11 +582,6 @@ impl MosLevel for Level6 {
     fn junction_gmin(gmin: Real, geometry: &Geometry) -> Real {
         gmin * geometry.m
     }
-
-    /// `mos6temp.c` derives `vcrit` from the per-unit saturation current.
-    fn limiting_saturation(saturation: Real, geometry: &Geometry) -> Real {
-        saturation / geometry.m
-    }
 }
 
 #[cfg(test)]
@@ -508,16 +590,10 @@ mod tests {
     use crate::devices::mos::Junction;
 
     fn junction() -> Junction {
-        Junction {
-            saturation: 1e-14,
-            bottom: 0.,
-            sidewall: 0.,
-            mj: 0.5,
-            mjsw: 0.5,
-            potential: 0.8,
-            fc: 0.5,
-            reverse: ReverseLaw::Constant,
-        }
+        // Saturation, vcrit, bottom, sidewall, mj, mjsw, potential, fc,
+        // reverse law; the tests exercise the junction current and charge
+        // laws, not the limiter, so `vcrit` is nominal here.
+        Junction::new(1e-14, 0.7, 0., 0., 0.5, 0.5, 0.8, 0.5, ReverseLaw::Constant)
     }
 
     fn level(pol: Real) -> Level6 {
@@ -567,8 +643,10 @@ mod tests {
     fn operating(gamma: Real) -> Operating<Params> {
         Operating {
             vt: 0.025864,
+            beta: 2e-4,
             vbi: 0.4,
             phi: 0.7,
+            vto: 0.4 + gamma * 0.7f64.sqrt(),
             gamma,
             oxide: 0.,
             drain: junction(),
@@ -595,26 +673,26 @@ mod tests {
         let von = |vds: Real| 0.4 + 0.5 * (0.7_f64).sqrt() - 0.02 * vds;
         // Cutoff.
         let off = model.drain_current(&op, 0.5, 1., 0.);
-        assert_eq!([off.current, off.gm, off.gds, off.gmbs], [0.; 4]);
+        assert_eq!([off.cdrain, off.gm, off.gds, off.gmbs], [0.; 4]);
         assert_eq!(off.vdsat, 0.);
         // Saturation: KC W/L vgon^NC (1 + lambda vds).
         let vgon: Real = 2. - von(3.);
         let sat = model.drain_current(&op, 2., 3., 0.);
         let idsat = 2e-4 * vgon.powf(1.3);
-        assert!((sat.current - idsat * (1. + 0.03 * 3.)).abs() <= 1e-15 * idsat);
+        assert!((sat.cdrain - idsat * (1. + 0.03 * 3.)).abs() <= 1e-15 * idsat);
         assert!((sat.vdsat - 1.6 * vgon.powf(0.8)).abs() <= 1e-14);
         // Linear: the saturation current times (2 - x) x, x = vds / vdsat.
         let vgon: Real = 2. - von(0.3);
         let lin = model.drain_current(&op, 2., 0.3, 0.);
         let x = 0.3 / (1.6 * vgon.powf(0.8));
         let expected = 2e-4 * vgon.powf(1.3) * (1. + 0.03 * 0.3) * (2. - x) * x;
-        assert!((lin.current - expected).abs() <= 1e-15 * expected);
+        assert!((lin.cdrain - expected).abs() <= 1e-15 * expected);
         // Continuity at vds = vdsat.
         let at = model.drain_current(&op, 2., 1.5, 0.);
         let edge = at.vdsat;
         let below = model.drain_current(&op, 2., edge * (1. - 1e-12), 0.);
         let above = model.drain_current(&op, 2., edge * (1. + 1e-12), 0.);
-        assert!((below.current - above.current).abs() <= 1e-9 * above.current);
+        assert!((below.cdrain - above.cdrain).abs() <= 1e-9 * above.cdrain);
     }
 
     #[test]
@@ -635,10 +713,10 @@ mod tests {
                 (3., 4., 1.6),
             ] {
                 let f = |vgs: Real, vds: Real, vbs: Real| {
-                    model.drain_current(&op, vgs, vds, vbs).current
+                    model.drain_current(&op, vgs, vds, vbs).cdrain
                 };
                 let d = model.drain_current(&op, vgs, vds, vbs);
-                assert!(d.current > 0., "{vgs} {vds} {vbs}");
+                assert!(d.cdrain > 0., "{vgs} {vds} {vbs}");
                 let h = 1e-6;
                 let gm = (f(vgs + h, vds, vbs) - f(vgs - h, vds, vbs)) / (2. * h);
                 let gds = (f(vgs, vds + h, vbs) - f(vgs, vds - h, vbs)) / (2. * h);
@@ -649,7 +727,7 @@ mod tests {
                     ("gmbs", gmbs, d.gmbs),
                 ] {
                     assert!(
-                        (numeric - analytic).abs() <= 1e-6 * d.current.abs() + 1e-12,
+                        (numeric - analytic).abs() <= 1e-6 * d.cdrain.abs() + 1e-12,
                         "{name} at ({vgs}, {vds}, {vbs}), gamma {gamma}: \
                          {numeric:e} vs {analytic:e}"
                     );
@@ -667,11 +745,11 @@ mod tests {
         op.vbi = -0.6;
         let d = model.drain_current(&op, 1., 2., 0.);
         assert!((d.von - (0.6 - 0.02 * 2.)).abs() < 1e-15);
-        assert!(d.current > 0.);
+        assert!(d.cdrain > 0.);
     }
 
     #[test]
-    fn multiplier_hooks_keep_gmin_and_vcrit_per_unit_device() {
+    fn multiplier_hooks_keep_gmin_per_unit_device() {
         let geometry = Geometry {
             m: 3.,
             l: 1e-6,
@@ -686,6 +764,8 @@ mod tests {
             dtemp: 0.,
         };
         assert_eq!(Level6::junction_gmin(1e-12, &geometry), 3e-12);
-        assert_eq!(Level6::limiting_saturation(3e-14, &geometry), 1e-14);
+        // mos6temp.c's per-unit-device `vcrit` is derived in [`Level6::operating`]
+        // (it has no `MOS6m`, unlike mos1temp.c); the `m=2` instance in
+        // `conformance/netlists/m10_mos6_dc.cir` is compared against C.
     }
 }

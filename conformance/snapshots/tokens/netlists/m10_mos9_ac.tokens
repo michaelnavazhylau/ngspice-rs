@@ -15,7 +15,7 @@ card 2 @netlists/m10_mos9_ac.cir:3:1 lines=3-3 continuations=0
   token 2 3:5 word "gate"
   token 3 3:10 number "0" value=0e0
   token 4 3:12 word "dc"
-  token 5 3:15 number "1.15" value=1.15e0
+  token 5 3:15 number "1.15" value=1.1500000000000001e0
   token 6 3:20 word "ac"
   token 7 3:23 number "1" value=1e0
 card 3 @netlists/m10_mos9_ac.cir:4:1 lines=4-4 continuations=0
@@ -140,19 +140,19 @@ card 7 @netlists/m10_mos9_ac.cir:8:1 lines=8-10 continuations=2
   token 43 8:133 number "0.5" value=5e-1
   token 44 8:137 word "cgso"
   token 45 8:141 equals "="
-  token 46 8:142 number "0.4n" value=4.0000000000000007e-10
+  token 46 8:142 number "0.4n" value=4e-10
   token 47 8:147 word "cgdo"
   token 48 8:151 equals "="
-  token 49 8:152 number "0.4n" value=4.0000000000000007e-10
+  token 49 8:152 number "0.4n" value=4e-10
   token 50 8:157 word "cgbo"
   token 51 8:161 equals "="
-  token 52 8:162 number "0.2n" value=2.0000000000000003e-10
+  token 52 8:162 number "0.2n" value=2e-10
   token 53 8:167 word "cj"
   token 54 8:169 equals "="
   token 55 8:170 number "0.5m" value=5e-4
   token 56 8:175 word "cjsw"
   token 57 8:179 equals "="
-  token 58 8:180 number "0.4n" value=4.0000000000000007e-10
+  token 58 8:180 number "0.4n" value=4e-10
   token 59 8:185 word "mjsw"
   token 60 8:189 equals "="
   token 61 8:190 number "0.33" value=3.3e-1
@@ -205,19 +205,19 @@ card 8 @netlists/m10_mos9_ac.cir:11:1 lines=11-12 continuations=1
   token 37 11:111 number "0.5" value=5e-1
   token 38 11:115 word "cgso"
   token 39 11:119 equals "="
-  token 40 11:120 number "0.4n" value=4.0000000000000007e-10
+  token 40 11:120 number "0.4n" value=4e-10
   token 41 11:125 word "cgdo"
   token 42 11:129 equals "="
-  token 43 11:130 number "0.4n" value=4.0000000000000007e-10
+  token 43 11:130 number "0.4n" value=4e-10
   token 44 11:135 word "cgbo"
   token 45 11:139 equals "="
-  token 46 11:140 number "0.2n" value=2.0000000000000003e-10
+  token 46 11:140 number "0.2n" value=2e-10
   token 47 11:145 word "cj"
   token 48 11:147 equals "="
-  token 49 11:148 number "0.6m" value=6e-4
+  token 49 11:148 number "0.6m" value=6.000000000000001e-4
   token 50 11:153 word "cjsw"
   token 51 11:157 equals "="
-  token 52 11:158 number "0.45n" value=4.5000000000000005e-10
+  token 52 11:158 number "0.45n" value=4.5e-10
   token 53 11:164 word "js"
   token 54 11:166 equals "="
   token 55 11:167 number "1e-4" value=1e-4

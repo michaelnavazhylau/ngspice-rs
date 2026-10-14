@@ -42,7 +42,7 @@ card 6 @netlists/m10_mos6_dc.cir:7:1 lines=7-7 continuations=0
   token 1 7:1 word "vbf"
   token 2 7:5 word "bf"
   token 3 7:8 number "0" value=0e0
-  token 4 7:10 number "0.3" value=3e-1
+  token 4 7:10 number "0.3" value=3.0000000000000004e-1
 card 7 @netlists/m10_mos6_dc.cir:8:1 lines=8-8 continuations=0
   raw: "vbp bp 0 -0.4"
   kind: device(v)
@@ -180,7 +180,7 @@ card 16 @netlists/m10_mos6_dc.cir:17:1 lines=17-18 continuations=1
   token 7 17:25 number "6" value=6e0
   token 8 17:27 word "vto"
   token 9 17:30 equals "="
-  token 10 17:31 number "0.7" value=7e-1
+  token 10 17:31 number "0.7" value=7.000000000000001e-1
   token 11 17:35 word "kv"
   token 12 17:37 equals "="
   token 13 17:38 number "1.8" value=1.8e0
@@ -189,7 +189,7 @@ card 16 @netlists/m10_mos6_dc.cir:17:1 lines=17-18 continuations=1
   token 16 17:45 number "0.9" value=9e-1
   token 17 17:49 word "kc"
   token 18 17:51 equals "="
-  token 19 17:52 number "6e-5" value=6e-5
+  token 19 17:52 number "6e-5" value=6.000000000000001e-5
   token 20 17:57 word "nc"
   token 21 17:59 equals "="
   token 22 17:60 number "1.25" value=1.25e0
@@ -204,7 +204,7 @@ card 16 @netlists/m10_mos6_dc.cir:17:1 lines=17-18 continuations=1
   token 31 17:93 number "0.02" value=2e-2
   token 32 17:98 word "phi"
   token 33 17:101 equals "="
-  token 34 17:102 number "0.7" value=7e-1
+  token 34 17:102 number "0.7" value=7.000000000000001e-1
   token 35 17:106 word "lambda0"
   token 36 17:113 equals "="
   token 37 17:114 number "0.04" value=4e-2
@@ -242,13 +242,13 @@ card 17 @netlists/m10_mos6_dc.cir:19:1 lines=19-20 continuations=1
   token 22 19:63 number "500" value=5e2
   token 23 19:67 word "kv"
   token 24 19:69 equals "="
-  token 25 19:70 number "1.2" value=1.2e0
+  token 25 19:70 number "1.2" value=1.2000000000000002e0
   token 26 19:74 word "nv"
   token 27 19:76 equals "="
-  token 28 19:77 number "0.7" value=7e-1
+  token 28 19:77 number "0.7" value=7.000000000000001e-1
   token 29 19:81 word "nc"
   token 30 19:83 equals "="
-  token 31 19:84 number "1.4" value=1.4e0
+  token 31 19:84 number "1.4" value=1.4000000000000001e0
   token 32 19:88 word "lambda"
   token 33 19:94 equals "="
   token 34 19:95 number "0.03" value=3e-2
@@ -280,10 +280,10 @@ card 18 @netlists/m10_mos6_dc.cir:21:1 lines=21-22 continuations=1
   token 19 21:51 number "2.2" value=2.2e0
   token 20 21:55 word "nv"
   token 21 21:57 equals "="
-  token 22 21:58 number "0.6" value=6e-1
+  token 22 21:58 number "0.6" value=6.000000000000001e-1
   token 23 21:62 word "nc"
   token 24 21:64 equals "="
-  token 25 21:65 number "1.2" value=1.2e0
+  token 25 21:65 number "1.2" value=1.2000000000000002e0
   token 26 21:69 word "gamma"
   token 27 21:74 equals "="
   token 28 21:75 number "0.4" value=4e-1
@@ -301,7 +301,7 @@ card 18 @netlists/m10_mos6_dc.cir:21:1 lines=21-22 continuations=1
   token 40 21:113 number "15" value=1.5e1
   token 41 21:116 word "ld"
   token 42 21:118 equals "="
-  token 43 21:119 number "0.06u" value=6e-8
+  token 43 21:119 number "0.06u" value=6.000000000000001e-8
   token 44 21:124 rparen ")"
 card 19 @netlists/m10_mos6_dc.cir:23:1 lines=23-24 continuations=1
   raw: ".model mlam nmos(level=6 vt0=0.6 kc=8e-5 nc=1.1 kv=1.5 nv=0.5 gamma=0.4 phi=0.65 gamma1=0.02 lambda0=0.05 lambda1=0.02 sigma=0.03 is=1e-15)"
@@ -315,7 +315,7 @@ card 19 @netlists/m10_mos6_dc.cir:23:1 lines=23-24 continuations=1
   token 7 23:24 number "6" value=6e0
   token 8 23:26 word "vt0"
   token 9 23:29 equals "="
-  token 10 23:30 number "0.6" value=6e-1
+  token 10 23:30 number "0.6" value=6.000000000000001e-1
   token 11 23:34 word "kc"
   token 12 23:36 equals "="
   token 13 23:37 number "8e-5" value=8e-5
