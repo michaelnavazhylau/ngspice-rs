@@ -75,7 +75,7 @@ card 9 @netlists/m10_mesfet_dc.cir:10:1 lines=10-10 continuations=0
   token 1 10:1 word "vs3"
   token 2 10:5 word "s3"
   token 3 10:8 number "0" value=0e0
-  token 4 10:10 number "0.3" value=3e-1
+  token 4 10:10 number "0.3" value=3.0000000000000004e-1
 card 10 @netlists/m10_mesfet_dc.cir:11:1 lines=11-11 continuations=0
   raw: ".model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=20 rs=15 is=1e-14 cgs=1p cgd=0.3p)"
   kind: dot(.model)
@@ -112,7 +112,7 @@ card 10 @netlists/m10_mesfet_dc.cir:11:1 lines=11-11 continuations=0
   token 31 11:85 number "1p" value=1e-12
   token 32 11:88 word "cgd"
   token 33 11:91 equals "="
-  token 34 11:92 number "0.3p" value=3e-13
+  token 34 11:92 number "0.3p" value=3.0000000000000003e-13
   token 35 11:96 rparen ")"
 card 11 @netlists/m10_mesfet_dc.cir:12:1 lines=12-12 continuations=0
   raw: ".model zp pmf(vto=-1.5 beta=2m lambda=0.02 b=0.1 alpha=3 rs=10)"

@@ -110,7 +110,7 @@ card 9 @netlists/m10_mesfet_tran.cir:10:1 lines=10-10 continuations=0
   token 4 10:11 word "sin"
   token 5 10:14 lparen "("
   token 6 10:15 number "0.5" value=5e-1
-  token 7 10:19 number "0.6" value=6e-1
+  token 7 10:19 number "0.6" value=6.000000000000001e-1
   token 8 10:23 number "20meg" value=2e7
   token 9 10:28 rparen ")"
 card 10 @netlists/m10_mesfet_tran.cir:11:1 lines=11-11 continuations=0
@@ -133,7 +133,7 @@ card 11 @netlists/m10_mesfet_tran.cir:12:1 lines=12-12 continuations=0
   token 4 12:14 lparen "("
   token 5 12:15 word "vto"
   token 6 12:18 equals "="
-  token 7 12:19 number "-1.2" value=-1.2e0
+  token 7 12:19 number "-1.2" value=-1.2000000000000002e0
   token 8 12:24 word "beta"
   token 9 12:28 equals "="
   token 10 12:29 number "2m" value=2e-3
@@ -170,7 +170,7 @@ card 13 @netlists/m10_mesfet_tran.cir:14:1 lines=14-14 continuations=0
   token 2 14:7 number "0.5n" value=5e-10
   token 3 14:12 number "300n" value=3.0000000000000004e-7
   token 4 14:17 number "0" value=0e0
-  token 5 14:19 number "0.1n" value=1.0000000000000002e-10
+  token 5 14:19 number "0.1n" value=1e-10
 card 14 @netlists/m10_mesfet_tran.cir:15:1 lines=15-15 continuations=0
   raw: ".end"
   kind: dot(.end)
