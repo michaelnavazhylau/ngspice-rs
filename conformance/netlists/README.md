@@ -155,6 +155,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m10_jfet2_ac` | `.ac` | Parker-Skellern common-source stage: TAUG/TAUD dispersion (`PSacload`), Statz CGS/CGD with ACGAM/XC, CDS, RD/RS, `area`, `m` (#82) |
 | `m10_jfet2_tran` | `.tran` | Parker-Skellern NJF stage (TAUG/TAUD filters, Statz charge, CDS) and PJF stage; `tmax` 0.25 ns, tight RELTOL/VNTOL (#82) |
 | `m10_jfet2_temp` | `.dc temp` | Parker-Skellern TNOM, TEMP/DTEMP, IS(T), VBI(T), forward gate with RS, PJF (#82) |
+| `m10_mos2_dc` | `.dc` | MOS2 gate sweep: NSUB/XJ/NFS/VMAX/NEFF/UCRIT/UEXP/DELTA, XD-derived and given LAMBDA, a card without NSUB, reverse/forward body bias, inverse mode, PMOS RD/RSH/TEMP, TNOM/TPG/NSS extraction; tight RELTOL (#89) |
+| `m10_mos2_ac` | `.ac` | MOS2 active-load common-source stage at 75 C, both devices saturated: Meyer/overlap and junction charge, `M=2`, RD/RS; tight RELTOL (#89) |
+| `m10_mos2_tran` | `.tran` | MOS2 CMOS inverter: Meyer gate charge, RSH/RD/RS, junction geometry, velocity saturation; Gear-2, RELTOL 1e-5, `tmax` 2 ps (#89) |
 | `m10_urc_tran` | `.tran` | URC lines (#85): FMAX-rule 10-section ladder (K=2), `n=4` on a DC-biased reference, C's 3-section minimum; generated `u1#hi<i>`/`u1#lo<i>` nodes |
 | `m10_urc_ac` | `.ac` | URC lines: 16-section FMAX-rule line, `n=6` with the reference tied to the input, a single section (`n=1`) |
 | `m10_urc_diode_tran` | `.tran` | URC `ISPERL` ladder: 17 generated diodes of `u1#diodemod` with `RSPERL` series resistance, conducting near the positive peaks (`reltol=1e-6`) |
@@ -227,3 +230,5 @@ See [JFET.md](../../docs/port/JFET.md) and
 [VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-jfet-level-1-82).
 The four `m10_jfet2_*` decks (#82 part 2) were captured the same way; see
 [VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-jfet-level-2-82).
+The three `m10_mos2_*` decks (#89, wave 3) were captured the same way; see
+[VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-mos-level-2-89).

@@ -1,0 +1,117 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_mos2_tran.cir
+title: "MOS2 CMOS inverter: Meyer gate charge, series resistance, junction geometry, velocity saturation" @netlists/m10_mos2_tran.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/m10_mos2_tran.cir:2:1 "vdd vdd 0 5"
+    [1] device[1] @netlists/m10_mos2_tran.cir:3:1 "vin in 0 pulse(0 5 1n 0.5n 0.5n 4n 10n)"
+    [2] device[2] @netlists/m10_mos2_tran.cir:4:1 "mn out in 0 0 nch w=4u l=1u ad=4p as=4p pd=10u ps=10u nrd=2 nrs=2"
+    [3] device[3] @netlists/m10_mos2_tran.cir:5:1 "mp out in vdd vdd pch w=10u l=1u ad=10p as=10p pd=22u ps=22u"
+    [4] device[4] @netlists/m10_mos2_tran.cir:6:1 "cl out 0 30f"
+    [5] model[0] @netlists/m10_mos2_tran.cir:11:1 ".model nch nmos(level=2 vto=0.7 tox=15n nsub=3e16 xj=0.2u ld=0.05u uo=500 ucrit=2e4 uexp=0.12 vmax=6e4 neff=1.5 nfs=1e11 delta=0.4 cgso=0.3n cgdo=0.3n cgbo=0.1n cj=0.9m mj=0.5 cjsw=0.25n pb=0.9 rsh=20 js=1e-4)"
+    [6] model[1] @netlists/m10_mos2_tran.cir:14:1 ".model pch pmos(level=2 vto=-0.8 tox=15n nsub=2.5e16 xj=0.2u ld=0.05u uo=200 ucrit=3e4 uexp=0.15 lambda=0.03 cgso=0.3n cgdo=0.3n cgbo=0.1n cj=1m cjsw=0.3n pb=0.9 rd=30 rs=30)"
+    [7] options[0] @netlists/m10_mos2_tran.cir:17:1 ".options method=gear reltol=1e-5"
+    [8] analysis[0] @netlists/m10_mos2_tran.cir:18:1 ".tran 0.05n 20n 0 2p"
+    [9] end @netlists/m10_mos2_tran.cir:19:1 ".end"
+  devices (5):
+    device [0] name="vdd" designator=v @netlists/m10_mos2_tran.cir:2:1
+      nodes: "vdd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/m10_mos2_tran.cir:2:11
+    device [1] name="vin" designator=v @netlists/m10_mos2_tran.cir:3:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 5 1n 0.5n 0.5n 4n 10n)" @netlists/m10_mos2_tran.cir:3:10
+          pulse
+            initial: "0"@netlists/m10_mos2_tran.cir:3:16
+            pulsed: "5"@netlists/m10_mos2_tran.cir:3:18
+            delay: "1n"@netlists/m10_mos2_tran.cir:3:20
+            rise: "0.5n"@netlists/m10_mos2_tran.cir:3:23
+            fall: "0.5n"@netlists/m10_mos2_tran.cir:3:28
+            width: "4n"@netlists/m10_mos2_tran.cir:3:33
+            period: "10n"@netlists/m10_mos2_tran.cir:3:36
+    device [2] name="mn" designator=m @netlists/m10_mos2_tran.cir:4:1
+      nodes: "out" "in" "0" "0"
+      model: "nch"
+      parameters (8):
+        [0] name="w" kind=scalar value="4u" @netlists/m10_mos2_tran.cir:4:19
+        [1] name="l" kind=scalar value="1u" @netlists/m10_mos2_tran.cir:4:24
+        [2] name="ad" kind=scalar value="4p" @netlists/m10_mos2_tran.cir:4:29
+        [3] name="as" kind=scalar value="4p" @netlists/m10_mos2_tran.cir:4:35
+        [4] name="pd" kind=scalar value="10u" @netlists/m10_mos2_tran.cir:4:41
+        [5] name="ps" kind=scalar value="10u" @netlists/m10_mos2_tran.cir:4:48
+        [6] name="nrd" kind=scalar value="2" @netlists/m10_mos2_tran.cir:4:55
+        [7] name="nrs" kind=scalar value="2" @netlists/m10_mos2_tran.cir:4:61
+    device [3] name="mp" designator=m @netlists/m10_mos2_tran.cir:5:1
+      nodes: "out" "in" "vdd" "vdd"
+      model: "pch"
+      parameters (6):
+        [0] name="w" kind=scalar value="10u" @netlists/m10_mos2_tran.cir:5:23
+        [1] name="l" kind=scalar value="1u" @netlists/m10_mos2_tran.cir:5:29
+        [2] name="ad" kind=scalar value="10p" @netlists/m10_mos2_tran.cir:5:34
+        [3] name="as" kind=scalar value="10p" @netlists/m10_mos2_tran.cir:5:41
+        [4] name="pd" kind=scalar value="22u" @netlists/m10_mos2_tran.cir:5:48
+        [5] name="ps" kind=scalar value="22u" @netlists/m10_mos2_tran.cir:5:55
+    device [4] name="cl" designator=c @netlists/m10_mos2_tran.cir:6:1
+      nodes: "out" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="30f" @netlists/m10_mos2_tran.cir:6:10
+  models (2):
+    model [0] name="nch" base="nmos" level=2e0 @netlists/m10_mos2_tran.cir:11:1
+      parameters (22):
+        [0] name="level" kind=scalar value="2" @netlists/m10_mos2_tran.cir:11:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/m10_mos2_tran.cir:11:25
+        [2] name="tox" kind=scalar value="15n" @netlists/m10_mos2_tran.cir:11:33
+        [3] name="nsub" kind=scalar value="3e16" @netlists/m10_mos2_tran.cir:11:41
+        [4] name="xj" kind=scalar value="0.2u" @netlists/m10_mos2_tran.cir:11:51
+        [5] name="ld" kind=scalar value="0.05u" @netlists/m10_mos2_tran.cir:11:59
+        [6] name="uo" kind=scalar value="500" @netlists/m10_mos2_tran.cir:11:68
+        [7] name="ucrit" kind=scalar value="2e4" @netlists/m10_mos2_tran.cir:11:75
+        [8] name="uexp" kind=scalar value="0.12" @netlists/m10_mos2_tran.cir:11:85
+        [9] name="vmax" kind=scalar value="6e4" @netlists/m10_mos2_tran.cir:11:95
+        [10] name="neff" kind=scalar value="1.5" @netlists/m10_mos2_tran.cir:11:104
+        [11] name="nfs" kind=scalar value="1e11" @netlists/m10_mos2_tran.cir:11:113
+        [12] name="delta" kind=scalar value="0.4" @netlists/m10_mos2_tran.cir:11:122
+        [13] name="cgso" kind=scalar value="0.3n" @netlists/m10_mos2_tran.cir:11:132
+        [14] name="cgdo" kind=scalar value="0.3n" @netlists/m10_mos2_tran.cir:11:142
+        [15] name="cgbo" kind=scalar value="0.1n" @netlists/m10_mos2_tran.cir:11:152
+        [16] name="cj" kind=scalar value="0.9m" @netlists/m10_mos2_tran.cir:11:162
+        [17] name="mj" kind=scalar value="0.5" @netlists/m10_mos2_tran.cir:11:170
+        [18] name="cjsw" kind=scalar value="0.25n" @netlists/m10_mos2_tran.cir:11:177
+        [19] name="pb" kind=scalar value="0.9" @netlists/m10_mos2_tran.cir:11:188
+        [20] name="rsh" kind=scalar value="20" @netlists/m10_mos2_tran.cir:11:195
+        [21] name="js" kind=scalar value="1e-4" @netlists/m10_mos2_tran.cir:11:202
+    model [1] name="pch" base="pmos" level=2e0 @netlists/m10_mos2_tran.cir:14:1
+      parameters (18):
+        [0] name="level" kind=scalar value="2" @netlists/m10_mos2_tran.cir:14:17
+        [1] name="vto" kind=scalar value="-0.8" @netlists/m10_mos2_tran.cir:14:25
+        [2] name="tox" kind=scalar value="15n" @netlists/m10_mos2_tran.cir:14:34
+        [3] name="nsub" kind=scalar value="2.5e16" @netlists/m10_mos2_tran.cir:14:42
+        [4] name="xj" kind=scalar value="0.2u" @netlists/m10_mos2_tran.cir:14:54
+        [5] name="ld" kind=scalar value="0.05u" @netlists/m10_mos2_tran.cir:14:62
+        [6] name="uo" kind=scalar value="200" @netlists/m10_mos2_tran.cir:14:71
+        [7] name="ucrit" kind=scalar value="3e4" @netlists/m10_mos2_tran.cir:14:78
+        [8] name="uexp" kind=scalar value="0.15" @netlists/m10_mos2_tran.cir:14:88
+        [9] name="lambda" kind=scalar value="0.03" @netlists/m10_mos2_tran.cir:14:98
+        [10] name="cgso" kind=scalar value="0.3n" @netlists/m10_mos2_tran.cir:14:110
+        [11] name="cgdo" kind=scalar value="0.3n" @netlists/m10_mos2_tran.cir:14:120
+        [12] name="cgbo" kind=scalar value="0.1n" @netlists/m10_mos2_tran.cir:14:130
+        [13] name="cj" kind=scalar value="1m" @netlists/m10_mos2_tran.cir:14:140
+        [14] name="cjsw" kind=scalar value="0.3n" @netlists/m10_mos2_tran.cir:14:146
+        [15] name="pb" kind=scalar value="0.9" @netlists/m10_mos2_tran.cir:14:156
+        [16] name="rd" kind=scalar value="30" @netlists/m10_mos2_tran.cir:14:163
+        [17] name="rs" kind=scalar value="30" @netlists/m10_mos2_tran.cir:14:169
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_mos2_tran.cir:18:1
+      arguments: "0.05n" "20n" "0" "2p"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_mos2_tran.cir:17:1
+      setting [0] name="method" value="gear"@netlists/m10_mos2_tran.cir:17:17 @netlists/m10_mos2_tran.cir:17:10
+      setting [1] name="reltol" value="1e-5"@netlists/m10_mos2_tran.cir:17:29 @netlists/m10_mos2_tran.cir:17:22
+  globals (0):
