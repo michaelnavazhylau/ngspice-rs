@@ -341,8 +341,10 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   were re-checked against C: C's trapezoidal output has the same error, so
   their bounds stand with C evidence; `DIFFSOL_FAER_IMPLEMENTATION.md` is
   replaced by NATIVE_SOLVER.md. DAE/BDF work is recoverable from tag `v0.4.0`.
-- [ ] Wave 0.5e–0.5g: MOS device-load cost, bound complex AC assembly, plot
-  memory (see M10.md).
+- [x] Wave 0.5f, bound complex AC assembly: already in place since PR #137
+  (`ComplexMatrix::from_operators_grouped_on`); `ladder1000_ac` 1.4x and
+  `ladder10000_ac` 1.9x C wall time (target 2x).
+- [ ] Wave 0.5e and 0.5g: MOS device-load cost, plot memory (see M10.md).
 
 - [x] JFET level 1 (#82, slice 1, `work/m10-jfet`): `J` grammar (`inp2j.c`),
   `njf`/`pjf` model family with level 0/1 selection (level 2 since slice 6;
