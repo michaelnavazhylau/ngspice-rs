@@ -91,7 +91,7 @@ retains declared-model R/C/L forms and omitted values (#11), including forward
 references and pre-/post-model scalar precedence. Device-owned top-level
 resolution, family/level checks and bounded diode inputs are implemented (#17);
 see [MODEL_SCHEMAS.md](MODEL_SCHEMAS.md). PR #51 merged these prerequisites.
-This checkout adds bounded model-backed passive arithmetic (#19, pending merge);
+This checkout adds bounded model-backed passive arithmetic (#19);
 see [PASSIVE_MODELS.md](PASSIVE_MODELS.md). No nonlinear arithmetic is implemented.
 
 This checkout additionally implements #8/#10: positioned numeric PULSE/PWL,
