@@ -18,6 +18,7 @@ simulator — see [§3](#3-the-two-gaps) for exactly how far the claims reach.
 - [8. Non-goals](#8-non-goals)
 - [9. Suggested first milestones](#9-suggested-first-milestones)
 - [10. Using the C oracle](#10-using-the-c-oracle)
+- [11. What about c2rust?](#11-what-about-c2rust)
 
 ---
 
@@ -32,12 +33,12 @@ They have wildly different costs, and only the first is cheap:
 | Activity | Cost | What it buys |
 | --- | --- | --- |
 | **Specification proofs** over `ℝ`: state what each kernel must compute and prove the scheme has that property, for all inputs and all step sequences. | Low. The pilot did the integrator in an afternoon. | Turns sampled numerical tests into theorems; explains *why* the C-parity results hold; pins down anti-properties (e.g. "order 2 is *exactly* order 2") that tests can only sample. Does not touch the Rust source. |
-| **Refinement proofs** over `f64`: prove the Rust function body computes the spec, including rounding. | Very high, and for the linear algebra probably infeasible with today's tooling. | What most people mean by "verified simulator". |
+| **Refinement proofs** over `f64`: prove the Rust function body computes the spec, including rounding. | **Blocked, not merely expensive.** [§4](#4-extraction-spike-measured-results) measured that the only Lean-side pipeline has no floating-point model at all, so no `f64` kernel is translatable at this version. | What most people mean by "verified simulator". |
 | **Structural proofs** over the combinatorics: MNA ground elimination, branch ordering, pattern/pivot-order determinism. Float-free, so both cheap *and* genuinely about the code. | Medium, gated on being able to model the device layer. | Catches a real class of bugs (index spaces, sign conventions, ordering) that testing catches only by accident. |
 
 The recommendation is to fund the first and third, treat the second as
-research, and be explicit in any public claim that specification proofs are
-specification proofs. The existing C-differential test suite is the right
+blocked upstream rather than as an engineering project, and be explicit in any
+public claim that specification proofs are specification proofs. The existing C-differential test suite is the right
 instrument for the second tier and already does most of the available work;
 proof should be aimed at what testing structurally cannot reach.
 
@@ -168,55 +169,85 @@ which makes iterating on individual functions cheap once the target is chosen.
 | Default invocation (`cargo hax into --output-dir … lean`) | hax translates the **binary** target. Aeneas aborts on `spice_rs::main` with `Assertion failed: new value doesn't have the same type as its destination` at `src/bin/spice-rs.rs:20:28-20:35`, writes empty `Funs.lean`/`Types.lean`, and exits 1. No library function is extracted. |
 | `-i '+ngspice_rs::**::evaluate'`, with and without `--lib` passed via `-C` | **No effect in these runs.** The binary target was still processed and library items still did not appear. The item-selection flag documented for `into` did not reach the Charon pipeline; Charon's own `--start-from`/`--include` do. |
 | `--charon-args="--start-from 'ngspice_rs::maths::polynomial::evaluate'"` | Charon succeeds and emits `pub fn evaluate(_1: &[f64], _2: f64) -> f64` — **but as `<opaque>`, with no body.** Aeneas therefore generates empty modules. `--start-from` alone is not enough; the body must also be made non-opaque. |
-| Same, plus `--include 'ngspice_rs::maths::polynomial::evaluate'` | Charon now produces a 408 KB LLBC containing the real MIR, including the closure `evaluate::closure` and its `call_mut` body. Aeneas then fails: `Invalid inputs for binop` at **`src/maths/polynomial.rs:66:48-66:55`** — i.e. the `sum * x` inside `\|sum, c\| sum * x + c` — and warns that `DoubleEndedIterator`/`Iterator` are mutually recursive trait declarations, which it does not support. |
+| Same, plus `--include 'ngspice_rs::maths::polynomial::evaluate'` | Charon now produces a 408 KB LLBC containing the real MIR, including the closure `evaluate::closure` and its `call_mut` body. Aeneas then fails: `Invalid inputs for binop` at **`src/maths/polynomial.rs:66:48-66:55`** — i.e. the `sum * x` inside `\|sum, c\| sum * x + c` — and warns that `DoubleEndedIterator`/`Iterator` are mutually recursive trait declarations, which it does not support. (The first version of this section read that as "the closure is the problem". It is not — see the correction below.) |
 | `--start-from`/`--include` on `ngspice_rs::maths::integrator::gear_corrector` | Aeneas fails with `Returns inside of nested loops are not supported yet` at `src/maths/integrator.rs:393:0-397:1`, then ignores the body. |
 
 ### What it means
 
-The two functions I picked as the *most* likely Tier-1 successes both fail, for
-two unrelated reasons, and both failures are in Aeneas's Rust-feature support
-rather than in anything specific to ngspice-rs:
+**Correction.** The first version of this section attributed `evaluate`'s
+failure to its closure. That was wrong. The isolating probe in
+`formal/probes/extraction_shape_probe.sh` shows that iterator-and-closure shapes
+extract fine when the element type is an integer, and that everything containing
+an `f64` fails. The cause is the float type, not the closure. The
+misattribution is left on the record because it is instructive: the diagnostic
+`Invalid inputs for binop` names the operand types of an arithmetic operation,
+and reading it as "the closure" is exactly the inference that a probe settles
+and prose does not.
 
-- **`evaluate` fails on the closure.** The failure is not in the fold or in
-  `f64`; it is that a captured `f64` inside a closure body does not typecheck in
-  Aeneas's interpreter. `iter().rev().fold(…)` is one of the most idiomatic
-  shapes in Rust and is used ~1 374 times in this tree.
-- **`gear_corrector` fails on control flow.** It has no closures and no traits:
-  fixed-size arrays, `for` loops, `as`-free arithmetic — on paper the ideal
-  Aeneas target. Aeneas still rejects it, because mutually nested loops with
-  interior control flow are outside its `RustM`/`ControlFlow` model at this
-  version.
+The probe, run with the same toolchain versions and with each function
+translated in isolation:
 
-So the refinement tier is **not** currently gated on effort or on learning the
-tools. It is gated on Aeneas's supported Rust subset, and the subset this tree
-needs is on the wrong side of that line. Three consequences, in order of
-importance:
+| probe | extracted | first diagnostic |
+| --- | --- | --- |
+| `f64_literal` — a bare `1.5` | **no** | `Improperly typed constant value` |
+| `f64_binop` — `a * b` on two `f64` parameters | **no** | `Invalid inputs for binop` |
+| `f64_loop` — `f64` accumulation in a `while` loop | **no** | `Improperly typed constant value` |
+| `int_binop` — `a * b` on `usize` | yes | — |
+| `int_closure_fold` — `iter().rev().fold(…, \|s, c\| s + c)` on `usize` | yes | — |
+| `int_nested_early_return` — nested loops with an early return | **no** | `Returns inside of nested loops are not supported yet` |
+| `raw_ptr_i32_loop` — `*a.add(i)` over `*const i32` | **no** | `Aeneas does not yet support dereferencing raw pointers.` |
+| `raw_ptr_f64_loop` — the same over `*const f64` | **no** | `Improperly typed constant value` |
 
-1. **Tier 1 should not be planned as "learn hax, then extract modules".** The
-   honest estimate for the current toolchain is that most kernels in
-   `src/maths/` are not extractable at this version, and the effort would be
-   spent upstream-tracking rather than proving.
-2. **The mitigation that *does* exist is narrow and must be scoped carefully.**
-   A closure-free, single-loop formulation of a kernel would likely extract:
-   `evaluate`'s body can be rewritten as `let mut sum = 0.; for c in
-   coefficients.iter().rev() { sum = sum * x + c }`, which removes both the
-   closure and the nested control flow. For a handful of small helper kernels
-   that is acceptable. For `maths/sparse13.rs` it is **not**: the file
-   deliberately mirrors C's loop structure and operation order so that pivot
-   sequences match SPARSE, and AGENTS.md makes that a hard requirement.
-   Refactoring for extraction would trade a proved property for a lost one.
-3. **Re-probe cheaply before committing.** The next sensible experiment is a
-   deliberately closure-free, single-loop, early-return-free function — either
-   a rewrite of `evaluate` or a small new helper — to establish whether *any*
-   kernel of real interest is extractable today. That is a ~30 s run once the
-   candidate is chosen. Until it succeeds, Tiers 1 and 3 should be treated as
-   blocked and the project should invest in Tiers 0 and 2 instead.
+So there are three independent limitations, not one:
 
-One incidental finding worth recording: **`--start-from` without `--include`
-silently yields `<opaque>`.** The extraction "succeeds" (exit 0, files
-written) while containing nothing. Any scripted extraction must assert that the
-expected function appears in `Funs.lean`, or it will report success on an
-empty artifact.
+- **No floating-point model.** Aeneas's Lean backend defines no `F32`, `F64` or
+  `Float` anywhere under `Aeneas/Std`; its scalar model is integers and
+  bitvectors. A bare float *literal* therefore fails, not just arithmetic. Float
+  support for the Lean backend is an open, unmerged upstream draft (Aeneas
+  PR #1073, whose description notes that "Lean's own support for floats does not
+  seem super advanced, so lots of core routines are `opaque`"), and float
+  literals alone needed a dedicated hax PR (#880).
+- **No raw-pointer dereference.** This is the c2rust memory model, and it is the
+  one diagnostic that names its own limitation outright. See
+  [§11](#11-what-about-c2rust).
+- **No returns inside nested loops.** Genuine, float-independent, and what stops
+  `gear_corrector`.
+
+**This changes the conclusion, and it is worse than the original section said.**
+For a SPICE simulator, "no floats" is not a subset restriction — it is the whole
+language. Every kernel in `src/maths` and every device stamp is `f64`
+arithmetic. Tier 1 is therefore not gated on the shape of the code, on the size
+of a closure, or on refactoring effort: it is gated on an upstream float model
+that does not exist in this build. Two gates have to open, and this one is
+first.
+
+That also withdraws the mitigation the first version proposed. Rewriting a
+kernel closure-free, single-loop and early-return-free — the refactor that
+[§10.4](#104-the-oracles-highest-value-role-making-the-refactor-possible) argued
+the C oracle could de-risk — would produce code that still fails on its first
+`f64`. That refactor is not worth starting until a float model lands.
+
+What survives:
+
+1. **Tier 1 should not be planned at all right now.** Track Aeneas PR #1073 and
+   re-run `formal/probes/extraction_shape_probe.sh` after any hax release. Until
+   the three `f64_*` rows turn green, no preparatory work in this repository
+   moves Tier 1.
+2. **Tiers 0 and 2 and the oracle work are unaffected**, because none of them
+   depends on extraction. [§10](#10-using-the-c-oracle) is where the value
+   available today is.
+3. **`gear_corrector` may still be blocked after floats land**, because of the
+   nested-loop-return limit. Both gates have to open, and they are independent.
+
+Two incidental findings worth recording, because both are silent-failure
+hazards for any scripted extraction:
+
+- **`--start-from` without `--include` silently yields `<opaque>`.** The run
+  "succeeds" — exit 0, files written — while containing nothing.
+- **Aeneas emits a `def` with body `sorry` for functions it failed to
+  translate.** So "the name appears in `Funs.lean`" is not evidence of success;
+  the body has to be checked for `sorry`. The probe script does this, and
+  asserts on the body rather than on the name.
 
 ## 5. Target tiers
 
@@ -440,24 +471,23 @@ Bounded, in order, each of which produces something checkable.
    job that caches mathlib. Add the `.gitignore` entry (done). Treat it as
    documentation of the numerical kernels, not as a publication claim.
    *Cost: review only.*
-2. **Finish the extraction probe to a decision.** [§4](#4-extraction-spike-measured-results)
-   already establishes that the two most plausible candidates fail. Complete the
-   picture with one deliberately closure-free, single-loop, early-return-free
-   function and find out whether the pipeline works on *anything* of interest in
-   this tree. Deliverable: a yes/no on Tier 1, plus a note on which Aeneas
-   version to re-probe against. *Cost: ~30 s per attempt once the candidate is
-   written, so hours, not days.*
-3. **If M2 is a yes, extract exactly one kernel** — the smallest one with a
-   Tier 0 theorem already attached, so the proof obligation is "this body
+2. **Do not start Tier 1 work; track the upstream gate instead.** The probe is
+   done and the answer is no: [§4](#4-extraction-spike-measured-results) shows
+   Aeneas's Lean backend has no `f64` model, so Tier 1 is blocked on upstream
+   PR #1073 rather than on anything here. The action is to re-run
+   `formal/probes/extraction_shape_probe.sh` after any hax release and start
+   Tier 1 only when its `f64_*` rows turn green. *Cost: minutes per release.*
+3. **When the float gate opens, extract exactly one kernel** — the smallest one
+   with a Tier 0 theorem already attached, so the proof obligation is "this body
    equals the model I already specified" rather than new mathematics. Given
-   `horner_eq_sum`, a closure-free `evaluate` is the obvious choice, and it
-   validates the whole approach end to end. *Cost: days, not weeks, if M2 is
-   positive.*
+   `horner_eq_sum`, `evaluate` is the obvious choice. *Cost: days, not weeks,
+   once the gate opens.*
 4. **Prove the MNA allocation invariants** (Tier 2) as specifications over an
    abstract device interface, and check them against the Rust construction
    logic by inspection plus targeted tests. This avoids `dyn Device` by
    modelling the *interface*, not the concrete devices — the cheapest way to get
-   value from the structural tier, and it does not depend on M2. *Cost: weeks.*
+   value from the structural tier, and it does not depend on extraction. *Cost:
+   weeks.*
 5. **Extend Tier 0.** The general-`n` maximality result (`(-1)^(n-1)·∏_{i≠0} s i`,
    sketched in `Orders.lean`), `CKTterr`'s truncation formula, and
    `fit_power_basis`'s interpolation spec are all self-contained and were
@@ -576,7 +606,13 @@ no closure bodies, no returns inside nested loops. Entering that subset means
 operation that silently changes answers.
 
 The oracle is what makes that safe, because the goldens are bit-exact against
-the no-FMA C build. So the iteration is:
+the no-FMA C build. **This route is currently suspended**, because
+[§4](#4-extraction-spike-measured-results) later established that the refactor
+would not buy translatability while Aeneas's Lean backend lacks an `f64` model:
+step 2 below would produce code that still fails on its first `f64`. The
+reasoning is kept because it becomes right again the moment a float model lands,
+and because the oracle's role is the same either way. When that happens, the
+iteration is:
 
 1. pick a kernel that already has a bit-exact golden;
 2. rewrite it closure-free, single-loop, no early return, re-checking
@@ -669,4 +705,122 @@ If the oracle is the asset, spend it in this order:
    `Orders.lean` already has the surrounding machinery; then the *specification*
    of `sparse13`'s pivot policy rather than its code.
 3. **§10.4 refactor-and-extract** for exactly one kernel with a bit-exact
-   golden, as the spike that decides whether the refinement tier opens at all.
+   golden — but only once the `f64` gate of [§4](#4-extraction-spike-measured-results)
+   opens. Until then this is planning, not work.
+
+## 11. What about c2rust?
+
+Short answer: it does not help. Four independent reasons, and the decisive one is
+the same thing that blocks Tier 1 — floats. There is one narrow place where it
+would earn its keep, and it is not verification.
+
+### 11.1 It does not address the binding constraint
+
+[§4](#4-extraction-spike-measured-results) measured it: Aeneas's Lean backend has
+no floating-point model. c2rust turns C into Rust; it cannot change which types
+Aeneas models. Every c2rust-generated line that matters would contain an `f64`
+and would fail exactly as `f64_binop` does — `Invalid inputs for binop`.
+
+This is the whole answer, and it is worth stating starkly: even a *perfect*
+c2rust translation, with every pointer cleaned up by hand, lands on the wrong
+side of an unrelated wall.
+
+### 11.2 It adds a second limitation on top of the first
+
+c2rust's output is raw pointers and `unsafe` by construction, and §4's probe
+shows the response to that is explicit:
+
+```
+raw_ptr_i32_loop  ->  Aeneas does not yet support dereferencing raw pointers.
+```
+
+So c2rust output fails for two reasons instead of one. There is a real *trade*
+buried here — c2rust output preserves C's control flow, which is closer to
+Aeneas's shape than the port's idiomatic iterators, so it would solve the
+nested-loop-return problem — but that problem is not the binding one, and the
+memory model it costs is fatal. (And the closure worry that made the trade look
+attractive was itself a misreading; see the correction in
+[§4](#4-extraction-spike-measured-results).)
+
+### 11.3 The direction of translation is wrong
+
+The project already has a Rust implementation, tested against C. c2rust
+manufactures a *third* artifact — a Rust rendering of C whose own correctness is
+not proved, only tested — and then either verifies *that* instead of the port, or
+tests the port against it. Either way, `port vs C` becomes
+`port vs c2rust(C) vs C`, with an unverified translation inserted in the middle.
+It strictly increases the number of untrusted links in the chain, which is the
+opposite of the goal.
+
+### 11.4 ngspice is a hostile transpilation target anyway
+
+Setting the above aside, the C is not a plausible c2rust input. Measured on the
+reference checkout's `src/`:
+
+| Construct | Count |
+| --- | --- |
+| lines of C | 629,752 |
+| `#define` lines | 17,285 |
+| `ckt->` dereferences — the global circuit state threaded through everything | 21,263 |
+| files using `goto` | 979 |
+| function-pointer call sites | 358 |
+| files using `va_list` | 34 |
+| files using `union` | 18 |
+| files using `setjmp` / `longjmp` | 10 / 2 |
+
+c2rust's own known-limitations list names inline assembly, macros, `restrict`
+pointers, inline functions and GNU packed structs. But the deeper problem is
+structural rather than itemised: ngspice's numerics are driven by a mutable
+global `CKTcircuit` reached through a thread-local `ckt` pointer, and SPARSE's
+solver is a linked-list arena of C pointers. Transpilation preserves that shape
+as raw pointers, which is precisely what Aeneas excludes. The cases where it
+would be easy to transpile are the least interesting, and the cases that matter —
+the solver — are the hardest and the most pointer-laden.
+
+### 11.5 Where c2rust would actually earn its keep
+
+Not verification — **oracle granularity**.
+
+Today the port's corrector coefficients are pinned two ways: against textbook
+fixed-step BDF tables, and against `vandermonde_ag`, which is a *Rust
+reimplementation* of C's linear system rather than C. The C-parity tests are
+whole-deck rawfile comparisons, which would catch a wrong `CKTag` only
+indirectly, through a deck result. There is no direct C-versus-Rust comparison of
+the coefficient values, because the coefficient routine is internal to C and
+never observable in a rawfile.
+
+c2rust is one way to make C's `nicomcof.c` callable from a Rust test *without
+FFI*. That matters because this repository forbids FFI — `unsafe_code =
+"forbid"`, and `AGENTS.md` states there is no FFI — so the usual `bindgen` plus
+`extern "C"` route is closed. A c2rust-generated and hand-trimmed Rust rendition
+of the coefficient routine, compiled into the test binary as ordinary Rust, would
+let `tests/` compare the port's `ag` against C's `ag` directly instead of against
+a Rust model of C's system.
+
+That is a real improvement in *diagnosis*: it would localise a coefficient
+mismatch instead of inferring it from a deck result. It is an engineering task,
+not a verification one, and it does not strictly need c2rust — the same effect is
+reachable by transcribing C's routine into a test-only module and reviewing it,
+which is what `vandermonde_ag` already half-does. c2rust's contribution would be
+fidelity-by-construction instead of fidelity-by-review, which is a real but
+modest gain for a routine of forty lines.
+
+### 11.6 If a verified solver is the goal, the prover choice is the real question
+
+The float gap is specific to Aeneas's *Lean* backend. Aeneas's float work is
+described as adding float support **to the Lean backend**, which implies the
+other backends are ahead, and hax also exposes a Coq backend. Nothing here was
+tested — Coq is not installed on this machine — so treat this as a flag, not a
+finding:
+
+> A Rust→Rocq route through Aeneas/hax may reach floating point earlier than the
+> Lean route, at the cost of moving this pilot's specification development to
+> Rocq.
+
+Taken together with [§10.1](#101-the-readings-that-do-not-pay-off)'s observation
+that the mature *C* tooling is also Rocq-based, the pattern is uncomfortable:
+choosing Lean appears to have maximised distance from the available
+floating-point models on *both* sides of the port/oracle pair. That does not make
+the choice wrong — Lean is where the Rust-side momentum is, and Tiers 0 and 2 are
+unaffected — but it deserves to be an explicit decision rather than a drift. It
+is the single question most worth settling before any further commitment.

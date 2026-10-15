@@ -145,12 +145,32 @@ shipped simulator.
     directory.
 
 Closing that boundary is the entire subject of
-[`docs/port/FORMAL_VERIFICATION.md`](../docs/port/FORMAL_VERIFICATION.md) —
-which reports the measured result of attempting it: as of `cargo-hax 0.4.2`,
-neither `maths/polynomial.rs::evaluate` (closure body) nor
-`maths/integrator.rs::gear_corrector` (returns inside nested loops) is
-extractable. **No theorem in this directory is currently linked to the Rust
-source by machine.**
+[`docs/port/FORMAL_VERIFICATION.md`](../docs/port/FORMAL_VERIFICATION.md), which
+reports the measured result of attempting it. The short version, as of
+`cargo-hax 0.4.2` / Charon `nightly-2026.09.02` / Aeneas `build-183e4f0`:
+
+> **Aeneas's Lean backend has no floating-point model.** There is no `F32`,
+> `F64` or `Float` under its `Aeneas/Std`; a bare `1.5` fails with `Improperly
+> typed constant value` and `a * b` on two `f64` parameters fails with `Invalid
+> inputs for binop`. Float support for the Lean backend is an open upstream
+> draft (Aeneas PR #1073).
+
+Because a SPICE simulator is `f64` arithmetic end to end, that is not a subset
+restriction but a full block on refining Rust against Lean.
+`formal/probes/extraction_shape_probe.sh` is the isolating probe: it shows
+`int_closure_fold` (an `iter().rev().fold(…)` closure) and `int_binop`
+extracting while all three `f64` rows fail — so the earlier claim in the
+assessment that `evaluate` failed *because of its closure* was wrong, and the
+doc carries the correction.
+
+The other two measured limits are independent: `raw_ptr_*` fails
+(`Aeneas does not yet support dereferencing raw pointers.`, which is the c2rust
+memory model) and nested loops with an early return fail
+(`Returns inside of nested loops are not supported yet`, which is what stops
+`gear_corrector`).
+
+**No theorem in this directory is currently linked to the Rust source by
+machine**, and the assessment's §11 concludes that c2rust does not change that.
 
 ## Layout
 
@@ -168,9 +188,11 @@ formal/
     Orders.lean               closed forms and maximal order
   probes/
     xmu_order_probe.py        oracle check for the Theta.lean prediction
+    extraction_shape_probe.sh which Rust shapes Charon/Aeneas can translate
 ```
 
-The probe needs the opt-in C reference and is not part of `lake build`:
+The C-oracle probe needs the opt-in reference binary and is not part of
+`lake build`:
 
 ```sh
 NGSPICE_BIN=/abs/path/to/ngspice python3 formal/probes/xmu_order_probe.py
@@ -178,6 +200,17 @@ NGSPICE_BIN=/abs/path/to/ngspice python3 formal/probes/xmu_order_probe.py
 
 It prints the convergence table and the same-grid penalty; it asserts nothing,
 so read its output rather than its exit status.
+
+The extraction probe needs `cargo-hax` on `PATH` and writes only to a scratch
+directory outside the checkout:
+
+```sh
+bash formal/probes/extraction_shape_probe.sh
+```
+
+It reports, per Rust shape, whether Aeneas produced a real Lean body. Note that
+a `def` with body `sorry` is emitted for functions that *failed* to translate,
+so the script asserts on the body and not on the name.
 
 Files are Lean *modules* (`module` + `public import`), so exported names carry
 `public` and definitions whose bodies callers must unfold carry `@[expose]`.
