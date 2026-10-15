@@ -39,6 +39,10 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
         'u',
         "uniform RC line expanded into R/C/D sections (urcsetup.c)",
     ),
+    (
+        'o',
+        "lossy line: LC, RLC, RC and RG cases (ltraload.c; companion .tran, no BDF)",
+    ),
     ('z', "MESFET level 1 (Statz, mesload.c)"),
 ];
 
@@ -118,6 +122,11 @@ pub(crate) fn instantiate_with_models(
             | crate::devices::models::ModelFamily::CurrentSwitch => {
                 return crate::devices::switch::Switch::instantiate(
                     instance, nodes, &model, context,
+                );
+            }
+            crate::devices::models::ModelFamily::Ltra => {
+                return crate::devices::ltra::LossyLine::instantiate(
+                    instance, nodes, models, context,
                 );
             }
             crate::devices::models::ModelFamily::Urc => {

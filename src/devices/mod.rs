@@ -13,9 +13,10 @@
 //! | [`mutual`] | K mutual inductance | coupled flux in DC/AC/companion/BDF; inductors and inductive-system checks resolved by [`circuit`] |
 //! | [`switch`] | S/W voltage- and current-controlled switches | hysteresis, accepted switch state, Newton phases, `swtrunc.c` step control |
 //! | [`tline`] | T lossless transmission line | DC, AC (`exp(-j omega TD)`), companion transient with delay history and device breakpoints |
+//! | [`ltra`] | O lossy transmission line (`ltra` LC/RLC/RC/RG cases) | DC, exact AC, companion transient convolution over the unpruned delay history |
 //! | [`pulse`] | analytic periodic PULSE, C defaults, lazy corners | left/right limits, pulse count |
 //! | [`functions`] | analytic SIN/EXP/SFFM/AM and delayed/repeating PWL | C defaults, lazy corners |
-//! | [`delay`] | device-owned delay history, device breakpoints and step bounds | transmission lines; companion driver only |
+//! | [`delay`] | device-owned delay history, device breakpoints and step bounds | T and O transmission lines; companion driver only |
 //! | [`linear`] | immutable E x' + A x = b(t) assembly | linear devices only |
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
@@ -76,6 +77,7 @@ pub use models::{
     DEFAULT_GMIN, DiodeInstanceParameters, DiodeModelParameters, LevelSelection, ModelContext,
     ModelFamily, ModelResolver, ResolvedModel,
 };
+pub mod ltra;
 pub mod registry;
 pub mod sources;
 pub mod subckt;

@@ -21,7 +21,7 @@ use crate::netlist::card::{CardKind, DotCommand, RawCard};
 use crate::netlist::token::Token;
 
 use super::{
-    behavioural, controlled, diode, expression, fourier, func, hints, linear, measure, model,
+    behavioural, controlled, diode, expression, fourier, func, hints, linear, ltra, measure, model,
     mutual, options, param, save, structure, switch, tline, transistor, urc,
 };
 
@@ -138,6 +138,7 @@ pub(super) fn parse_card(
                 super::jfet::jfet_card,
                 urc::urc_card,
                 tline::tline_card,
+                ltra::ltra_card,
                 super::mesfet::mesfet_card,
             )),
         )),

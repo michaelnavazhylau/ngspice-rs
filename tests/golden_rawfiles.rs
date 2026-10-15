@@ -454,6 +454,99 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(b)", 42, -1.852869795371688e-02, -9.524046874805195e-01),
         ],
     },
+    // Lossy lines (ltra). o1 is an LC line (Z0 = 50, TD = 2 ns) from 25 ohm
+    // into 200 ohm: on the plateau after its first arrival the far end is the
+    // launched 2/3 times 1 + 0.6 = 16/15 V and i2 = -v(b)/200. The RLC line
+    // (TD = 10 ns) has not delivered anything to d yet. The RG line is
+    // matched (Z0 = sqrt(R/G) = 100), so e sits at 2/3 of the source and f at
+    // (2/3) exp(-sqrt(RG) len) = (2/3) exp(-0.2) = 0.545820499... (the 5 pF
+    // load is still settling at the 1e-9 level). At 30 ns the source is at
+    // -0.5 V and the RG values are exactly -1/2 of those.
+    Expectation {
+        fixture: "m10_ltra_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 831,
+        variables: &[
+            "time", "v(a)", "v(b)", "v(c)", "v(d)", "v(e)", "v(f)", "v(in)", "v(o1#i1)",
+            "v(o1#i2)", "v(o2#i1)", "v(o2#i2)", "v(o3#i1)", "v(o3#i2)", "i(v1)",
+        ],
+        values: &[
+            ("time", 113, 5.024999999999992e-09, 0.),
+            ("v(b)", 113, 1.066666666666667e+00, 0.),
+            ("v(o1#i2)", 113, -5.333333333333334e-03, 0.),
+            ("v(d)", 113, 0.000000000000000e+00, 0.),
+            ("v(e)", 113, 6.666666650436670e-01, 0.),
+            ("v(f)", 113, 5.458204997427933e-01, 0.),
+            ("time", 627, 3.000000000000000e-08, 0.),
+            ("v(e)", 627, -3.333333333333333e-01, 0.),
+            ("v(f)", 627, -2.729102510259488e-01, 0.),
+        ],
+    },
+    // An RC line (R C len^2 = 1 us) driven directly and open at the far end:
+    // 3 us after the step (mid-edge at 0.51 us) the diffusion series gives
+    // about 1 - (4/pi) exp(-pi^2 2.99/4) = 0.9992; C's piecewise-linear erfc
+    // convolution reads 0.99947.
+    // The open end carries no current. The subcircuit copy is named
+    // o.x1.o1, as ngspice's subcircuit expansion names it.
+    Expectation {
+        fixture: "m10_ltra_rc_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 420,
+        variables: &[
+            "time",
+            "v(far)",
+            "v(in)",
+            "v(o.x1.o1#i1)",
+            "v(o.x1.o1#i2)",
+            "v(o1#i1)",
+            "v(o1#i2)",
+            "v(out)",
+            "i(v1)",
+            "v(x1.m)",
+        ],
+        values: &[
+            ("time", 188, 3.500999999999986e-06, 0.),
+            ("v(far)", 188, 9.994747532106618e-01, 0.),
+            ("v(o1#i2)", 188, 0.000000000000000e+00, 0.),
+        ],
+    },
+    // The LC line (Z0 = 50, TD = 5 ns) is a quarter-wave transformer at
+    // 50 MHz: Z_in = 50^2/200 = 12.5 ohm, so v(a) = 12.5/62.5 = 0.2 and the
+    // far end is 0.8 V lagging 90 degrees; at 100 MHz (half wave) v(a) = 0.8
+    // and v(b) = -0.8.
+    Expectation {
+        fixture: "m10_ltra_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 201,
+        variables: &[
+            "frequency",
+            "v(a)",
+            "v(b)",
+            "v(c)",
+            "v(d)",
+            "v(e)",
+            "v(f)",
+            "v(in)",
+            "v(o1#i1)",
+            "v(o1#i2)",
+            "v(o2#i1)",
+            "v(o2#i2)",
+            "v(o3#i1)",
+            "v(o3#i2)",
+            "i(v1)",
+        ],
+        values: &[
+            ("frequency", 49, 5.000000000000000e+07, 0.),
+            ("v(a)", 49, 2.000000000000003e-01, 9.648735898059814e-17),
+            ("v(b)", 49, -1.286498119741309e-16, -7.999999999999998e-01),
+            ("frequency", 99, 1.000000000000000e+08, 0.),
+            ("v(a)", 99, 8.000000000000000e-01, -1.929747179611963e-16),
+            ("v(b)", 99, -7.999999999999999e-01, 2.572996239482618e-16),
+        ],
+    },
     Expectation {
         fixture: "bjt_ce",
         plotname: "Operating Point",

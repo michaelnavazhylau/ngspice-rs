@@ -1,0 +1,22 @@
+Lossy transmission lines (ltra) in AC: exact LC, RLC and RC two-ports
+* ltraacld.c: Y0 V1 - I1 = exp(-lambda len) (Y0 V2 + I2) and symmetrically,
+* with Y0 = sqrt((jwC)/(R + jwL)) and lambda = sqrt((R + jwL) jwC).
+* o1: LC line, Z0 = 50, TD = 5 ns, 50 ohm source into 200 ohm: quarter-wave
+*     transformer at 50 MHz, half wave at 100 MHz.
+* o2: RLC line, R = 20 ohm/m, into 1 kohm (nearly open): damped resonances.
+* o3: RC line (R C len^2 = 10 ns), driven through 50 ohm into 1 pF.
+v1 in 0 dc 0 ac 1
+rs1 in a 50
+o1 a 0 b 0 lcline
+rl1 b 0 200
+rs2 in c 50
+o2 c 0 d 0 rlcline
+rl2 d 0 1k
+rs3 in e 50
+o3 e 0 f 0 rcline
+cl3 f 0 1p
+.model lcline ltra l=250n c=100p len=1
+.model rlcline ltra r=20 l=250n c=100p len=1
+.model rcline ltra r=1k c=10p len=1
+.ac lin 201 1meg 201meg
+.end

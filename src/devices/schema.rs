@@ -73,6 +73,10 @@ pub enum ScalarUnit {
     Hertz,
     /// Electric field in volts per centimetre (MOS2 `UCRIT`).
     VoltPerCentimetre,
+    /// Inductance per unit length, henries per metre (LTRA `L`).
+    HenryPerMetre,
+    /// Conductance per unit length, siemens per metre (LTRA `G`).
+    SiemensPerMetre,
 }
 
 /// Bounded validation domain, applied to every setter, not only the last one.

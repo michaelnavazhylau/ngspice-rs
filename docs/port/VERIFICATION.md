@@ -241,6 +241,21 @@ was removed in M10 wave 0.5.)
 
 # Verification
 
+## M10 lossy lines LTRA (#85 part 2, `work/m10-ltra`)
+
+Three new C goldens (`m10_ltra_tran`, `m10_ltra_rc_tran`, `m10_ltra_ac`),
+each captured individually with `cargo xtask golden capture --netlist`; no
+existing golden was recaptured, no tolerance changed and no deck option set.
+`golden verify`: `m10_ltra_tran` worst 0.024 of `compare::TRAN` (the RLC
+line's exact-time branches in `ltramisc.c`, see
+[TRANSMISSION_LINES.md](TRANSMISSION_LINES.md#lossy-line-o-ltra-85)),
+`m10_ltra_rc_tran` 0.000, `m10_ltra_ac` under `compare::AC`; `golden check`
+reproduces every fixture. `tests/ltra.rs` checks closed-form line theory and
+the refusals; the opt-in `tests/c_ltra_reference.rs` compares eight flag sets
+row by row with C (same timepoints, `1e-5 |C| + 1e-9`), a diode load, AC,
+`.op`, `.dc`, `.sp` and C's RG AC defect. Six new parser snapshots were
+blessed; existing snapshots are unchanged.
+
 ## M10 URC lines (#85 part 1, `work/m10-urc`)
 
 Three new C goldens (`m10_urc_tran`, `m10_urc_ac`, `m10_urc_diode_tran`),

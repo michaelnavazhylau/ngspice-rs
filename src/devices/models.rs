@@ -67,6 +67,9 @@ pub enum ModelFamily {
     /// Uniform distributed RC line (`urc`, `urc/urc.c`), expanded into
     /// lumped R/C/D sections by [`crate::devices::urc`].
     Urc,
+    /// Lossy transmission line (`ltra`, `ltra/ltra.c`), simulated by
+    /// [`crate::devices::ltra`].
+    Ltra,
     /// N-channel MESFET/HFET family (`nmf`; level 1 `mes/`, levels 2-4
     /// `mesa/`, 5 `hfet1/`, 6 `hfet2/`).
     Nmf,
@@ -92,6 +95,7 @@ impl ModelFamily {
             "njf" => Some(Self::Njf),
             "pjf" => Some(Self::Pjf),
             "urc" => Some(Self::Urc),
+            "ltra" => Some(Self::Ltra),
             "nmf" => Some(Self::Nmf),
             "pmf" => Some(Self::Pmf),
             _ => None,
@@ -113,6 +117,7 @@ impl ModelFamily {
             Self::CurrentSwitch => 'w',
             Self::Njf | Self::Pjf => 'j',
             Self::Urc => 'u',
+            Self::Ltra => 'o',
             Self::Nmf | Self::Pmf => 'z',
         }
     }
@@ -267,7 +272,7 @@ impl<'a> ModelResolver<'a> {
         let Some(name) = &instance.model else {
             if matches!(
                 instance.designator.to_ascii_lowercase(),
-                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'z'
+                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'o' | 'z'
             ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),

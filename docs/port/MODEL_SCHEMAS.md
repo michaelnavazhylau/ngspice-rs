@@ -258,3 +258,26 @@ validated by `devices::urc` when a `U` instance is expanded:
 The bare `urc` flag is a no-op (`URC_MOD_URC`). `level` and unknown setters
 are refused (C warns and ignores them). Instance setters `l` (m, required,
 positive) and `n` (`IF_INTEGER`, rounded, at least 1). See [URC.md](URC.md).
+
+## Lossy-line model (`ltra`, #85)
+
+`.model name ltra ...` (`ltra.c` `LTRAmPTable`, `ltrampar.c`, defaults from
+`ltraset.c`), validated by `devices::ltra` when an `O` instance is built:
+
+| Setter | Unit | Domain | Default |
+| --- | --- | --- | --- |
+| `r` | ohm/m | nonnegative | 0 |
+| `l` | H/m | nonnegative | 0 |
+| `g` | S/m | nonnegative | 0 |
+| `c` | F/m | nonnegative | 0 |
+| `len` | m | positive | none: required |
+| `rel`, `abs` | — | nonnegative | 1, 1 |
+| `compactrel`, `compactabs` | — | nonnegative | 0 (means `reltol`, `abstol`) |
+
+Bare flags (`IF_FLAG`, last wins): `steplimit`/`nosteplimit`,
+`lininterp`/`quadinterp`/`mixedinterp`, `truncdontcut`; `ltra`, `nocontrol`
+and `truncnr` are accepted and change nothing reachable. The `R L G C`
+combination selects C's case (LC, RLC, RC, RG); RL, `G` with `L` or `C` and
+fewer than two nonzero values are C's errors. `level`, unknown setters and
+instance-parameter defaults (`v1`…`ic`) on the card are refused. See
+[TRANSMISSION_LINES.md](TRANSMISSION_LINES.md#lossy-line-o-ltra-85).

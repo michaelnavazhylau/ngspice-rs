@@ -388,6 +388,17 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   TRANSIENT.md); C goldens `m10_tline_{tran,ac,pulse}`. Explicit errors:
   `uic` with a line, `.pz`, `.noise`, `.disto`, `.sens`. See
   [TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md).
+- [x] Lossy transmission line `O` (LTRA, #85 part 2, slice 8, `work/m10-ltra`):
+  `inp2o.c` grammar, `ltra` model schema and flags, `ltraset.c` LC/RLC/RC/RG
+  classification (RL and `G` with `L`/`C` are C's errors), C's DC rows, exact
+  AC (`ltraacld.c`), companion transient convolving the unpruned accepted
+  history with `ltramisc.c`'s Bessel/`erfc` coefficients and interpolation,
+  `ltraacct.c` breakpoints and `ltratrun.c` step bounds (`devices::ltra`, on
+  the slice-3 `devices::delay` infrastructure). C goldens
+  `m10_ltra_{tran,rc_tran,ac}`, `tests/ltra.rs`, opt-in `c_ltra_reference`.
+  Explicit errors: diffsol BDF, `uic`, `trytocompact`, RG lines in AC (C's
+  `LTRAacLoad` defect), `.pz`, `.noise`, `.disto`, `.sens`. See
+  [TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md#lossy-line-o-ltra-85).
 - [x] JFET level 2, Parker-Skellern (#82 part 2, slice 6, `work/m10-jfet2`):
   `njf`/`pjf` `level=2` selects `devices::jfet2` (`psmodel.c` channel with
   subthreshold, power laws, velocity saturation, drain/source feedback through
