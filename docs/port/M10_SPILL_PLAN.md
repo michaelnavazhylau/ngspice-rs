@@ -410,8 +410,9 @@ refused, and the `ri`/`rf`/`rdi`/`rsi` (prime-prime and `#gs`/`#gd`) paths
 refused until H1b; **H1b** the charge/truncation half (`mesatrunc.c`, the
 `NIintegrate` path), `mesaacl.c`, `mesapzl.c`, the full `mesaask.c` table and
 the prime-prime conductances. H1a landed in PR #151 with AC pulled forward and
-every resistance path other than `rg` still refused, so H1b keeps `mesapzl.c`,
-the prime-prime paths and `mesatrunc.c`; see the status note above.
+every resistance path other than `rg` still refused; what H1b then had to do is
+recorded in the status note above (the paths in #155, the charges and `.tran`
+in #156, `mesapzl.c` in #157, all landed).
 
 
 
