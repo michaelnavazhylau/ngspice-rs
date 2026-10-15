@@ -35,12 +35,13 @@ checkout, not a claim that all M2 slices have already merged.
 | Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL (elaborated to forcing, #9), scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses and normalized round trips (M1 gate, #22); not simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
+| Distributed lines | Lossless `T` (#84) and lossy `O`/LTRA (#85) transmission lines and the URC expansion (#85): exact DC/AC stamps, device-driven breakpoints and delayed-history transients ([TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md)) |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | SPARSE 1.3 port (real/complex LU, `spsmp.c`/`niiter.c` driving; [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)), scalar R/C/L/V/I elaboration and stamps; opt-in library equilibration wrappers with no production caller (#46, [EQUILIBRATION.md](docs/port/EQUILIBRATION.md)) |
 | Numerical follow-up | Native SPARSE 1.3 solver with C's error policy (M10 wave 0.5, [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)); the #47 rank guard, #68 proof follow-up and the #29 constrained-RLC prototype (gates #69–#72) belonged to the removed faer/diffsol stack and are historical |
 | DC / AC | Linear and bounded nonlinear `.op`, typed/nested source/resistor/temperature/`@inst[param]` `.dc` (#97), bias-linearized `.ac` and `.pz` (#103) |
 | Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear and bounded nonlinear charge paths, `.ic`/`uic`/`.nodeset` and D/Q/M `off`/`ic=` for linear and nonlinear circuits (#27, #99); the only backend (`backend=diffsol`, the removed adaptive BDF, is an explicit error) |
-| Nonlinear devices | Bounded diode/MOS1/MOS2/MOS3/MOS6/MOS9 and Gummel-Poon level-1 BJT (#87) DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
+| Nonlinear devices | Bounded diode/MOS1/MOS2/MOS3/MOS6/MOS9, Gummel-Poon level-1 BJT (#87), JFET levels 1 and 2 (#82) and MESFET level 1 (#83) DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
 | CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): every `.op`/`.dc`/`.ac`/`.tran` card through the production runner in ngspice batch order with one plot per analysis (#96), per-analysis `.save`/`.print`/`.measure`/`.four`, atomic ASCII rawfile written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
 | Output selection | `.save`/`.print` cards project the full plot into the written rawfile in C `dbs` order with first-wins dedup and bounded operand support (`v(n)`, `v(n1,n2)`, `i(source|inductor|E|H)`, `vm`/`vp`/`vr`/`vi`/`vdb`); `.print` also renders a text table; unsupported/unresolvable requests fail before publishing; `.plot` unported (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
 | Measurements | `.measure`/`.meas` bounded subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) evaluated over the full plot before output selection narrows it; a failing card fails the run; the remaining variants are unported (#43, [MEASURE.md](docs/port/MEASURE.md)) |
@@ -365,7 +366,7 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   `jfettemp.c` temperature laws, `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`,
   AC and pole-zero loads, `jfettrun.c` truncation, `jfetask.c` observations,
   `@j[...]` instance sweeps). C goldens `m10_jfet_dc`/`_ac`/`_tran`/`_temp`
-  (124 verified), `tests/jfet.rs` and opt-in `c_jfet_reference`. Not ported:
+  (124 verified at landing), `tests/jfet.rs` and opt-in `c_jfet_reference`. Not ported:
   `.noise` (`jfetnoi.c`), `.disto`, `.sens` (explicit errors); `off` diverges
   from C, whose operating point fails with an `off` JFET. See
   [JFET.md](docs/port/JFET.md).
@@ -376,7 +377,7 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   with the generated `<name>#diodemod`) into existing R/C/D devices with C's
   names (`u1#hi1`, `u1#rlo1`, …) plus the load-free instance answering
   `@u1[l]`/`@u1[n]`. C goldens `m10_urc_tran`/`m10_urc_ac`/`m10_urc_diode_tran`
-  (123 verified), `tests/urc_lines.rs` and opt-in `c_urc_reference` (element
+  (123 verified at landing), `tests/urc_lines.rs` and opt-in `c_urc_reference` (element
   asks equal to C's to 1e-15). Explicit errors for C's degenerate inputs
   (missing `l`, `n < 1`, `K = 1`, zero `CPERL`), `.pz` (C aborts) and `.sens`
   (`NotYetPorted`: C's zero URC parameter entries). See
@@ -418,7 +419,7 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`), `mesacl.c`/`mespzld.c`
   small-signal and pole-zero loads, `mesnoise.c` noise, `mestrunc.c`
   truncation, `mesask.c` observations and `@z[area|m|icvds|icvgs]` sweeps.
-  C goldens `m10_mesfet_dc`/`_ac`/`_tran` (140 verified), `tests/mesfet.rs`,
+  C goldens `m10_mesfet_dc`/`_ac`/`_tran` (140 verified at landing), `tests/mesfet.rs`,
   opt-in `c_mesfet_reference`. Explicit errors: `.disto` (`mesdset.c`),
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
