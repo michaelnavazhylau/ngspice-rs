@@ -7,28 +7,26 @@ describes the C-oracle workflow. Parsing a card does not imply simulation suppor
 
 ## Current checkout and mainline status
 
-GitHub `main` contains the solver implementation at `31e245f`, merged by
-`b467ca0`. The local C-reference development `main` at `d3c8cccf4` predates it;
-that history and the Rust-only history are distinct. The solver development
-revision is `05f9eb8a9` on `inspect/diffsol-faer`. These are reference revisions,
-not build dependencies. Do not replace newer public code with an older export.
+GitHub `main` is the single publishable package `ngspice-rs` (0.4.0). The former
+six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
+`spice-analysis`, `spice-cli`) are the module tree under `src/` (`primitives`,
+`netlist`, `maths`, `devices`, `analysis`, `cli`); the binary is
+`src/bin/spice-rs.rs`, `xtask` is a separate unpublished workspace member and
+conformance fixtures are package-relative, so a published `.crate` runs its own
+test suite. Layering is a review-enforced convention, not a compiler-enforced
+one: treat a layout change as whole-tree, never as a cherry-pick. At the M10
+wave-3 merge (`6b86331`), `cargo test --workspace --locked` reports **1417 passed
+/ 0 failed / 150 ignored** (the ignored tests are the opt-in `NGSPICE_BIN` live-C
+checks) and `cargo xtask golden verify` reports **151 verified / 1 unsupported /
+0 failures** (the unsupported fixture is `multi_analysis_pz`, whose pole search
+depends on the C build's fused multiply-adds). See
+[VERIFICATION.md](docs/port/VERIFICATION.md) for the recorded evidence.
 
-The consolidated single-crate layout is unmerged work on
-`restructure/single-crate`, based on `9832167`: the six port crates are now the
-module tree under `src/` in one package, `ngspice-rs`. `main` still carries the
-six-crate `crates/spice-*` layout, so an export from a checkout that has not been
-updated would revert it — treat the layout change as whole-tree, never as a
-cherry-pick. Layout, manifests and documentation changed only; no simulation path
-did. Validation on that tree: **1051 passed / 0 failed / 67 ignored** on stable
-and Rust 1.89.0 (`ngspice-rs` alone **1003/0/67**; the delta is `xtask`), `golden
-verify` **59/0/0**, **196** snapshots unchanged, and the packaged `.crate` passes
-its own suite (**1003/0/67**). See
-[VERIFICATION.md](docs/port/VERIFICATION.md).
-
-PR #51 (`cdc078c`) merged #11 passive syntax and #17 initial model infrastructure;
-their acceptance suite passes on this main-based branch. This checkout implements
-bounded passive elaboration (#19), pending merge. Completed entries describe the
-checkout, not a claim that all M2 slices have already merged.
+The local C-reference development checkout and its history are separate from this
+Rust-only history; their revision ids are reference points, not build
+dependencies. Do not replace newer public code with an older export. Completed
+entries describe this checkout, not a claim that every upstream feature is
+ported.
 
 | Area | Current checkout |
 | --- | --- |
@@ -42,18 +40,20 @@ checkout, not a claim that all M2 slices have already merged.
 | DC / AC | Linear and bounded nonlinear `.op`, typed/nested source/resistor/temperature/`@inst[param]` `.dc` (#97), bias-linearized `.ac` and `.pz` (#103) |
 | Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear and bounded nonlinear charge paths, `.ic`/`uic`/`.nodeset` and D/Q/M `off`/`ic=` for linear and nonlinear circuits (#27, #99); the only backend (`backend=diffsol`, the removed adaptive BDF, is an explicit error) |
 | Nonlinear devices | Bounded diode/MOS1/MOS2/MOS3/MOS6/MOS9, Gummel-Poon level-1 BJT (#87), JFET levels 1 and 2 (#82) and MESFET level 1 (#83) DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
-| CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): every `.op`/`.dc`/`.ac`/`.tran` card through the production runner in ngspice batch order with one plot per analysis (#96), per-analysis `.save`/`.print`/`.measure`/`.four`, atomic ASCII rawfile written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
+| CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): every analysis card of the deck through the production runner in ngspice batch order with one plot per analysis (#96), per-analysis `.save`/`.print`/`.measure`/`.four`, atomic rawfile (ASCII or binary, #112) written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
 | Output selection | `.save`/`.print` cards project the full plot into the written rawfile in C `dbs` order with first-wins dedup and bounded operand support (`v(n)`, `v(n1,n2)`, `i(source|inductor|E|H)`, `vm`/`vp`/`vr`/`vi`/`vdb`); `.print` also renders a text table; unsupported/unresolvable requests fail before publishing; `.plot` unported (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
 | Measurements | `.measure`/`.meas` bounded subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) evaluated over the full plot before output selection narrows it; a failing card fails the run; the remaining variants are unported (#43, [MEASURE.md](docs/port/MEASURE.md)) |
 | Fourier | Bounded `.four` (#44): final complete transient period, physical-grid resampling, DC, single-sided peak amplitudes, window-referenced phase in radians and THD; 1–100 harmonics; full-plot evaluation before output selection ([FOURIER.md](docs/port/FOURIER.md)) |
 
-**No full M1/M3 completion or full SPICE parity is claimed.** The implemented BDF
-is not ngspice trapezoidal or fixed Gear-2. Numeric PULSE/PWL V/I
-setters (#8) elaborate to analytic Pulse/Pwl forcing (#9) with lazy breakpoints
-and left/right limits (Step is device-API only). The BDF backend still rejects
-higher-index constraints, nonlinear charge, `.ic` and `uic`; #29's numeric
-prototype does not widen it. Floating/coupled capacitor index-one DAEs are
-supported by that backend (#28).
+**No full M1/M3 completion or full SPICE parity is claimed.** The only `.tran`
+backend is the adaptive trapezoidal / Gear-2 companion driver, a port of
+`dctran.c` ([TRANSIENT.md](docs/port/TRANSIENT.md)); the diffsol BDF backend was
+removed in M10 wave 0.5 and `backend=diffsol` is an explicit error. Numeric
+PULSE/PWL V/I setters (#8) elaborate to analytic Pulse/Pwl forcing (#9) with lazy
+breakpoints and left/right limits (Step is device-API only). `.ic` and `uic` are
+supported on the companion driver, for linear and nonlinear circuits including
+D/Q/M `off` and `ic=` (#27, #99); the former #29 constrained-RLC prototype and
+its higher-index source-constraint work are not, and were removed with diffsol.
 
 **M5's bounded scope is complete.** Wave 1 merged subcircuit instantiation
 (#18, [SUBCIRCUITS.md](docs/port/SUBCIRCUITS.md)), the `spice-rs simulate`
@@ -90,14 +90,14 @@ from Git history (tag `v0.4.0`). The current solver guide is
 ## Completed linear engine on GitHub main
 
 These were implemented, **not new implementation tasks**. M10 wave 0.5 replaced
-faer with a SPARSE 1.3 port and removed diffsol (the first and third items below
+faer with a SPARSE 1.3 port and removed diffsol (the first and fourth items below
 are historical; see [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)); retain the
 other items' production tests and documented limits.
 
 - faer dense pivoted LU, sparse real/complex LU, owned factor snapshots and repeated-RHS solves; finite/dimension/rank/residual diagnostics and exact-pattern symbolic reuse.
 - Literal scalar R/C/L/V/I factories, AST-to-circuit elaboration, ground elimination, node-before-branch numbering, branch signs and immutable `E*x' + A*x = b(t)` assembly.
 - Linear `.op`, one-independent-source `.dc` with reused factors, and complex `.ac`; unsupported combinations fail explicitly.
-- Explicit `.tran ... backend=diffsol method=bdf`, separate from trap/Gear companion integration, with bounded DAE initialization.
+- Explicit `.tran ... backend=diffsol method=bdf`, separate from trap/Gear companion integration, with bounded DAE initialization. **Removed** in M10 wave 0.5; `.tran` is the trap/Gear-2 companion driver only.
 - Device-API Constant/Step/Pwl forcing, breakpoint stops/history restarts, right-hand event states, accepted-point callbacks, requested output grids and step/work limits.
 - Production linear C-golden comparisons, analytic RC/RL/RLC transients and a common-grid live C Pwl RC comparison; stable and Rust 1.89 validation recorded in the implementation guide.
 

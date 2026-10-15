@@ -22,17 +22,18 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 | Area | Supported |
 | --- | --- |
 | Netlists | Scalar R/C/L/V/I, linear E/F/G/H controlled sources, B behavioural sources and E/G/F/H `VALUE`/`TABLE`/`POLY` forms, K mutual inductance, `.model`, D/Q/M instances, S/W switches with `sw`/`csw` models, `.param` and `{expr}`/`'expr'` expressions, `.func` user functions, `.option` (common simulator options incl. `gmin`, `itl1`/`itl2`/`itl4`, `xmu`, `{expr}` values; documented no-ops) and `.global`, subcircuits and `X` instances, `.include`/`.lib`, numeric PULSE (with pulse count)/PWL (with `td=`/`r=`)/SIN/EXP/SFFM/AM sources, `.ic` |
-| Devices | Linear R/C/L/V/I, V sources as RF ports (`portnum`/`z0`); linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2/BDF, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode (breakdown, sidewall junctions, recombination and tunnelling currents, temperature); Gummel-Poon BJT (base charge, leakage, series resistances, transit time, substrate junction, temperature); MOS1 (level 1: Meyer gate charge, series resistance, junction geometry, process extraction and temperature); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only); T lossless transmission lines (DC, exact AC delay, companion `.tran` with device breakpoints) |
+| Devices | Linear R/C/L/V/I, V sources as RF ports (`portnum`/`z0`); linear E/F/G/H controlled sources (LAPLACE unported); B behavioural sources and the lowered E/G/F/H VALUE/TABLE/POLY forms (`ddt` and the statistical `agauss`/`gauss`/`aunif`/`unif`/`limit` unported); K mutual inductance (two or more inductors, literal or model-backed, in subcircuits, OP/AC/trap/Gear-2, coupled `ic=`/`uic` on the companion driver); model-backed passives (geometry, TC1/TC2, scale, multiplicity); diode (breakdown, sidewall junctions, recombination and tunnelling currents, temperature); Gummel-Poon BJT (base charge, leakage, series resistances, transit time, substrate junction, temperature); MOS levels 1, 2, 3, 6 and 9 (MOS1: Meyer gate charge, series resistance, junction geometry, process extraction and temperature); JFET levels 1 and 2 (level 2 is Parker-Skellern); MESFET level 1 (Statz); S/W voltage- and current-controlled switches (hysteresis, ON/OFF, step control, C's AC state; companion `.tran` only); T lossless, O lossy (LTRA) and U uniform-RC lines (DC and exact AC, companion `.tran` with device breakpoints; U expands as `urcsetup.c` does) |
 | Analyses | `.op`; `.dc` over V/I sources, resistors, temperature and settable instance parameters (`@inst[param]`), including nested sweeps; small-signal `.ac`; `.noise` spectra and integrated totals; `.pz` poles and zeros at the operating point; `.tf` DC gain and input/output resistance; `.sp` S-parameters (S/Y/Z over RF ports, RF noise covariances and two-port noise parameters); `.disto` harmonic and intermodulation distortion (`distof1`/`distof2` inputs; D, Gummel-Poon Q and MOS1 nonlinearities); `.sens` DC and AC sensitivities by C's finite-difference perturbation (R/C/L/K/V/I/E/F/G/H, and in DC also B, S/W and D); `.tran` with adaptive trapezoidal / Gear-2 integration, `.ic` and `uic` (linear and nonlinear, including D/Q/M `off` and `ic=`); `.nodeset` as C's `MODEINITJCT`/`MODEINITFIX` hint; nonlinear operating points use ngspice's continuation (dynamic and stepped gmin, Gillespie and spice3 source stepping, `noopiter`) and its PN-junction/FET voltage limiting |
 | Output | ASCII/binary rawfiles from the CLI (one plot per analysis for multi-analysis decks, in ngspice batch order), ASCII and binary rawfile read/write in the library, per-analysis `.save`/`.print` selection and bounded ASCII `.plot` rendering |
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
 Each area has documented limits; see [the feature guides](#documentation).
-Not yet supported: `.sens` of BJTs and MOSFETs (and AC `.sens` of nonlinear
-devices); JFETs, MESFETs, lossy transmission lines, MOSFET levels above 1 and BSIM;
-device currents in `.save`/`.print`;
-XSPICE, OSDI/Verilog-A and CIDER; higher-index DAEs; and the interactive
-`.control` interpreter. See [Status and roadmap](#status-and-roadmap).
+Not yet supported: BSIM3/BSIM4, TXL, HFET1/2 and MESA, model-binning deck
+goldens, `.sens` of BJTs and MOSFETs (and AC `.sens` of nonlinear devices), the
+remaining unported asks and levels of bounded devices (AC device current/power
+asks fail with `NotYetPorted` naming the C ask routine); XSPICE code models,
+ODSI/Verilog-A and CIDER; higher-index DAEs; and the interactive `.control`
+interpreter. See [Status and roadmap](#status-and-roadmap).
 
 ## Status and roadmap
 
@@ -43,7 +44,8 @@ XSPICE, OSDI/Verilog-A and CIDER; higher-index DAEs; and the interactive
 | M7 | Diode physics, Gummel-Poon BJT, complete MOS1, ngspice convergence parity, nonlinear `.ic`/`uic` | Done |
 | M8 | Additional analyses: `.noise`, `.tf`, `.sens`, `.pz`, `.disto`, `.sp`, Gear orders 3–6, wider `.dc` sweeps | Done within documented limits |
 | M9 | Output and front end: `.plot`, binary CLI rawfiles, device currents, full `.measure`/`.four`, cards inside `.subckt` | Delivered with documented bounds; see TODO.md |
-| M10 | Device library: JFET, MESFET, transmission lines, MOSFET levels 2/3/6/9, BSIM3/4, model binning | Planned |
+| M10 | Device library: JFET 1/2, MESFET 1, MOSFET levels 2/3/6/9, T/O/U lines, model binning resolver | Delivered in waves 0–3 within documented limits; BSIM3/4 and TXL spill to M11 |
+| M11 (proposed) | BSIM3v3.3/BSIM4, TXL, HFET1/2 and MESA, binning deck goldens | Planned |
 
 Each milestone is tracked as a
 [GitHub milestone](https://github.com/michaelnavazhylau/ngspice-rs/milestones)
@@ -113,13 +115,14 @@ spice-rs analyses                            # list analyses and their status
 ```
 
 `devices` marks each designator `ported` (built from its card), `bounded`
-(D/Q/M, S/W and X: built from the deck, through `.model` or `.subckt`, for the
-stated subset) or `pending` (`NotYetPorted`); `analyses` lists the four drivers
-and `.four` as a post-processor of `.tran`. Both are derived from the code and
-pinned by tests (#117).
+(D/Q/M/J/Z/O/U, S/W and X: built from the deck, through `.model` or `.subckt`,
+for the stated subset) or `pending` (`NotYetPorted`); `analyses` lists the
+analysis drivers and `.four` as a post-processor of `.tran`. Both are derived
+from the code and pinned by tests (#117).
 
-`simulate` runs every `.op`, `.dc`, `.ac` and `.tran` card of a deck in ngspice
-batch order (`.ac`, `.dc`, `.op`, `.tran`) and writes one plot per analysis;
+`simulate` runs every analysis card of a deck in ngspice batch order (`.ac`,
+`.dc`, `.op`, `.tran`, `.pz`, `.tf`, `.disto`, `.noise`, `.sens`, `.sp`, with
+`.four` post-processing the `.tran` plot) and writes one plot per analysis;
 a failure in any analysis publishes nothing. Exit status
 is `0` on success, `1` for a bad command line, `2` for a bad deck or failed run,
 and `3` when the deck needs something the port does not support yet. Details are

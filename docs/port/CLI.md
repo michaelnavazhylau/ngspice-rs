@@ -17,8 +17,8 @@ equivalents are `src/frontend/main.c`, the batch path of `src/ngspice.c`
 | `spice-rs tokens <netlist>` | dumps the token stream |
 | `spice-rs parse <netlist>` | builds the semantic netlist and reports unported gaps |
 | `spice-rs simulate --output <path> <netlist>` | runs every analysis of the deck in ngspice batch order and writes one ASCII rawfile with a plot per analysis |
-| `spice-rs devices` | lists every device designator as `ported` (built from its card), `bounded` (built from a deck for a stated subset: D/Q/M, S/W, X) or `pending` (`NotYetPorted` with its C reference) |
-| `spice-rs analyses` | lists the analyses: `.op`/`.dc`/`.ac`/`.tran`/`.pz`/`.tf` drivers, `.four` as a post-processor of the `.tran` plot, the rest without a driver |
+| `spice-rs devices` | lists every device designator as `ported` (built from its card), `bounded` (built from a deck for a stated subset: D/Q/M/J/Z/O/U, S/W, X) or `pending` (`NotYetPorted` with its C reference) |
+| `spice-rs analyses` | lists every analysis kind with its status: `.op`/`.dc`/`.ac`/`.tran`/`.noise`/`.disto`/`.pz`/`.sens`/`.tf`/`.sp` are driver-backed bounded subsets, and `.four` post-processes the `.tran` plot |
 | `spice-rs help`, `spice-rs version` | usage and version |
 
 Both tables are derived, not hand-maintained (#117): a designator's status
@@ -195,9 +195,12 @@ NGSPICE_BIN=/abs/path/ngspice cargo test -p ngspice-rs --test c_batch_reference 
 
 ## What is deliberately not implemented
 
-* waveform parsing and any post-processing of results other than `.measure`;
-* binary rawfile output (ASCII only);
+* waveform parsing and any post-processing of results other than `.measure`,
+  `.four` and `.plot`;
 * an interactive interpreter (`run`/`resume`, `.control` sections).
+
+Binary rawfile output is implemented: see
+[M9 encoding selection](#m9-encoding-selection-112) below.
 
 Output selection is implemented for the bounded `.save`/`.print` subset: a deck's
 `.save` (deck-wide) and `.print <analysis> …` (analysis-specific) cards narrow

@@ -16,30 +16,48 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
 
+**Current status (M10 wave 3, 2026-10-15):** `main` is the single-crate
+`ngspice-rs` 0.4.0 package. Since the sections below were written, M6–M9 landed
+and M10 waves 0–3 added JFET levels 1/2, MESFET level 1, lossless `T`, lossy
+`O`/LTRA and `U`/URC lines and MOS levels 2/3/6/9, and replaced faer/diffsol with
+the native SPARSE 1.3 solver. Current evidence: `cargo test --workspace
+--locked` reports **1417 passed / 0 failed / 150 ignored** and
+`cargo xtask golden verify` **151 verified / 1 unsupported / 0 failures**.
+[TODO.md](TODO.md) is the current checklist; the milestone narrative below is
+retained as a record of the earlier checkouts, and its "in progress" or "pending
+merge" language no longer describes `main`.
+
 **Single-crate packaging:** the port is one package, `ngspice-rs`, not six crates
 (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`, `spice-analysis`,
 `spice-cli`). Those boundaries are now the module tree under `src/`
 (`primitives`, `netlist`, `maths`, `devices`, `analysis`, `cli`), the CLI binary is
-`src/bin/spice-rs.rs` and integration tests live in `tests/`. No production
-behavior changed: stable and Rust 1.89.0 each report **1051 passed / 0 failed /
-67 ignored**, `golden verify` **59/0/0** and **196** snapshots unchanged.
+`src/bin/spice-rs.rs` and integration tests live in `tests/`. That layout-only
+step changed no production behavior: at consolidation it reported **1051 passed /
+0 failed / 67 ignored**, `golden verify` **59/0/0** and **196** snapshots
+unchanged (superseded by the current totals above).
 `cargo package` produces a 2.0 MiB `.crate` whose own test suite passes, because
 conformance fixtures are package-relative and a downloaded crate is therefore
 self-testable. Layering is now a review-enforced convention rather than a
-compiler-enforced one ([ARCHITECTURE.md](docs/port/ARCHITECTURE.md)), and crates.io
-release automation is still pending ([TODO.md](TODO.md)).
+compiler-enforced one ([ARCHITECTURE.md](docs/port/ARCHITECTURE.md)), and
+crates.io release automation is in place
+(`.github/workflows/publish.yml`, see [RELEASING.md](docs/port/RELEASING.md));
+the last published release is 0.4.0, which predates M10.
 
-**Bounded numerical follow-up delivered:** #46 adds explicit maths-library
+**Bounded numerical follow-up — historical (faer era):** the items below belong
+to the solver stack that M10 wave 0.5 removed; they describe no current code. #46
+adds explicit maths-library
 `EquilibratedDenseLu`/`EquilibratedSparseLu`/`EquilibratedComplexLu` wrappers with
 bounded transforms and original-unit residual checks
 ([EQUILIBRATION.md](docs/port/EQUILIBRATION.md)); simulation defaults are unchanged.
-#47 delivers a backend audit, guard regressions and measured example-only batching,
-retaining production rank policy ([SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md)).
-Its aggregate-certification proof limitation remains tracked in #68, not hidden
-behind a speedup or formal uniqueness claim. #29 supplies a tested constrained-RLC
-prototype/ADR ([HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)), not
-production higher-index support; separate enabling gates are #69–#72. Final
-stable/MSRV workspace validation: **824 passed / 0 failed / 37 ignored**;
+#47 delivered a backend audit, guard regressions and measured example-only batching,
+retaining the then-current rank policy ([SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md)).
+Its aggregate-certification proof limitation stays tracked in #68. #29 supplied a
+tested constrained-RLC prototype/ADR
+([HIGHER_INDEX_DAE_ADR.md](docs/port/HIGHER_INDEX_DAE_ADR.md)), never production
+higher-index support, with separate enabling gates #69–#72. The native SPARSE 1.3
+port supersedes all of it: C's own error policy, no rank probe or residual check
+([NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)); no deck consumes #68–#72.
+Historical validation at the time: **824 passed / 0 failed / 37 ignored**;
 golden verify **26/0/0**, **37 live-C** checks passed.
 
 **Branch-local M4 update:** bounded diode/Ebers-Moll BJT/MOS1 DC, AC and
