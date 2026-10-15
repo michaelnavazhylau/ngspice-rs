@@ -44,6 +44,50 @@ test requires every registered kind. Pole-zero preparation reuses
 `ac::SmallSignal`, including deck DC options and nodeset/switch-state handling;
 all existing pole-zero tests and live-C comparisons remain unchanged.
 
+## M10 MOS level 2 (#89)
+
+`devices::mos2` adds level 2 on the shared shell without touching it: every
+MOS1/MOS3 golden and test passes unchanged. Three new C goldens, each captured
+with `cargo xtask golden capture --netlist <name>` (no existing golden
+recaptured, no tolerance changed):
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos2_dc` | `compare::NONLINEAR` | 81 points |
+| `m10_mos2_ac` | `compare::NONLINEAR` | 36 points |
+| `m10_mos2_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.016 of bound |
+
+Each deck option was measured by recapturing a variant without it (then
+restoring the committed deck and golden byte for byte):
+
+- **DC, `reltol=1e-7 vntol=1e-12 abstol=1e-18`** (as `m7_mos1_process_dc` and
+  `m10_mos3_dc`): with C's default options 10 components miss, worst 492x the
+  bound (the subthreshold PMOS current `i(vd3)` at 2.75 uA differs by 1.8 nA,
+  C's Newton stopping error).
+- **AC, the same options**: at default tolerances one point misses by 3.5x
+  (the drain bias error amplified by the stage gain of about -34).
+- **Transient, Gear-2 with `reltol=1e-5` and `tmax` 2 ps** (as `m10_mos3_tran`):
+  Gear-2 at the default RELTOL misses 3 instants (5.2x the bound, the
+  picoamp supply current of the first step), trapezoidal 13 (5.2x), and
+  without the bounded step 104 instants miss, worst 638x, as the two step
+  sequences drift apart through the edges.
+
+Adding an eighth device with a `GAMMA = 0` VMAX card to `m10_mos2_dc` cannot
+be captured: C's DC sweep fails at `vgs = 0.95` ("timestep too small"),
+consistent with the rounding-dependent Baum radicand that turns its `vdsat`
+into NaN (see [M4_NONLINEAR.md](M4_NONLINEAR.md#mos2)), while the port
+continues; `devices::mos2` unit tests cover that case instead.
+
+`tests/m10_mos2.rs` adds eight C-free tests; `devices::mos2` unit tests check
+regions, the quartic root, finite-difference derivatives where C is exact and
+bounds where it is not; `golden_rawfiles` documents the three goldens (the m5
+forward/reverse bulk current and the m6 reverse drain current at vgs = 0
+restate the constant reverse law exactly). `tests/models.rs` now pins that
+`level=1.5` selects MOS2. Opt-in live C:
+`c_noise_reference::mos2_noise_matches_c` (both flicker forms) and
+`c_pole_zero::a_mos2_stage_matches_c`. Six new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos2).
+
 ## M10 MOS shared shell and level 3 (#89)
 
 The MOS1 frame moved into the shared `devices::mos` shell first, as a
@@ -84,6 +128,83 @@ current at vgs = 0 restate the cubic reverse law to the last digit). Opt-in
 live C: `c_noise_reference::mos3_noise_matches_c` (both flicker forms) and
 `c_pole_zero::a_mos3_stage_matches_c`. Six new parser snapshots were blessed;
 existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos3).
+
+## M10 MOS level 6 (#89, wave 3)
+
+The shell gained default-identity hooks only (instance setter checks, the
+junction `gmin` and limiting saturation current per unit `M`, refusal of
+small-signal/pole-zero loads); the ASCII Rust rawfile of every other
+conformance deck with an M device or MOS model (25 decks, MOS1 and MOS3) is
+byte-identical before and after (dates aside).
+
+Two new MOS6 C goldens, each captured with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed). C's
+`mos6init.c` has no `DEVacLoad`, so there is no AC fixture: ngspice drops a
+level-6 device from the small-signal matrix, which the port refuses.
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos6_dc` | `compare::NONLINEAR` | 81 points, worst 0.045 of bound |
+| `m10_mos6_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.008 of bound |
+
+Deck design, measured against the same C binary:
+
+- **Tight RELTOL for the DC sweep** (`reltol=1e-7 vntol=1e-12 abstol=1e-18`,
+  as `m10_mos3_dc`). At the default options C's Newton stopping error leaves
+  the forward-biased PMOS bulk current 31x the bound from the port's root
+  (6e-5 relative at point 13); with the tightened options the deck verifies
+  at 0.045 of the bound.
+- **Gear-2 and RELTOL 1e-5 for the inverter** (as `m10_mos3_tran`).
+  Trapezoidal integration at the default RELTOL fails at 2.9x the bound
+  (the input gate current at the 11 ns edge); Gear-2 alone verifies at 0.605,
+  trapezoidal with `reltol=1e-5` at 0.012, and the committed Gear-2 with
+  `reltol=1e-5` at 0.008.
+
+`tests/m10_mos6.rs` adds ten C-free tests; `devices::mos6` unit tests check
+regions and finite-difference derivatives; `golden_rawfiles` documents both
+goldens (the m5 bulk current restates C's `M`-scaled `gmin` and the m1/m5
+drain current at vgs = 4 V the n-th power law to the last digit). Opt-in live
+C: `tests/c_mos6_reference.rs` (NMOS `@m[id/ig/is/ib]` with `M = 3` through
+inverse mode, which fails if the junction `gmin` is not `M`-scaled;
+`.dc @m1[w]` nested with `@m1[temp]`; `uic` transient). Four new parser
+snapshots were blessed; existing snapshots are unchanged. See
+[M4_NONLINEAR.md](M4_NONLINEAR.md#mos6).
+
+## M10 MOS level 9 (#89)
+
+`devices::mos9` reuses the level-3 code; the shared parts of
+`devices::mos3` were parameterized by the device label (for diagnostics) in a
+separate commit with no behaviour change: every MOS1 and MOS3 deck's Rust
+rawfile is byte-identical before and after (dates aside), and all existing
+goldens verify.
+
+Three new MOS9 C goldens, each captured with `cargo xtask golden capture
+--netlist <name>` (no existing golden recaptured, no tolerance changed):
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mos9_dc` | `compare::NONLINEAR` | 81 points |
+| `m10_mos9_ac` | `compare::NONLINEAR` | 36 points |
+| `m10_mos9_tran` | `compare::TRAN` | 393 instants + 16 breakpoint limits, worst 0.007 of bound |
+
+The decks are the MOS3 ones with level-9 cards, so they inherit the MOS3
+options for the same reasons: `reltol=1e-7 vntol=1e-12 abstol=1e-18` on the
+DC and AC decks (C's Newton stopping error at the bias would otherwise be
+amplified by the stage gain), and Gear-2 with `reltol=1e-5` and a 2 ps
+maximum step on the inverter. Channels are lengthened so every effective
+length and width is at least 1 um (`mos9temp.c` refuses smaller ones), and
+the AC input bias is 1.15 V so that both transistors are saturated.
+
+`tests/m10_mos9.rs` adds seven C-free tests; its DC Jacobian check uses an
+absolute bound of `2e-11`, the central difference's roundoff for residual rows
+carrying series-resistor terms near 0.1 A against sub-uA channel currents.
+`golden_rawfiles` documents the three goldens (the gate-independent junction
+currents equal MOS3's to the last digit). Opt-in live C:
+`c_noise_reference::mos9_noise_matches_c` (with and without
+`ngbehavior=s3`; mutation checks confirmed it fails if the thermal generators
+use the instance temperature or if the NLEV flicker law is used) and
+`c_pole_zero::a_mos9_stage_matches_c`. Six new parser snapshots were blessed;
+existing snapshots are unchanged. See [M4_NONLINEAR.md](M4_NONLINEAR.md#mos9).
 
 ## Remaining M8 features (#132)
 

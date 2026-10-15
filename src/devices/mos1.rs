@@ -174,7 +174,7 @@ impl MosLevel for Level1 {
     const LEVEL: u8 = 1;
     const LABEL: &'static str = "MOS1";
     const DEVICE_TYPE: CDeviceType = CDeviceType::Mos1;
-    const NOISE_FAMILY: NoiseFamily = NoiseFamily::Mos1;
+    const NOISE_FAMILY: Option<NoiseFamily> = Some(NoiseFamily::Mos1);
     /// `mos1set.c`: `CKTmkVolt(..., "drain")` / `"source"`.
     const PRIME_SUFFIXES: [&'static str; 2] = ["drain", "source"];
 
@@ -392,19 +392,19 @@ impl MosLevel for Level1 {
     /// drawn width, the effective length, and `Cox` for `TOX = 1e-7 m` when
     /// the model has no oxide capacitance (`sqrt(coxSquared)` in the NLEV
     /// laws).
-    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Params>) -> NoiseShape {
+    fn noise_shape(&self, geometry: &Geometry, op: &Operating<Params>) -> Option<NoiseShape> {
         let cox = match self.tox.filter(|tox| *tox != 0.) {
             Some(tox) => 3.9 * EPSILON_0 / tox,
             None => 3.9 * 8.854214871e-12 / 1e-7,
         };
         let cox_squared = cox * cox;
-        NoiseShape {
+        Some(NoiseShape {
             beta: op.beta,
             width: geometry.w,
             length: self.length(geometry),
             cox: cox_squared.sqrt(),
             cox_squared,
-        }
+        })
     }
 
     /// `mos1dset.c`/`mos1dist.c` (the `disto` submodule).

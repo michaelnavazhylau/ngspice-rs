@@ -71,6 +71,8 @@ pub enum ScalarUnit {
     AmperePerMetre,
     /// Frequency in hertz (URC `FMAX`).
     Hertz,
+    /// Electric field in volts per centimetre (MOS2 `UCRIT`).
+    VoltPerCentimetre,
     /// Inductance per unit length, henries per metre (LTRA `L`).
     HenryPerMetre,
     /// Conductance per unit length, siemens per metre (LTRA `G`).

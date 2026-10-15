@@ -90,7 +90,7 @@ unsafe-cast cases instead of silently changing the input.
 | Family | Backend selection | Initial supported level policy |
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
-| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1) and MOS3 (3); other selectors fail naming the C directory `inpdomod.c` selects (`mos2/`, `mos6/`, `mos9/`, `bsim3/`, ...) |
+| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1), MOS2 (2), MOS3 (3), MOS6 (6) and MOS9 (9); other selectors fail naming the C directory `inpdomod.c` selects (`bsim3/`, `bsim4/`, ...) |
 | JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1), 2 (Parker-Skellern `jfet2/`), see [JFET.md](JFET.md); others fail with `NotYetPorted` |
 | MESFET NMF/PMF | First explicit rounded level; default 1 | 0/1 (Statz MES, `mes/`), see [MESFET.md](MESFET.md); 2-4 (`mesa/`), 5 (`hfet1/`), 6 (`hfet2/`) and others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
@@ -109,7 +109,7 @@ make their factories available.
 
 MOS level schemas are owned by the level modules on the shared
 `devices::mos` shell (M10, #89): `devices::mos1::MODEL` and
-`devices::mos3::MODEL` are allowlists of C's `MOSxmParam` setters with
+`devices::mos2::MODEL` and `devices::mos3::MODEL` are allowlists of C's `MOSxmParam` setters with
 `mosXset.c` defaults; setters whose presence changes C's derivations
 (`VTO`, `KP`, `GAMMA`, `PHI`, `NSUB`, `TPG`, `NSS`, `CJ`, `CJSW`, `CBD`, `CBS`,
 `RD`, `RS`, `RSH`, `TNOM`, `U0`) have no schema default, aliases (`VT0`,
@@ -117,7 +117,20 @@ MOS level schemas are owned by the level modules on the shared
 rejected. MOS3 adds `XL`, `WD`, `XW`, `DELVTO`, `VMAX`, `XJ`, `NFS`, `ETA`,
 `DELTA`, `THETA`, `KAPPA` (default 0.2), defaults `TOX` to 1e-7 m and `MJSW`
 to 0.33, and has no `LAMBDA`; `XD`, `ALPHA` and `INPUT_DELTA`, listed in
-`MOS3mPTable` but without a `MOS3mParam` case, are rejected.
+`MOS3mPTable` but without a `MOS3mParam` case, are rejected. MOS2 adds
+`LAMBDA` (0; derived from `XD` with NSUB), `DELTA`, `UEXP`, `UCRIT` (1e4
+V/cm), `VMAX`, `XJ`, `NEFF` (1) and `NFS`, defaults `TOX` to 1e-7 m and
+`MJSW` to 0.33, requires positive `UCRIT` and `NEFF`, and rejects level-3
+setters (`XL`, `WD`, `XW`, `DELVTO`, `THETA`, `ETA`, `KAPPA`). MOS9
+(`devices::mos9`) accepts exactly the MOS3 setters except `NLEV` and
+`GDSNOI`, which `mos9.c` does not have (`MODEL_WITHOUT_NOISE_SELECTORS`);
+they are rejected like any unknown keyword.
+`devices::mos6::MODEL` follows `MOS6mParam`: MOS1's junction, overlap,
+resistance and process setters (no `KP`) plus `KV` (2), `NV` (0.5), `KC`
+(5e-5, derived from `U0` when TOX is given and KC is not), `NC` (1), `NVTH`
+(0.5) and `PS` (0) (accepted, unused by C's load), `GAMMA1`, `SIGMA`,
+`LAMBDA1` (0), and `LAMBDA`/`LAMBDA0` (LAMBDA0 defaults to LAMBDA, else 0).
+C has no level-6 noise, so `KF`/`AF`/`NLEV`/`GDSNOI` are rejected as unknown.
 
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.

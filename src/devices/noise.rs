@@ -59,8 +59,12 @@ pub enum NoiseFamily {
     Mes,
     /// `mos1` (`mos1noi.c`).
     Mos1,
+    /// `mos2` (`mos2noi.c`).
+    Mos2,
     /// `mos3` (`mos3noi.c`).
     Mos3,
+    /// `mos9` (`mos9noi.c`).
+    Mos9,
     /// `res` (`resnoise.c`).
     Resistor,
     /// `sw`, the S switch (`swnoise.c`).

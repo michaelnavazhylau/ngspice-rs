@@ -1,0 +1,184 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_mos6_dc.cir
+title: "MOS6 DC: n-th power law, GAMMA1/SIGMA/LAMBDA1 threshold and CLM terms, process, temperature" @netlists/m10_mos6_dc.cir:1:1
+scope root
+  cards (22):
+    [0] device[0] @netlists/m10_mos6_dc.cir:2:1 "vgs g 0 0"
+    [1] device[1] @netlists/m10_mos6_dc.cir:3:1 "vd1 d1 0 3"
+    [2] device[2] @netlists/m10_mos6_dc.cir:4:1 "vd2 d2 0 0.2"
+    [3] device[3] @netlists/m10_mos6_dc.cir:5:1 "vd4 d4 0 -0.5"
+    [4] device[4] @netlists/m10_mos6_dc.cir:6:1 "vbn bn 0 -1"
+    [5] device[5] @netlists/m10_mos6_dc.cir:7:1 "vbf bf 0 0.3"
+    [6] device[6] @netlists/m10_mos6_dc.cir:8:1 "vbp bp 0 -0.4"
+    [7] device[7] @netlists/m10_mos6_dc.cir:9:1 "egp gp 0 g 0 -1"
+    [8] device[8] @netlists/m10_mos6_dc.cir:10:1 "m1 d1 g 0 bn mfull w=10u l=1u"
+    [9] device[9] @netlists/m10_mos6_dc.cir:11:1 "m2 d2 g 0 0 mproc w=10u l=1.2u"
+    [10] device[10] @netlists/m10_mos6_dc.cir:12:1 "m3 d3 gp 0 bp mp w=20u l=1u temp=60 nrd=2 nrs=2"
+    [11] device[11] @netlists/m10_mos6_dc.cir:13:1 "m4 d4 g 0 0 mfull w=10u l=1u"
+    [12] device[12] @netlists/m10_mos6_dc.cir:14:1 "m5 d1 g 0 bf mfull w=4u l=2u m=2"
+    [13] device[13] @netlists/m10_mos6_dc.cir:15:1 "m6 g g 0 bn mlam w=5u l=0.8u"
+    [14] device[14] @netlists/m10_mos6_dc.cir:16:1 "vd3 d3 0 -2.5"
+    [15] model[0] @netlists/m10_mos6_dc.cir:17:1 ".model mfull nmos(level=6 vto=0.7 kv=1.8 nv=0.9 kc=6e-5 nc=1.25 gamma=0.5 gamma1=0.03 sigma=0.02 phi=0.7 lambda0=0.04 lambda1=0.01 ld=0.08u)"
+    [16] model[1] @netlists/m10_mos6_dc.cir:19:1 ".model mproc nmos(level=6 tox=25n nsub=2e16 tpg=1 nss=1e10 uo=500 kv=1.2 nv=0.7 nc=1.4 lambda=0.03 tnom=20)"
+    [17] model[2] @netlists/m10_mos6_dc.cir:21:1 ".model mp pmos(level=6 vto=-0.8 tox=20n u0=220 kv=2.2 nv=0.6 nc=1.2 gamma=0.4 sigma=0.01 lambda0=0.05 rd=20 rsh=15 ld=0.06u)"
+    [18] model[3] @netlists/m10_mos6_dc.cir:23:1 ".model mlam nmos(level=6 vt0=0.6 kc=8e-5 nc=1.1 kv=1.5 nv=0.5 gamma=0.4 phi=0.65 gamma1=0.02 lambda0=0.05 lambda1=0.02 sigma=0.03 is=1e-15)"
+    [19] options[0] @netlists/m10_mos6_dc.cir:25:1 ".options reltol=1e-7 vntol=1e-12 abstol=1e-18"
+    [20] analysis[0] @netlists/m10_mos6_dc.cir:26:1 ".dc vgs 0 4 0.05"
+    [21] end @netlists/m10_mos6_dc.cir:27:1 ".end"
+  devices (15):
+    device [0] name="vgs" designator=v @netlists/m10_mos6_dc.cir:2:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_mos6_dc.cir:2:9
+    device [1] name="vd1" designator=v @netlists/m10_mos6_dc.cir:3:1
+      nodes: "d1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/m10_mos6_dc.cir:3:10
+    device [2] name="vd2" designator=v @netlists/m10_mos6_dc.cir:4:1
+      nodes: "d2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.2" @netlists/m10_mos6_dc.cir:4:10
+    device [3] name="vd4" designator=v @netlists/m10_mos6_dc.cir:5:1
+      nodes: "d4" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.5" @netlists/m10_mos6_dc.cir:5:10
+    device [4] name="vbn" designator=v @netlists/m10_mos6_dc.cir:6:1
+      nodes: "bn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1" @netlists/m10_mos6_dc.cir:6:10
+    device [5] name="vbf" designator=v @netlists/m10_mos6_dc.cir:7:1
+      nodes: "bf" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.3" @netlists/m10_mos6_dc.cir:7:10
+    device [6] name="vbp" designator=v @netlists/m10_mos6_dc.cir:8:1
+      nodes: "bp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.4" @netlists/m10_mos6_dc.cir:8:10
+    device [7] name="egp" designator=e @netlists/m10_mos6_dc.cir:9:1
+      nodes: "gp" "0" "g" "0"
+      model: none
+      parameters (1):
+        [0] name="gain" kind=scalar value="-1" @netlists/m10_mos6_dc.cir:9:14
+    device [8] name="m1" designator=m @netlists/m10_mos6_dc.cir:10:1
+      nodes: "d1" "g" "0" "bn"
+      model: "mfull"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m10_mos6_dc.cir:10:20
+        [1] name="l" kind=scalar value="1u" @netlists/m10_mos6_dc.cir:10:26
+    device [9] name="m2" designator=m @netlists/m10_mos6_dc.cir:11:1
+      nodes: "d2" "g" "0" "0"
+      model: "mproc"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m10_mos6_dc.cir:11:19
+        [1] name="l" kind=scalar value="1.2u" @netlists/m10_mos6_dc.cir:11:25
+    device [10] name="m3" designator=m @netlists/m10_mos6_dc.cir:12:1
+      nodes: "d3" "gp" "0" "bp"
+      model: "mp"
+      parameters (5):
+        [0] name="w" kind=scalar value="20u" @netlists/m10_mos6_dc.cir:12:18
+        [1] name="l" kind=scalar value="1u" @netlists/m10_mos6_dc.cir:12:24
+        [2] name="temp" kind=scalar value="60" @netlists/m10_mos6_dc.cir:12:29
+        [3] name="nrd" kind=scalar value="2" @netlists/m10_mos6_dc.cir:12:37
+        [4] name="nrs" kind=scalar value="2" @netlists/m10_mos6_dc.cir:12:43
+    device [11] name="m4" designator=m @netlists/m10_mos6_dc.cir:13:1
+      nodes: "d4" "g" "0" "0"
+      model: "mfull"
+      parameters (2):
+        [0] name="w" kind=scalar value="10u" @netlists/m10_mos6_dc.cir:13:19
+        [1] name="l" kind=scalar value="1u" @netlists/m10_mos6_dc.cir:13:25
+    device [12] name="m5" designator=m @netlists/m10_mos6_dc.cir:14:1
+      nodes: "d1" "g" "0" "bf"
+      model: "mfull"
+      parameters (3):
+        [0] name="w" kind=scalar value="4u" @netlists/m10_mos6_dc.cir:14:20
+        [1] name="l" kind=scalar value="2u" @netlists/m10_mos6_dc.cir:14:25
+        [2] name="m" kind=scalar value="2" @netlists/m10_mos6_dc.cir:14:30
+    device [13] name="m6" designator=m @netlists/m10_mos6_dc.cir:15:1
+      nodes: "g" "g" "0" "bn"
+      model: "mlam"
+      parameters (2):
+        [0] name="w" kind=scalar value="5u" @netlists/m10_mos6_dc.cir:15:18
+        [1] name="l" kind=scalar value="0.8u" @netlists/m10_mos6_dc.cir:15:23
+    device [14] name="vd3" designator=v @netlists/m10_mos6_dc.cir:16:1
+      nodes: "d3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-2.5" @netlists/m10_mos6_dc.cir:16:10
+  models (4):
+    model [0] name="mfull" base="nmos" level=6e0 @netlists/m10_mos6_dc.cir:17:1
+      parameters (13):
+        [0] name="level" kind=scalar value="6" @netlists/m10_mos6_dc.cir:17:19
+        [1] name="vto" kind=scalar value="0.7" @netlists/m10_mos6_dc.cir:17:27
+        [2] name="kv" kind=scalar value="1.8" @netlists/m10_mos6_dc.cir:17:35
+        [3] name="nv" kind=scalar value="0.9" @netlists/m10_mos6_dc.cir:17:42
+        [4] name="kc" kind=scalar value="6e-5" @netlists/m10_mos6_dc.cir:17:49
+        [5] name="nc" kind=scalar value="1.25" @netlists/m10_mos6_dc.cir:17:57
+        [6] name="gamma" kind=scalar value="0.5" @netlists/m10_mos6_dc.cir:17:65
+        [7] name="gamma1" kind=scalar value="0.03" @netlists/m10_mos6_dc.cir:17:75
+        [8] name="sigma" kind=scalar value="0.02" @netlists/m10_mos6_dc.cir:17:87
+        [9] name="phi" kind=scalar value="0.7" @netlists/m10_mos6_dc.cir:17:98
+        [10] name="lambda0" kind=scalar value="0.04" @netlists/m10_mos6_dc.cir:17:106
+        [11] name="lambda1" kind=scalar value="0.01" @netlists/m10_mos6_dc.cir:17:119
+        [12] name="ld" kind=scalar value="0.08u" @netlists/m10_mos6_dc.cir:17:132
+    model [1] name="mproc" base="nmos" level=6e0 @netlists/m10_mos6_dc.cir:19:1
+      parameters (11):
+        [0] name="level" kind=scalar value="6" @netlists/m10_mos6_dc.cir:19:19
+        [1] name="tox" kind=scalar value="25n" @netlists/m10_mos6_dc.cir:19:27
+        [2] name="nsub" kind=scalar value="2e16" @netlists/m10_mos6_dc.cir:19:35
+        [3] name="tpg" kind=scalar value="1" @netlists/m10_mos6_dc.cir:19:45
+        [4] name="nss" kind=scalar value="1e10" @netlists/m10_mos6_dc.cir:19:51
+        [5] name="uo" kind=scalar value="500" @netlists/m10_mos6_dc.cir:19:60
+        [6] name="kv" kind=scalar value="1.2" @netlists/m10_mos6_dc.cir:19:67
+        [7] name="nv" kind=scalar value="0.7" @netlists/m10_mos6_dc.cir:19:74
+        [8] name="nc" kind=scalar value="1.4" @netlists/m10_mos6_dc.cir:19:81
+        [9] name="lambda" kind=scalar value="0.03" @netlists/m10_mos6_dc.cir:19:88
+        [10] name="tnom" kind=scalar value="20" @netlists/m10_mos6_dc.cir:19:100
+    model [2] name="mp" base="pmos" level=6e0 @netlists/m10_mos6_dc.cir:21:1
+      parameters (13):
+        [0] name="level" kind=scalar value="6" @netlists/m10_mos6_dc.cir:21:16
+        [1] name="vto" kind=scalar value="-0.8" @netlists/m10_mos6_dc.cir:21:24
+        [2] name="tox" kind=scalar value="20n" @netlists/m10_mos6_dc.cir:21:33
+        [3] name="u0" kind=scalar value="220" @netlists/m10_mos6_dc.cir:21:41
+        [4] name="kv" kind=scalar value="2.2" @netlists/m10_mos6_dc.cir:21:48
+        [5] name="nv" kind=scalar value="0.6" @netlists/m10_mos6_dc.cir:21:55
+        [6] name="nc" kind=scalar value="1.2" @netlists/m10_mos6_dc.cir:21:62
+        [7] name="gamma" kind=scalar value="0.4" @netlists/m10_mos6_dc.cir:21:69
+        [8] name="sigma" kind=scalar value="0.01" @netlists/m10_mos6_dc.cir:21:79
+        [9] name="lambda0" kind=scalar value="0.05" @netlists/m10_mos6_dc.cir:21:90
+        [10] name="rd" kind=scalar value="20" @netlists/m10_mos6_dc.cir:21:103
+        [11] name="rsh" kind=scalar value="15" @netlists/m10_mos6_dc.cir:21:109
+        [12] name="ld" kind=scalar value="0.06u" @netlists/m10_mos6_dc.cir:21:116
+    model [3] name="mlam" base="nmos" level=6e0 @netlists/m10_mos6_dc.cir:23:1
+      parameters (13):
+        [0] name="level" kind=scalar value="6" @netlists/m10_mos6_dc.cir:23:18
+        [1] name="vt0" kind=scalar value="0.6" @netlists/m10_mos6_dc.cir:23:26
+        [2] name="kc" kind=scalar value="8e-5" @netlists/m10_mos6_dc.cir:23:34
+        [3] name="nc" kind=scalar value="1.1" @netlists/m10_mos6_dc.cir:23:42
+        [4] name="kv" kind=scalar value="1.5" @netlists/m10_mos6_dc.cir:23:49
+        [5] name="nv" kind=scalar value="0.5" @netlists/m10_mos6_dc.cir:23:56
+        [6] name="gamma" kind=scalar value="0.4" @netlists/m10_mos6_dc.cir:23:63
+        [7] name="phi" kind=scalar value="0.65" @netlists/m10_mos6_dc.cir:23:73
+        [8] name="gamma1" kind=scalar value="0.02" @netlists/m10_mos6_dc.cir:23:82
+        [9] name="lambda0" kind=scalar value="0.05" @netlists/m10_mos6_dc.cir:23:94
+        [10] name="lambda1" kind=scalar value="0.02" @netlists/m10_mos6_dc.cir:23:107
+        [11] name="sigma" kind=scalar value="0.03" @netlists/m10_mos6_dc.cir:23:120
+        [12] name="is" kind=scalar value="1e-15" @netlists/m10_mos6_dc.cir:23:131
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m10_mos6_dc.cir:26:1
+      arguments: "vgs" "0" "4" "0.05"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_mos6_dc.cir:25:1
+      setting [0] name="reltol" value="1e-7"@netlists/m10_mos6_dc.cir:25:17 @netlists/m10_mos6_dc.cir:25:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_mos6_dc.cir:25:28 @netlists/m10_mos6_dc.cir:25:22
+      setting [2] name="abstol" value="1e-18"@netlists/m10_mos6_dc.cir:25:41 @netlists/m10_mos6_dc.cir:25:34
+  globals (0):
