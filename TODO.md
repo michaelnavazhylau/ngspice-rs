@@ -15,7 +15,7 @@ six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
 one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
-`08c5169`, after the spill slices H1a/H1b in PRs #151/#155/#160), `cargo test
+`85f0ca1`, after the spill slices H1a/H1b in PRs #151/#160/#163), `cargo test
 --workspace --locked` reports **1432 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
 golden verify` reports **159 verified / 1 unsupported / 0 failures** (the
@@ -448,7 +448,8 @@ it are marked "#85 as it then read".
   `mesa1`'s `delgchgchi = 1/(1 + gchi rt)^2` (1.78% in `.ac` on `rdi`/`rsi`
   alone), and the earlier reading of `rd`/`rs` as nodaless (C's rawfile omits
   `#source`/`#drain`; `show` reports `dprimenode`/`sprimenode`). Open:
-  `.noise`/`.disto`/`.sens` (#158, where C runs them with MESA absent) and
-  the `.pz`/`.tran` `@z1[qgs]` asks, which C reads from state history. Then
-  H2-H5 (MESA 3/4, HFET1, HFET2). See [MESFET.md](docs/port/MESFET.md) and
+  the `.pz`/`.tran` `@z1[qgs]` asks, which C reads from state history, and
+  `.sens` parameter lists (#164, the whole `j`/`z` family). `.noise` and
+  `.disto` behave as C's NULL routines do: the card adds nothing. Then H2-H5
+  (MESA 3/4, HFET1, HFET2). See [MESFET.md](docs/port/MESFET.md) and
   [M10_SPILL_PLAN.md](docs/port/M10_SPILL_PLAN.md).

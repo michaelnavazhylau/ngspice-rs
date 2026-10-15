@@ -851,6 +851,25 @@ impl Device for Mesa {
     fn truncation_slots(&self) -> Vec<usize> {
         vec![slot::QGS, slot::QGD]
     }
+    /// Noiseless: `mesainit.c` leaves `DEVnoise = NULL`, so C's `.noise` runs
+    /// the card with no contribution at all (its sibling `mes/` has
+    /// `MESnoise`; MESA and both HFET levels do not). The measured reference
+    /// behaviour is a run with `onoise_spectrum` zero on a resistor-only
+    /// circuit, not an error.
+    fn noise(
+        &self,
+        _context: &crate::devices::noise::NoiseContext<'_>,
+    ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
+        Ok(crate::devices::noise::DeviceNoise::Noiseless)
+    }
+    /// Linear in `.disto`: `mesainit.c` leaves `DEVdisto = NULL`, so the card
+    /// enters only through its small-signal matrix.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
     /// `mesaask.c`: `l`, `m`, the given `icvds`/`icvgs`, and the instance
     /// temperatures in Celsius (`td`/`ts` store kelvin) plus `dtemp`.
     fn observation_parameter(
