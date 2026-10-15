@@ -178,23 +178,166 @@ fn the_device_depth_setter_is_an_assignment_not_a_flag() {
     close(value(&plot, "v(2)", 0), 0.5, 0., 1e-12);
 }
 
-/// `MESAsetup` creates `#gate` for `RG` (and nothing for `rd`/`rs`, which
-/// `mesaload.c` applies without nodes) and uses the external gate when it is
-/// zero.
+/// `MESAsetup` creates `#source` for `rd`, `#drain` for `rs`, `#gate` for
+/// `rg`, `#gs` for `ri` and `#gd` for `rf`, each only when its resistance is
+/// non-zero, and leaves each prime-prime node on its prime node otherwise.
+/// `rdi`/`rsi` are the channel's series resistances (`mesa1`'s `RS`/`RD`) and
+/// create no node at all.
 #[test]
-fn gate_resistance_creates_the_gate_node() {
+fn the_resistance_paths_create_their_nodes() {
     let c = circuit(
-        "vd d 0 3\nvg g 0 0\nz1 d g 0 zm\nz2 d g 0 zn\n\
-         .model zm nmf(level=2 rg=10)\n\
-         .model zn nmf(level=2)",
+        "vd d 0 3\nvg g 0 0\n\
+         z1 d g 0 za\nz2 d g 0 zb\nz3 d g 0 zc\n\
+         .model za nmf(level=2 rd=1 rs=1)\n\
+         .model zb nmf(level=2 ri=1 rf=1)\n\
+         .model zc nmf(level=2 rd=1 rs=1 rg=1 ri=1 rf=1 rdi=1 rsi=1)",
     )
     .unwrap();
-    let gate = c.nodes().get("z1#gate").expect("gate prime");
-    assert_eq!(c.nodes().node(gate).unwrap().kind, NodeKind::Internal);
-    assert!(c.nodes().get("z2#gate").is_none());
-    assert!(
-        c.nodes().get("z1#source").is_none() && c.nodes().get("z1#drain").is_none(),
-        "the reference binary creates no node for rd/rs"
+    let internal = |name: &str| {
+        c.nodes()
+            .get(name)
+            .map(|id| c.nodes().node(id).unwrap().kind)
+    };
+    assert_eq!(internal("z1#source"), Some(NodeKind::Internal));
+    assert_eq!(internal("z1#drain"), Some(NodeKind::Internal));
+    assert_eq!(internal("z1#gate"), None);
+    assert_eq!(internal("z1#gs"), None);
+    assert_eq!(internal("z2#gs"), Some(NodeKind::Internal));
+    assert_eq!(internal("z2#gd"), Some(NodeKind::Internal));
+    assert_eq!(internal("z2#source"), None);
+    assert_eq!(internal("z2#drain"), None);
+    for suffix in ["source", "drain", "gate", "gs", "gd"] {
+        assert_eq!(
+            internal(&format!("z3#{suffix}")),
+            Some(NodeKind::Internal),
+            "{suffix}"
+        );
+    }
+    // `rdi`/`rsi` create nothing: `mesatemp.c` folds them into `mesa1`'s
+    // `RS`/`RD` terms.
+    assert_eq!(internal("z3#rdi"), None);
+    assert_eq!(internal("z3#rsi"), None);
+}
+
+/// `mesatemp.c` scales `rd`, `rdi` and `rf` at `td` and `rs`, `rsi`, `rg` and
+/// `ri` at `ts`, each by `1 + tc1 (T - tnom) + tc2 (T - tnom)^2` with
+/// `tc1`/`tc2` spelled `rtc1`/`rtc2` in the model card (`mesa.c`'s
+/// `MESAmPTable`). The pair below is the discriminator: at `dtemp = 100` with
+/// the coefficients left at zero the reference binary prints
+/// 1.2572424291901912e-4 A, and the same deck with `rtc1 = 2e-3`,
+/// `rtc2 = 1e-6` prints 1.2493367719759038e-4 A.
+#[test]
+fn the_resistances_use_the_rtc1_and_rtc2_temperature_scaling() {
+    let at = |body: &str, dtemp: &str| {
+        let mut c = circuit(&format!(
+            "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 3 0 dc -1.0\n\
+             z1 2 3 0 zm l=1u w=20u{dtemp}\n.model zm {body}"
+        ))
+        .unwrap();
+        run(&mut c, AnalysisKind::OperatingPoint, &[])
+    };
+    let plain = at("nmf(level=2 rd=31 rs=31)", " dtemp=100");
+    close(
+        value(&plain, "i(vids)", 0),
+        1.257_242_429_190_191_2e-4,
+        1e-9,
+        1e-15,
+    );
+    let scaled = at("nmf(level=2 rd=31 rs=31 rtc1=2e-3 rtc2=1e-6)", " dtemp=100");
+    close(
+        value(&scaled, "i(vids)", 0),
+        1.249_336_771_975_903_8e-4,
+        1e-9,
+        1e-15,
+    );
+    // `rdi`/`rsi` scale at `td` too and sit inside the channel.
+    let intrinsic = at(
+        "nmf(level=2 rd=31 rs=31 rdi=300 rsi=200 rtc1=2e-3 rtc2=1e-6)",
+        " dtemp=100",
+    );
+    close(
+        value(&intrinsic, "i(vids)", 0),
+        1.055_285_920_583_728_5e-4,
+        1e-9,
+        1e-15,
+    );
+}
+
+/// The reference binary's answers for the series paths, each a separate
+/// mechanism: `rd`/`rs` between the external terminals and the prime nodes,
+/// `ri`/`rf` between the prime and prime-prime nodes (`#gs`/`#gd`), and
+/// `rdi`/`rsi` inside `mesa1`'s `RS`/`RD`. Measured with `ngspice -b` on the
+/// probe deck at `vgs = -1.0`, `vds = 0.5`.
+#[test]
+fn the_resistance_paths_match_the_reference_binary() {
+    let at = |body: &str| {
+        let mut c = circuit(&format!(
+            "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 3 0 dc -1.0\n\
+             z1 2 3 0 zm l=1u w=20u\n.model zm {body}"
+        ))
+        .unwrap();
+        run(&mut c, AnalysisKind::OperatingPoint, &[])
+    };
+    // `rd=rs=1e6` leaves the channel starved: 0.5 V across 2 MOhm.
+    let plot = at("nmf(level=2 rd=1e6 rs=1e6)");
+    close(
+        value(&plot, "i(vids)", 0),
+        2.561_533_403_153_888_7e-7,
+        1e-9,
+        1e-15,
+    );
+    close(value(&plot, "v(2)", 0), 0.5, 1e-12, 1e-12);
+    // `ri`/`rf` put the intrinsic gate behind 1k/2k: `#gs` stays at the source
+    // and `#gd` at the drain, and `#gate` does not exist without `rg`.
+    let plot = at("nmf(level=2 ri=1e3 rf=2e3)");
+    close(
+        value(&plot, "i(vids)", 0),
+        1.294_798_134_879_495_8e-4,
+        1e-9,
+        1e-15,
+    );
+    close(value(&plot, "v(z1#gs)", 0), 0., 1e-9, 1e-12);
+    close(value(&plot, "v(z1#gd)", 0), 0.5, 1e-9, 1e-12);
+    // `rdi`/`rsi` only move the channel's series resistance.
+    let plot = at("nmf(level=2 rdi=300 rsi=200)");
+    close(
+        value(&plot, "i(vids)", 0),
+        1.109_834_591_729_768_7e-4,
+        1e-9,
+        1e-15,
+    );
+    let plot = at("nmf(level=2 rd=31 rs=31 rdi=300 rsi=200)");
+    close(
+        value(&plot, "i(vids)", 0),
+        1.083_309_886_025_265_7e-4,
+        1e-9,
+        1e-15,
+    );
+    // Every path at once, with `rg` too.
+    let plot = at("nmf(level=2 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=300 rsi=200)");
+    close(
+        value(&plot, "i(vids)", 0),
+        1.083_310_920_599_555_7e-4,
+        1e-9,
+        1e-15,
+    );
+    close(
+        value(&plot, "v(z1#gs)", 0),
+        3.357_761_717_752_397_4e-3,
+        1e-9,
+        1e-12,
+    );
+    close(
+        value(&plot, "v(z1#gd)", 0),
+        0.496_641_736_146_141_4,
+        1e-9,
+        1e-12,
+    );
+    close(
+        value(&plot, "v(z1#gate)", 0),
+        -0.999_999_838_020_610_9,
+        1e-9,
+        1e-12,
     );
 }
 
@@ -214,21 +357,11 @@ fn the_drain_and_source_temperatures_round_trip_in_celsius() {
     close(value(&plot, "@z1[ts]", 0), 50., 1e-12, 1e-12);
 }
 
-/// The boundaries of this slice, each naming the C reference it is missing
-/// from: every resistance path other than `rg` (`rd`/`rs` fold into
-/// `mesaload.c`'s `MESAtRd`/`MESAtRs` with no node, `ri`/`rf`/`rdi`/`rsi` add
-/// the `#gs`/`#gd` and prime-prime nodes), the charge storage of a transient
-/// load (H1b) and the model domains `mesa1` divides by.
+/// The boundaries left after the resistance paths landed: the model domains
+/// `mesa1` divides by, the charge storage of a transient load (#156) and the
+/// pole-zero load (#157).
 #[test]
-fn the_h1a_boundaries_are_explicit() {
-    for setter in ["rd=1", "rs=1", "ri=1", "rf=1", "rdi=1", "rsi=1"] {
-        let error = circuit(&format!(
-            "vd d 0 1\nz1 d g s zm\n.model zm nmf(level=2 {setter})"
-        ))
-        .unwrap_err();
-        assert!(error.is_not_yet_ported(), "{setter}: {error}");
-        assert!(error.to_string().contains("mesa"), "{setter}: {error}");
-    }
+fn the_remaining_boundaries_are_explicit() {
     for setter in ["vsigma=0", "nd=0", "mu=-1"] {
         let error = circuit(&format!(
             "vd d 0 1\nz1 d g s zm\n.model zm nmf(level=2 {setter})"

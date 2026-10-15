@@ -161,7 +161,7 @@ temperature setup to re-derive).
   polarities, `.dc @z1[area] @z1[m]`, `.pz` roots, `.noise` spectral
   densities of every generator, and a `uic` transient with an `off` device.
 
-## MESA level 2 (`Z`, M10 H1a, #83)
+## MESA level 2 (`Z`, M10 H1a/H1b, #83)
 
 `inpdomod.c` maps `nmf`/`pmf` levels to four macspice families, which share one
 grammar and one 62-setter model table but not one channel:
@@ -169,7 +169,7 @@ grammar and one 62-setter model table but not one channel:
 | level | family | channel | state |
 | --- | --- | --- | --- |
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
-| 2 | MESA | `mesa1` (`mesaload.c`) | ported: DC and small signal (H1a) |
+| 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage |
 | 3/4 | MESA | `mesa3`/`mesa4`, `mesapz*` | H2 |
 | 5 | HFET1 | `hfet1` | H3 |
 | 6 | HFET2 | `hfet2x` | H4 |
@@ -192,21 +192,44 @@ agree with it bit for bit over 1 kHz-10 GHz while the two-device fixture
 differs only by round-off (about 1e-16 relative). `.sp` and `.tf` build on the
 same assembly and run.
 
+### The resistance paths (`rd`/`rs`, `rg`, `ri`/`rf`, `rdi`/`rsi`)
+
+`mesasetup.c` creates `#source` for `rs`, `#drain` for `rd`, `#gate` for `rg`,
+`#gs` for `ri` and `#gd` for `rf`, in that order, and makes each node its
+unfurled predecessor when its resistance is zero, so the prime-prime pair falls
+back to the prime pair. `rdi`/`rsi` create no node at all: `mesatemp.c` folds
+them into `mesa1`'s `RS`/`RD` series terms, which appear in `rt = RS + RD`,
+`f = sqrt(1 + 2 a RS)`, `d = 1 + a RS + f`, `ddevgte` and `delisatabeta` -
+the last two plus `delgchgchi = 1/(1 + gchi rt)^2` are the parts a derivative
+comparison exposes and a converged DC solution does not: `mesaacl.c` matched C
+to 1.78% on `rdi`/`rsi` alone until that denominator was right.
+
+The reference binary's rawfile **omits** `#source`/`#drain` (its `outitf.c`
+skip list is a mainline-device list: `#source`, `#drain`, `#collector`,
+`#emitter`, `#base`, `#internal`), which is why an early reading of
+`rd=1e6 rs=1e6` looked like a nodaless resistance. `show z1` disproves it:
+`dprimenode`/`sprimenode` are real nodes, and the current collapses to
+`0.5/(rd + rs) = 2.5e-7 A` because the 1 MOhm pair starves the channel.
+`xtask/src/verify.rs` projects the port's extra columns away for exactly that
+list, while keeping `#gate`, `#gs` and `#gd` compared.
+
+Three fixtures cover the paths (`m10_mesa_res_op`, `m10_mesa_res_dc`,
+`m10_mesa_res_ac`), and a 30-deck randomized comparison against the reference
+binary (mixed `rd`/`rs`/`rg`/`ri`/`rf`/`rdi`/`rsi`, `dtemp` and
+`rtc1`/`rtc2`, `m` and four channel geometries) matches to round-off.
+
 ### Boundaries (explicit errors, not silence)
 
-- **Every resistance path other than `rg`.** `rd`/`rs` are *not* internal
-  nodes: the reference binary creates no `#source`/`#drain` for
-  `rd=1e6 rs=1e6`, yet the drain current collapses to 2.5e-7 A, so
-  `mesatemp.c` folds them into `MESAtRd`/`MESAtRs` and `mesaload.c` applies
-  them with no node. `ri`/`rf` do create `#gs`/`#gd` and `rdi`/`rsi` the
-  prime-prime pair, and all four enter the load. Refusing them keeps the
-  remaining stamps identical to C's.
-- An unknown *card* parameter is an error in C ("unknown parameter (rd)"), so
-  the port rejects it rather than ignoring it.
-- `mesatrunc.c` charge storage and `.tran` are #156, `mesapzl.c` is #157, the
-  resistance paths above are #155, and `.noise`/`.disto`/`.sens` are #158:
-  C's MESA entry point defines none of those three routines, so the reference
-  binary runs them with MESA simply absent while the port refuses the run.
+- An unknown *card* parameter is an error in C ("Model issue on line ..."), so
+  the port rejects it rather than ignoring it. C also accepts *instance*
+  parameters on a `.model` card (`inpgmod.c` records them in the model's
+  `defaults` list, so `.model nm nmf(dtemp=25)` shifts every instance); the
+  port rejects those, a general parser gap rather than a MESA one (#161);
+the reference decks' `.print vids#branch` spelling is a second one (#162).
+- `mesatrunc.c` charge storage and `.tran` are #156 and `mesapzl.c` is #157.
+- `.noise`/`.disto`/`.sens` are #158: C's MESA entry point defines none of
+  those three routines, so the reference binary runs them with MESA simply
+  absent while the port refuses the run.
 
 ### The `eps0` constant
 
