@@ -1,0 +1,95 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_ltra_ac.cir
+title: "Lossy transmission lines (ltra) in AC: exact LC, RLC and RC two-ports" @netlists/m10_ltra_ac.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m10_ltra_ac.cir:8:1 "v1 in 0 dc 0 ac 1"
+    [1] device[1] @netlists/m10_ltra_ac.cir:9:1 "rs1 in a 50"
+    [2] device[2] @netlists/m10_ltra_ac.cir:10:1 "o1 a 0 b 0 lcline"
+    [3] device[3] @netlists/m10_ltra_ac.cir:11:1 "rl1 b 0 200"
+    [4] device[4] @netlists/m10_ltra_ac.cir:12:1 "rs2 in c 50"
+    [5] device[5] @netlists/m10_ltra_ac.cir:13:1 "o2 c 0 d 0 rlcline"
+    [6] device[6] @netlists/m10_ltra_ac.cir:14:1 "rl2 d 0 1k"
+    [7] device[7] @netlists/m10_ltra_ac.cir:15:1 "rs3 in e 50"
+    [8] device[8] @netlists/m10_ltra_ac.cir:16:1 "o3 e 0 f 0 rcline"
+    [9] device[9] @netlists/m10_ltra_ac.cir:17:1 "cl3 f 0 1p"
+    [10] model[0] @netlists/m10_ltra_ac.cir:18:1 ".model lcline ltra l=250n c=100p len=1"
+    [11] model[1] @netlists/m10_ltra_ac.cir:19:1 ".model rlcline ltra r=20 l=250n c=100p len=1"
+    [12] model[2] @netlists/m10_ltra_ac.cir:20:1 ".model rcline ltra r=1k c=10p len=1"
+    [13] analysis[0] @netlists/m10_ltra_ac.cir:21:1 ".ac lin 201 1meg 201meg"
+    [14] end @netlists/m10_ltra_ac.cir:22:1 ".end"
+  devices (10):
+    device [0] name="v1" designator=v @netlists/m10_ltra_ac.cir:8:1
+      nodes: "in" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_ltra_ac.cir:8:9
+        [1] name="acmag" kind=scalar value="1" @netlists/m10_ltra_ac.cir:8:17
+        [2] name="acphase" kind=scalar value="0" @netlists/m10_ltra_ac.cir:8:14
+    device [1] name="rs1" designator=r @netlists/m10_ltra_ac.cir:9:1
+      nodes: "in" "a"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_ltra_ac.cir:9:10
+    device [2] name="o1" designator=o @netlists/m10_ltra_ac.cir:10:1
+      nodes: "a" "0" "b" "0"
+      model: "lcline"
+      parameters (0):
+    device [3] name="rl1" designator=r @netlists/m10_ltra_ac.cir:11:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="200" @netlists/m10_ltra_ac.cir:11:9
+    device [4] name="rs2" designator=r @netlists/m10_ltra_ac.cir:12:1
+      nodes: "in" "c"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_ltra_ac.cir:12:10
+    device [5] name="o2" designator=o @netlists/m10_ltra_ac.cir:13:1
+      nodes: "c" "0" "d" "0"
+      model: "rlcline"
+      parameters (0):
+    device [6] name="rl2" designator=r @netlists/m10_ltra_ac.cir:14:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/m10_ltra_ac.cir:14:9
+    device [7] name="rs3" designator=r @netlists/m10_ltra_ac.cir:15:1
+      nodes: "in" "e"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_ltra_ac.cir:15:10
+    device [8] name="o3" designator=o @netlists/m10_ltra_ac.cir:16:1
+      nodes: "e" "0" "f" "0"
+      model: "rcline"
+      parameters (0):
+    device [9] name="cl3" designator=c @netlists/m10_ltra_ac.cir:17:1
+      nodes: "f" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1p" @netlists/m10_ltra_ac.cir:17:9
+  models (3):
+    model [0] name="lcline" base="ltra" level=none @netlists/m10_ltra_ac.cir:18:1
+      parameters (3):
+        [0] name="l" kind=scalar value="250n" @netlists/m10_ltra_ac.cir:18:20
+        [1] name="c" kind=scalar value="100p" @netlists/m10_ltra_ac.cir:18:27
+        [2] name="len" kind=scalar value="1" @netlists/m10_ltra_ac.cir:18:34
+    model [1] name="rlcline" base="ltra" level=none @netlists/m10_ltra_ac.cir:19:1
+      parameters (4):
+        [0] name="r" kind=scalar value="20" @netlists/m10_ltra_ac.cir:19:21
+        [1] name="l" kind=scalar value="250n" @netlists/m10_ltra_ac.cir:19:26
+        [2] name="c" kind=scalar value="100p" @netlists/m10_ltra_ac.cir:19:33
+        [3] name="len" kind=scalar value="1" @netlists/m10_ltra_ac.cir:19:40
+    model [2] name="rcline" base="ltra" level=none @netlists/m10_ltra_ac.cir:20:1
+      parameters (3):
+        [0] name="r" kind=scalar value="1k" @netlists/m10_ltra_ac.cir:20:20
+        [1] name="c" kind=scalar value="10p" @netlists/m10_ltra_ac.cir:20:25
+        [2] name="len" kind=scalar value="1" @netlists/m10_ltra_ac.cir:20:31
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m10_ltra_ac.cir:21:1
+      arguments: "lin" "201" "1meg" "201meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

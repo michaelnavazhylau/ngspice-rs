@@ -252,6 +252,8 @@ fn failed_acceptance_leaves_every_history_unchanged() {
         steps: [1e-6; 3],
         min_break: 1e-12,
         start,
+        reltol: 1e-3,
+        abstol: 1e-12,
     };
     // A delay accept before the start is refused.
     let first = trial(&history);

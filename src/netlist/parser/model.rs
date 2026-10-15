@@ -2,7 +2,8 @@
 //!
 //! Retains scalar assignments and bounded bare type flags for D/BJT/MOS/R/C/L
 //! and the SW/CSW switch models (`sw.c`/`csw.c` `SWmPTable`/`CSWmPTable`),
-//! plus the URC line model (`urc.c` `URCmPTable`, whose `urc` flag is a no-op).
+//! plus the URC line model (`urc.c` `URCmPTable`, whose `urc` flag is a no-op)
+//! and the lossy-line model (`ltra.c` `LTRAmPTable`, with its `IF_FLAG` options).
 //! The base token remains distinct from ordered tail flag setters.
 //! Device parameter validity, default levels, selector rounding, model lookup
 //! and availability are elaboration concerns, not claims made by this grammar.
@@ -65,6 +66,8 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
         "d" | "npn" | "pnp" | "nmos" | "pmos" | "r" | "res" | "c" | "l" | "sw" | "csw" | "urc"
             // JFET (`jfet/jfet.c`; level 2 is `jfet2/`).
             | "njf" | "pjf"
+            // Lossy transmission line (`ltra/ltra.c`).
+            | "ltra"
             // MESFET (`mes/mes.c`; other levels are `mesa/`, `hfet1/`, `hfet2/`).
             | "nmf" | "pmf"
     ) {
@@ -115,6 +118,15 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             "nmf",
             "pmf",
             "urc",
+            "ltra",
+            "nocontrol",
+            "steplimit",
+            "nosteplimit",
+            "lininterp",
+            "quadinterp",
+            "mixedinterp",
+            "truncnr",
+            "truncdontcut",
             "sens_area",
             "sens_l",
             "sens_w",

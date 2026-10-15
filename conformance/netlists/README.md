@@ -160,6 +160,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m10_mesfet_tran` | `.tran` | MESFET NMF switching stage and sine-driven PMF stage, incremental Statz gate charge; `tmax` 0.1 ns, tight RELTOL/VNTOL (#83) |
 | `m10_urc_tran` | `.tran` | URC lines (#85): FMAX-rule 10-section ladder (K=2), `n=4` on a DC-biased reference, C's 3-section minimum; generated `u1#hi<i>`/`u1#lo<i>` nodes |
 | `m10_urc_ac` | `.ac` | URC lines: 16-section FMAX-rule line, `n=6` with the reference tied to the input, a single section (`n=1`) |
+| `m10_ltra_tran` | `.tran` | lossy lines (#85): LC line ringing between 25 ohm and 200 ohm, RLC line (`mixedinterp`) with Bessel convolutions, RG line's DC two-port; `o1#i1`-style current nodes |
+| `m10_ltra_rc_tran` | `.tran` | LTRA RC diffusion line open at the far end, and a subcircuit copy (`o.x1.o1`) with `lininterp nosteplimit` |
+| `m10_ltra_ac` | `.ac` | exact LTRA two-ports: quarter/half-wave LC line, RLC and RC lines |
 | `m10_urc_diode_tran` | `.tran` | URC `ISPERL` ladder: 17 generated diodes of `u1#diodemod` with `RSPERL` series resistance, conducting near the positive peaks (`reltol=1e-6`) |
 
 The six M4 decks were individually captured with the existing ngspice-47+ build;
@@ -223,6 +226,11 @@ Each has at least two roots (C's `write` adds a copy named `all` to a plot with 
 single vector) and is one on which C's root search finishes without a warning;
 `golden verify` compares the roots as unordered sets
 ([POLE_ZERO_ADR.md](../../docs/port/POLE_ZERO_ADR.md)).
+
+The three `m10_ltra_*` decks (#85) were captured one at a time with
+`cargo xtask golden capture --netlist <name>`; no existing golden was touched.
+They keep every C default option. See
+[TRANSMISSION_LINES.md](../../docs/port/TRANSMISSION_LINES.md#lossy-line-o-ltra-85).
 
 The four `m10_jfet_*` decks (#82) were captured one at a time with
 `cargo xtask golden capture --netlist <name>`; no existing golden was touched.
