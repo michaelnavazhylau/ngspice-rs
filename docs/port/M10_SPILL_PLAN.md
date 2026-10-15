@@ -243,6 +243,158 @@ longer treats everything above level 1 as "not yet ported".
 - C regression decks exist and give the goldens: `tests/mesa/mesa.cir`,
   `mesa11..15.cir`, `mesgout.cir`, `mesinv.cir`, `mesosc.cir` (all level 2).
 
+### H1 reference notes (read from the C sources, 2026-10-15)
+
+Gathered while starting H1 so the equations do not have to be re-read. The
+device is **not implemented**; these are C's behaviour.
+
+**Model setters, C field and `mesasetup.c` default** (`MESAmPTable` in
+`mesa.c`; the cardinal spelling first, the `IOPR` alias after):
+`vto`/`vt0` → `threshold` −1.26; `lambda` 0.045; `lambdahf` → `lambda`
+(`mesatemp.c`); `beta` 0.0085; `vs` 1.5e5; `rd`/`rs`/`rg` 0; `ri`/`rf`/`rdi`/`rsi`
+0; `phib` 0.5·q; `phib1`/`tphib` 0; `astar` 4.0e4; `ggr` 40; `del` 0.04;
+`xchi`/`tggr` 0.033; `n` 1; `eta` 1.73; `m` 2.5; `mc` 3.0; `alpha` 0;
+`sigma0` 0.081; `vsigmat` 1.01; `vsigma` 0.1; `mu` 0.23; `theta`/`mu1`/`mu2` 0;
+`d` 0.12e-6; `nd` 2.0e23; `du` 0.035e-6; `ndu` 1e22; `th` 0.01e-6;
+`ndelta` 6e24; `delta` 5.0; `tc` 0; `tvto`/`alphat` 0; `tlambda` DBL_MAX;
+`teta0` DBL_MAX; `teta1` 0; `tmu` 300.15; `xtm0`/`xtm1`/`xtm2` 0; `ks`/`vsg` 0;
+`tf` = `CKTtemp`; `flo`/`delfo`/`ag` 0; `rtc1`/`rtc2` 0; `zeta` 1; `level` 2;
+`nmax` 2e16; `gamma` 3.0; `epsi` 12.244·8.85418e-12; `cas`/`cbs` 1;
+`nmf`/`pmf`; and the read-only outputs `gd`, `gs`, `vcrit`.
+
+**Instance setters** (`MESApTable`, `mesaparam.c`): `l` (1e-6), `w` (20e-6),
+`m` (1), `icvds`, `icvgs`, `ic` (vector of one or two: `VDS` then `VGS`),
+`off`, `td`, `ts`, `dtemp` (default `CKTtemp + dtemp`). `td` and `ts` are
+Celsius and are stored as `value + CONSTCtoK`. **MESA has no `area`.**
+
+**Temperature** (`mesatemp.c`), model: `lambdahf = lambda` when unset;
+`vpo = q·nd·d²/(2ε)` for level 2; `deltaSqr = delta²`. Instance, with
+`ts`/`td` in kelvin and `vt = k/q·ts`: `tMu = mu (ts/tmu)^xtm0` (or the
+`mu1`/`mu2` harmonic form), `tTheta = theta`,
+`tPhib = phib − phib1 (ts − tnom)`, `tVto = threshold − tvto (ts − tnom)`,
+`imax = q·nmax·vs·w`, `gchi0 = q·w/l`, `beta = 2ε·vs·zeta·w/d`,
+`tEta = eta (1 + ts/teta0) + teta1/ts`,
+`tLambda = lambda (1 − ts/tlambda)` (and `tLambdahf`),
+`n0 = ε·tEta·vt/(q·d)`, `nsb0 = ε·tEta·vt/(q (du+th))`, `isatb0 = q·n0·vt·w/l`,
+`cf = 0.5·ε·w`,
+`csatfs = 0.5·astar·ts²·exp(−tPhib/(k ts))·l·w` (`csatfd` with `td`),
+`ggrwl = ggr·l·w·exp(xchi (ts − tnom))`,
+`vcrits = vt·ln(vt/(√2 csatfs))` (DBL_MAX when `csatfs = 0`; `vcritd` likewise),
+`fl = flo·exp(ts/tf)`, `delf = delfo·exp(ts/tf)`, each `tR* = r (1 +
+tc1 ΔT + tc2 ΔT²)` with `ΔT = td|ts − tnom` (0 when the resistance is 0), and
+the conductances `drainConduct = 1/tRd`, `sourceConduct`, `gateConduct`,
+`tGi = 1/tRi`, `tGf = 1/tRf` (0 when the resistance is 0).
+
+**Nodes** (`mesasetup.c:250-370`): created conditionally, in the order
+`#source` (sourceResist), `#drain` (drainResist), `#gate` (gateResist), `#gs`
+(ri), `#gd` (rf), with the prime-prime nodes aliasing the prime nodes when
+`rsi`/`rdi` are zero (`sourcePrmPrm = sourcePrime`, `drainPrmPrm =
+drainPrime`). The external source/drain/gate node is used directly when its
+resistance is zero. The load references all five internal nodes, so the
+`ri`/`rf`/`rdi`/`rsi` paths are what make the prime-prime pair distinct.
+
+**Load** (`mesaload.c:29-450`): per instance `vcrits`, `vcritd`,
+`vtd = k/q·td`, `vts`, `vted = n·vtd`, `vtes = n·vts`. Starts: `MODEINITJCT`
+with `off == 0` is `vgs = vgd = −1` (`vgspp = vgdpp = 0`), otherwise 0; `uic`
+uses `ic` (`vds = icVDS`, `vgs = icVGS`, `vgd = vgs − vds`); `MODEINITTRAN` and
+`MODEINITSMSIG` read state 1 and 0. Then `cghat`/`cdhat` from the state-0
+conductances, C's bypass test (the port omits bypass), `DEVpnjlim(vgs,
+vgs₀, vtes, vcrits)` then `DEVfetlim(vgs, vgs₀, tVto)` and the same for `vgd`
+with `vted`/`vcritd`, and `vgspp = vgs` / `vgdpp = vgd` when the prime-prime
+node aliases the prime node. Gate diodes:
+`ggs = csatfs·exp(vgs/vtes)/vtes + ggrwl·e^{−vgs·del/vts}·(1 + vgs·del/vts) + gmin`,
+`cgs = csatfs·(exp(vgs/vtes) − 1) + ggrwl·vgs·e^{−vgs·del/vts} + gmin·vgs`, and
+the `d` pair with `vtd`, `vted`, `csatfd`. With `vds = vgs − vgd`, a negative
+`vds` switches to inverse mode (`vds = −vds`, and afterwards `cdrain =
+−cdrain` and `capgs`/`capgd` swapped), and the channel is called as
+`mesa1(vgs|vgd, vds, von)` with `von = tVto + ks (v(sourcePrime) − vsg)`.
+`cd = cdrain − cgd`. Charge storage exists for
+`MODEDCTRANCURVE|MODETRAN|MODEINITSMSIG` and for `MODETRANOP & MODEUIC`:
+`qgs = qgs₁ + capgs (vgspp − vgspp₁)` (and `qgd`), `NIintegrate` per charge
+outside a DC sweep, `MODEINITTRAN` seeding state 1 from the operating point.
+Convergence uses `cghat`/`cdhat` against `cg`/`cd`. State 0 then holds the
+sixteen quantities `vgs vgspp vgd vgdpp cg cd cgd cgs gm gds ggs ggd ggspp
+cgspp ggdpp cgdpp`. The load vector (verbatim, `m` = multiplicity):
+`ccorr = ag (cgs − cgd)`, `ceqgd = cgd + cgdpp − ggd vgd − ggdpp vgdpp`,
+`ceqgs = cgs + cgspp − ggs vgs − ggspp vgspp`,
+`cdreq = (cd + cgd + cgdpp) − gds vds − gm vgs`, then
+`gatePrime += m(−ceqgs − ceqgd)`,
+`drainPrime += m(−cdreq + (cgd − ggd vgd) + ccorr)`,
+`drainPrmPrm += cgdpp − ggdpp vgdpp`,
+`sourcePrime += m(cdreq + (cgs − ggs vgs) − ccorr)`,
+`sourcePrmPrm += cgspp − ggspp vgspp`. The thirty matrix entries are at
+`mesaload.c:395-450` (diagonal `m(drainConduct)` on the external nodes,
+`m(tGi + ggspp)` on `sourcePrmPrm`, `m(tGf + ggdpp)` on `drainPrmPrm`,
+`m(ggd + ggs + gateConduct + ggspp + ggdpp)` on `gatePrime`,
+`m(gds + ggd + drainConduct + tGf)` on `drainPrime`,
+`m(gds + gm + ggs + sourceConduct + tGi)` on `sourcePrime`, and the couplings
+between them).
+
+**`mesa1`** (`mesaload.c:499-688`; `ETA = tEta`, `MU0 = tMu`, `RS = tRsi`,
+`RD = tRdi`, `LAMBDA = tLambda`, `W`/`L` = instance width/length):
+`vt = k/q·ts`, `etavth = ETA·vt`, `rt = RS + RD`, `vgt0 = vgs − von`,
+`s = exp((vgt0 − VSIGMAT)/VSIGMA)`, `sigma = SIGMA0/(1+s)`,
+`vgt = vgt0 + sigma·vds`, `mu = MU0 + THETA·vgt`, `vl = VS/mu·L`,
+`beta = here->MESAbeta/(vpo + 3 vl)`,
+`u = vgt/vt − 1`, `t = sqrt(deltaSqr + u²)`, `vgte = vt(2 + u + t)/2`,
+`a = 2 beta vgte`, `b = exp(−vgt/etavth)`,
+`sqrt1 = sqrt(1 − vgte/vpo)` (0 when `vgte > vpo`),
+`ns = 1/(1/(ND·D·(1 − sqrt1)) + b/n0)`; when `ns < 1e-38` the channel returns
+`cdrain = gm = gds = 0` with `capgs = capgd = cf`; `gchi = gchi0·mu·ns`,
+`gch = gchi/(1 + gchi·rt)`, `f = sqrt(1 + 2 a RS)`, `d = 1 + a RS + f`,
+`e = 1 + TC vgte`, `isata = a vgte/(d e)`, `isatb = isatb0·mu·exp(vgt/etavth)`,
+`isat = isata isatb/(isata + isatb)`, `vsate = isat/gch`,
+`vdse = vds (1 + (vds/vsate)^MC)^{−1/MC}`, `m = M0 + ALPHA vgte`,
+`g = (vds/vsate)^m`, `h = (1+g)^{1/m}`, `delidgch0 = vds/h`,
+`delidgch = delidgch0 (1 + LAMBDA vds)`, `cdrain = gch·delidgch`,
+`temp = sqrt(1 − vgt/vpo)` (0 when `vgt > vpo`), `cgc = W L ε/(temp + b)/D`,
+`capgs = cf + (2/3) cgc (1 − c)` with `c = ((vsate − vdse)/(2 vsate − vdse))²`,
+`capgd = cf + (2/3) cgc (1 − c)` with `c = (vsate/(2 vsate − vdse))²`. The
+derivatives are assembled from `delgchgchi = 1/(1 + gchi rt)²`,
+`delgchins = gchi0 mu`, `delnsvgt = ns² b/(n0 etavth)`,
+`delnsvgte = 0.5 ns²/(vpo ND D sqrt1 (1 − sqrt1)²)` (0 when `sqrt1 == 0`),
+`delvgtevgt = (1 + u/t)/2`, `delidvds0 = gch/h`,
+`delidvds1 = cdrain (vds/vsate)^{m−1}/(vsate (1+g))` (0 at `vds = 0`),
+`delidvds = delidvds0 (1 + 2 LAMBDA vds) − delidvds1`,
+`delidvsate = cdrain g/(vsate (1+g))`, `delvsateisat = 1/gch`,
+`delisatisata = isatb²/(isata+isatb)²`, `delisatisatb = isata²/(…)²`,
+`v = 1 + 1/f`, `ddevgte = 2 beta RS v e + d TC`,
+`delisatavgte = (2 a d e − a vgte ddevgte)/(d² e²)`,
+`delisatabeta = 2 vgte² (d e − a e RS v)/(d² e²)`, `delvsategch = −vsate/gch`,
+`dvgtvgs = 1 − SIGMA0 vds s/(VSIGMA (1+s)²)`,
+`dgchivgt = delgchins (delnsvgte delvgtevgt + delnsvgt) + gchi0 ns THETA`,
+`dvgtevds = delvgtevgt sigma`,
+`dgchivds = delgchins (delnsvgte dvgtevds + delnsvgt sigma) + (gchi0 ns THETA) sigma`,
+`disatavgt = delisatavgte delvgtevgt + delisatabeta·3 beta vl THETA/(mu (vpo + 3 vl))`,
+`disatavds = delisatavgte dvgtevds + (same temp)·sigma`,
+`disatbvgt = isatb/etavth + isatb/mu·THETA`,
+`p = delgchgchi dgchivgt`, `w = delgchgchi dgchivds`,
+`dvsatevgt = delvsateisat (delisatisata disatavgt + delisatisatb disatbvgt) + delvsategch p`,
+`dvsatevds = delvsateisat (delisatisata disatavds + delisatisatb disatbvgt sigma) + delvsategch w`,
+and for `ALPHA != 0`
+`gmmadd = cdrain (ln(1+g)/m² − g ln(vds/vsate)/(m (1+g))) ALPHA delvgtevgt` (0 at
+`vds = 0`), `gdsmadd = gmmadd sigma` (both 0 when `ALPHA == 0`), giving
+`gm = (delidgch p + delidvsate dvsatevgt + gmmadd) dvgtvgs` and
+`gds = delidvds + delvsateisat (delisatisata disatavds +
+delisatisatb disatbvgt sigma) + delgchgchi dgchivds + gdsmadd`. A `z` deck with
+`vgt0` far below `VSIGMAT` leaves `s` large, so the port must guard the
+exponentials exactly as C's own overflow behaviour does.
+
+**Goldens.** `tests/mesa/{mesa,mesa11,mesa12,mesa13,mesa14,mesa15,mesgout,
+mesinv,mesosc}.cir` are level 2 with `.out` references (rd/rs 31, rg 10, and
+`vs`/`n` in `mesosc`); `mesa-12.cir` duplicates `mesa12`. There is no level 4
+or level 6 deck in the tree.
+
+**Split.** H1 is large enough to want two reviewable PRs: **H1a** the shared
+shell plus level-2 DC (schema, temperature, conditional internal nodes, the
+`mesa1` channel, the DC load, DC asks) with transient, AC and pole-zero
+refused, and the `ri`/`rf`/`rdi`/`rsi` (prime-prime and `#gs`/`#gd`) paths
+refused until H1b; **H1b** the charge/truncation half (`mesatrunc.c`, the
+`NIintegrate` path), `mesaacl.c`, `mesapzl.c`, the full `mesaask.c` table and
+the prime-prime conductances.
+
+
+
 ### H2 · MESA levels 3 and 4 (`mesa2`, `mesa3`)
 
 Same shell and the same model table; the level selects `mesa2`
