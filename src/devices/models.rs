@@ -767,10 +767,13 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
             "src/spicelib/parser/inpdomod.c (only JFET levels 1-2 exist in C)",
         ));
     }
-    if matches!(family, ModelFamily::Nmf | ModelFamily::Pmf) && selector != 1 {
-        // inpdomod.c maps levels 2-6 to MESA/HFET1/HFET2 and rejects the rest.
+    if matches!(family, ModelFamily::Nmf | ModelFamily::Pmf) && !matches!(selector, 1 | 2) {
+        // inpdomod.c maps levels 3-6 to MESA levels 3-4 and HFET1/HFET2, and
+        // rejects the rest.
         let reference = match selector {
-            2..=4 => "src/spicelib/devices/mesa/ (MESA: mesamparam.c, mesasetup.c, mesaload.c)",
+            3..=4 => {
+                "src/spicelib/devices/mesa/ (MESA levels 3-4: mesamparam.c, mesasetup.c, mesaload.c)"
+            }
             5 => "src/spicelib/devices/hfet1/ (HFET1: hfetmpar.c, hfetsetup.c, hfetload.c)",
             6 => "src/spicelib/devices/hfet2/ (HFET2: hfet2mpar.c, hfet2setup.c, hfet2load.c)",
             _ => {
