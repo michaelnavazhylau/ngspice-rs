@@ -17,6 +17,7 @@ simulator — see [§3](#3-the-two-gaps) for exactly how far the claims reach.
 - [7. Blockers in this codebase](#7-blockers-in-this-codebase)
 - [8. Non-goals](#8-non-goals)
 - [9. Suggested first milestones](#9-suggested-first-milestones)
+- [10. Using the C oracle](#10-using-the-c-oracle)
 
 ---
 
@@ -49,7 +50,8 @@ Concrete, reproducible facts from building `formal/`:
 | Lean toolchain | Already installed on this machine: Lean 4.35.0 + Lake 5.0.0 via `elan`. No new toolchain needed. |
 | mathlib dependency | `master` @ `6015dbb`, 9 039 cached oleans, **7.2 GB** of build artifacts. One-off `lake exe cache get` took several minutes on a fast connection. |
 | Incremental build of the four project modules | **~5 s**, and a single file is ~1.5 s. Editing proofs is interactive-speed. |
-| Proofs written | 12 public declarations across 3 modules; zero `sorry`, zero `axiom`. `#print axioms` reports only `propext`, `Classical.choice`, `Quot.sound`. |
+| Proofs written | 22 public declarations across 4 modules; zero `sorry`, zero `axiom`. `#print axioms` reports only `propext`, `Classical.choice`, `Quot.sound`. |
+| Oracle check | One proved rule was checked against the C binary: the predicted order separation in `.option xmu` reproduces, with a 63.6× same-grid error penalty at `xmu = 0.49` ([§10.5](#105-worked-example-the-xmu-rule)). |
 | Effort | Roughly one session, most of it spent on mathlib API archaeology and on the sign conventions (see below), not on mathematics. |
 
 Two findings are worth recording because they cost real time and will cost it
@@ -434,7 +436,7 @@ Explicitly out of scope, so that a bounded result is not read as a larger one:
 Bounded, in order, each of which produces something checkable.
 
 1. **Land the pilot as a separate, non-blocking build.** `formal/` as it stands:
-   12 declarations, no `sorry`, `#print axioms` clean, warning-free, with a CI
+   22 declarations, no `sorry`, `#print axioms` clean, warning-free, with a CI
    job that caches mathlib. Add the `.gitignore` entry (done). Treat it as
    documentation of the numerical kernels, not as a publication claim.
    *Cost: review only.*
@@ -470,3 +472,201 @@ currently blocked by Aeneas's supported subset rather than by anything under
 this project's control. Tiers 0 and 2 are worth doing on their own terms;
 Tiers 1 and 3 wait on the toolchain.
 
+
+## 10. Using the C oracle
+
+The optional upstream C checkout is this project's oracle: goldens captured
+from it, and opt-in `c_*_reference` tests that compare a fresh run. The
+question "can the oracle be iteratively converted into Lean verifications to
+use against Rust" has a good answer, but not the obvious one.
+
+**Short answer.** Yes — but the productive reading is *mine the oracle for
+specifications*, not *verify or extract the C*. And the oracle's single most
+valuable role in a Lean programme is not as a specification source at all: it is
+the safety net that makes the extractability refactor of
+[§4](#4-extraction-spike-measured-results) possible ([§10.4](#104-the-oracles-highest-value-role-making-the-refactor-possible)).
+
+### 10.1 The readings that do not pay off
+
+**Verify the C.** CN/Cerberus, Frama-C, VST and CompCert are mature, and they
+are Rocq/Coq projects rather than Lean ones. More importantly they are
+orthogonal to the goal: for a port, the specification *is* C's behaviour, so
+proving the C correct proves the reference equals itself and says nothing about
+Rust. This is the one setting where verifying the reference is definitionally
+without content.
+
+**Extract the C into Lean.** Two sub-routes, both closed:
+
+- `c2rust` → Charon → Aeneas. c2rust emits unsafe, pointer-heavy Rust, and
+  Aeneas's whole method is eliminating memory reasoning *"as long as they do not
+  rely on interior mutability or unsafe code"*. The translation destroys the
+  precondition for the verification.
+- A direct C→Lean 4 exporter. A code-property-graph-based line of work now
+  exists that translates C into a small Lean 4 core semantics, and it is
+  explicit that its output needs a "trust ledger" precisely because it cannot
+  distinguish code it *declined* to translate from code it translated
+  *incorrectly*. That is the same failure class as the `<opaque>`-and-exit-0
+  trap recorded in [§4](#4-extraction-spike-measured-results), and ngspice's
+  scale is far outside what such an exporter targets. It would also land in the
+  same Aeneas-subset wall on the Rust side, so it cannot deliver the link that
+  matters.
+
+**Treat oracle outputs as axioms.** "The golden says 0.0123 V, therefore Rust
+must produce 0.0123 V to within tolerance" is a per-instance fact about one
+deck. As a Lean axiom it is unsound in general, and in review it is
+indistinguishable from an assumption that happens to agree with a test.
+
+There is an asymmetry here worth stating plainly, because it is a consequence
+of choosing Lean: **for C, the mature verification tooling is Rocq; for Rust,
+it is Lean.** A Lean project will always have a *tested* C oracle and can never
+have a *proved* one. That is a perfectly good arrangement — C's role here is
+transcription fidelity, not physics — but it should be a decision rather than a
+discovery.
+
+### 10.2 What does pay off: iterative specification mining
+
+Per kernel, four steps. The pilot has already done this by hand once: `IsCorrector`
+is `nicomcof.c`'s linear system, transcribed, and `Orders.lean` is the
+closed-form side of the same routine.
+
+1. **Transcribe** the C routine into a Lean definition, keeping C's algebra and
+   its operation order — so the two can be compared numerically, not only
+   mathematically.
+2. **Prove** the law the routine exists to implement.
+3. **Identify** the definition with a mathematical specification over `ℝ` where
+   that is possible; the proved facts then transfer to any faithful
+   implementation.
+4. **Check** the Lean definition against the C binary by evaluation.
+
+The chain is:
+
+    C  ↔(tested)↔  Lean reference  ↔(proved)↔  math spec  ↔(tested)↔  Rust
+
+Two of the three links are *tested*, so this **upgrades the oracle; it does not
+verify the Rust**. Stated honestly: the value is that trust moves from "a number
+in a golden file" to "a proved law plus a numeric agreement", and the residual
+risk is localised on the Rust↔reference interface — which is exactly where the
+existing conformance suite already aims.
+
+Cost is favourable because the C is small per kernel and right there. Step 1 is
+mechanical; step 2 is where the pilot spent its time, almost entirely on sign
+conventions rather than mathematics.
+
+### 10.3 Also worth doing: verify the comparison itself
+
+`xtask/src/compare.rs` holds the tolerance policy (`DC`, `AC`, `NONLINEAR`,
+`NOISE`, `SENSITIVITY`, `TRAN`, …) and is the code that decides what "Rust
+matches C" *means*. It is unverified.
+
+Its content is float-light and small: a tolerance relation that should be
+symmetric and monotone in the tolerances, a worst-case aggregation, and matching
+by variable name across two different value orderings. Proving the algebra —
+symmetry; monotonicity; that the reported "worst fraction of bound" really is
+the maximum; that name matching cannot silently skip a variable that only one
+side has — is cheap and protects every conformance claim the project makes.
+This is not the simulator, but it is the machinery that produces the project's
+evidence, and a bug in it invalidates whole rows of `VERIFICATION.md`.
+
+### 10.4 The oracle's highest-value role: making the refactor possible
+
+[§4](#4-extraction-spike-measured-results) established that the binding
+constraint on refining Rust against Lean is Aeneas's supported Rust subset:
+no closure bodies, no returns inside nested loops. Entering that subset means
+*reshaping numerical kernels* — and reshaping numerics is precisely the
+operation that silently changes answers.
+
+The oracle is what makes that safe, because the goldens are bit-exact against
+the no-FMA C build. So the iteration is:
+
+1. pick a kernel that already has a bit-exact golden;
+2. rewrite it closure-free, single-loop, no early return, re-checking
+   bit-exactness against that golden at every step;
+3. extract the rewritten kernel with hax/Charon/Aeneas;
+4. prove the extracted Lean model equals the §10.2 reference;
+5. the kernel is now C-tested *and* Lean-proved.
+
+This is the only route on the table that reaches a real refinement result, and
+the C oracle is load-bearing in it — not as a specification, but as the
+regression net that lets you touch the numerics at all.
+
+**Closed for `sparse13.rs`.** AGENTS.md requires the sparse LU to mirror C's
+loop structure and element creation order so that pivot sequences match SPARSE.
+Rewriting it for extractability would trade a *required* property for a
+*proved* one, which is a bad trade. That file stays on goldens, and the honest
+statement is that the solver's correctness rests on C-parity testing.
+
+### 10.5 Worked example: the `xmu` rule
+
+`formal/NgspiceRs/Integrator/Theta.lean` is §10.2 applied to one kernel, and it
+turned up a consequence nothing in the test suite pins.
+
+`cktntask.c` documents the trapezoidal rule's parameter and defaults it to
+`0.5`, and `cktsopt.c` accepts the whole `[0, 0.5]`:
+
+```c
+/*   xmu=0:    Backward Euler
+ *   xmu=0.5:  trapezoidal (standard)
+ *   xmu=0.49: good damping of current ringing, e.g. in R.O.s. */
+tsk->TSKxmu = 0.5;
+```
+
+The port mirrors both the range and the comment (`companion.rs`, `.option xmu`).
+Proved, for `d_n = -(xmu/(1-xmu)) d_{n-1} + (1/(h(1-xmu))) (q_n - q_{n-1})`:
+
+| Theorem | Statement |
+| --- | --- |
+| `trap_xmu_zero_is_backward_euler` | `xmu = 0` collapses to `d_n = (q_n - q_{n-1})/h` — C's own first row. |
+| `trap_xmu_half_is_trapezoidal` | `xmu = 1/2` is exactly `2(q_n - q_{n-1})/h - d_{n-1}` — C's second row. |
+| `trapStep_exact_affine` | Affine charge is differentiated exactly, for **every** admissible `xmu`. |
+| `trapStep_quadratic` | The error on `t ↦ t²` is exactly `h(2 xmu - 1)/(1 - xmu)`. |
+| `trapStep_quadratic_exact_iff` | That error is zero **iff** `xmu = 1/2`. |
+| `trap_xmu_49_is_first_order` | The `0.49` that C recommends for damping costs exactly `2h/51` on the quadratic. |
+
+So the "trapezoidal" method is second-order **only at the default**. Every other
+value the port accepts silently demotes it to first order. C's comment shows
+`0.49` is a deliberate damping trade rather than a bug — but the consequence is
+now a theorem instead of an inference, and no test covers it.
+
+**Oracle confirmation.** `formal/probes/xmu_order_probe.py` drives the C
+reference on a circuit whose *charge* is exactly quadratic — a linearly ramping
+current source into a capacitor, so `v(1 us) = 1.5e-3 V` exactly and any error
+is integration error. The theorem predicts the order; the binary shows it:
+
+| `xmu` | `tmax` | points | `v(1 us)` | rel. error | error ratio |
+| --- | --- | --- | --- | --- | --- |
+| 0.5 | 0.1 µs | 24 | 1.500013117200e-03 | 8.74e-06 | — |
+| 0.5 | 0.05 µs | 33 | 1.500003286800e-03 | 2.19e-06 | 3.99 |
+| 0.5 | 0.025 µs | 52 | 1.500000829200e-03 | 5.53e-07 | 3.96 |
+| 0.5 | 0.0125 µs | 91 | 1.500000214800e-03 | 1.43e-07 | 3.86 |
+| 0.49 | 0.1 µs | 24 | 1.500834598752e-03 | 5.56e-04 | — |
+| 0.49 | 0.05 µs | 33 | 1.500458657088e-03 | 3.06e-04 | 1.82 |
+| 0.49 | 0.025 µs | 52 | 1.500239671672e-03 | 1.60e-04 | 1.91 |
+| 0.49 | 0.0125 µs | 91 | 1.500122425318e-03 | 8.16e-05 | 1.96 |
+
+On the identical 24-point grid, `xmu = 0.49` is **63.6× worse**. The refinement
+ratios separate the two rules by exactly one order: ~4× per halving for
+`xmu = 0.5` (second order) against ~2× for `xmu = 0.49` (first order). The
+observed log-log slopes are 2.38–2.95 and 1.18–1.81 rather than 2.00 and 1.00,
+because ngspice's driver composes the rule with order-1 startup steps and
+LTE-based step control, and because `tmax` does not fully pin the grid (the
+point counts are not doubling). The theorem is about the *rule*; the experiment
+confirms the rule's order separation, not the composite order or the magnitude.
+
+That is the pattern working in both directions: **the theorem makes a
+falsifiable prediction, and the oracle is the instrument that checks it.** This
+is also the honest shape of "using the C oracle against Rust" — it validates
+the specification, and the Rust side still needs [§4](#4-extraction-spike-measured-results)
+or testing.
+
+### 10.6 Recommended order of work
+
+If the oracle is the asset, spend it in this order:
+
+1. **§10.3, the comparison policy.** Cheapest, no C required, and it protects
+   every claim already being made.
+2. **§10.2 spec mining** for the kernels that carry the most risk: the
+   integrator's truncation control (`cktterr.c`/`CKTterr`) next, since
+   `Orders.lean` already has the surrounding machinery; then the *specification*
+   of `sparse13`'s pivot policy rather than its code.
+3. **§10.4 refactor-and-extract** for exactly one kernel with a bit-exact
+   golden, as the spike that decides whether the refinement tier opens at all.

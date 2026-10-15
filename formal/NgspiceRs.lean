@@ -7,4 +7,5 @@ statements and the Rust code, and how to run the build.
 module
 public import NgspiceRs.Horner
 public import NgspiceRs.Integrator.Corrector
+public import NgspiceRs.Integrator.Theta
 public import NgspiceRs.Orders

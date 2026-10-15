@@ -5,7 +5,9 @@ ngspice-rs's numerical kernels. It is a *pilot*: it exists to establish what
 mechanised proof costs here, where the trust boundary falls, and which targets
 are worth proving next. See
 [`docs/port/FORMAL_VERIFICATION.md`](../docs/port/FORMAL_VERIFICATION.md) for
-the assessment and roadmap.
+the assessment and roadmap, including
+[§10](../docs/port/FORMAL_VERIFICATION.md#10-using-the-c-oracle) on how the C
+oracle maps into Lean.
 
 This directory is **not** a Cargo package and is not built by
 `cargo build`/`cargo test`. It has its own toolchain and its own command.
@@ -15,7 +17,7 @@ This directory is **not** a Cargo package and is not built by
 ```sh
 cd formal
 lake exe cache get     # ~7 GB of mathlib artifacts, once per machine
-lake build             # ~5 s cold for these four modules once mathlib is cached
+lake build             # ~5 s cold for these five modules once mathlib is cached
 ```
 
 The toolchain is pinned in `formal/lean-toolchain` and every dependency
@@ -85,6 +87,39 @@ The general-`n` versions of both statements — the error value is
 `(-1)^(n-1) * ∏_{i≠0} s i` — are recorded as a proof sketch at the end of
 `Orders.lean`. They are **not** proved here.
 
+### `NgspiceRs/Integrator/Theta.lean` — the trapezoidal/`xmu` rule
+
+A complete instance of the "transcribe a C routine, then prove its law"
+pattern described in
+[`docs/port/FORMAL_VERIFICATION.md`](../docs/port/FORMAL_VERIFICATION.md#102-what-does-pay-off-iterative-specification-mining):
+`trapAg0`/`trapAg1`/`trapStep` mirror `nicomcof.c`'s `case TRAPEZOIDAL` and
+`NIintegrate`'s order-2 combination literally, and the theorems are about the
+rule.
+
+| Theorem | Statement |
+| --- | --- |
+| `trap_xmu_zero_is_backward_euler` | `xmu = 0` collapses to `d_n = (q_n - q_{n-1})/h`, which is what `cktntask.c` calls backward Euler. |
+| `trap_xmu_half_is_trapezoidal` | `xmu = 1/2` is exactly `2(q_n - q_{n-1})/h - d_{n-1}`, the standard trapezoidal rule. |
+| `trapStep_exact_affine` | Affine charge is differentiated exactly, for **every** admissible `xmu`. |
+| `trapStep_quadratic` | The error on `t ↦ t²` is exactly `h(2 xmu - 1)/(1 - xmu)`. |
+| `trapStep_quadratic_exact_iff` | That error vanishes **iff** `xmu = 1/2`. |
+| `trap_xmu_49_is_first_order` | The `0.49` that `cktntask.c` recommends for damping current ringing costs exactly `2h/51` on the quadratic. |
+| `trap_xmu_49_error_ne_zero` | The same fact as a failure to reproduce the quadratic, the form the tests assert numerically. |
+
+Consequence: the port accepts `xmu` over all of `[0, 0.5]`, so the
+"trapezoidal" method is second-order **only at the default**; every other value
+silently demotes it to first order. `cktntask.c`'s comment shows `0.49` is a
+deliberate damping trade, not a bug — but the consequence is now a theorem and
+no test covers it.
+
+`probes/xmu_order_probe.py` checks the prediction against the C reference: a
+linearly ramping current source into a capacitor makes the charge exactly
+quadratic, and the measured error falls ~4× per halving of the step at
+`xmu = 0.5` against ~2× at `xmu = 0.49`, with a 63.6× same-grid penalty. The
+observed slopes are not exactly 2 and 1 because the driver composes the rule
+with order-1 startup steps and LTE step control; the theorem is about the rule.
+See [§10.5](../docs/port/FORMAL_VERIFICATION.md#105-worked-example-the-xmu-rule).
+
 ## Trust boundary
 
 This is the part that matters when reading anything above as a claim about the
@@ -129,8 +164,20 @@ formal/
     Horner.lean               polynomial evaluation
     Integrator.lean           integrator re-export
     Integrator/Corrector.lean corrector specification and exactness law
+    Integrator/Theta.lean     the C trapezoidal/xmu rule, transcribed and proved
     Orders.lean               closed forms and maximal order
+  probes/
+    xmu_order_probe.py        oracle check for the Theta.lean prediction
 ```
+
+The probe needs the opt-in C reference and is not part of `lake build`:
+
+```sh
+NGSPICE_BIN=/abs/path/to/ngspice python3 formal/probes/xmu_order_probe.py
+```
+
+It prints the convergence table and the same-grid penalty; it asserts nothing,
+so read its output rather than its exit status.
 
 Files are Lean *modules* (`module` + `public import`), so exported names carry
 `public` and definitions whose bodies callers must unfold carry `@[expose]`.
