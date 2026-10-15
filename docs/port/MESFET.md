@@ -18,10 +18,13 @@ and later setters of a component win. Unknown setters (MES has no
 `temp`/`dtemp`), extra terminals and non-scalar values are explicit gaps
 (`NotYetPorted`, `inp2z.c`).
 
-An **unlabeled leading value** (`z1 d g s zm 2`) is refused: INP2Z applies it
-as `area` only for MESA/HFET models and silently discards it for a MES model
-(checked against the C binary: `@z1[area]` stays 1). The error asks for
-`area=<value>`.
+An **unlabeled leading value** (`z1 d g s zm 2`) is refused. INP2Z only
+reaches its `area` setter for a non-MES model, and `MESApTable`,
+`HFETApTable` and `HFET2pTable` have no `area`: C reports "no such parameter
+on this device or parameter is missing" and stops the run (checked against the
+reference binary). For a MES model the value is captured by `PARSECALL` and
+silently discarded, so accepting it here would either guess the model or
+ignore input. The error asks for `area=<value>` (MES) or `m=<value>`.
 
 The netlist writer round-trips the card and the `nmf`/`pmf` model families,
 including the `nmf`/`pmf` tail flags.

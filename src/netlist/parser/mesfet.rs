@@ -1,15 +1,25 @@
-//! Three-terminal Z-instance grammar from `inp2z.c` and `mes/mes.c`.
+//! Three-terminal Z-instance grammar from `inp2z.c` and the `z` parameter
+//! tables (`mes/mes.c`, `mesa/mesa.c`, `hfet1/hfet.c`, `hfet2/hfet2.c`).
 //!
 //! `Zname nd ng ns model [off] [ic=vds,vgs] [area=..] [m=..] [icvds=..]
-//! [icvgs=..]`. INP2Z always reads exactly three terminals and then the
-//! model name. The `ic` vector fills `icvds` then `icvgs` (`mesparam.c`'s
-//! `MES_IC` fallthrough). Model references are retained, not resolved, at
-//! this syntax boundary; the `nmf`/`pmf` level selects the C device during
-//! elaboration (level 1 `mes/`, the others are not ported).
+//! [icvgs=..] [l=..] [w=..] [td=..] [ts=..] [dtemp=..] [temp=..]`. INP2Z always
+//! reads exactly three terminals and then the model name. The `ic` vector
+//! fills `icvds` then `icvgs` (each family's `*_IC` fallthrough). Model
+//! references are retained, not resolved, at this syntax boundary; the
+//! `nmf`/`pmf` level selects the C device during elaboration (level 0 or 1
+//! `mes/`, 2-4 `mesa/`, 5 `hfet1/`, 6 `hfet2/`).
 //!
-//! An unlabeled leading value is refused: INP2Z applies it as `area` only for
-//! MESA/HFET models and silently discards it for a level-1 MES model, so
-//! accepting it would either guess the model or ignore input.
+//! The recognised setters are the union of the four families' tables, because
+//! the family is only known once the model is resolved. Which of them a given
+//! level actually accepts is decided there: `mes/` has `area` and `m` but no
+//! geometry or temperature setters, `mesa/` has `l`, `w`, `m`, `td`, `ts` and
+//! `dtemp` but no `area`, and the HFET families have `temp` instead of `td`.
+//!
+//! An unlabeled leading value is refused. INP2Z feeds it to an `area` setter,
+//! which only `mes/` defines: for MESA and HFET models C reports "no such
+//! parameter on this device or parameter is missing" (checked against the
+//! reference binary), so accepting the value would either guess the model or
+//! ignore input.
 
 use winnow::Parser as _;
 use winnow::combinator::{alt, cut_err, opt, peek, repeat};
@@ -59,8 +69,8 @@ fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
     }) {
         return Err(gap(
             input,
-            "unlabeled leading Z value (INP2Z discards it for a level-1 MES model and \
-             applies it as area only for MESA/HFET; write area=<value>)",
+            "unlabeled leading Z value (INP2Z sets it as area, which only the MES model \
+             family defines; write area=<value> for a MES model or m=<value>)",
         ));
     }
     repeat(
@@ -75,13 +85,15 @@ fn parameters(input: &mut Input<'_>) -> Result<Vec<ParameterAssignment>> {
     .parse_next(input)
 }
 
-/// The scalar `IF_REAL` setters of `MESpTable`.
+/// The scalar setters of the four `z` families' `*pTable`s: `MESpTable`
+/// (`area`, `m`), `MESApTable` (`l`, `w`, `m`, `td`, `ts`, `dtemp`),
+/// `HFETApTable` and `HFET2pTable` (`l`, `w`, `m`, `temp`, `dtemp`).
 fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     let token = any
         .verify(|token: &Token| {
             matches!(
                 token.text.to_ascii_lowercase().as_str(),
-                "area" | "m" | "icvds" | "icvgs"
+                "area" | "m" | "l" | "w" | "icvds" | "icvgs" | "td" | "ts" | "dtemp" | "temp"
             )
         })
         .parse_next(input)?;
@@ -103,6 +115,6 @@ fn invalid_parameter(input: &mut Input<'_>) -> Result<ParameterAssignment> {
     }
     Err(gap(
         input,
-        "unsupported MESFET flags, extra terminals or non-scalar parameters",
+        "unsupported MESFET/HFET/MESA flags, extra terminals or non-scalar parameters",
     ))
 }
