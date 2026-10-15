@@ -226,9 +226,24 @@ binary (mixed `rd`/`rs`/`rg`/`ri`/`rf`/`rdi`/`rsi`, `dtemp` and
   `defaults` list, so `.model nm nmf(dtemp=25)` shifts every instance); the
   port rejects those, a general parser gap rather than a MESA one (#161);
 the reference decks' `.print vids#branch` spelling is a second one (#162).
-- `.noise`/`.disto`/`.sens` are #158: C's MESA entry point defines none of
-  those three routines, so the reference binary runs them with MESA simply
-  absent while the port refuses the run.
+### `.noise`, `.disto` and `.sens`
+
+`mesainit.c` leaves `DEVnoise`, `DEVdisto` and `DEVsenSetup` NULL (as do
+`hfet1init.c` and `hfet2init.c`), and the three behave differently:
+
+- **`.noise`**: C runs the analysis and the card adds nothing. `mes/` has
+  `mesnoise.c`; MESA and both HFET levels have none. The port returns
+  `DeviceNoise::Noiseless`, and the measured reference behaviour is a run whose
+  spectrum is the rest of the circuit's (a 1 kOhm load: 4.071371529487329e-9
+  V/sqrt(Hz) input-referred), not an error.
+- **`.disto`**: same - no routine, no contribution, all harmonics zero. The
+  port returns `DeviceDistortion::Linear`.
+- **`.sens`**: `DEVsenSetup` is a red herring. ngspice's `.sens` does not use
+  the adjoint `*sload.c` routines at all; `cktsens.c`/`cktsgen.c` enumerate
+  every device's parameter tables through `DEVparam`/`DEVload`, so the
+  reference binary reports 61 `z1:*` parameters for a MESA card and exits 0.
+  The port still refuses, because `SensitivityFamily` has no `z`/`j` variants -
+  a gap that covers the JFET too, tracked as #164.
 
 ### Charge storage and the transient load (#156)
 

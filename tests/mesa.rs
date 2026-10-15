@@ -1,16 +1,16 @@
-//! MESA level 2 (#83, M10 H1a): the front end, the `inpdomod.c` level map,
+//! MESA level 2 (#83, M10 H1a/H1b): the front end, the `inpdomod.c` level map,
 //! C's `pmf` -> NMF coercion, the operating point and its asks against the
-//! reference binary, the internal-node order and the explicit boundaries of
-//! this slice.
+//! reference binary, the internal-node order, the resistance paths, the charge
+//! storage and the explicit boundaries of the slice.
 //!
 //! The reference values below were printed by
 //! `ngspice -b` from `ngspice_test/build/src/ngspice` on the same decks. They
-//! agree to their printed precision, which `cargo xtask golden verify` now
-//! checks for `m10_mesa_op`, `m10_mesa_dc` and `m10_mesa_ac`; the tolerances
-//! here state that agreement. `.op`, `.dc` and the small-signal assembly
-//! (`mesaacl.c`, which `.ac`, `.sp` and `.tf` all use) are ported; transient
-//! charge storage, `.pz` and the resistance paths are not.
-use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
+//! agree to their printed precision, which `cargo xtask golden verify`
+//! checks for `m10_mesa_{op,dc,ac,res_op,res_dc,res_ac,tran,pz}`; the
+//! tolerances here state that agreement. Every C load for level 2 is ported
+//! (`mesaload.c` with its charge storage, `mesaacl.c`, `mesapzl.c`);
+//! `.noise`/`.disto` behave as C's NULL routines do, and `.sens` is refused.
+use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::Circuit;
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
 use ngspice_rs::primitives::{AnalysisKind, NodeKind, SpiceError, SpiceResult};
@@ -377,23 +377,62 @@ fn the_remaining_boundaries_are_explicit() {
             "{setter}: {error}"
         );
     }
-    // `mesainit.c` leaves `DEVnoise`/`DEVdisto`/`DEVsen*` NULL, so C's MESA
-    // contributes nothing to those analyses and does not fail them. The port
-    // is stricter: it refuses rather than silently omitting a device, which
-    // #158 tracks. This is the remaining boundary the slice does not close.
+    // `mesainit.c` leaves `DEVnoise`/`DEVdisto`/`DEVsen*` NULL. `.noise` and
+    // `.disto` therefore run with the card contributing nothing, which is
+    // what the reference binary does; `.sens` is different - C's modern
+    // `.sens` enumerates every device's parameter tables through
+    // `DEVparam`/`DEVload`, so it *does* report the `z1:*` parameters - and
+    // still refuses here (#164).
     let mut c = circuit(
-        "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 3 0 dc 0 ac 1\n\
-         z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2)",
+        "vdd 1 0 dc 3 ac 1\nr1 1 2 1k\nz1 2 3 0 zm l=1u w=20u\nvg 3 0 dc -2.5\n\
+         .model zm nmf(level=2 rg=10)",
     )
     .unwrap();
-    let error = attempt(
+    let plot = run(
         &mut c,
         AnalysisKind::Noise,
-        &["v(2)", "vgs", "dec", "1", "1k", "1meg"],
+        &["v(2)", "vdd", "dec", "2", "1k", "10k"],
+    );
+    // The 1 kOhm load's own noise, as the reference binary prints it: the
+    // card adds none of its own.
+    close(
+        value(&plot, "inoise_spectrum", 0),
+        4.071371529487329e-9,
+        1e-9,
+        1e-18,
+    );
+    close(
+        value(&plot, "onoise_spectrum", 0),
+        4.191272227871375e-9,
+        1e-9,
+        1e-18,
+    );
+    let netlist = deck(
+        "vdd 1 0 dc 3 ac 1\nr1 1 drain 1k\nz1 drain gate 0 zm l=1u w=20u\n\
+         vg gate 0 dc -2.5\n.model zm nmf(level=2 rg=10)\n.sens v(drain)",
     )
-    .unwrap_err();
+    .unwrap();
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut c = config.circuit(&netlist).unwrap();
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("noise"), "{error}");
+    assert!(error.to_string().contains("sensitivity"), "{error}");
+    let mut c = circuit(
+        "vds 1 0 dc 0.5 ac 1\nvids 1 2 dc 0\nvg 3 0 dc -1 ac 1\nr1 2 0 1k\n\
+         z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2 rg=10 ri=1e3)\n\
+         .disto dec 2 1k 10k",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::Distortion, &["dec", "2", "1k", "10k"]);
+    for name in ["v(2)", "i(vids)", "v(z1#gs)"] {
+        for point in 0..plot.point_count() {
+            close(value(&plot, name, point), 0., 0., 1e-18);
+        }
+    }
 }
 
 /// `mesatrunc.c`'s charge pairs and `mesaload.c`'s transient load, against the

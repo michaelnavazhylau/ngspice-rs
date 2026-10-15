@@ -254,11 +254,12 @@ DC to 10 GHz, so `.ac`, `.sp` and `.tf` work. Second, `rd`/`rs` *do* create
 `#source`/`#drain` nodes - an early reading said otherwise because C's rawfile
 writer omits those two names (`outitf.c`'s mainline-device skip list) while
 `show` reports `dprimenode`/`sprimenode`; `ri`/`rf` create `#gs`/`#gd` and
-`rdi`/`rsi` only enter `mesa1`'s `RS`/`RD`. What is left is #158
-(`.noise`/`.disto`/`.sens`, where C has no routine at all and the port is
-stricter than the reference), the two parser gaps (#161 instance parameters on
-a `.model` card, #162 the `<source>#branch` spelling) and the state-backed
-`@z1[qgs]` asks.
+`rdi`/`rsi` only enter `mesa1`'s `RS`/`RD`. `.noise` and
+`.disto` now behave as C's NULL routines do (the card adds nothing); what is
+left is `.sens`, whose modern C path enumerates the card's parameter tables
+even though `DEVsenSetup` is NULL (#164, the whole `j`/`z` family), the two
+parser gaps (#161 instance parameters on a `.model` card, #162 the
+`<source>#branch` spelling) and the state-backed `@z1[qgs]` asks.
 
 ### H1 reference notes (read from the C sources, 2026-10-15)
 
