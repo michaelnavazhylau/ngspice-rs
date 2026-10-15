@@ -121,14 +121,67 @@ fn the_instance_grammar_follows_inp2z() {
     assert!(leading.to_string().contains("area="), "{leading}");
 }
 
+/// The `z` grammar recognises the union of the four families' setters
+/// (`MESApTable`, `HFETApTable`, `HFET2pTable`), because the family is only
+/// known once the model is resolved. Which of them a level accepts is decided
+/// there.
+#[test]
+fn the_instance_grammar_accepts_the_mesa_and_hfet_setters() {
+    let netlist = deck(
+        "z1 d g s zm l=2u W=20u m=3 td=50 ts=40 dtemp=2\n\
+         z2 d g s zm2 l=1u temp=75\n\
+         .model zm nmf level=2\n\
+         .model zm2 pmf level=2",
+    )
+    .unwrap();
+    let names: Vec<&str> = netlist.devices[0]
+        .parameters
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    assert_eq!(names, ["l", "w", "m", "td", "ts", "dtemp"]);
+    let names: Vec<&str> = netlist.devices[1]
+        .parameters
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    assert_eq!(names, ["l", "temp"]);
+}
+
+/// `mes/` has no geometry, drain/source temperature or `temp` setter, so a MES
+/// model rejects them. C reports "no such parameter on this device"; the port
+/// names the setter it could not apply.
+#[test]
+fn mesa_and_hfet_setters_are_rejected_for_a_mes_model() {
+    for body in [
+        "z1 d g s zm l=2u",
+        "z1 d g s zm w=20u",
+        "z1 d g s zm td=50",
+        "z1 d g s zm ts=40",
+        "z1 d g s zm dtemp=2",
+        "z1 d g s zm temp=50",
+    ] {
+        let error = circuit(&format!("{body}\n.model zm nmf\nv1 d 0 1"))
+            .err()
+            .unwrap_or_else(|| panic!("{body}: accepted"));
+        assert!(
+            error.to_string().contains("unsupported setter"),
+            "{body}: {error}"
+        );
+    }
+}
+
 #[test]
 fn level_selection_and_model_validation_are_explicit() {
     let base = "vd d 0 1\nvg g 0 0\nz1 d g 0 zm\n";
     assert!(circuit(&format!("{base}.model zm nmf level=1")).is_ok());
     // inpdomod.c: level 0 is MES too.
     assert!(circuit(&format!("{base}.model zm pmf level=0")).is_ok());
+    // inpdomod.c: levels 3-6 are the other macspice families. Level 2 is
+    // MESA, which M10 H1a builds as a `z` device.
+    assert!(circuit(&format!("{base}.model zm nmf level=2")).is_ok());
     for (level, reference) in [
-        (2, "mesa/"),
+        (3, "mesa/"),
         (3, "mesa/"),
         (4, "mesa/"),
         (5, "hfet1/"),

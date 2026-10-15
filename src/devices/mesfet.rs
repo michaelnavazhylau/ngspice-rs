@@ -50,7 +50,10 @@
 //!   (`m * ggd + ggs`: an operator-precedence slip); the port's pole-zero
 //!   load is the AC load, every term scaled by `m`. Both agree for `m = 1`.
 //! - An unlabeled leading value on the card is refused by the parser
-//!   ([`crate::netlist`]): INP2Z discards it for MES models.
+//!   ([`crate::netlist`]): INP2Z only reaches the `area` setter for a
+//!   non-MES model, and none of the MESA/HFET tables has that setter, so C
+//!   reports "no such parameter on this device" and stops; for a MES model it
+//!   is captured and silently discarded.
 //! - `ALPHA` must be positive (`3 / ALPHA` and `1 / ALPHA` divide by it),
 //!   `B` nonnegative (keeping `1 + B vgst` positive). `qggnew` takes
 //!   `sqrt(1 - v / PB)` of its effective forward voltage `v`, at most

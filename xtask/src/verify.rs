@@ -182,6 +182,25 @@ const SUPPORTED: &[Supported] = &[
         },
     },
     tran("m10_mos2_tran"),
+    // MESA level 2 (#83, M10 H1a): the `mesa1` channel, `mesasetup.c`'s
+    // `#gate` node (the second device carries it; the first has zero gate
+    // resistance) and `mesaask.c`.
+    Supported {
+        name: "m10_mesa_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
     // MOS level 9 (#89), mos3's decks with level-9 cards and geometry above
     // mos9temp.c's 1 um effective-size floor: DC (tightened RELTOL), the
     // small-signal stage at 75 C with an instance DTEMP, and the inverter.
@@ -1577,6 +1596,7 @@ fn run_card_plots(
             node.kind == ngspice_rs::primitives::NodeKind::Internal
                 && !node.name.ends_with("#res")
                 && !is_tline_node(&node.name)
+                && !is_mesa_node(&node.name)
         })
         .map(|node| format!("v({})", node.name))
         .collect();
@@ -1597,6 +1617,16 @@ fn is_tline_node(name: &str) -> bool {
             name.strip_suffix(suffix)
                 .is_some_and(|stem| stem.ends_with('#'))
         })
+}
+
+/// The macspice MESA/HFET node names. `outitf.c`'s skip list was written for
+/// mainline devices (`#source`, `#drain`, ...), so it does not cover them: the
+/// reference binary saves `v(z2#gate)` for a MESA card with `rg=10`, while it
+/// creates no `#source`/`#drain` for `rd`/`rs` at all. Keep them compared.
+fn is_mesa_node(name: &str) -> bool {
+    ["#gate", "#gs", "#gd"]
+        .iter()
+        .any(|suffix| name.ends_with(suffix))
 }
 
 /// Projects one Rust plot onto C's default save set (see

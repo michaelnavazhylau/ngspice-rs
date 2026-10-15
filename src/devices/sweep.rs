@@ -210,7 +210,7 @@ pub fn c_instance_parameter_known(designator: char, keyword: &str) -> bool {
             "dtemp",
         ],
         'j' => &["area", "m", "ic-vds", "ic-vgs", "temp", "dtemp"],
-        'z' => &["area", "m", "icvds", "icvgs"],
+        'z' => &["area", "m", "icvds", "icvgs", "l", "w", "td", "ts", "dtemp"],
         _ => &[],
     };
     keywords.iter().any(|k| k.eq_ignore_ascii_case(keyword))

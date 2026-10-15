@@ -52,6 +52,7 @@ pub mod delay;
 pub mod distortion;
 mod factory;
 pub mod functions;
+pub mod hfet;
 mod initial;
 pub mod jfet;
 pub mod jfet2;

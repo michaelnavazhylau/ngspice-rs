@@ -39,7 +39,7 @@ ported.
 | Numerical follow-up | Native SPARSE 1.3 solver with C's error policy (M10 wave 0.5, [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)); the #47 rank guard, #68 proof follow-up and the #29 constrained-RLC prototype (gates #69–#72) belonged to the removed faer/diffsol stack and are historical |
 | DC / AC | Linear and bounded nonlinear `.op`, typed/nested source/resistor/temperature/`@inst[param]` `.dc` (#97), bias-linearized `.ac` and `.pz` (#103) |
 | Transient | Ordinary `.tran`: adaptive trapezoidal / Gear-2 companion driver with truncation-error control and breakpoint landing (#26, [TRANSIENT.md](docs/port/TRANSIENT.md)), linear and bounded nonlinear charge paths, `.ic`/`uic`/`.nodeset` and D/Q/M `off`/`ic=` for linear and nonlinear circuits (#27, #99); the only backend (`backend=diffsol`, the removed adaptive BDF, is an explicit error) |
-| Nonlinear devices | Bounded diode/MOS1/MOS2/MOS3/MOS6/MOS9, Gummel-Poon level-1 BJT (#87), JFET levels 1 and 2 (#82) and MESFET level 1 (#83) DC/AC/charge-companion paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
+| Nonlinear devices | Bounded diode/MOS1/MOS2/MOS3/MOS6/MOS9, Gummel-Poon level-1 BJT (#87), JFET levels 1 and 2 (#82), MESFET level 1 and MESA level 2 (#83) DC/AC paths; [M4 support/gate](docs/port/M4_NONLINEAR.md) |
 | CLI | Inspection/parsing plus `spice-rs simulate --output <path> <deck>` (#6): every analysis card of the deck through the production runner in ngspice batch order with one plot per analysis (#96), per-analysis `.save`/`.print`/`.measure`/`.four`, atomic rawfile (ASCII or binary, #112) written via temporary file plus rename; exits 0/1/2/3. See [CLI.md](docs/port/CLI.md) |
 | Output selection | `.save`/`.print` cards project the full plot into the written rawfile in C `dbs` order with first-wins dedup and bounded operand support (`v(n)`, `v(n1,n2)`, `i(source|inductor|E|H)`, `vm`/`vp`/`vr`/`vi`/`vdb`); `.print` also renders a text table; unsupported/unresolvable requests fail before publishing; `.plot` unported (#42, [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md)) |
 | Measurements | `.measure`/`.meas` bounded subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) evaluated over the full plot before output selection narrows it; a failing card fails the run; the remaining variants are unported (#43, [MEASURE.md](docs/port/MEASURE.md)) |
@@ -423,3 +423,13 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   opt-in `c_mesfet_reference`. Explicit errors: `.disto` (`mesdset.c`),
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
+- [ ] MESA level 2 (#83, M10 H1a, `wip/m10-mesa-h1a`): `mesa1` channel,
+  `mesasetup.c`'s `#gate`, the `mesaask.c` table, `.op`/`.dc` plus the
+  small-signal assembly a swept `.dc` needs, the `pmf` -> NMF coercion and
+  `tests/mesa.rs`. Boundaries, each an explicit error: every resistance path
+  other than `rg` (`rd`/`rs` fold into `mesaload.c` with no node, `ri`/`rf`
+  create `#gs`/`#gd`), `mesatrunc.c` charges (H1b) and `mesapzl.c` (H2).
+  `m10_mesa_op`/`m10_mesa_dc` verify against the reference binary. The last
+  residual (a ~1.2e-6 drain current) was C's `EPSILONGAAS` spelling,
+  `12.244*8.85418e-12`, against the port's modern `eps0`. See
+  [MESFET.md](docs/port/MESFET.md).
