@@ -1,0 +1,143 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_mesa_tran.cir
+title: "MESA level 2 transient: gate pulse through every resistance path" @netlists/m10_mesa_tran.cir:1:1
+card 1 @netlists/m10_mesa_tran.cir:2:1 lines=2-2 continuations=0
+  raw: "vdd 1 0 dc 3"
+  kind: device(v)
+  token 1 2:1 word "vdd"
+  token 2 2:5 number "1" value=1e0
+  token 3 2:7 number "0" value=0e0
+  token 4 2:9 word "dc"
+  token 5 2:12 number "3" value=3e0
+card 2 @netlists/m10_mesa_tran.cir:3:1 lines=3-3 continuations=0
+  raw: "vids 1 2 dc 0"
+  kind: device(v)
+  token 1 3:1 word "vids"
+  token 2 3:6 number "1" value=1e0
+  token 3 3:8 number "2" value=2e0
+  token 4 3:10 word "dc"
+  token 5 3:13 number "0" value=0e0
+card 3 @netlists/m10_mesa_tran.cir:4:1 lines=4-4 continuations=0
+  raw: "vg 3 0 dc 0 pulse(-1.5 0.5n 0.5n 0.1n 0.1n 1n 4n)"
+  kind: device(v)
+  token 1 4:1 word "vg"
+  token 2 4:4 number "3" value=3e0
+  token 3 4:6 number "0" value=0e0
+  token 4 4:8 word "dc"
+  token 5 4:11 number "0" value=0e0
+  token 6 4:13 word "pulse"
+  token 7 4:18 lparen "("
+  token 8 4:19 number "-1.5" value=-1.5e0
+  token 9 4:24 number "0.5n" value=5e-10
+  token 10 4:29 number "0.5n" value=5e-10
+  token 11 4:34 number "0.1n" value=1e-10
+  token 12 4:39 number "0.1n" value=1e-10
+  token 13 4:44 number "1n" value=1e-9
+  token 14 4:47 number "4n" value=4e-9
+  token 15 4:49 rparen ")"
+card 4 @netlists/m10_mesa_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "z1 2 3 0 m1 l=1u w=40u"
+  kind: device(z)
+  token 1 5:1 word "z1"
+  token 2 5:4 number "2" value=2e0
+  token 3 5:6 number "3" value=3e0
+  token 4 5:8 number "0" value=0e0
+  token 5 5:10 word "m1"
+  token 6 5:13 word "l"
+  token 7 5:14 equals "="
+  token 8 5:15 number "1u" value=1e-6
+  token 9 5:18 word "w"
+  token 10 5:19 equals "="
+  token 11 5:20 number "40u" value=3.9999999999999996e-5
+card 5 @netlists/m10_mesa_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "z2 2 3 0 m2 l=2u w=20u dtemp=50"
+  kind: device(z)
+  token 1 6:1 word "z2"
+  token 2 6:4 number "2" value=2e0
+  token 3 6:6 number "3" value=3e0
+  token 4 6:8 number "0" value=0e0
+  token 5 6:10 word "m2"
+  token 6 6:13 word "l"
+  token 7 6:14 equals "="
+  token 8 6:15 number "2u" value=2e-6
+  token 9 6:18 word "w"
+  token 10 6:19 equals "="
+  token 11 6:20 number "20u" value=1.9999999999999998e-5
+  token 12 6:24 word "dtemp"
+  token 13 6:29 equals "="
+  token 14 6:30 number "50" value=5e1
+card 6 @netlists/m10_mesa_tran.cir:7:1 lines=7-7 continuations=0
+  raw: ".model m1 nmf(level=2 rd=100 rs=50 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50)"
+  kind: dot(.model)
+  token 1 7:1 word ".model"
+  token 2 7:8 word "m1"
+  token 3 7:11 word "nmf"
+  token 4 7:14 lparen "("
+  token 5 7:15 word "level"
+  token 6 7:20 equals "="
+  token 7 7:21 number "2" value=2e0
+  token 8 7:23 word "rd"
+  token 9 7:25 equals "="
+  token 10 7:26 number "100" value=1e2
+  token 11 7:30 word "rs"
+  token 12 7:32 equals "="
+  token 13 7:33 number "50" value=5e1
+  token 14 7:36 word "rg"
+  token 15 7:38 equals "="
+  token 16 7:39 number "10" value=1e1
+  token 17 7:42 word "ri"
+  token 18 7:44 equals "="
+  token 19 7:45 number "1e3" value=1e3
+  token 20 7:49 word "rf"
+  token 21 7:51 equals "="
+  token 22 7:52 number "2e3" value=2e3
+  token 23 7:56 word "rdi"
+  token 24 7:59 equals "="
+  token 25 7:60 number "50" value=5e1
+  token 26 7:63 word "rsi"
+  token 27 7:66 equals "="
+  token 28 7:67 number "50" value=5e1
+  token 29 7:69 rparen ")"
+card 7 @netlists/m10_mesa_tran.cir:8:1 lines=8-8 continuations=0
+  raw: ".model m2 nmf(level=2 rd=31 rs=31 rg=10)"
+  kind: dot(.model)
+  token 1 8:1 word ".model"
+  token 2 8:8 word "m2"
+  token 3 8:11 word "nmf"
+  token 4 8:14 lparen "("
+  token 5 8:15 word "level"
+  token 6 8:20 equals "="
+  token 7 8:21 number "2" value=2e0
+  token 8 8:23 word "rd"
+  token 9 8:25 equals "="
+  token 10 8:26 number "31" value=3.1e1
+  token 11 8:29 word "rs"
+  token 12 8:31 equals "="
+  token 13 8:32 number "31" value=3.1e1
+  token 14 8:35 word "rg"
+  token 15 8:37 equals "="
+  token 16 8:38 number "10" value=1e1
+  token 17 8:40 rparen ")"
+card 8 @netlists/m10_mesa_tran.cir:9:1 lines=9-9 continuations=0
+  raw: ".options reltol=1e-6 vntol=1e-10 abstol=1e-14"
+  kind: dot(.options)
+  token 1 9:1 word ".options"
+  token 2 9:10 word "reltol"
+  token 3 9:16 equals "="
+  token 4 9:17 number "1e-6" value=1e-6
+  token 5 9:22 word "vntol"
+  token 6 9:27 equals "="
+  token 7 9:28 number "1e-10" value=1e-10
+  token 8 9:34 word "abstol"
+  token 9 9:40 equals "="
+  token 10 9:41 number "1e-14" value=1e-14
+card 9 @netlists/m10_mesa_tran.cir:10:1 lines=10-10 continuations=0
+  raw: ".tran 0.05n 3n"
+  kind: dot(.tran)
+  token 1 10:1 word ".tran"
+  token 2 10:7 number "0.05n" value=4.9999999999999995e-11
+  token 3 10:13 number "3n" value=3.0000000000000004e-9
+card 10 @netlists/m10_mesa_tran.cir:11:1 lines=11-11 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 11:1 word ".end"

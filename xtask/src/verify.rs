@@ -201,6 +201,7 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::NONLINEAR,
         },
     },
+    tran("m10_mesa_tran"),
     // The resistance paths (#155): `rd`/`rs` (the prime nodes, which C's
     // rawfile omits), `rg`, `ri`/`rf` (`#gs`/`#gd`) and the `rdi`/`rsi`
     // series pair, with the `rtc1`/`rtc2` temperature scaling in the second
@@ -767,6 +768,8 @@ const SUPPORTED: &[Supported] = &[
     pole_zero("pz_cv_loop"),
     pole_zero("pz_diode"),
     pole_zero("pz_mos1"),
+    // The MESA load is `mesapzl.c` = `mesaacl.c` with `s` for `j omega`.
+    pole_zero("m10_mesa_pz"),
     // `.tf` transfer function (#101): a passive ladder (inductor short,
     // capacitor open) and a current-driven E/G amplifier with a sensed current
     // output keep the linear DC bound; the Gummel-Poon stage, linearised at its

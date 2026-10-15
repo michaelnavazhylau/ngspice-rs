@@ -25,9 +25,10 @@ use crate::devices::hfet::{Instance, Model};
 use crate::devices::initial::InstanceInitial;
 use crate::devices::jfet::{BOLTZMANN, CHARGE};
 use crate::devices::limiting;
+use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::{
-    Device, DeviceState, IterationPhase, LinearContext, ModelContext, ResolvedModel, StampContext,
-    sweep::check_swept,
+    AnalysisMode, Device, DeviceState, IterationPhase, LinearContext, ModelContext, ResolvedModel,
+    StampContext, sweep::check_swept,
 };
 use crate::maths::Vector;
 use crate::netlist::ast::DeviceInstance;
@@ -50,7 +51,8 @@ const N_MIN: Real = 1e-38;
 const SWEEPABLE: [&str; 8] = ["l", "w", "m", "icvds", "icvgs", "td", "ts", "dtemp"];
 
 /// The state slots of `MESAload`'s `CKTstate0`, in the port's own order (C's
-/// `MESAnumStates` has a different one, which nothing here needs).
+/// `MESAnumStates` has a different one, which nothing here needs). Each charge
+/// is followed by its derivative, as `CKTterr` and `NIintegrate` require.
 mod slot {
     pub(super) const VGS: usize = 0;
     pub(super) const VGSPP: usize = 1;
@@ -65,10 +67,14 @@ mod slot {
     pub(super) const GGS: usize = 10;
     pub(super) const GGD: usize = 11;
     pub(super) const GGSPP: usize = 12;
-    pub(super) const CGSPP: usize = 13;
-    pub(super) const GGDPP: usize = 14;
-    pub(super) const CGDPP: usize = 15;
-    pub(super) const COUNT: usize = 16;
+    pub(super) const GGDPP: usize = 13;
+    /// C `MESAqgs`/`MESAcqgs` and `MESAqgd`/`MESAcqgd`: the accumulated gate
+    /// charges and their integrated derivatives.
+    pub(super) const QGS: usize = 14;
+    pub(super) const CQGS: usize = 15;
+    pub(super) const QGD: usize = 16;
+    pub(super) const CQGD: usize = 17;
+    pub(super) const COUNT: usize = 18;
 }
 
 /// `mesatemp.c`'s per-instance quantities.
@@ -841,6 +847,10 @@ impl Device for Mesa {
     fn state_count(&self) -> usize {
         slot::COUNT
     }
+    /// `mesatrunc.c`: both gate charges control the timestep.
+    fn truncation_slots(&self) -> Vec<usize> {
+        vec![slot::QGS, slot::QGD]
+    }
     /// `mesaask.c`: `l`, `m`, the given `icvds`/`icvgs`, and the instance
     /// temperatures in Celsius (`td`/`ts` store kelvin) plus `dtemp`.
     fn observation_parameter(
@@ -874,6 +884,17 @@ impl Device for Mesa {
         let keys = [
             "vgs", "vgd", "cg", "cd", "cgd", "gm", "gds", "ggs", "ggd", "cs", "p",
         ];
+        // `mesaask.c` also reports `qgs`/`cqgs`/`qgd`/`cqgd` from `CKTstate0`.
+        // C accumulates them across accepted points (a `.dc` sweep carries the
+        // previous point's charge), and this hook sees only the converged
+        // solution, so they are refused rather than recomputed from the bias
+        // and reported as if they were C's.
+        if matches!(key, "qgs" | "cqgs" | "qgd" | "cqgd") {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: MESA @{}[{key}]", self.name, self.name),
+                "src/spicelib/devices/mesa/mesaask.c (MESAqgs/MESAcqgs read CKTstate0)",
+            ));
+        }
         if !keys.contains(&key) {
             return Ok(None);
         }
@@ -964,12 +985,6 @@ impl Device for Mesa {
         if context.mode.is_ac() {
             return Err(self.is_ac());
         }
-        if context.mode.is_transient() {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: MESA level 2 transient analysis", self.name),
-                "src/spicelib/devices/mesa/mesaload.c (charge storage), mesatrunc.c (H1b)",
-            ));
-        }
         let derived = self.derived(context.temperature, context.nominal_temperature)?;
         let gmin = context.gmin;
         let m = self.instance.m;
@@ -1020,6 +1035,104 @@ impl Device for Mesa {
         );
         let von = derived.tvto + self.model.ks * (voltage(self.nodes.sp) - self.model.vsg);
         let point = self.point(&derived, vgs, vgd, von, gmin)?;
+        // `mesaload.c`'s charge storage, which C runs before its convergence
+        // test because the test compares `cghat` with the *integrated* `cg`.
+        // The trial charge accumulates from the accepted charge and the
+        // prime-prime voltage - macspice's incremental form, where the JFET
+        // computes a closed-form charge - and only a transient load
+        // integrates it. `.dc` still accumulates (C's `MODEDCTRANCURVE`), so
+        // `@z1[qgs]` reports it mid-sweep without changing a stamp.
+        let initial_transient =
+            context.states.initial_transient() && context.states.phase() == IterationPhase::Predict;
+        let mut cg = point.cg;
+        let mut cd = point.cd;
+        let (mut ggspp, mut ggdpp, mut cgspp, mut cgdpp) = (0., 0., 0., 0.);
+        let (mut qgs, mut qgd) = (0., 0.);
+        if matches!(
+            context.mode,
+            AnalysisMode::Transient { .. } | AnalysisMode::DcSweep
+        ) {
+            // C reads `state1[MESAvgspp]`/`state1[MESAvgdpp]` first, patches
+            // `state1[MESAqgs]` for `MODEINITTRAN`, and only then accumulates.
+            let vgs1 = context
+                .states
+                .accepted(1, slot::VGSPP)
+                .filter(|v| v.is_finite())
+                .unwrap_or(vgspp);
+            let vgd1 = context
+                .states
+                .accepted(1, slot::VGDPP)
+                .filter(|v| v.is_finite())
+                .unwrap_or(vgdpp);
+            if initial_transient {
+                context
+                    .states
+                    .patch_state1(slot::QGS, point.capgs * vgspp)?;
+                context
+                    .states
+                    .patch_state1(slot::QGD, point.capgd * vgdpp)?;
+            }
+            let qgs1 = context
+                .states
+                .accepted(1, slot::QGS)
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.);
+            let qgd1 = context
+                .states
+                .accepted(1, slot::QGD)
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.);
+            qgs = qgs1 + point.capgs * (vgspp - vgs1);
+            qgd = qgd1 + point.capgd * (vgdpp - vgd1);
+            if initial_transient {
+                // C copies the accumulated charge into `CKTstate1` before
+                // `NIintegrate`, so the integration history starts there.
+                context.states.patch_state1(slot::QGS, qgs)?;
+                context.states.patch_state1(slot::QGD, qgd)?;
+            }
+            if let Some(coefficients) = context.integration {
+                let AnalysisMode::Transient { dt, .. } = context.mode else {
+                    return Err(SpiceError::circuit(
+                        "MESA charge companion outside transient",
+                    ));
+                };
+                if dt != coefficients.dt() {
+                    return Err(SpiceError::circuit("MESA charge timestep mismatch"));
+                }
+                let junction = |charge, capacitance| JunctionPoint {
+                    current: 0.,
+                    conductance: 0.,
+                    charge,
+                    capacitance,
+                };
+                let (geq, cqgs) = junction_companion(
+                    context,
+                    coefficients,
+                    junction(qgs, point.capgs),
+                    slot::QGS,
+                )?;
+                ggspp = geq;
+                cgspp = cqgs;
+                cg += cqgs;
+                let (geq, cqgd) = junction_companion(
+                    context,
+                    coefficients,
+                    junction(qgd, point.capgd),
+                    slot::QGD,
+                )?;
+                ggdpp = geq;
+                cgdpp = cqgd;
+                cg += cqgd;
+                cd -= cqgd;
+                if initial_transient {
+                    context.states.patch_state1(slot::CQGS, cqgs)?;
+                    context.states.patch_state1(slot::CQGD, cqgd)?;
+                }
+            }
+        }
+        // The convergence test compares the predicted currents with the
+        // integrated ones (C's `cg`/`cd` after the charge block).
+        let point = Point { cg, cd, ..point };
         let nonconvergent = match start {
             Start::Fixed => true,
             Start::Conditions | Start::Exact => false,
@@ -1058,9 +1171,6 @@ impl Device for Mesa {
         if nonconvergent {
             context.states.report_nonconvergence()?;
         }
-        // In DC the prime-prime conductances and their RHS terms are zero
-        // (`mesaload.c` only fills them from `NIintegrate`).
-        let (ggspp, ggdpp, cgspp, cgdpp) = (0., 0., 0., 0.);
         for (index, value) in [
             (slot::VGS, vgs),
             (slot::VGSPP, vgspp),
@@ -1075,9 +1185,11 @@ impl Device for Mesa {
             (slot::GGS, point.ggs),
             (slot::GGD, point.ggd),
             (slot::GGSPP, ggspp),
-            (slot::CGSPP, cgspp),
+            (slot::CQGS, cgspp),
             (slot::GGDPP, ggdpp),
-            (slot::CGDPP, cgdpp),
+            (slot::CQGD, cgdpp),
+            (slot::QGS, qgs),
+            (slot::QGD, qgd),
         ] {
             context.states.set(index, value)?;
         }
@@ -1216,15 +1328,16 @@ impl Device for Mesa {
         context.nodal([n.gp, n.dpp], m * capgd, true)?;
         Ok(())
     }
-    /// `mesapzl.c` is H1b.
+    /// `mesapzl.c` is `mesaacl.c` with `s` in place of `j omega`: identical
+    /// stamps, with `xgs`/`xgd` the gate capacitances themselves (`Ptr + 1`
+    /// becomes the `s` multiple the pole-zero pencil applies). The port
+    /// assembles the same dynamic terms, which its pole-zero analysis
+    /// multiplies by `s`.
     fn assemble_pole_zero(
         &self,
-        _context: &mut LinearContext<'_>,
-        _bias: &Vector,
+        context: &mut LinearContext<'_>,
+        bias: &Vector,
     ) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            format!("{}: MESA level 2 pole-zero analysis", self.name),
-            "src/spicelib/devices/mesa/mesapzl.c (H1b)",
-        ))
+        self.assemble_small_signal(context, bias)
     }
 }

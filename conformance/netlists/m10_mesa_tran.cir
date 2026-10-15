@@ -1,0 +1,11 @@
+MESA level 2 transient: gate pulse through every resistance path
+vdd 1 0 dc 3
+vids 1 2 dc 0
+vg 3 0 dc 0 pulse(-1.5 0.5n 0.5n 0.1n 0.1n 1n 4n)
+z1 2 3 0 m1 l=1u w=40u
+z2 2 3 0 m2 l=2u w=20u dtemp=50
+.model m1 nmf(level=2 rd=100 rs=50 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50)
+.model m2 nmf(level=2 rd=31 rs=31 rg=10)
+.options reltol=1e-6 vntol=1e-10 abstol=1e-14
+.tran 0.05n 3n
+.end

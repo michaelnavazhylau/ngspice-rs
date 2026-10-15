@@ -226,10 +226,51 @@ binary (mixed `rd`/`rs`/`rg`/`ri`/`rf`/`rdi`/`rsi`, `dtemp` and
   `defaults` list, so `.model nm nmf(dtemp=25)` shifts every instance); the
   port rejects those, a general parser gap rather than a MESA one (#161);
 the reference decks' `.print vids#branch` spelling is a second one (#162).
-- `mesatrunc.c` charge storage and `.tran` are #156 and `mesapzl.c` is #157.
 - `.noise`/`.disto`/`.sens` are #158: C's MESA entry point defines none of
   those three routines, so the reference binary runs them with MESA simply
   absent while the port refuses the run.
+
+### Charge storage and the transient load (#156)
+
+`mesaload.c`'s charge block is *not* the JFET's: MESA has no closed-form gate
+charge. C accumulates it,
+
+```c
+state0[QGS] = state1[QGS] + capgs*(vgspp - vgs1);
+```
+
+from the accepted charge and the prime-prime voltage, and only a transient load
+runs `NIintegrate` on it (`mesatrunc.c` truncates both pairs). `.dc` still
+accumulates - that is what `@z1[qgs]` reports mid-sweep - while `.op` skips the
+block entirely. The port reproduces the accumulation, the `MODEINITTRAN`
+`state1[QGS] = capgs*vgspp` seeding (and the copy of the accumulated charge
+into `state1` before integration) and the companion; the convergence test then
+compares `cghat` against the *integrated* `cg`/`cd`, as C does.
+
+`m10_mesa_tran` (a gate pulse through every resistance path, 244 accepted
+steps) verifies under `compare::TRAN`. A scratch comparison of a 100-step pulse
+showed the port landing on C's own accepted timepoints and agreeing to 4e-7
+relative on the drain current, and a second deck with `ri`/`rf`/`rdi`/`rsi`
+showing a 7e-8-relative step difference after a breakpoint, which the common
+grid absorbs.
+
+### Pole-zero (#157)
+
+`mesapzl.c` is `mesaacl.c` with `s` in place of `j omega` in the `Ptr + 1`
+entries: the port assembles the same dynamic terms and lets its pole-zero
+analysis multiply them by `s`, so `assemble_pole_zero` delegates to
+`assemble_small_signal`. C's lambda blend reads `CKTomega`, which the pole-zero
+driver never sets, so the blend frequency is 0 in both. `m10_mesa_pz` (a
+common-source stage with a current drive at the gate, as for `pz_mos1`) matches
+C's three poles and two zeros exactly.
+
+### The asks C reads from state
+
+`mesaask.c` reports `qgs`/`cqgs`/`qgd`/`cqgd` straight out of `CKTstate0`, and
+those are accumulated across accepted points: a `.dc` sweep prints the previous
+point's charge. The port's ask hook sees only the converged solution, so it
+refuses those four keys explicitly rather than recomputing them from the bias
+and presenting the result as C's.
 
 ### The `eps0` constant
 

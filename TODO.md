@@ -15,10 +15,10 @@ six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
 one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
-(`08c5169`, after the spill slice H1a in PR #151, MESA level 2), `cargo test
---workspace --locked` reports **1430 passed / 0 failed / 150 ignored** (the
+`08c5169`, after the spill slices H1a/H1b in PRs #151/#155/#160), `cargo test
+--workspace --locked` reports **1432 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
-golden verify` reports **157 verified / 1 unsupported / 0 failures** (the
+golden verify` reports **159 verified / 1 unsupported / 0 failures** (the
 unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
 build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
 for the recorded evidence.
@@ -437,16 +437,18 @@ it are marked "#85 as it then read".
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
 - [x] MESA level 2 (#83, M10 H1a/H1b): `mesa1` channel, `mesasetup.c`'s
-  internal nodes, the `mesaask.c` table, `.op`/`.dc` and the small-signal
-  assembly (`.ac`, and `.sp`/`.tf` with it), the `pmf` -> NMF coercion and
-  `tests/mesa.rs`. H1a landed in PR #151 with `m10_mesa_op`/`m10_mesa_dc`; the
-  small-signal path was already C-exact, and #155 added the resistance paths
-  (`rd`/`rs`, `rg`, `ri`/`rf`, `rdi`/`rsi`, `rtc1`/`rtc2`) with
-  `m10_mesa_res_{op,dc,ac}`. The last DC residual (a ~1.2e-6 drain current) was
-  C's `EPSILONGAAS` spelling, `12.244*8.85418e-12`, against the port's modern
-  `eps0`; the `rdi`/`rsi` slice needed `delgchgchi`'s `1/(1 + gchi rt)^2`,
-  which only a derivative or AC comparison shows. Open: `mesatrunc.c` charge
-  storage and `.tran` (#156), `mesapzl.c` (#157) and
-  `.noise`/`.disto`/`.sens` (#158, where C runs them with MESA absent). Then
+  internal nodes, the `mesaask.c` table, every load (`mesaload.c` with its
+  charge storage, `mesaacl.c`, `mesapzl.c`) and `.op`/`.dc`/`.ac`/`.sp`/`.tf`/
+  `.tran`/`.pz`, the `pmf` -> NMF coercion and `tests/mesa.rs`. H1a landed in
+  PR #151; #155 added the resistance paths (`rd`/`rs`, `rg`, `ri`/`rf`,
+  `rdi`/`rsi`, `rtc1`/`rtc2`) and #156/#157 the charge storage, the transient
+  load and `mesapzl.c`. Fixtures: `m10_mesa_{op,dc,ac,res_op,res_dc,res_ac,
+  tran,pz}`, 159 verified. Three bugs the DC goldens could not see: C's
+  `EPSILONGAAS` spelling (`12.244*8.85418e-12`, a ~1.2e-6 drain current),
+  `mesa1`'s `delgchgchi = 1/(1 + gchi rt)^2` (1.78% in `.ac` on `rdi`/`rsi`
+  alone), and the earlier reading of `rd`/`rs` as nodaless (C's rawfile omits
+  `#source`/`#drain`; `show` reports `dprimenode`/`sprimenode`). Open:
+  `.noise`/`.disto`/`.sens` (#158, where C runs them with MESA absent) and
+  the `.pz`/`.tran` `@z1[qgs]` asks, which C reads from state history. Then
   H2-H5 (MESA 3/4, HFET1, HFET2). See [MESFET.md](docs/port/MESFET.md) and
   [M10_SPILL_PLAN.md](docs/port/M10_SPILL_PLAN.md).
