@@ -155,6 +155,9 @@ breakpoint at the `.tran` step; the comparator starts at the first common sample
 | `m10_jfet2_ac` | `.ac` | Parker-Skellern common-source stage: TAUG/TAUD dispersion (`PSacload`), Statz CGS/CGD with ACGAM/XC, CDS, RD/RS, `area`, `m` (#82) |
 | `m10_jfet2_tran` | `.tran` | Parker-Skellern NJF stage (TAUG/TAUD filters, Statz charge, CDS) and PJF stage; `tmax` 0.25 ns, tight RELTOL/VNTOL (#82) |
 | `m10_jfet2_temp` | `.dc temp` | Parker-Skellern TNOM, TEMP/DTEMP, IS(T), VBI(T), forward gate with RS, PJF (#82) |
+| `m10_mesfet_dc` | `.dc` | Statz MESFET output/transfer sweep: B/ALPHA/LAMBDA, cubic saturation, RD/RS, inverse mode, forward gate, PMF `area`/`m`, VT0/VTO alias and tail type flags; tight RELTOL (#83) |
+| `m10_mesfet_ac` | `.ac` | common-source MESFET: Statz `qggnew` gate capacitances, RD/RS, `area`, `m` (#83) |
+| `m10_mesfet_tran` | `.tran` | MESFET NMF switching stage and sine-driven PMF stage, incremental Statz gate charge; `tmax` 0.1 ns, tight RELTOL/VNTOL (#83) |
 | `m10_urc_tran` | `.tran` | URC lines (#85): FMAX-rule 10-section ladder (K=2), `n=4` on a DC-biased reference, C's 3-section minimum; generated `u1#hi<i>`/`u1#lo<i>` nodes |
 | `m10_urc_ac` | `.ac` | URC lines: 16-section FMAX-rule line, `n=6` with the reference tied to the input, a single section (`n=1`) |
 | `m10_ltra_tran` | `.tran` | lossy lines (#85): LC line ringing between 25 ohm and 200 ohm, RLC line (`mixedinterp`) with Bessel convolutions, RG line's DC two-port; `o1#i1`-style current nodes |
@@ -235,3 +238,6 @@ See [JFET.md](../../docs/port/JFET.md) and
 [VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-jfet-level-1-82).
 The four `m10_jfet2_*` decks (#82 part 2) were captured the same way; see
 [VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-jfet-level-2-82).
+The three `m10_mesfet_*` decks (#83) were captured the same way; see
+[MESFET.md](../../docs/port/MESFET.md) and
+[VERIFICATION.md](../../docs/port/VERIFICATION.md#m10-mesfet-level-1-83).

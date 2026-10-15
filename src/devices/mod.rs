@@ -57,6 +57,7 @@ pub mod jfet;
 pub mod jfet2;
 pub mod limiting;
 pub mod linear;
+pub mod mesfet;
 pub mod models;
 pub mod mos;
 pub mod mos1;

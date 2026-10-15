@@ -1,0 +1,11 @@
+MESFET common-source amplifier: Statz gate capacitance, RD/RS, area and m
+vdd vdd 0 8
+vin in 0 dc -0.6 ac 1
+rg in g 10k
+rl vdd d 1k
+rsrc s 0 100
+cs s 0 1u
+z1 d g s zn area=1.5 m=2
+.model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=10 rs=8 cgs=1p cgd=0.3p pb=0.8 is=2e-14)
+.ac dec 10 1k 10g
+.end

@@ -73,7 +73,7 @@ Every analysis writes C's plots, in C's order:
   written (`step % n == 0`), exactly as C; the integration still uses every
   frequency.
 * Instances appear in C's `CKTnoise` order: device types in the `DEVices[]`
-  order of `dev.c` (BJT, W, diode, MOS1, R, S), then models in reverse order of
+  order of `dev.c` (BJT, W, diode, MES, MOS1, MOS3, R, S), then models in reverse order of
   their creation (a model is created when the first instance naming it is
   parsed; literal resistors share C's default model), then instances in
   reverse deck order. Generator suffixes:
@@ -83,7 +83,7 @@ Every analysis writes C's plots, in C's order:
   | R | `_thermal`, `_1overf` |
   | D | `_rs`, `_id`, `_1overf`, `_rsw`, `_idsw`, `_1overfsw` |
   | Q | `_rc`, `_rci`, `_rb`, `_re`, `_ic`, `_ib`, `_1overf` |
-  | M (MOS1, MOS3) | `_rd`, `_rs`, `_id`, `_1overf` |
+  | M (MOS1, MOS3), Z (MES) | `_rd`, `_rs`, `_id`, `_1overf` |
   | S, W | one generator, named `onoise_<inst>`, no separate total |
 
 * A `.noise` card therefore occupies two batch plot names (`noise1 noise2`, or
@@ -130,6 +130,7 @@ kind and whether its card gave an `ac` value.
 | Q | `bjtnoise.c` | RC/RE thermal (`m` included) and RB thermal of the bias-dependent `gx` (RBM/IRB); shot of `cc` and `cb` (`m` included); flicker `m KF abs(cb)^AF / f` between the internal base and emitter; `_rci` zero (no quasi-saturation) |
 | M (MOS1) | `mos1noi.c` | RD/RS thermal; channel thermal `2/3 abs(gm)` (NLEV < 3) or the GDSNOI region formula (NLEV 3); flicker NLEV 0 `m KF abs(cd/m)^AF / (f Leff^2 Cox)`, NLEV 1 `... / (f W Leff Cox)`, NLEV 2/3 `KF gm^2 / m / (f^AF W Leff Cox)`, `Cox` for `TOX = 1e-7 m` when the model has none; defaults KF 0, AF 1, NLEV 2, GDSNOI 1 |
 | M (MOS3) | `mos3noi.c` | the MOS1 generators through the shared `devices::mos` shell; the flicker laws use `W - 2 WD` and `L - 2 LD` (C ignores XW/XL there) and the model `Cox` (TOX defaults to 1e-7 m), the NLEV 3 `beta` is `tKP m W / (L - 2 LD)` with the drawn width; checked against live C by `tests/c_noise_reference.rs` (`mos3_noise_matches_c`, also in the SPICE3 flicker form) |
+| Z (MES) | `mesnoise.c` | RD/RS thermal (`AREA M / R`) at the circuit temperature; channel thermal `2/3 M abs(gm)` and flicker `M KF abs(cd)^AF / f` between the intrinsic drain and source, `cd` being C's `MEScd` (channel minus gate-drain diode current); checked against live C by `tests/c_mesfet_reference.rs` |
 | S, W | `swnoise.c`, `cswnoise.c` | thermal of the on or off conductance at the circuit temperature, decided from the small-signal state (any non-zero code is on) |
 
 `KF`/`AF` on D, Q and M models, `KF`/`AF`/`EF`/`LF`/`WF` on R models, MOS1

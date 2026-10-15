@@ -406,3 +406,16 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   `c_jfet2_reference`. Explicit errors: `.pz` (no C `DEVpzLoad`), `.noise`
   (`jfet2noi.c`), `.disto`, `.sens`, transient `@j[gm|gds|ggs|ggd|igd|vtrap|vpave]`.
   See [JFET.md](docs/port/JFET.md#level-2-parker-skellern).
+- [x] MESFET level 1, Statz (#83, wave 3, `work/m10-mesfet`): `Z` grammar
+  (`inp2z.c`; the unlabeled leading value C drops for MES is refused),
+  `nmf`/`pmf` model family (level 0/1; MESA 2-4, HFET1 5, HFET2 6 and others
+  `NotYetPorted`), `devices::mesfet` (`mesload.c` channel with the cubic
+  saturation polynomial in normal/inverse mode, gate diodes at C's fixed
+  `CONSTvt0`, incremental `qggnew` gate charge, RD/RS internal nodes, area/m,
+  `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`), `mesacl.c`/`mespzld.c`
+  small-signal and pole-zero loads, `mesnoise.c` noise, `mestrunc.c`
+  truncation, `mesask.c` observations and `@z[area|m|icvds|icvgs]` sweeps.
+  C goldens `m10_mesfet_dc`/`_ac`/`_tran` (140 verified), `tests/mesfet.rs`,
+  opt-in `c_mesfet_reference`. Explicit errors: `.disto` (`mesdset.c`),
+  `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
+  `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).

@@ -68,10 +68,12 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
             | "njf" | "pjf"
             // Lossy transmission line (`ltra/ltra.c`).
             | "ltra"
+            // MESFET (`mes/mes.c`; other levels are `mesa/`, `hfet1/`, `hfet2/`).
+            | "nmf" | "pmf"
     ) {
         return Err(gap(
             input,
-            "model family outside D/BJT/MOS/JFET/R/C/L/SW/CSW/URC scalar syntax",
+            "model family outside D/BJT/MOS/JFET/MESFET/R/C/L/SW/CSW/URC scalar syntax",
         ));
     }
     any.parse_next(input)
@@ -113,6 +115,8 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             "csw",
             "njf",
             "pjf",
+            "nmf",
+            "pmf",
             "urc",
             "ltra",
             "nocontrol",

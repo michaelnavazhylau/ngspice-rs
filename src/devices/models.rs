@@ -70,6 +70,11 @@ pub enum ModelFamily {
     /// Lossy transmission line (`ltra`, `ltra/ltra.c`), simulated by
     /// [`crate::devices::ltra`].
     Ltra,
+    /// N-channel MESFET/HFET family (`nmf`; level 1 `mes/`, levels 2-4
+    /// `mesa/`, 5 `hfet1/`, 6 `hfet2/`).
+    Nmf,
+    /// P-channel MESFET/HFET family (`pmf`; levels as for [`Self::Nmf`]).
+    Pmf,
 }
 
 impl ModelFamily {
@@ -91,6 +96,8 @@ impl ModelFamily {
             "pjf" => Some(Self::Pjf),
             "urc" => Some(Self::Urc),
             "ltra" => Some(Self::Ltra),
+            "nmf" => Some(Self::Nmf),
+            "pmf" => Some(Self::Pmf),
             _ => None,
         }
     }
@@ -111,6 +118,7 @@ impl ModelFamily {
             Self::Njf | Self::Pjf => 'j',
             Self::Urc => 'u',
             Self::Ltra => 'o',
+            Self::Nmf | Self::Pmf => 'z',
         }
     }
 }
@@ -264,7 +272,7 @@ impl<'a> ModelResolver<'a> {
         let Some(name) = &instance.model else {
             if matches!(
                 instance.designator.to_ascii_lowercase(),
-                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'o'
+                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'o' | 'z'
             ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),
@@ -744,6 +752,8 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
         ModelFamily::Resistor if card.base.eq_ignore_ascii_case("r") => first_integer,
         // inpdomod.c: NJF/PJF level 0 or 1 is JFET, 2 is JFET2.
         ModelFamily::Njf | ModelFamily::Pjf => first_integer.max(1),
+        // inpdomod.c: NMF/PMF level 0 or 1 is MES, 2-4 MESA, 5 HFET1, 6 HFET2.
+        ModelFamily::Nmf | ModelFamily::Pmf => first_integer.max(1),
         _ => 1,
     };
     let applied = (family == ModelFamily::Diode).then_some(last.unwrap_or(1));
@@ -757,11 +767,30 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
             "src/spicelib/parser/inpdomod.c (only JFET levels 1-2 exist in C)",
         ));
     }
+    if matches!(family, ModelFamily::Nmf | ModelFamily::Pmf) && selector != 1 {
+        // inpdomod.c maps levels 2-6 to MESA/HFET1/HFET2 and rejects the rest.
+        let reference = match selector {
+            2..=4 => "src/spicelib/devices/mesa/ (MESA: mesamparam.c, mesasetup.c, mesaload.c)",
+            5 => "src/spicelib/devices/hfet1/ (HFET1: hfetmpar.c, hfetsetup.c, hfetload.c)",
+            6 => "src/spicelib/devices/hfet2/ (HFET2: hfet2mpar.c, hfet2setup.c, hfet2load.c)",
+            _ => {
+                "src/spicelib/parser/inpdomod.c (only MESFET levels 1-4 and HFET levels 5-6 exist in C)"
+            }
+        };
+        return Err(SpiceError::not_yet_ported(
+            format!(
+                "{location}: {:?} model '{}' level {selector}",
+                family, card.name
+            ),
+            reference,
+        ));
+    }
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
         // MOS1 (`mos1/`) and MOS3 (`mos3/`); `inpdomod.c` maps the others.
         ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1 | 3),
         ModelFamily::Njf | ModelFamily::Pjf => true,
+        ModelFamily::Nmf | ModelFamily::Pmf => true,
         ModelFamily::Diode => applied == Some(1),
         ModelFamily::Resistor if card.base.eq_ignore_ascii_case("r") => selector <= 1,
         _ => selector == 1 && first_integer == 1,

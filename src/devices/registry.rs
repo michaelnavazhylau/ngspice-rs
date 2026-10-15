@@ -13,7 +13,8 @@
 //! - **ported**: R/C/L/V/I, E/F/G/H controlled, B behavioural, K (mutual
 //!   inductance) and T (lossless transmission line), built from the card
 //!   alone by [`Registry::instantiate`];
-//! - **bounded**: D/Q/M/J (diode, Gummel-Poon BJT, MOS1/MOS3, JFET levels 1-2), S/W
+//! - **bounded**: D/Q/M/J/Z (diode, Gummel-Poon BJT, MOS1/MOS3, JFET levels 1-2,
+//!   MESFET level 1), S/W
 //!   switches, X subcircuit instances and U uniform RC lines (expanded into
 //!   generated R/C/D elements), which need the deck (a `.model` card or a
 //!   `.subckt` definition) and are built by [`crate::devices::Circuit::from_netlist`]
@@ -474,13 +475,13 @@ mod tests {
         let registry = Registry::with_builtins();
         let mut nodes = crate::primitives::NodeTable::new();
         let error = registry
-            .instantiate(&card("z1 d g s zm"), &mut nodes)
+            .instantiate(&card("y1 a 0 b 0 ym"), &mut nodes)
             .expect_err("not ported");
         assert!(error.is_not_yet_ported());
         let message = error.to_string();
-        assert!(message.contains("device instance 'z1'"), "{message}");
-        assert!(message.contains("inp2z.c"), "{message}");
-        assert!(message.contains("mes/"), "{message}");
+        assert!(message.contains("device instance 'y1'"), "{message}");
+        assert!(message.contains("inp2y.c"), "{message}");
+        assert!(message.contains("txl/"), "{message}");
         assert!(nodes.is_empty(), "a stub factory must not intern nodes");
     }
 

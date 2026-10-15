@@ -685,6 +685,8 @@ impl Writer {
                 | "pjf"
                 | "urc"
                 | "ltra"
+                | "nmf"
+                | "pmf"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -714,6 +716,7 @@ impl Writer {
                             "truncnr",
                             "truncdontcut",
                         ],
+                        "nmf" | "pmf" => &["nmf", "pmf"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {
@@ -765,7 +768,7 @@ impl Writer {
             'r' | 'c' | 'l' | 'v' | 'i' | 'd' | 'f' | 'h' | 'w' => count == 2,
             'q' => count == 3 || count == 4,
             'm' | 'e' | 'g' | 's' | 't' | 'o' => count == 4,
-            'j' | 'u' => count == 3,
+            'j' | 'u' | 'z' => count == 3,
             'x' => true,
             'k' => count == 0,
             _ => {
@@ -806,7 +809,7 @@ impl Writer {
             ('v' | 'i' | 'e' | 'f' | 'g' | 'h' | 'k' | 't', Some(_)) => {
                 return Err(refuse("source with a model", Some(location)));
             }
-            ('d' | 'q' | 'm' | 'x' | 's' | 'w' | 'j' | 'u' | 'o', None) => {
+            ('d' | 'q' | 'm' | 'x' | 's' | 'w' | 'j' | 'u' | 'o' | 'z', None) => {
                 return Err(refuse("device without a model/target", Some(location)));
             }
             (_, Some(model)) => {
@@ -1684,6 +1687,7 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
             "area", "areab", "areac", "m", "icvbe", "icvce", "temp", "dtemp",
         ],
         'j' => &["area", "m", "ic-vds", "ic-vgs", "temp", "dtemp"],
+        'z' => &["area", "m", "icvds", "icvgs"],
         _ => &[
             "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
             "dtemp",
@@ -1700,6 +1704,7 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
                     'q' => &["icvbe", "icvce"],
                     'm' => &["icvds", "icvgs", "icvbs"],
                     'j' => &["ic-vds", "ic-vgs"],
+                    'z' => &["icvds", "icvgs"],
                     _ => &[],
                 };
                 if components.is_empty()

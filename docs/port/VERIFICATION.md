@@ -1649,6 +1649,47 @@ The opt-in `tests/c_jfet2_reference.rs` adds live comparisons of saved
 and breakdown), a nested `@j1[area]` x `@j1[temp]` sweep and a `uic`
 transient (same step count as C, within `compare::TRAN`).
 
+## M10 MESFET level 1 (#83)
+
+Three new C goldens of the Statz MESFET (`Z`, `nmf`/`pmf` level 1), each
+captured with `cargo xtask golden capture --netlist <name>`; no existing
+golden was recaptured and no tolerance changed. (`m10_mesfet_tran` was
+captured twice while its deck was being designed, before it was committed.)
+
+| Fixture | Gate | Result |
+| --- | --- | --- |
+| `m10_mesfet_dc` | `compare::NONLINEAR` | 231 points (nested `vds` x `vgs` sweep) |
+| `m10_mesfet_ac` | `compare::NONLINEAR` | 71 points |
+| `m10_mesfet_tran` | `compare::TRAN` | 591 instants + 20 breakpoint limits, worst 0.024 of bound |
+
+Deck design, measured against the same C binary:
+
+- **Tight DC tolerances**, as for the JFET decks (`reltol=1e-7 vntol=1e-12
+  abstol=1e-15`), so C's own Newton stopping error stays inside 1 ppm with
+  RD/RS and a forward-biased gate.
+- **Transient options.** The PMF stage's gate is driven directly by a
+  20 MHz sine, so `i(vin2)` is the Statz gate charging current, which crosses
+  zero at verified instants (38 ns, 88 ns, ...). There the pointwise `TRAN`
+  bound shrinks to its 1 pA floor, and at default tolerances C's Newton
+  stopping error (about 1e-8 A on the first step) put `i(vin2)` at 4.96 times
+  the bound. `reltol=1e-6 vntol=1e-10 abstol=1e-14` bring every vector to
+  0.024 of the bound; `tmax = 0.1 ns` bounds both integrators' step error.
+- **Timestep parity.** With the tightened options the step sequence is set by
+  `CKTterr`, whose charge tolerance scales with `|q|`. The port first stored
+  zero gate charges at the operating point (as `devices::jfet2` does) and took
+  a different second step (3108 against C's 3036 points); storing the total
+  charge, which `mesload.c`'s `MODEINITTRAN` load writes into `CKTstate1`,
+  makes the C and port step sequences identical.
+- **No `off` instance** in the goldens: as for the JFET, C's operating point
+  only converges through its transient-operating-point fallback
+  ([MESFET.md](MESFET.md#newton-start-and-limiting)).
+
+The opt-in `tests/c_mesfet_reference.rs` adds live comparisons of saved
+`@z[...]` asks of both polarities, a nested `@z1[area]` x `@z1[m]` sweep,
+`.pz` roots of a common-source stage, the `.noise` spectral densities of
+every `mesnoise.c` generator (agreeing to about 1e-11 relative) and a `uic`
+transient with an `off` device.
+
 ## Model binning verification (#109)
 
 C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so

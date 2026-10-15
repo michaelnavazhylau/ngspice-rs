@@ -41,6 +41,10 @@ fn terminal(device: &dyn Device, key: &str) -> Option<usize> {
         ('j', "id") => Some(0),
         ('j', "ig") => Some(1),
         ('j', "is") => Some(2),
+        // mesask.c MES_CD, MES_CG, MES_CS.
+        ('z', "cd") => Some(0),
+        ('z', "cg") => Some(1),
+        ('z', "is") => Some(2),
         _ => None,
     }
 }
@@ -51,6 +55,10 @@ pub fn unit(name: &str) -> &'static str {
     let (device, key) = query(name).unwrap_or(("", ""));
     if key == "ic" && device.starts_with('c') {
         return "voltage";
+    }
+    // mesask.c: drain, gate and gate-drain currents.
+    if matches!(key, "cd" | "cg" | "cgd") && device.starts_with('z') {
+        return "current";
     }
     match key {
         "i" | "current" | "id" | "ic" | "ib" | "ie" | "is" | "ig" | "igd" => "current",
