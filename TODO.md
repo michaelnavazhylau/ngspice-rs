@@ -16,9 +16,9 @@ conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
 one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
 (`08c5169`, after the spill slice H1a in PR #151, MESA level 2), `cargo test
---workspace --locked` reports **1427 passed / 0 failed / 150 ignored** (the
+--workspace --locked` reports **1428 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
-golden verify` reports **153 verified / 1 unsupported / 0 failures** (the
+golden verify` reports **154 verified / 1 unsupported / 0 failures** (the
 unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
 build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
 for the recorded evidence.
@@ -437,16 +437,18 @@ it are marked "#85 as it then read".
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
 - [x] MESA level 2 (#83, M10 H1a, PR #151): `mesa1` channel,
-  `mesasetup.c`'s `#gate`, the `mesaask.c` table, `.op`/`.dc` plus the
-  small-signal assembly a swept `.dc` needs, the `pmf` -> NMF coercion and
-  `tests/mesa.rs`. Boundaries, each an explicit error: every resistance path
-  other than `rg` (`rd`/`rs` fold into `mesaload.c` with no node, `ri`/`rf`
-  create `#gs`/`#gd`), `mesatrunc.c` charges (H1b) and `mesapzl.c` (H2).
-  `m10_mesa_op`/`m10_mesa_dc` verify against the reference binary (153
-  verified at landing). The last residual (a ~1.2e-6 drain current) was C's
-  `EPSILONGAAS` spelling, `12.244*8.85418e-12`, against the port's modern
-  `eps0`. Remaining in #83:
-  H1b (`mesatrunc.c` charge storage, `mesapzl.c` and the `rd`/`rs`/`ri`/`rf`/
-  `rdi`/`rsi` resistance paths), then H2-H5 (MESA 3/4, HFET1, HFET2). See
-  [MESFET.md](docs/port/MESFET.md) and
+  `mesasetup.c`'s `#gate`, the `mesaask.c` table, `.op`/`.dc` and the
+  small-signal assembly (`.ac`, and `.sp`/`.tf` with it), the `pmf` -> NMF
+  coercion and `tests/mesa.rs`. `m10_mesa_op`/`m10_mesa_dc`/`m10_mesa_ac`
+  verify against the reference binary (154 verified at landing); `.ac` matches
+  it to round-off from DC to 10 GHz, so `mesaacl.c` turned out to need no H1b
+  work. The last DC residual (a ~1.2e-6 drain current) was C's `EPSILONGAAS`
+  spelling, `12.244*8.85418e-12`, against the port's modern `eps0`. Boundaries,
+  each an explicit error naming its C reason: the resistance paths other than
+  `rg` (`rd`/`rs` fold into `mesaload.c` with no node, `ri`/`rf` create
+  `#gs`/`#gd`) in #155, `mesatrunc.c` charge storage and `.tran` in #156,
+  `mesapzl.c` in #157, and `.noise`/`.disto`/`.sens` in #158 (C's MESA entry
+  point defines none of the three, so the reference binary runs them with MESA
+  absent while the port refuses the run). Then H2-H5 (MESA 3/4, HFET1, HFET2).
+  See [MESFET.md](docs/port/MESFET.md) and
   [M10_SPILL_PLAN.md](docs/port/M10_SPILL_PLAN.md).

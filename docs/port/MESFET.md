@@ -169,7 +169,7 @@ grammar and one 62-setter model table but not one channel:
 | level | family | channel | state |
 | --- | --- | --- | --- |
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
-| 2 | MESA | `mesa1` (`mesaload.c`) | H1a: DC/AC, this branch |
+| 2 | MESA | `mesa1` (`mesaload.c`) | ported: DC and small signal (H1a) |
 | 3/4 | MESA | `mesa3`/`mesa4`, `mesapz*` | H2 |
 | 5 | HFET1 | `hfet1` | H3 |
 | 6 | HFET2 | `hfet2x` | H4 |
@@ -186,6 +186,12 @@ port's `ModelContext` carries Celsius: the default `ts`/`td` and the
 temperature deltas are converted with `+ CONSTCtoK`, which is the difference
 between `vts = 2.33 mV`/`ggrwl = 0.15 S` and the correct `6.5e-6`.
 
+`mesaacl.c` turned out to need no H1b work: the `m10_mesa_ac` fixture verifies
+the small-signal sweep against the reference binary, and single-device probes
+agree with it bit for bit over 1 kHz-10 GHz while the two-device fixture
+differs only by round-off (about 1e-16 relative). `.sp` and `.tf` build on the
+same assembly and run.
+
 ### Boundaries (explicit errors, not silence)
 
 - **Every resistance path other than `rg`.** `rd`/`rs` are *not* internal
@@ -197,7 +203,10 @@ between `vts = 2.33 mV`/`ggrwl = 0.15 S` and the correct `6.5e-6`.
   remaining stamps identical to C's.
 - An unknown *card* parameter is an error in C ("unknown parameter (rd)"), so
   the port rejects it rather than ignoring it.
-- `mesatrunc.c` charge storage, `.tran` and `mesapzl.c` are H1b/H2.
+- `mesatrunc.c` charge storage and `.tran` are #156, `mesapzl.c` is #157, the
+  resistance paths above are #155, and `.noise`/`.disto`/`.sens` are #158:
+  C's MESA entry point defines none of those three routines, so the reference
+  binary runs them with MESA simply absent while the port refuses the run.
 
 ### The `eps0` constant
 

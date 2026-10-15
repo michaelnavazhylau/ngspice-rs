@@ -6,8 +6,10 @@
 //! The reference values below were printed by
 //! `ngspice -b` from `ngspice_test/build/src/ngspice` on the same decks. They
 //! agree to their printed precision, which `cargo xtask golden verify` now
-//! checks for `m10_mesa_op` and `m10_mesa_dc`; the tolerances here state that
-//! agreement. Only `.op`/`.dc` and the small-signal assembly are ported.
+//! checks for `m10_mesa_op`, `m10_mesa_dc` and `m10_mesa_ac`; the tolerances
+//! here state that agreement. `.op`, `.dc` and the small-signal assembly
+//! (`mesaacl.c`, which `.ac`, `.sp` and `.tf` all use) are ported; transient
+//! charge storage, `.pz` and the resistance paths are not.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
 use ngspice_rs::devices::Circuit;
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
@@ -38,6 +40,13 @@ fn value(plot: &Plot, name: &str, point: usize) -> f64 {
         .variable_index(name)
         .unwrap_or_else(|| panic!("missing {name}: {:?}", plot.variables));
     plot.points[point][index].re
+}
+fn phase(plot: &Plot, name: &str, point: usize) -> (f64, f64) {
+    let index = plot
+        .variable_index(name)
+        .unwrap_or_else(|| panic!("missing {name}: {:?}", plot.variables));
+    let value = plot.points[point][index];
+    (value.re, value.im)
 }
 fn close(a: f64, b: f64, relative: f64, absolute: f64) {
     assert!(
@@ -239,4 +248,28 @@ fn the_h1a_boundaries_are_explicit() {
     let error = attempt(&mut c, AnalysisKind::Transient, &["1n", "10n"]).unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
     assert!(error.to_string().contains("mesa"), "{error}");
+}
+
+/// `mesaacl.c` is not pending work: `.ac` already matches the reference
+/// binary, which the `m10_mesa_ac` fixture now verifies. The values are that
+/// golden's first and last points (1 MHz and 1 GHz) for the same pair as
+/// `m10_mesa_op`, including the `rg = 10` device's `#gate` node.
+#[test]
+fn the_small_signal_sweep_matches_the_reference_binary() {
+    let mut c = circuit(
+        "vds 1 0 dc 0.5 ac 1\nvids 1 2 dc 0\nvgs 3 0 dc -1.2\n\
+         z1 2 3 0 m1 l=1u w=20u\nz2 2 3 0 m2 l=2u w=40u\n\
+         .model m1 nmf(level=2)\n.model m2 nmf(level=2 rg=10)",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::Ac, &["dec", "2", "1meg", "1g"]);
+    let (re, im) = phase(&plot, "i(vds)", 0);
+    close(re, -4.718125954256094e-05, 1e-12, 1e-18);
+    close(im, -2.062884307211449e-08, 1e-12, 1e-18);
+    let (re, im) = phase(&plot, "i(vds)", 6);
+    close(re, -4.718328428487106e-05, 1e-12, 1e-18);
+    close(im, -2.062883685225082e-05, 1e-12, 1e-18);
+    // The internal node `rg` creates is part of the small-signal plot.
+    let (re, _) = phase(&plot, "v(z2#gate)", 0);
+    close(re, -7.225285158125405e-07, 1e-9, 1e-15);
 }

@@ -4247,6 +4247,38 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 1, -6.483212903972138e-04, 0.),
         ],
     },
+    // The same pair in the small-signal sweep: `i(vds)` is
+    // -4.718125954256094e-05 - 2.062884307211449e-08j at 1 MHz and the `rg`
+    // device's `#gate` node is in the AC plot exactly as it is in the DC one.
+    // `mesaacl.c` was H1a work after all: this fixture is what says so.
+    Expectation {
+        fixture: "m10_mesa_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 7,
+        variables: &[
+            "frequency",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+            "v(z2#gate)",
+        ],
+        values: &[
+            ("frequency", 0, 1.0e6, 0.),
+            ("i(vds)", 0, -4.718125954256094e-05, -2.062884307211449e-08),
+            (
+                "v(z2#gate)",
+                0,
+                -7.225285158125405e-07,
+                1.375521991112478e-07,
+            ),
+            ("frequency", 6, 9.999999999999996e+08, 0.),
+            ("i(vds)", 6, -4.718328428487106e-05, -2.062883685225082e-05),
+        ],
+    },
     // I = beta (1 + lambda vds') vgst^2 / (1 + B vgst) with vgs' = -I RS and
     // vds' = 6 V - I (RD + RS) solves to 6.6503905e-3 A, plus the
     // gate-drain leakage IS + 5.8 V gmin.
