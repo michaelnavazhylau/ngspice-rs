@@ -423,7 +423,7 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   opt-in `c_mesfet_reference`. Explicit errors: `.disto` (`mesdset.c`),
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
-- [ ] MESA level 2 (#83, M10 H1a, `wip/m10-mesa-h1a`): `mesa1` channel,
+- [x] MESA level 2 (#83, M10 H1a, PR #151): `mesa1` channel,
   `mesasetup.c`'s `#gate`, the `mesaask.c` table, `.op`/`.dc` plus the
   small-signal assembly a swept `.dc` needs, the `pmf` -> NMF coercion and
   `tests/mesa.rs`. Boundaries, each an explicit error: every resistance path
@@ -431,5 +431,8 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   create `#gs`/`#gd`), `mesatrunc.c` charges (H1b) and `mesapzl.c` (H2).
   `m10_mesa_op`/`m10_mesa_dc` verify against the reference binary. The last
   residual (a ~1.2e-6 drain current) was C's `EPSILONGAAS` spelling,
-  `12.244*8.85418e-12`, against the port's modern `eps0`. See
-  [MESFET.md](docs/port/MESFET.md).
+  `12.244*8.85418e-12`, against the port's modern `eps0`. Remaining in #83:
+  H1b (`mesatrunc.c` charge storage, `mesapzl.c` and the `rd`/`rs`/`ri`/`rf`/
+  `rdi`/`rsi` resistance paths), then H2-H5 (MESA 3/4, HFET1, HFET2). See
+  [MESFET.md](docs/port/MESFET.md) and
+  [M10_SPILL_PLAN.md](docs/port/M10_SPILL_PLAN.md).
