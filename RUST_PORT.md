@@ -16,13 +16,14 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
 
-**Current status (M10 wave 3, 2026-10-15):** `main` is the single-crate
-`ngspice-rs` 0.4.0 package. Since the sections below were written, M6–M9 landed
-and M10 waves 0–3 added JFET levels 1/2, MESFET level 1, lossless `T`, lossy
-`O`/LTRA and `U`/URC lines and MOS levels 2/3/6/9, and replaced faer/diffsol with
-the native SPARSE 1.3 solver. Current evidence: `cargo test --workspace
---locked` reports **1417 passed / 0 failed / 150 ignored** and
-`cargo xtask golden verify` **151 verified / 1 unsupported / 0 failures**.
+**Current status (after M10 spill slice H1a, 2026-10-15):** `main` is the
+single-crate `ngspice-rs` 0.4.0 package. Since the sections below were written,
+M6–M9 landed and M10 waves 0–3 added JFET levels 1/2, MESFET level 1, lossless
+`T`, lossy `O`/LTRA and `U`/URC lines and MOS levels 2/3/6/9, the spill slice H1a
+added MESA level 2, and faer/diffsol gave way to the native SPARSE 1.3 solver.
+Current evidence: `cargo test --workspace --locked` reports **1427 passed / 0
+failed / 150 ignored** and `cargo xtask golden verify` **153 verified / 1
+unsupported / 0 failures**.
 [TODO.md](TODO.md) is the current checklist; the milestone narrative below is
 retained as a record of the earlier checkouts, and its "in progress" or "pending
 merge" language no longer describes `main`.

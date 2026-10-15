@@ -243,6 +243,16 @@ longer treats everything above level 1 as "not yet ported".
 - C regression decks exist and give the goldens: `tests/mesa/mesa.cir`,
   `mesa11..15.cir`, `mesgout.cir`, `mesinv.cir`, `mesosc.cir` (all level 2).
 
+**Status.** H1a landed in PR #151: the shared shell, the level-2 schema and
+`mesasetup.c` defaults, `mesatemp.c`'s derivations, the `mesa1` channel with its
+derivatives, the DC load, the `mesaask.c` table and `mesaacl.c`'s small-signal
+assembly, verified by `m10_mesa_op`/`m10_mesa_dc` and `tests/mesa.rs`. Two plan
+corrections came out of it: AC had to move into H1a, because a swept `.dc` in
+this port resolves its sources through the small-signal system, and `rg` is the
+only resistance path H1a can stamp (`rd`/`rs` are not internal nodes in C at
+all: `mesatemp.c` folds them into `MESAtRd`/`MESAtRs` and `mesaload.c` applies
+them node-less, while `ri`/`rf` create `#gs`/`#gd`).
+
 ### H1 reference notes (read from the C sources, 2026-10-15)
 
 Gathered while starting H1 so the equations do not have to be re-read. The
@@ -391,7 +401,9 @@ shell plus level-2 DC (schema, temperature, conditional internal nodes, the
 refused, and the `ri`/`rf`/`rdi`/`rsi` (prime-prime and `#gs`/`#gd`) paths
 refused until H1b; **H1b** the charge/truncation half (`mesatrunc.c`, the
 `NIintegrate` path), `mesaacl.c`, `mesapzl.c`, the full `mesaask.c` table and
-the prime-prime conductances.
+the prime-prime conductances. H1a landed in PR #151 with AC pulled forward and
+every resistance path other than `rg` still refused, so H1b keeps `mesapzl.c`,
+the prime-prime paths and `mesatrunc.c`; see the status note above.
 
 
 
