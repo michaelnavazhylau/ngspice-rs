@@ -216,7 +216,11 @@ voltages and the `mesaask.c` junctions agreed to the printed precision
 throughout, which is why the probe, not the comparison, was needed to find it.
 Both fixtures now verify against the reference binary like any other.
 
-### Parser gap found while probing
+### A single-letter `d=` is an assignment
 
-A single-letter `d=` on a model line is rejected with "non-scalar model flags"
-while `nd=` is accepted, so MESA's device depth cannot be set from a deck.
+`d` is both a model-type flag and a model parameter: `.model m nmf(d=0.24u)`
+sets `mesa1`'s device depth, while a bare `d` stays the flag. The
+reference binary answers 4.162441e-04 A for the doubled depth against
+1.926577e-03 A at the default. `parser/model.rs`'s `scalar_assignment`
+refused the first because it tested the token's spelling alone; it now
+requires a missing `=` for a flag, as C's `INPpSetP` does.

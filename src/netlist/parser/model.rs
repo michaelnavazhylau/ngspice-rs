@@ -99,8 +99,13 @@ fn parameters(input: &mut Input<'_>, base: &str) -> Result<Vec<ParameterAssignme
 }
 
 fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
-    // A flag is not a scalar assignment, even when it is spelled as a word.
-    if input.input.first().is_some_and(|token| {
+    // A flag is not a scalar assignment, even when it is spelled as a word -
+    // unless an `=` follows it. `d` is both: a bare `d` is a model-type flag
+    // (`tests/flags_ic_parser.rs`), while `.model m nmf(d=0.24u)` is MESA's
+    // device depth, which C's `INPpSetP` reads as an assignment. The reference
+    // binary answers 4.162441e-04 A for that card against 1.926577e-03 A for
+    // the default depth, so the `=` has to settle it before the refusal.
+    let flag = input.input.first().is_some_and(|token| {
         [
             "off",
             "nchan",
@@ -133,7 +138,12 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
         ]
         .iter()
         .any(|flag| token.is_keyword(flag))
-    }) {
+    });
+    let assigned = input
+        .input
+        .get(1)
+        .is_some_and(|token| token.kind == TokenKind::Equals);
+    if flag && !assigned {
         return Err(gap(input, "non-scalar model flags"));
     }
     let token = any

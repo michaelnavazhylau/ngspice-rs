@@ -157,6 +157,18 @@ fn the_device_asks_match_the_reference_binary() {
     close(value(&plot, "@z1[m]", 0), 1., 0., 1e-15);
 }
 
+/// `.model m nmf(d=0.24u)` is `mesa1`'s device depth, not the `d` model-type
+/// flag: `mesaload.c`'s `vpo` scales with `d^2`, and doubling the depth takes
+/// the reference binary's `vids#branch` from 1.926577e-03 A to 4.162441e-04 A.
+/// A bare `d` stays a flag (`tests/flags_ic_parser.rs`).
+#[test]
+fn the_device_depth_setter_is_an_assignment_not_a_flag() {
+    let mut c = circuit(&probe("nmf(level=2 d=0.24u)")).unwrap();
+    let plot = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+    close(value(&plot, "i(vids)", 0), 4.162441e-04, 1e-5, 0.);
+    close(value(&plot, "v(2)", 0), 0.5, 0., 1e-12);
+}
+
 /// `MESAsetup` creates `#gate` for `RG` (and nothing for `rd`/`rs`, which
 /// `mesaload.c` applies without nodes) and uses the external gate when it is
 /// zero.
