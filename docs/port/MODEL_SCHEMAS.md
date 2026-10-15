@@ -2,9 +2,11 @@
 
 PR #51 merged these prerequisites (#11/#17). The initial infrastructure did
 not itself implement model-backed passive arithmetic or D/Q/M simulation.
-This checkout now adds #19's bounded passive arithmetic, pending merge; see
-[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation remains unavailable. The parser now accepts all eight rawfile fixture decks (#12/#13 scoped/source syntax);
-`golden verify` still verifies three linear fixtures and excludes five.
+#19 added the bounded passive arithmetic, also on `main`; see
+[PASSIVE_MODELS.md](PASSIVE_MODELS.md). D/Q/M simulation followed in M4
+([M4_NONLINEAR.md](M4_NONLINEAR.md)). The parser accepts all eight original
+rawfile fixture decks (#12/#13 scoped/source syntax), and `golden verify` now
+covers 153 fixtures.
 
 ## Bounded passive syntax
 

@@ -1267,7 +1267,7 @@ references; #19 now adds the explicitly bounded passive support below.
 
 ## Bounded passive elaboration verification
 
-The current checkout implements #19 on merged PR #51 (#11/#17), pending merge.
+The current checkout implements #19 on merged PR #51 (#11/#17).
 `tests/devices_passive_models.rs` adds **12** checks for model/instance
 precedence, raw AST immutability, R sheet/C area-perimeter formulas, missing or
 invalid geometry, coefficient overrides, positive multiplicity/scale, sign and
