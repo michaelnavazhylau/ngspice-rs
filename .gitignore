@@ -1,3 +1,8 @@
 # Rust build output
 /target/
 **/*.rs.bk
+
+# Lean/mathlib build output for the formal-verification pilot under `formal/`.
+# The sources and `lake-manifest.json` are committed; the multi-GB toolchain
+# artifacts are not. `lake exe cache get` restores mathlib's oleans.
+/formal/.lake/

@@ -1,0 +1,11 @@
+name = "ngspice_rs_formal"
+defaultTargets = ["NgspiceRs"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "master"
+
+[[lean_lib]]
+name = "NgspiceRs"
