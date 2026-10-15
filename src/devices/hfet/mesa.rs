@@ -6,10 +6,11 @@
 //! (`MESAload` and the `mesa1` channel), `mesa/mesaparam.c` and
 //! `mesa/mesaask.c`.
 //!
-//! This is H1a: `.op` and `.dc` only. The charge storage and `NIintegrate`
-//! path (`mesatrunc.c`), the AC load (`mesaacl.c`), the pole-zero load
-//! (`mesapzl.c`) and the `ri`/`rf`/`rdi`/`rsi` (prime-prime and `#gs`/`#gd`)
-//! branches are H1b and fail with explicit errors.
+//! This is H1a: `.op` and `.dc` only, plus the `.ac` small-signal assembly a
+//! swept `.dc` needs. The charge storage and `NIintegrate` path
+//! (`mesatrunc.c`), the pole-zero load (`mesapzl.c`) and every resistance path
+//! other than `rg` (`rd`/`rs`, the prime-prime pair and `#gs`/`#gd`) are H1b
+//! and fail with explicit errors.
 //!
 //! # Deliberate divergences
 //!
@@ -17,10 +18,14 @@
 //!   JFET and MESFET.
 //! - Where `mesa1` overflows or takes the root of a negative number the port
 //!   reports a numerical error instead of continuing with NaN.
-//! - `ri`, `rf`, `rdi` and `rsi` are refused rather than aliased: C creates
-//!   the `#gs`/`#gd` and prime-prime nodes for them, and their conductances
-//!   (`tGi`, `tGf`) enter the load. Refusing keeps the stamps that remain
-//!   identical to C's, which zero those terms.
+//! - `rd`, `rs`, `ri`, `rf`, `rdi` and `rsi` are refused rather than aliased
+//!   or silently dropped. C creates the `#gs`/`#gd` and prime-prime nodes for
+//!   `ri`/`rf`/`rdi`/`rsi` and their conductances (`tGi`, `tGf`) enter the
+//!   load; `mesatemp.c` folds `rd`/`rs` into `MESAtRd`/`MESAtRs`, which
+//!   `mesaload.c` applies with no node at all (`rd=1e6 rs=1e6` collapses the
+//!   reference binary's current to 2.5e-7 A while creating no `#source` or
+//!   `#drain`). Refusing keeps the stamps that remain identical to C's, which
+//!   zero those terms for the decks H1a covers.
 
 use crate::devices::hfet::{Instance, Model};
 use crate::devices::initial::InstanceInitial;
@@ -214,9 +219,14 @@ impl Mesa {
         let (initial, setters) = Instance::resolve(i)?;
         let instance = Instance::validate(&setters, &i.location)?;
         // `mesasetup.c` creates `#gs` for RI, `#gd` for RF and the prime-prime
-        // pair for RSI/RDI; their conductances enter the load, so H1a refuses
-        // them rather than dropping terms.
+        // pair for RSI/RDI, and `mesatemp.c` turns RD/RS into `MESAtRd`/
+        // `MESAtRs`, which `mesaload.c` applies *without* nodes (the reference
+        // binary creates no `#source`/`#drain` for `rd=1e6 rs=1e6`, yet the
+        // current collapses to 2.5e-7 A). None of these are H1a: their
+        // conductances enter the load, so refusing them beats dropping terms.
         for (value, setter, reference) in [
+            (model.rd, "rd", "mesatemp.c, mesaload.c (MESAtRd)"),
+            (model.rs, "rs", "mesatemp.c, mesaload.c (MESAtRs)"),
             (model.ri, "ri", "mesasetup.c, mesaload.c (MESAtGi)"),
             (model.rf, "rf", "mesasetup.c, mesaload.c (MESAtGf)"),
             (
@@ -254,13 +264,10 @@ impl Mesa {
             spp: external[2],
             dpp: external[0],
         };
-        // `MESAsetup` creates `#source` for RS, then `#drain` for RD, then
-        // `#gate` for RG; each falls back to the external node.
-        for (resistance, suffix) in [
-            (model.rs, "source"),
-            (model.rd, "drain"),
-            (model.rg, "gate"),
-        ] {
+        // `MESAsetup` creates `#gate` for RG, the only resistance node H1a
+        // supports; `rs`/`rd` are refused above, so the source and drain prime
+        // nodes are the external nodes.
+        for (resistance, suffix) in [(model.rg, "gate")] {
             if resistance == 0. {
                 continue;
             }
@@ -274,11 +281,7 @@ impl Mesa {
             let internal = staged.intern(&name);
             staged.set_kind(internal, NodeKind::Internal);
             terminals.push(internal);
-            match suffix {
-                "source" => nodes_of.sp = internal,
-                "drain" => nodes_of.dp = internal,
-                _ => nodes_of.gp = internal,
-            }
+            nodes_of.gp = internal;
         }
         // `rsi`/`rdi` are refused above, so the prime-prime nodes are the
         // prime nodes and `vgspp == vgs`, as in C.

@@ -1687,7 +1687,9 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
             "area", "areab", "areac", "m", "icvbe", "icvce", "temp", "dtemp",
         ],
         'j' => &["area", "m", "ic-vds", "ic-vgs", "temp", "dtemp"],
-        'z' => &["area", "m", "icvds", "icvgs"],
+        'z' => &[
+            "area", "m", "l", "w", "td", "ts", "dtemp", "temp", "icvds", "icvgs",
+        ],
         _ => &[
             "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
             "dtemp",

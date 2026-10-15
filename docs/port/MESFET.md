@@ -160,3 +160,64 @@ temperature setup to re-derive).
 - Opt-in `tests/c_mesfet_reference.rs` (live C): saved asks of both
   polarities, `.dc @z1[area] @z1[m]`, `.pz` roots, `.noise` spectral
   densities of every generator, and a `uic` transient with an `off` device.
+
+## MESA level 2 (`Z`, M10 H1a, #83)
+
+`inpdomod.c` maps `nmf`/`pmf` levels to four macspice families, which share one
+grammar and one 62-setter model table but not one channel:
+
+| level | family | channel | state |
+| --- | --- | --- | --- |
+| 0/1 | MES | `mesload.c` | ported (wave 3) |
+| 2 | MESA | `mesa1` (`mesaload.c`) | H1a: DC/AC, this branch |
+| 3/4 | MESA | `mesa3`/`mesa4`, `mesapz*` | H2 |
+| 5 | HFET1 | `hfet1` | H3 |
+| 6 | HFET2 | `hfet2x` | H4 |
+
+Level 2 is `src/devices/hfet/{mod,mesa}.rs`. `mod.rs` owns the union of the
+four families' setters (the card accepts `l`, `w`, `m`, `td`, `ts`, `dtemp`,
+`temp`, and an unlabeled leading value is an error because MESA defines no
+`area`), the `pmf` -> NMF coercion `mesasetup.c` reports as "Only nmf model
+type supported, set to nmf", and the per-family refusal of everything else.
+`mesa.rs` ports `mesatemp.c`'s derivations, the `mesa1` channel, the DC load
+with all 30 matrix entries and 5 RHS terms, the `mesaask.c` table and the
+`mesaacl.c` small-signal load. C's `CKTtemp`/`CKTnomTemp` are kelvin while the
+port's `ModelContext` carries Celsius: the default `ts`/`td` and the
+temperature deltas are converted with `+ CONSTCtoK`, which is the difference
+between `vts = 2.33 mV`/`ggrwl = 0.15 S` and the correct `6.5e-6`.
+
+### Boundaries (explicit errors, not silence)
+
+- **Every resistance path other than `rg`.** `rd`/`rs` are *not* internal
+  nodes: the reference binary creates no `#source`/`#drain` for
+  `rd=1e6 rs=1e6`, yet the drain current collapses to 2.5e-7 A, so
+  `mesatemp.c` folds them into `MESAtRd`/`MESAtRs` and `mesaload.c` applies
+  them with no node. `ri`/`rf` do create `#gs`/`#gd` and `rdi`/`rsi` the
+  prime-prime pair, and all four enter the load. Refusing them keeps the
+  remaining stamps identical to C's.
+- An unknown *card* parameter is an error in C ("unknown parameter (rd)"), so
+  the port rejects it rather than ignoring it.
+- `mesatrunc.c` charge storage, `.tran` and `mesapzl.c` are H1b/H2.
+
+### Open: a ~1.2e-6 drain-current difference
+
+`m10_mesa_op` and `m10_mesa_dc` are committed but excluded from
+`cargo xtask golden verify`: `mesa1`'s drain current differs from the reference
+binary by ~1.2e-6 relative (CD, GM and GDS agree to the same 6-7 significant
+digits, e.g. `gm` 2.671573e-03 vs 2.671577e-03), while every node voltage and
+every junction ask (`cg`, `cgd`, `ggs`, `ggd`, `vgs`, `vgd`) agree to the
+printed precision. It is not a convergence artefact: adding
+`.options reltol=1e-9 vntol=1e-12 abstol=1e-15` leaves both simulators'
+answers bit-identical, so the difference is inside `mesa1`'s current
+expression. The next step is the `fprintf` probe of `vpo`, `n0`, `ns`, `vgte`,
+`vl`, `isata`, `isatb`, `vsate` and `gch` in a scratch copy of the C tree,
+built against the same bias (`vgs = 0`, `vds = 0.5`, `l = 1u`, `w = 20u`).
+The `ns` term was one such bug: `mesaload.c` computes
+`ns = 1/(1.0/ND/D/(1-sqrt1) + b/n0)` and the port originally had the first
+term's reciprocal, which the `b/n0` dominance of deep subthreshold hides
+(0.06% at `vgs = -1.2`) and strong inversion exposes (+12.9% at `vgs = 0`).
+
+### Parser gap found while probing
+
+A single-letter `d=` on a model line is rejected with "non-scalar model flags"
+while `nd=` is accepted, so MESA's device depth cannot be set from a deck.

@@ -4194,6 +4194,59 @@ const EXPECTATIONS: &[Expectation] = &[
     // after the tail flags, VTO = -1.6 V as the later spelling) is cut off
     // in inverse mode (vgd - VTO = -0.9 V): drain -(0.5 IS + 2.5 V gmin),
     // source -(0.5 IS + 2.8 V gmin). At vgs = 0, vds = 6 V z1 saturates:
+    // MESA level 2 (#83, M10 H1a): `mesa1`'s channel and `mesasetup.c`'s
+    // `#gate` node. `z1` is the probed device (`l=1u w=20u`, where the
+    // reference binary's `vids#branch` is 1.926577e-03 A at `vgs = 0`,
+    // `vds = 0.5`); `z2` is the same at `w=40u` with `rg=10`, so the drain
+    // current doubles to 4.2752643e-03 A and 5.059473e-09 A leaks through the
+    // gate. The `#gate` node is on `outitf.c`'s skip list by accident (it
+    // predates macspice's node names), so C saves it and the comparison keeps
+    // it.
+    Expectation {
+        fixture: "m10_mesa_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+            "v(z2#gate)",
+        ],
+        values: &[
+            ("v(2)", 0, 5.000000000000000e-01, 0.),
+            ("i(vds)", 0, -4.275264317826305e-03, 0.),
+            ("i(vgs)", 0, 5.059472965446415e-09, 0.),
+        ],
+    },
+    // The same device swept from deep subthreshold to strong inversion:
+    // `i(vds)` is 1.6590468e-05 A at `vgs = -1.2` and 6.4832129e-04 A at
+    // `vgs = -0.6`. This pair is what exposes a wrong subthreshold depth term.
+    Expectation {
+        fixture: "m10_mesa_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 3,
+        variables: &[
+            "v(v-sweep)",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -1.2, 0.),
+            ("v(3)", 0, -1.2, 0.),
+            ("i(vds)", 0, -1.659046770645525e-05, 0.),
+            ("v(v-sweep)", 1, -0.6, 0.),
+            ("i(vds)", 1, -6.483212903972138e-04, 0.),
+        ],
+    },
     // I = beta (1 + lambda vds') vgst^2 / (1 + B vgst) with vgs' = -I RS and
     // vds' = 6 V - I (RD + RS) solves to 6.6503905e-3 A, plus the
     // gate-drain leakage IS + 5.8 V gmin.
