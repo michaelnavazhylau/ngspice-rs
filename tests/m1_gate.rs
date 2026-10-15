@@ -318,9 +318,8 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M10 lossy-line decks (#85) are gated by `xtask golden verify`,
     // `tests/ltra.rs` and the opt-in `tests/c_ltra_reference.rs`.
     on_disk.retain(|name| !name.starts_with("m10_ltra_"));
-    // MESA level 2 (#83) is gated by `tests/mesa.rs` and the opt-in
-    // `tests/c_mesa_reference.rs`; its two committed goldens are excluded
-    // from `xtask golden verify` pending the ~1.2e-6 channel residual.
+    // MESA level 2 (#83) is gated by `xtask golden verify` (both fixtures are
+    // registered) and `tests/mesa.rs`.
     on_disk.retain(|name| !name.starts_with("m10_mesa_"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();

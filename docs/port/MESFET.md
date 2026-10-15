@@ -199,23 +199,22 @@ between `vts = 2.33 mV`/`ggrwl = 0.15 S` and the correct `6.5e-6`.
   the port rejects it rather than ignoring it.
 - `mesatrunc.c` charge storage, `.tran` and `mesapzl.c` are H1b/H2.
 
-### Open: a ~1.2e-6 drain-current difference
+### The `eps0` constant
 
-`m10_mesa_op` and `m10_mesa_dc` are committed but excluded from
-`cargo xtask golden verify`: `mesa1`'s drain current differs from the reference
-binary by ~1.2e-6 relative (CD, GM and GDS agree to the same 6-7 significant
-digits, e.g. `gm` 2.671573e-03 vs 2.671577e-03), while every node voltage and
-every junction ask (`cg`, `cgd`, `ggs`, `ggd`, `vgs`, `vgd`) agree to the
-printed precision. It is not a convergence artefact: adding
-`.options reltol=1e-9 vntol=1e-12 abstol=1e-15` leaves both simulators'
-answers bit-identical, so the difference is inside `mesa1`'s current
-expression. The next step is the `fprintf` probe of `vpo`, `n0`, `ns`, `vgte`,
-`vl`, `isata`, `isatb`, `vsate` and `gch` in a scratch copy of the C tree,
-built against the same bias (`vgs = 0`, `vds = 0.5`, `l = 1u`, `w = 20u`).
-The `ns` term was one such bug: `mesaload.c` computes
-`ns = 1/(1.0/ND/D/(1-sqrt1) + b/n0)` and the port originally had the first
-term's reciprocal, which the `b/n0` dominance of deep subthreshold hides
-(0.06% at `vgs = -1.2`) and strong inversion exposes (+12.9% at `vgs = 0`).
+The `ns` term above was the first bug; the slice's remaining ~1.2e-6
+drain-current difference, which held `m10_mesa_op`/`m10_mesa_dc` out of
+`cargo xtask golden verify`, was the second and came from a constant.
+`mesaload.c` spells `EPSILONGAAS` as `12.244*8.85418e-12` and `mesasetup.c`
+defaults `MESAepsi` to the same expression, while the port used the modern
+`eps0` (`8.854_187_817e-12`), 8.8e-7 larger. An `fprintf` probe of `mesa1`'s
+intermediates in a scratch copy of the C tree showed the signature directly:
+every quantity proportional to eps (`beta`, `n0`, `isatb0`, `cf`) was high by
+exactly 8.83e-7 and `vpo`, which is inversely proportional, was low by the
+same. It was never a convergence artefact - `.options reltol=1e-9 vntol=1e-12
+abstol=1e-15` leaves both simulators' answers bit-identical - and the node
+voltages and the `mesaask.c` junctions agreed to the printed precision
+throughout, which is why the probe, not the comparison, was needed to find it.
+Both fixtures now verify against the reference binary like any other.
 
 ### Parser gap found while probing
 

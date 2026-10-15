@@ -128,7 +128,7 @@ const MODEL: &[P] = &[
         "epsi",
         U::FaradPerMetre,
         D::Positive,
-        Some(12.244 * 8.854_187_817e-12),
+        Some(12.244 * 8.854_18e-12),
     ),
     p("cas", U::Dimensionless, D::Finite, Some(1.)),
     p("cbs", U::Dimensionless, D::Finite, Some(1.)),

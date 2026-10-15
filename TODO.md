@@ -429,7 +429,7 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   `tests/mesa.rs`. Boundaries, each an explicit error: every resistance path
   other than `rg` (`rd`/`rs` fold into `mesaload.c` with no node, `ri`/`rf`
   create `#gs`/`#gd`), `mesatrunc.c` charges (H1b) and `mesapzl.c` (H2).
-  Open: `mesa1`'s drain current is ~1.2e-6 from the reference binary while
-  its node voltages and junctions are exact, so `m10_mesa_op`/`m10_mesa_dc`
-  are committed but excluded from `golden verify`. See
+  `m10_mesa_op`/`m10_mesa_dc` verify against the reference binary. The last
+  residual (a ~1.2e-6 drain current) was C's `EPSILONGAAS` spelling,
+  `12.244*8.85418e-12`, against the port's modern `eps0`. See
   [MESFET.md](docs/port/MESFET.md).

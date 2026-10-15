@@ -5,11 +5,9 @@
 //!
 //! The reference values below were printed by
 //! `ngspice -b` from `ngspice_test/build/src/ngspice` on the same decks. They
-//! agree to ~1.2e-6 relative, which is why `m10_mesa_op`/`m10_mesa_dc` are
-//! committed but excluded from `cargo xtask golden verify` (see its
-//! `EXCLUDED` entry and docs/port/MESFET.md); the tolerances here state the
-//! agreement that exists today. Only `.op`/`.dc` and the small-signal assembly
-//! are ported.
+//! agree to their printed precision, which `cargo xtask golden verify` now
+//! checks for `m10_mesa_op` and `m10_mesa_dc`; the tolerances here state that
+//! agreement. Only `.op`/`.dc` and the small-signal assembly are ported.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
 use ngspice_rs::devices::Circuit;
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};

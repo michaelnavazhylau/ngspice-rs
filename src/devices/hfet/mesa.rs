@@ -39,8 +39,12 @@ use crate::maths::Vector;
 use crate::netlist::ast::DeviceInstance;
 use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 
-/// C `EPSILONGAAS` (`mesaload.c`).
-const EPSILON_GAAS: Real = 12.244 * 8.854_187_817e-12;
+/// `mesaload.c`'s `#define EPSILONGAAS (12.244*8.85418e-12)`, the same value
+/// `mesasetup.c` defaults `MESAepsi` to. The modern `eps0`
+/// (`8.854_187_817e-12`) is 8.8e-7 larger and scales `beta`, `n0`, `isatb0` and
+/// `cf` with it (and `vpo` against it), which was the whole of the ~1.2e-6
+/// drain-current residual the MESA goldens used to show.
+const EPSILON_GAAS: Real = 12.244 * 8.854_18e-12;
 /// C `CONSTKoverQ`: the thermal voltage per kelvin.
 const K_OVER_Q: Real = BOLTZMANN / CHARGE;
 /// C `CONSTCtoK`.

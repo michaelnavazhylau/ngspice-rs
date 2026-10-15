@@ -182,7 +182,25 @@ const SUPPORTED: &[Supported] = &[
         },
     },
     tran("m10_mos2_tran"),
-    // MESA level 2 (#83, M10 H1a) is excluded, not registered: see `EXCLUDED`.
+    // MESA level 2 (#83, M10 H1a): the `mesa1` channel, `mesasetup.c`'s
+    // `#gate` node (the second device carries it; the first has zero gate
+    // resistance) and `mesaask.c`.
+    Supported {
+        name: "m10_mesa_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
     // MOS level 9 (#89), mos3's decks with level-9 cards and geometry above
     // mos9temp.c's 1 um effective-size floor: DC (tightened RELTOL), the
     // small-signal stage at 75 C with an instance DTEMP, and the inverter.
@@ -1309,25 +1327,11 @@ const fn noise_stages(tolerance: compare::Tolerance) -> [Stage; 2] {
 /// -7.97e4 and a complex pair), and its zeros differ from the port's in the last
 /// digits. The golden is unchanged; the AC and operating-point stages of this
 /// deck are covered by the other fixtures.
-const EXCLUDED: &[(&str, &str)] = &[
-    (
-        "multi_analysis_pz",
-        "FMA-dependent: matches -ffp-contract=off C (pole search gives up after 201 trials) \
-         but not the FMA-built golden (3 poles)",
-    ),
-    (
-        "m10_mesa_op",
-        "`mesa1`'s drain current is ~1.2e-6 from the reference binary, just outside \
-         compare::NONLINEAR's 1e-6, while every node voltage and the `mesaask.c` junctions \
-         agree. Not a convergence artefact: `.options reltol=1e-9 vntol=1e-12 abstol=1e-15` \
-         leaves both simulators' answers bit-identical. See docs/port/MESFET.md.",
-    ),
-    (
-        "m10_mesa_dc",
-        "Same ~1.2e-6 `mesa1` drain-current difference as `m10_mesa_op`; the deck also pins \
-         the subthreshold and strong-inversion ends of the bias grid.",
-    ),
-];
+const EXCLUDED: &[(&str, &str)] = &[(
+    "multi_analysis_pz",
+    "FMA-dependent: matches -ffp-contract=off C (pole search gives up after 201 trials) \
+     but not the FMA-built golden (3 poles)",
+)];
 
 pub(crate) fn main(arguments: &[String]) -> Result<(), String> {
     let only = match arguments {
