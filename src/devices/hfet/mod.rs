@@ -29,9 +29,12 @@
 //!
 //! # Not ported
 //!
-//! `mesaacl.c`, `mesapzl.c`, `mesatrunc.c` and the charge storage of
-//! `mesaload.c` belong to H1b; level 2 answers `.op` and `.dc` only and
-//! refuses transient, AC, pole-zero and the `ri`/`rf`/`rdi`/`rsi` paths.
+//! `.op`, `.dc`, `.ac` and the analyses built on the small-signal assembly
+//! (`.sp`, `.tf`) work: `mesaacl.c`'s conductances and gate capacitances are
+//! in place and C-verified by the `m10_mesa_ac` fixture. `mesapzl.c`,
+//! `mesatrunc.c` and the charge storage of `mesaload.c` belong to H1b, as do
+//! the `ri`/`rf`/`rdi`/`rsi` resistance paths (issues #155-#157); each
+//! refuses with its C reference rather than dropping terms.
 
 pub(crate) mod mesa;
 

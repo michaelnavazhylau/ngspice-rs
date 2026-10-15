@@ -201,6 +201,17 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::NONLINEAR,
         },
     },
+    // The same pair in the small-signal sweep: `mesaacl.c`'s conductances and
+    // gate capacitances, with the `rg` device's `#gate` node in the AC plot as
+    // it is in the DC one.
+    Supported {
+        name: "m10_mesa_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+    },
     // MOS level 9 (#89), mos3's decks with level-9 cards and geometry above
     // mos9temp.c's 1 um effective-size floor: DC (tightened RELTOL), the
     // small-signal stage at 75 C with an instance DTEMP, and the inverter.

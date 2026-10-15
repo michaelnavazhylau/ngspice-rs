@@ -822,11 +822,15 @@ impl Mesa {
             .find(|name| name.eq_ignore_ascii_case(parameter))
     }
 
+    /// The DC stamp cannot serve an AC-mode load: AC, `.sp` and `.tf` go
+    /// through [`Device::assemble_small_signal`], which implements
+    /// `mesaacl.c` (the `m10_mesa_ac` fixture verifies it against C). Same
+    /// guard shape as the JFET's.
     fn is_ac(&self) -> SpiceError {
-        SpiceError::not_yet_ported(
-            format!("{}: MESA level 2 AC/SP analysis", self.name),
-            "src/spicelib/devices/mesa/mesaacl.c (H1b)",
-        )
+        SpiceError::circuit(format!(
+            "{}: MESA AC needs small-signal assembly",
+            self.name
+        ))
     }
 }
 
