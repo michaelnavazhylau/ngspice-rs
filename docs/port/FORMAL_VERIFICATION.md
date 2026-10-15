@@ -19,6 +19,7 @@ simulator — see [§3](#3-the-two-gaps) for exactly how far the claims reach.
 - [9. Suggested first milestones](#9-suggested-first-milestones)
 - [10. Using the C oracle](#10-using-the-c-oracle)
 - [11. What about c2rust?](#11-what-about-c2rust)
+- [12. Gradually moving off C as the oracle](#12-gradually-moving-off-c-as-the-oracle)
 
 ---
 
@@ -824,3 +825,207 @@ floating-point models on *both* sides of the port/oracle pair. That does not mak
 the choice wrong — Lean is where the Rust-side momentum is, and Tiers 0 and 2 are
 unaffected — but it deserves to be an explicit decision rather than a drift. It
 is the single question most worth settling before any further commitment.
+
+## 12. Gradually moving off C as the oracle
+
+### 12.1 What the oracle actually supplies
+
+"C is the oracle" is three separate jobs, and they have different fates:
+
+| Job | Where it lives today | Can Lean take it over? |
+| --- | --- | --- |
+| **Defines correct behaviour** | `AGENTS.md`, `MAPPING.md`: the port's specification *is* what ngspice computes | **Yes, component by component.** This is the migration. |
+| **Supplies expectations** | 152 files under `conformance/golden`, captured by `cargo xtask golden capture`, consumed by `tests/golden_rawfiles.rs` | **Partly.** Whole-deck rawfiles, no (see below). Component-level values, yes. |
+| **Detects fixture drift** | `cargo xtask golden check` re-runs C | Yes, for any component whose expectations become Lean-derived. |
+
+Two facts set the boundaries, and both should be stated up front because they
+stop the goal from being "delete the C checkout":
+
+1. **Every existing fixture is a deck plus a rawfile.** `conformance/golden`,
+   `conformance/observations` and `conformance/cases` are all whole-simulation
+   artefacts. A Lean reference cannot produce them without reimplementing the
+   simulator. So **end-to-end parity stays C-defined**, and that is the right
+   call: end-to-end behaviour is what users care about, and reimplementing
+   ngspice in Lean to check it would be a different project.
+2. **The Rust↔Lean link is blocked** ([§4](#4-extraction-spike-measured-results)),
+   so Lean cannot yet *check* Rust. What Lean can do today is *define and
+   justify* behaviour.
+
+So the migration is not one thing. It is two, and only the first is available:
+
+- **Migration A — move the authority for component behaviour from C to Lean.**
+  C stops being what defines correctness and becomes an implementation that is
+  cross-checked. Available now for kernels whose behaviour is a pure function of
+  small inputs.
+- **Migration B — move checking from tests to proofs.** Blocked on the float
+  model.
+
+### 12.2 The invariant that keeps this honest
+
+Any migration of authority can quietly lose coverage. Before removing C's
+authority for anything, the replacement must satisfy:
+
+> **Every behaviour is defined by something, and nothing is downgraded.** A
+> migrated item ends with a Lean artefact that is either *proved* or *validated
+> against C*, and a Rust side that is either *tested against that artefact* or
+> *proved against it*. C's authority is withdrawn only after the Lean artefact
+> has been shown to agree with C on a grid.
+
+That last clause is the load-bearing one. It is also where the wrinkle from
+[§11.5](#115-where-c2rust-would-actually-earn-its-keep) bites: for a routine
+*internal* to C — `CKTag` is the example — you cannot call C directly, so
+co-validation is either indirect (through deck-level parity, which already
+exists) or requires the callable-C work of §11.5. Either is acceptable; leaving
+it unstated is not.
+
+### 12.3 The mechanism: a component-expectation fixture
+
+There is no component-level fixture category today: every directory under
+`conformance/` is deck- or parser-level. Creating one is the first concrete
+artefact of the migration.
+
+| Piece | Role |
+| --- | --- |
+| `conformance/components/<name>.*` | Expected values for one component-level pure function over a fixed input grid. Committed, like a golden. |
+| A Lean **emitter** under `formal/emitters/`, run with `lake env lean --run` | Writes that fixture. The emitter is the proved (or proved-then-validated) reference. |
+| A Rust test under `tests/` | Calls the port's component API and compares against the fixture within a tolerance. |
+| An opt-in `tests/c_<name>_reference.rs` | Validates the same grid against live C, so the emitter is shown to agree with the oracle it is displacing. |
+| `cargo xtask components check` | Mirrors `golden check`: regeneration is deliberate and reviewable, per the existing rule that goldens are never silently recaptured. |
+
+Why a fixture and not just another theorem: a theorem proves a *law*, and a
+law cannot be checked against Rust without extraction. A fixture pins
+*agreement on a grid*, which a test can check today. The pair is what lets C's
+authority be withdrawn for that behaviour — the theorem says the law holds, the
+fixture says this implementation produces these numbers, and C's role drops to
+confirming the emitter.
+
+### 12.4 Phases, with exit criteria
+
+**Phase 0 — specification proofs. Done.** 22 declarations, no dependency on
+extraction, plus the `xmu` oracle experiment ([§10.5](#105-worked-example-the-xmu-rule)).
+Nothing here is at risk from the float block.
+
+**Phase 1 — build the fixture mechanism on one kernel.** The corrector
+coefficients are the right pilot, for a specific reason: `IsCorrector`,
+`Orders.lean` and `Theta.lean` already supply the law, the Rust surface is a
+single function (`StepHistory::trial`, `Coefficients::ag`), and — the point —
+the coefficients are currently pinned against *hardcoded textbook BDF tables and
+`vandermonde_ag`, a Rust reimplementation of C's linear system*, not against
+anything proved and not against C. This is the weakest-evidenced kernel with a
+proved specification attached, which makes it the best first migration.
+
+Exit criteria:
+
+- a Lean emitter computes `ag` for a grid of step sequences (orders 1–6,
+  uniform and non-uniform steps, including the `xmu` trapezoidal path);
+- `conformance/components/corrector_coefficients.*` is committed;
+- a Rust test compares `Coefficients::ag` against it, and becomes the primary
+  evidence in place of `vandermonde_ag`;
+- C co-validation is either recorded as indirect (deck parity) or made direct
+  via §11.5 — **a decision, not a default**;
+- `cargo xtask components check` exists.
+
+*Cost: a Lean emitter plus a fixture plus a test plus an xtask subcommand. Small
+enough to be a single PR, which is what makes it a good pilot.*
+
+**Phase 2 — start the coverage table before migrating further.** The metric that
+makes "gradual" objective is **authority coverage**: for each component
+behaviour, whether the definition of correct is C, a Lean spec, or a Lean
+reference validated against C. Write the baseline table *first*
+(`docs/port/ORACLE_COVERAGE.md`, or a section of `VERIFICATION.md`), then
+migrate in risk order. Suggested order after the coefficients:
+
+1. truncation control (`cktterr.c` / `CKTterr`) — already has a tested formula
+   and `Orders.lean` has the surrounding machinery;
+2. device stamp **structure** — which rows and columns are touched, signs,
+   branch ranges, and which device state is written. Float-free in essence even
+   though the entries are `f64`, and a large share of real simulator bugs;
+3. MNA allocation and branch binding (Tier 2) — ground elimination, node-before-
+   branch row order, contiguous per-device branch ranges.
+
+Per-item exit criteria: proved specification, fixture, Rust test, authority row
+updated, C's role reduced to co-validation.
+
+**Phase 3 — retire `golden check` where authority has moved.** Once a
+component's expectations are Lean-derived and its fixture is stable, its C
+regeneration stops; C remains only in opt-in co-validation tests. The measure is
+the count of behaviours whose authority is Lean, and the count of C-derived
+fixtures still being regenerated should trend to zero for migrated components.
+
+**Phase 4 — move checking to proofs. Blocked**, on Aeneas's float model
+([§4](#4-extraction-spike-measured-results)). When it lands, add refinement per
+kernel. Then, for that kernel: the fixture stops being the primary evidence and
+becomes a regression net, and the exit criterion is that the Rust body is
+*proved* to compute the Lean specification.
+
+### 12.5 What "verified" will actually mean, and it is not what people expect
+
+Worth deciding now, because it changes how Phase 4 is planned. When floats lower
+into Lean they lower to an **opaque** scalar: Lean's `Float` carries no IEEE
+lemmas, mathlib's float formalisation is experimental, and the upstream draft
+itself notes that "lots of core routines are `opaque`". So a refinement proof
+will be able to establish:
+
+- index, row and column correctness, branch ranges, loop invariants and
+  termination, which device state is written, ordering, aliasing and
+  traversal order;
+
+and will **not** establish arithmetic identities. That is still worth a great
+deal — most simulator bugs are bookkeeping rather than floating-point identities
+— and it composes cleanly with Tier 0: the *scheme* is proved correct over `ℝ`,
+the *implementation structure* is proved to match the scheme, and the arithmetic
+is a stated assumption ("`f64` operations behave as IEEE 754 doubles") rather
+than a proof. Closing that last gap needs Flocq-style error bounds (a Lean port
+exists: `FloatSpec`); it is research-grade and should not be on the critical path.
+
+The honest form of any claim is therefore per kernel and explicit about which of
+the three links is proved and which is assumed. "Verified simulator" will not be
+available, and asking for it is how this kind of effort fails.
+
+### 12.6 What to measure, and when to stop
+
+- **Primary metric: authority coverage** — component behaviours whose definition
+  of correct is Lean rather than C. This is what "gradual" means, and it needs a
+  baseline table before Phase 2, not after.
+- **Secondary: C-derived fixtures regenerated per release**, which should fall to
+  zero for migrated components.
+- **Stop conditions:**
+  1. If Aeneas never lands a usable float model, the outcome is
+     *component-level specification authority only*. Still worth having, but it
+     must be labelled that way rather than drifting into a claim about the
+     simulator.
+  2. If reference-transcription cost exceeds the risk reduction, Phase 2 slows
+     rather than continues. The pilot's data point: the integrator's *algebra*
+     took about a session per kernel; device stamps will be substantially more,
+     and each needs its own fixture and co-validation.
+  3. **Whole-deck parity is never migrated.** If a Lean simulator becomes the
+     goal, that is a new project with a new justification, not Phase 5 of this
+     one.
+
+### 12.7 Order of work
+
+1. **Settle the prover question** ([§11.6](#116-if-a-verified-solver-is-the-goal-the-prover-choice-is-the-real-question)).
+   It gates Phase 4, it is cheap to test (install Coq, re-run the extraction
+   probe against the Coq backend), and getting it wrong invalidates the later
+   phases.
+2. **Phase 1**, the component fixture on the corrector coefficients. Small, and
+   it makes the inversion concrete rather than aspirational.
+3. **Phase 2's baseline table**, before migrating anything else.
+4. **Continue Tier 0 and Tier 2 proofs**, which pay off regardless of everything
+   above.
+5. **Re-run `formal/probes/extraction_shape_probe.sh` after every hax release**,
+   and start Phase 4 the release after its `f64_*` rows turn green.
+
+### 12.8 The bottom line
+
+C probably cannot be retired, and does not need to be. The realistic target is
+this:
+
+> **Component behaviour is defined by proved Lean references; end-to-end
+> behaviour is defined by C parity; C is co-validated rather than authoritative;
+> and the Rust implementation is proved to match the Lean references for the
+> kernels where that becomes possible.**
+
+That is a real, incremental programme with a measurable metric, and every step of
+it is useful on its own. Chasing "delete the oracle" would require a Lean
+simulator, which is not this project.
