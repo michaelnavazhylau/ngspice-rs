@@ -1,0 +1,15 @@
+MESFET transient: NMF switching stage and PMF stage with Statz gate charge
+vdd vdd 0 6
+vin in 0 pulse(-1.5 0 20n 5n 5n 50n 120n)
+rg in g 1k
+rl vdd d 500
+z1 d g 0 zn area=2
+.model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=5 rs=4 cgs=2p cgd=0.5p pb=0.8)
+vdd2 dd2 0 -5
+rl2 dd2 d2 1k
+vin2 g2 0 sin(0.5 0.6 20meg)
+z2 d2 g2 0 zp m=2
+.model zp pmf(vto=-1.2 beta=2m cgs=1p cgd=1p pb=0.9 alpha=3)
+.options reltol=1e-6 vntol=1e-10 abstol=1e-14
+.tran 0.5n 300n 0 0.1n
+.end

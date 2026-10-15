@@ -92,6 +92,7 @@ unsafe-cast cases instead of silently changing the input.
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
 | MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1 (1), MOS2 (2), MOS3 (3), MOS6 (6) and MOS9 (9); other selectors fail naming the C directory `inpdomod.c` selects (`bsim3/`, `bsim4/`, ...) |
 | JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1), 2 (Parker-Skellern `jfet2/`), see [JFET.md](JFET.md); others fail with `NotYetPorted` |
+| MESFET NMF/PMF | First explicit rounded level; default 1 | 0/1 (Statz MES, `mes/`), see [MESFET.md](MESFET.md); 2-4 (`mesa/`), 5 (`hfet1/`), 6 (`hfet2/`) and others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |
 | `res`, `c`, `l` | C fixes backend 1 without scanning level | Bounded Rust contract requires first explicit level to round to 1 |
 | `d` | C fixes backend 1 without scanning level | Last ordered integer setter applies; only final applied level 1 supported |

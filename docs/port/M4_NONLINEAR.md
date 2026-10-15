@@ -600,6 +600,12 @@ Level 1 NJF/PJF (#82, M10) lives in `devices::jfet` and level 2
 for its parameters, equations, limiting, the `off` divergence from C and its
 C goldens.
 
+### MESFET
+
+Level 1 NMF/PMF (Statz, #83, M10 wave 3) lives in `devices::mesfet` and
+reuses the JFET setup, limiting and internal-node helpers and the JFET2
+incremental-charge stamping; see [MESFET.md](MESFET.md).
+
 ## Solvers, sweeps and state
 
 `NewtonOptions` defaults: 100 iterations (C's `itl1`), reltol=1e-8,

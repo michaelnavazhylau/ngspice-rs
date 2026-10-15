@@ -203,6 +203,9 @@ fn known_golden_tokens_are_not_round_trippable() {
     assert_eq!(
         offenders,
         [
+            // The first transient step of m10_mesfet_tran (#83), as for the
+            // M4 decks below.
+            "m10_mesfet_tran:48 1.000000000000000e-11 -> 9.999999999999999e-12",
             "m4_bjt_tran:25 1.000000000000000e-11 -> 9.999999999999999e-12",
             "m4_diode_tran:19 1.000000000000000e-11 -> 9.999999999999999e-12",
             "rc_transient:19 1.000000000000000e-11 -> 9.999999999999999e-12",
@@ -4088,6 +4091,93 @@ const EXPECTATIONS: &[Expectation] = &[
             ("temp-sweep", 0, -40., 0.),
             ("temp-sweep", 11, 125., 0.),
             ("i(vg)", 0, 2.120344133494706e-11, 0.),
+        ],
+    },
+    // MESFET level 1 (#83). z2 (PMF, area 2, m = 3, v(g2) = 0.5 V) has both
+    // junctions at -0.5 V normalized and vds = 0, where mesload.c's cubic
+    // saturation factor 1 - (1 - alpha vds / 3)^3 vanishes: only its gates
+    // leak, 6 (2 IS (1 + arg) + 0.5 V gmin) with the cubic continuation
+    // arg = (3 Vt / (-0.5 e))^3 (Vt = CONSTvt0): 3.11998e-12 A. z3 (NMF
+    // after the tail flags, VTO = -1.6 V as the later spelling) is cut off
+    // in inverse mode (vgd - VTO = -0.9 V): drain -(0.5 IS + 2.5 V gmin),
+    // source -(0.5 IS + 2.8 V gmin). At vgs = 0, vds = 6 V z1 saturates:
+    // I = beta (1 + lambda vds') vgst^2 / (1 + B vgst) with vgs' = -I RS and
+    // vds' = 6 V - I (RD + RS) solves to 6.6503905e-3 A, plus the
+    // gate-drain leakage IS + 5.8 V gmin.
+    Expectation {
+        fixture: "m10_mesfet_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 231,
+        variables: &[
+            "v(v-sweep)",
+            "v(d)",
+            "v(d2)",
+            "v(d3)",
+            "v(g)",
+            "v(g2)",
+            "v(s3)",
+            "i(vds)",
+            "i(vds2)",
+            "i(vds3)",
+            "i(vgs)",
+            "i(vgs2)",
+            "i(vs3)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -2.0, 0.),
+            ("v(v-sweep)", 230, 6.0, 0.),
+            ("i(vgs2)", 0, -3.119977670193328e-12, 0.),
+            ("i(vds3)", 0, -2.504999992531683e-12, 0.),
+            ("i(vs3)", 0, -2.80499999470203e-12, 0.),
+            ("v(g)", 197, 0.0, 0.),
+            ("i(vds)", 197, -6.650390522513689e-3, 0.),
+        ],
+    },
+    // A common-source MESFET stage: the supply current is the load-resistor
+    // current, i(vdd) = v(d) / 1 k (the drain is the only path from VDD).
+    Expectation {
+        fixture: "m10_mesfet_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 71,
+        variables: &[
+            "frequency",
+            "v(d)",
+            "v(g)",
+            "v(in)",
+            "v(s)",
+            "v(vdd)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("frequency", 0, 1e3, 0.),
+            ("v(in)", 0, 1., 0.),
+            ("v(d)", 0, -5.003852111745354, -1.213849204364098),
+            ("i(vdd)", 0, -5.003852111745354e-3, -1.213849204364098e-3),
+            ("v(d)", 40, -1.690578579831678e-1, 1.258833995995369),
+            ("i(vdd)", 40, -1.690578579831678e-4, 1.258833995995369e-3),
+        ],
+    },
+    // At t = 0 the PMF stage (VTO = -1.2 V, gate at 0.5 V, i.e. vgst = 0.7 V
+    // normalized) saturates: m beta vgst^2 / (1 + B vgst) = 1.61983 mA
+    // through 1 k puts its drain at -3.38017 V (normalized vds above
+    // 3 / ALPHA = 1 V).
+    Expectation {
+        fixture: "m10_mesfet_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 3036,
+        variables: &[
+            "time", "v(d)", "v(d2)", "v(dd2)", "v(g)", "v(g2)", "v(in)", "v(vdd)", "i(vdd)",
+            "i(vdd2)", "i(vin)", "i(vin2)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(d2)", 0, -3.380165281475866, 0.),
+            ("i(vdd2)", 0, 1.619834718524134e-3, 0.),
+            ("time", 3035, 3e-7, 0.),
         ],
     },
     // URC lines (#85). C expands each U instance at setup (urcsetup.c) and

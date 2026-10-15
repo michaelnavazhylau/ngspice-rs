@@ -134,7 +134,12 @@ pub(super) fn parse_card(
             transistor::transistor_card,
             switch::switch_card,
             // M10 devices, nested: winnow's `alt` takes at most nine parsers.
-            alt((super::jfet::jfet_card, urc::urc_card, tline::tline_card)),
+            alt((
+                super::jfet::jfet_card,
+                urc::urc_card,
+                tline::tline_card,
+                super::mesfet::mesfet_card,
+            )),
         )),
         unported_card,
         unknown_card,

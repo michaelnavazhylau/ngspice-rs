@@ -1,0 +1,109 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_mesfet_dc.cir
+title: "MESFET level 1 output/transfer sweep: Statz B/ALPHA/LAMBDA, RD/RS, inverse mode, area/m, PMF" @netlists/m10_mesfet_dc.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m10_mesfet_dc.cir:2:1 "vds d 0 0"
+    [1] device[1] @netlists/m10_mesfet_dc.cir:3:1 "vgs g 0 0"
+    [2] device[2] @netlists/m10_mesfet_dc.cir:4:1 "z1 d g 0 zn"
+    [3] device[3] @netlists/m10_mesfet_dc.cir:5:1 "vds2 d2 0 0"
+    [4] device[4] @netlists/m10_mesfet_dc.cir:6:1 "vgs2 g2 0 0.5"
+    [5] device[5] @netlists/m10_mesfet_dc.cir:7:1 "z2 d2 g2 0 zp area=2 m=3"
+    [6] device[6] @netlists/m10_mesfet_dc.cir:8:1 "vds3 d3 0 0"
+    [7] device[7] @netlists/m10_mesfet_dc.cir:9:1 "z3 d3 g s3 zt area=0.5"
+    [8] device[8] @netlists/m10_mesfet_dc.cir:10:1 "vs3 s3 0 0.3"
+    [9] model[0] @netlists/m10_mesfet_dc.cir:11:1 ".model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=20 rs=15 is=1e-14 cgs=1p cgd=0.3p)"
+    [10] model[1] @netlists/m10_mesfet_dc.cir:12:1 ".model zp pmf(vto=-1.5 beta=2m lambda=0.02 b=0.1 alpha=3 rs=10)"
+    [11] model[2] @netlists/m10_mesfet_dc.cir:13:1 ".model zt nmf(level=1 vt0=-1 vto=-1.6 beta=4m alpha=1.5 rd=5 pmf nmf)"
+    [12] options[0] @netlists/m10_mesfet_dc.cir:14:1 ".options reltol=1e-7 vntol=1e-12 abstol=1e-15"
+    [13] analysis[0] @netlists/m10_mesfet_dc.cir:15:1 ".dc vds -2 6 0.25 vgs -2.5 0.5 0.5"
+    [14] end @netlists/m10_mesfet_dc.cir:16:1 ".end"
+  devices (9):
+    device [0] name="vds" designator=v @netlists/m10_mesfet_dc.cir:2:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_mesfet_dc.cir:2:9
+    device [1] name="vgs" designator=v @netlists/m10_mesfet_dc.cir:3:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_mesfet_dc.cir:3:9
+    device [2] name="z1" designator=z @netlists/m10_mesfet_dc.cir:4:1
+      nodes: "d" "g" "0"
+      model: "zn"
+      parameters (0):
+    device [3] name="vds2" designator=v @netlists/m10_mesfet_dc.cir:5:1
+      nodes: "d2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_mesfet_dc.cir:5:11
+    device [4] name="vgs2" designator=v @netlists/m10_mesfet_dc.cir:6:1
+      nodes: "g2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m10_mesfet_dc.cir:6:11
+    device [5] name="z2" designator=z @netlists/m10_mesfet_dc.cir:7:1
+      nodes: "d2" "g2" "0"
+      model: "zp"
+      parameters (2):
+        [0] name="area" kind=scalar value="2" @netlists/m10_mesfet_dc.cir:7:15
+        [1] name="m" kind=scalar value="3" @netlists/m10_mesfet_dc.cir:7:22
+    device [6] name="vds3" designator=v @netlists/m10_mesfet_dc.cir:8:1
+      nodes: "d3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_mesfet_dc.cir:8:11
+    device [7] name="z3" designator=z @netlists/m10_mesfet_dc.cir:9:1
+      nodes: "d3" "g" "s3"
+      model: "zt"
+      parameters (1):
+        [0] name="area" kind=scalar value="0.5" @netlists/m10_mesfet_dc.cir:9:15
+    device [8] name="vs3" designator=v @netlists/m10_mesfet_dc.cir:10:1
+      nodes: "s3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.3" @netlists/m10_mesfet_dc.cir:10:10
+  models (3):
+    model [0] name="zn" base="nmf" level=none @netlists/m10_mesfet_dc.cir:11:1
+      parameters (10):
+        [0] name="vto" kind=scalar value="-1.8" @netlists/m10_mesfet_dc.cir:11:15
+        [1] name="beta" kind=scalar value="3m" @netlists/m10_mesfet_dc.cir:11:24
+        [2] name="lambda" kind=scalar value="0.05" @netlists/m10_mesfet_dc.cir:11:32
+        [3] name="alpha" kind=scalar value="2.5" @netlists/m10_mesfet_dc.cir:11:44
+        [4] name="b" kind=scalar value="0.4" @netlists/m10_mesfet_dc.cir:11:54
+        [5] name="rd" kind=scalar value="20" @netlists/m10_mesfet_dc.cir:11:60
+        [6] name="rs" kind=scalar value="15" @netlists/m10_mesfet_dc.cir:11:66
+        [7] name="is" kind=scalar value="1e-14" @netlists/m10_mesfet_dc.cir:11:72
+        [8] name="cgs" kind=scalar value="1p" @netlists/m10_mesfet_dc.cir:11:81
+        [9] name="cgd" kind=scalar value="0.3p" @netlists/m10_mesfet_dc.cir:11:88
+    model [1] name="zp" base="pmf" level=none @netlists/m10_mesfet_dc.cir:12:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="-1.5" @netlists/m10_mesfet_dc.cir:12:15
+        [1] name="beta" kind=scalar value="2m" @netlists/m10_mesfet_dc.cir:12:24
+        [2] name="lambda" kind=scalar value="0.02" @netlists/m10_mesfet_dc.cir:12:32
+        [3] name="b" kind=scalar value="0.1" @netlists/m10_mesfet_dc.cir:12:44
+        [4] name="alpha" kind=scalar value="3" @netlists/m10_mesfet_dc.cir:12:50
+        [5] name="rs" kind=scalar value="10" @netlists/m10_mesfet_dc.cir:12:58
+    model [2] name="zt" base="nmf" level=1e0 @netlists/m10_mesfet_dc.cir:13:1
+      parameters (8):
+        [0] name="level" kind=scalar value="1" @netlists/m10_mesfet_dc.cir:13:15
+        [1] name="vt0" kind=scalar value="-1" @netlists/m10_mesfet_dc.cir:13:23
+        [2] name="vto" kind=scalar value="-1.6" @netlists/m10_mesfet_dc.cir:13:30
+        [3] name="beta" kind=scalar value="4m" @netlists/m10_mesfet_dc.cir:13:39
+        [4] name="alpha" kind=scalar value="1.5" @netlists/m10_mesfet_dc.cir:13:47
+        [5] name="rd" kind=scalar value="5" @netlists/m10_mesfet_dc.cir:13:57
+        [6] name="pmf" kind=flag value="" @netlists/m10_mesfet_dc.cir:13:62
+        [7] name="nmf" kind=flag value="" @netlists/m10_mesfet_dc.cir:13:66
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m10_mesfet_dc.cir:15:1
+      arguments: "vds" "-2" "6" "0.25" "vgs" "-2.5" "0.5" "0.5"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_mesfet_dc.cir:14:1
+      setting [0] name="reltol" value="1e-7"@netlists/m10_mesfet_dc.cir:14:17 @netlists/m10_mesfet_dc.cir:14:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_mesfet_dc.cir:14:28 @netlists/m10_mesfet_dc.cir:14:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_mesfet_dc.cir:14:41 @netlists/m10_mesfet_dc.cir:14:34
+  globals (0):

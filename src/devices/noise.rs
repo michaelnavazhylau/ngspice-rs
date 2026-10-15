@@ -1,7 +1,7 @@
 //! Device noise generators for small-signal `.noise` analysis.
 //!
 //! C reference: every noisy device has a `DEVnoise` entry (`resnoise.c`,
-//! `dionoise.c`, `bjtnoise.c`, `mos1noi.c`, `swnoise.c`, `cswnoise.c`) that
+//! `dionoise.c`, `bjtnoise.c`, `mesnoise.c`, `mos1noi.c`, `swnoise.c`, `cswnoise.c`) that
 //! names its generators and evaluates them through `NevalSrc`/
 //! `NevalSrcInstanceTemp` (`src/spicelib/analysis/nevalsrc.c`): every generator
 //! is a current source between two nodes whose power spectral density is
@@ -55,6 +55,8 @@ pub enum NoiseFamily {
     CurrentSwitch,
     /// `dio` (`dionoise.c`).
     Diode,
+    /// `mes`, the level-1 MESFET (`mesnoise.c`).
+    Mes,
     /// `mos1` (`mos1noi.c`).
     Mos1,
     /// `mos2` (`mos2noi.c`).
