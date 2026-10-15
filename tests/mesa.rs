@@ -377,10 +377,80 @@ fn the_remaining_boundaries_are_explicit() {
             "{setter}: {error}"
         );
     }
-    let mut c = circuit(&probe("nmf(level=2)")).unwrap();
-    let error = attempt(&mut c, AnalysisKind::Transient, &["1n", "10n"]).unwrap_err();
+    // `mesainit.c` leaves `DEVnoise`/`DEVdisto`/`DEVsen*` NULL, so C's MESA
+    // contributes nothing to those analyses and does not fail them. The port
+    // is stricter: it refuses rather than silently omitting a device, which
+    // #158 tracks. This is the remaining boundary the slice does not close.
+    let mut c = circuit(
+        "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 3 0 dc 0 ac 1\n\
+         z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2)",
+    )
+    .unwrap();
+    let error = attempt(
+        &mut c,
+        AnalysisKind::Noise,
+        &["v(2)", "vgs", "dec", "1", "1k", "1meg"],
+    )
+    .unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("mesa"), "{error}");
+    assert!(error.to_string().contains("noise"), "{error}");
+}
+
+/// `mesatrunc.c`'s charge pairs and `mesaload.c`'s transient load, against the
+/// reference binary on a gate pulse. The port lands on C's accepted timepoints
+/// for this deck (100 points, identical times), so the values are pinned
+/// directly: at 2.375 ns the drive has just returned to -1.5 V and the
+/// reference binary prints `vids#branch` = 2.250146424221e-3 A.
+#[test]
+fn the_transient_load_matches_the_reference_binary() {
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nvids 1 2 dc 0\n\
+         vg 3 0 dc 0 pulse(-1.5 0 1n 0.2n 0.2n 2n 5n)\n\
+         z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2 rd=31 rs=31 rg=10)\n\
+         .tran 0.05n 4n",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::Transient, &["0.05n", "4n"]);
+    assert_eq!(plot.point_count(), 100);
+    close(value(&plot, "time", 0), 0., 1e-12, 1e-15);
+    close(value(&plot, "i(vids)", 0), 7.420938031561e-6, 1e-5, 1e-12);
+    close(value(&plot, "v(z1#gate)", 0), -1.499961991175, 1e-9, 1e-12);
+    close(value(&plot, "time", 99), 4e-9, 1e-9, 1e-15);
+    close(value(&plot, "i(vids)", 99), 7.487777405496e-6, 1e-4, 1e-12);
+    close(value(&plot, "v(z1#gate)", 99), -1.499959662869, 1e-7, 1e-9);
+}
+
+/// The charge storage is what makes the drain current move when the gate
+/// drive does: the same deck held at a fixed gate has no capacitances in the
+/// load at all, so the difference is the integration.
+#[test]
+fn the_transient_load_integrates_the_gate_charges() {
+    let pulse = |body: &str| {
+        circuit(&format!(
+            "vdd 1 0 dc 3\nvids 1 2 dc 0\n\
+             vg 3 0 dc 0 pulse(-1.5 0 1n 0.2n 0.2n 2n 5n)\n\
+             z1 2 3 0 zm l=1u w=20u\n.model zm {body}\n\
+             .tran 0.05n 4n"
+        ))
+        .unwrap()
+    };
+    let mut c = pulse("nmf(level=2 rd=31 rs=31 rg=10)");
+    let plot = run(&mut c, AnalysisKind::Transient, &["0.05n", "4n"]);
+    // Half way up the rise the gate charge is still being pushed through
+    // `rg`, so the drain current leads the DC curve of the same deck.
+    let moving = value(&plot, "i(vids)", 30);
+    close(moving, 1.005292358136e-4, 1e-6, 1e-12);
+    let mut flat = circuit(
+        "vdd 1 0 dc 3\nvids 1 2 dc 0\nvg 3 0 dc -1.2375\n\
+         z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2 rd=31 rs=31 rg=10)\n\
+         .op",
+    )
+    .unwrap();
+    let settled = run(&mut flat, AnalysisKind::OperatingPoint, &[]);
+    assert!(
+        (value(&settled, "i(vids)", 0) - moving).abs() > 1e-7,
+        "the transient load must carry the gate charge, not just the DC channel"
+    );
 }
 
 /// `mesaacl.c` is not pending work: `.ac` already matches the reference

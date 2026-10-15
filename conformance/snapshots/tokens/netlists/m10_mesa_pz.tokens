@@ -1,0 +1,101 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_mesa_pz.cir
+title: "MESA pole-zero: common-source stage, current drive at the gate" @netlists/m10_mesa_pz.cir:1:1
+card 1 @netlists/m10_mesa_pz.cir:6:1 lines=6-6 continuations=0
+  raw: "vdd vdd 0 3"
+  kind: device(v)
+  token 1 6:1 word "vdd"
+  token 2 6:5 word "vdd"
+  token 3 6:9 number "0" value=0e0
+  token 4 6:11 number "3" value=3e0
+card 2 @netlists/m10_mesa_pz.cir:7:1 lines=7-7 continuations=0
+  raw: "vin gate 0 dc -1 ac 1"
+  kind: device(v)
+  token 1 7:1 word "vin"
+  token 2 7:5 word "gate"
+  token 3 7:10 number "0" value=0e0
+  token 4 7:12 word "dc"
+  token 5 7:15 number "-1" value=-1e0
+  token 6 7:18 word "ac"
+  token 7 7:21 number "1" value=1e0
+card 3 @netlists/m10_mesa_pz.cir:8:1 lines=8-8 continuations=0
+  raw: "rs gate g 1k"
+  kind: device(r)
+  token 1 8:1 word "rs"
+  token 2 8:4 word "gate"
+  token 3 8:9 word "g"
+  token 4 8:11 number "1k" value=1e3
+card 4 @netlists/m10_mesa_pz.cir:9:1 lines=9-9 continuations=0
+  raw: "rd vdd drain 100"
+  kind: device(r)
+  token 1 9:1 word "rd"
+  token 2 9:4 word "vdd"
+  token 3 9:8 word "drain"
+  token 4 9:14 number "100" value=1e2
+card 5 @netlists/m10_mesa_pz.cir:10:1 lines=10-10 continuations=0
+  raw: "cl drain 0 1p"
+  kind: device(c)
+  token 1 10:1 word "cl"
+  token 2 10:4 word "drain"
+  token 3 10:10 number "0" value=0e0
+  token 4 10:12 number "1p" value=1e-12
+card 6 @netlists/m10_mesa_pz.cir:11:1 lines=11-11 continuations=0
+  raw: "z1 drain g 0 mm l=1u w=20u"
+  kind: device(z)
+  token 1 11:1 word "z1"
+  token 2 11:4 word "drain"
+  token 3 11:10 word "g"
+  token 4 11:12 number "0" value=0e0
+  token 5 11:14 word "mm"
+  token 6 11:17 word "l"
+  token 7 11:18 equals "="
+  token 8 11:19 number "1u" value=1e-6
+  token 9 11:22 word "w"
+  token 10 11:23 equals "="
+  token 11 11:24 number "20u" value=1.9999999999999998e-5
+card 7 @netlists/m10_mesa_pz.cir:12:1 lines=12-12 continuations=0
+  raw: ".model mm nmf(level=2 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=300 rsi=200)"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "mm"
+  token 3 12:11 word "nmf"
+  token 4 12:14 lparen "("
+  token 5 12:15 word "level"
+  token 6 12:20 equals "="
+  token 7 12:21 number "2" value=2e0
+  token 8 12:23 word "rd"
+  token 9 12:25 equals "="
+  token 10 12:26 number "31" value=3.1e1
+  token 11 12:29 word "rs"
+  token 12 12:31 equals "="
+  token 13 12:32 number "31" value=3.1e1
+  token 14 12:35 word "rg"
+  token 15 12:37 equals "="
+  token 16 12:38 number "10" value=1e1
+  token 17 12:41 word "ri"
+  token 18 12:43 equals "="
+  token 19 12:44 number "1e3" value=1e3
+  token 20 12:48 word "rf"
+  token 21 12:50 equals "="
+  token 22 12:51 number "2e3" value=2e3
+  token 23 12:55 word "rdi"
+  token 24 12:58 equals "="
+  token 25 12:59 number "300" value=3e2
+  token 26 12:63 word "rsi"
+  token 27 12:66 equals "="
+  token 28 12:67 number "200" value=2e2
+  token 29 12:70 rparen ")"
+card 8 @netlists/m10_mesa_pz.cir:13:1 lines=13-13 continuations=0
+  raw: ".pz g 0 drain 0 cur pz"
+  kind: dot(.pz)
+  token 1 13:1 word ".pz"
+  token 2 13:5 word "g"
+  token 3 13:7 number "0" value=0e0
+  token 4 13:9 word "drain"
+  token 5 13:15 number "0" value=0e0
+  token 6 13:17 word "cur"
+  token 7 13:21 word "pz"
+card 9 @netlists/m10_mesa_pz.cir:14:1 lines=14-14 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 14:1 word ".end"

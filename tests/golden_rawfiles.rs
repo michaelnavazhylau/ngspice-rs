@@ -4247,6 +4247,60 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 1, -6.483212903972138e-04, 0.),
         ],
     },
+    // `mesapzl.c` on a common-source stage: three poles and two zeros, all
+    // real for this bias. `rg`/`ri`/`rf`, the channel's series pair and the
+    // gate charges all enter the pencil.
+    Expectation {
+        fixture: "m10_mesa_pz",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &[
+            "v(pole(1))",
+            "v(pole(2))",
+            "v(pole(3))",
+            "v(zero(1))",
+            "v(zero(2))",
+        ],
+        values: &[
+            ("v(pole(1))", 0, -3.168581359721350e11, 0.),
+            ("v(pole(2))", 0, -1.015862740751191e10, 0.),
+            ("v(pole(3))", 0, 1.361753339910417e8, 0.),
+            ("v(zero(1))", 0, -9.212491715067855e11, 0.),
+            ("v(zero(2))", 0, -6.750474361317838e10, 0.),
+        ],
+    },
+    // The same paths under a gate pulse, with the charge storage of
+    // `mesaload.c`/`mesatrunc.c` live: 244 accepted steps, `rg` 10 ohms
+    // keeping `#gate` just behind the drive and `ri`/`rf` holding `#gs`/`#gd`
+    // on either side of the channel.
+    Expectation {
+        fixture: "m10_mesa_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 244,
+        variables: &[
+            "time",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vdd)",
+            "i(vg)",
+            "i(vids)",
+            "v(z1#gate)",
+            "v(z1#gd)",
+            "v(z1#gs)",
+            "v(z2#gate)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("i(vids)", 0, 3.205192441894718e-5, 0.),
+            ("v(z1#gate)", 0, -1.499924153654504e0, 0.),
+            ("time", 243, 3.0e-9, 0.),
+            ("i(vids)", 243, 3.205081347747267e-5, 0.),
+            ("v(z1#gate)", 243, -1.499924153654498e0, 0.),
+        ],
+    },
     // The resistance paths (#155) at `vgs = -1`: `z1` carries all of them
     // (`rd`/`rs` 31, `rg` 10, `ri` 1k, `rf` 2k, `rdi` 300, `rsi` 200), `z2`
     // only the 1 MOhm pair that starves it to `0.5/2e6` A, and `z3` only

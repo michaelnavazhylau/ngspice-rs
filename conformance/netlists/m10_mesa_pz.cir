@@ -1,0 +1,14 @@
+MESA pole-zero: common-source stage, current drive at the gate
+* `mesapzl.c` is `mesaacl.c` with `s` in place of `j omega`, so the gate
+* charges, the channel conductances and every resistance path set the poles.
+* The AC gate source is removed in the pole-zero load and the gate floats
+* behind `rs`, so a current drive is used, as for `pz_mos1`.
+vdd vdd 0 3
+vin gate 0 dc -1 ac 1
+rs gate g 1k
+rd vdd drain 100
+cl drain 0 1p
+z1 drain g 0 mm l=1u w=20u
+.model mm nmf(level=2 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=300 rsi=200)
+.pz g 0 drain 0 cur pz
+.end

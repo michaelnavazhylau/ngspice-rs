@@ -246,17 +246,19 @@ longer treats everything above level 1 as "not yet ported".
 **Status.** H1a landed in PR #151 (the shared shell, the level-2 schema and
 `mesasetup.c` defaults, `mesatemp.c`'s derivations, the `mesa1` channel with its
 derivatives, the DC load, the `mesaask.c` table and `mesaacl.c`'s small-signal
-assembly) and #155 added the resistance paths. Two plan corrections came out
-of it. First, AC was never pending: `mesaacl.c`'s conductances and gate
-capacitances match the reference binary to round-off from DC to 10 GHz, so
-`.ac`, `.sp` and `.tf` work. Second, `rd`/`rs` *do* create `#source`/`#drain`
-nodes - an early reading said otherwise because C's rawfile writer omits those
-two names (`outitf.c`'s mainline-device skip list) while `show` reports
-`dprimenode`/`sprimenode`; `ri`/`rf` create `#gs`/`#gd` and `rdi`/`rsi` only
-enter `mesa1`'s `RS`/`RD`. What is left is #156 (charge storage and `.tran`),
-#157 (`mesapzl.c`), #158 (`.noise`/`.disto`/`.sens`, where C has no routine at
-all and the port is stricter than the reference) and the parser gap #160
-(instance parameters on a `.model` card).
+assembly), #155 added the resistance paths and #156/#157 the charge storage,
+the transient load and `mesapzl.c`, so every C load for level 2 is ported. Two
+plan corrections came out of it. First, AC was never pending: `mesaacl.c`'s
+conductances and gate capacitances match the reference binary to round-off from
+DC to 10 GHz, so `.ac`, `.sp` and `.tf` work. Second, `rd`/`rs` *do* create
+`#source`/`#drain` nodes - an early reading said otherwise because C's rawfile
+writer omits those two names (`outitf.c`'s mainline-device skip list) while
+`show` reports `dprimenode`/`sprimenode`; `ri`/`rf` create `#gs`/`#gd` and
+`rdi`/`rsi` only enter `mesa1`'s `RS`/`RD`. What is left is #158
+(`.noise`/`.disto`/`.sens`, where C has no routine at all and the port is
+stricter than the reference), the two parser gaps (#161 instance parameters on
+a `.model` card, #162 the `<source>#branch` spelling) and the state-backed
+`@z1[qgs]` asks.
 
 ### H1 reference notes (read from the C sources, 2026-10-15)
 
