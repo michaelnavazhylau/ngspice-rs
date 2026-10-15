@@ -576,7 +576,10 @@ impl Mesa {
         } else {
             (1. - vgte / derived.vpo).sqrt()
         };
-        let denom = 1. / model.nd / model.d * (1. - sqrt1);
+        // `mesaload.c`'s `1.0/ND/D/(1-sqrt1)`, i.e. `1/(ND D (1 - sqrt1))`;
+        // the `b/n0` term dominates in subthreshold, where the two spellings
+        // agree, and it is the whole difference in strong inversion.
+        let denom = 1. / model.nd / model.d / (1. - sqrt1);
         let ns = 1. / (denom + 1. / derived.n0 * b);
         if ns < N_MIN {
             return Ok((0., 0., 0., derived.cf, derived.cf));
