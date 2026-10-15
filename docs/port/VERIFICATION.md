@@ -396,6 +396,10 @@ gives up with an iteration-limit warning and omits roots.
 
 ## Single-crate consolidation (`restructure/single-crate`, no functional change)
 
+> **Historical delivery evidence, not current totals.** The package layout
+> described here is now plain `main`; the numbers below are the counts recorded
+> at consolidation. Current totals are in [TODO.md](../../TODO.md).
+
 The six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 `spice-analysis`, `spice-cli`) are consolidated into one package, `ngspice-rs`, so
 that crates.io carries a single name and a single version. The former crate
