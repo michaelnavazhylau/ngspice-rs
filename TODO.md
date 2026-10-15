@@ -14,13 +14,14 @@ six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 `src/bin/spice-rs.rs`, `xtask` is a separate unpublished workspace member and
 conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
-one: treat a layout change as whole-tree, never as a cherry-pick. At the M10
-wave-3 merge (`6b86331`), `cargo test --workspace --locked` reports **1417 passed
-/ 0 failed / 150 ignored** (the ignored tests are the opt-in `NGSPICE_BIN` live-C
-checks) and `cargo xtask golden verify` reports **151 verified / 1 unsupported /
-0 failures** (the unsupported fixture is `multi_analysis_pz`, whose pole search
-depends on the C build's fused multiply-adds). See
-[VERIFICATION.md](docs/port/VERIFICATION.md) for the recorded evidence.
+one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
+(`08c5169`, after the spill slice H1a in PR #151, MESA level 2), `cargo test
+--workspace --locked` reports **1427 passed / 0 failed / 150 ignored** (the
+ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
+golden verify` reports **153 verified / 1 unsupported / 0 failures** (the
+unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
+build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
+for the recorded evidence.
 
 The local C-reference development checkout and its history are separate from this
 Rust-only history; their revision ids are reference points, not build
@@ -33,7 +34,7 @@ ported.
 | Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL (elaborated to forcing, #9), scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses and normalized round trips (M1 gate, #22); not simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
-| Distributed lines | Lossless `T` (#84) and lossy `O`/LTRA (#85) transmission lines and the URC expansion (#85): exact DC/AC stamps, device-driven breakpoints and delayed-history transients ([TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md)) |
+| Distributed lines | Lossless `T` (#84) and lossy `O`/LTRA and URC expansion lines (both tracked by #85 before it was retargeted to TXL): exact DC/AC stamps, device-driven breakpoints and delayed-history transients ([TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md)) |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | SPARSE 1.3 port (real/complex LU, `spsmp.c`/`niiter.c` driving; [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)), scalar R/C/L/V/I elaboration and stamps; opt-in library equilibration wrappers with no production caller (#46, [EQUILIBRATION.md](docs/port/EQUILIBRATION.md)) |
 | Numerical follow-up | Native SPARSE 1.3 solver with C's error policy (M10 wave 0.5, [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)); the #47 rank guard, #68 proof follow-up and the #29 constrained-RLC prototype (gates #69–#72) belonged to the removed faer/diffsol stack and are historical |
@@ -332,7 +333,11 @@ MEASURE.md and FOURIER.md. This does not imply full SPICE compatibility.
 
 ## M10 — Extended device library (work/m10-*)
 
-Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
+Plan and tracker: [docs/port/M10.md](docs/port/M10.md); the follow-on device
+slices are ordered in [M10_SPILL_PLAN.md](docs/port/M10_SPILL_PLAN.md). Issue
+#85 tracked the `T`/`O`/URC transmission lines when those slices landed and has
+since been retargeted to the TXL (`Y`) line, so the two entries below that cite
+it are marked "#85 as it then read".
 
 - [x] Wave 0.5, native solver (PR #137, #138; items 0.5a, 0.5c, 0.5d, 0.5h):
   SPARSE 1.3 port driven as `spsmp.c`/`niiter.c` drive it, C's singular/small
@@ -370,8 +375,9 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   `.noise` (`jfetnoi.c`), `.disto`, `.sens` (explicit errors); `off` diverges
   from C, whose operating point fails with an `off` JFET. See
   [JFET.md](docs/port/JFET.md).
-- [x] URC uniform distributed RC lines (#85, part 1; `work/m10-urc`): `inp2u.c`
-  grammar (`l=`/`n=`, required model, refused leading value), `urc` model
+- [x] URC uniform distributed RC lines (#85 as it then read, part 1;
+  `work/m10-urc`): `inp2u.c` grammar (`l=`/`n=`, required model, refused leading
+  value), `urc` model
   schema with `urcsetup.c` defaults and the no-op `urc` flag, and `urcsetup.c`'s
   expansion (FMAX section rule, geometric `K` scaling, `ISPERL` diode ladder
   with the generated `<name>#diodemod`) into existing R/C/D devices with C's
@@ -389,8 +395,9 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   TRANSIENT.md); C goldens `m10_tline_{tran,ac,pulse}`. Explicit errors:
   `uic` with a line, `.pz`, `.noise`, `.disto`, `.sens`. See
   [TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md).
-- [x] Lossy transmission line `O` (LTRA, #85 part 2, slice 8, `work/m10-ltra`):
-  `inp2o.c` grammar, `ltra` model schema and flags, `ltraset.c` LC/RLC/RC/RG
+- [x] Lossy transmission line `O` (LTRA, #85 as it then read, part 2, slice 8,
+  `work/m10-ltra`): `inp2o.c` grammar, `ltra` model schema and flags,
+  `ltraset.c` LC/RLC/RC/RG
   classification (RL and `G` with `L`/`C` are C's errors), C's DC rows, exact
   AC (`ltraacld.c`), companion transient convolving the unpruned accepted
   history with `ltramisc.c`'s Bessel/`erfc` coefficients and interpolation,
@@ -412,8 +419,9 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   See [JFET.md](docs/port/JFET.md#level-2-parker-skellern).
 - [x] MESFET level 1, Statz (#83, wave 3, `work/m10-mesfet`): `Z` grammar
   (`inp2z.c`; the unlabeled leading value C drops for MES is refused),
-  `nmf`/`pmf` model family (level 0/1; MESA 2-4, HFET1 5, HFET2 6 and others
-  `NotYetPorted`), `devices::mesfet` (`mesload.c` channel with the cubic
+  `nmf`/`pmf` model family (level 0/1 here, MESA 2 since the H1a entry
+  below, MESA 3/4, HFET1 5, HFET2 6 and others `NotYetPorted`),
+  `devices::mesfet` (`mesload.c` channel with the cubic
   saturation polynomial in normal/inverse mode, gate diodes at C's fixed
   `CONSTvt0`, incremental `qggnew` gate charge, RD/RS internal nodes, area/m,
   `DEVpnjlim`/`DEVfetlim` limiting, `off`/`uic`), `mesacl.c`/`mespzld.c`
@@ -429,9 +437,10 @@ Plan and tracker: [docs/port/M10.md](docs/port/M10.md).
   `tests/mesa.rs`. Boundaries, each an explicit error: every resistance path
   other than `rg` (`rd`/`rs` fold into `mesaload.c` with no node, `ri`/`rf`
   create `#gs`/`#gd`), `mesatrunc.c` charges (H1b) and `mesapzl.c` (H2).
-  `m10_mesa_op`/`m10_mesa_dc` verify against the reference binary. The last
-  residual (a ~1.2e-6 drain current) was C's `EPSILONGAAS` spelling,
-  `12.244*8.85418e-12`, against the port's modern `eps0`. Remaining in #83:
+  `m10_mesa_op`/`m10_mesa_dc` verify against the reference binary (153
+  verified at landing). The last residual (a ~1.2e-6 drain current) was C's
+  `EPSILONGAAS` spelling, `12.244*8.85418e-12`, against the port's modern
+  `eps0`. Remaining in #83:
   H1b (`mesatrunc.c` charge storage, `mesapzl.c` and the `rd`/`rs`/`ri`/`rf`/
   `rdi`/`rsi` resistance paths), then H2-H5 (MESA 3/4, HFET1, HFET2). See
   [MESFET.md](docs/port/MESFET.md) and
