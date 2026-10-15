@@ -693,7 +693,7 @@ r2 out 0 1k
         assert!(text.contains("by designator:    r(2) v(1)"), "{text}");
         assert!(text.contains("analyses: .tran"), "{text}");
         assert!(
-            text.contains("port:     12 ported and 9 bounded of 26 device designators"),
+            text.contains("port:     12 ported and 10 bounded of 26 device designators"),
             "{text}"
         );
     }
@@ -718,7 +718,7 @@ r2 out 0 1k
     fn the_device_list_distinguishes_ported_bounded_and_pending() {
         let text = devices_text(&Registry::with_builtins());
         assert!(
-            text.starts_with("26 device designator(s): 12 ported, 9 bounded, 5 pending"),
+            text.starts_with("26 device designator(s): 12 ported, 10 bounded, 4 pending"),
             "{text}"
         );
         let status = |letter: char| {
