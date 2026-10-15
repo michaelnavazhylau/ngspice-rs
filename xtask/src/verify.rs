@@ -201,6 +201,36 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::NONLINEAR,
         },
     },
+    // The resistance paths (#155): `rd`/`rs` (the prime nodes, which C's
+    // rawfile omits), `rg`, `ri`/`rf` (`#gs`/`#gd`) and the `rdi`/`rsi`
+    // series pair, with the `rtc1`/`rtc2` temperature scaling in the second
+    // fixture.
+    Supported {
+        name: "m10_mesa_res_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_res_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    // `mesaacl.c` with the resistance paths live: the same conductances
+    // between the external, prime and prime-prime nodes, plus `j omega C`.
+    Supported {
+        name: "m10_mesa_res_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::AC,
+        },
+    },
     // The same pair in the small-signal sweep: `mesaacl.c`'s conductances and
     // gate capacitances, with the `rg` device's `#gate` node in the AC plot as
     // it is in the DC one.
@@ -1632,8 +1662,9 @@ fn is_tline_node(name: &str) -> bool {
 
 /// The macspice MESA/HFET node names. `outitf.c`'s skip list was written for
 /// mainline devices (`#source`, `#drain`, ...), so it does not cover them: the
-/// reference binary saves `v(z2#gate)` for a MESA card with `rg=10`, while it
-/// creates no `#source`/`#drain` for `rd`/`rs` at all. Keep them compared.
+/// reference binary saves `v(z2#gate)` for a MESA card with `rg=10`, and the
+/// `#gs`/`#gd` nodes `ri`/`rf` create. Keep them compared (`#source`/`#drain`
+/// stay out, on C's list).
 fn is_mesa_node(name: &str) -> bool {
     ["#gate", "#gs", "#gd"]
         .iter()

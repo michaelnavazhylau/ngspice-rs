@@ -1,0 +1,12 @@
+MESA level 2 resistance paths, drain sweep
+vds 1 0 dc 0.5
+vids 1 2 dc 0
+vgs 3 0 dc -1
+z1 2 3 0 mesmod l=1u w=20u
+z2 2 3 0 mesmod2 l=2u w=40u dtemp=100
+.model mesmod nmf(level=2 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=300 rsi=200)
+.model mesmod2 nmf(level=2 rd=31 rs=31 ri=1e3 rf=2e3 rtc1=2e-3 rtc2=1e-6)
+.save all
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.dc vgs -1.2 0 0.4
+.end

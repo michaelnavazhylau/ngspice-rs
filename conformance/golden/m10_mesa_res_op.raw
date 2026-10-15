@@ -1,0 +1,32 @@
+Title: mesa level 2 resistance paths, operating point
+Date: Thu Oct 15 15:50:14  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 11
+No. Points: 1
+Variables:
+	0	v(1)	voltage
+	1	v(2)	voltage
+	2	v(3)	voltage
+	3	i(vds)	current
+	4	i(vgs)	current
+	5	i(vids)	current
+	6	v(z1#gate)	voltage
+	7	v(z1#gd)	voltage
+	8	v(z1#gs)	voltage
+	9	v(z3#gd)	voltage
+	10	v(z3#gs)	voltage
+Values:
+ 0	5.000000000000000e-01
+	5.000000000000000e-01
+	-1.000000000000000e+00
+	-2.380868561270731e-04
+	8.555354229777822e-08
+	2.380868561270731e-04
+	-9.999998380206109e-01
+	4.966417361461413e-01
+	3.357761717752394e-03
+	5.000000000000000e-01
+	0.000000000000000e+00
+

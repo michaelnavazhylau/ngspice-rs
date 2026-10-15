@@ -6,11 +6,11 @@
 //! (`MESAload` and the `mesa1` channel), `mesa/mesaparam.c` and
 //! `mesa/mesaask.c`.
 //!
-//! This is H1a: `.op` and `.dc` only, plus the `.ac` small-signal assembly a
-//! swept `.dc` needs. The charge storage and `NIintegrate` path
-//! (`mesatrunc.c`), the pole-zero load (`mesapzl.c`) and every resistance path
-//! other than `rg` (`rd`/`rs`, the prime-prime pair and `#gs`/`#gd`) are H1b
-//! and fail with explicit errors.
+//! This is H1b's first slice: `.op`, `.dc` and the small-signal assembly
+//! (`.ac`, `.sp`, `.tf`) with every resistance path `mesasetup.c` and
+//! `mesatemp.c` define - `rd`/`rs`, `rg`, `ri`/`rf` and the `rdi`/`rsi`
+//! series pair. The charge storage and `NIintegrate` path (`mesatrunc.c`) and
+//! the pole-zero load (`mesapzl.c`) still fail with explicit errors.
 //!
 //! # Deliberate divergences
 //!
@@ -18,14 +18,8 @@
 //!   JFET and MESFET.
 //! - Where `mesa1` overflows or takes the root of a negative number the port
 //!   reports a numerical error instead of continuing with NaN.
-//! - `rd`, `rs`, `ri`, `rf`, `rdi` and `rsi` are refused rather than aliased
-//!   or silently dropped. C creates the `#gs`/`#gd` and prime-prime nodes for
-//!   `ri`/`rf`/`rdi`/`rsi` and their conductances (`tGi`, `tGf`) enter the
-//!   load; `mesatemp.c` folds `rd`/`rs` into `MESAtRd`/`MESAtRs`, which
-//!   `mesaload.c` applies with no node at all (`rd=1e6 rs=1e6` collapses the
-//!   reference binary's current to 2.5e-7 A while creating no `#source` or
-//!   `#drain`). Refusing keeps the stamps that remain identical to C's, which
-//!   zero those terms for the decks H1a covers.
+//! - `mesaload.c` reads the prime-prime pair straight from the solution, so it
+//!   is never limited; the port does the same.
 
 use crate::devices::hfet::{Instance, Model};
 use crate::devices::initial::InstanceInitial;
@@ -109,8 +103,14 @@ struct Derived {
     gdpr: Real,
     gspr: Real,
     ggate: Real,
+    /// `mesatemp.c`'s `tGi`/`tGf`: the conductances of `ri`/`rf`, stamped
+    /// between the prime and prime-prime nodes.
     tgi: Real,
     tgf: Real,
+    /// `mesatemp.c`'s `MESAtRdi`/`MESAtRsi`: the channel's series resistances
+    /// (`mesa1`'s `RS`/`RD`), which create no node.
+    trdi: Real,
+    trsi: Real,
     /// `model->MESAvpo` (level 2) and `delta²`.
     vpo: Real,
     delta_sqr: Real,
@@ -222,39 +222,6 @@ impl Mesa {
         let model = Model::resolve(resolved)?;
         let (initial, setters) = Instance::resolve(i)?;
         let instance = Instance::validate(&setters, &i.location)?;
-        // `mesasetup.c` creates `#gs` for RI, `#gd` for RF and the prime-prime
-        // pair for RSI/RDI, and `mesatemp.c` turns RD/RS into `MESAtRd`/
-        // `MESAtRs`, which `mesaload.c` applies *without* nodes (the reference
-        // binary creates no `#source`/`#drain` for `rd=1e6 rs=1e6`, yet the
-        // current collapses to 2.5e-7 A). None of these are H1a: their
-        // conductances enter the load, so refusing them beats dropping terms.
-        for (value, setter, reference) in [
-            (model.rd, "rd", "mesatemp.c, mesaload.c (MESAtRd)"),
-            (model.rs, "rs", "mesatemp.c, mesaload.c (MESAtRs)"),
-            (model.ri, "ri", "mesasetup.c, mesaload.c (MESAtGi)"),
-            (model.rf, "rf", "mesasetup.c, mesaload.c (MESAtGf)"),
-            (
-                model.rdi,
-                "rdi",
-                "mesasetup.c, mesaload.c (MESAdrainPrmPrmNode)",
-            ),
-            (
-                model.rsi,
-                "rsi",
-                "mesasetup.c, mesaload.c (MESAsourcePrmPrmNode)",
-            ),
-        ] {
-            if value != 0. {
-                return Err(SpiceError::not_yet_ported(
-                    format!(
-                        "{}: MESA model '{}' {setter}={value}",
-                        i.location,
-                        resolved.card().name
-                    ),
-                    reference,
-                ));
-            }
-        }
         let mut staged = nodes.clone();
         let external: Vec<NodeId> = i.nodes.iter().map(|n| staged.intern(n)).collect();
         let mut terminals = external.clone();
@@ -268,12 +235,17 @@ impl Mesa {
             spp: external[2],
             dpp: external[0],
         };
-        // `MESAsetup` creates `#gate` for RG, the only resistance node H1a
-        // supports; `rs`/`rd` are refused above, so the source and drain prime
-        // nodes are the external nodes.
-        for (resistance, suffix) in [(model.rg, "gate")] {
+        // `mesasetup.c` creates `#source` for RS, `#drain` for RD, `#gate` for
+        // RG, `#gs` for RI and `#gd` for RF, in that order, and falls back to
+        // the unfurled node when a resistance is zero: the prime-prime pair
+        // becomes the prime pair. `rdi`/`rsi` create no node at all;
+        // `mesatemp.c` folds them into the channel's series terms. The
+        // reference binary's rawfile omits `#source`/`#drain` (`outitf.c`'s
+        // skip list), not the model: `show` reports `dprimenode`/`sprimenode`
+        // and `rd=1e6 rs=1e6` collapses the current to `0.5/(rd+rs)`.
+        let mut create = |resistance: Real, suffix: &str, target: &mut NodeId| -> SpiceResult<()> {
             if resistance == 0. {
-                continue;
+                return Ok(());
             }
             let name = format!("{}#{suffix}", i.name);
             if staged.get(&name).is_some() {
@@ -285,12 +257,20 @@ impl Mesa {
             let internal = staged.intern(&name);
             staged.set_kind(internal, NodeKind::Internal);
             terminals.push(internal);
-            nodes_of.gp = internal;
+            *target = internal;
+            Ok(())
+        };
+        create(model.rs, "source", &mut nodes_of.sp)?;
+        create(model.rd, "drain", &mut nodes_of.dp)?;
+        create(model.rg, "gate", &mut nodes_of.gp)?;
+        create(model.ri, "gs", &mut nodes_of.spp)?;
+        if model.ri == 0. {
+            nodes_of.spp = nodes_of.sp;
         }
-        // `rsi`/`rdi` are refused above, so the prime-prime nodes are the
-        // prime nodes and `vgspp == vgs`, as in C.
-        nodes_of.spp = nodes_of.sp;
-        nodes_of.dpp = nodes_of.dp;
+        create(model.rf, "gd", &mut nodes_of.dpp)?;
+        if model.rf == 0. {
+            nodes_of.dpp = nodes_of.dp;
+        }
         *nodes = staged;
         let device = Self {
             name: i.name.clone(),
@@ -385,6 +365,12 @@ impl Mesa {
         let trd = scalar(model.rd, td);
         let trs = scalar(model.rs, ts);
         let trg = scalar(model.rg, ts);
+        let tri = scalar(model.ri, ts);
+        let trf = scalar(model.rf, td);
+        // `mesatemp.c`: RD, RDI and RF are scaled at `td`, RS, RSI, RG and RI
+        // at `ts`.
+        let trdi = scalar(model.rdi, td);
+        let trsi = scalar(model.rsi, ts);
         let conductance = |resistance: Real| {
             if resistance == 0. {
                 0.
@@ -419,8 +405,10 @@ impl Mesa {
             gdpr: conductance(trd),
             gspr: conductance(trs),
             ggate: conductance(trg),
-            tgi: 0.,
-            tgf: 0.,
+            tgi: conductance(tri),
+            tgf: conductance(trf),
+            trdi,
+            trsi,
             vpo,
             delta_sqr: model.delta * model.delta,
         };
@@ -565,7 +553,7 @@ impl Mesa {
         let eta = derived.teta;
         let vt = derived.vts;
         let etavth = eta * vt;
-        let rt = 0.; // RS + RD, both refused at setup
+        let rt = derived.trsi + derived.trdi;
         let vgt0 = vgs - von;
         let s = ((vgt0 - model.vsigmat) / model.vsigma).exp();
         let sigma = model.sigma0 / (1. + s);
@@ -593,8 +581,8 @@ impl Mesa {
         }
         let gchi = derived.gchi0 * mu * ns;
         let gch = gchi / (1. + gchi * rt);
-        let f = (1. + 2. * a * 0.).sqrt(); // sqrt(1 + 2 a RS), RS = 0
-        let d = 1. + a * 0. + f;
+        let f = (1. + 2. * a * derived.trsi).sqrt();
+        let d = 1. + a * derived.trsi + f;
         let e = 1. + model.tc * vgte;
         let isata = a * vgte / (d * e);
         let isatb = derived.isatb0 * mu * (vgt / etavth).exp();
@@ -619,7 +607,7 @@ impl Mesa {
         let c = vsate / (2. * vsate - vdse);
         let c = c * c;
         let capgd = derived.cf + 2. / 3. * cgc * (1. - c);
-        let temp = 1. + 0. * rt; // 1 + gchi RS
+        let temp = 1. + gchi * rt;
         let delgchgchi = 1. / (temp * temp);
         let delgchins = derived.gchi0 * mu;
         let delnsvgt = ns * ns * 1. / derived.n0 / etavth * b;
@@ -643,10 +631,10 @@ impl Mesa {
         let r = r * r;
         let delisatisata = isatb * isatb / r;
         let v = 1. + 1. / f;
-        let ddevgte = 2. * beta * 0. * v * e + d * model.tc; // 2 beta RS v e + d TC, RS = 0
+        let ddevgte = 2. * beta * derived.trsi * v * e + d * model.tc;
         let temp = d * d * e * e;
         let delisatavgte = (2. * a * d * e - a * vgte * ddevgte) / temp;
-        let delisatabeta = 2. * vgte * vgte * (d * e - a * e * 0. * v) / temp;
+        let delisatabeta = 2. * vgte * vgte * (d * e - a * e * derived.trsi * v) / temp;
         let delisatisatb = isata * isata / r;
         let delvsategch = -vsate / gch;
         let dvgtvgs = 1. - model.sigma0 * vds * s / model.vsigma / ((1. + s) * (1. + s));
@@ -996,8 +984,40 @@ impl Device for Mesa {
             self.initial.values[1].unwrap_or_else(|| voltage(self.nodes.g) - voltage(self.nodes.s)),
         ];
         let ([vgs, vgd], start) = self.select_junctions(&derived, &context.states, raw, ic);
-        // `rsi`/`rdi` are zero, so the prime-prime nodes are the prime nodes.
-        let (vgspp, vgdpp) = (vgs, vgd);
+        // `mesaload.c`'s `vgspp`/`vgdpp`: read from the solution, carried
+        // forward unextrapolated under prediction (`state0[pp] = state1[pp]`,
+        // where the main pair extrapolates with `xfact`), and replaced by the
+        // limited junction value while the prime-prime node aliases its prime
+        // node. C never limits the pair itself: `ri`/`rf` make it a linear
+        // node between the two. The `MODEINITJCT` branches set a fresh 0
+        // instead; that differs on the first iteration only, and the port's
+        // DC goldens pin the converged result either way.
+        let pp = |aliased: bool, node: NodeId, limited: Real, slot: usize| {
+            if aliased {
+                return limited;
+            }
+            let solved = || voltage(self.nodes.gp) - voltage(node);
+            if context.states.phase() == IterationPhase::Predict {
+                return context
+                    .states
+                    .accepted(1, slot)
+                    .filter(|v| v.is_finite())
+                    .unwrap_or_else(solved);
+            }
+            solved()
+        };
+        let vgspp = pp(
+            self.nodes.spp == self.nodes.sp,
+            self.nodes.spp,
+            vgs,
+            slot::VGSPP,
+        );
+        let vgdpp = pp(
+            self.nodes.dpp == self.nodes.dp,
+            self.nodes.dpp,
+            vgd,
+            slot::VGDPP,
+        );
         let von = derived.tvto + self.model.ks * (voltage(self.nodes.sp) - self.model.vsg);
         let point = self.point(&derived, vgs, vgd, von, gmin)?;
         let nonconvergent = match start {

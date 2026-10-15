@@ -4247,6 +4247,102 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 1, -6.483212903972138e-04, 0.),
         ],
     },
+    // The resistance paths (#155) at `vgs = -1`: `z1` carries all of them
+    // (`rd`/`rs` 31, `rg` 10, `ri` 1k, `rf` 2k, `rdi` 300, `rsi` 200), `z2`
+    // only the 1 MOhm pair that starves it to `0.5/2e6` A, and `z3` only
+    // `ri`/`rf`. C omits `#source`/`#drain` from the rawfile; `#gate`, `#gs`
+    // and `#gd` stay.
+    Expectation {
+        fixture: "m10_mesa_res_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+            "v(z1#gate)",
+            "v(z1#gd)",
+            "v(z1#gs)",
+            "v(z3#gd)",
+            "v(z3#gs)",
+        ],
+        values: &[
+            ("i(vids)", 0, 2.380868561270731e-4, 0.),
+            ("i(vgs)", 0, 8.555354229777822e-8, 0.),
+            ("v(z1#gate)", 0, -9.999998380206109e-1, 0.),
+            ("v(z1#gd)", 0, 4.966417361461413e-1, 0.),
+            ("v(z1#gs)", 0, 3.357761717752394e-3, 0.),
+            ("v(z3#gd)", 0, 0.5, 0.),
+            ("v(z3#gs)", 0, 0., 0.),
+        ],
+    },
+    // The same paths under a gate sweep, with the `rtc1`/`rtc2` scaling live
+    // on `z2` (`dtemp = 100`) and the second device's drain current an order
+    // of magnitude above the first's at the last point.
+    Expectation {
+        fixture: "m10_mesa_res_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 4,
+        variables: &[
+            "v(v-sweep)",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+            "v(z1#gate)",
+            "v(z1#gd)",
+            "v(z1#gs)",
+            "v(z2#gd)",
+            "v(z2#gs)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, -1.2, 0.),
+            ("i(vids)", 0, 4.007833309415884e-5, 0.),
+            ("i(vids)", 3, 2.477836622343486e-3, 0.),
+            ("v(z1#gd)", 3, 4.795819191523145e-1, 0.),
+            ("v(z1#gs)", 3, 2.041804839188589e-2, 0.),
+            ("v(z2#gd)", 3, 4.317622261215953e-1, 0.),
+            ("v(z2#gs)", 3, 6.822619366735042e-2, 0.),
+        ],
+    },
+    // `mesaacl.c` with every resistance live, 1 kHz to 1 MHz. The gate and
+    // drain currents are almost purely real; the `#gs`/`#gd` node voltages
+    // carry the susceptance.
+    Expectation {
+        fixture: "m10_mesa_res_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 7,
+        variables: &[
+            "frequency",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+            "v(z1#gate)",
+            "v(z1#gd)",
+            "v(z1#gs)",
+            "v(z2#gd)",
+            "v(z2#gs)",
+        ],
+        values: &[
+            ("frequency", 0, 1.0e3, 0.),
+            ("i(vids)", 0, 1.750726940548258e-4, 2.497410327214242e-11),
+            ("v(z1#gs)", 0, 1.996390499974745e-3, -1.804776483087822e-10),
+            ("frequency", 6, 9.999999999999994e5, 0.),
+            ("i(vids)", 6, 1.750726947649939e-4, 2.497410325016247e-8),
+            ("v(z1#gs)", 6, 1.996390476260479e-3, -1.804776460163710e-7),
+        ],
+    },
     // The same pair in the small-signal sweep: `i(vds)` is
     // -4.718125954256094e-05 - 2.062884307211449e-08j at 1 MHz and the `rg`
     // device's `#gate` node is in the AC plot exactly as it is in the DC one.

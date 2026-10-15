@@ -243,20 +243,20 @@ longer treats everything above level 1 as "not yet ported".
 - C regression decks exist and give the goldens: `tests/mesa/mesa.cir`,
   `mesa11..15.cir`, `mesgout.cir`, `mesinv.cir`, `mesosc.cir` (all level 2).
 
-**Status.** H1a landed in PR #151: the shared shell, the level-2 schema and
+**Status.** H1a landed in PR #151 (the shared shell, the level-2 schema and
 `mesasetup.c` defaults, `mesatemp.c`'s derivations, the `mesa1` channel with its
 derivatives, the DC load, the `mesaask.c` table and `mesaacl.c`'s small-signal
-assembly, verified by `m10_mesa_op`/`m10_mesa_dc`/`m10_mesa_ac` and
-`tests/mesa.rs`. Two plan corrections came out of it. First, AC is *done*, not
-pending: `mesaacl.c`'s conductances and gate capacitances match the reference
-binary to round-off from DC to 10 GHz, so `.ac`, `.sp` and `.tf` work and H1b
-keeps no AC work at all. Second, `rg` is the only resistance path H1a can
-stamp (`rd`/`rs` are not internal nodes in C at all: `mesatemp.c` folds them
-into `MESAtRd`/`MESAtRs` and `mesaload.c` applies them node-less, while
-`ri`/`rf` create `#gs`/`#gd`). The rest of H1b is tracked as #155 (resistance
-paths), #156 (charge storage and `.tran`) and #157 (`mesapzl.c`), with #158 for
-`.noise`/`.disto`/`.sens`, where C has no routine and the port is stricter
-than the reference.
+assembly) and #155 added the resistance paths. Two plan corrections came out
+of it. First, AC was never pending: `mesaacl.c`'s conductances and gate
+capacitances match the reference binary to round-off from DC to 10 GHz, so
+`.ac`, `.sp` and `.tf` work. Second, `rd`/`rs` *do* create `#source`/`#drain`
+nodes - an early reading said otherwise because C's rawfile writer omits those
+two names (`outitf.c`'s mainline-device skip list) while `show` reports
+`dprimenode`/`sprimenode`; `ri`/`rf` create `#gs`/`#gd` and `rdi`/`rsi` only
+enter `mesa1`'s `RS`/`RD`. What is left is #156 (charge storage and `.tran`),
+#157 (`mesapzl.c`), #158 (`.noise`/`.disto`/`.sens`, where C has no routine at
+all and the port is stricter than the reference) and the parser gap #160
+(instance parameters on a `.model` card).
 
 ### H1 reference notes (read from the C sources, 2026-10-15)
 
