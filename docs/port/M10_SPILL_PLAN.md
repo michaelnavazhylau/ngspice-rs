@@ -1,9 +1,9 @@
 # M10 spill: TXL, MESA, HFET1 and HFET2 — slice plan
 
 Planning document, 2026-10-15, against `main` = `d806efe` (M10 waves 0–3
-merged). Nothing here is implemented yet: `y` is `pending` in the registry and
-`z` is `bounded` with scope "MESFET level 1 (Statz, `mesload.c`)"
-(`src/devices/factory.rs` `ELABORATED`). This replaces the two-line
+merged). It was written before any of it landed; the per-slice status notes
+below record what did (H1a/H1b, H2, H3 and H4 are all in `main` now, `y` is
+still `pending` and `z`'s scope is every C level). This replaces the two-line
 "## Spill" stub in [M10.md](M10.md#spill-bsim-and-remaining-lines-proposed-m11)
 for the `#85`/`#83` remainder; BSIM3/BSIM4 (#90) keeps its own entry.
 
