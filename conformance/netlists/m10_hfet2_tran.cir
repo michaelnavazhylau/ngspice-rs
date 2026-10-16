@@ -1,0 +1,9 @@
+HFET2 level 6 transient: gate pulse with both gate charges
+vdd 1 0 dc 3
+vg 3 0 dc 0 pulse(-1.5 0.5n 0.5n 0.1n 0.1n 1n 4n)
+z1 1 2 0 h2 l=1u w=20u
+r1 1 2 1k
+.model h2 nhfet level=6 rd=31 rs=31 js=1e-12
+.options reltol=1e-6 vntol=1e-10 abstol=1e-14
+.tran 0.05n 3n
+.end

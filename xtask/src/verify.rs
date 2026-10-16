@@ -232,6 +232,35 @@ const SUPPORTED: &[Supported] = &[
         },
     },
     pole_zero("m10_hfet1_pz"),
+    // HFET2 (Z level 6, #169): `hfeta2`'s channel, the single-exponential gate
+    // junctions, both polarities, the two-exponential `eta2`/`d2` branch and
+    // the pnjlim/fetlim-limited load.
+    Supported {
+        name: "m10_hfet2_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_hfet2_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_hfet2_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    pole_zero("m10_hfet2_pz"),
+    tran("m10_hfet2_tran"),
     tran("m10_hfet1_tran"),
     tran("m10_mesa_tran"),
     // The resistance paths (#155): `rd`/`rs` (the prime nodes, which C's

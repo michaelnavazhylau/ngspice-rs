@@ -318,9 +318,14 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // M10 lossy-line decks (#85) are gated by `xtask golden verify`,
     // `tests/ltra.rs` and the opt-in `tests/c_ltra_reference.rs`.
     on_disk.retain(|name| !name.starts_with("m10_ltra_"));
-    // MESA level 2 and HFET1 (#83) are gated by `xtask golden verify` (their
-    // fixtures are registered) and `tests/mesa.rs`/`tests/hfet1.rs`.
-    on_disk.retain(|name| !name.starts_with("m10_mesa_") && !name.starts_with("m10_hfet1_"));
+    // The MESA levels and both HFET levels (#83) are gated by `xtask golden
+    // verify` (their fixtures are registered) and `tests/mesa.rs`,
+    // `tests/hfet1.rs`/`tests/hfet2.rs`.
+    on_disk.retain(|name| {
+        !name.starts_with("m10_mesa_")
+            && !name.starts_with("m10_hfet1_")
+            && !name.starts_with("m10_hfet2_")
+    });
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

@@ -276,6 +276,17 @@ out of the C comparison: C gates the `a1`/`a2` corrections on `gatemod != 0`
 `gatemod` path is a `DEVfetlim`-recovered artefact the port takes the limit of
 instead.
 
+**Status (H4).** HFET2 landed as one slice (`src/devices/hfet/hfet2.rs`): the
+`hfeta2` channel with the `eta2`/`d2` sub-threshold compound, the
+single-exponential gate junctions, the `pnjlim`/`fetlim` limiting the other
+levels do not have, the two conditional internal nodes, both polarities and the
+`hfet2ask.c` table, on five `m10_hfet2_*` fixtures. The plan's parameter list
+was exact, and the one thing it did not say is worth recording: `ri`/`rf` are
+not HFET2 setters (C spells the channel's series pair `rdi`/`rsi`), which the
+port's schema now enforces. No level-6 deck exists in the C tree, so the
+fixtures are the port's own decks with C goldens.
+
+
 
 ### H1 reference notes (read from the C sources, 2026-10-15)
 

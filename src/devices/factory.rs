@@ -129,6 +129,11 @@ pub(crate) fn instantiate_with_models(
                             instance, nodes, &model, context,
                         );
                     }
+                    6 => {
+                        return crate::devices::hfet::hfet2::Hfet2::instantiate(
+                            instance, nodes, &model, context,
+                        );
+                    }
                     _ => {}
                 }
                 return crate::devices::mesfet::Mesfet::instantiate(

@@ -1,0 +1,51 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_hfet2_dc.cir
+title: "HFET2 level 6 drain sweep with the two-exponential sub-threshold branch" @netlists/m10_hfet2_dc.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/m10_hfet2_dc.cir:2:1 "z1 1 2 0 h2 l=2u w=20u m=2"
+    [1] device[1] @netlists/m10_hfet2_dc.cir:3:1 "vgs 2 0 dc 0.5"
+    [2] device[2] @netlists/m10_hfet2_dc.cir:4:1 "vds 1 0 dc 1.0"
+    [3] model[0] @netlists/m10_hfet2_dc.cir:5:1 ".model h2 nhfet level=6 rd=31 rs=31 eta2=1.5 d2=0.1u"
+    [4] output @netlists/m10_hfet2_dc.cir:6:1 ".save all"
+    [5] options[0] @netlists/m10_hfet2_dc.cir:7:1 ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+    [6] analysis[0] @netlists/m10_hfet2_dc.cir:8:1 ".dc vds 0 2 0.1"
+    [7] end @netlists/m10_hfet2_dc.cir:9:1 ".end"
+  devices (3):
+    device [0] name="z1" designator=z @netlists/m10_hfet2_dc.cir:2:1
+      nodes: "1" "2" "0"
+      model: "h2"
+      parameters (3):
+        [0] name="l" kind=scalar value="2u" @netlists/m10_hfet2_dc.cir:2:13
+        [1] name="w" kind=scalar value="20u" @netlists/m10_hfet2_dc.cir:2:18
+        [2] name="m" kind=scalar value="2" @netlists/m10_hfet2_dc.cir:2:24
+    device [1] name="vgs" designator=v @netlists/m10_hfet2_dc.cir:3:1
+      nodes: "2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m10_hfet2_dc.cir:3:9
+    device [2] name="vds" designator=v @netlists/m10_hfet2_dc.cir:4:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.0" @netlists/m10_hfet2_dc.cir:4:9
+  models (1):
+    model [0] name="h2" base="nhfet" level=6e0 @netlists/m10_hfet2_dc.cir:5:1
+      parameters (5):
+        [0] name="level" kind=scalar value="6" @netlists/m10_hfet2_dc.cir:5:17
+        [1] name="rd" kind=scalar value="31" @netlists/m10_hfet2_dc.cir:5:25
+        [2] name="rs" kind=scalar value="31" @netlists/m10_hfet2_dc.cir:5:31
+        [3] name="eta2" kind=scalar value="1.5" @netlists/m10_hfet2_dc.cir:5:37
+        [4] name="d2" kind=scalar value="0.1u" @netlists/m10_hfet2_dc.cir:5:46
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m10_hfet2_dc.cir:8:1
+      arguments: "vds" "0" "2" "0.1"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_hfet2_dc.cir:7:1
+      setting [0] name="reltol" value="1e-9"@netlists/m10_hfet2_dc.cir:7:17 @netlists/m10_hfet2_dc.cir:7:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_hfet2_dc.cir:7:28 @netlists/m10_hfet2_dc.cir:7:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_hfet2_dc.cir:7:41 @netlists/m10_hfet2_dc.cir:7:34
+  globals (0):

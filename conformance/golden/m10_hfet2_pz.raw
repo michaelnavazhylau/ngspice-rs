@@ -1,0 +1,16 @@
+Title: hfet2 level 6 pole-zero: common-source stage with a current drive at the gate
+Date: Fri Oct 16 11:40:36  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(zero(1))	voltage
+	2	v(zero(2))	voltage
+Values:
+ 0	-1.915532913552036e-04,0.000000000000000e+00
+	-3.855169267729273e+18,0.000000000000000e+00
+	3.620195703585404e+16,0.000000000000000e+00
+
