@@ -1,0 +1,63 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_mesa_l3_ac.cir
+title: "MESA level 3 small-signal sweep" @netlists/m10_mesa_l3_ac.cir:1:1
+scope root
+  cards (9):
+    [0] device[0] @netlists/m10_mesa_l3_ac.cir:2:1 "vds 1 0 dc 2.0 ac 1"
+    [1] device[1] @netlists/m10_mesa_l3_ac.cir:3:1 "vids 1 2 dc 0"
+    [2] device[2] @netlists/m10_mesa_l3_ac.cir:4:1 "vgs 3 0 dc 0.5"
+    [3] device[3] @netlists/m10_mesa_l3_ac.cir:5:1 "z1 2 3 0 m3 l=1u w=20u"
+    [4] model[0] @netlists/m10_mesa_l3_ac.cir:6:1 ".model m3 nmf level=3 rd=31 rs=31 mu=0.25 vto=-1 eta=1.5 sigma0=0.02 vsigmat=1.37 delta=5 beta=0.0085"
+    [5] output @netlists/m10_mesa_l3_ac.cir:8:1 ".save all"
+    [6] options[0] @netlists/m10_mesa_l3_ac.cir:9:1 ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+    [7] analysis[0] @netlists/m10_mesa_l3_ac.cir:10:1 ".ac dec 2 1k 1meg"
+    [8] end @netlists/m10_mesa_l3_ac.cir:11:1 ".end"
+  devices (4):
+    device [0] name="vds" designator=v @netlists/m10_mesa_l3_ac.cir:2:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2.0" @netlists/m10_mesa_l3_ac.cir:2:9
+        [1] name="acmag" kind=scalar value="1" @netlists/m10_mesa_l3_ac.cir:2:19
+        [2] name="acphase" kind=scalar value="0" @netlists/m10_mesa_l3_ac.cir:2:16
+    device [1] name="vids" designator=v @netlists/m10_mesa_l3_ac.cir:3:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_mesa_l3_ac.cir:3:10
+    device [2] name="vgs" designator=v @netlists/m10_mesa_l3_ac.cir:4:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m10_mesa_l3_ac.cir:4:9
+    device [3] name="z1" designator=z @netlists/m10_mesa_l3_ac.cir:5:1
+      nodes: "2" "3" "0"
+      model: "m3"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/m10_mesa_l3_ac.cir:5:13
+        [1] name="w" kind=scalar value="20u" @netlists/m10_mesa_l3_ac.cir:5:18
+  models (1):
+    model [0] name="m3" base="nmf" level=3e0 @netlists/m10_mesa_l3_ac.cir:6:1
+      parameters (10):
+        [0] name="level" kind=scalar value="3" @netlists/m10_mesa_l3_ac.cir:6:15
+        [1] name="rd" kind=scalar value="31" @netlists/m10_mesa_l3_ac.cir:6:23
+        [2] name="rs" kind=scalar value="31" @netlists/m10_mesa_l3_ac.cir:6:29
+        [3] name="mu" kind=scalar value="0.25" @netlists/m10_mesa_l3_ac.cir:6:35
+        [4] name="vto" kind=scalar value="-1" @netlists/m10_mesa_l3_ac.cir:6:43
+        [5] name="eta" kind=scalar value="1.5" @netlists/m10_mesa_l3_ac.cir:6:50
+        [6] name="sigma0" kind=scalar value="0.02" @netlists/m10_mesa_l3_ac.cir:6:58
+        [7] name="vsigmat" kind=scalar value="1.37" @netlists/m10_mesa_l3_ac.cir:6:70
+        [8] name="delta" kind=scalar value="5" @netlists/m10_mesa_l3_ac.cir:6:83
+        [9] name="beta" kind=scalar value="0.0085" @netlists/m10_mesa_l3_ac.cir:6:91
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m10_mesa_l3_ac.cir:10:1
+      arguments: "dec" "2" "1k" "1meg"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_mesa_l3_ac.cir:9:1
+      setting [0] name="reltol" value="1e-9"@netlists/m10_mesa_l3_ac.cir:9:17 @netlists/m10_mesa_l3_ac.cir:9:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_mesa_l3_ac.cir:9:28 @netlists/m10_mesa_l3_ac.cir:9:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_mesa_l3_ac.cir:9:41 @netlists/m10_mesa_l3_ac.cir:9:34
+  globals (0):

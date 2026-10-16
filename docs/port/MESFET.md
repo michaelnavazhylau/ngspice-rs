@@ -161,6 +161,59 @@ temperature setup to re-derive).
   polarities, `.dc @z1[area] @z1[m]`, `.pz` roots, `.noise` spectral
   densities of every generator, and a `uic` transient with an `off` device.
 
+## MESA levels 3 and 4 (`Z`, M10 H2, #168)
+
+Both levels share everything with level 2 - the card, the junctions, the load,
+the charge storage, `mesaacl.c`, `mesapzl.c`, `mesaask.c` - and differ in three
+`mesatemp.c` derivations and the channel:
+
+| | level 2 (`mesa1`) | level 3 (`mesa2`) | level 4 (`mesa3`) |
+| --- | --- | --- | --- |
+| threshold model | one depth term `vpo` | two-population `vpou`/`vpod`, four regions | same as level 3 |
+| channel | `ns` from `1/(ND D (1-sqrt1))` | `nsa`/`nsb` split with `ca`/`cb` | `nmax`/`gamma` knee |
+| `n0` depth | `d` | `du` | `d`, and with the `/2` `mesatemp.c` gives only level 4 |
+| `gchi0` | `CHARGE W/L` | `× tMu` | `× tMu` |
+| permittivity | `EPSILONGAAS` | `EPSILONGAAS` | the model's `epsi` |
+| `cf` | `0.5 EPSILONGAAS W` | same | `0.5 epsi W` |
+| capacitance | `2/3 cgc` | `2/3 cgc` | `2/3 cgc` with `cgc` from `cas`/`cbs` |
+
+Two C details the port had to read literally: `mesatemp.c`'s `n0` has the `/2`
+**only** for level 4 (the sibling line for the other levels does not), and
+`mesa2`'s `nsa` selection reads `vpod`/`vpou`/`vpo` in four regions, each with
+its own `ca`/`delnsavgte`.
+
+### Level 4's small-signal path is refused (a C defect)
+
+`mesaacl.c` and `mesapzl.c` build their conductances from `gm0`/`gm1`/`gm2`,
+`gds0` and `delidgch0`/`delidvds0`/`delidvds1`, which `mesa1` and `mesa2` store
+in the instance and **`mesa3` never writes**. For a level-4 device those fields
+keep their zeroed initial values, so C's AC load has no transconductance and no
+output conductance at all. Measured on the `m10_mesa_l4_op` card, which carries
+-3.600846442234158e-3 A in DC, the reference binary prints 1.07e-8 A at 1 kHz
+and the same at 1 MHz - a frequency-independent artefact, not a response.
+
+The port therefore refuses `.ac`, `.sp`, `.tf` and `.pz` for a level-4 device
+with a message naming the unset fields, the same choice TX0 made for `y`/TXL.
+A **`.dc` sweep still works**: the port assembles the small-signal system to
+resolve a swept source (C resolves that from its DC Jacobian), and that probe
+needs only the correct linearisation, which the port computes. The refusal is
+gated on the presence of a bias state, which distinguishes the swept
+small-signal path from the sweep probe.
+
+### Fixtures
+
+`m10_mesa_l3_{op,dc,ac}` (the upstream `tests/mesa/mesa21.cir` card, a sweep
+across the `vpod`/`vpo` regions and a small-signal sweep - level 3 *does* store
+the AC intermediates, so its `.ac` matches C) and `m10_mesa_l4_{op,dc,tran}`
+(the `cas`/`cbs`/`epsi` model, the `nmax`/`gamma` knee and the transient, which
+is where those capacitances reach the load since the level's AC is refused).
+
+One deck is deliberately *not* a fixture: a level-4 two-device `.op` (the
+configuration `m10_mesa_h2`'s first draft used) where C's continuation lands on
+a different solution of the same equations - the same class as the HFET1
+inverter. Starting C from the port's answer as a `.nodeset` reproduces the
+port's answer to all printed digits, so both are genuine fixed points.
+
 ## MESA level 2 (`Z`, M10 H1a/H1b, #83)
 
 `inpdomod.c` maps `nmf`/`pmf` levels to four macspice families, which share one
@@ -170,7 +223,8 @@ grammar and one 62-setter model table but not one channel:
 | --- | --- | --- | --- |
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
 | 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage |
-| 3/4 | MESA | `mesa3`/`mesa4`, `mesapz*` | H2 |
+| 3 | MESA | `mesa2` (`mesaload.c`) | ported: DC, transient (H2) |
+| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient; AC refused (H2) |
 | 5 | HFET1 | `hfeta` (`hfetload.c`) | ported (H3) |
 | 6 | HFET2 | `hfeta2` (`hfet2load.c`) | ported (H4) |
 

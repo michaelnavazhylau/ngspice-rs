@@ -515,3 +515,149 @@ fn the_small_signal_sweep_matches_the_reference_binary() {
     let (re, _) = phase(&plot, "v(z2#gate)", 0);
     close(re, -7.225285158125405e-07, 1e-9, 1e-15);
 }
+
+/// `mesa2` (level 3): the two-population channel with the four regions of
+/// `nsa`'s `vpou`/`vpod` selection. The values are the `m10_mesa_l3_*`
+/// fixtures' — the upstream `tests/mesa/mesa21.cir` card carries
+/// 3.750424463803059e-2 A at `vgs = 0`/`vds = 4`, and the sweep reaches
+/// 1.184032126626747e-2 A at 4 V.
+#[test]
+fn the_level_three_channel_matches_the_reference_binary() {
+    let mut c = circuit(
+        "z1 3 2 0 mesmod l=1u w=150u\nvgs 2 0 dc 0\nvds 1 0 dc 4\nvids 1 3 dc 0\n\
+         .model mesmod nmf level=3 rdi=2.7 rsi=2.7 mu=0.2 m=2.2 vto=-2.04 \
+         eta=1.5 lambda=0.04 tc=0.001 sigma0=0.02 vsigma=0.1 vsigmat=1.37 \
+         delta=5 beta=0.0085",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+    close(
+        value(&plot, "i(vds)", 0),
+        -3.750_424_463_803_059e-2,
+        1e-9,
+        1e-15,
+    );
+    let mut c = circuit(
+        "z1 3 2 0 mesmod l=1u w=150u\nvgs 2 0 dc -1\nvds 1 0 dc 0\nvids 1 3 dc 0\n\
+         .model mesmod nmf level=3 rdi=2.7 rsi=2.7 mu=0.2 m=2.2 vto=-2.04 \
+         eta=1.5 lambda=0.04 tc=0.001 sigma0=0.02 vsigma=0.1 vsigmat=1.37 \
+         delta=5 beta=0.0085 ndu=1e22 ndelta=6e24 du=0.035e-6 th=0.01e-6",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::DcSweep, &["vds", "0", "4", "0.1"]);
+    assert_eq!(plot.point_count(), 41);
+    close(
+        value(&plot, "i(vds)", 40),
+        -1.184_032_126_626_747e-2,
+        1e-9,
+        1e-15,
+    );
+}
+
+/// `mesa3` (level 4): the `nmax`/`gamma` knee with the `cas`/`cbs`/`epsi`
+/// model, in both polarities and in transient (where those capacitances
+/// reach the load). Reference values from the `m10_mesa_l4_*` fixtures.
+#[test]
+fn the_level_four_channel_matches_the_reference_binary() {
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nvgg 2 0 dc 0.5\nz1 1 2 0 n4 l=1u w=20u\n\
+         .model n4 nmf level=4 rd=31 rs=31 rdi=20 rsi=20 mu=0.3 gamma=2.5 \
+         nmax=4e16 cas=0.9 cbs=1.1 epsi=1.142189e-10",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+    close(
+        value(&plot, "i(vdd)", 0),
+        -3.600_846_442_234_158e-3,
+        1e-8,
+        1e-15,
+    );
+    close(
+        value(&plot, "i(vgg)", 0),
+        -3.256_904_067_548_815e-4,
+        1e-6,
+        1e-15,
+    );
+    // The p-type device: `phfet` at negative supplies. The reference binary
+    // prints i(vds) = 9.024984093780782e-5 A for the level-6 deck; the level-4
+    // card below answers 6.408350022225523e-2 A for its own.
+    let mut c = circuit(
+        "vdd2 3 0 dc -3\nvgg2 4 0 dc -0.5\nz2 3 4 0 p4 l=1u w=20u\n\
+         .model p4 pmf level=4 rd=31 rs=31 mu=0.3 nmax=4e16",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+    close(
+        value(&plot, "i(vdd2)", 0),
+        6.408_350_022_225_523e-2,
+        1e-7,
+        1e-15,
+    );
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nvg 3 0 dc 0 pulse(-1.5 0.5n 0.5n 0.1n 0.1n 1n 4n)\n\
+         z1 1 2 0 n4 l=1u w=20u\nr1 1 2 1k\n\
+         .model n4 nmf level=4 rd=31 rs=31 mu=0.3 gamma=2.5 nmax=4e16 \
+         cas=0.9 cbs=1.1 epsi=1.142189e-10\n.tran 0.05n 3n",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::Transient, &["0.05n", "3n"]);
+    assert_eq!(plot.point_count(), 81);
+    close(
+        value(&plot, "v(2)", 0),
+        6.253_391_653_472_502e-1,
+        1e-6,
+        1e-9,
+    );
+    close(
+        value(&plot, "i(vdd)", 0),
+        -6.312_335_808_352_343e-3,
+        1e-6,
+        1e-12,
+    );
+}
+
+/// Level 4's swept small-signal analyses are refused, because C's
+/// `mesaacl.c`/`mesapzl.c` build their conductances from `gm0`/`gm1`/`gm2`,
+/// `gds0` and `delidgch0`/`delidvds0`/`delidvds1`, which `mesa1` and `mesa2`
+/// store and `mesa3` never writes. The reference binary therefore answers
+/// 1.07e-8 A for a card that carries -1.55e-4 A in DC, at both 1 kHz and
+/// 1 MHz. A `.dc` sweep still works: its source probe needs only the correct
+/// linearisation, which the port computes.
+#[test]
+fn the_level_four_small_signal_paths_are_refused() {
+    let deck = |analysis: &str| {
+        format!(
+            "vds 1 0 dc 2.0 ac 1\nvids 1 2 dc 0\nvgs 3 0 dc 0.4\n\
+             z1 2 3 0 m4 l=1u w=20u\n\
+             .model m4 nmf level=4 rd=31 rs=31 mu=0.3 nmax=4e16\n{analysis}"
+        )
+    };
+    // `.sp` and `.tf` reach the same assembly (they need `portnum` cards or a
+    // named output node first), so AC and pole-zero carry the check.
+    for (kind, arguments) in [
+        (AnalysisKind::Ac, vec!["dec", "2", "1k", "1meg"]),
+        (
+            AnalysisKind::PoleZero,
+            vec!["3", "0", "2", "0", "vol", "pz"],
+        ),
+    ] {
+        let mut c = circuit(&deck("")).unwrap();
+        let error = attempt(&mut c, kind, &arguments).unwrap_err();
+        assert!(error.is_not_yet_ported(), "{kind:?}: {error}");
+        assert!(error.to_string().contains("level 4"), "{kind:?}: {error}");
+    }
+    // The DC sweep is unaffected: it is the `m10_mesa_l4_dc` fixture, and the
+    // reference binary agrees with it to round-off.
+    let mut c = circuit(
+        "z1 1 2 0 m4 l=2u w=40u m=2\nvgs 2 0 dc 0.3\nvds 1 0 dc 2.0\n\
+         .model m4 nmf level=4 rd=50 rs=50 rdi=30 rsi=30 mu=0.35 nmax=3e16 cas=1 cbs=1",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::DcSweep, &["vds", "0", "3", "0.1"]);
+    close(
+        value(&plot, "i(vds)", 30),
+        -7.869_868_653_972_65e-3,
+        1e-7,
+        1e-15,
+    );
+}

@@ -1,0 +1,56 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_mesa_l4_op.cir
+title: "MESA level 4 operating point: the cas/cbs/epsi model at one bias" @netlists/m10_mesa_l4_op.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/m10_mesa_l4_op.cir:2:1 "vdd 1 0 dc 3"
+    [1] device[1] @netlists/m10_mesa_l4_op.cir:3:1 "vgg 2 0 dc 0.5"
+    [2] device[2] @netlists/m10_mesa_l4_op.cir:4:1 "z1 1 2 0 n4 l=1u w=20u"
+    [3] model[0] @netlists/m10_mesa_l4_op.cir:5:1 ".model n4 nmf level=4 rd=31 rs=31 rdi=20 rsi=20 mu=0.3 gamma=2.5 nmax=4e16 cas=0.9 cbs=1.1 epsi=1.142189e-10"
+    [4] output @netlists/m10_mesa_l4_op.cir:7:1 ".save all"
+    [5] options[0] @netlists/m10_mesa_l4_op.cir:8:1 ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+    [6] analysis[0] @netlists/m10_mesa_l4_op.cir:9:1 ".op"
+    [7] end @netlists/m10_mesa_l4_op.cir:10:1 ".end"
+  devices (3):
+    device [0] name="vdd" designator=v @netlists/m10_mesa_l4_op.cir:2:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/m10_mesa_l4_op.cir:2:9
+    device [1] name="vgg" designator=v @netlists/m10_mesa_l4_op.cir:3:1
+      nodes: "2" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/m10_mesa_l4_op.cir:3:9
+    device [2] name="z1" designator=z @netlists/m10_mesa_l4_op.cir:4:1
+      nodes: "1" "2" "0"
+      model: "n4"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/m10_mesa_l4_op.cir:4:13
+        [1] name="w" kind=scalar value="20u" @netlists/m10_mesa_l4_op.cir:4:18
+  models (1):
+    model [0] name="n4" base="nmf" level=4e0 @netlists/m10_mesa_l4_op.cir:5:1
+      parameters (11):
+        [0] name="level" kind=scalar value="4" @netlists/m10_mesa_l4_op.cir:5:15
+        [1] name="rd" kind=scalar value="31" @netlists/m10_mesa_l4_op.cir:5:23
+        [2] name="rs" kind=scalar value="31" @netlists/m10_mesa_l4_op.cir:5:29
+        [3] name="rdi" kind=scalar value="20" @netlists/m10_mesa_l4_op.cir:5:35
+        [4] name="rsi" kind=scalar value="20" @netlists/m10_mesa_l4_op.cir:5:42
+        [5] name="mu" kind=scalar value="0.3" @netlists/m10_mesa_l4_op.cir:5:49
+        [6] name="gamma" kind=scalar value="2.5" @netlists/m10_mesa_l4_op.cir:5:56
+        [7] name="nmax" kind=scalar value="4e16" @netlists/m10_mesa_l4_op.cir:5:66
+        [8] name="cas" kind=scalar value="0.9" @netlists/m10_mesa_l4_op.cir:5:76
+        [9] name="cbs" kind=scalar value="1.1" @netlists/m10_mesa_l4_op.cir:5:84
+        [10] name="epsi" kind=scalar value="1.142189e-10" @netlists/m10_mesa_l4_op.cir:5:92
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/m10_mesa_l4_op.cir:9:1
+      arguments:
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_mesa_l4_op.cir:8:1
+      setting [0] name="reltol" value="1e-9"@netlists/m10_mesa_l4_op.cir:8:17 @netlists/m10_mesa_l4_op.cir:8:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_mesa_l4_op.cir:8:28 @netlists/m10_mesa_l4_op.cir:8:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_mesa_l4_op.cir:8:41 @netlists/m10_mesa_l4_op.cir:8:34
+  globals (0):

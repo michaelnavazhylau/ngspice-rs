@@ -4247,6 +4247,111 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 1, -6.483212903972138e-04, 0.),
         ],
     },
+    // MESA level 3, the upstream `tests/mesa/mesa21.cir` card at its own
+    // bias: the two-population channel carries 3.750424463803059e-2 A.
+    Expectation {
+        fixture: "m10_mesa_l3_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(3)", "v(1)", "v(2)", "i(vds)", "i(vgs)", "i(vids)"],
+        values: &[
+            ("i(vds)", 0, -3.750424463803059e-2, 0.),
+            ("i(vgs)", 0, 1.166248840040927e-5, 0.),
+        ],
+    },
+    // Level 3 over a drain sweep that crosses `vpod` and `vpo`.
+    Expectation {
+        fixture: "m10_mesa_l3_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 41,
+        variables: &[
+            "v(v-sweep)",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vds)", 0, -2.925828347144201e-8, 0.),
+            ("v(v-sweep)", 40, 4.000000000000002, 0.),
+            ("i(vds)", 40, -1.184032126626747e-2, 0.),
+        ],
+    },
+    // Level 3 small-signal: `mesa2` stores the `gm0`/`gds0` intermediates
+    // `mesaacl.c` reads, so this matches C (level 4's does not - it is
+    // refused).
+    Expectation {
+        fixture: "m10_mesa_l3_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 7,
+        variables: &[
+            "frequency",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+        ],
+        values: &[
+            ("frequency", 0, 1.0e3, 0.),
+            ("i(vds)", 0, -1.644585655942107e-3, -3.415109886080334e-11),
+            ("frequency", 6, 9.999999999999994e5, 0.),
+            ("i(vds)", 6, -1.644585655997590e-3, -3.415109886064703e-8),
+        ],
+    },
+    // MESA level 4 at one bias with the `cas`/`cbs`/`epsi` model: the channel
+    // carries 3.600846442234158e-3 A. (A two-device level-4 `.op` is not a
+    // fixture: C's continuation lands on a different solution of the same
+    // equations, as the HFET1 inverter does - the port's answer equals the
+    // reference binary's when C is started from it as a `.nodeset`.)
+    Expectation {
+        fixture: "m10_mesa_l4_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(1)", "v(2)", "i(vdd)", "i(vgg)"],
+        values: &[
+            ("i(vdd)", 0, -3.600846442234158e-3, 0.),
+            ("i(vgg)", 0, -3.256904067548815e-4, 0.),
+        ],
+    },
+    // Level 4's transient, which is where `cas`/`cbs` reach the load (the
+    // level's AC is refused): 81 accepted steps on C's own grid.
+    Expectation {
+        fixture: "m10_mesa_l4_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &["time", "v(1)", "v(2)", "v(3)", "i(vdd)", "i(vg)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("v(2)", 0, 6.253391653472502e-1, 0.),
+            ("i(vdd)", 0, -6.312335808352343e-3, 0.),
+            ("time", 80, 3.0e-9, 0.),
+            ("i(vdd)", 80, -6.312335808351927e-3, 0.),
+        ],
+    },
+    // Level 4's `nmax`/`gamma` knee over a drain sweep.
+    Expectation {
+        fixture: "m10_mesa_l4_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 31,
+        variables: &["v(v-sweep)", "v(1)", "v(2)", "i(vds)", "i(vgs)"],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vds)", 0, 1.132676982380727e-4, 0.),
+            ("v(v-sweep)", 30, 3.000000000000001, 0.),
+            ("i(vds)", 30, -7.869868653972651e-3, 0.),
+        ],
+    },
     // HFET2 (Z level 6). Both polarities with every resistance live: the
     // p-channel device sits at v(3) = -6.474901497314162e-13 V and its supply
     // carries 2.104294772663782e-16 A.

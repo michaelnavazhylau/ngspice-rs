@@ -119,7 +119,7 @@ pub(crate) fn instantiate_with_models(
                 // inpdomod.c: 0/1 select the MES (`mes/`) card, 2-4 MESA
                 // (`mesa1`-`mesa3`) and 5 HFET1 (`hfet1/`).
                 match model.levels().selector {
-                    2 => {
+                    2..=4 => {
                         return crate::devices::hfet::mesa::Mesa::instantiate(
                             instance, nodes, &model, context,
                         );

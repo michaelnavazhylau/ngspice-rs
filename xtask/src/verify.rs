@@ -262,6 +262,52 @@ const SUPPORTED: &[Supported] = &[
     pole_zero("m10_hfet2_pz"),
     tran("m10_hfet2_tran"),
     tran("m10_hfet1_tran"),
+    // MESA levels 3 and 4 (#168): `mesa2`'s two-population `nsa`/`nsb`
+    // channel with the `vpou`/`vpod` threshold regions and `mesa3`'s
+    // `nmax`/`gamma` channel with the `cas`/`cbs` capacitance split. Level 4
+    // has no `.ac`/`.pz` fixture: C's load reads fields `mesa3` never stores
+    // (see `tests/mesa.rs` and `docs/port/MESFET.md`).
+    Supported {
+        name: "m10_mesa_l3_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_l3_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_l3_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_l4_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_mesa_l4_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    tran("m10_mesa_l4_tran"),
     tran("m10_mesa_tran"),
     // The resistance paths (#155): `rd`/`rs` (the prime nodes, which C's
     // rawfile omits), `rg`, `ri`/`rf` (`#gs`/`#gd`) and the `rdi`/`rsi`
