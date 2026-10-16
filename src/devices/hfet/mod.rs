@@ -37,6 +37,7 @@
 //! refuses with its C reference rather than dropping terms.
 
 pub(crate) mod hfet1;
+pub(crate) mod hfet2;
 pub(crate) mod mesa;
 
 use crate::devices::jfet::{self, p};

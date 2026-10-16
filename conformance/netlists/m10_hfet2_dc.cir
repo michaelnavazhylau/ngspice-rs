@@ -1,0 +1,9 @@
+HFET2 level 6 drain sweep with the two-exponential sub-threshold branch
+z1 1 2 0 h2 l=2u w=20u m=2
+vgs 2 0 dc 0.5
+vds 1 0 dc 1.0
+.model h2 nhfet level=6 rd=31 rs=31 eta2=1.5 d2=0.1u
+.save all
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.dc vds 0 2 0.1
+.end

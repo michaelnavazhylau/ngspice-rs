@@ -4247,6 +4247,86 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 1, -6.483212903972138e-04, 0.),
         ],
     },
+    // HFET2 (Z level 6). Both polarities with every resistance live: the
+    // p-channel device sits at v(3) = -6.474901497314162e-13 V and its supply
+    // carries 2.104294772663782e-16 A.
+    Expectation {
+        fixture: "m10_hfet2_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(1)", "v(2)", "v(3)", "v(4)", "i(vdd)", "i(vgg)", "i(vgg2)",
+        ],
+        values: &[
+            ("v(3)", 0, -6.474901497314162e-13, 0.),
+            ("i(vdd)", 0, -6.158452997766946e-4, 0.),
+            ("i(vgg2)", 0, 2.104294772663782e-16, 0.),
+        ],
+    },
+    // The `eta2`/`d2` two-exponential sub-threshold branch over a drain sweep.
+    Expectation {
+        fixture: "m10_hfet2_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 21,
+        variables: &["v(v-sweep)", "v(1)", "v(2)", "i(vds)", "i(vgs)"],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vds)", 0, 0., 0.),
+            ("v(v-sweep)", 20, 2.0, 0.),
+            ("i(vds)", 20, -1.619316578789979e-3, 0.),
+        ],
+    },
+    // The AC load: 15 conductances plus `j omega` times both gate charges.
+    Expectation {
+        fixture: "m10_hfet2_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 7,
+        variables: &[
+            "frequency",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+        ],
+        values: &[
+            ("frequency", 0, 1.0e3, 0.),
+            ("i(vds)", 0, -1.322565853838949e-4, -1.282009536288661e-13),
+            ("frequency", 6, 9.999999999999994e5, 0.),
+            ("i(vds)", 6, -1.322565853842453e-4, -1.282009536274732e-10),
+        ],
+    },
+    // `hfet2pzl.c`: one pole and two zeros at this bias.
+    Expectation {
+        fixture: "m10_hfet2_pz",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(pole(1))", "v(zero(1))", "v(zero(2))"],
+        values: &[
+            ("v(pole(1))", 0, -1.915532913552036e-4, 0.),
+            ("v(zero(1))", 0, -3.855169267729273e18, 0.),
+            ("v(zero(2))", 0, 3.620195703585404e16, 0.),
+        ],
+    },
+    // The gate pulse with both charges: 81 accepted steps, C's own grid.
+    Expectation {
+        fixture: "m10_hfet2_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &["time", "v(1)", "v(2)", "v(3)", "i(vdd)", "i(vg)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("i(vdd)", 0, -1.195856996177556e-2, 0.),
+            ("time", 80, 3.0e-9, 0.),
+            ("i(vdd)", 80, -1.195856996177556e-2, 0.),
+        ],
+    },
     // HFET1 (Z level 5). The upstream `tests/hfet/id_vgs.cir` deck, less its
     // `.print`: the drain sweep runs to -2.108007503825823e-4 A at 1 V.
     Expectation {

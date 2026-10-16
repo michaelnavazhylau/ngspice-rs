@@ -172,7 +172,7 @@ grammar and one 62-setter model table but not one channel:
 | 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage |
 | 3/4 | MESA | `mesa3`/`mesa4`, `mesapz*` | H2 |
 | 5 | HFET1 | `hfeta` (`hfetload.c`) | ported (H3) |
-| 6 | HFET2 | `hfet2x` | H4 |
+| 6 | HFET2 | `hfeta2` (`hfet2load.c`) | ported (H4) |
 
 Level 2 is `src/devices/hfet/{mod,mesa}.rs`. `mod.rs` owns the union of the
 four families' setters (the card accepts `l`, `w`, `m`, `td`, `ts`, `dtemp`,
@@ -191,6 +191,51 @@ the small-signal sweep against the reference binary, and single-device probes
 agree with it bit for bit over 1 kHz-10 GHz while the two-device fixture
 differs only by round-off (about 1e-16 relative). `.sp` and `.tf` build on the
 same assembly and run.
+
+## HFET2 (level 6, `Z`, M10 H4, #169)
+
+The smallest of the three lineage copies: `hfet2/` has 33 model setters (`cf`,
+`d1`/`d2`, `del`, `delta`, `deltad`, `di`, `epsi`, `eta`/`eta1`/`eta2`, `gamma`,
+`ggr`, `js`, `klambda`/`kmu`/`knmax`/`kvto`, `lambda`, `m`/`mc`, `mu`, `n`,
+`nmax`, `p`, `rd`/`rs`/`rdi`/`rsi`, `sigma0`, `vs`, `vsigma`, `vsigmat`,
+`vt0`/`vt1`/`vt2`), one instance temperature `temp`, 13 state slots and only
+two conditional internal nodes.
+
+Where it differs from the other two levels:
+
+- **Only `#source`/`#drain`.** The model table has no `rg`, so there is no
+  `#gate` node, and there is no `ri`/`rf` prime-prime pair. `ri`/`rf` are not
+  setters at all here - C's table spells the channel's series pair `rdi`/`rsi`.
+- **`pnjlim` *and* `fetlim`.** `HFET2load` limits the junctions with
+  `DEVpnjlim` before `DEVfetlim` (HFET1 has only the latter), so `icheck` is
+  live and a strongly forward-biased gate takes a path the other levels do not
+  have. `vcrit` comes from `hfet2temp.c`'s fixed `1e-11` constant rather than a
+  junction current.
+- **A single-exponential gate junction** (`JS`, `GGR`) with no `gatemod`, no
+  `a1`/`a2` corrections and no `cds` charge; the transient folds the
+  integration companion straight into `ggs`/`ggd` (HFET1 keeps it in
+  `ggspp`/`ggdpp`).
+- **The `eta2`/`d2` sub-threshold branch** is C's `nsc` compound, taken only
+  when both setters are given (`hfeta2` checks both, while `hfet2temp.c` gates
+  `N02` on `eta2` alone).
+- **Mixed thresholds.** `hfet2temp.c` scales `vto` into `TVTO` but leaves
+  `HFET2_VT1`/`VT2` on the *raw* threshold, and `hfeta2`'s `nsc` branch mixes
+  the two (`exp((vgt + TVTO - VT2)/(ETA2*vt))`). The port reproduces that as
+  written.
+
+### Deliberate divergences and quirk notes
+
+- `hfet2temp.c` computes `N01` and reads it nowhere; the port does not carry
+  it.
+- Three of C's matrix-entry identifiers are mangled by a bad substitution
+  (`HFET2sourcePriHFET2ourcePrimePtr`); they still map to
+  `(sourcePrime, sourcePrime)`, `(sourcePrime, source)` and
+  `(drainPrime, sourcePrime)` in `hfet2setup.c` and `hfet2load.c` alike, which
+  is what the port stamps.
+- `.noise`/`.disto` contribute nothing (both entry points are NULL) and
+  `.sens` is refused, as for the rest of the family (#164).
+- No level-6 deck exists in the C tree (`tests/hfet/` covers only HFET1), so
+  the five `m10_hfet2_*` fixtures are the port's own decks with C goldens.
 
 ## HFET1 (level 5, `Z`, M10 H3, #83)
 
