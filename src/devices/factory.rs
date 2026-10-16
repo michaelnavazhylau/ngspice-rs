@@ -45,7 +45,7 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
     ),
     (
         'z',
-        "MESFET level 1 (Statz, mesload.c) and MESA level 2 (mesa1, mesaload.c)",
+        "every C level: MES (level 1, Statz), MESA 2-4 (mesa1/mesa2/mesa3) and HFET1/HFET2 (levels 5/6)",
     ),
 ];
 
