@@ -15,10 +15,10 @@ six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
 one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
-`work/m10-hfet2`, after the spill slices H1a/H1b/H3/H4), `cargo test
---workspace --locked` reports **1446 passed / 0 failed / 150 ignored** (the
+`work/m10-mesa-h2`, after the spill slices H1a/H1b/H2/H3/H4), `cargo test
+--workspace --locked` reports **1449 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
-golden verify` reports **169 verified / 1 unsupported / 0 failures** (the
+golden verify` reports **175 verified / 1 unsupported / 0 failures** (the
 unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
 build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
 for the recorded evidence.
@@ -436,6 +436,19 @@ it are marked "#85 as it then read".
   opt-in `c_mesfet_reference`. Explicit errors: `.disto` (`mesdset.c`),
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
+- [x] MESA levels 3 and 4 (#168, M10 H2): `mesa2`'s two-population
+  `nsa`/`nsb` channel with the four `vpod`/`vpou`/`vpo` threshold regions and
+  `mesa3`'s `nmax`/`gamma` channel with the `cas`/`cbs` capacitance split,
+  plus the level-dependent `mesatemp.c` derivations (`vpou`/`vpod`,
+  `gchi0 × tMu`, level 3's `du` depth, level 4's `epsi`/`cf` and its alone-`/2`
+  `n0`). `m10_mesa_l3_{op,dc,ac}` and `m10_mesa_l4_{op,dc,tran}` verify against
+  the reference binary (175 verified at landing; level 3's `.ac` matches
+  because `mesa2` stores the intermediates `mesaacl.c` reads). Level 4's
+  `.ac`/`.sp`/`.tf`/`.pz` are refused: `mesa3` never writes `gm0`/`gds0`/
+  `delidgch0`, so C's own answer there is a frequency-independent artefact
+  (1.07e-8 A at 1 kHz and 1 MHz for a card carrying -3.6e-3 A in DC) - a `.dc`
+  sweep still works, because its source probe needs only the correct
+  linearisation. The `z` family is now complete at every C level (1-6).
 - [x] HFET2 (#169, M10 H4): the `hfeta2` channel with the `eta2`/`d2`
   sub-threshold compound, the single-exponential `JS`/`GGR` gate junctions, the
   `pnjlim`/`fetlim` limiting HFET1 does not have, the two conditional internal

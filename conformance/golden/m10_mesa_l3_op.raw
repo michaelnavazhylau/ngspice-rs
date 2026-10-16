@@ -1,0 +1,22 @@
+Title: mesa level 3 operating point (upstream tests/mesa/mesa21.cir's card)
+Date: Fri Oct 16 12:54:35  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 6
+No. Points: 1
+Variables:
+	0	v(3)	voltage
+	1	v(1)	voltage
+	2	v(2)	voltage
+	3	i(vds)	current
+	4	i(vgs)	current
+	5	i(vids)	current
+Values:
+ 0	4.000000000000000e+00
+	4.000000000000000e+00
+	0.000000000000000e+00
+	-3.750424463803059e-02
+	1.166248840040927e-05
+	3.750424463803059e-02
+

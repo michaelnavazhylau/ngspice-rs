@@ -1,0 +1,10 @@
+MESA level 4 drain sweep with the nmax/gamma knee
+z1 1 2 0 m4 l=2u w=40u m=2
+vgs 2 0 dc 0.3
+vds 1 0 dc 2.0
+.model m4 nmf level=4 rd=50 rs=50 rdi=30 rsi=30 mu=0.35 nmax=3e16
++ cas=1 cbs=1
+.save all
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.dc vds 0 3 0.1
+.end

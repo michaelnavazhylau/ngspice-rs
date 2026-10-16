@@ -1,0 +1,18 @@
+Title: mesa level 4 operating point: the cas/cbs/epsi model at one bias
+Date: Fri Oct 16 12:56:16  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 4
+No. Points: 1
+Variables:
+	0	v(1)	voltage
+	1	v(2)	voltage
+	2	i(vdd)	current
+	3	i(vgg)	current
+Values:
+ 0	3.000000000000000e+00
+	5.000000000000000e-01
+	-3.600846442234158e-03
+	-3.256904067548815e-04
+

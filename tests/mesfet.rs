@@ -178,16 +178,18 @@ fn level_selection_and_model_validation_are_explicit() {
     // inpdomod.c: level 0 is MES too.
     assert!(circuit(&format!("{base}.model zm pmf level=0")).is_ok());
     // inpdomod.c: levels 3-6 are the other macspice families. Level 2 is
-    // MESA (M10 H1a) and levels 5/6 HFET1/HFET2 (#83 H3/H4), all `z`
+    // Every MESA level (M10 H1a/H2) and HFET1/HFET2 (#83 H3/H4), all `z`
     // devices.
     assert!(circuit(&format!("{base}.model zm nmf level=2")).is_ok());
     assert!(circuit(&format!("{base}.model zm nhfet level=5")).is_ok());
     assert!(circuit(&format!("{base}.model zm nhfet level=6")).is_ok());
-    for (level, reference) in [(3, "mesa/"), (4, "mesa/"), (7, "inpdomod.c")] {
-        let error = circuit(&format!("{base}.model zm nmf level={level}")).unwrap_err();
-        assert!(error.is_not_yet_ported(), "{level}: {error}");
-        assert!(error.to_string().contains(reference), "{level}: {error}");
-    }
+    // Levels 3 and 4 are MESA's `mesa2`/`mesa3` channels (#168).
+    assert!(circuit(&format!("{base}.model zm nmf level=3")).is_ok());
+    assert!(circuit(&format!("{base}.model zm pmf level=4")).is_ok());
+    // inpdomod.c rejects everything above level 6.
+    let error = circuit(&format!("{base}.model zm nmf level=7")).unwrap_err();
+    assert!(error.is_not_yet_ported(), "7: {error}");
+    assert!(error.to_string().contains("inpdomod.c"), "7: {error}");
     for (model, what) in [
         ("nmf(foo=1)", "unknown setter"),
         ("nmf(alpha=0)", "ALPHA must be positive"),

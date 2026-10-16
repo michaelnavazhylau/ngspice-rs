@@ -286,6 +286,21 @@ not HFET2 setters (C spells the channel's series pair `rdi`/`rsi`), which the
 port's schema now enforces. No level-6 deck exists in the C tree, so the
 fixtures are the port's own decks with C goldens.
 
+**Status (H2).** Levels 3 and 4 landed as one slice (#168): `mesa2`'s
+two-population `nsa`/`nsb` channel with the four `vpod`/`vpou`/`vpo` regions and
+`mesa3`'s `nmax`/`gamma` channel with the `cas`/`cbs` capacitance split, on six
+`m10_mesa_l3_*`/`m10_mesa_l4_*` fixtures (level 3's `.ac` included: `mesa2`
+stores the `gm0`/`gds0` intermediates `mesaacl.c` reads, `mesa3` does not). The
+plan's "one slice per level with a golden each" became one slice: the two
+channels share every other line. Two things the plan did not anticipate: the
+level-4 swept small-signal analyses are refused because `mesa3` never writes
+the fields `mesaacl.c`/`mesapzl.c` read (measured: 1.07e-8 A at both 1 kHz and
+1 MHz for a card that carries -3.6e-3 A in DC), and a two-device level-4 `.op`
+is not a fixture because C's continuation lands on a different solution of the
+same equations. `tests/mesa/mesa21.cir` supplied level 3's deck; level 4's are
+the port's own.
+
+
 
 
 ### H1 reference notes (read from the C sources, 2026-10-15)

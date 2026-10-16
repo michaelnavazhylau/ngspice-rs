@@ -183,8 +183,8 @@ const BUILTINS: &[(char, &str, &str)] = &[
     ),
     (
         'z',
-        "MESFET, HFET and MESA models",
-        "src/spicelib/parser/inp2z.c; src/spicelib/devices/mes/, hfet1/, mesa/",
+        "MESFET, HFET and MESA models (levels 0-1 MES, 2-4 MESA, 5 HFET1, 6 HFET2)",
+        "src/spicelib/parser/inp2z.c; src/spicelib/devices/mes/, mesa/, hfet1/, hfet2/",
     ),
     (
         'x',

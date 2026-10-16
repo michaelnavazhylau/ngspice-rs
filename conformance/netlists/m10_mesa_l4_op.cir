@@ -1,0 +1,10 @@
+MESA level 4 operating point: the cas/cbs/epsi model at one bias
+vdd 1 0 dc 3
+vgg 2 0 dc 0.5
+z1 1 2 0 n4 l=1u w=20u
+.model n4 nmf level=4 rd=31 rs=31 rdi=20 rsi=20 mu=0.3 gamma=2.5
++ nmax=4e16 cas=0.9 cbs=1.1 epsi=1.142189e-10
+.save all
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.op
+.end

@@ -101,6 +101,8 @@ struct Derived {
     nsb0: Real,
     isatb0: Real,
     cf: Real,
+    /// `here->MESAimax = CHARGE*NMAX*VS*W` (level 4 only).
+    imax: Real,
     csatfs: Real,
     csatfd: Real,
     ggrwl: Real,
@@ -117,8 +119,12 @@ struct Derived {
     /// (`mesa1`'s `RS`/`RD`), which create no node.
     trdi: Real,
     trsi: Real,
-    /// `model->MESAvpo` (level 2) and `delta²`.
+    /// `model->MESAvpo`: level 2's device depth term, or `vpou + vpod` for
+    /// levels 3 and 4 (`mesatemp.c`'s else branch).
     vpo: Real,
+    /// `vpou`/`vpod`, which only `mesa2` reads.
+    vpou: Real,
+    vpod: Real,
     delta_sqr: Real,
 }
 
@@ -198,6 +204,10 @@ struct Nodes {
 pub(crate) struct Mesa {
     name: String,
     model_name: String,
+    /// `mesasetup.c`/`inpdomod.c`'s level: 2 (`mesa1`), 3 (`mesa2`) or 4
+    /// (`mesa3`). The model card and every load are shared; the level selects
+    /// the channel and three `mesatemp.c` derivations.
+    level: u8,
     /// External terminals then the internal nodes, in `mesasetup.c`'s order.
     terminals: Vec<NodeId>,
     nodes: Nodes,
@@ -213,9 +223,10 @@ impl Mesa {
         resolved: &ResolvedModel<'_>,
         context: &ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
-        if resolved.levels().selector != 2 {
+        let level = resolved.levels().selector;
+        if !matches!(level, 2..=4) {
             return Err(SpiceError::circuit(format!(
-                "{}: MESA needs level 2",
+                "{}: MESA needs level 2, 3 or 4",
                 i.name
             )));
         }
@@ -281,6 +292,7 @@ impl Mesa {
         let device = Self {
             name: i.name.clone(),
             model_name: resolved.card().name.clone(),
+            level,
             terminals,
             nodes: nodes_of,
             model,
@@ -338,13 +350,41 @@ impl Mesa {
         let vtd = K_OVER_Q * td;
         let tphib = model.phib - model.phib1 * (ts - nominal_kelvin);
         let tvto = model.threshold - model.tvto * (ts - nominal_kelvin);
-        let vpo = CHARGE * model.nd * model.d * model.d / 2. / EPSILON_GAAS;
-        let gchi0 = CHARGE * instance.w / instance.l;
+        // `mesatemp.c`: level 2 has one depth term, levels 3-4 split it into
+        // the two-population `vpou`/`vpod`, which `mesa2` selects between.
+        let vpou = CHARGE * model.ndu * model.du * model.du / 2. / EPSILON_GAAS;
+        let vpod =
+            CHARGE * model.ndelta * model.th * (2. * model.du + model.th) / 2. / EPSILON_GAAS;
+        let vpo = if self.level == 2 {
+            CHARGE * model.nd * model.d * model.d / 2. / EPSILON_GAAS
+        } else {
+            vpou + vpod
+        };
+        // Levels 3 and 4 scale the channel prefactor by the mobility, and
+        // level 3 replaces the depth by `du` while level 4 switches the
+        // permittivity to the model's `epsi`.
+        let gchi0 = if self.level == 2 {
+            CHARGE * instance.w / instance.l
+        } else {
+            CHARGE * instance.w / instance.l * tmu
+        };
         let beta = 2. * EPSILON_GAAS * model.vs * model.zeta * instance.w / model.d;
-        let n0 = EPSILON_GAAS * teta * vts / CHARGE / model.d;
+        let depth = if self.level == 3 { model.du } else { model.d };
+        let permittivity = if self.level == 4 {
+            model.epsi
+        } else {
+            EPSILON_GAAS
+        };
+        // `mesatemp.c:78-81`: only level 4 halves the channel charge term;
+        // levels 1-3 use the same expression without the 2.
+        let n0 = if self.level == 4 {
+            permittivity * teta * vts / 2. / CHARGE / depth
+        } else {
+            permittivity * teta * vts / CHARGE / depth
+        };
         let nsb0 = EPSILON_GAAS * teta * vts / CHARGE / (model.du + model.th);
         let isatb0 = CHARGE * n0 * vts * instance.w / instance.l;
-        let cf = 0.5 * EPSILON_GAAS * instance.w;
+        let cf = 0.5 * permittivity * instance.w;
         let csatfs = 0.5
             * model.astar
             * ts
@@ -403,6 +443,7 @@ impl Mesa {
             nsb0,
             isatb0,
             cf,
+            imax: CHARGE * model.nmax * model.vs * instance.w,
             csatfs,
             csatfd,
             ggrwl,
@@ -416,6 +457,8 @@ impl Mesa {
             trdi,
             trsi,
             vpo,
+            vpou,
+            vpod,
             delta_sqr: model.delta * model.delta,
         };
         if [
@@ -543,6 +586,236 @@ impl Mesa {
         let conductance = csat * ev / vte + derived.ggrwl * earg * (1. - arg) + gmin;
         let current = csat * (ev - 1.) + derived.ggrwl * v * earg + gmin * v;
         (current, conductance)
+    }
+
+    /// The level's channel: `mesa1` (level 2), `mesa2` (level 3) or `mesa3`
+    /// (level 4). `mesaload.c` selects between them on `model->MESAlevel`, and
+    /// everything around them - the junctions, the charge storage, the load
+    /// and the small-signal assembly - is shared.
+    #[allow(clippy::too_many_arguments)]
+    fn channel(
+        &self,
+        derived: &Derived,
+        lambda: Real,
+        vgs: Real,
+        vds: Real,
+        von: Real,
+    ) -> SpiceResult<(Real, Real, Real, Real, Real)> {
+        match self.level {
+            3 => self.mesa2(derived, lambda, vgs, vds, von),
+            4 => self.mesa3(derived, lambda, vgs, vds, von),
+            _ => self.mesa1(derived, lambda, vgs, vds, von),
+        }
+    }
+
+    /// `mesa2` (`mesaload.c:690`): level 3's two-population channel. The
+    /// expressions and their order are C's, including the four regions of
+    /// `nsa`'s `vpo` selection and the `ca`/`cb` capacitance split.
+    fn mesa2(
+        &self,
+        derived: &Derived,
+        lambda: Real,
+        vgs: Real,
+        vds: Real,
+        von: Real,
+    ) -> SpiceResult<(Real, Real, Real, Real, Real)> {
+        let model = &self.model;
+        let vt = derived.vts;
+        let etavth = derived.teta * vt;
+        let rt = derived.trsi + derived.trdi;
+        let vgt0 = vgs - von;
+        let s = ((vgt0 - model.vsigmat) / model.vsigma).exp();
+        let sigma = model.sigma0 / (1. + s);
+        let vgt = vgt0 + sigma * vds;
+        let t = vgt / vt - 1.;
+        let q = (derived.delta_sqr + t * t).sqrt();
+        let vgte = 0.5 * vt * (2. + t + q);
+        let a = 2. * model.beta * vgte;
+        // `mesa2` selects the donor density by where `vgte` sits relative to
+        // the two threshold terms.
+        let (nsa, ca, delnsavgte) = if vgt > derived.vpod {
+            if vgte > derived.vpo {
+                (
+                    model.ndelta * model.th + model.ndu * model.du,
+                    EPSILON_GAAS / model.du,
+                    0.,
+                )
+            } else {
+                let r = ((derived.vpo - vgte) / derived.vpou).sqrt();
+                (
+                    model.ndelta * model.th + model.ndu * model.du * (1. - r),
+                    EPSILON_GAAS / model.du / r,
+                    model.ndu * model.du / derived.vpou / 2. / r,
+                )
+            }
+        } else if derived.vpod - vgte < 0. {
+            (
+                model.ndelta * model.th * (1. - model.du / model.th),
+                EPSILON_GAAS / model.du,
+                0.,
+            )
+        } else {
+            let r = (1. + model.ndu / model.ndelta * (derived.vpod - vgte) / derived.vpou).sqrt();
+            (
+                model.ndelta * model.th * (1. - model.du / model.th * (r - 1.)),
+                EPSILON_GAAS / model.du / r,
+                model.du * model.ndu / 2. / derived.vpou / r,
+            )
+        };
+        let b = (vgt / etavth).exp();
+        let cb = EPSILON_GAAS / (model.du + model.th) * b;
+        let nsb = derived.nsb0 * b;
+        let delnsbvgt = nsb / etavth;
+        let ns = nsa * nsb / (nsa + nsb);
+        if ns < N_MIN {
+            return Ok((0., 0., 0., derived.cf, derived.cf));
+        }
+        let gchi = derived.gchi0 * ns;
+        let gch = gchi / (1. + gchi * rt);
+        let f = (1. + 2. * a * model.rsi).sqrt();
+        let d = 1. + a * model.rsi + f;
+        let e = 1. + model.tc * vgte;
+        let isata = a * vgte / d / e;
+        let isatb = derived.isatb0 * b;
+        let isat = isata * isatb / (isata + isatb);
+        let vsate = isat / gch;
+        let vdse = vds * (1. + (vds / vsate).powf(model.mc)).powf(-1. / model.mc);
+        let g = (vds / vsate).powf(model.m);
+        let h = (1. + g).powf(1. / model.m);
+        let delidgch0 = vds / h;
+        let delidgch = delidgch0 * (1. + lambda * vds);
+        let cdrain = gch * delidgch;
+        let cgc = self.instance.w * self.instance.l * ca * cb / (ca + cb);
+        let c = (vsate - vdse) / (2. * vsate - vdse);
+        let c = c * c;
+        let capgs = derived.cf + 2. / 3. * cgc * (1. - c);
+        let c = vsate / (2. * vsate - vdse);
+        let c = c * c;
+        let capgd = derived.cf + 2. / 3. * cgc * (1. - c);
+        let delvgtevgt = 0.5 * (1. + t / q);
+        let delidvds0 = gch / h;
+        let delidvds1 = if vds != 0. {
+            cdrain * (vds / vsate).powf(model.m - 1.) / vsate / (1. + g)
+        } else {
+            0.
+        };
+        let delidvds = delidvds0 * (1. + 2. * lambda * vds) - delidvds1;
+        let delgchgchi = 1. / (1. + gchi * rt) / (1. + gchi * rt);
+        let delgchins = derived.gchi0;
+        let r = nsa + nsb;
+        let r = r * r;
+        let delnsvgt = (nsb * nsb * delvgtevgt * delnsavgte + nsa * nsa * delnsbvgt) / r;
+        let delidvsate = cdrain * g / vsate / (1. + g);
+        let delvsateisat = 1. / gch;
+        let r = isata + isatb;
+        let r = r * r;
+        let delisatisata = isatb * isatb / r;
+        let ddevgte = 2. * model.beta * model.rsi * (1. + 1. / f) * e + d * model.tc;
+        let delisatavgte = (2. * a * d * e - a * vgte * ddevgte) / d / d / e / e;
+        let delisatisatb = isata * isata / r;
+        let delisatbvgt = isatb / etavth;
+        let delvsategch = -vsate / gch;
+        let delvgtvgs = 1. - model.sigma0 * vds * s / model.vsigma / (1. + s) / (1. + s);
+        let p = delgchgchi * delgchins * delnsvgt;
+        let delvsatevgt = delvsateisat
+            * (delisatisata * delisatavgte * delvgtevgt + delisatisatb * delisatbvgt)
+            + delvsategch * p;
+        let gm1 = delidvsate * delvsatevgt;
+        let g = delidgch * p + gm1;
+        let gm = g * delvgtvgs;
+        let gds = delidvds + g * sigma;
+        let values = [cdrain, gm, gds, capgs, capgd];
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(self.numerical("nonfinite mesa2 channel equations"));
+        }
+        Ok((cdrain, gm, gds, capgs, capgd))
+    }
+
+    /// `mesa3` (`mesaload.c:858`): level 4's `nmax`/`gamma` channel, the same
+    /// shape as `hfeta2` but with the `cas`/`cbs` capacitance split.
+    fn mesa3(
+        &self,
+        derived: &Derived,
+        lambda: Real,
+        vgs: Real,
+        vds: Real,
+        von: Real,
+    ) -> SpiceResult<(Real, Real, Real, Real, Real)> {
+        let model = &self.model;
+        let vt = derived.vts;
+        let etavth = derived.teta * vt;
+        let vl = model.vs / derived.tmu * self.instance.l;
+        let rt = derived.trsi + derived.trdi;
+        let vgt0 = vgs - von;
+        let s = ((vgt0 - model.vsigmat) / model.vsigma).exp();
+        let sigma = model.sigma0 / (1. + s);
+        let vgt = vgt0 + sigma * vds;
+        let u = 0.5 * vgt / vt - 1.;
+        let t = (derived.delta_sqr + u * u).sqrt();
+        let vgte = vt * (2. + u + t);
+        let b = (vgt / etavth).exp();
+        let nsm = 2. * derived.n0 * (1. + 0.5 * b).ln();
+        if nsm < N_MIN {
+            return Ok((0., 0., 0., derived.cf, derived.cf));
+        }
+        let c = (nsm / model.nmax).powf(model.gamma);
+        let q = (1. + c).powf(1. / model.gamma);
+        let ns = nsm / q;
+        let gchi = derived.gchi0 * ns;
+        let gch = gchi / (1. + gchi * rt);
+        let gchim = derived.gchi0 * nsm;
+        let h = (1. + 2. * gchim * model.rsi + vgte * vgte / (vl * vl)).sqrt();
+        let p = 1. + gchim * model.rsi + h;
+        let isatm = gchim * vgte / p;
+        let g = (isatm / derived.imax).powf(model.gamma);
+        let isat = isatm / (1. + g).powf(1. / model.gamma);
+        let vsate = isat / gch;
+        let vdse = vds * (1. + (vds / vsate).powf(model.mc)).powf(-1. / model.mc);
+        let d = (vds / vsate).powf(model.m);
+        let e = (1. + d).powf(1. / model.m);
+        let delidgch = vds * (1. + lambda * vds) / e;
+        let cdrain = gch * delidgch;
+        // `mesa3`'s capacitance split, which is the only place `cas`/`cbs`
+        // and the model's `epsi` enter the channel.
+        let cgcm = 1.
+            / (1. / model.cas * model.d / model.epsi
+                + 1. / model.cbs * etavth / CHARGE / derived.n0 * (-vgt / etavth).exp());
+        let cgc = self.instance.w * self.instance.l * cgcm / (1. + c).powf(1. + 1. / model.gamma);
+        let third = 2.0 / 3.0;
+        let a = (vsate - vdse) / (2. * vsate - vdse);
+        let a = a * a;
+        let capgs = derived.cf + third * cgc * (1. - a);
+        let a = vsate / (2. * vsate - vdse);
+        let a = a * a;
+        let capgd = derived.cf + third * cgc * (1. - a);
+        let delidvsate = cdrain * d / vsate / (1. + d);
+        let delidvds = gch * (1. + 2. * lambda * vds) / e
+            - cdrain * (vds / vsate).powf(model.m - 1.) / (vsate * (1. + d));
+        let a = 1. + gchi * rt;
+        let delgchgchi = 1. / (a * a);
+        let delgchins = derived.gchi0;
+        let delnsnsm = ns / nsm * (1. - c / (1. + c));
+        let delnsmvgt = derived.n0 / etavth / (1. / b + 0.5);
+        let delvgtevgt = 0.5 * (1. + u / t);
+        let delvsateisat = 1. / gch;
+        let delisatisatm = isat / isatm * (1. - g / (1. + g));
+        let delisatmvgte = gchim * (p - vgte * vgte / (vl * vl * h)) / (p * p);
+        let delvsategch = -vsate / gch;
+        let delisatmgchim = vgte * (p - gchim * model.rsi * (1. + 1. / h)) / (p * p);
+        let delvgtvgs = 1. - vds * model.sigma0 / model.vsigma * s / ((1. + s) * (1. + s));
+        let p = delgchgchi * delgchins * delnsnsm * delnsmvgt;
+        let delvsatevgt = delvsateisat
+            * delisatisatm
+            * (delisatmvgte * delvgtevgt + delisatmgchim * derived.gchi0 * delnsmvgt)
+            + delvsategch * p;
+        let g = delidgch * p + delidvsate * delvsatevgt;
+        let gm = g * delvgtvgs;
+        let gds = delidvds + g * sigma;
+        let values = [cdrain, gm, gds, capgs, capgd];
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(self.numerical("nonfinite mesa3 channel equations"));
+        }
+        Ok((cdrain, gm, gds, capgs, capgd))
     }
 
     /// `mesa1` (`mesaload.c:499`): the drain current and its derivatives. The
@@ -716,7 +989,7 @@ impl Mesa {
         );
         let vds = vgs - vgd;
         let (inverse, vds) = if vds < 0. { (true, -vds) } else { (false, vds) };
-        let (cdrain, gm, gds, capgs, capgd) = self.mesa1(
+        let (cdrain, gm, gds, capgs, capgd) = self.channel(
             derived,
             derived.tlambda,
             if inverse { vgd } else { vgs },
@@ -794,7 +1067,7 @@ impl Mesa {
         let vds = vgs - vgd;
         let (inverse, vds) = if vds < 0. { (true, -vds) } else { (false, vds) };
         let (_, gm, gds, _, _) =
-            self.mesa1(derived, lambda, if inverse { vgd } else { vgs }, vds, von)?;
+            self.channel(derived, lambda, if inverse { vgd } else { vgs }, vds, von)?;
         // `ggspp`/`ggdpp` come from the charge integration, which only a
         // transient load fills; a DC or small-signal load leaves them zero.
         Ok(AcValues {
@@ -992,6 +1265,7 @@ impl Device for Mesa {
         Ok(Box::new(Self {
             name: self.name.clone(),
             model_name: self.model_name.clone(),
+            level: self.level,
             terminals: self.terminals.clone(),
             nodes: self.nodes,
             model: self.model,
@@ -1276,6 +1550,28 @@ impl Device for Mesa {
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
+        // `mesaacl.c`/`mesapzl.c` build their conductances from `gm0`/`gm1`/
+        // `gm2`, `gds0` and `delidgch0`/`delidvds0`/`delidvds1`, which `mesa1`
+        // and `mesa2` store and **`mesa3` never writes**. A level-4 device
+        // therefore answers `.ac` with those fields at their zeroed initial
+        // values: no transconductance and no output conductance at all.
+        // Measured on a level-4 card that carries -1.55e-4 A in DC, the
+        // reference binary prints 1.07e-8 A at 1 kHz and the same at 1 MHz.
+        // Refused rather than reproduced, as `y`/TXL's AC is.
+        //
+        // `state` is `Some` exactly on the swept small-signal path (`.ac`,
+        // `.sp`, `.tf`, `.pz` and `.sens` AC), and `None` on the probe a `.dc`
+        // sweep assembles to resolve a swept source - a probe that needs the
+        // *correct* linearisation, which is what the port computes below
+        // (C resolves it from its DC Jacobian, which `mesa3` does store).
+        if self.level == 4 && context.states.is_some() {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: MESA level 4 AC/SP/TF/pole-zero", self.name),
+                "src/spicelib/devices/mesa/mesaacl.c reads the `gm0`/`gds0`/`delidgch0` \
+                 fields that mesaload.c's mesa3 never stores (a `.dc` sweep still works: \
+                 its source probe needs only the correct linearisation)",
+            ));
+        }
         let derived = self.derived(
             context.model_context.temperature,
             context.model_context.nominal_temperature,
