@@ -197,7 +197,11 @@ NGSPICE_BIN=/abs/path/ngspice cargo test -p ngspice-rs --test c_batch_reference 
 
 * waveform parsing and any post-processing of results other than `.measure`,
   `.four` and `.plot`;
-* an interactive interpreter (`run`/`resume`, `.control` sections).
+* an interactive interpreter (`run`/`resume`) and C's `.control` command
+  language beyond the bounded settings block: the port accepts `set` (seven
+  pre-run settings), one `run`, `fourier` and `quit`, and refuses everything
+  else by name. See [CONTROL_SCRIPTS_ADR.md](CONTROL_SCRIPTS_ADR.md) for the
+  decision and the list of divergences.
 
 Binary rawfile output is implemented: see
 [M9 encoding selection](#m9-encoding-selection-112) below.

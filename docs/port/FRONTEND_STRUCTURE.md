@@ -298,5 +298,6 @@ implemented (#18, [SUBCIRCUITS.md](SUBCIRCUITS.md)); a D/Q/M parse is still
 syntax, not simulation.
 
 M8 adds `.options keepopinfo` for the C bias plots preceding AC, SP, noise,
-distortion and pole-zero analyses, plus bounded pre-run `.control` settings
-`set sqrnoise` and `set ngbehavior=s3` (MOS1 noise law only).
+distortion and pole-zero analyses, plus the bounded pre-run `.control` settings
+(`set sqrnoise`, `set ngbehavior=s3` and the Fourier/encoding settings, see
+[CONTROL_SCRIPTS_ADR.md](CONTROL_SCRIPTS_ADR.md)).
