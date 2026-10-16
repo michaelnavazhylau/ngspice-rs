@@ -4247,6 +4247,114 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 1, -6.483212903972138e-04, 0.),
         ],
     },
+    // HFET1 (Z level 5). The upstream `tests/hfet/id_vgs.cir` deck, less its
+    // `.print`: the drain sweep runs to -2.108007503825823e-4 A at 1 V.
+    Expectation {
+        fixture: "m10_hfet1_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 21,
+        variables: &["v(v-sweep)", "v(1)", "v(2)", "i(vds)", "i(vgs)"],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(vds)", 0, 3.772774080594924e-11, 0.),
+            ("i(vds)", 20, -2.108007503825823e-4, 0.),
+            ("i(vgs)", 20, 3.755789352841472e-10, 0.),
+        ],
+    },
+    // Every resistance path and both polarities: `z1` is `nhfet`, `z2` is
+    // `phfet`, each with `rd`/`rs`/`rg`/`ri`/`rf`/`rdi`/`rsi` live, so C saves
+    // the `#gate`/`#gs`/`#gd` nodes of both (and omits `#source`/`#drain`).
+    Expectation {
+        fixture: "m10_hfet1_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "v(4)",
+            "i(vdd)",
+            "i(vg)",
+            "i(vg2)",
+            "v(z1#gate)",
+            "v(z1#gd)",
+            "v(z1#gs)",
+            "v(z2#gate)",
+            "v(z2#gd)",
+            "v(z2#gs)",
+        ],
+        values: &[
+            ("v(4)", 0, -6.489685375723774e-7, 0.),
+            ("i(vdd)", 0, -2.228925977521059e-3, 0.),
+            ("i(vg)", 0, 1.464364852943323e-7, 0.),
+        ],
+    },
+    // Both `gatemod` devices (C gates the `a1`/`a2` corrections on it as well
+    // as on the coefficients) with the `kappa`/`fgds`/`delf` conductance
+    // blend: 1 kHz to 1 MHz.
+    Expectation {
+        fixture: "m10_hfet1_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 7,
+        variables: &[
+            "frequency",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vds)",
+            "i(vgs)",
+            "i(vids)",
+            "v(z2#gd)",
+            "v(z2#gs)",
+        ],
+        values: &[
+            ("frequency", 0, 1.0e3, 0.),
+            ("i(vds)", 0, -2.710749460406239e-4, -7.089001351063604e-12),
+            ("i(vgs)", 0, 1.586116446555602e-10, 9.084228745186430e-12),
+            ("frequency", 6, 9.999999999999994e5, 0.),
+            ("i(vds)", 6, -2.710749917724832e-4, -7.089001352370678e-9),
+            ("i(vgs)", 6, 1.589584620215715e-10, 9.084228879889432e-9),
+        ],
+    },
+    // `hfetpzl.c`: two zeros (this drive has no poles), C's own root search.
+    Expectation {
+        fixture: "m10_hfet1_pz",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &["v(zero(1))", "v(zero(2))"],
+        values: &[
+            ("v(zero(1))", 0, -8.946769448610416e11, 0.),
+            ("v(zero(2))", 0, 3.653614859475375e8, 0.),
+        ],
+    },
+    // The gate pulse through `rg` with the gate and `cds` charges: 81 accepted
+    // steps, the off-state drain current at -1.177405963475171e-2 A.
+    Expectation {
+        fixture: "m10_hfet1_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 81,
+        variables: &[
+            "time",
+            "v(1)",
+            "v(2)",
+            "v(3)",
+            "i(vdd)",
+            "i(vg)",
+            "v(z1#gate)",
+        ],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("i(vdd)", 0, -1.177405963475171e-2, 0.),
+            ("v(z1#gate)", 0, 2.999999999999997, 0.),
+            ("time", 80, 3.0e-9, 0.),
+            ("i(vdd)", 80, -1.177405963475174e-2, 0.),
+        ],
+    },
     // `mesapzl.c` on a common-source stage: three poles and two zeros, all
     // real for this bias. `rg`/`ri`/`rf`, the channel's series pair and the
     // gate charges all enter the pencil.

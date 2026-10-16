@@ -1,0 +1,11 @@
+HFET1 level 5 pole-zero: common-source stage with a current drive at the gate
+vdd vdd 0 3
+vin gate 0 dc -0.5 ac 1
+rs gate g 1k
+rd vdd drain 100
+cl drain 0 1p
+z1 drain g 0 hfet l=1u w=20u
+.model hfet nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50
++ js1s=1e-12 js1d=1e-12
+.pz g 0 drain 0 cur pz
+.end

@@ -201,6 +201,38 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::NONLINEAR,
         },
     },
+    // HFET1 (Z level 5, #83 spill H3): `hfeta`'s channel and both gate
+    // junctions, the type-normalized `nhfet`/`phfet` polarities, the
+    // `gatemod` cross terms, the `a1`/`a2` corrections and the `cds` charge.
+    Supported {
+        name: "m10_hfet1_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m10_hfet1_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    // A nonlinear device's AC: the bias Jacobian is converged independently
+    // by each simulator, so this is `compare::NONLINEAR` (1 ppm) as for the
+    // diode/BJT/MOS1 AC fixtures, not the linear `compare::AC`.
+    Supported {
+        name: "m10_hfet1_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    pole_zero("m10_hfet1_pz"),
+    tran("m10_hfet1_tran"),
     tran("m10_mesa_tran"),
     // The resistance paths (#155): `rd`/`rs` (the prime nodes, which C's
     // rawfile omits), `rg`, `ri`/`rf` (`#gs`/`#gd`) and the `rdi`/`rsi`

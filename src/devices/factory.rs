@@ -116,11 +116,20 @@ pub(crate) fn instantiate_with_models(
                 return crate::devices::jfet::Jfet::instantiate(instance, nodes, &model, context);
             }
             crate::devices::models::ModelFamily::Nmf | crate::devices::models::ModelFamily::Pmf => {
-                // inpdomod.c: level 2 selects MESA (`mesa1`).
-                if model.levels().selector == 2 {
-                    return crate::devices::hfet::mesa::Mesa::instantiate(
-                        instance, nodes, &model, context,
-                    );
+                // inpdomod.c: 0/1 select the MES (`mes/`) card, 2-4 MESA
+                // (`mesa1`-`mesa3`) and 5 HFET1 (`hfet1/`).
+                match model.levels().selector {
+                    2 => {
+                        return crate::devices::hfet::mesa::Mesa::instantiate(
+                            instance, nodes, &model, context,
+                        );
+                    }
+                    5 => {
+                        return crate::devices::hfet::hfet1::Hfet1::instantiate(
+                            instance, nodes, &model, context,
+                        );
+                    }
+                    _ => {}
                 }
                 return crate::devices::mesfet::Mesfet::instantiate(
                     instance, nodes, &model, context,

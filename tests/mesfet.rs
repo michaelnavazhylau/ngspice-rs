@@ -178,16 +178,10 @@ fn level_selection_and_model_validation_are_explicit() {
     // inpdomod.c: level 0 is MES too.
     assert!(circuit(&format!("{base}.model zm pmf level=0")).is_ok());
     // inpdomod.c: levels 3-6 are the other macspice families. Level 2 is
-    // MESA, which M10 H1a builds as a `z` device.
+    // MESA (M10 H1a) and level 5 HFET1 (#83 H3), both built as `z` devices.
     assert!(circuit(&format!("{base}.model zm nmf level=2")).is_ok());
-    for (level, reference) in [
-        (3, "mesa/"),
-        (3, "mesa/"),
-        (4, "mesa/"),
-        (5, "hfet1/"),
-        (6, "hfet2/"),
-        (7, "inpdomod.c"),
-    ] {
+    assert!(circuit(&format!("{base}.model zm nhfet level=5")).is_ok());
+    for (level, reference) in [(3, "mesa/"), (4, "mesa/"), (6, "hfet2/"), (7, "inpdomod.c")] {
         let error = circuit(&format!("{base}.model zm nmf level={level}")).unwrap_err();
         assert!(error.is_not_yet_ported(), "{level}: {error}");
         assert!(error.to_string().contains(reference), "{level}: {error}");

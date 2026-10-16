@@ -261,6 +261,22 @@ even though `DEVsenSetup` is NULL (#164, the whole `j`/`z` family), the two
 parser gaps (#161 instance parameters on a `.model` card, #162 the
 `<source>#branch` spelling) and the state-backed `@z1[qgs]` asks.
 
+**Status (H3).** HFET1 landed as one slice: `src/devices/hfet/hfet1.rs` with
+the `hfeta` channel, both gate models (`leak()`'s two-exponential junction with
+C's `diode()` approximation and `gatemod`'s thermionic currents plus the
+`gmg`/`gmd` cross terms), the `a1`/`a2` corrections, the `cds` charge, the
+conditional internal nodes, both polarities and the `hfetask.c` table, on five
+`m10_hfet1_{dc,op,ac,tran,pz}` fixtures. The plan's assumption that the four
+families share one channel held only for the shell: HFET1's card has a
+different model table (no `nd`/`d`/`eta1`… but `di`, `deltad`, `js1d`…, a
+single `temp` instance temperature, `rgs`/`rgd`) and a different load, so it is
+a separate file rather than a fourth level in `mesa.rs`. Two corrections came
+out of the C comparison: C gates the `a1`/`a2` corrections on `gatemod != 0`
+(the port applied them unconditionally), and C's own NaN in the off-channel
+`gatemod` path is a `DEVfetlim`-recovered artefact the port takes the limit of
+instead.
+
+
 ### H1 reference notes (read from the C sources, 2026-10-15)
 
 Gathered while starting H1 so the equations do not have to be re-read. The
