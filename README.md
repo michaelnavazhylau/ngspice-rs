@@ -204,7 +204,9 @@ docs/port/           architecture, C-to-Rust mapping, roadmap and feature guides
   [SENSITIVITY.md](docs/port/SENSITIVITY.md)
 - Output: [CLI.md](docs/port/CLI.md), [RAWFILES.md](docs/port/RAWFILES.md),
   [OUTPUT_SELECTION.md](docs/port/OUTPUT_SELECTION.md),
-  [MEASURE.md](docs/port/MEASURE.md), [FOURIER.md](docs/port/FOURIER.md)
+  [MEASURE.md](docs/port/MEASURE.md), [FOURIER.md](docs/port/FOURIER.md),
+  [CONTROL_SCRIPTS_ADR.md](docs/port/CONTROL_SCRIPTS_ADR.md) (the bounded
+  `.control` settings block)
 - Numerics: [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md),
   [EQUILIBRATION.md](docs/port/EQUILIBRATION.md),
   [SPARSE_RANK_DIAGNOSTICS.md](docs/port/SPARSE_RANK_DIAGNOSTICS.md),
