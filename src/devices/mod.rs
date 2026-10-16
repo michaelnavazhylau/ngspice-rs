@@ -21,7 +21,7 @@
 //! | [`rlc`] | resistor, capacitor, inductor | linear static/dynamic equations; trap/Gear-2 C/L companion stamps (no driver yet) |
 //! | [`passive`] | bounded model-backed R/C/L | schemas, geometry and contextual temperature/scale/multiplicity |
 //! | [`sweep`] | physical resistor metadata, immutable per-point resistor and instance-parameter overrides | typed `.dc` resistor and `@inst[param]` targets |
-//! | [`noise`] | `.noise` generators: the [`Device::noise`] hook, thermal/shot/flicker laws and C's instance order | `mes/`, R, D, Q, MOS1, S/W; explicit `Noiseless` for C's noise-free devices (MESA and the HFET levels) |
+//! | [`noise`] | `.noise` generators: the [`Device::noise`] hook, thermal/shot/flicker laws and C's instance order | `mes/`, R, D, Q, MOS1, S/W; explicit `Noiseless` for C's noise-free devices (MESA and both HFET levels) |
 //! | [`setup`] | C's `CKTsetup`/`CKTload` device order and `TSTALLOC` element allocation | type table, model/instance order |
 //! | [`subckt`] | `X` instance expansion: port binding, hierarchical names, scoped parameters and models | top-level definitions, named overrides, `.global` nodes |
 //! | [`urc`] | `U` uniform RC lines expanded into lumped R/C/D sections (`urcsetup.c`) | factory expansion into existing devices |

@@ -36,6 +36,7 @@
 //! the `ri`/`rf`/`rdi`/`rsi` resistance paths (issues #155-#157); each
 //! refuses with its C reference rather than dropping terms.
 
+pub(crate) mod hfet1;
 pub(crate) mod mesa;
 
 use crate::devices::jfet::{self, p};

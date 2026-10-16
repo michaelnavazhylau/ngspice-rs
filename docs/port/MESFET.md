@@ -171,7 +171,7 @@ grammar and one 62-setter model table but not one channel:
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
 | 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage |
 | 3/4 | MESA | `mesa3`/`mesa4`, `mesapz*` | H2 |
-| 5 | HFET1 | `hfet1` | H3 |
+| 5 | HFET1 | `hfeta` (`hfetload.c`) | ported (H3) |
 | 6 | HFET2 | `hfet2x` | H4 |
 
 Level 2 is `src/devices/hfet/{mod,mesa}.rs`. `mod.rs` owns the union of the
@@ -191,6 +191,71 @@ the small-signal sweep against the reference binary, and single-device probes
 agree with it bit for bit over 1 kHz-10 GHz while the two-device fixture
 differs only by round-off (about 1e-16 relative). `.sp` and `.tf` build on the
 same assembly and run.
+
+## HFET1 (level 5, `Z`, M10 H3, #83)
+
+`hfet1/` is the third copy of the macspice lineage, with its own model table
+(`vt0`, `lambda`, `rd`/`rs`/`rg`/`rdi`/`rsi`/`rgs`/`rgd`/`ri`/`rf`, `eta`, `m`,
+`mc`, `gamma`, `sigma0`/`vsigmat`/`vsigma`, `mu`, `di`, `delta`, `vs`, `nmax`,
+`deltad`, `js1d`/`js2d`/`js1s`/`js2s`, `m1d`…`m2s`, `epsi`, `p`, `cm3`, `a1`,
+`a2`, `mv1`, `kappa`, `delf`, `fgds`, `tf`, `cds`, `phib`, `talpha`, `mt1`,
+`mt2`, `ck1`, `ck2`, `cm1`, `cm2`, `astar`, `eta1`, `d1`, `vt1`, `eta2`, `d2`,
+`vt2`, `ggr`, `del`, `gatemod`, `klambda`/`kmu`/`kvto`) and one instance
+temperature, `temp`.
+
+Where it differs from MESA, and what the port must not share:
+
+- **Two polarities.** Every node difference is multiplied by the type (`+1`
+  for `nhfet`, `-1` for `phfet`) before the equations and the loaded residual is
+  multiplied back; `hfettemp.c` stores `threshold *= type`. The card base
+  (`phfet`) sets the polarity and a later `nhfet`/`phfet` flag overrides it, as
+  C applies setters in card order (`tests/hfet1.rs` pins all three cases
+  against the reference binary: -2.10801e-04 A, -1.14799e-05 A, -2.10801e-04 A).
+- **No resistance temperature scaling.** `hfettemp.c` turns `rd`/`rs`/`rg`/`ri`/
+  `rf` straight into conductances; there is no `rtc1`/`rtc2`.
+- **Two gate models.** `gatemod == 0` (the default) uses `leak()`, a
+  two-exponential junction with an optional series resistance and C's `diode()`
+  approximation; `gatemod != 0` replaces both gate currents with thermionic
+  expressions and adds the `gmg`/`gmd` cross conductances to the load, to the
+  `cghat`/`cdhat` convergence test and to the AC matrix.
+- **A `cds` charge.** `qds`/`cqds` accumulate `cds*vds`, integrate like the gate
+  charges and fold into `gds`/`cd`; `hfettrunc.c` truncates only `qgs`/`qgd`.
+- **`a1`/`a2` corrections.** C gates them on `gatemod != 0` *and* on the
+  coefficients. This port's first version applied them unconditionally: the
+  reference binary answers 5.707950675392426e-4 A for the card below without
+  `gatemod` and 5.707819384864532e-4 A with it, and `tests/hfet1.rs` pins both.
+
+### C quirks reproduced deliberately
+
+- `hfeta`'s first argument is `vds > 0 ? vgs : vgd` *after* `vds` has been made
+  positive, so it is `vgs` in inverse mode too - a slip against MESA's
+  `inverse ? vgd : vgs`. The `m10_hfet1_op`/`m10_hfet1_tran` goldens pin it.
+- `gmg`/`gmd` are only written when `gatemod != 0`; C's `else` branch nulls
+  local pointers and leaves the caller's zeros, so the port returns the
+  caller's junction values unchanged in that case.
+- With `gatemod != 0` and an off channel (`nsm < 1e-38` returns with
+  `vsate = 0`), the default `ck2 = cm2 = 0` make `vds/vmax` and `vdse/vkneet`
+  `0/0`, and every `gatemod` term NaN. C carries that NaN into the matrix and
+  recovers through `DEVfetlim` on the next iteration (the reference binary
+  answers a `gatemod=1` deck through dynamic gmin stepping); the port refuses
+  to store non-finite state and takes the mathematical limit instead - no
+  channel, no gate-modulated current. The fixed point is unchanged whenever
+  C's own answer is finite, which the `m10_hfet1_ac` golden checks.
+- The `type` string setter (`type=NHFET`) has no scalar-schema representation;
+  use the `nhfet`/`phfet` flag or the card base, which C resolves the same way.
+
+### The upstream `tests/hfet/inverter.cir`
+
+`tests/hfet/id_vgs.cir` is the `m10_hfet1_dc` fixture (exact to 1e-15). The
+inverter deck is a DCFL chain whose DC operating point has two fixed points:
+the reference binary lands on `v(3) = v(4) = -0.2755 V` and the port on
+`v(3) = 1.9557 V`, `v(4) = 0.2063 V`. Both are genuine solutions of the same
+equations - feeding the port's values back to C as a `.nodeset` reproduces the
+port's answer to all printed digits - so this is a continuation-path
+difference, not a device discrepancy. The transient fixtures therefore use
+single-device decks (with an independent second device in the DC/AC fixtures),
+and the project's transient fixtures for this family remain
+`m10_hfet1_tran`/`m10_mesa_tran`.
 
 ### The resistance paths (`rd`/`rs`, `rg`, `ri`/`rf`, `rdi`/`rsi`)
 

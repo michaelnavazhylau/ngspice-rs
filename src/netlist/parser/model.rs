@@ -68,8 +68,9 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
             | "njf" | "pjf"
             // Lossy transmission line (`ltra/ltra.c`).
             | "ltra"
-            // MESFET (`mes/mes.c`; other levels are `mesa/`, `hfet1/`, `hfet2/`).
-            | "nmf" | "pmf"
+            // MESFET (`mes/mes.c`) and its `inpdomod.c` HFET spellings; the
+            // level selects `mesa/`, `hfet1/` or `hfet2/`.
+            | "nmf" | "pmf" | "nhfet" | "phfet"
     ) {
         return Err(gap(
             input,
@@ -122,6 +123,8 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
             "pjf",
             "nmf",
             "pmf",
+            "nhfet",
+            "phfet",
             "urc",
             "ltra",
             "nocontrol",

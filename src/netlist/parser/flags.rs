@@ -30,8 +30,12 @@ pub(super) fn model(input: &mut Input<'_>, base: &str) -> Result<ParameterAssign
                 "csw" => key == "csw",
                 // JFETmPTable: JFET_MOD_NJF / JFET_MOD_PJF set the type.
                 "njf" | "pjf" => matches!(key.as_str(), "njf" | "pjf"),
-                // MESmPTable: MES_MOD_NMF / MES_MOD_PMF set the type.
-                "nmf" | "pmf" => matches!(key.as_str(), "nmf" | "pmf"),
+                // MESmPTable: MES_MOD_NMF / MES_MOD_PMF set the type, and
+                // HFETAmPTable's HFETA_MOD_NHFET / HFETA_MOD_PHFET do the same
+                // for `hfet1/` (so a `phfet` base can be overridden).
+                "nmf" | "pmf" | "nhfet" | "phfet" => {
+                    matches!(key.as_str(), "nmf" | "pmf" | "nhfet" | "phfet")
+                }
                 // URC_MOD_URC: "already know we are a URC" (urcmpar.c no-op).
                 "urc" => key == "urc",
                 // LTRAmPTable's IF_FLAG entries (ltrampar.c).

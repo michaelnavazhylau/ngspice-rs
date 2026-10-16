@@ -1,0 +1,14 @@
+HFET1 level 5 operating point: every resistance path, both polarities
+vdd 1 0 dc 3
+vg 2 0 dc 0.6
+vg2 3 0 dc -0.6
+z1 1 2 0 nch l=2u w=20u m=2
+z2 4 3 0 pch l=2u w=20u m=2
+.model nch nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50
++ js1s=1e-10 js1d=1e-10
+.model pch phfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50
++ js1s=1e-10 js1d=1e-10
+.save all
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.op
+.end

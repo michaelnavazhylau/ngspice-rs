@@ -1,0 +1,89 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_hfet1_ac.cir
+title: "HFET1 level 5 small-signal sweep: a1/a2 corrections, kappa and gatemod" @netlists/m10_hfet1_ac.cir:1:1
+scope root
+  cards (11):
+    [0] device[0] @netlists/m10_hfet1_ac.cir:2:1 "vds 1 0 dc 2.0 ac 1"
+    [1] device[1] @netlists/m10_hfet1_ac.cir:3:1 "vids 1 2 dc 0"
+    [2] device[2] @netlists/m10_hfet1_ac.cir:4:1 "vgs 3 0 dc 0.6"
+    [3] device[3] @netlists/m10_hfet1_ac.cir:5:1 "z1 2 3 0 hfem l=1u w=10u"
+    [4] device[4] @netlists/m10_hfet1_ac.cir:6:1 "z2 2 3 0 hfet l=1u w=10u"
+    [5] model[0] @netlists/m10_hfet1_ac.cir:7:1 ".model hfem nhfet level=5 gatemod=1 a1=0.02 a2=0.5 mv1=3 cm3=0.17 kappa=0.1 fgds=1e6 delf=1e5 rd=60 rs=60 vt0=0.3 js1s=1e-12 js1d=1e-12"
+    [6] model[1] @netlists/m10_hfet1_ac.cir:9:1 ".model hfet nhfet level=5 gatemod=1 rd=60 rs=60 ri=1e3 rf=2e3 rdi=50 rsi=50 vt0=0.3 js1s=1e-12 js1d=1e-12 nmax=6e15"
+    [7] output @netlists/m10_hfet1_ac.cir:11:1 ".save all"
+    [8] options[0] @netlists/m10_hfet1_ac.cir:12:1 ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+    [9] analysis[0] @netlists/m10_hfet1_ac.cir:13:1 ".ac dec 2 1k 1meg"
+    [10] end @netlists/m10_hfet1_ac.cir:14:1 ".end"
+  devices (5):
+    device [0] name="vds" designator=v @netlists/m10_hfet1_ac.cir:2:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2.0" @netlists/m10_hfet1_ac.cir:2:9
+        [1] name="acmag" kind=scalar value="1" @netlists/m10_hfet1_ac.cir:2:19
+        [2] name="acphase" kind=scalar value="0" @netlists/m10_hfet1_ac.cir:2:16
+    device [1] name="vids" designator=v @netlists/m10_hfet1_ac.cir:3:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_hfet1_ac.cir:3:10
+    device [2] name="vgs" designator=v @netlists/m10_hfet1_ac.cir:4:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.6" @netlists/m10_hfet1_ac.cir:4:9
+    device [3] name="z1" designator=z @netlists/m10_hfet1_ac.cir:5:1
+      nodes: "2" "3" "0"
+      model: "hfem"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/m10_hfet1_ac.cir:5:15
+        [1] name="w" kind=scalar value="10u" @netlists/m10_hfet1_ac.cir:5:20
+    device [4] name="z2" designator=z @netlists/m10_hfet1_ac.cir:6:1
+      nodes: "2" "3" "0"
+      model: "hfet"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/m10_hfet1_ac.cir:6:15
+        [1] name="w" kind=scalar value="10u" @netlists/m10_hfet1_ac.cir:6:20
+  models (2):
+    model [0] name="hfem" base="nhfet" level=5e0 @netlists/m10_hfet1_ac.cir:7:1
+      parameters (14):
+        [0] name="level" kind=scalar value="5" @netlists/m10_hfet1_ac.cir:7:19
+        [1] name="gatemod" kind=scalar value="1" @netlists/m10_hfet1_ac.cir:7:27
+        [2] name="a1" kind=scalar value="0.02" @netlists/m10_hfet1_ac.cir:7:37
+        [3] name="a2" kind=scalar value="0.5" @netlists/m10_hfet1_ac.cir:7:45
+        [4] name="mv1" kind=scalar value="3" @netlists/m10_hfet1_ac.cir:7:52
+        [5] name="cm3" kind=scalar value="0.17" @netlists/m10_hfet1_ac.cir:7:58
+        [6] name="kappa" kind=scalar value="0.1" @netlists/m10_hfet1_ac.cir:7:67
+        [7] name="fgds" kind=scalar value="1e6" @netlists/m10_hfet1_ac.cir:7:77
+        [8] name="delf" kind=scalar value="1e5" @netlists/m10_hfet1_ac.cir:7:86
+        [9] name="rd" kind=scalar value="60" @netlists/m10_hfet1_ac.cir:7:95
+        [10] name="rs" kind=scalar value="60" @netlists/m10_hfet1_ac.cir:7:101
+        [11] name="vt0" kind=scalar value="0.3" @netlists/m10_hfet1_ac.cir:7:107
+        [12] name="js1s" kind=scalar value="1e-12" @netlists/m10_hfet1_ac.cir:7:115
+        [13] name="js1d" kind=scalar value="1e-12" @netlists/m10_hfet1_ac.cir:7:126
+    model [1] name="hfet" base="nhfet" level=5e0 @netlists/m10_hfet1_ac.cir:9:1
+      parameters (12):
+        [0] name="level" kind=scalar value="5" @netlists/m10_hfet1_ac.cir:9:19
+        [1] name="gatemod" kind=scalar value="1" @netlists/m10_hfet1_ac.cir:9:27
+        [2] name="rd" kind=scalar value="60" @netlists/m10_hfet1_ac.cir:9:37
+        [3] name="rs" kind=scalar value="60" @netlists/m10_hfet1_ac.cir:9:43
+        [4] name="ri" kind=scalar value="1e3" @netlists/m10_hfet1_ac.cir:9:49
+        [5] name="rf" kind=scalar value="2e3" @netlists/m10_hfet1_ac.cir:9:56
+        [6] name="rdi" kind=scalar value="50" @netlists/m10_hfet1_ac.cir:9:63
+        [7] name="rsi" kind=scalar value="50" @netlists/m10_hfet1_ac.cir:9:70
+        [8] name="vt0" kind=scalar value="0.3" @netlists/m10_hfet1_ac.cir:9:77
+        [9] name="js1s" kind=scalar value="1e-12" @netlists/m10_hfet1_ac.cir:9:85
+        [10] name="js1d" kind=scalar value="1e-12" @netlists/m10_hfet1_ac.cir:9:96
+        [11] name="nmax" kind=scalar value="6e15" @netlists/m10_hfet1_ac.cir:9:107
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m10_hfet1_ac.cir:13:1
+      arguments: "dec" "2" "1k" "1meg"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_hfet1_ac.cir:12:1
+      setting [0] name="reltol" value="1e-9"@netlists/m10_hfet1_ac.cir:12:17 @netlists/m10_hfet1_ac.cir:12:10
+      setting [1] name="vntol" value="1e-12"@netlists/m10_hfet1_ac.cir:12:28 @netlists/m10_hfet1_ac.cir:12:22
+      setting [2] name="abstol" value="1e-15"@netlists/m10_hfet1_ac.cir:12:41 @netlists/m10_hfet1_ac.cir:12:34
+  globals (0):

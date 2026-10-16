@@ -1,0 +1,36 @@
+Title: hfet1 level 5 operating point: every resistance path, both polarities
+Date: Thu Oct 15 23:41:08  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 13
+No. Points: 1
+Variables:
+	0	v(1)	voltage
+	1	v(2)	voltage
+	2	v(3)	voltage
+	3	v(4)	voltage
+	4	i(vdd)	current
+	5	i(vg)	current
+	6	i(vg2)	current
+	7	v(z1#gate)	voltage
+	8	v(z1#gd)	voltage
+	9	v(z1#gs)	voltage
+	10	v(z2#gate)	voltage
+	11	v(z2#gd)	voltage
+	12	v(z2#gs)	voltage
+Values:
+ 0	3.000000000000000e+00
+	6.000000000000001e-01
+	-6.000000000000001e-01
+	-6.489685375723774e-07
+	-2.228925977521059e-03
+	1.464364852943323e-07
+	7.594802775567900e-10
+	6.000007321824266e-01
+	2.965451647348424e+00
+	3.454608288605421e-02
+	-5.999999962025987e-01
+	-6.489685375723774e-07
+	-1.177194410089757e-08
+

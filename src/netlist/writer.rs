@@ -687,6 +687,9 @@ impl Writer {
                 | "ltra"
                 | "nmf"
                 | "pmf"
+                // `inpdomod.c`'s HFET spellings of the same families.
+                | "nhfet"
+                | "phfet"
         ) {
             return Err(refuse(
                 format!("model type {base:?} is outside the supported syntax"),
@@ -716,7 +719,7 @@ impl Writer {
                             "truncnr",
                             "truncdontcut",
                         ],
-                        "nmf" | "pmf" => &["nmf", "pmf"],
+                        "nmf" | "pmf" | "nhfet" | "phfet" => &["nmf", "pmf", "nhfet", "phfet"],
                         _ => &[],
                     };
                     if !allowed.contains(&parameter.name.as_str()) || !parameter.value.is_empty() {

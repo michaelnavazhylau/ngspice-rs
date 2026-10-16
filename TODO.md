@@ -15,10 +15,10 @@ six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
 one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
-`85f0ca1`, after the spill slices H1a/H1b in PRs #151/#160/#163), `cargo test
---workspace --locked` reports **1432 passed / 0 failed / 150 ignored** (the
+`work/m10-hfet1`, after the spill slices H1a/H1b/H3), `cargo test
+--workspace --locked` reports **1440 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
-golden verify` reports **159 verified / 1 unsupported / 0 failures** (the
+golden verify` reports **164 verified / 1 unsupported / 0 failures** (the
 unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
 build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
 for the recorded evidence.
@@ -436,6 +436,22 @@ it are marked "#85 as it then read".
   opt-in `c_mesfet_reference`. Explicit errors: `.disto` (`mesdset.c`),
   `.sens`, transient `@z[ggs|ggd|cgd]`, `@z[m|qgs|qgd|cqgs|cqgd|p]`, the
   `nhfet`/`phfet` bases. See [MESFET.md](docs/port/MESFET.md).
+- [x] HFET1 (#83, M10 H3): the `hfeta` channel with the two compound
+  exponentials and `nmax` knee, both gate models (`leak()`'s series-resistance
+  two-exponential junction with C's `diode()` approximation, and `gatemod`'s
+  thermionic currents with the `gmg`/`gmd` cross terms), the `a1`/`a2`
+  corrections, the `cds` charge, the conditional internal nodes, both
+  polarities (`nhfet`/`phfet`, with the base and the flags in card order) and
+  the `hfetask.c` table. `m10_hfet1_{dc,op,ac,tran,pz}` verify against the
+  reference binary (164 verified at landing; `id_vgs` exact to 1e-15) and
+  `tests/hfet1.rs` pins the polarity cases, the `a1`/`a2`-needs-`gatemod` guard
+  and the asks. Deliberate divergences: with `gatemod != 0` and an off channel
+  C computes NaN and recovers through `DEVfetlim`, while the port takes the
+  limit; the `type=NHFET` string setter is not representable; `.sens` is #164.
+  The upstream `tests/hfet/inverter.cir` reaches a different (but equally
+  valid) DC fixed point than the reference binary, so the fixtures use
+  single-device transient decks; see [MESFET.md](docs/port/MESFET.md). Then H2
+  (MESA 3/4) and H4 (HFET2).
 - [x] MESA level 2 (#83, M10 H1a/H1b): `mesa1` channel, `mesasetup.c`'s
   internal nodes, the `mesaask.c` table, every load (`mesaload.c` with its
   charge storage, `mesaacl.c`, `mesapzl.c`) and `.op`/`.dc`/`.ac`/`.sp`/`.tf`/

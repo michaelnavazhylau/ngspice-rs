@@ -1,0 +1,14 @@
+HFET1 level 5 small-signal sweep: a1/a2 corrections, kappa and gatemod
+vds 1 0 dc 2.0 ac 1
+vids 1 2 dc 0
+vgs 3 0 dc 0.6
+z1 2 3 0 hfem l=1u w=10u
+z2 2 3 0 hfet l=1u w=10u
+.model hfem nhfet level=5 gatemod=1 a1=0.02 a2=0.5 mv1=3 cm3=0.17 kappa=0.1
++ fgds=1e6 delf=1e5 rd=60 rs=60 vt0=0.3 js1s=1e-12 js1d=1e-12
+.model hfet nhfet level=5 gatemod=1 rd=60 rs=60 ri=1e3 rf=2e3 rdi=50 rsi=50
++ vt0=0.3 js1s=1e-12 js1d=1e-12 nmax=6e15
+.save all
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.ac dec 2 1k 1meg
+.end
