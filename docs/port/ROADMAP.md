@@ -254,3 +254,8 @@ by M1; excluding the full numparam front end does not exclude that subset.
 These are the parts of the C tree that make it 723k lines; the port aims for a
 correct, fast core with a plugin-shaped device registry that can absorb models
 later. See `MAPPING.md`.
+
+BSIM is no longer "out of scope" but deferred: BSIM3v3.3 then BSIM4.7+ (#90) are
+the first slices of **milestone M11**, moved off M10 so that M10 closes on the
+device library defined in [M10.md](M10.md). The implementation plan for those
+slices is [BSIM.md](BSIM.md).

@@ -28,10 +28,12 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 | Post-processing | A bounded `.measure` subset (`FIND … AT=`, `MIN`/`MAX`/`AVG`/`RMS`/`INTEG`, `TRIG … TARG …`) and `.four` |
 
 Each area has documented limits; see [the feature guides](#documentation).
-Not yet supported: BSIM3/BSIM4, model-binning deck
-goldens, `.sens` of BJTs and MOSFETs (and AC `.sens` of nonlinear devices), the
+Not yet supported: BSIM3/BSIM4 (planned as M11, [BSIM.md](docs/port/BSIM.md)),
+model-binning deck goldens, `.sens` of BJTs, MOSFETs and the whole JFET/MES/MESA/HFET
+family (and AC `.sens` of nonlinear devices), the
 remaining unported asks and levels of bounded devices (AC device current/power
-asks fail with `NotYetPorted` naming the C ask routine); XSPICE code models,
+asks and the charge-history asks `@z[...][qgs|cqgs|qgd|cqgd]` fail with
+`NotYetPorted` naming the C ask routine); XSPICE code models,
 ODSI/Verilog-A and CIDER; higher-index DAEs; and the interactive `.control`
 interpreter. See [Status and roadmap](#status-and-roadmap).
 
@@ -45,7 +47,7 @@ interpreter. See [Status and roadmap](#status-and-roadmap).
 | M8 | Additional analyses: `.noise`, `.tf`, `.sens`, `.pz`, `.disto`, `.sp`, Gear orders 3–6, wider `.dc` sweeps | Done within documented limits |
 | M9 | Output and front end: `.plot`, binary CLI rawfiles, device currents, full `.measure`/`.four`, cards inside `.subckt` | Delivered with documented bounds; see TODO.md |
 | M10 | Device library: JFET 1/2, MESFET 1, MESA 2/3/4, HFET1/2, MOSFET levels 2/3/6/9, T/O/U/Y lines, model binning resolver | Delivered in waves 0–3 and the spill slices H1a–H4 and TX1–TX4 within documented limits; BSIM3/4 spill to M11 |
-| M11 (proposed) | BSIM3v3.3/BSIM4, binning deck goldens | Planned |
+| M11 | BSIM3v3.3 and BSIM4.7+, binning deck goldens | Planned: issue #90 moved off M10 so that M10 closes on the device library it defines. Plan in [BSIM.md](docs/port/BSIM.md) |
 
 Each milestone is tracked as a
 [GitHub milestone](https://github.com/michaelnavazhylau/ngspice-rs/milestones)
