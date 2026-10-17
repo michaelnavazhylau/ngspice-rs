@@ -1,7 +1,7 @@
 DC sensitivity of JFET level 1 bias networks (#164)
 * One n-channel and one p-channel device of different models, so both models'
 * and both instances' parameters are perturbed, plus XTI/VTOTC given on one
-* model (jfettemp.c's other branches). The multiplicitly stays 1: C's .sens
+* model (jfettemp.c's other branches). The multiplicity stays 1: C's .sens
 * disagrees with its own finite difference for a JFET's instance parameters
 * when M != 1 (see SENSITIVITY.md), so the fixture exercises M at 1.
 .options reltol=1e-9
