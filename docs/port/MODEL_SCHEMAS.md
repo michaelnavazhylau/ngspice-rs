@@ -261,6 +261,29 @@ The bare `urc` flag is a no-op (`URC_MOD_URC`). `level` and unknown setters
 are refused (C warns and ignores them). Instance setters `l` (m, required,
 positive) and `n` (`IF_INTEGER`, rounded, at least 1). See [URC.md](URC.md).
 
+## Single lossy line model (`txl`, #170-#173)
+
+`.model name txl ...` (`txl.c`'s `TXLmPTable`, `txlmpar.c`), validated by
+`src/devices/txl.rs` when a `Y` instance is built or expanded. **All five
+setters are required**: `TXLsetup` reports "lossy line series resistance not
+given", "lossy line parallel conductance not given", "lossy line series
+inductance not given", "lossy line parallel capacitance not given" and "lossy
+line length must be given", each a fatal error, so no default exists:
+
+| Setter | Unit | Domain |
+| --- | --- | --- |
+| `r` | ohm/m | finite, nonnegative (zero allowed by the lossless shortcut) |
+| `l` | H/m | finite, nonnegative; clamped to at least 1e-12 by `ReadTxL` |
+| `g` | S/m | finite, nonnegative |
+| `c` | F/m | finite, positive |
+| `length` | m | finite, positive (`ReadTxL` aborts on zero) |
+
+The bare `txl` flag is a no-op (`TXL_MOD_TXL`), `level` is not a setter, and
+unknown setters are refused. The instance setter is `len` (m, positive); an
+instance `length` is a parse error (`INP2Y` probes that one token). See
+[TXL.md](TXL.md) for the fallback trigger `r/l > 1.6e10`, the generated
+element names and the analyses the device refuses.
+
 ## Lossy-line model (`ltra`, #85)
 
 `.model name ltra ...` (`ltra.c` `LTRAmPTable`, `ltrampar.c`, defaults from

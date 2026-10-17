@@ -14,11 +14,11 @@ six port crates (`spice-core`, `spice-netlist`, `spice-maths`, `spice-devices`,
 `src/bin/spice-rs.rs`, `xtask` is a separate unpublished workspace member and
 conformance fixtures are package-relative, so a published `.crate` runs its own
 test suite. Layering is a review-enforced convention, not a compiler-enforced
-one: treat a layout change as whole-tree, never as a cherry-pick. On `main`
-`work/m10-mesa-h2`, after the spill slices H1a/H1b/H2/H3/H4), `cargo test
---workspace --locked` reports **1449 passed / 0 failed / 150 ignored** (the
+one: treat a layout change as whole-tree, never as a cherry-pick. After the
+spill slices H1a/H1b/H2/H3/H4 and TX1–TX4, `cargo test --workspace --locked`
+reports **1466 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
-golden verify` reports **175 verified / 1 unsupported / 0 failures** (the
+golden verify` reports **185 verified / 1 unsupported / 0 failures** (the
 unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
 build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
 for the recorded evidence.
@@ -34,7 +34,7 @@ ported.
 | Parser | `.param`/`{expr}` syntax (#14) with top-level evaluation (#15), scalar R/C/L/V/I, declared-model passives, models, bounded D/Q/M flags/IC vectors, PULSE/PWL (elaborated to forcing, #9), scoped subcircuits/X and resolved includes/libraries; 8/8 fixture parses and normalized round trips (M1 gate, #22); not simulation |
 | Model inputs | Top-level first-wins resolver, family/level checks, bounded passive factories and diode input schemas |
 | Passive models | R sheet/C area-perimeter geometry, scalar model L, TC1/TC2/TEMP/TNOM, scale and multiplicity |
-| Distributed lines | Lossless `T` (#84) and lossy `O`/LTRA and URC expansion lines (both tracked by #85 before it was retargeted to TXL): exact DC/AC stamps, device-driven breakpoints and delayed-history transients ([TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md)) |
+| Distributed lines | Lossless `T` (#84), lossy `O`/LTRA and URC expansion lines, and the `Y`/TXL single lossy line (#170-#173: Padé DC/`.tf`/transient plus `inp2y.c`'s three-pi fallback; AC/SP refused because C reuses the time-domain load): exact DC/AC for T/O/U, device-driven breakpoints and delayed-history transients ([TRANSMISSION_LINES.md](docs/port/TRANSMISSION_LINES.md), [TXL.md](docs/port/TXL.md)) |
 | Topology | Petgraph circuit incidence and matrix-row graphs, simulation branch-row binding |
 | Linear equations | SPARSE 1.3 port (real/complex LU, `spsmp.c`/`niiter.c` driving; [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)), scalar R/C/L/V/I elaboration and stamps; opt-in library equilibration wrappers with no production caller (#46, [EQUILIBRATION.md](docs/port/EQUILIBRATION.md)) |
 | Numerical follow-up | Native SPARSE 1.3 solver with C's error policy (M10 wave 0.5, [NATIVE_SOLVER.md](docs/port/NATIVE_SOLVER.md)); the #47 rank guard, #68 proof follow-up and the #29 constrained-RLC prototype (gates #69–#72) belonged to the removed faer/diffsol stack and are historical |
@@ -449,6 +449,25 @@ it are marked "#85 as it then read".
   (1.07e-8 A at 1 kHz and 1 MHz for a card carrying -3.6e-3 A in DC) - a `.dc`
   sweep still works, because its source probe needs only the correct
   linearisation. The `z` family is now complete at every C level (1-6).
+- [x] **TXL (`Y`, #170-#173, M10 TX1-TX4)**: the `inp2y.c` card and the
+  five-parameter `txl` model (all required, as `TXLsetup` reports), the
+  parser-time **three-pi fallback** expansion (three `txlres*` and four
+  `txlcap*` elements, `3/(R*length)` and `c*length/6`, all capacitors to the
+  first reference terminal, the `Y` instance absent - C's dimensional quirk
+  reproduced literally), the Padé coefficients of `txlsetup.c`
+  (`y_pade`/`exp_pade`/`get_h3`), `txlload.c`'s `MODEDC` branch-row stamp
+  (`v(p) - v(n) = R*length*i1`) and recursive-convolution transient with
+  `txlacct.c`'s accepted history, `update_delayed_cnv_txl` and C's
+  `CKTmaxStep = 0.9*taul` clamp. Ten fixtures
+  (`m10_txl_{fb_op,fb_dc,fb_tran,op,dc,tran,early_tran,tran_step,lossless_tran}`
+  and `m10_txl3_tran`, 185 verified): source-driven decks reproduce C's
+  accepted points to last-bit precision (214/214 at 5.3e-16; 34/34 for the
+  genuine oversized-step clamp), the
+  three-line MOS deck agrees to 1.4e-8 relative with a termination per line.
+  `.ac`/`.sp`/`.pz`/`.noise`/`.disto`/`.sens` are refused (C's `DEVacLoad` is
+  `TXLload` with an unset `CKTdelta`; the rest are `NULL`), while `.tf` is not:
+  it reuses the operating point's factors and answers the DC line. CPL
+  (`inp2p.c`) is refused. The `y` registry row is now bounded.
 - [x] HFET2 (#169, M10 H4): the `hfeta2` channel with the `eta2`/`d2`
   sub-threshold compound, the single-exponential `JS`/`GGR` gate junctions, the
   `pnjlim`/`fetlim` limiting HFET1 does not have, the two conditional internal

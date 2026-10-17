@@ -1,0 +1,293 @@
+# ngspice-rs token-dump v1
+file: netlists/m10_txl3_tran.cir
+title: "TXL: the upstream three-line MOS driver, terminated far ports" @netlists/m10_txl3_tran.cir:1:1
+card 1 @netlists/m10_txl3_tran.cir:2:1 lines=2-2 continuations=0
+  raw: "m5     0     168    2     0  mn0p9  w = 18.0u l=0.9u"
+  kind: device(m)
+  token 1 2:1 word "m5"
+  token 2 2:8 number "0" value=0e0
+  token 3 2:14 number "168" value=1.68e2
+  token 4 2:21 number "2" value=2e0
+  token 5 2:27 number "0" value=0e0
+  token 6 2:30 word "mn0p9"
+  token 7 2:37 word "w"
+  token 8 2:39 equals "="
+  token 9 2:41 number "18.0u" value=1.8e-5
+  token 10 2:47 word "l"
+  token 11 2:48 equals "="
+  token 12 2:49 number "0.9u" value=9e-7
+card 2 @netlists/m10_txl3_tran.cir:3:1 lines=3-3 continuations=0
+  raw: "m6     1     168    2     1  mp1p0  w = 36.0u l=1.0u"
+  kind: device(m)
+  token 1 3:1 word "m6"
+  token 2 3:8 number "1" value=1e0
+  token 3 3:14 number "168" value=1.68e2
+  token 4 3:21 number "2" value=2e0
+  token 5 3:27 number "1" value=1e0
+  token 6 3:30 word "mp1p0"
+  token 7 3:37 word "w"
+  token 8 3:39 equals "="
+  token 9 3:41 number "36.0u" value=3.6e-5
+  token 10 3:47 word "l"
+  token 11 3:48 equals "="
+  token 12 3:49 number "1.0u" value=1e-6
+card 3 @netlists/m10_txl3_tran.cir:4:1 lines=4-4 continuations=0
+  raw: "m1     0     3    4     0  mn0p9  w = 18.0u l=0.9u"
+  kind: device(m)
+  token 1 4:1 word "m1"
+  token 2 4:8 number "0" value=0e0
+  token 3 4:14 number "3" value=3e0
+  token 4 4:19 number "4" value=4e0
+  token 5 4:25 number "0" value=0e0
+  token 6 4:28 word "mn0p9"
+  token 7 4:35 word "w"
+  token 8 4:37 equals "="
+  token 9 4:39 number "18.0u" value=1.8e-5
+  token 10 4:45 word "l"
+  token 11 4:46 equals "="
+  token 12 4:47 number "0.9u" value=9e-7
+card 4 @netlists/m10_txl3_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "m2     1     3    4     1  mp1p0  w = 36.0u l=1.0u"
+  kind: device(m)
+  token 1 5:1 word "m2"
+  token 2 5:8 number "1" value=1e0
+  token 3 5:14 number "3" value=3e0
+  token 4 5:19 number "4" value=4e0
+  token 5 5:25 number "1" value=1e0
+  token 6 5:28 word "mp1p0"
+  token 7 5:35 word "w"
+  token 8 5:37 equals "="
+  token 9 5:39 number "36.0u" value=3.6e-5
+  token 10 5:45 word "l"
+  token 11 5:46 equals "="
+  token 12 5:47 number "1.0u" value=1e-6
+card 5 @netlists/m10_txl3_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "CN2  2   0  0.025398e-12"
+  kind: device(c)
+  token 1 6:1 word "CN2"
+  token 2 6:6 number "2" value=2e0
+  token 3 6:10 number "0" value=0e0
+  token 4 6:13 number "0.025398e-12" value=2.5398e-14
+card 6 @netlists/m10_txl3_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "CN3  3   0  0.007398e-12"
+  kind: device(c)
+  token 1 7:1 word "CN3"
+  token 2 7:6 number "3" value=3e0
+  token 3 7:10 number "0" value=0e0
+  token 4 7:13 number "0.007398e-12" value=7.398e-15
+card 7 @netlists/m10_txl3_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "RL1 3 0 1k"
+  kind: device(r)
+  token 1 8:1 word "RL1"
+  token 2 8:5 number "3" value=3e0
+  token 3 8:7 number "0" value=0e0
+  token 4 8:9 number "1k" value=1e3
+card 8 @netlists/m10_txl3_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "CN4  4\t 0  0.025398e-12"
+  kind: device(c)
+  token 1 9:1 word "CN4"
+  token 2 9:6 number "4" value=4e0
+  token 3 9:9 number "0" value=0e0
+  token 4 9:12 number "0.025398e-12" value=2.5398e-14
+card 9 @netlists/m10_txl3_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "CN5  5   0  0.007398e-12"
+  kind: device(c)
+  token 1 10:1 word "CN5"
+  token 2 10:6 number "5" value=5e0
+  token 3 10:10 number "0" value=0e0
+  token 4 10:13 number "0.007398e-12" value=7.398e-15
+card 10 @netlists/m10_txl3_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "RL2 5 0 1k"
+  kind: device(r)
+  token 1 11:1 word "RL2"
+  token 2 11:5 number "5" value=5e0
+  token 3 11:7 number "0" value=0e0
+  token 4 11:9 number "1k" value=1e3
+card 11 @netlists/m10_txl3_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "CN6  6   0  0.007398e-12"
+  kind: device(c)
+  token 1 12:1 word "CN6"
+  token 2 12:6 number "6" value=6e0
+  token 3 12:10 number "0" value=0e0
+  token 4 12:13 number "0.007398e-12" value=7.398e-15
+card 12 @netlists/m10_txl3_tran.cir:13:1 lines=13-13 continuations=0
+  raw: "CN7  168   0  0.007398e-12"
+  kind: device(c)
+  token 1 13:1 word "CN7"
+  token 2 13:6 number "168" value=1.68e2
+  token 3 13:12 number "0" value=0e0
+  token 4 13:15 number "0.007398e-12" value=7.398e-15
+card 13 @netlists/m10_txl3_tran.cir:14:1 lines=14-14 continuations=0
+  raw: "RL3 168 0 1k"
+  kind: device(r)
+  token 1 14:1 word "RL3"
+  token 2 14:5 number "168" value=1.68e2
+  token 3 14:9 number "0" value=0e0
+  token 4 14:11 number "1k" value=1e3
+card 14 @netlists/m10_txl3_tran.cir:15:1 lines=15-15 continuations=0
+  raw: "y1  2 0 3 0  ymod"
+  kind: device(y)
+  token 1 15:1 word "y1"
+  token 2 15:5 number "2" value=2e0
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 number "3" value=3e0
+  token 5 15:11 number "0" value=0e0
+  token 6 15:14 word "ymod"
+card 15 @netlists/m10_txl3_tran.cir:16:1 lines=16-16 continuations=0
+  raw: "y2  4  0 5  0 ymod"
+  kind: device(y)
+  token 1 16:1 word "y2"
+  token 2 16:5 number "4" value=4e0
+  token 3 16:8 number "0" value=0e0
+  token 4 16:10 number "5" value=5e0
+  token 5 16:13 number "0" value=0e0
+  token 6 16:15 word "ymod"
+card 16 @netlists/m10_txl3_tran.cir:17:1 lines=17-17 continuations=0
+  raw: "y3  6 0 168 0  ymod"
+  kind: device(y)
+  token 1 17:1 word "y3"
+  token 2 17:5 number "6" value=6e0
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 number "168" value=1.68e2
+  token 5 17:13 number "0" value=0e0
+  token 6 17:16 word "ymod"
+card 17 @netlists/m10_txl3_tran.cir:18:1 lines=18-18 continuations=0
+  raw: "vdd    1    0   dc \t5.0"
+  kind: device(v)
+  token 1 18:1 word "vdd"
+  token 2 18:8 number "1" value=1e0
+  token 3 18:13 number "0" value=0e0
+  token 4 18:17 word "dc"
+  token 5 18:21 number "5.0" value=5e0
+card 18 @netlists/m10_txl3_tran.cir:19:1 lines=19-19 continuations=0
+  raw: "VS 168  0  PULSE (0 5 15.9NS 0.2NS 0.2NS 15.8NS 32NS )"
+  kind: device(v)
+  token 1 19:1 word "VS"
+  token 2 19:4 number "168" value=1.68e2
+  token 3 19:9 number "0" value=0e0
+  token 4 19:12 word "PULSE"
+  token 5 19:18 lparen "("
+  token 6 19:19 number "0" value=0e0
+  token 7 19:21 number "5" value=5e0
+  token 8 19:23 number "15.9NS" value=1.59e-8
+  token 9 19:30 number "0.2NS" value=2e-10
+  token 10 19:36 number "0.2NS" value=2e-10
+  token 11 19:42 number "15.8NS" value=1.58e-8
+  token 12 19:49 number "32NS" value=3.2e-8
+  token 13 19:54 rparen ")"
+card 19 @netlists/m10_txl3_tran.cir:20:1 lines=20-20 continuations=0
+  raw: ".OPTION NOACCT"
+  kind: dot(.options)
+  token 1 20:1 word ".OPTION"
+  token 2 20:9 word "NOACCT"
+card 20 @netlists/m10_txl3_tran.cir:21:1 lines=21-21 continuations=0
+  raw: ".TRAN 0.2N 47N 0 0.1N"
+  kind: dot(.tran)
+  token 1 21:1 word ".TRAN"
+  token 2 21:7 number "0.2N" value=2e-10
+  token 3 21:12 number "47N" value=4.7000000000000004e-8
+  token 4 21:16 number "0" value=0e0
+  token 5 21:18 number "0.1N" value=1e-10
+card 21 @netlists/m10_txl3_tran.cir:22:1 lines=22-23 continuations=1
+  raw: ".MODEL mn0p9 NMOS VTO=0.8 KP=48U GAMMA=0.30 PHI=0.55 LAMBDA=0.00 CGSO=0 CGDO=0 CJ=0 CJSW=0 TOX=18000N LD=0.0U"
+  kind: dot(.model)
+  token 1 22:1 word ".MODEL"
+  token 2 22:8 word "mn0p9"
+  token 3 22:14 word "NMOS"
+  token 4 22:19 word "VTO"
+  token 5 22:22 equals "="
+  token 6 22:23 number "0.8" value=8e-1
+  token 7 22:27 word "KP"
+  token 8 22:29 equals "="
+  token 9 22:30 number "48U" value=4.8e-5
+  token 10 22:34 word "GAMMA"
+  token 11 22:39 equals "="
+  token 12 22:40 number "0.30" value=3e-1
+  token 13 22:45 word "PHI"
+  token 14 22:48 equals "="
+  token 15 22:49 number "0.55" value=5.5e-1
+  token 16 22:54 word "LAMBDA"
+  token 17 22:60 equals "="
+  token 18 22:61 number "0.00" value=0e0
+  token 19 22:66 word "CGSO"
+  token 20 22:70 equals "="
+  token 21 22:71 number "0" value=0e0
+  token 22 22:73 word "CGDO"
+  token 23 22:77 equals "="
+  token 24 22:78 number "0" value=0e0
+  token 25 22:80 word "CJ"
+  token 26 22:82 equals "="
+  token 27 22:83 number "0" value=0e0
+  token 28 22:85 word "CJSW"
+  token 29 22:89 equals "="
+  token 30 22:90 number "0" value=0e0
+  token 31 22:92 word "TOX"
+  token 32 22:95 equals "="
+  token 33 22:96 number "18000N" value=1.8e-5
+  token 34 22:103 word "LD"
+  token 35 22:105 equals "="
+  token 36 22:106 number "0.0U" value=0e0
+card 22 @netlists/m10_txl3_tran.cir:24:1 lines=24-25 continuations=1
+  raw: ".MODEL mp1p0 PMOS VTO=-0.8 KP=21U GAMMA=0.45 PHI=0.61 LAMBDA=0.00 CGSO=0 CGDO=0 CJ=0 CJSW=0 TOX=18000N LD=0.0U"
+  kind: dot(.model)
+  token 1 24:1 word ".MODEL"
+  token 2 24:8 word "mp1p0"
+  token 3 24:14 word "PMOS"
+  token 4 24:19 word "VTO"
+  token 5 24:22 equals "="
+  token 6 24:23 number "-0.8" value=-8e-1
+  token 7 24:28 word "KP"
+  token 8 24:30 equals "="
+  token 9 24:31 number "21U" value=2.1e-5
+  token 10 24:35 word "GAMMA"
+  token 11 24:40 equals "="
+  token 12 24:41 number "0.45" value=4.5e-1
+  token 13 24:46 word "PHI"
+  token 14 24:49 equals "="
+  token 15 24:50 number "0.61" value=6.1e-1
+  token 16 24:55 word "LAMBDA"
+  token 17 24:61 equals "="
+  token 18 24:62 number "0.00" value=0e0
+  token 19 24:67 word "CGSO"
+  token 20 24:71 equals "="
+  token 21 24:72 number "0" value=0e0
+  token 22 24:74 word "CGDO"
+  token 23 24:78 equals "="
+  token 24 24:79 number "0" value=0e0
+  token 25 24:81 word "CJ"
+  token 26 24:83 equals "="
+  token 27 24:84 number "0" value=0e0
+  token 28 24:86 word "CJSW"
+  token 29 24:90 equals "="
+  token 30 24:91 number "0" value=0e0
+  token 31 24:93 word "TOX"
+  token 32 24:96 equals "="
+  token 33 24:97 number "18000N" value=1.8e-5
+  token 34 24:104 word "LD"
+  token 35 24:106 equals "="
+  token 36 24:107 number "0.0U" value=0e0
+card 23 @netlists/m10_txl3_tran.cir:26:1 lines=26-26 continuations=0
+  raw: ".MODEL ymod txl R=12.45 L=8.972e-9 G=0 C=0.468e-12 length=16"
+  kind: dot(.model)
+  token 1 26:1 word ".MODEL"
+  token 2 26:8 word "ymod"
+  token 3 26:13 word "txl"
+  token 4 26:17 word "R"
+  token 5 26:18 equals "="
+  token 6 26:19 number "12.45" value=1.2450000000000001e1
+  token 7 26:25 word "L"
+  token 8 26:26 equals "="
+  token 9 26:27 number "8.972e-9" value=8.972e-9
+  token 10 26:36 word "G"
+  token 11 26:37 equals "="
+  token 12 26:38 number "0" value=0e0
+  token 13 26:40 word "C"
+  token 14 26:41 equals "="
+  token 15 26:42 number "0.468e-12" value=4.68e-13
+  token 16 26:52 word "length"
+  token 17 26:58 equals "="
+  token 18 26:59 number "16" value=1.6e1
+card 24 @netlists/m10_txl3_tran.cir:27:1 lines=27-27 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 27:1 word ".end"

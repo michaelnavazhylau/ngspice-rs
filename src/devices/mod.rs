@@ -85,6 +85,7 @@ pub mod subckt;
 pub mod sweep;
 pub mod switch;
 pub mod tline;
+pub mod txl;
 pub mod urc;
 pub use functions::{
     AmSpec, ExpSpec, FunctionSpec, PwlBreakpoints, PwlSource, SffmSpec, SineSpec, SourceFunction,

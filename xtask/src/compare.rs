@@ -239,10 +239,25 @@ pub(crate) fn validate(plot: &Plot, label: &str) -> Result<BTreeMap<String, usiz
         return Err(format!("{label}: empty plot"));
     }
     let mut columns = BTreeMap::new();
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for (index, variable) in plot.variables.iter().enumerate() {
         let name = variable.name.to_ascii_lowercase();
-        if name.is_empty() || columns.insert(name.clone(), index).is_some() {
-            return Err(format!("{label}: empty or duplicate variable '{name}'"));
+        if name.is_empty() {
+            return Err(format!("{label}: empty variable name"));
+        }
+        // C's rawfile can carry the same name twice: a Y (TXL) device has two
+        // branch currents and `raw_write` prints both as `i(<device>)`. Such
+        // repeats are identified by their occurrence, so both sides of a
+        // comparison keep the same key for the same position.
+        let count = seen.entry(name.clone()).or_default();
+        *count += 1;
+        let key = if *count == 1 {
+            name
+        } else {
+            format!("{name}#{count}")
+        };
+        if columns.insert(key.clone(), index).is_some() {
+            return Err(format!("{label}: ambiguous variable occurrence '{key}'"));
         }
     }
     for (index, point) in plot.points.iter().enumerate() {
@@ -351,10 +366,15 @@ pub(crate) fn plots(
     let mut worst_ratio = 0.0;
     let mut mismatches = 0usize;
     // C column order supplies stable, human-readable first-mismatch diagnostics.
+    // The key identifies a repeated name by occurrence (`validate`), so a
+    // device with two branch currents is compared position by position.
+    let mut order: Vec<(&String, &usize)> = want_columns.iter().collect();
+    order.sort_by_key(|(_, index)| **index);
     for (point, (actual, expected)) in got.points.iter().zip(&want.points).enumerate() {
-        for (column, variable) in want.variables.iter().enumerate() {
-            let got = actual[got_columns[&variable.name.to_ascii_lowercase()]];
-            let want = expected[column];
+        for (key, column) in &order {
+            let variable = &want.variables[**column];
+            let got = actual[got_columns[*key]];
+            let want = expected[**column];
             for (component, got, want) in [("re", got.re, want.re), ("im", got.im, want.im)] {
                 let error = (got - want).abs();
                 let limit = tolerance.relative * want.abs() + tolerance.absolute;
@@ -446,6 +466,43 @@ mod tests {
         }
         assert!(compare(&got, &want).unwrap_err().contains("missing"));
         assert!(compare(&want, &got).unwrap_err().contains("extra"));
+    }
+
+    #[test]
+    fn repeated_branch_names_compare_every_occurrence() {
+        let mut want = plot();
+        want.variables.push(Variable::complex("i(y1)", "current"));
+        want.variables.push(Variable::complex("i(y1)", "current"));
+        for row in &mut want.points {
+            row.extend([Complex::real(0.02), Complex::real(-0.02)]);
+        }
+        let mut got = want.clone();
+        got.variables.swap(0, 2);
+        for row in &mut got.points {
+            row.swap(0, 2);
+        }
+        compare(&got, &want).unwrap();
+        got.points[0][3] = Complex::real(0.03);
+        assert!(compare(&got, &want).unwrap_err().contains("i(y1)"));
+        assert!(compare(&want, &got).is_err());
+        got = want.clone();
+        got.variables.pop();
+        for row in &mut got.points {
+            row.pop();
+        }
+        assert!(compare(&got, &want).unwrap_err().contains("missing"));
+    }
+
+    #[test]
+    fn occurrence_keys_must_not_hide_a_literal_name() {
+        let mut p = plot();
+        p.variables[0].name = "i(y1)".into();
+        p.variables[1].name = "i(y1)".into();
+        p.variables.push(Variable::complex("i(y1)#2", "current"));
+        for row in &mut p.points {
+            row.push(Complex::ZERO);
+        }
+        assert!(validate(&p, "C").unwrap_err().contains("ambiguous"));
     }
 
     #[test]

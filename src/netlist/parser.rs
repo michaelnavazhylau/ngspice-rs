@@ -56,6 +56,7 @@ mod switch;
 mod syntax;
 mod tline;
 mod transistor;
+mod txl;
 mod urc;
 mod vector;
 mod waveform;

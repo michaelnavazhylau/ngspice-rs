@@ -44,6 +44,12 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
         "lossy line: LC, RLC, RC and RG cases (ltraload.c; companion .tran, no BDF)",
     ),
     (
+        'y',
+        "single lossy transmission line (TXL): `ReadTxL`'s Padé DC load and \
+         recursive-convolution transient, or `inp2y.c`'s three-pi fallback \
+         expansion; Padé AC/SP/pole-zero are refused (C reuses its time-domain load)",
+    ),
+    (
         'z',
         "every C level: MES (level 1, Statz), MESA 2-4 (mesa1/mesa2/mesa3) and HFET1/HFET2 (levels 5/6)",
     ),
@@ -145,6 +151,9 @@ pub(crate) fn instantiate_with_models(
                 return crate::devices::switch::Switch::instantiate(
                     instance, nodes, &model, context,
                 );
+            }
+            crate::devices::models::ModelFamily::Txl => {
+                return crate::devices::txl::Txl::instantiate(instance, nodes, &model);
             }
             crate::devices::models::ModelFamily::Ltra => {
                 return crate::devices::ltra::LossyLine::instantiate(

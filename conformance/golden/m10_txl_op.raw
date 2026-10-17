@@ -1,0 +1,20 @@
+Title: txl pade path: the dc stamp of a 138.5 ohm line
+Date: Fri Oct 16 19:48:54  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 5
+No. Points: 1
+Variables:
+	0	v(1)	voltage
+	1	v(2)	voltage
+	2	i(v1)	current
+	3	i(y1)	current
+	4	i(y1)	current
+Values:
+ 0	5.000000000000000e+00
+	1.003210272849201e+00
+	-2.006420545818466e-02
+	2.006420545758433e-02
+	-2.006420545758433e-02
+

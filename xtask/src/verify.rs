@@ -309,6 +309,51 @@ const SUPPORTED: &[Supported] = &[
     },
     tran("m10_mesa_l4_tran"),
     tran("m10_mesa_tran"),
+    // TXL (#170-#173). The fallback decks exercise the parser-time three-pi
+    // expansion `inp2y.c` performs (its `3/(r*len)` resistance is C's own
+    // dimensional quirk and is reproduced literally); the Pade decks exercise
+    // `txlload.c`'s DC stamp and recursive convolution. `m10_txl_tran_step`
+    // also covers C's `CKTmaxStep = 0.9*taul` clamp: its `tmax` exceeds
+    // `taul`, so the first oversized step is taken and the rest are bounded.
+    // `m10_txl3_tran` is the upstream three-line MOS driver.
+    Supported {
+        name: "m10_txl_fb_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+    },
+    Supported {
+        name: "m10_txl_fb_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+    },
+    Supported {
+        name: "m10_txl_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+    },
+    Supported {
+        name: "m10_txl_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::DC,
+        },
+    },
+    tran("m10_txl_fb_tran"),
+    tran("m10_txl_lossless_tran"),
+    tran("m10_txl_tran"),
+    tran("m10_txl_early_tran"),
+    tran("m10_txl_tran_step"),
+    tran("m10_txl3_tran"),
     // The resistance paths (#155): `rd`/`rs` (the prime nodes, which C's
     // rawfile omits), `rg`, `ri`/`rf` (`#gs`/`#gd`) and the `rdi`/`rsi`
     // series pair, with the `rtc1`/`rtc2` temperature scaling in the second
