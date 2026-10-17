@@ -139,6 +139,32 @@ front end guesses `capacitance` from the names). `.dc
 @z1[area|m|icvds|icvgs]` sweeps rebuild the instance (MES has no
 temperature setup to re-derive).
 
+### `qgs`/`cqgs`/`qgd`/`cqgd` are deferred (state-backed asks)
+
+`mesaask.c`, `hfetask.c` and `hfet2ask.c` answer those four out of
+`CKTstate0`, the charge and its derivative that the **load** accumulated. The
+port's observation path is deliberately stateless - `devices/observe.rs`
+re-loads a disposed copy of each device from the solved point and accepts no
+state or history ("Loads are disposable; no observation accepts state or
+advances history"). Reproducing C therefore needs more than a formula:
+
+- the accepted state has to reach the observation, which means threading the
+driver's per-point state through `Circuit::observe_real`/`ObservationRequest`
+(only `record_small_signal_state` writes `Circuit::carried_state` today, and
+that is the `MODEINITSMSIG` vector, not `CKTstate0` after a transient point);
+- the observing load has to run with the same integration coefficients as the
+solved point, otherwise the port would recompute a charge from the bias and
+report it *as if* it were C's;
+- `.dc` sweeps make it order-dependent: C accumulates the charges and its
+`CKTstate0` at point *k* carries point *k-1*'s accepted charge, so the answer
+depends on how the previous point was accepted, not only on the current bias.
+
+Deferred rather than approximated: the asks stay `NotYetPorted` naming the C
+routine, so a deck that reads them fails loudly instead of getting a
+recomputed charge. Every `z` level exports them (`mesask.c` for 0/1,
+`mesaask.c` for 2-4, `hfetask.c`/`hfet2ask.c` for 5/6); the port refuses them
+for the MES, MESA and HFET families alike.
+
 ## Not ported
 
 `.disto` (`mesdset.c`, `mesdisto.c`) and `.sens` of a MESFET fail with
@@ -182,7 +208,7 @@ Two C details the port had to read literally: `mesatemp.c`'s `n0` has the `/2`
 `mesa2`'s `nsa` selection reads `vpod`/`vpou`/`vpo` in four regions, each with
 its own `ca`/`delnsavgte`.
 
-### Level 4's small-signal path is refused (a C defect)
+### Level 4's swept small-signal path is refused (a C defect)
 
 `mesaacl.c` and `mesapzl.c` build their conductances from `gm0`/`gm1`/`gm2`,
 `gds0` and `delidgch0`/`delidvds0`/`delidvds1`, which `mesa1` and `mesa2` store
@@ -192,13 +218,23 @@ output conductance at all. Measured on the `m10_mesa_l4_op` card, which carries
 -3.600846442234158e-3 A in DC, the reference binary prints 1.07e-8 A at 1 kHz
 and the same at 1 MHz - a frequency-independent artefact, not a response.
 
-The port therefore refuses `.ac`, `.sp`, `.tf` and `.pz` for a level-4 device
-with a message naming the unset fields, the same choice TX0 made for `y`/TXL.
-A **`.dc` sweep still works**: the port assembles the small-signal system to
-resolve a swept source (C resolves that from its DC Jacobian), and that probe
-needs only the correct linearisation, which the port computes. The refusal is
-gated on the presence of a bias state, which distinguishes the swept
-small-signal path from the sweep probe.
+The port therefore refuses **`.ac`, `.sp` and `.pz`** for a level-4 device with
+a message naming the unset fields, the same choice TX0 made for `y`/TXL. The
+guard is gated on the presence of a bias state, which is what distinguishes a
+swept small-signal assembly from the other two paths that build a matrix:
+
+- **`.dc` sweep works.** The port assembles the small-signal system to resolve
+a swept source (C resolves that from its DC Jacobian) and needs only the
+correct linearisation, which the port computes.
+- **`.tf` works.** C's `CKTtf` linearises the converged DC Jacobian instead of
+loading `mesaacl.c`, so the level-4 channel's real `gm`/`gds` are in the
+system. On a common-source card with `rd=1k`, `vds=2 V`, `vgs=0.4 V` the
+reference binary answers 1.818568640594385e-01 for the gain, 1.222280009536926e+03
+for the input impedance and 1.818568640594385e+02 for the output impedance;
+the port agrees to 2e-9 relative
+(`tests/mesa.rs::the_level_four_transfer_function_matches_the_reference_binary`).
+Only the *swept* path would have to reproduce C's zeroed fields.
+- **Transient works** and is where `cas`/`cbs` reach the load.
 
 ### Fixtures
 
@@ -208,11 +244,24 @@ the AC intermediates, so its `.ac` matches C) and `m10_mesa_l4_{op,dc,tran}`
 (the `cas`/`cbs`/`epsi` model, the `nmax`/`gamma` knee and the transient, which
 is where those capacitances reach the load since the level's AC is refused).
 
-One deck is deliberately *not* a fixture: a level-4 two-device `.op` (the
-configuration `m10_mesa_h2`'s first draft used) where C's continuation lands on
-a different solution of the same equations - the same class as the HFET1
-inverter. Starting C from the port's answer as a `.nodeset` reproduces the
-port's answer to all printed digits, so both are genuine fixed points.
+One deck is deliberately *not* a fixture: a **mixed-polarity level-4 `.op`**
+(the configuration `m10_mesa_h2`'s first draft used). That circuit has two
+roots and C's continuation picks the other one, so a golden would pin a
+continuation accident. Measured with the reference binary on `vdd=3 V`,
+`vgg=0.5 V` with `rd=rs=31`, its n-channel device settles at
+`@z1[vgs] = 4.287953e-01`, `@z1[gm] = 2.024911e-14` (channel cut off),
+`@z1[cd] = 9.567193e-08` and `@z1[cg] = 2.296831e-03` A - a genuine fixed
+point, because the 0.0712 V across `RS = 31` carries exactly that gate
+current.
+
+The port lands on the **conducting** root instead, and that root is C's own:
+the same n-channel card alone, with `vgg` swept up to 0.5 V, is answered by the
+reference binary as `i(vdd) = -3.785019e-3` A and `i(vgg) = -2.768870e-4` A,
+the values the port reaches in the two-device deck to the last printed digit.
+The p-channel device agrees either way (`i(vdd2) = 6.408350e-2` A).
+`tests/mesa.rs::the_mixed_polarity_level_four_operating_point_is_the_conducting_root`
+retains this as a reproducer: it pins the port's branch and cross-checks it
+against the single-device sweep that C agrees with bit for bit.
 
 ## MESA level 2 (`Z`, M10 H1a/H1b, #83)
 
@@ -224,7 +273,7 @@ grammar and one 62-setter model table but not one channel:
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
 | 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage |
 | 3 | MESA | `mesa2` (`mesaload.c`) | ported: DC, transient (H2) |
-| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient; AC refused (H2) |
+| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient, `.tf`; `.ac`/`.sp`/`.pz` refused (H2) |
 | 5 | HFET1 | `hfeta` (`hfetload.c`) | ported (H3) |
 | 6 | HFET2 | `hfeta2` (`hfet2load.c`) | ported (H4) |
 
@@ -243,8 +292,8 @@ between `vts = 2.33 mV`/`ggrwl = 0.15 S` and the correct `6.5e-6`.
 `mesaacl.c` turned out to need no H1b work: the `m10_mesa_ac` fixture verifies
 the small-signal sweep against the reference binary, and single-device probes
 agree with it bit for bit over 1 kHz-10 GHz while the two-device fixture
-differs only by round-off (about 1e-16 relative). `.sp` and `.tf` build on the
-same assembly and run.
+differs only by round-off (about 1e-16 relative). `.sp` builds on the same
+assembly and runs for levels 2 and 3.
 
 ## HFET2 (level 6, `Z`, M10 H4, #169)
 
@@ -355,6 +404,27 @@ difference, not a device discrepancy. The transient fixtures therefore use
 single-device decks (with an independent second device in the DC/AC fixtures),
 and the project's transient fixtures for this family remain
 `m10_hfet1_tran`/`m10_mesa_tran`.
+
+### The `cds` charge keeps its derivative (found by fixing the fixture)
+
+`m10_hfet1_tran` used to place its gate pulse on a node no device touched, so
+the gate was never excited and the fixture could not fail. With the pulse
+connected, the port disagreed with C by up to 5% of the drain current **during
+the source edges** - and only there, which is what a charge-history defect looks
+like. The cause was `HFETAload`'s fixed `cds` charge: its companion current
+(`cd -= cqgd; cd += cqds`) was right, but the port stored `0` in the derivative
+slot `HFETAcqds` instead of that companion value. Trapezoidal order 2 reads
+`state1[ccap]` back (`NIintegrate`'s `- state1[ccap]*ag1`), so every step after
+the first was missing one term - invisible at `cds=0` (the port is then
+bit-identical to C), invisible in DC, and wrong at every edge.
+
+`tests/hfet1.rs::the_drain_source_charge_keeps_its_derivative_in_the_state_history`
+pins it: the reference binary answers -7.699785266e-3 A at the end of the rising
+edge and -4.934298603e-3 A at the end of the falling edge, the short-companion
+version lands 1.5% and 2.8% away, and the test's bounds are 30 to 50 times
+tighter than that. With the fix, the three recaptured gate-pulse fixtures
+(`m10_hfet1_tran`, `m10_hfet2_tran`, `m10_mesa_l4_tran`) verify with a worst
+error of 0.001 of the bound.
 
 ### The resistance paths (`rd`/`rs`, `rg`, `ri`/`rf`, `rdi`/`rsi`)
 

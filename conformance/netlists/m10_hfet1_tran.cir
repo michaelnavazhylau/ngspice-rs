@@ -1,6 +1,7 @@
 HFET1 level 5 transient: gate pulse through rg with the gate and cdS charges
 vdd 1 0 dc 3
-vg 3 0 dc 0 pulse(-1.5 0.5n 0.5n 0.1n 0.1n 1n 4n)
+vg 3 0 dc 0 pulse(-1.5 0.5 0.5n 0.1n 0.1n 1n 4n)
+rg 3 2 1k
 z1 1 2 0 hfet l=1u w=20u
 r1 1 2 1k
 .model hfet nhfet level=5 rd=31 rs=31 rg=10 m=2.57 vt0=0.3 cds=5e-14

@@ -1560,16 +1560,18 @@ impl Device for Mesa {
         // Refused rather than reproduced, as `y`/TXL's AC is.
         //
         // `state` is `Some` exactly on the swept small-signal path (`.ac`,
-        // `.sp`, `.tf`, `.pz` and `.sens` AC), and `None` on the probe a `.dc`
-        // sweep assembles to resolve a swept source - a probe that needs the
-        // *correct* linearisation, which is what the port computes below
-        // (C resolves it from its DC Jacobian, which `mesa3` does store).
+        // `.sp` and `.pz`), and `None` elsewhere - on the probe a `.dc` sweep
+        // assembles to resolve a swept source, and on `.tf`, which linearises
+        // the converged DC Jacobian (C's `CKTtf` does not go through
+        // `CKTacLoad`). Those two probes need the *correct* linearisation,
+        // which the port computes below; only the swept path would have to
+        // reproduce C's zeroed fields, and that is refused.
         if self.level == 4 && context.states.is_some() {
             return Err(SpiceError::not_yet_ported(
-                format!("{}: MESA level 4 AC/SP/TF/pole-zero", self.name),
+                format!("{}: MESA level 4 AC/SP/pole-zero", self.name),
                 "src/spicelib/devices/mesa/mesaacl.c reads the `gm0`/`gds0`/`delidgch0` \
-                 fields that mesaload.c's mesa3 never stores (a `.dc` sweep still works: \
-                 its source probe needs only the correct linearisation)",
+                 fields that mesaload.c's mesa3 never stores (`.dc` sweeps, `.tf` and the \
+                 transient still work: they need only the correct linearisation)",
             ));
         }
         let derived = self.derived(

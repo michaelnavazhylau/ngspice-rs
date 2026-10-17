@@ -1458,6 +1458,9 @@ impl Device for Hfet1 {
         let mut gds = point.gds;
         let (mut ggspp, mut ggdpp, mut cgspp, mut cgdpp) = (0., 0., 0., 0.);
         let (mut qgs, mut qgd, mut qds) = (0., 0., 0.);
+        // `HFETAcqds`: stored beside its charge because trapezoidal order 2
+        // reads the accepted derivative (`state1[ccap]` in `NIintegrate`).
+        let mut cqds = 0.;
         if matches!(
             context.mode,
             AnalysisMode::Transient { .. } | AnalysisMode::DcSweep
@@ -1550,13 +1553,14 @@ impl Device for Hfet1 {
                 cgdpp = cqgd;
                 cg += cqgd;
                 cd -= cqgd;
-                let (geq, cqds) = junction_companion(
+                let (geq, cq) = junction_companion(
                     context,
                     coefficients,
                     junction(qds, self.model.cds),
                     slot::QDS,
                 )?;
                 gds += geq;
+                cqds = cq;
                 cd += cqds;
                 if initial_transient {
                     context.states.patch_state1(slot::CQGS, cqgs)?;
@@ -1626,7 +1630,7 @@ impl Device for Hfet1 {
             (slot::QGD, qgd),
             (slot::CQGD, cgdpp),
             (slot::QDS, qds),
-            (slot::CQDS, 0.),
+            (slot::CQDS, cqds),
         ] {
             context.states.set(index, value)?;
         }
