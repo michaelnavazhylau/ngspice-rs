@@ -75,6 +75,10 @@ use crate::devices::nonlinear::{JunctionPoint, junction_companion, junction_curr
 use crate::devices::schema::{
     self, ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
+use crate::devices::sensitivity::{
+    DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad, SensitivityMode,
+    SensitivityParameter, SensitivityRecord,
+};
 use crate::devices::{
     Device, LinearContext, ModelContext, ModelFamily, ResolvedModel, StampContext,
 };
@@ -608,6 +612,10 @@ impl Device for Mesfet {
             .into_iter()
             .find(|name| name.eq_ignore_ascii_case(keyword))
     }
+    /// `mes.c`'s `IFparm` tables under C's `sgen` walk (#164).
+    fn sensitivity(&self, _context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
+        Ok(Box::new(MesfetSensitivity::new(self)))
+    }
     /// `MESparam` with the instance schema domains.
     fn with_instance_parameter(
         &self,
@@ -971,5 +979,205 @@ mod tests {
         let low = Model { pb: 0.4, ..model };
         let q = low.qgg(&op, 0.8, 0.8);
         assert!(!q.0.is_finite() || !q.1.is_finite());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// `.sens` (#164)
+// ---------------------------------------------------------------------------
+
+/// `MESpTable` entries `set_param()` accepts, in C's table order: `area` is the
+/// only DC one. `m` is `IOPUR` (`IF_REDUNDANT`, so C never perturbs it), `ic`
+/// is a real vector, and `icvds`/`icvgs` are `IOPAU`, hence AC-only. MES has no
+/// instance temperature.
+const SENSITIVITY_INSTANCE: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("area"),
+    SensitivityParameter::ac("icvds"),
+    SensitivityParameter::ac("icvgs"),
+];
+
+/// `MESmPTable` in C's order. `vto` is `IOPR` (redundant with `vt0`),
+/// `gd`/`gs`/`depl_cap`/`vcrit` are ask-only, `cgs`/`cgd` are `IOPA`, and
+/// `kf`/`af` are settable but **not askable** (`mesmask.c` has no
+/// `MES_MOD_KF`/`MES_MOD_AF`), so `sens_getp` fails and C skips them.
+const SENSITIVITY_MODEL: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("vt0"),
+    SensitivityParameter::dc("alpha"),
+    SensitivityParameter::dc("beta"),
+    SensitivityParameter::dc("lambda"),
+    SensitivityParameter::dc("b"),
+    SensitivityParameter::dc("rd"),
+    SensitivityParameter::dc("rs"),
+    SensitivityParameter::ac("cgs"),
+    SensitivityParameter::ac("cgd"),
+    SensitivityParameter::dc("pb"),
+    SensitivityParameter::dc("is"),
+    SensitivityParameter::dc("fc"),
+];
+
+/// The record's model fields. `fc` is enumerated (`mestemp.c`'s depletion
+/// coefficients, unused by the DC load) and `m` is the instance multiplier C
+/// never perturbs.
+const SENSITIVITY_MODEL_FIELDS: &[&str] = &[
+    "vt0", "alpha", "beta", "lambda", "b", "rd", "rs", "cgs", "cgd", "pb", "is", "fc", "kf", "af",
+];
+
+/// A MESFET's `.sens` description: `mes.c`'s tables, `mesparam.c`/
+/// `mesmparam.c` setters, `messetup.c`'s defaults and `mestemp.c`'s derived
+/// coefficients. The load is the port's own [`Mesfet`] rebuilt from the records.
+#[derive(Debug)]
+pub(super) struct MesfetSensitivity<'a> {
+    device: &'a Mesfet,
+}
+
+impl<'a> MesfetSensitivity<'a> {
+    pub(super) fn new(device: &'a Mesfet) -> Self {
+        Self { device }
+    }
+}
+
+impl DeviceSensitivity for MesfetSensitivity<'_> {
+    fn family(&self) -> SensitivityFamily {
+        SensitivityFamily::Mes
+    }
+
+    fn model(&self) -> Option<&str> {
+        Some(&self.device.model_name)
+    }
+
+    fn model_parameters(&self) -> &'static [SensitivityParameter] {
+        SENSITIVITY_MODEL
+    }
+
+    fn instance_parameters(&self) -> &'static [SensitivityParameter] {
+        SENSITIVITY_INSTANCE
+    }
+
+    fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
+        let (m, i) = (&self.device.model, &self.device.instance);
+        let mut model = SensitivityRecord::new();
+        for keyword in SENSITIVITY_MODEL_FIELDS {
+            let value = match *keyword {
+                "vt0" => m.vto,
+                "alpha" => m.alpha,
+                "beta" => m.beta,
+                "lambda" => m.lambda,
+                "b" => m.b,
+                "rd" => m.rd,
+                "rs" => m.rs,
+                "cgs" => m.cgs,
+                "cgd" => m.cgd,
+                "pb" => m.pb,
+                "is" => m.is,
+                // `mestemp.c`'s FC-derived coefficients are unused by the DC
+                // load, so the record keeps C's default.
+                "fc" => 0.5,
+                "kf" => m.kf,
+                _ => m.af,
+            };
+            model = model.with(keyword, value, true);
+        }
+        let mut instance = SensitivityRecord::new();
+        instance = instance.with("area", i.area, true);
+        // C's `MES_M` is `IOPUR`: enumerated by no analysis, but the load reads
+        // it, so the record carries it unperturbed.
+        instance = instance.with("m", i.m, true);
+        instance = instance.with("icvds", self.device.initial.values[0].unwrap_or(0.), true);
+        instance = instance.with("icvgs", self.device.initial.values[1].unwrap_or(0.), true);
+        self.setup(&mut model, &mut instance)?;
+        Ok((model, instance))
+    }
+
+    /// `MESsetup`: C's defaults for the fields the card left unset. None of
+    /// them feeds a *given*-flag-dependent derivation, so the port's schema
+    /// defaults are already equivalent.
+    fn setup(
+        &self,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        for (keyword, value) in [
+            ("vt0", -1.),
+            ("beta", 2.5e-3),
+            ("b", 0.3),
+            ("alpha", 2.),
+            ("lambda", 0.),
+            ("rd", 0.),
+            ("rs", 0.),
+            ("cgs", 0.),
+            ("cgd", 0.),
+            ("pb", 1.),
+            ("is", 1e-14),
+            ("fc", 0.5),
+            ("kf", 0.),
+            ("af", 1.),
+        ] {
+            if !model.given(keyword) {
+                model.store(keyword, value)?;
+            }
+        }
+        if !instance.given("area") {
+            instance.store("area", 1.)?;
+        }
+        if !instance.given("m") {
+            instance.store("m", 1.)?;
+        }
+        Ok(())
+    }
+
+    /// `MEStemp` derives everything from the raw fields with no *given* flags
+    /// and no instance temperature, so the replay has no record side effects
+    /// beyond setup's defaults.
+    fn temperature(
+        &self,
+        _model: &mut SensitivityRecord,
+        _instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        Ok(())
+    }
+
+    fn load(
+        &self,
+        _setup: RecordPair<'_>,
+        current: RecordPair<'_>,
+        mode: SensitivityMode,
+    ) -> SpiceResult<SensitivityLoad> {
+        if mode == SensitivityMode::Ac {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: MESFET AC sensitivity", self.device.name),
+                "src/spicelib/devices/mes/mesacl.c",
+            ));
+        }
+        let (m, i) = (current.model, current.instance);
+        let model = Model {
+            pol: self.device.model.pol,
+            vto: m.value("vt0")?,
+            alpha: m.value("alpha")?,
+            beta: m.value("beta")?,
+            lambda: m.value("lambda")?,
+            b: m.value("b")?,
+            rd: m.value("rd")?,
+            rs: m.value("rs")?,
+            cgs: m.value("cgs")?,
+            cgd: m.value("cgd")?,
+            pb: m.value("pb")?,
+            is: m.value("is")?,
+            kf: m.value("kf")?,
+            af: m.value("af")?,
+        };
+        let instance = Instance {
+            area: i.value("area")?,
+            m: i.value("m")?,
+        };
+        let device = Mesfet {
+            name: self.device.name.clone(),
+            model_name: self.device.model_name.clone(),
+            terminals: self.device.terminals.clone(),
+            inner: self.device.inner,
+            model,
+            instance,
+            initial: self.device.initial.clone(),
+        };
+        Ok(SensitivityLoad::Replacement(Box::new(device)))
     }
 }

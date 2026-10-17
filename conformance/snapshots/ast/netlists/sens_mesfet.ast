@@ -1,0 +1,94 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_mesfet.cir
+title: "DC sensitivity of MESFET level 1 (Statz) bias networks (#164)" @netlists/sens_mesfet.cir:1:1
+scope root
+  cards (13):
+    [0] options[0] @netlists/sens_mesfet.cir:5:1 ".options reltol=1e-9"
+    [1] device[0] @netlists/sens_mesfet.cir:6:1 "vdd 1 0 dc 3"
+    [2] device[1] @netlists/sens_mesfet.cir:7:1 "rd 1 2 1k"
+    [3] device[2] @netlists/sens_mesfet.cir:8:1 "z1 2 3 0 zn area=2"
+    [4] device[3] @netlists/sens_mesfet.cir:9:1 "vg 3 0 dc -1"
+    [5] device[4] @netlists/sens_mesfet.cir:10:1 "vss 4 0 dc -3"
+    [6] device[5] @netlists/sens_mesfet.cir:11:1 "rp 4 5 1k"
+    [7] device[6] @netlists/sens_mesfet.cir:12:1 "z2 5 6 0 zp area=0.5"
+    [8] device[7] @netlists/sens_mesfet.cir:13:1 "vg2 6 0 dc 1"
+    [9] model[0] @netlists/sens_mesfet.cir:14:1 ".model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=5 rs=4 cgs=2p cgd=0.5p pb=0.8 is=1e-14 fc=0.4 kf=1e-26 af=1.1)"
+    [10] model[1] @netlists/sens_mesfet.cir:16:1 ".model zp pmf(vto=-1.2 beta=2m cgs=1p cgd=1p pb=0.9 alpha=3)"
+    [11] analysis[0] @netlists/sens_mesfet.cir:17:1 ".sens v(2)"
+    [12] end @netlists/sens_mesfet.cir:18:1 ".end"
+  devices (8):
+    device [0] name="vdd" designator=v @netlists/sens_mesfet.cir:6:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/sens_mesfet.cir:6:9
+    device [1] name="rd" designator=r @netlists/sens_mesfet.cir:7:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_mesfet.cir:7:8
+    device [2] name="z1" designator=z @netlists/sens_mesfet.cir:8:1
+      nodes: "2" "3" "0"
+      model: "zn"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @netlists/sens_mesfet.cir:8:13
+    device [3] name="vg" designator=v @netlists/sens_mesfet.cir:9:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1" @netlists/sens_mesfet.cir:9:8
+    device [4] name="vss" designator=v @netlists/sens_mesfet.cir:10:1
+      nodes: "4" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-3" @netlists/sens_mesfet.cir:10:9
+    device [5] name="rp" designator=r @netlists/sens_mesfet.cir:11:1
+      nodes: "4" "5"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_mesfet.cir:11:8
+    device [6] name="z2" designator=z @netlists/sens_mesfet.cir:12:1
+      nodes: "5" "6" "0"
+      model: "zp"
+      parameters (1):
+        [0] name="area" kind=scalar value="0.5" @netlists/sens_mesfet.cir:12:13
+    device [7] name="vg2" designator=v @netlists/sens_mesfet.cir:13:1
+      nodes: "6" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/sens_mesfet.cir:13:9
+  models (2):
+    model [0] name="zn" base="nmf" level=none @netlists/sens_mesfet.cir:14:1
+      parameters (14):
+        [0] name="vto" kind=scalar value="-1.8" @netlists/sens_mesfet.cir:14:15
+        [1] name="beta" kind=scalar value="3m" @netlists/sens_mesfet.cir:14:24
+        [2] name="lambda" kind=scalar value="0.05" @netlists/sens_mesfet.cir:14:32
+        [3] name="alpha" kind=scalar value="2.5" @netlists/sens_mesfet.cir:14:44
+        [4] name="b" kind=scalar value="0.4" @netlists/sens_mesfet.cir:14:54
+        [5] name="rd" kind=scalar value="5" @netlists/sens_mesfet.cir:14:60
+        [6] name="rs" kind=scalar value="4" @netlists/sens_mesfet.cir:14:65
+        [7] name="cgs" kind=scalar value="2p" @netlists/sens_mesfet.cir:14:70
+        [8] name="cgd" kind=scalar value="0.5p" @netlists/sens_mesfet.cir:14:77
+        [9] name="pb" kind=scalar value="0.8" @netlists/sens_mesfet.cir:14:86
+        [10] name="is" kind=scalar value="1e-14" @netlists/sens_mesfet.cir:14:93
+        [11] name="fc" kind=scalar value="0.4" @netlists/sens_mesfet.cir:14:102
+        [12] name="kf" kind=scalar value="1e-26" @netlists/sens_mesfet.cir:14:109
+        [13] name="af" kind=scalar value="1.1" @netlists/sens_mesfet.cir:14:118
+    model [1] name="zp" base="pmf" level=none @netlists/sens_mesfet.cir:16:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="-1.2" @netlists/sens_mesfet.cir:16:15
+        [1] name="beta" kind=scalar value="2m" @netlists/sens_mesfet.cir:16:24
+        [2] name="cgs" kind=scalar value="1p" @netlists/sens_mesfet.cir:16:32
+        [3] name="cgd" kind=scalar value="1p" @netlists/sens_mesfet.cir:16:39
+        [4] name="pb" kind=scalar value="0.9" @netlists/sens_mesfet.cir:16:46
+        [5] name="alpha" kind=scalar value="3" @netlists/sens_mesfet.cir:16:53
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_mesfet.cir:17:1
+      arguments: "v" "(" "2" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_mesfet.cir:5:1
+      setting [0] name="reltol" value="1e-9"@netlists/sens_mesfet.cir:5:17 @netlists/sens_mesfet.cir:5:10
+  globals (0):

@@ -27,14 +27,11 @@ fn c_value(label: &str, params: &str, probe: &str) -> Result<f64, String> {
         workspace.join(binary)
     };
     let binary = binary.canonicalize().expect("reference binary exists");
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
+    let nonce = scratch_nonce();
     let scratch = Scratch(
         std::env::temp_dir().join(format!("spice-eval-{label}-{}-{nonce}", std::process::id())),
     );
-    fs::create_dir(&scratch.0).unwrap();
+    fs::create_dir_all(&scratch.0).unwrap();
     let deck = format!(
         "eval probe\n{params}\nv1 1 0 dc {{{probe}}}\nr1 1 0 1\n\
          .control\nset numdgt=17\nop\nprint v(1)\nquit\n.endc\n.end\n"
@@ -138,3 +135,21 @@ fn failures_c_reports_are_errors_here_too() {
     assert!(rust_value(".param c={1/0}", "3").is_err());
     assert!(rust_value(".param c={sqrt(-1)}", "3").is_err());
 }
+
+/// A process-local counter appended to scratch directory names.
+///
+/// `SystemTime::now()` is coarsened on some platforms (1 ms on macOS), so the
+/// process id and the clock alone do not distinguish two tests of one binary
+/// that start in the same tick - and tests run in parallel, so two of them
+/// collided and `create_dir(...).unwrap()` panicked.
+static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
+
+fn scratch_nonce() -> u128 {
+    let clock = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("the clock is after the epoch")
+        .as_nanos();
+    clock + u128::from(SCRATCH_NONCE.fetch_add(1, Ordering::Relaxed))
+}
+
+use std::sync::atomic::{AtomicU64, Ordering};

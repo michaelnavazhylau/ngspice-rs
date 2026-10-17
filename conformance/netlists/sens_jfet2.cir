@@ -1,0 +1,21 @@
+DC sensitivity of JFET level 2 (Parker-Skellern) bias networks (#164)
+* One n-channel and one p-channel device of different models: every jfet2.c
+* model setter and both instances' parameters are perturbed. The high-frequency
+* feedback family (DELTA, HFETA, HFE1/2, HFG1/2, MVST, MXI, XC, XI, Z) is left
+* at its defaults: at exotic values those columns are cancellation-dominated,
+* so C and the port differ in the third digit there (SENSITIVITY.md).
+.options reltol=1e-9
+vdd 1 0 dc 3
+rd 1 2 1k
+j1 2 3 0 jm area=2 temp=40
+vg 3 0 dc -1
+vss 4 0 dc -3
+rp 4 5 1k
+j2 5 6 0 jp
+vg2 6 0 dc 1
+.model jm njf level=2 vto=-2 beta=1e-3 lambda=0.02 rd=10 rs=20 cds=1p
++ cgs=2p cgd=1p vbi=0.8 is=1e-14 n=1.2 fc=0.4 ibd=1e-9 vbd=1.2
++ taud=1e-9 taug=1e-9 vst=0.5 ver=1 tnom=30
+.model jp pjf level=2 vto=-1.5 beta=5e-4 rd=5 rs=5 tnom=40
+.sens v(2)
+.end

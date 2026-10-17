@@ -1,0 +1,103 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_jfet.cir
+title: "DC sensitivity of JFET level 1 bias networks (#164)" @netlists/sens_jfet.cir:1:1
+scope root
+  cards (13):
+    [0] options[0] @netlists/sens_jfet.cir:7:1 ".options reltol=1e-9"
+    [1] device[0] @netlists/sens_jfet.cir:8:1 "vdd 1 0 dc 3"
+    [2] device[1] @netlists/sens_jfet.cir:9:1 "rd 1 2 1k"
+    [3] device[2] @netlists/sens_jfet.cir:10:1 "j1 2 3 0 jm area=2 temp=40"
+    [4] device[3] @netlists/sens_jfet.cir:11:1 "vg 3 0 dc -1"
+    [5] device[4] @netlists/sens_jfet.cir:12:1 "vss 4 0 dc -3"
+    [6] device[5] @netlists/sens_jfet.cir:13:1 "rp 4 5 1k"
+    [7] device[6] @netlists/sens_jfet.cir:14:1 "j2 5 6 0 jp area=0.5"
+    [8] device[7] @netlists/sens_jfet.cir:15:1 "vg2 6 0 dc 1"
+    [9] model[0] @netlists/sens_jfet.cir:16:1 ".model jm njf(vto=-2 beta=1e-4 lambda=0.02 rd=10 rs=20 cgs=2p cgd=1p pb=0.8 is=1e-14 n=1.2 fc=0.4 b=0.9 tnom=30 tcv=-2e-3 vtotc=1e-3 bex=0.5 betatce=0.7 xti=2.5 eg=1.15 kf=1e-26 af=1.1 gdsnoi=2)"
+    [10] model[1] @netlists/sens_jfet.cir:19:1 ".model jp pjf(vto=-1.5 beta=5e-5 rd=5 rs=5 tnom=40 tcv=1e-3)"
+    [11] analysis[0] @netlists/sens_jfet.cir:20:1 ".sens v(2)"
+    [12] end @netlists/sens_jfet.cir:21:1 ".end"
+  devices (8):
+    device [0] name="vdd" designator=v @netlists/sens_jfet.cir:8:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/sens_jfet.cir:8:9
+    device [1] name="rd" designator=r @netlists/sens_jfet.cir:9:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_jfet.cir:9:8
+    device [2] name="j1" designator=j @netlists/sens_jfet.cir:10:1
+      nodes: "2" "3" "0"
+      model: "jm"
+      parameters (2):
+        [0] name="area" kind=scalar value="2" @netlists/sens_jfet.cir:10:13
+        [1] name="temp" kind=scalar value="40" @netlists/sens_jfet.cir:10:20
+    device [3] name="vg" designator=v @netlists/sens_jfet.cir:11:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1" @netlists/sens_jfet.cir:11:8
+    device [4] name="vss" designator=v @netlists/sens_jfet.cir:12:1
+      nodes: "4" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-3" @netlists/sens_jfet.cir:12:9
+    device [5] name="rp" designator=r @netlists/sens_jfet.cir:13:1
+      nodes: "4" "5"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_jfet.cir:13:8
+    device [6] name="j2" designator=j @netlists/sens_jfet.cir:14:1
+      nodes: "5" "6" "0"
+      model: "jp"
+      parameters (1):
+        [0] name="area" kind=scalar value="0.5" @netlists/sens_jfet.cir:14:13
+    device [7] name="vg2" designator=v @netlists/sens_jfet.cir:15:1
+      nodes: "6" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @netlists/sens_jfet.cir:15:9
+  models (2):
+    model [0] name="jm" base="njf" level=none @netlists/sens_jfet.cir:16:1
+      parameters (22):
+        [0] name="vto" kind=scalar value="-2" @netlists/sens_jfet.cir:16:15
+        [1] name="beta" kind=scalar value="1e-4" @netlists/sens_jfet.cir:16:22
+        [2] name="lambda" kind=scalar value="0.02" @netlists/sens_jfet.cir:16:32
+        [3] name="rd" kind=scalar value="10" @netlists/sens_jfet.cir:16:44
+        [4] name="rs" kind=scalar value="20" @netlists/sens_jfet.cir:16:50
+        [5] name="cgs" kind=scalar value="2p" @netlists/sens_jfet.cir:16:56
+        [6] name="cgd" kind=scalar value="1p" @netlists/sens_jfet.cir:16:63
+        [7] name="pb" kind=scalar value="0.8" @netlists/sens_jfet.cir:16:70
+        [8] name="is" kind=scalar value="1e-14" @netlists/sens_jfet.cir:16:77
+        [9] name="n" kind=scalar value="1.2" @netlists/sens_jfet.cir:16:86
+        [10] name="fc" kind=scalar value="0.4" @netlists/sens_jfet.cir:16:92
+        [11] name="b" kind=scalar value="0.9" @netlists/sens_jfet.cir:16:99
+        [12] name="tnom" kind=scalar value="30" @netlists/sens_jfet.cir:16:105
+        [13] name="tcv" kind=scalar value="-2e-3" @netlists/sens_jfet.cir:16:113
+        [14] name="vtotc" kind=scalar value="1e-3" @netlists/sens_jfet.cir:16:123
+        [15] name="bex" kind=scalar value="0.5" @netlists/sens_jfet.cir:16:134
+        [16] name="betatce" kind=scalar value="0.7" @netlists/sens_jfet.cir:16:142
+        [17] name="xti" kind=scalar value="2.5" @netlists/sens_jfet.cir:16:154
+        [18] name="eg" kind=scalar value="1.15" @netlists/sens_jfet.cir:16:162
+        [19] name="kf" kind=scalar value="1e-26" @netlists/sens_jfet.cir:16:170
+        [20] name="af" kind=scalar value="1.1" @netlists/sens_jfet.cir:16:179
+        [21] name="gdsnoi" kind=scalar value="2" @netlists/sens_jfet.cir:16:186
+    model [1] name="jp" base="pjf" level=none @netlists/sens_jfet.cir:19:1
+      parameters (6):
+        [0] name="vto" kind=scalar value="-1.5" @netlists/sens_jfet.cir:19:15
+        [1] name="beta" kind=scalar value="5e-5" @netlists/sens_jfet.cir:19:24
+        [2] name="rd" kind=scalar value="5" @netlists/sens_jfet.cir:19:34
+        [3] name="rs" kind=scalar value="5" @netlists/sens_jfet.cir:19:39
+        [4] name="tnom" kind=scalar value="40" @netlists/sens_jfet.cir:19:44
+        [5] name="tcv" kind=scalar value="1e-3" @netlists/sens_jfet.cir:19:52
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_jfet.cir:20:1
+      arguments: "v" "(" "2" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_jfet.cir:7:1
+      setting [0] name="reltol" value="1e-9"@netlists/sens_jfet.cir:7:17 @netlists/sens_jfet.cir:7:10
+  globals (0):

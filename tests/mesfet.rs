@@ -521,16 +521,24 @@ fn noise_follows_mesnoise_and_distortion_and_sensitivity_are_refused() {
     let error = disto.unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
     assert!(error.to_string().contains("mesdisto.c"), "{error}");
-    // `.sens` through the production front end (C: `cktsens.c`).
-    let netlist = deck(&format!("{body}\n.sens v(d)")).unwrap();
+    // `.sens` is ported (#164): `mes.c`'s 10 DC model parameters and AREA,
+    // with M (`IOPUR`) and the unaskable KF/AF left out.
+    let netlist = deck(&format!("{body}\n.sens v(o)")).unwrap();
     let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
     let mut c = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
+    let values = runner(request.kind)
         .unwrap()
         .run(&mut c, &request, &config.context())
-        .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
+        .unwrap()
+        .variables
+        .iter()
+        .map(|variable| variable.name.clone())
+        .filter(|name| name.starts_with("v(z1"))
+        .collect::<Vec<_>>();
+    // 10 DC model setters (`cgs`/`cgd` are IF_AC) plus AREA.
+    assert_eq!(values.len(), 11, "{values:?}");
+    assert!(!values.contains(&"v(z1_m)".to_owned()), "{values:?}");
 }
 
 #[test]
@@ -749,4 +757,49 @@ fn the_state_backed_charge_asks_are_refused_by_name() {
         assert!(error.is_not_yet_ported(), "{key}: {error}");
         assert!(error.to_string().contains("mesask.c"), "{key}: {error}");
     }
+}
+
+/// `.sens` (`#164`): the `mes.c` tables under C's `sgen` walk. `MES_M` is
+/// `IOPUR`, so C never perturbs it, and `kf`/`af` are settable but not
+/// askable, so `sens_getp` fails and C skips them - the parameter list is
+/// `mes.c`'s, not the card's.
+#[test]
+fn the_sensitivity_table_is_mes_cs_parameter_list() {
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nrd 1 2 1k\nz1 2 3 0 zn m=3\nvg 3 0 dc -1\n\
+         .model zn nmf(vto=-1.8 beta=3m kf=1e-26 af=1.1)",
+    )
+    .unwrap();
+    let netlist = deck(
+        "vdd 1 0 dc 3\nrd 1 2 1k\nz1 2 3 0 zn m=3\nvg 3 0 dc -1\n\
+         .model zn nmf(vto=-1.8 beta=3m kf=1e-26 af=1.1)\n.sens v(2)",
+    )
+    .unwrap();
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let plot = ngspice_rs::analysis::runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap();
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(z1"))
+        .collect();
+    for keyword in [
+        "vt0", "alpha", "beta", "lambda", "b", "rd", "rs", "pb", "is", "fc",
+    ] {
+        assert!(
+            names.contains(&format!("v(z1:{keyword})").as_str()),
+            "{keyword} missing from {names:?}"
+        );
+    }
+    for absent in ["v(z1:kf)", "v(z1:af)", "v(z1_m)", "v(z1:gd)", "v(z1:vcrit)"] {
+        assert!(
+            !names.contains(&absent),
+            "{absent} should not be enumerated"
+        );
+    }
+    assert!(names.contains(&"v(z1_area)"), "{names:?}");
 }

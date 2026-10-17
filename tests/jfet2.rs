@@ -399,15 +399,28 @@ fn noise_distortion_sensitivity_and_pole_zero_are_refused_explicitly() {
     let mut c = circuit(&body.replace("ac 1", "distof1 1")).unwrap();
     let error = run(&mut c, AnalysisKind::Distortion, &["dec", "2", "1k", "10k"]).unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
-    let netlist = deck(&format!("{body}\n.sens v(d)")).unwrap();
+    // `.sens` is ported (#164): `jfet2parm.h`'s 36 model setters plus AREA,
+    // M, TEMP and DTEMP.
+    let netlist = deck(&format!("{body}\n.sens v(o)")).unwrap();
     let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
     let mut c = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
+    let plot = runner(request.kind)
         .unwrap()
         .run(&mut c, &request, &config.context())
-        .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
+        .unwrap();
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(j1"))
+        .collect();
+    assert_eq!(names.len(), 40, "{names:?}");
+    // `vto`/`pb` are the redundant aliases and `gd`/`gs` are ask-only.
+    for absent in ["v(j1:vto)", "v(j1:pb)", "v(j1:gd)", "v(j1:gs)"] {
+        assert!(!names.contains(&absent), "{absent} in {names:?}");
+    }
+    assert!(names.contains(&"v(j1:vbi)"), "{names:?}");
     // C has no JFET2 pole-zero load: refused, never silently omitted.
     let mut c = circuit(body).unwrap();
     let error = run(

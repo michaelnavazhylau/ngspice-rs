@@ -1,0 +1,190 @@
+Title: dc sensitivity of mesfet level 1 (statz) bias networks (#164)
+Date: Sat Oct 17 15:14:33  2026
+Command: ngspice-47+, Build 
+Plotname: Sensitivity Analysis
+Flags: real
+No. Variables: 90
+No. Points: 1
+Variables:
+	0	v(z2:vt0)	voltage
+	1	v(rd:af)	voltage
+	2	v(rd:bv_max)	voltage
+	3	v(rd:ef)	voltage
+	4	v(rd:kf)	voltage
+	5	v(rd:lf)	voltage
+	6	v(rd:narrow)	voltage
+	7	v(rd:r)	voltage
+	8	v(rd:rsh)	voltage
+	9	v(rd:short)	voltage
+	10	v(rd:tc1)	voltage
+	11	v(rd:tc2)	voltage
+	12	v(rd:tce)	voltage
+	13	v(rd:wf)	voltage
+	14	v(rd_bv_max)	voltage
+	15	v(rd_dtemp)	voltage
+	16	v(rd_l)	voltage
+	17	v(rd_m)	voltage
+	18	v(rd_scale)	voltage
+	19	v(rd_tc)	voltage
+	20	v(rd)	voltage
+	21	v(rd_tc2)	voltage
+	22	v(rd_tce)	voltage
+	23	v(rd_temp)	voltage
+	24	v(rd_w)	voltage
+	25	v(rp:af)	voltage
+	26	v(rp:bv_max)	voltage
+	27	v(rp:ef)	voltage
+	28	v(rp:kf)	voltage
+	29	v(rp:lf)	voltage
+	30	v(rp:narrow)	voltage
+	31	v(rp:r)	voltage
+	32	v(rp:rsh)	voltage
+	33	v(rp:short)	voltage
+	34	v(rp:tc1)	voltage
+	35	v(rp:tc2)	voltage
+	36	v(rp:tce)	voltage
+	37	v(rp:wf)	voltage
+	38	v(rp_bv_max)	voltage
+	39	v(rp_dtemp)	voltage
+	40	v(rp)	voltage
+	41	v(rp_l)	voltage
+	42	v(rp_m)	voltage
+	43	v(rp_scale)	voltage
+	44	v(rp_tc)	voltage
+	45	v(rp_tc2)	voltage
+	46	v(rp_tce)	voltage
+	47	v(rp_temp)	voltage
+	48	v(rp_w)	voltage
+	49	v(vdd_freq)	voltage
+	50	v(vdd_phase)	voltage
+	51	v(vdd)	voltage
+	52	v(vdd_pwr)	voltage
+	53	v(vdd_z0)	voltage
+	54	v(vg2)	voltage
+	55	v(vg2_freq)	voltage
+	56	v(vg2_phase)	voltage
+	57	v(vg2_pwr)	voltage
+	58	v(vg2_z0)	voltage
+	59	v(vg_freq)	voltage
+	60	v(vg)	voltage
+	61	v(vg_phase)	voltage
+	62	v(vg_pwr)	voltage
+	63	v(vg_z0)	voltage
+	64	v(vss_freq)	voltage
+	65	v(vss_phase)	voltage
+	66	v(vss)	voltage
+	67	v(vss_pwr)	voltage
+	68	v(vss_z0)	voltage
+	69	v(z1:alpha)	voltage
+	70	v(z1:beta)	voltage
+	71	v(z1:b)	voltage
+	72	v(z1:fc)	voltage
+	73	v(z1:is)	voltage
+	74	v(z1:lambda)	voltage
+	75	v(z1:pb)	voltage
+	76	v(z1:rd)	voltage
+	77	v(z1:rs)	voltage
+	78	v(z1:vt0)	voltage
+	79	v(z1_area)	voltage
+	80	v(z2:alpha)	voltage
+	81	v(z2:beta)	voltage
+	82	v(z2:b)	voltage
+	83	v(z2:fc)	voltage
+	84	v(z2:is)	voltage
+	85	v(z2:lambda)	voltage
+	86	v(z2:pb)	voltage
+	87	v(z2:rd)	voltage
+	88	v(z2:rs)	voltage
+	89	v(z2_area)	voltage
+Values:
+ 0	0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	7.359498272192514e-01
+	-7.359490912193177e-01
+	-0.000000000000000e+00
+	-7.359490913789014e-04
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	2.999767179819001e-01
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-1.593492246699493e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-1.424580983939277e-01
+	-2.401342290221897e+02
+	4.345758637737727e-01
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-3.757865772575130e-01
+	0.000000000000000e+00
+	8.587024716015077e-04
+	2.813402785175704e-03
+	1.593493427206812e+00
+	-3.679749130575785e-01
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+

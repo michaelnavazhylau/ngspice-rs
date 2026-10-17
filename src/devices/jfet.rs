@@ -39,14 +39,18 @@
 //!   capacitance to the real part in two steps; the port's pole-zero load
 //!   reuses the AC grouping.
 //!
-//! `.noise`, `.disto` and `.sens` of a JFET are not ported and fail with an
-//! explicit error naming `jfetnoi.c`, `jfetdist.c` and the sensitivity
-//! framework rather than contributing nothing.
+//! `.noise` and `.disto` of a JFET are not ported and fail with an explicit
+//! error naming `jfetnoi.c`/`jfetdist.c` rather than contributing nothing.
+//! `.sens` is ported (#164) through [`JfetSensitivity`].
 
 use crate::devices::limiting;
 use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
+};
+use crate::devices::sensitivity::{
+    DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad, SensitivityMode,
+    SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
     AnalysisMode, Device, DeviceState, IterationPhase, LinearContext, ModelContext, ModelFamily,
@@ -361,6 +365,9 @@ impl Operating {
 #[derive(Debug)]
 pub struct Jfet {
     name: String,
+    /// The `.model` card this instance resolved to (`JFETmodName`), which
+    /// `.sens` groups records by.
+    model_name: String,
     /// External d, g, s followed by any internal source/drain nodes.
     terminals: Vec<NodeId>,
     /// d', g, s': the nodes the intrinsic device sees.
@@ -427,6 +434,7 @@ impl Jfet {
         let instance = instance_setters(&model_defaults, &setters, &i.location)?;
         let mut device = Self {
             name: i.name.clone(),
+            model_name: resolved.card().name.clone(),
             terminals: vec![],
             inner: [NodeId::GROUND; 3],
             model,
@@ -1299,6 +1307,10 @@ impl Device for Jfet {
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         instance_parameter(keyword)
     }
+    /// `jfet.c`'s `IFparm` tables under C's `sgen` walk (#164).
+    fn sensitivity(&self, context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
+        Ok(Box::new(JfetSensitivity::new(self, context)))
+    }
     /// `JFETparam` then `JFETtemp`, with the instance schema domains.
     fn with_instance_parameter(
         &self,
@@ -1310,6 +1322,7 @@ impl Device for Jfet {
             swept_instance(&self.name, &self.instance, &self.initial, parameter, value)?;
         let device = Self {
             name: self.name.clone(),
+            model_name: self.model_name.clone(),
             terminals: self.terminals.clone(),
             inner: self.inner,
             model: self.model,
@@ -1500,6 +1513,7 @@ mod tests {
         };
         let device = Jfet {
             name: "j1".into(),
+            model_name: "jm".into(),
             terminals: vec![],
             inner: [NodeId::GROUND; 3],
             model,
@@ -1562,4 +1576,303 @@ mod tests {
         assert!((below.0 - above.0).abs() <= 1e-9 * above.0.abs());
         assert!((below.1 - above.1).abs() <= 1e-9 * above.1);
     }
+}
+
+// ---------------------------------------------------------------------------
+// `.sens` (#164)
+// ---------------------------------------------------------------------------
+
+/// `JFETpTable` entries `set_param()` (`cktsgen.c`) accepts, in C's table
+/// order: `IOP*` (set + ask + real), without `IF_VECTOR`, `IF_REDUNDANT` or
+/// `IF_NONSENSE`. `off` (a flag), `ic` (a real vector) and the `*node` asks
+/// (not settable) are excluded; `ic-vds`/`ic-vgs` are `IOPAU`, so they appear
+/// only in an AC analysis.
+const SENSITIVITY_INSTANCE: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("area"),
+    SensitivityParameter::dc("m"),
+    SensitivityParameter::ac("ic-vds"),
+    SensitivityParameter::ac("ic-vgs"),
+    SensitivityParameter::dc("temp"),
+    SensitivityParameter::dc("dtemp"),
+];
+
+/// `JFETmPTable` in C's order. `vto` is `IOPR` (redundant with `vt0`), `gd`/`gs`
+/// are ask-only and `nlev` is an integer, so none of them is enumerated;
+/// `cgs`/`cgd` are `IOPA` and therefore AC-only.
+const SENSITIVITY_MODEL: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("vt0"),
+    SensitivityParameter::dc("beta"),
+    SensitivityParameter::dc("lambda"),
+    SensitivityParameter::dc("rd"),
+    SensitivityParameter::dc("rs"),
+    SensitivityParameter::ac("cgs"),
+    SensitivityParameter::ac("cgd"),
+    SensitivityParameter::dc("pb"),
+    SensitivityParameter::dc("is"),
+    SensitivityParameter::dc("n"),
+    SensitivityParameter::dc("fc"),
+    SensitivityParameter::dc("b"),
+    SensitivityParameter::dc("tnom"),
+    SensitivityParameter::dc("tcv"),
+    SensitivityParameter::dc("vtotc"),
+    SensitivityParameter::dc("bex"),
+    SensitivityParameter::dc("betatce"),
+    SensitivityParameter::dc("xti"),
+    SensitivityParameter::dc("eg"),
+    SensitivityParameter::dc("kf"),
+    SensitivityParameter::dc("af"),
+    SensitivityParameter::dc("gdsnoi"),
+];
+
+/// The record's model fields: every enumerated setter plus the raw fields
+/// `jfetload.c` reads. `JFETtnom`/`JFETtemp` are kelvin in C.
+const SENSITIVITY_MODEL_FIELDS: &[&str] = &[
+    "vt0", "beta", "lambda", "rd", "rs", "cgs", "cgd", "pb", "is", "n", "fc", "b", "tnom", "tcv",
+    "vtotc", "bex", "betatce", "xti", "eg", "kf", "af", "gdsnoi",
+];
+
+/// The record's instance fields (`JFETtemp` is kelvin in C).
+const SENSITIVITY_INSTANCE_FIELDS: &[&str] = &["area", "m", "ic-vds", "ic-vgs", "temp", "dtemp"];
+
+/// `JFETsetup`'s defaults for fields the card left unset (`jfetset.c`). The
+/// port's schema already applies the same values, so this only matters for the
+/// four fields whose *given* flag survives into `jfettemp.c`'s branches.
+fn sensitivity_default(
+    record: &mut SensitivityRecord,
+    keyword: &str,
+    value: Real,
+) -> SpiceResult<()> {
+    if record.given(keyword) {
+        Ok(())
+    } else {
+        record.store(keyword, value)
+    }
+}
+
+/// A JFET's `.sens` description: `jfet.c`'s tables, `jfetpar.c`/`jfetmpar.c`
+/// setters, `jfetset.c`'s defaults and `jfettemp.c`'s instance temperature.
+/// The load is the port's own [`Jfet`] rebuilt from C's records.
+#[derive(Debug)]
+pub(super) struct JfetSensitivity<'a> {
+    device: &'a Jfet,
+    circuit_kelvin: Real,
+    nominal_kelvin: Real,
+}
+
+impl<'a> JfetSensitivity<'a> {
+    pub(super) fn new(device: &'a Jfet, context: &ModelContext) -> Self {
+        Self {
+            device,
+            circuit_kelvin: context.temperature + CELSIUS_TO_KELVIN,
+            nominal_kelvin: context.nominal_temperature + CELSIUS_TO_KELVIN,
+        }
+    }
+}
+
+impl DeviceSensitivity for JfetSensitivity<'_> {
+    fn family(&self) -> SensitivityFamily {
+        SensitivityFamily::Jfet
+    }
+
+    fn model(&self) -> Option<&str> {
+        Some(&self.device.model_name)
+    }
+
+    fn model_parameters(&self) -> &'static [SensitivityParameter] {
+        SENSITIVITY_MODEL
+    }
+
+    fn instance_parameters(&self) -> &'static [SensitivityParameter] {
+        SENSITIVITY_INSTANCE
+    }
+
+    fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
+        let (m, i) = (&self.device.model, &self.device.instance);
+        let mut model = SensitivityRecord::new();
+        for keyword in SENSITIVITY_MODEL_FIELDS {
+            // `tnom` is celsius in the port and kelvin in C, like the diode.
+            let (value, given) = match *keyword {
+                "tnom" => (
+                    m.tnom
+                        .map_or(self.nominal_kelvin, |c| c + CELSIUS_TO_KELVIN),
+                    m.tnom.is_some(),
+                ),
+                // `jfettemp.c` branches on these three *given* flags.
+                "vtotc" => (m.vtotc.unwrap_or(0.), m.vtotc.is_some()),
+                "betatce" => (m.betatce.unwrap_or(0.), m.betatce.is_some()),
+                "xti" => (m.xti.unwrap_or(0.), m.xti.is_some()),
+                "vt0" => (m.vto, true),
+                "beta" => (m.beta, true),
+                "lambda" => (m.lambda, true),
+                "rd" => (m.rd, true),
+                "rs" => (m.rs, true),
+                "cgs" => (m.cgs, true),
+                "cgd" => (m.cgd, true),
+                "pb" => (m.pb, true),
+                "is" => (m.is, true),
+                "n" => (m.n, true),
+                "fc" => (m.fc, true),
+                "b" => (m.b, true),
+                "tcv" => (m.tcv, true),
+                "bex" => (m.bex, true),
+                "eg" => (m.eg, true),
+                other => (
+                    // kf/af/gdsnoi: noise inputs the DC load ignores.
+                    match other {
+                        "kf" => 0.,
+                        "af" => 1.,
+                        _ => 1.,
+                    },
+                    true,
+                ),
+            };
+            model = model.with(keyword, value, given);
+        }
+        let mut instance = SensitivityRecord::new();
+        for keyword in SENSITIVITY_INSTANCE_FIELDS {
+            let (value, given) = match *keyword {
+                "area" => (i.area, true),
+                "m" => (i.m, true),
+                "temp" => (
+                    i.temp
+                        .map_or(self.circuit_kelvin + i.dtemp, |c| c + CELSIUS_TO_KELVIN),
+                    i.temp.is_some(),
+                ),
+                "dtemp" => (i.dtemp, true),
+                "ic-vds" => (self.device.initial.values[0].unwrap_or(0.), true),
+                _ => (self.device.initial.values[1].unwrap_or(0.), true),
+            };
+            instance = instance.with(keyword, value, given);
+        }
+        self.setup(&mut model, &mut instance)?;
+        self.temperature(&mut model, &mut instance)?;
+        Ok((model, instance))
+    }
+
+    /// `JFETsetup`: C's defaults for the fields the card left unset.
+    fn setup(
+        &self,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        for (keyword, value) in [
+            ("vt0", -2.),
+            ("beta", 1e-4),
+            ("lambda", 0.),
+            ("rd", 0.),
+            ("rs", 0.),
+            ("cgs", 0.),
+            ("cgd", 0.),
+            ("pb", 1.),
+            ("is", 1e-14),
+            ("n", 1.),
+            ("fc", 0.5),
+            ("b", 1.),
+            ("tcv", 0.),
+            ("vtotc", 0.),
+            ("bex", 0.),
+            ("betatce", 0.),
+            ("xti", 3.),
+            ("eg", 1.11),
+            ("kf", 0.),
+            ("af", 1.),
+            ("gdsnoi", 1.),
+        ] {
+            sensitivity_default(model, keyword, value)?;
+        }
+        // `JFETsetup` assigns 1 to `area`/`m` when the card did not.
+        sensitivity_default(instance, "area", 1.)?;
+        sensitivity_default(instance, "m", 1.)?;
+        Ok(())
+    }
+
+    /// `jfettemp.c`: `tnom` defaults to `CKTnomTemp`, `dtemp` to 0 and `temp` to
+    /// `CKTtemp + dtemp`. Every other derived field (`tSatCur`, `tBeta`,
+    /// `tThreshold`, `tGatePot`, `tCGS`/`tCGD`, the conductances) is recomputed
+    /// from these records by the port's load, so it follows a perturbation.
+    fn temperature(
+        &self,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        if !model.given("tnom") {
+            model.store("tnom", self.nominal_kelvin)?;
+        }
+        if !instance.given("dtemp") {
+            instance.store("dtemp", 0.)?;
+        }
+        if !instance.given("temp") {
+            let dtemp = instance.value("dtemp")?;
+            instance.store("temp", self.circuit_kelvin + dtemp)?;
+        }
+        Ok(())
+    }
+
+    fn load(
+        &self,
+        _setup: RecordPair<'_>,
+        current: RecordPair<'_>,
+        mode: SensitivityMode,
+    ) -> SpiceResult<SensitivityLoad> {
+        if mode == SensitivityMode::Ac {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: JFET AC sensitivity", self.device.name),
+                "src/spicelib/devices/jfet/jfetacld.c",
+            ));
+        }
+        let (m, i) = (current.model, current.instance);
+        let celsius = |keyword: &str| -> SpiceResult<Option<Real>> {
+            Ok(m.given(keyword)
+                .then(|| m.value(keyword))
+                .transpose()?
+                .map(|kelvin| kelvin - CELSIUS_TO_KELVIN))
+        };
+        let model = Model {
+            pol: self.device.model.pol,
+            vto: m.value("vt0")?,
+            beta: m.value("beta")?,
+            lambda: m.value("lambda")?,
+            rd: m.value("rd")?,
+            rs: m.value("rs")?,
+            cgs: m.value("cgs")?,
+            cgd: m.value("cgd")?,
+            pb: m.value("pb")?,
+            is: m.value("is")?,
+            n: m.value("n")?,
+            fc: m.value("fc")?,
+            b: m.value("b")?,
+            tnom: celsius("tnom")?,
+            tcv: m.value("tcv")?,
+            vtotc: m.given("vtotc").then(|| m.value("vtotc")).transpose()?,
+            bex: m.value("bex")?,
+            betatce: m.given("betatce").then(|| m.value("betatce")).transpose()?,
+            xti: m.given("xti").then(|| m.value("xti")).transpose()?,
+            eg: m.value("eg")?,
+        };
+        let instance = Instance {
+            area: i.value("area")?,
+            m: i.value("m")?,
+            temp: celsius_instance(i)?,
+            dtemp: i.value("dtemp")?,
+        };
+        let device = Jfet {
+            name: self.device.name.clone(),
+            model_name: self.device.model_name.clone(),
+            terminals: self.device.terminals.clone(),
+            inner: self.device.inner,
+            model,
+            instance,
+            initial: self.device.initial.clone(),
+        };
+        Ok(SensitivityLoad::Replacement(Box::new(device)))
+    }
+}
+
+/// The instance temperature in celsius when C's `JFETtempGiven` is set.
+fn celsius_instance(instance: &SensitivityRecord) -> SpiceResult<Option<Real>> {
+    Ok(instance
+        .given("temp")
+        .then(|| instance.value("temp"))
+        .transpose()?
+        .map(|kelvin| kelvin - CELSIUS_TO_KELVIN))
 }

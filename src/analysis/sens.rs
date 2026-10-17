@@ -1094,7 +1094,19 @@ fn sweep_parameters(
             model: &snapshot.0,
             instance: &snapshot.1,
         };
-        let base = device.load(setup, setup, mode)?;
+        let label = entry
+            .name
+            .clone()
+            .unwrap_or_else(|| entry.keyword.to_owned());
+        let base = device.load(setup, setup, mode).map_err(|error| {
+            // A device whose perturbed state C loads without complaint but the
+            // port refuses (a strict range check) has to name the parameter:
+            // `.sens` is C's walk over dozens of them.
+            SpiceError::Numerical {
+                context: format!(".sens {label}: {error}"),
+                message: "the base load failed".to_owned(),
+            }
+        })?;
         let delta = if value == 0. {
             ABSOLUTE_DELTA
         } else {
@@ -1102,15 +1114,23 @@ fn sweep_parameters(
         };
         device.set(entry.scope, entry.keyword, value + delta, model, instance)?;
         device.temperature(model, instance)?;
-        let perturbed = device.load(
-            setup,
-            RecordPair {
-                model: &*model,
-                instance: &*instance,
-            },
-            mode,
-        )?;
-        measure(member.index, &base, &perturbed, delta)?;
+        let perturbed = device
+            .load(
+                setup,
+                RecordPair {
+                    model: &*model,
+                    instance: &*instance,
+                },
+                mode,
+            )
+            .map_err(|error| SpiceError::Numerical {
+                context: format!(".sens {label}: {error}"),
+                message: "the perturbed load failed".to_owned(),
+            })?;
+        measure(member.index, &base, &perturbed, delta).map_err(|error| SpiceError::Numerical {
+            context: format!(".sens {label}: {error}"),
+            message: "the perturbed load could not be evaluated".to_owned(),
+        })?;
         device.set(entry.scope, entry.keyword, value, model, instance)?;
         device.temperature(model, instance)?;
     }

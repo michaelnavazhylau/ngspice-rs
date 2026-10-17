@@ -18,15 +18,12 @@ use std::{
 struct Scratch(PathBuf);
 impl Scratch {
     fn new() -> Self {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
+        let nonce = scratch_nonce();
         let scratch = Self(std::env::temp_dir().join(format!(
             "spice-mutual-oracle-{}-{nonce}",
             std::process::id()
         )));
-        fs::create_dir(&scratch.0).unwrap();
+        fs::create_dir_all(&scratch.0).unwrap();
         scratch
     }
     fn run(&self, text: &str) -> Output {
@@ -161,3 +158,21 @@ fn c_is_silent_when_multiplicity_makes_the_stamped_system_indefinite() {
     assert!(message.contains("multiplicity m"), "{message}");
     assert!(!message.contains("C only warns"), "{message}");
 }
+
+/// A process-local counter appended to scratch directory names.
+///
+/// `SystemTime::now()` is coarsened on some platforms (1 ms on macOS), so the
+/// process id and the clock alone do not distinguish two tests of one binary
+/// that start in the same tick - and tests run in parallel, so two of them
+/// collided and `create_dir(...).unwrap()` panicked.
+static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
+
+fn scratch_nonce() -> u128 {
+    let clock = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("the clock is after the epoch")
+        .as_nanos();
+    clock + u128::from(SCRATCH_NONCE.fetch_add(1, Ordering::Relaxed))
+}
+
+use std::sync::atomic::{AtomicU64, Ordering};

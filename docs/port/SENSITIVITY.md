@@ -115,7 +115,10 @@ output:
 | S, W | yes | refused |
 | D | yes | refused |
 | Q (Gummel-Poon), M (MOS1, MOS2, MOS3, MOS6, MOS9), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
-| J (JFET 1/2), Z (MES, MESA 2-4, HFET1, HFET2) | refused (`NotYetPorted`, #164) | refused |
+| J (JFET level 1, `jfet.c`) | yes | refused |
+| J (JFET level 2, `jfet2.c`) | yes | refused |
+| Z level 1 (MES, `mes.c`) | yes | refused |
+| Z levels 2-6 (MESA 2-4, HFET1, HFET2) | refused (`NotYetPorted`, #164) | refused |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit
@@ -126,6 +129,83 @@ description returns through `Circuit::load_device` (DC) and
 port's own `Diode` built from C's records.
 
 ### The `j` and `z` families (#164)
+
+**Ported: JFET levels 1 and 2 and the MESFET (`z` level 1).** Each family
+replays C's own sequence, the way the diode does, and each has a committed
+C golden with every enumerated parameter:
+
+| Family | `sgen` parameters | Fixture |
+| --- | --- | --- |
+| `jfet.c` | 20 model + 4 instance | `sens_jfet` (116 vectors, two models, both polarities) |
+| `jfet2.c` | 36 model + 4 instance | `sens_jfet2` (148 vectors) |
+| `mes.c` | 10 model + 1 instance in DC (12 model in AC: `cgs`/`cgd`) | `sens_mesfet` (90 vectors) |
+
+The parameter lists are C's, not the card's, and three filters decide them:
+`set_param()`'s `(IF_SET|IF_ASK|IF_REAL)` test (so the `vto`/`pb`/`tphib`
+`IOPR` aliases, ask-only `gd`/`gs`/`depl_cap`/`vcrit` and integer `nlev` are
+skipped), `IF_AC` (`cgs`/`cgd`/`cds`, and the `icvds`/`icvgs` instance
+temperatures, appear only in an AC run), and - easy to miss - `sens_getp()`
+must succeed, so a settable parameter the device cannot **ask** is skipped
+too: `mes.c`'s `kf`/`af` are `IOP` but `mesmask.c` has no case for them, and
+`MES_M` is `IOPUR`, so a MES `.sens` has no `z1_m` column at all.
+
+C quirks the replay reproduces (each measured against the reference binary):
+
+- **`jfettemp.c`/`jfet2temp.c` branch on *given* flags**: `xti`, `vtotc` and
+  `betatce` select their formula by the flag, not by the value, so perturbing
+  `xti` on a card that never set it switches `IS(T)` from
+  `is exp(ratio1 eg/vtn)` to the `pow(ratio1+1, xti)` form. The record keeps
+  C's setup default (`xti = 3`) with `given = false`, and the port's model
+  keeps the same three fields as `Option`s.
+- **`jfet2`'s `hfgam` defaults to `lfgam`** (`jfet2parm.h`), re-derived by
+  every `DEVsetup`, so perturbing `lfgam` also moves `hfgam` unless the card
+  gave it. In the record that *given* flag is `hfgam != lfgam`, which is
+  behaviourally exact.
+- **`mestemp.c` has no given-flag branches** and MES has no instance
+  temperature, so a MES record needs no temperature replay at all.
+
+Two limits are recorded rather than reproduced:
+
+- **A JFET with `M != 1`.** C's `.sens` disagrees with its own finite
+  difference for the *instance* parameters: measured on
+  `j1 2 3 0 jm m=3`, C reports `j1_m = -3.000000e-1` while perturbing `m` by
+  1 ppm in two `.op` runs gives `-1.000000e-1` (the `m` column is exactly
+  `M` times its own derivative), and `j1_area = -2.0000e5` against a finite
+  difference of `-3.0e-1` (the extra term is `-(M-1) IR`). At `M = 1` every
+  column agrees exactly, so the fixtures keep `M = 1`. The port computes
+  each parameter from an independently rebuilt load, which is the finite
+  difference C's own solver agrees with.
+- **Cancellation-dominated columns.** A parameter whose sensitivity is a
+  near-cancellation (JFET2's `delta`, `mxi`, `xi`, `z`, `vbi` at exotic
+  values) amplifies last-digit differences of the derived quantities by the
+  cancellation ratio, so those columns agree only to a few digits. The
+  fixture keeps JFET2's feedback family at its defaults; the columns are
+  still enumerated and perturbed.
+
+**Not ported: MESA levels 2-4 and HFET1/HFET2.** The tables, records and
+replay are mechanical (the `mesa.c`/`hfet1.c`/`hfet2.c` enum tables have 62-70
+entries each), but two C behaviours have to be reproduced exactly first, and
+both were measured and left open:
+
+- **`MESAphib`/`MESAphib1`'s asymmetry.** `mesamparam.c` stores
+  `value * CHARGE` while `mesamask.c` returns the stored joules unchanged, so
+  C's perturbation (`+value*1e-6` in "eV") and its restore (`ask * CHARGE`)
+  both corrupt the stored barrier. `v(z2:phib)` comes out as exactly 0 in the
+  reference binary while the port's rebuilt load answers `1.8e25` - the
+  values are not comparable until C's own sequence is understood.
+- **Operating-point branches.** Any MESA deck with a *responsive* node (a
+  drain load or a gate resistor rather than a stiff supply) has more than one
+  fixed point and C lands on a different one from the port - the same class
+  documented in [MESFET.md](MESFET.md). Measured on a level-2 card at
+  `vgs = 0.6` behind a 1 k drain load, C's device is cut off
+  (`i(vdd) = -6.1e-7 A`) while the port conducts 3.1 mA. A `.sens` golden
+  needs the stiff-supply topology of the `m10_mesa_op` fixture *and* a
+  responsive node, which only the internal `#gate` node provides.
+
+Until those land the refusal stays, naming `cktsens.c`/`cktsgen.c` and the
+device's `DEVparam`/`DEVtemperature`/`DEVload`.
+
+### The `j` and `z` families: the original gap note (#164)
 
 C's modern `.sens` does **not** use the SPICE2 adjoint `*sload.c` routines, so a
 device whose entry point sets `DEVsenSetup = NULL` is still enumerated:

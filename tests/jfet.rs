@@ -396,16 +396,27 @@ fn noise_distortion_and_sensitivity_are_refused_explicitly() {
         &AnalysisContext::default(),
     );
     assert!(disto.unwrap_err().is_not_yet_ported());
-    // `.sens` through the production front end (C: `cktsens.c`).
-    let netlist = deck(&format!("{body}\n.sens v(d)")).unwrap();
+    // `.sens` through the production front end (C: `cktsens.c`) is ported
+    // (#164): the enumerated list is `jfet.c`'s tables, not the card's.
+    let netlist = deck(&format!("{body}\n.sens v(o)")).unwrap();
     let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
     let mut c = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
+    let plot = runner(request.kind)
         .unwrap()
         .run(&mut c, &request, &config.context())
-        .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
+        .unwrap();
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(j1"))
+        .collect();
+    // 20 model setters (`vto` is the redundant `vt0` alias) + 4 instance ones.
+    assert_eq!(names.len(), 24, "{names:?}");
+    assert!(names.contains(&"v(j1:vt0)"), "{names:?}");
+    assert!(!names.contains(&"v(j1:vto)"), "{names:?}");
+    assert!(names.contains(&"v(j1_area)"), "{names:?}");
 }
 
 #[test]
