@@ -227,6 +227,62 @@ impl ScalarSchema<'_> {
     }
 }
 
+/// Splits a `.model` card's setters into model-schema setters and model-level
+/// instance defaults, C's `inpgmod.c::create_model` fallback.
+///
+/// C looks a `.model` parameter up in the device's *model* table first and, only
+/// when it is absent there, in its *instance* table; a settable instance
+/// parameter becomes an entry of `GENmodel.defaults`, which
+/// `inpdpar.c::INPdevParse` applies **before** the instance card's own setters,
+/// so an explicit instance setter always wins. The model table keeps priority
+/// for a name in both tables (`l`/`w` of a MOS card are model parameters).
+///
+/// The returned defaults are in C's *application* order. `create_model`
+/// prepends each name/value pair to the list, so `INPdevParse` walks it in
+/// reverse card order; with a repeated instance parameter on one `.model` card
+/// that means the **first** occurrence wins, the opposite of the model table's
+/// last-set precedence. See [`with_defaults`].
+pub(crate) fn split_model_setters<'a>(
+    setters: impl IntoIterator<Item = &'a ParameterAssignment>,
+    model: &ScalarSchema<'_>,
+    instance: &ScalarSchema<'_>,
+) -> (Vec<&'a ParameterAssignment>, Vec<&'a ParameterAssignment>) {
+    let mut kept = Vec::new();
+    let mut defaults = Vec::new();
+    for setter in setters {
+        let in_model = model
+            .parameters
+            .iter()
+            .any(|p| p.name.eq_ignore_ascii_case(&setter.name));
+        let in_instance = instance
+            .parameters
+            .iter()
+            .any(|p| p.name.eq_ignore_ascii_case(&setter.name));
+        if !in_model && in_instance {
+            defaults.push(setter);
+        } else {
+            kept.push(setter);
+        }
+    }
+    // C prepends pairs, so its list runs in reverse card order.
+    defaults.reverse();
+    (kept, defaults)
+}
+
+/// Validates instance setters with the model's instance defaults applied first.
+///
+/// `defaults` must be [`split_model_setters`]'s second element (C's application
+/// order): [`ScalarSchema::validate`] keeps the last setter, so prepending them
+/// reproduces `INPdevParse`'s "defaults first, instance card after" precedence.
+pub(crate) fn with_defaults<'a>(
+    schema: &ScalarSchema<'_>,
+    defaults: &[&'a ParameterAssignment],
+    setters: impl IntoIterator<Item = &'a ParameterAssignment>,
+    owner: &SourceLoc,
+) -> SpiceResult<ScalarValues> {
+    schema.validate(defaults.iter().copied().chain(setters), owner)
+}
+
 pub(crate) fn finite_literal(parameter: &ParameterAssignment) -> SpiceResult<Real> {
     if parameter.kind != crate::netlist::ast::ParameterKind::Scalar {
         return Err(SpiceError::Unsupported {

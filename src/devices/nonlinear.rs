@@ -405,18 +405,27 @@ impl Diode {
             return Err(SpiceError::circuit("diode needs two terminals"));
         }
         let card = model.card();
-        let model_setters = canonical(
+        // `inpgmod.c::create_model`: a `.model` setter outside the model table
+        // that is a settable instance parameter (`area`, `m`, `pj`, `temp`,
+        // `dtemp`) becomes a model-level instance default, applied before the
+        // instance card's own setters.
+        let (model_side, model_defaults) = crate::devices::schema::split_model_setters(
             card.parameters
                 .iter()
                 .filter(|p| !p.name.eq_ignore_ascii_case("level")),
-            MODEL_ALIASES,
-            MODEL_PENDING,
-            "model",
-        )?;
+            &MODEL,
+            &INSTANCE,
+        );
+        let model_setters = canonical(model_side, MODEL_ALIASES, MODEL_PENDING, "model")?;
         let m = MODEL.validate(&model_setters, &card.location)?;
         let (initial, setters) = crate::devices::initial::split(&instance.parameters, &["ic"])?;
         let instance_setters = canonical(&setters, &[], INSTANCE_PENDING, "instance")?;
-        let i = INSTANCE.validate(&instance_setters, &instance.location)?;
+        let i = crate::devices::schema::with_defaults(
+            &INSTANCE,
+            &model_defaults,
+            instance_setters.iter(),
+            &instance.location,
+        )?;
         let p = DiodeParameters::new(&m, &i, instance)?;
         p.thermal(context)?.point(0., context.gmin)?; // validate before interning
         let mut staged = nodes.clone();

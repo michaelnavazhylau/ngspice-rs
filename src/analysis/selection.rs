@@ -424,6 +424,15 @@ pub(crate) fn resolve_request(plot: &Plot, request: &VectorRequest) -> SpiceResu
                 .variable_index(vector)
                 .or_else(|| plot.variable_index(&format!("v({vector})")))
                 .or_else(|| plot.variable_index(&format!("i({vector})")))
+                // C's canonical branch-vector spelling, `<source>#branch`
+                // (`CKTmkCur`, `copynode()` in `breakp2.c`): ngspice's own
+                // decks print source currents this way, so it is accepted as
+                // an alias of `i(<source>)`. The written name stays as asked,
+                // which is what C's `.print` header shows.
+                .or_else(|| {
+                    let device = vector.strip_suffix("#branch")?;
+                    (!device.is_empty()).then(|| plot.variable_index(&format!("i({device})")))?
+                })
                 .ok_or_else(|| {
                     unsupported(format!(
                         "{name}: the analysis has no named vector {vector}; it carries {}",

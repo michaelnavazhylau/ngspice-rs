@@ -255,11 +255,23 @@ pub(super) struct Model {
 impl Model {
     /// `HFETAsetup`'s defaults, `hfetmpar.c`'s setters and `inpdomod.c`'s level
     /// check. A `phfet` base (or the `phfet` flag) makes the model p-type.
-    pub(super) fn resolve(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
+    pub(super) fn resolve<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
         let (pol, scalars) = jfet::typed_scalars(
             resolved,
             resolved.family() == crate::devices::ModelFamily::Pmf,
             ["nhfet", "phfet"],
+        );
+        // `inpgmod.c::create_model`: a setter outside the model table that is
+        // a settable instance parameter becomes a model-level instance
+        // default, applied before the instance card's own setters.
+        let (scalars, defaults) = crate::devices::schema::split_model_setters(
+            scalars,
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
         );
         let values =
             ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
@@ -346,7 +358,7 @@ impl Model {
                 resolved.card().name
             )));
         }
-        Ok(model)
+        Ok((model, defaults))
     }
 }
 
@@ -373,13 +385,18 @@ impl Instance {
     }
 
     pub(super) fn validate(
+        defaults: &[&crate::netlist::ast::ParameterAssignment],
         setters: &[crate::netlist::ast::ParameterAssignment],
         owner: &crate::primitives::SourceLoc,
     ) -> SpiceResult<Self> {
-        let values = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(setters, owner)?;
+        let values = crate::devices::schema::with_defaults(
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+            defaults,
+            setters.iter(),
+            owner,
+        )?;
         Ok(Self {
             l: jfet::required(&values, "l")?,
             w: jfet::required(&values, "w")?,
@@ -486,9 +503,9 @@ impl Hfet1 {
                 i.name
             )));
         }
-        let model = Model::resolve(resolved)?;
+        let (model, model_defaults) = Model::resolve(resolved)?;
         let (initial, setters) = Instance::resolve(i)?;
-        let instance = Instance::validate(&setters, &i.location)?;
+        let instance = Instance::validate(&model_defaults, &setters, &i.location)?;
         let mut staged = nodes.clone();
         let external: Vec<NodeId> = i.nodes.iter().map(|n| staged.intern(n)).collect();
         let mut terminals = external.clone();
@@ -1458,6 +1475,9 @@ impl Device for Hfet1 {
         let mut gds = point.gds;
         let (mut ggspp, mut ggdpp, mut cgspp, mut cgdpp) = (0., 0., 0., 0.);
         let (mut qgs, mut qgd, mut qds) = (0., 0., 0.);
+        // `HFETAcqds`: stored beside its charge because trapezoidal order 2
+        // reads the accepted derivative (`state1[ccap]` in `NIintegrate`).
+        let mut cqds = 0.;
         if matches!(
             context.mode,
             AnalysisMode::Transient { .. } | AnalysisMode::DcSweep
@@ -1550,13 +1570,14 @@ impl Device for Hfet1 {
                 cgdpp = cqgd;
                 cg += cqgd;
                 cd -= cqgd;
-                let (geq, cqds) = junction_companion(
+                let (geq, cq) = junction_companion(
                     context,
                     coefficients,
                     junction(qds, self.model.cds),
                     slot::QDS,
                 )?;
                 gds += geq;
+                cqds = cq;
                 cd += cqds;
                 if initial_transient {
                     context.states.patch_state1(slot::CQGS, cqgs)?;
@@ -1626,7 +1647,7 @@ impl Device for Hfet1 {
             (slot::QGD, qgd),
             (slot::CQGD, cgdpp),
             (slot::QDS, qds),
-            (slot::CQDS, 0.),
+            (slot::CQDS, cqds),
         ] {
             context.states.set(index, value)?;
         }

@@ -96,7 +96,7 @@ fn requests(input: &mut Input<'_>, card: &str) -> Result<Vec<VectorRequest>> {
 }
 
 /// The supported request spellings, quoted in diagnostics.
-const SUPPORTED: &str = "all, v(node), v(first,second), i(source|inductor|E|H), vm/vp/vr/vi/vdb(node[,second]), named-vector, mag/ph/real/imag/db(named-vector)";
+const SUPPORTED: &str = "all, v(node), v(first,second), i(source|inductor|E|H), <source>#branch, vm/vp/vr/vi/vdb(node[,second]), named-vector, mag/ph/real/imag/db(named-vector)";
 
 /// One vector request. Shared with the `.measure` grammar
 /// (`super::measure`), whose operands use the same bounded spelling.

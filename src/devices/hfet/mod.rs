@@ -239,11 +239,23 @@ impl Model {
     /// level check. The `pmf` flag is accepted and ignored: C forces `NMF`
     /// with a warning, and the port reproduces the model rather than the
     /// message.
-    pub(super) fn resolve(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
+    pub(super) fn resolve<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
         let (_, scalars) = jfet::typed_scalars(
             resolved,
             resolved.family() == ModelFamily::Pmf,
             ["nmf", "pmf"],
+        );
+        // `inpgmod.c::create_model`: a setter outside the model table that is
+        // a settable instance parameter becomes a model-level instance
+        // default, applied before the instance card's own setters.
+        let (scalars, defaults) = crate::devices::schema::split_model_setters(
+            scalars,
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
         );
         let values =
             ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
@@ -325,7 +337,7 @@ impl Model {
                 resolved.card().name
             )));
         }
-        Ok(model)
+        Ok((model, defaults))
     }
 }
 
@@ -353,13 +365,18 @@ impl Instance {
     }
 
     pub(super) fn validate(
+        defaults: &[&crate::netlist::ast::ParameterAssignment],
         setters: &[crate::netlist::ast::ParameterAssignment],
         owner: &crate::primitives::SourceLoc,
     ) -> SpiceResult<Self> {
-        let values = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(setters, owner)?;
+        let values = crate::devices::schema::with_defaults(
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+            defaults,
+            setters.iter(),
+            owner,
+        )?;
         Ok(Self {
             l: jfet::required(&values, "l")?,
             w: jfet::required(&values, "w")?,

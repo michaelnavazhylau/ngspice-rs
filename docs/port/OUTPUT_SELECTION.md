@@ -129,6 +129,17 @@ convention is unchanged: C prints `i(v1)` as the current *into* the positive
 terminal, and the committed goldens pin it (5 V across a 2 k divider gives
 `i(v1) = -2.5 mA`). Selection never flips or recomputes a branch current.
 
+**Branch-vector spelling.** `<source>#branch` is accepted as an alias of
+`i(<source>)` - the direction C's `copynode()` normalises in (`i(vds)` becomes
+the `vds#branch` vector in `breakp2.c`), and the spelling ngspice's own
+`tests/*/*.cir` decks use. The column keeps the request's spelling, as every
+other request does. That matches C's `.print` header: C normalises *both*
+spellings to `<source>#branch` there, so `.print op i(vds)` also prints
+`vds#branch`. C's **rawfile** differs - it writes the plot's internal vector
+name, `i(<source>)`, whichever spelling was asked - while the port writes the
+request's spelling in the rawfile too. Two spellings of one branch are
+duplicates and collapse to one column, like `v(out)`/`v(out,0)`.
+
 **Missing, ambiguous, unsupported.** All of them fail *before* anything is
 published, and an `all` request does not excuse the others: `.save all v(nosuch)`
 is still an error, because a request the user wrote is never silently dropped.

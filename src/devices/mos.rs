@@ -593,11 +593,52 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Copy + Sized + 'static {
     /// `CKTmkVolt` suffixes of the internal drain and source nodes.
     const PRIME_SUFFIXES: [&'static str; 2];
 
-    /// The validated model card (schema, defaults and C's card checks).
+    /// The level's `mosXmparam.c` model table, for `inpgmod.c`'s instance
+    /// fallback ([`crate::devices::schema::split_model_setters`]).
+    fn model_schema() -> ScalarSchema<'static>;
+
+    /// The level's validated model values plus the model-level **instance
+    /// defaults** `inpgmod.c::create_model` collected from the same card.
+    ///
+    /// C looks a `.model` parameter up in the model table first and, when it is
+    /// absent there, in the instance table; a settable instance parameter
+    /// becomes a `GENmodel.defaults` entry that `inpdpar.c::INPdevParse`
+    /// applies before the instance card's own setters. `l`, `w`, `ad`, `as`,
+    /// `m`, `temp` and `dtemp` reach a MOS card that way - they are instance
+    /// parameters, not model ones.
     ///
     /// # Errors
     /// Unknown or invalid setters, unsupported values.
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self>;
+    fn model_and_defaults<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(
+        ScalarValues,
+        Vec<&'a crate::netlist::ast::ParameterAssignment>,
+    )> {
+        let instance = ScalarSchema {
+            parameters: INSTANCE,
+        };
+        let (model_side, defaults) = crate::devices::schema::split_model_setters(
+            resolved
+                .card()
+                .parameters
+                .iter()
+                .filter(|p| !p.name.eq_ignore_ascii_case("level")),
+            &Self::model_schema(),
+            &instance,
+        );
+        let values = Self::model_schema().validate(model_side, &resolved.card().location)?;
+        Ok((values, defaults))
+    }
+
+    /// The validated model card (schema, defaults and C's card checks) and the
+    /// model's instance defaults.
+    ///
+    /// # Errors
+    /// Unknown or invalid setters, unsupported values.
+    fn from_card<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)>;
 
     /// The setters shared by every level.
     fn common(&self) -> &Common;
@@ -860,11 +901,15 @@ impl<L: MosLevel> Mosfet<L> {
             )));
         }
         let (initial, setters) = crate::devices::initial::split(&i.parameters, &IC_COMPONENTS)?;
-        let model = L::from_card(resolved)?;
-        let v = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(&setters, &i.location)?;
+        let (model, model_defaults) = L::from_card(resolved)?;
+        let v = crate::devices::schema::with_defaults(
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+            &model_defaults,
+            setters.iter(),
+            &i.location,
+        )?;
         let required = |name: &str| required(&v, name, L::LABEL);
         let geometry = Geometry {
             m: required("m")?,

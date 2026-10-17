@@ -726,3 +726,27 @@ fn the_transient_jacobian_follows_mesloads_matrix() {
         }
     }
 }
+
+/// `mesask.c` answers `MES_QGS`, `MES_CQGS`, `MES_QGD` and `MES_CQGD` out of
+/// `CKTstate0`, which the stateless observation path does not carry. They are
+/// refused by name (MESFET.md's "state-backed asks" note), not silently
+/// recomputed from the bias.
+#[test]
+fn the_state_backed_charge_asks_are_refused_by_name() {
+    for key in ["qgs", "cqgs", "qgd", "cqgd"] {
+        let mut c = circuit(
+            "z1 1 2 0 zn\nvgs 2 0 dc -1\nvds 1 0 dc 2\n\
+             .model zn nmf(vto=-1.8 beta=3m cgs=2p cgd=0.5p)",
+        )
+        .unwrap();
+        c.set_observations(&[format!("@z1[{key}]")]).unwrap();
+        let request =
+            AnalysisRequest::with_arguments(AnalysisKind::OperatingPoint, Vec::<String>::new());
+        let error = runner(AnalysisKind::OperatingPoint)
+            .unwrap()
+            .run(&mut c, &request, &AnalysisContext::default())
+            .unwrap_err();
+        assert!(error.is_not_yet_ported(), "{key}: {error}");
+        assert!(error.to_string().contains("mesask.c"), "{key}: {error}");
+    }
+}

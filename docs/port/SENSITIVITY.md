@@ -115,6 +115,7 @@ output:
 | S, W | yes | refused |
 | D | yes | refused |
 | Q (Gummel-Poon), M (MOS1, MOS2, MOS3, MOS6, MOS9), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
+| J (JFET 1/2), Z (MES, MESA 2-4, HFET1, HFET2) | refused (`NotYetPorted`, #164) | refused |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit
@@ -123,6 +124,36 @@ never left out of the list. The analysis stamps the stand-in devices a
 description returns through `Circuit::load_device` (DC) and
 `Circuit::assemble_small_signal_device` (AC); the diode stand-in is the
 port's own `Diode` built from C's records.
+
+### The `j` and `z` families (#164)
+
+C's modern `.sens` does **not** use the SPICE2 adjoint `*sload.c` routines, so a
+device whose entry point sets `DEVsenSetup = NULL` is still enumerated:
+`cktsens.c` walks every real parameter of every instance and model
+(`cktsgen.c`'s `sgen_init`/`sgen_next`), perturbs it through `DEVparam`/
+`DEVmodParam`, calls `DEVtemperature`, reloads the device and solves. Measured
+with the reference binary on `z1 2 3 0 zm l=1u w=20u`, `.model zm nmf(level=2)`,
+`vgs=0`, `vds=0.5` and `.sens v(2)`, it exits 0 and its `sens1` plot carries 61
+`z1:*` vectors (`z1:ag`, `z1:alpha`, `z1:astar`, `z1:beta`, `z1:cas`, ...).
+`j1` is refused by the port the same way for the same reason.
+
+That work is **not done**: the port refuses the whole `j`/`z` designator family
+with `SensitivityFamily` having no variant for it. What it needs, in this
+order, is exactly what [`nonlinear/sens.rs`](../src/devices/nonlinear/sens.rs)
+does for the diode but per family:
+
+1. `mesamparam.c`/`mesaparam.c` (and `jfet.c`/`jfet2.c`, `mes/`) `IFparm`
+   tables in C's order, filtered to the entries `set_param()` accepts;
+2. the `*setup.c` default and *given*-flag side effects, which persist from one
+   perturbed parameter to the next (`mesasetup.c` alone fills ~30 fields);
+3. `*temp.c`'s derived values;
+4. a load that builds the port's own device from the records, so the stamp is
+   the perturbed one.
+
+The four families share the card grammar but not the channel or the tables, so
+this is one slice per family rather than one generic helper. Until it lands the
+refusal names `cktsens.c`, `cktsgen.c` and the device's
+`DEVparam`/`DEVtemperature`/`DEVload`, so a deck that asks fails loudly.
 
 ## Divergences (explicit errors where C carries on)
 

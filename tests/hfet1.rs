@@ -318,3 +318,30 @@ fn a_hfet1_card_is_noiseless_and_linear_in_distortion() {
     assert!(error.is_not_yet_ported(), "{error}");
     assert!(error.to_string().contains("sensitivity"), "{error}");
 }
+
+/// `HFETAload`'s fixed `cds` drain-source charge is integrated like the gate
+/// charges, so its derivative (`HFETAcqds`) has to survive into `CKTstate1`:
+/// trapezoidal order 2 reads it back (`NIintegrate`'s `- state1[ccap]*ag1`).
+/// Storing zero there instead leaves the companion one term short, which shows
+/// up only while `dvds/dt` is large. The reference binary answers
+/// -7.699785266e-3 A at the end of the rising edge and -4.934298603e-3 A at the
+/// end of the falling edge; the short-companion version lands 1.5% and 2.8%
+/// away, and the tolerances below are 30 to 50 times tighter than that.
+#[test]
+fn the_drain_source_charge_keeps_its_derivative_in_the_state_history() {
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nvg 3 0 dc 0 pulse(-1.5 0.5 0.5n 0.1n 0.1n 1n 4n)\n\
+         rg 3 2 1k\nz1 1 2 0 hfet l=1u w=20u\nr1 1 2 1k\n\
+         .model hfet nhfet level=5 rd=31 rs=31 rg=10 m=2.57 vt0=0.3 \
+         cds=5e-14 js1s=0 js1d=0 ggr=0\n.tran 0.05n 3n",
+    )
+    .unwrap();
+    let plot = run(&mut c, AnalysisKind::Transient, &["0.05n", "3n"]);
+    assert_eq!(plot.point_count(), 81);
+    // The rising edge ends at 0.6 ns and the falling edge at 1.7 ns; both are
+    // source breakpoints on C's grid and on the port's.
+    close(value(&plot, "time", 23), 6.0e-10, 0., 1e-20);
+    close(value(&plot, "i(vdd)", 23), -7.699_785_266e-3, 5e-4, 1e-12);
+    close(value(&plot, "time", 51), 1.7e-9, 0., 1e-20);
+    close(value(&plot, "i(vdd)", 51), -4.934_298_603e-3, 5e-4, 1e-12);
+}

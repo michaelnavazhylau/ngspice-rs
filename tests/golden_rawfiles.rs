@@ -4491,19 +4491,26 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
     },
     // Level 4's transient, which is where `cas`/`cbs` reach the load (the
-    // level's AC is refused): 81 accepted steps on C's own grid.
+    // level's AC is refused): 113 accepted steps on C's own grid. The gate
+    // junction of this level conducts well below 0.5 V (0.326 mA at that bias in
+    // `m10_mesa_l4_op`), so with the pulse connected the gate node sits at
+    // 0.52 V rather than the 0.75 V the resistor divider alone would give, and
+    // the 0.1 ns edges drive 2.02 mA of gate current through `rg`. The gate
+    // node therefore barely moves; the charge, not the bias, is the observable.
     Expectation {
         fixture: "m10_mesa_l4_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
-        points: 81,
+        points: 113,
         variables: &["time", "v(1)", "v(2)", "v(3)", "i(vdd)", "i(vg)"],
         values: &[
             ("time", 0, 0., 0.),
-            ("v(2)", 0, 6.253391653472502e-1, 0.),
-            ("i(vdd)", 0, -6.312335808352343e-3, 0.),
-            ("time", 80, 3.0e-9, 0.),
-            ("i(vdd)", 80, -6.312335808351927e-3, 0.),
+            ("v(2)", 0, 5.199741145085228e-1, 0.),
+            ("i(vdd)", 0, -6.302723570347829e-3, 0.),
+            ("v(2)", 37, 6.203817604108426e-1, 0.),
+            ("i(vdd)", 71, -6.323374453739190e-3, 0.),
+            ("time", 112, 3.000000000000000e-9, 0.),
+            ("i(vdd)", 112, -6.302710397443261e-3, 0.),
         ],
     },
     // Level 4's `nmax`/`gamma` knee over a drain sweep.
@@ -4586,18 +4593,23 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(zero(2))", 0, 3.620195703585404e16, 0.),
         ],
     },
-    // The gate pulse with both charges: 81 accepted steps, C's own grid.
+    // The gate pulse with both charges: 176 accepted steps, C's own grid. The
+    // gate swings 0.75 V -> 1.75 V, which forward-biases the `js` gate junction
+    // and doubles the drain current (-5.018499672472450e-3 A at rest).
     Expectation {
         fixture: "m10_hfet2_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
-        points: 81,
+        points: 176,
         variables: &["time", "v(1)", "v(2)", "v(3)", "i(vdd)", "i(vg)"],
         values: &[
             ("time", 0, 0., 0.),
-            ("i(vdd)", 0, -1.195856996177556e-2, 0.),
-            ("time", 80, 3.0e-9, 0.),
-            ("i(vdd)", 80, -1.195856996177556e-2, 0.),
+            ("i(vdd)", 0, -5.018499672472450e-3, 0.),
+            ("v(2)", 0, 7.500000000000000e-1, 0.),
+            ("v(2)", 83, 1.750000201074321, 0.),
+            ("i(vdd)", 96, -1.002944314035418e-2, 0.),
+            ("time", 175, 3.000000000000000e-9, 0.),
+            ("i(vdd)", 175, -5.018503917444597e-3, 0.),
         ],
     },
     // HFET1 (Z level 5). The upstream `tests/hfet/id_vgs.cir` deck, less its
@@ -4684,13 +4696,16 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(zero(2))", 0, 3.653614859475375e8, 0.),
         ],
     },
-    // The gate pulse through `rg` with the gate and `cds` charges: 81 accepted
-    // steps, the off-state drain current at -1.177405963475171e-2 A.
+    // The gate pulse through `rg` with the gate and `cds` charges: 183 accepted
+    // steps. The pulse reaches the device, so the gate node (and HFET1's
+    // internal `rg` node behind it) swings from 0.75 V to 1.75 V and the drain
+    // current more than doubles, -4.270989593868340e-3 A at rest to
+    // -9.279639625762753e-3 A when the pulse is high.
     Expectation {
         fixture: "m10_hfet1_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
-        points: 81,
+        points: 183,
         variables: &[
             "time",
             "v(1)",
@@ -4702,10 +4717,13 @@ const EXPECTATIONS: &[Expectation] = &[
         ],
         values: &[
             ("time", 0, 0., 0.),
-            ("i(vdd)", 0, -1.177405963475171e-2, 0.),
-            ("v(z1#gate)", 0, 2.999999999999997, 0.),
-            ("time", 80, 3.0e-9, 0.),
-            ("i(vdd)", 80, -1.177405963475174e-2, 0.),
+            ("i(vdd)", 0, -4.270989593868340e-3, 0.),
+            ("v(2)", 0, 7.499999999999983e-1, 0.),
+            ("v(z1#gate)", 0, 7.499999999999983e-1, 0.),
+            ("v(2)", 88, 1.750000000000743, 0.),
+            ("i(vdd)", 102, -9.279639625762753e-3, 0.),
+            ("time", 182, 3.000000000000000e-9, 0.),
+            ("i(vdd)", 182, -4.270989593868283e-3, 0.),
         ],
     },
     // `mesapzl.c` on a common-source stage: three poles and two zeros, all

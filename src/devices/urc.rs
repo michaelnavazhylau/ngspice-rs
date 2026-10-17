@@ -325,8 +325,17 @@ pub(crate) fn expand(
         }
         setters.push(parameter);
     }
+    // `inpgmod.c::create_model`: `l`/`n` on the `.model` card are instance
+    // defaults there, applied before the instance card's own setters.
+    let (setters, model_defaults) =
+        crate::devices::schema::split_model_setters(setters, &MODEL, &INSTANCE);
     let m = MODEL.validate(setters, &card.location)?;
-    let i = INSTANCE.validate(&instance.parameters, &instance.location)?;
+    let i = crate::devices::schema::with_defaults(
+        &INSTANCE,
+        &model_defaults,
+        instance.parameters.iter(),
+        &instance.location,
+    )?;
     let value = |name: &str| m.get(name).map(|v| v.value);
     let Some(length) = i.get("l").map(|v| v.value) else {
         return Err(SpiceError::Unsupported {

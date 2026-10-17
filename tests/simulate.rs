@@ -889,6 +889,46 @@ fn a_dc_print_card_selects_and_prints_the_requested_vectors() {
     fs::remove_dir_all(&dir).unwrap();
 }
 
+/// ngspice's own decks name source currents with C's canonical branch-vector
+/// spelling, `<source>#branch` (`CKTmkCur`; `copynode()` in `breakp2.c` maps it
+/// to the `i(<source>)` row). GitHub #162: the alias has to resolve in `.save`
+/// and `.print`, and the written column keeps the spelling that was asked, as
+/// C's `.print` header does.
+#[test]
+fn a_branch_vector_request_is_an_alias_of_i_source() {
+    let dir = scratch("print-branch");
+    let deck = write_deck(
+        &dir,
+        "rc divider dc sweep with branch vectors\nv1 in 0 dc 0\nr1 in out 1k\nr2 out 0 1k\n\
+         .dc v1 0 5 1\n.print dc v(out) v1#branch v1#Branch\n\
+         .save v(out) v1#branch\n.end\n",
+    );
+    let output = dir.join("branch.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    let report = stdout(&run);
+    // The alias keeps the request spelling, and a `.print` duplicate of a
+    // `.save` request collapses to one column (`Selection::resolve`).
+    assert!(
+        report.contains("variables: v(v-sweep) v(out) v1#branch"),
+        "{report}"
+    );
+
+    let written = RawFile::load(&output).expect("parses");
+    let plot = written.single_plot().unwrap();
+    assert_eq!(plot.variable_count(), 3);
+    for point in 0..plot.point_count() {
+        let volts = plot.value("v(v-sweep)", point).unwrap().re;
+        let current = plot.value("v1#branch", point).unwrap().re;
+        assert!(plot.value("i(v1)", point).is_none(), "alias is one column");
+        // The divider draws `v / 2k` from the source, and C's branch vector is
+        // positive from the first terminal to the second.
+        assert!((current + volts / 2000.0).abs() < 1e-15, "{current}");
+        assert!((plot.value("v(out)", point).unwrap().re - volts / 2.0).abs() < 1e-12);
+    }
+    fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn an_ac_print_card_prints_the_complex_components() {
     let dir = scratch("print-ac");

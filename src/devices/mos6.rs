@@ -231,8 +231,14 @@ impl MosLevel for Level6 {
     const DEVICE_TYPE: CDeviceType = CDeviceType::Mos6;
     const PRIME_SUFFIXES: [&'static str; 2] = ["drain", "source"];
 
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
-        let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
+    fn model_schema() -> ScalarSchema<'static> {
+        ScalarSchema { parameters: MODEL }
+    }
+
+    fn from_card<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
+        let (m, defaults) = Self::model_and_defaults(resolved)?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         let required = |name: &str| required(&m, name, "MOS6");
         let common = Common::from_values(
@@ -261,7 +267,7 @@ impl MosLevel for Level6 {
             tpg: get("tpg"),
             nss: get("nss"),
         };
-        Ok(model)
+        Ok((model, defaults))
     }
 
     fn common(&self) -> &Common {

@@ -46,7 +46,7 @@ use crate::devices::mos::{
 };
 use crate::devices::noise::NoiseFamily;
 use crate::devices::schema::{
-    ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
+    ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
 use crate::devices::setup::CDeviceType;
 use crate::devices::{ModelContext, ResolvedModel};
@@ -190,14 +190,17 @@ impl Level3 {
     /// defaults -- `mos9mpar.c` is `mos3mpar.c` without NLEV/GDSNOI, which
     /// level 9's own schema already excludes -- so only the diagnostic label
     /// and noise file differ.
-    pub(super) fn card(resolved: &ResolvedModel<'_>, label: &str) -> SpiceResult<Self> {
-        let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
+    pub(super) fn card(
+        resolved: &ResolvedModel<'_>,
+        label: &str,
+        m: &ScalarValues,
+    ) -> SpiceResult<Self> {
         let get = |name: &str| m.get(name).map(|v| v.value);
-        let required = |name: &str| required(&m, name, label);
+        let required = |name: &str| required(m, name, label);
         let noise_file = format!("{}noi.c", label.to_ascii_lowercase());
         Ok(Self {
-            common: Common::from_values(&m, resolved.family(), get("tpg"), label, &noise_file)?,
-            vto: aliased(&m, ["vto", "vt0"]),
+            common: Common::from_values(m, resolved.family(), get("tpg"), label, &noise_file)?,
+            vto: aliased(m, ["vto", "vt0"]),
             kp: get("kp"),
             gamma: get("gamma"),
             phi: get("phi"),
@@ -205,8 +208,8 @@ impl Level3 {
             xl: required("xl")?,
             wd: required("wd")?,
             xw: required("xw")?,
-            delvto: aliased(&m, ["delvto", "delvt0"]).unwrap_or(0.),
-            u0: aliased(&m, ["u0", "uo"]),
+            delvto: aliased(m, ["delvto", "delvt0"]).unwrap_or(0.),
+            u0: aliased(m, ["u0", "uo"]),
             nsub: get("nsub"),
             tpg: get("tpg"),
             nss: get("nss"),
@@ -438,8 +441,15 @@ impl MosLevel for Level3 {
     /// `mos3set.c`: `CKTmkVolt(..., "internal#drain")` / `"internal#source"`.
     const PRIME_SUFFIXES: [&'static str; 2] = ["internal#drain", "internal#source"];
 
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
-        Self::card(resolved, Self::LABEL)
+    fn model_schema() -> ScalarSchema<'static> {
+        ScalarSchema { parameters: MODEL }
+    }
+
+    fn from_card<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
+        let (m, defaults) = Self::model_and_defaults(resolved)?;
+        Ok((Self::card(resolved, Self::LABEL, &m)?, defaults))
     }
 
     fn common(&self) -> &Common {

@@ -594,35 +594,48 @@ fn the_level_four_channel_matches_the_reference_binary() {
         1e-15,
     );
     let mut c = circuit(
-        "vdd 1 0 dc 3\nvg 3 0 dc 0 pulse(-1.5 0.5n 0.5n 0.1n 0.1n 1n 4n)\n\
-         z1 1 2 0 n4 l=1u w=20u\nr1 1 2 1k\n\
+        "vdd 1 0 dc 3\nvg 3 0 dc 0 pulse(-1.5 0.5 0.5n 0.1n 0.1n 1n 4n)\n\
+         rg 3 2 1k\nz1 1 2 0 n4 l=1u w=20u\nr1 1 2 1k\n\
          .model n4 nmf level=4 rd=31 rs=31 mu=0.3 gamma=2.5 nmax=4e16 \
          cas=0.9 cbs=1.1 epsi=1.142189e-10\n.tran 0.05n 3n",
     )
     .unwrap();
+    // This harness does not resolve `.option` cards, so the run below uses C's
+    // default tolerances and its accepted grid is not the fixture's (113
+    // points, checked by `cargo xtask golden verify`). The t = 0 solution is
+    // the operating point and independent of the step control.
     let plot = run(&mut c, AnalysisKind::Transient, &["0.05n", "3n"]);
-    assert_eq!(plot.point_count(), 81);
+    // With the pulse on the gate (through `rg`) the level-4 gate junction
+    // conducts: the node sits 0.23 V below the divider's 0.75 V and the edges
+    // push 2.02 mA through `rg`.
     close(
         value(&plot, "v(2)", 0),
-        6.253_391_653_472_502e-1,
+        5.199_741_145_085_228e-1,
         1e-6,
         1e-9,
     );
     close(
         value(&plot, "i(vdd)", 0),
-        -6.312_335_808_352_343e-3,
+        -6.302_723_570_347_829e-3,
+        1e-6,
+        1e-12,
+    );
+    close(
+        value(&plot, "i(vg)", 0),
+        2.019_974_114_508_523e-3,
         1e-6,
         1e-12,
     );
 }
 
-/// Level 4's swept small-signal analyses are refused, because C's
+/// Level 4's *swept* small-signal analyses are refused, because C's
 /// `mesaacl.c`/`mesapzl.c` build their conductances from `gm0`/`gm1`/`gm2`,
 /// `gds0` and `delidgch0`/`delidvds0`/`delidvds1`, which `mesa1` and `mesa2`
 /// store and `mesa3` never writes. The reference binary therefore answers
 /// 1.07e-8 A for a card that carries -1.55e-4 A in DC, at both 1 kHz and
-/// 1 MHz. A `.dc` sweep still works: its source probe needs only the correct
-/// linearisation, which the port computes.
+/// 1 MHz. A `.dc` sweep still works (its source probe needs only the correct
+/// linearisation, which the port computes), and so does `.tf`, which
+/// linearises the DC Jacobian rather than loading `mesaacl.c`.
 #[test]
 fn the_level_four_small_signal_paths_are_refused() {
     let deck = |analysis: &str| {
@@ -632,8 +645,8 @@ fn the_level_four_small_signal_paths_are_refused() {
              .model m4 nmf level=4 rd=31 rs=31 mu=0.3 nmax=4e16\n{analysis}"
         )
     };
-    // `.sp` and `.tf` reach the same assembly (they need `portnum` cards or a
-    // named output node first), so AC and pole-zero carry the check.
+    // `.ac` and `.pz` are the swept path; `.sp` reaches the same assembly but
+    // needs `portnum` cards first, so those two carry the check.
     for (kind, arguments) in [
         (AnalysisKind::Ac, vec!["dec", "2", "1k", "1meg"]),
         (
@@ -660,4 +673,108 @@ fn the_level_four_small_signal_paths_are_refused() {
         1e-7,
         1e-15,
     );
+}
+
+/// Level 4's `.tf` is **not** refused: C's `CKTtf` linearises the converged DC
+/// Jacobian instead of loading `mesaacl.c`, so the channel's real `gm` and
+/// `gds` are in the system and the answer is a genuine transfer function. The
+/// reference binary answers 1.818568640594385e-01 for the gain, 1.222280009536926e+03
+/// for the input impedance and 1.818568640594385e+02 for the output impedance.
+#[test]
+fn the_level_four_transfer_function_matches_the_reference_binary() {
+    let mut c = circuit(
+        "vds 1 0 dc 2.0\nvgs 3 0 dc 0.4\nz1 2 3 0 m4 l=1u w=20u\nrd 1 2 1k\n\
+         .model m4 nmf level=4 rd=31 rs=31 mu=0.3 nmax=4e16\n.tf v(2) vds",
+    )
+    .unwrap();
+    // The card tokenizer splits `v(2)` into `v ( 2 )` before the driver
+    // sees it, so the arguments are passed pre-split here.
+    let plot = run(
+        &mut c,
+        AnalysisKind::TransferFunction,
+        &["v", "(", "2", ")", "vds"],
+    );
+    close(
+        value(&plot, "v(Transfer_function)", 0),
+        1.818_568_640_594_385e-1,
+        1e-8,
+        1e-15,
+    );
+    close(
+        value(&plot, "v(vds#Input_impedance)", 0),
+        1.222_280_009_536_926e3,
+        1e-8,
+        1e-12,
+    );
+    close(
+        value(&plot, "v(output_impedance_at_V(2))", 0),
+        1.818_568_640_594_385e2,
+        1e-8,
+        1e-12,
+    );
+    // The swept small-signal path stays refused even with `.tf` as a sibling
+    // analysis, so the guard is per-assembly, not per-deck.
+    let mut c = circuit(
+        "vds 1 0 dc 2.0 ac 1\nvgs 3 0 dc 0.4\nz1 2 3 0 m4 l=1u w=20u\nrd 1 2 1k\n\
+         .model m4 nmf level=4 rd=31 rs=31 mu=0.3 nmax=4e16",
+    )
+    .unwrap();
+    let error = attempt(&mut c, AnalysisKind::Ac, &["dec", "2", "1k", "1meg"]).unwrap_err();
+    assert!(error.to_string().contains("AC/SP/pole-zero"), "{error}");
+}
+
+/// A mixed-polarity level-4 `.op` has **two** roots, and C's continuation
+/// picks a different one from the port's. Retained as a reproducer, not as a
+/// golden: pinning the `.op` root would pin a continuation accident.
+///
+/// Measured with the reference binary on this card, the n-channel device
+/// settles at `@z1[vgs] = 4.287953e-01`, `@z1[gm] = 2.024911e-14` (channel cut
+/// off), `@z1[cd] = 9.567193e-08` and `@z1[cg] = 2.296831e-03` A. That is a
+/// genuine fixed point: the gate current feeds the source resistor, so
+/// `0.5 - 0.4288 = 0.0712 V` across `RS = 31` carries exactly 2.297 mA. The
+/// port instead lands on the *conducting* root.
+///
+/// The conducting root is not the port's invention: the same n-channel card
+/// alone, with `vgg` swept up to the same 0.5 V, is answered by the reference
+/// binary as `i(vdd) = -3.785019e-3` and `i(vgg) = -2.768870e-4` A - the
+/// values the port reaches in the two-device deck, to the last printed digit.
+/// The p-channel device agrees between the two implementations either way
+/// (`i(vdd2) = 6.408350e-2` A).
+#[test]
+fn the_mixed_polarity_level_four_operating_point_is_the_conducting_root() {
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nvgg 2 0 dc 0.5\nz1 1 2 0 n4 l=1u w=20u\n\
+         vdd2 3 0 dc -3\nvgg2 4 0 dc -0.5\nz2 3 4 0 p4 l=1u w=20u\n\
+         .model n4 nmf level=4 rd=31 rs=31 mu=0.3 gamma=2.5 nmax=4e16 \
+         cas=0.9 cbs=1.1 epsi=1.142189e-10\n\
+         .model p4 pmf level=4 rd=31 rs=31 mu=0.3 nmax=4e16",
+    )
+    .unwrap();
+    let op = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+    close(value(&op, "i(vdd)", 0), -3.785_017_694_202e-3, 5e-5, 1e-12);
+    close(value(&op, "i(vgg)", 0), -2.768_986_527_183e-4, 5e-5, 1e-12);
+    // The p-channel device's root is not in dispute.
+    close(value(&op, "i(vdd2)", 0), 6.408_350_300_858e-2, 5e-5, 1e-12);
+    close(value(&op, "v(1)", 0), 3., 0., 1e-15);
+    close(value(&op, "v(3)", 0), -3., 0., 1e-15);
+
+    // The same n-channel card alone, swept up to the same bias: this run is
+    // bit-identical to the reference binary and carries the conducting root.
+    let mut c = circuit(
+        "vdd 1 0 dc 3\nvgg 2 0 dc 0.5\nz1 1 2 0 n4 l=1u w=20u\n\
+         .model n4 nmf level=4 rd=31 rs=31 mu=0.3 gamma=2.5 nmax=4e16 \
+         cas=0.9 cbs=1.1 epsi=1.142189e-10",
+    )
+    .unwrap();
+    let sweep = run(
+        &mut c,
+        AnalysisKind::DcSweep,
+        &["vgg", "-0.4", "0.7", "0.1"],
+    );
+    assert_eq!(sweep.point_count(), 12);
+    // The point at vgg = 0.5 V is index 9.
+    close(value(&sweep, "i(vdd)", 9), -3.785_019e-3, 1e-6, 1e-12);
+    close(value(&sweep, "i(vgg)", 9), -2.768_870e-4, 1e-5, 1e-12);
+    close(value(&sweep, "i(vdd)", 11), -3.972_156e-3, 1e-6, 1e-12);
+    close(value(&sweep, "i(vgg)", 11), -4.260_834e-3, 1e-6, 1e-12);
 }

@@ -73,7 +73,7 @@ use crate::devices::noise::{
 };
 use crate::devices::nonlinear::{JunctionPoint, junction_companion, junction_current};
 use crate::devices::schema::{
-    ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
+    self, ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
 use crate::devices::{
     Device, LinearContext, ModelContext, ModelFamily, ResolvedModel, StampContext,
@@ -362,6 +362,16 @@ impl Mesfet {
             resolved.family() == ModelFamily::Pmf,
             ["nmf", "pmf"],
         );
+        // `inpgmod.c::create_model`: a `.model` setter that is not in the
+        // model table but is a settable *instance* parameter becomes a
+        // model-level instance default (`GENmodel.defaults`).
+        let (scalars, model_defaults) = schema::split_model_setters(
+            scalars,
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+        );
         let m = ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
         let r = |name: &str| jfet::required(&m, name);
         // MES_MOD_VTO has the IOP spelling `vt0` and the IOPR alias `vto`;
@@ -382,10 +392,14 @@ impl Mesfet {
             kf: r("kf")?,
             af: r("af")?,
         };
-        let v = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(&setters, &i.location)?;
+        let v = schema::with_defaults(
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+            &model_defaults,
+            setters.iter(),
+            &i.location,
+        )?;
         let instance = Instance {
             area: jfet::required(&v, "area")?,
             m: jfet::required(&v, "m")?,
@@ -498,6 +512,15 @@ impl Mesfet {
         voltage: &dyn Fn(NodeId) -> Real,
         transient: bool,
     ) -> SpiceResult<Option<Real>> {
+        // `mesask.c` answers `MES_QGS`, `MES_CQGS`, `MES_QGD` and `MES_CQGD`
+        // out of `CKTstate0`, which the stateless observation path does not
+        // carry; see MESFET.md's "state-backed asks" note.
+        if matches!(key, "qgs" | "cqgs" | "qgd" | "cqgd") {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: MES @{}[{key}]", self.name, self.name),
+                "src/spicelib/devices/mes/mesask.c (MESqgs/MEScqgs read CKTstate0)",
+            ));
+        }
         if !matches!(key, "vgs" | "vgd" | "gm" | "gds" | "ggs" | "ggd" | "cgd") {
             return Ok(None);
         }
