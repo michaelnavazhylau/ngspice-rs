@@ -2,8 +2,13 @@
 
 Planning document, 2026-10-15, against `main` = `d806efe` (M10 waves 0–3
 merged). It was written before any of it landed; the per-slice status notes
-below record what did (H1a/H1b, H2, H3 and H4 are all in `main` now, `y` is
-still `pending` and `z`'s scope is every C level). This replaces the two-line
+below record implementation status: H1a/H1b, H2, H3, H4 and TX1-TX4 are
+implemented, so
+`y` is `bounded` and `z`'s scope is every C level. TX0's two findings below
+were both confirmed and one was refined by the implementation (the state that
+matters for a working TXL transient is the *step sequence*, whose ulp-level
+differences the stiff line amplifies - see [TXL.md](TXL.md)). This replaces
+the two-line
 "## Spill" stub in [M10.md](M10.md#spill-bsim-and-remaining-lines-proposed-m11)
 for the `#85`/`#83` remainder; BSIM3/BSIM4 (#90) keeps its own entry.
 
@@ -15,7 +20,7 @@ reference binary
 (`/Users/michaelnavazhylau/Code/electronics-work/spice-port/ngspice_test/build/src/ngspice`).
 Two findings change the shape of the work and are the reason TX0 below exists:
 
-1. **C's TXL has no AC load.** There is no `txlacld.c`; `.ac` runs
+1. **C's TXL has no frequency-domain load.** There is no `txlacld.c`; `.ac` runs
    `TXLload`, which takes its frequency argument from `ckt->CKTdelta`, and
    nothing in the AC path assigns `CKTdelta` (verified: no mention in
    `niaciter.c`, `acan.c`; `cktdojob.c` leaves it 0). Measured on
@@ -29,8 +34,10 @@ Two findings change the shape of the work and are the reason TX0 below exists:
    The magnitude is numerical residue of a near-singular matrix, not a
    response: it does not vary with frequency.
 
-2. **C's TXL transient only works when the bias is settled before the
-   excitation.** The same `r=1 l=250n c=100p length=1` line (TD = 5 ns) into a
+2. **Historical probe: apparently bias-dependent transient.** This initial
+   interpretation was superseded by the retained fixtures and the TX1–TX4
+   status below: an early 1 ns step transmits after the 5 ns delay; a step at
+   5 ns has not yet propagated by the 10 ns stop. The original probe reported: The same `r=1 l=250n c=100p length=1` line (TD = 5 ns) into a
    50 Ω load, driven by a 1 V step:
 
    | Step at | `v(out)` | `i(V1)` |
@@ -285,6 +292,23 @@ was exact, and the one thing it did not say is worth recording: `ri`/`rf` are
 not HFET2 setters (C spells the channel's series pair `rdi`/`rsi`), which the
 port's schema now enforces. No level-6 deck exists in the C tree, so the
 fixtures are the port's own decks with C goldens.
+
+**Status (TX1-TX4).** Implemented as one slice (#170-#173) rather than four: the
+front end, the fallback expansion, the DC stamp and the transient share the
+same device and the same fixtures, and splitting them would have meant
+committing refusals that the next slice immediately removed. `docs/port/TXL.md`
+carries the reference material this plan asked TX1 to produce, and ten
+fixtures now pin the behaviour (`m10_txl_fb_op`/`fb_dc`/`fb_tran`/`op`/`dc`/
+`tran`/`early_tran`/`tran_step`/`lossless_tran` and `m10_txl3_tran`).
+The fallback transient also has an independent analytic RC first-moment
+check. The clamp fixture takes one 7.168 ns step on a 5 ns line, then stays
+at or below 4.5 ns; unit tests pin clamp persistence through history pruning. Two measurements refine TX0's
+second finding: the recursion's `exp(x*h)` factors make the answer sensitive to
+the *accepted step sequence* rather than to how long the bias was settled
+(changing the upstream deck's `tmax` by one ulp moves `v(2)` by 4.0e-7 V in C
+itself), and the upstream decks' far ports float in DC, so their picoamp
+currents are residue rather than signal - the conformance deck adds a
+termination per line.
 
 **Status (H2).** Levels 3 and 4 landed as one slice (#168): `mesa2`'s
 two-population `nsa`/`nsb` channel with the four `vpod`/`vpou`/`vpo` regions and

@@ -67,14 +67,20 @@ fn model_base<'a>(input: &mut Input<'a>) -> Result<&'a Token> {
             // JFET (`jfet/jfet.c`; level 2 is `jfet2/`).
             | "njf" | "pjf"
             // Lossy transmission line (`ltra/ltra.c`).
-            | "ltra"
+            | "ltra" | "txl"
             // MESFET (`mes/mes.c`) and its `inpdomod.c` HFET spellings; the
             // level selects `mesa/`, `hfet1/` or `hfet2/`.
             | "nmf" | "pmf" | "nhfet" | "phfet"
     ) {
+        if base.is_keyword("cpl") || base.is_keyword("cpllines") {
+            return Err(gap(
+                input,
+                "CPL coupled lines (src/spicelib/parser/inp2p.c; devices/cpl/)",
+            ));
+        }
         return Err(gap(
             input,
-            "model family outside D/BJT/MOS/JFET/MESFET/R/C/L/SW/CSW/URC scalar syntax",
+            "model family outside D/BJT/MOS/JFET/MESFET/R/C/L/SW/CSW/URC/TXL scalar syntax",
         ));
     }
     any.parse_next(input)

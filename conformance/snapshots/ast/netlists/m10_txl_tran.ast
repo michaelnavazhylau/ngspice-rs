@@ -1,0 +1,56 @@
+# ngspice-rs ast-dump v1
+file: netlists/m10_txl_tran.cir
+title: "TXL Pade transient: a settled step into a 50 ohm line" @netlists/m10_txl_tran.cir:1:1
+scope root
+  cards (7):
+    [0] device[0] @netlists/m10_txl_tran.cir:2:1 "v1 1 0 dc 0 pulse(0 1 5n 0.1n 0.1n 100n 200n)"
+    [1] device[1] @netlists/m10_txl_tran.cir:3:1 "y1 1 0 2 0 ym"
+    [2] device[2] @netlists/m10_txl_tran.cir:4:1 "rl 2 0 50"
+    [3] model[0] @netlists/m10_txl_tran.cir:5:1 ".model ym txl r=1 l=250e-9 c=100e-12 g=0 length=1"
+    [4] options[0] @netlists/m10_txl_tran.cir:6:1 ".options reltol=1e-6 vntol=1e-9 abstol=1e-14"
+    [5] analysis[0] @netlists/m10_txl_tran.cir:7:1 ".tran 0.05n 10n"
+    [6] end @netlists/m10_txl_tran.cir:8:1 ".end"
+  devices (3):
+    device [0] name="v1" designator=v @netlists/m10_txl_tran.cir:2:1
+      nodes: "1" "0"
+      model: none
+      parameters (2):
+        [0] name="dc" kind=scalar value="0" @netlists/m10_txl_tran.cir:2:8
+        [1] name="pulse" kind=waveform value="(0 1 5n 0.1n 0.1n 100n 200n)" @netlists/m10_txl_tran.cir:2:13
+          pulse
+            initial: "0"@netlists/m10_txl_tran.cir:2:19
+            pulsed: "1"@netlists/m10_txl_tran.cir:2:21
+            delay: "5n"@netlists/m10_txl_tran.cir:2:23
+            rise: "0.1n"@netlists/m10_txl_tran.cir:2:26
+            fall: "0.1n"@netlists/m10_txl_tran.cir:2:31
+            width: "100n"@netlists/m10_txl_tran.cir:2:36
+            period: "200n"@netlists/m10_txl_tran.cir:2:41
+    device [1] name="y1" designator=y @netlists/m10_txl_tran.cir:3:1
+      nodes: "1" "0" "2" "0"
+      model: "ym"
+      parameters (0):
+    device [2] name="rl" designator=r @netlists/m10_txl_tran.cir:4:1
+      nodes: "2" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/m10_txl_tran.cir:4:8
+  models (1):
+    model [0] name="ym" base="txl" level=none @netlists/m10_txl_tran.cir:5:1
+      parameters (5):
+        [0] name="r" kind=scalar value="1" @netlists/m10_txl_tran.cir:5:15
+        [1] name="l" kind=scalar value="250e-9" @netlists/m10_txl_tran.cir:5:19
+        [2] name="c" kind=scalar value="100e-12" @netlists/m10_txl_tran.cir:5:28
+        [3] name="g" kind=scalar value="0" @netlists/m10_txl_tran.cir:5:38
+        [4] name="length" kind=scalar value="1" @netlists/m10_txl_tran.cir:5:42
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m10_txl_tran.cir:7:1
+      arguments: "0.05n" "10n"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m10_txl_tran.cir:6:1
+      setting [0] name="reltol" value="1e-6"@netlists/m10_txl_tran.cir:6:17 @netlists/m10_txl_tran.cir:6:10
+      setting [1] name="vntol" value="1e-9"@netlists/m10_txl_tran.cir:6:28 @netlists/m10_txl_tran.cir:6:22
+      setting [2] name="abstol" value="1e-14"@netlists/m10_txl_tran.cir:6:40 @netlists/m10_txl_tran.cir:6:33
+  globals (0):

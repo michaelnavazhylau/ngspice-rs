@@ -370,7 +370,9 @@ fn tail(text: &str, lines: usize) -> String {
 ///
 /// The date is the only header ngspice fills in from the clock, so it is the
 /// only one that cannot be reproduced. Everything else — including `Command:`,
-/// which carries the ngspice version — is compared.
+/// which carries the ngspice version — is compared. Numeric layout ignores
+/// trailing whitespace, but `Title:` preserves it: it is deck data and must
+/// agree with the title checked by `tests/golden_rawfiles.rs`.
 #[must_use]
 pub(crate) fn rawfiles_match(left: &str, right: &str) -> bool {
     comparable(left) == comparable(right)
@@ -378,7 +380,13 @@ pub(crate) fn rawfiles_match(left: &str, right: &str) -> bool {
 
 fn comparable(text: &str) -> Vec<&str> {
     text.lines()
-        .map(str::trim_end)
+        .map(|line| {
+            if line.starts_with("Title:") {
+                line
+            } else {
+                line.trim_end()
+            }
+        })
         .filter(|line| !line.starts_with("Date:"))
         .collect()
 }
@@ -473,6 +481,14 @@ mod tests {
         let a = "Title: t\nDate: Mon\nCommand: ngspice-47+\nValues:\n 0\t1.0\n";
         let b = "Title: t\nDate: Tue\nCommand: ngspice-47+\nValues:\n 0\t1.0\n";
         assert!(rawfiles_match(a, b));
+        let spaced_title = b.replace("Title: t\n", "Title: t \n");
+        assert!(!rawfiles_match(a, &spaced_title));
+        assert!(
+            first_difference(a, &spaced_title)
+                .unwrap()
+                .contains("line 1")
+        );
+        assert!(rawfiles_match(a, &b.replace("1.0\n", "1.0 \t\n")));
 
         let c = "Title: t\nDate: Mon\nCommand: ngspice-48\nValues:\n 0\t1.0\n";
         assert!(!rawfiles_match(a, c));

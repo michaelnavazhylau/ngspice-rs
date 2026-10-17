@@ -51,13 +51,12 @@ pub(crate) fn plot(
         }
     }
     for (index, device) in circuit.devices().iter().enumerate() {
-        let range = circuit.branch_rows(index).unwrap();
-        if range.len() > 1 {
-            return Err(unsupported(
-                "multiple branch currents per device in linear plots",
-            ));
-        }
-        for row in range {
+        // Every branch row of one device is named `i(<device>)`, as C's
+        // rawfile does: a two-branch device such as TXL writes that name
+        // twice, in branch order (`raw_write` strips CKTmkCur's `#branchN`
+        // suffix). The MNA rows keep `#branch1`/`#branch2`
+        // (`Circuit::unknown_names`), which is what solver diagnostics use.
+        for row in circuit.branch_rows(index).unwrap() {
             names[row] = Some((format!("i({})", device.name()), "current"));
         }
     }

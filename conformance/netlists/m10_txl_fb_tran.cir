@@ -1,0 +1,8 @@
+TXL three-pi fallback: resolved RC charging and pulse response
+v1 1 0 dc 0 pulse(0 1 1n 0.1n 0.1n 2n 4n)
+y1 1 0 2 0 ym
+rl 2 0 1k
+.model ym txl r=1e9 l=1e-2 c=0.2 g=0 length=3e-11
+.options reltol=1e-6 vntol=1e-9 abstol=1e-14
+.tran 0.01n 10n
+.end

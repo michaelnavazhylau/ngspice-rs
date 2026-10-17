@@ -215,7 +215,7 @@ pub type DeltaOld = [Real; 3];
 
 /// Everything a [`DelayLine`] sees at a transient start, an accepted point or
 /// a converged trial.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DelayContext<'a> {
     /// The accepted (or converged trial) solution.
     pub solution: &'a Vector,
@@ -236,6 +236,9 @@ pub struct DelayContext<'a> {
     pub abstol: Real,
     /// The run starts from `uic` initial conditions (C `MODEUIC`).
     pub initial_conditions: bool,
+    /// This device's branch-current rows, in order (C's `CKTstate`/RHS rows
+    /// a delay line reads for its own currents).
+    pub branches: std::ops::Range<usize>,
 }
 
 impl DelayContext<'_> {

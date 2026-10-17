@@ -70,6 +70,8 @@ pub enum ModelFamily {
     /// Lossy transmission line (`ltra`, `ltra/ltra.c`), simulated by
     /// [`crate::devices::ltra`].
     Ltra,
+    /// Single lossy transmission line (TXL, `inp2y.c`).
+    Txl,
     /// N-channel MESFET/HFET family (`nmf`; level 1 `mes/`, levels 2-4
     /// `mesa/`, 5 `hfet1/`, 6 `hfet2/`).
     Nmf,
@@ -96,6 +98,7 @@ impl ModelFamily {
             "pjf" => Some(Self::Pjf),
             "urc" => Some(Self::Urc),
             "ltra" => Some(Self::Ltra),
+            "txl" => Some(Self::Txl),
             // `inpdomod.c` accepts the HFET spellings as the same families;
             // `level` then selects the device (5 is `hfet1/`, 6 `hfet2/`).
             "nmf" | "nhfet" => Some(Self::Nmf),
@@ -120,6 +123,7 @@ impl ModelFamily {
             Self::Njf | Self::Pjf => 'j',
             Self::Urc => 'u',
             Self::Ltra => 'o',
+            Self::Txl => 'y',
             Self::Nmf | Self::Pmf => 'z',
         }
     }
@@ -274,7 +278,7 @@ impl<'a> ModelResolver<'a> {
         let Some(name) = &instance.model else {
             if matches!(
                 instance.designator.to_ascii_lowercase(),
-                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'o' | 'z'
+                'd' | 'q' | 'm' | 's' | 'w' | 'j' | 'u' | 'o' | 'z' | 'y'
             ) {
                 return Err(SpiceError::parse(
                     instance.location.clone(),

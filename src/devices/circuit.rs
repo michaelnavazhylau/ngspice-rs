@@ -1701,6 +1701,7 @@ impl Circuit {
                 reltol: delay.reltol,
                 abstol: delay.abstol,
                 initial_conditions: trial.initial_conditions(),
+                branches: self.branch_rows(index).unwrap_or(0..0),
             };
             let update = if delay.start {
                 let update = line.start(&context)?;
@@ -1768,6 +1769,7 @@ impl Circuit {
                 reltol: delay.reltol,
                 abstol: delay.abstol,
                 initial_conditions: false,
+                branches: self.branch_rows(index).unwrap_or(0..0),
             };
             if let Some(bound) = line.timestep_limit(samples, &context)? {
                 if bound.is_nan() {
@@ -2094,6 +2096,24 @@ impl Circuit {
                 )));
             }
             let first = nodes.len();
+            if instance.designator == 'y'
+                && let Some(expanded) =
+                    crate::devices::txl::fallback(instance, &mut nodes, models, &deck_nodes)?
+            {
+                for device in expanded {
+                    if !seen.insert(device.name().to_ascii_lowercase()) {
+                        return Err(SpiceError::circuit(format!(
+                            "duplicate TXL generated instance {}",
+                            device.name()
+                        )));
+                    }
+                    staged.push(device);
+                    internal.push(Vec::new());
+                    model_names.push(None);
+                    generated_by.push(None);
+                }
+                continue;
+            }
             // A URC line is expanded into its generated R/C/D elements
             // (urcsetup.c), which take its place under their own names.
             if instance.designator == 'u' {

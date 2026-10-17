@@ -16,13 +16,16 @@ same Modified BSD license (see [`COPYING`](COPYING)).
 
 ## Status
 
-**Current status (after M10 spill slice H1a, 2026-10-15):** `main` is the
+**Current status (after M10 TXL spill slices TX1–TX4):** `main` is the
 single-crate `ngspice-rs` 0.4.0 package. Since the sections below were written,
 M6–M9 landed and M10 waves 0–3 added JFET levels 1/2, MESFET level 1, lossless
 `T`, lossy `O`/LTRA and `U`/URC lines and MOS levels 2/3/6/9, the spill slice H1a
-added MESA level 2, and faer/diffsol gave way to the native SPARSE 1.3 solver.
-Current evidence: `cargo test --workspace --locked` reports **1449 passed / 0
-failed / 150 ignored** and `cargo xtask golden verify` **175 verified / 1
+added MESA level 2, later slices added MESA 3/4 and HFET1/2, and TX1–TX4
+added Y/TXL Padé DC/transient plus the three-pi fallback (AC/SP refused;
+`.tf` uses the DC line, [TXL.md](docs/port/TXL.md)). Faer/diffsol gave way
+to the native SPARSE 1.3 solver.
+Current evidence: `cargo test --workspace --locked` reports **1466 passed / 0
+failed / 150 ignored** and `cargo xtask golden verify` **185 verified / 1
 unsupported / 0 failures**.
 [TODO.md](TODO.md) is the current checklist; the milestone narrative below is
 retained as a record of the earlier checkouts, and its "in progress" or "pending

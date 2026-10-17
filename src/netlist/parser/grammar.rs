@@ -139,6 +139,7 @@ pub(super) fn parse_card(
                 urc::urc_card,
                 tline::tline_card,
                 ltra::ltra_card,
+                super::txl::txl_card,
                 super::mesfet::mesfet_card,
             )),
         )),

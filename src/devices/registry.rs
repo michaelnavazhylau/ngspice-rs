@@ -243,8 +243,9 @@ const BUILTINS: &[(char, &str, &str)] = &[
     ),
     (
         'y',
-        "single lossy transmission line (TXL card)",
-        "src/spicelib/parser/inp2y.c; src/spicelib/devices/txl/txl.c",
+        "single lossy transmission line (TXL): Padé DC and transient, or the \
+         three-pi fallback expanded at parse time",
+        "src/spicelib/parser/inp2y.c; src/spicelib/devices/txl/; docs/port/TXL.md",
     ),
     (
         'u',
@@ -420,7 +421,7 @@ mod tests {
             assert!(registry.contains(*designator), "missing {designator}");
         }
         assert_eq!(registry.ported_count(), 12);
-        assert_eq!(registry.bounded_count(), 10);
+        assert_eq!(registry.bounded_count(), 11);
         assert_eq!(registry.len(), super::BUILTINS.len());
         for entry in registry.entries() {
             assert!(!entry.description.is_empty(), "{entry:?}");
@@ -472,17 +473,27 @@ mod tests {
 
     #[test]
     fn unsupported_instantiation_reports_the_entry_c_reference() {
+        // `y` is bounded now (#170-#173), so its card factory asks for the
+        // deck rather than reporting a missing port; `n` is still pending and
+        // exercises the stub path with its `inp2n.c` reference.
         let registry = Registry::with_builtins();
         let mut nodes = crate::primitives::NodeTable::new();
         let error = registry
-            .instantiate(&card("y1 a 0 b 0 ym"), &mut nodes)
+            .instantiate(&card("n1 a b c mod"), &mut nodes)
             .expect_err("not ported");
         assert!(error.is_not_yet_ported());
         let message = error.to_string();
-        assert!(message.contains("device instance 'y1'"), "{message}");
-        assert!(message.contains("inp2y.c"), "{message}");
-        assert!(message.contains("txl/"), "{message}");
+        assert!(message.contains("device instance 'n1'"), "{message}");
+        assert!(message.contains("inp2n.c"), "{message}");
         assert!(nodes.is_empty(), "a stub factory must not intern nodes");
+        let error = registry
+            .instantiate(&card("y1 a 0 b 0 ym"), &mut nodes)
+            .expect_err("needs a deck");
+        assert!(
+            matches!(error, crate::primitives::SpiceError::Unsupported { .. }),
+            "{error}"
+        );
+        assert!(error.to_string().contains("inp2y.c") || error.to_string().contains("deck"));
     }
 
     #[test]

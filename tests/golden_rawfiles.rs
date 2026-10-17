@@ -206,6 +206,9 @@ fn known_golden_tokens_are_not_round_trippable() {
             // The first transient step of m10_mesfet_tran (#83), as for the
             // M4 decks below.
             "m10_mesfet_tran:48 1.000000000000000e-11 -> 9.999999999999999e-12",
+            // The enlarged TXL clamp fixture's second accepted step: C prints
+            // 1e-11 although parsing and canonicalizing rounds one ulp below.
+            "m10_txl_tran_step:30 1.000000000000000e-11 -> 9.999999999999999e-12",
             "m4_bjt_tran:25 1.000000000000000e-11 -> 9.999999999999999e-12",
             "m4_diode_tran:19 1.000000000000000e-11 -> 9.999999999999999e-12",
             "rc_transient:19 1.000000000000000e-11 -> 9.999999999999999e-12",
@@ -4304,6 +4307,171 @@ const EXPECTATIONS: &[Expectation] = &[
             ("i(vds)", 0, -1.644585655942107e-3, -3.415109886080334e-11),
             ("frequency", 6, 9.999999999999994e5, 0.),
             ("i(vds)", 6, -1.644585655997590e-3, -3.415109886064703e-8),
+        ],
+    },
+    // TXL (#170-#173): `inp2y.c`'s three-pi fallback. The trigger is
+    // `r/l > 1.6e10`, so `r=1e9 l=1e-2` fires it while the ladder resistors
+    // `3/(r*length)` stay a well-conditioned 100 ohms: 5 V divides to
+    // 3.846153846153848 V across the 1 kohm load. The generated names are
+    // C's (`txlnd1y1`/`txlnd2y1`, `txlres*`/`txlcap*`) and the `Y` instance
+    // itself is absent from this plot.
+    Expectation {
+        fixture: "m10_txl_fb_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(1)", "v(2)", "v(txlnd1y1)", "v(txlnd2y1)", "i(v1)"],
+        values: &[
+            ("v(2)", 0, 3.846153846153848, 0.),
+            ("v(txlnd1y1)", 0, 4.615384615384617, 0.),
+            ("v(txlnd2y1)", 0, 4.230769230769233, 0.),
+            ("i(v1)", 0, -3.8461538461538338e-3, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m10_txl_fb_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 11,
+        variables: &[
+            "v(v-sweep)",
+            "v(1)",
+            "v(2)",
+            "v(txlnd1y1)",
+            "v(txlnd2y1)",
+            "i(v1)",
+        ],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("i(v1)", 0, 0., 0.),
+            ("v(v-sweep)", 5, 2.5, 0.),
+            ("v(2)", 5, 1.923076923076924, 0.),
+            ("i(v1)", 10, -3.8461538461538338e-3, 0.),
+        ],
+    },
+    // The Padé path's DC stamp: `i(y1)` appears twice, once per branch
+    // current, exactly as C's rawfile writes it. `v(1) - v(2)` is
+    // `R*length*i1` = 12.45*16*2.006420545758433e-2.
+    Expectation {
+        fixture: "m10_txl_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(1)", "v(2)", "i(v1)", "i(y1)", "i(y1)"],
+        values: &[
+            ("v(2)", 0, 1.003210272849201, 0.),
+            ("i(v1)", 0, -2.006420545818466e-2, 0.),
+            ("i(y1)", 0, 2.006420545758433e-2, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m10_txl_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 11,
+        variables: &["v(v-sweep)", "v(1)", "v(2)", "i(v1)", "i(y1)", "i(y1)"],
+        values: &[
+            ("v(v-sweep)", 0, 0., 0.),
+            ("v(2)", 5, 2.450980392156378, 0.),
+            ("i(y1)", 10, 9.803921568724494e-2, 0.),
+            ("i(v1)", 10, -9.803921568823513e-2, 0.),
+        ],
+    },
+    // `txlload.c`'s recursive convolution. 214 accepted points, the same as
+    // C's, and the far end is still at -2.512257462215495e-12 V at 10 ns.
+    Expectation {
+        fixture: "m10_txl_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 214,
+        variables: &["time", "v(1)", "v(2)", "i(v1)", "i(y1)", "i(y1)"],
+        values: &[
+            ("time", 0, 0., 0.),
+            ("time", 107, 5.0000000000000001e-9, 0.),
+            ("v(2)", 213, -2.512257462215495e-12, 0.),
+            ("i(v1)", 213, -1.980427568658008e-2, 0.),
+            ("i(y1)", 213, 1.980427568648008e-2, 0.),
+        ],
+    },
+    // The same line with the step applied before the first delay elapses: it
+    // transmits, and the far end reaches 9.862218900058257e-1 V.
+    Expectation {
+        fixture: "m10_txl_early_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 214,
+        variables: &["time", "v(1)", "v(2)", "i(v1)", "i(y1)", "i(y1)"],
+        values: &[
+            ("time", 107, 4.7249999999999943e-9, 0.),
+            ("v(1)", 107, 1., 0.),
+            ("v(2)", 213, 9.862218900058257e-1, 0.),
+            ("i(y1)", 213, 1.964755879880668e-2, 0.),
+        ],
+    },
+    // `TXLload`'s step clamp: `tmax = 10 ns` exceeds `taul = 5 ns`, so C
+    // takes a 7.168 ns gap and then bounds the rest at `0.9*taul = 4.5 ns`.
+    Expectation {
+        fixture: "m10_txl_tran_step",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 34,
+        variables: &["time", "v(1)", "v(2)", "i(v1)", "i(y1)", "i(y1)"],
+        values: &[
+            ("time", 33, 5.000000000000000e-8, 0.),
+            ("v(2)", 33, 9.803138913247859e-1, 0.),
+            ("i(y1)", 33, 1.958065296596148e-2, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m10_txl_fb_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1186,
+        variables: &[
+            "time",
+            "v(1)",
+            "v(2)",
+            "v(txlnd1y1)",
+            "v(txlnd2y1)",
+            "i(v1)",
+        ],
+        values: &[
+            ("time", 1185, 1.000000000000000e-8, 0.),
+            ("v(2)", 1185, 5.693857970848797e-1, 0.),
+            ("v(txlnd1y1)", 1185, 8.111529975848666e-1, 0.),
+            ("i(v1)", 1185, -1.888470023314429e-3, 0.),
+        ],
+    },
+    Expectation {
+        fixture: "m10_txl_lossless_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 254,
+        variables: &["time", "v(1)", "v(2)", "i(v1)", "i(y1)", "i(y1)"],
+        values: &[
+            ("time", 253, 1.200000000000000e-8, 0.),
+            ("v(2)", 253, 9.999999999975001e-1, 0.),
+            ("i(y1)", 253, 2.000000000020000e-2, 0.),
+        ],
+    },
+    // Three lines driven by MOS inverters with terminated far ports (the
+    // upstream `txl2_3_line` deck plus a 1 kohm termination per line, so the
+    // far ports are not floating in DC). 495 accepted points.
+    Expectation {
+        fixture: "m10_txl3_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 495,
+        variables: &[
+            "time", "v(1)", "v(2)", "v(3)", "v(4)", "v(5)", "v(6)", "v(168)", "i(vdd)", "i(vs)",
+            "i(y1)", "i(y1)", "i(y2)", "i(y2)", "i(y3)", "i(y3)",
+        ],
+        values: &[
+            ("v(2)", 0, 3.831198049803584, 0.),
+            ("i(vdd)", 0, -3.5767402080288291e-3, 0.),
+            ("time", 494, 4.6999999999999997e-8, 0.),
+            ("v(168)", 494, 0., 0.),
+            ("v(2)", 494, 3.948749642402670, 0.),
         ],
     },
     // MESA level 4 at one bias with the `cas`/`cbs`/`epsi` model: the channel

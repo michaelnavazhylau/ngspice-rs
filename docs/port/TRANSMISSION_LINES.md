@@ -4,11 +4,13 @@ M10 slice 3 (#84) ports the **lossless transmission line `T`** (C
 `src/spicelib/parser/inp2t.c`, `src/spicelib/devices/tra/`) and M10 slice 8
 (#85 part 2) the **lossy line `O`** with `ltra` models (C
 `src/spicelib/parser/inp2o.c`, `src/spicelib/devices/ltra/`, see
-[below](#lossy-line-o-ltra-85)). `Y`/TXL and `P`/CPL remain `NotYetPorted`.
+[below](#lossy-line-o-ltra-85)). The single lossy line `Y`/TXL now has
+Padé DC/transient and a three-pi fallback; see [TXL.md](TXL.md) for its
+AC-family refusals and compatibility limits. `P`/CPL remains `NotYetPorted`.
 Code: `src/netlist/parser/{tline,ltra}.rs` (grammars),
 `src/devices/{tline,ltra}.rs` and `src/devices/ltra/convolution.rs`
 (devices), `src/devices/delay.rs` (delay history, device breakpoints and step
-bounds shared by both). The transient-driver design is the ADR in
+bounds shared by T/O/Y). The transient-driver design is the ADR in
 [TRANSIENT.md](TRANSIENT.md#device-driven-breakpoints-and-delay-history-adr-84).
 
 ## Card

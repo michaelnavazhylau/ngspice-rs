@@ -475,9 +475,10 @@ fn unrepresentable_asts_are_explicit_errors() {
     n.title = "two\nlines".into();
     refused(&n, "title");
 
+    // `y` has a writer now; `n` (the N-device) is still unported.
     let mut n = base.clone();
-    n.devices[0].designator = 'y';
-    n.devices[0].name = "y1".into();
+    n.devices[0].designator = 'n';
+    n.devices[0].name = "n1".into();
     refused(&n, "no writer");
 
     // PULSE field present after an omitted one.

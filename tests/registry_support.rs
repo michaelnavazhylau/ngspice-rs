@@ -34,7 +34,8 @@ fn deck(designator: char) -> &'static str {
         'z' => "z1 d g 0 zm\n.model zm nmf\nv1 d 0 1",
         't' => "t1 a 0 b 0 z0=50 td=1n\nv1 a 0 1\nr1 b 0 50",
         'o' => "o1 a 0 b 0 lm\n.model lm ltra r=1 l=1n c=1p len=1\nv1 a 0 1\nr1 b 0 50",
-        'y' => "y1 a 0 b 0 ym\n.model ym txl r=1 l=1n c=1p length=1\nv1 a 0 1\nr1 b 0 50",
+        // TXL needs all five parameters (`TXLsetup` reports each missing one).
+        'y' => "y1 a 0 b 0 ym\n.model ym txl r=1 l=1n c=1p g=0 length=1\nv1 a 0 1\nr1 b 0 50",
         'u' => "u1 a b 0 um l=1m\n.model um urc\nv1 a 0 1\nr1 b 0 1k",
         'n' => "n1 a 0 nm\n.model nm nport\nv1 a 0 1",
         'p' => "p1 a 0 b 0 0 0 pm\n.model pm cpl\nv1 a 0 1",
