@@ -137,6 +137,16 @@ C has no level-6 noise, so `KF`/`AF`/`NLEV`/`GDSNOI` are rejected as unknown.
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.
 
+### `phib` and `phib1` are electron-volts
+
+`mesamparam.c` and `hfetmpar.c` store the barrier height as
+`model->...Phib = value * CHARGE`: the card is in electron-volts, the model
+field in joules. The port applied the card value raw until #164, which made
+`.model ... phib=0.1` about 1e19 times too large; only the *default* (0.5 eV)
+was right, which is why no fixture caught it. The schema default is now the eV
+figure and the setter scales, so a card and its default agree with the
+reference binary (`phib=0.1` -> `i(vgs) = 1.212700e-03` A).
+
 ## Instance defaults on `.model` cards (#161)
 
 C's `inpgmod.c::create_model` has a fallback the port originally lacked. A

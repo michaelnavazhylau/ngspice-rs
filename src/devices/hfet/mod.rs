@@ -40,7 +40,7 @@ pub(crate) mod hfet1;
 pub(crate) mod hfet2;
 pub(crate) mod mesa;
 
-use crate::devices::jfet::{self, p};
+use crate::devices::jfet::{self, CHARGE, p};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
@@ -65,8 +65,10 @@ const MODEL: &[P] = &[
     p("rf", U::Ohm, D::NonNegative, Some(0.)),
     p("rdi", U::Ohm, D::NonNegative, Some(0.)),
     p("rsi", U::Ohm, D::NonNegative, Some(0.)),
-    p("phib", U::Volt, D::Finite, Some(0.5 * 1.602_176_634e-19)),
-    p("phib1", U::VoltPerKelvin, D::Finite, None),
+    // `mesamparam.c` stores PHIB/PHIB1 as `value * CHARGE`: the card is in
+    // electron-volts, the model field in joules, like `HFETAphib`.
+    p("phib", U::Volt, D::Finite, Some(0.5)),
+    p("phib1", U::VoltPerKelvin, D::Finite, Some(0.)),
     p("tphib", U::VoltPerKelvin, D::Finite, None),
     p("astar", U::Dimensionless, D::NonNegative, Some(4.0e4)),
     p("ggr", U::SiemensPerMetre, D::NonNegative, Some(40.)),
@@ -273,8 +275,8 @@ impl Model {
             rf: r("rf")?,
             rdi: r("rdi")?,
             rsi: r("rsi")?,
-            phib: r("phib")?,
-            phib1: alias(&["phib1", "tphib"]).unwrap_or(0.),
+            phib: CHARGE * r("phib")?,
+            phib1: CHARGE * alias(&["phib1", "tphib"]).unwrap_or(0.),
             astar: r("astar")?,
             ggr: r("ggr")?,
             del: r("del")?,

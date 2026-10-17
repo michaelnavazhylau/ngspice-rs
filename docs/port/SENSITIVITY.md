@@ -118,7 +118,8 @@ output:
 | J (JFET level 1, `jfet.c`) | yes | refused |
 | J (JFET level 2, `jfet2.c`) | yes | refused |
 | Z level 1 (MES, `mes.c`) | yes | refused |
-| Z levels 2-6 (MESA 2-4, HFET1, HFET2) | refused (`NotYetPorted`, #164) | refused |
+| Z level 2 (MESA, `mesa.c`) | yes | refused |
+| Z levels 3-4 (MESA) and 5-6 (HFET1/HFET2) | refused (`NotYetPorted`, #164) | refused |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit
@@ -182,7 +183,9 @@ Two limits are recorded rather than reproduced:
   fixture keeps JFET2's feedback family at its defaults; the columns are
   still enumerated and perturbed.
 
-**Not ported: MESA levels 2-4 and HFET1/HFET2.** The tables, records and
+**MESA level 2 is ported** (`sens_mesa`, 69 columns: `mesa.c`'s 61 model and 8
+instance parameters, verified at `compare::SENSITIVITY_CANCELLED` - see below).
+**Not ported: MESA levels 3-4 and HFET1/HFET2.** The tables, records and
 replay are mechanical (the `mesa.c`/`hfet1.c`/`hfet2.c` enum tables have 62-70
 entries each), but two C behaviours have to be reproduced exactly first, and
 both were measured and left open:
@@ -201,6 +204,43 @@ both were measured and left open:
   (`i(vdd) = -6.1e-7 A`) while the port conducts 3.1 mA. A `.sens` golden
   needs the stiff-supply topology of the `m10_mesa_op` fixture *and* a
   responsive node, which only the internal `#gate` node provides.
+
+### What MESA levels 3-4 and HFET1/HFET2 still need
+
+Both were implemented against C's tables during the #164 work and then
+*withheld*, because their rows do not verify:
+
+- **MESA level 4** (measured on a level-4 card alone, `catch`-free):
+  `teta1` differs by 100% (`-2.4e-4` vs `~0`), `epsi` by 0.98% (`152.30` vs
+  `153.79`), `gamma` by 4.0% and `xtm0` by 1.1%. `.dc`/`.tran`/`.op` for the
+  same card agree with C to 1e-9, so this is a *derivation* difference that
+  only the small-signal-by-perturbation walk exposes - the level-3/4 channel's
+  dependence on `tEta`/`epsi`/`gamma` is the place to look.
+- **HFET1**: `js1s` differs by 2.8x, `vt2`/`l`/`w` by 0.1-100%, again with the
+  ordinary loads exact. `hfettemp.c` also multiplies the **stored** threshold
+  by the model type on every `DEVtemperature` call, so a p-channel device's
+  `vt0` alternates sign across the walk; any HFET1 fixture must be n-channel
+  until that is reproduced.
+
+Neither is blocked on the framework: the tables, records and replay are the
+same as the four families above. They are held back because shipping
+sensitivity numbers that are 1-100% off on a subset of columns is worse than
+the explicit refusal.
+
+### Two bugs this work found and fixed
+
+- **`phib` on the card is in electron-volts.** `mesamparam.c` and
+  `hfetmpar.c` store `value * CHARGE`; the port stored the card value raw, so
+  `.model ... phib=0.1` was silently ~1e19 times too large. Fixed for MESA
+  (`phib`, `phib1`) and HFET1 (`phib`), with the schema default moved to the eV
+  figure (0.5) so the derived default is unchanged. Verified against the
+  reference binary: `phib=0.1` now answers `i(vgs) = 1.212700e-03` and
+  `i(vids) = 5.403663e-03` A on both.
+- **MESA's level is a `double`.** `mesadefs.h` stores `MESAlevel` as a `double`
+  and `mesaload.c`/`mesatemp.c` test `== 2`, `== 3`, `== 4`, so a value between
+  them matches *no* branch and the channel loads nothing. The port kept it in a
+  `u8`; `.sens` perturbs the field, so `level`'s column was wrong until the
+  representation was corrected.
 
 Until those land the refusal stays, naming `cktsens.c`/`cktsgen.c` and the
 device's `DEVparam`/`DEVtemperature`/`DEVload`.

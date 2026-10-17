@@ -26,6 +26,10 @@ use crate::devices::initial::InstanceInitial;
 use crate::devices::jfet::{BOLTZMANN, CHARGE};
 use crate::devices::limiting;
 use crate::devices::nonlinear::{JunctionPoint, junction_companion};
+use crate::devices::sensitivity::{
+    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
+    SensitivityMode, SensitivityParameter, SensitivityRecord,
+};
 use crate::devices::{
     AnalysisMode, Device, DeviceState, IterationPhase, LinearContext, ModelContext, ResolvedModel,
     StampContext, sweep::check_swept,
@@ -206,8 +210,12 @@ pub(crate) struct Mesa {
     model_name: String,
     /// `mesasetup.c`/`inpdomod.c`'s level: 2 (`mesa1`), 3 (`mesa2`) or 4
     /// (`mesa3`). The model card and every load are shared; the level selects
-    /// the channel and three `mesatemp.c` derivations.
-    level: u8,
+    /// the channel and three `mesatemp.c` derivations. C stores it in a
+    /// **`double`** (`mesadefs.h`) and tests `== 2`/`== 3`/`== 4`, so a value
+    /// between them matches no branch: `mesaload.c` then leaves the channel at
+    /// zero and `mesatemp.c` takes its `else` arms. `.sens` perturbs the field,
+    /// so the port keeps C's representation.
+    level: Real,
     /// External terminals then the internal nodes, in `mesasetup.c`'s order.
     terminals: Vec<NodeId>,
     nodes: Nodes,
@@ -292,7 +300,7 @@ impl Mesa {
         let device = Self {
             name: i.name.clone(),
             model_name: resolved.card().name.clone(),
-            level,
+            level: Real::from(level),
             terminals,
             nodes: nodes_of,
             model,
@@ -355,7 +363,7 @@ impl Mesa {
         let vpou = CHARGE * model.ndu * model.du * model.du / 2. / EPSILON_GAAS;
         let vpod =
             CHARGE * model.ndelta * model.th * (2. * model.du + model.th) / 2. / EPSILON_GAAS;
-        let vpo = if self.level == 2 {
+        let vpo = if self.level == 2. {
             CHARGE * model.nd * model.d * model.d / 2. / EPSILON_GAAS
         } else {
             vpou + vpod
@@ -363,21 +371,21 @@ impl Mesa {
         // Levels 3 and 4 scale the channel prefactor by the mobility, and
         // level 3 replaces the depth by `du` while level 4 switches the
         // permittivity to the model's `epsi`.
-        let gchi0 = if self.level == 2 {
+        let gchi0 = if self.level == 2. {
             CHARGE * instance.w / instance.l
         } else {
             CHARGE * instance.w / instance.l * tmu
         };
         let beta = 2. * EPSILON_GAAS * model.vs * model.zeta * instance.w / model.d;
-        let depth = if self.level == 3 { model.du } else { model.d };
-        let permittivity = if self.level == 4 {
+        let depth = if self.level == 3. { model.du } else { model.d };
+        let permittivity = if self.level == 4. {
             model.epsi
         } else {
             EPSILON_GAAS
         };
         // `mesatemp.c:78-81`: only level 4 halves the channel charge term;
         // levels 1-3 use the same expression without the 2.
-        let n0 = if self.level == 4 {
+        let n0 = if self.level == 4. {
             permittivity * teta * vts / 2. / CHARGE / depth
         } else {
             permittivity * teta * vts / CHARGE / depth
@@ -601,10 +609,16 @@ impl Mesa {
         vds: Real,
         von: Real,
     ) -> SpiceResult<(Real, Real, Real, Real, Real)> {
-        match self.level {
-            3 => self.mesa2(derived, lambda, vgs, vds, von),
-            4 => self.mesa3(derived, lambda, vgs, vds, von),
-            _ => self.mesa1(derived, lambda, vgs, vds, von),
+        if self.level == 2. {
+            self.mesa1(derived, lambda, vgs, vds, von)
+        } else if self.level == 3. {
+            self.mesa2(derived, lambda, vgs, vds, von)
+        } else if self.level == 4. {
+            self.mesa3(derived, lambda, vgs, vds, von)
+        } else {
+            // C's chain has no `else`: the channel variables keep the zeros
+            // they were initialized with, so only the gate junctions load.
+            Ok((0., 0., 0., 0., 0.))
         }
     }
 
@@ -1223,6 +1237,18 @@ impl Device for Mesa {
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         Self::sweepable(keyword)
     }
+    /// `mesa.c`'s `IFparm` tables under C's `sgen` walk (#164). Only level 2 is
+    /// verified: levels 3-4's rows still differ from C (see
+    /// `docs/port/SENSITIVITY.md`), so they are refused up front.
+    fn sensitivity(&self, context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
+        if self.level != 2. {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: MESA level {} sensitivity", self.name, self.level),
+                "src/spicelib/devices/mesa/mesatemp.c, mesaload.c (mesa2/mesa3)",
+            ));
+        }
+        Ok(Box::new(MesaSensitivity::new(self, context)))
+    }
     /// `MESAparam` with the instance schema's domains: a swept temperature is
     /// re-derived by the next load.
     fn with_instance_parameter(
@@ -1566,7 +1592,7 @@ impl Device for Mesa {
         // `CKTacLoad`). Those two probes need the *correct* linearisation,
         // which the port computes below; only the swept path would have to
         // reproduce C's zeroed fields, and that is refused.
-        if self.level == 4 && context.states.is_some() {
+        if self.level == 4. && context.states.is_some() {
             return Err(SpiceError::not_yet_ported(
                 format!("{}: MESA level 4 AC/SP/pole-zero", self.name),
                 "src/spicelib/devices/mesa/mesaacl.c reads the `gm0`/`gds0`/`delidgch0` \
@@ -1656,5 +1682,400 @@ impl Device for Mesa {
         bias: &Vector,
     ) -> SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// `.sens` (#164)
+// ---------------------------------------------------------------------------
+
+/// `MESApTable` entries `set_param()` accepts, in C's table order (`off` is a
+/// flag and the `*node`/bias asks are not settable).
+const SENSITIVITY_INSTANCE: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("l"),
+    SensitivityParameter::dc("w"),
+    SensitivityParameter::dc("m"),
+    SensitivityParameter::dc("icvds"),
+    SensitivityParameter::dc("icvgs"),
+    SensitivityParameter::dc("td"),
+    SensitivityParameter::dc("ts"),
+    SensitivityParameter::dc("dtemp"),
+];
+
+/// `MESAmPTable` in C's order: `vt0`, `tphib`, `tggr` and `alphat` are `IOPR`
+/// (redundant aliases) and `gd`/`gs`/`vcrit` are ask-only.
+const SENSITIVITY_MODEL: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("vto"),
+    SensitivityParameter::dc("lambda"),
+    SensitivityParameter::dc("lambdahf"),
+    SensitivityParameter::dc("beta"),
+    SensitivityParameter::dc("vs"),
+    SensitivityParameter::dc("rd"),
+    SensitivityParameter::dc("rs"),
+    SensitivityParameter::dc("rg"),
+    SensitivityParameter::dc("ri"),
+    SensitivityParameter::dc("rf"),
+    SensitivityParameter::dc("rdi"),
+    SensitivityParameter::dc("rsi"),
+    SensitivityParameter::dc("phib"),
+    SensitivityParameter::dc("phib1"),
+    SensitivityParameter::dc("astar"),
+    SensitivityParameter::dc("ggr"),
+    SensitivityParameter::dc("del"),
+    SensitivityParameter::dc("xchi"),
+    SensitivityParameter::dc("n"),
+    SensitivityParameter::dc("eta"),
+    SensitivityParameter::dc("m"),
+    SensitivityParameter::dc("mc"),
+    SensitivityParameter::dc("alpha"),
+    SensitivityParameter::dc("sigma0"),
+    SensitivityParameter::dc("vsigmat"),
+    SensitivityParameter::dc("vsigma"),
+    SensitivityParameter::dc("mu"),
+    SensitivityParameter::dc("theta"),
+    SensitivityParameter::dc("mu1"),
+    SensitivityParameter::dc("mu2"),
+    SensitivityParameter::dc("d"),
+    SensitivityParameter::dc("nd"),
+    SensitivityParameter::dc("du"),
+    SensitivityParameter::dc("ndu"),
+    SensitivityParameter::dc("th"),
+    SensitivityParameter::dc("ndelta"),
+    SensitivityParameter::dc("delta"),
+    SensitivityParameter::dc("tc"),
+    SensitivityParameter::dc("tvto"),
+    SensitivityParameter::dc("tlambda"),
+    SensitivityParameter::dc("teta0"),
+    SensitivityParameter::dc("teta1"),
+    SensitivityParameter::dc("tmu"),
+    SensitivityParameter::dc("xtm0"),
+    SensitivityParameter::dc("xtm1"),
+    SensitivityParameter::dc("xtm2"),
+    SensitivityParameter::dc("ks"),
+    SensitivityParameter::dc("vsg"),
+    SensitivityParameter::dc("tf"),
+    SensitivityParameter::dc("flo"),
+    SensitivityParameter::dc("delfo"),
+    SensitivityParameter::dc("ag"),
+    SensitivityParameter::dc("rtc1"),
+    SensitivityParameter::dc("rtc2"),
+    SensitivityParameter::dc("zeta"),
+    SensitivityParameter::dc("level"),
+    SensitivityParameter::dc("nmax"),
+    SensitivityParameter::dc("gamma"),
+    SensitivityParameter::dc("epsi"),
+    SensitivityParameter::dc("cas"),
+    SensitivityParameter::dc("cbs"),
+];
+
+/// A MESA's `.sens` description: `mesa.c`'s tables, `mesaparam.c`/
+/// `mesamparam.c` setters, `mesasetup.c`'s defaults and `mesatemp.c`'s
+/// temperature derivations. The load is the port's own [`Mesa`] rebuilt from
+/// C's records.
+#[derive(Debug)]
+pub(super) struct MesaSensitivity<'a> {
+    device: &'a Mesa,
+    circuit_kelvin: Real,
+}
+
+impl<'a> MesaSensitivity<'a> {
+    pub(super) fn new(device: &'a Mesa, context: &ModelContext) -> Self {
+        Self {
+            device,
+            circuit_kelvin: context.temperature + CELSIUS_TO_KELVIN,
+        }
+    }
+}
+
+impl DeviceSensitivity for MesaSensitivity<'_> {
+    fn family(&self) -> SensitivityFamily {
+        SensitivityFamily::Mesa
+    }
+
+    fn model(&self) -> Option<&str> {
+        Some(&self.device.model_name)
+    }
+
+    fn model_parameters(&self) -> &'static [SensitivityParameter] {
+        SENSITIVITY_MODEL
+    }
+
+    fn instance_parameters(&self) -> &'static [SensitivityParameter] {
+        SENSITIVITY_INSTANCE
+    }
+
+    fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
+        let (m, i) = (&self.device.model, &self.device.instance);
+        let mut model = SensitivityRecord::new();
+        for (keyword, value, given) in [
+            ("vto", m.threshold, true),
+            ("lambda", m.lambda, true),
+            (
+                "lambdahf",
+                m.lambdahf.unwrap_or(m.lambda),
+                m.lambdahf.is_some(),
+            ),
+            ("beta", m.beta, true),
+            ("vs", m.vs, true),
+            ("rd", m.rd, true),
+            ("rs", m.rs, true),
+            ("rg", m.rg, true),
+            ("ri", m.ri, true),
+            ("rf", m.rf, true),
+            ("rdi", m.rdi, true),
+            ("rsi", m.rsi, true),
+            ("phib", m.phib, true),
+            ("phib1", m.phib1, true),
+            ("astar", m.astar, true),
+            ("ggr", m.ggr, true),
+            ("del", m.del, true),
+            ("xchi", m.xchi, true),
+            ("n", m.n, true),
+            ("eta", m.eta, true),
+            ("m", m.m, true),
+            ("mc", m.mc, true),
+            ("alpha", m.alpha, true),
+            ("sigma0", m.sigma0, true),
+            ("vsigmat", m.vsigmat, true),
+            ("vsigma", m.vsigma, true),
+            ("mu", m.mu, true),
+            ("theta", m.theta, true),
+            ("mu1", m.mu1, true),
+            ("mu2", m.mu2, true),
+            ("d", m.d, true),
+            ("nd", m.nd, true),
+            ("du", m.du, true),
+            ("ndu", m.ndu, true),
+            ("th", m.th, true),
+            ("ndelta", m.ndelta, true),
+            ("delta", m.delta, true),
+            ("tc", m.tc, true),
+            ("tvto", m.tvto, true),
+            ("tlambda", m.tlambda, true),
+            ("teta0", m.teta0, true),
+            ("teta1", m.teta1, true),
+            ("tmu", m.tmu, true),
+            ("xtm0", m.xtm0, true),
+            ("xtm1", m.xtm1, true),
+            ("xtm2", m.xtm2, true),
+            ("ks", m.ks, true),
+            ("vsg", m.vsg, true),
+            (
+                "tf",
+                m.tf.map_or(self.circuit_kelvin, |c| c + CELSIUS_TO_KELVIN),
+                m.tf.is_some(),
+            ),
+            ("flo", m.flo, true),
+            ("delfo", m.delfo, true),
+            ("ag", m.ag, true),
+            ("rtc1", m.tc1, true),
+            ("rtc2", m.tc2, true),
+            ("zeta", m.zeta, true),
+            ("level", Real::from(self.device.level), true),
+            ("nmax", m.nmax, true),
+            ("gamma", m.gamma, true),
+            ("epsi", m.epsi, true),
+            ("cas", m.cas, true),
+            ("cbs", m.cbs, true),
+        ] {
+            model = model.with(keyword, value, given);
+        }
+        let mut instance = SensitivityRecord::new();
+        for (keyword, value, given) in [
+            ("l", i.l, true),
+            ("w", i.w, true),
+            ("m", i.m, true),
+            ("icvds", self.device.initial.values[0].unwrap_or(0.), true),
+            ("icvgs", self.device.initial.values[1].unwrap_or(0.), true),
+            (
+                "td",
+                i.td.map_or(self.circuit_kelvin + i.dtemp, |c| c + CELSIUS_TO_KELVIN),
+                i.td.is_some(),
+            ),
+            (
+                "ts",
+                i.ts.map_or(self.circuit_kelvin + i.dtemp, |c| c + CELSIUS_TO_KELVIN),
+                i.ts.is_some(),
+            ),
+            ("dtemp", i.dtemp, true),
+        ] {
+            instance = instance.with(keyword, value, given);
+        }
+        self.setup(&mut model, &mut instance)?;
+        self.temperature(&mut model, &mut instance)?;
+        Ok((model, instance))
+    }
+
+    /// `MESAmMask` returns `MESAphib`/`MESAphib1` **raw** (joules) while their
+    /// setters multiply by `CHARGE` (`mesamparam.c`), so C's perturbation *and*
+    /// its restore apply the factor once more: after the `phib` column is
+    /// processed the stored barrier is `phib * CHARGE` (about 1e-38 J), and
+    /// every later column is computed with it. The reference binary does exactly
+    /// that - `show` reports `@mesmod2[phib] = 1.283485e-38` after a `.sens`
+    /// run - so the replay reproduces it instead of "fixing" it.
+    fn set(
+        &self,
+        scope: ParameterScope,
+        keyword: &str,
+        value: Real,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        match (scope, keyword) {
+            (ParameterScope::Model, "phib" | "phib1") => model.set(keyword, value * CHARGE),
+            (ParameterScope::Model, _) => model.set(keyword, value),
+            (ParameterScope::Instance, _) => instance.set(keyword, value),
+        }
+    }
+
+    /// `MESAsetup`: `tf` defaults to the circuit temperature and `level` to 2.
+    /// Every other default is already in the model the port resolved, and none
+    /// of them feeds a *given*-flag-dependent derivation except `lambdahf`,
+    /// which `mesatemp.c` re-derives in [`Self::temperature`].
+    fn setup(
+        &self,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        if !model.given("tf") {
+            model.store("tf", self.circuit_kelvin)?;
+        }
+        if !model.given("level") {
+            model.store("level", 2.)?;
+        }
+        if !instance.given("td") {
+            let dtemp = instance.value("dtemp")?;
+            instance.store("td", self.circuit_kelvin + dtemp)?;
+        }
+        if !instance.given("ts") {
+            let dtemp = instance.value("dtemp")?;
+            instance.store("ts", self.circuit_kelvin + dtemp)?;
+        }
+        Ok(())
+    }
+
+    /// `mesatemp.c`: `lambdahf` follows `lambda` while it is not given. The
+    /// level-dependent `vpo`/`vpou`/`vpod` and every temperature coefficient
+    /// are recomputed by the port's load from these records.
+    fn temperature(
+        &self,
+        model: &mut SensitivityRecord,
+        _instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        if !model.given("lambdahf") {
+            let lambda = model.value("lambda")?;
+            model.store("lambdahf", lambda)?;
+        }
+        Ok(())
+    }
+
+    fn load(
+        &self,
+        _setup: RecordPair<'_>,
+        current: RecordPair<'_>,
+        mode: SensitivityMode,
+    ) -> SpiceResult<SensitivityLoad> {
+        if mode == SensitivityMode::Ac {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: MESA AC sensitivity", self.device.name),
+                "src/spicelib/devices/mesa/mesaacl.c",
+            ));
+        }
+        let (m, i) = (current.model, current.instance);
+        let celsius = |record: &SensitivityRecord, keyword: &str| -> SpiceResult<Option<Real>> {
+            Ok(record
+                .given(keyword)
+                .then(|| record.value(keyword))
+                .transpose()?
+                .map(|kelvin| kelvin - CELSIUS_TO_KELVIN))
+        };
+        let model = Model {
+            threshold: m.value("vto")?,
+            lambda: m.value("lambda")?,
+            lambdahf: m
+                .given("lambdahf")
+                .then(|| m.value("lambdahf"))
+                .transpose()?,
+            vs: m.value("vs")?,
+            rd: m.value("rd")?,
+            rs: m.value("rs")?,
+            rg: m.value("rg")?,
+            ri: m.value("ri")?,
+            rf: m.value("rf")?,
+            rdi: m.value("rdi")?,
+            rsi: m.value("rsi")?,
+            phib: m.value("phib")?,
+            phib1: m.value("phib1")?,
+            astar: m.value("astar")?,
+            ggr: m.value("ggr")?,
+            del: m.value("del")?,
+            xchi: m.value("xchi")?,
+            n: m.value("n")?,
+            eta: m.value("eta")?,
+            m: m.value("m")?,
+            mc: m.value("mc")?,
+            alpha: m.value("alpha")?,
+            sigma0: m.value("sigma0")?,
+            vsigmat: m.value("vsigmat")?,
+            vsigma: m.value("vsigma")?,
+            mu: m.value("mu")?,
+            theta: m.value("theta")?,
+            mu1: m.value("mu1")?,
+            mu2: m.value("mu2")?,
+            d: m.value("d")?,
+            nd: m.value("nd")?,
+            beta: m.value("beta")?,
+            ndu: m.value("ndu")?,
+            ndelta: m.value("ndelta")?,
+            nmax: m.value("nmax")?,
+            gamma: m.value("gamma")?,
+            epsi: m.value("epsi")?,
+            cas: m.value("cas")?,
+            cbs: m.value("cbs")?,
+            du: m.value("du")?,
+            th: m.value("th")?,
+            delta: m.value("delta")?,
+            tc: m.value("tc")?,
+            tvto: m.value("tvto")?,
+            tlambda: m.value("tlambda")?,
+            teta0: m.value("teta0")?,
+            teta1: m.value("teta1")?,
+            tmu: m.value("tmu")?,
+            xtm0: m.value("xtm0")?,
+            xtm1: m.value("xtm1")?,
+            xtm2: m.value("xtm2")?,
+            ks: m.value("ks")?,
+            vsg: m.value("vsg")?,
+            tf: celsius(m, "tf")?,
+            flo: m.value("flo")?,
+            delfo: m.value("delfo")?,
+            ag: m.value("ag")?,
+            tc1: m.value("rtc1")?,
+            tc2: m.value("rtc2")?,
+            zeta: m.value("zeta")?,
+        };
+        let instance = Instance {
+            l: i.value("l")?,
+            w: i.value("w")?,
+            m: i.value("m")?,
+            td: celsius(i, "td")?,
+            ts: celsius(i, "ts")?,
+            dtemp: i.value("dtemp")?,
+        };
+        // `MESAmParam` writes the level straight into C's `double` field, so a
+        // perturbation of 1 ppm leaves a value that matches none of the
+        // `== 2/3/4` tests; the load then carries no channel, as in C.
+        let level = m.value("level")?;
+        let device = Mesa {
+            name: self.device.name.clone(),
+            model_name: self.device.model_name.clone(),
+            level,
+            terminals: self.device.terminals.clone(),
+            nodes: self.device.nodes,
+            model,
+            instance,
+            initial: self.device.initial.clone(),
+        };
+        Ok(SensitivityLoad::Replacement(Box::new(device)))
     }
 }

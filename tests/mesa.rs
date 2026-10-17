@@ -407,9 +407,12 @@ fn the_remaining_boundaries_are_explicit() {
         1e-9,
         1e-18,
     );
+    // `.sens` itself now runs for a level-2 card (#164); the *AC* sensitivity of
+    // a nonlinear device stays refused.
     let netlist = deck(
         "vdd 1 0 dc 3 ac 1\nr1 1 drain 1k\nz1 drain gate 0 zm l=1u w=20u\n\
-         vg gate 0 dc -2.5\n.model zm nmf(level=2 rg=10)\n.sens v(drain)",
+         vg gate 0 dc -2.5\n.model zm nmf(level=2 rg=10)\n\
+         .sens v(drain) ac dec 2 1k 10k",
     )
     .unwrap();
     let config = RunConfig::from_netlist(&netlist).unwrap();
@@ -419,8 +422,7 @@ fn the_remaining_boundaries_are_explicit() {
         .unwrap()
         .run(&mut c, &request, &config.context())
         .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("sensitivity"), "{error}");
+    assert!(error.to_string().contains(".sens ac"), "{error}");
     let mut c = circuit(
         "vds 1 0 dc 0.5 ac 1\nvids 1 2 dc 0\nvg 3 0 dc -1 ac 1\nr1 2 0 1k\n\
          z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2 rg=10 ri=1e3)\n\
@@ -777,4 +779,61 @@ fn the_mixed_polarity_level_four_operating_point_is_the_conducting_root() {
     close(value(&sweep, "i(vgg)", 9), -2.768_870e-4, 1e-5, 1e-12);
     close(value(&sweep, "i(vdd)", 11), -3.972_156e-3, 1e-6, 1e-12);
     close(value(&sweep, "i(vgg)", 11), -4.260_834e-3, 1e-6, 1e-12);
+}
+
+/// `.sens` (#164) for MESA level 2, and the explicit refusal for levels 3-4.
+///
+/// The level-3/4 rows are **not** verified against C: measured on a level-4
+/// card alone, `teta1` differs by 100% and `epsi`/`gamma`/`xtm0` by 1-4%, a
+/// real derivation gap that `.sens` exposes (see `docs/port/SENSITIVITY.md`).
+#[test]
+fn sensitivity_follows_mesa_cs_table_for_level_two_and_refuses_the_rest() {
+    let cards = |level: u8, analysis: &str| {
+        format!(
+            "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 4 0 dc 0\nrg 4 3 1k\n\
+             z1 2 3 0 m{level} l=1u w=20u\n.model m{level} nmf(level={level})\n{analysis}"
+        )
+    };
+    for level in [2, 3, 4] {
+        let text = cards(level, ".sens v(3)");
+        let parsed = deck(&text).unwrap();
+        let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
+        let request = config.request_for(&parsed.analyses[0]).unwrap();
+        let mut c = config.circuit(&parsed).unwrap();
+        let result = ngspice_rs::analysis::runner(request.kind).unwrap().run(
+            &mut c,
+            &request,
+            &config.context(),
+        );
+        if level == 2 {
+            let plot = result.unwrap();
+            let names: Vec<&str> = plot
+                .variables
+                .iter()
+                .map(|variable| variable.name.as_str())
+                .filter(|name| name.starts_with("v(z1"))
+                .collect();
+            // `mesa.c`'s 61 model setters plus 8 instance ones.
+            assert_eq!(names.len(), 69, "{names:?}");
+            for absent in [
+                "v(z1:vt0)",
+                "v(z1:tphib)",
+                "v(z1:tggr)",
+                "v(z1:alphat)",
+                "v(z1:gd)",
+                "v(z1:vcrit)",
+            ] {
+                assert!(!names.contains(&absent), "{absent} in {names:?}");
+            }
+        } else {
+            let error = result.unwrap_err();
+            assert!(error.is_not_yet_ported(), "level {level}: {error}");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("MESA level {level} sensitivity")),
+                "{error}"
+            );
+        }
+    }
 }

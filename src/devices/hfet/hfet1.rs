@@ -139,7 +139,9 @@ const MODEL: &[P] = &[
     p("fgds", U::Dimensionless, D::NonNegative, Some(0.)),
     p("tf", U::Kelvin, D::NonZero, None),
     p("cds", U::Farad, D::NonNegative, Some(0.)),
-    p("phib", U::Volt, D::Finite, Some(0.5 * 1.602_176_634e-19)),
+    // `hfetmpar.c` stores PHIB as `value * CHARGE` (electron-volts in, joules
+    // out), so the schema default is the eV figure.
+    p("phib", U::Volt, D::Finite, Some(0.5)),
     p("talpha", U::Dimensionless, D::Finite, Some(1200.)),
     p("mt1", U::Dimensionless, D::NonZero, Some(3.5)),
     p("mt2", U::Dimensionless, D::NonZero, Some(9.9)),
@@ -326,7 +328,7 @@ impl Model {
             fgds: r("fgds")?,
             tf: values.get("tf").map(|v| v.value),
             cds: r("cds")?,
-            phib: r("phib")?,
+            phib: CHARGE * r("phib")?,
             talpha: r("talpha")?,
             mt1: r("mt1")?,
             mt2: r("mt2")?,

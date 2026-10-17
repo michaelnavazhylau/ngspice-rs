@@ -72,6 +72,23 @@ pub(crate) const SENSITIVITY_NONLINEAR: Tolerance = Tolerance {
     absolute: 1e-9,
 };
 
+/// `.sens` of MESA level 2 (#164): the nonlinear bound with a wider floor for
+/// three columns. `mesatemp.c` computes its derived quantities once per
+/// `DEVtemperature` and the load reuses them, while the port recomputes them
+/// from the records at every load; the two agree to ~1e-16, but a column whose
+/// answer is a difference of much larger terms amplifies that. Measured on
+/// `sens_mesa` against the reference binary: `z::level` 3.4e-6 relative (the
+/// perturbation disables the channel, so its answer is a difference of whole
+/// device currents) and `z::teta1`/`z::xtm0` 4.6e-8/6e-9 absolute (parameters
+/// level 2 does not read, where C reports its own rounding residue); every
+/// other column is inside [`SENSITIVITY_NONLINEAR`]. The bound still rejects a
+/// real model difference - the level-3/4 rows sit 1e-2..1e-1 away, and those
+/// levels are refused instead of verified.
+pub(crate) const SENSITIVITY_CANCELLED: Tolerance = Tolerance {
+    relative: 1e-5,
+    absolute: 5e-8,
+};
+
 /// `.disto` (#104): the nonlinear 1 ppm operating-point bound (every Taylor
 /// coefficient is evaluated at an independently converged bias), with an
 /// absolute floor scaled to distortion products rather than node voltages.
