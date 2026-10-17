@@ -83,14 +83,11 @@ fn model_resolver_and_diode_defaults_match_c_setup() {
             let _ = fs::remove_dir_all(&self.0);
         }
     }
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
+    let nonce = scratch_nonce();
     let scratch = Scratch(
         std::env::temp_dir().join(format!("spice-model-schema-{}-{nonce}", std::process::id())),
     );
-    fs::create_dir(&scratch.0).unwrap();
+    fs::create_dir_all(&scratch.0).unwrap();
     fs::write(scratch.0.join("probe.cir"), text).unwrap();
     let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
     assert!(binary.is_absolute(), "NGSPICE_BIN must be an absolute path");
@@ -123,3 +120,21 @@ fn model_resolver_and_diode_defaults_match_c_setup() {
         );
     }
 }
+
+/// A process-local counter appended to scratch directory names.
+///
+/// `SystemTime::now()` is coarsened on some platforms (1 ms on macOS), so the
+/// process id and the clock alone do not distinguish two tests of one binary
+/// that start in the same tick - and tests run in parallel, so two of them
+/// collided and `create_dir(...).unwrap()` panicked.
+static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
+
+fn scratch_nonce() -> u128 {
+    let clock = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("the clock is after the epoch")
+        .as_nanos();
+    clock + u128::from(SCRATCH_NONCE.fetch_add(1, Ordering::Relaxed))
+}
+
+use std::sync::atomic::{AtomicU64, Ordering};

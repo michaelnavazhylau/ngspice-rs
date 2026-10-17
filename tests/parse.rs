@@ -119,12 +119,9 @@ fn remaining_syntax_gaps_and_source_failures_keep_distinct_exits() {
     let dir = std::env::temp_dir().join(format!(
         "cli-sources-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        scratch_nonce()
     ));
-    std::fs::create_dir(&dir).unwrap();
+    std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("deck.cir");
     for (text, status) in [
         // `.width` is still unsupported front-end syntax, so it
@@ -219,3 +216,21 @@ fn documented_no_op_options_are_named_by_parse() {
     let stdout = String::from_utf8(plain.stdout).unwrap();
     assert!(!stdout.contains("without effect"), "{stdout}");
 }
+
+/// A process-local counter appended to scratch directory names.
+///
+/// `std::time::SystemTime::now()` is coarsened on some platforms (1 ms on macOS), so the
+/// process id and the clock alone do not distinguish two tests of one binary
+/// that start in the same tick - and tests run in parallel, so two of them
+/// collided and `create_dir(...).unwrap()` panicked.
+static SCRATCH_NONCE: AtomicU64 = AtomicU64::new(0);
+
+fn scratch_nonce() -> u128 {
+    let clock = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the clock is after the epoch")
+        .as_nanos();
+    clock + u128::from(SCRATCH_NONCE.fetch_add(1, Ordering::Relaxed))
+}
+
+use std::sync::atomic::{AtomicU64, Ordering};
