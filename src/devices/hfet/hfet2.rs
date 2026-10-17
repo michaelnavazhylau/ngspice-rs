@@ -185,11 +185,23 @@ pub(super) struct Model {
 impl Model {
     /// `HFET2setup`'s defaults, `hfet2mpar.c`'s setters and `inpdomod.c`'s
     /// level check. A `phfet` base (or the `phfet` flag) makes it p-type.
-    pub(super) fn resolve(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
+    pub(super) fn resolve<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
         let (pol, scalars) = crate::devices::jfet::typed_scalars(
             resolved,
             resolved.family() == crate::devices::ModelFamily::Pmf,
             ["nhfet", "phfet"],
+        );
+        // `inpgmod.c::create_model`: a setter outside the model table that is
+        // a settable instance parameter becomes a model-level instance
+        // default, applied before the instance card's own setters.
+        let (scalars, defaults) = crate::devices::schema::split_model_setters(
+            scalars,
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
         );
         let values =
             ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
@@ -246,7 +258,7 @@ impl Model {
                 resolved.card().name
             )));
         }
-        Ok(model)
+        Ok((model, defaults))
     }
 }
 
@@ -273,13 +285,18 @@ impl Instance {
     }
 
     pub(super) fn validate(
+        defaults: &[&crate::netlist::ast::ParameterAssignment],
         setters: &[crate::netlist::ast::ParameterAssignment],
         owner: &crate::primitives::SourceLoc,
     ) -> SpiceResult<Self> {
-        let values = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(setters, owner)?;
+        let values = crate::devices::schema::with_defaults(
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+            defaults,
+            setters.iter(),
+            owner,
+        )?;
         Ok(Self {
             l: crate::devices::jfet::required(&values, "l")?,
             w: crate::devices::jfet::required(&values, "w")?,
@@ -367,9 +384,9 @@ impl Hfet2 {
                 i.name
             )));
         }
-        let model = Model::resolve(resolved)?;
+        let (model, model_defaults) = Model::resolve(resolved)?;
         let (initial, setters) = Instance::resolve(i)?;
-        let instance = Instance::validate(&setters, &i.location)?;
+        let instance = Instance::validate(&model_defaults, &setters, &i.location)?;
         let mut staged = nodes.clone();
         let external: Vec<NodeId> = i.nodes.iter().map(|n| staged.intern(n)).collect();
         let mut terminals = external.clone();

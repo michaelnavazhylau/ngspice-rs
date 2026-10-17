@@ -616,6 +616,14 @@ impl Jfet2 {
         }
         let (initial, setters) = crate::devices::initial::split(&i.parameters, &IC_COMPONENTS)?;
         let (pol, scalars) = jfet::card_scalars(resolved);
+        // `inpgmod.c::create_model`: see `Jfet::instantiate`.
+        let (scalars, model_defaults) = crate::devices::schema::split_model_setters(
+            scalars,
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: crate::devices::jfet::INSTANCE,
+            },
+        );
         let m = ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
         let r = |name: &str| required(&m, name);
         // JFET2_MOD_VTO (`vt0`, alias `vto`) and JFET2_MOD_PB (`vbi`, alias
@@ -664,7 +672,7 @@ impl Jfet2 {
             tnom: m.get("tnom").map(|v| v.value),
         };
         jfet::check_fc(&i.name, model.fc)?;
-        let instance = jfet::instance_setters(&setters, &i.location)?;
+        let instance = jfet::instance_setters(&model_defaults, &setters, &i.location)?;
         let mut device = Self {
             name: i.name.clone(),
             terminals: vec![],

@@ -137,6 +137,55 @@ C has no level-6 noise, so `KF`/`AF`/`NLEV`/`GDSNOI` are rejected as unknown.
 References: `inpfindl.c::INPfindLev`, `inpdomod.c::INPdomodel`, `inpgmod.c`,
 `inpgval.c` and `diompar.c::DIOmParam`.
 
+## Instance defaults on `.model` cards (#161)
+
+C's `inpgmod.c::create_model` has a fallback the port originally lacked. A
+`.model` parameter that the device's **model** table does not know is looked up
+in its **instance** table; when it is there and settable (`IF_SET`), it is
+recorded in `GENmodel.defaults` as a name/value pair:
+
+```c
+p = find_instance_parameter(parm, device);
+if (p) {
+    if (p->dataType & IF_SET)
+        modtmp->INPmodfast->defaults =
+            wl_cons(copy(parm), wl_cons(value, modtmp->INPmodfast->defaults));
+    else
+        ... "Ignoring attempt to set a default for read-only instance parameter" ...
+```
+
+`inpdpar.c::INPdevParse` then applies that list **before** it parses the
+instance card's own setters, so an explicit instance parameter always wins.
+Hence `.model m1 nmf(level=2 dtemp=25)` sets `dtemp` for every `z` instance of
+`m1`, and `.model nm nmos(level=1 vto=1 l=2u)` sets the default length - `l` is
+a MOS *instance* parameter, not a model one.
+
+The port implements this as `schema::split_model_setters` (partition a card's
+setters against the model and instance schemas) plus `schema::with_defaults`
+(validate `defaults` then the instance card). Every scalar-schema family wires
+them: `j` (JFET 1/2), `z` (MES, MESA 2-4, HFET1, HFET2), `m` (MOS1/2/3/6/9,
+through `MosLevel::model_schema`), `q` (BJT), `d` (diode), `y` (TXL) and `u`
+(URC).
+
+Three details are C's, not the port's invention:
+
+- **A name in both tables stays a model parameter.** `l`/`w` of a MOS card are
+  model parameters in the level tables that have them; the model table is
+  consulted first.
+- **A repeated instance parameter on one `.model` card: the first occurrence
+  wins.** `create_model` *prepends* each pair, so the list runs in reverse card
+  order and the last value applied is the first one written - the opposite of
+  the model table's last-set precedence. Measured: `.model zm nmf(level=2
+  dtemp=25 dtemp=50)` answers `i(vids) = 1.928206e-3 A` (25), `dtemp=50
+  dtemp=25` answers 1.929970e-3 A (50).
+- **A read-only instance parameter on a `.model` card is refused**, whereas C
+  warns and ignores it. That follows the port's rule for C's `unrecognized
+  parameter - ignored`: an explicit error instead of silence.
+
+Reference values used by `tests/models.rs::a_model_card_can_carry_instance_defaults`
+(`vds = 0.5 V`, `vgs = 0 V`, `l = 1u`, `w = 20u`, MESA level 2): no default
+1.926577e-3 A, `dtemp=25` 1.928206e-3 A, `dtemp=10` 1.927213e-3 A.
+
 ## Initial diode inputs
 
 | Input | Domain / unit | Default |

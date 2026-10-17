@@ -345,10 +345,13 @@ fn diode_schema_rejects_unknown_and_invalid_setters_even_if_overwritten() {
         // The legacy IS/N/RS input projection stays deliberately narrow;
         // the diode factory additionally implements CJO charge and C's
         // `dio.c` aliases such as JS for IS.
-        if setter == "cjo=1p" || setter == "js=1e-14" {
-            assert!(Circuit::from_netlist(&n).is_ok());
+        // `cjo`/`js` are model parameters the factory implements, and `temp`
+        // is a *diode instance* parameter: on a `.model` card it is a
+        // model-level instance default (`inpgmod.c::create_model`, #161).
+        if matches!(setter, "cjo=1p" | "js=1e-14" | "temp=30") {
+            assert!(Circuit::from_netlist(&n).is_ok(), "{setter}");
         } else {
-            assert!(Circuit::from_netlist(&n).is_err());
+            assert!(Circuit::from_netlist(&n).is_err(), "{setter}");
         }
     }
     for setter in [
@@ -626,4 +629,82 @@ fn unused_models_still_fail_instead_of_disappearing_from_successful_simulation()
             .to_string()
             .contains("unused model declarations")
     );
+}
+
+/// `inpgmod.c::create_model`'s instance fallback (GitHub #161): a `.model`
+/// parameter that the device's *model* table does not know is looked up in its
+/// *instance* table, and a settable one becomes a model-level instance default
+/// (`GENmodel.defaults`) that `inpdpar.c::INPdevParse` applies before the
+/// instance card's own setters.
+///
+/// Reference values come from the reference binary on these cards; the
+/// no-default column is the same card without the instance parameter.
+#[test]
+fn a_model_card_can_carry_instance_defaults() {
+    let currents = |name: &str, body: &str| -> f64 {
+        let deck = deck(body);
+        let config = ngspice_rs::analysis::RunConfig::from_netlist(&deck).unwrap();
+        let request = config.request_for(&deck.analyses[0]).unwrap();
+        let mut circuit = config.circuit(&deck).unwrap();
+        let plot = ngspice_rs::analysis::runner(request.kind)
+            .unwrap()
+            .run(&mut circuit, &request, &config.context())
+            .unwrap();
+        plot.value(name, 0).unwrap().re
+    };
+    let mesa = |model: &str, instance: &str| {
+        currents(
+            "i(vids)",
+            &format!(
+                "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 3 0 dc 0\n\
+             z1 2 3 0 zm l=1u w=20u {instance}\n.model zm nmf(level=2 {model})\n\
+             .op"
+            ),
+        )
+    };
+    // `.model ... dtemp=25` is accepted: `dtemp` is a MESA instance parameter.
+    // 1.926577e-3 A without it, 1.928206e-3 A with it.
+    assert!((mesa("", "") - 1.926_577e-3).abs() < 2e-9);
+    assert!((mesa("dtemp=25", "") - 1.928_206e-3).abs() < 2e-9);
+    // An explicit instance setter wins over the model default: both cards
+    // answer the 1.927213e-3 A of `dtemp=10`.
+    assert!((mesa("dtemp=25", "dtemp=10") - 1.927_213e-3).abs() < 2e-9);
+    assert!((mesa("", "dtemp=10") - 1.927_213e-3).abs() < 2e-9);
+    // A repeated instance parameter on one `.model` card: C prepends each pair
+    // to `GENmodel.defaults`, so the list runs in reverse card order and the
+    // *first* occurrence wins - the opposite of the model table's last-set
+    // precedence. 1.928206e-3 A is `dtemp=25`, 1.929970e-3 A is `dtemp=50`.
+    assert!((mesa("dtemp=25 dtemp=50", "") - 1.928_206e-3).abs() < 2e-9);
+    assert!((mesa("dtemp=50 dtemp=25", "") - 1.929_970e-3).abs() < 2e-9);
+
+    // A MOS card: `l` is an *instance* parameter (MOS1's model table has no
+    // `l`), so `.model ... l=2u` sets the default length. `l=1u` on the
+    // instance still wins.
+    let mos = |model: &str, instance: &str| {
+        currents(
+            "i(vdd)",
+            &format!(
+                "vdd 1 0 dc 3\nvg 2 0 dc 2\nm1 1 2 0 0 nm {instance}\n\
+             .model nm nmos(level=1 vto=1 kp=1e-4 {model})\n.op"
+            ),
+        )
+    };
+    // The default `W` is 100 um: `.model ... l=2u` alone carries 2.5 mA, and an
+    // explicit `l=1u` instance (which wins) doubles it to 5 mA.
+    assert!(
+        (mos("l=2u", "") + 2.5e-3).abs() < 1e-9,
+        "got {}",
+        mos("l=2u", "")
+    );
+    assert!((mos("l=2u", "l=1u") + 5.0e-3).abs() < 1e-9);
+    assert!((mos("l=2u", "l=1u") - mos("", "l=1u")).abs() < 1e-15);
+
+    // A diode card: `area` is an instance parameter.
+    let diode = |model: &str| {
+        currents(
+            "i(vd)",
+            &format!("vd 1 0 dc 0.6\nd1 1 0 dm\n.model dm d(is=1e-14 n=1 {model})\n.op"),
+        )
+    };
+    assert!((diode("area=4") / diode("") - 4.).abs() < 1e-3);
 }

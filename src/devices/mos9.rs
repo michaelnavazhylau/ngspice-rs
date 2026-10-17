@@ -76,11 +76,17 @@ impl MosLevel for Level9 {
     /// NLEV and GDSNOI, which are refused as unknown setters. The validated
     /// card then carries level 3's `NLEV = 2` default, which selects
     /// `mos9noi.c`'s `2/3 |gm|` channel noise in the shell.
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
-        resolved.parameters(&ScalarSchema {
+    fn model_schema() -> ScalarSchema<'static> {
+        ScalarSchema {
             parameters: MODEL_WITHOUT_NOISE_SELECTORS,
-        })?;
-        Level3::card(resolved, Self::LABEL).map(Self)
+        }
+    }
+
+    fn from_card<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
+        let (m, defaults) = Self::model_and_defaults(resolved)?;
+        Ok((Level3::card(resolved, Self::LABEL, &m).map(Self)?, defaults))
     }
 
     fn common(&self) -> &Common {

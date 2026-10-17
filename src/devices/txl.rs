@@ -55,6 +55,9 @@ impl Model {
             }
             setters.push(p);
         }
+        // `inpgmod.c::create_model`: an instance parameter on the `.model`
+        // card (`len`) becomes a model-level instance default.
+        let (setters, _) = crate::devices::schema::split_model_setters(setters, &MODEL, &INSTANCE);
         let values = MODEL.validate(setters, &card.location)?;
         let get = |key: &str| {
             values.get(key).map(|v| v.value).ok_or_else(|| {
@@ -84,7 +87,19 @@ fn inputs(
         ));
     }
     let m = Model::read(model.card())?;
-    let v = INSTANCE.validate(instance.parameters.iter(), &instance.location)?;
+    // The defaults `Model::read` rejected on the model's behalf: re-derive them
+    // here so the instance sees the same values C's `INPdevParse` would.
+    let (_, model_defaults) = crate::devices::schema::split_model_setters(
+        model.card().parameters.iter(),
+        &MODEL,
+        &INSTANCE,
+    );
+    let v = crate::devices::schema::with_defaults(
+        &INSTANCE,
+        &model_defaults,
+        instance.parameters.iter(),
+        &instance.location,
+    )?;
     let given = v.get("len").map(|v| v.value);
     Ok((m, given.unwrap_or(m.length), given))
 }

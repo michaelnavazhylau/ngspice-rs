@@ -900,12 +900,19 @@ impl Bjt {
         }
         let card = model.card();
         reject_unported(&card.parameters)?;
-        let assignments: Vec<_> = card
-            .parameters
-            .iter()
-            .filter(|p| !p.name.eq_ignore_ascii_case("level"))
-            .map(canonical)
-            .collect();
+        // `inpgmod.c::create_model`: a `.model` setter outside the model table
+        // that is a settable instance parameter becomes a model-level instance
+        // default, applied before the instance card's own setters.
+        let (model_side, model_defaults) = crate::devices::schema::split_model_setters(
+            card.parameters
+                .iter()
+                .filter(|p| !p.name.eq_ignore_ascii_case("level")),
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+        );
+        let assignments: Vec<_> = model_side.into_iter().map(canonical).collect();
         let values = ScalarSchema { parameters: MODEL }.validate(&assignments, &card.location)?;
         let parameters = Model::from_values(&values)?;
         let excess_phase = get(&values, "ptf")? * parameters.tf;
@@ -917,10 +924,14 @@ impl Bjt {
         }
         let (initial, instance_setters) =
             crate::devices::initial::split(&i.parameters, &IC_COMPONENTS)?;
-        let instance_values = ScalarSchema {
-            parameters: INSTANCE,
-        }
-        .validate(&instance_setters, &i.location)?;
+        let instance_values = crate::devices::schema::with_defaults(
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+            &model_defaults,
+            instance_setters.iter(),
+            &i.location,
+        )?;
         let area = get(&instance_values, "area")?;
         let instance = Instance {
             area,

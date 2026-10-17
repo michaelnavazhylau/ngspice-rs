@@ -178,23 +178,32 @@ impl MosLevel for Level1 {
     /// `mos1set.c`: `CKTmkVolt(..., "drain")` / `"source"`.
     const PRIME_SUFFIXES: [&'static str; 2] = ["drain", "source"];
 
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
-        let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
+    fn model_schema() -> ScalarSchema<'static> {
+        ScalarSchema { parameters: MODEL }
+    }
+
+    fn from_card<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
+        let (m, defaults) = Self::model_and_defaults(resolved)?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         let tpg = get("tpg");
-        Ok(Self {
-            common: Common::from_values(&m, resolved.family(), tpg, "MOS1", "mos1noi.c")?,
-            vto: aliased(&m, ["vto", "vt0"]),
-            kp: get("kp"),
-            gamma: get("gamma"),
-            phi: get("phi"),
-            lambda: required(&m, "lambda", "MOS1")?,
-            tox: get("tox"),
-            u0: aliased(&m, ["u0", "uo"]),
-            nsub: get("nsub"),
-            tpg,
-            nss: get("nss"),
-        })
+        Ok((
+            Self {
+                common: Common::from_values(&m, resolved.family(), tpg, "MOS1", "mos1noi.c")?,
+                vto: aliased(&m, ["vto", "vt0"]),
+                kp: get("kp"),
+                gamma: get("gamma"),
+                phi: get("phi"),
+                lambda: required(&m, "lambda", "MOS1")?,
+                tox: get("tox"),
+                u0: aliased(&m, ["u0", "uo"]),
+                nsub: get("nsub"),
+                tpg,
+                nss: get("nss"),
+            },
+            defaults,
+        ))
     }
 
     fn common(&self) -> &Common {

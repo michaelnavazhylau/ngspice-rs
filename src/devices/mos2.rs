@@ -244,8 +244,14 @@ impl MosLevel for Level2 {
     const NOISE_FAMILY: Option<NoiseFamily> = Some(NoiseFamily::Mos2);
     const PRIME_SUFFIXES: [&'static str; 2] = ["internal#drain", "internal#source"];
 
-    fn from_card(resolved: &ResolvedModel<'_>) -> SpiceResult<Self> {
-        let m = resolved.parameters(&ScalarSchema { parameters: MODEL })?;
+    fn model_schema() -> ScalarSchema<'static> {
+        ScalarSchema { parameters: MODEL }
+    }
+
+    fn from_card<'a>(
+        resolved: &'a ResolvedModel<'_>,
+    ) -> SpiceResult<(Self, Vec<&'a crate::netlist::ast::ParameterAssignment>)> {
+        let (m, defaults) = Self::model_and_defaults(resolved)?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         let required = |name: &str| required(&m, name, "MOS2");
         let common = Common::from_values(&m, resolved.family(), get("tpg"), "MOS2", "mos2noi.c")?;
@@ -269,7 +275,7 @@ impl MosLevel for Level2 {
             neff: required("neff")?,
             nfs: required("nfs")?,
         };
-        Ok(model)
+        Ok((model, defaults))
     }
 
     fn common(&self) -> &Common {

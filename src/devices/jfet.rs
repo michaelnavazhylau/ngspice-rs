@@ -386,6 +386,16 @@ impl Jfet {
         }
         let (initial, setters) = crate::devices::initial::split(&i.parameters, &IC_COMPONENTS)?;
         let (pol, scalars) = card_scalars(resolved);
+        // `inpgmod.c::create_model`: a setter outside the model table that is
+        // a settable instance parameter becomes a model-level instance
+        // default, applied before the instance card's own setters.
+        let (scalars, model_defaults) = crate::devices::schema::split_model_setters(
+            scalars,
+            &ScalarSchema { parameters: MODEL },
+            &ScalarSchema {
+                parameters: INSTANCE,
+            },
+        );
         let m = ScalarSchema { parameters: MODEL }.validate(scalars, &resolved.card().location)?;
         let get = |name: &str| m.get(name).map(|v| v.value);
         // JFET_MOD_VTO has the IOP spelling `vt0` and the IOPR alias `vto`;
@@ -414,7 +424,7 @@ impl Jfet {
             eg: required(&m, "eg")?,
         };
         check_fc(&i.name, model.fc)?;
-        let instance = instance_setters(&setters, &i.location)?;
+        let instance = instance_setters(&model_defaults, &setters, &i.location)?;
         let mut device = Self {
             name: i.name.clone(),
             terminals: vec![],
@@ -672,13 +682,18 @@ pub(super) fn check_fc(name: &str, fc: Real) -> SpiceResult<()> {
 
 /// The validated scalar instance setters (`AREA`, `M`, `TEMP`, `DTEMP`).
 pub(super) fn instance_setters(
+    defaults: &[&ParameterAssignment],
     setters: &[ParameterAssignment],
     owner: &crate::primitives::SourceLoc,
 ) -> SpiceResult<Instance> {
-    let v = ScalarSchema {
-        parameters: INSTANCE,
-    }
-    .validate(setters, owner)?;
+    let v = crate::devices::schema::with_defaults(
+        &ScalarSchema {
+            parameters: INSTANCE,
+        },
+        defaults,
+        setters.iter(),
+        owner,
+    )?;
     Ok(Instance {
         area: required(&v, "area")?,
         m: required(&v, "m")?,

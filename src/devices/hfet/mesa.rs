@@ -236,9 +236,9 @@ impl Mesa {
                 i.name
             )));
         }
-        let model = Model::resolve(resolved)?;
+        let (model, model_defaults) = Model::resolve(resolved)?;
         let (initial, setters) = Instance::resolve(i)?;
-        let instance = Instance::validate(&setters, &i.location)?;
+        let instance = Instance::validate(&model_defaults, &setters, &i.location)?;
         let mut staged = nodes.clone();
         let external: Vec<NodeId> = i.nodes.iter().map(|n| staged.intern(n)).collect();
         let mut terminals = external.clone();
