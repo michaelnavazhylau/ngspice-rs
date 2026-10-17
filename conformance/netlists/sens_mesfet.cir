@@ -1,0 +1,18 @@
+DC sensitivity of MESFET level 1 (Statz) bias networks (#164)
+* Both polarities and two models, so every mes.c setter and each instance's
+* AREA are perturbed. MES has no instance temperature and M is IF_REDUNDANT,
+* so C enumerates neither.
+.options reltol=1e-9
+vdd 1 0 dc 3
+rd 1 2 1k
+z1 2 3 0 zn area=2
+vg 3 0 dc -1
+vss 4 0 dc -3
+rp 4 5 1k
+z2 5 6 0 zp area=0.5
+vg2 6 0 dc 1
+.model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=5 rs=4
++ cgs=2p cgd=0.5p pb=0.8 is=1e-14 fc=0.4 kf=1e-26 af=1.1)
+.model zp pmf(vto=-1.2 beta=2m cgs=1p cgd=1p pb=0.9 alpha=3)
+.sens v(2)
+.end

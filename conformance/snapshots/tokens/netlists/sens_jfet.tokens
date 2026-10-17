@@ -1,0 +1,193 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_jfet.cir
+title: "DC sensitivity of JFET level 1 bias networks (#164)" @netlists/sens_jfet.cir:1:1
+card 1 @netlists/sens_jfet.cir:7:1 lines=7-7 continuations=0
+  raw: ".options reltol=1e-9"
+  kind: dot(.options)
+  token 1 7:1 word ".options"
+  token 2 7:10 word "reltol"
+  token 3 7:16 equals "="
+  token 4 7:17 number "1e-9" value=1e-9
+card 2 @netlists/sens_jfet.cir:8:1 lines=8-8 continuations=0
+  raw: "vdd 1 0 dc 3"
+  kind: device(v)
+  token 1 8:1 word "vdd"
+  token 2 8:5 number "1" value=1e0
+  token 3 8:7 number "0" value=0e0
+  token 4 8:9 word "dc"
+  token 5 8:12 number "3" value=3e0
+card 3 @netlists/sens_jfet.cir:9:1 lines=9-9 continuations=0
+  raw: "rd 1 2 1k"
+  kind: device(r)
+  token 1 9:1 word "rd"
+  token 2 9:4 number "1" value=1e0
+  token 3 9:6 number "2" value=2e0
+  token 4 9:8 number "1k" value=1e3
+card 4 @netlists/sens_jfet.cir:10:1 lines=10-10 continuations=0
+  raw: "j1 2 3 0 jm area=2 temp=40"
+  kind: device(j)
+  token 1 10:1 word "j1"
+  token 2 10:4 number "2" value=2e0
+  token 3 10:6 number "3" value=3e0
+  token 4 10:8 number "0" value=0e0
+  token 5 10:10 word "jm"
+  token 6 10:13 word "area"
+  token 7 10:17 equals "="
+  token 8 10:18 number "2" value=2e0
+  token 9 10:20 word "temp"
+  token 10 10:24 equals "="
+  token 11 10:25 number "40" value=4e1
+card 5 @netlists/sens_jfet.cir:11:1 lines=11-11 continuations=0
+  raw: "vg 3 0 dc -1"
+  kind: device(v)
+  token 1 11:1 word "vg"
+  token 2 11:4 number "3" value=3e0
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 word "dc"
+  token 5 11:11 number "-1" value=-1e0
+card 6 @netlists/sens_jfet.cir:12:1 lines=12-12 continuations=0
+  raw: "vss 4 0 dc -3"
+  kind: device(v)
+  token 1 12:1 word "vss"
+  token 2 12:5 number "4" value=4e0
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 word "dc"
+  token 5 12:12 number "-3" value=-3e0
+card 7 @netlists/sens_jfet.cir:13:1 lines=13-13 continuations=0
+  raw: "rp 4 5 1k"
+  kind: device(r)
+  token 1 13:1 word "rp"
+  token 2 13:4 number "4" value=4e0
+  token 3 13:6 number "5" value=5e0
+  token 4 13:8 number "1k" value=1e3
+card 8 @netlists/sens_jfet.cir:14:1 lines=14-14 continuations=0
+  raw: "j2 5 6 0 jp area=0.5"
+  kind: device(j)
+  token 1 14:1 word "j2"
+  token 2 14:4 number "5" value=5e0
+  token 3 14:6 number "6" value=6e0
+  token 4 14:8 number "0" value=0e0
+  token 5 14:10 word "jp"
+  token 6 14:13 word "area"
+  token 7 14:17 equals "="
+  token 8 14:18 number "0.5" value=5e-1
+card 9 @netlists/sens_jfet.cir:15:1 lines=15-15 continuations=0
+  raw: "vg2 6 0 dc 1"
+  kind: device(v)
+  token 1 15:1 word "vg2"
+  token 2 15:5 number "6" value=6e0
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 word "dc"
+  token 5 15:12 number "1" value=1e0
+card 10 @netlists/sens_jfet.cir:16:1 lines=16-18 continuations=2
+  raw: ".model jm njf(vto=-2 beta=1e-4 lambda=0.02 rd=10 rs=20 cgs=2p cgd=1p pb=0.8 is=1e-14 n=1.2 fc=0.4 b=0.9 tnom=30 tcv=-2e-3 vtotc=1e-3 bex=0.5 betatce=0.7 xti=2.5 eg=1.15 kf=1e-26 af=1.1 gdsnoi=2)"
+  kind: dot(.model)
+  token 1 16:1 word ".model"
+  token 2 16:8 word "jm"
+  token 3 16:11 word "njf"
+  token 4 16:14 lparen "("
+  token 5 16:15 word "vto"
+  token 6 16:18 equals "="
+  token 7 16:19 number "-2" value=-2e0
+  token 8 16:22 word "beta"
+  token 9 16:26 equals "="
+  token 10 16:27 number "1e-4" value=1e-4
+  token 11 16:32 word "lambda"
+  token 12 16:38 equals "="
+  token 13 16:39 number "0.02" value=2e-2
+  token 14 16:44 word "rd"
+  token 15 16:46 equals "="
+  token 16 16:47 number "10" value=1e1
+  token 17 16:50 word "rs"
+  token 18 16:52 equals "="
+  token 19 16:53 number "20" value=2e1
+  token 20 16:56 word "cgs"
+  token 21 16:59 equals "="
+  token 22 16:60 number "2p" value=2e-12
+  token 23 16:63 word "cgd"
+  token 24 16:66 equals "="
+  token 25 16:67 number "1p" value=1e-12
+  token 26 16:70 word "pb"
+  token 27 16:72 equals "="
+  token 28 16:73 number "0.8" value=8e-1
+  token 29 16:77 word "is"
+  token 30 16:79 equals "="
+  token 31 16:80 number "1e-14" value=1e-14
+  token 32 16:86 word "n"
+  token 33 16:87 equals "="
+  token 34 16:88 number "1.2" value=1.2000000000000002e0
+  token 35 16:92 word "fc"
+  token 36 16:94 equals "="
+  token 37 16:95 number "0.4" value=4e-1
+  token 38 16:99 word "b"
+  token 39 16:100 equals "="
+  token 40 16:101 number "0.9" value=9e-1
+  token 41 16:105 word "tnom"
+  token 42 16:109 equals "="
+  token 43 16:110 number "30" value=3e1
+  token 44 16:113 word "tcv"
+  token 45 16:116 equals "="
+  token 46 16:117 number "-2e-3" value=-2e-3
+  token 47 16:123 word "vtotc"
+  token 48 16:128 equals "="
+  token 49 16:129 number "1e-3" value=1e-3
+  token 50 16:134 word "bex"
+  token 51 16:137 equals "="
+  token 52 16:138 number "0.5" value=5e-1
+  token 53 16:142 word "betatce"
+  token 54 16:149 equals "="
+  token 55 16:150 number "0.7" value=7.000000000000001e-1
+  token 56 16:154 word "xti"
+  token 57 16:157 equals "="
+  token 58 16:158 number "2.5" value=2.5e0
+  token 59 16:162 word "eg"
+  token 60 16:164 equals "="
+  token 61 16:165 number "1.15" value=1.1500000000000001e0
+  token 62 16:170 word "kf"
+  token 63 16:172 equals "="
+  token 64 16:173 number "1e-26" value=1e-26
+  token 65 16:179 word "af"
+  token 66 16:181 equals "="
+  token 67 16:182 number "1.1" value=1.1e0
+  token 68 16:186 word "gdsnoi"
+  token 69 16:192 equals "="
+  token 70 16:193 number "2" value=2e0
+  token 71 16:194 rparen ")"
+card 11 @netlists/sens_jfet.cir:19:1 lines=19-19 continuations=0
+  raw: ".model jp pjf(vto=-1.5 beta=5e-5 rd=5 rs=5 tnom=40 tcv=1e-3)"
+  kind: dot(.model)
+  token 1 19:1 word ".model"
+  token 2 19:8 word "jp"
+  token 3 19:11 word "pjf"
+  token 4 19:14 lparen "("
+  token 5 19:15 word "vto"
+  token 6 19:18 equals "="
+  token 7 19:19 number "-1.5" value=-1.5e0
+  token 8 19:24 word "beta"
+  token 9 19:28 equals "="
+  token 10 19:29 number "5e-5" value=5e-5
+  token 11 19:34 word "rd"
+  token 12 19:36 equals "="
+  token 13 19:37 number "5" value=5e0
+  token 14 19:39 word "rs"
+  token 15 19:41 equals "="
+  token 16 19:42 number "5" value=5e0
+  token 17 19:44 word "tnom"
+  token 18 19:48 equals "="
+  token 19 19:49 number "40" value=4e1
+  token 20 19:52 word "tcv"
+  token 21 19:55 equals "="
+  token 22 19:56 number "1e-3" value=1e-3
+  token 23 19:60 rparen ")"
+card 12 @netlists/sens_jfet.cir:20:1 lines=20-20 continuations=0
+  raw: ".sens v(2)"
+  kind: dot(.sens)
+  token 1 20:1 word ".sens"
+  token 2 20:7 word "v"
+  token 3 20:8 lparen "("
+  token 4 20:9 number "2" value=2e0
+  token 5 20:10 rparen ")"
+card 13 @netlists/sens_jfet.cir:21:1 lines=21-21 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 21:1 word ".end"

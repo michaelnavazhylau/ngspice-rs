@@ -165,10 +165,22 @@ recomputed charge. Every `z` level exports them (`mesask.c` for 0/1,
 `mesaask.c` for 2-4, `hfetask.c`/`hfet2ask.c` for 5/6); the port refuses them
 for the MES, MESA and HFET families alike.
 
+## `.sens` (#164)
+
+`mes.c`'s tables: 10 model parameters in a DC run, 12 in AC (`vto` is the `IOPR` alias of `vt0`,
+`gd`/`gs`/`depl_cap`/`vcrit` are ask-only, `cgs`/`cgd` are `IF_AC`, and
+`kf`/`af` are settable but **not askable** - `mesmask.c` has no case for them,
+so `sens_getp` fails and C skips them) and one DC instance parameter, `area`
+(`MES_M` is `IOPUR`, so a MES `.sens` has no `z1_m` column). `mestemp.c` has
+no given-flag branches and MES has no instance temperature, so the replay has
+no temperature step. `sens_mesfet` verifies 90 columns over two models and
+both polarities.
+
 ## Not ported
 
-`.disto` (`mesdset.c`, `mesdisto.c`) and `.sens` of a MESFET fail with
-`NotYetPorted`; so do the MESA/HFET levels and the `nhfet`/`phfet` bases.
+`.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`; so do `.sens`
+of the MESA/HFET levels (see [SENSITIVITY.md](SENSITIVITY.md)) and the
+`nhfet`/`phfet` bases.
 
 ## Evidence
 

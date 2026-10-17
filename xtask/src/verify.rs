@@ -987,6 +987,35 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY,
         },
     },
+    // `.sens` of the `j` and `z` families (#164): C's `sgen` walk of the
+    // `jfet.c`/`jfet2.c`/`mes.c`/`mesa.c`/`hfet1.c`/`hfet2.c` parameter
+    // tables, replayed on the port's records. Same nonlinear bound as the
+    // diode: weak parameters (`tnom`, `temp`) have sensitivities around
+    // 1e-12, where a few ulps of the bias dominate the relative error.
+    Supported {
+        name: "sens_jfet",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_jfet2",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_mesfet",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // `.sp` (#105): linear port decks, so the AC bound applies to every
     // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
     // resistor so no Z/Y component is a rounding-level real part.

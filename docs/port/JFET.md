@@ -100,10 +100,28 @@ refused (C adds the charge companion to them). `qgs`/`qgd`/`cqgs`/`cqgd`/`p`
 are not supported (explicit error). `.dc @j1[area|m|temp|dtemp|ic-vds|ic-vgs]`
 sweeps re-derive `JFETtemp`.
 
+## `.sens` (#164)
+
+`.sens` follows C's `sgen` walk over `jfet.c`'s tables: 20 model parameters
+(`vto` is the `IOPR` alias of `vt0` and is skipped, `gd`/`gs` are ask-only,
+`nlev` is an integer) and four instance parameters (`area`, `m`, `temp`,
+`dtemp`; `ic-vds`/`ic-vgs` are `IF_AC`). `jfettemp.c` branches on the *given*
+flags of `xti`, `vtotc` and `betatce`, so the replay keeps those as C's
+`Option`s and applies `jfetset.c`'s defaults without marking them given. The
+perturbed load is the port's own `Jfet` rebuilt from C's records, so
+`jfettemp.c`'s derived quantities follow every perturbation. The
+`sens_jfet` golden covers two models and both polarities.
+
+**Divergence:** for an instance with `M != 1`, C's `.sens` disagrees with its
+own finite difference for the *instance* parameters (the `m` column comes out
+`M` times its own derivative and `area` gains a `-(M-1) IR` term). The port
+reports the finite-difference-consistent values; the fixtures use `M = 1`.
+See [SENSITIVITY.md](SENSITIVITY.md).
+
 ## Not ported
 
-`.noise` (`jfetnoi.c`), `.disto` (`jfetdset.c`/`jfetdist.c`) and `.sens` of a
-JFET fail with `NotYetPorted`.
+`.noise` (`jfetnoi.c`) and `.disto` (`jfetdset.c`/`jfetdist.c`) fail with
+`NotYetPorted`.
 
 ## Evidence
 
@@ -195,8 +213,16 @@ matrix; the residual and its root are C's); `.pz` is refused (C has no
 `ggd`, `igd`, `vtrap`, `vpave` read C's filter or charge state there and are
 refused (`NotYetPorted`).
 
-**Not ported.** `.noise` (`jfet2noi.c`), `.disto` (C has none) and `.sens`
-fail explicitly.
+**`.sens` (#164).** 36 model parameters (from `jfet2parm.h`'s alphabetical
+table: `vto`/`pb` are redundant aliases and `gd`/`gs` are ask-only) and four
+instance ones. `hfgam`'s default is the model's `lfgam`, re-derived by every
+`DEVsetup`, so perturbing `lfgam` moves `hfgam` too unless the card gave it.
+`sens_jfet2` verifies 148 columns; its feedback family (`delta`/`hfeta`/`hfe*`/
+`hfg*`/`mvst`/`mxi`/`xi`/`z`) is cancellation-dominated at exotic values, so
+the fixture keeps those at their defaults.
+
+**Not ported.** `.noise` (`jfet2noi.c`) and `.disto` (C has none) fail
+explicitly.
 
 **Evidence.** `tests/jfet2.rs`: level selection and validation, a square-law
 reduction (`P = Q = 2`, `VST = Z = 0`, huge `XI`) of both polarities, inverse

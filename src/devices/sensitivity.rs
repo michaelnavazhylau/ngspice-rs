@@ -62,12 +62,24 @@ pub enum SensitivityFamily {
     CurrentSwitch,
     /// `dio`: diodes.
     Diode,
+    /// `hfeta`: HFET1 (`z` level 5).
+    Hfet1,
+    /// `hfet2`: HFET2 (`z` level 6).
+    Hfet2,
     /// `ind`: inductors.
     Inductor,
     /// `mut`: K mutual inductance.
     Mutual,
     /// `isrc`: independent current sources.
     CurrentSource,
+    /// `jfet`: JFET level 1.
+    Jfet,
+    /// `jfet2`: JFET level 2 (Parker-Skellern).
+    Jfet2,
+    /// `mes`: MESFET level 1 (Statz).
+    Mes,
+    /// `mesa`: MESA levels 2-4.
+    Mesa,
     /// `mos1`.
     Mos1,
     /// `res`: resistors.
