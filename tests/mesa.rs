@@ -781,13 +781,15 @@ fn the_mixed_polarity_level_four_operating_point_is_the_conducting_root() {
     close(value(&sweep, "i(vgg)", 11), -4.260_834e-3, 1e-6, 1e-12);
 }
 
-/// `.sens` (#164) for MESA level 2, and the explicit refusal for levels 3-4.
+/// `.sens` (#164) for MESA levels 2 and 4, and the explicit refusal for level 3.
 ///
-/// The level-3/4 rows are **not** verified against C: measured on a level-4
-/// card alone, `teta1` differs by 100% and `epsi`/`gamma`/`xtm0` by 1-4%, a
-/// real derivation gap that `.sens` exposes (see `docs/port/SENSITIVITY.md`).
+/// Level 4 is verified by `sens_mesa4` (a level-4 card whose output is the
+/// drain current, not `sens_mesa`'s ~1 uV gate node, where every row is a
+/// cancellation-limited difference). Level 3 is **not** verified: its `mesa2`
+/// channel leaves `du` 16% and `th` 24% from C on an otherwise agreeing deck
+/// (see `docs/port/SENSITIVITY.md`).
 #[test]
-fn sensitivity_follows_mesa_cs_table_for_level_two_and_refuses_the_rest() {
+fn sensitivity_follows_mesa_cs_table_for_levels_two_and_four_and_refuses_three() {
     let cards = |level: u8, analysis: &str| {
         format!(
             "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 4 0 dc 0\nrg 4 3 1k\n\
@@ -805,7 +807,7 @@ fn sensitivity_follows_mesa_cs_table_for_level_two_and_refuses_the_rest() {
             &request,
             &config.context(),
         );
-        if level == 2 {
+        if level != 3 {
             let plot = result.unwrap();
             let names: Vec<&str> = plot
                 .variables

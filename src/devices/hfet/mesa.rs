@@ -1237,11 +1237,11 @@ impl Device for Mesa {
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         Self::sweepable(keyword)
     }
-    /// `mesa.c`'s `IFparm` tables under C's `sgen` walk (#164). Only level 2 is
-    /// verified: levels 3-4's rows still differ from C (see
-    /// `docs/port/SENSITIVITY.md`), so they are refused up front.
+    /// `mesa.c`'s `IFparm` tables under C's `sgen` walk (#164). Levels 2 and 4
+    /// are verified against C; level 3's `mesa2` path still differs on the
+    /// `DU`/`TH` rows (see `docs/port/SENSITIVITY.md`), so it is refused.
     fn sensitivity(&self, context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
-        if self.level != 2. {
+        if !matches!(self.level, l if l == 2. || l == 4.) {
             return Err(SpiceError::not_yet_ported(
                 format!("{}: MESA level {} sensitivity", self.name, self.level),
                 "src/spicelib/devices/mesa/mesatemp.c, mesaload.c (mesa2/mesa3)",
@@ -1923,6 +1923,15 @@ impl DeviceSensitivity for MesaSensitivity<'_> {
     ) -> SpiceResult<()> {
         match (scope, keyword) {
             (ParameterScope::Model, "phib" | "phib1") => model.set(keyword, value * CHARGE),
+            // `mesamparam.c` stores `tlambda`, `teta0`, `teta1`, `tmu` and
+            // `tf` as `value + CONSTCtoK`, so every perturbation of them is
+            // offset by 273.15 K and restoring the asked value re-adds it:
+            // after the `teta1` row the model holds 273.15, and the `tmu` row
+            // leaves 573.3, which is what makes the later `xtm0` row non-zero
+            // in C (`pow(ts/tmu, xtm0)` is exactly 1 while `tmu` is 300.15).
+            (ParameterScope::Model, "tlambda" | "teta0" | "teta1" | "tmu" | "tf") => {
+                model.set(keyword, value + CELSIUS_TO_KELVIN)
+            }
             (ParameterScope::Model, _) => model.set(keyword, value),
             (ParameterScope::Instance, _) => instance.set(keyword, value),
         }
