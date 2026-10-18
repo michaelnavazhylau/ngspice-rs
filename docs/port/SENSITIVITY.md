@@ -207,40 +207,40 @@ both were measured and left open:
 
 ### What MESA levels 3-4 and HFET1/HFET2 still need
 
-Both were implemented against C's tables during the #164 work and then
-*withheld*, because their rows do not verify:
+**Two MESA rows cannot be verified at all, at any level.** C's `.sens` disagrees
+with its **own** `.op` finite difference for `teta1` and `xtm0`, because both
+only enter through `tEta`/`tMu` and the stamped Jacobian carries that dependence
+in a form whose perturbation does not match the re-solved operating point.
+Measured on a level-2+level-4 deck sensing `i(vids)` (a well-conditioned O(mA)
+output, perturbing through `altermod` and re-solving):
 
-- **MESA level 4** (measured on a level-4 card alone, `catch`-free):
-  `teta1` differs by 100% (`-2.4e-4` vs `~0`), `epsi` by 0.98% (`152.30` vs
-  `153.79`), `gamma` by 4.0% and `xtm0` by 1.1%. `.dc`/`.tran`/`.op` for the
-  same card agree with C to 1e-9, so this is a *derivation* difference that
-  only the small-signal-by-perturbation walk exposes - the level-3/4 channel's
-  dependence on `tEta`/`epsi`/`gamma` is the place to look.
-- **HFET1**: `js1s` differs by 2.8x, `vt2`/`l`/`w` by 0.1-100%, again with the
-  ordinary loads exact. `hfettemp.c` also multiplies the **stored** threshold
-  by the model type on every `DEVtemperature` call, so a p-channel device's
-  `vt0` alternates sign across the walk; any HFET1 fixture must be n-channel
-  until that is reproduced.
+| row | C `.sens` | C `.op` finite difference |
+| --- | ---: | ---: |
+| `teta1` | -4.851e-3 | -6.116e-8 |
+| `xtm0` | -6.156e-4 | ~1e-8 |
 
-Neither is blocked on the framework: the tables, records and replay are the
-same as the four families above. They are held back because shipping
-sensitivity numbers that are 1-100% off on a subset of columns is worse than
-the explicit refusal.
+That is 4-5 orders of magnitude, in both levels 2 and 4, so those two C rows are
+artefacts rather than derivatives. The port's rows are ~0 for the same reason
+(the stamp carries no `teta1`/`xtm0` dependence at that bias). `sens_mesa`
+therefore senses `v(3)`, the gate node, where C's own artefacts are only
+4.6e-8/5.9e-9 and the documented `SENSITIVITY_CANCELLED` floor covers them.
+Every other row agrees: at `i(vids)` the remaining differences are 1e-6 or
+better, and at `v(3)` they are inside the nonlinear bound except `level`'s
+3.4e-6 cancellation amplification.
 
-### Two bugs this work found and fixed
+**Levels 3-4 are still refused**, for the narrower reason that their rows are
+only comparable at a well-conditioned output: at `v(3)` (a ~1e-6 V node) the
+level-4 rows amplify last-digit differences into the 1e-2..1e-1 range (`epsi`
+0.98%, `gamma` 4.0%, `xtm0` 1.1% before the analysis above), while the ordinary
+`.op`/`.dc`/`.tran` loads agree to 1e-9. Landing them means either a fixture
+whose output is `i(vids)` plus a documented exclusion for `teta1`/`xtm0`, or
+finding C's stamp-versus-derivative difference. The tables, records and replay
+are already in place - only the verification route is open.
 
-- **`phib` on the card is in electron-volts.** `mesamparam.c` and
-  `hfetmpar.c` store `value * CHARGE`; the port stored the card value raw, so
-  `.model ... phib=0.1` was silently ~1e19 times too large. Fixed for MESA
-  (`phib`, `phib1`) and HFET1 (`phib`), with the schema default moved to the eV
-  figure (0.5) so the derived default is unchanged. Verified against the
-  reference binary: `phib=0.1` now answers `i(vgs) = 1.212700e-03` and
-  `i(vids) = 5.403663e-03` A on both.
-- **MESA's level is a `double`.** `mesadefs.h` stores `MESAlevel` as a `double`
-  and `mesaload.c`/`mesatemp.c` test `== 2`, `== 3`, `== 4`, so a value between
-  them matches *no* branch and the channel loads nothing. The port kept it in a
-  `u8`; `.sens` perturbs the field, so `level`'s column was wrong until the
-  representation was corrected.
+**HFET1** is a separate, concrete case: `js1s` differs from C by 2.8x and
+`vt2`/`l`/`w` by 0.1-100%, and `hfettemp.c` multiplies the **stored** threshold
+by the model type on every `DEVtemperature` call, so a p-channel device's `vt0`
+alternates sign across the walk. **HFET2** is not implemented.
 
 Until those land the refusal stays, naming `cktsens.c`/`cktsgen.c` and the
 device's `DEVparam`/`DEVtemperature`/`DEVload`.
