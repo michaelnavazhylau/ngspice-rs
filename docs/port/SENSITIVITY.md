@@ -119,7 +119,10 @@ output:
 | J (JFET level 2, `jfet2.c`) | yes | refused |
 | Z level 1 (MES, `mes.c`) | yes | refused |
 | Z level 2 (MESA, `mesa.c`) | yes | refused |
-| Z levels 3-4 (MESA) and 5-6 (HFET1/HFET2) | refused (`NotYetPorted`, #164) | refused |
+| Z level 3 (MESA) | yes | refused |
+| Z level 4 (MESA) | yes (including a shifted instance temperature) | refused |
+| Z level 5 (HFET1, `hfet1/hfet.c`) | yes | refused |
+| Z level 6 (HFET2, `hfet2/hfet2.c`) | refused (`NotYetPorted`, #164) | refused |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit
@@ -131,15 +134,18 @@ port's own `Diode` built from C's records.
 
 ### The `j` and `z` families (#164)
 
-**Ported: JFET levels 1 and 2 and the MESFET (`z` level 1).** Each family
-replays C's own sequence, the way the diode does, and each has a committed
-C golden with every enumerated parameter:
+**Ported: JFET levels 1 and 2, the MESFET (`z` level 1), MESA levels 2-4 and
+HFET1 (`z` level 5).** Each family replays C's own sequence, the way the diode
+does, and each has a committed C golden with every enumerated parameter:
 
 | Family | `sgen` parameters | Fixture |
 | --- | --- | --- |
 | `jfet.c` | 20 model + 4 instance | `sens_jfet` (116 vectors, two models, both polarities) |
 | `jfet2.c` | 36 model + 4 instance | `sens_jfet2` (148 vectors) |
 | `mes.c` | 10 model + 1 instance in DC (12 model in AC: `cgs`/`cgd`) | `sens_mesfet` (90 vectors) |
+| `mesa.c` level 2 | 61 model + 8 instance | `sens_mesa` (69 per device, two models, one at `dtemp=10`) |
+| `mesa.c` level 3 | 61 model + 8 instance | `sens_mesa3` (69 per device, two models, one at `dtemp=10`) |
+| `mesa.c` level 4 | 61 model + 8 instance | `sens_mesa4`, and `sens_mesa4_ts` at `ts=40` |
 | `hfet1/hfet.c` | 63 model + 7 instance | `sens_hfet1` (218 vectors, n- and p-channel) |
 
 The parameter lists are C's, not the card's, and three filters decide them:
@@ -184,11 +190,10 @@ Two limits are recorded rather than reproduced:
   fixture keeps JFET2's feedback family at its defaults; the columns are
   still enumerated and perturbed.
 
-**MESA levels 2 and 4 are ported** (`sens_mesa`, 69 columns: `mesa.c`'s 61
-model and 8 instance parameters, verified at `compare::SENSITIVITY_CANCELLED`;
-`sens_mesa4` for level 4). **Not ported: MESA level 3 and HFET1/HFET2** - see
-[the next section](#mesa-levels-2-and-4-level-3s-two-rows-hfet1hfet2) for what
-each one still needs.
+**MESA levels 2, 3 and 4 are ported** (`sens_mesa`, `sens_mesa3`,
+`sens_mesa4`, `sens_mesa4_ts`; 61 model and 8 instance parameters per device,
+69 columns each). **Not ported: HFET2** - see
+[the next section](#mesa-levels-2-3-and-4-hfet1hfet2) for what it still needs.
 
 Two earlier blockers are now reproduced or routed around, and the notes that
 recorded them are superseded:
@@ -201,30 +206,46 @@ recorded them are superseded:
   land on C's operating point) and a responsive node (to have a signal), and
   the internal `#gate` node provides the second without the first's ambiguity.
   `sens_mesa`'s two devices sit behind stiff drain supplies with the gate
-  driven through 1 k; `sens_mesa4` senses the drain current instead.
+  driven through 1 k; `sens_mesa3`/`sens_mesa4` sense the drain current
+  instead.
 
-### MESA levels 2 and 4, level 3's two rows, HFET1/HFET2
+### MESA levels 2, 3 and 4, HFET1/HFET2
 
-**MESA levels 2 and 4 are ported and verified**: `sens_mesa` (level 2, 69
-columns, sensed at the `#gate` node, `compare::SENSITIVITY_CANCELLED`) and
-`sens_mesa4` (level 4, sensed at `i(vids)`, at the circuit temperature). Two
-things are refused, both measured:
+**MESA levels 2, 3 and 4 are ported and verified**: `sens_mesa` (level 2,
+`sens_mesa` senses the `#gate` node, so it uses
+`compare::SENSITIVITY_CANCELLED`), `sens_mesa3` (level 3, one device at the
+circuit temperature and one at `dtemp=10`), `sens_mesa4` (level 4) and
+`sens_mesa4_ts` (level 4 at `ts=40`, the combination that was refused).
 
-- **Level 3.** Its `mesa2` channel leaves exactly two columns from C's answer,
-  `du` 16% and `th` 24%, on an otherwise agreeing deck (242 of 246 columns
-  inside 1e-6), so the two-population derivative terms
-  `delnsavgte`/`nsa` in `mesaload.c:760-790` are the open item, not the
-  parameter tables or the replay.
-- **Level 4 at a shifted temperature** (`ts` or `dtemp` set). `rtc1` and
-  `rtc2` come out at 0.808x C's -4.459e-3/-5.796e-2 against C's
-  -5.519e-3/-7.174e-2 at `ts=40`, while every other column is inside 1e-6 and
-  `.op`/`.dc`/`.tran` agree to 1e-9; the identical ratio on both rows points at
-  `mesatemp.c`'s RTC scaling of `trdi`/`trsi`/`trs`/`trd` rather than at the
-  channel. Level 2 verifies with `dtemp` set (`sens_mesa`'s `z2`), so only the
-  level-4 combination is refused.
+The earlier level-3/level-4 refusals were wrong about *why*, and the corrected
+diagnosis is worth recording because the first reading was plausible and false:
 
-Getting there needed two things that are easy to get wrong, and both were
-measured against the reference binary:
+- **Level 3's `du`/`th` rows were never the problem.** On the degenerate deck
+  they were measured on they sat 16%/24% from C, but that deck sensed a ~1 uV
+  gate node; on a saturated bias the two columns agree to 1e-11 and match both
+  implementations' own finite differences. What *did* separate the port from C
+  on a shifted instance temperature was `del`/`xchi` - and level 2, shipped as
+  verified, shows the same two rows the same way (8.4%/22% at `dtemp=10` with
+  `rg=1k`), snapping to *bit-identical* agreement when the same deck is run
+  with `rg=1.01k`. That is the cancellation class this document already
+  records for `sens_mesa`, not a derivation gap: the operating point agrees to
+  1e-12 and only a row that is a difference of much larger terms moves.
+- **Level 4's `rtc1`/`rtc2` rows were a real defect, in the device and not in
+  `.sens`.** At `ts=40` they came out at 0.808x C's (-4.459e-3/-5.796e-2
+  against -5.519e-3/-7.174e-2), and a finite difference of two `.op` runs - no
+  `.sens` machinery involved - reproduced the same 0.807 ratio, so the port's
+  *model* was wrong. `mesaload.c`'s `mesa2`/`mesa3` read `RS`, the
+  temperature-scaled `here->MESAtRsi` that `mesatemp.c` computes from
+  `rsi`/`rtc1`/`rtc2`, while the port read the raw `model.rsi` in `f`/`d`,
+  `ddevgte`, `p` and `delisatmgchim` (`mesa3`'s `h` is the one place C itself
+  uses the raw field). Nothing showed up at `tnom` or with `rtc1=0`, which is
+  why every earlier level-3/4 fixture passed. With the scaled value in place
+  every column of `sens_mesa4_ts` agrees, and
+  `tests/mesa.rs::the_channels_use_the_temperature_scaled_intrinsic_resistances`
+  pins the level-2/3/4 drain currents against the reference binary.
+
+Getting there needed things that are easy to get wrong, and all were measured
+against the reference binary:
 
 - **`mesamparam.c` stores five parameters in kelvin**: `tlambda`, `teta0`,
   `teta1`, `tmu` and `tf` are `value + CONSTCtoK` in C's model, while
@@ -240,11 +261,19 @@ measured against the reference binary:
   "C artefacts" were wrong, and so was the claim that C's `.sens` disagrees
   with its own finite difference - it does not, once the card carries the same
   value.
+- **`mesaask.c` answers `td`/`ts` in Celsius while `mesaparam.c` stores them in
+  kelvin**, the same asymmetry as `hfetask.c`'s `temp`: `MESAts = value +
+  CONSTCtoK` on every setter call, `MESAts - CONSTCtoK` on every ask. The
+  perturbation therefore steps the Celsius value and re-adds 273.15. The step
+  size does not cancel out of C's answer exactly - `.sens` divides a fixed-bias
+  linearisation by `delta`, so a nonlinear row keeps an O(delta) residue - and
+  modelling the kelvin field directly left `td`/`ts` 2.2e-3/6.4e-6 off in
+  `sens_mesa3`'s deck until `MesaSensitivity::ask`/`set` mirrored C.
 - **The sensed quantity decides whether a row is comparable at all.** `sens_mesa`
   senses a ~1e-6 V gate node, where a level-4 row is a cancellation-limited
   difference of last digits (that, not a derivation gap, is what made `epsi`
-  read 0.98% and `gamma` 4.0% off); `sens_mesa4` senses `i(vids)`, which is
-  O(mA), and every level-4 column agrees to 1e-6. Near cut-off the model's
+  read 0.98% and `gamma` 4.0% off); `sens_mesa3`/`sens_mesa4` sense `i(vids)`,
+  which is O(mA), and every column agrees to 1e-6. Near cut-off the model's
   exponential tails additionally make `.sens`'s fixed-bias linearisation
   differ from a re-solved operating point by orders of magnitude, so a `.sens`
   fixture must also sit well inside the saturated region.
@@ -265,18 +294,67 @@ p-channel). Two of its C quirks are reproduced rather than smoothed over:
   the Celsius value followed by a `+273.15` store, so modelling only the kelvin
   field would perturb across 273 K and be millions of times too large.
 
-**HFET2 remains refused**, and the reason is now measured rather than assumed.
-Its tables, records and replay exist and were written during this work; with
-`eta2`/`d2` given, 161 of the 162 reported columns agree with C to 1e-6 and
-`d2` differs by 1.9e-3, while without them `eta2` and `d2` differ outright. The
-port's `I(d2)` is bit-identical to C's at 0.2, 0.3 and 0.4 um (relative
-2.6e-16), so the gap is in the `.sens` delta path - `hfet2load.c`'s `N02`
-(`nsc`) and `nsa` derivative chain - not in the model equations.
+**HFET2 remains refused**, and the reason is measured rather than assumed. Two
+measurements matter, and the second corrects the first reading of the first:
 
-Until those land the refusal stays, naming `cktsens.c`/`cktsgen.c` and the
+- A replay was written and run during this work: with `eta2`/`d2` given, 161 of
+  the 162 reported columns agreed with C to 1e-6 and `d2` differed by 1.9e-3;
+  without them, `eta2` and `d2` differed outright. It was not kept, because
+  shipping it would have meant loosening the gate for one row.
+- **C's `d2` column is the honest derivative** when both flags are given, so
+  that row is a real target and not a perturbation artefact: measured against
+  the reference binary, C's `.sens` `d2` answers -2.4137675792e2 while a forward
+  difference of two `.op` runs at `h = 1e-6` gives -2.4137675795e2 (1.1e-10
+  relative; a central difference gives -2.4137691041e2), and the column is
+  unchanged when `rg` moves from 1 k to 10 k. The port's `I(d2)` is itself
+  bit-identical to C's at 0.2, 0.3 and 0.4 um (relative 2.6e-16).
+
+`hfet2`'s remaining difficulty is a **given-flag topology switch**, and the four
+flag combinations were measured on `vds=2`, `vgs=0.2`, `.sens i(vids)`:
+
+| card | `v(z1:d2)` | `v(z1:eta2)` |
+| --- | --- | --- |
+| `eta2=2 d2=0.3u` (both) | -2.4138e2 | -7.2527e-5 |
+| `eta2=2` | **-8.3209e8** | -7.7632e-5 |
+| `d2=0.3u` | 0 | **-9.8502e1** |
+| neither | 0 | **-8.3209e1** |
+
+`hfet2temp.c` computes `N02 = EPSI*ETA2*vt/2/CHARGE/D2` under
+`if(model->HFET2eta2Given)` alone, `hfet2load.c` reads `nsc` only under
+`eta2Given && d2Given`, and `HFET2mParam` marks a parameter given on every
+setter call (nothing ever clears the flag). Perturbing `d2` therefore *enables*
+the `nsc` branch in the perturbed load, and the column becomes the difference
+between two model topologies rather than a derivative - a card that gives
+`eta2` only answers -8.32e8, and one that gives nothing answers exactly 0
+because `N02 = 0` makes `nsc = 0` and the perturbed load a dead device. The
+card-level check agrees: `eta2=2` alone and the bare card both give
+`i(vids) = 3.115029093327e-04`, while `eta2=2 d2=0.2u` gives 1.450854007021e-04.
+
+So a replay must (a) carry every given flag in the records and feed them into
+the rebuilt model - the port's `Model` already holds `eta2_given`/`d2_given` -
+and (b) let the setters flip them without a restore, which
+`SensitivityRecord::set` already does. That single mechanism explains the
+recorded split exactly: with both given the walk never changes the topology,
+and without them the two columns are topology jumps. The one remaining item is
+the 1.9e-3 residue on `d2` *with both given*, where the honest derivative is the
+target: check that the perturbed load recomputes `N02` from the perturbed `d2`
+(C refreshes `here->HFET2n02` in `HFET2temp`, which the walk re-runs before
+each load) rather than reusing a pre-perturbation value.
+
+Two smaller C facts a replay needs: **`temp` is asked in Celsius and stored in
+kelvin** (`hfet2ask.c` returns `HFET2temp - CONSTCtoK`, `hfet2param.c` stores
+`value + CONSTCtoK`), the same asymmetry `hfetask.c` has, so `ask`/`set` must
+mirror it; and `RSI`/`RDI` are the raw model fields - HFET2 has no
+`rtc1`/`rtc2` - so the `tRsi` defect above has no analogue here.
+
+Until that lands the refusal stays, naming `hfet2temp.c`/`hfet2load.c` and the
 device's `DEVparam`/`DEVtemperature`/`DEVload`.
 
 ### The `j` and `z` families: the original gap note (#164)
+
+*Historical: this is the note that opened the work. Every family below now has
+a `DeviceSensitivity` implementation; the coverage table above is the
+authoritative status.*
 
 C's modern `.sens` does **not** use the SPICE2 adjoint `*sload.c` routines, so a
 device whose entry point sets `DEVsenSetup = NULL` is still enumerated:
@@ -288,23 +366,24 @@ with the reference binary on `z1 2 3 0 zm l=1u w=20u`, `.model zm nmf(level=2)`,
 `z1:*` vectors (`z1:ag`, `z1:alpha`, `z1:astar`, `z1:beta`, `z1:cas`, ...).
 `j1` is refused by the port the same way for the same reason.
 
-That work is **not done**: the port refuses the whole `j`/`z` designator family
-with `SensitivityFamily` having no variant for it. What it needs, in this
-order, is exactly what [`nonlinear/sens.rs`](../src/devices/nonlinear/sens.rs)
-does for the diode but per family:
+What each family needed, in this order, is exactly what
+[`nonlinear/sens.rs`](../src/devices/nonlinear/sens.rs) does for the diode:
 
-1. `mesamparam.c`/`mesaparam.c` (and `jfet.c`/`jfet2.c`, `mes/`) `IFparm`
-   tables in C's order, filtered to the entries `set_param()` accepts;
+1. `mesamparam.c`/`mesaparam.c` (and `jfet.c`/`jfet2.c`, `mes/`, `hfet.c`)
+   `IFparm` tables in C's order, filtered to the entries `set_param()`
+   accepts;
 2. the `*setup.c` default and *given*-flag side effects, which persist from one
    perturbed parameter to the next (`mesasetup.c` alone fills ~30 fields);
 3. `*temp.c`'s derived values;
 4. a load that builds the port's own device from the records, so the stamp is
    the perturbed one.
 
-The four families share the card grammar but not the channel or the tables, so
-this is one slice per family rather than one generic helper. Until it lands the
-refusal names `cktsens.c`, `cktsgen.c` and the device's
-`DEVparam`/`DEVtemperature`/`DEVload`, so a deck that asks fails loudly.
+The families share the card grammar but not the channel or the tables, so this
+was one slice per family rather than one generic helper. A device that has no
+implementation yet (HFET2) still refuses through
+`Device::sensitivity`'s `NotYetPorted` default, naming its own
+`DEVparam`/`DEVtemperature`/`DEVload` reference, so a deck that asks fails
+loudly.
 
 ## Divergences (explicit errors where C carries on)
 
@@ -344,7 +423,9 @@ refusal names `cktsens.c`, `cktsgen.c` and the device's
   models, tightened RELTOL) under `compare::SENSITIVITY_NONLINEAR` (1e-6
   relative, 1e-9 absolute; the floor covers forward differences of weak
   parameters that are a few ulps of the node voltage, see
-  `xtask/src/compare.rs`).
+  `xtask/src/compare.rs`). The `j`/`z` family fixtures are there too:
+  `sens_jfet`, `sens_jfet2`, `sens_mesfet`, `sens_hfet1`, `sens_mesa`,
+  `sens_mesa3`, `sens_mesa4` and `sens_mesa4_ts`.
 * Opt-in live C (`NGSPICE_BIN=... cargo test --test c_sens_reference --
   --ignored`): DC linear and filtered decks, a hot behavioural/switch deck,
   diode decks with NaN, sidewall, breakdown and `.op` composition, and AC

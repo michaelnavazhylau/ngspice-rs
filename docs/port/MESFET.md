@@ -176,12 +176,34 @@ no given-flag branches and MES has no instance temperature, so the replay has
 no temperature step. `sens_mesfet` verifies 90 columns over two models and
 both polarities.
 
+MESA's three levels each replay `mesa.c`'s 61 model and 8 instance setters:
+`sens_mesa` (level 2, sensed at the `#gate` node, so at
+`compare::SENSITIVITY_CANCELLED`), `sens_mesa3` (level 3, one device at the
+circuit temperature and one at `dtemp=10`) and `sens_mesa4`/`sens_mesa4_ts`
+(level 4, including a `ts=40` instance). Two C asymmetries have to be
+reproduced exactly: `mesaparam.c` stores `td`/`ts` as `value + CONSTCtoK`
+while `mesaask.c` answers them in Celsius, so the walk steps the Celsius value
+and re-adds the offset. HFET1 is `sens_hfet1`; HFET2 stays refused, for the
+measured reason [SENSITIVITY.md](SENSITIVITY.md) records.
+
+The level-3/level-4 `.sens` work turned up a **device** defect rather than an
+analysis one. `mesaload.c`'s `mesa2`/`mesa3` read `RS`, the
+`here->MESAtRsi` that `mesatemp.c` derives by applying `rtc1`/`rtc2` to `rsi`,
+while the port read the raw `model.rsi` in `f`/`d`, `ddevgte`, `p` and
+`delisatmgchim` (`mesa3`'s `h` is the one place C itself uses the raw field).
+The error only appears when the instance temperature is shifted *and* the
+model has a temperature coefficient: at `ts=40` with `rtc1=2e-3` the scaled
+value is 2.6% above the raw one, which moved `i(vids)` by ~1e-3 and C's
+`rtc1`/`rtc2` `.sens` columns to 0.808x theirs. It is fixed in `mesa2`/`mesa3`
+and pinned by `tests/mesa.rs`'s
+`the_channels_use_the_temperature_scaled_intrinsic_resistances`;
+`sens_mesa4_ts` verifies every column of the case that used to be refused.
+
 ## Not ported
 
-`.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`; so do `.sens`
-of MESA levels 3-4 and of HFET1/HFET2 (see
-[SENSITIVITY.md](SENSITIVITY.md)), and the `nhfet`/`phfet` bases. MESA level 2
-`.sens` is ported (`sens_mesa`).
+`.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`; so does
+`.sens` of HFET2 (see [SENSITIVITY.md](SENSITIVITY.md)), and the
+`nhfet`/`phfet` bases. MESA levels 2-4 and HFET1 `.sens` are ported.
 
 ## Evidence
 
@@ -285,8 +307,8 @@ grammar and one 62-setter model table but not one channel:
 | --- | --- | --- | --- |
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
 | 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage; `.sens` included (#164) |
-| 3 | MESA | `mesa2` (`mesaload.c`) | ported: DC, transient (H2) |
-| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient, `.tf`; `.ac`/`.sp`/`.pz` and `.sens` refused (H2, #164) |
+| 3 | MESA | `mesa2` (`mesaload.c`) | ported: DC, transient (H2), `.sens` (#164) |
+| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient, `.tf`, `.sens` (#164); `.ac`/`.sp`/`.pz` refused as a C defect (H2) |
 | 5 | HFET1 | `hfeta` (`hfetload.c`) | ported (H3) |
 | 6 | HFET2 | `hfeta2` (`hfet2load.c`) | ported (H4) |
 
@@ -489,8 +511,8 @@ the reference decks' `.print vids#branch` spelling is a second one (#162).
   the adjoint `*sload.c` routines at all; `cktsens.c`/`cktsgen.c` enumerate
   every device's parameter tables through `DEVparam`/`DEVload`, so the
   reference binary reports 61 `z1:*` parameters for a MESA card and exits 0.
-  The port still refuses, because `SensitivityFamily` has no `z`/`j` variants -
-  a gap that covers the JFET too, tracked as #164.
+  The port replays that walk for the `j` and `z` families (#164); only HFET2
+  is still refused (see [SENSITIVITY.md](SENSITIVITY.md)).
 
 ### Charge storage and the transient load (#156)
 

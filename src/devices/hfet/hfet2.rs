@@ -1135,21 +1135,34 @@ impl Device for Hfet2 {
         Ok(())
     }
 
-    /// HFET2's `.sens` tables, records and replay are written (see the
-    /// branch history for `work/m10-hfet-sens`), but one column still differs
-    /// from C: with `eta2`/`d2` given, every one of the 162 reported columns
-    /// agrees to 1e-6 except `d2` (1.9e-3 relative), and without them `eta2`
-    /// and `d2` differ outright. The port's `I(d2)` is bit-identical to C's at
-    /// 0.2/0.3/0.4 um (`reltol` 2.6e-16), so the gap is in the `.sens` delta
-    /// path rather than the model; refuse rather than report it.
+    /// HFET2's `.sens` replay is not in the tree: it was written on
+    /// `work/m10-hfet-sens` and measured (with `eta2`/`d2` given, 161 of the 162
+    /// reported columns agreed with C to 1e-6 and `d2` differed by 1.9e-3;
+    /// without them, `eta2`/`d2` differed outright), then dropped rather than
+    /// ship a replay whose one row needed a loosened gate.
+    ///
+    /// The measurement that matters for a rewrite: C's `d2` column *is* the
+    /// honest derivative when both flags are given (`.sens` -2.4137675792e2
+    /// against a `.op` forward difference of -2.4137675795e2, 1.1e-10, and
+    /// unchanged over a 10x `rg` change), and the two columns' large values
+    /// without those flags are **given-flag topology switches**, not
+    /// derivatives: `hfet2temp.c` fills `N02` under `eta2Given` alone while
+    /// `hfet2load.c` reads `nsc` under `eta2Given && d2Given`, and
+    /// `HFET2mParam` marks a parameter given on every setter call. So the
+    /// rebuilt device must take `eta2_given`/`d2_given` from the sensitivity
+    /// records (the port's `Model` already carries both) and let the setters
+    /// flip them without a restore, which `SensitivityRecord::set` does. The
+    /// open item is the 1.9e-3 residue on `d2` with both given: check that the
+    /// perturbed load recomputes `N02` from the perturbed `d2` the way
+    /// `HFET2temp` does. See `docs/port/SENSITIVITY.md` for the four-flag table.
     fn sensitivity(
         &self,
         _context: &ModelContext,
     ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
         Err(SpiceError::not_yet_ported(
             format!("{}: HFET2 sensitivity", self.name),
-            "src/spicelib/devices/hfet2/hfet2temp.c and hfet2load.c's N02/nsm \
-             derivative chain (the d2 column still differs from C)",
+            "src/spicelib/devices/hfet2/hfet2mpar.c's d2/eta2 given-flag branch \
+             (N02 in hfet2temp.c, nsc in hfet2load.c) and hfet2ask.c's Celsius temp",
         ))
     }
 

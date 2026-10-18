@@ -82,8 +82,8 @@ pub(crate) const SENSITIVITY_NONLINEAR: Tolerance = Tolerance {
 /// device currents) and `z::teta1`/`z::xtm0` 4.6e-8/6e-9 absolute (parameters
 /// level 2 does not read, where C reports its own rounding residue); every
 /// other column is inside [`SENSITIVITY_NONLINEAR`]. The bound still rejects a
-/// real model difference - the level-3/4 rows sit 1e-2..1e-1 away, and those
-/// levels are refused instead of verified.
+/// real model difference - it is 1e-5, and the MESA `tRsi` defect this fixture
+/// family exposed sat at 1e-2..2e-1.
 pub(crate) const SENSITIVITY_CANCELLED: Tolerance = Tolerance {
     relative: 1e-5,
     absolute: 5e-8,

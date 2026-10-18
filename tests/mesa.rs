@@ -9,7 +9,9 @@
 //! checks for `m10_mesa_{op,dc,ac,res_op,res_dc,res_ac,tran,pz}`; the
 //! tolerances here state that agreement. Every C load for level 2 is ported
 //! (`mesaload.c` with its charge storage, `mesaacl.c`, `mesapzl.c`);
-//! `.noise`/`.disto` behave as C's NULL routines do, and `.sens` is refused.
+//! `.noise`/`.disto` behave as C's NULL routines do, and `.sens` walks every
+//! level's parameter table (`sens_mesa`, `sens_mesa3`, `sens_mesa4`,
+//! `sens_mesa4_ts`).
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::Circuit;
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
@@ -381,8 +383,7 @@ fn the_remaining_boundaries_are_explicit() {
     // `.disto` therefore run with the card contributing nothing, which is
     // what the reference binary does; `.sens` is different - C's modern
     // `.sens` enumerates every device's parameter tables through
-    // `DEVparam`/`DEVload`, so it *does* report the `z1:*` parameters - and
-    // still refuses here (#164).
+    // `DEVparam`/`DEVload`, so it *does* report the `z1:*` parameters.
     let mut c = circuit(
         "vdd 1 0 dc 3 ac 1\nr1 1 2 1k\nz1 2 3 0 zm l=1u w=20u\nvg 3 0 dc -2.5\n\
          .model zm nmf(level=2 rg=10)",
@@ -781,15 +782,13 @@ fn the_mixed_polarity_level_four_operating_point_is_the_conducting_root() {
     close(value(&sweep, "i(vgg)", 11), -4.260_834e-3, 1e-6, 1e-12);
 }
 
-/// `.sens` (#164) for MESA levels 2 and 4, and the explicit refusal for level 3.
-///
-/// Level 4 is verified by `sens_mesa4` (a level-4 card whose output is the
-/// drain current, not `sens_mesa`'s ~1 uV gate node, where every row is a
-/// cancellation-limited difference). Level 3 is **not** verified: its `mesa2`
-/// channel leaves `du` 16% and `th` 24% from C on an otherwise agreeing deck
-/// (see `docs/port/SENSITIVITY.md`).
+/// `.sens` (#164) for MESA levels 2, 3 and 4: `mesa.c`'s 61 model setters plus
+/// 8 instance ones per device. `sens_mesa3`/`sens_mesa4` verify the values at a
+/// saturated bias sensing the drain current, because `sens_mesa`'s ~1 uV gate
+/// node makes every row a cancellation-limited difference (which is why that
+/// fixture uses the wider `compare::SENSITIVITY_CANCELLED` bound).
 #[test]
-fn sensitivity_follows_mesa_cs_table_for_levels_two_and_four_and_refuses_three() {
+fn sensitivity_follows_mesa_cs_table_for_every_level() {
     let cards = |level: u8, analysis: &str| {
         format!(
             "vds 1 0 dc 0.5\nvids 1 2 dc 0\nvgs 4 0 dc 0\nrg 4 3 1k\n\
@@ -802,73 +801,85 @@ fn sensitivity_follows_mesa_cs_table_for_levels_two_and_four_and_refuses_three()
         let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
         let request = config.request_for(&parsed.analyses[0]).unwrap();
         let mut c = config.circuit(&parsed).unwrap();
-        let result = ngspice_rs::analysis::runner(request.kind).unwrap().run(
-            &mut c,
-            &request,
-            &config.context(),
-        );
-        if level != 3 {
-            let plot = result.unwrap();
-            let names: Vec<&str> = plot
-                .variables
-                .iter()
-                .map(|variable| variable.name.as_str())
-                .filter(|name| name.starts_with("v(z1"))
-                .collect();
-            // `mesa.c`'s 61 model setters plus 8 instance ones.
-            assert_eq!(names.len(), 69, "{names:?}");
-            for absent in [
-                "v(z1:vt0)",
-                "v(z1:tphib)",
-                "v(z1:tggr)",
-                "v(z1:alphat)",
-                "v(z1:gd)",
-                "v(z1:vcrit)",
-            ] {
-                assert!(!names.contains(&absent), "{absent} in {names:?}");
-            }
-        } else {
-            let error = result.unwrap_err();
-            assert!(error.is_not_yet_ported(), "level {level}: {error}");
-            assert!(
-                error
-                    .to_string()
-                    .contains(&format!("MESA level {level} sensitivity")),
-                "{error}"
-            );
+        let plot = ngspice_rs::analysis::runner(request.kind)
+            .unwrap()
+            .run(&mut c, &request, &config.context())
+            .unwrap();
+        let names: Vec<&str> = plot
+            .variables
+            .iter()
+            .map(|variable| variable.name.as_str())
+            .filter(|name| name.starts_with("v(z1"))
+            .collect();
+        // `mesa.c`'s 61 model setters plus 8 instance ones.
+        assert_eq!(names.len(), 69, "level {level}: {names:?}");
+        for absent in [
+            "v(z1:vt0)",
+            "v(z1:tphib)",
+            "v(z1:tggr)",
+            "v(z1:alphat)",
+            "v(z1:gd)",
+            "v(z1:vcrit)",
+        ] {
+            assert!(!names.contains(&absent), "{absent} in {names:?}");
         }
     }
 }
 
-/// A level-4 instance moved by `TS`/`DTEMP` still differs from C on the two
-/// RTC rows (measured: 0.808x C's `rtc1`/`rtc2` at `ts=40`), so it is refused
-/// rather than reported. Level 2 verifies with `dtemp` set (`sens_mesa`).
+/// A level-4 instance moved by `TS`/`DTEMP` is walked like any other: the two
+/// RTC rows that used to come out at 0.808x C's are the regression `mesa3`'s
+/// channel carried (see
+/// [`the_channels_use_the_temperature_scaled_intrinsic_resistances`]), and
+/// `sens_mesa4_ts` verifies every column at `ts=40`.
 #[test]
-fn sensitivity_refuses_a_level_four_instance_at_a_shifted_temperature() {
+fn sensitivity_accepts_a_level_four_instance_at_a_shifted_temperature() {
     for shift in ["ts=40", "dtemp=10"] {
         let text = format!(
-            "vds 1 0 dc 1
-vids 1 2 dc 0
-vgs 4 0 dc 0.5
-rg 4 3 1k
-             z1 2 3 0 m4 l=1u w=20u {shift}
-.model m4 nmf(level=4)
-.sens i(vids)"
+            "vds 1 0 dc 1\nvids 1 2 dc 0\nvgs 4 0 dc 0.5\nrg 4 3 1k\n\
+             z1 2 3 0 m4 l=1u w=20u {shift}\n\
+             .model m4 nmf(level=4)\n.sens i(vids)"
         );
         let parsed = deck(&text).unwrap();
         let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
         let request = config.request_for(&parsed.analyses[0]).unwrap();
         let mut c = config.circuit(&parsed).unwrap();
-        let error = ngspice_rs::analysis::runner(request.kind)
+        let plot = ngspice_rs::analysis::runner(request.kind)
             .unwrap()
             .run(&mut c, &request, &config.context())
-            .unwrap_err();
-        assert!(error.is_not_yet_ported(), "{shift}: {error}");
-        assert!(
-            error
-                .to_string()
-                .contains("MESA level 4 sensitivity at a shifted temperature"),
-            "{shift}: {error}"
+            .unwrap();
+        let names: Vec<&str> = plot
+            .variables
+            .iter()
+            .map(|variable| variable.name.as_str())
+            .collect();
+        assert!(names.contains(&"v(z1:rtc1)"), "{shift}: {names:?}");
+        assert!(names.contains(&"v(z1:rtc2)"), "{shift}: {names:?}");
+    }
+}
+
+/// `mesaload.c`'s channel equations read the temperature-scaled `tRsi`/`tRdi`
+/// (`mesatemp.c` applies `rtc1`/`rtc2` to them), not the raw model fields:
+/// `mesa2`/`mesa3` used `model.rsi` for `f`/`d`/`ddevgte` and for `p`/
+/// `delisatmgchim`. With `ts=40` and `rtc1=2e-3` the scaled value is 2.6%
+/// above the raw one, which a shifted instance temperature turns into ~1e-3 of
+/// the drain current - the 0.808 ratio the level-4 `rtc` rows used to show.
+/// These values are the reference binary's, on a deck that leaves `rsi` as the
+/// only temperature-scaled resistance.
+#[test]
+fn the_channels_use_the_temperature_scaled_intrinsic_resistances() {
+    for (level, expected) in [
+        (2, 3.750_636_436_638_224e-3),
+        (3, 1.231_190_381_294_24e-2),
+        (4, 3.002_998_542_602_302e-3),
+    ] {
+        let text = format!(
+            "vds 1 0 dc 1\nvids 1 2 dc 0\nvgs 4 0 dc 0.5\nrg 4 3 1k\n\
+             z1 2 3 0 m{level} l=1u w=20u ts=40\n\
+             .model m{level} nmf(level={level} rd=0 rs=0 rdi=0 rsi=20 rtc1=2e-3\n\
+             + rtc2=2e-5 phib=3.1232e18)"
         );
+        let mut c = circuit(&text).unwrap();
+        let plot = run(&mut c, AnalysisKind::OperatingPoint, &[]);
+        close(value(&plot, "i(vids)", 0), expected, 1e-12, 1e-18);
     }
 }

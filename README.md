@@ -29,8 +29,8 @@ cargo run -p ngspice-rs -- simulate --output rc.raw conformance/netlists/rc_tran
 
 Each area has documented limits; see [the feature guides](#documentation).
 Not yet supported: BSIM3/BSIM4 (planned as M11, [BSIM.md](docs/port/BSIM.md)),
-model-binning deck goldens, `.sens` of BJTs, MOSFETs and the whole JFET/MES/MESA/HFET
-family (and AC `.sens` of nonlinear devices), the
+model-binning deck goldens, `.sens` of BJTs and MOSFETs, HFET2's `.sens`
+table, AC `.sens` of nonlinear devices, the
 remaining unported asks and levels of bounded devices (AC device current/power
 asks and the charge-history asks `@z[...][qgs|cqgs|qgd|cqgd]` fail with
 `NotYetPorted` naming the C ask routine); XSPICE code models,

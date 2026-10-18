@@ -1,0 +1,26 @@
+DC sensitivity of MESA level-3 devices (#164)
+* Level 3's `mesa2` walk: `mesa.c`'s 61 model and 8 instance setters, at a
+* saturated bias and sensing the drain current, for the reason `sens_mesa4`
+* spells out (`sens_mesa` senses a ~1 uV gate node, where every row is a
+* cancellation-limited difference). The second device sits at a shifted
+* instance temperature (DTEMP) and both models carry `rtc1`/`rtc2` and the
+* `rdi`/`rsi` series pair: that combination is what exposed the channel's use
+* of the raw `rsi` where C uses the temperature-scaled `tRsi`.
+*
+* PHIB is the electron-volt value the barrier needs, for the factor
+* `sens_mesa.cir` explains: `mesamparam.c` stores `value * CHARGE` while
+* `mesamask.c` returns the stored joules, so 3.1232e18 * CHARGE = 0.5 J is
+* what the columns before `phib` see and 0.5 eV is what the restore leaves.
+.options reltol=1e-10 vntol=1e-13 abstol=1e-16
+vds 1 0 dc 1.0
+vids 1 2 dc 0
+vgs 4 0 dc 0.5
+rg 4 3 1k
+z1 2 3 0 mesmod l=1u w=20u
+z2 2 3 0 mesmod2 l=2u w=40u dtemp=10
+.model mesmod nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5
++ phib=3.1232e18)
+.model mesmod2 nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5
++ phib=3.1232e18)
+.sens i(vids)
+.end

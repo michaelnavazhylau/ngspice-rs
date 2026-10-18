@@ -1018,7 +1018,7 @@ const SUPPORTED: &[Supported] = &[
     },
     // MESA level 2 (#164): the same walk over `mesa.c`'s 62 + 8 parameters, at
     // the cancellation floor `compare::SENSITIVITY_CANCELLED` documents for
-    // three of them. Levels 3-4 are refused (their rows differ from C).
+    // three of them.
     Supported {
         name: "sens_mesa",
         kind: AnalysisKind::Sensitivity,
@@ -1038,11 +1038,33 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
     },
+    // MESA level 3 (#164): the `mesa2` walk, one device at the circuit
+    // temperature and one at `dtemp=10`, both with `rtc1`/`rtc2` and the
+    // `rdi`/`rsi` pair (which is where the channel's `tRsi` scaling showed).
+    Supported {
+        name: "sens_mesa3",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // MESA level 4 (#164): the same walk over the level-4 parameter table,
     // sensing the drain current (`sens_mesa` senses a ~1 uV gate node, where a
-    // level-4 row is a cancellation-limited difference). Level 3 is refused.
+    // level-4 row is a cancellation-limited difference).
     Supported {
         name: "sens_mesa4",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // MESA level 4 at a shifted instance temperature (#164): the `rtc1`/`rtc2`
+    // rows that used to come out at 0.808x C's, now the regression for
+    // `mesa3`'s temperature-scaled `RS`.
+    Supported {
+        name: "sens_mesa4_ts",
         kind: AnalysisKind::Sensitivity,
         gate: Gate::Points {
             axis: None,
