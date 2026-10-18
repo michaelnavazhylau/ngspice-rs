@@ -114,7 +114,8 @@ output:
 | B (`asrc`) | yes | refused |
 | S, W | yes | refused |
 | D | yes | refused |
-| Q (Gummel-Poon), M (MOS1, MOS2, MOS3, MOS6, MOS9), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
+| Q (Gummel-Poon) | refused (`NotYetPorted`; its tables and C's per-parameter `DEVsetup` are measured below) | refused |
+| M (MOS1, MOS2, MOS3, MOS6, MOS9), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
 | J (JFET level 1, `jfet.c`) | yes | refused |
 | J (JFET level 2, `jfet2.c`) | yes | refused |
 | Z level 1 (MES, `mes.c`) | yes | refused |
@@ -348,6 +349,70 @@ binary:
 
 `RSI`/`RDI` are the raw model fields - HFET2 has no `rtc1`/`rtc2` - so the
 `tRsi` defect recorded above has no analogue here.
+
+### BJT (`Q`, Gummel-Poon): measured, not yet ported
+
+The next family is the Gummel-Poon BJT. Its `.sens` shape is measured below so
+the implementation starts from facts rather than assumptions; the port still
+refuses `Q` through `Device::sensitivity`'s `NotYetPorted` default.
+
+**The DC column list is C's tables minus the usual filters**, on
+`q1 2 3 0 qn area=2`, `.model qn npn level=1`, `.sens i(vids)`: 148 columns for
+one device, 102 `q1:*` model setters and six instance ones - `area`, `areab`,
+`areac`, `m`, `temp`, `dtemp`. `icvbe`/`icvce` are `IOPAU` (`IF_AC`, so DC
+skips them and AC would add them), `ic` is `IF_REALVEC`, `off` and `sens_area`
+are `IF_FLAG`, the probe entries are `OP` (ask-only), and the `IOPR` aliases
+(`tref`, `va`, `ik`, `c2`, `vb`, `c4`, `pe`, `me`, `pc`, `mc`, `csub`, `ccs`,
+`ps`, `ms`) are dropped. The list includes parameters the port does not model -
+`rco`, `vo`, `gamma`, `qco`, `vg`, `cn`, `d`, `rth0` and the SOA limits
+`vbe_max`/`vbc_max`/`vce_max`/`pd_max`/`ic_max`/`ib_max`/`te_max` (all
+`UNPORTED_MODEL`) - so their columns have to exist with C's defaults even
+though nothing in the load reads them.
+
+**Two C behaviours that shape the replay**, both verified in the reference
+source and by measurement:
+
+- **`DEVsetup` runs inside the per-parameter loop** (`cktsens.c:495`, before
+  the base load), so `bjtsetup.c`'s transforms re-run for every one of the 108
+  parameters. The one that shows is the leakage scaling:
+  `if (BJTleakBEcurrentGiven && BJTleakBEcurrent > 1e-4) BJTleakBEcurrent =
+  BJTsatCur * BJTleakBEcurrent`. It is *not* idempotent, but it also fires at
+  most once per card because the product drops below the threshold. Measured
+  on the probe deck, where `area=2` and `IS=1e-15`:
+
+  | card | `v(q1:ise)` | `v(q1:is)` | `v(q1_area)` |
+  | --- | --- | --- | --- |
+  | no leakage | -5.37506278e8 | 1.04351068e12 | 0 |
+  | `ise=1e-3` | -5.37505669e8 | 1.04351022e12 | -2.6875e-11 |
+  | `ise=1e-9` | -11.1332 | 8.5957e7 | -5.5666e-9 |
+
+  These are not cancellation: at `IS=1e-15` the scale of `dI/dIS` really is
+  `I/IS ~ 1e12`, and perturbing a zero leakage by C's absolute step turns the
+  B-E leakage exponential on (1e-6 A times `e^18`). A card above 1e-4 is
+  therefore a *different* device after the first setup (1e-18 rather than
+  1e-3), which is why its columns differ from the `ise=1e-9` row.
+- **`BJTemp` also writes model fields**, and it runs before every load: `tnom`
+  defaults to `CKTnomTemp`, `rbm` follows `rb` whenever it is not given (so
+  the `rb` column moves `rbm` too), `fc` is clamped to 0.9999 when given and
+  set to 0.5 when not, and `bjtload`'s VBC/excess-phase factors are recomputed
+  from `tf`/`xtf`/`ptf`.
+
+**`sens_setp()` excludes one BJT parameter outright**: a hard-coded
+`!(sg->dev == 2 && pid == 147)` skips `RCO` because setting it re-allocates
+nodes mid-analysis. Measured: `v(q1:rco)` is exactly 0 on every card above,
+including one that gives `rco`.
+
+**`tnom` and `temp` are the Celsius/kelvin pair again** (`bjtmask.c` answers
+`BJTtnom - CONSTCtoK`, `bjtmpar.c` stores `value + CONSTCtoK`; `bjtask.c`/
+`bjtparam.c` do the same for the instance temperature).
+
+What the implementation therefore needs, beyond a record replay like HFET1's
+and HFET2's: the port's `Model` must keep the *pre-setup* card values for the
+fields `bjtsetup.c`/`bjttemp.c` transform (`ise`/`isc` before the `>1e-4`
+scaling, `nkf` before its clamp, `xcjc`, `fc`, `rbm`'s given flag, `tnom`),
+because `Model::from_values` bakes those transforms in once - the replay needs
+to re-run them in C's order instead. The load itself is the port's existing
+`Bjt`, rebuilt from the records.
 
 ### The `j` and `z` families: the original gap note (#164)
 
