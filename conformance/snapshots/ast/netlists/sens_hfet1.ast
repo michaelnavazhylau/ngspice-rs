@@ -1,0 +1,108 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_hfet1.cir
+title: "Sensitivity of HFET1 devices (#164)" @netlists/sens_hfet1.cir:1:1
+scope root
+  cards (15):
+    [0] options[0] @netlists/sens_hfet1.cir:15:1 ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+    [1] device[0] @netlists/sens_hfet1.cir:16:1 "vds 1 0 dc 1.0"
+    [2] device[1] @netlists/sens_hfet1.cir:17:1 "vids 1 2 dc 0"
+    [3] device[2] @netlists/sens_hfet1.cir:18:1 "vgs 4 0 dc 0.5"
+    [4] device[3] @netlists/sens_hfet1.cir:19:1 "rg 4 3 1k"
+    [5] device[4] @netlists/sens_hfet1.cir:20:1 "vds2 5 0 dc -1.0"
+    [6] device[5] @netlists/sens_hfet1.cir:21:1 "vids2 5 6 dc 0"
+    [7] device[6] @netlists/sens_hfet1.cir:22:1 "vgs2 8 0 dc -0.5"
+    [8] device[7] @netlists/sens_hfet1.cir:23:1 "rg2 8 7 1k"
+    [9] device[8] @netlists/sens_hfet1.cir:24:1 "z1 2 3 0 nch l=1u w=20u"
+    [10] device[9] @netlists/sens_hfet1.cir:25:1 "z2 6 7 0 pch l=2u w=40u dtemp=10"
+    [11] model[0] @netlists/sens_hfet1.cir:26:1 ".model nch nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50 vt0=-0.5"
+    [12] model[1] @netlists/sens_hfet1.cir:27:1 ".model pch phfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50"
+    [13] analysis[0] @netlists/sens_hfet1.cir:28:1 ".sens i(vids)"
+    [14] end @netlists/sens_hfet1.cir:29:1 ".end"
+  devices (10):
+    device [0] name="vds" designator=v @netlists/sens_hfet1.cir:16:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.0" @netlists/sens_hfet1.cir:16:9
+    device [1] name="vids" designator=v @netlists/sens_hfet1.cir:17:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_hfet1.cir:17:10
+    device [2] name="vgs" designator=v @netlists/sens_hfet1.cir:18:1
+      nodes: "4" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/sens_hfet1.cir:18:9
+    device [3] name="rg" designator=r @netlists/sens_hfet1.cir:19:1
+      nodes: "4" "3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_hfet1.cir:19:8
+    device [4] name="vds2" designator=v @netlists/sens_hfet1.cir:20:1
+      nodes: "5" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1.0" @netlists/sens_hfet1.cir:20:10
+    device [5] name="vids2" designator=v @netlists/sens_hfet1.cir:21:1
+      nodes: "5" "6"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_hfet1.cir:21:11
+    device [6] name="vgs2" designator=v @netlists/sens_hfet1.cir:22:1
+      nodes: "8" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.5" @netlists/sens_hfet1.cir:22:10
+    device [7] name="rg2" designator=r @netlists/sens_hfet1.cir:23:1
+      nodes: "8" "7"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_hfet1.cir:23:9
+    device [8] name="z1" designator=z @netlists/sens_hfet1.cir:24:1
+      nodes: "2" "3" "0"
+      model: "nch"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_hfet1.cir:24:14
+        [1] name="w" kind=scalar value="20u" @netlists/sens_hfet1.cir:24:19
+    device [9] name="z2" designator=z @netlists/sens_hfet1.cir:25:1
+      nodes: "6" "7" "0"
+      model: "pch"
+      parameters (3):
+        [0] name="l" kind=scalar value="2u" @netlists/sens_hfet1.cir:25:14
+        [1] name="w" kind=scalar value="40u" @netlists/sens_hfet1.cir:25:19
+        [2] name="dtemp" kind=scalar value="10" @netlists/sens_hfet1.cir:25:25
+  models (2):
+    model [0] name="nch" base="nhfet" level=5e0 @netlists/sens_hfet1.cir:26:1
+      parameters (9):
+        [0] name="level" kind=scalar value="5" @netlists/sens_hfet1.cir:26:18
+        [1] name="rd" kind=scalar value="31" @netlists/sens_hfet1.cir:26:26
+        [2] name="rs" kind=scalar value="31" @netlists/sens_hfet1.cir:26:32
+        [3] name="rg" kind=scalar value="10" @netlists/sens_hfet1.cir:26:38
+        [4] name="ri" kind=scalar value="1e3" @netlists/sens_hfet1.cir:26:44
+        [5] name="rf" kind=scalar value="2e3" @netlists/sens_hfet1.cir:26:51
+        [6] name="rdi" kind=scalar value="50" @netlists/sens_hfet1.cir:26:58
+        [7] name="rsi" kind=scalar value="50" @netlists/sens_hfet1.cir:26:65
+        [8] name="vt0" kind=scalar value="-0.5" @netlists/sens_hfet1.cir:26:72
+    model [1] name="pch" base="phfet" level=5e0 @netlists/sens_hfet1.cir:27:1
+      parameters (8):
+        [0] name="level" kind=scalar value="5" @netlists/sens_hfet1.cir:27:18
+        [1] name="rd" kind=scalar value="31" @netlists/sens_hfet1.cir:27:26
+        [2] name="rs" kind=scalar value="31" @netlists/sens_hfet1.cir:27:32
+        [3] name="rg" kind=scalar value="10" @netlists/sens_hfet1.cir:27:38
+        [4] name="ri" kind=scalar value="1e3" @netlists/sens_hfet1.cir:27:44
+        [5] name="rf" kind=scalar value="2e3" @netlists/sens_hfet1.cir:27:51
+        [6] name="rdi" kind=scalar value="50" @netlists/sens_hfet1.cir:27:58
+        [7] name="rsi" kind=scalar value="50" @netlists/sens_hfet1.cir:27:65
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_hfet1.cir:28:1
+      arguments: "i" "(" "vids" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_hfet1.cir:15:1
+      setting [0] name="reltol" value="1e-10"@netlists/sens_hfet1.cir:15:17 @netlists/sens_hfet1.cir:15:10
+      setting [1] name="vntol" value="1e-13"@netlists/sens_hfet1.cir:15:29 @netlists/sens_hfet1.cir:15:23
+      setting [2] name="abstol" value="1e-16"@netlists/sens_hfet1.cir:15:42 @netlists/sens_hfet1.cir:15:35
+  globals (0):

@@ -1,0 +1,29 @@
+Sensitivity of HFET1 devices (#164)
+* HFET1 (z level 5, hfet1/hfet.c) under .sens: one n-channel and one p-channel
+* device behind stiff drain supplies, with the gates driven through 1 k so the
+* perturbation walk has a responsive node to sense. The output is the drain
+* current rather than a gate node, because sensing a ~1 uV gate node pays for
+* it with cancellation-limited rows (see sens_mesa).
+*
+* Two C behaviours the replay reproduces:
+* - hfettemp.c multiplies the stored threshold (HFETAthreshold) by the model
+*   type on every call, so a p-channel card has vt0 alternating sign as the
+*   walk re-runs the temperature routine. The second device is p-channel.
+* - hfetask.c answers the instance temperature in Celsius while hfetparam.c
+*   stores it in kelvin, so the temp column is a relative step on the Celsius
+*   value followed by a 273.15 K store.
+.options reltol=1e-10 vntol=1e-13 abstol=1e-16
+vds 1 0 dc 1.0
+vids 1 2 dc 0
+vgs 4 0 dc 0.5
+rg 4 3 1k
+vds2 5 0 dc -1.0
+vids2 5 6 dc 0
+vgs2 8 0 dc -0.5
+rg2 8 7 1k
+z1 2 3 0 nch l=1u w=20u
+z2 6 7 0 pch l=2u w=40u dtemp=10
+.model nch nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50 vt0=-0.5
+.model pch phfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50
+.sens i(vids)
+.end

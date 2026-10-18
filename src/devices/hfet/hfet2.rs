@@ -1135,6 +1135,24 @@ impl Device for Hfet2 {
         Ok(())
     }
 
+    /// HFET2's `.sens` tables, records and replay are written (see the
+    /// branch history for `work/m10-hfet-sens`), but one column still differs
+    /// from C: with `eta2`/`d2` given, every one of the 162 reported columns
+    /// agrees to 1e-6 except `d2` (1.9e-3 relative), and without them `eta2`
+    /// and `d2` differ outright. The port's `I(d2)` is bit-identical to C's at
+    /// 0.2/0.3/0.4 um (`reltol` 2.6e-16), so the gap is in the `.sens` delta
+    /// path rather than the model; refuse rather than report it.
+    fn sensitivity(
+        &self,
+        _context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Err(SpiceError::not_yet_ported(
+            format!("{}: HFET2 sensitivity", self.name),
+            "src/spicelib/devices/hfet2/hfet2temp.c and hfet2load.c's N02/nsm \
+             derivative chain (the d2 column still differs from C)",
+        ))
+    }
+
     /// `hfet2acl.c`: the bias conductances plus `j omega` times the gate
     /// capacitances.
     fn assemble_small_signal(

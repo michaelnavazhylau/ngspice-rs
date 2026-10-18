@@ -140,6 +140,7 @@ C golden with every enumerated parameter:
 | `jfet.c` | 20 model + 4 instance | `sens_jfet` (116 vectors, two models, both polarities) |
 | `jfet2.c` | 36 model + 4 instance | `sens_jfet2` (148 vectors) |
 | `mes.c` | 10 model + 1 instance in DC (12 model in AC: `cgs`/`cgd`) | `sens_mesfet` (90 vectors) |
+| `hfet1/hfet.c` | 63 model + 7 instance | `sens_hfet1` (218 vectors, n- and p-channel) |
 
 The parameter lists are C's, not the card's, and three filters decide them:
 `set_param()`'s `(IF_SET|IF_ASK|IF_REAL)` test (so the `vto`/`pb`/`tphib`
@@ -248,12 +249,29 @@ measured against the reference binary:
   differ from a re-solved operating point by orders of magnitude, so a `.sens`
   fixture must also sit well inside the saturated region.
 
-**HFET1** is the remaining concrete case: `js1s` differs from C by 2.8x and
-`vt2`/`l`/`w` by 0.1-100% (the 2.8x is close to the `M` on the card that
-exposed it, so the `M`-versus-gate-area interaction is the first thing to
-check), and `hfettemp.c` multiplies the **stored** threshold by the model type
-on every `DEVtemperature` call, so a p-channel device's `vt0` alternates sign
-across the walk. **HFET2** is not implemented.
+**HFET1 is ported and verified** (`sens_hfet1`, 218 columns: `hfet.c`'s 63
+`IOP` model setters plus 7 instance ones per device, one n-channel and one
+p-channel). Two of its C quirks are reproduced rather than smoothed over:
+
+- **`hfettemp.c` multiplies the stored threshold by the model type on every
+  call** (`HFETAthreshold *= HFETAtype`). A p-channel card therefore alternates
+  its `vt0` - and everything derived from it - each time the temperature
+  routine re-runs, which the `.sens` walk does three times per parameter. The
+  port keeps the running product in the record (seeded from `threshold / pol`
+  so the first temperature call lands on C's value) and `Model::threshold` now
+  holds the product instead of re-applying the type inside `derived`.
+- **`hfetask.c` answers the instance temperature in Celsius while
+  `hfetparam.c` stores it in kelvin.** The `temp` column is a relative step on
+  the Celsius value followed by a `+273.15` store, so modelling only the kelvin
+  field would perturb across 273 K and be millions of times too large.
+
+**HFET2 remains refused**, and the reason is now measured rather than assumed.
+Its tables, records and replay exist and were written during this work; with
+`eta2`/`d2` given, 161 of the 162 reported columns agree with C to 1e-6 and
+`d2` differs by 1.9e-3, while without them `eta2` and `d2` differ outright. The
+port's `I(d2)` is bit-identical to C's at 0.2, 0.3 and 0.4 um (relative
+2.6e-16), so the gap is in the `.sens` delta path - `hfet2load.c`'s `N02`
+(`nsc`) and `nsa` derivative chain - not in the model equations.
 
 Until those land the refusal stays, naming `cktsens.c`/`cktsgen.c` and the
 device's `DEVparam`/`DEVtemperature`/`DEVload`.
