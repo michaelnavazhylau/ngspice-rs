@@ -1,0 +1,99 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_hfet2.cir
+title: "Sensitivity of HFET2 devices (#164)" @netlists/sens_hfet2.cir:1:1
+scope root
+  cards (14):
+    [0] options[0] @netlists/sens_hfet2.cir:18:1 ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+    [1] device[0] @netlists/sens_hfet2.cir:19:1 "vds 1 0 dc 2.0"
+    [2] device[1] @netlists/sens_hfet2.cir:20:1 "vids 1 2 dc 0"
+    [3] device[2] @netlists/sens_hfet2.cir:21:1 "vgs 4 0 dc 0.5"
+    [4] device[3] @netlists/sens_hfet2.cir:22:1 "rg 4 3 1k"
+    [5] device[4] @netlists/sens_hfet2.cir:23:1 "vgs2 8 0 dc 1.8"
+    [6] device[5] @netlists/sens_hfet2.cir:24:1 "rg2 8 7 1k"
+    [7] device[6] @netlists/sens_hfet2.cir:25:1 "z1 2 3 0 nmos l=1u w=20u"
+    [8] device[7] @netlists/sens_hfet2.cir:26:1 "z2 2 3 0 nmos l=2u w=40u dtemp=10"
+    [9] device[8] @netlists/sens_hfet2.cir:27:1 "z3 0 7 2 pmos l=1u w=20u temp=50"
+    [10] model[0] @netlists/sens_hfet2.cir:28:1 ".model nmos nhfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30 rdi=5 rsi=7"
+    [11] model[1] @netlists/sens_hfet2.cir:29:1 ".model pmos phfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30"
+    [12] analysis[0] @netlists/sens_hfet2.cir:30:1 ".sens i(vids)"
+    [13] end @netlists/sens_hfet2.cir:31:1 ".end"
+  devices (9):
+    device [0] name="vds" designator=v @netlists/sens_hfet2.cir:19:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2.0" @netlists/sens_hfet2.cir:19:9
+    device [1] name="vids" designator=v @netlists/sens_hfet2.cir:20:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_hfet2.cir:20:10
+    device [2] name="vgs" designator=v @netlists/sens_hfet2.cir:21:1
+      nodes: "4" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/sens_hfet2.cir:21:9
+    device [3] name="rg" designator=r @netlists/sens_hfet2.cir:22:1
+      nodes: "4" "3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_hfet2.cir:22:8
+    device [4] name="vgs2" designator=v @netlists/sens_hfet2.cir:23:1
+      nodes: "8" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.8" @netlists/sens_hfet2.cir:23:10
+    device [5] name="rg2" designator=r @netlists/sens_hfet2.cir:24:1
+      nodes: "8" "7"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_hfet2.cir:24:9
+    device [6] name="z1" designator=z @netlists/sens_hfet2.cir:25:1
+      nodes: "2" "3" "0"
+      model: "nmos"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_hfet2.cir:25:15
+        [1] name="w" kind=scalar value="20u" @netlists/sens_hfet2.cir:25:20
+    device [7] name="z2" designator=z @netlists/sens_hfet2.cir:26:1
+      nodes: "2" "3" "0"
+      model: "nmos"
+      parameters (3):
+        [0] name="l" kind=scalar value="2u" @netlists/sens_hfet2.cir:26:15
+        [1] name="w" kind=scalar value="40u" @netlists/sens_hfet2.cir:26:20
+        [2] name="dtemp" kind=scalar value="10" @netlists/sens_hfet2.cir:26:26
+    device [8] name="z3" designator=z @netlists/sens_hfet2.cir:27:1
+      nodes: "0" "7" "2"
+      model: "pmos"
+      parameters (3):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_hfet2.cir:27:15
+        [1] name="w" kind=scalar value="20u" @netlists/sens_hfet2.cir:27:20
+        [2] name="temp" kind=scalar value="50" @netlists/sens_hfet2.cir:27:26
+  models (2):
+    model [0] name="nmos" base="nhfet" level=6e0 @netlists/sens_hfet2.cir:28:1
+      parameters (7):
+        [0] name="level" kind=scalar value="6" @netlists/sens_hfet2.cir:28:19
+        [1] name="eta2" kind=scalar value="2" @netlists/sens_hfet2.cir:28:27
+        [2] name="d2" kind=scalar value="0.3e-6" @netlists/sens_hfet2.cir:28:34
+        [3] name="rd" kind=scalar value="20" @netlists/sens_hfet2.cir:28:44
+        [4] name="rs" kind=scalar value="30" @netlists/sens_hfet2.cir:28:50
+        [5] name="rdi" kind=scalar value="5" @netlists/sens_hfet2.cir:28:56
+        [6] name="rsi" kind=scalar value="7" @netlists/sens_hfet2.cir:28:62
+    model [1] name="pmos" base="phfet" level=6e0 @netlists/sens_hfet2.cir:29:1
+      parameters (5):
+        [0] name="level" kind=scalar value="6" @netlists/sens_hfet2.cir:29:19
+        [1] name="eta2" kind=scalar value="2" @netlists/sens_hfet2.cir:29:27
+        [2] name="d2" kind=scalar value="0.3e-6" @netlists/sens_hfet2.cir:29:34
+        [3] name="rd" kind=scalar value="20" @netlists/sens_hfet2.cir:29:44
+        [4] name="rs" kind=scalar value="30" @netlists/sens_hfet2.cir:29:50
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_hfet2.cir:30:1
+      arguments: "i" "(" "vids" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_hfet2.cir:18:1
+      setting [0] name="reltol" value="1e-10"@netlists/sens_hfet2.cir:18:17 @netlists/sens_hfet2.cir:18:10
+      setting [1] name="vntol" value="1e-13"@netlists/sens_hfet2.cir:18:29 @netlists/sens_hfet2.cir:18:23
+      setting [2] name="abstol" value="1e-16"@netlists/sens_hfet2.cir:18:42 @netlists/sens_hfet2.cir:18:35
+  globals (0):

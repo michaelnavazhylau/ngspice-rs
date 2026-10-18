@@ -1038,6 +1038,18 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
     },
+    // HFET2 (#164): `hfet2.c`'s 36 model + 6 instance parameters - `m` passes
+    // the table filter but not `hfet2ask.c`'s switch - with `d2`/`eta2` given
+    // so the `nsc` branch is on for both loads, a second n-channel instance at
+    // `dtemp=10` and a p-channel at `temp=50`.
+    Supported {
+        name: "sens_hfet2",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // MESA level 3 (#164): the `mesa2` walk, one device at the circuit
     // temperature and one at `dtemp=10`, both with `rtc1`/`rtc2` and the
     // `rdi`/`rsi` pair (which is where the channel's `tRsi` scaling showed).

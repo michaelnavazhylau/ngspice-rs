@@ -183,8 +183,9 @@ circuit temperature and one at `dtemp=10`) and `sens_mesa4`/`sens_mesa4_ts`
 (level 4, including a `ts=40` instance). Two C asymmetries have to be
 reproduced exactly: `mesaparam.c` stores `td`/`ts` as `value + CONSTCtoK`
 while `mesaask.c` answers them in Celsius, so the walk steps the Celsius value
-and re-adds the offset. HFET1 is `sens_hfet1`; HFET2 stays refused, for the
-measured reason [SENSITIVITY.md](SENSITIVITY.md) records.
+and re-adds the offset. HFET1 is `sens_hfet1` and HFET2 `sens_hfet2`; the
+latter's tables, its `d2`/`eta2` given-flag branch and the `m` column
+`hfet2ask.c` cannot answer are recorded in [SENSITIVITY.md](SENSITIVITY.md).
 
 The level-3/level-4 `.sens` work turned up a **device** defect rather than an
 analysis one. `mesaload.c`'s `mesa2`/`mesa3` read `RS`, the
@@ -201,9 +202,9 @@ and pinned by `tests/mesa.rs`'s
 
 ## Not ported
 
-`.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`; so does
-`.sens` of HFET2 (see [SENSITIVITY.md](SENSITIVITY.md)), and the
-`nhfet`/`phfet` bases. MESA levels 2-4 and HFET1 `.sens` are ported.
+`.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`, as do the
+`nhfet`/`phfet` *model bases*. `.sens` is ported for MES, MESA levels 2-4,
+HFET1 and HFET2 (see [SENSITIVITY.md](SENSITIVITY.md)).
 
 ## Evidence
 
@@ -511,8 +512,8 @@ the reference decks' `.print vids#branch` spelling is a second one (#162).
   the adjoint `*sload.c` routines at all; `cktsens.c`/`cktsgen.c` enumerate
   every device's parameter tables through `DEVparam`/`DEVload`, so the
   reference binary reports 61 `z1:*` parameters for a MESA card and exits 0.
-  The port replays that walk for the `j` and `z` families (#164); only HFET2
-  is still refused (see [SENSITIVITY.md](SENSITIVITY.md)).
+  The port replays that walk for the `j` and `z` families (#164), HFET2
+  included (see [SENSITIVITY.md](SENSITIVITY.md)).
 
 ### Charge storage and the transient load (#156)
 

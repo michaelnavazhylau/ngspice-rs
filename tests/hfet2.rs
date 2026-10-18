@@ -5,7 +5,8 @@
 //!
 //! The reference values below were printed by `ngspice -b` from
 //! `ngspice_test/build/src/ngspice` on the same decks; `cargo xtask golden
-//! verify` checks five of them (`m10_hfet2_{op,dc,ac,tran,pz}`).
+//! verify` checks six of them (`m10_hfet2_{op,dc,ac,tran,pz}` and the `.sens`
+//! fixture `sens_hfet2`).
 
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::Circuit;
@@ -206,7 +207,7 @@ fn the_two_exponential_branch_matches_the_reference_binary() {
 }
 
 /// `hfet2init.c` leaves `DEVnoise`/`DEVdisto` NULL, so both analyses run with
-/// the card contributing nothing, and `.sens` is refused (#164).
+/// the card contributing nothing.
 #[test]
 fn a_hfet2_card_is_noiseless_and_linear_in_distortion() {
     let mut c = circuit(
@@ -246,18 +247,143 @@ fn a_hfet2_card_is_noiseless_and_linear_in_distortion() {
             close(value(&plot, name, point), 0., 0., 1e-18);
         }
     }
+}
+
+/// `.sens` over `hfet2.c`'s tables (#164): 36 `IF_REAL` model setters (minus
+/// the `IF_STRING` `type` and the `IF_FLAG` `nhfet`/`phfet`) and six instance
+/// ones. `m` passes the table filter but not `hfet2ask.c`'s switch - there is
+/// no `HFET2_M` case, unlike `hfetask.c`'s `HFETA_M` - so C prints an error
+/// and drops the column; `vto` is the `IOPR` alias of `vt0`.
+#[test]
+fn sensitivity_covers_hfet2s_tables() {
     let netlist = deck(
-        "vdd 1 0 dc 3 ac 1\nr1 1 drain 1k\nz1 drain gate 0 zm l=1u w=20u\n\
-         vg gate 0 dc -2.5\n.model zm nhfet level=6\n.sens v(drain)",
+        "vds 1 0 dc 2.0\nvids 1 2 dc 0\nvgs 4 0 dc 0.2\nrg 4 3 1k\n\
+         z1 2 3 0 n6 l=1u w=20u\n.model n6 nhfet level=6 eta2=2 d2=0.3e-6\n\
+         .sens i(vids)",
     )
     .unwrap();
     let config = RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
-    let mut c = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
+    let mut circuit = config.circuit(&netlist).unwrap();
+    let plot = runner(request.kind)
         .unwrap()
-        .run(&mut c, &request, &config.context())
-        .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("sensitivity"), "{error}");
+        .run(&mut circuit, &request, &config.context())
+        .unwrap();
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(z1"))
+        .collect();
+    assert_eq!(names.len(), 42, "{names:?}");
+    for absent in ["v(z1_m)", "v(z1:vto)", "v(z1:nhfet)", "v(z1:phfet)"] {
+        assert!(!names.contains(&absent), "{absent} in {names:?}");
+    }
+    for present in ["v(z1:cf)", "v(z1:d2)", "v(z1:vt2)", "v(z1_temp)"] {
+        assert!(names.contains(&present), "{present} missing from {names:?}");
+    }
+}
+
+/// `d2` and `eta2` are ordinary values, but their *given* flags select
+/// `hfeta2`'s `nsc` branch: `hfet2temp.c` fills `N02` under `eta2Given` alone,
+/// `hfet2load.c` reads `nsc` under `eta2Given && d2Given`, and the walk never
+/// clears a flag once a setter has set it. The four cards therefore report two
+/// derivatives and two topology jumps, and the reference binary answers
+/// exactly these columns (#164).
+#[test]
+fn sensitivity_reports_cs_given_flag_topology_switches() {
+    let columns = |card: &str| {
+        let netlist = deck(&format!(
+            "vds 1 0 dc 2.0\nvids 1 2 dc 0\nvgs 4 0 dc 0.2\nrg 4 3 1k\n\
+             z1 2 3 0 n6 l=1u w=20u\n.model n6 nhfet level=6 {card}\n.sens i(vids)"
+        ))
+        .unwrap();
+        let config = RunConfig::from_netlist(&netlist).unwrap();
+        let request = config.request_for(&netlist.analyses[0]).unwrap();
+        let mut circuit = config.circuit(&netlist).unwrap();
+        let plot = runner(request.kind)
+            .unwrap()
+            .run(&mut circuit, &request, &config.context())
+            .unwrap();
+        (value(&plot, "v(z1:d2)", 0), value(&plot, "v(z1:eta2)", 0))
+    };
+    // Both given: the branch is on for both loads, so both rows are the
+    // channel's own derivative of `nsc` (`N02` scales as 1/d2).
+    let (d2, eta2) = columns("eta2=2 d2=0.3e-6");
+    close(d2, -2.413_767_579_2e2, 1e-6, 1e-9);
+    close(eta2, -7.252_681_536e-5, 1e-6, 1e-15);
+    // `eta2` only: the `d2` setter turns the branch on in the perturbed load
+    // alone, which is a difference of two model topologies rather than a
+    // derivative.
+    let (d2, eta2) = columns("eta2=2");
+    close(d2, -8.320_879_307e8, 1e-6, 1e-9);
+    close(eta2, -7.763_247_316e-5, 1e-6, 1e-15);
+    // `d2` only: `N02` is zero (`eta2Given` is false) so the perturbed load's
+    // channel dies at `hfeta2`'s cutoff and the row is the residual; the later
+    // `eta2` setter then enables the branch with `N02` nonzero.
+    let (d2, eta2) = columns("d2=0.3e-6");
+    assert_eq!(d2, 0., "{d2}");
+    close(eta2, -9.850_151_174e1, 1e-6, 1e-9);
+    // Neither: the `d2` row dies the same way and the `eta2` row is the jump.
+    let (d2, eta2) = columns("");
+    assert_eq!(d2, 0., "{d2}");
+    close(eta2, -8.320_883_195e1, 1e-6, 1e-9);
+}
+
+/// `hfet2ask.c` answers the instance temperature in Celsius while
+/// `hfet2param.c` stores it in kelvin, so the walk steps 50 C by a relative
+/// 1e-6 and stores 323.15 K - not a kelvin step across 323 K. `HFET2_VT1` is
+/// computed by `hfet2temp.c` and read nowhere, so its column is exactly zero.
+/// The reference binary prints these columns for the `sens_hfet2` card.
+#[test]
+fn sensitivity_perturbs_the_temperature_in_celsius() {
+    let netlist = deck(
+        "vds 1 0 dc 2.0\nvids 1 2 dc 0\nvgs 4 0 dc 0.5\nrg 4 3 1k\n\
+         vgs2 8 0 dc 1.8\nrg2 8 7 1k\n\
+         z1 2 3 0 nmos l=1u w=20u\nz2 2 3 0 nmos l=2u w=40u dtemp=10\n\
+         z3 0 7 2 pmos l=1u w=20u temp=50\n\
+         .model nmos nhfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30 rdi=5 rsi=7\n\
+         .model pmos phfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30\n.sens i(vids)",
+    )
+    .unwrap();
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut circuit = config.circuit(&netlist).unwrap();
+    let plot = runner(request.kind)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap();
+    close(
+        value(&plot, "v(z1_temp)", 0),
+        -1.431_432_772_145_406e-6,
+        1e-6,
+        1e-14,
+    );
+    close(
+        value(&plot, "v(z2_temp)", 0),
+        -1.659_321_851_234_211e-6,
+        1e-6,
+        1e-14,
+    );
+    close(
+        value(&plot, "v(z3_temp)", 0),
+        1.546_802_393_424_271e-8,
+        1e-6,
+        1e-15,
+    );
+    assert_eq!(value(&plot, "v(z1:vt1)", 0), 0., "HFET2_VT1 is unread");
+    // The p-channel's raw `VTO` stays negative while its `TVTO` is scaled by
+    // the type; both `vt0` and `vt2` rows are live.
+    close(
+        value(&plot, "v(z3:vt0)", 0),
+        2.449_294_340_084_447e-4,
+        1e-6,
+        1e-12,
+    );
+    close(
+        value(&plot, "v(z3:vt2)", 0),
+        -3.856_160_039_760_514e-6,
+        1e-6,
+        1e-15,
+    );
 }
