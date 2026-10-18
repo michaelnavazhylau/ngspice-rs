@@ -1078,6 +1078,17 @@ fn sweep_parameters(
     mode: SensitivityMode,
     mut measure: impl FnMut(usize, &SensitivityLoad, &SensitivityLoad, Real) -> SpiceResult<()>,
 ) -> SpiceResult<()> {
+    // A device that refuses `.sens` outright keeps its own error class; only a
+    // numerical failure is labelled with the parameter that caused it.
+    fn labelled(error: SpiceError, label: &str, what: &str) -> SpiceError {
+        match error {
+            error @ (SpiceError::NotYetPorted { .. } | SpiceError::Unsupported { .. }) => error,
+            error => SpiceError::Numerical {
+                context: format!(".sens {label}: {error}"),
+                message: what.to_owned(),
+            },
+        }
+    }
     for entry in entries {
         if entry.name.is_none() {
             continue;
@@ -1098,15 +1109,12 @@ fn sweep_parameters(
             .name
             .clone()
             .unwrap_or_else(|| entry.keyword.to_owned());
-        let base = device.load(setup, setup, mode).map_err(|error| {
-            // A device whose perturbed state C loads without complaint but the
-            // port refuses (a strict range check) has to name the parameter:
-            // `.sens` is C's walk over dozens of them.
-            SpiceError::Numerical {
-                context: format!(".sens {label}: {error}"),
-                message: "the base load failed".to_owned(),
-            }
-        })?;
+        // A device whose perturbed state C loads without complaint but the
+        // port refuses (a strict range check) has to name the parameter:
+        // `.sens` is C's walk over dozens of them.
+        let base = device
+            .load(setup, setup, mode)
+            .map_err(|error| labelled(error, &label, "the base load failed"))?;
         let delta = if value == 0. {
             ABSOLUTE_DELTA
         } else {
@@ -1123,10 +1131,7 @@ fn sweep_parameters(
                 },
                 mode,
             )
-            .map_err(|error| SpiceError::Numerical {
-                context: format!(".sens {label}: {error}"),
-                message: "the perturbed load failed".to_owned(),
-            })?;
+            .map_err(|error| labelled(error, &label, "the perturbed load failed"))?;
         measure(member.index, &base, &perturbed, delta).map_err(|error| SpiceError::Numerical {
             context: format!(".sens {label}: {error}"),
             message: "the perturbed load could not be evaluated".to_owned(),

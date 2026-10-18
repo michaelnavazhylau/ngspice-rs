@@ -1016,6 +1016,28 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
     },
+    // MESA level 2 (#164): the same walk over `mesa.c`'s 62 + 8 parameters, at
+    // the cancellation floor `compare::SENSITIVITY_CANCELLED` documents for
+    // three of them. Levels 3-4 are refused (their rows differ from C).
+    Supported {
+        name: "sens_mesa",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_CANCELLED,
+        },
+    },
+    // MESA level 4 (#164): the same walk over the level-4 parameter table,
+    // sensing the drain current (`sens_mesa` senses a ~1 uV gate node, where a
+    // level-4 row is a cancellation-limited difference). Level 3 is refused.
+    Supported {
+        name: "sens_mesa4",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // `.sp` (#105): linear port decks, so the AC bound applies to every
     // S/Y/Z entry, port node voltage and `v(rbase)`. `sp_rc` keeps a shunt
     // resistor so no Z/Y component is a rounding-level real part.

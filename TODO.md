@@ -18,9 +18,9 @@ one: treat a layout change as whole-tree, never as a cherry-pick. After the
 spill slices H1a/H1b/H2/H3/H4 and TX1–TX4 and the M10 closeout slices
 (model-card instance defaults #161, `<source>#branch` aliases #162, fixture
 repair), `cargo test --workspace --locked`
-reports **1473 passed / 0 failed / 150 ignored** (the
+reports **1474 passed / 0 failed / 150 ignored** (the
 ignored tests are the opt-in `NGSPICE_BIN` live-C checks) and `cargo xtask
-golden verify` reports **188 verified / 1 unsupported / 0 failures** (the
+golden verify` reports **189 verified / 1 unsupported / 0 failures** (the
 unsupported fixture is `multi_analysis_pz`, whose pole search depends on the C
 build's fused multiply-adds). See [VERIFICATION.md](docs/port/VERIFICATION.md)
 for the recorded evidence.
@@ -474,7 +474,7 @@ it are marked "#85 as it then read".
   `txlacct.c`'s accepted history, `update_delayed_cnv_txl` and C's
   `CKTmaxStep = 0.9*taul` clamp. Ten fixtures
   (`m10_txl_{fb_op,fb_dc,fb_tran,op,dc,tran,early_tran,tran_step,lossless_tran}`
-  and `m10_txl3_tran`, 188 verified): source-driven decks reproduce C's
+  and `m10_txl3_tran`, 189 verified): source-driven decks reproduce C's
   accepted points to last-bit precision (214/214 at 5.3e-16; 34/34 for the
   genuine oversized-step clamp), the
   three-line MOS deck agrees to 1.4e-8 relative with a termination per line.

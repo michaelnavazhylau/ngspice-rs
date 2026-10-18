@@ -118,7 +118,8 @@ output:
 | J (JFET level 1, `jfet.c`) | yes | refused |
 | J (JFET level 2, `jfet2.c`) | yes | refused |
 | Z level 1 (MES, `mes.c`) | yes | refused |
-| Z levels 2-6 (MESA 2-4, HFET1, HFET2) | refused (`NotYetPorted`, #164) | refused |
+| Z level 2 (MESA, `mesa.c`) | yes | refused |
+| Z levels 3-4 (MESA) and 5-6 (HFET1/HFET2) | refused (`NotYetPorted`, #164) | refused |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit
@@ -182,25 +183,77 @@ Two limits are recorded rather than reproduced:
   fixture keeps JFET2's feedback family at its defaults; the columns are
   still enumerated and perturbed.
 
-**Not ported: MESA levels 2-4 and HFET1/HFET2.** The tables, records and
-replay are mechanical (the `mesa.c`/`hfet1.c`/`hfet2.c` enum tables have 62-70
-entries each), but two C behaviours have to be reproduced exactly first, and
-both were measured and left open:
+**MESA levels 2 and 4 are ported** (`sens_mesa`, 69 columns: `mesa.c`'s 61
+model and 8 instance parameters, verified at `compare::SENSITIVITY_CANCELLED`;
+`sens_mesa4` for level 4). **Not ported: MESA level 3 and HFET1/HFET2** - see
+[the next section](#mesa-levels-2-and-4-level-3s-two-rows-hfet1hfet2) for what
+each one still needs.
 
-- **`MESAphib`/`MESAphib1`'s asymmetry.** `mesamparam.c` stores
-  `value * CHARGE` while `mesamask.c` returns the stored joules unchanged, so
-  C's perturbation (`+value*1e-6` in "eV") and its restore (`ask * CHARGE`)
-  both corrupt the stored barrier. `v(z2:phib)` comes out as exactly 0 in the
-  reference binary while the port's rebuilt load answers `1.8e25` - the
-  values are not comparable until C's own sequence is understood.
-- **Operating-point branches.** Any MESA deck with a *responsive* node (a
-  drain load or a gate resistor rather than a stiff supply) has more than one
-  fixed point and C lands on a different one from the port - the same class
-  documented in [MESFET.md](MESFET.md). Measured on a level-2 card at
-  `vgs = 0.6` behind a 1 k drain load, C's device is cut off
-  (`i(vdd) = -6.1e-7 A`) while the port conducts 3.1 mA. A `.sens` golden
-  needs the stiff-supply topology of the `m10_mesa_op` fixture *and* a
-  responsive node, which only the internal `#gate` node provides.
+Two earlier blockers are now reproduced or routed around, and the notes that
+recorded them are superseded:
+
+- **`MESAphib`/`MESAphib1`'s asymmetry** (`mesamparam.c` stores `value *
+  CHARGE`, `mesamask.c` returns the stored joules) is replayed exactly: the
+  fixture sets `phib=0.5/CHARGE` so the restored barrier stays physical, and
+  the port's `set` applies the same factor.
+- **Operating-point branches**: a `.sens` deck needs both a stiff supply (to
+  land on C's operating point) and a responsive node (to have a signal), and
+  the internal `#gate` node provides the second without the first's ambiguity.
+  `sens_mesa`'s two devices sit behind stiff drain supplies with the gate
+  driven through 1 k; `sens_mesa4` senses the drain current instead.
+
+### MESA levels 2 and 4, level 3's two rows, HFET1/HFET2
+
+**MESA levels 2 and 4 are ported and verified**: `sens_mesa` (level 2, 69
+columns, sensed at the `#gate` node, `compare::SENSITIVITY_CANCELLED`) and
+`sens_mesa4` (level 4, sensed at `i(vids)`, at the circuit temperature). Two
+things are refused, both measured:
+
+- **Level 3.** Its `mesa2` channel leaves exactly two columns from C's answer,
+  `du` 16% and `th` 24%, on an otherwise agreeing deck (242 of 246 columns
+  inside 1e-6), so the two-population derivative terms
+  `delnsavgte`/`nsa` in `mesaload.c:760-790` are the open item, not the
+  parameter tables or the replay.
+- **Level 4 at a shifted temperature** (`ts` or `dtemp` set). `rtc1` and
+  `rtc2` come out at 0.808x C's -4.459e-3/-5.796e-2 against C's
+  -5.519e-3/-7.174e-2 at `ts=40`, while every other column is inside 1e-6 and
+  `.op`/`.dc`/`.tran` agree to 1e-9; the identical ratio on both rows points at
+  `mesatemp.c`'s RTC scaling of `trdi`/`trsi`/`trs`/`trd` rather than at the
+  channel. Level 2 verifies with `dtemp` set (`sens_mesa`'s `z2`), so only the
+  level-4 combination is refused.
+
+Getting there needed two things that are easy to get wrong, and both were
+measured against the reference binary:
+
+- **`mesamparam.c` stores five parameters in kelvin**: `tlambda`, `teta0`,
+  `teta1`, `tmu` and `tf` are `value + CONSTCtoK` in C's model, while
+  `mesatemp.c` then uses them as if the deck value were the coefficient. C's
+  `.sens` therefore perturbs `teta1 = 0` to 273.15, not to 1e-6: the `teta1`
+  column is the finite difference between 273.15 K and 0, which is exactly what
+  a card `teta1=1e-6` reproduces (`i(vids)` changes by -4.02e-11, i.e.
+  -4.024e-5 per unit). Restoring the *asked* value re-adds the offset, so after
+  the `teta1` row the model holds 273.15 K and after the `tmu` row 573.3 K -
+  which is the only reason C's later `xtm0` column is non-zero at all
+  (`pow(ts/tmu, xtm0)` is exactly 1 while `tmu` is its 300.15 K default).
+  The port's `set` reproduces the offset; earlier notes calling these rows
+  "C artefacts" were wrong, and so was the claim that C's `.sens` disagrees
+  with its own finite difference - it does not, once the card carries the same
+  value.
+- **The sensed quantity decides whether a row is comparable at all.** `sens_mesa`
+  senses a ~1e-6 V gate node, where a level-4 row is a cancellation-limited
+  difference of last digits (that, not a derivation gap, is what made `epsi`
+  read 0.98% and `gamma` 4.0% off); `sens_mesa4` senses `i(vids)`, which is
+  O(mA), and every level-4 column agrees to 1e-6. Near cut-off the model's
+  exponential tails additionally make `.sens`'s fixed-bias linearisation
+  differ from a re-solved operating point by orders of magnitude, so a `.sens`
+  fixture must also sit well inside the saturated region.
+
+**HFET1** is the remaining concrete case: `js1s` differs from C by 2.8x and
+`vt2`/`l`/`w` by 0.1-100% (the 2.8x is close to the `M` on the card that
+exposed it, so the `M`-versus-gate-area interaction is the first thing to
+check), and `hfettemp.c` multiplies the **stored** threshold by the model type
+on every `DEVtemperature` call, so a p-channel device's `vt0` alternates sign
+across the walk. **HFET2** is not implemented.
 
 Until those land the refusal stays, naming `cktsens.c`/`cktsgen.c` and the
 device's `DEVparam`/`DEVtemperature`/`DEVload`.

@@ -1,0 +1,29 @@
+DC sensitivity of MESA bias networks (#164)
+* The cards of the verified `m10_mesa_op`/`m10_mesa_l4_op` fixtures with their
+* stiff drain supplies; each gate is driven through 1 k so the sensed node
+* (v(3), the level-2 device's gate) moves with the gate current while the
+* operating point stays on the branch C reaches. Levels 3-4 are refused (see
+* SENSITIVITY.md: their rows expose a remaining derivation gap).
+* device. MESA's
+* LAMBDAGHF default follows LAMBDA.
+*
+* PHIB is set to 0.5/CHARGE on purpose. `mesamparam.c` stores PHIB*CHARGE while
+* `mesamask.c` returns the stored joules, so C's `.sens` perturbs and restores
+* across a factor of CHARGE: the card's PHIB*CHARGE (0.5 J) is what the columns
+* before `phib` see, and the restore leaves PHIB*CHARGE**2 = 0.5 eV - the
+* physical barrier - for every column after it. Without the explicit value the
+* restore leaves ~1e-38 J, which turns the gate Schottky into a short and makes
+* every later column a difference of huge numbers. The replay reproduces both
+* states (C's `show` reports `@mesmod2[phib] = 1.283485e-38` after a default
+* run).
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+vds 1 0 dc 0.5
+vids 1 2 dc 0
+vgs 4 0 dc 0
+rg 4 3 1k
+z1 2 3 0 mesmod l=1u w=20u
+z2 2 3 0 mesmod2 l=2u w=40u dtemp=10
+.model mesmod nmf(level=2 rd=31 rs=31 rg=10 phib=3.1232e18)
+.model mesmod2 nmf(level=2 phib=3.1232e18)
+.sens v(3)
+.end

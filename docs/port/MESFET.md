@@ -179,8 +179,9 @@ both polarities.
 ## Not ported
 
 `.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`; so do `.sens`
-of the MESA/HFET levels (see [SENSITIVITY.md](SENSITIVITY.md)) and the
-`nhfet`/`phfet` bases.
+of MESA levels 3-4 and of HFET1/HFET2 (see
+[SENSITIVITY.md](SENSITIVITY.md)), and the `nhfet`/`phfet` bases. MESA level 2
+`.sens` is ported (`sens_mesa`).
 
 ## Evidence
 
@@ -283,9 +284,9 @@ grammar and one 62-setter model table but not one channel:
 | level | family | channel | state |
 | --- | --- | --- | --- |
 | 0/1 | MES | `mesload.c` | ported (wave 3) |
-| 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage |
+| 2 | MESA | `mesa1` (`mesaload.c`) | ported: every load but charge storage; `.sens` included (#164) |
 | 3 | MESA | `mesa2` (`mesaload.c`) | ported: DC, transient (H2) |
-| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient, `.tf`; `.ac`/`.sp`/`.pz` refused (H2) |
+| 4 | MESA | `mesa3` (`mesaload.c`) | ported: DC, transient, `.tf`; `.ac`/`.sp`/`.pz` and `.sens` refused (H2, #164) |
 | 5 | HFET1 | `hfeta` (`hfetload.c`) | ported (H3) |
 | 6 | HFET2 | `hfeta2` (`hfet2load.c`) | ported (H4) |
 
