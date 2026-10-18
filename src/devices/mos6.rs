@@ -30,7 +30,10 @@
 //! the device. Here `.ac`, `.noise`, `.disto`, `.sp` and `.pz` fail
 //! explicitly ([`SpiceError::Unsupported`] for the small-signal and
 //! pole-zero loads, [`SpiceError::NotYetPorted`] naming `mos6init.c` for
-//! `.noise`/`.disto`, and the generic refusal for `.sens`).
+//! `.noise`/`.disto`). DC `.sens` is ported through the modern finite-
+//! difference walk (`cktsens.c`), which does not use the old sensitivity
+//! routine slots. The `sens` submodule retains C's kelvin TNOM ask/Celsius
+//! setter, geometry asks multiplied by M, and setup-only LAMBDA copy.
 //!
 //! # Deliberate divergences
 //!
@@ -52,6 +55,8 @@
 //!   accepted and, as in C, have no effect. C warns and continues for
 //!   `L - 2 LD <= 0` or a nonpositive temperature-adjusted PHI/PB; here those
 //!   are errors.
+
+mod sens;
 
 use crate::devices::ModelContext;
 use crate::devices::ResolvedModel;
@@ -134,7 +139,12 @@ pub(super) struct Level6 {
     phi: Option<Real>,
     /// C `MOS6lamda0`: LAMBDA0, else LAMBDA, else zero (`mos6set.c`).
     lambda0: Real,
+    /// Separate C LAMBDA setter and LAMDA0 flag, retained for `.sens` setup.
+    lambda: Option<Real>,
+    lambda0_given: bool,
     lambda1: Real,
+    nvth: Real,
+    ps: Real,
     tox: Option<Real>,
     u0: Option<Real>,
     nsub: Option<Real>,
@@ -260,7 +270,11 @@ impl MosLevel for Level6 {
             sigma: required("sigma")?,
             phi: get("phi"),
             lambda0: get("lambda0").or_else(|| get("lambda")).unwrap_or(0.),
+            lambda: get("lambda"),
+            lambda0_given: get("lambda0").is_some(),
             lambda1: required("lambda1")?,
+            nvth: required("nvth")?,
+            ps: required("ps")?,
             tox: get("tox"),
             u0: aliased(&m, ["u0", "uo"]),
             nsub: get("nsub"),
@@ -272,6 +286,16 @@ impl MosLevel for Level6 {
 
     fn common(&self) -> &Common {
         &self.common
+    }
+
+    fn sensitivity<'a>(
+        device: &'a Mos6,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + 'a>> {
+        Ok(Box::new(crate::devices::mos::sens::MosSensitivity {
+            device,
+            context: *context,
+        }))
     }
 
     fn check_geometry(&self, name: &str, geometry: &Geometry) -> SpiceResult<()> {
@@ -637,7 +661,11 @@ mod tests {
             sigma: 0.02,
             phi: None,
             lambda0: 0.03,
+            lambda: None,
+            lambda0_given: true,
             lambda1: 0.01,
+            nvth: 0.5,
+            ps: 0.,
             tox: None,
             u0: None,
             nsub: None,

@@ -214,10 +214,6 @@ fn unsupported_cases_fail_explicitly() {
             "BJT sensitivity with RC != 0",
         ),
         (
-            "v1 d 0 dc 5\nrg d g 100k\nm1 d g 0 0 mm l=2u w=10u\n.model mm nmos level=1\n.sens v(g)",
-            "sensitivity analysis of device m1",
-        ),
-        (
             "v1 in 0 dc 5 ac 1\nr1 in a 1k\nd1 a 0 dm\n.model dm d\n.sens v(a) ac dec 1 1 10",
             "nonlinear and switch devices are linearized",
         ),

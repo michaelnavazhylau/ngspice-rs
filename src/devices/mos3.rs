@@ -36,8 +36,11 @@
 //!   `MOS3mParam` has no case for them (`E_BADPARM`); they are rejected as
 //!   unknown setters. `.options badmos3` is rejected by the options layer, so
 //!   C's default (`CKTbadMos3 = 0`) formulation is the only one.
-//! - `.disto` (`mos3dset.c`/`mos3dist.c`) and `.sens` are not ported and fail
-//!   explicitly.
+//! - `.disto` (`mos3dset.c`/`mos3dist.c`) is not ported. DC `.sens` replays
+//!   the model records in `sens`, including the scaled DELTA ask/raw setter
+//!   mismatch and zero columns for the three table-only model setters.
+
+mod sens;
 
 use crate::devices::mos::{
     CELSIUS_TO_KELVIN, CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, Junction, K_OVER_Q,
@@ -454,6 +457,16 @@ impl MosLevel for Level3 {
 
     fn common(&self) -> &Common {
         &self.common
+    }
+
+    fn sensitivity<'a>(
+        device: &'a Mos3,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + 'a>> {
+        Ok(Box::new(crate::devices::mos::sens::MosSensitivity {
+            device,
+            context: *context,
+        }))
     }
 
     /// `mos3temp.c` refuses (`E_PARMVAL`) a nonpositive effective length or

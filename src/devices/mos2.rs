@@ -46,8 +46,11 @@
 //! - `MOS2mPTable`'s computed default of CJ (from NSUB and PB) never reaches
 //!   a load, because `mos2temp.c` uses the bottom capacitance only when CJ
 //!   was given; the port therefore has no CJ default either.
-//! - `.disto` (`mos2dset.c`/`mos2dist.c`) and `.sens` are not ported and fail
-//!   explicitly.
+//! - `.disto` (`mos2dset.c`/`mos2dist.c`) is not ported. DC `.sens` replays
+//!   the model records in `sens`; invalid perturbations fail explicitly rather
+//!   than continuing with stale temperature fields as C does.
+
+mod sens;
 
 use crate::devices::ModelContext;
 use crate::devices::ResolvedModel;
@@ -280,6 +283,16 @@ impl MosLevel for Level2 {
 
     fn common(&self) -> &Common {
         &self.common
+    }
+
+    fn sensitivity<'a>(
+        device: &'a Mos2,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + 'a>> {
+        Ok(Box::new(crate::devices::mos::sens::MosSensitivity {
+            device,
+            context: *context,
+        }))
     }
 
     /// `mos2temp.c` only warns for a nonpositive effective length; the port

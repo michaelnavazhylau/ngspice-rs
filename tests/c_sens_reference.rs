@@ -31,6 +31,21 @@ impl Drop for Cleanup {
 const LINEAR: (f64, f64) = (1e-8, 1e-12);
 const NONLINEAR: (f64, f64) = (1e-6, 1e-9);
 
+/// Batch-mode order (unlike control `write`'s sorted vectors), all columns,
+/// and the shared-model/per-instance replay of every classic MOS level.
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn classic_mos_dc_sensitivity_tables_and_values() {
+    for level in [1, 2, 3, 6, 9] {
+        let name = format!("sens_mos{level}");
+        let deck = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("conformance/netlists/{name}.cir")),
+        )
+        .unwrap();
+        compare_with_c(&name, &deck, NONLINEAR);
+    }
+}
+
 fn compare_with_c(name: &str, deck_text: &str, (relative, absolute): (f64, f64)) {
     let binary = std::env::var_os("NGSPICE_BIN").expect("set absolute NGSPICE_BIN");
     assert!(Path::new(&binary).is_absolute());

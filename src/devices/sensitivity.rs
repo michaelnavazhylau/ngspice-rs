@@ -82,6 +82,14 @@ pub enum SensitivityFamily {
     Mesa,
     /// `mos1`.
     Mos1,
+    /// `mos2`.
+    Mos2,
+    /// `mos3`.
+    Mos3,
+    /// `mos6`.
+    Mos6,
+    /// `mos9`.
+    Mos9,
     /// `res`: resistors.
     Resistor,
     /// `sw`: S switches.

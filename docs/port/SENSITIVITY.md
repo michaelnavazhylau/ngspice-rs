@@ -115,7 +115,8 @@ output:
 | S, W | yes | refused |
 | D | yes | refused |
 | Q (Gummel-Poon) | yes (`RC == 0`; with `RC != 0` C's Kull quasi-saturation changes the `gamma` row) | refused |
-| M (MOS1, MOS2, MOS3, MOS6, MOS9), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
+| M (MOS1, MOS2, MOS3, MOS6, MOS9) | yes, bounded by valid perturbations (see below) | refused |
+| XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
 | J (JFET level 1, `jfet.c`) | yes | refused |
 | J (JFET level 2, `jfet2.c`) | yes | refused |
 | Z level 1 (MES, `mes.c`) | yes | refused |
@@ -135,8 +136,9 @@ port's own `Diode` built from C's records.
 
 ### The `j` and `z` families (#164)
 
-**Ported: JFET levels 1 and 2, the MESFET (`z` level 1), MESA levels 2-4 and
-HFET1 (`z` level 5).** Each family replays C's own sequence, the way the diode
+**Ported: JFET levels 1 and 2, the MESFET (`z` level 1), MESA levels 2-4,
+HFET1 (`z` level 5), HFET2 (`z` level 6), the Gummel-Poon BJT and the classic
+MOS levels 1/2/3/6/9.** Each family replays C's own sequence, the way the diode
 does, and each has a committed C golden with every enumerated parameter:
 
 | Family | `sgen` parameters | Fixture |
@@ -150,6 +152,11 @@ does, and each has a committed C golden with every enumerated parameter:
 | `hfet1/hfet.c` | 63 model + 7 instance | `sens_hfet1` (218 vectors, n- and p-channel) |
 | `hfet2/hfet2.c` | 36 model + 6 instance (`m` is not askable) | `sens_hfet2` (194 vectors, a shared n-channel model and a p-channel at `temp=50`) |
 | `bjt/bjt.c` | 103 model + 6 instance (the `IOPA` family is AC-only) | `sens_bjt` (291 vectors, an NPN at `dtemp=-10` and a PNP at `dtemp=20`, emitter-sensed) |
+| `mos1/mos1.c` | 23 model + 14 instance (IC voltages are DC here; levels 2/3/9 make them AC-only) | `sens_mos1` (146 vectors) |
+| `mos2/mos2.c` | 32 model + 11 instance | `sens_mos2` (164 vectors) |
+| `mos3/mos3.c` | 36 model + 11 instance (three have no setter) | `sens_mos3` (176 vectors) |
+| `mos6/mos6.c` | 29 model + 11 instance (`TNOM` asked in kelvin, geometry asks scaled by `m`) | `sens_mos6` (155 vectors) |
+| `mos9/mos9.c` | 35 model + 10 instance (no `DTEMP` ask) | `sens_mos9` (170 vectors) |
 
 The parameter lists are C's, not the card's, and three filters decide them:
 `set_param()`'s `(IF_SET|IF_ASK|IF_REAL)` test (so the `vto`/`pb`/`tphib`
@@ -425,6 +432,64 @@ tolerance `ibc=2e-14` probe, `q1:ibe` is 5.433385e11, `q1:ibc` is 4.100676,
 columns now match C. Two regression tests pin the independent records and the
 large columns for both single-sided cards.
 
+Tiny *given* values can still produce genuinely cancellation-limited rows:
+`value*1e-6` may be below the resolution of the load subtraction, so near-zero
+columns need the documented absolute floor. The single-IBE probe's own IBE
+column, for example, is about -2e-9 in C versus zero in the port, even while
+its 2.3868e11 VAF column agrees. This remaining numeric limit is distinct from
+the fixed record-loss defect.
+
+### Classic MOS (`M`, levels 1/2/3/6/9)
+
+DC record replay is implemented for all five classic levels, with one shared
+lifecycle in `devices::mos::sens` and level-owned tables, field mappings and
+process updates. The new `sens_mos1`/`sens_mos2`/`sens_mos3`/`sens_mos6`/
+`sens_mos9` goldens contain **146/164/176/155/170** vectors respectively;
+every column verifies under the existing `SENSITIVITY_NONLINEAR` bound
+(1e-6 relative plus 1e-9 absolute). Each card has two NMOS instances sharing a
+process-derived model, independent bulk bias, sheet resistance, a multiplier
+and shifted instance temperature, plus a PMOS with explicit channel parameters,
+series resistances and a distinct nominal temperature. All source currents
+return through the sensed branch. `tests/sensitivity_mos.rs` checks the tables,
+values, square-law derivatives and explicit invalid-perturbation failures;
+`c_sens_reference` also checks batch-mode vector order against live C.
+
+The replay preserves several non-derivative behaviours:
+
+* **Restoration changes resistance precedence.** Setting and restoring an
+  absent RD/RS marks it given at zero, so later `mosXtemp.c` calls suppress
+  RSH rather than using the original card's sheet resistance. The setup-time
+  internal nodes remain; a perturbed load must not run the card validator or
+  allocate new nodes.
+* **Process fields persist in C's model record.** VTO/KP (KC for level 6),
+  PHI/GAMMA and mobility are updated by temperature and can become fixed when
+  restored. Setup resets only fields still ungiven. Instance TEMP and model
+  TNOM normally ask Celsius and set kelvin.
+* **MOS6 TNOM is the exception:** `mos6mask.c` returns kelvin while
+  `mos6mpar.c` still adds 273.15. The fixture's `m1:tnom` column is about
+  1.2889, not the physical temperature derivative. `mos6ask.c` also multiplies
+  W/AD/AS/PD/PS/NRD/NRS by M, but their setters do not undo that scaling;
+  restoration therefore changes later columns. LAMBDA feeds LAMBDA0 only in
+  setup, so its own column is zero. NVTH and PS are unused zero columns.
+* **MOS3/9 DELTA asks a scaled narrow factor but sets raw DELTA.** The fixture
+  deliberately uses DELTA=10 and ETA=0.1 so the very small perturbation is
+  resolvable without relaxing tolerances. XD/ALPHA/INPUT_DELTA have asks but
+  no model setter cases; C prints SET ERROR and continues with unchanged
+  fields, producing zero columns. Those entries remain in the table.
+* **MOS9 has no DTEMP ask case.** C drops that GET ERROR column, even though
+  the setter exists, so it is absent from the port's table too.
+
+**Still bounded, not full MOS parity:** a zero LD receives C's absolute 1 um
+step; drawn L=2 um then has zero effective length, which fails explicitly.
+More importantly, an unset NSUB in levels 2/3/9 receives the absolute
+1e-6 cm^-3 step, below intrinsic density. `mosXtemp.c` zeros the doping and
+returns E_BADPARM; `sens_temp` ignores that failure and continues with stale
+instance derivations. The port propagates the error rather than pretending
+those partial-record values are a valid sensitivity. Give a valid NSUB or
+filter out that parameter. The same temperature-callback limitation applies
+where other perturbations make the device derivation invalid. AC remains
+refused, including level 6 whose C device has no AC load at all.
+
 ### The `j` and `z` families: the original gap note (#164)
 
 *Historical: this is the note that opened the work. Every family below now has
@@ -455,8 +520,8 @@ What each family needed, in this order, is exactly what
 
 The families share the card grammar but not the channel or the tables, so this
 was one slice per family rather than one generic helper. Every `z` level and
-the Gummel-Poon `Q` now have one; a device type without one (the MOS levels,
-the code models) still refuses through `Device::sensitivity`'s `NotYetPorted`
+the Gummel-Poon `Q` and classic MOS levels now have one; a device type without
+one (the code models) still refuses through `Device::sensitivity`'s `NotYetPorted`
 default, naming its own `DEVparam`/`DEVtemperature`/`DEVload` reference, so a
 deck that asks fails loudly.
 
@@ -502,6 +567,8 @@ deck that asks fails loudly.
   `xtask/src/compare.rs`). The `j`/`z` family fixtures are there too:
   `sens_jfet`, `sens_jfet2`, `sens_mesfet`, `sens_hfet1`, `sens_hfet2`,
   `sens_mesa`, `sens_mesa3`, `sens_mesa4`, `sens_mesa4_ts` and `sens_bjt`.
+  Classic MOS adds `sens_mos1`, `sens_mos2`, `sens_mos3`, `sens_mos6` and
+  `sens_mos9` under the same nonlinear bound.
 * Opt-in live C (`NGSPICE_BIN=... cargo test --test c_sens_reference --
   --ignored`): DC linear and filtered decks, a hot behavioural/switch deck,
   diode decks with NaN, sidewall, breakdown and `.op` composition, and AC

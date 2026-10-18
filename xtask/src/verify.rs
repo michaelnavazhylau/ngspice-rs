@@ -1062,6 +1062,51 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
     },
+    // Classic MOS level 1: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos1",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 2: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos2",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 3: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos3",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 6: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos6",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 9: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos9",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // MESA level 3 (#164): the `mesa2` walk, one device at the circuit
     // temperature and one at `dtemp=10`, both with `rtc1`/`rtc2` and the
     // `rdi`/`rsi` pair (which is where the channel's `tRsi` scaling showed).
