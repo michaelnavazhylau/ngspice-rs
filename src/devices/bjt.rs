@@ -27,6 +27,14 @@
 //! generators of `bjtnoise.c` (resistor thermal, collector/base shot and
 //! `KF`/`AF` flicker noise) are ported through [`Device::noise`].
 //!
+//! `.sens` (#164) replays `bjtsetup.c`/`bjttemp.c` on C's records and reloads
+//! this device from them, so C's per-parameter `DEVsetup` (`ISE`/`ISC` above
+//! 1e-4 become multiples of `IS`, `NKF`/`XCJC` clamp), `BJTemp`'s model-side
+//! stores (`tnom`, `rbm` following `rb`, the `fc` clamp), the Celsius
+//! `tnom`/`temp` pair and `sens_setp()`'s hard-coded `RCO` exclusion all show
+//! up in the columns. A card with `RC != 0` is refused there: C's walk then
+//! activates the unported quasi-saturation terms in its perturbed loads.
+//!
 //! Newton limiting follows `bjtload.c` through [`crate::devices::limiting`]:
 //! `MODEINITJCT` starts at `vbe = tVcrit` (all zero for an `OFF` instance,
 //! which is also held at zero through `MODEINITFIX`); the `uic` initial load
@@ -43,6 +51,10 @@ use crate::devices::noise::{
 };
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
+};
+use crate::devices::sensitivity::{
+    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
+    SensitivityMode, SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
     Device, LinearContext, ModelContext, ModelFamily, ResolvedModel, StampContext,
@@ -299,6 +311,9 @@ struct Model {
     rb: Real,
     irb: Real,
     rbm: Real,
+    /// `BJTminBaseResistGiven`: `.sens` needs it because `bjttemp.c` copies
+    /// `rb` into an ungiven `rbm` before every load.
+    rbm_given: bool,
     re: Real,
     rc: Real,
     cje: Real,
@@ -415,6 +430,7 @@ impl Model {
             rb,
             irb: get(m, "irb")?,
             rbm: given(m, "rbm").unwrap_or(rb),
+            rbm_given: given(m, "rbm").is_some(),
             re: get(m, "re")?,
             rc: get(m, "rc")?,
             cje: get(m, "cje")?,
@@ -1478,6 +1494,30 @@ impl Device for Bjt {
         }
         Ok(true)
     }
+    /// `bjt.c`'s `IFparm` tables under C's `sgen` walk (#164): the record
+    /// replay of `bjtsetup.c`/`bjttemp.c`/`bjtmpar.c`/`bjtparam.c` with the
+    /// load being this device rebuilt from those records.
+    ///
+    /// Refused for a card with `RC != 0`. `bjtsetup.c` then creates the
+    /// internal `collCX` node, and C's walk marks `VO`/`GAMMA`/`QCO` given as
+    /// it passes them, which switches on the Kull quasi-saturation terms of
+    /// `bjtload.c` in the *perturbed* loads. The port does not model them (the
+    /// card parameters are `UNPORTED_MODEL`), and the effect is not a rounding
+    /// difference: measured on `rc=40`, `vbe` at 0.7 V, C answers
+    /// `v(q1:gamma) = 6.52e-1` where the port has to answer 0. Every other
+    /// column of that card agrees, so the refusal is narrow - and a card
+    /// without `RC` has no `collCX` node for the terms to use, which is why
+    /// the rest of the tables verify.
+    fn sensitivity(&self, context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
+        if self.model.rc != 0. {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: BJT sensitivity with RC != 0", self.name),
+                "src/spicelib/devices/bjt/bjtload.c's Kull quasi-saturation \
+                 (BJTintCollResist/BJTepiSatVoltage/BJTepiDoping/BJTepiCharge)",
+            ));
+        }
+        Ok(Box::new(BjtSensitivity::new(self, context)))
+    }
     fn observation_parameter(
         &self,
         key: &str,
@@ -1969,6 +2009,540 @@ impl Device for Bjt {
                 ),
             ],
         })
+    }
+}
+
+// ---- `.sens` (#164) -------------------------------------------------------
+
+/// `bjt.c`'s `BJTMpTable` in C's order, filtered the way `set_param()`
+/// (`cktsgen.c`) and `sens_getp()` filter it.
+///
+/// A DC walk keeps the `IOP`/`IOPU` entries: the `IOPA` capacitance family
+/// (`cje`, `vje`, `mje`, `tf`, `xtf`, `vtf`, `itf`, `ptf`, `cjc`, `vjc`,
+/// `mjc`, `xcjc`, `tr`, `cjs`, `vjs`, `mjs`) is `IF_AC` and appears only in an
+/// AC analysis, `type` is a string, `npn`/`pnp` are flags, `subs`/`tlev`/
+/// `tlevc`/`quasimod` are integers, and the `IOPR` aliases (`tref`, `va`,
+/// `ik`, `c2`, `vb`, `c4`, `pe`, `me`, `pc`, `mc`, `csub`, `ccs`, `ps`, `ms`)
+/// are redundant.
+///
+/// The list deliberately keeps parameters the port refuses when given
+/// (`rco`, `vo`, `gamma`, `qco`, `vg`, `cn`, `d`, the SOA limits and `rth0`):
+/// C enumerates them, and their columns are exactly zero on every card
+/// measured, so the port reports zero records for them rather than dropping
+/// the columns. `rco` is also hard-coded out of `sens_setp()` (`cktsens.c`
+/// skips BJT model parameter 147 because setting it allocates nodes).
+const MODEL_PARAMETERS: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("tnom"),
+    SensitivityParameter::dc("is"),
+    SensitivityParameter::dc("ibe"),
+    SensitivityParameter::dc("ibc"),
+    SensitivityParameter::dc("bf"),
+    SensitivityParameter::dc("nf"),
+    SensitivityParameter::dc("vaf"),
+    SensitivityParameter::dc("ikf"),
+    SensitivityParameter::dc("ise"),
+    SensitivityParameter::dc("ne"),
+    SensitivityParameter::dc("br"),
+    SensitivityParameter::dc("nr"),
+    SensitivityParameter::dc("var"),
+    SensitivityParameter::dc("ikr"),
+    SensitivityParameter::dc("isc"),
+    SensitivityParameter::dc("nc"),
+    SensitivityParameter::dc("rb"),
+    SensitivityParameter::dc("irb"),
+    SensitivityParameter::dc("rbm"),
+    SensitivityParameter::dc("re"),
+    SensitivityParameter::dc("rc"),
+    SensitivityParameter::dc("xtb"),
+    SensitivityParameter::dc("eg"),
+    SensitivityParameter::dc("xti"),
+    SensitivityParameter::dc("fc"),
+    SensitivityParameter::dc("kf"),
+    SensitivityParameter::dc("af"),
+    SensitivityParameter::dc("iss"),
+    SensitivityParameter::dc("ns"),
+    SensitivityParameter::dc("rco"),
+    SensitivityParameter::dc("vo"),
+    SensitivityParameter::dc("gamma"),
+    SensitivityParameter::dc("qco"),
+    SensitivityParameter::dc("tbf1"),
+    SensitivityParameter::dc("tbf2"),
+    SensitivityParameter::dc("tbr1"),
+    SensitivityParameter::dc("tbr2"),
+    SensitivityParameter::dc("tikf1"),
+    SensitivityParameter::dc("tikf2"),
+    SensitivityParameter::dc("tikr1"),
+    SensitivityParameter::dc("tikr2"),
+    SensitivityParameter::dc("tirb1"),
+    SensitivityParameter::dc("tirb2"),
+    SensitivityParameter::dc("tnc1"),
+    SensitivityParameter::dc("tnc2"),
+    SensitivityParameter::dc("tne1"),
+    SensitivityParameter::dc("tne2"),
+    SensitivityParameter::dc("tnf1"),
+    SensitivityParameter::dc("tnf2"),
+    SensitivityParameter::dc("tnr1"),
+    SensitivityParameter::dc("tnr2"),
+    SensitivityParameter::dc("trb1"),
+    SensitivityParameter::dc("trb2"),
+    SensitivityParameter::dc("trc1"),
+    SensitivityParameter::dc("trc2"),
+    SensitivityParameter::dc("tre1"),
+    SensitivityParameter::dc("tre2"),
+    SensitivityParameter::dc("trm1"),
+    SensitivityParameter::dc("trm2"),
+    SensitivityParameter::dc("tvaf1"),
+    SensitivityParameter::dc("tvaf2"),
+    SensitivityParameter::dc("tvar1"),
+    SensitivityParameter::dc("tvar2"),
+    SensitivityParameter::dc("ctc"),
+    SensitivityParameter::dc("cte"),
+    SensitivityParameter::dc("cts"),
+    SensitivityParameter::dc("tvjc"),
+    SensitivityParameter::dc("tvje"),
+    SensitivityParameter::dc("tvjs"),
+    SensitivityParameter::dc("titf1"),
+    SensitivityParameter::dc("titf2"),
+    SensitivityParameter::dc("ttf1"),
+    SensitivityParameter::dc("ttf2"),
+    SensitivityParameter::dc("ttr1"),
+    SensitivityParameter::dc("ttr2"),
+    SensitivityParameter::dc("tmje1"),
+    SensitivityParameter::dc("tmje2"),
+    SensitivityParameter::dc("tmjc1"),
+    SensitivityParameter::dc("tmjc2"),
+    SensitivityParameter::dc("tmjs1"),
+    SensitivityParameter::dc("tmjs2"),
+    SensitivityParameter::dc("tns1"),
+    SensitivityParameter::dc("tns2"),
+    SensitivityParameter::dc("nkf"),
+    SensitivityParameter::dc("tis1"),
+    SensitivityParameter::dc("tis2"),
+    SensitivityParameter::dc("tise1"),
+    SensitivityParameter::dc("tise2"),
+    SensitivityParameter::dc("tisc1"),
+    SensitivityParameter::dc("tisc2"),
+    SensitivityParameter::dc("tiss1"),
+    SensitivityParameter::dc("tiss2"),
+    SensitivityParameter::dc("vg"),
+    SensitivityParameter::dc("cn"),
+    SensitivityParameter::dc("d"),
+    SensitivityParameter::dc("vbe_max"),
+    SensitivityParameter::dc("vbc_max"),
+    SensitivityParameter::dc("vce_max"),
+    SensitivityParameter::dc("pd_max"),
+    SensitivityParameter::dc("ic_max"),
+    SensitivityParameter::dc("ib_max"),
+    SensitivityParameter::dc("te_max"),
+    SensitivityParameter::dc("rth0"),
+];
+
+/// `bjt.c`'s `BJTpTable` under the same filter: `off`/`sens_area` are flags,
+/// `ic` is a vector and the probe entries are ask-only. `icvbe`/`icvce` are
+/// `IOPAU` (`IF_AC`), so a DC walk reports six instance parameters.
+const INSTANCE_PARAMETERS: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("area"),
+    SensitivityParameter::dc("areab"),
+    SensitivityParameter::dc("areac"),
+    SensitivityParameter::dc("m"),
+    SensitivityParameter::dc("temp"),
+    SensitivityParameter::dc("dtemp"),
+];
+
+/// `bjtsetup.c`/`bjttemp.c`/`bjtmpar.c`/`bjtparam.c` replayed on C's records,
+/// with the load being the port's own [`Bjt`] rebuilt from them.
+#[derive(Debug)]
+pub(super) struct BjtSensitivity<'a> {
+    device: &'a Bjt,
+    circuit_kelvin: Real,
+    nominal_kelvin: Real,
+}
+
+impl<'a> BjtSensitivity<'a> {
+    fn new(device: &'a Bjt, context: &ModelContext) -> Self {
+        Self {
+            device,
+            circuit_kelvin: context.temperature + CELSIUS_TO_KELVIN,
+            nominal_kelvin: context.nominal_temperature + CELSIUS_TO_KELVIN,
+        }
+    }
+}
+
+impl DeviceSensitivity for BjtSensitivity<'_> {
+    fn family(&self) -> SensitivityFamily {
+        SensitivityFamily::Bjt
+    }
+
+    fn model(&self) -> Option<&str> {
+        Some(&self.device.model_name)
+    }
+
+    fn model_parameters(&self) -> &'static [SensitivityParameter] {
+        MODEL_PARAMETERS
+    }
+
+    fn instance_parameters(&self) -> &'static [SensitivityParameter] {
+        INSTANCE_PARAMETERS
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
+        let (m, i) = (&self.device.model, &self.device.instance);
+        let ibe = m.ibe_ibc.map_or(0., |(ibe, _)| ibe);
+        let ibc = m.ibe_ibc.map_or(0., |(_, ibc)| ibc);
+        let (ibe_given, ibc_given) = (m.ibe_ibc.is_some(), m.ibe_ibc.is_some());
+        let mut model = SensitivityRecord::new();
+        for (keyword, value, given) in [
+            (
+                "tnom",
+                m.tnom.unwrap_or(self.nominal_kelvin),
+                m.tnom.is_some(),
+            ),
+            ("is", m.is, true),
+            ("ibe", ibe, ibe_given),
+            ("ibc", ibc, ibc_given),
+            ("bf", m.bf, true),
+            ("nf", m.nf, true),
+            ("vaf", m.vaf, true),
+            ("ikf", m.ikf, true),
+            ("ise", m.ise, true),
+            ("ne", m.ne, true),
+            ("br", m.br, true),
+            ("nr", m.nr, true),
+            ("var", m.var, true),
+            ("ikr", m.ikr, true),
+            ("isc", m.isc, true),
+            ("nc", m.nc, true),
+            ("rb", m.rb, true),
+            ("irb", m.irb, true),
+            ("rbm", m.rbm, m.rbm_given),
+            ("re", m.re, true),
+            ("rc", m.rc, true),
+            ("xtb", m.xtb, true),
+            ("eg", m.eg, true),
+            ("xti", m.xti, true),
+            ("fc", m.fc, true),
+            ("kf", m.kf, true),
+            ("af", m.af, true),
+            ("iss", m.iss.unwrap_or(0.), m.iss.is_some()),
+            ("ns", m.ns, true),
+            // Parameters the port refuses when given: `bjtsetup.c` leaves them
+            // at the zero `BJTmodel` initialisation, and no load reads them.
+            ("rco", 0., true),
+            ("vo", 0., true),
+            ("gamma", 0., true),
+            ("qco", 0., true),
+            ("tbf1", m.tbf.map_or(0., |c| c[0]), m.tbf.is_some()),
+            ("tbf2", m.tbf.map_or(0., |c| c[1]), m.tbf.is_some()),
+            ("tbr1", m.tbr.map_or(0., |c| c[0]), m.tbr.is_some()),
+            ("tbr2", m.tbr.map_or(0., |c| c[1]), m.tbr.is_some()),
+            ("tikf1", m.tikf[0], true),
+            ("tikf2", m.tikf[1], true),
+            ("tikr1", m.tikr[0], true),
+            ("tikr2", m.tikr[1], true),
+            ("tirb1", m.tirb[0], true),
+            ("tirb2", m.tirb[1], true),
+            ("tnc1", m.tnc[0], true),
+            ("tnc2", m.tnc[1], true),
+            ("tne1", m.tne[0], true),
+            ("tne2", m.tne[1], true),
+            ("tnf1", m.tnf[0], true),
+            ("tnf2", m.tnf[1], true),
+            ("tnr1", m.tnr[0], true),
+            ("tnr2", m.tnr[1], true),
+            ("trb1", m.trb[0], true),
+            ("trb2", m.trb[1], true),
+            ("trc1", m.trc[0], true),
+            ("trc2", m.trc[1], true),
+            ("tre1", m.tre[0], true),
+            ("tre2", m.tre[1], true),
+            ("trm1", m.trm[0], true),
+            ("trm2", m.trm[1], true),
+            ("tvaf1", m.tvaf[0], true),
+            ("tvaf2", m.tvaf[1], true),
+            ("tvar1", m.tvar[0], true),
+            ("tvar2", m.tvar[1], true),
+            ("ctc", m.ctc, true),
+            ("cte", m.cte, true),
+            ("cts", m.cts, true),
+            ("tvjc", m.tvjc, true),
+            ("tvje", m.tvje, true),
+            ("tvjs", m.tvjs, true),
+            ("titf1", m.titf[0], true),
+            ("titf2", m.titf[1], true),
+            ("ttf1", m.ttf[0], true),
+            ("ttf2", m.ttf[1], true),
+            ("ttr1", m.ttr[0], true),
+            ("ttr2", m.ttr[1], true),
+            ("tmje1", m.tmje[0], true),
+            ("tmje2", m.tmje[1], true),
+            ("tmjc1", m.tmjc[0], true),
+            ("tmjc2", m.tmjc[1], true),
+            ("tmjs1", m.tmjs[0], true),
+            ("tmjs2", m.tmjs[1], true),
+            ("tns1", m.tns[0], true),
+            ("tns2", m.tns[1], true),
+            // `bjtsetup.c` defaults an ungiven NKF to 0.5.
+            ("nkf", m.nkf.unwrap_or(0.5), m.nkf.is_some()),
+            ("tis1", m.tis[0], true),
+            ("tis2", m.tis[1], true),
+            ("tise1", m.tise[0], true),
+            ("tise2", m.tise[1], true),
+            ("tisc1", m.tisc[0], true),
+            ("tisc2", m.tisc[1], true),
+            ("tiss1", m.tiss[0], true),
+            ("tiss2", m.tiss[1], true),
+            ("vg", 0., true),
+            ("cn", 0., true),
+            ("d", 0., true),
+            ("vbe_max", 0., true),
+            ("vbc_max", 0., true),
+            ("vce_max", 0., true),
+            ("pd_max", 0., true),
+            ("ic_max", 0., true),
+            ("ib_max", 0., true),
+            ("te_max", 0., true),
+            ("rth0", 0., true),
+        ] {
+            model = model.with(keyword, value, given);
+        }
+        let mut instance = SensitivityRecord::new();
+        for (keyword, value, given) in [
+            ("area", i.area, true),
+            ("areab", i.areab, true),
+            ("areac", i.areac, true),
+            ("m", i.multiplier, true),
+            // `bjtparam.c` stores `temp` in kelvin.
+            (
+                "temp",
+                i.temp.unwrap_or(self.circuit_kelvin + i.dtemp),
+                i.temp.is_some(),
+            ),
+            ("dtemp", i.dtemp, true),
+        ] {
+            instance = instance.with(keyword, value, given);
+        }
+        self.setup(&mut model, &mut instance)?;
+        self.temperature(&mut model, &mut instance)?;
+        Ok((model, instance))
+    }
+
+    fn ask(
+        &self,
+        scope: ParameterScope,
+        keyword: &str,
+        records: RecordPair<'_>,
+    ) -> SpiceResult<Real> {
+        // `bjtmask.c`/`bjtask.c` answer in Celsius while `bjtmpar.c`/
+        // `bjtparam.c` store kelvin, so the walk steps the Celsius value.
+        match (scope, keyword) {
+            (ParameterScope::Model, "tnom") => Ok(records.model.value("tnom")? - CELSIUS_TO_KELVIN),
+            (ParameterScope::Instance, "temp") => {
+                Ok(records.instance.value("temp")? - CELSIUS_TO_KELVIN)
+            }
+            (ParameterScope::Model, _) => records.model.value(keyword),
+            (ParameterScope::Instance, _) => records.instance.value(keyword),
+        }
+    }
+
+    fn set(
+        &self,
+        scope: ParameterScope,
+        keyword: &str,
+        value: Real,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        match (scope, keyword) {
+            (ParameterScope::Model, "tnom") => model.set(keyword, value + CELSIUS_TO_KELVIN),
+            (ParameterScope::Instance, "temp") => instance.set(keyword, value + CELSIUS_TO_KELVIN),
+            (ParameterScope::Model, _) => model.set(keyword, value),
+            (ParameterScope::Instance, _) => instance.set(keyword, value),
+        }
+    }
+
+    /// `bjtsetup.c`'s in-place rewrites, which `cktsens.c` re-runs for every
+    /// parameter (`DEVsetup` sits inside the walk's loop):
+    ///
+    /// - a leakage current above 1e-4 is a multiple of `IS`
+    ///   (`BJTleakBEcurrent = BJTsatCur * BJTleakBEcurrent`);
+    /// - `NKF` above 1 is clamps to 1 and `XCJC` outside [0, 1] to the nearest
+    ///   bound.
+    ///
+    /// The `!given` defaults are already in the records, and re-applying them
+    /// would be a no-op: only the setter marking a field *given* can move it.
+    fn setup(
+        &self,
+        model: &mut SensitivityRecord,
+        _instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        for leak in ["ise", "isc"] {
+            if model.given(leak) {
+                let value = model.value(leak)?;
+                if value > 1e-4 {
+                    model.store(leak, model.value("is")? * value)?;
+                }
+            }
+        }
+        if model.given("nkf") {
+            let value = model.value("nkf")?;
+            if value > 1. {
+                model.store("nkf", 1.)?;
+            }
+        }
+        if model.given("xcjc") {
+            let value = model.value("xcjc")?.clamp(0., 1.);
+            model.store("xcjc", value)?;
+        }
+        Ok(())
+    }
+
+    /// `bjttemp.c`'s model-side stores, which `cktsens.c` re-runs before every
+    /// base and perturbed load: an ungiven `tnom` follows `CKTnomTemp`, an
+    /// ungiven `rbm` follows `rb` (so the `rb` column moves `rbm` too), and
+    /// `fc` is clamped to 0.9999 when given and 0.5 otherwise. Everything else
+    /// the routine writes is per instance and re-derived by the rebuilt
+    /// device, which is also where the huge rest of `BJTemp` lives.
+    fn temperature(
+        &self,
+        model: &mut SensitivityRecord,
+        _instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        if !model.given("tnom") {
+            model.store("tnom", self.nominal_kelvin)?;
+        }
+        if !model.given("rbm") {
+            let rb = model.value("rb")?;
+            model.store("rbm", rb)?;
+        }
+        if model.given("fc") {
+            if model.value("fc")? > 0.9999 {
+                model.store("fc", 0.9999)?;
+            }
+        } else {
+            model.store("fc", 0.5)?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn load(
+        &self,
+        _setup: RecordPair<'_>,
+        current: RecordPair<'_>,
+        mode: SensitivityMode,
+    ) -> SpiceResult<SensitivityLoad> {
+        if mode == SensitivityMode::Ac {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: BJT AC sensitivity", self.device.name),
+                "src/spicelib/devices/bjt/bjtacld.c",
+            ));
+        }
+        let (m, i) = (current.model, current.instance);
+        let r = |keyword: &str| m.value(keyword);
+        let v = |keyword: &str| i.value(keyword);
+        // Only the model fields C's DC load reads: the unported parameters and
+        // the `IF_AC` capacitance family stay at the card's values, exactly as
+        // C's own model struct keeps them through the walk.
+        let mut model = self.device.model;
+        model.tnom = m.given("tnom").then(|| r("tnom")).transpose()?;
+        model.is = r("is")?;
+        model.ibe_ibc = if m.given("ibe") && m.given("ibc") {
+            Some((r("ibe")?, r("ibc")?))
+        } else {
+            None
+        };
+        model.bf = r("bf")?;
+        model.nf = r("nf")?;
+        model.vaf = r("vaf")?;
+        model.ikf = r("ikf")?;
+        model.ise = r("ise")?;
+        model.ne = r("ne")?;
+        model.br = r("br")?;
+        model.nr = r("nr")?;
+        model.var = r("var")?;
+        model.ikr = r("ikr")?;
+        model.isc = r("isc")?;
+        model.nc = r("nc")?;
+        model.rb = r("rb")?;
+        model.irb = r("irb")?;
+        model.rbm = r("rbm")?;
+        model.rbm_given = m.given("rbm");
+        model.re = r("re")?;
+        model.rc = r("rc")?;
+        model.xtb = r("xtb")?;
+        model.eg = r("eg")?;
+        model.xti = r("xti")?;
+        model.fc = r("fc")?;
+        model.kf = r("kf")?;
+        model.af = r("af")?;
+        model.iss = m.given("iss").then(|| r("iss")).transpose()?;
+        model.ns = r("ns")?;
+        model.tlev = self.device.model.tlev;
+        model.tlevc = self.device.model.tlevc;
+        model.tbf = if m.given("tbf1") || m.given("tbf2") {
+            Some([r("tbf1")?, r("tbf2")?])
+        } else {
+            None
+        };
+        model.tbr = if m.given("tbr1") || m.given("tbr2") {
+            Some([r("tbr1")?, r("tbr2")?])
+        } else {
+            None
+        };
+        model.tikf = [r("tikf1")?, r("tikf2")?];
+        model.tikr = [r("tikr1")?, r("tikr2")?];
+        model.tirb = [r("tirb1")?, r("tirb2")?];
+        model.tnc = [r("tnc1")?, r("tnc2")?];
+        model.tne = [r("tne1")?, r("tne2")?];
+        model.tnf = [r("tnf1")?, r("tnf2")?];
+        model.tnr = [r("tnr1")?, r("tnr2")?];
+        model.trb = [r("trb1")?, r("trb2")?];
+        model.trc = [r("trc1")?, r("trc2")?];
+        model.tre = [r("tre1")?, r("tre2")?];
+        model.trm = [r("trm1")?, r("trm2")?];
+        model.tvaf = [r("tvaf1")?, r("tvaf2")?];
+        model.tvar = [r("tvar1")?, r("tvar2")?];
+        model.ctc = r("ctc")?;
+        model.cte = r("cte")?;
+        model.cts = r("cts")?;
+        model.tvjc = r("tvjc")?;
+        model.tvje = r("tvje")?;
+        model.tvjs = r("tvjs")?;
+        model.titf = [r("titf1")?, r("titf2")?];
+        model.ttf = [r("ttf1")?, r("ttf2")?];
+        model.ttr = [r("ttr1")?, r("ttr2")?];
+        model.tmje = [r("tmje1")?, r("tmje2")?];
+        model.tmjc = [r("tmjc1")?, r("tmjc2")?];
+        model.tmjs = [r("tmjs1")?, r("tmjs2")?];
+        model.tns = [r("tns1")?, r("tns2")?];
+        model.tis = [r("tis1")?, r("tis2")?];
+        model.tise = [r("tise1")?, r("tise2")?];
+        model.tisc = [r("tisc1")?, r("tisc2")?];
+        model.tiss = [r("tiss1")?, r("tiss2")?];
+        model.nkf = m.given("nkf").then(|| r("nkf")).transpose()?;
+        let instance = Instance {
+            area: v("area")?,
+            areab: v("areab")?,
+            areac: v("areac")?,
+            multiplier: v("m")?,
+            // C's `BJTtemp` is kelvin and so is this field (`bjtparam.c`
+            // stores `value + CONSTCtoK`); the record holds it in kelvin.
+            temp: i.given("temp").then(|| v("temp")).transpose()?,
+            dtemp: v("dtemp")?,
+        };
+        let device = Bjt {
+            name: self.device.name.clone(),
+            model_name: self.device.model_name.clone(),
+            terminals: self.device.terminals.clone(),
+            nodes: self.device.nodes,
+            pol: self.device.pol,
+            subs: self.device.subs,
+            model,
+            instance,
+            initial: self.device.initial.clone(),
+        };
+        Ok(SensitivityLoad::Replacement(Box::new(device)))
     }
 }
 

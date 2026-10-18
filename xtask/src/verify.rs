@@ -1050,6 +1050,18 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
     },
+    // BJT (#164): `bjt.c`'s 103 model + 6 instance parameters (the `IF_AC`
+    // capacitance family and the `IOPR` aliases are filtered, `icvbe`/`icvce`
+    // are AC-only), an NPN with `dtemp=-10`, `ISE` above 1e-4 and a `BF`
+    // polynomial plus a PNP at `dtemp=20` with `tnom` on the card.
+    Supported {
+        name: "sens_bjt",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // MESA level 3 (#164): the `mesa2` walk, one device at the circuit
     // temperature and one at `dtemp=10`, both with `rtc1`/`rtc2` and the
     // `rdi`/`rsi` pair (which is where the channel's `tRsi` scaling showed).

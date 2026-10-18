@@ -114,7 +114,7 @@ output:
 | B (`asrc`) | yes | refused |
 | S, W | yes | refused |
 | D | yes | refused |
-| Q (Gummel-Poon) | refused (`NotYetPorted`; its tables and C's per-parameter `DEVsetup` are measured below) | refused |
+| Q (Gummel-Poon) | yes (`RC == 0`; with `RC != 0` C's Kull quasi-saturation changes the `gamma` row) | refused |
 | M (MOS1, MOS2, MOS3, MOS6, MOS9), XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
 | J (JFET level 1, `jfet.c`) | yes | refused |
 | J (JFET level 2, `jfet2.c`) | yes | refused |
@@ -149,6 +149,7 @@ does, and each has a committed C golden with every enumerated parameter:
 | `mesa.c` level 4 | 61 model + 8 instance | `sens_mesa4`, and `sens_mesa4_ts` at `ts=40` |
 | `hfet1/hfet.c` | 63 model + 7 instance | `sens_hfet1` (218 vectors, n- and p-channel) |
 | `hfet2/hfet2.c` | 36 model + 6 instance (`m` is not askable) | `sens_hfet2` (194 vectors, a shared n-channel model and a p-channel at `temp=50`) |
+| `bjt/bjt.c` | 103 model + 6 instance (the `IOPA` family is AC-only) | `sens_bjt` (291 vectors, an NPN at `dtemp=-10` and a PNP at `dtemp=20`, emitter-sensed) |
 
 The parameter lists are C's, not the card's, and three filters decide them:
 `set_param()`'s `(IF_SET|IF_ASK|IF_REAL)` test (so the `vto`/`pb`/`tphib`
@@ -350,69 +351,75 @@ binary:
 `RSI`/`RDI` are the raw model fields - HFET2 has no `rtc1`/`rtc2` - so the
 `tRsi` defect recorded above has no analogue here.
 
-### BJT (`Q`, Gummel-Poon): measured, not yet ported
+### BJT (`Q`, Gummel-Poon)
 
-The next family is the Gummel-Poon BJT. Its `.sens` shape is measured below so
-the implementation starts from facts rather than assumptions; the port still
-refuses `Q` through `Device::sensitivity`'s `NotYetPorted` default.
+**The Gummel-Poon BJT is ported and verified** (`sens_bjt`): `bjt.c`'s 103
+model `IF_REAL` setters and six instance ones, over an NPN at `dtemp=-10` with
+`ISE` above 1e-4, `rb`/`re`/`irb`/`rbm`, area factors and a `BF` polynomial,
+and a PNP at `dtemp=20` with `tnom=50`. 291 columns, all inside 1e-6
+(`compare::SENSITIVITY_NONLINEAR`). The fixture senses the **emitter** current:
+a collector-side ammeter hides `BF`/`ISE`/`NE`, which move the base current,
+because `Ie = Ic + Ib`.
 
-**The DC column list is C's tables minus the usual filters**, on
-`q1 2 3 0 qn area=2`, `.model qn npn level=1`, `.sens i(vids)`: 148 columns for
-one device, 102 `q1:*` model setters and six instance ones - `area`, `areab`,
-`areac`, `m`, `temp`, `dtemp`. `icvbe`/`icvce` are `IOPAU` (`IF_AC`, so DC
-skips them and AC would add them), `ic` is `IF_REALVEC`, `off` and `sens_area`
-are `IF_FLAG`, the probe entries are `OP` (ask-only), and the `IOPR` aliases
+The DC list is C's tables minus the usual filters: the `IOPA` capacitance
+family (`cje`, `vje`, `mje`, `tf`, `xtf`, `vtf`, `itf`, `ptf`, `cjc`, `vjc`,
+`mjc`, `xcjc`, `tr`, `cjs`, `vjs`, `mjs`) is `IF_AC` and appears only in an AC
+walk, `icvbe`/`icvce` are `IOPAU` for the same reason, `ic` is `IF_REALVEC`,
+`off`/`sens_area` are flags, the probe entries are ask-only, the `IOPR` aliases
 (`tref`, `va`, `ik`, `c2`, `vb`, `c4`, `pe`, `me`, `pc`, `mc`, `csub`, `ccs`,
-`ps`, `ms`) are dropped. The list includes parameters the port does not model -
-`rco`, `vo`, `gamma`, `qco`, `vg`, `cn`, `d`, `rth0` and the SOA limits
-`vbe_max`/`vbc_max`/`vce_max`/`pd_max`/`ic_max`/`ib_max`/`te_max` (all
-`UNPORTED_MODEL`) - so their columns have to exist with C's defaults even
-though nothing in the load reads them.
+`ps`, `ms`) are redundant, and `subs`/`tlev`/`tlevc`/`quasimod` are integers.
+The list keeps parameters the port refuses when a card gives them (`rco`, `vo`,
+`gamma`, `qco`, `vg`, `cn`, `d`, `rth0`, the SOA limits): C enumerates them and
+their columns are zero on the fixture's card, so the port reports zero records
+rather than dropping columns.
 
-**Two C behaviours that shape the replay**, both verified in the reference
-source and by measurement:
+Four C behaviours the replay reproduces, each measured:
 
-- **`DEVsetup` runs inside the per-parameter loop** (`cktsens.c:495`, before
-  the base load), so `bjtsetup.c`'s transforms re-run for every one of the 108
-  parameters. The one that shows is the leakage scaling:
-  `if (BJTleakBEcurrentGiven && BJTleakBEcurrent > 1e-4) BJTleakBEcurrent =
-  BJTsatCur * BJTleakBEcurrent`. It is *not* idempotent, but it also fires at
-  most once per card because the product drops below the threshold. Measured
-  on the probe deck, where `area=2` and `IS=1e-15`:
+- **`DEVsetup` runs inside the per-parameter loop** (`cktsens.c:495`), so
+  `bjtsetup.c`'s rewrites re-run for every one of the 108 parameters. The one
+  that shows is the leakage scaling
+  (`if (BJTleakBEcurrentGiven && BJTleakBEcurrent > 1e-4) BJTleakBEcurrent =
+  BJTsatCur * BJTleakBEcurrent`). It is not idempotent, but it fires at most
+  once per card because the product drops below the threshold. Measured on a
+  `vbe = 0.7 V` probe with `IS = 1e-16`:
 
-  | card | `v(q1:ise)` | `v(q1:is)` | `v(q1_area)` |
-  | --- | --- | --- | --- |
-  | no leakage | -5.37506278e8 | 1.04351068e12 | 0 |
-  | `ise=1e-3` | -5.37505669e8 | 1.04351022e12 | -2.6875e-11 |
-  | `ise=1e-9` | -11.1332 | 8.5957e7 | -5.5666e-9 |
+  | card | `v(q1:ise)` | `v(q1:is)` |
+  | --- | --- | --- |
+  | no leakage | -5.37506278e8 | 1.04351068e12 |
+  | `ise=1e-3` | -5.37505669e8 | 1.04351022e12 |
+  | `ise=1e-9` | -11.1332 | 8.5957e7 |
 
-  These are not cancellation: at `IS=1e-15` the scale of `dI/dIS` really is
-  `I/IS ~ 1e12`, and perturbing a zero leakage by C's absolute step turns the
-  B-E leakage exponential on (1e-6 A times `e^18`). A card above 1e-4 is
-  therefore a *different* device after the first setup (1e-18 rather than
-  1e-3), which is why its columns differ from the `ise=1e-9` row.
-- **`BJTemp` also writes model fields**, and it runs before every load: `tnom`
-  defaults to `CKTnomTemp`, `rbm` follows `rb` whenever it is not given (so
-  the `rb` column moves `rbm` too), `fc` is clamped to 0.9999 when given and
-  set to 0.5 when not, and `bjtload`'s VBC/excess-phase factors are recomputed
-  from `tf`/`xtf`/`ptf`.
+  These are not cancellation: at `IS = 1e-16` the scale of `dI/dIS` really is
+  `I/IS`, and perturbing a zero leakage by C's absolute step switches the
+  B-E leakage exponential on. A card above 1e-4 is a *different* device after
+  the first setup, which is why its columns differ from the `ise=1e-9` row.
+- **`BJTemp` also writes model fields**, and runs before every base and
+  perturbed load: an ungiven `tnom` follows `CKTnomTemp`, an ungiven `rbm`
+  follows `rb` (so the `rb` column moves `rbm` too - the port's `Model` now
+  keeps `rbm_given` for this), `fc` is clamped to 0.9999 when given and 0.5
+  otherwise, and the `NKF`/`XCJC` clamps live in setup.
+- **`sens_setp()` hard-codes one parameter out**: `!(sg->dev == 2 && pid ==
+  147)` skips `RCO` because setting it re-allocates nodes mid-analysis, so both
+  `rco` columns are exactly zero, even on a card that gives `rco`.
+- **`tnom` and `temp` are the Celsius/kelvin pair** (`bjtmask.c`/`bjtask.c`
+  answer `- CONSTCtoK`, `bjtmpar.c`/`bjtparam.c` store `+ CONSTCtoK`), the same
+  asymmetry HFET1's `temp` has.
 
-**`sens_setp()` excludes one BJT parameter outright**: a hard-coded
-`!(sg->dev == 2 && pid == 147)` skips `RCO` because setting it re-allocates
-nodes mid-analysis. Measured: `v(q1:rco)` is exactly 0 on every card above,
-including one that gives `rco`.
+**Refused: `RC != 0`.** `bjtsetup.c` then creates the internal `collCX` node,
+and C's walk marks `VO`/`GAMMA`/`QCO` given as it passes them, which switches
+the Kull quasi-saturation terms of `bjtload.c` on in the *perturbed* loads. The
+port does not model that physics (the parameters are `UNPORTED_MODEL`), and the
+effect is not a rounding difference: on a `rc=40` card C answers
+`v(q1:gamma) = 6.52e-1` where the port can only answer 0. Every other column of
+that card agrees, and a card without `RC` has no `collCX` node for the terms to
+use - which is why the rest of the table verifies.
 
-**`tnom` and `temp` are the Celsius/kelvin pair again** (`bjtmask.c` answers
-`BJTtnom - CONSTCtoK`, `bjtmpar.c` stores `value + CONSTCtoK`; `bjtask.c`/
-`bjtparam.c` do the same for the instance temperature).
-
-What the implementation therefore needs, beyond a record replay like HFET1's
-and HFET2's: the port's `Model` must keep the *pre-setup* card values for the
-fields `bjtsetup.c`/`bjttemp.c` transform (`ise`/`isc` before the `>1e-4`
-scaling, `nkf` before its clamp, `xcjc`, `fc`, `rbm`'s given flag, `tnom`),
-because `Model::from_values` bakes those transforms in once - the replay needs
-to re-run them in C's order instead. The load itself is the port's existing
-`Bjt`, rebuilt from the records.
+Two C row families are residual noise rather than physics, and the fixture stays
+away from them: a parameter with a tiny *given* value (`ibe=1e-13`,
+`iss=1e-14`) gets a step of `value*1e-6`, and the column is then C's own solve
+residual divided by that step, which the two implementations report at wildly
+different magnitudes. Giving `IBE`/`IBC` singly is also a pre-existing device
+divergence: both `bjttemp.c` and the port use the pair only when both are given.
 
 ### The `j` and `z` families: the original gap note (#164)
 
@@ -443,11 +450,11 @@ What each family needed, in this order, is exactly what
    the perturbed one.
 
 The families share the card grammar but not the channel or the tables, so this
-was one slice per family rather than one generic helper. Every `z` level now
-has one; a device type without one (Q, the MOS levels, the code models) still
-refuses through `Device::sensitivity`'s `NotYetPorted` default, naming its own
-`DEVparam`/`DEVtemperature`/`DEVload` reference, so a deck that asks fails
-loudly.
+was one slice per family rather than one generic helper. Every `z` level and
+the Gummel-Poon `Q` now have one; a device type without one (the MOS levels,
+the code models) still refuses through `Device::sensitivity`'s `NotYetPorted`
+default, naming its own `DEVparam`/`DEVtemperature`/`DEVload` reference, so a
+deck that asks fails loudly.
 
 ## Divergences (explicit errors where C carries on)
 
@@ -489,7 +496,7 @@ loudly.
   parameters that are a few ulps of the node voltage, see
   `xtask/src/compare.rs`). The `j`/`z` family fixtures are there too:
   `sens_jfet`, `sens_jfet2`, `sens_mesfet`, `sens_hfet1`, `sens_hfet2`,
-  `sens_mesa`, `sens_mesa3`, `sens_mesa4` and `sens_mesa4_ts`.
+  `sens_mesa`, `sens_mesa3`, `sens_mesa4`, `sens_mesa4_ts` and `sens_bjt`.
 * Opt-in live C (`NGSPICE_BIN=... cargo test --test c_sens_reference --
   --ignored`): DC linear and filtered decks, a hot behavioural/switch deck,
   diode decks with NaN, sidewall, breakdown and `.op` composition, and AC

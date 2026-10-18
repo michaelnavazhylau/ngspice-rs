@@ -380,3 +380,101 @@ fn m7_fixtures_parse_write_parse_with_a_fixed_point() {
         assert_eq!(text, ngspice_rs::netlist::write_netlist(&round).unwrap());
     }
 }
+
+/// Runs the deck's own `.sens` analysis.
+fn sensitivity(body: &str) -> Plot {
+    let netlist = netlist(body);
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut c = config.circuit(&netlist).unwrap();
+    runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap()
+}
+fn column(plot: &Plot, name: &str) -> f64 {
+    let index = plot
+        .variable_index(name)
+        .unwrap_or_else(|| panic!("missing {name}: {:?}", plot.variables));
+    plot.points[0][index].re
+}
+
+/// `.sens` over `bjt.c`'s tables (#164): 103 model setters and six instance
+/// ones. The `IOPA` capacitance family is `IF_AC` (so `cje`/`tf`/`xcjc` and
+/// friends appear only in an AC walk), `ic` is a vector, `off`/`sens_area` are
+/// flags, the probe entries are ask-only and the `IOPR` aliases are redundant.
+/// `rco` and the unported quasi-saturation/SOA parameters are still enumerated.
+#[test]
+fn sensitivity_covers_the_bjt_tables() {
+    let plot = sensitivity(
+        "vcc 1 0 dc 5\nq1 1 3 2 qn area=2\nvids 2 0 dc 0\nvb 4 0 dc 0.72\n\
+         rb 4 3 1k\n.model qn npn level=1\n.sens i(vids)",
+    );
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(q1"))
+        .collect();
+    assert_eq!(names.len(), 109, "{names:?}");
+    for absent in ["v(q1:xcjc)", "v(q1:tf)", "v(q1:vto)", "v(q1:icvbe)"] {
+        assert!(!names.contains(&absent), "{absent} in {names:?}");
+    }
+    for present in ["v(q1:tnom)", "v(q1:nkf)", "v(q1:rth0)", "v(q1_temp)"] {
+        assert!(names.contains(&present), "{present} missing from {names:?}");
+    }
+}
+
+/// `sensitivity()` refuses a card with `RC != 0`: `bjtsetup.c` then creates
+/// `collCX`, and C's walk marks `VO`/`GAMMA`/`QCO` given, switching the Kull
+/// quasi-saturation terms on in the perturbed loads (measured: `v(q1:gamma)`
+/// is 0.652 where the port has no such physics).
+#[test]
+fn sensitivity_refuses_a_card_with_a_collector_resistance() {
+    let netlist = netlist(
+        "vcc 1 0 dc 5\nq1 1 3 2 qn\nvids 2 0 dc 0\nvb 4 0 dc 0.72\nrb 4 3 1k\n\
+         .model qn npn level=1 rc=40\n.sens i(vids)",
+    );
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut c = config.circuit(&netlist).unwrap();
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap_err();
+    assert!(error.is_not_yet_ported(), "{error}");
+    assert!(error.to_string().contains("RC"), "{error}");
+}
+
+/// The `sens_bjt` card: an NPN at `dtemp=-10` with `ISE > 1e-4` (rescales to
+/// `IS*ISE` in `bjtsetup.c`), `rb`/`re`/`irb`/`rbm`, area factors and a `BF`
+/// polynomial, plus a PNP at `dtemp=20` with `tnom=50`. The reference binary
+/// prints these columns; `rco` is zero because `sens_setp()` skips it, and
+/// `bf`/`vaf` are zero because C's own linearization does not see them here.
+#[test]
+fn sensitivity_matches_the_reference_on_the_fixture_card() {
+    let plot = sensitivity(
+        ".options reltol=1e-10 vntol=1e-13 abstol=1e-16\n\
+         vcc 1 0 dc 5\nq1 1 3 2 qn area=2 areab=3 areac=4 dtemp=-10\n\
+         vids 2 0 dc 0\nvb 4 0 dc 0.72\nrb 4 3 1k\nvcc2 5 0 dc -5\n\
+         q2 5 7 2 qp dtemp=20\nvb2 8 0 dc -0.68\nrb2 8 7 1k\n\
+         .model qn npn level=1 ise=1e-3 rb=300 re=20 irb=1e-3 rbm=100 \
+         tbf1=0.01 tbf2=1e-5\n\
+         .model qp pnp level=1 tnom=50 tbr1=0.02 tbr2=2e-5\n.sens i(vids)",
+    );
+    for (name, reference) in [
+        ("v(q1:is)", 1.080_616_575_604_052e12),
+        ("v(q1:ise)", 2.867_749_531_079_332e10),
+        ("v(q1:rb)", -2.835_090_207_615_2e-9),
+        ("v(q1:irb)", 3.457_080_497_929_78e-6),
+        ("v(q1:re)", -2.588_166_959_995_6e-7),
+        ("v(q1:tnom)", -1.658_800_007_763_174e-5),
+        ("v(q1_area)", 3.014_364_737_225_222e-6),
+        ("v(q2:is)", -3.415_079_355_402_169e10),
+        ("v(q2:tnom)", 4.529_554_302_866_291e-7),
+        ("v(q2:tbr1)", -1.699_817_307_627_323e-21),
+    ] {
+        close(column(&plot, name), reference, 1e-6, 1e-9);
+    }
+    assert_eq!(column(&plot, "v(q1:rco)"), 0., "sens_setp skips RCO");
+}
