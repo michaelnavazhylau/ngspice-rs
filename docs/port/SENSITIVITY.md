@@ -414,12 +414,16 @@ effect is not a rounding difference: on a `rc=40` card C answers
 that card agrees, and a card without `RC` has no `collCX` node for the terms to
 use - which is why the rest of the table verifies.
 
-Two C row families are residual noise rather than physics, and the fixture stays
-away from them: a parameter with a tiny *given* value (`ibe=1e-13`,
-`iss=1e-14`) gets a step of `value*1e-6`, and the column is then C's own solve
-residual divided by that step, which the two implementations report at wildly
-different magnitudes. Giving `IBE`/`IBC` singly is also a pre-existing device
-divergence: both `bjttemp.c` and the port use the pair only when both are given.
+**Correction to the original single-sided IBE/IBC diagnosis:** the large
+columns were not residual noise. The port had kept only the pair when both
+setters were given, discarding a lone setter's value and flag. Both C and the
+port ignore a lone setter in the initial physical model, but `.sens` can mark
+the missing partner given later. The model now retains each setter separately
+and the replay reconstructs the pair from the current flags. On the default-
+tolerance `ibc=2e-14` probe, `q1:ibe` is 5.433385e11, `q1:ibc` is 4.100676,
+`q1:vaf` is 0.0860111 and `q1:var` is -0.0139889; those formerly divergent
+columns now match C. Two regression tests pin the independent records and the
+large columns for both single-sided cards.
 
 ### The `j` and `z` families: the original gap note (#164)
 
@@ -464,9 +468,10 @@ deck that asks fails loudly.
   than at the operating point (a forward-biased diode is effectively absent),
   and a K coupling acts through the inductors' loads. The port refuses these
   decks.
-* A BJT, MOS1, code model or RF port in the circuit (see above). C's BJT
-  sensitivities are dominated by the `ibe`/`ibc` restore side effect (both
-  left given at 0 disable the transistor for every later parameter).
+* A BJT with `RC != 0`, a code model or an RF port in the circuit (see
+  above). BJT `RC != 0` activates unported Kull quasi-saturation terms in the
+  parameter walk; ordinary and single-sided IBE/IBC record replays are
+  supported, including the paired-given restore side effect.
 * More than one `.sens` card in a deck (C shares the last card's filter and
   runs later cards on the perturbed circuit), and `.sp` together with
   `.sens` (C runs `.sp` on that circuit).

@@ -381,6 +381,65 @@ fn m7_fixtures_parse_write_parse_with_a_fixed_point() {
     }
 }
 
+/// A lone IBE/IBC is ignored by the initial thermal model but not discarded:
+/// restoring the missing partner during `.sens` later activates the pair.
+#[test]
+fn single_saturation_current_setters_survive_in_sensitivity_records() {
+    for (card, be, bc) in [
+        ("ibe=1e-13", Some(1e-13), None),
+        ("ibc=2e-14", None, Some(2e-14)),
+        ("ibe=1e-13 ibc=2e-14", Some(1e-13), Some(2e-14)),
+    ] {
+        let c = circuit(&format!("q1 c b 0 qm\n.model qm npn {card}"));
+        let replay = c
+            .device("q1")
+            .unwrap()
+            .sensitivity(&ModelContext::default())
+            .unwrap();
+        let (m, _) = replay.records().unwrap();
+        assert_eq!(m.given("ibe"), be.is_some(), "{card}");
+        assert_eq!(m.given("ibc"), bc.is_some(), "{card}");
+        assert_eq!(m.value("ibe").unwrap(), be.unwrap_or(0.));
+        assert_eq!(m.value("ibc").unwrap(), bc.unwrap_or(0.));
+    }
+}
+
+/// Large reference columns previously misdiagnosed as cancellation. The card
+/// uses default tolerances, like the measured ngspice-47+ probe. In particular
+/// VAF is stepped from zero and exposes the paired saturation-current switch.
+#[test]
+fn single_sided_saturation_currents_follow_cs_restore_walk() {
+    for (card, pins) in [
+        (
+            "ibc=2e-14",
+            [
+                ("v(q1:ibe)", 5.433_384_999_027_637e11),
+                ("v(q1:ibc)", 4.100_676_337_386_377_5),
+                ("v(q1:vaf)", 0.086_011_074_718_727_68),
+                ("v(q1:var)", -0.013_988_896_037_050_5),
+            ],
+        ),
+        (
+            "ibe=1e-13",
+            [
+                ("v(q1:ibc)", 54_283.616_822_039_774),
+                ("v(q1:vaf)", 2.386_795_986_069_663e11),
+                ("v(q1:ikf)", -55_264.635_827_176_47),
+                ("v(q1_area)", 0.054_333_850_228_572_1),
+            ],
+        ),
+    ] {
+        let plot = sensitivity(&format!(
+            "vcc 1 0 dc 5\nvids 1 2 dc 0\n\
+            vb 4 0 dc 0.7\nrbb 4 3 1k\nq1 2 3 0 qn\n\
+            .model qn npn level=1 {card}\n.sens i(vids)"
+        ));
+        for (name, expected) in pins {
+            close(column(&plot, name), expected, 1e-6, 1e-9);
+        }
+    }
+}
+
 /// Runs the deck's own `.sens` analysis.
 fn sensitivity(body: &str) -> Plot {
     let netlist = netlist(body);

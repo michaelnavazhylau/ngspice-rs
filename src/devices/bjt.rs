@@ -295,6 +295,10 @@ struct Model {
     is: Real,
     /// `IBE`/`IBC`, used only when both are given (`bjttemp.c`).
     ibe_ibc: Option<(Real, Real)>,
+    /// Individual setters survive even when the physical model ignores a
+    /// single-sided card. `.sens` can subsequently mark the partner given.
+    ibe: Option<Real>,
+    ibc: Option<Real>,
     bf: Real,
     nf: Real,
     vaf: Real,
@@ -413,6 +417,8 @@ impl Model {
         let model = Self {
             is,
             ibe_ibc: given(m, "ibe").zip(given(m, "ibc")),
+            ibe: given(m, "ibe"),
+            ibc: given(m, "ibc"),
             bf: get(m, "bf")?,
             nf: get(m, "nf")?,
             vaf: get(m, "vaf")?,
@@ -2188,9 +2194,9 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
     #[allow(clippy::too_many_lines)]
     fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
         let (m, i) = (&self.device.model, &self.device.instance);
-        let ibe = m.ibe_ibc.map_or(0., |(ibe, _)| ibe);
-        let ibc = m.ibe_ibc.map_or(0., |(_, ibc)| ibc);
-        let (ibe_given, ibc_given) = (m.ibe_ibc.is_some(), m.ibe_ibc.is_some());
+        let ibe = m.ibe.unwrap_or(0.);
+        let ibc = m.ibc.unwrap_or(0.);
+        let (ibe_given, ibc_given) = (m.ibe.is_some(), m.ibc.is_some());
         let mut model = SensitivityRecord::new();
         for (keyword, value, given) in [
             (
@@ -2447,6 +2453,8 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
         let mut model = self.device.model;
         model.tnom = m.given("tnom").then(|| r("tnom")).transpose()?;
         model.is = r("is")?;
+        model.ibe = m.given("ibe").then(|| r("ibe")).transpose()?;
+        model.ibc = m.given("ibc").then(|| r("ibc")).transpose()?;
         model.ibe_ibc = if m.given("ibe") && m.given("ibc") {
             Some((r("ibe")?, r("ibc")?))
         } else {
