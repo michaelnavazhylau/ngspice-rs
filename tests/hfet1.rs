@@ -302,7 +302,9 @@ fn a_hfet1_card_is_noiseless_and_linear_in_distortion() {
         }
     }
     // `.sens` is not a no-contribution case: C's modern `.sens` enumerates the
-    // card's parameter tables through `DEVparam`, so it *does* report `z1:*`.
+    // card's parameter tables through `DEVparam`, so it *does* report `z1:*`
+    // (the tables and the walk are `hfet1/hfet.c` under `cktsens.c`; the
+    // verified fixture is `sens_hfet1`).
     let netlist = deck(
         "vdd 1 0 dc 3 ac 1\nr1 1 drain 1k\nz1 drain gate 0 zm l=1u w=20u\n\
          vg gate 0 dc -2.5\n.model zm nhfet level=5 rg=10\n.sens v(drain)",
@@ -311,12 +313,17 @@ fn a_hfet1_card_is_noiseless_and_linear_in_distortion() {
     let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
     let mut c = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
+    let plot = runner(request.kind)
         .unwrap()
         .run(&mut c, &request, &config.context())
-        .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("sensitivity"), "{error}");
+        .unwrap();
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .collect();
+    assert!(names.contains(&"v(z1:vt0)"), "{names:?}");
+    assert!(names.contains(&"v(z1_temp)"), "{names:?}");
 }
 
 /// `HFETAload`'s fixed `cds` drain-source charge is integrated like the gate
@@ -344,4 +351,68 @@ fn the_drain_source_charge_keeps_its_derivative_in_the_state_history() {
     close(value(&plot, "i(vdd)", 23), -7.699_785_266e-3, 5e-4, 1e-12);
     close(value(&plot, "time", 51), 1.7e-9, 0., 1e-20);
     close(value(&plot, "i(vdd)", 51), -4.934_298_603e-3, 5e-4, 1e-12);
+}
+
+/// `.sens` (#164) for HFET1: C's parameter tables under `hfet1/hfet.c`, the
+/// p-channel threshold-times-type multiplication of `hfettemp.c`, and the
+/// Celsius/kelly asymmetry of `hfetask.c` versus `hfetparam.c` on `temp`.
+#[test]
+fn sensitivity_follows_hfet1s_table_and_cs_temperature_quirks() {
+    let text = "vds 1 0 dc 1.0\nvids 1 2 dc 0\nvgs 4 0 dc 0.5\nrg 4 3 1k\n\
+                z1 2 3 0 nch l=1u w=20u\n\
+                .model nch nhfet level=5 rd=31 rs=31 vt0=-0.5\n.sens i(vids)";
+    let parsed = deck(text).unwrap();
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
+    let request = config.request_for(&parsed.analyses[0]).unwrap();
+    let mut circuit = config.circuit(&parsed).unwrap();
+    let plot = runner(request.kind)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap();
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(z1"))
+        .collect();
+    // `hfet.c`'s 63 `IOP` model setters (minus the `IOPR` `vto` alias, the
+    // integer `gatemod` and the `IF_FLAG` `nhfet`/`phfet`) plus 7 instance
+    // ones.
+    assert_eq!(names.len(), 70, "{names:?}");
+    for absent in ["v(z1:vto)", "v(z1:gatemod)", "v(z1:nhfet)", "v(z1:phfet)"] {
+        assert!(!names.contains(&absent), "{absent} in {names:?}");
+    }
+    // `temp` is enumerated, and `vt2`/`vt1` follow the threshold because the
+    // card does not give them.
+    for present in ["v(z1_temp)", "v(z1:vt2)", "v(z1:vt1)", "v(z1:js1s)"] {
+        assert!(names.contains(&present), "{present} missing from {names:?}");
+    }
+}
+
+/// A p-channel card re-runs `hfettemp.c`'s `threshold *= type` on every
+/// `.sens` step, so the walk alternates its sign. The verified `sens_hfet1`
+/// fixture pins the numbers; this checks the port reaches them without error
+/// rather than bailing out on the flipped threshold.
+#[test]
+fn sensitivity_runs_for_a_p_channel_card() {
+    let text = "vds 5 0 dc -1.0\nvids 5 6 dc 0\nvgs 8 0 dc -0.5\nrg2 8 7 1k\n\
+                z2 6 7 0 pch l=2u w=40u dtemp=10\n\
+                .model pch phfet level=5 rd=31 rs=31\n.sens i(vids)";
+    let parsed = deck(text).unwrap();
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
+    let request = config.request_for(&parsed.analyses[0]).unwrap();
+    let mut circuit = config.circuit(&parsed).unwrap();
+    let plot = runner(request.kind)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap();
+    let index = plot.variable_index("v(z2:vt0)").expect("vt0 column");
+    let value = plot.points[0][index].re;
+    // The first step multiplies the stored -0.15 by -1 once, so the column is
+    // the finite difference across that product rather than across `vt0`.
+    assert!(value.is_finite(), "{value}");
+    assert!(
+        value.abs() > 1e-6,
+        "the p-channel vt0 column collapsed: {value}"
+    );
 }

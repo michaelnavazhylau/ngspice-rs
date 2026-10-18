@@ -1027,6 +1027,17 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_CANCELLED,
         },
     },
+    // HFET1 (#164): `hfet1/hfet.c`'s 63 model + 7 instance parameters, with one
+    // p-channel device so the walk re-runs `hfettemp.c`'s threshold-times-type
+    // multiplication the way C does.
+    Supported {
+        name: "sens_hfet1",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // MESA level 4 (#164): the same walk over the level-4 parameter table,
     // sensing the drain current (`sens_mesa` senses a ~1 uV gate node, where a
     // level-4 row is a cancellation-limited difference). Level 3 is refused.

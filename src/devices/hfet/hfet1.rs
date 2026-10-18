@@ -44,6 +44,10 @@ use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
+use crate::devices::sensitivity::{
+    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
+    SensitivityMode, SensitivityParameter, SensitivityRecord,
+};
 use crate::devices::{
     AnalysisMode, Device, DeviceState, IterationPhase, LinearContext, ModelContext, ResolvedModel,
     StampContext,
@@ -285,7 +289,12 @@ impl Model {
         };
         let model = Self {
             pol,
-            threshold: typed(alias(&["vt0", "vto"]), 0.15, -0.15),
+            // `hfettemp.c` stores `HFETAthreshold` already multiplied by the
+            // type (`threshold *= type` on every call), so the first
+            // temperature update leaves this product behind. Keeping the
+            // product here - instead of in `derived` - is what lets the
+            // sensitivity walk reproduce the repeated multiplication.
+            threshold: typed(alias(&["vt0", "vto"]), 0.15, -0.15) * pol,
             lambda: r("lambda")?,
             rd: r("rd")?,
             rs: r("rs")?,
@@ -577,8 +586,9 @@ impl Hfet1 {
         };
         let nominal = temperature + CELSIUS_TO_KELVIN;
         let delta = temp - nominal;
-        // `hfettemp.c` stores the threshold already multiplied by the type.
-        let vto = model.threshold * model.pol;
+        // `hfettemp.c` multiplied the stored threshold by the type before
+        // this load; [`Model::resolve`] keeps that product.
+        let vto = model.threshold;
         let vt = K_OVER_Q * temp;
         let tlambda = model.lambda + model.klambda * delta;
         let tmu = model.mu - model.kmu * delta;
@@ -1714,6 +1724,10 @@ impl Device for Hfet1 {
         Ok(())
     }
 
+    fn sensitivity(&self, context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
+        Ok(Box::new(Hfet1Sensitivity::new(self, context)))
+    }
+
     /// `hfetacl.c`: the bias conductances plus `j omega` times the gate
     /// capacitances, with C's `kappa`/`fgds`/`delf` correction on `gds`.
     fn assemble_small_signal(
@@ -1790,5 +1804,430 @@ impl Device for Hfet1 {
         bias: &Vector,
     ) -> SpiceResult<()> {
         self.assemble_small_signal(context, bias)
+    }
+}
+
+// ---- `.sens` (#164) -------------------------------------------------------
+
+/// `hfet.c`'s `HFETAmPTable`, in C's order, filtered the way `set_param()`
+/// (`cktsgen.c`) and `sens_getp()` filter it.
+///
+/// `vto` is the `IOPR` alias of `vt0`, `gatemod` is `IF_INTEGER` and
+/// `nhfet`/`phfet` are `IF_FLAG`, so `(IF_SET|IF_ASK|IF_REAL)` drops all four.
+/// `hfettemp.c` multiplies the *stored* threshold by the type on every call, so
+/// a p-channel card's `vt0` (and everything derived from it) alternates sign
+/// across the walk exactly as C's does.
+const MODEL_PARAMETERS: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("vt0"),
+    SensitivityParameter::dc("lambda"),
+    SensitivityParameter::dc("rd"),
+    SensitivityParameter::dc("rs"),
+    SensitivityParameter::dc("rg"),
+    SensitivityParameter::dc("rdi"),
+    SensitivityParameter::dc("rsi"),
+    SensitivityParameter::dc("rgs"),
+    SensitivityParameter::dc("rgd"),
+    SensitivityParameter::dc("ri"),
+    SensitivityParameter::dc("rf"),
+    SensitivityParameter::dc("eta"),
+    SensitivityParameter::dc("m"),
+    SensitivityParameter::dc("mc"),
+    SensitivityParameter::dc("gamma"),
+    SensitivityParameter::dc("sigma0"),
+    SensitivityParameter::dc("vsigmat"),
+    SensitivityParameter::dc("vsigma"),
+    SensitivityParameter::dc("mu"),
+    SensitivityParameter::dc("di"),
+    SensitivityParameter::dc("delta"),
+    SensitivityParameter::dc("vs"),
+    SensitivityParameter::dc("nmax"),
+    SensitivityParameter::dc("deltad"),
+    SensitivityParameter::dc("js1d"),
+    SensitivityParameter::dc("js2d"),
+    SensitivityParameter::dc("js1s"),
+    SensitivityParameter::dc("js2s"),
+    SensitivityParameter::dc("m1d"),
+    SensitivityParameter::dc("m2d"),
+    SensitivityParameter::dc("m1s"),
+    SensitivityParameter::dc("m2s"),
+    SensitivityParameter::dc("epsi"),
+    SensitivityParameter::dc("p"),
+    SensitivityParameter::dc("cm3"),
+    SensitivityParameter::dc("a1"),
+    SensitivityParameter::dc("a2"),
+    SensitivityParameter::dc("mv1"),
+    SensitivityParameter::dc("kappa"),
+    SensitivityParameter::dc("delf"),
+    SensitivityParameter::dc("fgds"),
+    SensitivityParameter::dc("tf"),
+    SensitivityParameter::dc("cds"),
+    SensitivityParameter::dc("phib"),
+    SensitivityParameter::dc("talpha"),
+    SensitivityParameter::dc("mt1"),
+    SensitivityParameter::dc("mt2"),
+    SensitivityParameter::dc("ck1"),
+    SensitivityParameter::dc("ck2"),
+    SensitivityParameter::dc("cm1"),
+    SensitivityParameter::dc("cm2"),
+    SensitivityParameter::dc("astar"),
+    SensitivityParameter::dc("eta1"),
+    SensitivityParameter::dc("d1"),
+    SensitivityParameter::dc("vt1"),
+    SensitivityParameter::dc("eta2"),
+    SensitivityParameter::dc("d2"),
+    SensitivityParameter::dc("vt2"),
+    SensitivityParameter::dc("ggr"),
+    SensitivityParameter::dc("del"),
+    SensitivityParameter::dc("klambda"),
+    SensitivityParameter::dc("kmu"),
+    SensitivityParameter::dc("kvto"),
+];
+
+/// `hfet.c`'s `HFETApTable` under the same filter: `off` is `IF_FLAG`, the
+/// probe parameters are `OP` (ask only) and `temp`/`dtemp` are the instance
+/// temperatures.
+const INSTANCE_PARAMETERS: &[SensitivityParameter] = &[
+    SensitivityParameter::dc("l"),
+    SensitivityParameter::dc("w"),
+    SensitivityParameter::dc("m"),
+    SensitivityParameter::dc("icvds"),
+    SensitivityParameter::dc("icvgs"),
+    SensitivityParameter::dc("temp"),
+    SensitivityParameter::dc("dtemp"),
+];
+
+/// `hfettemp.c`/`hfetmpar.c`/`hfetsetup.c` replayed on C's records, with the
+/// load being the port's own [`Hfet1`] rebuilt from them.
+#[derive(Debug)]
+pub(super) struct Hfet1Sensitivity<'a> {
+    device: &'a Hfet1,
+    circuit_kelvin: Real,
+}
+
+impl<'a> Hfet1Sensitivity<'a> {
+    pub(super) fn new(device: &'a Hfet1, context: &ModelContext) -> Self {
+        Self {
+            device,
+            circuit_kelvin: context.temperature + CELSIUS_TO_KELVIN,
+        }
+    }
+}
+
+impl DeviceSensitivity for Hfet1Sensitivity<'_> {
+    fn family(&self) -> SensitivityFamily {
+        SensitivityFamily::Hfet1
+    }
+
+    fn model(&self) -> Option<&str> {
+        Some(&self.device.model_name)
+    }
+
+    fn model_parameters(&self) -> &'static [SensitivityParameter] {
+        MODEL_PARAMETERS
+    }
+
+    fn instance_parameters(&self) -> &'static [SensitivityParameter] {
+        INSTANCE_PARAMETERS
+    }
+
+    fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
+        let (m, i) = (&self.device.model, &self.device.instance);
+        let pol = m.pol;
+        let mut model = SensitivityRecord::new();
+        for (keyword, value, given) in [
+            // The raw card value: `hfettemp.c` multiplies the stored field by
+            // the type, and `temperature` below replays that.
+            ("vt0", m.threshold / pol, true),
+            ("lambda", m.lambda, true),
+            ("rd", m.rd, true),
+            ("rs", m.rs, true),
+            ("rg", m.rg, true),
+            ("rdi", m.rdi, true),
+            ("rsi", m.rsi, true),
+            ("rgs", m.rgs, true),
+            ("rgd", m.rgd, true),
+            ("ri", m.ri, true),
+            ("rf", m.rf, true),
+            ("eta", m.eta, true),
+            ("m", m.m, true),
+            ("mc", m.mc, true),
+            ("gamma", m.gamma, true),
+            ("sigma0", m.sigma0, true),
+            ("vsigmat", m.vsigmat, true),
+            ("vsigma", m.vsigma, true),
+            ("mu", m.mu, true),
+            ("di", m.di, true),
+            ("delta", m.delta, true),
+            ("vs", m.vs, true),
+            ("nmax", m.nmax, true),
+            ("deltad", m.deltad, true),
+            ("js1d", m.js1d, true),
+            ("js2d", m.js2d, true),
+            ("js1s", m.js1s, true),
+            ("js2s", m.js2s, true),
+            ("m1d", m.m1d, true),
+            ("m2d", m.m2d, true),
+            ("m1s", m.m1s, true),
+            ("m2s", m.m2s, true),
+            ("epsi", m.epsi, true),
+            ("p", m.pm, true),
+            ("cm3", m.cm3, true),
+            ("a1", m.a1, true),
+            ("a2", m.a2, true),
+            ("mv1", m.mv1, true),
+            ("kappa", m.kappa, true),
+            ("delf", m.delf, true),
+            ("fgds", m.fgds, true),
+            ("tf", m.tf.unwrap_or(self.circuit_kelvin), m.tf.is_some()),
+            ("cds", m.cds, true),
+            ("phib", m.phib, true),
+            ("talpha", m.talpha, true),
+            ("mt1", m.mt1, true),
+            ("mt2", m.mt2, true),
+            ("ck1", m.ck1, true),
+            ("ck2", m.ck2, true),
+            ("cm1", m.cm1, true),
+            ("cm2", m.cm2, true),
+            ("astar", m.astar, true),
+            ("eta1", m.eta1, true),
+            ("d1", m.d1, true),
+            (
+                "vt1",
+                m.vt1
+                    .unwrap_or(m.threshold + CHARGE * m.nmax * m.di / m.epsi),
+                m.vt1.is_some(),
+            ),
+            ("eta2", m.eta2, m.eta2_given),
+            ("d2", m.d2, m.d2_given),
+            ("vt2", m.vt2.unwrap_or(m.threshold), m.vt2.is_some()),
+            ("ggr", m.ggr, true),
+            ("del", m.del, true),
+            ("klambda", m.klambda, true),
+            ("kmu", m.kmu, true),
+            ("kvto", m.kvto, true),
+        ] {
+            model = model.with(keyword, value, given);
+        }
+        let mut instance = SensitivityRecord::new();
+        for (keyword, value, given) in [
+            ("l", i.l, true),
+            ("w", i.w, true),
+            ("m", i.m, true),
+            (
+                "icvds",
+                self.device.initial.values[0].unwrap_or(0.),
+                self.device.initial.values[0].is_some(),
+            ),
+            (
+                "icvgs",
+                self.device.initial.values[1].unwrap_or(0.),
+                self.device.initial.values[1].is_some(),
+            ),
+            // `hfetparam.c` stores `temp` in kelvin.
+            (
+                "temp",
+                i.temp
+                    .map_or(self.circuit_kelvin + i.dtemp, |c| c + CELSIUS_TO_KELVIN),
+                i.temp.is_some(),
+            ),
+            ("dtemp", i.dtemp, true),
+        ] {
+            instance = instance.with(keyword, value, given);
+        }
+        self.setup(&mut model, &mut instance)?;
+        self.temperature(&mut model, &mut instance)?;
+        Ok((model, instance))
+    }
+
+    fn ask(
+        &self,
+        scope: ParameterScope,
+        keyword: &str,
+        records: RecordPair<'_>,
+    ) -> SpiceResult<Real> {
+        // `hfetask.c` answers the instance temperature in Celsius while
+        // `hfetparam.c` stores it in kelvin, so `.sens` perturbs the Celsius
+        // value by a relative step and then adds 273.15 before storing it.
+        // Modelling only the kelvin field would perturb across 273 K instead.
+        if scope == ParameterScope::Instance && keyword == "temp" {
+            return Ok(records.instance.value("temp")? - CELSIUS_TO_KELVIN);
+        }
+        match scope {
+            ParameterScope::Model => records.model.value(keyword),
+            ParameterScope::Instance => records.instance.value(keyword),
+        }
+    }
+
+    fn set(
+        &self,
+        scope: ParameterScope,
+        keyword: &str,
+        value: Real,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        match (scope, keyword) {
+            // `hfetmpar.c` stores `tf` as `value + CONSTCtoK`, and
+            // `hfetparam.c` does the same for the instance `temp`; the walk's
+            // restore adds the offset again, as in C.
+            (ParameterScope::Model, "tf") => model.set(keyword, value + CELSIUS_TO_KELVIN),
+            (ParameterScope::Instance, "temp") => instance.set(keyword, value + CELSIUS_TO_KELVIN),
+            (ParameterScope::Model, _) => model.set(keyword, value),
+            (ParameterScope::Instance, _) => instance.set(keyword, value),
+        }
+    }
+
+    /// `hfetsetup.c`: `tf` defaults to `CKTtemp` and the instance temperature to
+    /// `CKTtemp + DTEMP`.
+    fn setup(
+        &self,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        if !model.given("tf") {
+            model.store("tf", self.circuit_kelvin)?;
+        }
+        if !instance.given("dtemp") {
+            instance.store("dtemp", 0.)?;
+        }
+        if !instance.given("temp") {
+            let dtemp = instance.value("dtemp")?;
+            instance.store("temp", self.circuit_kelvin + dtemp)?;
+        }
+        Ok(())
+    }
+
+    /// `hfettemp.c`'s model-side arithmetic, which is the part that persists.
+    ///
+    /// The record's `vt0` *is* C's `HFETAthreshold`, the running product: every
+    /// call multiplies it by the model type, and `vt2`/`vt1` follow it while
+    /// they are not given. Nothing else is stored - the rest of `HFETAtemp`
+    /// lands in per-instance fields, which the rebuilt device derives per load.
+    fn temperature(
+        &self,
+        model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        let pol = self.device.model.pol;
+        let threshold = model.value("vt0")? * pol;
+        model.store("vt0", threshold)?;
+        if !model.given("vt2") {
+            model.store("vt2", threshold)?;
+        }
+        if !model.given("vt1") {
+            let added = CHARGE * model.value("nmax")? * model.value("di")? / model.value("epsi")?;
+            model.store("vt1", threshold + added)?;
+        }
+        let _ = instance;
+        Ok(())
+    }
+
+    fn load(
+        &self,
+        _setup: RecordPair<'_>,
+        current: RecordPair<'_>,
+        mode: SensitivityMode,
+    ) -> SpiceResult<SensitivityLoad> {
+        if mode == SensitivityMode::Ac {
+            return Err(SpiceError::not_yet_ported(
+                format!("{}: HFET1 AC sensitivity", self.device.name),
+                "src/spicelib/devices/hfet1/hfetacl.c",
+            ));
+        }
+        let (m, i) = (current.model, current.instance);
+        let r = |keyword: &str| m.value(keyword);
+        let v = |keyword: &str| i.value(keyword);
+        let kevlin = |keyword: &str| -> SpiceResult<Option<Real>> {
+            Ok(i.given(keyword)
+                .then(|| i.value(keyword))
+                .transpose()?
+                .map(|kelvin| kelvin - CELSIUS_TO_KELVIN))
+        };
+        let model = Model {
+            pol: self.device.model.pol,
+            threshold: r("vt0")?,
+            lambda: r("lambda")?,
+            rd: r("rd")?,
+            rs: r("rs")?,
+            rg: r("rg")?,
+            rdi: r("rdi")?,
+            rsi: r("rsi")?,
+            rgs: r("rgs")?,
+            rgd: r("rgd")?,
+            ri: r("ri")?,
+            rf: r("rf")?,
+            eta: r("eta")?,
+            m: r("m")?,
+            mc: r("mc")?,
+            gamma: r("gamma")?,
+            sigma0: r("sigma0")?,
+            vsigmat: r("vsigmat")?,
+            vsigma: r("vsigma")?,
+            mu: r("mu")?,
+            di: r("di")?,
+            delta: r("delta")?,
+            vs: r("vs")?,
+            nmax: r("nmax")?,
+            deltad: r("deltad")?,
+            js1d: r("js1d")?,
+            js2d: r("js2d")?,
+            js1s: r("js1s")?,
+            js2s: r("js2s")?,
+            m1d: r("m1d")?,
+            m2d: r("m2d")?,
+            m1s: r("m1s")?,
+            m2s: r("m2s")?,
+            epsi: r("epsi")?,
+            pm: r("p")?,
+            cm3: r("cm3")?,
+            a1: r("a1")?,
+            a2: r("a2")?,
+            mv1: r("mv1")?,
+            kappa: r("kappa")?,
+            delf: r("delf")?,
+            fgds: r("fgds")?,
+            eta2_given: m.given("eta2"),
+            d2_given: m.given("d2"),
+            tf: Some(r("tf")?),
+            cds: r("cds")?,
+            phib: r("phib")?,
+            talpha: r("talpha")?,
+            mt1: r("mt1")?,
+            mt2: r("mt2")?,
+            ck1: r("ck1")?,
+            ck2: r("ck2")?,
+            cm1: r("cm1")?,
+            cm2: r("cm2")?,
+            astar: r("astar")?,
+            eta1: r("eta1")?,
+            d1: r("d1")?,
+            vt1: Some(r("vt1")?),
+            eta2: r("eta2")?,
+            d2: r("d2")?,
+            vt2: Some(r("vt2")?),
+            ggr: r("ggr")?,
+            del: r("del")?,
+            gatemod: self.device.model.gatemod,
+            klambda: r("klambda")?,
+            kmu: r("kmu")?,
+            kvto: r("kvto")?,
+        };
+        let instance = Instance {
+            l: v("l")?,
+            w: v("w")?,
+            m: v("m")?,
+            temp: kevlin("temp")?,
+            dtemp: v("dtemp")?,
+        };
+        let device = Hfet1 {
+            name: self.device.name.clone(),
+            model_name: self.device.model_name.clone(),
+            terminals: self.device.terminals.clone(),
+            nodes: self.device.nodes,
+            model,
+            instance,
+            initial: self.device.initial.clone(),
+        };
+        Ok(SensitivityLoad::Replacement(Box::new(device)))
     }
 }
