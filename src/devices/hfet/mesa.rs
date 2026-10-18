@@ -1247,6 +1247,23 @@ impl Device for Mesa {
                 "src/spicelib/devices/mesa/mesatemp.c, mesaload.c (mesa2/mesa3)",
             ));
         }
+        // A level-4 instance whose temperature is shifted by TS/DTEMP still
+        // differs from C on `rtc1`/`rtc2`: measured at `ts=40` on a level-4 card
+        // the port answers -4.459e-3/-5.796e-2 against C's -5.519e-3/-7.174e-2
+        // (the same 0.808 ratio on both), while `.op`/`.dc`/`.tran` agree to
+        // 1e-9 and every other column is inside 1e-6. Refuse rather than
+        // report those two rows. Level 2 verifies with `dtemp` set
+        // (`sens_mesa`'s `z2`).
+        if self.level == 4. && (self.instance.ts.is_some() || self.instance.dtemp != 0.) {
+            return Err(SpiceError::not_yet_ported(
+                format!(
+                    "{}: MESA level 4 sensitivity at a shifted temperature",
+                    self.name
+                ),
+                "src/spicelib/devices/mesa/mesatemp.c (the RTC1/RTC2 scaling of \
+                 trdi/trsi/trs/trd when TS/DTEMP move the instance temperature)",
+            ));
+        }
         Ok(Box::new(MesaSensitivity::new(self, context)))
     }
     /// `MESAparam` with the instance schema's domains: a swept temperature is

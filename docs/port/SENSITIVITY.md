@@ -206,11 +206,21 @@ recorded them are superseded:
 
 **MESA levels 2 and 4 are ported and verified**: `sens_mesa` (level 2, 69
 columns, sensed at the `#gate` node, `compare::SENSITIVITY_CANCELLED`) and
-`sens_mesa4` (level 4, sensed at `i(vids)`). Level 3 is refused: its `mesa2`
-channel leaves exactly two columns from C's answer, `du` 16% and `th` 24%,
-on an otherwise agreeing deck (242 of 246 columns inside 1e-6), so the two
-population-derivative terms `delnsavgte`/`nsa` in `mesaload.c:760-790` are the
-open item, not the parameter tables or the replay.
+`sens_mesa4` (level 4, sensed at `i(vids)`, at the circuit temperature). Two
+things are refused, both measured:
+
+- **Level 3.** Its `mesa2` channel leaves exactly two columns from C's answer,
+  `du` 16% and `th` 24%, on an otherwise agreeing deck (242 of 246 columns
+  inside 1e-6), so the two-population derivative terms
+  `delnsavgte`/`nsa` in `mesaload.c:760-790` are the open item, not the
+  parameter tables or the replay.
+- **Level 4 at a shifted temperature** (`ts` or `dtemp` set). `rtc1` and
+  `rtc2` come out at 0.808x C's -4.459e-3/-5.796e-2 against C's
+  -5.519e-3/-7.174e-2 at `ts=40`, while every other column is inside 1e-6 and
+  `.op`/`.dc`/`.tran` agree to 1e-9; the identical ratio on both rows points at
+  `mesatemp.c`'s RTC scaling of `trdi`/`trsi`/`trs`/`trd` rather than at the
+  channel. Level 2 verifies with `dtemp` set (`sens_mesa`'s `z2`), so only the
+  level-4 combination is refused.
 
 Getting there needed two things that are easy to get wrong, and both were
 measured against the reference binary:

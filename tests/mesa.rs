@@ -839,3 +839,36 @@ fn sensitivity_follows_mesa_cs_table_for_levels_two_and_four_and_refuses_three()
         }
     }
 }
+
+/// A level-4 instance moved by `TS`/`DTEMP` still differs from C on the two
+/// RTC rows (measured: 0.808x C's `rtc1`/`rtc2` at `ts=40`), so it is refused
+/// rather than reported. Level 2 verifies with `dtemp` set (`sens_mesa`).
+#[test]
+fn sensitivity_refuses_a_level_four_instance_at_a_shifted_temperature() {
+    for shift in ["ts=40", "dtemp=10"] {
+        let text = format!(
+            "vds 1 0 dc 1
+vids 1 2 dc 0
+vgs 4 0 dc 0.5
+rg 4 3 1k
+             z1 2 3 0 m4 l=1u w=20u {shift}
+.model m4 nmf(level=4)
+.sens i(vids)"
+        );
+        let parsed = deck(&text).unwrap();
+        let config = ngspice_rs::analysis::RunConfig::from_netlist(&parsed).unwrap();
+        let request = config.request_for(&parsed.analyses[0]).unwrap();
+        let mut c = config.circuit(&parsed).unwrap();
+        let error = ngspice_rs::analysis::runner(request.kind)
+            .unwrap()
+            .run(&mut c, &request, &config.context())
+            .unwrap_err();
+        assert!(error.is_not_yet_ported(), "{shift}: {error}");
+        assert!(
+            error
+                .to_string()
+                .contains("MESA level 4 sensitivity at a shifted temperature"),
+            "{shift}: {error}"
+        );
+    }
+}
