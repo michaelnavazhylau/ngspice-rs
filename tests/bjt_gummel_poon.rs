@@ -12,6 +12,9 @@ use ngspice_rs::netlist::{Parser, source::parse_deck_text};
 use ngspice_rs::primitives::{AnalysisKind, NodeKind};
 use std::path::Path;
 
+#[path = "../conformance/reference.rs"]
+mod reference;
+
 const VT: f64 = (1.38064852e-23 / 1.6021766208e-19) * 300.15;
 
 fn netlist(body: &str) -> ngspice_rs::netlist::ast::Netlist {
@@ -510,6 +513,8 @@ fn sensitivity_refuses_a_card_with_a_collector_resistance() {
 /// polynomial, plus a PNP at `dtemp=20` with `tnom=50`. The reference binary
 /// prints these columns; `rco` is zero because `sens_setp()` skips it, and
 /// `bf`/`vaf` are zero because C's own linearization does not see them here.
+/// Use the matching C platform: the 1e-25 ISE step amplifies libm differences
+/// enough to change the sign of C's own column between macOS and Linux.
 #[test]
 fn sensitivity_matches_the_reference_on_the_fixture_card() {
     let plot = sensitivity(
@@ -521,19 +526,21 @@ fn sensitivity_matches_the_reference_on_the_fixture_card() {
          tbf1=0.01 tbf2=1e-5\n\
          .model qp pnp level=1 tnom=50 tbr1=0.02 tbr2=2e-5\n.sens i(vids)",
     );
-    for (name, reference) in [
-        ("v(q1:is)", 1.080_616_575_604_052e12),
-        ("v(q1:ise)", 2.867_749_531_079_332e10),
-        ("v(q1:rb)", -2.835_090_207_615_2e-9),
-        ("v(q1:irb)", 3.457_080_497_929_78e-6),
-        ("v(q1:re)", -2.588_166_959_995_6e-7),
-        ("v(q1:tnom)", -1.658_800_007_763_174e-5),
-        ("v(q1_area)", 3.014_364_737_225_222e-6),
-        ("v(q2:is)", -3.415_079_355_402_169e10),
-        ("v(q2:tnom)", 4.529_554_302_866_291e-7),
-        ("v(q2:tbr1)", -1.699_817_307_627_323e-21),
-    ] {
-        close(column(&plot, name), reference, 1e-6, 1e-9);
+    let raw = ngspice_rs::analysis::RawFile::load(reference::golden_path(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        "sens_bjt",
+    ))
+    .unwrap();
+    let expected = &raw.plots[0].plot;
+    assert_eq!(plot.variable_count(), expected.variable_count());
+    assert_eq!(plot.point_count(), expected.point_count());
+    for variable in &expected.variables {
+        close(
+            column(&plot, &variable.name),
+            column(expected, &variable.name),
+            1e-6,
+            1e-9,
+        );
     }
     assert_eq!(column(&plot, "v(q1:rco)"), 0., "sens_setp skips RCO");
 }

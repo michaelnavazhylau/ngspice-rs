@@ -1,0 +1,592 @@
+Title: sensitivity of bjt devices (#164)
+Date: Mon Oct 19 03:54:51  2026
+Command: ngspice-47+, Build Mon Oct 19 03:45:11 UTC 2026
+Plotname: Sensitivity Analysis
+Flags: real
+No. Variables: 291
+No. Points: 1
+Variables:
+	0	v(q2:tnom)	voltage
+	1	v(q1:af)	voltage
+	2	v(q1:bf)	voltage
+	3	v(q1:br)	voltage
+	4	v(q1:cn)	voltage
+	5	v(q1:ctc)	voltage
+	6	v(q1:cte)	voltage
+	7	v(q1:cts)	voltage
+	8	v(q1:d)	voltage
+	9	v(q1:eg)	voltage
+	10	v(q1:fc)	voltage
+	11	v(q1:gamma)	voltage
+	12	v(q1:ib_max)	voltage
+	13	v(q1:ibc)	voltage
+	14	v(q1:ibe)	voltage
+	15	v(q1:ic_max)	voltage
+	16	v(q1:ikf)	voltage
+	17	v(q1:ikr)	voltage
+	18	v(q1:irb)	voltage
+	19	v(q1:is)	voltage
+	20	v(q1:isc)	voltage
+	21	v(q1:ise)	voltage
+	22	v(q1:iss)	voltage
+	23	v(q1:kf)	voltage
+	24	v(q1:nc)	voltage
+	25	v(q1:ne)	voltage
+	26	v(q1:nf)	voltage
+	27	v(q1:nkf)	voltage
+	28	v(q1:nr)	voltage
+	29	v(q1:ns)	voltage
+	30	v(q1:pd_max)	voltage
+	31	v(q1:qco)	voltage
+	32	v(q1:rb)	voltage
+	33	v(q1:rbm)	voltage
+	34	v(q1:rc)	voltage
+	35	v(q1:rco)	voltage
+	36	v(q1:re)	voltage
+	37	v(q1:rth0)	voltage
+	38	v(q1:tbf1)	voltage
+	39	v(q1:tbf2)	voltage
+	40	v(q1:tbr1)	voltage
+	41	v(q1:tbr2)	voltage
+	42	v(q1:te_max)	voltage
+	43	v(q1:tikf1)	voltage
+	44	v(q1:tikf2)	voltage
+	45	v(q1:tikr1)	voltage
+	46	v(q1:tikr2)	voltage
+	47	v(q1:tirb1)	voltage
+	48	v(q1:tirb2)	voltage
+	49	v(q1:tis1)	voltage
+	50	v(q1:tis2)	voltage
+	51	v(q1:tisc1)	voltage
+	52	v(q1:tisc2)	voltage
+	53	v(q1:tise1)	voltage
+	54	v(q1:tise2)	voltage
+	55	v(q1:tiss1)	voltage
+	56	v(q1:tiss2)	voltage
+	57	v(q1:titf1)	voltage
+	58	v(q1:titf2)	voltage
+	59	v(q1:tmjc1)	voltage
+	60	v(q1:tmjc2)	voltage
+	61	v(q1:tmje1)	voltage
+	62	v(q1:tmje2)	voltage
+	63	v(q1:tmjs1)	voltage
+	64	v(q1:tmjs2)	voltage
+	65	v(q1:tnc1)	voltage
+	66	v(q1:tnc2)	voltage
+	67	v(q1:tne1)	voltage
+	68	v(q1:tne2)	voltage
+	69	v(q1:tnf1)	voltage
+	70	v(q1:tnf2)	voltage
+	71	v(q1:tnom)	voltage
+	72	v(q1:tnr1)	voltage
+	73	v(q1:tnr2)	voltage
+	74	v(q1:tns1)	voltage
+	75	v(q1:tns2)	voltage
+	76	v(q1:trb1)	voltage
+	77	v(q1:trb2)	voltage
+	78	v(q1:trc1)	voltage
+	79	v(q1:trc2)	voltage
+	80	v(q1:tre1)	voltage
+	81	v(q1:tre2)	voltage
+	82	v(q1:trm1)	voltage
+	83	v(q1:trm2)	voltage
+	84	v(q1:ttf1)	voltage
+	85	v(q1:ttf2)	voltage
+	86	v(q1:ttr1)	voltage
+	87	v(q1:ttr2)	voltage
+	88	v(q1:tvaf1)	voltage
+	89	v(q1:tvaf2)	voltage
+	90	v(q1:tvar1)	voltage
+	91	v(q1:tvar2)	voltage
+	92	v(q1:tvjc)	voltage
+	93	v(q1:tvje)	voltage
+	94	v(q1:tvjs)	voltage
+	95	v(q1:vaf)	voltage
+	96	v(q1:var)	voltage
+	97	v(q1:vbc_max)	voltage
+	98	v(q1:vbe_max)	voltage
+	99	v(q1:vce_max)	voltage
+	100	v(q1:vg)	voltage
+	101	v(q1:vo)	voltage
+	102	v(q1:xtb)	voltage
+	103	v(q1:xti)	voltage
+	104	v(q1_area)	voltage
+	105	v(q1_areab)	voltage
+	106	v(q1_areac)	voltage
+	107	v(q1_dtemp)	voltage
+	108	v(q1_m)	voltage
+	109	v(q1_temp)	voltage
+	110	v(q2:af)	voltage
+	111	v(q2:bf)	voltage
+	112	v(q2:br)	voltage
+	113	v(q2:cn)	voltage
+	114	v(q2:ctc)	voltage
+	115	v(q2:cte)	voltage
+	116	v(q2:cts)	voltage
+	117	v(q2:d)	voltage
+	118	v(q2:eg)	voltage
+	119	v(q2:fc)	voltage
+	120	v(q2:gamma)	voltage
+	121	v(q2:ib_max)	voltage
+	122	v(q2:ibc)	voltage
+	123	v(q2:ibe)	voltage
+	124	v(q2:ic_max)	voltage
+	125	v(q2:ikf)	voltage
+	126	v(q2:ikr)	voltage
+	127	v(q2:irb)	voltage
+	128	v(q2:is)	voltage
+	129	v(q2:isc)	voltage
+	130	v(q2:ise)	voltage
+	131	v(q2:iss)	voltage
+	132	v(q2:kf)	voltage
+	133	v(q2:nc)	voltage
+	134	v(q2:ne)	voltage
+	135	v(q2:nf)	voltage
+	136	v(q2:nkf)	voltage
+	137	v(q2:nr)	voltage
+	138	v(q2:ns)	voltage
+	139	v(q2:pd_max)	voltage
+	140	v(q2:qco)	voltage
+	141	v(q2:rb)	voltage
+	142	v(q2:rbm)	voltage
+	143	v(q2:rc)	voltage
+	144	v(q2:rco)	voltage
+	145	v(q2:re)	voltage
+	146	v(q2:rth0)	voltage
+	147	v(q2:tbf1)	voltage
+	148	v(q2:tbf2)	voltage
+	149	v(q2:tbr1)	voltage
+	150	v(q2:tbr2)	voltage
+	151	v(q2:te_max)	voltage
+	152	v(q2:tikf1)	voltage
+	153	v(q2:tikf2)	voltage
+	154	v(q2:tikr1)	voltage
+	155	v(q2:tikr2)	voltage
+	156	v(q2:tirb1)	voltage
+	157	v(q2:tirb2)	voltage
+	158	v(q2:tis1)	voltage
+	159	v(q2:tis2)	voltage
+	160	v(q2:tisc1)	voltage
+	161	v(q2:tisc2)	voltage
+	162	v(q2:tise1)	voltage
+	163	v(q2:tise2)	voltage
+	164	v(q2:tiss1)	voltage
+	165	v(q2:tiss2)	voltage
+	166	v(q2:titf1)	voltage
+	167	v(q2:titf2)	voltage
+	168	v(q2:tmjc1)	voltage
+	169	v(q2:tmjc2)	voltage
+	170	v(q2:tmje1)	voltage
+	171	v(q2:tmje2)	voltage
+	172	v(q2:tmjs1)	voltage
+	173	v(q2:tmjs2)	voltage
+	174	v(q2:tnc1)	voltage
+	175	v(q2:tnc2)	voltage
+	176	v(q2:tne1)	voltage
+	177	v(q2:tne2)	voltage
+	178	v(q2:tnf1)	voltage
+	179	v(q2:tnf2)	voltage
+	180	v(q2:tnr1)	voltage
+	181	v(q2:tnr2)	voltage
+	182	v(q2:tns1)	voltage
+	183	v(q2:tns2)	voltage
+	184	v(q2:trb1)	voltage
+	185	v(q2:trb2)	voltage
+	186	v(q2:trc1)	voltage
+	187	v(q2:trc2)	voltage
+	188	v(q2:tre1)	voltage
+	189	v(q2:tre2)	voltage
+	190	v(q2:trm1)	voltage
+	191	v(q2:trm2)	voltage
+	192	v(q2:ttf1)	voltage
+	193	v(q2:ttf2)	voltage
+	194	v(q2:ttr1)	voltage
+	195	v(q2:ttr2)	voltage
+	196	v(q2:tvaf1)	voltage
+	197	v(q2:tvaf2)	voltage
+	198	v(q2:tvar1)	voltage
+	199	v(q2:tvar2)	voltage
+	200	v(q2:tvjc)	voltage
+	201	v(q2:tvje)	voltage
+	202	v(q2:tvjs)	voltage
+	203	v(q2:vaf)	voltage
+	204	v(q2:var)	voltage
+	205	v(q2:vbc_max)	voltage
+	206	v(q2:vbe_max)	voltage
+	207	v(q2:vce_max)	voltage
+	208	v(q2:vg)	voltage
+	209	v(q2:vo)	voltage
+	210	v(q2:xtb)	voltage
+	211	v(q2:xti)	voltage
+	212	v(q2_area)	voltage
+	213	v(q2_areab)	voltage
+	214	v(q2_areac)	voltage
+	215	v(q2_dtemp)	voltage
+	216	v(q2_m)	voltage
+	217	v(q2_temp)	voltage
+	218	v(rb)	voltage
+	219	v(rb2)	voltage
+	220	v(rb2:af)	voltage
+	221	v(rb2:bv_max)	voltage
+	222	v(rb2:ef)	voltage
+	223	v(rb2:kf)	voltage
+	224	v(rb2:lf)	voltage
+	225	v(rb2:narrow)	voltage
+	226	v(rb2:r)	voltage
+	227	v(rb2:rsh)	voltage
+	228	v(rb2:short)	voltage
+	229	v(rb2:tc1)	voltage
+	230	v(rb2:tc2)	voltage
+	231	v(rb2:tce)	voltage
+	232	v(rb2:wf)	voltage
+	233	v(rb2_bv_max)	voltage
+	234	v(rb2_dtemp)	voltage
+	235	v(rb2_l)	voltage
+	236	v(rb2_m)	voltage
+	237	v(rb2_scale)	voltage
+	238	v(rb2_tc)	voltage
+	239	v(rb2_tc2)	voltage
+	240	v(rb2_tce)	voltage
+	241	v(rb2_temp)	voltage
+	242	v(rb2_w)	voltage
+	243	v(rb:af)	voltage
+	244	v(rb:bv_max)	voltage
+	245	v(rb:ef)	voltage
+	246	v(rb:kf)	voltage
+	247	v(rb:lf)	voltage
+	248	v(rb:narrow)	voltage
+	249	v(rb:r)	voltage
+	250	v(rb:rsh)	voltage
+	251	v(rb:short)	voltage
+	252	v(rb:tc1)	voltage
+	253	v(rb:tc2)	voltage
+	254	v(rb:tce)	voltage
+	255	v(rb:wf)	voltage
+	256	v(rb_bv_max)	voltage
+	257	v(rb_dtemp)	voltage
+	258	v(rb_l)	voltage
+	259	v(rb_m)	voltage
+	260	v(rb_scale)	voltage
+	261	v(rb_tc)	voltage
+	262	v(rb_tc2)	voltage
+	263	v(rb_tce)	voltage
+	264	v(rb_temp)	voltage
+	265	v(rb_w)	voltage
+	266	v(vb)	voltage
+	267	v(vb2)	voltage
+	268	v(vb2_freq)	voltage
+	269	v(vb2_phase)	voltage
+	270	v(vb2_pwr)	voltage
+	271	v(vb2_z0)	voltage
+	272	v(vb_freq)	voltage
+	273	v(vb_phase)	voltage
+	274	v(vb_pwr)	voltage
+	275	v(vb_z0)	voltage
+	276	v(vcc)	voltage
+	277	v(vcc2)	voltage
+	278	v(vcc2_freq)	voltage
+	279	v(vcc2_phase)	voltage
+	280	v(vcc2_pwr)	voltage
+	281	v(vcc2_z0)	voltage
+	282	v(vcc_freq)	voltage
+	283	v(vcc_phase)	voltage
+	284	v(vcc_pwr)	voltage
+	285	v(vcc_z0)	voltage
+	286	v(vids)	voltage
+	287	v(vids_freq)	voltage
+	288	v(vids_phase)	voltage
+	289	v(vids_pwr)	voltage
+	290	v(vids_z0)	voltage
+Values:
+ 0	4.529554302866291e-07
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.589367088870015e-09
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.044023278624700e+02
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.005855980275048e-06
+	1.080616555504888e+12
+	6.763653256820866e+00
+	-1.595187389753998e+10
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.649894581105798e-09
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-2.835090214252097e-09
+	-4.204977590938346e-17
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-2.588166959995474e-07
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.604850611812132e-09
+	-3.433171216660575e-09
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.045077442922610e-08
+	1.063371743738141e-07
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.658800010518263e-05
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	8.505364203511354e-06
+	-8.504428707113552e-05
+	0.000000000000000e+00
+	0.000000000000000e+00
+	5.176390860257315e-05
+	-5.175821514200608e-04
+	4.293503434957813e-14
+	-4.299036300209971e-13
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-1.412862643675167e-10
+	-1.092138104703522e-09
+	3.012133268821797e-06
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-0.000000000000000e+00
+	6.026828539701573e-06
+	-3.797106369673042e-11
+	-3.399634615254646e-23
+	-3.399634615254646e-25
+	-3.399634615254646e-23
+	-1.545288461479384e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-6.537758875489703e-23
+	-3.062733887616798e-23
+	-6.799269230509291e-23
+	-3.399634615254646e-12
+	-3.399634615254646e-122
+	2.657640967880459e+00
+	0.000000000000000e+00
+	-3.399634615254646e-122
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.415079355402169e+10
+	-1.012717995323730e-01
+	-9.169614594567761e+06
+	4.190700134201586e+09
+	-3.399634615254646e-23
+	-1.699817307627323e-23
+	-2.266423076836430e-23
+	-3.399634615254646e-23
+	-6.799269230509291e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-122
+	-3.399634615254646e-23
+	0.000000000000000e+00
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254645e-21
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-1.699817307627323e-21
+	-1.699817307627323e-18
+	-3.399634615254646e-122
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-122
+	-3.399634615254646e-122
+	-3.399634615254646e-122
+	-2.818934175169690e-23
+	-3.399634615254646e-24
+	-3.399634615254646e-23
+	-1.133211538418215e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-3.399634615254646e-23
+	-1.699817307627323e-24
+	-1.046387832863263e-12
+	-7.233265138839672e-25
+	-5.682079885788842e-09
+	4.190329513601651e-12
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-4.190333703311941e-09
+	4.190329512692903e-09
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	5.682085567029045e-06
+	-5.682079884556369e-06
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	4.321878798704298e-03
+	1.237868625204595e-04
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	4.969481442899417e-12
+	1.237868625387131e-13
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	-4.445665666721935e-03
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+	-0.000000000000000e+00
+

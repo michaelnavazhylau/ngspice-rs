@@ -272,6 +272,40 @@ live-C** checks pass with absolute `NGSPICE_BIN`, including the new
 C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
 are unchanged. See [URC.md](URC.md).
 
+## PR #183: platform-specific BJT sensitivity reference
+
+CI's Linux x86-64 failure was reproduced in a GNU/Linux container on Rust
+1.89. Building the same pristine C revision there with `-ffp-contract=off`
+reproduced the supposedly failing Rust numbers: `q1:ise` is
+`-1.5951873897539978e10`, versus the macOS C golden's
+`2.867749531079332e10`. The card's setup-scaled ISE is `1e-19`, so its
+sensitivity perturbation is `1e-25`; the difference is `4.46e-15` in the
+solved response, amplified by the divisor. Eleven columns fail a cross-platform
+comparison, while C and Rust agree on the same platform.
+
+The original fixture and macOS golden remain unchanged. A new independent C
+capture lives in `conformance/golden/linux-x86_64-gnu/sens_bjt.raw`, with exact
+source/compiler/libc/configuration provenance in that directory's README.
+`conformance/reference.rs` is shared only by tests and xtask, not the simulator;
+its explicit target/fixture selection is used by capture/check/list/verify
+and the BJT test. It never silently substitutes another file when the selected
+capture is missing. All 291 columns keep the existing bound; no comparison
+floor, device equation, solver behavior or unsupported count changed.
+
+Tests pin both platform captures, check the full name/unit set independent of
+C rawfile order, round-trip the Linux capture, and prove that deleting or
+corrupting the selected reference fails verification. This corrects the earlier
+macOS-only validation claim: cross-platform validation must compare the
+corresponding C arithmetic, not assume an amplified residue is universal.
+
+After the fix, full locked workspace tests pass on macOS arm64 (stable and
+Rust 1.89) and Linux x86-64 GNU (Rust 1.89): **1509 passed / 0 failed / 152
+ignored** on each. Strict all-target Clippy passes on all three runs. Linux
+`golden verify` remains **208 verified / 1 unsupported / 0 failures**;
+`sens_bjt` C drift checks reproduce the selected reference on both platforms.
+The macOS no-FMA C binary also reproduces its original capture, so this is
+not a workaround for an accidentally fused Rust expression.
+
 ## MOS transient-to-AC-sensitivity state carry (#102)
 
 `sens_ac_mos_tran` runs `.op`, `.tran`, then `.sens` in C batch order,

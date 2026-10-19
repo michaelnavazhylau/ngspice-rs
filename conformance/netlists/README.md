@@ -33,6 +33,13 @@ Why these rules:
 
 `cargo xtask golden list` prints what each committed golden contains.
 
+The default captures are in `../golden/`. The explicitly platform-sensitive
+`sens_bjt` fixture also has an independently captured GNU Linux x86-64
+reference in `../golden/linux-x86_64-gnu/`; see that directory's README for
+provenance and why C itself disagrees across platforms. Capture/check/list/
+verify share the target-specific selection in `../reference.rs`. This is
+not a widened tolerance or a skipped sensitivity column.
+
 `sens_ac_mos_tran` deliberately runs `.op`, `.tran`, then AC `.sens` (C's
 batch order, not its textual order). A slow bulk sine changes the depletion
 capacitances of MOS levels 1/2/3/9 before the transient ends. The filtered

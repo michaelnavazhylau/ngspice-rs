@@ -13,6 +13,8 @@ mod ci;
 mod compare;
 mod golden;
 mod ngspice;
+#[path = "../../conformance/reference.rs"]
+mod reference;
 mod snapshots;
 mod tran;
 mod verify;

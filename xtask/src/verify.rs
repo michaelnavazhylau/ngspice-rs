@@ -2113,7 +2113,7 @@ fn project(mut got: ngspice_rs::analysis::Plot, internal: &[String]) -> ngspice_
 
 /// The committed C golden of `name`.
 fn load_golden(root: &Path, name: &str) -> Result<RawFile, String> {
-    let target = root.join(golden::GOLDEN_DIR).join(format!("{name}.raw"));
+    let target = crate::reference::golden_path(root, name);
     let text =
         fs::read_to_string(&target).map_err(|e| format!("reading {}: {e}", target.display()))?;
     RawFile::parse(&text).map_err(|e| format!("{}: {e}", target.display()))
@@ -2206,12 +2206,15 @@ mod tests {
             fs::create_dir_all(root.join(golden::NETLIST_DIR)).unwrap();
             fs::create_dir_all(root.join(golden::GOLDEN_DIR)).unwrap();
             for name in names {
-                for path in [
-                    format!("conformance/netlists/{name}.cir"),
-                    format!("conformance/golden/{name}.raw"),
-                ] {
-                    fs::copy(workspace_root().join(&path), root.join(&path)).unwrap();
-                }
+                let deck = format!("conformance/netlists/{name}.cir");
+                fs::copy(workspace_root().join(&deck), root.join(&deck)).unwrap();
+                let target = crate::reference::golden_path(&root, name);
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                fs::copy(
+                    crate::reference::golden_path(&workspace_root(), name),
+                    target,
+                )
+                .unwrap();
             }
             Self(root)
         }
@@ -2228,9 +2231,10 @@ mod tests {
             .unwrap()
             .into_iter()
             .flat_map(|p| {
-                let raw = workspace_root()
-                    .join(golden::GOLDEN_DIR)
-                    .join(format!("{}.raw", p.file_stem().unwrap().to_str().unwrap()));
+                let raw = crate::reference::golden_path(
+                    &workspace_root(),
+                    p.file_stem().unwrap().to_str().unwrap(),
+                );
                 [p, raw]
             })
             .collect();
@@ -2243,6 +2247,34 @@ mod tests {
         for (path, bytes) in paths.iter().zip(before) {
             assert_eq!(fs::read(path).unwrap(), bytes);
         }
+    }
+
+    #[test]
+    fn selected_bjt_reference_is_required_and_still_checked_strictly() {
+        let temp = Temp::with(&["sens_bjt"]);
+        // On Linux keep the macOS reference present as well: a missing
+        // platform capture must be reported, never silently fall back to it.
+        let generic = temp.0.join("conformance/golden/sens_bjt.raw");
+        fs::copy(
+            workspace_root().join("conformance/golden/sens_bjt.raw"),
+            generic,
+        )
+        .unwrap();
+        let selected = crate::reference::golden_path(&temp.0, "sens_bjt");
+        let original = fs::read_to_string(&selected).unwrap();
+        run(&temp.0, Some("sens_bjt")).unwrap();
+        fs::remove_file(&selected).unwrap();
+        let error = run(&temp.0, Some("sens_bjt")).unwrap_err();
+        assert!(error.contains("reading"), "{error}");
+        assert!(error.contains(&selected.display().to_string()), "{error}");
+
+        let mut raw = RawFile::parse(&original).unwrap();
+        let plot = &mut raw.plots[0].plot;
+        let index = plot.variable_index("v(q1:ise)").unwrap();
+        plot.points[0][index] = ngspice_rs::primitives::Complex::ZERO;
+        fs::write(selected, raw.to_ascii()).unwrap();
+        let error = run(&temp.0, Some("sens_bjt")).unwrap_err();
+        assert!(error.contains("v(q1:ise)"), "{error}");
     }
 
     #[test]

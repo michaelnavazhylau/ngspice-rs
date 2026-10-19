@@ -505,6 +505,19 @@ column, for example, is about -2e-9 in C versus zero in the port, even while
 its 2.3868e11 VAF column agrees. This remaining numeric limit is distinct from
 the fixed record-loss defect.
 
+**`sens_bjt` has platform-dependent C residues.** Its `ISE=1e-3` is
+scaled to `1e-19` during setup, so the sensitivity step is `1e-25`. The
+same upstream C revision returns `q1:ise = 2.867749531079332e10` on macOS
+arm64 and `-1.5951873897539978e10` on Linux x86-64 GNU: a `4.46e-15`
+difference in the solved response. Linux C reproduces the Linux Rust values,
+including the other ten columns that failed against the macOS capture. The
+original golden is unchanged; `conformance/golden/linux-x86_64-gnu/sens_bjt.raw`
+is an independently captured C variant with build provenance in its README.
+`conformance/reference.rs` selects it for GNU Linux x86-64 in capture, drift
+checks, verification and the BJT production test. All 291 columns retain the
+same tolerance, with no skips or missing-file fallback. A large quotient in
+this fixture is not necessarily a portable physical derivative.
+
 ### Classic MOS (`M`, levels 1/2/3/6/9)
 
 DC record replay is implemented for all five classic levels, with one shared

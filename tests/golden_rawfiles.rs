@@ -131,6 +131,69 @@ fn every_fixture_has_a_golden_and_no_golden_is_orphaned() {
     );
 }
 
+/// The Linux BJT capture is independent C data, not Rust output or a changed
+/// tolerance. Pin both platform residues and verify the complete vector shape
+/// even when this machine uses only one variant for production comparisons.
+#[test]
+fn platform_bjt_goldens_keep_their_independent_c_values() {
+    let mac = RawFile::parse(&golden_text("sens_bjt")).unwrap();
+    let linux_path = workspace().join("conformance/golden/linux-x86_64-gnu/sens_bjt.raw");
+    let linux = RawFile::load(&linux_path).unwrap();
+    assert_eq!(mac.len(), 1);
+    assert_eq!(linux.len(), 1);
+    let (a, b) = (&mac.plots[0].plot, &linux.plots[0].plot);
+    assert_eq!(a.plotname, b.plotname);
+    assert_eq!(a.flags, b.flags);
+    // `write`'s ordering differs across C platforms; compare the exact
+    // name/unit/realness sets, not rawfile column ordinals.
+    let (mut av, mut bv) = (a.variables.clone(), b.variables.clone());
+    av.sort_by(|x, y| x.name.cmp(&y.name));
+    bv.sort_by(|x, y| x.name.cmp(&y.name));
+    assert_eq!(av, bv);
+    assert_eq!(a.variable_count(), 291);
+    assert_eq!(a.point_count(), 1);
+    assert_eq!(b.point_count(), 1);
+    assert!(a.is_finite() && b.is_finite());
+    // bjtsetup.c scales ISE to 1e-19; cktsens.c then steps it by 1e-25.
+    // The 4.46e-15 difference in the solved response becomes 4.46e10 in
+    // this column. IRB and AREA amplify the same response residue less.
+    for (name, mac_value, linux_value) in [
+        (
+            "v(q1:ise)",
+            2.867_749_531_079_332e10,
+            -1.595_187_389_753_997_8e10,
+        ),
+        (
+            "v(q1:irb)",
+            3.457_080_497_929_78e-6,
+            -1.005_855_980_275_048_5e-6,
+        ),
+        (
+            "v(q1_area)",
+            3.014_364_737_225_222e-6,
+            3.012_133_268_821_796_8e-6,
+        ),
+    ] {
+        assert!(
+            approx_eq(a.value(name, 0).unwrap().re, mac_value, 1e-12),
+            "{name}"
+        );
+        assert!(
+            approx_eq(b.value(name, 0).unwrap().re, linux_value, 1e-12),
+            "{name}"
+        );
+    }
+    let round_trip = RawFile::parse_bytes(&linux.to_binary().unwrap()).unwrap();
+    assert_eq!(round_trip, linux);
+    let mut variants: Vec<_> = fs::read_dir(linux_path.parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "raw"))
+        .collect();
+    variants.sort();
+    assert_eq!(variants, [linux_path]);
+}
+
 /// The writer agrees with ngspice line for line, apart from values whose 16
 /// significant digits do not round-trip.
 ///
