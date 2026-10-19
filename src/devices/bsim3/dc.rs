@@ -28,6 +28,66 @@ pub struct Bias {
     pub vds: Real,
 }
 
+/// Bias-dependent intermediates `b3ld.c` computes before the charge block and
+/// the charge preamble (`b3acld.c`/`b3ld.c` C-V) reuses.
+///
+/// They are carried out of the DC evaluation rather than recomputed so the
+/// charge model sees exactly the values (and rounding) C's single pass used.
+/// Derivatives are with respect to the polarity-scaled device bias.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CvIntermediates {
+    /// Thermal voltage (C `model->BSIM3vtm`).
+    pub vtm: Real,
+    /// Oxide capacitance per area (C `model->BSIM3cox`).
+    pub cox: Real,
+    /// Oxide thickness in metres (C `model->BSIM3tox`).
+    pub tox: Real,
+    /// Surface potential parameter (C `pParam->BSIM3phi`).
+    pub phi: Real,
+    /// Effective gate-source voltage after poly depletion.
+    pub vgs_eff: Real,
+    /// Its gate derivative.
+    pub d_vgs_eff_dvg: Real,
+    /// Threshold voltage.
+    pub vth: Real,
+    /// Its drain derivative.
+    pub d_vth_dvd: Real,
+    /// Its body derivative.
+    pub d_vth_dvb: Real,
+    /// `vgs_eff - vth`, before the subthreshold smoothing.
+    pub vgst: Real,
+    /// Smoothed body-source voltage.
+    pub vbseff: Real,
+    /// Its body derivative.
+    pub d_vbseff_dvb: Real,
+    /// Surface potential at `vbseff` (C `Phis`).
+    pub phis: Real,
+    /// Its body derivative (C `dPhis_dVb`).
+    pub d_phis_dvb: Real,
+    /// Square root of the surface potential (C `sqrtPhis`).
+    pub sqrt_phis: Real,
+    /// C `dsqrtPhis_dVb`.
+    pub d_sqrt_phis_dvb: Real,
+    /// Bulk-charge factor before the mobility gate term.
+    pub abulk0: Real,
+    /// Its body derivative.
+    pub d_abulk0_dvb: Real,
+    /// Subthreshold slope factor.
+    pub n: Real,
+    /// Its drain derivative.
+    pub d_n_dvd: Real,
+    /// Its body derivative.
+    pub d_n_dvb: Real,
+    /// Smoothed gate overdrive used by the DC current.
+    pub vgsteff: Real,
+    /// Its gate derivative.
+    pub d_vgsteff_dvg: Real,
+    /// Its drain derivative.
+    pub d_vgsteff_dvd: Real,
+    /// Its body derivative.
+    pub d_vgsteff_dvb: Real,
+}
+
 /// DC currents, conductances and observables from one `b3ld.c` evaluation.
 ///
 /// Currents are the C instance values (`here->BSIM3cd`, `cbs`, ...) before the
@@ -86,6 +146,8 @@ pub struct DcEvaluation {
     pub thetavth: Real,
     /// C `here->BSIM3AbovVgst2Vtm`.
     pub abulk_over_vgst2vtm: Real,
+    /// Intermediates the charge model (`b3ld.c` C-V) reads back.
+    pub cv: CvIntermediates,
 }
 
 /// The BSIM3 DC core for one defaulted model and one set-up instance.
@@ -164,14 +226,17 @@ impl DcModel<'_> {
         let vbseff_raw = vbsc + 0.5 * (t0 + t1);
         let dvbseff_dvb = 0.5 * (1.0 + t0 / t1);
         let vbseff = if vbseff_raw < vbs { vbs } else { vbseff_raw };
-        let (sqrt_phis, dsqrt_phis_dvb);
+        let (sqrt_phis, dsqrt_phis_dvb, phis, dphis_dvb);
         if vbseff > 0.0 {
             let t0 = phi / (phi + vbseff);
-            let _phis = phi * t0;
+            phis = phi * t0;
+            dphis_dvb = -t0 * t0;
             sqrt_phis = param("phis3") / (phi + 0.5 * vbseff);
             dsqrt_phis_dvb = -0.5 * sqrt_phis * sqrt_phis / param("phis3");
         } else {
-            sqrt_phis = (phi - vbseff).sqrt();
+            phis = phi - vbseff;
+            dphis_dvb = -1.0;
+            sqrt_phis = phis.sqrt();
             dsqrt_phis_dvb = -0.5 / sqrt_phis;
         }
         let xdep = param("xdep0") * sqrt_phis / param("sqrtphi");
@@ -418,7 +483,7 @@ impl DcModel<'_> {
         dabulk_dvb = dabulk_dvb * t0k + abulk * dt0_dvb;
         dabulk0_dvb = dabulk0_dvb * t0k + abulk0 * dt0_dvb;
         abulk *= t0k;
-        let _ = (abulk0, dabulk0_dvb);
+        abulk0 *= t0k;
 
         // Mobility, by MOBMOD.
         let mut denomi_dvg;
@@ -825,6 +890,33 @@ impl DcModel<'_> {
             rds,
             thetavth,
             abulk_over_vgst2vtm,
+            cv: CvIntermediates {
+                vtm,
+                cox,
+                tox,
+                phi,
+                vgs_eff,
+                d_vgs_eff_dvg: dvgseff_dvg,
+                vth,
+                d_vth_dvd: dvth_dvd,
+                d_vth_dvb: dvth_dvb,
+                vgst,
+                vbseff,
+                d_vbseff_dvb: dvbseff_dvb,
+                phis,
+                d_phis_dvb: dphis_dvb,
+                sqrt_phis,
+                d_sqrt_phis_dvb: dsqrt_phis_dvb,
+                abulk0,
+                d_abulk0_dvb: dabulk0_dvb,
+                n,
+                d_n_dvd: dn_dvd,
+                d_n_dvb: dn_dvb,
+                vgsteff,
+                d_vgsteff_dvg: dvgsteff_dvg,
+                d_vgsteff_dvd: dvgsteff_dvd,
+                d_vgsteff_dvb: dvgsteff_dvb,
+            },
         };
         for (name, value) in [
             ("ids", result.ids),

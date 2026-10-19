@@ -14,6 +14,7 @@ use crate::netlist::ast::{DeviceInstance, ModelCard, ParameterAssignment, Parame
 use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult};
 
 /// DC channel and junction evaluation from `b3ld.c`.
+pub mod charges;
 pub mod dc;
 /// Model-only setup defaults and diagnostics, before geometry/temperature setup.
 pub mod defaults;
