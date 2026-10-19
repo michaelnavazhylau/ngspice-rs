@@ -24,8 +24,36 @@ pub use crate::devices::ifparam::{
 };
 
 mod defaults_data;
+
+// The C-shaped port. These modules follow their C files statement by
+// statement over C's own struct members (`fields.rs`), so C's mixed-case
+// member and local names are kept. Wired into the device stage by stage.
+#[allow(dead_code)]
+mod acld;
+#[allow(dead_code)]
+mod apply;
+#[allow(dead_code)]
+mod check;
+#[allow(dead_code)]
+mod cvtest;
+#[allow(dead_code)]
+mod elements;
+#[allow(dead_code)]
+mod fields;
+#[allow(dead_code)]
+mod geo;
+#[allow(dead_code)]
+mod host;
+#[allow(dead_code)]
+mod load;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
+#[allow(dead_code)]
+mod pzld;
+#[allow(dead_code)]
+mod set;
+#[allow(dead_code)]
+mod temp;
 
 /// The generated literal model defaults in C setup order (`b4set.c`).
 ///

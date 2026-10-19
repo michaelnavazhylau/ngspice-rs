@@ -47,9 +47,11 @@ pub(crate) fn main(args: &[String]) -> Result<(), String> {
         &read("b4set.c")?,
         &revision,
     )?;
+    let fields = crate::bsim4_fields::fields(&read("bsim4def.h")?, &revision)?;
     for (path, text) in [
         ("src/devices/bsim4/parameters.rs", text),
         ("src/devices/bsim4/defaults_data.rs", defaults),
+        ("src/devices/bsim4/fields.rs", fields),
     ] {
         ifparm::emit(path, &text, parsed.check)?;
     }
