@@ -89,12 +89,41 @@ pub struct Circuit {
     /// circuit, and its devices' instance fields, for the whole deck); see
     /// [`Circuit::inherit_from`].
     completed: Vec<crate::primitives::AnalysisKind>,
+    /// The last successful transient's final load, including device instance
+    /// quantities stored in trial slots (MOS `capbd`/`capbs`). Kept separate
+    /// from `carried_state`: a later DC load must not overwrite these fields.
+    final_transient: std::cell::RefCell<Option<FinalTransientState>>,
     /// [`Circuit::unknown_names`], computed on first use after
     /// [`Circuit::rebuild_unknowns`].
     unknown_names: std::cell::RefCell<Option<crate::maths::UnknownNames>>,
     /// Devices' verified fixed stamp batches, lent to each bound load
     /// ([`crate::maths::SparseMatrix::lend_fixed`]).
     fixed_stamps: std::cell::RefCell<crate::maths::FixedStamps>,
+}
+
+/// A successful transient's final load and the layout that can interpret it.
+#[derive(Clone)]
+struct FinalTransientState {
+    values: Vec<Real>,
+    rows: Vec<std::ops::Range<usize>>,
+    devices: Vec<(String, char, Vec<NodeId>)>,
+}
+
+impl FinalTransientState {
+    fn matches(&self, circuit: &Circuit) -> bool {
+        self.values.len() == circuit.state_len
+            && self.rows == circuit.state_rows
+            && self.devices.len() == circuit.devices.len()
+            && self
+                .devices
+                .iter()
+                .zip(&circuit.devices)
+                .all(|((name, kind, terminals), device)| {
+                    name == device.name()
+                        && *kind == device.designator()
+                        && terminals == device.terminals()
+                })
+    }
 }
 
 /// One inductor pair coupled by a K device, by device ordinal.
@@ -1063,6 +1092,53 @@ impl Circuit {
         Ok(())
     }
 
+    /// Keeps the final accepted transient load's device state for later
+    /// analyses (`dctran.c`: instance fields outlive the transient). Called
+    /// only after the whole transient succeeds, never on a rejected trial.
+    ///
+    /// # Errors
+    /// Stale numbering, a mismatched history, or no accepted point.
+    pub(crate) fn record_final_transient_state(&self, history: &StateHistory) -> SpiceResult<()> {
+        self.check_numbering()?;
+        if history.len() != self.state_len {
+            return Err(SpiceError::circuit("final transient state dimensions"));
+        }
+        let state = history.accepted(1).ok_or_else(|| {
+            SpiceError::circuit("a completed transient has no accepted device state")
+        })?;
+        *self.final_transient.borrow_mut() = Some(FinalTransientState {
+            values: state.to_vec(),
+            rows: self.state_rows.clone(),
+            devices: self
+                .devices
+                .iter()
+                .map(|device| {
+                    (
+                        device.name().to_owned(),
+                        device.designator(),
+                        device.terminals().to_vec(),
+                    )
+                })
+                .collect(),
+        });
+        Ok(())
+    }
+
+    /// A snapshot of the last successful transient's final load state, in
+    /// [`Self::state_rows`] order. Unlike the final solution, this retains
+    /// the actual load's limited voltages and derived instance quantities.
+    /// [`Self::inherit_from`] carries it to the next analysis. A changed
+    /// device/state layout invalidates it; re-finalizing the same circuit
+    /// preserves it. It is not an integration history.
+    #[must_use]
+    pub fn final_transient_state(&self) -> Option<Vec<Real>> {
+        self.final_transient
+            .borrow()
+            .as_ref()
+            .filter(|state| state.matches(self))
+            .map(|state| state.values.clone())
+    }
+
     fn check_numbering(&self) -> SpiceResult<()> {
         if self.branch_rows.len() != self.devices.len()
             || self.state_rows.len() != self.devices.len()
@@ -1521,8 +1597,9 @@ impl Circuit {
     }
 
     /// Takes over `previous`'s matrix (C's one `CKTmatrix`, with its pivot
-    /// order and reorder flags) and carried state vector (C's `CKTstate0`) for
-    /// a freshly elaborated copy of the same circuit, as C runs every analysis
+    /// order and reorder flags), carried state vector (C's `CKTstate0`) and
+    /// final transient load snapshot (instance fields such as MOS junction
+    /// capacitances) for a freshly elaborated copy of the same circuit, as C runs every analysis
     /// of a deck on the matrix and state vectors set up once.
     /// The matrix is taken only when it starts with exactly the elements
     /// this circuit has allocated (the rule `finalize` applies on
@@ -1530,6 +1607,12 @@ impl Circuit {
     pub fn inherit_from(&mut self, previous: &Self) {
         self.fixed_stamps.get_mut().forget();
         self.completed.clone_from(&previous.completed);
+        *self.final_transient.borrow_mut() = previous
+            .final_transient
+            .borrow()
+            .as_ref()
+            .filter(|state| state.matches(previous) && state.matches(self))
+            .cloned();
         self.carried_state
             .borrow_mut()
             .clone_from(&previous.carried_state.borrow());

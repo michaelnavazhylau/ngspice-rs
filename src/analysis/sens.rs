@@ -500,40 +500,84 @@ const SMALL_SIGNAL_ANALYSES: &[crate::primitives::AnalysisKind] = &[
     crate::primitives::AnalysisKind::Noise,
 ];
 
-/// Whether an earlier analysis of the deck left its devices' small-signal
-/// instance fields ([`DeviceSensitivity::stale_ac_fields`]) at the operating
-/// point: the last of [`SMALL_SIGNAL_ANALYSES`] to run decides. `.op`, `.ac`,
-/// `.pz`, `.disto` and `.noise` load with `MODEINITSMSIG` at the deck's
-/// operating point, which `.sens` solves again identically, so the AC loads
-/// can read the fields there; after a `.tran` they hold the final timepoint's
-/// values, which the port does not carry: refused when a device reads them.
-fn earlier_small_signal(circuit: &Circuit, members: &[Member<'_>]) -> SpiceResult<bool> {
+/// Instance fields that escape `cktsens.c`'s reset. The last analysis that
+/// writes them decides: a small-signal load's operating point or the actual
+/// final transient load. A subsequent DC solve must not overwrite the latter.
+#[derive(Default)]
+struct EarlierAcState {
+    small_signal: bool,
+    transient: Option<Vec<Real>>,
+}
+
+impl EarlierAcState {
+    fn reset<'a>(
+        &'a self,
+        circuit: &Circuit,
+        member: &Member<'_>,
+        state: RecordPair<'a>,
+        omega: Real,
+        bias: &'a Vector,
+    ) -> SpiceResult<AcReset<'a>> {
+        let transient = self
+            .transient
+            .as_ref()
+            .map(|values| {
+                circuit
+                    .state_rows(member.index)
+                    .and_then(|rows| values.get(rows))
+                    .ok_or_else(|| {
+                        SpiceError::circuit("AC sensitivity: stale transient state layout")
+                    })
+            })
+            .transpose()?;
+        Ok(AcReset {
+            state,
+            omega,
+            small_signal: self.small_signal.then_some(bias),
+            transient,
+        })
+    }
+}
+
+fn earlier_ac_state(circuit: &Circuit, members: &[Member<'_>]) -> SpiceResult<EarlierAcState> {
     let Some(last) = circuit
         .completed_analyses()
         .iter()
         .rev()
         .find(|kind| SMALL_SIGNAL_ANALYSES.contains(kind))
     else {
-        return Ok(false);
+        return Ok(EarlierAcState::default());
     };
     if *last != crate::primitives::AnalysisKind::Transient {
-        return Ok(true);
+        return Ok(EarlierAcState {
+            small_signal: true,
+            transient: None,
+        });
     }
-    match members
+    let Some((member, acload)) = members
         .iter()
         .find_map(|member| Some((member, member.sensitivity.stale_ac_fields()?)))
-    {
-        Some((member, acload)) => Err(SpiceError::not_yet_ported(
-            format!(
-                ".sens ac after .tran with {}: C's AC load of this device reads junction \
-                 capacitances the transient's last load left in the instance, which the port \
-                 does not carry between analyses",
-                member.name
-            ),
-            format!("src/spicelib/analysis/cktsens.c and {acload}"),
-        )),
-        None => Ok(false),
-    }
+    else {
+        return Ok(EarlierAcState::default());
+    };
+    let transient = circuit
+        .final_transient_state()
+        .filter(|state| state.len() == circuit.state_len())
+        .ok_or_else(|| {
+            SpiceError::not_yet_ported(
+                format!(
+                    ".sens ac after .tran with {}: the final transient load's junction \
+                 capacitances are missing; run the transient and inherit its circuit, \
+                 not just its completed-analysis marker",
+                    member.name
+                ),
+                format!("src/spicelib/analysis/cktsens.c and {acload}"),
+            )
+        })?;
+    Ok(EarlierAcState {
+        small_signal: false,
+        transient: Some(transient),
+    })
 }
 
 /// Mirrors a K member's inductors into its record, as C's `MUTind1`/`MUTind2`
@@ -998,7 +1042,11 @@ pub(crate) fn run(
 
     let (members, mut records) = members(circuit, &model)?;
     let couplings = couplings(circuit, &members, ac)?;
-    let small_signal = ac && earlier_small_signal(circuit, &members)?;
+    let earlier = if ac {
+        earlier_ac_state(circuit, &members)?
+    } else {
+        EarlierAcState::default()
+    };
     let entries = entries(&members, ac, &card.filters);
     if entries.iter().all(|entry| entry.name.is_none()) {
         return Err(unsupported(
@@ -1082,11 +1130,7 @@ pub(crate) fn run(
                 let pair = reset.view(member, slot);
                 let load = member.sensitivity.reset_ac_load(
                     pair,
-                    AcReset {
-                        state: pair,
-                        omega,
-                        small_signal: small_signal.then_some(&solved.values),
-                    },
+                    earlier.reset(circuit, member, pair, omega, &solved.values)?,
                     pair,
                 )?;
                 circuit.assemble_small_signal_device(
@@ -1140,11 +1184,13 @@ pub(crate) fn run(
                     let member = &members[slot];
                     member.sensitivity.reset_ac_load(
                         setup,
-                        AcReset {
-                            state: reset.view(member, slot),
+                        earlier.reset(
+                            circuit,
+                            member,
+                            reset.view(member, slot),
                             omega,
-                            small_signal: small_signal.then_some(&solved.values),
-                        },
+                            &solved.values,
+                        )?,
                         current,
                     )
                 },

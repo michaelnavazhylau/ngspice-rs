@@ -789,6 +789,10 @@ impl Driver<'_> {
                 }
             }
         }
+        // C keeps the final load's instance fields, not values re-evaluated
+        // at the final solution (the load can lag that solution by an iterate).
+        // Publish only after the entire run and every sink write succeeded.
+        self.circuit.record_final_transient_state(&self.history)?;
         Ok((plot, self.stats))
     }
 

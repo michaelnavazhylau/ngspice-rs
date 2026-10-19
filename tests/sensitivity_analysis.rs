@@ -253,7 +253,8 @@ fn ac_sensitivity_linearizes_a_diode_at_the_reset_state() {
 /// small-signal or transient load writes. After `.op` (or `.ac`, `.noise`,
 /// ...) C reads the operating point's values, which the port reproduces: the
 /// columns move against a deck without the `.op`. A `.dc` sweep writes none.
-/// When `.tran` wrote them last (C runs it after `.op`) the port refuses.
+/// When `.tran` wrote them last (C runs it after `.op`), use its final
+/// load's values rather than re-evaluating the operating point.
 #[test]
 fn mos_ac_sensitivity_reads_junction_capacitances_left_by_an_earlier_analysis() {
     let body = "vd d 0 dc 3\nvg g 0 dc 2 ac 1\nvs s 0 0\n\
@@ -269,9 +270,101 @@ fn mos_ac_sensitivity_reads_junction_capacitances_left_by_an_earlier_analysis() 
     assert_eq!(column(&swept), column(&fresh));
     assert_ne!(column(&after_op), column(&fresh));
     assert_eq!(after_op.value("v(m1:cj)", 0).unwrap(), Complex::ZERO);
-    let error = run_batch(&format!("{body}\n.op\n.tran 1n 10n")).unwrap_err();
+    let (_, after_tran) = last(run_batch(&format!("{body}\n.op\n.tran 1n 10n")).unwrap());
+    close(column(&after_tran).re, column(&after_op).re, 1e-6);
+    close(column(&after_tran).im, column(&after_op).im, 1e-6);
+}
+
+/// All AC-capable classic MOS levels retain the final transient load's
+/// junction capacitances, not the operating point's. A DC-only analysis and
+/// `.sens`'s own bias solve must leave them alone. The bulk sine changes both
+/// depletion capacitances before the final point; Meyer halves still reset.
+#[test]
+fn mos_ac_sensitivity_inherits_the_final_transient_load_for_each_level() {
+    for level in [1, 2, 3, 9] {
+        let body = format!(
+            "vd d 0 dc 3\nvg g 0 dc 2 ac 1\nvs s 0 0\n\
+             vb b 0 dc -0.3 sin(-0.3 0.2 100meg)\n\
+             m1 d g s b nm l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3\n\
+             .model nm nmos level={level} vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 \
+             cj=1e-4 cjsw=1e-10 cgso=1e-10\n\
+             .options reltol=1e-10 vntol=1e-13 abstol=1e-16\n\
+             .sens i(vs) ac dec 1 1k 1meg"
+        );
+        let last = |plots: Vec<(String, Plot)>| plots.into_iter().last().unwrap().1;
+        let op = last(run_batch(&format!("{body}\n.op")).unwrap());
+        let tran = last(run_batch(&format!("{body}\n.tran 1n 6n")).unwrap());
+        let both = last(run_batch(&format!("{body}\n.op\n.tran 1n 6n")).unwrap());
+        // .tf runs after .tran in C's batch order and must not replace the
+        // capacitances even though it solves the DC bias again.
+        let tf = last(run_batch(&format!("{body}\n.tran 1n 6n\n.tf v(d) vd")).unwrap());
+        for point in 0..4 {
+            let column = |plot: &Plot| plot.value("v(m1:cgso)", point).unwrap();
+            if point == 0 {
+                assert_ne!(column(&tran), column(&op), "MOS{level}");
+            }
+            assert_eq!(column(&both), column(&tran), "MOS{level}, point {point}");
+            assert_eq!(column(&tf), column(&tran), "MOS{level}, point {point}");
+            assert_eq!(tran.value("v(m1:cj)", point).unwrap(), Complex::ZERO);
+        }
+    }
+}
+
+/// A snapshot follows the device/state layout, not matrix row numbers or
+/// just an analysis-kind marker. Re-finalizing the same circuit preserves
+/// it; inheriting into a different layout or renumbering swapped devices
+/// cannot silently reinterpret another device's slots.
+#[test]
+fn transient_load_snapshots_require_a_matching_device_layout() {
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(
+            Path::new("snapshot.cir"),
+            "snapshot\nv1 in 0 1\nr1 in out 1k\nc1 out 0 1u\n.tran 0.1m 1m\n.end\n",
+        ))
+        .unwrap();
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut original = config.circuit(&netlist).unwrap();
+    runner(request.kind)
+        .unwrap()
+        .run(&mut original, &request, &config.context())
+        .unwrap();
+    original.note_completed(request.kind);
+    let snapshot = original.final_transient_state().expect("final load");
+    let mut inherited = config.circuit(&netlist).unwrap();
+    inherited.inherit_from(&original);
+    inherited.finalize().unwrap();
+    assert_eq!(inherited.final_transient_state(), Some(snapshot.clone()));
+    inherited.devices_mut().reverse();
+    inherited.finalize().unwrap();
+    assert!(inherited.final_transient_state().is_none());
+    inherited.inherit_from(&original);
+    assert!(inherited.final_transient_state().is_none());
+    assert_eq!(original.final_transient_state(), Some(snapshot));
+}
+
+#[test]
+fn a_transient_marker_without_its_load_is_still_an_explicit_refusal() {
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(
+            Path::new("missing.cir"),
+            "missing\nvd d 0 3\nvg g 0 dc 2 ac 1\nm1 d g 0 0 nm l=10u w=20u\n\
+         .model nm nmos level=1 cj=1e-4\n.sens i(vd) ac dec 1 1k 10k\n.end\n",
+        ))
+        .unwrap();
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut circuit = config.circuit(&netlist).unwrap();
+    circuit.note_completed(AnalysisKind::Transient);
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap_err();
     assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("after .tran"), "{error}");
+    assert!(
+        error.to_string().contains("capacitances are missing"),
+        "{error}"
+    );
 }
 
 /// `.sens` runs after `.op` and `.ac` in a batch (C's `analInfo` order).

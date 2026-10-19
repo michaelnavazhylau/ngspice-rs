@@ -1,0 +1,23 @@
+AC sensitivity of MOS levels 1/2/3/9 after a transient (#102)
+* The bulk sine moves both depletion capacitances away from the DC point.
+* C runs .op, .tran, then .sens regardless of textual order. The reset DC
+* loads and parameter perturbations must leave the final transient load's
+* capbd/capbs alone. Series nodes let those fields affect the cgso/rsh/nrs
+* columns; cj stays exactly zero because no sensitivity load rewrites them.
+.options reltol=1e-10 vntol=1e-13 abstol=1e-16
+vdn dn 0 3
+vgn gn 0 dc 2 ac 1
+vbn bn 0 dc -0.3 sin(-0.3 0.2 100k)
+vsense s 0 0
+m1 dn gn s bn m1n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3
+m2 dn gn s bn m2n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3
+m3 dn gn s bn m3n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3
+m9 dn gn s bn m9n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3
+.model m1n nmos level=1 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10
+.model m2n nmos level=2 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10
+.model m3n nmos level=3 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10
+.model m9n nmos level=9 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10
+.sens i(vsense) m*:cgso m*:cj m*:rsh m*_nrs ac dec 1 1k 1meg
+.tran 0.2u 1u
+.op
+.end

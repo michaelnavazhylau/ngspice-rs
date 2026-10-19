@@ -272,6 +272,37 @@ live-C** checks pass with absolute `NGSPICE_BIN`, including the new
 C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
 are unchanged. See [URC.md](URC.md).
 
+## MOS transient-to-AC-sensitivity state carry (#102)
+
+`sens_ac_mos_tran` runs `.op`, `.tran`, then `.sens` in C batch order,
+with four MOS levels (1/2/3/9), internal drain/source nodes and a varying
+bulk voltage. The final accepted load's `capbd`/`capbs` must outlive the
+transient, the next analysis's DC solve and every sensitivity reset. The
+fixture checks all three plots, with filtered overlap/series/CJ columns at
+`compare::SENSITIVITY` (1e-8 relative + 1e-12 absolute per component),
+rather than the looser general nonlinear sensitivity bound. A temporary
+mutation substituting operating-point capacitances caused 16 component
+failures (worst: `m1:cgso` real part at 1 MHz, error 4.52e-5 versus a
+1.89e-11 bound); restoring the final-load snapshot passes. Only this new
+fixture was captured; no pre-existing golden changed.
+
+Production tests cover MOS1/2/3/9 after `.tran`, `.op` → `.tran`, and
+`.tran` → `.tf`, layout-safe inheritance, missing snapshots, stored/streamed
+snapshot equivalence and failed runs not overwriting a successful snapshot.
+The live `c_sens_reference` follow-on test additionally compares both MOS
+polarities, trapezoidal and Gear integration, and drain/source current
+outputs (exercising both `capbd` and `capbs`) under the linear sensitivity
+bound. These live decks use ordinary bias initialization; the attempted
+biased UIC probe failed in C itself and is not a claimed validation case.
+
+Validation on the completed implementation: stable and Rust 1.89 full
+workspace tests each **1503 passed / 0 failed / 152 ignored**; strict
+all-target Clippy on both compilers; formatting and whitespace checks;
+**208 verified / 1 unsupported / 0 failures** and **209** C goldens
+reproduced; all **6** opt-in live sensitivity tests passed. Snapshot update:
+2 new files, no existing snapshot changed. `cargo doc --workspace --no-deps
+--locked` completed with 27 warnings (not a warning-free documentation gate).
+
 ## M8 sensitivity analysis (#102)
 
 `.sens` DC and AC sensitivities ([SENSITIVITY.md](SENSITIVITY.md)).

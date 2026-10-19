@@ -413,7 +413,7 @@ pub trait DeviceSensitivity: fmt::Debug {
     /// (MOS `capbd`/`capbs`). `cktsens.c`'s reset does not touch them, so
     /// they hold whatever an earlier analysis of the deck left
     /// ([`AcReset::small_signal`]), or C's zero initialisation when none did;
-    /// after a `.tran` the analysis refuses.
+    /// after a `.tran` they come from [`AcReset::transient`].
     fn stale_ac_fields(&self) -> Option<&'static str> {
         None
     }
@@ -440,6 +440,11 @@ pub struct AcReset<'a> {
     /// ([`DeviceSensitivity::stale_ac_fields`]); `None` when no earlier
     /// analysis did, so they still hold C's zero initialisation.
     pub small_signal: Option<&'a crate::maths::Vector>,
+    /// This device's slots from the final load of an earlier transient when
+    /// it last wrote the stale instance fields. These are the actual accepted
+    /// load values, not a re-evaluation at its final solution. Mutually
+    /// exclusive with `small_signal`; `None` when no transient wrote them last.
+    pub transient: Option<&'a [Real]>,
 }
 
 /// Where a [`ResetStamps`] entry goes.

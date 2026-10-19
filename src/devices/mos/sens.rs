@@ -263,7 +263,8 @@ impl<L: SensitivityLevel> DeviceSensitivity for MosSensitivity<'_, L> {
     /// transient load writes, are what an earlier analysis's
     /// `MODEINITSMSIG` load left at the operating point
     /// ([`AcReset::small_signal`], with the circuit's own device, as the
-    /// walk had not started) or C's zero-initialised fields; the series
+    /// walk had not started), the final transient load's stored fields
+    /// ([`AcReset::transient`]), or C's zero-initialised fields; the series
     /// conductances and overlap capacitances come from `current`.
     fn reset_ac_load(
         &self,
@@ -272,10 +273,23 @@ impl<L: SensitivityLevel> DeviceSensitivity for MosSensitivity<'_, L> {
         current: RecordPair<'_>,
     ) -> SpiceResult<SensitivityLoad> {
         L::small_signal(self.device, "AC")?;
+        let transient = reset
+            .transient
+            .map(
+                |state| match (state.get(super::slot::CAPBD), state.get(super::slot::CAPBS)) {
+                    (Some(&bd), Some(&bs)) => Ok([bd, bs]),
+                    _ => Err(SpiceError::circuit(format!(
+                        "{}: missing final transient junction capacitances",
+                        self.device.name
+                    ))),
+                },
+            )
+            .transpose()?;
         Ok(SensitivityLoad::Replacement(Box::new(ResetMosfet {
             state: self.mosfet(reset.state)?,
             current: self.mosfet(current)?,
             omega: reset.omega,
+            transient,
             stale: reset
                 .small_signal
                 .map(|bias| (self.pristine(), bias.clone())),
@@ -359,6 +373,9 @@ struct ResetMosfet<L: MosLevel> {
     /// The circuit's own device and the operating point at which an earlier
     /// analysis's small-signal load wrote `capbd`/`capbs`.
     stale: Option<(Mosfet<L>, crate::maths::Vector)>,
+    /// The final transient load's instance `capbd`/`capbs`, frozen throughout
+    /// the parameter/frequency walk (`mosXload.c` does not write them in DC).
+    transient: Option<[Real; 2]>,
 }
 
 impl<L: MosLevel> Device for ResetMosfet<L> {
@@ -394,8 +411,9 @@ impl<L: MosLevel> Device for ResetMosfet<L> {
         let omega = self.omega;
         // `state0 + state0 + overlap` with zero Meyer halves.
         let [xgs, xgd, xgb] = std::array::from_fn(|k| (0. + 0. + overlap[k]) * omega);
-        let (capbd, capbs) = match &self.stale {
-            Some((device, bias)) => {
+        let (capbd, capbs) = match (&self.transient, &self.stale) {
+            (Some([bd, bs]), _) => (*bd, *bs),
+            (None, Some((device, bias))) => {
                 let unknowns = context.unknowns;
                 let op = device.operating(model)?;
                 let e = device.small_signal_eval(
@@ -410,7 +428,7 @@ impl<L: MosLevel> Device for ResetMosfet<L> {
                 )?;
                 (e.capbd, e.capbs)
             }
-            None => (0., 0.),
+            (None, None) => (0., 0.),
         };
         let (xbd, xbs) = (capbd * omega, capbs * omega);
         let (xnrm, xrev) = if e.mode < 0. { (0., 1.) } else { (1., 0.) };

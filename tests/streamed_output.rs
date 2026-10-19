@@ -75,6 +75,7 @@ fn assert_streams_the_stored_plot(body: &str) {
     let stored = driver
         .run(&mut circuit, &request, &config.context())
         .unwrap();
+    let final_state = circuit.final_transient_state();
 
     let mut circuit = config.circuit(&netlist).unwrap();
     let mut recorder = Recorder::default();
@@ -90,6 +91,7 @@ fn assert_streams_the_stored_plot(body: &str) {
     assert!(!stored.points.is_empty());
     // Bit-identical rows: streaming changes where points go, not what they are.
     assert_eq!(recorder.points, stored.points);
+    assert_eq!(circuit.final_transient_state(), final_state);
 }
 
 #[test]
@@ -100,6 +102,17 @@ fn a_streamed_transient_hands_the_sink_every_stored_row() {
     // A delayed start writes only the rows at or after tstart.
     assert_streams_the_stored_plot(
         "v1 in 0 pulse(0 1 1m 1u 1u 1m 2m)\nr1 in out 1k\nc1 out 0 1u\n.tran 0.1m 6m 2m",
+    );
+}
+
+#[test]
+fn a_streamed_mos_transient_carries_the_same_final_load_as_the_stored_path() {
+    assert_streams_the_stored_plot(
+        "vd d 0 dc 3\nvg g 0 dc 2 ac 1\nvs s 0 0\n\
+         vb b 0 dc -0.3 sin(-0.3 0.2 100k)\n\
+         m1 d g s b nm l=10u w=20u ad=10p as=20p nrd=2 nrs=3\n\
+         .model nm nmos level=1 vto=0.7 rsh=100 cj=1e-4 cgso=1e-10\n\
+         .tran 0.2u 1u",
     );
 }
 
@@ -142,6 +155,25 @@ fn a_sink_error_stops_the_transient_with_that_error() {
         .unwrap_err();
     assert!(error.to_string().contains("sink refused"), "{error}");
     assert_eq!(sink.0, 3, "no point is offered after the failing one");
+    assert!(circuit.final_transient_state().is_none());
+
+    // A later failed run must not publish its partial accepted history over
+    // the last successful transient's snapshot, either.
+    runner(request.kind)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap();
+    let before = circuit
+        .final_transient_state()
+        .expect("successful run retained its load");
+    let mut sink = Refusing(0);
+    assert!(
+        runner(request.kind)
+            .unwrap()
+            .run_into(&mut circuit, &request, &config.context(), &mut sink)
+            .is_err()
+    );
+    assert_eq!(circuit.final_transient_state(), Some(before));
 }
 
 fn sample_plots() -> RawFile {

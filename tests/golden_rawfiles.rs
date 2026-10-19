@@ -9728,6 +9728,102 @@ const EXPECTATIONS: &[Expectation] = &[
 #[allow(clippy::excessive_precision)]
 const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
     &[
+        // The bulk sine ends at -0.3 + 0.2 sin(0.2 pi), not the DC -0.3.
+        // C runs .op, .tran, .sens in that order despite the card order.
+        Expectation {
+            fixture: "sens_ac_mos_tran",
+            plotname: "Operating Point",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &[
+                "v(dn)",
+                "v(bn)",
+                "v(gn)",
+                "v(s)",
+                "i(vbn)",
+                "i(vdn)",
+                "i(vgn)",
+                "i(vsense)",
+            ],
+            values: &[
+                ("v(bn)", 0, -0.3, 0.),
+                ("i(vsense)", 0, 2.834274681823804e-4, 0.),
+            ],
+        },
+        Expectation {
+            fixture: "sens_ac_mos_tran",
+            plotname: "Transient Analysis",
+            flags: PlotFlags::Real,
+            points: 63,
+            variables: &[
+                "time",
+                "v(bn)",
+                "v(dn)",
+                "v(gn)",
+                "v(s)",
+                "i(vbn)",
+                "i(vdn)",
+                "i(vgn)",
+                "i(vsense)",
+            ],
+            values: &[
+                ("time", 62, 1e-6, 0.),
+                ("v(bn)", 62, -1.824429495415054e-1, 0.),
+                ("i(vsense)", 62, 2.913625054046132e-4, 0.),
+            ],
+        },
+        // With reset channel/Meyer halves, dI/dCGSO has leading imaginary
+        // part omega * W = 0.1256637 at 1 kHz (W=20u). Its small real part
+        // reflects the final load's capbs through each internal source node;
+        // it is not the .op value. CJ cannot rewrite capbd/capbs during the
+        // walk, so all four CJ columns are exactly zero at every frequency.
+        Expectation {
+            fixture: "sens_ac_mos_tran",
+            plotname: "Sensitivity Analysis",
+            flags: PlotFlags::Complex,
+            points: 4,
+            variables: &[
+                "frequency",
+                "v(m1:cgso)",
+                "v(m1:cj)",
+                "v(m1:rsh)",
+                "v(m1_nrs)",
+                "v(m2:cgso)",
+                "v(m2:cj)",
+                "v(m2:rsh)",
+                "v(m2_nrs)",
+                "v(m3:cgso)",
+                "v(m3:cj)",
+                "v(m3:rsh)",
+                "v(m3_nrs)",
+                "v(m9:cgso)",
+                "v(m9:cj)",
+                "v(m9:rsh)",
+                "v(m9_nrs)",
+            ],
+            values: &[
+                ("frequency", 0, 1e3, 0.),
+                ("frequency", 3, 1e6, 0.),
+                ("v(m1:cgso)", 0, 1.792634630124464e-9, 1.256637061073564e-1),
+                ("v(m2:cgso)", 0, 1.810085603060743e-9, 1.256637061073564e-1),
+                ("v(m3:cgso)", 0, 1.809846527279513e-9, 1.256637061073564e-1),
+                ("v(m9:cgso)", 0, 1.809846527279513e-9, 1.256637061073564e-1),
+                ("v(m1:cgso)", 3, 1.792634629878200e-3, 1.256637060961068e2),
+                ("v(m2:cgso)", 3, 1.810085602806206e-3, 1.256637060956065e2),
+                ("v(m3:cgso)", 3, 1.809846527025090e-3, 1.256637060956134e2),
+                ("v(m9:cgso)", 3, 1.809846527025090e-3, 1.256637060956134e2),
+                ("v(m1:cj)", 0, 0., 0.),
+                ("v(m1:cj)", 3, 0., 0.),
+                ("v(m2:cj)", 0, 0., 0.),
+                ("v(m2:cj)", 3, 0., 0.),
+                ("v(m3:cj)", 0, 0., 0.),
+                ("v(m3:cj)", 3, 0., 0.),
+                ("v(m9:cj)", 0, 0., 0.),
+                ("v(m9:cj)", 3, 0., 0.),
+            ],
+        },
+    ],
+    &[
         // #102. `.op` runs before `.sens` (C's analInfo order); its
         // MODEINITSMSIG load leaves m1's junction capacitances in the
         // instance, so `m1:cgso` moves (1.895e-9 without the .op, see

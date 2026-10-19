@@ -33,6 +33,16 @@ Why these rules:
 
 `cargo xtask golden list` prints what each committed golden contains.
 
+`sens_ac_mos_tran` deliberately runs `.op`, `.tran`, then AC `.sens` (C's
+batch order, not its textual order). A slow bulk sine changes the depletion
+capacitances of MOS levels 1/2/3/9 before the transient ends. The filtered
+CGSO/RSH/NRS/CJ sensitivities check that the final accepted load's instance
+fields survive the sensitivity reset, rather than being replaced by the
+operating point's. All three plots are checked; the sensitivity uses the
+linear bound to resolve that difference. Its 100 kHz forcing avoids the
+initial-timestep convergence failure C exhibits with the same four-device
+circuit driven at 100 MHz under the deliberately tight tolerances.
+
 The eight M3 gate decks (`rl_pulse_tran` ... `rlc_series_ac`, GitHub #48) were captured
 with `cargo xtask golden capture --netlist <name>` (one fixture at a time, so no
 existing golden is touched). Design rules they follow: sample spacing (`tstep`,

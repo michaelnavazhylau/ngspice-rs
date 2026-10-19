@@ -85,8 +85,17 @@ leaves C's zero initialisation; `.op`, `.ac`, `.pz`, `.disto` or `.noise`
 leave the small-signal load's values at the deck's operating point, which
 `.sens` solves again identically, so the port evaluates them there with the
 circuit's own device (`AcReset::small_signal`, verified by `sens_ac_mos_op`);
-after a `.tran` they hold the final timepoint's values, and the port refuses
-(`NotYetPorted`).
+after a `.tran` they hold the final accepted load's values. The companion
+driver records that load's state (including the MOS instance quantities) only
+after the complete transient succeeds, for both stored and streamed output.
+`Circuit::inherit_from` carries the snapshot to the next analysis, separately
+from the DC/small-signal state; `.sens` takes each MOS's `capbd`/`capbs`
+directly from its slots (`AcReset::transient`). It does not recompute them at
+the final solution, which can be one Newton iterate beyond the final load.
+The snapshot is valid only for the same device/state layout. Library callers
+must inherit the actual circuit, not just copy its completed-analysis markers;
+a missing snapshot still returns `NotYetPorted` instead of substituting the
+operating point. `sens_ac_mos_tran` verifies `.op` → `.tran` → `.sens`.
 
 Other families read only reset quantities. JFET2's `PSacload` runs at the
 reset's zero `vgs`/`vgd`/`cd` with the current model coefficients, so at
@@ -172,7 +181,7 @@ output:
 | S, W | yes | yes (zero-control state) |
 | D | yes | yes (zero-bias conductance, no capacitance) |
 | Q (Gummel-Poon) | yes (`RC == 0`; with `RC != 0` C's Kull quasi-saturation changes the `gamma` row) | yes (`RC == 0`), with the `IF_AC` capacitance family and excess phase |
-| M (MOS1, MOS2, MOS3, MOS6, MOS9) | yes, bounded by valid perturbations (see below) | MOS1/2/3/9 yes, unless a `.tran` was the last analysis to write `capbd`/`capbs`; MOS6 refused (no C AC load) |
+| M (MOS1, MOS2, MOS3, MOS6, MOS9) | yes, bounded by valid perturbations (see below) | MOS1/2/3/9 yes, including after `.tran` (final-load `capbd`/`capbs` carried between analyses); MOS6 refused (no C AC load) |
 | XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
 | J (JFET level 1, `jfet.c`) | yes | yes |
 | J (JFET level 2, `jfet2.c`) | yes | yes (`PSacload` at the reset state) |
@@ -596,9 +605,10 @@ deck that asks fails loudly.
 ## Divergences (explicit errors where C carries on)
 
 * **AC, where the reset state is not reproduced** (see "The AC reset state"):
-  MOS6 (no C AC load); a MOS level 1/2/3/9 when a `.tran` was the last
-  analysis to write `capbd`/`capbs`; a K card over more than two inductors
-  (C's front end splits it into differently named pairs).
+  MOS6 (no C AC load); a K card over more than two inductors
+  (C's front end splits it into differently named pairs). A library caller
+  that records an earlier transient without inheriting its actual final-load
+  snapshot is refused, rather than silently using zero or DC capacitances.
 * A BJT with `RC != 0`, a code model or an RF port in the circuit (see
   above). BJT `RC != 0` activates unported Kull quasi-saturation terms in the
   parameter walk; ordinary and single-sided IBE/IBC record replays are
@@ -623,8 +633,11 @@ deck that asks fails loudly.
   a central difference of two `.op` solutions plus its zero `rs` and NaN
   `ikf`, an AC diode's bias-independent zero-bias linearization
   (`-gd/(1 + R gd)^2`), the MOS junction capacitances an earlier `.op`
-  leaves (none after `.dc`, refused after `.tran`), batch order and every
-  refusal.
+  leaves (none after `.dc`), and the final load's capacitances after `.tran`
+  for MOS1/2/3/9 (including after `.op` → `.tran` and across a later `.tf`).
+  Snapshot layout validation and missing-snapshot errors are covered too;
+  `tests/streamed_output.rs` checks stored/streamed snapshot equivalence and
+  that failed runs never publish partial state.
 * C goldens (`cargo xtask golden verify`): `sens_divider` (R/V/I/E/F/G/H, DC),
   `sens_ac` (R/C/L/V/I/E/F/G/H at 40 C, decade sweep), `sens_multi` (`.ac`,
   `.op` and a filtered `.sens` batch) under `compare::SENSITIVITY` (1e-8
@@ -646,10 +659,17 @@ deck that asks fails loudly.
   plain `.ac` of the same circuits shows too; it is visible only in columns
   that are themselves rounding noise (below 1e-12 on `sens_ac_hetero`,
   whose 117 larger values agree to 3e-13).
+  `sens_ac_mos_tran` checks all three plots of `.op` → `.tran` → `.sens`
+  for MOS1/2/3/9 with a varying bulk voltage, under the tighter linear
+  sensitivity bound (filtered overlap/series/CJ columns). This bound catches
+  substituting the operating point's capacitances for the final load's.
   Classic MOS adds `sens_mos1`, `sens_mos2`, `sens_mos3`, `sens_mos6` and
   `sens_mos9` under the same nonlinear bound.
 * Opt-in live C (`NGSPICE_BIN=... cargo test --test c_sens_reference --
   --ignored`): DC linear and filtered decks, a hot behavioural/switch deck,
   diode decks with NaN, sidewall, breakdown and `.op` composition, and AC
   decks including `oct` and C's `lin` stepping, against `ngspice -b -r`:
-  names **in order**, units, flags and values (NaN for NaN).
+  names **in order**, units, flags and values (NaN for NaN). The transient
+  follow-on test covers MOS1/2/3/9, both polarities and trapezoidal/Gear
+  integration with ordinary bias initialization, at the linear sensitivity
+  bound; it also runs the new three-analysis fixture through the CLI.

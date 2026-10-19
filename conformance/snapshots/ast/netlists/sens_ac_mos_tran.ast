@@ -1,0 +1,159 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_mos_tran.cir
+title: "AC sensitivity of MOS levels 1/2/3/9 after a transient (#102)" @netlists/sens_ac_mos_tran.cir:1:1
+scope root
+  cards (17):
+    [0] options[0] @netlists/sens_ac_mos_tran.cir:7:1 ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+    [1] device[0] @netlists/sens_ac_mos_tran.cir:8:1 "vdn dn 0 3"
+    [2] device[1] @netlists/sens_ac_mos_tran.cir:9:1 "vgn gn 0 dc 2 ac 1"
+    [3] device[2] @netlists/sens_ac_mos_tran.cir:10:1 "vbn bn 0 dc -0.3 sin(-0.3 0.2 100k)"
+    [4] device[3] @netlists/sens_ac_mos_tran.cir:11:1 "vsense s 0 0"
+    [5] device[4] @netlists/sens_ac_mos_tran.cir:12:1 "m1 dn gn s bn m1n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3"
+    [6] device[5] @netlists/sens_ac_mos_tran.cir:13:1 "m2 dn gn s bn m2n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3"
+    [7] device[6] @netlists/sens_ac_mos_tran.cir:14:1 "m3 dn gn s bn m3n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3"
+    [8] device[7] @netlists/sens_ac_mos_tran.cir:15:1 "m9 dn gn s bn m9n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3"
+    [9] model[0] @netlists/sens_ac_mos_tran.cir:16:1 ".model m1n nmos level=1 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10"
+    [10] model[1] @netlists/sens_ac_mos_tran.cir:17:1 ".model m2n nmos level=2 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10"
+    [11] model[2] @netlists/sens_ac_mos_tran.cir:18:1 ".model m3n nmos level=3 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10"
+    [12] model[3] @netlists/sens_ac_mos_tran.cir:19:1 ".model m9n nmos level=9 vto=0.7 kp=50u tox=20n nsub=1e16 rsh=100 cj=1e-4 cjsw=1e-10 cgso=1e-10"
+    [13] analysis[0] @netlists/sens_ac_mos_tran.cir:20:1 ".sens i(vsense) m*:cgso m*:cj m*:rsh m*_nrs ac dec 1 1k 1meg"
+    [14] analysis[1] @netlists/sens_ac_mos_tran.cir:21:1 ".tran 0.2u 1u"
+    [15] analysis[2] @netlists/sens_ac_mos_tran.cir:22:1 ".op"
+    [16] end @netlists/sens_ac_mos_tran.cir:23:1 ".end"
+  devices (8):
+    device [0] name="vdn" designator=v @netlists/sens_ac_mos_tran.cir:8:1
+      nodes: "dn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/sens_ac_mos_tran.cir:8:10
+    device [1] name="vgn" designator=v @netlists/sens_ac_mos_tran.cir:9:1
+      nodes: "gn" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/sens_ac_mos_tran.cir:9:10
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_mos_tran.cir:9:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_mos_tran.cir:9:15
+    device [2] name="vbn" designator=v @netlists/sens_ac_mos_tran.cir:10:1
+      nodes: "bn" "0"
+      model: none
+      parameters (2):
+        [0] name="dc" kind=scalar value="-0.3" @netlists/sens_ac_mos_tran.cir:10:10
+        [1] name="sin" kind=waveform value="(-0.3 0.2 100k)" @netlists/sens_ac_mos_tran.cir:10:18
+          sin
+            vo: "-0.3"@netlists/sens_ac_mos_tran.cir:10:22
+            va: "0.2"@netlists/sens_ac_mos_tran.cir:10:27
+            freq: "100k"@netlists/sens_ac_mos_tran.cir:10:31
+    device [3] name="vsense" designator=v @netlists/sens_ac_mos_tran.cir:11:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_ac_mos_tran.cir:11:12
+    device [4] name="m1" designator=m @netlists/sens_ac_mos_tran.cir:12:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m1n"
+      parameters (8):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:12:19
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:12:25
+        [2] name="ad" kind=scalar value="10p" @netlists/sens_ac_mos_tran.cir:12:31
+        [3] name="as" kind=scalar value="20p" @netlists/sens_ac_mos_tran.cir:12:38
+        [4] name="pd" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:12:45
+        [5] name="ps" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:12:52
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_ac_mos_tran.cir:12:59
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_ac_mos_tran.cir:12:65
+    device [5] name="m2" designator=m @netlists/sens_ac_mos_tran.cir:13:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m2n"
+      parameters (8):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:13:19
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:13:25
+        [2] name="ad" kind=scalar value="10p" @netlists/sens_ac_mos_tran.cir:13:31
+        [3] name="as" kind=scalar value="20p" @netlists/sens_ac_mos_tran.cir:13:38
+        [4] name="pd" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:13:45
+        [5] name="ps" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:13:52
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_ac_mos_tran.cir:13:59
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_ac_mos_tran.cir:13:65
+    device [6] name="m3" designator=m @netlists/sens_ac_mos_tran.cir:14:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m3n"
+      parameters (8):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:14:19
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:14:25
+        [2] name="ad" kind=scalar value="10p" @netlists/sens_ac_mos_tran.cir:14:31
+        [3] name="as" kind=scalar value="20p" @netlists/sens_ac_mos_tran.cir:14:38
+        [4] name="pd" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:14:45
+        [5] name="ps" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:14:52
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_ac_mos_tran.cir:14:59
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_ac_mos_tran.cir:14:65
+    device [7] name="m9" designator=m @netlists/sens_ac_mos_tran.cir:15:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m9n"
+      parameters (8):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:15:19
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:15:25
+        [2] name="ad" kind=scalar value="10p" @netlists/sens_ac_mos_tran.cir:15:31
+        [3] name="as" kind=scalar value="20p" @netlists/sens_ac_mos_tran.cir:15:38
+        [4] name="pd" kind=scalar value="10u" @netlists/sens_ac_mos_tran.cir:15:45
+        [5] name="ps" kind=scalar value="20u" @netlists/sens_ac_mos_tran.cir:15:52
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_ac_mos_tran.cir:15:59
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_ac_mos_tran.cir:15:65
+  models (4):
+    model [0] name="m1n" base="nmos" level=1e0 @netlists/sens_ac_mos_tran.cir:16:1
+      parameters (9):
+        [0] name="level" kind=scalar value="1" @netlists/sens_ac_mos_tran.cir:16:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/sens_ac_mos_tran.cir:16:25
+        [2] name="kp" kind=scalar value="50u" @netlists/sens_ac_mos_tran.cir:16:33
+        [3] name="tox" kind=scalar value="20n" @netlists/sens_ac_mos_tran.cir:16:40
+        [4] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_tran.cir:16:48
+        [5] name="rsh" kind=scalar value="100" @netlists/sens_ac_mos_tran.cir:16:58
+        [6] name="cj" kind=scalar value="1e-4" @netlists/sens_ac_mos_tran.cir:16:66
+        [7] name="cjsw" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:16:74
+        [8] name="cgso" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:16:85
+    model [1] name="m2n" base="nmos" level=2e0 @netlists/sens_ac_mos_tran.cir:17:1
+      parameters (9):
+        [0] name="level" kind=scalar value="2" @netlists/sens_ac_mos_tran.cir:17:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/sens_ac_mos_tran.cir:17:25
+        [2] name="kp" kind=scalar value="50u" @netlists/sens_ac_mos_tran.cir:17:33
+        [3] name="tox" kind=scalar value="20n" @netlists/sens_ac_mos_tran.cir:17:40
+        [4] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_tran.cir:17:48
+        [5] name="rsh" kind=scalar value="100" @netlists/sens_ac_mos_tran.cir:17:58
+        [6] name="cj" kind=scalar value="1e-4" @netlists/sens_ac_mos_tran.cir:17:66
+        [7] name="cjsw" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:17:74
+        [8] name="cgso" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:17:85
+    model [2] name="m3n" base="nmos" level=3e0 @netlists/sens_ac_mos_tran.cir:18:1
+      parameters (9):
+        [0] name="level" kind=scalar value="3" @netlists/sens_ac_mos_tran.cir:18:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/sens_ac_mos_tran.cir:18:25
+        [2] name="kp" kind=scalar value="50u" @netlists/sens_ac_mos_tran.cir:18:33
+        [3] name="tox" kind=scalar value="20n" @netlists/sens_ac_mos_tran.cir:18:40
+        [4] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_tran.cir:18:48
+        [5] name="rsh" kind=scalar value="100" @netlists/sens_ac_mos_tran.cir:18:58
+        [6] name="cj" kind=scalar value="1e-4" @netlists/sens_ac_mos_tran.cir:18:66
+        [7] name="cjsw" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:18:74
+        [8] name="cgso" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:18:85
+    model [3] name="m9n" base="nmos" level=9e0 @netlists/sens_ac_mos_tran.cir:19:1
+      parameters (9):
+        [0] name="level" kind=scalar value="9" @netlists/sens_ac_mos_tran.cir:19:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/sens_ac_mos_tran.cir:19:25
+        [2] name="kp" kind=scalar value="50u" @netlists/sens_ac_mos_tran.cir:19:33
+        [3] name="tox" kind=scalar value="20n" @netlists/sens_ac_mos_tran.cir:19:40
+        [4] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_tran.cir:19:48
+        [5] name="rsh" kind=scalar value="100" @netlists/sens_ac_mos_tran.cir:19:58
+        [6] name="cj" kind=scalar value="1e-4" @netlists/sens_ac_mos_tran.cir:19:66
+        [7] name="cjsw" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:19:74
+        [8] name="cgso" kind=scalar value="1e-10" @netlists/sens_ac_mos_tran.cir:19:85
+  subcircuits (0):
+  analyses (3):
+    analysis [0] kind=sens @netlists/sens_ac_mos_tran.cir:20:1
+      arguments: "i" "(" "vsense" ")" "m*:cgso" "m*:cj" "m*:rsh" "m*_nrs" "ac" "dec" "1" "1k" "1meg"
+    analysis [1] kind=tran @netlists/sens_ac_mos_tran.cir:21:1
+      arguments: "0.2u" "1u"
+    analysis [2] kind=op @netlists/sens_ac_mos_tran.cir:22:1
+      arguments:
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_ac_mos_tran.cir:7:1
+      setting [0] name="reltol" value="1e-10"@netlists/sens_ac_mos_tran.cir:7:17 @netlists/sens_ac_mos_tran.cir:7:10
+      setting [1] name="vntol" value="1e-13"@netlists/sens_ac_mos_tran.cir:7:29 @netlists/sens_ac_mos_tran.cir:7:23
+      setting [2] name="abstol" value="1e-16"@netlists/sens_ac_mos_tran.cir:7:42 @netlists/sens_ac_mos_tran.cir:7:35
+  globals (0):
