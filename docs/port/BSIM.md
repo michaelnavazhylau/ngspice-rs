@@ -1,13 +1,15 @@
 # BSIM3 and BSIM4 (`M`, M11, #90)
 
-**Status: B3-0 input, setup and the DC operating point are implemented.
-Charges, AC, noise, pole-zero and BSIM4 are not.**
-Levels 8/49 select the BSIM3v3.3 schema and validate explicit input setters,
-including after model binning (#109). The factory builds a real device: levels 8/49 solve `.op` through the DC load,
-while `.dc`, `.ac`, `.tran`, `.noise`, `.pz`, `.disto` and `.sens` fail with
-`NotYetPorted` naming the missing C files. Older BSIM3 versions and all other
-BSIM families remain explicit refusals. **B3-0 is not complete:** the
-physical-unit audit is partial.
+**Status: B3-0 (input, setup), B3-1 (temperature/setup), B3-2 (DC),
+B3-3 (`capMod=3` charges and transient) and B3-4 (`b3acld.c` AC/`.dc`/`.pz` and
+`b3noi.c` noise) are implemented for BSIM3v3.3.** Levels 8/49 select the
+BSIM3v3.3 schema, validate explicit setters after model binning (#109) and
+build a real device: `.op`, `.dc`, `.ac`, `.pz`, `.tf` and `.tran` solve
+through `b3ld.c`/`b3acld.c`/`b3pzld.c` and `.noise` through `b3noi.c`.
+**Still refused:** `capMod` 0/1/2 (a different charge equation set), every NQS
+mode (`nqsMod`/`acnqsMod`), `.disto`, `.sens`, older BSIM3 versions, BSIM4 and
+the other BSIM families. Each names its C file instead of substituting a law.
+**B3-0 is not complete:** the physical-unit audit is partial.
 
 This guide is the implementation plan for **milestone M11**. #90 moved off M10 so
 that M10 closes on the device library defined in [M10.md](M10.md); the issue
@@ -193,10 +195,13 @@ NQS, AC, noise and pole-zero are not evaluated, so `@m1[cbs]`/`@m1[cbd]`
   current and both junction diodes. RSH/NRD/NRS create C's internal
   `drain`/`source` prime nodes.
 - `observation_operating` serves C's `b3ask.c` DC keywords (`id`, `gm`, `gds`,
-  `gmbs`, `vth`, `vbs`, `vgs`, `vds`, `vdsat`, `ibs`, `ibd`, `gbs`, `gbd`)
-  times the instance multiplicity. Charge/NQS/noise asks remain unavailable.
-- The device declares 19 DC state slots. C's `BSIM3numStates` charge slots will
-  be added with the charge port; nothing outside the device reads them.
+  `gmbs`, `vth`, `vbs`, `vgs`, `vds`, `vdsat`, `ibs`, `ibd`, `gbs`, `gbd`) and
+  the charge asks (`qg`, `qb`, `qd`, `cgg`..`cbs`, `capbd`, `capbs`), times the
+  instance multiplicity. `cqg`/`cqb`/`cqd`, `qbs`/`qbd` and `qinv` are `b3ask.c`
+  cases without an instance-table row in `b3.c`, so they are not askable.
+- The device declares 28 state slots: the 19 DC slots plus C's charge slots
+  (`qg`/`cqg`, `qb`/`cqb`, `qd`/`cqd`, `qbs`, `qbd`, `qinv`), each integrated
+  charge immediately followed by its `NIintegrate` derivative slot.
 
 Verification is opt-in: `c_bsim3_dc_reference` compares the pure core with C at
 C's converged internal bias over 16 model/geometry/temperature/bias cases in
@@ -205,45 +210,80 @@ port's own `.op` solution with C's for eight decks (default and sub-micron
 geometry, PMOS, RSH internal nodes, junction areas, MOBMOD 2, 100 °C) to 1e-6
 on node voltages and source currents and 1e-9 on the asks.
 
-**Not available yet:** `.dc` (the port's sweep setup assembles the
-bias-linearized system, so it needs the charge/AC load), `.ac`, `.tran`,
-`.noise`, `.pz`, `.disto`, `.sens`, `.tf`, and every charge ask. Those paths
-fail with `NotYetPorted` naming `b3acld.c`/`b3noi.c`/`b3pzld.c` rather than
-loading zero. BSIM4 and every B3-1..B3-5 equation slice are unchanged.
+#### The charge model (`b3ld.c` C-V) and small signal (`b3acld.c`, `b3noi.c`)
 
-### Next: the charge model (resume here)
+`charges::ChargeModel::evaluate` ports `b3ld.c`'s charge block at `capMod=3`:
+the C-V preamble (`VbseffCV`, `CoxWL`, the `noff`/`voffcv` `Vgsteff`), the
+charge-thickness block (`Vfbeff`, `Tcen`, `Coxeff`, `Qac0`/`Qsub0`,
+`DeltaPhi`, `VgDP`, `VdseffCV`, `qgate`/`qbulk`, all three `xpart` partitions
+and the nine `c*xb` derivatives), the bias-dependent `capMod >= 2` overlap
+capacitances and the source/drain junction C-V. It reuses the DC pass's
+intermediates (`DcEvaluation::cv`) rather than recomputing them. Two C quirks
+are reproduced deliberately: the junction gate-sidewall zero-bias capacitance
+reads `BSIM3unitLengthGateSidewallJctCap` (not the temperature-scaled field),
+and `VdseffCV`'s gate/body derivatives are zeroed at `Vds = 0` while the drain
+derivative is left alone.
 
-The charge slice is scoped and must keep the same verification discipline as
-the DC core. C locations, in evaluation order:
+`Device::stamp` evaluates that block on every DC load where the model is
+`capMod=3` and QS (so `.op` state, asks and a later `.tran` start from C's
+values) and on every transient load, then follows `b3ld.c`: the `gc*`
+equivalent conductances from `ag0`, `NIintegrate` on `qb`/`qg`/`qd`, and the
+`ceqq` companion currents. `assemble_small_signal` ports `b3acld.c` (the DC
+conductances into `A`, the `j omega xc*` terms into `E`) and
+`assemble_pole_zero` is its `s`-domain twin (`b3pzld.c` is `b3acld.c` with `s`
+for `j omega`). `noise` ports `b3noi.c`.
 
-1. `b3ld.c` charge preamble (~1540-1600): `VbseffCV`/`dVbseffCV_dVb`,
-   `CoxWL = cox*weffCV*leffCV`, and the CV-specific `Vgsteff`
-   (`noff`/`voffcv`) with its three regimes.
-2. `capMod == 3` (the C default) at ~1955-2246: CTM `Vfbeff`, `Tcen`,
-   `Coxeff`, `Qac0`/`Qsub0`, `DeltaPhi`, `VgDP`, `VdseffCV`, `qgate`/`qbulk`,
-   the 0/100, 40/60 and 50/50 `xpart` source partitions, and the nine
-   capacitance derivatives `cggb..cbsb`. `capMod` 0/1/2 stay explicit
-   refusals until each is ported.
-3. Overlap caps/charges (~2497-2620): bias-dependent `cgdo`/`cgso` for
-   capMod 2/3 (`ckappa`, `DELTA_1 = 0.02`), `cgbo` from the model.
-4. Junction CV (~2255-2430): `czbd/czbs` geometry (area, sidewall split by
-   `weff`), `capbs`/`capbd` and `qbs`/`qbd` with the `MJ`/`MJSW`/`MJSWG`
-   branches and `PhiB`/`PhiBSW`/`PhiBSWG`.
-5. `b3acld.c`: with QS (`nqsMod == 0`) the bias-linearized system is the DC
-   conductance stamp plus `j*omega` times the `xc*` matrix built from
-   `cggb..cbsb`, `cgdo`/`cgso`, `cgbo`, `capbd`/`capbs`; the same matrix
-   serves `.pz` (`b3pzld.c`). `.dc` unblocks as soon as
-   `assemble_small_signal` exists.
-6. `b3noi.c` then needs `qinv` plus the `ueff`/`rds`/`gm` values already on
-   `DcEvaluation`; `b3trunc.c` names the charge slots for transient.
+Verification is opt-in and differential:
 
-Verification must stay C-differential, not tolerance-loosened: compare
-`@m1[qg]`, `@m1[qb]`, `@m1[qd]`, `@m1[cgg]`..`@m1[cbs]`, `@m1[capbd]`,
-`@m1[capbs]` at fixed bias (as the DC core test does), then an `.ac` sweep and
-a `.tran` RC charging curve against C, and only then add a golden fixture.
-Noise must match C's `onoise` per source. `DcEvaluation` already carries every
-intermediate the charge preamble needs (`vgs_eff`, `vth`, `vbseff`, `abulk0`,
-`n`, `vgst`, `phis`, ...); expose them rather than recomputing.
+- `c_bsim3_charge_reference` compares `@m1[qg]`, `[qb]`, `[qd]` and
+  `[cgg]`..`[cbs]` with C at C's converged bias over 19 cases in both
+  polarities to 1e-9: all three `xpart` partitions, accumulation,
+  subthreshold, triode, saturation, inverse mode, overlap-only cards, junction
+  areas with and without temperature scaling and `mobmod=2`.
+- `c_bsim3_small_signal_reference` compares `.dc` sweeps and `.ac` sweeps with
+  C by variable name (1e-6 relative, 1e-12/1e-15 floors), and two `.tran`
+  waveforms on a common physical grid (1e-3 relative, 1 uV/1 pA) — a slow gate
+  charge through 1 MOhm and a drain step with the gate held high.
+- `c_noise_reference::bsim3_noise_sources_match_c_batch_mode` compares every
+  per-source noise column with C for `noiMod` 1..6, a series-resistance deck
+  and a PMOS instance.
+
+**Not available yet:** `capMod` 0/1/2, NQS, `.disto` and `.sens`. Those paths
+fail with `NotYetPorted` naming the C files rather than loading zero. BSIM4 and
+the other BSIM families are unchanged.
+
+### Slice status
+
+| Slice | State |
+| --- | --- |
+| B3-0 tables/schema | done for the generated interface facts and explicit setters; the **physical-unit audit is partial** (`Parameter::input_unit` still returns `None` for unaudited keywords) |
+| B3-1 temperature/instance setup | done (`b3temp.c`, `b3set.c` defaults, `b3check.c` diagnostics) |
+| B3-2 DC load | done, differentially verified |
+| B3-3 charges and transient | done for `capMod=3`/QS; `capMod` 0/1/2 and NQS refused |
+| B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf` and `.noise`; `.disto`/`.sens` refused |
+| B3-5 goldens and binning coverage | **not started**: no BSIM3 conformance fixture or committed golden exists yet; binning is covered only through the schema/setup tests |
+| B4-x BSIM4 | **not started** |
+
+### Next: what remains
+
+1. **`capMod` 0, 1 and 2.** `b3ld.c`'s three other charge branches, each with
+   its own `Vfb`/`AbulkCV`/`VdsatCV` handling; every one is a different
+   equation set, so each is a separate slice with its own differential test
+   before it is wired.
+2. **NQS** (`nqsMod`, `acnqsMod`): the `qNode` unknown, `qcheq`/`qdef`/
+   `qcdump` states, `gtau` and the `b3acld.c` NQS branch.
+3. **`b3trunc.c` LTE slots.** The transient driver runs `CKTterr` on the
+   charge history; BSIM3 declares no `DEVtrunc` in C (`BSIM3trunc` exists but
+   is only reachable through the state slots), so the port relies on the
+   driver's own truncation control. Adding device-specific LTE slots is the
+   remaining fidelity item for long transients.
+4. **`.disto`.** C's BSIM3 registers `DEVdisto = NULL`, so `.disto` on a
+   BSIM3 deck is unsupported in C too; the port should say so explicitly
+   rather than through the generic `NotYetPorted`.
+5. **`.sens`.** The `cktsgen.c` device tables for BSIM3 (a fifth family of
+   tables); no `.sens` curve is C-differential yet.
+6. **B3-5 goldens**, then **BSIM4** (B4-x) against `bsim4/`.
+7. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
 
 ### B3-1 · Temperature and instance setup
 

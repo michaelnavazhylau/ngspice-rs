@@ -1,5 +1,6 @@
 //! Opt-in end-to-end BSIM3 comparison: the port's own `.op` solution against
 //! C's, including internal-node circuits (RSH/NRD/NRS) and PMOS polarity.
+//! `.dc`, `.ac` and `.tran` are compared in `c_bsim3_small_signal_reference.rs`.
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -161,45 +162,4 @@ fn operating_point_matches_c() {
             close(rust, c, 1e-9, 1e-18, &format!("case {index} @m1[{ask}]"));
         }
     }
-}
-
-#[test]
-#[ignore = "requires absolute NGSPICE_BIN; .dc waits for the small-signal port"]
-fn dc_sweep_is_refused_explicitly_until_small_signal_exists() {
-    let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
-    assert!(binary.is_absolute());
-    let deck = "sweep\nvd d 0 1.5\nvg g 0 0\nvs s 0 0\n\
-                m1 d g s 0 nn l=0.5u w=5u\n.model nn nmos level=8\n\
-                .dc vg 0 3 0.5\n.end\n";
-    let c_deck = deck.replace(
-        ".dc vg 0 3 0.5\n.end\n",
-        ".dc vg 0 3 0.5\n.control\nrun\nquit\n.endc\n.end\n",
-    );
-    let directory =
-        Scratch(std::env::temp_dir().join(format!("bsim3-sweep-{}", std::process::id())));
-    fs::create_dir_all(&directory.0).unwrap();
-    fs::write(directory.0.join("sweep.cir"), c_deck).unwrap();
-    let output = Command::new(&binary)
-        .args(["-b", "sweep.cir"])
-        .current_dir(&directory.0)
-        .output()
-        .unwrap();
-    let log = String::from_utf8_lossy(&output.stdout).into_owned()
-        + &String::from_utf8_lossy(&output.stderr);
-    // C sweeps; the port's sweep setup assembles the bias-linearized system,
-    // which needs the (unported) charge/AC load, so it must refuse rather than
-    // sweep with a DC-only conductance.
-    assert!(log.contains("No. of Data Rows : 7"), "{log}");
-    let netlist = Parser::new()
-        .parse_deck(&parse_deck_text(Path::new("sweep.cir"), deck))
-        .unwrap();
-    let config = RunConfig::from_netlist(&netlist).unwrap();
-    let request = config.request_for(&netlist.analyses[0]).unwrap();
-    let mut circuit = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
-        .unwrap()
-        .run(&mut circuit, &request, &config.context())
-        .unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(error.to_string().contains("b3acld.c"), "{error}");
 }

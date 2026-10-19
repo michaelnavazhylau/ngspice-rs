@@ -8,17 +8,20 @@
 use std::cell::RefCell;
 
 use super::{
-    ModelParameters, Value, dc, defaults::ModelDefaults, setup::InstanceSetup,
+    ModelParameters, Value, charges, dc, defaults::ModelDefaults, setup::InstanceSetup,
     temperature::TemperatureModel,
 };
 use crate::devices::models::{ModelContext, ResolvedModel};
+use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::state::{DeviceState, IterationPhase};
 use crate::devices::traits::{Device, StampContext};
 use crate::netlist::ast::DeviceInstance;
 use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult};
 
-/// State slots. C's `BSIM3numStates` also covers the charge slots, which are
-/// deliberately absent until the charge model is ported.
+/// State slots. The first block is `b3ld.c`'s DC state; the charge block
+/// follows C's `bsim3def.h` order, with each integrated charge immediately
+/// followed by its derivative slot (C `BSIM3qg`/`BSIM3cqg`, which
+/// `NIintegrate` writes as `qcap+1`).
 mod slot {
     pub(super) const VBS: usize = 0;
     pub(super) const VBD: usize = 1;
@@ -39,7 +42,41 @@ mod slot {
     pub(super) const GBDS: usize = 16;
     pub(super) const GBBS: usize = 17;
     pub(super) const CSUB: usize = 18;
-    pub(super) const COUNT: usize = 19;
+    /// `CKTstate0[BSIM3qb]` and its derivative `cqb`.
+    pub(super) const QB: usize = 19;
+    pub(super) const CQB: usize = 20;
+    /// `CKTstate0[BSIM3qg]` and `cqg`.
+    pub(super) const QG: usize = 21;
+    pub(super) const CQG: usize = 22;
+    /// `CKTstate0[BSIM3qd]` and `cqd`.
+    pub(super) const QD: usize = 23;
+    pub(super) const CQD: usize = 24;
+    /// `CKTstate0[BSIM3qbs]`.
+    pub(super) const QBS: usize = 25;
+    /// `CKTstate0[BSIM3qbd]`.
+    pub(super) const QBD: usize = 26;
+    /// C `here->BSIM3qinv`, the inversion charge the noise model reads.
+    pub(super) const QINV: usize = 27;
+    pub(super) const COUNT: usize = 28;
+}
+
+/// `b3ld.c`'s `gc*` equivalent charge conductances (`ag0` times the
+/// capacitance derivatives) for one mode, named as in C.
+#[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_field_names)] // C's own gc*xb names.
+struct ChargeConductances {
+    gcggb: Real,
+    gcgdb: Real,
+    gcgsb: Real,
+    gcdgb: Real,
+    gcddb: Real,
+    gcdsb: Real,
+    gcsgb: Real,
+    gcsdb: Real,
+    gcssb: Real,
+    gcbgb: Real,
+    gcbdb: Real,
+    gcbsb: Real,
 }
 
 /// `devsup.c`'s thermal voltage at 300.15 K (`CONSTvt0` in `main.c`).
@@ -471,13 +508,10 @@ impl Device for Bsim3 {
     }
 
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
-        if context.mode.is_ac() || context.integration.is_some() {
+        if context.mode.is_ac() {
             return Err(SpiceError::not_yet_ported(
-                format!(
-                    "{}: BSIM3 charge and small-signal loads (capMod/NQS)",
-                    self.name
-                ),
-                "src/spicelib/devices/bsim3/b3ld.c (charges), b3acld.c, b3noi.c, b3pzld.c",
+                format!("{}: BSIM3 small-signal load", self.name),
+                "src/spicelib/devices/bsim3/b3acld.c",
             ));
         }
         let cached = self.ensure(context.temperature, context.nominal_temperature)?;
@@ -494,7 +528,8 @@ impl Device for Bsim3 {
         let ic = self.start_conditions(context.states.initial_conditions(), voltage);
         let ([vbs, vgs, vds], start, check) =
             Self::select(&cached, &context.states, raw, ic, self.off, pol);
-        let e = self.evaluate_at(&cached, dc::Bias { vbs, vgs, vds }, context.gmin)?;
+        let bias = dc::Bias { vbs, vgs, vds };
+        let e = self.evaluate_at(&cached, bias, context.gmin)?;
         let report = match start {
             Start::Junction => true,
             Start::Limited => check,
@@ -531,12 +566,11 @@ impl Device for Bsim3 {
         // nodes) and the DC-only zero charge terms.
         let m = cached.setup.multiplier;
         let vbd = vbs - vds;
-        let (gm_eff, gmbs_eff, fwd, rev, cdreq, ceqbs, ceqbd) = if e.mode >= 0 {
+        let ConductanceParts {
+            gm_eff, fwd, rev, ..
+        } = conductance_parts(&e);
+        let (cdreq, ceqbs, ceqbd) = if e.mode >= 0 {
             (
-                e.gm,
-                e.gmbs,
-                e.gm + e.gmbs,
-                0.,
                 pol * (e.ids - e.gds * vds - e.gm * vgs - e.gmbs * vbs),
                 0.,
                 -pol * (e.isub - e.gbds * vds - e.gbgs * vgs - e.gbbs * vbs),
@@ -544,10 +578,6 @@ impl Device for Bsim3 {
         } else {
             let vgd = vgs - vds;
             (
-                -e.gm,
-                -e.gmbs,
-                0.,
-                e.gm + e.gmbs,
                 -pol * (e.ids + e.gds * vds - e.gm * vgd - e.gmbs * vbd),
                 -pol * (e.isub + e.gbds * vds - e.gbgs * vgd - e.gbbs * vbd),
                 0.,
@@ -558,67 +588,117 @@ impl Device for Bsim3 {
         } else {
             (ceqbs - (e.cbs - e.gbs * vbs), ceqbd - (e.cbd - e.gbd * vbd))
         };
-        let (gbdpdp, gbdpg, gbdpb, gbdpsp, gbbdp, gbbsp, gbspg, gbspsp, gbspb, gbspdp) =
-            if e.mode >= 0 {
-                (
-                    e.gbds,
-                    e.gbgs,
-                    e.gbbs,
-                    -(e.gbgs + e.gbds + e.gbbs),
-                    -e.gbds,
-                    e.gbds + e.gbgs + e.gbbs,
-                    0.,
-                    0.,
-                    0.,
-                    0.,
-                )
-            } else {
-                (
-                    0.,
-                    0.,
-                    0.,
-                    0.,
-                    e.gbds + e.gbgs + e.gbbs,
-                    -e.gbds,
-                    e.gbgs,
-                    e.gbds,
-                    e.gbbs,
-                    -(e.gbgs + e.gbds + e.gbbs),
-                )
-            };
+        let ConductanceParts {
+            gmbs_eff,
+            gbdpdp,
+            gbdpg,
+            gbdpb,
+            gbdpsp,
+            gbbdp,
+            gbbsp,
+            gbspg,
+            gbspsp,
+            gbspb,
+            gbspdp,
+            ..
+        } = conductance_parts(&e);
+        // b3ld.c's charge block. C computes it when the analysis needs charge
+        // storage (`MODEDCTRANCURVE | MODEAC | MODETRAN | MODEINITSMSIG`, or
+        // `MODETRANOP` with `MODEUIC`) and a plain `.op` here needs it too, so
+        // asks and a later `.tran` start from C's values. A `capMod` or NQS
+        // mode the port has not ported keeps working for DC-only physics and
+        // refuses only where charges are required.
+        let integration = context.integration;
+        let transient = integration.is_some();
+        let cap_mod = cached.defaults.get("capmod").unwrap_or(3.).round() as i32;
+        let charge_ready = cap_mod == 3 && cached.setup.nqs_mod == 0 && cached.setup.acnqs_mod == 0;
+        let charge = if transient || charge_ready {
+            Some(
+                charges::ChargeModel {
+                    model: &cached.defaults,
+                    temperature: &cached.temperature_model,
+                    setup: &cached.setup,
+                }
+                .evaluate(&e, bias)?,
+            )
+        } else {
+            None
+        };
+        let vgb = vgs - vbs;
+        let (ceqq, gc) = match charge {
+            Some(charge) => stamp_charge(pol, context, charge, e.mode, vgb, vbd, vbs)?,
+            None => {
+                for slot in [
+                    slot::QB,
+                    slot::CQB,
+                    slot::QG,
+                    slot::CQG,
+                    slot::QD,
+                    slot::CQD,
+                    slot::QBS,
+                    slot::QBD,
+                    slot::QINV,
+                ] {
+                    context.states.set(slot, 0.)?;
+                }
+                ([0.; 3], ChargeConductances::default())
+            }
+        };
+
         // C `b3ld.c`'s RHS and Y terms. The series conductances connect the
         // external drain/source to their primes and are zero when the primes
         // were not created.
         let gdr = cached.setup.drain_conductance;
         let gsr = cached.setup.source_conductance;
-        context.stamp_rhs(b, -m * (ceqbs + ceqbd))?;
-        context.stamp_rhs(dp, m * (ceqbd - cdreq))?;
-        context.stamp_rhs(sp, m * (cdreq + ceqbs))?;
+        context.stamp_rhs(g, -m * ceqq[0])?;
+        context.stamp_rhs(b, -m * (ceqbs + ceqbd + ceqq[1]))?;
+        context.stamp_rhs(dp, m * (ceqbd - cdreq - ceqq[2]))?;
+        context.stamp_rhs(sp, m * (cdreq + ceqbs + ceqq[0] + ceqq[1] + ceqq[2]))?;
         context.stamp_fixed([
             (d, d, m * gdr),
             (d, dp, -m * gdr),
             (dp, d, -m * gdr),
-            (dp, dp, m * (gdr + e.gds + e.gbd + rev + gbdpdp)),
-            (dp, g, m * (gm_eff + gbdpg)),
-            (dp, b, -m * (e.gbd - gmbs_eff + gbdpb)),
-            (dp, sp, -m * (e.gds + fwd - gbdpsp)),
+            (dp, dp, m * (gdr + e.gds + e.gbd + rev + gbdpdp + gc.gcddb)),
+            (dp, g, m * (gm_eff + gbdpg + gc.gcdgb)),
+            (
+                dp,
+                b,
+                -m * (e.gbd - gmbs_eff - gbdpb + gc.gcdgb + gc.gcddb + gc.gcdsb),
+            ),
+            (dp, sp, -m * (e.gds + fwd - gbdpsp - gc.gcdsb)),
             (s, s, m * gsr),
             (s, sp, -m * gsr),
             (sp, s, -m * gsr),
-            (sp, sp, m * (gsr + e.gds + e.gbs + fwd + gbspsp)),
-            (sp, g, m * (-gm_eff + gbspg)),
-            (sp, b, -m * (e.gbs + gmbs_eff + gbspb)),
-            (sp, dp, -m * (e.gds + rev - gbspdp)),
-            (b, b, m * (e.gbd + e.gbs - e.gbbs)),
-            (b, g, -m * e.gbgs),
-            (b, dp, m * (-e.gbd + gbbdp)),
-            (b, sp, m * (-e.gbs + gbbsp)),
+            (sp, sp, m * (gsr + e.gds + e.gbs + fwd + gbspsp + gc.gcssb)),
+            (sp, g, m * (-gm_eff + gbspg + gc.gcsgb)),
+            (
+                sp,
+                b,
+                -m * (e.gbs + gmbs_eff - gbspb + gc.gcsgb + gc.gcsdb + gc.gcssb),
+            ),
+            (sp, dp, -m * (e.gds + rev - gbspdp - gc.gcsdb)),
+            (
+                b,
+                b,
+                m * (e.gbd + e.gbs - e.gbbs - gc.gcbgb - gc.gcbdb - gc.gcbsb),
+            ),
+            (b, g, m * (-e.gbgs + gc.gcbgb)),
+            (b, dp, m * (-e.gbd + gbbdp + gc.gcbdb)),
+            (b, sp, m * (-e.gbs + gbbsp + gc.gcbsb)),
+            // C's gate row's charge conductances (`b3ld.c` line900). Its
+            // source row's `gcs*` terms are already above; stamping them
+            // twice would double the source's charge conductances.
+            (g, g, m * gc.gcggb),
+            (g, b, -m * (gc.gcggb + gc.gcgdb + gc.gcgsb)),
+            (g, dp, m * gc.gcgdb),
+            (g, sp, m * gc.gcgsb),
         ])?;
         Ok(())
     }
 
     /// `b3ask.c`'s bias-dependent values at the solution, times the
-    /// multiplicity. Charge, NQS and noise asks are not available yet.
+    /// multiplicity: the DC quantities, then the `capMod=3` charges and
+    /// capacitance derivatives the charge block leaves on the instance.
     fn observation_operating(
         &self,
         keyword: &str,
@@ -629,33 +709,466 @@ impl Device for Bsim3 {
         let cached = self.ensure(context.temperature, context.nominal_temperature)?;
         let pol = self.polarity;
         let [d, g, s, b] = [0, 1, 2, 3].map(|k| self.terminals[k]);
+        let dp = self.primes[0].unwrap_or(d);
+        let sp = self.primes[1].unwrap_or(s);
         let bias = dc::Bias {
-            vbs: pol * (voltage(b) - voltage(s)),
-            vgs: pol * (voltage(g) - voltage(s)),
-            vds: pol * (voltage(d) - voltage(s)),
+            vbs: pol * (voltage(b) - voltage(sp)),
+            vgs: pol * (voltage(g) - voltage(sp)),
+            vds: pol * (voltage(dp) - voltage(sp)),
         };
         let e = self.evaluate_at(&cached, bias, context.gmin)?;
-        Ok(e.ask(keyword).map(|value| value * cached.setup.multiplier))
+        let m = cached.setup.multiplier;
+        if let Some(value) = e.ask(keyword) {
+            return Ok(Some(value * m));
+        }
+        let lower = keyword.to_ascii_lowercase();
+        if !CHARGE_ASKS.contains(&lower.as_str()) {
+            return Ok(None);
+        }
+        let c = charges::ChargeModel {
+            model: &cached.defaults,
+            temperature: &cached.temperature_model,
+            setup: &cached.setup,
+        }
+        .evaluate(&e, bias)?;
+        let overlap = c.with_overlap(e.mode, bias.vgs - bias.vbs);
+        let value = match lower.as_str() {
+            "qg" => overlap.qg,
+            "qb" => overlap.qb,
+            "qd" => overlap.qd,
+            "cgg" => c.cggb,
+            "cgd" => c.cgdb,
+            "cgs" => c.cgsb,
+            "cdg" => c.cdgb,
+            "cdd" => c.cddb,
+            "cds" => c.cdsb,
+            "cbg" => c.cbgb,
+            "cbd" => c.cbdb,
+            "cbs" => c.cbsb,
+            "capbd" => c.capbd,
+            "capbs" => c.capbs,
+            _ => return Ok(None),
+        };
+        Ok(Some(value * m))
     }
 
+    /// `b3acld.c`: the DC conductances in `A` and the `j omega` capacitance
+    /// terms in `E`, both at the operating point's bias.
     fn assemble_small_signal(
         &self,
-        _context: &mut crate::devices::linear::LinearContext<'_>,
-        _bias: &crate::maths::Vector,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
     ) -> SpiceResult<()> {
-        Err(SpiceError::not_yet_ported(
-            format!("{}: BSIM3 small-signal load", self.name),
-            "src/spicelib/devices/bsim3/b3acld.c",
-        ))
+        let model = context.model_context;
+        let cached = self.ensure(model.temperature, model.nominal_temperature)?;
+        let unknowns = context.unknowns;
+        let voltage = |node: NodeId| {
+            unknowns
+                .node_row(node)
+                .and_then(|row| bias.get(row))
+                .unwrap_or(0.)
+        };
+        let pol = self.polarity;
+        let [d, g, s, b] = [0, 1, 2, 3].map(|k| self.terminals[k]);
+        let dp = self.primes[0].unwrap_or(d);
+        let sp = self.primes[1].unwrap_or(s);
+        let point = dc::Bias {
+            vbs: pol * (voltage(b) - voltage(sp)),
+            vgs: pol * (voltage(g) - voltage(sp)),
+            vds: pol * (voltage(dp) - voltage(sp)),
+        };
+        let e = self.evaluate_at(&cached, point, model.gmin)?;
+        let c = charges::ChargeModel {
+            model: &cached.defaults,
+            temperature: &cached.temperature_model,
+            setup: &cached.setup,
+        }
+        .evaluate(&e, point)?;
+        let m = cached.setup.multiplier;
+        let gdr = cached.setup.drain_conductance;
+        let gsr = cached.setup.source_conductance;
+        let cap = mode_capacitances(&c, e.mode);
+        let (cgdo, cgso, cgbo) = (c.cgdo, c.cgso, c.cgbo);
+        let (capbd, capbs) = (c.capbd, c.capbs);
+
+        // b3acld.c's real terms, identical to `b3ld.c`'s conductance load.
+        let ConductanceParts {
+            gm_eff,
+            gmbs_eff,
+            fwd,
+            rev,
+            gbdpdp,
+            gbdpg,
+            gbdpb,
+            gbdpsp,
+            gbbdp,
+            gbbsp,
+            gbspg,
+            gbspsp,
+            gbspb,
+            gbspdp,
+        } = conductance_parts(&e);
+        let real = [
+            (d, d, gdr),
+            (d, dp, -gdr),
+            (dp, d, -gdr),
+            (dp, dp, gdr + e.gds + e.gbd + rev + gbdpdp),
+            (dp, g, gm_eff + gbdpg),
+            (dp, b, -(e.gbd - gmbs_eff - gbdpb)),
+            (dp, sp, -(e.gds + fwd - gbdpsp)),
+            (s, s, gsr),
+            (s, sp, -gsr),
+            (sp, s, -gsr),
+            (sp, sp, gsr + e.gds + e.gbs + fwd + gbspsp),
+            (sp, g, -gm_eff + gbspg),
+            (sp, b, -(e.gbs + gmbs_eff - gbspb)),
+            (sp, dp, -(e.gds + rev - gbspdp)),
+            (b, b, e.gbd + e.gbs - e.gbbs),
+            (b, g, -e.gbgs),
+            (b, dp, -e.gbd + gbbdp),
+            (b, sp, -e.gbs + gbbsp),
+        ];
+        for (row, col, value) in real {
+            if let (Some(r), Some(k)) = (unknowns.node_row(row), unknowns.node_row(col)) {
+                context.system.a.add(r, k, m * value)?;
+            }
+        }
+
+        // b3acld.c's `j omega` terms: C's `xc*` are `cap * omega`, and the
+        // complex assembly applies the `omega` factor (see
+        // `LinearContext::scaled_dynamic_sum`). The lone `gdsi`/`Gmbsi` terms
+        // are zero without AC NQS, which is refused at evaluation.
+        let xcdgb = cap.cdgb - cgdo;
+        let xcddb = cap.cddb + capbd + cgdo;
+        let xcdsb = cap.cdsb;
+        let xcsgb = -(cap.cggb + cap.cbgb + cap.cdgb + cgso);
+        let xcsdb = -(cap.cgdb + cap.cbdb + cap.cddb);
+        let xcssb = capbs + cgso - (cap.cgsb + cap.cbsb + cap.cdsb);
+        let xcggb = cap.cggb + cgdo + cgso + cgbo;
+        let xcgdb = cap.cgdb - cgdo;
+        let xcgsb = cap.cgsb - cgso;
+        let xcbgb = cap.cbgb - cgbo;
+        let xcbdb = cap.cbdb - capbd;
+        let xcbsb = cap.cbsb - capbs;
+        let dynamic: [(NodeId, NodeId, &[Real]); 16] = [
+            (g, g, &[xcggb]),
+            (b, b, &[-(xcbgb + xcbdb + xcbsb)]),
+            (dp, dp, &[xcddb]),
+            (sp, sp, &[xcssb]),
+            (g, b, &[-(xcggb + xcgdb + xcgsb)]),
+            (g, dp, &[xcgdb]),
+            (g, sp, &[xcgsb]),
+            (b, g, &[xcbgb]),
+            (b, dp, &[xcbdb]),
+            (b, sp, &[xcbsb]),
+            (dp, g, &[xcdgb]),
+            (dp, b, &[-(xcdgb + xcddb + xcdsb)]),
+            (dp, sp, &[xcdsb]),
+            (sp, g, &[xcsgb]),
+            (sp, b, &[-(xcsgb + xcsdb + xcssb)]),
+            (sp, dp, &[xcsdb]),
+        ];
+        for (row, col, terms) in dynamic {
+            context.scaled_dynamic_sum(row, col, terms, m)?;
+        }
+        Ok(())
     }
 
+    /// C `b3pzld.c` equals `b3acld.c` with `j omega` replaced by `s`: the
+    /// same `A + s E` pencil.
+    fn assemble_pole_zero(
+        &self,
+        context: &mut crate::devices::linear::LinearContext<'_>,
+        bias: &crate::maths::Vector,
+    ) -> SpiceResult<()> {
+        self.assemble_small_signal(context, bias)
+    }
+
+    /// `b3noi.c`: the drain/source series-resistance thermal sources, the
+    /// channel thermal source selected by `noiMod` and the flicker source.
+    /// C computes `qinv` in the charge block first, so the noise model needs
+    /// the `capMod=3` charge evaluation; other modes refuse rather than
+    /// substituting a density.
     fn noise(
         &self,
-        _context: &crate::devices::noise::NoiseContext<'_>,
+        context: &crate::devices::noise::NoiseContext<'_>,
     ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
-        Err(SpiceError::not_yet_ported(
-            format!("{}: BSIM3 noise", self.name),
-            "src/spicelib/devices/bsim3/b3noi.c",
-        ))
+        use crate::devices::noise::{DeviceNoise, FlickerLaw, NoiseFamily, NoiseKind, NoiseSource};
+        let model = context.model_context;
+        let cached = self.ensure(model.temperature, model.nominal_temperature)?;
+        let pol = self.polarity;
+        let [d, g, s, b] = [0, 1, 2, 3].map(|k| self.terminals[k]);
+        let dp = self.primes[0].unwrap_or(d);
+        let sp = self.primes[1].unwrap_or(s);
+        let voltage = |node: NodeId| context.voltage(node);
+        let bias = dc::Bias {
+            vbs: pol * (voltage(b) - voltage(sp)),
+            vgs: pol * (voltage(g) - voltage(sp)),
+            vds: pol * (voltage(dp) - voltage(sp)),
+        };
+        let e = self.evaluate_at(&cached, bias, model.gmin)?;
+        let charge = charges::ChargeModel {
+            model: &cached.defaults,
+            temperature: &cached.temperature_model,
+            setup: &cached.setup,
+        }
+        .evaluate(&e, bias)?;
+        let densities = super::noise::NoiseModel {
+            model: &cached.defaults,
+            setup: &cached.setup,
+        }
+        .densities(&e, &charge, context.circuit_kelvin())?;
+        let thermal = |conductance: Real| NoiseKind::Thermal {
+            conductance,
+            temperature: context.circuit_kelvin(),
+        };
+        let sources = vec![
+            NoiseSource::new(".rd", [dp, d], thermal(densities.drain_conductance)),
+            NoiseSource::new(".rs", [sp, s], thermal(densities.source_conductance)),
+            NoiseSource::new(".id", [dp, sp], thermal(densities.channel)),
+            NoiseSource::new(
+                ".1overf",
+                [dp, sp],
+                NoiseKind::Flicker {
+                    numerator: densities.flicker_numerator,
+                    law: FlickerLaw::Channel {
+                        exponent: Some(densities.flicker_exponent),
+                        factors: densities.flicker_factors,
+                    },
+                },
+            ),
+        ];
+        Ok(DeviceNoise::Sources {
+            family: NoiseFamily::Bsim3,
+            model: Some(self.model_name.clone()),
+            total: true,
+            sources,
+        })
     }
+}
+
+/// `b3ask.c` charge/C-V keywords the charge block leaves on the instance.
+/// `qbs`/`qbd` and `cqg`/`cqb`/`cqd` are not in C's instance parameter table,
+/// so they are not askable even though `b3ask.c` handles them.
+const CHARGE_ASKS: [&str; 14] = [
+    "qg", "qb", "qd", "cgg", "cgd", "cgs", "cdg", "cdd", "cds", "cbg", "cbd", "cbs", "capbd",
+    "capbs",
+];
+
+/// C's mode-selected capacitance derivatives (`b3ld.c`/`b3acld.c`): the
+/// inverse mode mirrors gate/drain and derives the drain row from the
+/// node-charge sum.
+#[derive(Debug, Clone, Copy)]
+struct CapDerivatives {
+    cggb: Real,
+    cgdb: Real,
+    cgsb: Real,
+    cdgb: Real,
+    cddb: Real,
+    cdsb: Real,
+    cbgb: Real,
+    cbdb: Real,
+    cbsb: Real,
+}
+
+/// `b3acld.c`'s mode branch over the intrinsic capacitance derivatives.
+fn mode_capacitances(c: &charges::ChargeEvaluation, mode: i8) -> CapDerivatives {
+    if mode >= 0 {
+        CapDerivatives {
+            cggb: c.cggb,
+            cgdb: c.cgdb,
+            cgsb: c.cgsb,
+            cdgb: c.cdgb,
+            cddb: c.cddb,
+            cdsb: c.cdsb,
+            cbgb: c.cbgb,
+            cbdb: c.cbdb,
+            cbsb: c.cbsb,
+        }
+    } else {
+        CapDerivatives {
+            cggb: c.cggb,
+            cgdb: c.cgsb,
+            cgsb: c.cgdb,
+            cdgb: -(c.cdgb + c.cggb + c.cbgb),
+            cddb: -(c.cdsb + c.cgsb + c.cbsb),
+            cdsb: -(c.cddb + c.cgdb + c.cbdb),
+            cbgb: c.cbgb,
+            cbdb: c.cbsb,
+            cbsb: c.cbdb,
+        }
+    }
+}
+
+/// `b3ld.c` line900 / `b3acld.c`'s mode-selected conductances and substrate
+/// current derivatives, shared so the DC load and the small-signal load cannot
+/// diverge.
+#[derive(Debug, Clone, Copy)]
+struct ConductanceParts {
+    gm_eff: Real,
+    gmbs_eff: Real,
+    fwd: Real,
+    rev: Real,
+    gbdpdp: Real,
+    gbdpg: Real,
+    gbdpb: Real,
+    gbdpsp: Real,
+    gbbdp: Real,
+    gbbsp: Real,
+    gbspg: Real,
+    gbspsp: Real,
+    gbspb: Real,
+    gbspdp: Real,
+}
+
+fn conductance_parts(e: &dc::DcEvaluation) -> ConductanceParts {
+    if e.mode >= 0 {
+        ConductanceParts {
+            gm_eff: e.gm,
+            gmbs_eff: e.gmbs,
+            fwd: e.gm + e.gmbs,
+            rev: 0.,
+            gbdpdp: e.gbds,
+            gbdpg: e.gbgs,
+            gbdpb: e.gbbs,
+            gbdpsp: -(e.gbgs + e.gbds + e.gbbs),
+            gbbdp: -e.gbds,
+            gbbsp: e.gbds + e.gbgs + e.gbbs,
+            gbspg: 0.,
+            gbspsp: 0.,
+            gbspb: 0.,
+            gbspdp: 0.,
+        }
+    } else {
+        ConductanceParts {
+            gm_eff: -e.gm,
+            gmbs_eff: -e.gmbs,
+            fwd: 0.,
+            rev: e.gm + e.gmbs,
+            gbdpdp: 0.,
+            gbdpg: 0.,
+            gbdpb: 0.,
+            gbdpsp: 0.,
+            gbbdp: e.gbds + e.gbgs + e.gbbs,
+            gbbsp: -e.gbds,
+            gbspg: e.gbgs,
+            gbspsp: e.gbds,
+            gbspb: e.gbbs,
+            gbspdp: -(e.gbgs + e.gbds + e.gbbs),
+        }
+    }
+}
+
+/// `b3ld.c`'s charge state, `NIintegrate` companions and `gc*` equivalent
+/// conductances at `c`. Returns the gate/bulk/drain equivalent charge currents
+/// C's `line860` computes.
+fn stamp_charge(
+    polarity: Real,
+    context: &mut StampContext<'_>,
+    c: charges::ChargeEvaluation,
+    mode: i8,
+    vgb: Real,
+    vbd: Real,
+    vbs: Real,
+) -> SpiceResult<([Real; 3], ChargeConductances)> {
+    let overlap = c.with_overlap(mode, vgb);
+    for (slot, value) in [
+        (slot::QB, overlap.qb),
+        (slot::QG, overlap.qg),
+        (slot::QD, overlap.qd),
+        (slot::QBS, c.qbs),
+        (slot::QBD, c.qbd),
+        (slot::QINV, c.qinv),
+    ] {
+        context.states.set(slot, value)?;
+    }
+    // C's two mode branches: the negative branch mirrors gate/drain and
+    // derives the drain row from the node-charge sum.
+    let CapDerivatives {
+        cggb,
+        cgsb,
+        cgdb,
+        cbgb,
+        cbsb,
+        cbdb,
+        cdgb,
+        cdsb,
+        cddb,
+    } = mode_capacitances(&c, mode);
+    let ag0 = context
+        .integration
+        .map_or(0., |coefficients| coefficients.ag()[0]);
+    let (cgdo, cgso, cgbo, capbd, capbs) = (c.cgdo, c.cgso, c.cgbo, c.capbd, c.capbs);
+    let gc = if mode >= 0 {
+        ChargeConductances {
+            gcggb: (cggb + cgdo + cgso + cgbo) * ag0,
+            gcgdb: (cgdb - cgdo) * ag0,
+            gcgsb: (cgsb - cgso) * ag0,
+            gcdgb: (cdgb - cgdo) * ag0,
+            gcddb: (cddb + capbd + cgdo) * ag0,
+            gcdsb: cdsb * ag0,
+            gcsgb: -(cggb + cbgb + cdgb + cgso) * ag0,
+            gcsdb: -(cgdb + cbdb + cddb) * ag0,
+            gcssb: (capbs + cgso - (cgsb + cbsb + cdsb)) * ag0,
+            gcbgb: (cbgb - cgbo) * ag0,
+            gcbdb: (cbdb - capbd) * ag0,
+            gcbsb: (cbsb - capbs) * ag0,
+        }
+    } else {
+        ChargeConductances {
+            gcggb: (cggb + cgdo + cgso + cgbo) * ag0,
+            gcgdb: (cgsb - cgdo) * ag0,
+            gcgsb: (cgdb - cgso) * ag0,
+            gcdgb: -(cggb + cbgb + cdgb + cgdo) * ag0,
+            gcddb: (capbd + cgdo - (cgsb + cbsb + cdsb)) * ag0,
+            gcdsb: -(cgdb + cbdb + cddb) * ag0,
+            gcsgb: (cdgb - cgso) * ag0,
+            gcsdb: cdsb * ag0,
+            gcssb: (cddb + capbs + cgso) * ag0,
+            gcbgb: (cbgb - cgbo) * ag0,
+            gcbdb: (cbsb - capbd) * ag0,
+            gcbsb: (cbdb - capbs) * ag0,
+        }
+    };
+    // `NIintegrate` for qb, qg and qd (`cap` is zero, so C discards geq).
+    let (cqg, cqb, cqd) = if let Some(coefficients) = context.integration {
+        let mut derivatives = [0.; 3];
+        for (index, (slot, charge)) in [
+            (slot::QB, overlap.qb),
+            (slot::QG, overlap.qg),
+            (slot::QD, overlap.qd),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (_, derivative) = junction_companion(
+                context,
+                coefficients,
+                JunctionPoint {
+                    current: 0.,
+                    conductance: 0.,
+                    charge,
+                    capacitance: 0.,
+                },
+                slot,
+            )?;
+            derivatives[index] = derivative;
+        }
+        (derivatives[1], derivatives[0], derivatives[2])
+    } else {
+        for slot in [slot::CQB, slot::CQG, slot::CQD] {
+            context.states.set(slot, 0.)?;
+        }
+        (0., 0., 0.)
+    };
+    let mut ceqq = [
+        cqg - gc.gcggb * vgb + gc.gcgdb * vbd + gc.gcgsb * vbs,
+        cqb - gc.gcbgb * vgb + gc.gcbdb * vbd + gc.gcbsb * vbs,
+        cqd - gc.gcdgb * vgb + gc.gcddb * vbd + gc.gcdsb * vbs,
+    ];
+    // `b3ld.c` negates the charge equivalents for negative polarity.
+    if polarity < 0. {
+        ceqq = ceqq.map(|value| -value);
+    }
+    Ok((ceqq, gc))
 }

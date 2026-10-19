@@ -375,7 +375,7 @@ fn pdk_shaped_cards_reach_the_schema_after_real_bin_selection() {
 }
 
 #[test]
-fn validated_levels_build_a_dc_device_without_charge_state() {
+fn validated_levels_build_a_real_device_with_charge_state() {
     for level in [8, 49] {
         let netlist = deck(&format!(
             "m1 newd newg news newb nn l=1u w=2u\n.model nn nmos level={level} version=3.3.0 tox=4n"
@@ -386,9 +386,10 @@ fn validated_levels_build_a_dc_device_without_charge_state() {
             .add_instance(&netlist.devices[0], &resolver, &ModelContext::default())
             .unwrap();
         assert_eq!(circuit.devices().len(), 1);
-        // Ground, four external nodes and the DC state slots; no charge slots.
+        // Ground plus the four external nodes.
         assert_eq!(circuit.nodes().len(), 5);
-        assert_eq!(circuit.devices()[0].state_count(), 19);
+        // The DC state block plus C's `capMod=3` charge slots.
+        assert_eq!(circuit.devices()[0].state_count(), 28);
         // Unknowns are assigned when the circuit is finalized.
         assert_eq!(circuit.devices()[0].terminals().len(), 4);
     }

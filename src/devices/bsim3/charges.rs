@@ -447,7 +447,7 @@ impl ChargeModel<'_> {
 
         // Source charge partition (XPART: > 0.5 = 0/100, < 0.5 = 40/60).
         let xpart = number("xpart");
-        let (qsrc, csg, csd, csb);
+        let (qsrc, csg, csd, mut csb);
         if xpart > 0.5 {
             let qsrc0 = -cox_wl_cen * (t1 / 2.0 + t0 / 4.0 - 0.5 * t0 * t0 / t2);
             let qov_cox = qsrc0 / coxeff;
@@ -507,13 +507,11 @@ impl ChargeModel<'_> {
 
         let cbg = cbg1 - dqac0_dvg - dqsub0_dvg;
         let cbd = cbd1 - dqsub0_dvd;
-        let cbb = cbb1 - dqac0_dvb - dqsub0_dvb;
+        let mut cbb = cbb1 - dqac0_dvb - dqsub0_dvb;
 
         let cgg = cgg1 - cbg;
         let cgd = cgd1 - cbd;
         let mut cgb = cgb1 - cbb;
-        let mut cbb = cbb;
-        let mut csb = csb;
         cgb *= cv.d_vbseff_dvb;
         cbb *= cv.d_vbseff_dvb;
         csb *= cv.d_vbseff_dvb;

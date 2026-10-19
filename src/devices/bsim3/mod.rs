@@ -21,6 +21,8 @@ pub mod defaults;
 mod defaults_data;
 /// The device: `b3ld.c`'s DC load wired into the solver.
 pub mod device;
+/// BSIM3v3.3 noise generators from `b3noi.c`.
+pub mod noise;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
 /// Effective geometry, size-dependent parameters and `b3check.c` diagnostics.

@@ -51,6 +51,8 @@ pub const CELSIUS_TO_KELVIN: Real = 273.15;
 pub enum NoiseFamily {
     /// `bjt` (`bjtnoise.c`).
     Bjt,
+    /// `bsim3` (`b3noi.c`).
+    Bsim3,
     /// `csw`, the W switch (`cswnoise.c`).
     CurrentSwitch,
     /// `dio` (`dionoise.c`).
