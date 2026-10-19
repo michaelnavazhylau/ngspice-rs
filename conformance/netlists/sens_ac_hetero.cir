@@ -1,0 +1,30 @@
+AC sensitivity of JFET level 2, MESA levels 2-4 and HFET1 (#102)
+* Each device is linearized at cktsens.c's zero-voltage reset load. JFET2's
+* PSacload runs there, but at vds = 0 its gm and drain current vanish, so
+* TAUD/TAUG (like BETA) have exactly zero columns; MESA's acl
+* reads gm0..gds0 that mesaload.c wrote at vds = 0, where the LAMBDA blend
+* multiplies zero, and level 4's mesa3 never writes them (no gm/gds at all);
+* HFET1 keeps its CDS*omega and the KAPPA/FGDS/DELF output conductance from
+* the current records. Every sensed drain current flows through vsense,
+* which carries no AC drive of its own.
+vdd 1 0 dc 1 ac 1
+vsense 1 2 dc 0
+vg 9 0 dc 0.3 ac 1
+rgate 9 3 1k
+j1 2 3 0 jm area=2
+.model jm njf level=2 vto=-2 beta=1e-3 lambda=0.02 rd=10 rs=20 cds=1p
++ cgs=2p cgd=1p vbi=0.8 is=1e-14 n=1.2 fc=0.4 ibd=1e-9 vbd=1.2
++ taud=1e-9 taug=1e-9 vst=0.5 ver=1 tnom=30
+z2 2 3 0 me2 l=1u w=20u
+.model me2 nmf(level=2 rd=31 rs=31 rg=10 phib=3.1232e18)
+z3 2 3 0 me3 l=1u w=20u
+.model me3 nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5
++ phib=3.1232e18)
+z4 2 3 0 me4 l=1u w=20u
+.model me4 nmf(level=4 rd=31 rs=31 rdi=20 rsi=20 mu=0.3 gamma=2.5
++ nmax=4e16 cas=0.9 cbs=1.1 epsi=1.142189e-10 phib=3.1232e18)
+z5 2 3 0 hf l=1u w=20u
+.model hf nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50 vt0=-0.5
++ cds=1p kappa=0.2 delf=1e5 fgds=1e5
+.sens i(vsense) ac dec 1 1k 1meg
+.end

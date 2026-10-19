@@ -1,0 +1,109 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_fet.cir
+title: "AC sensitivity of JFET level 1, the MESFET and HFET2 (#102)" @netlists/sens_ac_fet.cir:1:1
+scope root
+  cards (13):
+    [0] device[0] @netlists/sens_ac_fet.cir:5:1 "vdd 1 0 dc 3 ac 1"
+    [1] device[1] @netlists/sens_ac_fet.cir:6:1 "rd 1 2 1k"
+    [2] device[2] @netlists/sens_ac_fet.cir:7:1 "j1 2 3 0 jm area=2 temp=40"
+    [3] device[3] @netlists/sens_ac_fet.cir:8:1 "vg 3 0 dc -1 ac 1"
+    [4] model[0] @netlists/sens_ac_fet.cir:9:1 ".model jm njf(vto=-2 beta=1e-4 lambda=0.02 rd=10 rs=20 cgs=2p cgd=1p pb=0.8 is=1e-14 n=1.2 fc=0.4 b=0.9 tnom=30)"
+    [5] device[4] @netlists/sens_ac_fet.cir:11:1 "rz 1 4 1k"
+    [6] device[5] @netlists/sens_ac_fet.cir:12:1 "z1 4 3 0 zn area=2"
+    [7] model[1] @netlists/sens_ac_fet.cir:13:1 ".model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=5 rs=4 cgs=2p cgd=0.5p pb=0.8 is=1e-14 fc=0.4)"
+    [8] device[6] @netlists/sens_ac_fet.cir:15:1 "rh 1 5 1k"
+    [9] device[7] @netlists/sens_ac_fet.cir:16:1 "z2 5 3 0 zh l=1u w=10u"
+    [10] model[2] @netlists/sens_ac_fet.cir:17:1 ".model zh nhfet(level=6 vt0=-0.5 rd=2 rs=3)"
+    [11] analysis[0] @netlists/sens_ac_fet.cir:18:1 ".sens v(2) ac dec 1 1k 1meg"
+    [12] end @netlists/sens_ac_fet.cir:19:1 ".end"
+  devices (8):
+    device [0] name="vdd" designator=v @netlists/sens_ac_fet.cir:5:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="3" @netlists/sens_ac_fet.cir:5:9
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_fet.cir:5:17
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_fet.cir:5:14
+    device [1] name="rd" designator=r @netlists/sens_ac_fet.cir:6:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_fet.cir:6:8
+    device [2] name="j1" designator=j @netlists/sens_ac_fet.cir:7:1
+      nodes: "2" "3" "0"
+      model: "jm"
+      parameters (2):
+        [0] name="area" kind=scalar value="2" @netlists/sens_ac_fet.cir:7:13
+        [1] name="temp" kind=scalar value="40" @netlists/sens_ac_fet.cir:7:20
+    device [3] name="vg" designator=v @netlists/sens_ac_fet.cir:8:1
+      nodes: "3" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="-1" @netlists/sens_ac_fet.cir:8:8
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_fet.cir:8:17
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_fet.cir:8:14
+    device [4] name="rz" designator=r @netlists/sens_ac_fet.cir:11:1
+      nodes: "1" "4"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_fet.cir:11:8
+    device [5] name="z1" designator=z @netlists/sens_ac_fet.cir:12:1
+      nodes: "4" "3" "0"
+      model: "zn"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @netlists/sens_ac_fet.cir:12:13
+    device [6] name="rh" designator=r @netlists/sens_ac_fet.cir:15:1
+      nodes: "1" "5"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_fet.cir:15:8
+    device [7] name="z2" designator=z @netlists/sens_ac_fet.cir:16:1
+      nodes: "5" "3" "0"
+      model: "zh"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_ac_fet.cir:16:13
+        [1] name="w" kind=scalar value="10u" @netlists/sens_ac_fet.cir:16:18
+  models (3):
+    model [0] name="jm" base="njf" level=none @netlists/sens_ac_fet.cir:9:1
+      parameters (13):
+        [0] name="vto" kind=scalar value="-2" @netlists/sens_ac_fet.cir:9:15
+        [1] name="beta" kind=scalar value="1e-4" @netlists/sens_ac_fet.cir:9:22
+        [2] name="lambda" kind=scalar value="0.02" @netlists/sens_ac_fet.cir:9:32
+        [3] name="rd" kind=scalar value="10" @netlists/sens_ac_fet.cir:9:44
+        [4] name="rs" kind=scalar value="20" @netlists/sens_ac_fet.cir:9:50
+        [5] name="cgs" kind=scalar value="2p" @netlists/sens_ac_fet.cir:9:56
+        [6] name="cgd" kind=scalar value="1p" @netlists/sens_ac_fet.cir:9:63
+        [7] name="pb" kind=scalar value="0.8" @netlists/sens_ac_fet.cir:9:70
+        [8] name="is" kind=scalar value="1e-14" @netlists/sens_ac_fet.cir:9:77
+        [9] name="n" kind=scalar value="1.2" @netlists/sens_ac_fet.cir:9:86
+        [10] name="fc" kind=scalar value="0.4" @netlists/sens_ac_fet.cir:9:92
+        [11] name="b" kind=scalar value="0.9" @netlists/sens_ac_fet.cir:9:99
+        [12] name="tnom" kind=scalar value="30" @netlists/sens_ac_fet.cir:9:105
+    model [1] name="zn" base="nmf" level=none @netlists/sens_ac_fet.cir:13:1
+      parameters (12):
+        [0] name="vto" kind=scalar value="-1.8" @netlists/sens_ac_fet.cir:13:15
+        [1] name="beta" kind=scalar value="3m" @netlists/sens_ac_fet.cir:13:24
+        [2] name="lambda" kind=scalar value="0.05" @netlists/sens_ac_fet.cir:13:32
+        [3] name="alpha" kind=scalar value="2.5" @netlists/sens_ac_fet.cir:13:44
+        [4] name="b" kind=scalar value="0.4" @netlists/sens_ac_fet.cir:13:54
+        [5] name="rd" kind=scalar value="5" @netlists/sens_ac_fet.cir:13:60
+        [6] name="rs" kind=scalar value="4" @netlists/sens_ac_fet.cir:13:65
+        [7] name="cgs" kind=scalar value="2p" @netlists/sens_ac_fet.cir:13:70
+        [8] name="cgd" kind=scalar value="0.5p" @netlists/sens_ac_fet.cir:13:77
+        [9] name="pb" kind=scalar value="0.8" @netlists/sens_ac_fet.cir:13:86
+        [10] name="is" kind=scalar value="1e-14" @netlists/sens_ac_fet.cir:13:93
+        [11] name="fc" kind=scalar value="0.4" @netlists/sens_ac_fet.cir:13:102
+    model [2] name="zh" base="nhfet" level=6e0 @netlists/sens_ac_fet.cir:17:1
+      parameters (4):
+        [0] name="level" kind=scalar value="6" @netlists/sens_ac_fet.cir:17:17
+        [1] name="vt0" kind=scalar value="-0.5" @netlists/sens_ac_fet.cir:17:25
+        [2] name="rd" kind=scalar value="2" @netlists/sens_ac_fet.cir:17:34
+        [3] name="rs" kind=scalar value="3" @netlists/sens_ac_fet.cir:17:39
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_ac_fet.cir:18:1
+      arguments: "v" "(" "2" ")" "ac" "dec" "1" "1k" "1meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

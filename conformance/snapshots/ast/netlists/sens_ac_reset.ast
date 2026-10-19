@@ -1,0 +1,178 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_reset.cir
+title: "AC sensitivity of diodes, switches and B sources (#102)" @netlists/sens_ac_reset.cir:1:1
+scope root
+  cards (25):
+    [0] device[0] @netlists/sens_ac_reset.cir:9:1 "v1 1 0 dc 0.7 ac 1"
+    [1] device[1] @netlists/sens_ac_reset.cir:10:1 "r1 1 2 1k"
+    [2] device[2] @netlists/sens_ac_reset.cir:11:1 "d1 2 0 dm"
+    [3] model[0] @netlists/sens_ac_reset.cir:12:1 ".model dm d is=1e-14 rs=10 cjo=1p"
+    [4] device[3] @netlists/sens_ac_reset.cir:13:1 "vc 5 0 dc 2"
+    [5] device[4] @netlists/sens_ac_reset.cir:14:1 "r5 2 6 1k"
+    [6] device[5] @netlists/sens_ac_reset.cir:15:1 "s1 6 0 5 0 smod"
+    [7] device[6] @netlists/sens_ac_reset.cir:16:1 "s2 6 7 5 0 smodn"
+    [8] device[7] @netlists/sens_ac_reset.cir:17:1 "r7 7 0 2k"
+    [9] device[8] @netlists/sens_ac_reset.cir:18:1 "c7 6 0 1n"
+    [10] device[9] @netlists/sens_ac_reset.cir:19:1 "s3 7 0 5 0 sneg"
+    [11] device[10] @netlists/sens_ac_reset.cir:20:1 "w1 7 8 vc wmod"
+    [12] device[11] @netlists/sens_ac_reset.cir:21:1 "r8 8 0 500"
+    [13] model[1] @netlists/sens_ac_reset.cir:22:1 ".model smod sw vt=1 vh=0.5 ron=10 roff=1meg"
+    [14] model[2] @netlists/sens_ac_reset.cir:23:1 ".model smodn sw vt=-1 vh=0.2 ron=20 roff=10meg"
+    [15] model[3] @netlists/sens_ac_reset.cir:24:1 ".model sneg sw vt=0 vh=-0.3 ron=5"
+    [16] model[4] @netlists/sens_ac_reset.cir:25:1 ".model wmod csw it=-1m ih=0 ron=3 roff=1g"
+    [17] device[12] @netlists/sens_ac_reset.cir:26:1 "r9 2 9 1k"
+    [18] device[13] @netlists/sens_ac_reset.cir:27:1 "b1 9 0 v=v(1)*0.5+0.1*v(10)^2 m=2"
+    [19] device[14] @netlists/sens_ac_reset.cir:28:1 "r10 10 0 2k"
+    [20] device[15] @netlists/sens_ac_reset.cir:29:1 "b2 10 0 i=0.2m*v(1)+0.1m*v(10)*v(10) tc1=1m"
+    [21] device[16] @netlists/sens_ac_reset.cir:30:1 "c10 10 0 1n"
+    [22] device[17] @netlists/sens_ac_reset.cir:31:1 "r11 2 10 1k"
+    [23] analysis[0] @netlists/sens_ac_reset.cir:32:1 ".sens v(2) ac dec 2 1k 100k"
+    [24] end @netlists/sens_ac_reset.cir:33:1 ".end"
+  devices (18):
+    device [0] name="v1" designator=v @netlists/sens_ac_reset.cir:9:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.7" @netlists/sens_ac_reset.cir:9:8
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_reset.cir:9:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_reset.cir:9:15
+    device [1] name="r1" designator=r @netlists/sens_ac_reset.cir:10:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_reset.cir:10:8
+    device [2] name="d1" designator=d @netlists/sens_ac_reset.cir:11:1
+      nodes: "2" "0"
+      model: "dm"
+      parameters (0):
+    device [3] name="vc" designator=v @netlists/sens_ac_reset.cir:13:1
+      nodes: "5" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/sens_ac_reset.cir:13:8
+    device [4] name="r5" designator=r @netlists/sens_ac_reset.cir:14:1
+      nodes: "2" "6"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_reset.cir:14:8
+    device [5] name="s1" designator=s @netlists/sens_ac_reset.cir:15:1
+      nodes: "6" "0" "5" "0"
+      model: "smod"
+      parameters (0):
+    device [6] name="s2" designator=s @netlists/sens_ac_reset.cir:16:1
+      nodes: "6" "7" "5" "0"
+      model: "smodn"
+      parameters (0):
+    device [7] name="r7" designator=r @netlists/sens_ac_reset.cir:17:1
+      nodes: "7" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/sens_ac_reset.cir:17:8
+    device [8] name="c7" designator=c @netlists/sens_ac_reset.cir:18:1
+      nodes: "6" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/sens_ac_reset.cir:18:8
+    device [9] name="s3" designator=s @netlists/sens_ac_reset.cir:19:1
+      nodes: "7" "0" "5" "0"
+      model: "sneg"
+      parameters (0):
+    device [10] name="w1" designator=w @netlists/sens_ac_reset.cir:20:1
+      nodes: "7" "8"
+      model: "wmod"
+      parameters (1):
+        [0] name="control" kind=instance value="vc" @netlists/sens_ac_reset.cir:20:8
+    device [11] name="r8" designator=r @netlists/sens_ac_reset.cir:21:1
+      nodes: "8" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="500" @netlists/sens_ac_reset.cir:21:8
+    device [12] name="r9" designator=r @netlists/sens_ac_reset.cir:26:1
+      nodes: "2" "9"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_reset.cir:26:8
+    device [13] name="b1" designator=b @netlists/sens_ac_reset.cir:27:1
+      nodes: "9" "0"
+      model: none
+      parameters (2):
+        [0] name="v" kind=behavioural value="v(1)*0.5+0.1*v(10)^2" @netlists/sens_ac_reset.cir:27:8
+          behavioural text="v(1)*0.5+0.1*v(10)^2" span=27:10..30
+            binary "+" span=27:10..30
+              binary "*" span=27:10..18
+                voltage "1" span=27:10..14
+                number "0.5" value=5e-1 span=27:15..18
+              binary "*" span=27:19..30
+                number "0.1" value=1e-1 span=27:19..22
+                binary "^" span=27:23..30
+                  voltage "10" span=27:23..28
+                  number "2" value=2e0 span=27:29..30
+        [1] name="m" kind=scalar value="2" @netlists/sens_ac_reset.cir:27:31
+    device [14] name="r10" designator=r @netlists/sens_ac_reset.cir:28:1
+      nodes: "10" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/sens_ac_reset.cir:28:10
+    device [15] name="b2" designator=b @netlists/sens_ac_reset.cir:29:1
+      nodes: "10" "0"
+      model: none
+      parameters (2):
+        [0] name="i" kind=behavioural value="0.2m*v(1)+0.1m*v(10)*v(10)" @netlists/sens_ac_reset.cir:29:9
+          behavioural text="0.2m*v(1)+0.1m*v(10)*v(10)" span=29:11..37
+            binary "+" span=29:11..37
+              binary "*" span=29:11..20
+                number "0.2m" value=2e-4 span=29:11..15
+                voltage "1" span=29:16..20
+              binary "*" span=29:21..37
+                binary "*" span=29:21..31
+                  number "0.1m" value=1e-4 span=29:21..25
+                  voltage "10" span=29:26..31
+                voltage "10" span=29:32..37
+        [1] name="tc1" kind=scalar value="1m" @netlists/sens_ac_reset.cir:29:38
+    device [16] name="c10" designator=c @netlists/sens_ac_reset.cir:30:1
+      nodes: "10" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="1n" @netlists/sens_ac_reset.cir:30:10
+    device [17] name="r11" designator=r @netlists/sens_ac_reset.cir:31:1
+      nodes: "2" "10"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_reset.cir:31:10
+  models (5):
+    model [0] name="dm" base="d" level=none @netlists/sens_ac_reset.cir:12:1
+      parameters (3):
+        [0] name="is" kind=scalar value="1e-14" @netlists/sens_ac_reset.cir:12:13
+        [1] name="rs" kind=scalar value="10" @netlists/sens_ac_reset.cir:12:22
+        [2] name="cjo" kind=scalar value="1p" @netlists/sens_ac_reset.cir:12:28
+    model [1] name="smod" base="sw" level=none @netlists/sens_ac_reset.cir:22:1
+      parameters (4):
+        [0] name="vt" kind=scalar value="1" @netlists/sens_ac_reset.cir:22:16
+        [1] name="vh" kind=scalar value="0.5" @netlists/sens_ac_reset.cir:22:21
+        [2] name="ron" kind=scalar value="10" @netlists/sens_ac_reset.cir:22:28
+        [3] name="roff" kind=scalar value="1meg" @netlists/sens_ac_reset.cir:22:35
+    model [2] name="smodn" base="sw" level=none @netlists/sens_ac_reset.cir:23:1
+      parameters (4):
+        [0] name="vt" kind=scalar value="-1" @netlists/sens_ac_reset.cir:23:17
+        [1] name="vh" kind=scalar value="0.2" @netlists/sens_ac_reset.cir:23:23
+        [2] name="ron" kind=scalar value="20" @netlists/sens_ac_reset.cir:23:30
+        [3] name="roff" kind=scalar value="10meg" @netlists/sens_ac_reset.cir:23:37
+    model [3] name="sneg" base="sw" level=none @netlists/sens_ac_reset.cir:24:1
+      parameters (3):
+        [0] name="vt" kind=scalar value="0" @netlists/sens_ac_reset.cir:24:16
+        [1] name="vh" kind=scalar value="-0.3" @netlists/sens_ac_reset.cir:24:21
+        [2] name="ron" kind=scalar value="5" @netlists/sens_ac_reset.cir:24:29
+    model [4] name="wmod" base="csw" level=none @netlists/sens_ac_reset.cir:25:1
+      parameters (4):
+        [0] name="it" kind=scalar value="-1m" @netlists/sens_ac_reset.cir:25:17
+        [1] name="ih" kind=scalar value="0" @netlists/sens_ac_reset.cir:25:24
+        [2] name="ron" kind=scalar value="3" @netlists/sens_ac_reset.cir:25:29
+        [3] name="roff" kind=scalar value="1g" @netlists/sens_ac_reset.cir:25:35
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_ac_reset.cir:32:1
+      arguments: "v" "(" "2" ")" "ac" "dec" "2" "1k" "100k"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

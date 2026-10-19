@@ -437,6 +437,24 @@ impl Switch {
         })
     }
 
+    /// `.sens` AC: whether `SWacLoad`/`CSWacLoad` stamps the on conductance
+    /// after `cktsens.c`'s reset load, `SWload`/`CSWload` in `MODEINITFLOAT`
+    /// with a zero control and zeroed state (`REALLY_OFF` in both
+    /// `CKTstate0` and `CKTstate1`). The AC loads treat every non-zero state
+    /// code as on.
+    ///
+    /// # Errors
+    /// None in practice (the iterate is given).
+    pub(crate) fn reset_closed(&self) -> SpiceResult<bool> {
+        let state = self.decide(
+            IterationPhase::Float,
+            0.,
+            SwitchState::ReallyOff,
+            Some(SwitchState::ReallyOff),
+        )?;
+        Ok(state != SwitchState::ReallyOff)
+    }
+
     /// The control value at `solution`: `v(nc+) - v(nc-)` or the controlling
     /// branch current.
     fn control_value(

@@ -85,6 +85,10 @@ pub struct Circuit {
     /// C's `CKTstate0` as the analyses run so far left it (C keeps one state
     /// vector for the whole deck); see [`Circuit::inherit_from`].
     carried_state: std::cell::RefCell<Option<Vec<Real>>>,
+    /// The analyses already run on this circuit, in order (C keeps one
+    /// circuit, and its devices' instance fields, for the whole deck); see
+    /// [`Circuit::inherit_from`].
+    completed: Vec<crate::primitives::AnalysisKind>,
     /// [`Circuit::unknown_names`], computed on first use after
     /// [`Circuit::rebuild_unknowns`].
     unknown_names: std::cell::RefCell<Option<crate::maths::UnknownNames>>,
@@ -1278,8 +1282,9 @@ impl Circuit {
 
     /// The small-signal assembly of the single device at ordinal `index`, with
     /// `device` in its place, added to `system` (C's `DEVacLoad` of one
-    /// isolated instance, as `.sens` performs it). Mutual-inductance terms are
-    /// those of the circuit's own devices; `bias` and `state` are as for
+    /// isolated instance, as `.sens` performs it). An inductor stamps no
+    /// mutual-inductance terms: `.sens` loads each K's `MUTacLoad` as a device
+    /// of its own. `bias` and `state` are as for
     /// [`Self::small_signal_system_at`].
     ///
     /// # Errors
@@ -1306,7 +1311,6 @@ impl Circuit {
                 "single-device small-signal assembly does not match the circuit numbering",
             ));
         }
-        let mutual = self.mutual_terms(context)?;
         let range = &self.branch_rows[index];
         let mut linear = crate::devices::linear::LinearContext {
             model_context: context,
@@ -1314,7 +1318,7 @@ impl Circuit {
             unknowns: &self.unknowns,
             branch: (!range.is_empty()).then_some(range.start),
             controls: self.controls(index)?,
-            mutual: mutual.get(index).map_or(&[], Vec::as_slice),
+            mutual: &[],
             states: match state {
                 Some(state) => Some(
                     state
@@ -1525,6 +1529,7 @@ impl Circuit {
     /// re-finalization); otherwise this circuit keeps its own.
     pub fn inherit_from(&mut self, previous: &Self) {
         self.fixed_stamps.get_mut().forget();
+        self.completed.clone_from(&previous.completed);
         self.carried_state
             .borrow_mut()
             .clone_from(&previous.carried_state.borrow());
@@ -1543,6 +1548,19 @@ impl Circuit {
         if compatible {
             *slot = Some(inherited);
         }
+    }
+
+    /// Records that `kind` has run on this circuit; [`Self::inherit_from`]
+    /// carries the record to the next analysis's circuit.
+    pub fn note_completed(&mut self, kind: crate::primitives::AnalysisKind) {
+        self.completed.push(kind);
+    }
+
+    /// The analyses already run on this circuit (and the circuits it
+    /// inherited from), in order.
+    #[must_use]
+    pub fn completed_analyses(&self) -> &[crate::primitives::AnalysisKind] {
+        &self.completed
     }
 
     /// The circuit matrix's element pattern (C's one `CKTmatrix`), once

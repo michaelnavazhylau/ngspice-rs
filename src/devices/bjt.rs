@@ -53,7 +53,7 @@ use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
 use crate::devices::sensitivity::{
-    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
+    AcReset, DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
     SensitivityMode, SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
@@ -2059,6 +2059,22 @@ const MODEL_PARAMETERS: &[SensitivityParameter] = &[
     SensitivityParameter::dc("rbm"),
     SensitivityParameter::dc("re"),
     SensitivityParameter::dc("rc"),
+    SensitivityParameter::ac("cje"),
+    SensitivityParameter::ac("vje"),
+    SensitivityParameter::ac("mje"),
+    SensitivityParameter::ac("tf"),
+    SensitivityParameter::ac("xtf"),
+    SensitivityParameter::ac("vtf"),
+    SensitivityParameter::ac("itf"),
+    SensitivityParameter::ac("ptf"),
+    SensitivityParameter::ac("cjc"),
+    SensitivityParameter::ac("vjc"),
+    SensitivityParameter::ac("mjc"),
+    SensitivityParameter::ac("xcjc"),
+    SensitivityParameter::ac("tr"),
+    SensitivityParameter::ac("cjs"),
+    SensitivityParameter::ac("vjs"),
+    SensitivityParameter::ac("mjs"),
     SensitivityParameter::dc("xtb"),
     SensitivityParameter::dc("eg"),
     SensitivityParameter::dc("xti"),
@@ -2147,6 +2163,8 @@ const MODEL_PARAMETERS: &[SensitivityParameter] = &[
 /// `ic` is a vector and the probe entries are ask-only. `icvbe`/`icvce` are
 /// `IOPAU` (`IF_AC`), so a DC walk reports six instance parameters.
 const INSTANCE_PARAMETERS: &[SensitivityParameter] = &[
+    SensitivityParameter::ac("icvbe"),
+    SensitivityParameter::ac("icvce"),
     SensitivityParameter::dc("area"),
     SensitivityParameter::dc("areab"),
     SensitivityParameter::dc("areac"),
@@ -2197,6 +2215,7 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
         let ibe = m.ibe.unwrap_or(0.);
         let ibc = m.ibc.unwrap_or(0.);
         let (ibe_given, ibc_given) = (m.ibe.is_some(), m.ibc.is_some());
+        let npn = self.device.pol > 0.;
         let mut model = SensitivityRecord::new();
         for (keyword, value, given) in [
             (
@@ -2224,6 +2243,26 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
             ("rbm", m.rbm, m.rbm_given),
             ("re", m.re, true),
             ("rc", m.rc, true),
+            // The `IF_AC` family, which only the AC reset load's excess
+            // phase (`ptf`, `tf`) reads; their *given* flags gate only
+            // `bjtsetup.c` defaults the values already hold.
+            ("cje", m.cje, true),
+            ("vje", m.vje, true),
+            ("mje", m.mje, true),
+            ("tf", m.tf, true),
+            ("xtf", m.xtf, true),
+            ("vtf", m.vtf, true),
+            ("itf", m.itf, true),
+            // Elaboration refuses a nonzero PTF.
+            ("ptf", 0., true),
+            ("cjc", m.cjc, true),
+            ("vjc", m.vjc, true),
+            ("mjc", m.mjc, true),
+            ("xcjc", m.xcjc, true),
+            ("tr", m.tr, true),
+            ("cjs", m.cjs, true),
+            ("vjs", m.vjs, true),
+            ("mjs", m.mjs, true),
             ("xtb", m.xtb, true),
             ("eg", m.eg, true),
             ("xti", m.xti, true),
@@ -2232,12 +2271,14 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
             ("af", m.af, true),
             ("iss", m.iss.unwrap_or(0.), m.iss.is_some()),
             ("ns", m.ns, true),
-            // Parameters the port refuses when given: `bjtsetup.c` leaves them
-            // at the zero `BJTmodel` initialisation, and no load reads them.
-            ("rco", 0., true),
-            ("vo", 0., true),
-            ("gamma", 0., true),
-            ("qco", 0., true),
+            // Parameters the port refuses when given, at `bjtsetup.c`'s
+            // defaults: no load the port reproduces reads them, but `MDask`
+            // reports these values, which size their (rounding-noise) AC
+            // columns' perturbations.
+            ("rco", 0.01, false),
+            ("vo", 10., false),
+            ("gamma", 1e-11, false),
+            ("qco", 0., false),
             ("tbf1", m.tbf.map_or(0., |c| c[0]), m.tbf.is_some()),
             ("tbf2", m.tbf.map_or(0., |c| c[1]), m.tbf.is_some()),
             ("tbr1", m.tbr.map_or(0., |c| c[0]), m.tbr.is_some()),
@@ -2298,22 +2339,25 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
             ("tisc2", m.tisc[1], true),
             ("tiss1", m.tiss[0], true),
             ("tiss2", m.tiss[1], true),
-            ("vg", 0., true),
-            ("cn", 0., true),
-            ("d", 0., true),
-            ("vbe_max", 0., true),
-            ("vbc_max", 0., true),
-            ("vce_max", 0., true),
-            ("pd_max", 0., true),
-            ("ic_max", 0., true),
-            ("ib_max", 0., true),
-            ("te_max", 0., true),
-            ("rth0", 0., true),
+            ("vg", 1.206, false),
+            ("cn", if npn { 2.42 } else { 2.2 }, false),
+            ("d", if npn { 0.87 } else { 0.52 }, false),
+            ("vbe_max", 1e99, false),
+            ("vbc_max", 1e99, false),
+            ("vce_max", 1e99, false),
+            ("pd_max", 1e99, false),
+            ("ic_max", 1e99, false),
+            ("ib_max", 1e99, false),
+            ("te_max", 1e99, false),
+            ("rth0", 0., false),
         ] {
             model = model.with(keyword, value, given);
         }
         let mut instance = SensitivityRecord::new();
+        let ic = |k: usize| self.device.initial.values.get(k).copied().flatten();
         for (keyword, value, given) in [
+            ("icvbe", ic(0).unwrap_or(0.), ic(0).is_some()),
+            ("icvce", ic(1).unwrap_or(0.), ic(1).is_some()),
             ("area", i.area, true),
             ("areab", i.areab, true),
             ("areac", i.areac, true),
@@ -2431,7 +2475,6 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_lines)]
     fn load(
         &self,
         _setup: RecordPair<'_>,
@@ -2439,11 +2482,40 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: BJT AC sensitivity", self.device.name),
-                "src/spicelib/devices/bjt/bjtacld.c",
+            return Err(SpiceError::circuit(
+                "a BJT's AC sensitivity load is its reset load",
             ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(self.bjt(current)?)))
+    }
+
+    /// `BJTacLoad` after `cktsens.c`'s reset load: `gpi`, `gmu`, `gm`, `go`,
+    /// `gx` and `gdsub` are the `CKTstate0` values `bjtload.c` stored at
+    /// zero junction voltages with the reset records, the charge
+    /// capacitances (`cqbe`, ... written only by a small-signal or transient
+    /// load) are zero, and `RC`/`RE`, `m` and the excess-phase factor
+    /// `PTF/(180/pi) TF` (`bjttemp.c`) come from `current`.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        let (m, i) = (current.model, current.instance);
+        Ok(SensitivityLoad::Replacement(Box::new(ResetBjt {
+            state: self.bjt(reset.state)?,
+            current: self.bjt(current)?,
+            multiplier: i.value("m")?,
+            excess_phase: m.value("ptf")? / (180.0 / std::f64::consts::PI) * m.value("tf")?,
+            omega: reset.omega,
+        })))
+    }
+}
+
+impl BjtSensitivity<'_> {
+    /// The port's BJT with the records' DC parameters.
+    #[allow(clippy::too_many_lines)]
+    fn bjt(&self, current: RecordPair<'_>) -> SpiceResult<Bjt> {
         let (m, i) = (current.model, current.instance);
         let r = |keyword: &str| m.value(keyword);
         let v = |keyword: &str| i.value(keyword);
@@ -2550,7 +2622,135 @@ impl DeviceSensitivity for BjtSensitivity<'_> {
             instance,
             initial: self.device.initial.clone(),
         };
-        Ok(SensitivityLoad::Replacement(Box::new(device)))
+        Ok(device)
+    }
+}
+
+/// A BJT's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetBjt {
+    /// Built from the reset load's records: the junction conductances.
+    state: Bjt,
+    /// Built from the current records: `RC` and `RE`.
+    current: Bjt,
+    /// `BJTm`.
+    multiplier: Real,
+    /// `BJTexcessPhaseFactor`.
+    excess_phase: Real,
+    /// `CKTomega`.
+    omega: Real,
+}
+
+impl Device for ResetBjt {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'q'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `bjtacld.c`'s stamps in its order with zero capacitances: the real
+    /// parts, then the excess phase's imaginary `xgm` parts.
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        use crate::devices::sensitivity::{ResetStamp, ResetStamps, StampAt, StampPart};
+        let gmin = context.model_context.gmin;
+        let t = self.state.thermal(context.model_context)?;
+        let p = c_point(&t, 0., 0., 0., 0., gmin)?;
+        let current = self.current.thermal(context.model_context)?;
+        let m = self.multiplier;
+        let (gcpr, gepr) = (current.gc, current.ge);
+        let Point {
+            gpi,
+            gmu,
+            mut gm,
+            go,
+            gx,
+            gdsub,
+            ..
+        } = p;
+        let mut xgm = 0.;
+        let td = self.excess_phase;
+        if td != 0. {
+            let arg = td * self.omega;
+            gm += go;
+            xgm = -gm * arg.sin();
+            gm = gm * arg.cos() - go;
+        }
+        let Nodes {
+            c,
+            b,
+            e,
+            s,
+            cp,
+            bp,
+            ep,
+            sc,
+        } = self.current.nodes;
+        let cx = cp;
+        let real = [
+            (c, c, m * (gcpr)),
+            (b, b, m * (gx)),
+            (e, e, m * (gepr)),
+            (cp, cp, m * (gmu + go)),
+            (cx, cx, m * (gcpr)),
+            (bp, bp, m * (gx + gpi + gmu)),
+            (ep, ep, m * (gpi + gepr + gm + go)),
+            (c, cx, m * (-gcpr)),
+            (b, bp, m * (-gx)),
+            (e, ep, m * (-gepr)),
+            (cx, c, m * (-gcpr)),
+            (cp, bp, m * (-gmu + gm)),
+            (cp, ep, m * (-gm - go)),
+            (bp, b, m * (-gx)),
+            (bp, cp, m * (-gmu)),
+            (bp, ep, m * (-gpi)),
+            (ep, e, m * (-gepr)),
+            (ep, cp, m * (-go)),
+            (ep, bp, m * (-gpi - gm)),
+            (sc, sc, m * (gdsub)),
+            (s, s, m * (gdsub)),
+            (sc, s, m * (-gdsub)),
+            (s, sc, m * (-gdsub)),
+        ];
+        let mut stamps: Vec<ResetStamp> = real
+            .into_iter()
+            .map(|(a, b, value)| ResetStamp {
+                at: StampAt::Nodes(a, b),
+                value,
+                part: StampPart::Real,
+            })
+            .collect();
+        if xgm != 0. {
+            // `xcpi`, `xcmu` and `xcmcb` are zero: `m * (0 + xgm)`,
+            // `m * (-0 + xgm)`, `m * (-xgm)`, `m * (-0 - xgm - 0)`.
+            for (a, b, value) in [
+                (ep, ep, m * xgm),
+                (cp, bp, m * xgm),
+                (cp, ep, m * (-xgm)),
+                (ep, bp, m * (-xgm)),
+            ] {
+                stamps.push(ResetStamp {
+                    at: StampAt::Nodes(a, b),
+                    value,
+                    part: StampPart::Imaginary,
+                });
+            }
+        }
+        ResetStamps::new(&self.current.name, 'q', &self.current.terminals, stamps)?
+            .assemble_linear(context)
     }
 }
 

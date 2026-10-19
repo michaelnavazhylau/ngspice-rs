@@ -26,10 +26,11 @@ compile. The port reproduces `sens_sens()`.
 2. **DC**: `Y` is the operating-point Jacobian, the matrix C's last `CKTop`
    load leaves factored (the port reloads it with C's `DEVload` matrix,
    `TrialState::with_c_jacobian`, as `.tf` does) and `x` the operating
-   point. **AC**: at every frequency C runs `CKTsetup`, `CKTtemp`, a load and
-   `NIacIter` on the circuit as the previous frequency left it, so `Y = A +
-   j omega E` and `x` are rebuilt from the devices' current (perturbed and
-   restored) records.
+   point. **AC**: at every frequency C runs `CKTunsetup`/`CKTsetup`,
+   `CKTtemp`, a DC load and `NIacIter` on the circuit as the previous
+   frequency left it, so `Y = A + j omega E` and `x` are rebuilt from the
+   devices' current (perturbed and restored) records, and every device is
+   linearized at a **reset state**, not at the operating point (see below).
 3. For each parameter in `sgen` order: `DEVsetup` of the isolated instance,
    `DEVtemperature`, a load (`dY0`, `dI0`); the setter with `p + delta`
    (`delta = 1e-6 p`, or `1e-6` when `p = 0`: `Sens_Delta`, `Sens_Abs_Delta`,
@@ -40,6 +41,62 @@ compile. The port reproduces `sens_sens()`.
 
 So a sensitivity is a first-order forward difference (relative error about
 `1e-6`), not an exact derivative.
+
+## The AC reset state (#102)
+
+`CKTunsetup` frees the state vectors and solution, `CKTsetup` allocates them
+zeroed (`NIreinit`), and the DC load that follows (`CKTmode` is still
+`MODEDCOP|MODEINITFLOAT` from `CKTop`) sees all-zero node voltages. So each
+`DEVacLoad`, at the frequency's solve and in every parameter's base and
+perturbed load, reads:
+
+* from `CKTstate0`, what that load stored at zero junction voltages:
+  diode `conduct`, BJT `gpi`/`gmu`/`gm`/`go`/`gx`/`gdsub`, JFET/MESFET/HFET2
+  `gm`/`gds`/`ggs`/`ggd`, a switch's state; MOS `gm`/`gds`/`gmbs`/`gbd`/`gbs`
+  and the mode are instance fields the same load writes. These come from the
+  records as they were at the frequency's `CKTtemp` and do **not** follow a
+  parameter's perturbation, so channel and junction parameters (`is`, `bf`,
+  `vto`, `kp`, `beta`, ...) have exactly zero columns, and a forward-biased
+  diode is its zero-bias conductance `Is/Vt + gmin`;
+* zero for the state slots only a small-signal or transient load writes: every
+  charge capacitance (`DIOcapCurrent`, BJT `cqbe`..., MOS Meyer halves, JFET
+  `qgs`/`qgd`);
+* the temperature-derived and setup fields from the current records: series
+  conductances, MOS overlap capacitances (whose `cgso`/`cgdo`/`cgbo` and `w`/`m`
+  columns are `j omega` times geometry), the BJT excess-phase factor
+  `PTF/(180/pi) TF` (with TF given, PTF's perturbation rotates `gm`), `m`;
+* B sources: `ASRCsetup` reallocates `ASRCacValues` (zeroed) every time and
+  only a small-signal load fills it, so a B source keeps only a voltage
+  source's branch incidences;
+* K: `MUTask` answers `MUTfactor` (`M = k sqrt(|L1 L2|)`) for `k`, so the walk
+  sets the coupling to `M + delta` and restores it to `M`. The `k` column is
+  that difference quotient (about `-3e10` on `sens_ac_mutual`), and from the
+  next frequency on the coupling has collapsed to `M`.
+
+`DeviceSensitivity::reset_ac_load` builds a stand-in (`ResetStamps` or a
+family's own) that stamps exactly the C load's elements in C's order from the
+reset records and the current ones. Two fields escape the reset: MOS
+`capbd`/`capbs` are instance fields written only by `MODEINITSMSIG` or
+transient loads, so they hold whatever an earlier `.op`, `.ac`, `.tran`,
+`.pz`, `.disto` or `.noise` of the deck left (measured: a `.op` before the
+`.sens` changes C's MOS columns; `.dc` and `.tf` do not). The last of those
+to run decides (`Circuit::completed_analyses`, in C's `analInfo` order): none
+leaves C's zero initialisation; `.op`, `.ac`, `.pz`, `.disto` or `.noise`
+leave the small-signal load's values at the deck's operating point, which
+`.sens` solves again identically, so the port evaluates them there with the
+circuit's own device (`AcReset::small_signal`, verified by `sens_ac_mos_op`);
+after a `.tran` they hold the final timepoint's values, and the port refuses
+(`NotYetPorted`).
+
+Other families read only reset quantities. JFET2's `PSacload` runs at the
+reset's zero `vgs`/`vgd`/`cd` with the current model coefficients, so at
+`vds = 0` its `TAUD`/`TAUG` terms vanish. MESA's `mesaacl.c` reads the
+`gm0`..`gds0`/`delidgch0`.. fields the reset load wrote, and its `LAMBDA`
+blend multiplies the reset's zero `vds`. MESA level 4's `mesa3` never writes
+those fields, so its AC load has no `gm`/`gds` in any analysis; under `.sens`
+that is reproducible, unlike `.ac` at an operating point (refused as H2).
+HFET1 stamps `CDS * CKTomega` and its `KAPPA`/`FGDS`/`DELF` output
+conductance from the current records.
 
 ## Parameters, names and order
 
@@ -108,23 +165,23 @@ output:
 | --- | --- | --- |
 | R (literal and model-backed) | yes | yes |
 | C, L (literal and model-backed) | yes (all 0: their DC loads ignore every parameter) | yes |
-| K | yes (nothing to perturb: `k` is `IF_AC`) | refused |
+| K (two inductors) | yes (nothing to perturb: `k` is `IF_AC`) | yes (`k := M` quirk); a card over more than two inductors is refused |
 | V, I (not RF ports) | yes | yes |
 | E, F, G, H | yes | yes |
-| B (`asrc`) | yes | refused |
-| S, W | yes | refused |
-| D | yes | refused |
-| Q (Gummel-Poon) | yes (`RC == 0`; with `RC != 0` C's Kull quasi-saturation changes the `gamma` row) | refused |
-| M (MOS1, MOS2, MOS3, MOS6, MOS9) | yes, bounded by valid perturbations (see below) | refused |
+| B (`asrc`) | yes | yes (zeroed derivatives) |
+| S, W | yes | yes (zero-control state) |
+| D | yes | yes (zero-bias conductance, no capacitance) |
+| Q (Gummel-Poon) | yes (`RC == 0`; with `RC != 0` C's Kull quasi-saturation changes the `gamma` row) | yes (`RC == 0`), with the `IF_AC` capacitance family and excess phase |
+| M (MOS1, MOS2, MOS3, MOS6, MOS9) | yes, bounded by valid perturbations (see below) | MOS1/2/3/9 yes, unless a `.tran` was the last analysis to write `capbd`/`capbs`; MOS6 refused (no C AC load) |
 | XSPICE code models (POLY/TABLE), RF port V sources | refused (`NotYetPorted`) | refused |
-| J (JFET level 1, `jfet.c`) | yes | refused |
-| J (JFET level 2, `jfet2.c`) | yes | refused |
-| Z level 1 (MES, `mes.c`) | yes | refused |
-| Z level 2 (MESA, `mesa.c`) | yes | refused |
-| Z level 3 (MESA) | yes | refused |
-| Z level 4 (MESA) | yes (including a shifted instance temperature) | refused |
-| Z level 5 (HFET1, `hfet1/hfet.c`) | yes | refused |
-| Z level 6 (HFET2, `hfet2/hfet2.c`) | yes | refused |
+| J (JFET level 1, `jfet.c`) | yes | yes |
+| J (JFET level 2, `jfet2.c`) | yes | yes (`PSacload` at the reset state) |
+| Z level 1 (MES, `mes.c`) | yes | yes |
+| Z level 2 (MESA, `mesa.c`) | yes | yes |
+| Z level 3 (MESA) | yes | yes |
+| Z level 4 (MESA) | yes (including a shifted instance temperature) | yes: no `gm`/`gds` (`mesa3` never writes the fields `mesaacl.c` reads) |
+| Z level 5 (HFET1, `hfet1/hfet.c`) | yes | yes |
+| Z level 6 (HFET2, `hfet2/hfet2.c`) | yes | yes |
 
 The device hook is `Device::sensitivity(&ModelContext) ->
 SpiceResult<Box<dyn DeviceSensitivity>>`; its default is an explicit
@@ -496,8 +553,10 @@ returns E_BADPARM; `sens_temp` ignores that failure and continues with stale
 instance derivations. The port propagates the error rather than pretending
 those partial-record values are a valid sensitivity. Give a valid NSUB or
 filter out that parameter. The same temperature-callback limitation applies
-where other perturbations make the device derivation invalid. AC remains
-refused, including level 6 whose C device has no AC load at all.
+where other perturbations make the device derivation invalid, in AC as in DC.
+AC runs for levels 1/2/3/9 (with the walk's `IF_AC` entries: `cbd`/`cbs`,
+the overlaps, `cj`/`cjsw`, and levels 2/3/9's IC voltages) and stays refused
+for level 6, whose C device has no AC load at all.
 
 ### The `j` and `z` families: the original gap note (#164)
 
@@ -536,12 +595,10 @@ deck that asks fails loudly.
 
 ## Divergences (explicit errors where C carries on)
 
-* **AC with nonlinear devices, switches or K**: before every frequency C runs
-  `CKTunsetup`/`CKTsetup` and a DC-mode load, which resets the device state,
-  so diodes, transistors and switches are linearized at a reset state rather
-  than at the operating point (a forward-biased diode is effectively absent),
-  and a K coupling acts through the inductors' loads. The port refuses these
-  decks.
+* **AC, where the reset state is not reproduced** (see "The AC reset state"):
+  MOS6 (no C AC load); a MOS level 1/2/3/9 when a `.tran` was the last
+  analysis to write `capbd`/`capbs`; a K card over more than two inductors
+  (C's front end splits it into differently named pairs).
 * A BJT with `RC != 0`, a code model or an RF port in the circuit (see
   above). BJT `RC != 0` activates unported Kull quasi-saturation terms in the
   parameter walk; ordinary and single-sided IBE/IBC record replays are
@@ -564,7 +621,10 @@ deck that asks fails loudly.
   and differential outputs, an RC low-pass `dH/dC = -j w R H^2` over a decade
   sweep (with the sticky `ac` resistance), a diode's `is` sensitivity against
   a central difference of two `.op` solutions plus its zero `rs` and NaN
-  `ikf`, batch order and every refusal.
+  `ikf`, an AC diode's bias-independent zero-bias linearization
+  (`-gd/(1 + R gd)^2`), the MOS junction capacitances an earlier `.op`
+  leaves (none after `.dc`, refused after `.tran`), batch order and every
+  refusal.
 * C goldens (`cargo xtask golden verify`): `sens_divider` (R/V/I/E/F/G/H, DC),
   `sens_ac` (R/C/L/V/I/E/F/G/H at 40 C, decade sweep), `sens_multi` (`.ac`,
   `.op` and a filtered `.sens` batch) under `compare::SENSITIVITY` (1e-8
@@ -576,6 +636,16 @@ deck that asks fails loudly.
   `xtask/src/compare.rs`). The `j`/`z` family fixtures are there too:
   `sens_jfet`, `sens_jfet2`, `sens_mesfet`, `sens_hfet1`, `sens_hfet2`,
   `sens_mesa`, `sens_mesa3`, `sens_mesa4`, `sens_mesa4_ts` and `sens_bjt`.
+  The AC reset state (#102): `sens_ac_reset` (diode, S/W switches, B sources),
+  `sens_ac_mutual` (K), `sens_ac_bjt`, `sens_ac_mos` (levels 1/2/3/9) and
+  `sens_ac_fet` (JFET, MESFET, HFET2), `sens_ac_hetero` (JFET2, MESA levels
+  2-4, HFET1 with `cds`/`kappa`) and `sens_ac_mos_op` (the MOS deck after
+  `.op`, a batch fixture), under the nonlinear bound. Against the
+  no-FMA oracle (`.options sparse`) every column is bit-identical except the
+  MESFET's, HFET1's, HFET2's and MESA level 4's few-ulp residue, which a
+  plain `.ac` of the same circuits shows too; it is visible only in columns
+  that are themselves rounding noise (below 1e-12 on `sens_ac_hetero`,
+  whose 117 larger values agree to 3e-13).
   Classic MOS adds `sens_mos1`, `sens_mos2`, `sens_mos3`, `sens_mos6` and
   `sens_mos9` under the same nonlinear bound.
 * Opt-in live C (`NGSPICE_BIN=... cargo test --test c_sens_reference --

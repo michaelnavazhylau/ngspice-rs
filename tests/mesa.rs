@@ -408,8 +408,9 @@ fn the_remaining_boundaries_are_explicit() {
         1e-9,
         1e-18,
     );
-    // `.sens` itself now runs for a level-2 card (#164); the *AC* sensitivity of
-    // a nonlinear device stays refused.
+    // `.sens` runs for a level-2 card (#164), AC too (#102): `mesaacl.c` after
+    // cktsens.c's zero-voltage reset load, which freezes the channel, so the
+    // channel parameters' columns are exactly zero.
     let netlist = deck(
         "vdd 1 0 dc 3 ac 1\nr1 1 drain 1k\nz1 drain gate 0 zm l=1u w=20u\n\
          vg gate 0 dc -2.5\n.model zm nmf(level=2 rg=10)\n\
@@ -419,11 +420,15 @@ fn the_remaining_boundaries_are_explicit() {
     let config = RunConfig::from_netlist(&netlist).unwrap();
     let request = config.request_for(&netlist.analyses[0]).unwrap();
     let mut c = config.circuit(&netlist).unwrap();
-    let error = runner(request.kind)
+    let plot = runner(request.kind)
         .unwrap()
         .run(&mut c, &request, &config.context())
-        .unwrap_err();
-    assert!(error.to_string().contains(".sens ac"), "{error}");
+        .unwrap();
+    assert_eq!(plot.plotname, "Sensitivity Analysis");
+    assert_eq!(
+        plot.value("v(z1:vto)", 0).unwrap(),
+        ngspice_rs::primitives::Complex::ZERO
+    );
     let mut c = circuit(
         "vds 1 0 dc 0.5 ac 1\nvids 1 2 dc 0\nvg 3 0 dc -1 ac 1\nr1 2 0 1k\n\
          z1 2 3 0 zm l=1u w=20u\n.model zm nmf(level=2 rg=10 ri=1e3)\n\

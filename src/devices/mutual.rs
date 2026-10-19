@@ -166,7 +166,9 @@ impl Device for MutualInductance {
         _context: &crate::devices::models::ModelContext,
     ) -> crate::primitives::SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>>
     {
-        Ok(Box::new(crate::devices::sensitivity::MutualSensitivity))
+        Ok(Box::new(
+            crate::devices::sensitivity::MutualSensitivity::new(self),
+        ))
     }
 
     /// Linear in `.disto`: C gives this device no distortion routine

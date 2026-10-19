@@ -1,0 +1,152 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_hetero.cir
+title: "AC sensitivity of JFET level 2, MESA levels 2-4 and HFET1 (#102)" @netlists/sens_ac_hetero.cir:1:1
+scope root
+  cards (16):
+    [0] device[0] @netlists/sens_ac_hetero.cir:10:1 "vdd 1 0 dc 1 ac 1"
+    [1] device[1] @netlists/sens_ac_hetero.cir:11:1 "vsense 1 2 dc 0"
+    [2] device[2] @netlists/sens_ac_hetero.cir:12:1 "vg 9 0 dc 0.3 ac 1"
+    [3] device[3] @netlists/sens_ac_hetero.cir:13:1 "rgate 9 3 1k"
+    [4] device[4] @netlists/sens_ac_hetero.cir:14:1 "j1 2 3 0 jm area=2"
+    [5] model[0] @netlists/sens_ac_hetero.cir:15:1 ".model jm njf level=2 vto=-2 beta=1e-3 lambda=0.02 rd=10 rs=20 cds=1p cgs=2p cgd=1p vbi=0.8 is=1e-14 n=1.2 fc=0.4 ibd=1e-9 vbd=1.2 taud=1e-9 taug=1e-9 vst=0.5 ver=1 tnom=30"
+    [6] device[5] @netlists/sens_ac_hetero.cir:18:1 "z2 2 3 0 me2 l=1u w=20u"
+    [7] model[1] @netlists/sens_ac_hetero.cir:19:1 ".model me2 nmf(level=2 rd=31 rs=31 rg=10 phib=3.1232e18)"
+    [8] device[6] @netlists/sens_ac_hetero.cir:20:1 "z3 2 3 0 me3 l=1u w=20u"
+    [9] model[2] @netlists/sens_ac_hetero.cir:21:1 ".model me3 nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5 phib=3.1232e18)"
+    [10] device[7] @netlists/sens_ac_hetero.cir:23:1 "z4 2 3 0 me4 l=1u w=20u"
+    [11] model[3] @netlists/sens_ac_hetero.cir:24:1 ".model me4 nmf(level=4 rd=31 rs=31 rdi=20 rsi=20 mu=0.3 gamma=2.5 nmax=4e16 cas=0.9 cbs=1.1 epsi=1.142189e-10 phib=3.1232e18)"
+    [12] device[8] @netlists/sens_ac_hetero.cir:26:1 "z5 2 3 0 hf l=1u w=20u"
+    [13] model[4] @netlists/sens_ac_hetero.cir:27:1 ".model hf nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50 vt0=-0.5 cds=1p kappa=0.2 delf=1e5 fgds=1e5"
+    [14] analysis[0] @netlists/sens_ac_hetero.cir:29:1 ".sens i(vsense) ac dec 1 1k 1meg"
+    [15] end @netlists/sens_ac_hetero.cir:30:1 ".end"
+  devices (9):
+    device [0] name="vdd" designator=v @netlists/sens_ac_hetero.cir:10:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="1" @netlists/sens_ac_hetero.cir:10:9
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_hetero.cir:10:17
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_hetero.cir:10:14
+    device [1] name="vsense" designator=v @netlists/sens_ac_hetero.cir:11:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_ac_hetero.cir:11:12
+    device [2] name="vg" designator=v @netlists/sens_ac_hetero.cir:12:1
+      nodes: "9" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.3" @netlists/sens_ac_hetero.cir:12:8
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_hetero.cir:12:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_hetero.cir:12:15
+    device [3] name="rgate" designator=r @netlists/sens_ac_hetero.cir:13:1
+      nodes: "9" "3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_hetero.cir:13:11
+    device [4] name="j1" designator=j @netlists/sens_ac_hetero.cir:14:1
+      nodes: "2" "3" "0"
+      model: "jm"
+      parameters (1):
+        [0] name="area" kind=scalar value="2" @netlists/sens_ac_hetero.cir:14:13
+    device [5] name="z2" designator=z @netlists/sens_ac_hetero.cir:18:1
+      nodes: "2" "3" "0"
+      model: "me2"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_ac_hetero.cir:18:14
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_hetero.cir:18:19
+    device [6] name="z3" designator=z @netlists/sens_ac_hetero.cir:20:1
+      nodes: "2" "3" "0"
+      model: "me3"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_ac_hetero.cir:20:14
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_hetero.cir:20:19
+    device [7] name="z4" designator=z @netlists/sens_ac_hetero.cir:23:1
+      nodes: "2" "3" "0"
+      model: "me4"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_ac_hetero.cir:23:14
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_hetero.cir:23:19
+    device [8] name="z5" designator=z @netlists/sens_ac_hetero.cir:26:1
+      nodes: "2" "3" "0"
+      model: "hf"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_ac_hetero.cir:26:13
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_hetero.cir:26:18
+  models (5):
+    model [0] name="jm" base="njf" level=2e0 @netlists/sens_ac_hetero.cir:15:1
+      parameters (20):
+        [0] name="level" kind=scalar value="2" @netlists/sens_ac_hetero.cir:15:15
+        [1] name="vto" kind=scalar value="-2" @netlists/sens_ac_hetero.cir:15:23
+        [2] name="beta" kind=scalar value="1e-3" @netlists/sens_ac_hetero.cir:15:30
+        [3] name="lambda" kind=scalar value="0.02" @netlists/sens_ac_hetero.cir:15:40
+        [4] name="rd" kind=scalar value="10" @netlists/sens_ac_hetero.cir:15:52
+        [5] name="rs" kind=scalar value="20" @netlists/sens_ac_hetero.cir:15:58
+        [6] name="cds" kind=scalar value="1p" @netlists/sens_ac_hetero.cir:15:64
+        [7] name="cgs" kind=scalar value="2p" @netlists/sens_ac_hetero.cir:15:71
+        [8] name="cgd" kind=scalar value="1p" @netlists/sens_ac_hetero.cir:15:78
+        [9] name="vbi" kind=scalar value="0.8" @netlists/sens_ac_hetero.cir:15:85
+        [10] name="is" kind=scalar value="1e-14" @netlists/sens_ac_hetero.cir:15:93
+        [11] name="n" kind=scalar value="1.2" @netlists/sens_ac_hetero.cir:15:102
+        [12] name="fc" kind=scalar value="0.4" @netlists/sens_ac_hetero.cir:15:108
+        [13] name="ibd" kind=scalar value="1e-9" @netlists/sens_ac_hetero.cir:15:115
+        [14] name="vbd" kind=scalar value="1.2" @netlists/sens_ac_hetero.cir:15:124
+        [15] name="taud" kind=scalar value="1e-9" @netlists/sens_ac_hetero.cir:15:132
+        [16] name="taug" kind=scalar value="1e-9" @netlists/sens_ac_hetero.cir:15:142
+        [17] name="vst" kind=scalar value="0.5" @netlists/sens_ac_hetero.cir:15:152
+        [18] name="ver" kind=scalar value="1" @netlists/sens_ac_hetero.cir:15:160
+        [19] name="tnom" kind=scalar value="30" @netlists/sens_ac_hetero.cir:15:166
+    model [1] name="me2" base="nmf" level=2e0 @netlists/sens_ac_hetero.cir:19:1
+      parameters (5):
+        [0] name="level" kind=scalar value="2" @netlists/sens_ac_hetero.cir:19:16
+        [1] name="rd" kind=scalar value="31" @netlists/sens_ac_hetero.cir:19:24
+        [2] name="rs" kind=scalar value="31" @netlists/sens_ac_hetero.cir:19:30
+        [3] name="rg" kind=scalar value="10" @netlists/sens_ac_hetero.cir:19:36
+        [4] name="phib" kind=scalar value="3.1232e18" @netlists/sens_ac_hetero.cir:19:42
+    model [2] name="me3" base="nmf" level=3e0 @netlists/sens_ac_hetero.cir:21:1
+      parameters (8):
+        [0] name="level" kind=scalar value="3" @netlists/sens_ac_hetero.cir:21:16
+        [1] name="rd" kind=scalar value="31" @netlists/sens_ac_hetero.cir:21:24
+        [2] name="rs" kind=scalar value="31" @netlists/sens_ac_hetero.cir:21:30
+        [3] name="rdi" kind=scalar value="20" @netlists/sens_ac_hetero.cir:21:36
+        [4] name="rsi" kind=scalar value="20" @netlists/sens_ac_hetero.cir:21:43
+        [5] name="rtc1" kind=scalar value="1e-3" @netlists/sens_ac_hetero.cir:21:50
+        [6] name="rtc2" kind=scalar value="1e-5" @netlists/sens_ac_hetero.cir:21:60
+        [7] name="phib" kind=scalar value="3.1232e18" @netlists/sens_ac_hetero.cir:21:70
+    model [3] name="me4" base="nmf" level=4e0 @netlists/sens_ac_hetero.cir:24:1
+      parameters (12):
+        [0] name="level" kind=scalar value="4" @netlists/sens_ac_hetero.cir:24:16
+        [1] name="rd" kind=scalar value="31" @netlists/sens_ac_hetero.cir:24:24
+        [2] name="rs" kind=scalar value="31" @netlists/sens_ac_hetero.cir:24:30
+        [3] name="rdi" kind=scalar value="20" @netlists/sens_ac_hetero.cir:24:36
+        [4] name="rsi" kind=scalar value="20" @netlists/sens_ac_hetero.cir:24:43
+        [5] name="mu" kind=scalar value="0.3" @netlists/sens_ac_hetero.cir:24:50
+        [6] name="gamma" kind=scalar value="2.5" @netlists/sens_ac_hetero.cir:24:57
+        [7] name="nmax" kind=scalar value="4e16" @netlists/sens_ac_hetero.cir:24:67
+        [8] name="cas" kind=scalar value="0.9" @netlists/sens_ac_hetero.cir:24:77
+        [9] name="cbs" kind=scalar value="1.1" @netlists/sens_ac_hetero.cir:24:85
+        [10] name="epsi" kind=scalar value="1.142189e-10" @netlists/sens_ac_hetero.cir:24:93
+        [11] name="phib" kind=scalar value="3.1232e18" @netlists/sens_ac_hetero.cir:24:111
+    model [4] name="hf" base="nhfet" level=5e0 @netlists/sens_ac_hetero.cir:27:1
+      parameters (13):
+        [0] name="level" kind=scalar value="5" @netlists/sens_ac_hetero.cir:27:17
+        [1] name="rd" kind=scalar value="31" @netlists/sens_ac_hetero.cir:27:25
+        [2] name="rs" kind=scalar value="31" @netlists/sens_ac_hetero.cir:27:31
+        [3] name="rg" kind=scalar value="10" @netlists/sens_ac_hetero.cir:27:37
+        [4] name="ri" kind=scalar value="1e3" @netlists/sens_ac_hetero.cir:27:43
+        [5] name="rf" kind=scalar value="2e3" @netlists/sens_ac_hetero.cir:27:50
+        [6] name="rdi" kind=scalar value="50" @netlists/sens_ac_hetero.cir:27:57
+        [7] name="rsi" kind=scalar value="50" @netlists/sens_ac_hetero.cir:27:64
+        [8] name="vt0" kind=scalar value="-0.5" @netlists/sens_ac_hetero.cir:27:71
+        [9] name="cds" kind=scalar value="1p" @netlists/sens_ac_hetero.cir:27:80
+        [10] name="kappa" kind=scalar value="0.2" @netlists/sens_ac_hetero.cir:27:87
+        [11] name="delf" kind=scalar value="1e5" @netlists/sens_ac_hetero.cir:27:97
+        [12] name="fgds" kind=scalar value="1e5" @netlists/sens_ac_hetero.cir:27:106
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_ac_hetero.cir:29:1
+      arguments: "i" "(" "vsense" ")" "ac" "dec" "1" "1k" "1meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

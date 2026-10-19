@@ -23,8 +23,13 @@ impl SensitivityLevel for Level2 {
         P::dc("cbs"),
         P::dc("is"),
         P::dc("pb"),
+        P::ac("cgso"),
+        P::ac("cgdo"),
+        P::ac("cgbo"),
         P::dc("rsh"),
+        P::ac("cj"),
         P::dc("mj"),
+        P::ac("cjsw"),
         P::dc("mjsw"),
         P::dc("js"),
         P::dc("tox"),
@@ -105,6 +110,14 @@ impl SensitivityLevel for Level2 {
             ("u0", process.u0),
         ] {
             r.store(k, value)?;
+        }
+        // mos2temp.c derives an ungiven CJ from NSUB (zero without it).
+        if !r.given("cj") {
+            let (nsub, pb) = (r.value("nsub")?, r.value("pb")?);
+            r.store(
+                "cj",
+                (super::EPSILON_SI * crate::devices::mos::CHARGE * nsub * 1e6 / (2. * pb)).sqrt(),
+            )?;
         }
         Ok(())
     }

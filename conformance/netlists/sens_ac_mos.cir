@@ -1,0 +1,21 @@
+AC sensitivity of the classic MOS levels 1/2/3/9 (#102)
+* Every channel quantity is the zero-bias one of cktsens.c's reset load, so the
+* process and channel parameters' columns are exactly zero; the Meyer halves
+* are zero and capbd/capbs are C's zero-initialised instance fields (no earlier
+* analysis wrote them), leaving the overlap capacitances, the series
+* resistances and the geometry that scales them.
+.options reltol=1e-10 vntol=1e-13 abstol=1e-16
+vdn dn 0 3
+vgn gn 0 dc 2 ac 1
+vbn bn 0 -0.3
+vsense s 0 0
+m1 dn gn s bn m1n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3 m=2
+m2 dn gn s bn m2n l=12u w=30u ad=15p as=25p pd=12u ps=24u nrd=3 nrs=2
+m3 dn gn s bn m3n l=15u w=10u ad=20p as=10p pd=20u ps=10u temp=60
+m9 dn gn s bn m9n l=10u w=15u
+.model m1n nmos level=1 tox=20n nsub=1e16 rsh=100 lambda=0.02 cgso=1e-10 cgdo=2e-10 cgbo=3e-11 cj=1e-4 cjsw=1e-10
+.model m2n nmos level=2 tox=20n nsub=1e16 rd=10 rs=5 cgso=2e-10 cgdo=1e-10 cbd=5f
+.model m3n nmos level=3 vto=0.7 kp=50u rd=20 cgso=1e-10 cgdo=1e-10 cgbo=1e-11 delta=10 eta=0.1 nsub=1e16
+.model m9n nmos level=9 vto=0.6 kp=60u rs=15 cgso=3e-10 nsub=1e16
+.sens i(vsense) ac dec 1 1k 1meg
+.end

@@ -197,6 +197,83 @@ fn a_diode_matches_central_differences_and_c_artefacts() {
     assert!(value(&plot, "v(d1:ikf)").is_nan());
 }
 
+/// The analyses of `body` in batch order on one inheriting circuit lineage,
+/// as `spice-rs simulate` runs a deck (C keeps one circuit for the deck).
+fn run_batch(body: &str) -> SpiceResult<Vec<(String, Plot)>> {
+    let netlist = Parser::new().parse_deck(&parse_deck_text(
+        Path::new("sens.cir"),
+        &format!("sens test\n{body}\n.end\n"),
+    ))?;
+    let config = RunConfig::from_netlist(&netlist)?;
+    let mut plots = Vec::new();
+    let mut previous: Option<ngspice_rs::devices::Circuit> = None;
+    for entry in batch::schedule(&netlist.analyses) {
+        let request = config.request_for(&netlist.analyses[entry.card_index])?;
+        let mut circuit = config.circuit(&netlist)?;
+        if let Some(previous) = &previous {
+            circuit.inherit_from(previous);
+        }
+        let plot = runner(request.kind)?.run(&mut circuit, &request, &config.context())?;
+        circuit.note_completed(entry.kind);
+        previous = Some(circuit);
+        plots.push((entry.plot_name, plot));
+    }
+    Ok(plots)
+}
+
+/// AC `.sens` linearizes a diode at `cktsens.c`'s reset load (all-zero node
+/// voltages), not at its operating point: at the first frequency `v(2)` of
+/// `r1` into the diode is `1/(1 + R1 gd)` with `gd = IS/Vt + gmin`, so
+/// `d v(2)/d R1 = -gd/(1 + R1 gd)^2` whatever the bias, the capacitance is
+/// absent and `is` (frozen in the reset state) has an exactly zero column.
+#[test]
+fn ac_sensitivity_linearizes_a_diode_at_the_reset_state() {
+    let deck = |bias: &str| {
+        format!(
+            "v1 1 0 dc {bias} ac 1\nr1 1 2 1k\nd1 2 0 dm\n.model dm d is=1e-14 cjo=1p\n\
+             .sens v(2) ac dec 1 1k 10k"
+        )
+    };
+    let forward = sens(&deck("0.7")).unwrap();
+    let off = sens(&deck("0")).unwrap();
+    let at = |plot: &Plot, name: &str| plot.value(name, 0).unwrap();
+    assert_eq!(at(&forward, "v(r1)"), at(&off, "v(r1)"));
+    // CONSTKoverQ * 300.15 K, gmin = 1e-12.
+    let vt = 1.38064852e-23 / 1.6021766208e-19 * 300.15;
+    let gd = 1e-14 / vt + 1e-12;
+    let want = -gd / ((1. + 1e3 * gd) * (1. + 1e3 * gd));
+    let got = at(&forward, "v(r1)");
+    close(got.re, want, 2e-6);
+    assert_eq!(got.im, 0.);
+    assert_eq!(at(&forward, "v(d1:is)"), Complex::ZERO);
+    assert_eq!(at(&forward, "v(d1:cjo)"), Complex::ZERO);
+}
+
+/// A MOS AC load reads `capbd`/`capbs` from the instance, which only a
+/// small-signal or transient load writes. After `.op` (or `.ac`, `.noise`,
+/// ...) C reads the operating point's values, which the port reproduces: the
+/// columns move against a deck without the `.op`. A `.dc` sweep writes none.
+/// When `.tran` wrote them last (C runs it after `.op`) the port refuses.
+#[test]
+fn mos_ac_sensitivity_reads_junction_capacitances_left_by_an_earlier_analysis() {
+    let body = "vd d 0 dc 3\nvg g 0 dc 2 ac 1\nvs s 0 0\n\
+                m1 d g s 0 nm l=10u w=20u ad=10p as=10p nrs=2\n\
+                .model nm nmos level=1 nsub=1e16 tox=20n rsh=50 cj=1e-4 cgso=1e-10\n\
+                .sens i(vs) ac dec 1 1k 10k";
+    let last = |plots: Vec<(String, Plot)>| plots.into_iter().last().unwrap();
+    let (name, fresh) = last(run_batch(body).unwrap());
+    assert_eq!(name, "sens1");
+    let (_, swept) = last(run_batch(&format!("{body}\n.dc vd 3 3 1")).unwrap());
+    let (_, after_op) = last(run_batch(&format!("{body}\n.op")).unwrap());
+    let column = |plot: &Plot| plot.value("v(m1:cgso)", 0).unwrap();
+    assert_eq!(column(&swept), column(&fresh));
+    assert_ne!(column(&after_op), column(&fresh));
+    assert_eq!(after_op.value("v(m1:cj)", 0).unwrap(), Complex::ZERO);
+    let error = run_batch(&format!("{body}\n.op\n.tran 1n 10n")).unwrap_err();
+    assert!(error.is_not_yet_ported(), "{error}");
+    assert!(error.to_string().contains("after .tran"), "{error}");
+}
+
 /// `.sens` runs after `.op` and `.ac` in a batch (C's `analInfo` order).
 #[test]
 fn sensitivity_composes_with_other_analyses() {
@@ -214,8 +291,9 @@ fn unsupported_cases_fail_explicitly() {
             "BJT sensitivity with RC != 0",
         ),
         (
-            "v1 in 0 dc 5 ac 1\nr1 in a 1k\nd1 a 0 dm\n.model dm d\n.sens v(a) ac dec 1 1 10",
-            "nonlinear and switch devices are linearized",
+            "v1 in 0 dc 0 ac 1\nr1 in a 50\nl1 a 0 1u\nl2 b 0 1u\nl3 c 0 1u\nr2 b 0 50\n\
+             r3 c 0 50\nk1 l1 l2 l3 0.5\n.sens v(b) ac dec 1 1meg 10meg",
+            "more than two inductors",
         ),
         (&format!("{DIVIDER}\n.sens i(r1)"), "no findable branch"),
         (

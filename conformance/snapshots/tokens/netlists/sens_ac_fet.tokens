@@ -1,0 +1,211 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_ac_fet.cir
+title: "AC sensitivity of JFET level 1, the MESFET and HFET2 (#102)" @netlists/sens_ac_fet.cir:1:1
+card 1 @netlists/sens_ac_fet.cir:5:1 lines=5-5 continuations=0
+  raw: "vdd 1 0 dc 3 ac 1"
+  kind: device(v)
+  token 1 5:1 word "vdd"
+  token 2 5:5 number "1" value=1e0
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "3" value=3e0
+  token 6 5:14 word "ac"
+  token 7 5:17 number "1" value=1e0
+card 2 @netlists/sens_ac_fet.cir:6:1 lines=6-6 continuations=0
+  raw: "rd 1 2 1k"
+  kind: device(r)
+  token 1 6:1 word "rd"
+  token 2 6:4 number "1" value=1e0
+  token 3 6:6 number "2" value=2e0
+  token 4 6:8 number "1k" value=1e3
+card 3 @netlists/sens_ac_fet.cir:7:1 lines=7-7 continuations=0
+  raw: "j1 2 3 0 jm area=2 temp=40"
+  kind: device(j)
+  token 1 7:1 word "j1"
+  token 2 7:4 number "2" value=2e0
+  token 3 7:6 number "3" value=3e0
+  token 4 7:8 number "0" value=0e0
+  token 5 7:10 word "jm"
+  token 6 7:13 word "area"
+  token 7 7:17 equals "="
+  token 8 7:18 number "2" value=2e0
+  token 9 7:20 word "temp"
+  token 10 7:24 equals "="
+  token 11 7:25 number "40" value=4e1
+card 4 @netlists/sens_ac_fet.cir:8:1 lines=8-8 continuations=0
+  raw: "vg 3 0 dc -1 ac 1"
+  kind: device(v)
+  token 1 8:1 word "vg"
+  token 2 8:4 number "3" value=3e0
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "dc"
+  token 5 8:11 number "-1" value=-1e0
+  token 6 8:14 word "ac"
+  token 7 8:17 number "1" value=1e0
+card 5 @netlists/sens_ac_fet.cir:9:1 lines=9-10 continuations=1
+  raw: ".model jm njf(vto=-2 beta=1e-4 lambda=0.02 rd=10 rs=20 cgs=2p cgd=1p pb=0.8 is=1e-14 n=1.2 fc=0.4 b=0.9 tnom=30)"
+  kind: dot(.model)
+  token 1 9:1 word ".model"
+  token 2 9:8 word "jm"
+  token 3 9:11 word "njf"
+  token 4 9:14 lparen "("
+  token 5 9:15 word "vto"
+  token 6 9:18 equals "="
+  token 7 9:19 number "-2" value=-2e0
+  token 8 9:22 word "beta"
+  token 9 9:26 equals "="
+  token 10 9:27 number "1e-4" value=1e-4
+  token 11 9:32 word "lambda"
+  token 12 9:38 equals "="
+  token 13 9:39 number "0.02" value=2e-2
+  token 14 9:44 word "rd"
+  token 15 9:46 equals "="
+  token 16 9:47 number "10" value=1e1
+  token 17 9:50 word "rs"
+  token 18 9:52 equals "="
+  token 19 9:53 number "20" value=2e1
+  token 20 9:56 word "cgs"
+  token 21 9:59 equals "="
+  token 22 9:60 number "2p" value=2e-12
+  token 23 9:63 word "cgd"
+  token 24 9:66 equals "="
+  token 25 9:67 number "1p" value=1e-12
+  token 26 9:70 word "pb"
+  token 27 9:72 equals "="
+  token 28 9:73 number "0.8" value=8e-1
+  token 29 9:77 word "is"
+  token 30 9:79 equals "="
+  token 31 9:80 number "1e-14" value=1e-14
+  token 32 9:86 word "n"
+  token 33 9:87 equals "="
+  token 34 9:88 number "1.2" value=1.2000000000000002e0
+  token 35 9:92 word "fc"
+  token 36 9:94 equals "="
+  token 37 9:95 number "0.4" value=4e-1
+  token 38 9:99 word "b"
+  token 39 9:100 equals "="
+  token 40 9:101 number "0.9" value=9e-1
+  token 41 9:105 word "tnom"
+  token 42 9:109 equals "="
+  token 43 9:110 number "30" value=3e1
+  token 44 9:112 rparen ")"
+card 6 @netlists/sens_ac_fet.cir:11:1 lines=11-11 continuations=0
+  raw: "rz 1 4 1k"
+  kind: device(r)
+  token 1 11:1 word "rz"
+  token 2 11:4 number "1" value=1e0
+  token 3 11:6 number "4" value=4e0
+  token 4 11:8 number "1k" value=1e3
+card 7 @netlists/sens_ac_fet.cir:12:1 lines=12-12 continuations=0
+  raw: "z1 4 3 0 zn area=2"
+  kind: device(z)
+  token 1 12:1 word "z1"
+  token 2 12:4 number "4" value=4e0
+  token 3 12:6 number "3" value=3e0
+  token 4 12:8 number "0" value=0e0
+  token 5 12:10 word "zn"
+  token 6 12:13 word "area"
+  token 7 12:17 equals "="
+  token 8 12:18 number "2" value=2e0
+card 8 @netlists/sens_ac_fet.cir:13:1 lines=13-14 continuations=1
+  raw: ".model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=5 rs=4 cgs=2p cgd=0.5p pb=0.8 is=1e-14 fc=0.4)"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "zn"
+  token 3 13:11 word "nmf"
+  token 4 13:14 lparen "("
+  token 5 13:15 word "vto"
+  token 6 13:18 equals "="
+  token 7 13:19 number "-1.8" value=-1.8e0
+  token 8 13:24 word "beta"
+  token 9 13:28 equals "="
+  token 10 13:29 number "3m" value=3e-3
+  token 11 13:32 word "lambda"
+  token 12 13:38 equals "="
+  token 13 13:39 number "0.05" value=5e-2
+  token 14 13:44 word "alpha"
+  token 15 13:49 equals "="
+  token 16 13:50 number "2.5" value=2.5e0
+  token 17 13:54 word "b"
+  token 18 13:55 equals "="
+  token 19 13:56 number "0.4" value=4e-1
+  token 20 13:60 word "rd"
+  token 21 13:62 equals "="
+  token 22 13:63 number "5" value=5e0
+  token 23 13:65 word "rs"
+  token 24 13:67 equals "="
+  token 25 13:68 number "4" value=4e0
+  token 26 13:70 word "cgs"
+  token 27 13:73 equals "="
+  token 28 13:74 number "2p" value=2e-12
+  token 29 13:77 word "cgd"
+  token 30 13:80 equals "="
+  token 31 13:81 number "0.5p" value=5e-13
+  token 32 13:86 word "pb"
+  token 33 13:88 equals "="
+  token 34 13:89 number "0.8" value=8e-1
+  token 35 13:93 word "is"
+  token 36 13:95 equals "="
+  token 37 13:96 number "1e-14" value=1e-14
+  token 38 13:102 word "fc"
+  token 39 13:104 equals "="
+  token 40 13:105 number "0.4" value=4e-1
+  token 41 13:108 rparen ")"
+card 9 @netlists/sens_ac_fet.cir:15:1 lines=15-15 continuations=0
+  raw: "rh 1 5 1k"
+  kind: device(r)
+  token 1 15:1 word "rh"
+  token 2 15:4 number "1" value=1e0
+  token 3 15:6 number "5" value=5e0
+  token 4 15:8 number "1k" value=1e3
+card 10 @netlists/sens_ac_fet.cir:16:1 lines=16-16 continuations=0
+  raw: "z2 5 3 0 zh l=1u w=10u"
+  kind: device(z)
+  token 1 16:1 word "z2"
+  token 2 16:4 number "5" value=5e0
+  token 3 16:6 number "3" value=3e0
+  token 4 16:8 number "0" value=0e0
+  token 5 16:10 word "zh"
+  token 6 16:13 word "l"
+  token 7 16:14 equals "="
+  token 8 16:15 number "1u" value=1e-6
+  token 9 16:18 word "w"
+  token 10 16:19 equals "="
+  token 11 16:20 number "10u" value=9.999999999999999e-6
+card 11 @netlists/sens_ac_fet.cir:17:1 lines=17-17 continuations=0
+  raw: ".model zh nhfet(level=6 vt0=-0.5 rd=2 rs=3)"
+  kind: dot(.model)
+  token 1 17:1 word ".model"
+  token 2 17:8 word "zh"
+  token 3 17:11 word "nhfet"
+  token 4 17:16 lparen "("
+  token 5 17:17 word "level"
+  token 6 17:22 equals "="
+  token 7 17:23 number "6" value=6e0
+  token 8 17:25 word "vt0"
+  token 9 17:28 equals "="
+  token 10 17:29 number "-0.5" value=-5e-1
+  token 11 17:34 word "rd"
+  token 12 17:36 equals "="
+  token 13 17:37 number "2" value=2e0
+  token 14 17:39 word "rs"
+  token 15 17:41 equals "="
+  token 16 17:42 number "3" value=3e0
+  token 17 17:43 rparen ")"
+card 12 @netlists/sens_ac_fet.cir:18:1 lines=18-18 continuations=0
+  raw: ".sens v(2) ac dec 1 1k 1meg"
+  kind: dot(.sens)
+  token 1 18:1 word ".sens"
+  token 2 18:7 word "v"
+  token 3 18:8 lparen "("
+  token 4 18:9 number "2" value=2e0
+  token 5 18:10 rparen ")"
+  token 6 18:12 word "ac"
+  token 7 18:15 word "dec"
+  token 8 18:19 number "1" value=1e0
+  token 9 18:21 number "1k" value=1e3
+  token 10 18:24 number "1meg" value=1e6
+card 13 @netlists/sens_ac_fet.cir:19:1 lines=19-19 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 19:1 word ".end"

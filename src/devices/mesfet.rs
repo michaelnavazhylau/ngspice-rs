@@ -76,7 +76,7 @@ use crate::devices::schema::{
     self, ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
 use crate::devices::sensitivity::{
-    DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad, SensitivityMode,
+    AcReset, DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad, SensitivityMode,
     SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
@@ -1143,11 +1143,35 @@ impl DeviceSensitivity for MesfetSensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: MESFET AC sensitivity", self.device.name),
-                "src/spicelib/devices/mes/mesacl.c",
+            return Err(SpiceError::circuit(
+                "a MESFET's AC sensitivity load is its reset load",
             ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(
+            self.mesfet(current)?,
+        )))
+    }
+
+    /// `MESacLoad` after `cktsens.c`'s reset load: `gm`, `gds`, `ggs`,
+    /// `ggd` are the `CKTstate0` values `mesload.c` stored at zero junction
+    /// voltages with the reset records, the charge slots `qgs`/`qgd` are
+    /// zero, and `RD`/`RS`, `area` and `m` come from `current`.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        Ok(SensitivityLoad::Replacement(Box::new(ResetMesfet {
+            state: self.mesfet(reset.state)?,
+            current: self.mesfet(current)?,
+        })))
+    }
+}
+
+impl MesfetSensitivity<'_> {
+    /// The port's MESFET with the records' parameters.
+    fn mesfet(&self, current: RecordPair<'_>) -> SpiceResult<Mesfet> {
         let (m, i) = (current.model, current.instance);
         let model = Model {
             pol: self.device.model.pol,
@@ -1169,7 +1193,7 @@ impl DeviceSensitivity for MesfetSensitivity<'_> {
             area: i.value("area")?,
             m: i.value("m")?,
         };
-        let device = Mesfet {
+        Ok(Mesfet {
             name: self.device.name.clone(),
             model_name: self.device.model_name.clone(),
             terminals: self.device.terminals.clone(),
@@ -1177,7 +1201,55 @@ impl DeviceSensitivity for MesfetSensitivity<'_> {
             model,
             instance,
             initial: self.device.initial.clone(),
-        };
-        Ok(SensitivityLoad::Replacement(Box::new(device)))
+        })
+    }
+}
+
+/// A MESFET's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetMesfet {
+    /// Built from the reset load's records: the junction conductances.
+    state: Mesfet,
+    /// Built from the current records: series conductances and `m`.
+    current: Mesfet,
+}
+
+impl Device for ResetMesfet {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'z'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `mesacl.c`'s real stamps (`jfetacld.c`'s list); its `xgs`/`xgd`
+    /// imaginary parts are zero.
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        let state = &self.state;
+        let op = state.operating()?;
+        let [vgs, vgd] = state.normalized([0.; 3]);
+        let point = state.point(&op, vgs, vgd, context.model_context.gmin)?;
+        let c = &self.current;
+        jfet::ac_conductances(
+            context,
+            &c.terminals,
+            c.inner,
+            c.instance.m,
+            jfet::series_conductances(c.instance.area, c.model.rd, c.model.rs),
+            [point.channel.gm, point.channel.gds, point.gs.1, point.gd.1],
+        )
     }
 }

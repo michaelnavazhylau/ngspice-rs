@@ -204,7 +204,7 @@ and pinned by `tests/mesa.rs`'s
 
 `.disto` (`mesdset.c`, `mesdisto.c`) fails with `NotYetPorted`, as do the
 `nhfet`/`phfet` *model bases*. `.sens` is ported for MES, MESA levels 2-4,
-HFET1 and HFET2 (see [SENSITIVITY.md](SENSITIVITY.md)).
+HFET1 and HFET2, DC and AC (see [SENSITIVITY.md](SENSITIVITY.md)).
 
 ## Evidence
 
@@ -371,8 +371,8 @@ Where it differs from the other two levels:
   `(sourcePrime, sourcePrime)`, `(sourcePrime, source)` and
   `(drainPrime, sourcePrime)` in `hfet2setup.c` and `hfet2load.c` alike, which
   is what the port stamps.
-- `.noise`/`.disto` contribute nothing (both entry points are NULL) and
-  `.sens` is refused, as for the rest of the family (#164).
+- `.noise`/`.disto` contribute nothing (both entry points are NULL); `.sens`
+  is ported, DC and AC (#164, #102).
 - No level-6 deck exists in the C tree (`tests/hfet/` covers only HFET1), so
   the five `m10_hfet2_*` fixtures are the port's own decks with C goldens.
 
@@ -404,6 +404,11 @@ Where it differs from MESA, and what the port must not share:
   `cghat`/`cdhat` convergence test and to the AC matrix.
 - **A `cds` charge.** `qds`/`cqds` accumulate `cds*vds`, integrate like the gate
   charges and fold into `gds`/`cd`; `hfettrunc.c` truncates only `qgs`/`qgd`.
+  `hfetacl.c` stamps it as `m * (CDS * CKTomega)` across the channel (the
+  port's `.ac` used to omit it: measured with `cds=1n`, C's `i(vids)` moves
+  from 3.234e-3 to 2.926e-3 - 9.50e-4j at 1 MHz and the port now matches
+  bit for bit). `hfetpzl.c` multiplies `CDS` by the `CKTomega` the last AC
+  analysis left as well as by `s`, so pole-zero with `cds != 0` is refused.
 - **`a1`/`a2` corrections.** C gates them on `gatemod != 0` *and* on the
   coefficients. This port's first version applied them unconditionally: the
   reference binary answers 5.707950675392426e-4 A for the card below without

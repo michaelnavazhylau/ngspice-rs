@@ -1,0 +1,65 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_ac_mutual.cir
+title: "AC sensitivity with K coupling (#102)" @netlists/sens_ac_mutual.cir:1:1
+card 1 @netlists/sens_ac_mutual.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 1 0 dc 0 ac 1"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 number "1" value=1e0
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 word "dc"
+  token 5 6:11 number "0" value=0e0
+  token 6 6:13 word "ac"
+  token 7 6:16 number "1" value=1e0
+card 2 @netlists/sens_ac_mutual.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 1 2 50"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 number "1" value=1e0
+  token 3 7:6 number "2" value=2e0
+  token 4 7:8 number "50" value=5e1
+card 3 @netlists/sens_ac_mutual.cir:8:1 lines=8-8 continuations=0
+  raw: "l1 2 0 1u"
+  kind: device(l)
+  token 1 8:1 word "l1"
+  token 2 8:4 number "2" value=2e0
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 number "1u" value=1e-6
+card 4 @netlists/sens_ac_mutual.cir:9:1 lines=9-9 continuations=0
+  raw: "l2 3 0 2u"
+  kind: device(l)
+  token 1 9:1 word "l2"
+  token 2 9:4 number "3" value=3e0
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "2u" value=2e-6
+card 5 @netlists/sens_ac_mutual.cir:10:1 lines=10-10 continuations=0
+  raw: "k1 l1 l2 0.5"
+  kind: device(k)
+  token 1 10:1 word "k1"
+  token 2 10:4 word "l1"
+  token 3 10:7 word "l2"
+  token 4 10:10 number "0.5" value=5e-1
+card 6 @netlists/sens_ac_mutual.cir:11:1 lines=11-11 continuations=0
+  raw: "r2 3 0 100"
+  kind: device(r)
+  token 1 11:1 word "r2"
+  token 2 11:4 number "3" value=3e0
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "100" value=1e2
+card 7 @netlists/sens_ac_mutual.cir:12:1 lines=12-12 continuations=0
+  raw: ".sens v(3) ac dec 1 1meg 100meg"
+  kind: dot(.sens)
+  token 1 12:1 word ".sens"
+  token 2 12:7 word "v"
+  token 3 12:8 lparen "("
+  token 4 12:9 number "3" value=3e0
+  token 5 12:10 rparen ")"
+  token 6 12:12 word "ac"
+  token 7 12:15 word "dec"
+  token 8 12:19 number "1" value=1e0
+  token 9 12:21 number "1meg" value=1e6
+  token 10 12:26 number "100meg" value=1e8
+card 8 @netlists/sens_ac_mutual.cir:13:1 lines=13-13 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 13:1 word ".end"

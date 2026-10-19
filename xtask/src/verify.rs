@@ -987,6 +987,58 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY,
         },
     },
+    // AC `.sens` of nonlinear devices, switches and K (#102): every frequency
+    // linearizes the devices at cktsens.c's zero-voltage reset load. Nonlinear
+    // bound: the MESFET/HFET2 AC solves (and several rounding-noise columns of
+    // repeated element contributions) differ from C by a few ulps.
+    Supported {
+        name: "sens_ac_reset",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_mutual",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_bjt",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_mos",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_fet",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_hetero",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // `.sens` of the `j` and `z` families (#164): C's `sgen` walk of the
     // `jfet.c`/`jfet2.c`/`mes.c`/`mesa.c`/`hfet1.c`/`hfet2.c` parameter
     // tables, replayed on the port's records. Same nonlinear bound as the
@@ -1350,6 +1402,27 @@ const BATCH: &[Batch] = &[
                 gate: Gate::Points {
                     axis: None,
                     tolerance: compare::SENSITIVITY,
+                },
+            },
+        ],
+    },
+    // AC `.sens` (#102) after `.op`: the MOS AC loads read the capbd/capbs
+    // the operating point's MODEINITSMSIG load left in the instances.
+    Batch {
+        name: "sens_ac_mos_op",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Sensitivity,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::SENSITIVITY_NONLINEAR,
                 },
             },
         ],
@@ -1857,10 +1930,14 @@ fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>
     }
     let mut details = Vec::with_capacity(names.len());
     let mut stages = fixture.stages.iter().zip(&want.plots);
+    // What `spice-rs simulate` records on each analysis's circuit: the kinds
+    // already run (C's instance fields outlive an analysis).
+    let mut completed = Vec::with_capacity(schedule.len());
     for entry in &schedule {
         let card = &netlist.analyses[entry.card_index];
-        let (request, plots) = run_card_plots(&netlist, &config, card, &[])
+        let (request, plots) = run_card_plots(&netlist, &config, card, &[], &completed)
             .map_err(|error| format!("{}: {error}", entry.plot_name))?;
+        completed.push(entry.kind);
         let own: Vec<&str> = entry.plot_names().collect();
         if plots.len() != own.len() {
             return Err(format!(
@@ -1899,7 +1976,7 @@ fn run_card(
     card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
 ) -> Result<(AnalysisRequest, ngspice_rs::analysis::Plot), String> {
-    let (request, mut plots) = run_card_plots(netlist, config, card, extra)?;
+    let (request, mut plots) = run_card_plots(netlist, config, card, extra, &[])?;
     if plots.len() != 1 {
         return Err(format!(
             "expected one Rust plot, the driver produced {} (register multi-plot analyses \
@@ -1913,12 +1990,14 @@ fn run_card(
 /// Runs one analysis card through the production driver and projects every
 /// plot it produces (`.noise` produces two) onto C's default save set and
 /// naming. `extra` tokens are appended to the request after the deck's own
-/// settings.
+/// settings; `completed` are the batch's analyses already run, recorded on the
+/// circuit as `spice-rs simulate` records them.
 fn run_card_plots(
     netlist: &ngspice_rs::netlist::ast::Netlist,
     config: &RunConfig,
     card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
+    completed: &[ngspice_rs::primitives::AnalysisKind],
 ) -> Result<(AnalysisRequest, Vec<ngspice_rs::analysis::Plot>), String> {
     if !card.expressions.is_empty() {
         return Err("braced analysis arguments are not supported in verification fixtures".into());
@@ -1929,6 +2008,9 @@ fn run_card_plots(
         .extend(extra.iter().map(|token| (*token).to_owned()));
     let request = config.request(request).map_err(|e| e.to_string())?;
     let mut circuit = config.circuit(netlist).map_err(|e| e.to_string())?;
+    for kind in completed {
+        circuit.note_completed(*kind);
+    }
     let plots = runner(request.kind)
         .and_then(|driver| driver.run_plots(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;

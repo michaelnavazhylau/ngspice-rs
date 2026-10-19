@@ -569,6 +569,27 @@ impl LinearContext<'_> {
         }
         Ok(())
     }
+    /// Adds `value`, which already includes `CKTomega`, to the imaginary part
+    /// of the AC matrix at matrix rows (`r`, `c`); see
+    /// [`Self::prescaled_dynamic_sum`].
+    ///
+    /// # Errors
+    /// An out-of-range position.
+    pub fn dynamic_prescaled(&mut self, r: usize, c: usize, value: Real) -> SpiceResult<()> {
+        let start = self.system.e.triplets().len();
+        self.system.e.add(r, c, value)?;
+        let end = self.system.e.triplets().len();
+        if end > start && self.system.e.overflow().is_none() {
+            self.system.e_groups.push(crate::maths::DynamicGroup {
+                range: start..end,
+                terms: vec![value],
+                scale: 1.,
+                divisor: 1.,
+                prescaled: true,
+            });
+        }
+        Ok(())
+    }
     /// Adds `scale * (x1 + x2 + ...) / divisor` to `E[r][c]` (matrix rows,
     /// not nodes), each `x` being a term times `omega`, as one C stamp.
     ///

@@ -1,0 +1,332 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_ac_hetero.cir
+title: "AC sensitivity of JFET level 2, MESA levels 2-4 and HFET1 (#102)" @netlists/sens_ac_hetero.cir:1:1
+card 1 @netlists/sens_ac_hetero.cir:10:1 lines=10-10 continuations=0
+  raw: "vdd 1 0 dc 1 ac 1"
+  kind: device(v)
+  token 1 10:1 word "vdd"
+  token 2 10:5 number "1" value=1e0
+  token 3 10:7 number "0" value=0e0
+  token 4 10:9 word "dc"
+  token 5 10:12 number "1" value=1e0
+  token 6 10:14 word "ac"
+  token 7 10:17 number "1" value=1e0
+card 2 @netlists/sens_ac_hetero.cir:11:1 lines=11-11 continuations=0
+  raw: "vsense 1 2 dc 0"
+  kind: device(v)
+  token 1 11:1 word "vsense"
+  token 2 11:8 number "1" value=1e0
+  token 3 11:10 number "2" value=2e0
+  token 4 11:12 word "dc"
+  token 5 11:15 number "0" value=0e0
+card 3 @netlists/sens_ac_hetero.cir:12:1 lines=12-12 continuations=0
+  raw: "vg 9 0 dc 0.3 ac 1"
+  kind: device(v)
+  token 1 12:1 word "vg"
+  token 2 12:4 number "9" value=9e0
+  token 3 12:6 number "0" value=0e0
+  token 4 12:8 word "dc"
+  token 5 12:11 number "0.3" value=3.0000000000000004e-1
+  token 6 12:15 word "ac"
+  token 7 12:18 number "1" value=1e0
+card 4 @netlists/sens_ac_hetero.cir:13:1 lines=13-13 continuations=0
+  raw: "rgate 9 3 1k"
+  kind: device(r)
+  token 1 13:1 word "rgate"
+  token 2 13:7 number "9" value=9e0
+  token 3 13:9 number "3" value=3e0
+  token 4 13:11 number "1k" value=1e3
+card 5 @netlists/sens_ac_hetero.cir:14:1 lines=14-14 continuations=0
+  raw: "j1 2 3 0 jm area=2"
+  kind: device(j)
+  token 1 14:1 word "j1"
+  token 2 14:4 number "2" value=2e0
+  token 3 14:6 number "3" value=3e0
+  token 4 14:8 number "0" value=0e0
+  token 5 14:10 word "jm"
+  token 6 14:13 word "area"
+  token 7 14:17 equals "="
+  token 8 14:18 number "2" value=2e0
+card 6 @netlists/sens_ac_hetero.cir:15:1 lines=15-17 continuations=2
+  raw: ".model jm njf level=2 vto=-2 beta=1e-3 lambda=0.02 rd=10 rs=20 cds=1p cgs=2p cgd=1p vbi=0.8 is=1e-14 n=1.2 fc=0.4 ibd=1e-9 vbd=1.2 taud=1e-9 taug=1e-9 vst=0.5 ver=1 tnom=30"
+  kind: dot(.model)
+  token 1 15:1 word ".model"
+  token 2 15:8 word "jm"
+  token 3 15:11 word "njf"
+  token 4 15:15 word "level"
+  token 5 15:20 equals "="
+  token 6 15:21 number "2" value=2e0
+  token 7 15:23 word "vto"
+  token 8 15:26 equals "="
+  token 9 15:27 number "-2" value=-2e0
+  token 10 15:30 word "beta"
+  token 11 15:34 equals "="
+  token 12 15:35 number "1e-3" value=1e-3
+  token 13 15:40 word "lambda"
+  token 14 15:46 equals "="
+  token 15 15:47 number "0.02" value=2e-2
+  token 16 15:52 word "rd"
+  token 17 15:54 equals "="
+  token 18 15:55 number "10" value=1e1
+  token 19 15:58 word "rs"
+  token 20 15:60 equals "="
+  token 21 15:61 number "20" value=2e1
+  token 22 15:64 word "cds"
+  token 23 15:67 equals "="
+  token 24 15:68 number "1p" value=1e-12
+  token 25 15:71 word "cgs"
+  token 26 15:74 equals "="
+  token 27 15:75 number "2p" value=2e-12
+  token 28 15:78 word "cgd"
+  token 29 15:81 equals "="
+  token 30 15:82 number "1p" value=1e-12
+  token 31 15:85 word "vbi"
+  token 32 15:88 equals "="
+  token 33 15:89 number "0.8" value=8e-1
+  token 34 15:93 word "is"
+  token 35 15:95 equals "="
+  token 36 15:96 number "1e-14" value=1e-14
+  token 37 15:102 word "n"
+  token 38 15:103 equals "="
+  token 39 15:104 number "1.2" value=1.2000000000000002e0
+  token 40 15:108 word "fc"
+  token 41 15:110 equals "="
+  token 42 15:111 number "0.4" value=4e-1
+  token 43 15:115 word "ibd"
+  token 44 15:118 equals "="
+  token 45 15:119 number "1e-9" value=1e-9
+  token 46 15:124 word "vbd"
+  token 47 15:127 equals "="
+  token 48 15:128 number "1.2" value=1.2000000000000002e0
+  token 49 15:132 word "taud"
+  token 50 15:136 equals "="
+  token 51 15:137 number "1e-9" value=1e-9
+  token 52 15:142 word "taug"
+  token 53 15:146 equals "="
+  token 54 15:147 number "1e-9" value=1e-9
+  token 55 15:152 word "vst"
+  token 56 15:155 equals "="
+  token 57 15:156 number "0.5" value=5e-1
+  token 58 15:160 word "ver"
+  token 59 15:163 equals "="
+  token 60 15:164 number "1" value=1e0
+  token 61 15:166 word "tnom"
+  token 62 15:170 equals "="
+  token 63 15:171 number "30" value=3e1
+card 7 @netlists/sens_ac_hetero.cir:18:1 lines=18-18 continuations=0
+  raw: "z2 2 3 0 me2 l=1u w=20u"
+  kind: device(z)
+  token 1 18:1 word "z2"
+  token 2 18:4 number "2" value=2e0
+  token 3 18:6 number "3" value=3e0
+  token 4 18:8 number "0" value=0e0
+  token 5 18:10 word "me2"
+  token 6 18:14 word "l"
+  token 7 18:15 equals "="
+  token 8 18:16 number "1u" value=1e-6
+  token 9 18:19 word "w"
+  token 10 18:20 equals "="
+  token 11 18:21 number "20u" value=1.9999999999999998e-5
+card 8 @netlists/sens_ac_hetero.cir:19:1 lines=19-19 continuations=0
+  raw: ".model me2 nmf(level=2 rd=31 rs=31 rg=10 phib=3.1232e18)"
+  kind: dot(.model)
+  token 1 19:1 word ".model"
+  token 2 19:8 word "me2"
+  token 3 19:12 word "nmf"
+  token 4 19:15 lparen "("
+  token 5 19:16 word "level"
+  token 6 19:21 equals "="
+  token 7 19:22 number "2" value=2e0
+  token 8 19:24 word "rd"
+  token 9 19:26 equals "="
+  token 10 19:27 number "31" value=3.1e1
+  token 11 19:30 word "rs"
+  token 12 19:32 equals "="
+  token 13 19:33 number "31" value=3.1e1
+  token 14 19:36 word "rg"
+  token 15 19:38 equals "="
+  token 16 19:39 number "10" value=1e1
+  token 17 19:42 word "phib"
+  token 18 19:46 equals "="
+  token 19 19:47 number "3.1232e18" value=3.1232e18
+  token 20 19:56 rparen ")"
+card 9 @netlists/sens_ac_hetero.cir:20:1 lines=20-20 continuations=0
+  raw: "z3 2 3 0 me3 l=1u w=20u"
+  kind: device(z)
+  token 1 20:1 word "z3"
+  token 2 20:4 number "2" value=2e0
+  token 3 20:6 number "3" value=3e0
+  token 4 20:8 number "0" value=0e0
+  token 5 20:10 word "me3"
+  token 6 20:14 word "l"
+  token 7 20:15 equals "="
+  token 8 20:16 number "1u" value=1e-6
+  token 9 20:19 word "w"
+  token 10 20:20 equals "="
+  token 11 20:21 number "20u" value=1.9999999999999998e-5
+card 10 @netlists/sens_ac_hetero.cir:21:1 lines=21-22 continuations=1
+  raw: ".model me3 nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5 phib=3.1232e18)"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "me3"
+  token 3 21:12 word "nmf"
+  token 4 21:15 lparen "("
+  token 5 21:16 word "level"
+  token 6 21:21 equals "="
+  token 7 21:22 number "3" value=3e0
+  token 8 21:24 word "rd"
+  token 9 21:26 equals "="
+  token 10 21:27 number "31" value=3.1e1
+  token 11 21:30 word "rs"
+  token 12 21:32 equals "="
+  token 13 21:33 number "31" value=3.1e1
+  token 14 21:36 word "rdi"
+  token 15 21:39 equals "="
+  token 16 21:40 number "20" value=2e1
+  token 17 21:43 word "rsi"
+  token 18 21:46 equals "="
+  token 19 21:47 number "20" value=2e1
+  token 20 21:50 word "rtc1"
+  token 21 21:54 equals "="
+  token 22 21:55 number "1e-3" value=1e-3
+  token 23 21:60 word "rtc2"
+  token 24 21:64 equals "="
+  token 25 21:65 number "1e-5" value=1e-5
+  token 26 21:70 word "phib"
+  token 27 21:74 equals "="
+  token 28 21:75 number "3.1232e18" value=3.1232e18
+  token 29 21:84 rparen ")"
+card 11 @netlists/sens_ac_hetero.cir:23:1 lines=23-23 continuations=0
+  raw: "z4 2 3 0 me4 l=1u w=20u"
+  kind: device(z)
+  token 1 23:1 word "z4"
+  token 2 23:4 number "2" value=2e0
+  token 3 23:6 number "3" value=3e0
+  token 4 23:8 number "0" value=0e0
+  token 5 23:10 word "me4"
+  token 6 23:14 word "l"
+  token 7 23:15 equals "="
+  token 8 23:16 number "1u" value=1e-6
+  token 9 23:19 word "w"
+  token 10 23:20 equals "="
+  token 11 23:21 number "20u" value=1.9999999999999998e-5
+card 12 @netlists/sens_ac_hetero.cir:24:1 lines=24-25 continuations=1
+  raw: ".model me4 nmf(level=4 rd=31 rs=31 rdi=20 rsi=20 mu=0.3 gamma=2.5 nmax=4e16 cas=0.9 cbs=1.1 epsi=1.142189e-10 phib=3.1232e18)"
+  kind: dot(.model)
+  token 1 24:1 word ".model"
+  token 2 24:8 word "me4"
+  token 3 24:12 word "nmf"
+  token 4 24:15 lparen "("
+  token 5 24:16 word "level"
+  token 6 24:21 equals "="
+  token 7 24:22 number "4" value=4e0
+  token 8 24:24 word "rd"
+  token 9 24:26 equals "="
+  token 10 24:27 number "31" value=3.1e1
+  token 11 24:30 word "rs"
+  token 12 24:32 equals "="
+  token 13 24:33 number "31" value=3.1e1
+  token 14 24:36 word "rdi"
+  token 15 24:39 equals "="
+  token 16 24:40 number "20" value=2e1
+  token 17 24:43 word "rsi"
+  token 18 24:46 equals "="
+  token 19 24:47 number "20" value=2e1
+  token 20 24:50 word "mu"
+  token 21 24:52 equals "="
+  token 22 24:53 number "0.3" value=3.0000000000000004e-1
+  token 23 24:57 word "gamma"
+  token 24 24:62 equals "="
+  token 25 24:63 number "2.5" value=2.5e0
+  token 26 24:67 word "nmax"
+  token 27 24:71 equals "="
+  token 28 24:72 number "4e16" value=4e16
+  token 29 24:77 word "cas"
+  token 30 24:80 equals "="
+  token 31 24:81 number "0.9" value=9e-1
+  token 32 24:85 word "cbs"
+  token 33 24:88 equals "="
+  token 34 24:89 number "1.1" value=1.1e0
+  token 35 24:93 word "epsi"
+  token 36 24:97 equals "="
+  token 37 24:98 number "1.142189e-10" value=1.1421889999999999e-10
+  token 38 24:111 word "phib"
+  token 39 24:115 equals "="
+  token 40 24:116 number "3.1232e18" value=3.1232e18
+  token 41 24:125 rparen ")"
+card 13 @netlists/sens_ac_hetero.cir:26:1 lines=26-26 continuations=0
+  raw: "z5 2 3 0 hf l=1u w=20u"
+  kind: device(z)
+  token 1 26:1 word "z5"
+  token 2 26:4 number "2" value=2e0
+  token 3 26:6 number "3" value=3e0
+  token 4 26:8 number "0" value=0e0
+  token 5 26:10 word "hf"
+  token 6 26:13 word "l"
+  token 7 26:14 equals "="
+  token 8 26:15 number "1u" value=1e-6
+  token 9 26:18 word "w"
+  token 10 26:19 equals "="
+  token 11 26:20 number "20u" value=1.9999999999999998e-5
+card 14 @netlists/sens_ac_hetero.cir:27:1 lines=27-28 continuations=1
+  raw: ".model hf nhfet level=5 rd=31 rs=31 rg=10 ri=1e3 rf=2e3 rdi=50 rsi=50 vt0=-0.5 cds=1p kappa=0.2 delf=1e5 fgds=1e5"
+  kind: dot(.model)
+  token 1 27:1 word ".model"
+  token 2 27:8 word "hf"
+  token 3 27:11 word "nhfet"
+  token 4 27:17 word "level"
+  token 5 27:22 equals "="
+  token 6 27:23 number "5" value=5e0
+  token 7 27:25 word "rd"
+  token 8 27:27 equals "="
+  token 9 27:28 number "31" value=3.1e1
+  token 10 27:31 word "rs"
+  token 11 27:33 equals "="
+  token 12 27:34 number "31" value=3.1e1
+  token 13 27:37 word "rg"
+  token 14 27:39 equals "="
+  token 15 27:40 number "10" value=1e1
+  token 16 27:43 word "ri"
+  token 17 27:45 equals "="
+  token 18 27:46 number "1e3" value=1e3
+  token 19 27:50 word "rf"
+  token 20 27:52 equals "="
+  token 21 27:53 number "2e3" value=2e3
+  token 22 27:57 word "rdi"
+  token 23 27:60 equals "="
+  token 24 27:61 number "50" value=5e1
+  token 25 27:64 word "rsi"
+  token 26 27:67 equals "="
+  token 27 27:68 number "50" value=5e1
+  token 28 27:71 word "vt0"
+  token 29 27:74 equals "="
+  token 30 27:75 number "-0.5" value=-5e-1
+  token 31 27:80 word "cds"
+  token 32 27:83 equals "="
+  token 33 27:84 number "1p" value=1e-12
+  token 34 27:87 word "kappa"
+  token 35 27:92 equals "="
+  token 36 27:93 number "0.2" value=2e-1
+  token 37 27:97 word "delf"
+  token 38 27:101 equals "="
+  token 39 27:102 number "1e5" value=1e5
+  token 40 27:106 word "fgds"
+  token 41 27:110 equals "="
+  token 42 27:111 number "1e5" value=1e5
+card 15 @netlists/sens_ac_hetero.cir:29:1 lines=29-29 continuations=0
+  raw: ".sens i(vsense) ac dec 1 1k 1meg"
+  kind: dot(.sens)
+  token 1 29:1 word ".sens"
+  token 2 29:7 word "i"
+  token 3 29:8 lparen "("
+  token 4 29:9 word "vsense"
+  token 5 29:15 rparen ")"
+  token 6 29:17 word "ac"
+  token 7 29:20 word "dec"
+  token 8 29:24 number "1" value=1e0
+  token 9 29:26 number "1k" value=1e3
+  token 10 29:29 number "1meg" value=1e6
+card 16 @netlists/sens_ac_hetero.cir:30:1 lines=30-30 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 30:1 word ".end"

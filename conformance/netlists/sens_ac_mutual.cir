@@ -1,0 +1,13 @@
+AC sensitivity with K coupling (#102)
+* MUTask reports MUTfactor (M = k sqrt(L1 L2)) for `k`, so C's walk sets the
+* coupling to M + delta and restores it to M: k1's column is a difference
+* quotient across k = 0.5 -> 7.07e-7, and every later frequency runs with the
+* coupling collapsed to M (then to M times sqrt(L1 L2) again).
+v1 1 0 dc 0 ac 1
+r1 1 2 50
+l1 2 0 1u
+l2 3 0 2u
+k1 l1 l2 0.5
+r2 3 0 100
+.sens v(3) ac dec 1 1meg 100meg
+.end

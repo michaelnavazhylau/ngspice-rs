@@ -7,14 +7,37 @@
 //!   `swsetup.c`/`cswsetup.c` default them; the switches have no
 //!   temperature routine);
 //! * `ind.c` (`MUTpTable`): the coupling `k` is `IF_AC`, so a K device has
-//!   nothing to perturb in DC. AC `.sens` with K is refused by the analysis.
+//!   nothing to perturb in DC. In AC, `MUTask` reports `MUTfactor`
+//!   (`M = k sqrt(|L1 L2|)`, `muttemp.c`) for `k`, so C's walk sets the
+//!   coupling to `M + delta` and "restores" it to `M`.
+//!
+//! In an AC sweep these devices load what `cktsens.c`'s per-frequency reset
+//! left ([`DeviceSensitivity::reset_ac_load`]): a B source's `ASRCacValues`
+//! are reallocated (zeroed) by every `ASRCsetup` and written only by a
+//! small-signal load, so only a voltage source's branch incidences remain; a
+//! switch keeps the state its `MODEINITFLOAT` load chose for a zero control.
 
 use super::{
-    CELSIUS_TO_KELVIN, DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily,
-    SensitivityLoad, SensitivityMode, SensitivityParameter as P, SensitivityRecord,
+    AcReset, CELSIUS_TO_KELVIN, DeviceSensitivity, ParameterScope, RecordPair, ResetStamp,
+    ResetStamps, SensitivityFamily, SensitivityLoad, SensitivityMode, SensitivityParameter as P,
+    SensitivityRecord, StampAt, StampPart,
 };
-use crate::devices::{Behavioural, BehaviouralScale, Switch, SwitchKind};
-use crate::primitives::{Real, SpiceResult};
+use crate::devices::{
+    Behavioural, BehaviouralOutput, BehaviouralScale, Device, MutualInductance, Switch, SwitchKind,
+};
+use crate::primitives::{Real, SpiceError, SpiceResult};
+
+/// Real stamps of `value` between nodes, in order.
+fn real(stamps: impl IntoIterator<Item = (StampAt, Real)>) -> Vec<ResetStamp> {
+    stamps
+        .into_iter()
+        .map(|(at, value)| ResetStamp {
+            at,
+            value,
+            part: StampPart::Real,
+        })
+        .collect()
+}
 
 /// `ASRCpTable` entries `set_param()` accepts.
 const ASRC: &[P] = &[
@@ -158,6 +181,34 @@ impl DeviceSensitivity for BehaviouralSensitivity<'_> {
             self.source.with_scale(scale),
         )))
     }
+
+    /// `ASRCacLoad` with the zeroed `ASRCacValues` of the reset: a voltage
+    /// source's `+1, -1, -1, +1` branch incidences and zero derivatives, a
+    /// current source nothing. The scale factor multiplies only those zeros.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        _reset: AcReset<'_>,
+        _current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        let source = self.source;
+        let [pos, neg] = [source.terminals()[0], source.terminals()[1]];
+        let stamps = match source.output() {
+            BehaviouralOutput::Voltage => real([
+                (StampAt::NodeBranch(pos), 1.),
+                (StampAt::NodeBranch(neg), -1.),
+                (StampAt::BranchNode(neg), -1.),
+                (StampAt::BranchNode(pos), 1.),
+            ]),
+            BehaviouralOutput::Current => Vec::new(),
+        };
+        Ok(SensitivityLoad::Replacement(Box::new(ResetStamps::new(
+            source.name(),
+            source.designator(),
+            source.terminals(),
+            stamps,
+        )?)))
+    }
 }
 
 /// An S or W switch's `.sens` description.
@@ -286,13 +337,58 @@ impl DeviceSensitivity for SwitchSensitivity<'_> {
             )?,
         )))
     }
+
+    /// `SWacLoad`/`CSWacLoad`: the on or off conductance of `current` for the
+    /// state the reset load chose with the `state` threshold and hysteresis.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        let (threshold, hysteresis) = self.keys();
+        let closed = self
+            .switch
+            .with_model(
+                reset.state.model.value(threshold)?,
+                reset.state.model.value(hysteresis)?,
+                reset.state.model.value("gon")?,
+                reset.state.model.value("goff")?,
+            )?
+            .reset_closed()?;
+        let g = current.model.value(if closed { "gon" } else { "goff" })?;
+        let switch = self.switch;
+        let [pos, neg] = [switch.terminals()[0], switch.terminals()[1]];
+        Ok(SensitivityLoad::Replacement(Box::new(ResetStamps::new(
+            switch.name(),
+            switch.designator(),
+            switch.terminals(),
+            real([
+                (StampAt::Nodes(pos, pos), g),
+                (StampAt::Nodes(pos, neg), -g),
+                (StampAt::Nodes(neg, pos), -g),
+                (StampAt::Nodes(neg, neg), g),
+            ]),
+        )?)))
+    }
 }
 
-/// A device with nothing `.sens` can perturb in DC (K: its `k` is `IF_AC`).
+/// A K coupling's `.sens` description: `MUTpTable`'s `k`, `MUTask`,
+/// `MUTparam`, `MUTtemp` and `MUTacLoad`. The instance record holds `k`,
+/// C's `MUTfactor` (`factor`) and the mirrored inductances and branch rows
+/// of its inductors ([`DeviceSensitivity::coupled_inductors`]).
 #[derive(Debug)]
-pub(crate) struct MutualSensitivity;
+pub(crate) struct MutualSensitivity<'a> {
+    coupling: &'a MutualInductance,
+}
 
-impl DeviceSensitivity for MutualSensitivity {
+impl<'a> MutualSensitivity<'a> {
+    pub(crate) const fn new(coupling: &'a MutualInductance) -> Self {
+        Self { coupling }
+    }
+}
+
+impl DeviceSensitivity for MutualSensitivity<'_> {
     fn family(&self) -> SensitivityFamily {
         SensitivityFamily::Mutual
     }
@@ -305,22 +401,101 @@ impl DeviceSensitivity for MutualSensitivity {
         &[]
     }
 
-    /// `k` (`IOPAP`): perturbed only by an AC analysis, which refuses K.
+    /// `k` (`IOPAP`): perturbed only by an AC analysis.
     fn instance_parameters(&self) -> &'static [P] {
         const MUT: &[P] = &[P::principal("k", true)];
         MUT
     }
 
     fn records(&self) -> SpiceResult<(SensitivityRecord, SensitivityRecord)> {
-        Ok((SensitivityRecord::new(), SensitivityRecord::new()))
+        let instance = SensitivityRecord::new()
+            .with("k", self.coupling.coefficient(), true)
+            .with("factor", 0., false)
+            .with("induct1", 0., false)
+            .with("induct2", 0., false)
+            .with("row1", 0., false)
+            .with("row2", 0., false);
+        Ok((SensitivityRecord::new(), instance))
     }
 
+    /// `MUTask` answers `MUTfactor` for `k`.
+    fn ask(
+        &self,
+        _scope: ParameterScope,
+        _keyword: &str,
+        records: RecordPair<'_>,
+    ) -> SpiceResult<Real> {
+        records.instance.value("factor")
+    }
+
+    /// `MUTtemp`: `MUTfactor = k sqrt(|L1 L2|)` from the inductors'
+    /// `INDinduct`.
+    fn temperature(
+        &self,
+        _model: &mut SensitivityRecord,
+        instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        let product = instance.value("induct1")? * instance.value("induct2")?;
+        instance.store("factor", instance.value("k")? * product.abs().sqrt())
+    }
+
+    /// The circuit's own K device stamps nothing at DC.
     fn load(
         &self,
         _setup: RecordPair<'_>,
         _current: RecordPair<'_>,
-        _mode: SensitivityMode,
+        mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
-        Ok(SensitivityLoad::Original)
+        match mode {
+            SensitivityMode::Dc => Ok(SensitivityLoad::Original),
+            SensitivityMode::Ac => Err(SpiceError::circuit(
+                "a K coupling's AC sensitivity load is its reset load",
+            )),
+        }
+    }
+
+    /// `MUTacLoad`: `-= omega MUTfactor` in the imaginary parts of
+    /// `(br1, br2)` and `(br2, br1)`.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        _reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        let i = current.instance;
+        let factor = i.value("factor")?;
+        let row = |keyword: &str| -> SpiceResult<usize> {
+            let value = i.value(keyword)?;
+            if value >= 0. && value.fract() == 0. {
+                Ok(value as usize)
+            } else {
+                Err(SpiceError::circuit(format!(
+                    "{}: unbound inductor branch row",
+                    self.coupling.name()
+                )))
+            }
+        };
+        let (row1, row2) = (row("row1")?, row("row2")?);
+        let stamps = [(row1, row2), (row2, row1)]
+            .into_iter()
+            .map(|(r, c)| ResetStamp {
+                at: StampAt::Rows(r, c),
+                value: -factor,
+                part: StampPart::Reactive,
+            })
+            .collect();
+        Ok(SensitivityLoad::Replacement(Box::new(ResetStamps::new(
+            self.coupling.name(),
+            'k',
+            &[],
+            stamps,
+        )?)))
+    }
+
+    fn coupled_inductors(&self) -> Option<[&str; 2]> {
+        match self.coupling.inductors() {
+            [first, second] => Some([first.name.as_str(), second.name.as_str()]),
+            _ => None,
+        }
     }
 }

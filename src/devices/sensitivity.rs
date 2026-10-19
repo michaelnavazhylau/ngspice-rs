@@ -382,6 +382,194 @@ pub trait DeviceSensitivity: fmt::Debug {
         current: RecordPair<'_>,
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad>;
+
+    /// `DEVacLoad` as `sens_sens()` (`cktsens.c`) calls it in an AC sweep.
+    /// Before every frequency C runs `CKTunsetup`/`CKTsetup` (fresh, zeroed
+    /// state vectors and solution), `CKTtemp` and a DC load
+    /// (`MODEDCOP|MODEINITFLOAT`) at all-zero node voltages, then
+    /// `NIacIter`. So an AC load reads whatever that DC load left in
+    /// `CKTstate0` (a junction's conductance at zero bias, computed from
+    /// `state`, the records at that load), zero for the state slots only a
+    /// small-signal or transient load writes (charge capacitances), and its
+    /// temperature-derived instance fields from `current`.
+    ///
+    /// The default is [`Self::load`] in AC mode, right for devices whose AC
+    /// load reads no state. A device with state must override it.
+    ///
+    /// # Errors
+    /// As [`Self::load`]; a device whose reset AC load is not ported.
+    fn reset_ac_load(
+        &self,
+        setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        let _ = reset;
+        self.load(setup, current, SensitivityMode::Ac)
+    }
+
+    /// The C file of this device's AC load when that load reads instance
+    /// fields only a small-signal (`MODEINITSMSIG`) or transient load writes
+    /// (MOS `capbd`/`capbs`). `cktsens.c`'s reset does not touch them, so
+    /// they hold whatever an earlier analysis of the deck left
+    /// ([`AcReset::small_signal`]), or C's zero initialisation when none did;
+    /// after a `.tran` the analysis refuses.
+    fn stale_ac_fields(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// For a K coupling, the names of its two inductors: the analysis
+    /// mirrors their `INDinduct` and branch rows into this device's instance
+    /// record (`induct1`, `induct2`, `row1`, `row2`), which `MUTtemp` and
+    /// `MUTacLoad` read through C's instance pointers.
+    fn coupled_inductors(&self) -> Option<[&str; 2]> {
+        None
+    }
+}
+
+/// What `cktsens.c`'s per-frequency reset leaves for an AC load
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug, Clone, Copy)]
+pub struct AcReset<'a> {
+    /// The records the reset DC load saw.
+    pub state: RecordPair<'a>,
+    /// C's `CKTomega`.
+    pub omega: Real,
+    /// The operating point at which an earlier analysis's `MODEINITSMSIG`
+    /// load wrote the instance fields the reset leaves alone
+    /// ([`DeviceSensitivity::stale_ac_fields`]); `None` when no earlier
+    /// analysis did, so they still hold C's zero initialisation.
+    pub small_signal: Option<&'a crate::maths::Vector>,
+}
+
+/// Where a [`ResetStamps`] entry goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StampAt {
+    /// Between two circuit nodes (ground rows and columns are skipped).
+    Nodes(NodeId, NodeId),
+    /// Between two matrix rows (C's branch-equation pointers).
+    Rows(usize, usize),
+    /// Node row, this device's branch column.
+    NodeBranch(NodeId),
+    /// This device's branch row, node column.
+    BranchNode(NodeId),
+}
+
+/// Which part of an element a [`ResetStamp`] adds to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StampPart {
+    /// The real part.
+    Real,
+    /// The imaginary part, `omega * value` (a capacitance or inductance).
+    Reactive,
+    /// The imaginary part, `value` as given (C already multiplied by
+    /// `CKTomega`).
+    Imaginary,
+}
+
+/// One element addition of a C `DEVacLoad`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ResetStamp {
+    /// The element.
+    pub at: StampAt,
+    /// The addend.
+    pub value: Real,
+    /// Where it goes.
+    pub part: StampPart,
+}
+
+/// A stand-in that adds a fixed list of elements in C's order: what a C AC
+/// load stamps from the state of `cktsens.c`'s reset load
+/// ([`DeviceSensitivity::reset_ac_load`]). It has no DC load.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResetStamps {
+    name: String,
+    designator: char,
+    terminals: Vec<NodeId>,
+    stamps: Vec<ResetStamp>,
+}
+
+impl ResetStamps {
+    /// A stand-in for device `name` adding `stamps` in order.
+    ///
+    /// # Errors
+    /// A nonfinite addend.
+    pub fn new(
+        name: &str,
+        designator: char,
+        terminals: &[NodeId],
+        stamps: Vec<ResetStamp>,
+    ) -> SpiceResult<Self> {
+        if let Some(stamp) = stamps.iter().find(|stamp| !stamp.value.is_finite()) {
+            return Err(SpiceError::Numerical {
+                context: format!("AC sensitivity of {name}"),
+                message: format!(
+                    "the reset load gives a nonfinite matrix element {}",
+                    stamp.value
+                ),
+            });
+        }
+        Ok(Self {
+            name: name.to_owned(),
+            designator,
+            terminals: terminals.to_vec(),
+            stamps,
+        })
+    }
+}
+
+impl Device for ResetStamps {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn designator(&self) -> char {
+        self.designator
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.name
+        )))
+    }
+
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        for stamp in &self.stamps {
+            let (row, col) = match stamp.at {
+                StampAt::Nodes(a, b) => {
+                    match (context.unknowns.node_row(a), context.unknowns.node_row(b)) {
+                        (Some(row), Some(col)) => (row, col),
+                        _ => continue,
+                    }
+                }
+                StampAt::Rows(row, col) => (row, col),
+                StampAt::NodeBranch(node) | StampAt::BranchNode(node) => {
+                    let branch = context.branch.ok_or_else(|| {
+                        SpiceError::circuit(format!("{}: missing branch row", self.name))
+                    })?;
+                    let Some(row) = context.unknowns.node_row(node) else {
+                        continue;
+                    };
+                    if matches!(stamp.at, StampAt::NodeBranch(_)) {
+                        (row, branch)
+                    } else {
+                        (branch, row)
+                    }
+                }
+            };
+            match stamp.part {
+                StampPart::Real => context.system.a.add(row, col, stamp.value)?,
+                StampPart::Reactive => context.system.e.add(row, col, stamp.value)?,
+                StampPart::Imaginary => context.dynamic_prescaled(row, col, stamp.value)?,
+            }
+        }
+        Ok(())
+    }
 }
 
 /// The explicit refusal of `.sens` for a device whose sensitivity is not
