@@ -301,10 +301,15 @@ remain explicit, rather than implying complete ngspice output compatibility.
   both modes, RSH/NRD/NRS internal primes, 19 DC state slots, `b3ask.c` DC
   asks, and factory dispatch. `.op` matches C on node voltages, source currents
   and asks.
-- [ ] Charges (`capMod`/NQS, C's `BSIM3numStates` slots), AC, `.dc` sweeps
-  (blocked on the small-signal assembly), transient, noise, pole-zero,
-  distortion, sensitivity and `.tf`; complete the physical-unit audit. These
-  remain the #90 blocker.
+- [ ] Charges: the `b3ld.c` CV preamble and `capMod == 3` (the default)
+  channel-charge block, bias-dependent overlap caps, junction `qbs`/`qbd` and
+  `capbs`/`capbd`, then the nine capacitance derivatives. `capMod` 0/1/2 and
+  NQS stay explicit refusals until ported. Exact C locations and the
+  verification plan are in [BSIM.md](docs/port/BSIM.md).
+- [ ] Small-signal/`.dc` (`b3acld.c` from those capacitances; the sweep setup
+  needs it), transient charge integration and `b3trunc.c`, `b3noi.c` noise,
+  `b3pzld.c` pole-zero, distortion, sensitivity and `.tf`.
+- [ ] Complete the physical-unit audit. These remain the #90 blocker.
 - [ ] B3-1..B3-5 and BSIM4: temperature/setup, DC, charges/transient, small
   signal/noise/pole-zero and representative PDK C simulation goldens. #90 stays
   open. See [BSIM.md](docs/port/BSIM.md) for the measured scope and current APIs.

@@ -211,6 +211,40 @@ bias-linearized system, so it needs the charge/AC load), `.ac`, `.tran`,
 fail with `NotYetPorted` naming `b3acld.c`/`b3noi.c`/`b3pzld.c` rather than
 loading zero. BSIM4 and every B3-1..B3-5 equation slice are unchanged.
 
+### Next: the charge model (resume here)
+
+The charge slice is scoped and must keep the same verification discipline as
+the DC core. C locations, in evaluation order:
+
+1. `b3ld.c` charge preamble (~1540-1600): `VbseffCV`/`dVbseffCV_dVb`,
+   `CoxWL = cox*weffCV*leffCV`, and the CV-specific `Vgsteff`
+   (`noff`/`voffcv`) with its three regimes.
+2. `capMod == 3` (the C default) at ~1955-2246: CTM `Vfbeff`, `Tcen`,
+   `Coxeff`, `Qac0`/`Qsub0`, `DeltaPhi`, `VgDP`, `VdseffCV`, `qgate`/`qbulk`,
+   the 0/100, 40/60 and 50/50 `xpart` source partitions, and the nine
+   capacitance derivatives `cggb..cbsb`. `capMod` 0/1/2 stay explicit
+   refusals until each is ported.
+3. Overlap caps/charges (~2497-2620): bias-dependent `cgdo`/`cgso` for
+   capMod 2/3 (`ckappa`, `DELTA_1 = 0.02`), `cgbo` from the model.
+4. Junction CV (~2255-2430): `czbd/czbs` geometry (area, sidewall split by
+   `weff`), `capbs`/`capbd` and `qbs`/`qbd` with the `MJ`/`MJSW`/`MJSWG`
+   branches and `PhiB`/`PhiBSW`/`PhiBSWG`.
+5. `b3acld.c`: with QS (`nqsMod == 0`) the bias-linearized system is the DC
+   conductance stamp plus `j*omega` times the `xc*` matrix built from
+   `cggb..cbsb`, `cgdo`/`cgso`, `cgbo`, `capbd`/`capbs`; the same matrix
+   serves `.pz` (`b3pzld.c`). `.dc` unblocks as soon as
+   `assemble_small_signal` exists.
+6. `b3noi.c` then needs `qinv` plus the `ueff`/`rds`/`gm` values already on
+   `DcEvaluation`; `b3trunc.c` names the charge slots for transient.
+
+Verification must stay C-differential, not tolerance-loosened: compare
+`@m1[qg]`, `@m1[qb]`, `@m1[qd]`, `@m1[cgg]`..`@m1[cbs]`, `@m1[capbd]`,
+`@m1[capbs]` at fixed bias (as the DC core test does), then an `.ac` sweep and
+a `.tran` RC charging curve against C, and only then add a golden fixture.
+Noise must match C's `onoise` per source. `DcEvaluation` already carries every
+intermediate the charge preamble needs (`vgs_eff`, `vth`, `vbseff`, `abulk0`,
+`n`, `vgst`, `phis`, ...); expose them rather than recomputing.
+
 ### B3-1 · Temperature and instance setup
 
 `b3temp.c` (894 lines) plus `b3set.c`'s geometry and *given*-flag handling:
