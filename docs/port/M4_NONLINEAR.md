@@ -217,6 +217,18 @@ supplies the level-1 schema, `mos1temp.c`, the Shichman-Hodges drain-current
 block and distortion through the `MosLevel` trait. The extraction changed no
 MOS1 arithmetic: every MOS1 deck stays bit-identical to C.
 
+A `.model` card may also carry **instance** parameters
+(`inpgmod.c::create_model`): they become defaults for every instance of that
+model, so `.model nch nmos(w=25u l=12u)` sizes all of them. Two names are
+discarded instead of defaulted -- `level` and `m` ("no instance parameter
+default for level and multiplier ... since we already have that info from
+pass1") -- so a model-level `m=3` leaves the instances at `m = 1`, while an
+`m=3` on the instance card still triples the current. Until #164's MOS probe
+battery found it, the port applied the model-level multiplier and drew three
+times C's current from such a card. The rule is keyed on the name being absent
+from the model table, so a diode's or MESFET's `m` (a model parameter there)
+still reaches the model schema; `tests/m10_mos2.rs` pins both halves.
+
 Model setters (C defaults; *derived* means C's `...Given` logic applies):
 `VTO`/`VT0` (0 V or derived), `KP` (2e-5 A/V² or derived), `GAMMA` (0 or
 derived), `PHI` (0.6 V or derived), `LAMBDA` (0), `RD`/`RS`/`RSH` (0 ohm),

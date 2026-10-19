@@ -166,3 +166,60 @@ fn zero_effective_length_in_a_perturbed_load_fails_explicitly() {
         "{error}"
     );
 }
+
+/// A `.sens` filter that never selects `NSUB` avoids the unset-doping step that
+/// the full walk takes, so a default level-2/3/9 card still produces C's values
+/// instead of the documented explicit error. Compared against ngspice-47+ on
+/// `.model mm nmos level=N tox=20n` (no NSUB) with `l=10u w=20u`.
+#[test]
+fn filtering_the_doping_parameter_avoids_the_failed_temperature_callback() {
+    let stage = ".options reltol=1e-10 vntol=1e-13 abstol=1e-16\n\
+        vd d 0 3\nvg g 0 2\nvsense s 0 0\nm1 d g s 0 mm l=10u w=20u\n";
+    for (level, filter, name, reference) in [
+        (2, "m1:kp", "v(m1:kp)", 4.000000001197),
+        (2, "m1:vto", "v(m1:vto)", -0.000414377152),
+        (2, "m1_l", "v(m1_l)", -41.437684159635),
+        (3, "m1:theta", "v(m1:theta)", -0.000828752854),
+        (3, "m1_w", "v(m1_w)", 20.718862798921),
+    ] {
+        let plot = run(&format!(
+            "{stage}.model mm nmos level={level} tox=20n\n.sens i(vsense) {filter}\n.end\n"
+        ))
+        .unwrap();
+        let actual = value(&plot, name);
+        assert!(
+            (actual - reference).abs() <= 1e-9 + 1e-6 * reference.abs(),
+            "level {level} {name}: {actual} vs {reference}"
+        );
+    }
+    // MOS9 has no KAPPA column value on this card: C's `mos9mask.c` answers it
+    // but the walk's own KAPPA step leaves the load's channel unchanged here.
+    let plot = run(&format!(
+        "{stage}.model mm nmos level=9 tox=20n\n.sens i(vsense) m1:kappa\n.end\n"
+    ))
+    .unwrap();
+    assert_eq!(value(&plot, "v(m1:kappa)"), 0.);
+}
+
+/// A `.model` card's instance parameters become defaults for every instance,
+/// and C discards `m` outright (`inpgmod.c`), so the model-level multiplier
+/// cannot scale the sensitivity columns. Measured: both cards C-simulate to the
+/// same 52 columns.
+#[test]
+fn a_model_card_multiplier_does_not_scale_the_columns() {
+    let body = ".options reltol=1e-10 vntol=1e-13 abstol=1e-16\n\
+        vd d 0 3\nvg g 0 2\nvsense s 0 0\nm1 d g s 0 mm\n\
+        .model mm nmos level=1 {}\n.sens i(vsense)\n.end\n";
+    let with = run(&body.replace("{}", "m=3 w=25u l=12u")).unwrap();
+    let without = run(&body.replace("{}", "w=25u l=12u")).unwrap();
+    assert_eq!(with.variables.len(), without.variables.len());
+    for name in [
+        "v(m1:kp)",
+        "v(m1:vto)",
+        "v(m1_l)",
+        "v(m1_temp)",
+        "v(vsense)",
+    ] {
+        assert_eq!(value(&with, name), value(&without, name), "{name}");
+    }
+}

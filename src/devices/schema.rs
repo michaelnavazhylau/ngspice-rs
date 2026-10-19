@@ -242,6 +242,14 @@ impl ScalarSchema<'_> {
 /// reverse card order; with a repeated instance parameter on one `.model` card
 /// that means the **first** occurrence wins, the opposite of the model table's
 /// last-set precedence. See [`with_defaults`].
+///
+/// Two instance-only names are **discarded** rather than defaulted, which C
+/// does explicitly for `level` and `m` ("no instance parameter default for
+/// level and multiplier ... since we already have that info from pass1"):
+/// a `.model nmos nmos m=3` therefore leaves a multiplier-less instance at
+/// `m = 1`. The rule is keyed on the name being absent from the model table,
+/// so a diode's or MESFET's `m` (a model parameter there) still lands in the
+/// model schema.
 pub(crate) fn split_model_setters<'a>(
     setters: impl IntoIterator<Item = &'a ParameterAssignment>,
     model: &ScalarSchema<'_>,
@@ -258,8 +266,15 @@ pub(crate) fn split_model_setters<'a>(
             .parameters
             .iter()
             .any(|p| p.name.eq_ignore_ascii_case(&setter.name));
-        if !in_model && in_instance {
-            defaults.push(setter);
+        if in_model {
+            kept.push(setter);
+        } else if in_instance {
+            if !["level", "m"]
+                .iter()
+                .any(|name| setter.name.eq_ignore_ascii_case(name))
+            {
+                defaults.push(setter);
+            }
         } else {
             kept.push(setter);
         }

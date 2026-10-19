@@ -478,6 +478,15 @@ The replay preserves several non-derivative behaviours:
   fields, producing zero columns. Those entries remain in the table.
 * **MOS9 has no DTEMP ask case.** C drops that GET ERROR column, even though
   the setter exists, so it is absent from the port's table too.
+* **A `.model` card's instance parameters become defaults for every instance,
+  but `m` is discarded** (`inpgmod.c`: "no instance parameter default for
+  level and multiplier"). The `sens_mos1` fixture carries `m=3` on its
+  n-channel `.model` next to an instance-level `m=2`, so the golden covers the
+  rule: applying the model-level value would scale every current column by
+  three. `tests/sensitivity_mos.rs` and `tests/m10_mos2.rs` pin it, and a
+  *filtered* walk that never selects the unset `NSUB` matches C as well
+  (`m1:kp`/`m1:vto`/`m1_l` on level 2, `m1:theta`/`m1_w` on level 3) -- the
+  documented workaround for the bound below.
 
 **Still bounded, not full MOS parity:** a zero LD receives C's absolute 1 um
 step; drawn L=2 um then has zero effective length, which fails explicitly.

@@ -380,3 +380,32 @@ fn m10_mos2_fixtures_parse_write_parse_with_a_fixed_point() {
         assert_eq!(text, ngspice_rs::netlist::write_netlist(&round).unwrap());
     }
 }
+
+/// `inpgmod.c` discards `m` on a `.model` card ("no instance parameter default
+/// for level and multiplier ... since we already have that info from pass1"),
+/// while the other instance parameters on that card become model defaults.
+/// Measured against ngspice-47+: `m1 d g s 0 mm` with
+/// `.model mm nmos level=1 m=3 w=25u l=12u` draws C's `m = 1` current
+/// (8.333e-5 A at vgs = 2 V), not three times it.
+fn model_card_current(body: &str) -> f64 {
+    let mut c = circuit(&format!("vd d 0 3\nvg g 0 2\nvsense s 0 0\n{body}"));
+    op(&mut c);
+    let plot = op(&mut circuit(&format!(
+        "vd d 0 3\nvg g 0 2\nvsense s 0 0\n{body}"
+    )));
+    plot.points[0][plot.variable_index("i(vsense)").unwrap()].re
+}
+
+#[test]
+fn a_model_card_multiplier_is_discarded_like_inpgmod() {
+    let defaults = model_card_current("m1 d g s 0 mm\n.model mm nmos level=1 m=3 w=25u l=12u");
+    let no_multiplier = model_card_current("m1 d g s 0 mm\n.model mm nmos level=1 w=25u l=12u");
+    close(defaults, no_multiplier, 1e-12, 1e-18);
+    // The 25/12 geometry default is applied, so this is not a "nothing set" pass.
+    let geometry = model_card_current("m1 d g s 0 mm\n.model mm nmos level=1 w=25u l=12u");
+    let drawn = model_card_current("m1 d g s 0 mm w=25u l=12u\n.model mm nmos level=1");
+    close(geometry, drawn, 1e-12, 1e-18);
+    // An instance multiplier still scales the current by three.
+    let instance = model_card_current("m1 d g s 0 mm m=3\n.model mm nmos level=1 w=25u l=12u");
+    close(instance, 3. * no_multiplier, 1e-12, 1e-18);
+}
