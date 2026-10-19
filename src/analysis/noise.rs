@@ -448,8 +448,15 @@ pub(crate) fn run(
     let mut small = crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
     let mut model = context.model_context();
     model.spice3_noise = request.spice3_noise;
+    // Generators that depend on the frequency are described at the first
+    // frequency; they are re-described at every frequency below.
+    let first = if small.reassembles() {
+        model.with_frequency(card.start)
+    } else {
+        model
+    };
     let mut generators: Vec<Generators> =
-        circuit_noise(circuit, &model, small.bias(), Some(small.state()))?
+        circuit_noise(circuit, &first, small.bias(), Some(small.state()))?
             .into_iter()
             .map(Generators::new)
             .collect();

@@ -217,18 +217,27 @@ pub(crate) fn run(
     // PZan uses the same CKTop/MODEINITSMSIG preparation as acan.c.
     let small_signal =
         crate::analysis::ac::SmallSignal::prepare(circuit, request, context, settings)?;
-    let terms = circuit.pole_zero_terms_at(
-        &context.model_context(),
-        small_signal.bias(),
-        Some(small_signal.state()),
-    )?;
-    let elements = circuit.pole_zero_elements()?;
+    // `PZan` runs the pole search before the zero search, each on a fresh
+    // `CKTpzSetup` matrix (whose `DEVpzSetup` runs count, see
+    // `MatrixSetup::pole_zero_setups`); `PZpost` lists poles first.
+    let mut setups = 0;
+    let pencil = |setups: u32| -> SpiceResult<_> {
+        Ok((
+            circuit.pole_zero_terms_at(
+                &context.model_context(),
+                small_signal.bias(),
+                Some(small_signal.state()),
+                setups,
+            )?,
+            circuit.pole_zero_elements(setups)?,
+        ))
+    };
     let order = circuit.unknown_count();
     let input = [in_pos, in_neg];
-    // `PZan` runs the pole search before the zero search, each on a fresh
-    // `CKTpzSetup` matrix; `PZpost` lists poles first.
     let mut poles = Vec::new();
     if card.poles {
+        setups += 1;
+        let (terms, elements) = pencil(setups)?;
         let output = match card.input {
             Input::Voltage => Some(input),
             Input::Current => None,
@@ -239,6 +248,8 @@ pub(crate) fn run(
     }
     let mut zeros = Vec::new();
     if card.zeros {
+        setups += 1;
+        let (terms, elements) = pencil(setups)?;
         let mut load = modified_load(order, &elements, &terms, input, Some([out_pos, out_neg]));
         load.relative_threshold = context.pivot.relative;
         zeros = roots(&load, "zeros")?;

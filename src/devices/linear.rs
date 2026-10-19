@@ -495,6 +495,18 @@ pub struct LinearContext<'a> {
     /// small-signal assemblies built from a solved operating point
     /// ([`crate::devices::Circuit::small_signal_system_at`]); `None` otherwise.
     pub states: Option<&'a [Real]>,
+    /// Set while [`crate::devices::Circuit::pole_zero_terms_at`] collects
+    /// `CKTpzLoad`'s terms. A device whose C pole-zero load adds a
+    /// conductance and an `s` term to one element in separate statements
+    /// (`b4pzld.c`) records each statement here, in C's order, as a
+    /// conductance-only or capacitance-only term; the collector then uses
+    /// them instead of merging the device's A and E stamps per element.
+    pub pole_zero_statements: Option<&'a mut Vec<crate::maths::pencil::PencilTerm>>,
+    /// For a pole-zero assembly, the number of `CKTpzSetup` runs so far,
+    /// this one included (see
+    /// [`crate::devices::setup::MatrixSetup::pole_zero_setups`]); zero
+    /// otherwise.
+    pub pole_zero_setups: u32,
 }
 impl LinearContext<'_> {
     /// Stamps a two-terminal nodal operator into A or E.

@@ -707,9 +707,9 @@ impl Circuit {
     fn declare_elements(
         &self,
         index: usize,
-        pole_zero: bool,
+        pole_zero_setups: u32,
         elements: &mut Vec<(usize, usize)>,
-    ) -> SpiceResult<()> {
+    ) -> SpiceResult<bool> {
         let coupled: Vec<(usize, usize)> = self
             .mutual
             .pairs
@@ -728,11 +728,11 @@ impl Circuit {
             branches: self.branch_rows[index].clone(),
             controls: self.controls(index)?,
             coupled: &coupled,
-            pole_zero,
+            pole_zero: pole_zero_setups > 0,
+            pole_zero_setups,
             elements,
         };
-        self.devices[index].setup_matrix(&mut setup)?;
-        Ok(())
+        self.devices[index].setup_matrix(&mut setup)
     }
 
     /// The `(row, col)` matrix elements device `index` allocates in its
@@ -747,7 +747,7 @@ impl Circuit {
             return Err(SpiceError::circuit("device ordinal out of range"));
         }
         let mut elements = Vec::new();
-        self.declare_elements(index, false, &mut elements)?;
+        self.declare_elements(index, 0, &mut elements)?;
         Ok(elements)
     }
 
@@ -757,7 +757,7 @@ impl Circuit {
     /// (C sets a circuit up once).
     fn allocate_matrix(&mut self) -> SpiceResult<()> {
         let order = self.setup_order();
-        let elements = self.ordered_elements(&order, false)?;
+        let elements = self.ordered_elements(&order, 0)?;
         self.order = order;
         let n = self.unknown_count();
         let mut slot = self.pattern.borrow_mut();
@@ -785,11 +785,11 @@ impl Circuit {
     fn ordered_elements(
         &self,
         order: &[usize],
-        pole_zero: bool,
+        pole_zero_setups: u32,
     ) -> SpiceResult<Vec<(usize, usize)>> {
         let mut elements = Vec::new();
         for &index in order {
-            self.declare_elements(index, pole_zero, &mut elements)?;
+            self.declare_elements(index, pole_zero_setups, &mut elements)?;
         }
         Ok(elements)
     }
@@ -798,17 +798,40 @@ impl Circuit {
     /// matrix before the drive, in allocation order: every device's
     /// `DEVpzSetup` (its `DEVsetup`, except that `VSRCpzSetup` adds the
     /// branch diagonal), then any element the circuit pattern learned from
-    /// a load of a device that declares none.
+    /// a load of a device that declares none. `setups` counts the
+    /// `CKTpzSetup` runs, this one included (see
+    /// [`crate::devices::setup::MatrixSetup::pole_zero_setups`]).
+    ///
+    /// The internal nodes of a device that declares its `DEVpzSetup`
+    /// elements are its own: only its declaration places them, so a learned
+    /// position on one of them (from the circuit's `DEVsetup` pattern) is not
+    /// added. A `DEVpzSetup` that drops an internal node (`b4set.c` re-run)
+    /// therefore leaves no row for it, as SPARSE creates rows only for
+    /// referenced nodes.
     /// # Errors
     /// Mismatched numbering or missing bindings.
-    pub fn pole_zero_elements(&self) -> SpiceResult<Vec<(usize, usize)>> {
+    pub fn pole_zero_elements(&self, setups: u32) -> SpiceResult<Vec<(usize, usize)>> {
         self.check_numbering()?;
-        let mut elements = self.ordered_elements(&self.setup_order(), true)?;
+        let setups = setups.max(1);
+        let mut elements = Vec::new();
+        let mut private = BTreeSet::new();
+        for index in self.setup_order() {
+            if self.declare_elements(index, setups, &mut elements)? {
+                private.extend(
+                    self.internal_nodes[index]
+                        .iter()
+                        .filter_map(|&node| self.unknowns.node_row(node)),
+                );
+            }
+        }
         if let Some(pattern) = self.matrix_pattern() {
             let known: BTreeSet<(usize, usize)> = elements.iter().copied().collect();
             for index in 0..pattern.len() {
                 let position = pattern.position(crate::maths::sparse::element_id(index));
-                if !known.contains(&position) {
+                if !known.contains(&position)
+                    && !private.contains(&position.0)
+                    && !private.contains(&position.1)
+                {
                     elements.push(position);
                 }
             }
@@ -840,6 +863,7 @@ impl Circuit {
                 previous: request.previous,
                 controls: self.controls(index)?,
                 states: &request.trial.values()[self.state_rows[index].clone()],
+                phase: request.trial.phase(),
                 model_context: request.model_context,
                 time: request.time,
                 reltol: request.reltol,
@@ -1403,6 +1427,8 @@ impl Circuit {
                 ),
                 None => None,
             },
+            pole_zero_statements: None,
+            pole_zero_setups: 0,
         };
         device.assemble_small_signal(&mut linear, bias)
     }
@@ -1935,6 +1961,8 @@ impl Circuit {
                 controls: self.controls(index)?,
                 mutual: mutual.get(index).map_or(&[], Vec::as_slice),
                 states: None,
+                pole_zero_statements: None,
+                pole_zero_setups: 0,
             })?;
         }
         system.a.fold_duplicates();
@@ -1967,7 +1995,7 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
-        self.bias_linearized_system(context, bias, state, false, None)
+        self.bias_linearized_system(context, bias, state, 0, None)
     }
 
     /// The pole-zero pencil `A + s E` at a solved bias point: every device's
@@ -1984,7 +2012,7 @@ impl Circuit {
         bias: &Vector,
         state: Option<&[Real]>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
-        self.bias_linearized_system(context, bias, state, true, None)
+        self.bias_linearized_system(context, bias, state, 1, None)
     }
 
     /// The pole-zero load as `CKTpzLoad` adds it: every device's
@@ -2001,13 +2029,20 @@ impl Circuit {
         context: &ModelContext,
         bias: &Vector,
         state: Option<&[Real]>,
+        setups: u32,
     ) -> SpiceResult<Vec<crate::maths::pencil::PencilTerm>> {
         let mut ranges = Vec::new();
-        let system = self.bias_linearized_system(context, bias, state, true, Some(&mut ranges))?;
+        let system =
+            self.bias_linearized_system(context, bias, state, setups.max(1), Some(&mut ranges))?;
         let a = system.a.triplets();
         let e = system.e.triplets();
         let mut terms = Vec::new();
-        for (a_range, e_range) in ranges {
+        for (a_range, e_range, statements) in ranges {
+            if !statements.is_empty() {
+                // The device recorded its C statements in order.
+                terms.extend(statements);
+                continue;
+            }
             let first = terms.len();
             let slot = |terms: &mut Vec<crate::maths::pencil::PencilTerm>, row, col| {
                 if let Some(i) = terms[first..]
@@ -2061,8 +2096,8 @@ impl Circuit {
         context: &ModelContext,
         bias: &Vector,
         state: Option<&[Real]>,
-        pole_zero: bool,
-        mut ranges: Option<&mut Vec<(std::ops::Range<usize>, std::ops::Range<usize>)>>,
+        pole_zero_setups: u32,
+        mut ranges: Option<&mut Vec<PoleZeroRange>>,
     ) -> SpiceResult<crate::devices::linear::LinearSystem> {
         self.check_numbering()?;
         if state.is_some_and(|state| state.len() != self.state_len) {
@@ -2091,6 +2126,8 @@ impl Circuit {
                 None => &*self.devices[index],
             };
             let range = &self.branch_rows[index];
+            let mut statements = Vec::new();
+            let collecting = ranges.is_some();
             let mut linear = crate::devices::linear::LinearContext {
                 model_context: context,
                 system: &mut system,
@@ -2106,12 +2143,14 @@ impl Circuit {
                     ),
                     None => None,
                 },
+                pole_zero_statements: collecting.then_some(&mut statements),
+                pole_zero_setups,
             };
             let start = (
                 linear.system.a.triplets().len(),
                 linear.system.e.triplets().len(),
             );
-            if pole_zero {
+            if pole_zero_setups > 0 {
                 device.assemble_pole_zero(&mut linear, bias)?;
             } else {
                 device.assemble_small_signal(&mut linear, bias)?;
@@ -2120,6 +2159,7 @@ impl Circuit {
                 ranges.push((
                     start.0..system.a.triplets().len(),
                     start.1..system.e.triplets().len(),
+                    statements,
                 ));
             }
         }
@@ -2409,6 +2449,15 @@ impl Circuit {
             .map(AsRef::as_ref)
     }
 }
+
+/// One device's stamps in a pole-zero term collection: its A and E triplet
+/// ranges and any C statements it recorded in order
+/// ([`crate::devices::linear::LinearContext::pole_zero_statements`]).
+type PoleZeroRange = (
+    std::ops::Range<usize>,
+    std::ops::Range<usize>,
+    Vec<crate::maths::pencil::PencilTerm>,
+);
 
 #[cfg(test)]
 mod tests {

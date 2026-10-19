@@ -300,6 +300,10 @@ pub struct ConvergenceContext<'a> {
     pub controls: &'a [usize],
     /// This device's slots of the last load's trial (C `CKTstate0`).
     pub states: &'a [Real],
+    /// The Newton phase of the last load (C's `MODEINITF` bits when
+    /// `NIconvTest` runs, which `NIiter` does in `MODEINITFIX` as well as
+    /// `MODEINITFLOAT`).
+    pub phase: crate::devices::IterationPhase,
     /// Temperatures, `gmin` and frequency of the solve.
     pub model_context: &'a crate::devices::ModelContext,
     /// The time of a transient solve, zero otherwise (C `CKTtime`).

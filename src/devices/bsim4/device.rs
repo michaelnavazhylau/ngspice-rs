@@ -190,12 +190,18 @@ impl Bsim4 {
             )));
         }
         let kelvin = temperature_kelvin(temperature, &self.location)?;
-        let size = temp::temperature(&mut model, &mut instance, kelvin, &mut warnings).map_err(
-            |e| match e {
-                SpiceError::NotYetPorted { .. } => e,
-                other => SpiceError::circuit(format!("{}: {other}", self.name)),
-            },
-        )?;
+        let size = temp::temperature(
+            &mut model,
+            &mut instance,
+            kelvin,
+            &self.model_name,
+            &self.name,
+            &mut warnings,
+        )
+        .map_err(|e| match e {
+            SpiceError::NotYetPorted { .. } => e,
+            other => SpiceError::circuit(format!("{}: {other}", self.name)),
+        })?;
         Ok(Prepared {
             temperature,
             nominal,
@@ -233,6 +239,39 @@ impl Bsim4 {
             .ok()
             .and_then(|i| self.nodes.get(i))
             .copied()
+    }
+
+    /// `h`'s node fields after `CKTpzSetup` has re-run `BSIM4setup`
+    /// `setups` times. `b4set.c` creates an internal node only while its
+    /// field is still zero; otherwise its `else` branch aliases it, so a
+    /// re-run aliases every drain/source/gate/mid-gate prime it created back
+    /// to its external node and resets `qNode` to ground, and a further
+    /// re-run creates a node again only where that alias is ground (node 0).
+    /// Such a "new" node reuses the internal node's own index: C's original
+    /// node no longer has elements, and SPARSE numbers rows by first
+    /// appearance. The body nodes have no `else` branch and are kept.
+    fn pole_zero_instance(&self, h: &Instance, setups: u32) -> Instance {
+        let grounded =
+            |local: i32| local == node::GROUND || self.node_id(local) == Some(NodeId::GROUND);
+        let rerun = |own: i32, current: i32, alias: i32| {
+            let created = current == own;
+            let mut value = current;
+            for _ in 0..setups {
+                value = if created && grounded(value) {
+                    own
+                } else {
+                    alias
+                };
+            }
+            value
+        };
+        let mut p = h.clone();
+        p.dNodePrime = rerun(node::DP, h.dNodePrime, h.dNode);
+        p.sNodePrime = rerun(node::SP, h.sNodePrime, h.sNode);
+        p.gNodePrime = rerun(node::GP, h.gNodePrime, h.gNodeExt);
+        p.gNodeMid = rerun(node::GM, h.gNodeMid, h.gNodeExt);
+        p.qNode = rerun(node::Q, h.qNode, node::GROUND);
+        p
     }
 
     /// A copy of C's live instance for `prepared`, or the freshly set-up one.
@@ -440,9 +479,14 @@ impl LoadCkt for StampHost<'_, '_> {
     }
     fn integrate(&mut self, cap: f64, slot: usize) -> SpiceResult<(f64, f64)> {
         let Some(coefficients) = self.context.integration else {
-            return Err(SpiceError::circuit(
-                "BSIM4 load integrated a charge outside transient analysis",
-            ));
+            // Outside transient C still integrates (the NQS charges in every
+            // load, all charges in the `uic` initial load) with the zero
+            // `CKTag` of a fresh circuit (`dctran.c` clears it before the
+            // first step).
+            let q1 = self.context.states.accepted(1, slot).unwrap_or(0.);
+            let (geq, ceq, derivative) = zero_coefficient_integrate(cap, self.state0(slot), q1);
+            self.set_state0(slot + 1, derivative);
+            return Ok((geq, ceq));
         };
         let q0 = self.state0(slot);
         let mut history = crate::maths::integrator::ChargeHistory::new(q0);
@@ -483,6 +527,17 @@ impl LoadCkt for StampHost<'_, '_> {
             self.fail(error);
         }
     }
+}
+
+/// `NIintegrate` (`niinteg.c`, trapezoidal order 1, C's defaults) with
+/// `CKTag[0] = CKTag[1] = 0`: returns `(geq, ceq, state0[ccap])`. C keeps
+/// whatever `CKTag` the last transient left; a fresh circuit's is zero,
+/// which is what every non-transient analysis of a deck without an earlier
+/// `.tran` sees.
+fn zero_coefficient_integrate(cap: f64, q0: f64, q1: f64) -> (f64, f64, f64) {
+    let ag = [0.0_f64; 2];
+    let derivative = ag[0] * q0 + ag[1] * q1;
+    (ag[0] * cap, derivative - ag[0] * q0, derivative)
 }
 
 /// [`LoadCkt`] for C's evaluation-only loads (`MODEINITSMSIG`, and the
@@ -544,10 +599,13 @@ impl LoadCkt for Probe<'_> {
     fn state2(&self, slot: usize) -> f64 {
         self.state0(slot)
     }
-    fn integrate(&mut self, _cap: f64, _slot: usize) -> SpiceResult<(f64, f64)> {
-        Err(SpiceError::circuit(
-            "BSIM4 evaluation-only load tried to integrate a charge",
-        ))
+    fn integrate(&mut self, cap: f64, slot: usize) -> SpiceResult<(f64, f64)> {
+        // As `StampHost` outside transient: C's NQS loads integrate with the
+        // zero `CKTag` of a DC or small-signal analysis.
+        let q = self.state0(slot);
+        let (geq, ceq, derivative) = zero_coefficient_integrate(cap, q, q);
+        self.set_state0(slot + 1, derivative);
+        Ok((geq, ceq))
     }
     fn noncon(&mut self) {}
     fn matrix(&mut self, _row: i32, _col: i32, _value: f64) {}
@@ -599,6 +657,14 @@ impl SmallSignalCkt for SmallSignalHost<'_, '_> {
     }
     fn real(&mut self, row: i32, col: i32, value: f64) {
         if let Some((r, c)) = self.rows(row, col) {
+            if let Some(statements) = self.context.pole_zero_statements.as_deref_mut() {
+                statements.push(crate::maths::pencil::PencilTerm {
+                    row: r,
+                    col: c,
+                    conductance: Some(value),
+                    capacitance: None,
+                });
+            }
             let result = self.context.system.a.add(r, c, value);
             self.record(result);
         }
@@ -611,6 +677,14 @@ impl SmallSignalCkt for SmallSignalHost<'_, '_> {
     }
     fn cap(&mut self, row: i32, col: i32, value: f64) {
         if let Some((r, c)) = self.rows(row, col) {
+            if let Some(statements) = self.context.pole_zero_statements.as_deref_mut() {
+                statements.push(crate::maths::pencil::PencilTerm {
+                    row: r,
+                    col: c,
+                    conductance: None,
+                    capacitance: Some(value),
+                });
+            }
             let result = self.context.dynamic_group(r, c, &[value], 1., 1.);
             self.record(result);
         }
@@ -618,24 +692,18 @@ impl SmallSignalCkt for SmallSignalHost<'_, '_> {
 }
 
 impl Bsim4 {
-    /// The operating point's `state0` for a small-signal assembly: the
-    /// converged trial C's `MODEINITSMSIG` load reads, or (without one) the
-    /// state an unlimited load at `bias` writes.
+    /// The operating point's `state0` for a small-signal assembly. The
+    /// analyses hand devices the accepted-history vector (C's `CKTstate1`,
+    /// which `swacload.c` reads), not `CKTstate0`; C's `CKTstate0` after
+    /// `CKTop` is what its last load wrote at the iterate the analysis
+    /// linearises around (`NewtonSolution::values`), so an unlimited load
+    /// there reproduces it.
     fn operating_state(
         &self,
         prepared: &Rc<Prepared>,
-        states: Option<&[Real]>,
         voltage: &dyn Fn(NodeId) -> Real,
         gmin: Real,
     ) -> SpiceResult<[Real; state::COUNT]> {
-        if let Some(slots) = states
-            && slots.len() == state::COUNT
-            && slots.iter().all(|v| v.is_finite())
-        {
-            let mut s0 = [0.; state::COUNT];
-            s0.copy_from_slice(slots);
-            return Ok(s0);
-        }
         self.state_at(prepared, voltage, gmin)
     }
 
@@ -655,8 +723,14 @@ impl Bsim4 {
                 .and_then(|row| bias.get(row))
                 .unwrap_or(0.)
         };
-        let s0 = self.operating_state(&prepared, context.states, &voltage, model_context.gmin)?;
+        let s0 = self.operating_state(&prepared, &voltage, model_context.gmin)?;
         let (h, s0) = self.small_signal_point(&prepared, s0, &voltage, model_context.gmin)?;
+        // pzan.c loads MODEINITSMSIG before CKTpzSetup re-runs BSIM4setup.
+        let h = if pole_zero {
+            self.pole_zero_instance(&h, context.pole_zero_setups.max(1))
+        } else {
+            h
+        };
         let omega = 2.0 * std::f64::consts::PI * model_context.frequency;
         let mut host = SmallSignalHost {
             context,
@@ -863,7 +937,12 @@ impl Device for Bsim4 {
         let Some(prepared) = self.cache.borrow().clone() else {
             return Ok(false);
         };
-        for (row, col) in elements::matrix_elements(&prepared.model, &prepared.instance) {
+        let instance = if setup.pole_zero {
+            self.pole_zero_instance(&prepared.instance, setup.pole_zero_setups.max(1))
+        } else {
+            prepared.instance.clone()
+        };
+        for (row, col) in elements::matrix_elements(&prepared.model, &instance) {
             if let (Some(r), Some(c)) = (self.node_id(row), self.node_id(col)) {
                 setup.nodes(r, c);
             }
@@ -930,8 +1009,8 @@ impl Device for Bsim4 {
     }
 
     /// `BSIM4convTest` on the live instance the last load left, reading
-    /// `CKTrhsOld` (the iterate that load used) as C does. NIiter only runs
-    /// device tests in `MODEINITFLOAT`.
+    /// `CKTrhsOld` (the iterate that load used) as C does. `NIiter` runs it
+    /// in `MODEINITFIX` too, where an `off` instance is not tested.
     fn convergence_test(&self, context: &ConvergenceContext<'_>) -> SpiceResult<bool> {
         let live = self.live.borrow();
         let Some((prepared, h)) = live.as_ref() else {
@@ -949,7 +1028,10 @@ impl Device for Bsim4 {
             h,
             &rhs_old,
             &state0,
-            mode::MODEINITFLOAT,
+            match context.phase {
+                IterationPhase::Fix => mode::MODEINITFIX,
+                _ => mode::MODEINITFLOAT,
+            },
             context.reltol,
             context.abstol,
         ))
@@ -1010,6 +1092,15 @@ impl Device for Bsim4 {
         self.assemble(context, bias, true)
     }
 
+    /// C's BSIM4 has no `DEVdisto` (`bsim4init.c`): `.disto` sees only its
+    /// AC load.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
     /// `b4noi.c` at the analysis frequency, on the instance C's
     /// `MODEINITSMSIG` load leaves: the 14 generators in C's order, then the
     /// instance total.
@@ -1047,7 +1138,7 @@ impl Device for Bsim4 {
             ));
         }
         let voltage = |node: NodeId| context.voltage(node);
-        let s0 = self.operating_state(&prepared, context.states, &voltage, model_context.gmin)?;
+        let s0 = self.operating_state(&prepared, &voltage, model_context.gmin)?;
         let (h, s0) = self.small_signal_point(&prepared, s0, &voltage, model_context.gmin)?;
         let temperature = context.circuit_kelvin();
         let generators = noise::generators(

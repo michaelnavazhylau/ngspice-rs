@@ -1,4 +1,6 @@
-//! BSIM4 B4-0 input plumbing, not a simulation or default/setup claim.
+//! BSIM4 input plumbing: the generated tables, typed setters and the factory
+//! boundary. Setup, temperature and the loads are compared with C in the
+//! `c_bsim4_*_reference` tests and `bsim4_device.rs`.
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -122,8 +124,8 @@ fn literal_defaults_are_the_generated_c_facts() {
     assert_eq!(value("epsrox"), 3.9);
     assert_eq!(value("ndep"), 1.7e17);
     assert_eq!(value("ngate"), 0.0);
-    // Dependent defaults (`tox` from `toxm`, `vth0` from `vfb`, ...) are
-    // deliberately absent: they belong to the unported `b4set.c` stage.
+    // Dependent defaults (`tox` from `toxm`, `vth0` from `vfb`, ...) are not
+    // literals: `b4set.c`'s dependent-default code (`set.rs`) computes them.
     for dependent in ["tox", "vth0", "u0", "tnom"] {
         assert!(
             literals.iter().all(|(keyword, _)| *keyword != dependent),
@@ -349,29 +351,53 @@ fn version_strings_select_or_refuse_the_right_c_directory() {
 }
 
 #[test]
-fn the_factory_validates_then_refuses_the_unported_backend() {
+fn the_factory_builds_the_device_with_cs_internal_nodes() {
     for level in [14, 54] {
         let netlist = deck(&format!(
-            "m1 d g s b nn l=1u w=2u\n.model nn nmos level={level}"
+            "m1 d g s b nn l=1u w=2u\n.model nn nmos level={level} rgatemod=1 rbodymod=1"
         ));
         let resolver = ModelResolver::new(&netlist.models).unwrap();
         let mut circuit = Circuit::new();
-        let error = circuit
+        circuit
             .add_instance(&netlist.devices[0], &resolver, &ModelContext::default())
-            .unwrap_err();
-        assert!(error.is_not_yet_ported(), "level {level}: {error}");
-        let text = error.to_string();
-        assert!(
-            text.contains("bsim4/") && text.contains("b4temp.c"),
-            "level {level}: {error}"
+            .unwrap();
+        assert_eq!(circuit.devices().len(), 1, "level {level}");
+        // `b4set.c` creates the gate node, then the body network, with
+        // `CKTmkVolt`'s `<instance>#<suffix>` names, after the terminals.
+        let names: Vec<&str> = circuit
+            .nodes()
+            .nodes()
+            .iter()
+            .map(|node| node.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "0", "d", "g", "s", "b", "m1#gate", "m1#dbody", "m1#body", "m1#sbody"
+            ],
+            "level {level}"
         );
-        // The refusal happens before any device is created.
-        assert_eq!(circuit.devices().len(), 0);
     }
 }
 
 #[test]
-fn an_invalid_setter_is_reported_before_the_backend_refusal() {
+fn a_fatal_parameter_check_creates_no_device() {
+    // `b4check.c`: a nonpositive TOXE is fatal, and `b4temp.c` returns
+    // E_BADPARM before C simulates anything.
+    let netlist = deck("m1 d g s b nn l=1u w=2u\n.model nn nmos level=14 toxe=-1e-9");
+    let resolver = ModelResolver::new(&netlist.models).unwrap();
+    let mut circuit = Circuit::new();
+    let error = circuit
+        .add_instance(&netlist.devices[0], &resolver, &ModelContext::default())
+        .unwrap_err();
+    assert!(!error.is_not_yet_ported(), "{error}");
+    assert!(error.to_string().contains("Toxe"), "{error}");
+    assert_eq!(circuit.devices().len(), 0);
+    assert_eq!(circuit.nodes().nodes().len(), 1);
+}
+
+#[test]
+fn an_invalid_setter_is_reported_before_any_setup() {
     let netlist = deck("m1 d g s b nn l=1u\n.model nn nmos level=14 notaparameter=1");
     let resolver = ModelResolver::new(&netlist.models).unwrap();
     let mut circuit = Circuit::new();
