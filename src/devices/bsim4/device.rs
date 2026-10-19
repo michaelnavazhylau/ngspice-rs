@@ -37,6 +37,8 @@ use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError
 struct Prepared {
     temperature: Real,
     nominal: Real,
+    /// The `.dc @inst[param]` values applied (field, value).
+    swept: Vec<(&'static str, Real)>,
     model: Model,
     instance: Instance,
     size: SizeParam,
@@ -71,10 +73,26 @@ pub(crate) struct Bsim4 {
     created: Vec<(i32, &'static str)>,
     /// C's `noiseAnalGiven` at setup.
     noise_analysis: bool,
-    cache: RefCell<Option<Rc<Prepared>>>,
-    /// C's persistent instance struct and the setup it belongs to.
-    live: RefCell<Option<(Rc<Prepared>, Instance)>>,
+    /// `.dc @inst[param]` values (C's `DCTsetInstParam`): `BSIM4param`
+    /// stores them after `BSIM4setup`, and `BSIM4temp` follows. Each is the
+    /// setter's C field and given bit with its value.
+    swept: Vec<(&'static str, Option<&'static str>, Real)>,
+    /// C's structs, shared with this instance's `.dc @inst[param]`
+    /// stand-ins (which C's `DCTsetInstParam` writes into the same struct).
+    shared: Rc<RefCell<Shared>>,
 }
+
+/// The C structs of one BSIM4 instance.
+#[derive(Default)]
+struct Shared {
+    /// Recent setups by temperature, nominal temperature and swept values.
+    setups: Vec<Rc<Prepared>>,
+    /// C's instance struct as the last load left it, and its setup.
+    live: Option<(Rc<Prepared>, Instance)>,
+}
+
+/// How many setups [`Shared`] keeps.
+const SETUPS_KEPT: usize = 8;
 
 impl std::fmt::Debug for Bsim4 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -115,8 +133,8 @@ impl Bsim4 {
             location: instance.location.clone(),
             created: Vec::new(),
             noise_analysis: context.noise_analysis,
-            cache: RefCell::new(None),
-            live: RefCell::new(None),
+            swept: Vec::new(),
+            shared: Rc::new(RefCell::new(Shared::default())),
         };
         device.created = device.setup(context.nominal_temperature)?.created;
         let prepared = device.prepare(context.temperature, context.nominal_temperature)?;
@@ -147,7 +165,7 @@ impl Bsim4 {
             device.terminals.push(id);
         }
         *nodes = staged;
-        *device.cache.borrow_mut() = Some(Rc::new(prepared));
+        device.shared.borrow_mut().setups.push(Rc::new(prepared));
         Ok(Box::new(device))
     }
 
@@ -175,25 +193,62 @@ impl Bsim4 {
         })
     }
 
-    /// `BSIM4setup` then `BSIM4temp` at these temperatures (Celsius).
+    /// `BSIM4temp` at these temperatures (Celsius) on C's structs.
+    ///
+    /// The first call runs `BSIM4setup` and `BSIM4temp` with
+    /// `BSIM4checkModel`. C keeps one model and one instance struct and runs
+    /// `BSIM4setup` once, while each later `BSIM4temp` (a new analysis
+    /// temperature, `.dc temp`, a `.dc @inst[param]` point) works on those
+    /// structs as the previous pass left them, and skips the check: its
+    /// `static` model name is already set. So later calls start from the
+    /// first call's model and instance, apply the swept values, and run the
+    /// temperature pass unchecked. (The first call's nominal temperature is
+    /// the one setup used; C does not re-run setup either.)
     fn prepare(&self, temperature: Real, nominal: Real) -> SpiceResult<Prepared> {
-        let SetUp {
-            mut model,
-            mut instance,
-            mut warnings,
-            created,
-        } = self.setup(nominal)?;
-        if created != self.created {
-            return Err(SpiceError::circuit(format!(
-                "{}: BSIM4 internal nodes depend on the nominal temperature",
-                self.name
-            )));
+        let first = self
+            .shared
+            .try_borrow()
+            .ok()
+            .and_then(|shared| shared.setups.first().cloned());
+        let (mut model, mut instance, mut warnings, check) = match first {
+            None => {
+                let SetUp {
+                    model,
+                    instance,
+                    warnings,
+                    created,
+                } = self.setup(nominal)?;
+                if created != self.created && !self.created.is_empty() {
+                    return Err(SpiceError::circuit(format!(
+                        "{}: BSIM4 internal nodes changed between setups",
+                        self.name
+                    )));
+                }
+                (model, instance, warnings, true)
+            }
+            Some(first) => (
+                first.model.clone(),
+                first.instance.clone(),
+                Vec::new(),
+                false,
+            ),
+        };
+        for &(field, given, value) in &self.swept {
+            let slot = instance.real_mut(field).ok_or_else(|| {
+                SpiceError::circuit(format!("BSIM4 swept field {field} has no member"))
+            })?;
+            *slot = value;
+            if let Some(flag) = given.and_then(|given| instance.flag_mut(given)) {
+                *flag = true;
+            }
         }
         let kelvin = temperature_kelvin(temperature, &self.location)?;
-        let size = temp::temperature(
+        let locals = temp::temperature_model(&mut model, kelvin, &mut warnings);
+        let size = temp::temperature_instance(
             &mut model,
             &mut instance,
-            kelvin,
+            &locals,
+            check,
             &self.model_name,
             &self.name,
             &mut warnings,
@@ -205,6 +260,11 @@ impl Bsim4 {
         Ok(Prepared {
             temperature,
             nominal,
+            swept: self
+                .swept
+                .iter()
+                .map(|&(field, _, value)| (field, value))
+                .collect(),
             model,
             instance,
             size,
@@ -212,22 +272,51 @@ impl Bsim4 {
         })
     }
 
-    /// The setup for these temperatures, rebuilt when C would re-run
-    /// `BSIM4temp`.
+    /// The setup for these temperatures (and this device's swept values),
+    /// rebuilt when C would re-run `BSIM4temp`.
     fn ensure(&self, temperature: Real, nominal: Real) -> SpiceResult<Rc<Prepared>> {
-        let mut cache = self
-            .cache
-            .try_borrow_mut()
-            .map_err(|_| SpiceError::circuit(format!("{}: reentrant BSIM4 setup", self.name)))?;
-        if let Some(prepared) = cache.as_ref()
-            && prepared.temperature == temperature
-            && prepared.nominal == nominal
+        let same = |p: &Prepared| {
+            p.temperature == temperature
+                && p.nominal == nominal
+                && p.swept.len() == self.swept.len()
+                && p.swept
+                    .iter()
+                    .zip(&self.swept)
+                    .all(|(a, b)| a.0 == b.0 && a.1.to_bits() == b.2.to_bits())
+        };
         {
-            return Ok(Rc::clone(prepared));
+            let shared = self.borrow_shared()?;
+            if let Some(prepared) = shared.setups.iter().find(|p| same(p)) {
+                return Ok(Rc::clone(prepared));
+            }
         }
         let prepared = Rc::new(self.prepare(temperature, nominal)?);
-        *cache = Some(Rc::clone(&prepared));
+        let mut shared = self.borrow_shared_mut()?;
+        // The first setup is C's struct as `BSIM4setup` and the checked
+        // `BSIM4temp` left it; later passes start from it, so keep it.
+        if shared.setups.len() >= SETUPS_KEPT {
+            shared.setups.remove(1);
+        }
+        shared.setups.push(Rc::clone(&prepared));
         Ok(prepared)
+    }
+
+    fn borrow_shared(&self) -> SpiceResult<std::cell::Ref<'_, Shared>> {
+        self.shared
+            .try_borrow()
+            .map_err(|_| SpiceError::circuit(format!("{}: reentrant BSIM4 access", self.name)))
+    }
+
+    fn borrow_shared_mut(&self) -> SpiceResult<std::cell::RefMut<'_, Shared>> {
+        self.shared
+            .try_borrow_mut()
+            .map_err(|_| SpiceError::circuit(format!("{}: reentrant BSIM4 access", self.name)))
+    }
+
+    /// Any setup, for what does not depend on temperature (nodes, matrix
+    /// elements, truncation slots).
+    fn any_setup(&self) -> Option<Rc<Prepared>> {
+        self.shared.try_borrow().ok()?.setups.last().cloned()
     }
 
     /// The circuit node of a local node index; `None` for ground.
@@ -274,13 +363,22 @@ impl Bsim4 {
         p
     }
 
-    /// A copy of C's live instance for `prepared`, or the freshly set-up one.
+    /// C's instance struct for `prepared`: the live one when it already
+    /// belongs to it, else `prepared`'s with the members the last load wrote
+    /// carried over (C re-runs `BSIM4temp` on its one struct).
     fn live_copy(&self, prepared: &Rc<Prepared>) -> Instance {
-        self.live
-            .borrow()
-            .as_ref()
-            .filter(|(owner, _)| Rc::ptr_eq(owner, prepared))
-            .map_or_else(|| prepared.instance.clone(), |(_, h)| h.clone())
+        let Ok(shared) = self.shared.try_borrow() else {
+            return prepared.instance.clone();
+        };
+        match &shared.live {
+            Some((owner, h)) if Rc::ptr_eq(owner, prepared) => h.clone(),
+            Some((_, h)) => {
+                let mut fresh = prepared.instance.clone();
+                carry_load_members(h, &mut fresh);
+                fresh
+            }
+            None => prepared.instance.clone(),
+        }
     }
 
     /// C's `MODEINITSMSIG` load at `state0` (the operating point's state
@@ -334,6 +432,129 @@ impl Prepared {
     fn model_temperature(&self) -> Real {
         self.temperature + 273.15
     }
+}
+
+/// Every `here->` member `b4ld.c` writes (`load.rs`), copied from C's
+/// instance struct as the last load left it onto a freshly temperature-
+/// processed one: C runs `BSIM4temp` on its single struct, which rewrites
+/// the temperature-derived members and leaves these (the next load reads
+/// `BSIM4von` for `DEVfetlim`).
+fn carry_load_members(from: &Instance, to: &mut Instance) {
+    to.AbovVgst2Vtm = from.AbovVgst2Vtm;
+    to.Abulk = from.Abulk;
+    to.Coxeff = from.Coxeff;
+    to.EsatL = from.EsatL;
+    to.IdovVds = from.IdovVds;
+    to.Igb = from.Igb;
+    to.Igcd = from.Igcd;
+    to.Igcs = from.Igcs;
+    to.Igd = from.Igd;
+    to.Igidl = from.Igidl;
+    to.Igisl = from.Igisl;
+    to.Igs = from.Igs;
+    to.Vdseff = from.Vdseff;
+    to.Vgsteff = from.Vgsteff;
+    to.capbd = from.capbd;
+    to.capbs = from.capbs;
+    to.cbbb = from.cbbb;
+    to.cbd = from.cbd;
+    to.cbdb = from.cbdb;
+    to.cbgb = from.cbgb;
+    to.cbs = from.cbs;
+    to.cbsb = from.cbsb;
+    to.cd = from.cd;
+    to.cdbb = from.cdbb;
+    to.cddb = from.cddb;
+    to.cdgb = from.cdgb;
+    to.cdsb = from.cdsb;
+    to.cgbb = from.cgbb;
+    to.cgdb = from.cgdb;
+    to.cgdo = from.cgdo;
+    to.cggb = from.cggb;
+    to.cgsb = from.cgsb;
+    to.cgso = from.cgso;
+    to.cqbb = from.cqbb;
+    to.cqdb = from.cqdb;
+    to.cqgb = from.cqgb;
+    to.cqsb = from.cqsb;
+    to.csbb = from.csbb;
+    to.csdb = from.csdb;
+    to.csgb = from.csgb;
+    to.cssb = from.cssb;
+    to.csub = from.csub;
+    to.dvgd_eff_dvg = from.dvgd_eff_dvg;
+    to.dvgs_eff_dvg = from.dvgs_eff_dvg;
+    to.gIgbb = from.gIgbb;
+    to.gIgbd = from.gIgbd;
+    to.gIgbg = from.gIgbg;
+    to.gIgbs = from.gIgbs;
+    to.gIgcdb = from.gIgcdb;
+    to.gIgcdd = from.gIgcdd;
+    to.gIgcdg = from.gIgcdg;
+    to.gIgcds = from.gIgcds;
+    to.gIgcsb = from.gIgcsb;
+    to.gIgcsd = from.gIgcsd;
+    to.gIgcsg = from.gIgcsg;
+    to.gIgcss = from.gIgcss;
+    to.gIgdd = from.gIgdd;
+    to.gIgdg = from.gIgdg;
+    to.gIgsg = from.gIgsg;
+    to.gIgss = from.gIgss;
+    to.gbbs = from.gbbs;
+    to.gbd = from.gbd;
+    to.gbds = from.gbds;
+    to.gbgs = from.gbgs;
+    to.gbs = from.gbs;
+    to.gcrg = from.gcrg;
+    to.gcrgb = from.gcrgb;
+    to.gcrgd = from.gcrgd;
+    to.gcrgg = from.gcrgg;
+    to.gcrgs = from.gcrgs;
+    to.gds = from.gds;
+    to.gdtot = from.gdtot;
+    to.gdtotb = from.gdtotb;
+    to.gdtotd = from.gdtotd;
+    to.gdtotg = from.gdtotg;
+    to.gdtots = from.gdtots;
+    to.ggidlb = from.ggidlb;
+    to.ggidld = from.ggidld;
+    to.ggidlg = from.ggidlg;
+    to.ggidls = from.ggidls;
+    to.ggislb = from.ggislb;
+    to.ggisld = from.ggisld;
+    to.ggislg = from.ggislg;
+    to.ggisls = from.ggisls;
+    to.gm = from.gm;
+    to.gmbs = from.gmbs;
+    to.grdsw = from.grdsw;
+    to.gstot = from.gstot;
+    to.gstotb = from.gstotb;
+    to.gstotd = from.gstotd;
+    to.gstotg = from.gstotg;
+    to.gstots = from.gstots;
+    to.gtau = from.gtau;
+    to.gtb = from.gtb;
+    to.gtd = from.gtd;
+    to.gtg = from.gtg;
+    to.gts = from.gts;
+    to.mode = from.mode;
+    to.noiGd0 = from.noiGd0;
+    to.nstar = from.nstar;
+    to.qbulk = from.qbulk;
+    to.qchqs = from.qchqs;
+    to.qdrn = from.qdrn;
+    to.qgate = from.qgate;
+    to.qgdo = from.qgdo;
+    to.qgso = from.qgso;
+    to.qinv = from.qinv;
+    to.qsrc = from.qsrc;
+    to.taunet = from.taunet;
+    to.thetavth = from.thetavth;
+    to.ueff = from.ueff;
+    to.vdsat = from.vdsat;
+    to.vgd_eff = from.vgd_eff;
+    to.vgs_eff = from.vgs_eff;
+    to.von = from.von;
 }
 
 /// C's `CKTmode` for a load, and whether limiting is allowed.
@@ -913,7 +1134,7 @@ impl Device for Bsim4 {
     /// `BSIM4trunc`: CKTterr on qb, qg, qd, then qcdump (`trnqsMod`), qbs
     /// and qbd (`rbodyMod`) and qgmid (`rgateMod == 3`).
     fn truncation_slots(&self) -> Vec<usize> {
-        let Some(prepared) = self.cache.borrow().clone() else {
+        let Some(prepared) = self.any_setup() else {
             return vec![state::QB, state::QG, state::QD];
         };
         let h = &prepared.instance;
@@ -934,7 +1155,7 @@ impl Device for Bsim4 {
         &self,
         setup: &mut crate::devices::setup::MatrixSetup<'_>,
     ) -> SpiceResult<bool> {
-        let Some(prepared) = self.cache.borrow().clone() else {
+        let Some(prepared) = self.any_setup() else {
             return Ok(false);
         };
         let instance = if setup.pole_zero {
@@ -953,17 +1174,16 @@ impl Device for Bsim4 {
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         let prepared = self.ensure(context.temperature, context.nominal_temperature)?;
         let (mode, limiting) = load_mode(context)?;
-        let mut live = self
+        let instance = self.live_copy(&prepared);
+        let mut shared = self.borrow_shared_mut()?;
+        if !shared
             .live
-            .try_borrow_mut()
-            .map_err(|_| SpiceError::circuit(format!("{}: reentrant BSIM4 load", self.name)))?;
-        if !live
             .as_ref()
             .is_some_and(|(owner, _)| Rc::ptr_eq(owner, &prepared))
         {
-            *live = Some((Rc::clone(&prepared), prepared.instance.clone()));
+            shared.live = Some((Rc::clone(&prepared), instance));
         }
-        let Some((_, h)) = live.as_mut() else {
+        let Some((_, h)) = shared.live.as_mut() else {
             return Err(SpiceError::circuit("BSIM4 live instance missing"));
         };
         if mode & mode::MODEUIC != 0 && context.states.initial_conditions() {
@@ -1012,8 +1232,8 @@ impl Device for Bsim4 {
     /// `CKTrhsOld` (the iterate that load used) as C does. `NIiter` runs it
     /// in `MODEINITFIX` too, where an `off` instance is not tested.
     fn convergence_test(&self, context: &ConvergenceContext<'_>) -> SpiceResult<bool> {
-        let live = self.live.borrow();
-        let Some((prepared, h)) = live.as_ref() else {
+        let shared = self.borrow_shared()?;
+        let Some((prepared, h)) = shared.live.as_ref() else {
             return Ok(true);
         };
         let rhs_old = |local: i32| {
@@ -1035,6 +1255,56 @@ impl Device for Bsim4 {
             context.reltol,
             context.abstol,
         ))
+    }
+
+    /// Every real instance setter of `b4.c`'s table (`DCTfindInstParam`
+    /// accepts any settable instance parameter).
+    fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
+        let p = super::descriptor(super::parameters::INSTANCE, keyword)?;
+        (p.input_type == super::InputType::Real
+            && p.access != super::Access::Output
+            && p.c_field.is_some())
+        .then_some(p.canonical)
+    }
+
+    /// `BSIM4param` then `BSIM4temp` (`dctrcurv.c` `DCTsetInstParam`): the
+    /// value is stored after `BSIM4setup`, so setup-derived quantities
+    /// (instance defaults, the internal nodes) keep their setup values, as
+    /// in C. Unlike C, whose `static` model name skips `BSIM4checkModel` on
+    /// every later `BSIM4temp`, the port checks each swept point again.
+    fn with_instance_parameter(
+        &self,
+        parameter: &str,
+        value: Real,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn Device>> {
+        let p = super::descriptor(super::parameters::INSTANCE, parameter)
+            .filter(|p| self.instance_parameter(p.name).is_some())
+            .ok_or_else(|| {
+                SpiceError::circuit(format!(
+                    "{}: instance parameter {parameter} cannot be swept",
+                    self.name
+                ))
+            })?;
+        crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
+        let field = p.c_field.unwrap_or_default();
+        let mut swept = self.swept.clone();
+        swept.push((field, p.c_given, value));
+        let device = Self {
+            name: self.name.clone(),
+            model_name: self.model_name.clone(),
+            terminals: self.terminals.clone(),
+            nodes: self.nodes,
+            params: self.params.clone(),
+            inputs: self.inputs.clone(),
+            location: self.location.clone(),
+            created: self.created.clone(),
+            noise_analysis: self.noise_analysis,
+            swept,
+            shared: Rc::clone(&self.shared),
+        };
+        device.ensure(context.temperature, context.nominal_temperature)?;
+        Ok(Box::new(device))
     }
 
     fn observation_parameter(
