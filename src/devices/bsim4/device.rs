@@ -69,6 +69,8 @@ pub(crate) struct Bsim4 {
     location: SourceLoc,
     /// `b4set.c`'s created nodes, fixed at instantiation.
     created: Vec<(i32, &'static str)>,
+    /// C's `noiseAnalGiven` at setup.
+    noise_analysis: bool,
     cache: RefCell<Option<Rc<Prepared>>>,
     /// C's persistent instance struct and the setup it belongs to.
     live: RefCell<Option<(Rc<Prepared>, Instance)>>,
@@ -112,6 +114,7 @@ impl Bsim4 {
             inputs,
             location: instance.location.clone(),
             created: Vec::new(),
+            noise_analysis: context.noise_analysis,
             cache: RefCell::new(None),
             live: RefCell::new(None),
         };
@@ -163,10 +166,7 @@ impl Bsim4 {
         h.gNodeExt = node::G_EXT;
         h.sNode = node::S;
         h.bNode = node::B;
-        // C's `noiseAnalGiven` is only known to C's setup through the task's
-        // analysis list; the port refuses the one case where it matters in
-        // `Device::noise` instead (see there).
-        let created = set::setup_instance(&m, &mut h, false, &mut warnings)?;
+        let created = set::setup_instance(&m, &mut h, self.noise_analysis, &mut warnings)?;
         Ok(SetUp {
             model: m,
             instance: h,
@@ -1112,22 +1112,6 @@ impl Device for Bsim4 {
         let model_context = *context.model_context;
         let prepared = self.ensure(model_context.temperature, model_context.nominal_temperature)?;
         let m = &prepared.model;
-        // b4set.c creates the drain/source prime nodes for tnoiMod=1 only
-        // when the task contains a noise analysis (`noiseAnalGiven`), which
-        // the port's setup cannot see; such an instance would have different
-        // nodes in C.
-        let instance = &prepared.instance;
-        if m.tnoiMod == 1
-            && (instance.dNodePrime == instance.dNode || instance.sNodePrime == instance.sNode)
-        {
-            return Err(SpiceError::not_yet_ported(
-                format!(
-                    "{}: BSIM4 tnoiMod=1 noise without series-resistance nodes",
-                    self.name
-                ),
-                "src/spicelib/devices/bsim4/b4set.c (noiseAnalGiven node creation)",
-            ));
-        }
         if !(0..=2).contains(&m.tnoiMod) || !(0..=1).contains(&m.fnoiMod) {
             return Err(SpiceError::not_yet_ported(
                 format!(

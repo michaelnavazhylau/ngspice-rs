@@ -2410,7 +2410,13 @@ impl Circuit {
         )?;
         let models = crate::devices::models::ModelResolver::new(&expanded.models)?;
         let mut circuit = Self::new();
-        circuit.add_instances(&expanded.devices, &models, context)?;
+        // `b4set.c` reads the task's analysis list (`noiseAnalGiven`).
+        let mut setup = *context;
+        setup.noise_analysis = netlist
+            .analyses
+            .iter()
+            .any(|card| card.kind == crate::primitives::AnalysisKind::Noise);
+        circuit.add_instances(&expanded.devices, &models, &setup)?;
         let referenced: BTreeSet<_> = expanded
             .devices
             .iter()

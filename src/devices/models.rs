@@ -485,6 +485,12 @@ pub struct ModelContext {
     /// C's `CKTsrcFact`: the source-stepping factor independent sources
     /// scale their loaded value by (1 outside source stepping).
     pub source_factor: Real,
+    /// Whether the deck's task holds a `.noise` analysis: C's
+    /// `noiseAnalGiven`, which `b4set.c` reads while it creates BSIM4's
+    /// internal nodes (`tnoiMod=1` adds the drain/source primes for every
+    /// analysis of such a deck). Set by
+    /// [`crate::devices::Circuit::from_netlist_with_context`].
+    pub noise_analysis: bool,
 }
 
 /// ngspice's default junction `gmin` (`cktntask.c`: `TSKgmin = 1e-12`).
@@ -509,6 +515,7 @@ impl ModelContext {
             spice3_noise: false,
             pivot: crate::maths::PivotTolerances::DEFAULT,
             source_factor: 1.,
+            noise_analysis: false,
         }
     }
 
