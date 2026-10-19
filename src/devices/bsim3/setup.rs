@@ -391,13 +391,15 @@ impl InstanceSetup {
                 + model_value(model, area)? * inv_lw;
             p.insert(base, value);
         }
-        // Three C `pParam` fields are named differently from their instance
-        // keywords: `BSIM3npeak` is `nch`, and `BSIM3pdibl{1,2}` are
-        // `pdiblc{1,2}`. Alias them so the rest of setup can use C's names.
+        // C `pParam` fields whose names differ from their instance keywords:
+        // `BSIM3npeak` is `nch`, `BSIM3pdibl{1,2}` are `pdiblc{1,2}`, and
+        // `BSIM3pdiblb` is `pdiblcb`. Alias them so the rest of setup and the
+        // DC core can use C's names.
         for (field, keyword) in [
             ("npeak", "nch"),
             ("pdibl1", "pdiblc1"),
             ("pdibl2", "pdiblc2"),
+            ("pdiblb", "pdiblcb"),
         ] {
             let value = p.get(keyword).copied().expect("binned coefficient");
             p.insert(field, value);
@@ -416,22 +418,6 @@ impl InstanceSetup {
                 p.get(base).copied().expect("binned") + model_value(model, coefficient)? * t0;
             p.insert(base, value);
         }
-        // Three C `pParam` fields are named differently from their instance
-        // keywords: `BSIM3npeak` is `nch`, and `BSIM3pdibl{1,2}` are
-        // `pdiblc{1,2}`. Alias them so the rest of setup can use C's names.
-        for (field, keyword) in [
-            ("npeak", "nch"),
-            ("pdibl1", "pdiblc1"),
-            ("pdibl2", "pdiblc2"),
-        ] {
-            let value = p.get(keyword).copied().expect("binned coefficient");
-            p.insert(field, value);
-        }
-        p.insert(
-            "abulkcvfactor",
-            1.0 + (p.get("clc").copied().expect("clc") / leff_cv)
-                .powf(p.get("cle").copied().expect("cle")),
-        );
         let mut u0 = p.get("u0").copied().expect("binned");
         if u0 > 1.0 {
             u0 /= 1.0e4;

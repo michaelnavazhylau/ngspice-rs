@@ -317,6 +317,17 @@ Setup stage (`b3set.c`, `b3temp.c`, `b3check.c`) verification:
   checks that one `ModelSetup` used for two instances of the same model reports
   C's CALCACM/CGDO/CGSO/CGBO resets exactly once, as C's shared model struct
   does.
+- Opt-in `c_bsim3_dc_reference` compares the DC physics core with C's
+  `b3ask.c` values at C's own converged bias, so it isolates load physics from
+  the solver wiring the port does not have yet. It covers 16 cases (default and
+  sub-micron geometry, `mobmod` 1/2/3, `k1`/`k2` given, `rds` terms, junction
+  areas/perimeters, `ijth=0`, temperature and `tnom` differences, CLM/DIBL/SCBE
+  parameters, inverse mode) in both polarities, comparing `vth`, `id`, `gm`,
+  `gds`, `gmbs`, `vdsat`, `ibs`, `ibd`, `gbs` and `gbd` to a 1e-9 relative
+  bound. `cbs`/`cbd` are deliberately not compared: they are capacitances in C,
+  not junction currents. `tests/bsim3_dc.rs` adds six offline invariants
+  (zero-bias offsets, gate/saturation trends, inverse-mode mirror symmetry,
+  mobility/RDS effects, junction scaling, ask mapping).
 
 With setup included: 1543 passed / 0 failed / 156 ignored on macOS stable and
 Rust 1.89; 1548 passed / 0 failed / 156 ignored on GNU Linux x86-64 with the

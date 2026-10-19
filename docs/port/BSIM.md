@@ -159,8 +159,35 @@ C order and keeps them, so a model with two instances warns once and then uses
 the corrected values. `ModelParameters::setup_instance` is the single-instance
 convenience over a fresh `ModelSetup`.
 
-No `.op`/`.dc`/`.ac`/`.tran` and #90 acceptance gate follows from setup. BSIM4
-and every B3-1..B3-5 equation slice are unchanged.
+#### DC core (`b3ld.c`), validated but not yet wired
+
+`devices::bsim3::dc` ports the bias-dependent physics of `b3ld.c` as a pure
+evaluation: `DcModel::evaluate(Bias, gmin)` returns the drain current and its
+`gm`/`gds`/`gmbs`, the substrate current and its derivatives, the source/drain
+junction currents and conductances, and C's observables (`von` for `@m1[vth]`,
+`Vdseff`, `Vdsat`, `Abulk`, `ueff`, `Rds`, `Vgsteff`). It reproduces:
+
+- source/drain junction diodes with the `ijth`/`vjsm` breakdown branch and gmin,
+- `Vbseff`/`Phis`/`Xdep`, the short/narrow-channel `Vth` terms (`dvt0/1/2`,
+  `dvt0w/1w/2w`, `k1ox`/`k2ox`, `k3`/`k3b`, temperature terms, DIBL shift),
+- subthreshold `n`, poly-gate depletion, the three `Vgsteff` regimes,
+  `Weff`/`Rds` bias dependence, `Abulk`, all three `mobMod` mobility branches,
+  the `a1`/`a2` lambda split for `Vdsat`, `Vdseff`, `Vasat`, `VACLM`, `VADIBL`,
+  `VASCBE`, `Ids`/`gm`/`gds`/`gmbs` and the substrate current.
+
+The core deliberately omits what belongs to the solver loop: voltage limiting
+(`DEVfetlim`, `DEVpnjlim`, `DEVlimvds`), bypass and convergence bookkeeping,
+matrix stamps, state slots and internal-node conductances. Charges (`capMod`),
+NQS, AC, noise and pole-zero are not evaluated, so `@m1[cbs]`/`@m1[cbd]`
+(capacitances in C) and every charge ask remain unavailable.
+
+It is **not wired into the factory**: `.op`/`.dc`/`.ac`/`.tran` still fail with
+`NotYetPorted` naming `b3ld.c`/`b3noi.c`, and no device, node or state is
+created. Opt-in `c_bsim3_dc_reference` compares the core with C at C's own
+converged internal bias over 16 model/geometry/temperature/bias cases in both
+polarities (`vth`, `id`, `gm`, `gds`, `gmbs`, `vdsat`, `ibs`, `ibd`, `gbs`,
+`gbd`), agreeing to a 1e-9 relative bound. BSIM4 and every B3-1..B3-5 slice are
+unchanged.
 
 ### B3-1 · Temperature and instance setup
 

@@ -293,8 +293,13 @@ remain explicit, rather than implying complete ngspice output compatibility.
 - [x] Shared-model reset ordering: `ModelSetup` persists `b3check.c`'s CALCACM
   and CGDO/CGSO/CGBO resets across the instances of one model, verified against
   C's single warning for a two-instance card.
-- [ ] Finish B3-0: complete physical-unit audit and the load/observable
-  equations (DC first, then charges/AC/noise), which remain the #90 blocker.
+- [x] BSIM3 DC physics core (`dc.rs`): junctions, `Vth`/`Vgsteff`, mobility
+  modes, `Vdsat`/`Vdseff`, CLM/DIBL/SCBE, `Ids`/`gm`/`gds`/`gmbs` and substrate
+  current, differentially verified against C at 32 model/bias/polarity points.
+- [ ] Wire the DC core into `Device` (internal drain/source primes, voltage
+  limiting, matrix stamps, state slots, observable asks), then charges, AC,
+  noise and pole-zero; complete the physical-unit audit. These remain the #90
+  blocker.
 - [ ] B3-1..B3-5 and BSIM4: temperature/setup, DC, charges/transient, small
   signal/noise/pole-zero and representative PDK C simulation goldens. #90 stays
   open. See [BSIM.md](docs/port/BSIM.md) for the measured scope and current APIs.

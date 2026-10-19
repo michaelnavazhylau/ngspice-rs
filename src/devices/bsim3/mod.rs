@@ -13,6 +13,8 @@ use crate::devices::schema::{ScalarUnit, finite_literal, temperature_kelvin};
 use crate::netlist::ast::{DeviceInstance, ModelCard, ParameterAssignment, ParameterKind};
 use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult};
 
+/// DC channel and junction evaluation from `b3ld.c` (no solver integration yet).
+pub mod dc;
 /// Model-only setup defaults and diagnostics, before geometry/temperature setup.
 pub mod defaults;
 mod defaults_data;
