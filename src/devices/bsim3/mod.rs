@@ -13,11 +13,13 @@ use crate::devices::schema::{ScalarUnit, finite_literal, temperature_kelvin};
 use crate::netlist::ast::{DeviceInstance, ModelCard, ParameterAssignment, ParameterKind};
 use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult};
 
-/// DC channel and junction evaluation from `b3ld.c` (no solver integration yet).
+/// DC channel and junction evaluation from `b3ld.c`.
 pub mod dc;
 /// Model-only setup defaults and diagnostics, before geometry/temperature setup.
 pub mod defaults;
 mod defaults_data;
+/// The device: `b3ld.c`'s DC load wired into the solver.
+pub mod device;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
 /// Effective geometry, size-dependent parameters and `b3check.c` diagnostics.
@@ -549,29 +551,11 @@ pub fn model_parameters(model: &ResolvedModel<'_>) -> SpiceResult<ModelParameter
 /// circuit: the missing setup/load is an explicit factory error.
 pub(crate) fn instantiate(
     instance: &DeviceInstance,
+    nodes: &mut crate::primitives::NodeTable,
     model: &ResolvedModel<'_>,
     context: &crate::devices::ModelContext,
 ) -> SpiceResult<Box<dyn crate::devices::Device>> {
-    let inputs = model_parameters(model)?;
-    // Validate the full setup path before refusing, so invalid cards fail
-    // with C's parameter diagnostics rather than a generic unported message.
-    inputs.setup_instance(instance, 1., context)?;
-    let binding = if instance
-        .model
-        .as_deref()
-        .is_some_and(|name| !name.eq_ignore_ascii_case(&model.card().name))
-    {
-        format!("{} binned to model '{}'", instance.name, model.card().name)
-    } else {
-        format!("{} model '{}'", instance.name, model.card().name)
-    };
-    Err(SpiceError::not_yet_ported(
-        format!(
-            "{}: {binding}: BSIM3v3.3 input and setup are available, but the DC/AC/charge loads are not",
-            instance.location
-        ),
-        "src/spicelib/devices/bsim3/b3ld.c, b3cap.c, b3noi.c",
-    ))
+    device::Bsim3::instantiate(instance, nodes, model, context)
 }
 
 #[cfg(test)]

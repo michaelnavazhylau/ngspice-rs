@@ -329,11 +329,24 @@ Setup stage (`b3set.c`, `b3temp.c`, `b3check.c`) verification:
   (zero-bias offsets, gate/saturation trends, inverse-mode mirror symmetry,
   mobility/RDS effects, junction scaling, ask mapping).
 
-With setup included: 1543 passed / 0 failed / 156 ignored on macOS stable and
-Rust 1.89; 1548 passed / 0 failed / 156 ignored on GNU Linux x86-64 with the
-live C suites enabled, strict all-target Clippy on both toolchains, generator
-`--check`, 498 unchanged snapshots, 208/1/0 golden verify and 209 C golden
-checks. No tolerance was changed.
+The BSIM3 DC device adds two more opt-in suites:
+
+- `c_bsim3_device_reference` runs the port's own `.op` next to C for eight
+  decks (default and sub-micron geometry, PMOS, RSH-created internal nodes,
+  junction areas/perimeters, MOBMOD 2, 100 °C). Node voltages and the bias
+  source currents agree to 1e-6 relative, and C's `@m1[...]` values evaluated
+  at C's own solution agree to 1e-9. Its `.dc` test asserts that the port
+  refuses the sweep with `NotYetPorted` naming `b3acld.c` while C sweeps, i.e.
+  the missing small-signal load is reported rather than replaced by a DC-only
+  conductance.
+- `tests/bsim3_device.rs` covers the same behaviour offline: NMOS/PMOS `.op`
+  currents, state/ask wiring, the internal-prime layout, explicit AC/transient
+  refusals, `off`/`ic=` start settings and the ACM refusal.
+
+With setup and the DC device included: 1557 passed / 0 failed / 160 ignored on
+macOS stable and Rust 1.89, strict all-target Clippy on both toolchains,
+generator `--check`, 498 unchanged snapshots, 208/1/0 golden verify and 209 C
+golden checks. No tolerance was changed.
 
 Foundation validation: 1522 passed / 0 failed / 153 ignored on macOS stable,
 macOS Rust 1.89 and GNU Linux x86-64 Rust 1.89, with strict all-target Clippy.

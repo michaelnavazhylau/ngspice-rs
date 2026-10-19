@@ -543,6 +543,12 @@ pub trait Device: fmt::Debug {
         1.
     }
 
+    /// The `.model` card this instance uses, when the device is model-backed.
+    /// Diagnostics and model-binning tests read it; `None` otherwise.
+    fn model_name(&self) -> Option<&str> {
+        None
+    }
+
     /// The instance name, e.g. `r1`.
     fn name(&self) -> &str;
 

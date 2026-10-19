@@ -5,12 +5,11 @@
 //!   cargo test -p ngspice-rs --test c_binning_reference -- --ignored
 //! ```
 //!
-//! C bins only BSIM3/BSIM4/HiSIM models, which this port does not simulate,
-//! so there are no rawfile goldens. Instead each deck runs `op` and
+//! C bins only BSIM3/BSIM4/HiSIM models. Each deck runs `op` and
 //! `show all : model` in C, and the bin C bound (or its "could not find a
-//! valid modelname" failure) is compared with the bin the port names in its
-//! `NotYetPorted` diagnostic (or its parse error). C spells a subcircuit-local
-//! model `x1:nch.1`; the port flattens it to `x1.nch.1`.
+//! valid modelname" failure) is compared with the card the port's resolver
+//! selects after subcircuit expansion (or its parse error). C spells a
+//! subcircuit-local model `x1:nch.1`; the port flattens it to `x1.nch.1`.
 //!
 //! Ordinary `cargo test` never needs C: everything here is `#[ignore]`d.
 
@@ -18,7 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use ngspice_rs::analysis::RunConfig;
+use ngspice_rs::devices::ModelResolver;
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
 use ngspice_rs::primitives::SpiceError;
 
@@ -72,30 +71,46 @@ fn c_selection(tag: usize, body: &str) -> Option<String> {
     Some(names[0].replace(':', "."))
 }
 
-/// The bin the port names, or `None` for its explicit binning parse error.
+/// The bin the port's device reports, or `None` for its explicit binning
+/// parse error. BSIM3 now builds a DC device, so the selected card is read
+/// from the instance rather than from a factory diagnostic.
 fn rust_selection(body: &str) -> Option<String> {
     let text = format!("r\nvd d 0 1\nvg g 0 1\n{body}.op\n.end\n");
     let netlist = Parser::new()
         .parse_deck(&parse_deck_text(Path::new("r.cir"), &text))
         .unwrap();
-    let config = RunConfig::from_netlist(&netlist).unwrap();
-    let error = config.circuit(&netlist).expect_err("BSIM is not simulated");
-    let message = error.to_string();
-    match error {
-        SpiceError::Parse { .. } => {
+    // Resolve on the expanded netlist: the circuit factory also rejects model
+    // cards no device uses, which is unrelated to bin selection.
+    let scope =
+        std::sync::Arc::new(ngspice_rs::netlist::eval::ParamScope::root(&netlist.params).unwrap());
+    let expanded = ngspice_rs::devices::subckt::expand_subcircuits(
+        &netlist,
+        &scope,
+        ngspice_rs::devices::subckt::SubcircuitLimits::default(),
+    )
+    .unwrap();
+    let resolver = ModelResolver::new(&expanded.models).unwrap();
+    let device = expanded
+        .devices
+        .iter()
+        .find(|device| device.designator == 'm')
+        .unwrap();
+    match resolver.resolve(device) {
+        Ok(resolved) => Some(resolved.unwrap().card().name.clone()),
+        Err(error) => {
+            let message = error.to_string();
+            if let SpiceError::NotYetPorted { .. } = error {
+                // Unported families (BSIM4/HiSIM) still name the selected bin.
+                if let Some(start) = message.find("binned to model '") {
+                    let start = start + "binned to model '".len();
+                    return Some(message[start..start + message[start..].find('\'')?].to_owned());
+                }
+                let start = message.find("model '")? + "model '".len();
+                return Some(message[start..start + message[start..].find('\'')?].to_owned());
+            }
             assert!(message.contains("cannot be binned"), "{message}");
             None
         }
-        SpiceError::NotYetPorted { .. } => {
-            if let Some(start) = message.find("binned to model '") {
-                let start = start + "binned to model '".len();
-                return Some(message[start..start + message[start..].find('\'')?].to_owned());
-            }
-            // An exact reference: the unported card is named directly.
-            let start = message.find("model '")? + "model '".len();
-            Some(message[start..start + message[start..].find('\'')?].to_owned())
-        }
-        other => panic!("unexpected error {other}"),
     }
 }
 

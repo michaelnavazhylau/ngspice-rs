@@ -26,7 +26,8 @@ pub(crate) const ELABORATED: &[(char, &str)] = &[
     ('q', "Gummel-Poon BJT level 1 (bjtload.c)"),
     (
         'm',
-        "MOS1, MOS2, MOS3, MOS6 and MOS9 (levels 1, 2, 3, 6 and 9)",
+        "MOS1, MOS2, MOS3, MOS6 and MOS9 (levels 1, 2, 3, 6 and 9), plus \
+         BSIM3v3.3 (levels 8/49, DC operating point only)",
     ),
     ('s', "voltage-controlled switch (companion .tran, no BDF)"),
     ('w', "current-controlled switch (companion .tran, no BDF)"),
@@ -101,7 +102,7 @@ pub(crate) fn instantiate_with_models(
                 // `inpdomod.c`: the level selects the C device. BSIM3 has
                 // schema validation only; never fall through to MOS1 stamps.
                 if matches!(model.levels().selector, 8 | 49) {
-                    return crate::devices::bsim3::instantiate(instance, &model, context);
+                    return crate::devices::bsim3::instantiate(instance, nodes, &model, context);
                 }
                 return if model.levels().selector == 3 {
                     crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)

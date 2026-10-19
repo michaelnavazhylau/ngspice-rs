@@ -32,19 +32,61 @@ fn elaborate(body: &str) -> SpiceError {
     let config = RunConfig::from_netlist(&netlist).unwrap();
     config
         .circuit(&netlist)
-        .expect_err("binned BSIM decks are not simulated")
+        .expect_err("this deck must be rejected during resolution")
 }
 
-/// The bin a deck selects, read from the `NotYetPorted` diagnostic.
+/// The model card the resolver selects for a root-level instance. Used where
+/// an unused bin declaration would trip the circuit's unused-model check.
+fn selected_resolved(body: &str) -> String {
+    let netlist = parse(body);
+    let resolver = ModelResolver::new(&netlist.models).unwrap();
+    let device = netlist.device("m1").unwrap();
+    resolver
+        .resolve(device)
+        .unwrap()
+        .unwrap()
+        .card()
+        .name
+        .clone()
+}
+
+/// The model card the binned MOS instance selected, read from the device.
 fn selected(body: &str) -> String {
-    let error = elaborate(body);
-    assert!(error.is_not_yet_ported(), "{error}");
-    let text = error.to_string();
-    let start = text
-        .find("binned to model '")
-        .unwrap_or_else(|| panic!("{text}"))
-        + "binned to model '".len();
-    text[start..start + text[start..].find('\'').unwrap()].to_owned()
+    let netlist = parse(body);
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let circuit = config
+        .circuit(&netlist)
+        .unwrap_or_else(|error| panic!("{error}"));
+    circuit
+        .devices()
+        .iter()
+        .find_map(|device| device.model_name())
+        .expect("the MOS device reports its model")
+        .to_owned()
+}
+
+/// The model card of one named MOS device, after subcircuit expansion.
+fn selected_named(body: &str, name: &str) -> String {
+    let netlist = parse(body);
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let circuit = config
+        .circuit(&netlist)
+        .unwrap_or_else(|error| panic!("{error}"));
+    circuit
+        .device(name)
+        .unwrap_or_else(|| {
+            panic!(
+                "no device {name}; have {:?}",
+                circuit
+                    .devices()
+                    .iter()
+                    .map(|device| device.name())
+                    .collect::<Vec<_>>()
+            )
+        })
+        .model_name()
+        .unwrap_or_else(|| panic!("{name} reports no model"))
+        .to_owned()
 }
 
 fn rejected(body: &str) -> String {
@@ -115,10 +157,11 @@ fn exact_names_win_and_suffixes_must_be_digits() {
 .model nch.1 nmos level=8 lmin=0.5u lmax=2u wmin=0.5u wmax=5u
 .model nch nmos level=8
 ";
-    let error = elaborate(&format!("m1 d g 0 0 nch w=1u l=1u\n{exact}"));
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(!error.to_string().contains("binned"), "{error}");
-    assert!(error.to_string().contains("model 'nch'"), "{error}");
+    // The exact name wins over every bin.
+    assert_eq!(
+        selected_resolved(&format!("m1 d g 0 0 nch w=1u l=1u\n{exact}")),
+        "nch"
+    );
     assert_eq!(
         selected(
             "m1 d g 0 0 nch w=1u l=1u\n.model nch.01 nmos level=49 lmin=0.5u lmax=2u wmin=0.5u wmax=5u\n"
@@ -167,8 +210,13 @@ m1 a b 0 0 nch w=1u l=1u
 .model nch.2 nmos level=8 lmin=0.5u lmax=2u wmin=0.5u wmax=20u
 .ends
 ";
-    // Local bins are renamed with the instance path; the last declared wins.
-    assert_eq!(selected(&format!("{local}{BINS}")), "x1.nch.2");
+    // Root instances keep every root bin in use while the local set wins for
+    // the subcircuit body; the last declared local bin wins there.
+    let roots = "m2 d g 0 0 nch w=1u l=0.7u\nm3 d g 0 0 nch w=1u l=2u\nm4 d g 0 0 nch w=5u l=1u\n";
+    let body = format!("{local}{BINS}{roots}");
+    assert_eq!(selected_named(&body, "m.x1.m1"), "x1.nch.2");
+    assert_eq!(selected_named(&body, "m2"), "nch.1");
+    assert_eq!(selected_named(&body, "m4"), "nch.3");
     // Root bins are used when the body declares none.
     let global = "\
 x1 d g inv
@@ -176,7 +224,8 @@ x1 d g inv
 m1 a b 0 0 nch w=1u l=0.7u
 .ends
 ";
-    assert_eq!(selected(&format!("{global}{BINS}")), "nch.1");
+    let body = format!("{global}{BINS}{roots}");
+    assert_eq!(selected_named(&body, "m.x1.m1"), "nch.1");
     // A local bin set captures the name even when none of it fits and the
     // root has a fitting bin or an exact model (C: "could not find a valid
     // modelname").
@@ -199,8 +248,11 @@ m1 a b 0 0 nch w=1u l=1u
 .model nch nmos level=8
 .ends
 ";
-    let error = elaborate(&format!("{exact}{BINS}"));
-    assert!(error.to_string().contains("model 'x1.nch'"), "{error}");
+    // The local exact model shadows the root bins; a root instance still uses
+    // them, so nothing is an unused declaration.
+    let both = format!("{exact}{BINS}m2 d g 0 0 nch w=1u l=0.7u\n");
+    assert_eq!(selected_named(&both, "m.x1.m1"), "x1.nch");
+    assert_eq!(selected_named(&both, "m2"), "nch.1");
 }
 
 #[test]
@@ -257,5 +309,5 @@ fn resolver_exposes_candidates_and_selection() {
     // An exact-name or non-MOS reference is not a binning lookup.
     let vd = netlist.devices.iter().find(|d| d.name == "vd").unwrap();
     assert!(resolver.select_bin(vd).unwrap().is_none());
-    assert!(Circuit::from_netlist(&netlist).is_err());
+    assert!(Circuit::from_netlist(&netlist).is_ok());
 }

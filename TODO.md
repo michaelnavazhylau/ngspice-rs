@@ -296,10 +296,15 @@ remain explicit, rather than implying complete ngspice output compatibility.
 - [x] BSIM3 DC physics core (`dc.rs`): junctions, `Vth`/`Vgsteff`, mobility
   modes, `Vdsat`/`Vdseff`, CLM/DIBL/SCBE, `Ids`/`gm`/`gds`/`gmbs` and substrate
   current, differentially verified against C at 32 model/bias/polarity points.
-- [ ] Wire the DC core into `Device` (internal drain/source primes, voltage
-  limiting, matrix stamps, state slots, observable asks), then charges, AC,
-  noise and pole-zero; complete the physical-unit audit. These remain the #90
-  blocker.
+- [x] Wire the DC core into `Device`: start conditions and
+  `DEVfetlim`/`DEVlimvds`/`DEVpnjlim` limiting, `b3ld.c` RHS/matrix stamps in
+  both modes, RSH/NRD/NRS internal primes, 19 DC state slots, `b3ask.c` DC
+  asks, and factory dispatch. `.op` matches C on node voltages, source currents
+  and asks.
+- [ ] Charges (`capMod`/NQS, C's `BSIM3numStates` slots), AC, `.dc` sweeps
+  (blocked on the small-signal assembly), transient, noise, pole-zero,
+  distortion, sensitivity and `.tf`; complete the physical-unit audit. These
+  remain the #90 blocker.
 - [ ] B3-1..B3-5 and BSIM4: temperature/setup, DC, charges/transient, small
   signal/noise/pole-zero and representative PDK C simulation goldens. #90 stays
   open. See [BSIM.md](docs/port/BSIM.md) for the measured scope and current APIs.

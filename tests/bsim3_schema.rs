@@ -8,7 +8,7 @@ use ngspice_rs::devices::bsim3::{
 use ngspice_rs::devices::{Circuit, ModelContext, ModelResolver};
 use ngspice_rs::netlist::ast::{Netlist, ParameterKind};
 use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use ngspice_rs::primitives::{SpiceError, SpiceResult};
+use ngspice_rs::primitives::SpiceResult;
 
 fn deck(body: &str) -> Netlist {
     Parser::new()
@@ -368,44 +368,28 @@ fn pdk_shaped_cards_reach_the_schema_after_real_bin_selection() {
         ngspice_rs::netlist::writer::write_netlist(&reparsed).unwrap(),
         written
     );
-    let error = Circuit::from_netlist(&netlist).unwrap_err();
-    assert!(error.is_not_yet_ported(), "{error}");
-    assert!(
-        error.to_string().contains("binned to model 'nch.1'"),
-        "{error}"
-    );
+    // Both binned PDK-shaped instances build a DC device (RSH creates the
+    // internal primes) instead of failing the factory.
+    let circuit = Circuit::from_netlist(&netlist).unwrap();
+    assert_eq!(circuit.devices().len(), netlist.devices.len());
 }
 
 #[test]
-fn validated_schema_never_creates_a_device_or_interns_nodes() {
+fn validated_levels_build_a_dc_device_without_charge_state() {
     for level in [8, 49] {
         let netlist = deck(&format!(
             "m1 newd newg news newb nn l=1u w=2u\n.model nn nmos level={level} version=3.3.0 tox=4n"
         ));
         let resolver = ModelResolver::new(&netlist.models).unwrap();
         let mut circuit = Circuit::new();
-        let before = (
-            circuit.nodes().len(),
-            circuit.devices().len(),
-            circuit.state_len(),
-            circuit.unknown_count(),
-        );
-        let error = circuit
+        circuit
             .add_instance(&netlist.devices[0], &resolver, &ModelContext::default())
-            .unwrap_err();
-        assert!(matches!(error, SpiceError::NotYetPorted { .. }), "{error}");
-        // Setup now runs before the refusal; the missing piece is the load.
-        assert!(error.to_string().contains("setup are available"), "{error}");
-        assert!(error.to_string().contains("b3ld.c"), "{error}");
-        assert!(error.to_string().contains("b3cap.c"), "{error}");
-        assert_eq!(
-            (
-                circuit.nodes().len(),
-                circuit.devices().len(),
-                circuit.state_len(),
-                circuit.unknown_count()
-            ),
-            before
-        );
+            .unwrap();
+        assert_eq!(circuit.devices().len(), 1);
+        // Ground, four external nodes and the DC state slots; no charge slots.
+        assert_eq!(circuit.nodes().len(), 5);
+        assert_eq!(circuit.devices()[0].state_count(), 19);
+        // Unknowns are assigned when the circuit is finalized.
+        assert_eq!(circuit.devices()[0].terminals().len(), 4);
     }
 }

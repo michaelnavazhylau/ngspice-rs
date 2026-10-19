@@ -1,14 +1,13 @@
 # BSIM3 and BSIM4 (`M`, M11, #90)
 
-**Status: B3-0 input and setup foundation implemented; no BSIM simulation
-backend.**
+**Status: B3-0 input, setup and the DC operating point are implemented.
+Charges, AC, noise, pole-zero and BSIM4 are not.**
 Levels 8/49 select the BSIM3v3.3 schema and validate explicit input setters,
-including after model binning (#109). Setup (defaults, effective geometry, temperature processing and `b3check.c`
-diagnostics) runs before the factory fails with `NotYetPorted` naming
-`b3ld.c`/`b3cap.c`/`b3noi.c`, without creating a partial device. Older BSIM3
-versions and all other BSIM families remain explicit refusals. **B3-0 is not
-complete:** the physical-unit audit is partial and the load/observable equations
-that consume these parameters are still pending.
+including after model binning (#109). The factory builds a real device: levels 8/49 solve `.op` through the DC load,
+while `.dc`, `.ac`, `.tran`, `.noise`, `.pz`, `.disto` and `.sens` fail with
+`NotYetPorted` naming the missing C files. Older BSIM3 versions and all other
+BSIM families remain explicit refusals. **B3-0 is not complete:** the
+physical-unit audit is partial.
 
 This guide is the implementation plan for **milestone M11**. #90 moved off M10 so
 that M10 closes on the device library defined in [M10.md](M10.md); the issue
@@ -181,13 +180,36 @@ matrix stamps, state slots and internal-node conductances. Charges (`capMod`),
 NQS, AC, noise and pole-zero are not evaluated, so `@m1[cbs]`/`@m1[cbd]`
 (capacitances in C) and every charge ask remain unavailable.
 
-It is **not wired into the factory**: `.op`/`.dc`/`.ac`/`.tran` still fail with
-`NotYetPorted` naming `b3ld.c`/`b3noi.c`, and no device, node or state is
-created. Opt-in `c_bsim3_dc_reference` compares the core with C at C's own
-converged internal bias over 16 model/geometry/temperature/bias cases in both
-polarities (`vth`, `id`, `gm`, `gds`, `gmbs`, `vdsat`, `ibs`, `ibd`, `gbs`,
-`gbd`), agreeing to a 1e-9 relative bound. BSIM4 and every B3-1..B3-5 slice are
-unchanged.
+#### The device (`device.rs`)
+
+`devices::bsim3::device::Bsim3` wires that core into the solver:
+
+- `b3set.c`/`b3temp.c` setup is cached per (temperature, nominal temperature),
+  as C re-runs `BSIM3temp` on changes; the effective geometry, junction
+  currents and diagnostics come from the setup stage.
+- `stamp` reproduces `b3ld.c`'s start conditions (`off`, `ic=`), its
+  `DEVfetlim`/`DEVlimvds`/`DEVpnjlim` limiting phases and its `line900` RHS and
+  matrix terms for the forward and inverse modes, including the substrate
+  current and both junction diodes. RSH/NRD/NRS create C's internal
+  `drain`/`source` prime nodes.
+- `observation_operating` serves C's `b3ask.c` DC keywords (`id`, `gm`, `gds`,
+  `gmbs`, `vth`, `vbs`, `vgs`, `vds`, `vdsat`, `ibs`, `ibd`, `gbs`, `gbd`)
+  times the instance multiplicity. Charge/NQS/noise asks remain unavailable.
+- The device declares 19 DC state slots. C's `BSIM3numStates` charge slots will
+  be added with the charge port; nothing outside the device reads them.
+
+Verification is opt-in: `c_bsim3_dc_reference` compares the pure core with C at
+C's converged internal bias over 16 model/geometry/temperature/bias cases in
+both polarities to 1e-9 relative, and `c_bsim3_device_reference` compares the
+port's own `.op` solution with C's for eight decks (default and sub-micron
+geometry, PMOS, RSH internal nodes, junction areas, MOBMOD 2, 100 °C) to 1e-6
+on node voltages and source currents and 1e-9 on the asks.
+
+**Not available yet:** `.dc` (the port's sweep setup assembles the
+bias-linearized system, so it needs the charge/AC load), `.ac`, `.tran`,
+`.noise`, `.pz`, `.disto`, `.sens`, `.tf`, and every charge ask. Those paths
+fail with `NotYetPorted` naming `b3acld.c`/`b3noi.c`/`b3pzld.c` rather than
+loading zero. BSIM4 and every B3-1..B3-5 equation slice are unchanged.
 
 ### B3-1 · Temperature and instance setup
 
