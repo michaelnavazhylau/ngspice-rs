@@ -52,9 +52,9 @@ pub enum ModelFamily {
     Npn,
     /// PNP classic BJT.
     Pnp,
-    /// NMOS (bounded selectors for levels 1, 2, 3, 6 and 9).
+    /// NMOS (classic backends, plus schema-only BSIM3 levels 8/49).
     Nmos,
-    /// PMOS (bounded selectors for levels 1, 2, 3, 6 and 9).
+    /// PMOS (classic backends, plus schema-only BSIM3 levels 8/49).
     Pmos,
     /// Voltage-controlled switch (`sw`, `sw/sw.c`).
     Switch,
@@ -785,11 +785,14 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
             reference,
         ));
     }
+    if matches!(family, ModelFamily::Nmos | ModelFamily::Pmos) && matches!(selector, 8 | 49) {
+        crate::devices::bsim3::select_version(card)?;
+    }
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
-        // MOS1 (`mos1/`), MOS2 (`mos2/`), MOS3 (`mos3/`), MOS6 (`mos6/`) and MOS9
-        // (`mos9/`); `inpdomod.c` maps the others.
-        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1..=3 | 6 | 9),
+        // Classic backends and BSIM3's input schema. Successful selection
+        // never implies a simulation load: BSIM3's factory still refuses.
+        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1..=3 | 6 | 8 | 9 | 49),
         ModelFamily::Njf | ModelFamily::Pjf => true,
         ModelFamily::Nmf | ModelFamily::Pmf => true,
         ModelFamily::Diode => applied == Some(1),

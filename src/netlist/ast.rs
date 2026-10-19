@@ -59,7 +59,8 @@ pub enum ParameterKind {
     Scalar,
     /// Unevaluated single-token formal/X parameter text that is neither a
     /// finite literal nor a parsed expression (for instance a double-quoted
-    /// string or an extended numeric spelling such as `4k7`).
+    /// string or an extended numeric spelling such as `4k7`), or a bare dotted
+    /// MOS model VERSION string. Consumers must not treat it as a number.
     Textual,
     /// A `{...}` or single-quoted `'...'` expression, or a bare parameter name
     /// at an `X`/`.subckt` parameter site, parsed but **not evaluated**.

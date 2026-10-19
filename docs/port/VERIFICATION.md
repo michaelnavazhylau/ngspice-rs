@@ -272,6 +272,61 @@ live-C** checks pass with absolute `NGSPICE_BIN`, including the new
 C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
 are unchanged. See [URC.md](URC.md).
 
+## BSIM3 B3-0 input foundation (#90)
+
+The schema-only BSIM3 path has generated IFparm metadata for all 429 model
+and 49 instance entries, with table order, aliases, C IDs, destination/given
+fields and input/read/write types. Generator `--check` reproduces the committed
+table from four clean inputs at upstream revision
+`059066b532f7073fccf4173ef269309eafdc7f0c`; ordinary tests do not read C.
+
+`tests/bsim3_schema.rs` exercises every model keyword, every instance input,
+ask-only rejection, ordered aliases/flags/defaults/IC, setter conversions,
+integer/scale errors, literal VERSION selection/round-trip, actual model-bin
+resolution and factory atomicity. A device-layer unit test injects exact
+binary64 doping thresholds: `INPevaluate` deliberately uses platform
+`pow(10, exponent)`, so a textual `1e23` is not a portable way to construct
+that exact threshold. The live C query checks the textual boundary on both
+platforms instead. No numeric-parser or comparison tolerance was changed.
+
+`conformance/parser/bsim3_schema.cir` is hand-authored PDK-shaped input,
+not a calibrated/foundry card or simulation golden. It adds two snapshots;
+none of the existing 496 snapshots changed. Opt-in
+`c_bsim3_schema_reference` checks explicit model/instance setter fields for
+levels 8/49 against C; the existing binning oracle still passes.
+
+Setup stage (`b3set.c`, `b3temp.c`, `b3check.c`) verification:
+
+- `tests/bsim3_defaults.rs` (10 tests) checks literal/dependent/polarity
+  defaults, given bits, MOBMOD selection, TOX/CF/overlap formulas, TNOM,
+  aliases and NQS resets offline.
+- `tests/bsim3_setup.rs` (11 tests) checks instance defaults, BINUNIT-scaled
+  binning, effective geometry, mobility/temperature terms, K1/K2 variants,
+  derived Φ/Vbi/Xdep0/VTH0/VFB/VBSC values, junction/breakdown currents,
+  every `b3check.c` reset and the fatal paths. ACM geometry is refused.
+- Opt-in `c_bsim3_setup_reference` compares C and Rust `b3check.c` output
+  exactly: 6 warning decks and 21 fatal/legal decks. Because those messages
+  embed `%g` values of the computed parameters, this also compares Leff/Weff,
+  Nch/Nsub/Ngate, Dvt0, Nfactor, Cdsc/Cdscd, Eta0, A2, Rdsw/Rds0, Vsat,
+  Pdibl1/2, Noff, Voffcv, Moin, Acde and the junction perimeters against C,
+  plus fatality agreement for every deck. C's batch mode exits 0 even after an
+  aborted analysis, so the comparison uses C's own messages, not its status.
+- Opt-in `c_bsim3_schema_reference` additionally compares all 422 numeric model
+  fields after defaults across six NMOS/PMOS/context cases.
+
+With setup included: 1543 passed / 0 failed / 156 ignored on macOS stable and
+Rust 1.89; 1548 passed / 0 failed / 156 ignored on GNU Linux x86-64 with the
+live C suites enabled, strict all-target Clippy on both toolchains, generator
+`--check`, 498 unchanged snapshots, 208/1/0 golden verify and 209 C golden
+checks. No tolerance was changed.
+
+Foundation validation: 1522 passed / 0 failed / 153 ignored on macOS stable,
+macOS Rust 1.89 and GNU Linux x86-64 Rust 1.89, with strict all-target Clippy.
+The new setter and existing binning live-C tests pass on both platforms.
+`golden verify` remains 208 verified / 1 unsupported / 0 failures; all 209
+C goldens reproduce. Documentation builds with 27 warnings. No BSIM load,
+setup defaults or effective-geometry diagnostics are claimed by these results.
+
 ## PR #183: platform-specific BJT sensitivity reference
 
 CI's Linux x86-64 failure was reproduced in a GNU/Linux container on Rust

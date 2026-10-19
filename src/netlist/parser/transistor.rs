@@ -216,6 +216,12 @@ fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {
                         | "icvbs"
                         | "temp"
                         | "dtemp"
+                        // bsim3/b3.c input-only syntax, not backend availability.
+                        | "nqsmod"
+                        | "acnqsmod"
+                        | "geo"
+                        | "delvto"
+                        | "mulu0"
                 ),
             }
         })

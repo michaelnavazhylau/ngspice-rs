@@ -13,7 +13,7 @@ use winnow::combinator::{alt, cut_err, opt, peek, repeat};
 use winnow::error::ErrMode;
 use winnow::token::any;
 
-use crate::netlist::ast::{ModelCard, ParameterAssignment};
+use crate::netlist::ast::{ModelCard, ParameterAssignment, ParameterKind};
 use crate::netlist::token::{Token, TokenKind};
 
 use super::grammar::{Input, ParsedCard, Result, gap, keyword};
@@ -92,6 +92,7 @@ fn parameters(input: &mut Input<'_>, base: &str) -> Result<Vec<ParameterAssignme
         alt((
             punctuation(TokenKind::Comma).value(None),
             (|input: &mut Input<'_>| super::flags::model(input, base)).map(Some),
+            (|input: &mut Input<'_>| version_assignment(input, base)).map(Some),
             scalar_assignment.map(Some),
             invalid_parameter,
         )),
@@ -103,6 +104,35 @@ fn parameters(input: &mut Input<'_>, base: &str) -> Result<Vec<ParameterAssignme
         parameters
     })
     .parse_next(input)
+}
+
+/// `INPfindVer`/IF_STRING retain a bare dotted VERSION token, not a float.
+/// Only MOS model VERSION sites gain this syntax; other word-valued setters
+/// keep their existing refusal. Quoted/expression versions are not substituted.
+fn version_assignment(input: &mut Input<'_>, base: &str) -> Result<ParameterAssignment> {
+    peek(
+        any.verify(|token: &Token| matches!(base, "nmos" | "pmos") && token.is_keyword("version")),
+    )
+    .parse_next(input)?;
+    let keyword = any.parse_next(input)?;
+    opt(equals).parse_next(input)?;
+    let token = cut_err(
+        any.verify(|token: &Token| {
+            token.kind == TokenKind::Word || token.number().is_some_and(f64::is_finite)
+        })
+        .context("a bare MOS version literal"),
+    )
+    .parse_next(input)?;
+    Ok(ParameterAssignment {
+        name: "version".into(),
+        value: token.text.clone(),
+        kind: if token.number().is_some() {
+            ParameterKind::Scalar
+        } else {
+            ParameterKind::Textual
+        },
+        location: keyword.location.clone(),
+    })
 }
 
 fn scalar_assignment(input: &mut Input<'_>) -> Result<ParameterAssignment> {

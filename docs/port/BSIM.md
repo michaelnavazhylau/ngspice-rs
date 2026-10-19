@@ -1,9 +1,14 @@
 # BSIM3 and BSIM4 (`M`, M11, #90)
 
-**Status: plan only. No BSIM backend exists in the port.** Every BSIM level
-currently fails with `NotYetPorted` naming the C directory `inpdomod.c` selects
-(`src/devices/models.rs::mos_level_reference`), and model binning (#109) can
-select a BSIM bin but has no factory to hand it to (`MODEL_SCHEMAS.md`).
+**Status: B3-0 input and setup foundation implemented; no BSIM simulation
+backend.**
+Levels 8/49 select the BSIM3v3.3 schema and validate explicit input setters,
+including after model binning (#109). Setup (defaults, effective geometry, temperature processing and `b3check.c`
+diagnostics) runs before the factory fails with `NotYetPorted` naming
+`b3ld.c`/`b3cap.c`/`b3noi.c`, without creating a partial device. Older BSIM3
+versions and all other BSIM families remain explicit refusals. **B3-0 is not
+complete:** the physical-unit audit is partial and the load/observable equations
+that consume these parameters are still pending.
 
 This guide is the implementation plan for **milestone M11**. #90 moved off M10 so
 that M10 closes on the device library defined in [M10.md](M10.md); the issue
@@ -40,11 +45,12 @@ silently substituted model.
 | `bsim4/b4set.c` | 2,779 |
 | `bsim4/b4check.c` | 935 |
 
-Parameter tables, counted from the `IFparm` arrays: BSIM3 `b3.c` has **429 model**
-and **19 instance** entries, BSIM4 `b4.c` has **897 model** and **44 instance**
-entries. That is the whole reason this is a milestone and not a slice: the tables
-alone dwarf every device the port has, and each entry needs a setter, a
-temperature update and a load term.
+BSIM3 `b3.c` has **429 model entries** (425 distinct IDs, four redundant
+`vtho` aliases) and **49 total instance entries**: **19 settable** and **30
+ask-only**. The earlier count of 19 referred only to instance inputs, not the
+whole IFparm array. BSIM4 `b4.c` has 897 model and 44 settable instance entries.
+Input types, aliases, table order and read/write access all matter; a table
+entry alone is not a supported equation or observable.
 
 ## Why not reuse the `mos` shell?
 
@@ -82,18 +88,89 @@ BSIM4 repeat the same shape.
 - Deliverable: `.model` cards from real PDKs parse and validate with C's
   defaults, checks and `b3check.c` diagnostics; `.op` still fails explicitly.
 
+#### Implemented foundation (not the full B3-0 deliverable)
+
+- `cargo xtask bsim3-schema --source /path/to/ngspice [--check]` reads six
+  clean upstream files (`b3.c`, `bsim3def.h`, `b3mpar.c`, `b3par.c`, `b3set.c`,
+  `b3temp.c`). It emits
+  only interface facts into `src/devices/bsim3/parameters.rs`: keyword, canonical
+  alias, numeric/symbolic C ID, setter destination, given bit, input type and
+  access. It preserves all 429/49 entries in C order, records the source Git
+  revision and rejects unfamiliar macros/types or ambiguous destinations.
+  No C implementation, descriptions, headers or formulas are copied; Cargo
+  and ordinary tests need no C source tree or generator invocation.
+- `devices::bsim3::{model_parameters, ModelParameters::instance_parameters}`
+  project ordered explicit setters. Duplicates and aliases retain last-set
+  precedence and source locations; unset fields remain absent, not fake zeros
+  or setup defaults. Model-level instance defaults are prepended in C's reverse
+  order; model-level `m` is discarded. Physical units are provided only for an
+  explicitly reviewed subset; `input_unit() == None` means unaudited.
+- `b3mpar.c` TNOM-to-kelvin and the distinct NPEAK/NGATE conversion thresholds
+  are reproduced, as are checked `floor(x + 0.5)` integer setters. `b3par.c`
+  scales lengths once and areas left-to-right twice (avoiding a spurious
+  `scale^2` overflow), and IC expands in VBS/VGS/VDS fallthrough order.
+- The winnow parser/writer preserve bare dotted MOS VERSION strings. The first
+  VERSION selects the directory (`inpdomod.c`/`INPfindVer`), while its setter
+  retains the last value. `3.0*`, `3.1*`, `3.2*` fail naming the correct older
+  directory rather than selecting 3.3. Quoted/expression versions remain refused;
+  the C probes reject those forms too. The M grammar additionally recognizes
+  `nqsmod`, `acnqsmod`, `geo`, `delvto`, `mulu0`; this enables input validation,
+  not a simulation backend for them.
+- `conformance/parser/bsim3_schema.cir` is a hand-authored PDK-shaped input
+  probe with NMOS bins and PMOS, **not a foundry PDK or simulation golden**.
+  Production tests exercise every model keyword and instance input, ask-only
+  rejection, alias/flag/default/IC precedence, overflow, version round-trips,
+  real bin selection and atomic factory refusal. Opt-in
+  `c_bsim3_schema_reference` checks explicit fields against C on levels 8/49.
+
+#### Setup implementation
+
+`ModelParameters::model_defaults` (`b3set.c`), `ModelDefaults::at_temperature`
+(`b3temp.c`) and `ModelParameters::setup_instance` (instance defaults, effective
+geometry, size-dependent parameters and `b3check.c`) expose the setup stage:
+
+- 376 literal model defaults are generated facts; ~46 dependent defaults
+  (TNOM→Kelvin, TOXM/DSUB/L-W copies, COX/CF/CGDO/CGSO/CGBO formulas, polarity
+  VTH0/U0/NOIA/NOIB/NOIC, MOBMOD-selected UC/UC1) are reimplemented in
+  `defaults.rs` with C's given-bit guards. Ungiven zero-allocated fields such as
+  K1/K2/VFB stay distinguishable via `ModelDefaults::is_given`.
+- `b3temp.c`'s model pass reproduces junction-potential clamps, saturation
+  current and junction-capacitance temperature scaling, VTcrit/factor1, and the
+  PN-junction potential clamps; its per-size pass reproduces the 83 generated
+  binning rows (L/W/reciprocal-area coefficients, `binUnit` scaling), the
+  mobility/temperature adjustments, U0 > 1 downscale, VSAT/RDS temperature
+  terms, Φ/Vbi/Xdep0/CDep0/Ldeb/ACDE derivations, K1/K2 either explicit or
+  derived from doping, VBSC/VFB/VTH0/VFBZB, K1OX/K2OX, θ0VB0/θRout, and the
+  COV overlap capacitances. C's recomputation of `tconst` with the surviving
+  `sqrt(1 + nlx/leff)` temporary rather than `leffCV²` is reproduced and
+  documented as a quirk.
+- `b3check.c` reports every fatal and warning check in C order (`Diagnostic`),
+  including the A2/RDSW/CGDO/CGSO/CGBO/CALCACM resets. Fatal checks fail setup;
+  warnings remain data. `Pb/Ps < W` warnings appear for default zero perimeters,
+  exactly as C emits them.
+- ACM geometry (`acm != 0`) is refused explicitly: `ACM_SourceDrainResistances`
+  is shared, unported C code. Nothing is approximated by the non-ACM path.
+
+The shared-model mutation order of C's single `BSIM3model` across several
+instances (which a `b3check.c` reset can affect) belongs to the later
+model/instance layer; each `setup_instance` call currently applies resets to its
+own result. No `.op`/`.dc`/`.ac`/`.tran` and #90 acceptance gate follows from
+setup. BSIM4 and every B3-1..B3-5 equation slice are unchanged.
+
 ### B3-1 · Temperature and instance setup
 
 `b3temp.c` (894 lines) plus `b3set.c`'s geometry and *given*-flag handling:
-`L`/`W`/`NF`/`SA`/`SB`/`SD`, `binUnit`, `m`, `dtemp`, and the temperature
+BSIM3's `L`/`W`/junction geometry, `binUnit`, `m`, NQS/ACM choices, and the temperature
 scaling of `VTH0`, `K1`, `K2`, `UA`, `UB`, `UC`, mobility and series resistance.
 Binning (#109) resolves `l`/`w` before this runs; the port's resolver already
-implements C's inclusive 1 nm edges and last-declared-match rule.
+implements C's inclusive 1 nm edges and last-declared-match rule. `NF`,
+`SA`/`SB`/`SD` and instance `dtemp` are not BSIM3v3.3 table entries; do not
+accidentally import BSIM4 inputs into the BSIM3 schema.
 
 ### B3-2 · DC load (BSIM3 core)
 
-`b3ld.c` without `capMod`: `b3setup.c`'s mode checks, the `mobMod` variants,
-`vth`, `Abulk`, `Rd/Rs` (`rdsMod`), `Vgsteff`/`Vdseff`/`DITS`/`DIBL`/`CLM`,
+`b3ld.c` without `capMod`: `b3set.c`'s mode checks, the `mobMod` variants,
+`vth`, `Abulk`, series resistance/ACM and `rdsw`, `Vgsteff`/`Vdseff`/`DIBL`/`CLM`,
 subthreshold, and the Newton stamps. Validate against C by name with the usual
 relative **and** near-zero absolute tolerances, over PDK-shaped cards.
 

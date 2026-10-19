@@ -7,6 +7,17 @@ factories remain unavailable. A successful parse does not
 implement initialization, `.ic`/`uic`, nonlinear physics or trap/Gear integration.
 Constant/Step/Pwl device-API forcing is unchanged.
 
+## BSIM3 input syntax (B3-0 foundation, #90)
+
+MOS cards additionally retain numeric `nqsmod`, `acnqsmod`, `geo`, `delvto`
+and `mulu0` setters from `bsim3/b3.c`. Their validity belongs to the selected
+device schema, not the parser; a classic MOS model still rejects them.
+MOS `.model` VERSION accepts one bare token such as `3.3.0`, preserving its
+spelling and source column (`Textual` for dotted nonnumeric tokens). Numeric
+versions such as `3.30` retain their original numeric spelling. This does not
+accept arbitrary string-valued model parameters, quoted/expression versions,
+extra terminals, BSIM4 inputs or a BSIM simulation backend. See [BSIM.md](BSIM.md).
+
 ## C-backed flag inventory
 
 Inventory: `src/spicelib/devices/{dio/dio.c,bjt/bjt.c,mos1/mos1.c}` parameter

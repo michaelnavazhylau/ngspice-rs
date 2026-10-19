@@ -1,0 +1,389 @@
+# ngspice-rs token-dump v1
+file: parser/bsim3_schema.cir
+title: "BSIM3 input-schema and binning probe (B3-0 foundation, not a simulation golden)" @parser/bsim3_schema.cir:1:1
+card 1 @parser/bsim3_schema.cir:4:1 lines=4-4 continuations=0
+  raw: "vd d 0 dc 1.2"
+  kind: device(v)
+  token 1 4:1 word "vd"
+  token 2 4:4 word "d"
+  token 3 4:6 number "0" value=0e0
+  token 4 4:8 word "dc"
+  token 5 4:11 number "1.2" value=1.2000000000000002e0
+card 2 @parser/bsim3_schema.cir:5:1 lines=5-5 continuations=0
+  raw: "vg g 0 dc 1"
+  kind: device(v)
+  token 1 5:1 word "vg"
+  token 2 5:4 word "g"
+  token 3 5:6 number "0" value=0e0
+  token 4 5:8 word "dc"
+  token 5 5:11 number "1" value=1e0
+card 3 @parser/bsim3_schema.cir:6:1 lines=6-6 continuations=0
+  raw: "vp dp 0 dc -1.2"
+  kind: device(v)
+  token 1 6:1 word "vp"
+  token 2 6:4 word "dp"
+  token 3 6:7 number "0" value=0e0
+  token 4 6:9 word "dc"
+  token 5 6:12 number "-1.2" value=-1.2000000000000002e0
+card 4 @parser/bsim3_schema.cir:7:1 lines=7-7 continuations=0
+  raw: "vpg gp 0 dc -1"
+  kind: device(v)
+  token 1 7:1 word "vpg"
+  token 2 7:5 word "gp"
+  token 3 7:8 number "0" value=0e0
+  token 4 7:10 word "dc"
+  token 5 7:13 number "-1" value=-1e0
+card 5 @parser/bsim3_schema.cir:8:1 lines=8-9 continuations=1
+  raw: "m1 d g 0 0 nch l=180n w=1u m=2 ad=0.2p as=0.2p pd=1.4u ps=1.4u nrd=1 nrs=1 nqsmod=0 acnqsmod=0 geo=0 delvto=5m mulu0=0.95"
+  kind: device(m)
+  token 1 8:1 word "m1"
+  token 2 8:4 word "d"
+  token 3 8:6 word "g"
+  token 4 8:8 number "0" value=0e0
+  token 5 8:10 number "0" value=0e0
+  token 6 8:12 word "nch"
+  token 7 8:16 word "l"
+  token 8 8:17 equals "="
+  token 9 8:18 number "180n" value=1.8000000000000002e-7
+  token 10 8:23 word "w"
+  token 11 8:24 equals "="
+  token 12 8:25 number "1u" value=1e-6
+  token 13 8:28 word "m"
+  token 14 8:29 equals "="
+  token 15 8:30 number "2" value=2e0
+  token 16 8:32 word "ad"
+  token 17 8:34 equals "="
+  token 18 8:35 number "0.2p" value=2e-13
+  token 19 8:40 word "as"
+  token 20 8:42 equals "="
+  token 21 8:43 number "0.2p" value=2e-13
+  token 22 8:48 word "pd"
+  token 23 8:50 equals "="
+  token 24 8:51 number "1.4u" value=1.4e-6
+  token 25 8:56 word "ps"
+  token 26 8:58 equals "="
+  token 27 8:59 number "1.4u" value=1.4e-6
+  token 28 8:64 word "nrd"
+  token 29 8:67 equals "="
+  token 30 8:68 number "1" value=1e0
+  token 31 8:70 word "nrs"
+  token 32 8:73 equals "="
+  token 33 8:74 number "1" value=1e0
+  token 34 8:76 word "nqsmod"
+  token 35 8:82 equals "="
+  token 36 8:83 number "0" value=0e0
+  token 37 8:85 word "acnqsmod"
+  token 38 8:93 equals "="
+  token 39 8:94 number "0" value=0e0
+  token 40 8:96 word "geo"
+  token 41 8:99 equals "="
+  token 42 8:100 number "0" value=0e0
+  token 43 8:102 word "delvto"
+  token 44 8:108 equals "="
+  token 45 8:109 number "5m" value=5e-3
+  token 46 8:112 word "mulu0"
+  token 47 8:117 equals "="
+  token 48 8:118 number "0.95" value=9.500000000000001e-1
+card 6 @parser/bsim3_schema.cir:10:1 lines=10-10 continuations=0
+  raw: "m2 dp gp 0 0 pcore l=500n w=2u ic=(-0.1,-0.2,0) off"
+  kind: device(m)
+  token 1 10:1 word "m2"
+  token 2 10:4 word "dp"
+  token 3 10:7 word "gp"
+  token 4 10:10 number "0" value=0e0
+  token 5 10:12 number "0" value=0e0
+  token 6 10:14 word "pcore"
+  token 7 10:20 word "l"
+  token 8 10:21 equals "="
+  token 9 10:22 number "500n" value=5.000000000000001e-7
+  token 10 10:27 word "w"
+  token 11 10:28 equals "="
+  token 12 10:29 number "2u" value=2e-6
+  token 13 10:32 word "ic"
+  token 14 10:34 equals "="
+  token 15 10:35 lparen "("
+  token 16 10:36 number "-0.1" value=-1e-1
+  token 17 10:40 comma ","
+  token 18 10:41 number "-0.2" value=-2e-1
+  token 19 10:45 comma ","
+  token 20 10:46 number "0" value=0e0
+  token 21 10:47 rparen ")"
+  token 22 10:49 word "off"
+card 7 @parser/bsim3_schema.cir:11:1 lines=11-21 continuations=10
+  raw: ".model nch.1 nmos level=49 version=3.3.0 lmin=100n lmax=250n wmin=500n wmax=10u capmod=3 mobmod=1 noimod=1 paramchk=1 binunit=1 tnom=27 tox=4.1n toxm=4.1n xj=100n nch=2.3e17 nsub=6e16 ngate=1e20 vth0=0.4 k1=0.53 k2=-0.018 u0=450 ua=2.25e-9 ub=5.87e-19 uc=-4.65e-11 vsat=8e4 a0=1 a1=0 a2=1 nfactor=1.2 voff=-0.08 eta0=0.08 etab=-0.07 dvt0=2.2 dvt1=0.53 dvt2=-0.032 dsub=0.56 drout=0.56 pclm=1.3 pdiblc1=0.39 pdiblc2=0.0086 pdiblcb=0 rdsw=100 rsh=10 prwg=0 prwb=0 cgso=2e-10 cgdo=2e-10 cgbo=0 cj=1e-3 cjsw=1e-10 cjswg=1e-10 pb=0.8 pbsw=0.8 pbswg=0.8 mj=0.5 mjsw=0.33 mjswg=0.33 lint=0 wint=0 lvth0=0 wvth0=0 pvth0=0"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "nch.1"
+  token 3 11:14 word "nmos"
+  token 4 11:19 word "level"
+  token 5 11:24 equals "="
+  token 6 11:25 number "49" value=4.9e1
+  token 7 11:28 word "version"
+  token 8 11:35 equals "="
+  token 9 11:36 word "3.3.0"
+  token 10 11:42 word "lmin"
+  token 11 11:46 equals "="
+  token 12 11:47 number "100n" value=1.0000000000000001e-7
+  token 13 11:52 word "lmax"
+  token 14 11:56 equals "="
+  token 15 11:57 number "250n" value=2.5000000000000004e-7
+  token 16 11:62 word "wmin"
+  token 17 11:66 equals "="
+  token 18 11:67 number "500n" value=5.000000000000001e-7
+  token 19 11:72 word "wmax"
+  token 20 11:76 equals "="
+  token 21 11:77 number "10u" value=9.999999999999999e-6
+  token 22 11:81 word "capmod"
+  token 23 11:87 equals "="
+  token 24 11:88 number "3" value=3e0
+  token 25 11:90 word "mobmod"
+  token 26 11:96 equals "="
+  token 27 11:97 number "1" value=1e0
+  token 28 11:99 word "noimod"
+  token 29 11:105 equals "="
+  token 30 11:106 number "1" value=1e0
+  token 31 11:108 word "paramchk"
+  token 32 11:116 equals "="
+  token 33 11:117 number "1" value=1e0
+  token 34 11:119 word "binunit"
+  token 35 11:126 equals "="
+  token 36 11:127 number "1" value=1e0
+  token 37 11:129 word "tnom"
+  token 38 11:133 equals "="
+  token 39 11:134 number "27" value=2.7e1
+  token 40 11:137 word "tox"
+  token 41 11:140 equals "="
+  token 42 11:141 number "4.1n" value=4.1e-9
+  token 43 11:146 word "toxm"
+  token 44 11:150 equals "="
+  token 45 11:151 number "4.1n" value=4.1e-9
+  token 46 11:156 word "xj"
+  token 47 11:158 equals "="
+  token 48 11:159 number "100n" value=1.0000000000000001e-7
+  token 49 11:164 word "nch"
+  token 50 11:167 equals "="
+  token 51 11:168 number "2.3e17" value=2.3e17
+  token 52 11:175 word "nsub"
+  token 53 11:179 equals "="
+  token 54 11:180 number "6e16" value=6e16
+  token 55 11:185 word "ngate"
+  token 56 11:190 equals "="
+  token 57 11:191 number "1e20" value=1e20
+  token 58 11:196 word "vth0"
+  token 59 11:200 equals "="
+  token 60 11:201 number "0.4" value=4e-1
+  token 61 11:205 word "k1"
+  token 62 11:207 equals "="
+  token 63 11:208 number "0.53" value=5.3e-1
+  token 64 11:213 word "k2"
+  token 65 11:215 equals "="
+  token 66 11:216 number "-0.018" value=-1.8000000000000002e-2
+  token 67 11:223 word "u0"
+  token 68 11:225 equals "="
+  token 69 11:226 number "450" value=4.5e2
+  token 70 11:230 word "ua"
+  token 71 11:232 equals "="
+  token 72 11:233 number "2.25e-9" value=2.25e-9
+  token 73 11:241 word "ub"
+  token 74 11:243 equals "="
+  token 75 11:244 number "5.87e-19" value=5.869999999999999e-19
+  token 76 11:253 word "uc"
+  token 77 11:255 equals "="
+  token 78 11:256 number "-4.65e-11" value=-4.65e-11
+  token 79 11:266 word "vsat"
+  token 80 11:270 equals "="
+  token 81 11:271 number "8e4" value=8e4
+  token 82 11:275 word "a0"
+  token 83 11:277 equals "="
+  token 84 11:278 number "1" value=1e0
+  token 85 11:280 word "a1"
+  token 86 11:282 equals "="
+  token 87 11:283 number "0" value=0e0
+  token 88 11:285 word "a2"
+  token 89 11:287 equals "="
+  token 90 11:288 number "1" value=1e0
+  token 91 11:290 word "nfactor"
+  token 92 11:297 equals "="
+  token 93 11:298 number "1.2" value=1.2000000000000002e0
+  token 94 11:302 word "voff"
+  token 95 11:306 equals "="
+  token 96 11:307 number "-0.08" value=-8e-2
+  token 97 11:313 word "eta0"
+  token 98 11:317 equals "="
+  token 99 11:318 number "0.08" value=8e-2
+  token 100 11:323 word "etab"
+  token 101 11:327 equals "="
+  token 102 11:328 number "-0.07" value=-7e-2
+  token 103 11:334 word "dvt0"
+  token 104 11:338 equals "="
+  token 105 11:339 number "2.2" value=2.2e0
+  token 106 11:343 word "dvt1"
+  token 107 11:347 equals "="
+  token 108 11:348 number "0.53" value=5.3e-1
+  token 109 11:353 word "dvt2"
+  token 110 11:357 equals "="
+  token 111 11:358 number "-0.032" value=-3.2e-2
+  token 112 11:365 word "dsub"
+  token 113 11:369 equals "="
+  token 114 11:370 number "0.56" value=5.6e-1
+  token 115 11:375 word "drout"
+  token 116 11:380 equals "="
+  token 117 11:381 number "0.56" value=5.6e-1
+  token 118 11:386 word "pclm"
+  token 119 11:390 equals "="
+  token 120 11:391 number "1.3" value=1.3e0
+  token 121 11:395 word "pdiblc1"
+  token 122 11:402 equals "="
+  token 123 11:403 number "0.39" value=3.9e-1
+  token 124 11:408 word "pdiblc2"
+  token 125 11:415 equals "="
+  token 126 11:416 number "0.0086" value=8.6e-3
+  token 127 11:423 word "pdiblcb"
+  token 128 11:430 equals "="
+  token 129 11:431 number "0" value=0e0
+  token 130 11:433 word "rdsw"
+  token 131 11:437 equals "="
+  token 132 11:438 number "100" value=1e2
+  token 133 11:442 word "rsh"
+  token 134 11:445 equals "="
+  token 135 11:446 number "10" value=1e1
+  token 136 11:449 word "prwg"
+  token 137 11:453 equals "="
+  token 138 11:454 number "0" value=0e0
+  token 139 11:456 word "prwb"
+  token 140 11:460 equals "="
+  token 141 11:461 number "0" value=0e0
+  token 142 11:463 word "cgso"
+  token 143 11:467 equals "="
+  token 144 11:468 number "2e-10" value=2e-10
+  token 145 11:474 word "cgdo"
+  token 146 11:478 equals "="
+  token 147 11:479 number "2e-10" value=2e-10
+  token 148 11:485 word "cgbo"
+  token 149 11:489 equals "="
+  token 150 11:490 number "0" value=0e0
+  token 151 11:492 word "cj"
+  token 152 11:494 equals "="
+  token 153 11:495 number "1e-3" value=1e-3
+  token 154 11:500 word "cjsw"
+  token 155 11:504 equals "="
+  token 156 11:505 number "1e-10" value=1e-10
+  token 157 11:511 word "cjswg"
+  token 158 11:516 equals "="
+  token 159 11:517 number "1e-10" value=1e-10
+  token 160 11:523 word "pb"
+  token 161 11:525 equals "="
+  token 162 11:526 number "0.8" value=8e-1
+  token 163 11:530 word "pbsw"
+  token 164 11:534 equals "="
+  token 165 11:535 number "0.8" value=8e-1
+  token 166 11:539 word "pbswg"
+  token 167 11:544 equals "="
+  token 168 11:545 number "0.8" value=8e-1
+  token 169 11:549 word "mj"
+  token 170 11:551 equals "="
+  token 171 11:552 number "0.5" value=5e-1
+  token 172 11:556 word "mjsw"
+  token 173 11:560 equals "="
+  token 174 11:561 number "0.33" value=3.3e-1
+  token 175 11:566 word "mjswg"
+  token 176 11:571 equals "="
+  token 177 11:572 number "0.33" value=3.3e-1
+  token 178 11:577 word "lint"
+  token 179 11:581 equals "="
+  token 180 11:582 number "0" value=0e0
+  token 181 11:584 word "wint"
+  token 182 11:588 equals "="
+  token 183 11:589 number "0" value=0e0
+  token 184 11:591 word "lvth0"
+  token 185 11:596 equals "="
+  token 186 11:597 number "0" value=0e0
+  token 187 11:599 word "wvth0"
+  token 188 11:604 equals "="
+  token 189 11:605 number "0" value=0e0
+  token 190 11:607 word "pvth0"
+  token 191 11:612 equals "="
+  token 192 11:613 number "0" value=0e0
+card 8 @parser/bsim3_schema.cir:22:1 lines=22-23 continuations=1
+  raw: ".model nch.2 nmos level=8 version=3.3 lmin=250n lmax=1u wmin=500n wmax=10u tox=4.1n vth0=0.45 u0=450"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "nch.2"
+  token 3 22:14 word "nmos"
+  token 4 22:19 word "level"
+  token 5 22:24 equals "="
+  token 6 22:25 number "8" value=8e0
+  token 7 22:27 word "version"
+  token 8 22:34 equals "="
+  token 9 22:35 number "3.3" value=3.3000000000000003e0
+  token 10 22:39 word "lmin"
+  token 11 22:43 equals "="
+  token 12 22:44 number "250n" value=2.5000000000000004e-7
+  token 13 22:49 word "lmax"
+  token 14 22:53 equals "="
+  token 15 22:54 number "1u" value=1e-6
+  token 16 22:57 word "wmin"
+  token 17 22:61 equals "="
+  token 18 22:62 number "500n" value=5.000000000000001e-7
+  token 19 22:67 word "wmax"
+  token 20 22:71 equals "="
+  token 21 22:72 number "10u" value=9.999999999999999e-6
+  token 22 22:76 word "tox"
+  token 23 22:79 equals "="
+  token 24 22:80 number "4.1n" value=4.1e-9
+  token 25 22:85 word "vth0"
+  token 26 22:89 equals "="
+  token 27 22:90 number "0.45" value=4.5e-1
+  token 28 22:95 word "u0"
+  token 29 22:97 equals "="
+  token 30 22:98 number "450" value=4.5e2
+card 9 @parser/bsim3_schema.cir:24:1 lines=24-25 continuations=1
+  raw: ".model pcore pmos level=8 version=3.30 tox=4.1n vtho=-0.42 u0=180 nch=1.7e17 nsub=6e16 k1=0.55 k2=-0.018 rsh=10 cgso=2e-10 cgdo=2e-10"
+  kind: dot(.model)
+  token 1 24:1 word ".model"
+  token 2 24:8 word "pcore"
+  token 3 24:14 word "pmos"
+  token 4 24:19 word "level"
+  token 5 24:24 equals "="
+  token 6 24:25 number "8" value=8e0
+  token 7 24:27 word "version"
+  token 8 24:34 equals "="
+  token 9 24:35 number "3.30" value=3.3000000000000003e0
+  token 10 24:40 word "tox"
+  token 11 24:43 equals "="
+  token 12 24:44 number "4.1n" value=4.1e-9
+  token 13 24:49 word "vtho"
+  token 14 24:53 equals "="
+  token 15 24:54 number "-0.42" value=-4.2e-1
+  token 16 24:60 word "u0"
+  token 17 24:62 equals "="
+  token 18 24:63 number "180" value=1.8e2
+  token 19 24:67 word "nch"
+  token 20 24:70 equals "="
+  token 21 24:71 number "1.7e17" value=1.7e17
+  token 22 24:78 word "nsub"
+  token 23 24:82 equals "="
+  token 24 24:83 number "6e16" value=6e16
+  token 25 24:88 word "k1"
+  token 26 24:90 equals "="
+  token 27 24:91 number "0.55" value=5.5e-1
+  token 28 24:96 word "k2"
+  token 29 24:98 equals "="
+  token 30 24:99 number "-0.018" value=-1.8000000000000002e-2
+  token 31 24:106 word "rsh"
+  token 32 24:109 equals "="
+  token 33 24:110 number "10" value=1e1
+  token 34 24:113 word "cgso"
+  token 35 24:117 equals "="
+  token 36 24:118 number "2e-10" value=2e-10
+  token 37 24:124 word "cgdo"
+  token 38 24:128 equals "="
+  token 39 24:129 number "2e-10" value=2e-10
+card 10 @parser/bsim3_schema.cir:26:1 lines=26-26 continuations=0
+  raw: ".op"
+  kind: dot(.op)
+  token 1 26:1 word ".op"
+card 11 @parser/bsim3_schema.cir:27:1 lines=27-27 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 27:1 word ".end"

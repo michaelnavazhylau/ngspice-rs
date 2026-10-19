@@ -45,6 +45,7 @@ pub mod behavioural;
 pub mod binning;
 pub mod bjt;
 pub mod breaks;
+pub mod bsim3;
 pub use breaks::{BreakTable, SourceBreaks};
 pub mod circuit;
 pub mod controlled;

@@ -9,6 +9,7 @@
 //! simulator depends on this crate; it is a development tool. See
 //! `docs/port/VERIFICATION.md`.
 
+mod bsim3;
 mod ci;
 mod compare;
 mod golden;
@@ -35,6 +36,8 @@ USAGE:
                                            (no C binary needed; never writes goldens)
     cargo xtask snapshots [--bless]        check (or with --bless, regenerate) the committed
                                            token/AST snapshots; Rust only, no C needed
+    cargo xtask bsim3-schema --source <ngspice-checkout> [--check]
+                                           regenerate/check BSIM3 interface metadata
     cargo xtask ci                         fmt --check, clippy -D warnings, test
     cargo xtask help
 
@@ -64,6 +67,7 @@ fn main() -> ExitCode {
         Some("golden") => golden::main(&arguments[1..]),
         Some("snapshots") => snapshots::main(&arguments[1..]),
         Some("ci") => ci::main(),
+        Some("bsim3-schema") => bsim3::main(&arguments[1..]),
         Some(other) => Err(format!("unknown command '{other}'")),
     };
 

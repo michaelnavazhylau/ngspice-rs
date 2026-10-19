@@ -98,8 +98,11 @@ pub(crate) fn instantiate_with_models(
             }
             crate::devices::models::ModelFamily::Nmos
             | crate::devices::models::ModelFamily::Pmos => {
-                // `inpdomod.c`: the level selects the C device; the resolver
-                // admits only the ported levels.
+                // `inpdomod.c`: the level selects the C device. BSIM3 has
+                // schema validation only; never fall through to MOS1 stamps.
+                if matches!(model.levels().selector, 8 | 49) {
+                    return crate::devices::bsim3::instantiate(instance, &model, context);
+                }
                 return if model.levels().selector == 3 {
                     crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)
                 } else if model.levels().selector == 2 {
