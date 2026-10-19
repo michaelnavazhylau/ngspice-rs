@@ -1,15 +1,21 @@
 # BSIM3 and BSIM4 (`M`, M11, #90)
 
-**Status: B3-0 (input, setup), B3-1 (temperature/setup), B3-2 (DC),
+**Status: BSIM3 B3-0 (input, setup), B3-1 (temperature/setup), B3-2 (DC),
 B3-3 (`capMod=3` charges and transient) and B3-4 (`b3acld.c` AC/`.dc`/`.pz` and
 `b3noi.c` noise) are implemented for BSIM3v3.3.** Levels 8/49 select the
 BSIM3v3.3 schema, validate explicit setters after model binning (#109) and
 build a real device: `.op`, `.dc`, `.ac`, `.pz`, `.tf` and `.tran` solve
 through `b3ld.c`/`b3acld.c`/`b3pzld.c` and `.noise` through `b3noi.c`.
 **Still refused:** `capMod` 0/1/2 (a different charge equation set), every NQS
-mode (`nqsMod`/`acnqsMod`), `.disto`, `.sens`, older BSIM3 versions, BSIM4 and
-the other BSIM families. Each names its C file instead of substituting a law.
-**B3-0 is not complete:** the physical-unit audit is partial.
+mode (`nqsMod`/`acnqsMod`), `.disto`, `.sens` and older BSIM3 versions. Each
+names its C file instead of substituting a law.
+
+**BSIM4 is at B4-0 only:** levels 14/54 select the generated BSIM4 input schema
+(897 model and 98 instance rows), validate ordered explicit setters with C's
+unit conversions, and then the factory refuses the instance, naming the unported
+`bsim4/` setup and load. No BSIM4 `.model` card is ever simulated by a
+substituted model. **B3-0/B4-0 are not complete:** the physical-unit audit is
+partial.
 
 This guide is the implementation plan for **milestone M11**. #90 moved off M10 so
 that M10 closes on the device library defined in [M10.md](M10.md); the issue
@@ -262,7 +268,8 @@ the other BSIM families are unchanged.
 | B3-3 charges and transient | done for `capMod=3`/QS; `capMod` 0/1/2 and NQS refused |
 | B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf` and `.noise`; `.disto`/`.sens` refused |
 | B3-5 goldens and binning coverage | **not started**: no BSIM3 conformance fixture or committed golden exists yet; binning is covered only through the schema/setup tests |
-| B4-x BSIM4 | **not started** |
+| B4-0 tables/schema | done for the generated interface facts, the ordered setter projection and the explicit factory refusal; no defaults/temperature/diagnostics/load |
+| B4-x BSIM4 | **B4-1..B4-5 not started** |
 
 ### Next: what remains
 
@@ -284,6 +291,51 @@ the other BSIM families are unchanged.
    tables); no `.sens` curve is C-differential yet.
 6. **B3-5 goldens**, then **BSIM4** (B4-x) against `bsim4/`.
 7. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
+
+#### BSIM4 (B4-0)
+
+`cargo xtask bsim4-schema --source /path/to/ngspice [--check]` reads six clean
+upstream files (`b4.c`, `bsim4def.h`, `b4mpar.c`, `b4par.c`, `b4set.c`,
+`b4temp.c`) with the same generator BSIM3 uses (`xtask/src/ifparm.rs`, which
+reproduces BSIM3's committed tables byte for byte) and writes:
+
+- `src/devices/bsim4/parameters.rs`: all **897 model** and **98 instance**
+  rows in C order (893 distinct model IDs, so four redundant aliases:
+  `vtho`/`lvtho`/`wvtho`/`pvtho`; instance alias `delvt0`), 44 settable
+  instance rows, and C's `IF_UNINTERESTING` set (`IOPU` does occur in BSIM4:
+  `dtemp`) recorded rather than dropped.
+- `src/devices/bsim4/defaults_data.rs`: the **777** literal model defaults in
+  `b4set.c` order. Dependent defaults are deliberately absent.
+
+`devices::bsim4::model_parameters` applies ordered explicit setters with C's
+precedence, including `b4mpar.c`'s `TNOM + CONSTCtoK` and the NDEP (>1e20) /
+NSD (>1e23) / NGATE (>1e23) cm^-3 to m^-3 conversions, and `b4par.c`'s
+left-to-right geometry scaling. A model-level `m` becomes an instance default;
+level 14/54 both work; `version=4.5`/`4.6`/`4.7` refuse naming
+`bsim4v5`/`bsim4v6`/`bsim4v7`, and quoted/expression versions are refused by the
+card grammar.
+
+Two facts the port now pins, both C's: `INP2M`'s `model_numnodes` returns 4 for
+BSIM4 (the fifth `BSIM4names` entry, "Charge", is C's internal node), so the
+card takes four terminals; and the M grammar recognises BSIM4's instance
+keyword syntax (`nf`, `sa`/`sb`/`sd`, `sc*`, `rb*`, `rgeomod`, `trnqsmod`,
+`xgw`, `ngcon`, `min`, `mult_*`, `wnflag`) as *syntax only*, so a level-1 MOS
+card that uses them is refused by the device rather than silently ignored.
+
+Verification: `tests/bsim4_schema.rs` (offline: full table/alias/ID coverage,
+every keyword as a typed setter, ask-only rejection, conversions, version
+selection, and the factory refusal happening after validation and before any
+device is created) and the opt-in
+`c_bsim4_schema_reference::explicit_bsim4_setters_match_c_fields_for_both_level_aliases`,
+which reads the same fields back from C's model and instance structs for both
+level aliases to 1e-12 relative. The C behaviour it already caught: `ngcon` is
+re-derived by `b4set.c`, so it is not an explicit-setter field.
+
+Next for BSIM4 is B4-1: `b4set.c`'s dependent defaults and `b4temp.c`'s
+temperature/size pass (the 777 literals are the seed), then
+`b4check.c`/`b4soachk.c` diagnostics, then `b4ld.c`. `b4set.c` also owns the
+`rbodyMod`/`rgatemod`/`igcMod` mode checks and `b4geo.c`'s geometry, which are
+the parts that do not lift from BSIM3.
 
 ### Notes for the next slice (`capMod` 0/1/2)
 

@@ -788,11 +788,16 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
     if matches!(family, ModelFamily::Nmos | ModelFamily::Pmos) && matches!(selector, 8 | 49) {
         crate::devices::bsim3::select_version(card)?;
     }
+    if matches!(family, ModelFamily::Nmos | ModelFamily::Pmos) && matches!(selector, 14 | 54) {
+        crate::devices::bsim4::select_version(card)?;
+    }
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
-        // Classic backends and BSIM3's input schema. Successful selection
-        // never implies a simulation load: BSIM3's factory still refuses.
-        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1..=3 | 6 | 8 | 9 | 49),
+        // Classic backends and the BSIM3/BSIM4 input schemas. Successful
+        // selection never implies a simulation load: BSIM4's factory refuses.
+        ModelFamily::Nmos | ModelFamily::Pmos => {
+            matches!(selector, 1..=3 | 6 | 8 | 9 | 14 | 49 | 54)
+        }
         ModelFamily::Njf | ModelFamily::Pjf => true,
         ModelFamily::Nmf | ModelFamily::Pmf => true,
         ModelFamily::Diode => applied == Some(1),

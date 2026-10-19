@@ -104,6 +104,9 @@ pub(crate) fn instantiate_with_models(
                 if matches!(model.levels().selector, 8 | 49) {
                     return crate::devices::bsim3::instantiate(instance, nodes, &model, context);
                 }
+                if matches!(model.levels().selector, 14 | 54) {
+                    return crate::devices::bsim4::instantiate(instance, nodes, &model, context);
+                }
                 return if model.levels().selector == 3 {
                     crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)
                 } else if model.levels().selector == 2 {

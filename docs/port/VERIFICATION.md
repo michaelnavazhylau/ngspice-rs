@@ -272,6 +272,30 @@ live-C** checks pass with absolute `NGSPICE_BIN`, including the new
 C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
 are unchanged. See [URC.md](URC.md).
 
+## BSIM4 B4-0 input foundation (#90)
+
+The BSIM4 schema path mirrors B3-0 and shares the generator
+(`xtask/src/ifparm.rs`, which reproduces the committed BSIM3 tables byte for
+byte). `cargo xtask bsim4-schema --check` ties the committed facts to the
+recorded C revision: 897 model and 98 instance rows, 893 distinct model IDs,
+44 settable instance rows and C's one `IF_UNINTERESTING` row (`dtemp`), plus 777
+literal model defaults in `b4set.c` order.
+
+- `tests/bsim4_schema.rs` (12 tests) covers the full tables and aliases, every
+  model/instance keyword as a typed setter, ask-only rejection, `b4mpar.c`'s
+  TNOM/NDEP/NSD/NGATE conversions, `b4par.c`'s geometry scaling, the four
+  terminal card shape C's `INP2M` uses, version selection (4.5/4.6/4.7 refuse
+  by directory name; quoted versions fail in the grammar) and the factory
+  refusal happening after validation and before any device is created.
+- `c_bsim4_schema_reference` (opt-in) reads the same explicit setter fields back
+  from C's model and instance structs for levels 14 and 54 to 1e-12 relative. It
+  already caught that `b4set.c` re-derives `ngcon`, so that keyword is not an
+  explicit-setter field.
+
+The M-card grammar recognises BSIM4's instance keyword syntax as syntax only;
+`tests/transistor_parser.rs` pins that a level-1 NMOS card using `NF`/`SA`/`RBDB`
+is refused by the device rather than silently dropped.
+
 ## BSIM3 B3-0 input foundation (#90)
 
 The schema-only BSIM3 path has generated IFparm metadata for all 429 model

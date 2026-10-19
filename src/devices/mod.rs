@@ -46,6 +46,7 @@ pub mod binning;
 pub mod bjt;
 pub mod breaks;
 pub mod bsim3;
+pub mod bsim4;
 pub use breaks::{BreakTable, SourceBreaks};
 pub mod circuit;
 pub mod controlled;
@@ -54,6 +55,8 @@ pub mod distortion;
 mod factory;
 pub mod functions;
 pub mod hfet;
+/// Shared Berkeley short-channel input plumbing (BSIM3/BSIM4).
+pub(crate) mod ifparam;
 mod initial;
 pub mod jfet;
 pub mod jfet2;

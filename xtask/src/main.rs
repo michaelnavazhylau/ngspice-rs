@@ -10,9 +10,11 @@
 //! `docs/port/VERIFICATION.md`.
 
 mod bsim3;
+mod bsim4;
 mod ci;
 mod compare;
 mod golden;
+mod ifparm;
 mod ngspice;
 #[path = "../../conformance/reference.rs"]
 mod reference;
@@ -38,6 +40,8 @@ USAGE:
                                            token/AST snapshots; Rust only, no C needed
     cargo xtask bsim3-schema --source <ngspice-checkout> [--check]
                                            regenerate/check BSIM3 interface metadata
+    cargo xtask bsim4-schema --source <ngspice-checkout> [--check]
+                                           regenerate/check BSIM4 interface metadata
     cargo xtask ci                         fmt --check, clippy -D warnings, test
     cargo xtask help
 
@@ -68,6 +72,7 @@ fn main() -> ExitCode {
         Some("snapshots") => snapshots::main(&arguments[1..]),
         Some("ci") => ci::main(),
         Some("bsim3-schema") => bsim3::main(&arguments[1..]),
+        Some("bsim4-schema") => bsim4::main(&arguments[1..]),
         Some(other) => Err(format!("unknown command '{other}'")),
     };
 

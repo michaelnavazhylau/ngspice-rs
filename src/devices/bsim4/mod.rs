@@ -1,0 +1,225 @@
+//! BSIM4.8 input plumbing (B4-0 foundation, #90).
+//!
+//! This is deliberately **not a simulation backend**. The generated IFparm
+//! interface facts cover the complete model/instance tables (897 model and 98
+//! instance rows, plus C's `IF_UNINTERESTING` set), and the validated
+//! projection applies ordered explicit setters with C's ordering, aliases,
+//! given-bit precedence and unit conversions.
+//!
+//! `b4set.c`/`b4temp.c` defaults, `b4check.c`/`b4soachk.c` diagnostics, the
+//! effective geometry and the `b4ld.c` load are **not** ported, so the factory
+//! refuses every instance after validation, before interning nodes or
+//! allocating state. Refusing is the contract: a BSIM4 card must never be
+//! simulated by a substituted model.
+use crate::devices::ifparam::Device;
+use crate::devices::models::{ModelFamily, ResolvedModel};
+use crate::devices::schema::temperature_kelvin;
+use crate::netlist::ast::{DeviceInstance, ModelCard, ParameterAssignment};
+use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult};
+
+use crate::devices::ifparam::{descriptor, version_text};
+
+pub use crate::devices::ifparam::{
+    Access, AppliedParameter, Diagnostic, InputType, Inputs, Parameter, Value,
+};
+
+mod defaults_data;
+/// Generated IFparm order, identifiers and setter/given-field mappings.
+pub mod parameters;
+
+/// The generated literal model defaults in C setup order (`b4set.c`).
+///
+/// Exposed because the dependent-default and temperature stages
+/// (`b4set.c`/`b4temp.c`) that consume them are not ported yet; the facts are
+/// committed so that stage starts from reviewed data rather than a re-read of C.
+#[must_use]
+pub fn literal_defaults() -> &'static [(&'static str, f64)] {
+    defaults_data::LITERALS
+}
+
+/// The BSIM4 interface descriptor the shared input plumbing uses.
+pub(crate) const DEVICE: Device = Device {
+    reference: "bsim4/b4.c",
+    model: parameters::MODEL,
+    instance: parameters::INSTANCE,
+    uninteresting: parameters::UNINTERESTING,
+    ic_names: ["icvds", "icvgs", "icvbs"],
+    model_real: bsim4_model_real,
+};
+
+/// `b4mpar.c`: TNOM adds CONSTCtoK; NDEP converts above 1e20 and NSD/NGATE
+/// above 1e23 (and their L/W/P coefficients likewise) from cm^-3 to m^-3.
+fn bsim4_model_real(p: &Parameter, value: Real, location: &SourceLoc) -> SpiceResult<Real> {
+    if p.canonical == "tnom" {
+        return temperature_kelvin(value, location);
+    }
+    let field = p.c_field.unwrap_or_default();
+    let threshold = if field.ends_with("ndep") {
+        1e20
+    } else if field.ends_with("nsd") || field.ends_with("ngate") {
+        1e23
+    } else {
+        Real::INFINITY
+    };
+    Ok(if value > threshold {
+        value * 1e-6
+    } else {
+        value
+    })
+}
+
+/// C's `IF_UNINTERESTING` rows, as `TABLE:keyword` pairs.
+#[must_use]
+pub fn uninteresting() -> &'static [&'static str] {
+    DEVICE.uninteresting
+}
+
+/// Validated explicit model inputs, distinct from a setup/defaulted model.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelParameters {
+    /// Applied model setters; unset/defaulted values are deliberately absent.
+    pub inputs: Inputs,
+    /// Last effective polarity flag, initially the model family (+1 NMOS/-1 PMOS).
+    pub polarity: i8,
+    instance_defaults: Vec<ParameterAssignment>,
+    location: SourceLoc,
+}
+
+impl ModelParameters {
+    /// Apply reversed model-level instance defaults, then instance setters
+    /// (`inpgmod.c`/`inpdpar.c`). C discards model-level `m`, not instance `m`.
+    ///
+    /// # Errors
+    /// Unknown/ask-only setters, invalid shapes, nonfinite input, integer or
+    /// scaled-geometry overflow. No physical setup check is performed: the
+    /// `b4set.c`/`b4temp.c` stage is not ported.
+    pub fn instance_parameters(
+        &self,
+        instance: &DeviceInstance,
+        scale: Real,
+    ) -> SpiceResult<Inputs> {
+        if instance.designator != 'm' || !scale.is_finite() || scale <= 0. {
+            return Err(SpiceError::parse(
+                instance.location.clone(),
+                "BSIM4 needs an M instance and a finite positive scale",
+            ));
+        }
+        // BSIM4 has three- and four-terminal forms; the bulk node is optional.
+        if !matches!(instance.nodes.len(), 3 | 4) {
+            return Err(SpiceError::parse(
+                instance.location.clone(),
+                "BSIM4 needs three or four terminals: drain, gate, source[, bulk]",
+            ));
+        }
+        let mut inputs = Inputs::new(&DEVICE, false);
+        for p in self.instance_defaults.iter().chain(&instance.parameters) {
+            inputs.apply(p, scale)?;
+        }
+        Ok(inputs)
+    }
+}
+
+/// Validate explicit BSIM4 model setters, including their instance-default
+/// fallback, in C order. This does **not** apply `b4set.c` defaults or claim
+/// that `b4check.c`/`b4soachk.c` diagnostics have run.
+///
+/// # Errors
+/// Wrong family/level/version, unknown/read-only setters or invalid typed input.
+pub fn model_parameters(model: &ResolvedModel<'_>) -> SpiceResult<ModelParameters> {
+    if !matches!(model.family(), ModelFamily::Nmos | ModelFamily::Pmos)
+        || !matches!(model.levels().selector, 14 | 54)
+    {
+        return Err(SpiceError::parse(
+            model.card().location.clone(),
+            "BSIM4 input schema requires NMOS/PMOS level 14 or 54",
+        ));
+    }
+    select_version(model.card())?;
+    let mut result = ModelParameters {
+        inputs: Inputs::new(&DEVICE, true),
+        polarity: if model.family() == ModelFamily::Nmos {
+            1
+        } else {
+            -1
+        },
+        instance_defaults: Vec::new(),
+        location: model.card().location.clone(),
+    };
+    for p in &model.card().parameters {
+        if p.name.eq_ignore_ascii_case("level") {
+            continue;
+        }
+        if descriptor(parameters::MODEL, &p.name).is_some() {
+            result.inputs.apply(p, 1.)?;
+            if p.name.eq_ignore_ascii_case("nmos") {
+                result.polarity = 1;
+            }
+            if p.name.eq_ignore_ascii_case("pmos") {
+                result.polarity = -1;
+            }
+        } else {
+            let mut check = Inputs::new(&DEVICE, false);
+            check.apply(p, 1.)?;
+            if !p.name.eq_ignore_ascii_case("m") {
+                result.instance_defaults.push(p.clone());
+            }
+        }
+    }
+    result.instance_defaults.reverse();
+    Ok(result)
+}
+
+/// Select the BSIM4 directory from the **first** VERSION token, as
+/// `inpdomod.c`/`INPfindVer` do. Only the current `bsim4/` family is being
+/// ported; the `bsim4v5`/`bsim4v6`/`bsim4v7` variants are refused by name.
+///
+/// # Errors
+/// Unsupported versions, or nonliteral version input.
+pub fn select_version(card: &ModelCard) -> SpiceResult<&str> {
+    let version = card
+        .parameters
+        .iter()
+        .find(|p| p.name.eq_ignore_ascii_case("version"));
+    let Some(p) = version else {
+        return Ok("");
+    };
+    let text = version_text(p)?;
+    let reference = if text.starts_with("4.5") {
+        "src/spicelib/devices/bsim4v5/"
+    } else if text.starts_with("4.6") {
+        "src/spicelib/devices/bsim4v6/"
+    } else if text.starts_with("4.7") {
+        "src/spicelib/devices/bsim4v7/"
+    } else if text.starts_with("4.8") || text.is_empty() {
+        return Ok(text);
+    } else {
+        "src/spicelib/parser/inpdomod.c, inpfindv.c (no supported BSIM4 VERSION)"
+    };
+    Err(SpiceError::not_yet_ported(
+        format!("{}: model '{}' BSIM4 version {text}", p.location, card.name),
+        reference,
+    ))
+}
+
+/// Schema-only dispatch target. Never creates a dummy Device or a partial
+/// circuit: the missing setup and load are explicit factory errors, naming the
+/// C files the port still owes.
+pub(crate) fn instantiate(
+    instance: &DeviceInstance,
+    _nodes: &mut crate::primitives::NodeTable,
+    model: &ResolvedModel<'_>,
+    _context: &crate::devices::ModelContext,
+) -> SpiceResult<Box<dyn crate::devices::Device>> {
+    let params = model_parameters(model)?;
+    params.instance_parameters(instance, 1.)?;
+    Err(SpiceError::not_yet_ported(
+        format!(
+            "{}: BSIM4 model '{}' (level {})",
+            instance.name,
+            model.card().name,
+            model.levels().selector
+        ),
+        "src/spicelib/devices/bsim4/ (b4set.c defaults, b4temp.c temperature, \
+         b4check.c/b4soachk.c diagnostics, b4ld.c load)",
+    ))
+}

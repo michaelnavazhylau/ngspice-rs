@@ -493,3 +493,9 @@ pub const INSTANCE: &[Parameter] = &[
     Parameter::new("capbd", "capbd", 779, "BSIM3_CAPBD", None, None, InputType::Real, Access::Output, false),
     Parameter::new("capbs", "capbs", 781, "BSIM3_CAPBS", None, None, InputType::Real, Access::Output, false),
 ];
+
+/// Entries C marks `IF_UNINTERESTING` (`IOPU`/`IOPUR`): settable and
+/// askable, but omitted from `show all`. `TABLE:keyword` pairs in table order.
+#[rustfmt::skip]
+pub const UNINTERESTING: &[&str] = &[
+];
