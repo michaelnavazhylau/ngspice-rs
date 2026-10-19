@@ -285,6 +285,36 @@ the other BSIM families are unchanged.
 6. **B3-5 goldens**, then **BSIM4** (B4-x) against `bsim4/`.
 7. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
 
+### Notes for the next slice (`capMod` 0/1/2)
+
+Measured from the C files while porting `capMod=3`, so the next session does not
+rediscover them:
+
+- `capMod=2` (~1791-1954) and `capMod=1` (~1629-1790) share the C-V preamble
+  the port already computes (`VbseffCV`, `CoxWL`, the `noff`/`voffcv`
+  `Vgsteff`), then differ only in the charge/VdsatCV handling and the
+  partitioning. `capMod=0` (~1265-1620) is the outlier: it *overwrites*
+  `Vbseff`/`dVbseff_dVb` (from `Vbs`/`Phis`, not the C-V preamble), uses
+  `Vfb = pParam->vfbcv`, `Vth = Vfb + phi + k1ox sqrtPhis` and the DC `Vgst`
+  rather than `Vgsteff`, and carries six partition/region sub-blocks.
+- Three C quirks must be reproduced rather than "fixed":
+  - `capMod=2`'s 40/60 partition computes `Csg = (T4 + T5*dVdseffCV_dVg)`
+    **without** the `CoxWL` factor its 0/100 arm applies.
+  - `capMod=2` stores `qinv = qinoi`, while `capMod=3` stores `-qinoi`.
+  - `capMod=1`'s saturation arm uses `T0 = -0.4*CoxWL` for `xpart < 0.5`, the
+    same constant as the linear arm but scaled by `Vgsteff`.
+- The overlap capacitances have three variants, not two: `capMod=0` uses
+  `cgdo = pParam->cgdo` with `qgdo = cgdo*vgd` (no `cgdl`/`ckappa` term),
+  `capMod=1` uses the `sqrt(1 - 4 vgd / ckappa)` form, and `capMod >= 2` the
+  `DELTA_1 = 0.02` form the port already implements.
+- The junction C-V, the `gc*`/`NIintegrate` wiring, the small-signal load and
+  the noise model are all independent of `capMod` and need no changes.
+
+Verification for each new mode should extend
+`tests/c_bsim3_charge_reference.rs` with a `capmod` field in its `Case` (the
+harness already compares `qg`/`qb`/`qd` and `cgg`..`cbs` at C's converged
+bias), and `c_bsim3_small_signal_reference.rs` with an `.ac` deck per mode.
+
 ### B3-1 · Temperature and instance setup
 
 `b3temp.c` (894 lines) plus `b3set.c`'s geometry and *given*-flag handling:
