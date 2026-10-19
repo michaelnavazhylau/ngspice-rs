@@ -125,6 +125,59 @@ fn parameter_check_diagnostics_match_c() {
 }
 
 #[test]
+#[ignore = "requires absolute NGSPICE_BIN; shared-model resets across instances"]
+fn model_resets_persist_across_instances_like_c() {
+    let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
+    assert!(binary.is_absolute());
+    let card = "paramchk=1 calcacm=3 cgdo=-1p cgso=-2p cgbo=-3p";
+    // Two instances of one model: C reports the resets once, then reuses the
+    // corrected model for the second instance.
+    let deck = format!(
+        "probe\nvd d 0 0.1\nvg g 0 1\n\
+         m1 d g 0 0 nn l=1u w=2u pd=4u ps=4u\n\
+         m2 d g 0 0 nn l=2u w=2u pd=4u ps=4u\n\
+         .model nn nmos level=8 {card}\n.options temp=27 tnom=27\n\
+         .control\nop\nquit\n.endc\n.end\n"
+    );
+    let (log, _exit_ok) = run_c(&binary, &deck, "shared");
+    assert!(!log.contains("Fatal error:"), "{log}");
+    let expected = c_check_lines(&log);
+
+    let text = format!(
+        "shared\nm1 d g 0 0 nn l=1u w=2u pd=4u ps=4u\n\
+         m2 d g 0 0 nn l=2u w=2u pd=4u ps=4u\n\
+         .model nn nmos level=8 {card}\n.end\n"
+    );
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(Path::new("shared.cir"), &text))
+        .unwrap();
+    let resolver = ModelResolver::new(&netlist.models).unwrap();
+    let context = ModelContext::new(27., 27.);
+    let mut shared =
+        bsim3::model_parameters(&resolver.resolve(&netlist.devices[0]).unwrap().unwrap())
+            .unwrap()
+            .model_setup(&context, &netlist.devices[0].location)
+            .unwrap();
+    let mut actual = Vec::new();
+    for device in &netlist.devices {
+        let resolved = resolver.resolve(device).unwrap().unwrap();
+        let inputs = bsim3::model_parameters(&resolved)
+            .unwrap()
+            .instance_parameters(device, 1.)
+            .unwrap();
+        let setup = shared.setup_instance(&inputs, &device.location).unwrap();
+        actual.extend(
+            setup
+                .warnings
+                .iter()
+                .filter(|d| d.message.starts_with("Warning:"))
+                .map(|d| d.message.clone()),
+        );
+    }
+    assert_eq!(actual, expected);
+}
+
+#[test]
 #[ignore = "requires absolute NGSPICE_BIN; differential b3check.c check parity"]
 fn fatal_parameter_checks_match_c() {
     let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));

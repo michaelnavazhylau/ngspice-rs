@@ -133,6 +133,61 @@ pub struct InstanceSetup {
     pub warnings: Vec<Diagnostic>,
 }
 
+/// Mutable model state that C keeps in one `BSIM3model` struct and that
+/// `b3check.c` can reset while setting up an instance. Reuse one value for
+/// every instance of a model: the resets persist, as they do in C.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelSetup {
+    defaults: ModelDefaults,
+    temperature: TemperatureModel,
+    cgdo: Real,
+    cgso: Real,
+    cgbo: Real,
+    calcacm: i32,
+}
+
+impl ModelSetup {
+    /// Capture the defaulted model and its temperature pass.
+    ///
+    /// # Errors
+    /// Missing internal model fields.
+    pub fn new(defaults: ModelDefaults, temperature: TemperatureModel) -> SpiceResult<Self> {
+        Ok(Self {
+            cgdo: model_value(&defaults, "cgdo")?,
+            cgso: model_value(&defaults, "cgso")?,
+            cgbo: model_value(&defaults, "cgbo")?,
+            calcacm: model_int(&defaults, "calcacm")?,
+            defaults,
+            temperature,
+        })
+    }
+
+    /// The model fields this state was built from.
+    #[must_use]
+    pub const fn defaults(&self) -> &ModelDefaults {
+        &self.defaults
+    }
+
+    /// The model-level temperature pass.
+    #[must_use]
+    pub const fn temperature(&self) -> &TemperatureModel {
+        &self.temperature
+    }
+
+    /// Set up one instance against the shared model state, applying any
+    /// `b3check.c` model resets in C order.
+    ///
+    /// # Errors
+    /// See [`InstanceSetup::new`].
+    pub fn setup_instance(
+        &mut self,
+        instance: &Inputs,
+        location: &SourceLoc,
+    ) -> SpiceResult<InstanceSetup> {
+        InstanceSetup::with_model(self, instance, location)
+    }
+}
+
 /// Every `b3temp.c` size-dependent parameter keyword, in C order.
 #[must_use]
 pub fn size_dependent_names() -> Vec<&'static str> {
@@ -169,6 +224,23 @@ impl InstanceSetup {
         instance: &Inputs,
         location: &SourceLoc,
     ) -> SpiceResult<Self> {
+        let mut shared = ModelSetup::new(model.clone(), temperature.clone())?;
+        Self::with_model(&mut shared, instance, location)
+    }
+
+    fn with_model(
+        shared: &mut ModelSetup,
+        instance: &Inputs,
+        location: &SourceLoc,
+    ) -> SpiceResult<Self> {
+        let ModelSetup {
+            defaults: model,
+            temperature,
+            cgdo: model_cgdo,
+            cgso: model_cgso,
+            cgbo: model_cgbo,
+            calcacm,
+        } = shared;
         let acm = model_int(model, "acm")?;
         if acm != 0 {
             return Err(SpiceError::not_yet_ported(
@@ -179,12 +251,14 @@ impl InstanceSetup {
             ));
         }
         let mut warnings = Vec::new();
-        let calcacm = model_int(model, "calcacm")?;
-        if calcacm > 0 && acm != 12 {
+        let calcacm_value = *calcacm;
+        if calcacm_value > 0 && acm != 12 {
             warnings.push(Diagnostic::warning(
-                format!("Warning: CALCACM = {calcacm} is wrong. Set back to 0."),
+                format!("Warning: CALCACM = {calcacm_value} is wrong. Set back to 0."),
                 "src/spicelib/devices/bsim3/b3check.c",
             ));
+            // C leaves the model field at zero, so later instances stay quiet.
+            *calcacm = 0;
         }
 
         // `b3set.c` instance defaults, in C order.
@@ -806,10 +880,8 @@ impl InstanceSetup {
                 }
             }
         }
-        // The CGDO/CGSO/CGBO resets belong to the `paramchk` block in C.
-        let mut model_cgdo = model_value(model, "cgdo")?;
-        let mut model_cgso = model_value(model, "cgso")?;
-        let mut model_cgbo = model_value(model, "cgbo")?;
+        // The CGDO/CGSO/CGBO resets belong to the `paramchk` block in C and
+        // persist in the shared model.
         if model_int(model, "paramchk")? == 1 {
             let reset = |value: &mut Real, name: &str, diagnostics: &mut Vec<Diagnostic>| {
                 if *value < 0.0 {
@@ -823,9 +895,9 @@ impl InstanceSetup {
                     *value = 0.0;
                 }
             };
-            reset(&mut model_cgdo, "cgdo", &mut diagnostics);
-            reset(&mut model_cgso, "cgso", &mut diagnostics);
-            reset(&mut model_cgbo, "cgbo", &mut diagnostics);
+            reset(model_cgdo, "cgdo", &mut diagnostics);
+            reset(model_cgso, "cgso", &mut diagnostics);
+            reset(model_cgbo, "cgbo", &mut diagnostics);
         }
         if fatal {
             let messages: Vec<_> = diagnostics
@@ -846,9 +918,9 @@ impl InstanceSetup {
         // Overlap capacitances and C's `tconst` (see the quirk note above).
         let cox = model.oxide_capacitance;
         let cf = p.get("cf").copied().expect("binned");
-        p.insert("cgdo", (model_cgdo + cf) * weff_cv);
-        p.insert("cgso", (model_cgso + cf) * weff_cv);
-        p.insert("cgbo", model_cgbo * leff_cv);
+        p.insert("cgdo", (*model_cgdo + cf) * weff_cv);
+        p.insert("cgso", (*model_cgso + cf) * weff_cv);
+        p.insert("cgbo", *model_cgbo * leff_cv);
         let elm = p.get("elm").copied().expect("binned");
         let mut tconst_quirk = u0temp * elm / (cox * weff_cv * leff_cv * (leff_cv * leff_cv));
         p.insert("tconst", tconst_quirk);

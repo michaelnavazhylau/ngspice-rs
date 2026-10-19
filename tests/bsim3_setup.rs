@@ -293,6 +293,62 @@ fn junction_temperature_and_breakdown_follow_b3temp() {
 }
 
 #[test]
+fn shared_model_resets_apply_once_across_instances_like_c() {
+    // C resets the model's negative CGDO and CALCACM while setting up the
+    // first instance, so the second instance sees the corrected model.
+    let text = "shared\nm1 d g 0 0 nn l=1u w=2u pd=4u ps=4u\n\
+                m2 d g 0 0 nn l=2u w=2u pd=4u ps=4u\n\
+                .model nn nmos level=8 paramchk=1 calcacm=3 cgdo=-1p cgso=-2p cgbo=-3p\n.end\n";
+    let netlist = Parser::new()
+        .parse_deck(&parse_deck_text(Path::new("shared.cir"), text))
+        .unwrap();
+    let resolver = ModelResolver::new(&netlist.models).unwrap();
+    let context = ModelContext::new(27., 27.);
+    let mut shared =
+        bsim3::model_parameters(&resolver.resolve(&netlist.devices[0]).unwrap().unwrap())
+            .unwrap()
+            .model_setup(&context, &netlist.devices[0].location)
+            .unwrap();
+    let mut per_instance = Vec::new();
+    for device in &netlist.devices {
+        let resolved = resolver.resolve(device).unwrap().unwrap();
+        let inputs = bsim3::model_parameters(&resolved)
+            .unwrap()
+            .instance_parameters(device, 1.)
+            .unwrap();
+        per_instance.push(shared.setup_instance(&inputs, &device.location).unwrap());
+    }
+    let expected = [
+        "Warning: CALCACM = 3 is wrong. Set back to 0.",
+        "Warning: cgdo = -1e-12 is negative. Set to zero.",
+        "Warning: cgso = -2e-12 is negative. Set to zero.",
+        "Warning: cgbo = -3e-12 is negative. Set to zero.",
+    ];
+    assert_eq!(messages(&per_instance[0].warnings), expected);
+    assert!(
+        per_instance[1].warnings.is_empty(),
+        "{:?}",
+        per_instance[1].warnings
+    );
+    // Both instances then use the reset model values, as C does.
+    let cf = per_instance[0].pparam("cf").unwrap();
+    close(per_instance[0].cgdo, cf * per_instance[0].weff_cv);
+    close(per_instance[1].cgdo, cf * per_instance[1].weff_cv);
+    // A fresh single-instance setup still reports the resets.
+    assert_eq!(
+        messages(
+            &setup(
+                "paramchk=1 calcacm=3 cgdo=-1p cgso=-2p cgbo=-3p",
+                "l=1u w=2u pd=4u ps=4u",
+                27.
+            )
+            .warnings
+        ),
+        expected
+    );
+}
+
+#[test]
 fn acm_geometry_is_refused_explicitly_not_approximated() {
     let error = try_setup("acm=1", "l=1u w=2u", 27.).expect_err("ACM");
     assert!(

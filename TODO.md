@@ -290,8 +290,11 @@ remain explicit, rather than implying complete ngspice output compatibility.
   83 size-dependent binning rows, derived Φ/Vbi/Xdep0/K1/K2/VFB/VTH0/VFBZB
   parameters, junction/breakdown terms and `b3check.c` fatal/warning parity.
   Factory validation still refuses loads.
-- [ ] Finish B3-0: complete physical-unit audit, shared-model reset ordering
-  across multiple instances, and the load/observable equations.
+- [x] Shared-model reset ordering: `ModelSetup` persists `b3check.c`'s CALCACM
+  and CGDO/CGSO/CGBO resets across the instances of one model, verified against
+  C's single warning for a two-instance card.
+- [ ] Finish B3-0: complete physical-unit audit and the load/observable
+  equations (DC first, then charges/AC/noise), which remain the #90 blocker.
 - [ ] B3-1..B3-5 and BSIM4: temperature/setup, DC, charges/transient, small
   signal/noise/pole-zero and representative PDK C simulation goldens. #90 stays
   open. See [BSIM.md](docs/port/BSIM.md) for the measured scope and current APIs.

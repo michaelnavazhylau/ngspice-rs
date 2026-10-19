@@ -313,6 +313,10 @@ Setup stage (`b3set.c`, `b3temp.c`, `b3check.c`) verification:
   aborted analysis, so the comparison uses C's own messages, not its status.
 - Opt-in `c_bsim3_schema_reference` additionally compares all 422 numeric model
   fields after defaults across six NMOS/PMOS/context cases.
+- Opt-in `c_bsim3_setup_reference::model_resets_persist_across_instances_like_c`
+  checks that one `ModelSetup` used for two instances of the same model reports
+  C's CALCACM/CGDO/CGSO/CGBO resets exactly once, as C's shared model struct
+  does.
 
 With setup included: 1543 passed / 0 failed / 156 ignored on macOS stable and
 Rust 1.89; 1548 passed / 0 failed / 156 ignored on GNU Linux x86-64 with the

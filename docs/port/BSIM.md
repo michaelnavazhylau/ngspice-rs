@@ -151,11 +151,16 @@ geometry, size-dependent parameters and `b3check.c`) expose the setup stage:
 - ACM geometry (`acm != 0`) is refused explicitly: `ACM_SourceDrainResistances`
   is shared, unported C code. Nothing is approximated by the non-ACM path.
 
-The shared-model mutation order of C's single `BSIM3model` across several
-instances (which a `b3check.c` reset can affect) belongs to the later
-model/instance layer; each `setup_instance` call currently applies resets to its
-own result. No `.op`/`.dc`/`.ac`/`.tran` and #90 acceptance gate follows from
-setup. BSIM4 and every B3-1..B3-5 equation slice are unchanged.
+`b3check.c` resets live in C's single `BSIM3model` struct, so a reset made while
+setting up one instance changes the model every later instance sees.
+`ModelParameters::model_setup` returns a mutable `ModelSetup` that holds that
+state; `ModelSetup::setup_instance` applies CALCACM and CGDO/CGSO/CGBO resets in
+C order and keeps them, so a model with two instances warns once and then uses
+the corrected values. `ModelParameters::setup_instance` is the single-instance
+convenience over a fresh `ModelSetup`.
+
+No `.op`/`.dc`/`.ac`/`.tran` and #90 acceptance gate follows from setup. BSIM4
+and every B3-1..B3-5 equation slice are unchanged.
 
 ### B3-1 · Temperature and instance setup
 

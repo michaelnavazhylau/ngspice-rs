@@ -446,6 +446,22 @@ impl ModelParameters {
         Ok(result)
     }
 
+    /// Shared, mutable model state for setting up several instances of one
+    /// model. `b3check.c` resets (CALCACM, CGDO/CGSO/CGBO) persist across
+    /// instances in C's single model struct, so reuse one value per model.
+    ///
+    /// # Errors
+    /// Invalid defaults/temperature processing.
+    pub fn model_setup(
+        &self,
+        context: &crate::devices::ModelContext,
+        location: &SourceLoc,
+    ) -> SpiceResult<setup::ModelSetup> {
+        let defaults = self.model_defaults(context)?;
+        let temperature = defaults.at_temperature(context.temperature, location)?;
+        setup::ModelSetup::new(defaults, temperature)
+    }
+
     /// Apply reversed model-level instance defaults, then instance setters
     /// (`inpgmod.c`/`inpdpar.c`). C discards model-level M, not instance M.
     /// `scale` is the caller's explicit geometry scale; deck options which the
