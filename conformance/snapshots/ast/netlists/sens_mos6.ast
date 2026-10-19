@@ -1,0 +1,142 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_mos6.cir
+title: "Classic MOS level 6 sensitivity (#164)" @netlists/sens_mos6.cir:1:1
+scope root
+  cards (15):
+    [0] options[0] @netlists/sens_mos6.cir:7:1 ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+    [1] device[0] @netlists/sens_mos6.cir:8:1 "vdn dn 0 3"
+    [2] device[1] @netlists/sens_mos6.cir:9:1 "vdp dp 0 -3"
+    [3] device[2] @netlists/sens_mos6.cir:10:1 "vgn gn 0 2"
+    [4] device[3] @netlists/sens_mos6.cir:11:1 "vgp gp 0 -1.8"
+    [5] device[4] @netlists/sens_mos6.cir:12:1 "vbn bn 0 -0.3"
+    [6] device[5] @netlists/sens_mos6.cir:13:1 "vbp bp 0 0.3"
+    [7] device[6] @netlists/sens_mos6.cir:14:1 "vsense s 0 0"
+    [8] device[7] @netlists/sens_mos6.cir:15:1 "m1 dn gn s bn mn l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3 m=2 dtemp=15"
+    [9] device[8] @netlists/sens_mos6.cir:16:1 "m2 dn gn s bn mn l=12u w=30u ad=15p as=25p pd=12u ps=24u nrd=3 nrs=2"
+    [10] device[9] @netlists/sens_mos6.cir:17:1 "m3 dp gp s bp mp l=15u w=10u ad=20p as=10p pd=20u ps=10u nrd=2 nrs=3 temp=60"
+    [11] model[0] @netlists/sens_mos6.cir:18:1 ".model mn nmos level=6 tox=20n nsub=1e16 nss=1e10 rsh=100 lambda=0.02 gamma1=0.05 sigma=0.02 kv=1.5 nv=0.7 nc=1.2 nvth=0.8 ps=0.2"
+    [12] model[1] @netlists/sens_mos6.cir:19:1 ".model mp pmos level=6 vto=-0.7 kc=50u gamma=0.5 phi=0.6 nsub=1e16 rd=50 rs=100 tnom=50 lambda=0.02 gamma1=0.05 sigma=0.02 kv=1.5 nv=0.7 nc=1.2 nvth=0.8 ps=0.2"
+    [13] analysis[0] @netlists/sens_mos6.cir:20:1 ".sens i(vsense)"
+    [14] end @netlists/sens_mos6.cir:21:1 ".end"
+  devices (10):
+    device [0] name="vdn" designator=v @netlists/sens_mos6.cir:8:1
+      nodes: "dn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/sens_mos6.cir:8:10
+    device [1] name="vdp" designator=v @netlists/sens_mos6.cir:9:1
+      nodes: "dp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-3" @netlists/sens_mos6.cir:9:10
+    device [2] name="vgn" designator=v @netlists/sens_mos6.cir:10:1
+      nodes: "gn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="2" @netlists/sens_mos6.cir:10:10
+    device [3] name="vgp" designator=v @netlists/sens_mos6.cir:11:1
+      nodes: "gp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1.8" @netlists/sens_mos6.cir:11:10
+    device [4] name="vbn" designator=v @netlists/sens_mos6.cir:12:1
+      nodes: "bn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.3" @netlists/sens_mos6.cir:12:10
+    device [5] name="vbp" designator=v @netlists/sens_mos6.cir:13:1
+      nodes: "bp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.3" @netlists/sens_mos6.cir:13:10
+    device [6] name="vsense" designator=v @netlists/sens_mos6.cir:14:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_mos6.cir:14:12
+    device [7] name="m1" designator=m @netlists/sens_mos6.cir:15:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "mn"
+      parameters (10):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_mos6.cir:15:18
+        [1] name="w" kind=scalar value="20u" @netlists/sens_mos6.cir:15:24
+        [2] name="ad" kind=scalar value="10p" @netlists/sens_mos6.cir:15:30
+        [3] name="as" kind=scalar value="20p" @netlists/sens_mos6.cir:15:37
+        [4] name="pd" kind=scalar value="10u" @netlists/sens_mos6.cir:15:44
+        [5] name="ps" kind=scalar value="20u" @netlists/sens_mos6.cir:15:51
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_mos6.cir:15:58
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_mos6.cir:15:64
+        [8] name="m" kind=scalar value="2" @netlists/sens_mos6.cir:15:70
+        [9] name="dtemp" kind=scalar value="15" @netlists/sens_mos6.cir:15:74
+    device [8] name="m2" designator=m @netlists/sens_mos6.cir:16:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "mn"
+      parameters (8):
+        [0] name="l" kind=scalar value="12u" @netlists/sens_mos6.cir:16:18
+        [1] name="w" kind=scalar value="30u" @netlists/sens_mos6.cir:16:24
+        [2] name="ad" kind=scalar value="15p" @netlists/sens_mos6.cir:16:30
+        [3] name="as" kind=scalar value="25p" @netlists/sens_mos6.cir:16:37
+        [4] name="pd" kind=scalar value="12u" @netlists/sens_mos6.cir:16:44
+        [5] name="ps" kind=scalar value="24u" @netlists/sens_mos6.cir:16:51
+        [6] name="nrd" kind=scalar value="3" @netlists/sens_mos6.cir:16:58
+        [7] name="nrs" kind=scalar value="2" @netlists/sens_mos6.cir:16:64
+    device [9] name="m3" designator=m @netlists/sens_mos6.cir:17:1
+      nodes: "dp" "gp" "s" "bp"
+      model: "mp"
+      parameters (9):
+        [0] name="l" kind=scalar value="15u" @netlists/sens_mos6.cir:17:18
+        [1] name="w" kind=scalar value="10u" @netlists/sens_mos6.cir:17:24
+        [2] name="ad" kind=scalar value="20p" @netlists/sens_mos6.cir:17:30
+        [3] name="as" kind=scalar value="10p" @netlists/sens_mos6.cir:17:37
+        [4] name="pd" kind=scalar value="20u" @netlists/sens_mos6.cir:17:44
+        [5] name="ps" kind=scalar value="10u" @netlists/sens_mos6.cir:17:51
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_mos6.cir:17:58
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_mos6.cir:17:64
+        [8] name="temp" kind=scalar value="60" @netlists/sens_mos6.cir:17:70
+  models (2):
+    model [0] name="mn" base="nmos" level=6e0 @netlists/sens_mos6.cir:18:1
+      parameters (13):
+        [0] name="level" kind=scalar value="6" @netlists/sens_mos6.cir:18:16
+        [1] name="tox" kind=scalar value="20n" @netlists/sens_mos6.cir:18:24
+        [2] name="nsub" kind=scalar value="1e16" @netlists/sens_mos6.cir:18:32
+        [3] name="nss" kind=scalar value="1e10" @netlists/sens_mos6.cir:18:42
+        [4] name="rsh" kind=scalar value="100" @netlists/sens_mos6.cir:18:51
+        [5] name="lambda" kind=scalar value="0.02" @netlists/sens_mos6.cir:18:59
+        [6] name="gamma1" kind=scalar value="0.05" @netlists/sens_mos6.cir:18:71
+        [7] name="sigma" kind=scalar value="0.02" @netlists/sens_mos6.cir:18:83
+        [8] name="kv" kind=scalar value="1.5" @netlists/sens_mos6.cir:18:94
+        [9] name="nv" kind=scalar value="0.7" @netlists/sens_mos6.cir:18:101
+        [10] name="nc" kind=scalar value="1.2" @netlists/sens_mos6.cir:18:108
+        [11] name="nvth" kind=scalar value="0.8" @netlists/sens_mos6.cir:18:115
+        [12] name="ps" kind=scalar value="0.2" @netlists/sens_mos6.cir:18:124
+    model [1] name="mp" base="pmos" level=6e0 @netlists/sens_mos6.cir:19:1
+      parameters (17):
+        [0] name="level" kind=scalar value="6" @netlists/sens_mos6.cir:19:16
+        [1] name="vto" kind=scalar value="-0.7" @netlists/sens_mos6.cir:19:24
+        [2] name="kc" kind=scalar value="50u" @netlists/sens_mos6.cir:19:33
+        [3] name="gamma" kind=scalar value="0.5" @netlists/sens_mos6.cir:19:40
+        [4] name="phi" kind=scalar value="0.6" @netlists/sens_mos6.cir:19:50
+        [5] name="nsub" kind=scalar value="1e16" @netlists/sens_mos6.cir:19:58
+        [6] name="rd" kind=scalar value="50" @netlists/sens_mos6.cir:19:68
+        [7] name="rs" kind=scalar value="100" @netlists/sens_mos6.cir:19:74
+        [8] name="tnom" kind=scalar value="50" @netlists/sens_mos6.cir:19:81
+        [9] name="lambda" kind=scalar value="0.02" @netlists/sens_mos6.cir:19:89
+        [10] name="gamma1" kind=scalar value="0.05" @netlists/sens_mos6.cir:19:101
+        [11] name="sigma" kind=scalar value="0.02" @netlists/sens_mos6.cir:19:113
+        [12] name="kv" kind=scalar value="1.5" @netlists/sens_mos6.cir:19:124
+        [13] name="nv" kind=scalar value="0.7" @netlists/sens_mos6.cir:19:131
+        [14] name="nc" kind=scalar value="1.2" @netlists/sens_mos6.cir:19:138
+        [15] name="nvth" kind=scalar value="0.8" @netlists/sens_mos6.cir:19:145
+        [16] name="ps" kind=scalar value="0.2" @netlists/sens_mos6.cir:19:154
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_mos6.cir:20:1
+      arguments: "i" "(" "vsense" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_mos6.cir:7:1
+      setting [0] name="reltol" value="1e-10"@netlists/sens_mos6.cir:7:17 @netlists/sens_mos6.cir:7:10
+      setting [1] name="vntol" value="1e-13"@netlists/sens_mos6.cir:7:29 @netlists/sens_mos6.cir:7:23
+      setting [2] name="abstol" value="1e-16"@netlists/sens_mos6.cir:7:42 @netlists/sens_mos6.cir:7:35
+  globals (0):

@@ -1,0 +1,15 @@
+AC sensitivity of the Gummel-Poon BJT (#102)
+* The junction conductances are the zero-bias ones of cktsens.c's reset load,
+* the charge capacitances are zero, and PTF (with TF given) switches on
+* bjtacld.c's excess-phase rotation of gm only in its own column.
+vcc 3 0 dc 5
+v1 1 0 dc 0.7 ac 1
+rb 1 2 1k
+rc 3 4 2k
+q1 4 2 0 qn area=1.5
+q2 4 2 5 0 qp m=2
+re 5 0 100
+.model qn npn is=1e-15 bf=150 vaf=80 rb=50 irb=1m rbm=10 re=1 cje=1p tf=0.3n cjc=0.5p cjs=0.2p ise=1e-14 ikf=10m
+.model qp pnp is=2e-15 bf=60 br=3 tf=1n
+.sens v(4) ac dec 2 1k 1meg
+.end

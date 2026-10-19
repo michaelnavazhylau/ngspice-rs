@@ -1,0 +1,154 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_mesa3.cir
+title: "DC sensitivity of MESA level-3 devices (#164)" @netlists/sens_mesa3.cir:1:1
+card 1 @netlists/sens_mesa3.cir:14:1 lines=14-14 continuations=0
+  raw: ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+  kind: dot(.options)
+  token 1 14:1 word ".options"
+  token 2 14:10 word "reltol"
+  token 3 14:16 equals "="
+  token 4 14:17 number "1e-10" value=1e-10
+  token 5 14:23 word "vntol"
+  token 6 14:28 equals "="
+  token 7 14:29 number "1e-13" value=1e-13
+  token 8 14:35 word "abstol"
+  token 9 14:41 equals "="
+  token 10 14:42 number "1e-16" value=1e-16
+card 2 @netlists/sens_mesa3.cir:15:1 lines=15-15 continuations=0
+  raw: "vds 1 0 dc 1.0"
+  kind: device(v)
+  token 1 15:1 word "vds"
+  token 2 15:5 number "1" value=1e0
+  token 3 15:7 number "0" value=0e0
+  token 4 15:9 word "dc"
+  token 5 15:12 number "1.0" value=1e0
+card 3 @netlists/sens_mesa3.cir:16:1 lines=16-16 continuations=0
+  raw: "vids 1 2 dc 0"
+  kind: device(v)
+  token 1 16:1 word "vids"
+  token 2 16:6 number "1" value=1e0
+  token 3 16:8 number "2" value=2e0
+  token 4 16:10 word "dc"
+  token 5 16:13 number "0" value=0e0
+card 4 @netlists/sens_mesa3.cir:17:1 lines=17-17 continuations=0
+  raw: "vgs 4 0 dc 0.5"
+  kind: device(v)
+  token 1 17:1 word "vgs"
+  token 2 17:5 number "4" value=4e0
+  token 3 17:7 number "0" value=0e0
+  token 4 17:9 word "dc"
+  token 5 17:12 number "0.5" value=5e-1
+card 5 @netlists/sens_mesa3.cir:18:1 lines=18-18 continuations=0
+  raw: "rg 4 3 1k"
+  kind: device(r)
+  token 1 18:1 word "rg"
+  token 2 18:4 number "4" value=4e0
+  token 3 18:6 number "3" value=3e0
+  token 4 18:8 number "1k" value=1e3
+card 6 @netlists/sens_mesa3.cir:19:1 lines=19-19 continuations=0
+  raw: "z1 2 3 0 mesmod l=1u w=20u"
+  kind: device(z)
+  token 1 19:1 word "z1"
+  token 2 19:4 number "2" value=2e0
+  token 3 19:6 number "3" value=3e0
+  token 4 19:8 number "0" value=0e0
+  token 5 19:10 word "mesmod"
+  token 6 19:17 word "l"
+  token 7 19:18 equals "="
+  token 8 19:19 number "1u" value=1e-6
+  token 9 19:22 word "w"
+  token 10 19:23 equals "="
+  token 11 19:24 number "20u" value=1.9999999999999998e-5
+card 7 @netlists/sens_mesa3.cir:20:1 lines=20-20 continuations=0
+  raw: "z2 2 3 0 mesmod2 l=2u w=40u dtemp=10"
+  kind: device(z)
+  token 1 20:1 word "z2"
+  token 2 20:4 number "2" value=2e0
+  token 3 20:6 number "3" value=3e0
+  token 4 20:8 number "0" value=0e0
+  token 5 20:10 word "mesmod2"
+  token 6 20:18 word "l"
+  token 7 20:19 equals "="
+  token 8 20:20 number "2u" value=2e-6
+  token 9 20:23 word "w"
+  token 10 20:24 equals "="
+  token 11 20:25 number "40u" value=3.9999999999999996e-5
+  token 12 20:29 word "dtemp"
+  token 13 20:34 equals "="
+  token 14 20:35 number "10" value=1e1
+card 8 @netlists/sens_mesa3.cir:21:1 lines=21-22 continuations=1
+  raw: ".model mesmod nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5 phib=3.1232e18)"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "mesmod"
+  token 3 21:15 word "nmf"
+  token 4 21:18 lparen "("
+  token 5 21:19 word "level"
+  token 6 21:24 equals "="
+  token 7 21:25 number "3" value=3e0
+  token 8 21:27 word "rd"
+  token 9 21:29 equals "="
+  token 10 21:30 number "31" value=3.1e1
+  token 11 21:33 word "rs"
+  token 12 21:35 equals "="
+  token 13 21:36 number "31" value=3.1e1
+  token 14 21:39 word "rdi"
+  token 15 21:42 equals "="
+  token 16 21:43 number "20" value=2e1
+  token 17 21:46 word "rsi"
+  token 18 21:49 equals "="
+  token 19 21:50 number "20" value=2e1
+  token 20 21:53 word "rtc1"
+  token 21 21:57 equals "="
+  token 22 21:58 number "1e-3" value=1e-3
+  token 23 21:63 word "rtc2"
+  token 24 21:67 equals "="
+  token 25 21:68 number "1e-5" value=1e-5
+  token 26 21:73 word "phib"
+  token 27 21:77 equals "="
+  token 28 21:78 number "3.1232e18" value=3.1232e18
+  token 29 21:87 rparen ")"
+card 9 @netlists/sens_mesa3.cir:23:1 lines=23-24 continuations=1
+  raw: ".model mesmod2 nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5 phib=3.1232e18)"
+  kind: dot(.model)
+  token 1 23:1 word ".model"
+  token 2 23:8 word "mesmod2"
+  token 3 23:16 word "nmf"
+  token 4 23:19 lparen "("
+  token 5 23:20 word "level"
+  token 6 23:25 equals "="
+  token 7 23:26 number "3" value=3e0
+  token 8 23:28 word "rd"
+  token 9 23:30 equals "="
+  token 10 23:31 number "31" value=3.1e1
+  token 11 23:34 word "rs"
+  token 12 23:36 equals "="
+  token 13 23:37 number "31" value=3.1e1
+  token 14 23:40 word "rdi"
+  token 15 23:43 equals "="
+  token 16 23:44 number "20" value=2e1
+  token 17 23:47 word "rsi"
+  token 18 23:50 equals "="
+  token 19 23:51 number "20" value=2e1
+  token 20 23:54 word "rtc1"
+  token 21 23:58 equals "="
+  token 22 23:59 number "1e-3" value=1e-3
+  token 23 23:64 word "rtc2"
+  token 24 23:68 equals "="
+  token 25 23:69 number "1e-5" value=1e-5
+  token 26 23:74 word "phib"
+  token 27 23:78 equals "="
+  token 28 23:79 number "3.1232e18" value=3.1232e18
+  token 29 23:88 rparen ")"
+card 10 @netlists/sens_mesa3.cir:25:1 lines=25-25 continuations=0
+  raw: ".sens i(vids)"
+  kind: dot(.sens)
+  token 1 25:1 word ".sens"
+  token 2 25:7 word "i"
+  token 3 25:8 lparen "("
+  token 4 25:9 word "vids"
+  token 5 25:13 rparen ")"
+card 11 @netlists/sens_mesa3.cir:26:1 lines=26-26 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 26:1 word ".end"

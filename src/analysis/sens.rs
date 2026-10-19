@@ -20,7 +20,11 @@
 //!    solve of that load (`CKTrhs`). **AC**: at every frequency the circuit
 //!    is set up, temperature-updated and assembled again from its (by then
 //!    perturbed and restored) records into a new matrix, `Y = A + j omega E`
-//!    is ordered from scratch (`CKTsetup` + `NIacIter`) and `x` solved.
+//!    is ordered from scratch (`CKTsetup` + `NIacIter`) and `x` solved. The
+//!    fresh state and the DC load at all-zero node voltages before `NIacIter`
+//!    linearize every device at that reset state, not at the operating point
+//!    ([`DeviceSensitivity::reset_ac_load`]); each K stamps its own
+//!    `MUTacLoad` from its record ([`DeviceSensitivity::coupled_inductors`]).
 //! 3. For every parameter, in C's `sgen` order, the one device is loaded with
 //!    its current records, the result negated, the parameter set to
 //!    `p + delta` with `delta = 1e-6 p` (`1e-6` when `p = 0`), the device
@@ -41,7 +45,7 @@ use crate::analysis::results::{PlotFlags, Variable};
 use crate::analysis::{AnalysisContext, AnalysisRequest, Plot};
 use crate::devices::linear::LinearSystem;
 use crate::devices::sensitivity::{
-    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
+    AcReset, DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
     SensitivityMode, SensitivityRecord,
 };
 use crate::devices::{AnalysisMode, Circuit, Device, IterationPhase, LoadRequest, TrialState};
@@ -400,6 +404,7 @@ struct Entry {
 }
 
 /// The live records, which C mutates as the analysis proceeds.
+#[derive(Clone)]
 struct Records {
     models: Vec<SensitivityRecord>,
     instances: Vec<SensitivityRecord>,
@@ -412,6 +417,186 @@ impl Records {
         slot: usize,
     ) -> (&mut SensitivityRecord, &mut SensitivityRecord) {
         (&mut self.models[member.model], &mut self.instances[slot])
+    }
+
+    fn view(&self, member: &Member<'_>, slot: usize) -> RecordPair<'_> {
+        RecordPair {
+            model: &self.models[member.model],
+            instance: &self.instances[slot],
+        }
+    }
+}
+
+/// A K coupling's inductors: their member slots and branch rows.
+#[derive(Debug, Clone, Copy)]
+struct Coupling {
+    inductors: [usize; 2],
+    rows: [usize; 2],
+}
+
+/// The coupling of every member (`None` for anything but K), resolved by
+/// inductor name as `MUTsetup` does with `CKTfndDev`.
+fn couplings(
+    circuit: &Circuit,
+    members: &[Member<'_>],
+    ac: bool,
+) -> SpiceResult<Vec<Option<Coupling>>> {
+    let mut couplings = Vec::with_capacity(members.len());
+    for member in members {
+        if member.sensitivity.family() != SensitivityFamily::Mutual {
+            couplings.push(None);
+            continue;
+        }
+        let Some(names) = member.sensitivity.coupled_inductors() else {
+            if !ac {
+                couplings.push(None);
+                continue;
+            }
+            return Err(unsupported(format!(
+                ".sens ac with K coupling {} of more than two inductors: C's front end splits \
+                 the card into one K instance per pair (inp_compat()), whose names and \
+                 parameters the port does not reproduce",
+                member.name
+            )));
+        };
+        let mut inductors = [0; 2];
+        let mut rows = [0; 2];
+        for (k, name) in names.iter().enumerate() {
+            let slot = members
+                .iter()
+                .position(|other| {
+                    other.sensitivity.family() == SensitivityFamily::Inductor
+                        && other.name.eq_ignore_ascii_case(name)
+                })
+                .ok_or_else(|| {
+                    SpiceError::circuit(format!(
+                        "{}: coupled inductor {name} has no sensitivity record",
+                        member.name
+                    ))
+                })?;
+            inductors[k] = slot;
+            rows[k] = circuit
+                .branch_rows(members[slot].index)
+                .filter(|range| range.len() == 1)
+                .ok_or_else(|| {
+                    SpiceError::circuit(format!("{}: inductor {name} has no branch", member.name))
+                })?
+                .start;
+        }
+        couplings.push(Some(Coupling { inductors, rows }));
+    }
+    Ok(couplings)
+}
+
+/// The analyses before which C's instance fields hold small-signal or
+/// transient values: `.op` (`dcop.c`), `.ac`, `.pz`, `.disto` and `.noise`
+/// load with `MODEINITSMSIG`, `.tran` with `MODETRAN`.
+const SMALL_SIGNAL_ANALYSES: &[crate::primitives::AnalysisKind] = &[
+    crate::primitives::AnalysisKind::OperatingPoint,
+    crate::primitives::AnalysisKind::Ac,
+    crate::primitives::AnalysisKind::Transient,
+    crate::primitives::AnalysisKind::PoleZero,
+    crate::primitives::AnalysisKind::Distortion,
+    crate::primitives::AnalysisKind::Noise,
+];
+
+/// Instance fields that escape `cktsens.c`'s reset. The last analysis that
+/// writes them decides: a small-signal load's operating point or the actual
+/// final transient load. A subsequent DC solve must not overwrite the latter.
+#[derive(Default)]
+struct EarlierAcState {
+    small_signal: bool,
+    transient: Option<Vec<Real>>,
+}
+
+impl EarlierAcState {
+    fn reset<'a>(
+        &'a self,
+        circuit: &Circuit,
+        member: &Member<'_>,
+        state: RecordPair<'a>,
+        omega: Real,
+        bias: &'a Vector,
+    ) -> SpiceResult<AcReset<'a>> {
+        let transient = self
+            .transient
+            .as_ref()
+            .map(|values| {
+                circuit
+                    .state_rows(member.index)
+                    .and_then(|rows| values.get(rows))
+                    .ok_or_else(|| {
+                        SpiceError::circuit("AC sensitivity: stale transient state layout")
+                    })
+            })
+            .transpose()?;
+        Ok(AcReset {
+            state,
+            omega,
+            small_signal: self.small_signal.then_some(bias),
+            transient,
+        })
+    }
+}
+
+fn earlier_ac_state(circuit: &Circuit, members: &[Member<'_>]) -> SpiceResult<EarlierAcState> {
+    let Some(last) = circuit
+        .completed_analyses()
+        .iter()
+        .rev()
+        .find(|kind| SMALL_SIGNAL_ANALYSES.contains(kind))
+    else {
+        return Ok(EarlierAcState::default());
+    };
+    if *last != crate::primitives::AnalysisKind::Transient {
+        return Ok(EarlierAcState {
+            small_signal: true,
+            transient: None,
+        });
+    }
+    let Some((member, acload)) = members
+        .iter()
+        .find_map(|member| Some((member, member.sensitivity.stale_ac_fields()?)))
+    else {
+        return Ok(EarlierAcState::default());
+    };
+    let transient = circuit
+        .final_transient_state()
+        .filter(|state| state.len() == circuit.state_len())
+        .ok_or_else(|| {
+            SpiceError::not_yet_ported(
+                format!(
+                    ".sens ac after .tran with {}: the final transient load's junction \
+                 capacitances are missing; run the transient and inherit its circuit, \
+                 not just its completed-analysis marker",
+                    member.name
+                ),
+                format!("src/spicelib/analysis/cktsens.c and {acload}"),
+            )
+        })?;
+    Ok(EarlierAcState {
+        small_signal: false,
+        transient: Some(transient),
+    })
+}
+
+/// Mirrors a K member's inductors into its record, as C's `MUTind1`/`MUTind2`
+/// pointers let `MUTtemp` read their current `INDinduct`.
+fn mirror(couplings: &[Option<Coupling>], records: &mut Records, slot: usize) -> SpiceResult<()> {
+    let Some(coupling) = couplings[slot] else {
+        return Ok(());
+    };
+    let induct = [
+        records.instances[coupling.inductors[0]].value("induct")?,
+        records.instances[coupling.inductors[1]].value("induct")?,
+    ];
+    let instance = &mut records.instances[slot];
+    instance.store("induct1", induct[0])?;
+    instance.store("induct2", induct[1])?;
+    #[allow(clippy::cast_precision_loss)]
+    {
+        instance.store("row1", coupling.rows[0] as Real)?;
+        instance.store("row2", coupling.rows[1] as Real)
     }
 }
 
@@ -856,22 +1041,12 @@ pub(crate) fn run(
     let model = context.model_context();
 
     let (members, mut records) = members(circuit, &model)?;
-    if ac
-        && let Some(device) = circuit
-            .devices()
-            .iter()
-            .find(|device| device.is_nonlinear() || device.designator() == 'k')
-    {
-        return Err(unsupported(format!(
-            ".sens ac with {} (designator '{}'): C's AC sensitivity re-runs CKTsetup and a \
-                 DC load before every frequency, which resets device state, so nonlinear and \
-                 switch devices are linearized at a reset state rather than at the operating \
-                 point (and the K coupling acts through the inductors' loads); the port refuses \
-                 instead of reproducing that (docs/port/SENSITIVITY.md)",
-            device.name(),
-            device.designator()
-        )));
-    }
+    let couplings = couplings(circuit, &members, ac)?;
+    let earlier = if ac {
+        earlier_ac_state(circuit, &members)?
+    } else {
+        EarlierAcState::default()
+    };
     let entries = entries(&members, ac, &card.filters);
     if entries.iter().all(|entry| entry.name.is_none()) {
         return Err(unsupported(
@@ -928,32 +1103,41 @@ pub(crate) fn run(
     // `delta_Y` is created once, before the frequency loop.
     let mut numbering = DeltaNumbering::new(n);
     if let Some(grid) = grid {
-        let history = circuit.state_history();
-        let state = history
-            .accepted(1)
-            .map_or_else(|| vec![0.; history.len()], <[Real]>::to_vec);
+        // CKTunsetup/CKTsetup give every frequency fresh, zeroed state and
+        // solution vectors, so the DC load before NIacIter sees all-zero node
+        // voltages: the devices' AC loads read what that load stored
+        // (DeviceSensitivity::reset_ac_load).
+        let zeros = Vector::zeros(n);
+        let state = vec![0.; circuit.state_history().len()];
         for frequency in grid {
             let omega = 2. * std::f64::consts::PI * frequency;
-            // CKTsetup, CKTtemp and the AC load of the whole circuit in its
-            // present (perturbed and restored) state.
-            let mut system = LinearSystem::new(n);
-            system.a.set_pivot_tolerances(model.pivot);
+            // CKTsetup and CKTtemp of the whole circuit in its present
+            // (perturbed and restored) state.
             for (slot, member) in members.iter().enumerate() {
                 let (model_record, instance_record) = records.pair(member, slot);
                 member.sensitivity.setup(model_record, instance_record)?;
+                mirror(&couplings, &mut records, slot)?;
+                let (model_record, instance_record) = records.pair(member, slot);
                 member
                     .sensitivity
                     .temperature(model_record, instance_record)?;
-                let pair = RecordPair {
-                    model: model_record,
-                    instance: instance_record,
-                };
-                let load = member.sensitivity.load(pair, pair, SensitivityMode::Ac)?;
+            }
+            // The reset DC load sees these records; NIacIter's AC load too.
+            let reset = records.clone();
+            let mut system = LinearSystem::new(n);
+            system.a.set_pivot_tolerances(model.pivot);
+            for (slot, member) in members.iter().enumerate() {
+                let pair = reset.view(member, slot);
+                let load = member.sensitivity.reset_ac_load(
+                    pair,
+                    earlier.reset(circuit, member, pair, omega, &solved.values)?,
+                    pair,
+                )?;
                 circuit.assemble_small_signal_device(
                     member.index,
                     stand_in(circuit, member.index, &load),
                     &model,
-                    &solved.values,
+                    &zeros,
                     Some(&state),
                     &mut system,
                 )?;
@@ -986,7 +1170,7 @@ pub(crate) fn run(
                 factors,
                 solution,
                 model,
-                bias: solved.values.clone(),
+                bias: zeros.clone(),
                 state: state.clone(),
                 circuit,
             };
@@ -995,7 +1179,21 @@ pub(crate) fn run(
                 &members,
                 &mut records,
                 &entries,
-                SensitivityMode::Ac,
+                &couplings,
+                |slot, setup, current| {
+                    let member = &members[slot];
+                    member.sensitivity.reset_ac_load(
+                        setup,
+                        earlier.reset(
+                            circuit,
+                            member,
+                            reset.view(member, slot),
+                            omega,
+                            &solved.values,
+                        )?,
+                        current,
+                    )
+                },
                 |index, base, perturbed, delta| {
                     numbering.translate(circuit.setup_elements(index)?);
                     let dx = at.delta(&mut numbering, index, base, perturbed)?;
@@ -1055,7 +1253,12 @@ pub(crate) fn run(
             &members,
             &mut records,
             &entries,
-            SensitivityMode::Dc,
+            &couplings,
+            |slot, setup, current| {
+                members[slot]
+                    .sensitivity
+                    .load(setup, current, SensitivityMode::Dc)
+            },
             |index, base, perturbed, delta| {
                 numbering.translate(circuit.setup_elements(index)?);
                 let dx = at.delta(&mut numbering, index, base, perturbed)?;
@@ -1069,13 +1272,15 @@ pub(crate) fn run(
 }
 
 /// The per-parameter loop of `sens_sens()`: setup, base load, perturbation,
-/// perturbed load and restoration, on the live records; `measure` turns a
-/// pair of loads into the output column.
+/// perturbed load and restoration, on the live records; `load` is the
+/// analysis's device load of a member's records as setup left them and as
+/// they are, and `measure` turns a pair of loads into the output column.
 fn sweep_parameters(
     members: &[Member<'_>],
     records: &mut Records,
     entries: &[Entry],
-    mode: SensitivityMode,
+    couplings: &[Option<Coupling>],
+    load: impl Fn(usize, RecordPair<'_>, RecordPair<'_>) -> SpiceResult<SensitivityLoad>,
     mut measure: impl FnMut(usize, &SensitivityLoad, &SensitivityLoad, Real) -> SpiceResult<()>,
 ) -> SpiceResult<()> {
     // A device that refuses `.sens` outright keeps its own error class; only a
@@ -1095,6 +1300,7 @@ fn sweep_parameters(
         }
         let member = &members[entry.member];
         let device = &member.sensitivity;
+        mirror(couplings, records, entry.member)?;
         let (model, instance) = records.pair(member, entry.member);
         // `sgen_next()` asks the value before this parameter's DEVsetup.
         let value = device.ask(entry.scope, entry.keyword, RecordPair { model, instance })?;
@@ -1112,8 +1318,7 @@ fn sweep_parameters(
         // A device whose perturbed state C loads without complaint but the
         // port refuses (a strict range check) has to name the parameter:
         // `.sens` is C's walk over dozens of them.
-        let base = device
-            .load(setup, setup, mode)
+        let base = load(entry.member, setup, setup)
             .map_err(|error| labelled(error, &label, "the base load failed"))?;
         let delta = if value == 0. {
             ABSOLUTE_DELTA
@@ -1122,16 +1327,15 @@ fn sweep_parameters(
         };
         device.set(entry.scope, entry.keyword, value + delta, model, instance)?;
         device.temperature(model, instance)?;
-        let perturbed = device
-            .load(
-                setup,
-                RecordPair {
-                    model: &*model,
-                    instance: &*instance,
-                },
-                mode,
-            )
-            .map_err(|error| labelled(error, &label, "the perturbed load failed"))?;
+        let perturbed = load(
+            entry.member,
+            setup,
+            RecordPair {
+                model: &*model,
+                instance: &*instance,
+            },
+        )
+        .map_err(|error| labelled(error, &label, "the perturbed load failed"))?;
         measure(member.index, &base, &perturbed, delta).map_err(|error| SpiceError::Numerical {
             context: format!(".sens {label}: {error}"),
             message: "the perturbed load could not be evaluated".to_owned(),

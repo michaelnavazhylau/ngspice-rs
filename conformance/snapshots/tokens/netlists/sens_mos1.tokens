@@ -1,0 +1,248 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_mos1.cir
+title: "Classic MOS level 1 sensitivity (#164)" @netlists/sens_mos1.cir:1:1
+card 1 @netlists/sens_mos1.cir:11:1 lines=11-11 continuations=0
+  raw: ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+  kind: dot(.options)
+  token 1 11:1 word ".options"
+  token 2 11:10 word "reltol"
+  token 3 11:16 equals "="
+  token 4 11:17 number "1e-10" value=1e-10
+  token 5 11:23 word "vntol"
+  token 6 11:28 equals "="
+  token 7 11:29 number "1e-13" value=1e-13
+  token 8 11:35 word "abstol"
+  token 9 11:41 equals "="
+  token 10 11:42 number "1e-16" value=1e-16
+card 2 @netlists/sens_mos1.cir:12:1 lines=12-12 continuations=0
+  raw: "vdn dn 0 3"
+  kind: device(v)
+  token 1 12:1 word "vdn"
+  token 2 12:5 word "dn"
+  token 3 12:8 number "0" value=0e0
+  token 4 12:10 number "3" value=3e0
+card 3 @netlists/sens_mos1.cir:13:1 lines=13-13 continuations=0
+  raw: "vdp dp 0 -3"
+  kind: device(v)
+  token 1 13:1 word "vdp"
+  token 2 13:5 word "dp"
+  token 3 13:8 number "0" value=0e0
+  token 4 13:10 number "-3" value=-3e0
+card 4 @netlists/sens_mos1.cir:14:1 lines=14-14 continuations=0
+  raw: "vgn gn 0 2"
+  kind: device(v)
+  token 1 14:1 word "vgn"
+  token 2 14:5 word "gn"
+  token 3 14:8 number "0" value=0e0
+  token 4 14:10 number "2" value=2e0
+card 5 @netlists/sens_mos1.cir:15:1 lines=15-15 continuations=0
+  raw: "vgp gp 0 -1.8"
+  kind: device(v)
+  token 1 15:1 word "vgp"
+  token 2 15:5 word "gp"
+  token 3 15:8 number "0" value=0e0
+  token 4 15:10 number "-1.8" value=-1.8e0
+card 6 @netlists/sens_mos1.cir:16:1 lines=16-16 continuations=0
+  raw: "vbn bn 0 -0.3"
+  kind: device(v)
+  token 1 16:1 word "vbn"
+  token 2 16:5 word "bn"
+  token 3 16:8 number "0" value=0e0
+  token 4 16:10 number "-0.3" value=-3.0000000000000004e-1
+card 7 @netlists/sens_mos1.cir:17:1 lines=17-17 continuations=0
+  raw: "vbp bp 0 0.3"
+  kind: device(v)
+  token 1 17:1 word "vbp"
+  token 2 17:5 word "bp"
+  token 3 17:8 number "0" value=0e0
+  token 4 17:10 number "0.3" value=3.0000000000000004e-1
+card 8 @netlists/sens_mos1.cir:18:1 lines=18-18 continuations=0
+  raw: "vsense s 0 0"
+  kind: device(v)
+  token 1 18:1 word "vsense"
+  token 2 18:8 word "s"
+  token 3 18:10 number "0" value=0e0
+  token 4 18:12 number "0" value=0e0
+card 9 @netlists/sens_mos1.cir:19:1 lines=19-19 continuations=0
+  raw: "m1 dn gn s bn mn l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3 m=2 dtemp=15"
+  kind: device(m)
+  token 1 19:1 word "m1"
+  token 2 19:4 word "dn"
+  token 3 19:7 word "gn"
+  token 4 19:10 word "s"
+  token 5 19:12 word "bn"
+  token 6 19:15 word "mn"
+  token 7 19:18 word "l"
+  token 8 19:19 equals "="
+  token 9 19:20 number "10u" value=9.999999999999999e-6
+  token 10 19:24 word "w"
+  token 11 19:25 equals "="
+  token 12 19:26 number "20u" value=1.9999999999999998e-5
+  token 13 19:30 word "ad"
+  token 14 19:32 equals "="
+  token 15 19:33 number "10p" value=1e-11
+  token 16 19:37 word "as"
+  token 17 19:39 equals "="
+  token 18 19:40 number "20p" value=2e-11
+  token 19 19:44 word "pd"
+  token 20 19:46 equals "="
+  token 21 19:47 number "10u" value=9.999999999999999e-6
+  token 22 19:51 word "ps"
+  token 23 19:53 equals "="
+  token 24 19:54 number "20u" value=1.9999999999999998e-5
+  token 25 19:58 word "nrd"
+  token 26 19:61 equals "="
+  token 27 19:62 number "2" value=2e0
+  token 28 19:64 word "nrs"
+  token 29 19:67 equals "="
+  token 30 19:68 number "3" value=3e0
+  token 31 19:70 word "m"
+  token 32 19:71 equals "="
+  token 33 19:72 number "2" value=2e0
+  token 34 19:74 word "dtemp"
+  token 35 19:79 equals "="
+  token 36 19:80 number "15" value=1.5e1
+card 10 @netlists/sens_mos1.cir:20:1 lines=20-20 continuations=0
+  raw: "m2 dn gn s bn mn l=12u w=30u ad=15p as=25p pd=12u ps=24u nrd=3 nrs=2"
+  kind: device(m)
+  token 1 20:1 word "m2"
+  token 2 20:4 word "dn"
+  token 3 20:7 word "gn"
+  token 4 20:10 word "s"
+  token 5 20:12 word "bn"
+  token 6 20:15 word "mn"
+  token 7 20:18 word "l"
+  token 8 20:19 equals "="
+  token 9 20:20 number "12u" value=1.2e-5
+  token 10 20:24 word "w"
+  token 11 20:25 equals "="
+  token 12 20:26 number "30u" value=2.9999999999999997e-5
+  token 13 20:30 word "ad"
+  token 14 20:32 equals "="
+  token 15 20:33 number "15p" value=1.5e-11
+  token 16 20:37 word "as"
+  token 17 20:39 equals "="
+  token 18 20:40 number "25p" value=2.5e-11
+  token 19 20:44 word "pd"
+  token 20 20:46 equals "="
+  token 21 20:47 number "12u" value=1.2e-5
+  token 22 20:51 word "ps"
+  token 23 20:53 equals "="
+  token 24 20:54 number "24u" value=2.4e-5
+  token 25 20:58 word "nrd"
+  token 26 20:61 equals "="
+  token 27 20:62 number "3" value=3e0
+  token 28 20:64 word "nrs"
+  token 29 20:67 equals "="
+  token 30 20:68 number "2" value=2e0
+card 11 @netlists/sens_mos1.cir:21:1 lines=21-21 continuations=0
+  raw: "m3 dp gp s bp mp l=15u w=10u ad=20p as=10p pd=20u ps=10u nrd=2 nrs=3 temp=60"
+  kind: device(m)
+  token 1 21:1 word "m3"
+  token 2 21:4 word "dp"
+  token 3 21:7 word "gp"
+  token 4 21:10 word "s"
+  token 5 21:12 word "bp"
+  token 6 21:15 word "mp"
+  token 7 21:18 word "l"
+  token 8 21:19 equals "="
+  token 9 21:20 number "15u" value=1.4999999999999999e-5
+  token 10 21:24 word "w"
+  token 11 21:25 equals "="
+  token 12 21:26 number "10u" value=9.999999999999999e-6
+  token 13 21:30 word "ad"
+  token 14 21:32 equals "="
+  token 15 21:33 number "20p" value=2e-11
+  token 16 21:37 word "as"
+  token 17 21:39 equals "="
+  token 18 21:40 number "10p" value=1e-11
+  token 19 21:44 word "pd"
+  token 20 21:46 equals "="
+  token 21 21:47 number "20u" value=1.9999999999999998e-5
+  token 22 21:51 word "ps"
+  token 23 21:53 equals "="
+  token 24 21:54 number "10u" value=9.999999999999999e-6
+  token 25 21:58 word "nrd"
+  token 26 21:61 equals "="
+  token 27 21:62 number "2" value=2e0
+  token 28 21:64 word "nrs"
+  token 29 21:67 equals "="
+  token 30 21:68 number "3" value=3e0
+  token 31 21:70 word "temp"
+  token 32 21:74 equals "="
+  token 33 21:75 number "60" value=6e1
+card 12 @netlists/sens_mos1.cir:22:1 lines=22-22 continuations=0
+  raw: ".model mn nmos level=1 tox=20n nsub=1e16 nss=1e10 rsh=100 lambda=0.02 m=3"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "mn"
+  token 3 22:11 word "nmos"
+  token 4 22:16 word "level"
+  token 5 22:21 equals "="
+  token 6 22:22 number "1" value=1e0
+  token 7 22:24 word "tox"
+  token 8 22:27 equals "="
+  token 9 22:28 number "20n" value=2e-8
+  token 10 22:32 word "nsub"
+  token 11 22:36 equals "="
+  token 12 22:37 number "1e16" value=1e16
+  token 13 22:42 word "nss"
+  token 14 22:45 equals "="
+  token 15 22:46 number "1e10" value=1e10
+  token 16 22:51 word "rsh"
+  token 17 22:54 equals "="
+  token 18 22:55 number "100" value=1e2
+  token 19 22:59 word "lambda"
+  token 20 22:65 equals "="
+  token 21 22:66 number "0.02" value=2e-2
+  token 22 22:71 word "m"
+  token 23 22:72 equals "="
+  token 24 22:73 number "3" value=3e0
+card 13 @netlists/sens_mos1.cir:23:1 lines=23-23 continuations=0
+  raw: ".model mp pmos level=1 vto=-0.7 kp=50u gamma=0.5 phi=0.6 nsub=1e16 rd=50 rs=100 tnom=50 lambda=0.02"
+  kind: dot(.model)
+  token 1 23:1 word ".model"
+  token 2 23:8 word "mp"
+  token 3 23:11 word "pmos"
+  token 4 23:16 word "level"
+  token 5 23:21 equals "="
+  token 6 23:22 number "1" value=1e0
+  token 7 23:24 word "vto"
+  token 8 23:27 equals "="
+  token 9 23:28 number "-0.7" value=-7.000000000000001e-1
+  token 10 23:33 word "kp"
+  token 11 23:35 equals "="
+  token 12 23:36 number "50u" value=4.9999999999999996e-5
+  token 13 23:40 word "gamma"
+  token 14 23:45 equals "="
+  token 15 23:46 number "0.5" value=5e-1
+  token 16 23:50 word "phi"
+  token 17 23:53 equals "="
+  token 18 23:54 number "0.6" value=6.000000000000001e-1
+  token 19 23:58 word "nsub"
+  token 20 23:62 equals "="
+  token 21 23:63 number "1e16" value=1e16
+  token 22 23:68 word "rd"
+  token 23 23:70 equals "="
+  token 24 23:71 number "50" value=5e1
+  token 25 23:74 word "rs"
+  token 26 23:76 equals "="
+  token 27 23:77 number "100" value=1e2
+  token 28 23:81 word "tnom"
+  token 29 23:85 equals "="
+  token 30 23:86 number "50" value=5e1
+  token 31 23:89 word "lambda"
+  token 32 23:95 equals "="
+  token 33 23:96 number "0.02" value=2e-2
+card 14 @netlists/sens_mos1.cir:24:1 lines=24-24 continuations=0
+  raw: ".sens i(vsense)"
+  kind: dot(.sens)
+  token 1 24:1 word ".sens"
+  token 2 24:7 word "i"
+  token 3 24:8 lparen "("
+  token 4 24:9 word "vsense"
+  token 5 24:15 rparen ")"
+card 15 @netlists/sens_mos1.cir:25:1 lines=25-25 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 25:1 word ".end"

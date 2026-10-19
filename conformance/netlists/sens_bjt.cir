@@ -1,0 +1,34 @@
+Sensitivity of BJT devices (#164)
+* Gummel-Poon level 1 (bjt/) under .sens. The sensed branch carries both
+* emitters, so the columns see `Ie = Ic + Ib`: a collector-side ammeter hides
+* `BF`/`ISE`/`NE`, which move the base current. q1 is an NPN at dtemp=-10 with
+* a leakage above 1e-4 (bjtsetup.c rescales it to IS*ISE before the walk and
+* re-runs that setup for every parameter), rb/re/irb/rbm internal nodes, area
+* factors and a BF temperature polynomial. q2 is a PNP at dtemp=20 with tnom on
+* the card, so its temperature coefficients differ from the circuit's.
+*
+* C behaviours the replay reproduces:
+* - DEVsetup sits inside the per-parameter loop (cktsens.c:495), so the leakage
+*   rescaling, the NKF/XCJC clamps and BJTemp's model-side stores (the tnom
+*   default, rbm following rb, the fc clamp) re-run for every parameter.
+* - bjtmask.c/bjtask.c answer tnom and temp in Celsius while bjtmpar.c/
+*   bjtparam.c store kelvin.
+* - sens_setp() hard-codes BJT model parameter 147 (RCO) out, so both rco
+*   columns are exactly zero.
+* RC != 0 is refused instead: C then has the internal collCX node and its walk
+* marks VO/GAMMA/QCO given, which switches the Kull quasi-saturation terms on
+* in the perturbed loads. The port does not model them.
+.options reltol=1e-10 vntol=1e-13 abstol=1e-16
+vcc 1 0 dc 5
+q1 1 3 2 qn area=2 areab=3 areac=4 dtemp=-10
+vids 2 0 dc 0
+vb 4 0 dc 0.72
+rb 4 3 1k
+vcc2 5 0 dc -5
+q2 5 7 2 qp dtemp=20
+vb2 8 0 dc -0.68
+rb2 8 7 1k
+.model qn npn level=1 ise=1e-3 rb=300 re=20 irb=1e-3 rbm=100 tbf1=0.01 tbf2=1e-5
+.model qp pnp level=1 tnom=50 tbr1=0.02 tbr2=2e-5
+.sens i(vids)
+.end

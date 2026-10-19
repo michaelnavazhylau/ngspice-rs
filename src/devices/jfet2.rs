@@ -72,7 +72,7 @@ use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
 use crate::devices::sensitivity::{
-    CELSIUS_TO_KELVIN, DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad,
+    AcReset, CELSIUS_TO_KELVIN, DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad,
     SensitivityMode, SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
@@ -1725,11 +1725,36 @@ impl DeviceSensitivity for Jfet2Sensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: JFET2 AC sensitivity", self.device.name),
-                "src/spicelib/devices/jfet2/jfet2acld.c",
+            return Err(SpiceError::circuit(
+                "a JFET2's AC sensitivity load is its reset load",
             ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(self.jfet2(current)?)))
+    }
+
+    /// `JFET2acLoad` after `cktsens.c`'s reset load: `gm`, `gds`, `ggs`,
+    /// `ggd`, `vgs`, `vgd` and `cd` are the `CKTstate0` values `jfet2load.c`
+    /// stored at zero junction voltages with the reset records, the charge
+    /// slots `qgs`/`qgd`/`qds` are zero, and `PSacload`'s model coefficients,
+    /// the series conductances, `area` and `m` come from `current`.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        Ok(SensitivityLoad::Replacement(Box::new(ResetJfet2 {
+            state: self.jfet2(reset.state)?,
+            current: self.jfet2(current)?,
+            omega: reset.omega,
+        })))
+    }
+}
+
+impl Jfet2Sensitivity<'_> {
+    /// The port's JFET2 with the records' parameters.
+    #[allow(clippy::too_many_lines)]
+    fn jfet2(&self, current: RecordPair<'_>) -> SpiceResult<Jfet2> {
         let (m, i) = (current.model, current.instance);
         let model = Model {
             pol: self.device.model.pol,
@@ -1784,7 +1809,7 @@ impl DeviceSensitivity for Jfet2Sensitivity<'_> {
                 .map(|kelvin| kelvin - CELSIUS_TO_KELVIN),
             dtemp: i.value("dtemp")?,
         };
-        let device = Jfet2 {
+        Ok(Jfet2 {
             name: self.device.name.clone(),
             model_name: self.device.model_name.clone(),
             terminals: self.device.terminals.clone(),
@@ -1792,7 +1817,87 @@ impl DeviceSensitivity for Jfet2Sensitivity<'_> {
             model,
             instance,
             initial: self.device.initial.clone(),
-        };
-        Ok(SensitivityLoad::Replacement(Box::new(device)))
+        })
+    }
+}
+
+/// A JFET2's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetJfet2 {
+    /// Built from the reset load's records: the junction conductances.
+    state: Jfet2,
+    /// Built from the current records: `PSacload`'s coefficients, series
+    /// conductances and `m`.
+    current: Jfet2,
+    /// `CKTomega`.
+    omega: Real,
+}
+
+impl Device for ResetJfet2 {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'j'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `jfet2acld.c`'s stamps in its order: `PSacload`'s imaginary parts,
+    /// then the real parts (the gate charges' `xgs`/`xgd` are zero).
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        use crate::devices::sensitivity::{ResetStamp, ResetStamps, StampAt, StampPart};
+        let gmin = context.model_context.gmin;
+        let state = &self.state;
+        let state_op = state.operating(context.model_context)?;
+        let [vgs, vgd] = state.normalized([0.; 3]);
+        let point = state.point(&state_op, vgs, vgd, gmin, None)?;
+        let (cdrain, gm, gds) = point.channel;
+        let cd = cdrain - point.gd.0;
+        let current = &self.current;
+        let op = current.operating(context.model_context)?;
+        let omega = self.omega;
+        let (gm, xgm, gds, xgds) = current.model.acload(&op, vgs, vgd, cd, omega, gm, gds);
+        // `xgds += qds * CKTomega` with the reset's zero charge.
+        let xgds = xgds + 0. * omega;
+        let m = current.instance.m;
+        let [dp, g, sp] = current.inner;
+        let imaginary = [
+            (dp, dp, m * xgds),
+            (sp, sp, m * (xgds + xgm)),
+            (dp, g, m * xgm),
+            (dp, sp, -(m * (xgds + xgm))),
+            (sp, g, -(m * xgm)),
+            (sp, dp, -(m * xgds)),
+        ];
+        let stamps = imaginary
+            .into_iter()
+            .map(|(a, b, value)| ResetStamp {
+                at: StampAt::Nodes(a, b),
+                value,
+                part: StampPart::Imaginary,
+            })
+            .collect();
+        ResetStamps::new(&current.name, 'j', &current.terminals, stamps)?
+            .assemble_linear(context)?;
+        jfet::ac_conductances(
+            context,
+            &current.terminals,
+            current.inner,
+            m,
+            jfet::series_conductances(current.instance.area, current.model.rd, current.model.rs),
+            [gm, gds, point.gs.1, point.gd.1],
+        )
     }
 }

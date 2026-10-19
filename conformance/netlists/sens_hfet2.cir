@@ -1,0 +1,31 @@
+Sensitivity of HFET2 devices (#164)
+* HFET2 (z level 6, hfet2/hfet2*.c) under .sens: a shared n-channel model with
+* two instances (one at dtemp=10) in parallel across the sensed supply, and a
+* p-channel at temp=50 whose drain current returns through that same supply, so
+* every device's columns reach the sensed current. The output is the drain
+* current rather than a gate node, because sensing a ~1 uV gate node pays for
+* it with cancellation-limited rows (see sens_mesa).
+*
+* Three C behaviours the replay reproduces:
+* - d2 and eta2 are ordinary values but their *given* flags gate
+*   hfet2load.c's nsc branch (hfet2temp.c fills N02 under eta2Given alone) and
+*   the walk never clears a flag, so a card that gave only one of them would
+*   report a topology jump instead of a derivative for those two rows.
+* - hfet2ask.c answers the instance temperature in Celsius while hfet2param.c
+*   stores it in kelvin.
+* - HFET2_VT1/VT2 follow the raw VTO, not the type-scaled TVTO, so the
+*   p-channel's thresholds stay negative while its TVTO is positive.
+.options reltol=1e-10 vntol=1e-13 abstol=1e-16
+vds 1 0 dc 2.0
+vids 1 2 dc 0
+vgs 4 0 dc 0.5
+rg 4 3 1k
+vgs2 8 0 dc 1.8
+rg2 8 7 1k
+z1 2 3 0 nmos l=1u w=20u
+z2 2 3 0 nmos l=2u w=40u dtemp=10
+z3 0 7 2 pmos l=1u w=20u temp=50
+.model nmos nhfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30 rdi=5 rsi=7
+.model pmos phfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30
+.sens i(vids)
+.end

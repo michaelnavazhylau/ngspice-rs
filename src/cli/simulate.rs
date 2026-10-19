@@ -311,6 +311,7 @@ pub fn run_with_format(
                 fourier_results: Vec::new(),
             });
             rawfile.writer.finish_plot(streamed)?;
+            circuit.note_completed(entry.kind);
             previous_circuit = Some(circuit);
             continue;
         }
@@ -370,6 +371,7 @@ pub fn run_with_format(
             });
             rawfile.writer.write_plot(&raw_plot)?;
         }
+        circuit.note_completed(entry.kind);
         previous_circuit = Some(circuit);
     }
 

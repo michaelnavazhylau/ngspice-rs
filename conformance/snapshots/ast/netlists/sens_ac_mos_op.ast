@@ -1,0 +1,143 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_mos_op.cir
+title: "AC sensitivity of MOS levels 1/2/3/9 after .op (#102)" @netlists/sens_ac_mos_op.cir:1:1
+scope root
+  cards (16):
+    [0] options[0] @netlists/sens_ac_mos_op.cir:9:1 ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+    [1] device[0] @netlists/sens_ac_mos_op.cir:10:1 "vdn dn 0 3"
+    [2] device[1] @netlists/sens_ac_mos_op.cir:11:1 "vgn gn 0 dc 2 ac 1"
+    [3] device[2] @netlists/sens_ac_mos_op.cir:12:1 "vbn bn 0 -0.3"
+    [4] device[3] @netlists/sens_ac_mos_op.cir:13:1 "vsense s 0 0"
+    [5] device[4] @netlists/sens_ac_mos_op.cir:14:1 "m1 dn gn s bn m1n l=10u w=20u ad=10p as=20p pd=10u ps=20u nrd=2 nrs=3 m=2"
+    [6] device[5] @netlists/sens_ac_mos_op.cir:15:1 "m2 dn gn s bn m2n l=12u w=30u ad=15p as=25p pd=12u ps=24u nrd=3 nrs=2"
+    [7] device[6] @netlists/sens_ac_mos_op.cir:16:1 "m3 dn gn s bn m3n l=15u w=10u ad=20p as=10p pd=20u ps=10u temp=60"
+    [8] device[7] @netlists/sens_ac_mos_op.cir:17:1 "m9 dn gn s bn m9n l=10u w=15u"
+    [9] model[0] @netlists/sens_ac_mos_op.cir:18:1 ".model m1n nmos level=1 tox=20n nsub=1e16 rsh=100 lambda=0.02 cgso=1e-10 cgdo=2e-10 cgbo=3e-11 cj=1e-4 cjsw=1e-10"
+    [10] model[1] @netlists/sens_ac_mos_op.cir:19:1 ".model m2n nmos level=2 tox=20n nsub=1e16 rd=10 rs=5 cgso=2e-10 cgdo=1e-10 cbd=5f"
+    [11] model[2] @netlists/sens_ac_mos_op.cir:20:1 ".model m3n nmos level=3 vto=0.7 kp=50u rd=20 cgso=1e-10 cgdo=1e-10 cgbo=1e-11 delta=10 eta=0.1 nsub=1e16"
+    [12] model[3] @netlists/sens_ac_mos_op.cir:21:1 ".model m9n nmos level=9 vto=0.6 kp=60u rs=15 cgso=3e-10 nsub=1e16"
+    [13] analysis[0] @netlists/sens_ac_mos_op.cir:22:1 ".op"
+    [14] analysis[1] @netlists/sens_ac_mos_op.cir:23:1 ".sens i(vsense) ac dec 1 1k 1meg"
+    [15] end @netlists/sens_ac_mos_op.cir:24:1 ".end"
+  devices (8):
+    device [0] name="vdn" designator=v @netlists/sens_ac_mos_op.cir:10:1
+      nodes: "dn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="3" @netlists/sens_ac_mos_op.cir:10:10
+    device [1] name="vgn" designator=v @netlists/sens_ac_mos_op.cir:11:1
+      nodes: "gn" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="2" @netlists/sens_ac_mos_op.cir:11:10
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_mos_op.cir:11:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_mos_op.cir:11:15
+    device [2] name="vbn" designator=v @netlists/sens_ac_mos_op.cir:12:1
+      nodes: "bn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.3" @netlists/sens_ac_mos_op.cir:12:10
+    device [3] name="vsense" designator=v @netlists/sens_ac_mos_op.cir:13:1
+      nodes: "s" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_ac_mos_op.cir:13:12
+    device [4] name="m1" designator=m @netlists/sens_ac_mos_op.cir:14:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m1n"
+      parameters (9):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_ac_mos_op.cir:14:19
+        [1] name="w" kind=scalar value="20u" @netlists/sens_ac_mos_op.cir:14:25
+        [2] name="ad" kind=scalar value="10p" @netlists/sens_ac_mos_op.cir:14:31
+        [3] name="as" kind=scalar value="20p" @netlists/sens_ac_mos_op.cir:14:38
+        [4] name="pd" kind=scalar value="10u" @netlists/sens_ac_mos_op.cir:14:45
+        [5] name="ps" kind=scalar value="20u" @netlists/sens_ac_mos_op.cir:14:52
+        [6] name="nrd" kind=scalar value="2" @netlists/sens_ac_mos_op.cir:14:59
+        [7] name="nrs" kind=scalar value="3" @netlists/sens_ac_mos_op.cir:14:65
+        [8] name="m" kind=scalar value="2" @netlists/sens_ac_mos_op.cir:14:71
+    device [5] name="m2" designator=m @netlists/sens_ac_mos_op.cir:15:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m2n"
+      parameters (8):
+        [0] name="l" kind=scalar value="12u" @netlists/sens_ac_mos_op.cir:15:19
+        [1] name="w" kind=scalar value="30u" @netlists/sens_ac_mos_op.cir:15:25
+        [2] name="ad" kind=scalar value="15p" @netlists/sens_ac_mos_op.cir:15:31
+        [3] name="as" kind=scalar value="25p" @netlists/sens_ac_mos_op.cir:15:38
+        [4] name="pd" kind=scalar value="12u" @netlists/sens_ac_mos_op.cir:15:45
+        [5] name="ps" kind=scalar value="24u" @netlists/sens_ac_mos_op.cir:15:52
+        [6] name="nrd" kind=scalar value="3" @netlists/sens_ac_mos_op.cir:15:59
+        [7] name="nrs" kind=scalar value="2" @netlists/sens_ac_mos_op.cir:15:65
+    device [6] name="m3" designator=m @netlists/sens_ac_mos_op.cir:16:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m3n"
+      parameters (7):
+        [0] name="l" kind=scalar value="15u" @netlists/sens_ac_mos_op.cir:16:19
+        [1] name="w" kind=scalar value="10u" @netlists/sens_ac_mos_op.cir:16:25
+        [2] name="ad" kind=scalar value="20p" @netlists/sens_ac_mos_op.cir:16:31
+        [3] name="as" kind=scalar value="10p" @netlists/sens_ac_mos_op.cir:16:38
+        [4] name="pd" kind=scalar value="20u" @netlists/sens_ac_mos_op.cir:16:45
+        [5] name="ps" kind=scalar value="10u" @netlists/sens_ac_mos_op.cir:16:52
+        [6] name="temp" kind=scalar value="60" @netlists/sens_ac_mos_op.cir:16:59
+    device [7] name="m9" designator=m @netlists/sens_ac_mos_op.cir:17:1
+      nodes: "dn" "gn" "s" "bn"
+      model: "m9n"
+      parameters (2):
+        [0] name="l" kind=scalar value="10u" @netlists/sens_ac_mos_op.cir:17:19
+        [1] name="w" kind=scalar value="15u" @netlists/sens_ac_mos_op.cir:17:25
+  models (4):
+    model [0] name="m1n" base="nmos" level=1e0 @netlists/sens_ac_mos_op.cir:18:1
+      parameters (10):
+        [0] name="level" kind=scalar value="1" @netlists/sens_ac_mos_op.cir:18:17
+        [1] name="tox" kind=scalar value="20n" @netlists/sens_ac_mos_op.cir:18:25
+        [2] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_op.cir:18:33
+        [3] name="rsh" kind=scalar value="100" @netlists/sens_ac_mos_op.cir:18:43
+        [4] name="lambda" kind=scalar value="0.02" @netlists/sens_ac_mos_op.cir:18:51
+        [5] name="cgso" kind=scalar value="1e-10" @netlists/sens_ac_mos_op.cir:18:63
+        [6] name="cgdo" kind=scalar value="2e-10" @netlists/sens_ac_mos_op.cir:18:74
+        [7] name="cgbo" kind=scalar value="3e-11" @netlists/sens_ac_mos_op.cir:18:85
+        [8] name="cj" kind=scalar value="1e-4" @netlists/sens_ac_mos_op.cir:18:96
+        [9] name="cjsw" kind=scalar value="1e-10" @netlists/sens_ac_mos_op.cir:18:104
+    model [1] name="m2n" base="nmos" level=2e0 @netlists/sens_ac_mos_op.cir:19:1
+      parameters (8):
+        [0] name="level" kind=scalar value="2" @netlists/sens_ac_mos_op.cir:19:17
+        [1] name="tox" kind=scalar value="20n" @netlists/sens_ac_mos_op.cir:19:25
+        [2] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_op.cir:19:33
+        [3] name="rd" kind=scalar value="10" @netlists/sens_ac_mos_op.cir:19:43
+        [4] name="rs" kind=scalar value="5" @netlists/sens_ac_mos_op.cir:19:49
+        [5] name="cgso" kind=scalar value="2e-10" @netlists/sens_ac_mos_op.cir:19:54
+        [6] name="cgdo" kind=scalar value="1e-10" @netlists/sens_ac_mos_op.cir:19:65
+        [7] name="cbd" kind=scalar value="5f" @netlists/sens_ac_mos_op.cir:19:76
+    model [2] name="m3n" base="nmos" level=3e0 @netlists/sens_ac_mos_op.cir:20:1
+      parameters (10):
+        [0] name="level" kind=scalar value="3" @netlists/sens_ac_mos_op.cir:20:17
+        [1] name="vto" kind=scalar value="0.7" @netlists/sens_ac_mos_op.cir:20:25
+        [2] name="kp" kind=scalar value="50u" @netlists/sens_ac_mos_op.cir:20:33
+        [3] name="rd" kind=scalar value="20" @netlists/sens_ac_mos_op.cir:20:40
+        [4] name="cgso" kind=scalar value="1e-10" @netlists/sens_ac_mos_op.cir:20:46
+        [5] name="cgdo" kind=scalar value="1e-10" @netlists/sens_ac_mos_op.cir:20:57
+        [6] name="cgbo" kind=scalar value="1e-11" @netlists/sens_ac_mos_op.cir:20:68
+        [7] name="delta" kind=scalar value="10" @netlists/sens_ac_mos_op.cir:20:79
+        [8] name="eta" kind=scalar value="0.1" @netlists/sens_ac_mos_op.cir:20:88
+        [9] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_op.cir:20:96
+    model [3] name="m9n" base="nmos" level=9e0 @netlists/sens_ac_mos_op.cir:21:1
+      parameters (6):
+        [0] name="level" kind=scalar value="9" @netlists/sens_ac_mos_op.cir:21:17
+        [1] name="vto" kind=scalar value="0.6" @netlists/sens_ac_mos_op.cir:21:25
+        [2] name="kp" kind=scalar value="60u" @netlists/sens_ac_mos_op.cir:21:33
+        [3] name="rs" kind=scalar value="15" @netlists/sens_ac_mos_op.cir:21:40
+        [4] name="cgso" kind=scalar value="3e-10" @netlists/sens_ac_mos_op.cir:21:46
+        [5] name="nsub" kind=scalar value="1e16" @netlists/sens_ac_mos_op.cir:21:57
+  subcircuits (0):
+  analyses (2):
+    analysis [0] kind=op @netlists/sens_ac_mos_op.cir:22:1
+      arguments:
+    analysis [1] kind=sens @netlists/sens_ac_mos_op.cir:23:1
+      arguments: "i" "(" "vsense" ")" "ac" "dec" "1" "1k" "1meg"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_ac_mos_op.cir:9:1
+      setting [0] name="reltol" value="1e-10"@netlists/sens_ac_mos_op.cir:9:17 @netlists/sens_ac_mos_op.cir:9:10
+      setting [1] name="vntol" value="1e-13"@netlists/sens_ac_mos_op.cir:9:29 @netlists/sens_ac_mos_op.cir:9:23
+      setting [2] name="abstol" value="1e-16"@netlists/sens_ac_mos_op.cir:9:42 @netlists/sens_ac_mos_op.cir:9:35
+  globals (0):

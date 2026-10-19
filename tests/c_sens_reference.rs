@@ -31,6 +31,61 @@ impl Drop for Cleanup {
 const LINEAR: (f64, f64) = (1e-8, 1e-12);
 const NONLINEAR: (f64, f64) = (1e-6, 1e-9);
 
+/// Batch-mode order (unlike control `write`'s sorted vectors), all columns,
+/// and the shared-model/per-instance replay of every classic MOS level.
+#[test]
+#[ignore = "requires NGSPICE_BIN"]
+fn classic_mos_dc_sensitivity_tables_and_values() {
+    for level in [1, 2, 3, 6, 9] {
+        let name = format!("sens_mos{level}");
+        let deck = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("conformance/netlists/{name}.cir")),
+        )
+        .unwrap();
+        compare_with_c(&name, &deck, NONLINEAR);
+    }
+}
+
+/// Final-load junction fields for both polarities and both integrators,
+/// using ordinary bias initialization. Only the overlap/CJ/series columns
+/// are selected, allowing
+/// the tighter linear bound to distinguish final-load from DC capacitances.
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs C batch mode out of process"]
+fn mos_ac_sensitivity_after_transient_matches_c() {
+    compare_with_c(
+        "sens_mos_tran_batch",
+        include_str!("../conformance/netlists/sens_ac_mos_tran.cir"),
+        LINEAR,
+    );
+    for level in [1, 2, 3, 9] {
+        for (polarity, sign) in [("nmos", 1.), ("pmos", -1.)] {
+            for (method, output) in [
+                ("trap", "vs"),
+                ("gear", "vs"),
+                ("trap", "vd"),
+                ("gear", "vd"),
+            ] {
+                let name = format!("sens_mos{level}_tran_{polarity}_{method}_{output}");
+                let (vd, vg, vb, amplitude, vto) =
+                    (3. * sign, 2. * sign, -0.3 * sign, 0.2 * sign, 0.7 * sign);
+                let deck = format!(
+                    "{name}\n\
+                     vd d 0 dc {vd}\nvg g 0 dc {vg} ac 1\nvs s 0 0\n\
+                     vb b 0 dc {vb} sin({vb} {amplitude} 100k)\n\
+                     m1 d g s b nm l=10u w=20u ad=10p as=20p nrd=2 nrs=3\n\
+                     .model nm {polarity} level={level} vto={vto} kp=50u tox=20n \
+                     nsub=1e16 rsh=100 cj=1e-4 cgso=1e-10 cgdo=2e-10\n\
+                     .options method={method} reltol=1e-10 vntol=1e-13 abstol=1e-16\n\
+                     .tran 0.2u 1u\n\
+                     .sens i({output}) m1:cgso m1:cgdo m1:cj m1:rsh m1_nrs ac dec 1 1k 1meg\n.end\n"
+                );
+                compare_with_c(&name, &deck, LINEAR);
+            }
+        }
+    }
+}
+
 fn compare_with_c(name: &str, deck_text: &str, (relative, absolute): (f64, f64)) {
     let binary = std::env::var_os("NGSPICE_BIN").expect("set absolute NGSPICE_BIN");
     assert!(Path::new(&binary).is_absolute());

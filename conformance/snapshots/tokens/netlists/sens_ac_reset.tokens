@@ -1,0 +1,270 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_ac_reset.cir
+title: "AC sensitivity of diodes, switches and B sources (#102)" @netlists/sens_ac_reset.cir:1:1
+card 1 @netlists/sens_ac_reset.cir:9:1 lines=9-9 continuations=0
+  raw: "v1 1 0 dc 0.7 ac 1"
+  kind: device(v)
+  token 1 9:1 word "v1"
+  token 2 9:4 number "1" value=1e0
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 word "dc"
+  token 5 9:11 number "0.7" value=7.000000000000001e-1
+  token 6 9:15 word "ac"
+  token 7 9:18 number "1" value=1e0
+card 2 @netlists/sens_ac_reset.cir:10:1 lines=10-10 continuations=0
+  raw: "r1 1 2 1k"
+  kind: device(r)
+  token 1 10:1 word "r1"
+  token 2 10:4 number "1" value=1e0
+  token 3 10:6 number "2" value=2e0
+  token 4 10:8 number "1k" value=1e3
+card 3 @netlists/sens_ac_reset.cir:11:1 lines=11-11 continuations=0
+  raw: "d1 2 0 dm"
+  kind: device(d)
+  token 1 11:1 word "d1"
+  token 2 11:4 number "2" value=2e0
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 word "dm"
+card 4 @netlists/sens_ac_reset.cir:12:1 lines=12-12 continuations=0
+  raw: ".model dm d is=1e-14 rs=10 cjo=1p"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "dm"
+  token 3 12:11 word "d"
+  token 4 12:13 word "is"
+  token 5 12:15 equals "="
+  token 6 12:16 number "1e-14" value=1e-14
+  token 7 12:22 word "rs"
+  token 8 12:24 equals "="
+  token 9 12:25 number "10" value=1e1
+  token 10 12:28 word "cjo"
+  token 11 12:31 equals "="
+  token 12 12:32 number "1p" value=1e-12
+card 5 @netlists/sens_ac_reset.cir:13:1 lines=13-13 continuations=0
+  raw: "vc 5 0 dc 2"
+  kind: device(v)
+  token 1 13:1 word "vc"
+  token 2 13:4 number "5" value=5e0
+  token 3 13:6 number "0" value=0e0
+  token 4 13:8 word "dc"
+  token 5 13:11 number "2" value=2e0
+card 6 @netlists/sens_ac_reset.cir:14:1 lines=14-14 continuations=0
+  raw: "r5 2 6 1k"
+  kind: device(r)
+  token 1 14:1 word "r5"
+  token 2 14:4 number "2" value=2e0
+  token 3 14:6 number "6" value=6e0
+  token 4 14:8 number "1k" value=1e3
+card 7 @netlists/sens_ac_reset.cir:15:1 lines=15-15 continuations=0
+  raw: "s1 6 0 5 0 smod"
+  kind: device(s)
+  token 1 15:1 word "s1"
+  token 2 15:4 number "6" value=6e0
+  token 3 15:6 number "0" value=0e0
+  token 4 15:8 number "5" value=5e0
+  token 5 15:10 number "0" value=0e0
+  token 6 15:12 word "smod"
+card 8 @netlists/sens_ac_reset.cir:16:1 lines=16-16 continuations=0
+  raw: "s2 6 7 5 0 smodn"
+  kind: device(s)
+  token 1 16:1 word "s2"
+  token 2 16:4 number "6" value=6e0
+  token 3 16:6 number "7" value=7e0
+  token 4 16:8 number "5" value=5e0
+  token 5 16:10 number "0" value=0e0
+  token 6 16:12 word "smodn"
+card 9 @netlists/sens_ac_reset.cir:17:1 lines=17-17 continuations=0
+  raw: "r7 7 0 2k"
+  kind: device(r)
+  token 1 17:1 word "r7"
+  token 2 17:4 number "7" value=7e0
+  token 3 17:6 number "0" value=0e0
+  token 4 17:8 number "2k" value=2e3
+card 10 @netlists/sens_ac_reset.cir:18:1 lines=18-18 continuations=0
+  raw: "c7 6 0 1n"
+  kind: device(c)
+  token 1 18:1 word "c7"
+  token 2 18:4 number "6" value=6e0
+  token 3 18:6 number "0" value=0e0
+  token 4 18:8 number "1n" value=1e-9
+card 11 @netlists/sens_ac_reset.cir:19:1 lines=19-19 continuations=0
+  raw: "s3 7 0 5 0 sneg"
+  kind: device(s)
+  token 1 19:1 word "s3"
+  token 2 19:4 number "7" value=7e0
+  token 3 19:6 number "0" value=0e0
+  token 4 19:8 number "5" value=5e0
+  token 5 19:10 number "0" value=0e0
+  token 6 19:12 word "sneg"
+card 12 @netlists/sens_ac_reset.cir:20:1 lines=20-20 continuations=0
+  raw: "w1 7 8 vc wmod"
+  kind: device(w)
+  token 1 20:1 word "w1"
+  token 2 20:4 number "7" value=7e0
+  token 3 20:6 number "8" value=8e0
+  token 4 20:8 word "vc"
+  token 5 20:11 word "wmod"
+card 13 @netlists/sens_ac_reset.cir:21:1 lines=21-21 continuations=0
+  raw: "r8 8 0 500"
+  kind: device(r)
+  token 1 21:1 word "r8"
+  token 2 21:4 number "8" value=8e0
+  token 3 21:6 number "0" value=0e0
+  token 4 21:8 number "500" value=5e2
+card 14 @netlists/sens_ac_reset.cir:22:1 lines=22-22 continuations=0
+  raw: ".model smod sw vt=1 vh=0.5 ron=10 roff=1meg"
+  kind: dot(.model)
+  token 1 22:1 word ".model"
+  token 2 22:8 word "smod"
+  token 3 22:13 word "sw"
+  token 4 22:16 word "vt"
+  token 5 22:18 equals "="
+  token 6 22:19 number "1" value=1e0
+  token 7 22:21 word "vh"
+  token 8 22:23 equals "="
+  token 9 22:24 number "0.5" value=5e-1
+  token 10 22:28 word "ron"
+  token 11 22:31 equals "="
+  token 12 22:32 number "10" value=1e1
+  token 13 22:35 word "roff"
+  token 14 22:39 equals "="
+  token 15 22:40 number "1meg" value=1e6
+card 15 @netlists/sens_ac_reset.cir:23:1 lines=23-23 continuations=0
+  raw: ".model smodn sw vt=-1 vh=0.2 ron=20 roff=10meg"
+  kind: dot(.model)
+  token 1 23:1 word ".model"
+  token 2 23:8 word "smodn"
+  token 3 23:14 word "sw"
+  token 4 23:17 word "vt"
+  token 5 23:19 equals "="
+  token 6 23:20 number "-1" value=-1e0
+  token 7 23:23 word "vh"
+  token 8 23:25 equals "="
+  token 9 23:26 number "0.2" value=2e-1
+  token 10 23:30 word "ron"
+  token 11 23:33 equals "="
+  token 12 23:34 number "20" value=2e1
+  token 13 23:37 word "roff"
+  token 14 23:41 equals "="
+  token 15 23:42 number "10meg" value=1e7
+card 16 @netlists/sens_ac_reset.cir:24:1 lines=24-24 continuations=0
+  raw: ".model sneg sw vt=0 vh=-0.3 ron=5"
+  kind: dot(.model)
+  token 1 24:1 word ".model"
+  token 2 24:8 word "sneg"
+  token 3 24:13 word "sw"
+  token 4 24:16 word "vt"
+  token 5 24:18 equals "="
+  token 6 24:19 number "0" value=0e0
+  token 7 24:21 word "vh"
+  token 8 24:23 equals "="
+  token 9 24:24 number "-0.3" value=-3.0000000000000004e-1
+  token 10 24:29 word "ron"
+  token 11 24:32 equals "="
+  token 12 24:33 number "5" value=5e0
+card 17 @netlists/sens_ac_reset.cir:25:1 lines=25-25 continuations=0
+  raw: ".model wmod csw it=-1m ih=0 ron=3 roff=1g"
+  kind: dot(.model)
+  token 1 25:1 word ".model"
+  token 2 25:8 word "wmod"
+  token 3 25:13 word "csw"
+  token 4 25:17 word "it"
+  token 5 25:19 equals "="
+  token 6 25:20 number "-1m" value=-1e-3
+  token 7 25:24 word "ih"
+  token 8 25:26 equals "="
+  token 9 25:27 number "0" value=0e0
+  token 10 25:29 word "ron"
+  token 11 25:32 equals "="
+  token 12 25:33 number "3" value=3e0
+  token 13 25:35 word "roff"
+  token 14 25:39 equals "="
+  token 15 25:40 number "1g" value=1e9
+card 18 @netlists/sens_ac_reset.cir:26:1 lines=26-26 continuations=0
+  raw: "r9 2 9 1k"
+  kind: device(r)
+  token 1 26:1 word "r9"
+  token 2 26:4 number "2" value=2e0
+  token 3 26:6 number "9" value=9e0
+  token 4 26:8 number "1k" value=1e3
+card 19 @netlists/sens_ac_reset.cir:27:1 lines=27-27 continuations=0
+  raw: "b1 9 0 v=v(1)*0.5+0.1*v(10)^2 m=2"
+  kind: device(b)
+  token 1 27:1 word "b1"
+  token 2 27:4 number "9" value=9e0
+  token 3 27:6 number "0" value=0e0
+  token 4 27:8 word "v"
+  token 5 27:9 equals "="
+  token 6 27:10 word "v"
+  token 7 27:11 lparen "("
+  token 8 27:12 number "1" value=1e0
+  token 9 27:13 rparen ")"
+  token 10 27:14 word "*0.5+0.1*v"
+  token 11 27:24 lparen "("
+  token 12 27:25 number "10" value=1e1
+  token 13 27:27 rparen ")"
+  token 14 27:28 word "^2"
+  token 15 27:31 word "m"
+  token 16 27:32 equals "="
+  token 17 27:33 number "2" value=2e0
+card 20 @netlists/sens_ac_reset.cir:28:1 lines=28-28 continuations=0
+  raw: "r10 10 0 2k"
+  kind: device(r)
+  token 1 28:1 word "r10"
+  token 2 28:5 number "10" value=1e1
+  token 3 28:8 number "0" value=0e0
+  token 4 28:10 number "2k" value=2e3
+card 21 @netlists/sens_ac_reset.cir:29:1 lines=29-29 continuations=0
+  raw: "b2 10 0 i=0.2m*v(1)+0.1m*v(10)*v(10) tc1=1m"
+  kind: device(b)
+  token 1 29:1 word "b2"
+  token 2 29:4 number "10" value=1e1
+  token 3 29:7 number "0" value=0e0
+  token 4 29:9 word "i"
+  token 5 29:10 equals "="
+  token 6 29:11 word "0.2m*v"
+  token 7 29:17 lparen "("
+  token 8 29:18 number "1" value=1e0
+  token 9 29:19 rparen ")"
+  token 10 29:20 word "+0.1m*v"
+  token 11 29:27 lparen "("
+  token 12 29:28 number "10" value=1e1
+  token 13 29:30 rparen ")"
+  token 14 29:31 word "*v"
+  token 15 29:33 lparen "("
+  token 16 29:34 number "10" value=1e1
+  token 17 29:36 rparen ")"
+  token 18 29:38 word "tc1"
+  token 19 29:41 equals "="
+  token 20 29:42 number "1m" value=1e-3
+card 22 @netlists/sens_ac_reset.cir:30:1 lines=30-30 continuations=0
+  raw: "c10 10 0 1n"
+  kind: device(c)
+  token 1 30:1 word "c10"
+  token 2 30:5 number "10" value=1e1
+  token 3 30:8 number "0" value=0e0
+  token 4 30:10 number "1n" value=1e-9
+card 23 @netlists/sens_ac_reset.cir:31:1 lines=31-31 continuations=0
+  raw: "r11 2 10 1k"
+  kind: device(r)
+  token 1 31:1 word "r11"
+  token 2 31:5 number "2" value=2e0
+  token 3 31:7 number "10" value=1e1
+  token 4 31:10 number "1k" value=1e3
+card 24 @netlists/sens_ac_reset.cir:32:1 lines=32-32 continuations=0
+  raw: ".sens v(2) ac dec 2 1k 100k"
+  kind: dot(.sens)
+  token 1 32:1 word ".sens"
+  token 2 32:7 word "v"
+  token 3 32:8 lparen "("
+  token 4 32:9 number "2" value=2e0
+  token 5 32:10 rparen ")"
+  token 6 32:12 word "ac"
+  token 7 32:15 word "dec"
+  token 8 32:19 number "2" value=2e0
+  token 9 32:21 number "1k" value=1e3
+  token 10 32:24 number "100k" value=1e5
+card 25 @netlists/sens_ac_reset.cir:33:1 lines=33-33 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 33:1 word ".end"

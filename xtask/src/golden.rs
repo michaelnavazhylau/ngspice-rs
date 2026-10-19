@@ -17,6 +17,7 @@ use crate::workspace_root;
 pub(crate) const NETLIST_DIR: &str = "conformance/netlists";
 
 /// Where the captured rawfiles live, relative to the workspace root.
+#[cfg(test)]
 pub(crate) const GOLDEN_DIR: &str = "conformance/golden";
 
 /// Where instrumented decks and rawfiles are staged, relative to the workspace root.
@@ -122,9 +123,7 @@ fn golden_path(netlist: &Path) -> Result<PathBuf, String> {
         .file_stem()
         .and_then(|stem| stem.to_str())
         .ok_or_else(|| format!("fixture {} has no file name", netlist.display()))?;
-    Ok(workspace_root()
-        .join(GOLDEN_DIR)
-        .join(format!("{name}.raw")))
+    Ok(crate::reference::golden_path(&workspace_root(), name))
 }
 
 fn locate(options: &Options) -> Result<Ngspice, String> {

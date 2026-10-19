@@ -16,10 +16,12 @@
 
 use super::{Diode, DiodeParameters, EPSMIN};
 use crate::devices::sensitivity::{
-    CELSIUS_TO_KELVIN, DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily,
-    SensitivityLoad, SensitivityMode, SensitivityParameter as P, SensitivityRecord, written,
+    AcReset, CELSIUS_TO_KELVIN, DeviceSensitivity, ParameterScope, RecordPair, ResetStamp,
+    ResetStamps, SensitivityFamily, SensitivityLoad, SensitivityMode, SensitivityParameter as P,
+    SensitivityRecord, StampAt, StampPart, written,
 };
-use crate::primitives::{Real, SpiceError, SpiceResult};
+use crate::devices::{Device, LinearContext, StampContext};
+use crate::primitives::{NodeId, Real, SpiceError, SpiceResult};
 
 /// `DIOmPTable` entries `set_param()` accepts in a DC analysis (the `IF_AC`
 /// `tt`, `ttt1`, `ttt2`, `cjo` follow in AC; `tnom`, `rsw` and the SOA and
@@ -422,8 +424,34 @@ impl DeviceSensitivity for DiodeSensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::circuit("diode AC sensitivity is refused"));
+            return Err(SpiceError::circuit(
+                "a diode's AC sensitivity load is its reset load",
+            ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(self.diode(current)?)))
+    }
+
+    /// `DIOacLoad` after `cktsens.c`'s reset load: the series conductance
+    /// `DIOtConductance` of `current`, the junction conductance
+    /// `CKTstate0[DIOconduct]` that `dioload.c` stored at `vd = 0` with the
+    /// `state` records, and no capacitance (`DIOcapCurrent` is written only by
+    /// a small-signal load, so it is still zero).
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        Ok(SensitivityLoad::Replacement(Box::new(ResetDiode {
+            state: self.diode(reset.state)?,
+            current: self.diode(current)?,
+        })))
+    }
+}
+
+impl DiodeSensitivity<'_> {
+    /// The port's diode with the records' parameters.
+    fn diode(&self, current: RecordPair<'_>) -> SpiceResult<Diode> {
         let (m, i) = (current.model, current.instance);
         let given = |keyword: &str| -> SpiceResult<Option<Real>> {
             model_given(m, keyword)
@@ -513,7 +541,7 @@ impl DeviceSensitivity for DiodeSensitivity<'_> {
             af: m.value("af")?,
         };
         parameters.check(&self.diode.location)?;
-        Ok(SensitivityLoad::Replacement(Box::new(Diode {
+        Ok(Diode {
             name: self.diode.name.clone(),
             model: self.diode.model.clone(),
             terminals: self.diode.terminals.clone(),
@@ -523,7 +551,79 @@ impl DeviceSensitivity for DiodeSensitivity<'_> {
             location: self.diode.location.clone(),
             written: self.diode.written.clone(),
             lenient: true,
-        })))
+        })
+    }
+}
+
+/// A diode's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetDiode {
+    /// Built from the records of the reset load, which sets the junction
+    /// conductance.
+    state: Diode,
+    /// Built from the current records, which set the series conductance.
+    current: Diode,
+}
+
+impl Device for ResetDiode {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'd'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `dioacld.c`'s stamps in its order: `gspr` and `geq` (the `xceq`
+    /// imaginary parts are zero).
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        let model = context.model_context;
+        let gspr = if self.current.parameters.rs > 0. {
+            self.current.parameters.thermal(model)?.conductance
+        } else {
+            0.
+        };
+        let geq = self
+            .state
+            .parameters
+            .thermal(model)?
+            .point_unchecked(0., model.gmin)?
+            .ac_conductance;
+        let ([pos, neg], prime) = (
+            [self.current.terminals[0], self.current.terminals[1]],
+            self.current.junction[0],
+        );
+        let stamps = [
+            (pos, pos, gspr),
+            (neg, neg, geq),
+            (prime, prime, geq + gspr),
+            (pos, prime, -gspr),
+            (neg, prime, -geq),
+            (prime, pos, -gspr),
+            (prime, neg, -geq),
+        ];
+        let stamps = stamps
+            .into_iter()
+            .map(|(a, b, value)| ResetStamp {
+                at: StampAt::Nodes(a, b),
+                value,
+                part: StampPart::Real,
+            })
+            .collect();
+        ResetStamps::new(&self.current.name, 'd', &self.current.terminals, stamps)?
+            .assemble_linear(context)
     }
 }
 

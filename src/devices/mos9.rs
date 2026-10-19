@@ -39,8 +39,11 @@
 //!   3's guard (`dldvd = dldem = 0`), which is the exact derivative: with
 //!   KAPPA = 0 the channel-length reduction is identically zero. The current
 //!   itself is the same.
-//! - `.disto` (`mos9dset.c`/`mos9dist.c`) and `.sens` (`mos9sld.c`) are not
-//!   ported and fail explicitly.
+//! - `.disto` (`mos9dset.c`/`mos9dist.c`) is not ported. DC `.sens` uses
+//!   level 3's record replay without GDSNOI or the unanswerable DTEMP column;
+//!   the modern finite-difference walk does not use `mos9sld.c`.
+
+mod sens;
 
 use crate::devices::ModelContext;
 use crate::devices::ResolvedModel;
@@ -91,6 +94,16 @@ impl MosLevel for Level9 {
 
     fn common(&self) -> &Common {
         self.0.common()
+    }
+
+    fn sensitivity<'a>(
+        device: &'a Mos9,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + 'a>> {
+        Ok(Box::new(crate::devices::mos::sens::MosSensitivity {
+            device,
+            context: *context,
+        }))
     }
 
     /// `mos9temp.c` refuses (`E_PARMVAL`) an effective length or width below

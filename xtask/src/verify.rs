@@ -987,6 +987,58 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY,
         },
     },
+    // AC `.sens` of nonlinear devices, switches and K (#102): every frequency
+    // linearizes the devices at cktsens.c's zero-voltage reset load. Nonlinear
+    // bound: the MESFET/HFET2 AC solves (and several rounding-noise columns of
+    // repeated element contributions) differ from C by a few ulps.
+    Supported {
+        name: "sens_ac_reset",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_mutual",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_bjt",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_mos",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_fet",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    Supported {
+        name: "sens_ac_hetero",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // `.sens` of the `j` and `z` families (#164): C's `sgen` walk of the
     // `jfet.c`/`jfet2.c`/`mes.c`/`mesa.c`/`hfet1.c`/`hfet2.c` parameter
     // tables, replayed on the port's records. Same nonlinear bound as the
@@ -1018,7 +1070,7 @@ const SUPPORTED: &[Supported] = &[
     },
     // MESA level 2 (#164): the same walk over `mesa.c`'s 62 + 8 parameters, at
     // the cancellation floor `compare::SENSITIVITY_CANCELLED` documents for
-    // three of them. Levels 3-4 are refused (their rows differ from C).
+    // three of them.
     Supported {
         name: "sens_mesa",
         kind: AnalysisKind::Sensitivity,
@@ -1038,11 +1090,102 @@ const SUPPORTED: &[Supported] = &[
             tolerance: compare::SENSITIVITY_NONLINEAR,
         },
     },
+    // HFET2 (#164): `hfet2.c`'s 36 model + 6 instance parameters - `m` passes
+    // the table filter but not `hfet2ask.c`'s switch - with `d2`/`eta2` given
+    // so the `nsc` branch is on for both loads, a second n-channel instance at
+    // `dtemp=10` and a p-channel at `temp=50`.
+    Supported {
+        name: "sens_hfet2",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // BJT (#164): `bjt.c`'s 103 model + 6 instance parameters (the `IF_AC`
+    // capacitance family and the `IOPR` aliases are filtered, `icvbe`/`icvce`
+    // are AC-only), an NPN with `dtemp=-10`, `ISE` above 1e-4 and a `BF`
+    // polynomial plus a PNP at `dtemp=20` with `tnom` on the card.
+    Supported {
+        name: "sens_bjt",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 1: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos1",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 2: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos2",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 3: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos3",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 6: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos6",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // Classic MOS level 9: process-derived shared NMOS and explicit PMOS.
+    Supported {
+        name: "sens_mos9",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // MESA level 3 (#164): the `mesa2` walk, one device at the circuit
+    // temperature and one at `dtemp=10`, both with `rtc1`/`rtc2` and the
+    // `rdi`/`rsi` pair (which is where the channel's `tRsi` scaling showed).
+    Supported {
+        name: "sens_mesa3",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
     // MESA level 4 (#164): the same walk over the level-4 parameter table,
     // sensing the drain current (`sens_mesa` senses a ~1 uV gate node, where a
-    // level-4 row is a cancellation-limited difference). Level 3 is refused.
+    // level-4 row is a cancellation-limited difference).
     Supported {
         name: "sens_mesa4",
+        kind: AnalysisKind::Sensitivity,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::SENSITIVITY_NONLINEAR,
+        },
+    },
+    // MESA level 4 at a shifted instance temperature (#164): the `rtc1`/`rtc2`
+    // rows that used to come out at 0.808x C's, now the regression for
+    // `mesa3`'s temperature-scaled `RS`.
+    Supported {
+        name: "sens_mesa4_ts",
         kind: AnalysisKind::Sensitivity,
         gate: Gate::Points {
             axis: None,
@@ -1259,6 +1402,53 @@ const BATCH: &[Batch] = &[
                 gate: Gate::Points {
                     axis: None,
                     tolerance: compare::SENSITIVITY,
+                },
+            },
+        ],
+    },
+    // Final transient instance fields survive `.sens`'s DC solve and resets.
+    // Filtered to overlap/series/CJ columns: the linear sensitivity bound
+    // catches substituting the DC-point capacitances for the final load's.
+    Batch {
+        name: "sens_ac_mos_tran",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Transient,
+                gate: Gate::Transient(compare::TRAN),
+            },
+            Stage {
+                kind: AnalysisKind::Sensitivity,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::SENSITIVITY,
+                },
+            },
+        ],
+    },
+    // AC `.sens` (#102) after `.op`: the MOS AC loads read the capbd/capbs
+    // the operating point's MODEINITSMSIG load left in the instances.
+    Batch {
+        name: "sens_ac_mos_op",
+        stages: &[
+            Stage {
+                kind: AnalysisKind::OperatingPoint,
+                gate: Gate::Points {
+                    axis: None,
+                    tolerance: compare::DC,
+                },
+            },
+            Stage {
+                kind: AnalysisKind::Sensitivity,
+                gate: Gate::Points {
+                    axis: Some("frequency"),
+                    tolerance: compare::SENSITIVITY_NONLINEAR,
                 },
             },
         ],
@@ -1766,10 +1956,15 @@ fn batch_result(root: &Path, path: &Path, fixture: &Batch) -> Result<Vec<String>
     }
     let mut details = Vec::with_capacity(names.len());
     let mut stages = fixture.stages.iter().zip(&want.plots);
+    // Inherit the actual matrix and device load snapshots, as the CLI does;
+    // analysis-kind markers alone cannot reproduce transient instance fields.
+    let mut previous = None;
     for entry in &schedule {
         let card = &netlist.analyses[entry.card_index];
-        let (request, plots) = run_card_plots(&netlist, &config, card, &[])
-            .map_err(|error| format!("{}: {error}", entry.plot_name))?;
+        let (request, plots, circuit) =
+            run_card_plots(&netlist, &config, card, &[], previous.as_ref())
+                .map_err(|error| format!("{}: {error}", entry.plot_name))?;
+        previous = Some(circuit);
         let own: Vec<&str> = entry.plot_names().collect();
         if plots.len() != own.len() {
             return Err(format!(
@@ -1808,7 +2003,7 @@ fn run_card(
     card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
 ) -> Result<(AnalysisRequest, ngspice_rs::analysis::Plot), String> {
-    let (request, mut plots) = run_card_plots(netlist, config, card, extra)?;
+    let (request, mut plots, _) = run_card_plots(netlist, config, card, extra, None)?;
     if plots.len() != 1 {
         return Err(format!(
             "expected one Rust plot, the driver produced {} (register multi-plot analyses \
@@ -1822,13 +2017,22 @@ fn run_card(
 /// Runs one analysis card through the production driver and projects every
 /// plot it produces (`.noise` produces two) onto C's default save set and
 /// naming. `extra` tokens are appended to the request after the deck's own
-/// settings.
+/// settings; `previous` supplies the batch's prior circuit, inherited exactly
+/// as `spice-rs simulate` inherits it.
 fn run_card_plots(
     netlist: &ngspice_rs::netlist::ast::Netlist,
     config: &RunConfig,
     card: &ngspice_rs::netlist::ast::AnalysisCard,
     extra: &[&str],
-) -> Result<(AnalysisRequest, Vec<ngspice_rs::analysis::Plot>), String> {
+    previous: Option<&ngspice_rs::devices::Circuit>,
+) -> Result<
+    (
+        AnalysisRequest,
+        Vec<ngspice_rs::analysis::Plot>,
+        ngspice_rs::devices::Circuit,
+    ),
+    String,
+> {
     if !card.expressions.is_empty() {
         return Err("braced analysis arguments are not supported in verification fixtures".into());
     }
@@ -1838,9 +2042,13 @@ fn run_card_plots(
         .extend(extra.iter().map(|token| (*token).to_owned()));
     let request = config.request(request).map_err(|e| e.to_string())?;
     let mut circuit = config.circuit(netlist).map_err(|e| e.to_string())?;
+    if let Some(previous) = previous {
+        circuit.inherit_from(previous);
+    }
     let plots = runner(request.kind)
         .and_then(|driver| driver.run_plots(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
+    circuit.note_completed(request.kind);
     // C's default save set omits simulator-created internal nodes (e.g. a
     // diode's series-resistance anode). Project only those known internal rows;
     // every externally visible variable still goes through exact set checks.
@@ -1862,7 +2070,7 @@ fn run_card_plots(
         .into_iter()
         .map(|plot| project(plot, &internal))
         .collect();
-    Ok((request, plots))
+    Ok((request, plots, circuit))
 }
 
 /// A transmission line's internal node (`trasetup.c` `CKTmkVolt` names
@@ -1905,7 +2113,7 @@ fn project(mut got: ngspice_rs::analysis::Plot, internal: &[String]) -> ngspice_
 
 /// The committed C golden of `name`.
 fn load_golden(root: &Path, name: &str) -> Result<RawFile, String> {
-    let target = root.join(golden::GOLDEN_DIR).join(format!("{name}.raw"));
+    let target = crate::reference::golden_path(root, name);
     let text =
         fs::read_to_string(&target).map_err(|e| format!("reading {}: {e}", target.display()))?;
     RawFile::parse(&text).map_err(|e| format!("{}: {e}", target.display()))
@@ -1998,12 +2206,15 @@ mod tests {
             fs::create_dir_all(root.join(golden::NETLIST_DIR)).unwrap();
             fs::create_dir_all(root.join(golden::GOLDEN_DIR)).unwrap();
             for name in names {
-                for path in [
-                    format!("conformance/netlists/{name}.cir"),
-                    format!("conformance/golden/{name}.raw"),
-                ] {
-                    fs::copy(workspace_root().join(&path), root.join(&path)).unwrap();
-                }
+                let deck = format!("conformance/netlists/{name}.cir");
+                fs::copy(workspace_root().join(&deck), root.join(&deck)).unwrap();
+                let target = crate::reference::golden_path(&root, name);
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                fs::copy(
+                    crate::reference::golden_path(&workspace_root(), name),
+                    target,
+                )
+                .unwrap();
             }
             Self(root)
         }
@@ -2020,9 +2231,10 @@ mod tests {
             .unwrap()
             .into_iter()
             .flat_map(|p| {
-                let raw = workspace_root()
-                    .join(golden::GOLDEN_DIR)
-                    .join(format!("{}.raw", p.file_stem().unwrap().to_str().unwrap()));
+                let raw = crate::reference::golden_path(
+                    &workspace_root(),
+                    p.file_stem().unwrap().to_str().unwrap(),
+                );
                 [p, raw]
             })
             .collect();
@@ -2035,6 +2247,34 @@ mod tests {
         for (path, bytes) in paths.iter().zip(before) {
             assert_eq!(fs::read(path).unwrap(), bytes);
         }
+    }
+
+    #[test]
+    fn selected_bjt_reference_is_required_and_still_checked_strictly() {
+        let temp = Temp::with(&["sens_bjt"]);
+        // On Linux keep the macOS reference present as well: a missing
+        // platform capture must be reported, never silently fall back to it.
+        let generic = temp.0.join("conformance/golden/sens_bjt.raw");
+        fs::copy(
+            workspace_root().join("conformance/golden/sens_bjt.raw"),
+            generic,
+        )
+        .unwrap();
+        let selected = crate::reference::golden_path(&temp.0, "sens_bjt");
+        let original = fs::read_to_string(&selected).unwrap();
+        run(&temp.0, Some("sens_bjt")).unwrap();
+        fs::remove_file(&selected).unwrap();
+        let error = run(&temp.0, Some("sens_bjt")).unwrap_err();
+        assert!(error.contains("reading"), "{error}");
+        assert!(error.contains(&selected.display().to_string()), "{error}");
+
+        let mut raw = RawFile::parse(&original).unwrap();
+        let plot = &mut raw.plots[0].plot;
+        let index = plot.variable_index("v(q1:ise)").unwrap();
+        plot.points[0][index] = ngspice_rs::primitives::Complex::ZERO;
+        fs::write(selected, raw.to_ascii()).unwrap();
+        let error = run(&temp.0, Some("sens_bjt")).unwrap_err();
+        assert!(error.contains("v(q1:ise)"), "{error}");
     }
 
     #[test]

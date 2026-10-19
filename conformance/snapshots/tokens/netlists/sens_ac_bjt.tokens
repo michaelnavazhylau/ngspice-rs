@@ -1,0 +1,145 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_ac_bjt.cir
+title: "AC sensitivity of the Gummel-Poon BJT (#102)" @netlists/sens_ac_bjt.cir:1:1
+card 1 @netlists/sens_ac_bjt.cir:5:1 lines=5-5 continuations=0
+  raw: "vcc 3 0 dc 5"
+  kind: device(v)
+  token 1 5:1 word "vcc"
+  token 2 5:5 number "3" value=3e0
+  token 3 5:7 number "0" value=0e0
+  token 4 5:9 word "dc"
+  token 5 5:12 number "5" value=5e0
+card 2 @netlists/sens_ac_bjt.cir:6:1 lines=6-6 continuations=0
+  raw: "v1 1 0 dc 0.7 ac 1"
+  kind: device(v)
+  token 1 6:1 word "v1"
+  token 2 6:4 number "1" value=1e0
+  token 3 6:6 number "0" value=0e0
+  token 4 6:8 word "dc"
+  token 5 6:11 number "0.7" value=7.000000000000001e-1
+  token 6 6:15 word "ac"
+  token 7 6:18 number "1" value=1e0
+card 3 @netlists/sens_ac_bjt.cir:7:1 lines=7-7 continuations=0
+  raw: "rb 1 2 1k"
+  kind: device(r)
+  token 1 7:1 word "rb"
+  token 2 7:4 number "1" value=1e0
+  token 3 7:6 number "2" value=2e0
+  token 4 7:8 number "1k" value=1e3
+card 4 @netlists/sens_ac_bjt.cir:8:1 lines=8-8 continuations=0
+  raw: "rc 3 4 2k"
+  kind: device(r)
+  token 1 8:1 word "rc"
+  token 2 8:4 number "3" value=3e0
+  token 3 8:6 number "4" value=4e0
+  token 4 8:8 number "2k" value=2e3
+card 5 @netlists/sens_ac_bjt.cir:9:1 lines=9-9 continuations=0
+  raw: "q1 4 2 0 qn area=1.5"
+  kind: device(q)
+  token 1 9:1 word "q1"
+  token 2 9:4 number "4" value=4e0
+  token 3 9:6 number "2" value=2e0
+  token 4 9:8 number "0" value=0e0
+  token 5 9:10 word "qn"
+  token 6 9:13 word "area"
+  token 7 9:17 equals "="
+  token 8 9:18 number "1.5" value=1.5e0
+card 6 @netlists/sens_ac_bjt.cir:10:1 lines=10-10 continuations=0
+  raw: "q2 4 2 5 0 qp m=2"
+  kind: device(q)
+  token 1 10:1 word "q2"
+  token 2 10:4 number "4" value=4e0
+  token 3 10:6 number "2" value=2e0
+  token 4 10:8 number "5" value=5e0
+  token 5 10:10 number "0" value=0e0
+  token 6 10:12 word "qp"
+  token 7 10:15 word "m"
+  token 8 10:16 equals "="
+  token 9 10:17 number "2" value=2e0
+card 7 @netlists/sens_ac_bjt.cir:11:1 lines=11-11 continuations=0
+  raw: "re 5 0 100"
+  kind: device(r)
+  token 1 11:1 word "re"
+  token 2 11:4 number "5" value=5e0
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "100" value=1e2
+card 8 @netlists/sens_ac_bjt.cir:12:1 lines=12-12 continuations=0
+  raw: ".model qn npn is=1e-15 bf=150 vaf=80 rb=50 irb=1m rbm=10 re=1 cje=1p tf=0.3n cjc=0.5p cjs=0.2p ise=1e-14 ikf=10m"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "qn"
+  token 3 12:11 word "npn"
+  token 4 12:15 word "is"
+  token 5 12:17 equals "="
+  token 6 12:18 number "1e-15" value=1e-15
+  token 7 12:24 word "bf"
+  token 8 12:26 equals "="
+  token 9 12:27 number "150" value=1.5e2
+  token 10 12:31 word "vaf"
+  token 11 12:34 equals "="
+  token 12 12:35 number "80" value=8e1
+  token 13 12:38 word "rb"
+  token 14 12:40 equals "="
+  token 15 12:41 number "50" value=5e1
+  token 16 12:44 word "irb"
+  token 17 12:47 equals "="
+  token 18 12:48 number "1m" value=1e-3
+  token 19 12:51 word "rbm"
+  token 20 12:54 equals "="
+  token 21 12:55 number "10" value=1e1
+  token 22 12:58 word "re"
+  token 23 12:60 equals "="
+  token 24 12:61 number "1" value=1e0
+  token 25 12:63 word "cje"
+  token 26 12:66 equals "="
+  token 27 12:67 number "1p" value=1e-12
+  token 28 12:70 word "tf"
+  token 29 12:72 equals "="
+  token 30 12:73 number "0.3n" value=3e-10
+  token 31 12:78 word "cjc"
+  token 32 12:81 equals "="
+  token 33 12:82 number "0.5p" value=5e-13
+  token 34 12:87 word "cjs"
+  token 35 12:90 equals "="
+  token 36 12:91 number "0.2p" value=2e-13
+  token 37 12:96 word "ise"
+  token 38 12:99 equals "="
+  token 39 12:100 number "1e-14" value=1e-14
+  token 40 12:106 word "ikf"
+  token 41 12:109 equals "="
+  token 42 12:110 number "10m" value=1e-2
+card 9 @netlists/sens_ac_bjt.cir:13:1 lines=13-13 continuations=0
+  raw: ".model qp pnp is=2e-15 bf=60 br=3 tf=1n"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "qp"
+  token 3 13:11 word "pnp"
+  token 4 13:15 word "is"
+  token 5 13:17 equals "="
+  token 6 13:18 number "2e-15" value=2e-15
+  token 7 13:24 word "bf"
+  token 8 13:26 equals "="
+  token 9 13:27 number "60" value=6e1
+  token 10 13:30 word "br"
+  token 11 13:32 equals "="
+  token 12 13:33 number "3" value=3e0
+  token 13 13:35 word "tf"
+  token 14 13:37 equals "="
+  token 15 13:38 number "1n" value=1e-9
+card 10 @netlists/sens_ac_bjt.cir:14:1 lines=14-14 continuations=0
+  raw: ".sens v(4) ac dec 2 1k 1meg"
+  kind: dot(.sens)
+  token 1 14:1 word ".sens"
+  token 2 14:7 word "v"
+  token 3 14:8 lparen "("
+  token 4 14:9 number "4" value=4e0
+  token 5 14:10 rparen ")"
+  token 6 14:12 word "ac"
+  token 7 14:15 word "dec"
+  token 8 14:19 number "2" value=2e0
+  token 9 14:21 number "1k" value=1e3
+  token 10 14:24 number "1meg" value=1e6
+card 11 @netlists/sens_ac_bjt.cir:15:1 lines=15-15 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 15:1 word ".end"

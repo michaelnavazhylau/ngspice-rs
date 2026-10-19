@@ -55,6 +55,8 @@
 //! under `uic` (`mos1ic.c`) and are zero otherwise. An `off` instance starts
 //! at zero and is held there through `MODEINITFIX`.
 
+pub(super) mod sens;
+
 use std::cell::OnceCell;
 
 use crate::devices::initial::InstanceInitial;
@@ -642,6 +644,18 @@ pub(super) trait MosLevel: std::fmt::Debug + Clone + Copy + Sized + 'static {
 
     /// The setters shared by every level.
     fn common(&self) -> &Common;
+
+    /// C's parameter-record replay for `.sens`, owned by each level.
+    fn sensitivity<'a>(
+        device: &'a Mosfet<Self>,
+        _context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + 'a>> {
+        Err(crate::devices::sensitivity::not_ported(
+            &device.name,
+            'm',
+            "MOS DEVparam/DEVtemperature/DEVload record replay",
+        ))
+    }
 
     /// Rejects geometry whose effective channel C would refuse or leave
     /// nonpositive.
@@ -1388,6 +1402,12 @@ impl<L: MosLevel> Device for Mosfet<L> {
             "dtemp" => Some(p.dtemp),
             _ => None,
         })
+    }
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        L::sensitivity(self, context)
     }
     fn name(&self) -> &str {
         &self.name

@@ -1,0 +1,33 @@
+AC sensitivity of diodes, switches and B sources (#102)
+* cktsens.c re-runs CKTsetup and a DC load at all-zero node voltages before
+* every frequency, so each device is linearized at that reset state, not at the
+* operating point: the forward-biased diode d1 is its zero-bias conductance
+* Is/Vt + gmin and its capacitance is absent, a switch takes
+* the state its MODEINITFLOAT load picks for a zero control (s1 off, s2 on,
+* s3 in its negative-hysteresis band, w1 on), and a B source's derivatives are
+* zero (only b1's branch incidences remain).
+v1 1 0 dc 0.7 ac 1
+r1 1 2 1k
+d1 2 0 dm
+.model dm d is=1e-14 rs=10 cjo=1p
+vc 5 0 dc 2
+r5 2 6 1k
+s1 6 0 5 0 smod
+s2 6 7 5 0 smodn
+r7 7 0 2k
+c7 6 0 1n
+s3 7 0 5 0 sneg
+w1 7 8 vc wmod
+r8 8 0 500
+.model smod sw vt=1 vh=0.5 ron=10 roff=1meg
+.model smodn sw vt=-1 vh=0.2 ron=20 roff=10meg
+.model sneg sw vt=0 vh=-0.3 ron=5
+.model wmod csw it=-1m ih=0 ron=3 roff=1g
+r9 2 9 1k
+b1 9 0 v=v(1)*0.5+0.1*v(10)^2 m=2
+r10 10 0 2k
+b2 10 0 i=0.2m*v(1)+0.1m*v(10)*v(10) tc1=1m
+c10 10 0 1n
+r11 2 10 1k
+.sens v(2) ac dec 2 1k 100k
+.end

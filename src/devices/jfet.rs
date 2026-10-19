@@ -49,7 +49,7 @@ use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U, ScalarValues,
 };
 use crate::devices::sensitivity::{
-    DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad, SensitivityMode,
+    AcReset, DeviceSensitivity, RecordPair, SensitivityFamily, SensitivityLoad, SensitivityMode,
     SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
@@ -1815,11 +1815,34 @@ impl DeviceSensitivity for JfetSensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: JFET AC sensitivity", self.device.name),
-                "src/spicelib/devices/jfet/jfetacld.c",
+            return Err(SpiceError::circuit(
+                "a JFET's AC sensitivity load is its reset load",
             ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(self.jfet(current)?)))
+    }
+
+    /// `JFETacLoad` after `cktsens.c`'s reset load: `gm`, `gds`, `ggs`,
+    /// `ggd` are the `CKTstate0` values `jfetload.c` stored at zero junction
+    /// voltages with the reset records, the charge slots `qgs`/`qgd` (written
+    /// only by a small-signal or transient load) are zero, and the series
+    /// conductances and `m` come from `current`.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        Ok(SensitivityLoad::Replacement(Box::new(ResetJfet {
+            state: self.jfet(reset.state)?,
+            current: self.jfet(current)?,
+        })))
+    }
+}
+
+impl JfetSensitivity<'_> {
+    /// The port's JFET with the records' parameters.
+    fn jfet(&self, current: RecordPair<'_>) -> SpiceResult<Jfet> {
         let (m, i) = (current.model, current.instance);
         let celsius = |keyword: &str| -> SpiceResult<Option<Real>> {
             Ok(m.given(keyword)
@@ -1855,7 +1878,7 @@ impl DeviceSensitivity for JfetSensitivity<'_> {
             temp: celsius_instance(i)?,
             dtemp: i.value("dtemp")?,
         };
-        let device = Jfet {
+        Ok(Jfet {
             name: self.device.name.clone(),
             model_name: self.device.model_name.clone(),
             terminals: self.device.terminals.clone(),
@@ -1863,8 +1886,56 @@ impl DeviceSensitivity for JfetSensitivity<'_> {
             model,
             instance,
             initial: self.device.initial.clone(),
-        };
-        Ok(SensitivityLoad::Replacement(Box::new(device)))
+        })
+    }
+}
+
+/// A JFET's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetJfet {
+    /// Built from the reset load's records: the junction conductances.
+    state: Jfet,
+    /// Built from the current records: series conductances and `m`.
+    current: Jfet,
+}
+
+impl Device for ResetJfet {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'j'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `jfetacld.c`'s real stamps; its `xgs`/`xgd` imaginary parts are zero.
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        let model = context.model_context;
+        let state = &self.state;
+        let op = state.operating(model)?;
+        let [vgs, vgd] = state.normalized([0.; 3]);
+        let e = state.evaluate(&op, vgs, vgd, model.gmin)?;
+        let current = self.current.operating(model)?;
+        ac_conductances(
+            context,
+            &self.current.terminals,
+            self.current.inner,
+            self.current.instance.m,
+            [current.gdpr, current.gspr],
+            [e.gm, e.gds, e.ggs, e.ggd],
+        )
     }
 }
 

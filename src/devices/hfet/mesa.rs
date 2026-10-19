@@ -27,7 +27,7 @@ use crate::devices::jfet::{BOLTZMANN, CHARGE};
 use crate::devices::limiting;
 use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::sensitivity::{
-    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
+    AcReset, DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
     SensitivityMode, SensitivityParameter, SensitivityRecord,
 };
 use crate::devices::{
@@ -686,8 +686,8 @@ impl Mesa {
         }
         let gchi = derived.gchi0 * ns;
         let gch = gchi / (1. + gchi * rt);
-        let f = (1. + 2. * a * model.rsi).sqrt();
-        let d = 1. + a * model.rsi + f;
+        let f = (1. + 2. * a * derived.trsi).sqrt();
+        let d = 1. + a * derived.trsi + f;
         let e = 1. + model.tc * vgte;
         let isata = a * vgte / d / e;
         let isatb = derived.isatb0 * b;
@@ -724,7 +724,7 @@ impl Mesa {
         let r = isata + isatb;
         let r = r * r;
         let delisatisata = isatb * isatb / r;
-        let ddevgte = 2. * model.beta * model.rsi * (1. + 1. / f) * e + d * model.tc;
+        let ddevgte = 2. * model.beta * derived.trsi * (1. + 1. / f) * e + d * model.tc;
         let delisatavgte = (2. * a * d * e - a * vgte * ddevgte) / d / d / e / e;
         let delisatisatb = isata * isata / r;
         let delisatbvgt = isatb / etavth;
@@ -779,7 +779,7 @@ impl Mesa {
         let gch = gchi / (1. + gchi * rt);
         let gchim = derived.gchi0 * nsm;
         let h = (1. + 2. * gchim * model.rsi + vgte * vgte / (vl * vl)).sqrt();
-        let p = 1. + gchim * model.rsi + h;
+        let p = 1. + gchim * derived.trsi + h;
         let isatm = gchim * vgte / p;
         let g = (isatm / derived.imax).powf(model.gamma);
         let isat = isatm / (1. + g).powf(1. / model.gamma);
@@ -815,7 +815,7 @@ impl Mesa {
         let delisatisatm = isat / isatm * (1. - g / (1. + g));
         let delisatmvgte = gchim * (p - vgte * vgte / (vl * vl * h)) / (p * p);
         let delvsategch = -vsate / gch;
-        let delisatmgchim = vgte * (p - gchim * model.rsi * (1. + 1. / h)) / (p * p);
+        let delisatmgchim = vgte * (p - gchim * derived.trsi * (1. + 1. / h)) / (p * p);
         let delvgtvgs = 1. - vds * model.sigma0 / model.vsigma * s / ((1. + s) * (1. + s));
         let p = delgchgchi * delgchins * delnsnsm * delnsmvgt;
         let delvsatevgt = delvsateisat
@@ -1237,31 +1237,16 @@ impl Device for Mesa {
     fn instance_parameter(&self, keyword: &str) -> Option<&'static str> {
         Self::sweepable(keyword)
     }
-    /// `mesa.c`'s `IFparm` tables under C's `sgen` walk (#164). Levels 2 and 4
-    /// are verified against C; level 3's `mesa2` path still differs on the
-    /// `DU`/`TH` rows (see `docs/port/SENSITIVITY.md`), so it is refused.
+    /// `mesa.c`'s `IFparm` tables under C's `sgen` walk (#164). All three
+    /// levels are verified against C: `sens_mesa` (level 2), `sens_mesa3`
+    /// (level 3) and `sens_mesa4` (level 4, including a shifted instance
+    /// temperature, whose `rtc1`/`rtc2` rows exposed the channel's use of the
+    /// raw `rsi` where C uses the temperature-scaled `tRsi`).
     fn sensitivity(&self, context: &ModelContext) -> SpiceResult<Box<dyn DeviceSensitivity + '_>> {
-        if !matches!(self.level, l if l == 2. || l == 4.) {
+        if !matches!(self.level, l if l == 2. || l == 3. || l == 4.) {
             return Err(SpiceError::not_yet_ported(
                 format!("{}: MESA level {} sensitivity", self.name, self.level),
                 "src/spicelib/devices/mesa/mesatemp.c, mesaload.c (mesa2/mesa3)",
-            ));
-        }
-        // A level-4 instance whose temperature is shifted by TS/DTEMP still
-        // differs from C on `rtc1`/`rtc2`: measured at `ts=40` on a level-4 card
-        // the port answers -4.459e-3/-5.796e-2 against C's -5.519e-3/-7.174e-2
-        // (the same 0.808 ratio on both), while `.op`/`.dc`/`.tran` agree to
-        // 1e-9 and every other column is inside 1e-6. Refuse rather than
-        // report those two rows. Level 2 verifies with `dtemp` set
-        // (`sens_mesa`'s `z2`).
-        if self.level == 4. && (self.instance.ts.is_some() || self.instance.dtemp != 0.) {
-            return Err(SpiceError::not_yet_ported(
-                format!(
-                    "{}: MESA level 4 sensitivity at a shifted temperature",
-                    self.name
-                ),
-                "src/spicelib/devices/mesa/mesatemp.c (the RTC1/RTC2 scaling of \
-                 trdi/trsi/trs/trd when TS/DTEMP move the instance temperature)",
             ));
         }
         Ok(Box::new(MesaSensitivity::new(self, context)))
@@ -1950,7 +1935,34 @@ impl DeviceSensitivity for MesaSensitivity<'_> {
                 model.set(keyword, value + CELSIUS_TO_KELVIN)
             }
             (ParameterScope::Model, _) => model.set(keyword, value),
+            // `mesaparam.c` stores the instance temperatures in kelvin, so the
+            // setter re-adds the offset that [`Self::ask`] removed.
+            (ParameterScope::Instance, "td" | "ts") => {
+                instance.set(keyword, value + CELSIUS_TO_KELVIN)
+            }
             (ParameterScope::Instance, _) => instance.set(keyword, value),
+        }
+    }
+
+    /// `mesamask.c`/`mesaask.c`: C stores `td`/`ts` in kelvin
+    /// (`mesaparam.c`'s `value + CONSTCtoK`) but answers them in Celsius, so
+    /// `.sens` takes its relative step on the Celsius value and the setter
+    /// re-adds the offset. The step does not cancel exactly: `.sens` divides a
+    /// fixed-bias linearisation by `delta`, so a nonlinear row keeps an
+    /// O(delta) residue, and C's step is the Celsius one (`sens_mesa3`'s
+    /// `td`/`ts` rows are the measured case).
+    fn ask(
+        &self,
+        scope: ParameterScope,
+        keyword: &str,
+        records: RecordPair<'_>,
+    ) -> SpiceResult<Real> {
+        if scope == ParameterScope::Instance && matches!(keyword, "td" | "ts") {
+            return Ok(records.instance.value(keyword)? - CELSIUS_TO_KELVIN);
+        }
+        match scope {
+            ParameterScope::Model => records.model.value(keyword),
+            ParameterScope::Instance => records.instance.value(keyword),
         }
     }
 
@@ -2002,11 +2014,39 @@ impl DeviceSensitivity for MesaSensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: MESA AC sensitivity", self.device.name),
-                "src/spicelib/devices/mesa/mesaacl.c",
+            return Err(SpiceError::circuit(
+                "a MESA's AC sensitivity load is its reset load",
             ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(self.mesa(current)?)))
+    }
+
+    /// `MESAacLoad` after `cktsens.c`'s reset load: `ggs`/`ggd` in
+    /// `CKTstate0` and the instance fields `gm0`..`gds0`/`delidgch0`.. that
+    /// `mesaload.c` wrote at zero gate voltages with the reset records (at the
+    /// reset's `vds = 0` C's `lambda` blend multiplies zero, so `gm`/`gds` are
+    /// the load's own); the charge slots and `ggspp`/`ggdpp` are zero; the
+    /// conductances and `m` come from `current`. Level 4's `mesa3` never
+    /// writes those fields, so its AC load has no `gm`/`gds` at all, which
+    /// here (unlike `.ac` at an operating point) is reproduced: they are
+    /// zero whatever ran before.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        Ok(SensitivityLoad::Replacement(Box::new(ResetMesa {
+            state: self.mesa(reset.state)?,
+            current: self.mesa(current)?,
+        })))
+    }
+}
+
+impl MesaSensitivity<'_> {
+    /// The port's MESA with the records' parameters.
+    #[allow(clippy::too_many_lines)]
+    fn mesa(&self, current: RecordPair<'_>) -> SpiceResult<Mesa> {
         let (m, i) = (current.model, current.instance);
         let celsius = |record: &SensitivityRecord, keyword: &str| -> SpiceResult<Option<Real>> {
             Ok(record
@@ -2092,7 +2132,7 @@ impl DeviceSensitivity for MesaSensitivity<'_> {
         // perturbation of 1 ppm leaves a value that matches none of the
         // `== 2/3/4` tests; the load then carries no channel, as in C.
         let level = m.value("level")?;
-        let device = Mesa {
+        Ok(Mesa {
             name: self.device.name.clone(),
             model_name: self.device.model_name.clone(),
             level,
@@ -2101,7 +2141,99 @@ impl DeviceSensitivity for MesaSensitivity<'_> {
             model,
             instance,
             initial: self.device.initial.clone(),
+        })
+    }
+}
+
+/// A MESA's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetMesa {
+    /// Built from the reset load's records: the gate and channel
+    /// conductances.
+    state: Mesa,
+    /// Built from the current records: the series conductances and `m`.
+    current: Mesa,
+}
+
+impl Device for ResetMesa {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'z'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `mesaacl.c`'s real stamps in its order; `xgs`/`xgd` are zero.
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        use crate::devices::sensitivity::{ResetStamp, ResetStamps, StampAt, StampPart};
+        let model_context = context.model_context;
+        let (temperature, nominal) = (model_context.temperature, model_context.nominal_temperature);
+        let state = &self.state;
+        let derived = state.derived(temperature, nominal)?;
+        // `von` with a zero `CKTrhsOld` source-prime voltage.
+        let von = derived.tvto + state.model.ks * (0. - state.model.vsg);
+        let point = state.point(&derived, 0., 0., von, model_context.gmin)?;
+        let (gm, gds) = if state.level == 4. {
+            (0., 0.)
+        } else {
+            (point.gm, point.gds)
         };
-        Ok(SensitivityLoad::Replacement(Box::new(device)))
+        let (ggs, ggd, ggspp, ggdpp) = (point.ggs, point.ggd, 0., 0.);
+        let current = &self.current;
+        let c = current.derived(temperature, nominal)?;
+        let (gdpr, gspr, ggate, tgi, tgf) = (c.gdpr, c.gspr, c.ggate, c.tgi, c.tgf);
+        let m = current.instance.m;
+        let n = current.nodes;
+        let stamps = [
+            (n.d, n.d, m * gdpr),
+            (n.s, n.s, m * gspr),
+            (n.g, n.g, m * ggate),
+            (n.spp, n.spp, m * (tgi + ggspp)),
+            (n.dpp, n.dpp, m * (tgf + ggdpp)),
+            (n.d, n.dp, -(m * gdpr)),
+            (n.dp, n.d, -(m * gdpr)),
+            (n.s, n.sp, -(m * gspr)),
+            (n.sp, n.s, -(m * gspr)),
+            (n.g, n.gp, -(m * ggate)),
+            (n.gp, n.g, -(m * ggate)),
+            (n.gp, n.dp, m * (-ggd)),
+            (n.gp, n.sp, m * (-ggs)),
+            (n.dp, n.gp, m * (gm - ggd)),
+            (n.dp, n.sp, m * (-gds - gm)),
+            (n.sp, n.gp, m * (-ggs - gm)),
+            (n.sp, n.dp, m * (-gds)),
+            (n.gp, n.gp, m * (ggd + ggs + ggate + ggspp + ggdpp)),
+            (n.dp, n.dp, m * (gds + ggd + gdpr + tgf)),
+            (n.sp, n.sp, m * (gds + gm + ggs + gspr + tgi)),
+            (n.sp, n.spp, -(m * tgi)),
+            (n.spp, n.sp, -(m * tgi)),
+            (n.gp, n.spp, -(m * ggspp)),
+            (n.spp, n.gp, -(m * ggspp)),
+            (n.dp, n.dpp, -(m * tgf)),
+            (n.dpp, n.dp, -(m * tgf)),
+            (n.gp, n.dpp, -(m * ggdpp)),
+            (n.dpp, n.gp, -(m * ggdpp)),
+        ]
+        .into_iter()
+        .map(|(a, b, value)| ResetStamp {
+            at: StampAt::Nodes(a, b),
+            value,
+            part: StampPart::Real,
+        })
+        .collect();
+        ResetStamps::new(&current.name, 'z', &current.terminals, stamps)?.assemble_linear(context)
     }
 }

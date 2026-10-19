@@ -407,9 +407,13 @@ fn analyses_c_has_no_mos6_routine_for_fail_explicitly() {
             "{card}: {error}"
         );
     }
-    // .disto, .sens: explicit errors, never a silently linear or missing
-    // device.
-    for card in [".disto dec 2 1k 10k", ".sens v(out)"] {
+    // Modern .sens uses cktsens.c's finite-difference walk, not the null
+    // old sensitivity routine slots. Filter KP's level-6 counterpart here
+    // because the full walk's absolute LD step collapses this 2 um channel.
+    assert!(run(&format!("{stage}\n.sens v(out) m1:kc")).is_ok());
+    // .disto is still an explicit error, never a missing device.
+    {
+        let card = ".disto dec 2 1k 10k";
         let error = run(&format!("{stage}\n{card}")).unwrap_err();
         assert!(
             matches!(

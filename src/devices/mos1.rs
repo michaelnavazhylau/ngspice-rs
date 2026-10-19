@@ -17,9 +17,12 @@
 //!
 //! See [`crate::devices::mos`] for the load's deliberate divergences and the
 //! `off`/`IC` start behaviour. C's SPICE3-compatibility flicker form is not
-//! selectable (no compatibility mode is ported).
+//! selectable (no compatibility mode is ported). DC `.sens` is implemented
+//! by `sens` and the shared MOS record lifecycle: process-derived values and
+//! the given flags left by restoration follow `mos1set.c`/`mos1temp.c`.
 
 mod disto;
+mod sens;
 
 use crate::devices::mos::{
     CHARGE, Common, DrainCurrent, EPSILON_0, Geometry, Junction, K_OVER_Q, MosLevel, Mosfet,
@@ -208,6 +211,16 @@ impl MosLevel for Level1 {
 
     fn common(&self) -> &Common {
         &self.common
+    }
+
+    fn sensitivity<'a>(
+        device: &'a Mos1,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + 'a>> {
+        Ok(Box::new(crate::devices::mos::sens::MosSensitivity {
+            device,
+            context: *context,
+        }))
     }
 
     fn check_geometry(&self, name: &str, geometry: &Geometry) -> SpiceResult<()> {

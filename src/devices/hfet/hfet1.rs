@@ -45,8 +45,9 @@ use crate::devices::schema::{
     ScalarDomain as D, ScalarParameter as P, ScalarSchema, ScalarUnit as U,
 };
 use crate::devices::sensitivity::{
-    DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
-    SensitivityMode, SensitivityParameter, SensitivityRecord,
+    AcReset, DeviceSensitivity, ParameterScope, RecordPair, ResetStamp, ResetStamps,
+    SensitivityFamily, SensitivityLoad, SensitivityMode, SensitivityParameter, SensitivityRecord,
+    StampAt, StampPart,
 };
 use crate::devices::{
     AnalysisMode, Device, DeviceState, IterationPhase, LinearContext, ModelContext, ResolvedModel,
@@ -1729,7 +1730,8 @@ impl Device for Hfet1 {
     }
 
     /// `hfetacl.c`: the bias conductances plus `j omega` times the gate
-    /// capacitances, with C's `kappa`/`fgds`/`delf` correction on `gds`.
+    /// capacitances and the fixed drain-source `CDS`, with C's
+    /// `kappa`/`fgds`/`delf` correction on `gds`.
     fn assemble_small_signal(
         &self,
         context: &mut LinearContext<'_>,
@@ -1795,15 +1797,48 @@ impl Device for Hfet1 {
         // where a small-signal load stores the capacitances in those slots.
         context.nodal([n.gp, n.spp], m * point.capgs, true)?;
         context.nodal([n.gp, n.dpp], m * point.capgd, true)?;
-        Ok(())
+        // `xds = CDS * CKTomega` across the channel, `m * (xds)`.
+        self.cds_stamps(context)
     }
-    /// `hfetpzl.c` is `hfetacl.c` with `s` in place of `j omega`.
+    /// `hfetpzl.c` is `hfetacl.c` with `s` in place of `j omega`, except
+    /// that it multiplies `CDS` by the `CKTomega` the last AC analysis left
+    /// (zero in a fresh run) as well as by `s`: a nonzero `CDS` is refused.
     fn assemble_pole_zero(
         &self,
         context: &mut LinearContext<'_>,
         bias: &Vector,
     ) -> SpiceResult<()> {
+        if self.model.cds != 0. {
+            return Err(SpiceError::not_yet_ported(
+                format!(
+                    "pole-zero analysis of HFET1 {} with CDS: hfetpzl.c scales it by a stale \
+                     CKTomega",
+                    self.name
+                ),
+                "src/spicelib/devices/hfet1/hfetpzl.c",
+            ));
+        }
         self.assemble_small_signal(context, bias)
+    }
+}
+
+impl Hfet1 {
+    /// `hfetacl.c`'s `m * (xds)` stamps, `xds = CDS * CKTomega`.
+    fn cds_stamps(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        let (n, m) = (self.nodes, self.instance.m);
+        let cds = self.model.cds;
+        if cds == 0. {
+            return Ok(());
+        }
+        for (a, b, value) in [
+            (n.dp, n.dp, cds),
+            (n.sp, n.sp, cds),
+            (n.dp, n.sp, -cds),
+            (n.sp, n.dp, -cds),
+        ] {
+            context.scaled_dynamic_sum(a, b, &[value], m)?;
+        }
+        Ok(())
     }
 }
 
@@ -2129,11 +2164,37 @@ impl DeviceSensitivity for Hfet1Sensitivity<'_> {
         mode: SensitivityMode,
     ) -> SpiceResult<SensitivityLoad> {
         if mode == SensitivityMode::Ac {
-            return Err(SpiceError::not_yet_ported(
-                format!("{}: HFET1 AC sensitivity", self.device.name),
-                "src/spicelib/devices/hfet1/hfetacl.c",
+            return Err(SpiceError::circuit(
+                "an HFET1's AC sensitivity load is its reset load",
             ));
         }
+        Ok(SensitivityLoad::Replacement(Box::new(self.hfet1(current)?)))
+    }
+
+    /// `HFETAacLoad` after `cktsens.c`'s reset load: `gm`, `gds`, `ggs`,
+    /// `ggd`, `ggspp`, `ggdpp` are the `CKTstate0` values `hfetload.c` stored
+    /// at zero gate voltages with the reset records, the charge slots
+    /// `qgs`/`qgd` are zero, and the model conductances, `CDS`, the
+    /// frequency-dependent output conductance (`kappa`, `fgds`, `delf`) and
+    /// `m` come from `current`.
+    fn reset_ac_load(
+        &self,
+        _setup: RecordPair<'_>,
+        reset: AcReset<'_>,
+        current: RecordPair<'_>,
+    ) -> SpiceResult<SensitivityLoad> {
+        Ok(SensitivityLoad::Replacement(Box::new(ResetHfet1 {
+            state: self.hfet1(reset.state)?,
+            current: self.hfet1(current)?,
+            omega: reset.omega,
+        })))
+    }
+}
+
+impl Hfet1Sensitivity<'_> {
+    /// The port's HFET1 with the records' parameters.
+    #[allow(clippy::too_many_lines)]
+    fn hfet1(&self, current: RecordPair<'_>) -> SpiceResult<Hfet1> {
         let (m, i) = (current.model, current.instance);
         let r = |keyword: &str| m.value(keyword);
         let v = |keyword: &str| i.value(keyword);
@@ -2219,7 +2280,7 @@ impl DeviceSensitivity for Hfet1Sensitivity<'_> {
             temp: kevlin("temp")?,
             dtemp: v("dtemp")?,
         };
-        let device = Hfet1 {
+        Ok(Hfet1 {
             name: self.device.name.clone(),
             model_name: self.device.model_name.clone(),
             terminals: self.device.terminals.clone(),
@@ -2227,7 +2288,136 @@ impl DeviceSensitivity for Hfet1Sensitivity<'_> {
             model,
             instance,
             initial: self.device.initial.clone(),
-        };
-        Ok(SensitivityLoad::Replacement(Box::new(device)))
+        })
+    }
+}
+
+/// An HFET1's AC load in `cktsens.c`'s sweep
+/// ([`DeviceSensitivity::reset_ac_load`]).
+#[derive(Debug)]
+struct ResetHfet1 {
+    /// Built from the reset load's records: the gate and channel
+    /// conductances.
+    state: Hfet1,
+    /// Built from the current records: conductances, `CDS`, `m`.
+    current: Hfet1,
+    /// `CKTomega`.
+    omega: Real,
+}
+
+impl Device for ResetHfet1 {
+    fn name(&self) -> &str {
+        &self.current.name
+    }
+
+    fn designator(&self) -> char {
+        'z'
+    }
+
+    fn terminals(&self) -> &[NodeId] {
+        &self.current.terminals
+    }
+
+    fn stamp(&self, _context: &mut StampContext<'_>) -> SpiceResult<()> {
+        Err(SpiceError::circuit(format!(
+            "{}: an AC sensitivity stand-in has no DC load",
+            self.current.name
+        )))
+    }
+
+    /// `hfetacl.c`'s stamps in its order: the real parts, then the
+    /// imaginary ones (`xgs`/`xgd` zero, `xds = CDS * CKTomega`).
+    fn assemble_linear(&self, context: &mut LinearContext<'_>) -> SpiceResult<()> {
+        let temperature = context.model_context.temperature;
+        let state = &self.state;
+        // `type * (0 - 0)`: a signed zero, as C's at zero node voltages.
+        let zero = state.model.pol * 0.;
+        let point = state.point(
+            &state.derived(temperature)?,
+            zero,
+            zero,
+            context.model_context.gmin,
+        )?;
+        let (gm, ggs, ggd) = (point.gm, point.ggs, point.ggd);
+        // Only the transient companion writes `ggspp`/`ggdpp`.
+        let (ggspp, ggdpp) = (0., 0.);
+        let current = &self.current;
+        let derived = current.derived(temperature)?;
+        let omega = self.omega;
+        let xds = current.model.cds * omega;
+        let (xgs, xgd) = (0. * omega, 0. * omega);
+        let mut gds = point.gds;
+        if current.model.kappa != 0. && derived.delf != 0. {
+            let f = omega / 2. / std::f64::consts::PI;
+            gds *=
+                1. + 0.5 * current.model.kappa * (1. + ((f - derived.fgds) / derived.delf).tanh());
+        }
+        let m = current.instance.m;
+        let n = current.nodes;
+        let (gdpr, gspr, ggate, tgi, tgf) = (
+            derived.gdpr,
+            derived.gspr,
+            derived.ggate,
+            derived.tgi,
+            derived.tgf,
+        );
+        let real = [
+            (n.d, n.d, m * gdpr),
+            (n.s, n.s, m * gspr),
+            (n.gp, n.gp, m * (ggd + ggs + ggspp + ggdpp + ggate)),
+            (n.dp, n.dp, m * (gds + ggd + gdpr + tgf)),
+            (n.sp, n.sp, m * (gds + gm + ggs + gspr + tgi)),
+            (n.spp, n.spp, m * (tgi + ggspp)),
+            (n.dpp, n.dpp, m * (tgf + ggdpp)),
+            (n.d, n.dp, -(m * gdpr)),
+            (n.dp, n.d, -(m * gdpr)),
+            (n.s, n.sp, -(m * gspr)),
+            (n.sp, n.s, -(m * gspr)),
+            (n.gp, n.dp, -(m * ggd)),
+            (n.dp, n.gp, m * (gm - ggd)),
+            (n.gp, n.sp, -(m * ggs)),
+            (n.sp, n.gp, m * (-ggs - gm)),
+            (n.dp, n.sp, m * (-gds - gm)),
+            (n.sp, n.dp, -(m * gds)),
+            (n.sp, n.spp, -(m * tgi)),
+            (n.spp, n.sp, -(m * tgi)),
+            (n.gp, n.spp, -(m * ggspp)),
+            (n.spp, n.gp, -(m * ggspp)),
+            (n.dp, n.dpp, -(m * tgf)),
+            (n.dpp, n.dp, -(m * tgf)),
+            (n.gp, n.dpp, -(m * ggdpp)),
+            (n.dpp, n.gp, -(m * ggdpp)),
+            (n.g, n.g, m * ggate),
+            (n.g, n.gp, -(m * ggate)),
+            (n.gp, n.g, -(m * ggate)),
+        ];
+        let imaginary = [
+            (n.gp, n.gp, m * (xgd + xgs)),
+            (n.dpp, n.dpp, m * xgd),
+            (n.spp, n.spp, m * xgs),
+            (n.gp, n.dpp, -(m * xgd)),
+            (n.gp, n.spp, -(m * xgs)),
+            (n.dpp, n.gp, -(m * xgd)),
+            (n.spp, n.gp, -(m * xgs)),
+            (n.dp, n.dp, m * xds),
+            (n.sp, n.sp, m * xds),
+            (n.dp, n.sp, -(m * xds)),
+            (n.sp, n.dp, -(m * xds)),
+        ];
+        let stamps = real
+            .into_iter()
+            .map(|(a, b, value)| (a, b, value, StampPart::Real))
+            .chain(
+                imaginary
+                    .into_iter()
+                    .map(|(a, b, value)| (a, b, value, StampPart::Imaginary)),
+            )
+            .map(|(a, b, value, part)| ResetStamp {
+                at: StampAt::Nodes(a, b),
+                value,
+                part,
+            })
+            .collect();
+        ResetStamps::new(&current.name, 'z', &current.terminals, stamps)?.assemble_linear(context)
     }
 }

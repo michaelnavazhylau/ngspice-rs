@@ -12,6 +12,9 @@ use ngspice_rs::netlist::{Parser, source::parse_deck_text};
 use ngspice_rs::primitives::{AnalysisKind, NodeKind};
 use std::path::Path;
 
+#[path = "../conformance/reference.rs"]
+mod reference;
+
 const VT: f64 = (1.38064852e-23 / 1.6021766208e-19) * 300.15;
 
 fn netlist(body: &str) -> ngspice_rs::netlist::ast::Netlist {
@@ -379,4 +382,165 @@ fn m7_fixtures_parse_write_parse_with_a_fixed_point() {
         assert!(ngspice_rs::netlist::semantic_eq(&n, &round));
         assert_eq!(text, ngspice_rs::netlist::write_netlist(&round).unwrap());
     }
+}
+
+/// A lone IBE/IBC is ignored by the initial thermal model but not discarded:
+/// restoring the missing partner during `.sens` later activates the pair.
+#[test]
+fn single_saturation_current_setters_survive_in_sensitivity_records() {
+    for (card, be, bc) in [
+        ("ibe=1e-13", Some(1e-13), None),
+        ("ibc=2e-14", None, Some(2e-14)),
+        ("ibe=1e-13 ibc=2e-14", Some(1e-13), Some(2e-14)),
+    ] {
+        let c = circuit(&format!("q1 c b 0 qm\n.model qm npn {card}"));
+        let replay = c
+            .device("q1")
+            .unwrap()
+            .sensitivity(&ModelContext::default())
+            .unwrap();
+        let (m, _) = replay.records().unwrap();
+        assert_eq!(m.given("ibe"), be.is_some(), "{card}");
+        assert_eq!(m.given("ibc"), bc.is_some(), "{card}");
+        assert_eq!(m.value("ibe").unwrap(), be.unwrap_or(0.));
+        assert_eq!(m.value("ibc").unwrap(), bc.unwrap_or(0.));
+    }
+}
+
+/// Large reference columns previously misdiagnosed as cancellation. The card
+/// uses default tolerances, like the measured ngspice-47+ probe. In particular
+/// VAF is stepped from zero and exposes the paired saturation-current switch.
+#[test]
+fn single_sided_saturation_currents_follow_cs_restore_walk() {
+    for (card, pins) in [
+        (
+            "ibc=2e-14",
+            [
+                ("v(q1:ibe)", 5.433_384_999_027_637e11),
+                ("v(q1:ibc)", 4.100_676_337_386_377_5),
+                ("v(q1:vaf)", 0.086_011_074_718_727_68),
+                ("v(q1:var)", -0.013_988_896_037_050_5),
+            ],
+        ),
+        (
+            "ibe=1e-13",
+            [
+                ("v(q1:ibc)", 54_283.616_822_039_774),
+                ("v(q1:vaf)", 2.386_795_986_069_663e11),
+                ("v(q1:ikf)", -55_264.635_827_176_47),
+                ("v(q1_area)", 0.054_333_850_228_572_1),
+            ],
+        ),
+    ] {
+        let plot = sensitivity(&format!(
+            "vcc 1 0 dc 5\nvids 1 2 dc 0\n\
+            vb 4 0 dc 0.7\nrbb 4 3 1k\nq1 2 3 0 qn\n\
+            .model qn npn level=1 {card}\n.sens i(vids)"
+        ));
+        for (name, expected) in pins {
+            close(column(&plot, name), expected, 1e-6, 1e-9);
+        }
+    }
+}
+
+/// Runs the deck's own `.sens` analysis.
+fn sensitivity(body: &str) -> Plot {
+    let netlist = netlist(body);
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut c = config.circuit(&netlist).unwrap();
+    runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap()
+}
+fn column(plot: &Plot, name: &str) -> f64 {
+    let index = plot
+        .variable_index(name)
+        .unwrap_or_else(|| panic!("missing {name}: {:?}", plot.variables));
+    plot.points[0][index].re
+}
+
+/// `.sens` over `bjt.c`'s tables (#164): 103 model setters and six instance
+/// ones. The `IOPA` capacitance family is `IF_AC` (so `cje`/`tf`/`xcjc` and
+/// friends appear only in an AC walk), `ic` is a vector, `off`/`sens_area` are
+/// flags, the probe entries are ask-only and the `IOPR` aliases are redundant.
+/// `rco` and the unported quasi-saturation/SOA parameters are still enumerated.
+#[test]
+fn sensitivity_covers_the_bjt_tables() {
+    let plot = sensitivity(
+        "vcc 1 0 dc 5\nq1 1 3 2 qn area=2\nvids 2 0 dc 0\nvb 4 0 dc 0.72\n\
+         rb 4 3 1k\n.model qn npn level=1\n.sens i(vids)",
+    );
+    let names: Vec<&str> = plot
+        .variables
+        .iter()
+        .map(|variable| variable.name.as_str())
+        .filter(|name| name.starts_with("v(q1"))
+        .collect();
+    assert_eq!(names.len(), 109, "{names:?}");
+    for absent in ["v(q1:xcjc)", "v(q1:tf)", "v(q1:vto)", "v(q1:icvbe)"] {
+        assert!(!names.contains(&absent), "{absent} in {names:?}");
+    }
+    for present in ["v(q1:tnom)", "v(q1:nkf)", "v(q1:rth0)", "v(q1_temp)"] {
+        assert!(names.contains(&present), "{present} missing from {names:?}");
+    }
+}
+
+/// `sensitivity()` refuses a card with `RC != 0`: `bjtsetup.c` then creates
+/// `collCX`, and C's walk marks `VO`/`GAMMA`/`QCO` given, switching the Kull
+/// quasi-saturation terms on in the perturbed loads (measured: `v(q1:gamma)`
+/// is 0.652 where the port has no such physics).
+#[test]
+fn sensitivity_refuses_a_card_with_a_collector_resistance() {
+    let netlist = netlist(
+        "vcc 1 0 dc 5\nq1 1 3 2 qn\nvids 2 0 dc 0\nvb 4 0 dc 0.72\nrb 4 3 1k\n\
+         .model qn npn level=1 rc=40\n.sens i(vids)",
+    );
+    let config = ngspice_rs::analysis::RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut c = config.circuit(&netlist).unwrap();
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut c, &request, &config.context())
+        .unwrap_err();
+    assert!(error.is_not_yet_ported(), "{error}");
+    assert!(error.to_string().contains("RC"), "{error}");
+}
+
+/// The `sens_bjt` card: an NPN at `dtemp=-10` with `ISE > 1e-4` (rescales to
+/// `IS*ISE` in `bjtsetup.c`), `rb`/`re`/`irb`/`rbm`, area factors and a `BF`
+/// polynomial, plus a PNP at `dtemp=20` with `tnom=50`. The reference binary
+/// prints these columns; `rco` is zero because `sens_setp()` skips it, and
+/// `bf`/`vaf` are zero because C's own linearization does not see them here.
+/// Use the matching C platform: the 1e-25 ISE step amplifies libm differences
+/// enough to change the sign of C's own column between macOS and Linux.
+#[test]
+fn sensitivity_matches_the_reference_on_the_fixture_card() {
+    let plot = sensitivity(
+        ".options reltol=1e-10 vntol=1e-13 abstol=1e-16\n\
+         vcc 1 0 dc 5\nq1 1 3 2 qn area=2 areab=3 areac=4 dtemp=-10\n\
+         vids 2 0 dc 0\nvb 4 0 dc 0.72\nrb 4 3 1k\nvcc2 5 0 dc -5\n\
+         q2 5 7 2 qp dtemp=20\nvb2 8 0 dc -0.68\nrb2 8 7 1k\n\
+         .model qn npn level=1 ise=1e-3 rb=300 re=20 irb=1e-3 rbm=100 \
+         tbf1=0.01 tbf2=1e-5\n\
+         .model qp pnp level=1 tnom=50 tbr1=0.02 tbr2=2e-5\n.sens i(vids)",
+    );
+    let raw = ngspice_rs::analysis::RawFile::load(reference::golden_path(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        "sens_bjt",
+    ))
+    .unwrap();
+    let expected = &raw.plots[0].plot;
+    assert_eq!(plot.variable_count(), expected.variable_count());
+    assert_eq!(plot.point_count(), expected.point_count());
+    for variable in &expected.variables {
+        close(
+            column(&plot, &variable.name),
+            column(expected, &variable.name),
+            1e-6,
+            1e-9,
+        );
+    }
+    assert_eq!(column(&plot, "v(q1:rco)"), 0., "sens_setp skips RCO");
 }

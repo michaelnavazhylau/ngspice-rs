@@ -1,0 +1,84 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_bjt.cir
+title: "AC sensitivity of the Gummel-Poon BJT (#102)" @netlists/sens_ac_bjt.cir:1:1
+scope root
+  cards (11):
+    [0] device[0] @netlists/sens_ac_bjt.cir:5:1 "vcc 3 0 dc 5"
+    [1] device[1] @netlists/sens_ac_bjt.cir:6:1 "v1 1 0 dc 0.7 ac 1"
+    [2] device[2] @netlists/sens_ac_bjt.cir:7:1 "rb 1 2 1k"
+    [3] device[3] @netlists/sens_ac_bjt.cir:8:1 "rc 3 4 2k"
+    [4] device[4] @netlists/sens_ac_bjt.cir:9:1 "q1 4 2 0 qn area=1.5"
+    [5] device[5] @netlists/sens_ac_bjt.cir:10:1 "q2 4 2 5 0 qp m=2"
+    [6] device[6] @netlists/sens_ac_bjt.cir:11:1 "re 5 0 100"
+    [7] model[0] @netlists/sens_ac_bjt.cir:12:1 ".model qn npn is=1e-15 bf=150 vaf=80 rb=50 irb=1m rbm=10 re=1 cje=1p tf=0.3n cjc=0.5p cjs=0.2p ise=1e-14 ikf=10m"
+    [8] model[1] @netlists/sens_ac_bjt.cir:13:1 ".model qp pnp is=2e-15 bf=60 br=3 tf=1n"
+    [9] analysis[0] @netlists/sens_ac_bjt.cir:14:1 ".sens v(4) ac dec 2 1k 1meg"
+    [10] end @netlists/sens_ac_bjt.cir:15:1 ".end"
+  devices (7):
+    device [0] name="vcc" designator=v @netlists/sens_ac_bjt.cir:5:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="5" @netlists/sens_ac_bjt.cir:5:9
+    device [1] name="v1" designator=v @netlists/sens_ac_bjt.cir:6:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.7" @netlists/sens_ac_bjt.cir:6:8
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_bjt.cir:6:18
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_bjt.cir:6:15
+    device [2] name="rb" designator=r @netlists/sens_ac_bjt.cir:7:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_ac_bjt.cir:7:8
+    device [3] name="rc" designator=r @netlists/sens_ac_bjt.cir:8:1
+      nodes: "3" "4"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/sens_ac_bjt.cir:8:8
+    device [4] name="q1" designator=q @netlists/sens_ac_bjt.cir:9:1
+      nodes: "4" "2" "0"
+      model: "qn"
+      parameters (1):
+        [0] name="area" kind=scalar value="1.5" @netlists/sens_ac_bjt.cir:9:13
+    device [5] name="q2" designator=q @netlists/sens_ac_bjt.cir:10:1
+      nodes: "4" "2" "5" "0"
+      model: "qp"
+      parameters (1):
+        [0] name="m" kind=scalar value="2" @netlists/sens_ac_bjt.cir:10:15
+    device [6] name="re" designator=r @netlists/sens_ac_bjt.cir:11:1
+      nodes: "5" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/sens_ac_bjt.cir:11:8
+  models (2):
+    model [0] name="qn" base="npn" level=none @netlists/sens_ac_bjt.cir:12:1
+      parameters (13):
+        [0] name="is" kind=scalar value="1e-15" @netlists/sens_ac_bjt.cir:12:15
+        [1] name="bf" kind=scalar value="150" @netlists/sens_ac_bjt.cir:12:24
+        [2] name="vaf" kind=scalar value="80" @netlists/sens_ac_bjt.cir:12:31
+        [3] name="rb" kind=scalar value="50" @netlists/sens_ac_bjt.cir:12:38
+        [4] name="irb" kind=scalar value="1m" @netlists/sens_ac_bjt.cir:12:44
+        [5] name="rbm" kind=scalar value="10" @netlists/sens_ac_bjt.cir:12:51
+        [6] name="re" kind=scalar value="1" @netlists/sens_ac_bjt.cir:12:58
+        [7] name="cje" kind=scalar value="1p" @netlists/sens_ac_bjt.cir:12:63
+        [8] name="tf" kind=scalar value="0.3n" @netlists/sens_ac_bjt.cir:12:70
+        [9] name="cjc" kind=scalar value="0.5p" @netlists/sens_ac_bjt.cir:12:78
+        [10] name="cjs" kind=scalar value="0.2p" @netlists/sens_ac_bjt.cir:12:87
+        [11] name="ise" kind=scalar value="1e-14" @netlists/sens_ac_bjt.cir:12:96
+        [12] name="ikf" kind=scalar value="10m" @netlists/sens_ac_bjt.cir:12:106
+    model [1] name="qp" base="pnp" level=none @netlists/sens_ac_bjt.cir:13:1
+      parameters (4):
+        [0] name="is" kind=scalar value="2e-15" @netlists/sens_ac_bjt.cir:13:15
+        [1] name="bf" kind=scalar value="60" @netlists/sens_ac_bjt.cir:13:24
+        [2] name="br" kind=scalar value="3" @netlists/sens_ac_bjt.cir:13:30
+        [3] name="tf" kind=scalar value="1n" @netlists/sens_ac_bjt.cir:13:35
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_ac_bjt.cir:14:1
+      arguments: "v" "(" "4" ")" "ac" "dec" "2" "1k" "1meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

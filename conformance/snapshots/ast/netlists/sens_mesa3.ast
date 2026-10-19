@@ -1,0 +1,83 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_mesa3.cir
+title: "DC sensitivity of MESA level-3 devices (#164)" @netlists/sens_mesa3.cir:1:1
+scope root
+  cards (11):
+    [0] options[0] @netlists/sens_mesa3.cir:14:1 ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+    [1] device[0] @netlists/sens_mesa3.cir:15:1 "vds 1 0 dc 1.0"
+    [2] device[1] @netlists/sens_mesa3.cir:16:1 "vids 1 2 dc 0"
+    [3] device[2] @netlists/sens_mesa3.cir:17:1 "vgs 4 0 dc 0.5"
+    [4] device[3] @netlists/sens_mesa3.cir:18:1 "rg 4 3 1k"
+    [5] device[4] @netlists/sens_mesa3.cir:19:1 "z1 2 3 0 mesmod l=1u w=20u"
+    [6] device[5] @netlists/sens_mesa3.cir:20:1 "z2 2 3 0 mesmod2 l=2u w=40u dtemp=10"
+    [7] model[0] @netlists/sens_mesa3.cir:21:1 ".model mesmod nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5 phib=3.1232e18)"
+    [8] model[1] @netlists/sens_mesa3.cir:23:1 ".model mesmod2 nmf(level=3 rd=31 rs=31 rdi=20 rsi=20 rtc1=1e-3 rtc2=1e-5 phib=3.1232e18)"
+    [9] analysis[0] @netlists/sens_mesa3.cir:25:1 ".sens i(vids)"
+    [10] end @netlists/sens_mesa3.cir:26:1 ".end"
+  devices (6):
+    device [0] name="vds" designator=v @netlists/sens_mesa3.cir:15:1
+      nodes: "1" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.0" @netlists/sens_mesa3.cir:15:9
+    device [1] name="vids" designator=v @netlists/sens_mesa3.cir:16:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_mesa3.cir:16:10
+    device [2] name="vgs" designator=v @netlists/sens_mesa3.cir:17:1
+      nodes: "4" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.5" @netlists/sens_mesa3.cir:17:9
+    device [3] name="rg" designator=r @netlists/sens_mesa3.cir:18:1
+      nodes: "4" "3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="1k" @netlists/sens_mesa3.cir:18:8
+    device [4] name="z1" designator=z @netlists/sens_mesa3.cir:19:1
+      nodes: "2" "3" "0"
+      model: "mesmod"
+      parameters (2):
+        [0] name="l" kind=scalar value="1u" @netlists/sens_mesa3.cir:19:17
+        [1] name="w" kind=scalar value="20u" @netlists/sens_mesa3.cir:19:22
+    device [5] name="z2" designator=z @netlists/sens_mesa3.cir:20:1
+      nodes: "2" "3" "0"
+      model: "mesmod2"
+      parameters (3):
+        [0] name="l" kind=scalar value="2u" @netlists/sens_mesa3.cir:20:18
+        [1] name="w" kind=scalar value="40u" @netlists/sens_mesa3.cir:20:23
+        [2] name="dtemp" kind=scalar value="10" @netlists/sens_mesa3.cir:20:29
+  models (2):
+    model [0] name="mesmod" base="nmf" level=3e0 @netlists/sens_mesa3.cir:21:1
+      parameters (8):
+        [0] name="level" kind=scalar value="3" @netlists/sens_mesa3.cir:21:19
+        [1] name="rd" kind=scalar value="31" @netlists/sens_mesa3.cir:21:27
+        [2] name="rs" kind=scalar value="31" @netlists/sens_mesa3.cir:21:33
+        [3] name="rdi" kind=scalar value="20" @netlists/sens_mesa3.cir:21:39
+        [4] name="rsi" kind=scalar value="20" @netlists/sens_mesa3.cir:21:46
+        [5] name="rtc1" kind=scalar value="1e-3" @netlists/sens_mesa3.cir:21:53
+        [6] name="rtc2" kind=scalar value="1e-5" @netlists/sens_mesa3.cir:21:63
+        [7] name="phib" kind=scalar value="3.1232e18" @netlists/sens_mesa3.cir:21:73
+    model [1] name="mesmod2" base="nmf" level=3e0 @netlists/sens_mesa3.cir:23:1
+      parameters (8):
+        [0] name="level" kind=scalar value="3" @netlists/sens_mesa3.cir:23:20
+        [1] name="rd" kind=scalar value="31" @netlists/sens_mesa3.cir:23:28
+        [2] name="rs" kind=scalar value="31" @netlists/sens_mesa3.cir:23:34
+        [3] name="rdi" kind=scalar value="20" @netlists/sens_mesa3.cir:23:40
+        [4] name="rsi" kind=scalar value="20" @netlists/sens_mesa3.cir:23:47
+        [5] name="rtc1" kind=scalar value="1e-3" @netlists/sens_mesa3.cir:23:54
+        [6] name="rtc2" kind=scalar value="1e-5" @netlists/sens_mesa3.cir:23:64
+        [7] name="phib" kind=scalar value="3.1232e18" @netlists/sens_mesa3.cir:23:74
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_mesa3.cir:25:1
+      arguments: "i" "(" "vids" ")"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/sens_mesa3.cir:14:1
+      setting [0] name="reltol" value="1e-10"@netlists/sens_mesa3.cir:14:17 @netlists/sens_mesa3.cir:14:10
+      setting [1] name="vntol" value="1e-13"@netlists/sens_mesa3.cir:14:29 @netlists/sens_mesa3.cir:14:23
+      setting [2] name="abstol" value="1e-16"@netlists/sens_mesa3.cir:14:42 @netlists/sens_mesa3.cir:14:35
+  globals (0):

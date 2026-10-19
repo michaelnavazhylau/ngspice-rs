@@ -1,0 +1,170 @@
+# ngspice-rs token-dump v1
+file: netlists/sens_hfet2.cir
+title: "Sensitivity of HFET2 devices (#164)" @netlists/sens_hfet2.cir:1:1
+card 1 @netlists/sens_hfet2.cir:18:1 lines=18-18 continuations=0
+  raw: ".options reltol=1e-10 vntol=1e-13 abstol=1e-16"
+  kind: dot(.options)
+  token 1 18:1 word ".options"
+  token 2 18:10 word "reltol"
+  token 3 18:16 equals "="
+  token 4 18:17 number "1e-10" value=1e-10
+  token 5 18:23 word "vntol"
+  token 6 18:28 equals "="
+  token 7 18:29 number "1e-13" value=1e-13
+  token 8 18:35 word "abstol"
+  token 9 18:41 equals "="
+  token 10 18:42 number "1e-16" value=1e-16
+card 2 @netlists/sens_hfet2.cir:19:1 lines=19-19 continuations=0
+  raw: "vds 1 0 dc 2.0"
+  kind: device(v)
+  token 1 19:1 word "vds"
+  token 2 19:5 number "1" value=1e0
+  token 3 19:7 number "0" value=0e0
+  token 4 19:9 word "dc"
+  token 5 19:12 number "2.0" value=2e0
+card 3 @netlists/sens_hfet2.cir:20:1 lines=20-20 continuations=0
+  raw: "vids 1 2 dc 0"
+  kind: device(v)
+  token 1 20:1 word "vids"
+  token 2 20:6 number "1" value=1e0
+  token 3 20:8 number "2" value=2e0
+  token 4 20:10 word "dc"
+  token 5 20:13 number "0" value=0e0
+card 4 @netlists/sens_hfet2.cir:21:1 lines=21-21 continuations=0
+  raw: "vgs 4 0 dc 0.5"
+  kind: device(v)
+  token 1 21:1 word "vgs"
+  token 2 21:5 number "4" value=4e0
+  token 3 21:7 number "0" value=0e0
+  token 4 21:9 word "dc"
+  token 5 21:12 number "0.5" value=5e-1
+card 5 @netlists/sens_hfet2.cir:22:1 lines=22-22 continuations=0
+  raw: "rg 4 3 1k"
+  kind: device(r)
+  token 1 22:1 word "rg"
+  token 2 22:4 number "4" value=4e0
+  token 3 22:6 number "3" value=3e0
+  token 4 22:8 number "1k" value=1e3
+card 6 @netlists/sens_hfet2.cir:23:1 lines=23-23 continuations=0
+  raw: "vgs2 8 0 dc 1.8"
+  kind: device(v)
+  token 1 23:1 word "vgs2"
+  token 2 23:6 number "8" value=8e0
+  token 3 23:8 number "0" value=0e0
+  token 4 23:10 word "dc"
+  token 5 23:13 number "1.8" value=1.8e0
+card 7 @netlists/sens_hfet2.cir:24:1 lines=24-24 continuations=0
+  raw: "rg2 8 7 1k"
+  kind: device(r)
+  token 1 24:1 word "rg2"
+  token 2 24:5 number "8" value=8e0
+  token 3 24:7 number "7" value=7e0
+  token 4 24:9 number "1k" value=1e3
+card 8 @netlists/sens_hfet2.cir:25:1 lines=25-25 continuations=0
+  raw: "z1 2 3 0 nmos l=1u w=20u"
+  kind: device(z)
+  token 1 25:1 word "z1"
+  token 2 25:4 number "2" value=2e0
+  token 3 25:6 number "3" value=3e0
+  token 4 25:8 number "0" value=0e0
+  token 5 25:10 word "nmos"
+  token 6 25:15 word "l"
+  token 7 25:16 equals "="
+  token 8 25:17 number "1u" value=1e-6
+  token 9 25:20 word "w"
+  token 10 25:21 equals "="
+  token 11 25:22 number "20u" value=1.9999999999999998e-5
+card 9 @netlists/sens_hfet2.cir:26:1 lines=26-26 continuations=0
+  raw: "z2 2 3 0 nmos l=2u w=40u dtemp=10"
+  kind: device(z)
+  token 1 26:1 word "z2"
+  token 2 26:4 number "2" value=2e0
+  token 3 26:6 number "3" value=3e0
+  token 4 26:8 number "0" value=0e0
+  token 5 26:10 word "nmos"
+  token 6 26:15 word "l"
+  token 7 26:16 equals "="
+  token 8 26:17 number "2u" value=2e-6
+  token 9 26:20 word "w"
+  token 10 26:21 equals "="
+  token 11 26:22 number "40u" value=3.9999999999999996e-5
+  token 12 26:26 word "dtemp"
+  token 13 26:31 equals "="
+  token 14 26:32 number "10" value=1e1
+card 10 @netlists/sens_hfet2.cir:27:1 lines=27-27 continuations=0
+  raw: "z3 0 7 2 pmos l=1u w=20u temp=50"
+  kind: device(z)
+  token 1 27:1 word "z3"
+  token 2 27:4 number "0" value=0e0
+  token 3 27:6 number "7" value=7e0
+  token 4 27:8 number "2" value=2e0
+  token 5 27:10 word "pmos"
+  token 6 27:15 word "l"
+  token 7 27:16 equals "="
+  token 8 27:17 number "1u" value=1e-6
+  token 9 27:20 word "w"
+  token 10 27:21 equals "="
+  token 11 27:22 number "20u" value=1.9999999999999998e-5
+  token 12 27:26 word "temp"
+  token 13 27:30 equals "="
+  token 14 27:31 number "50" value=5e1
+card 11 @netlists/sens_hfet2.cir:28:1 lines=28-28 continuations=0
+  raw: ".model nmos nhfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30 rdi=5 rsi=7"
+  kind: dot(.model)
+  token 1 28:1 word ".model"
+  token 2 28:8 word "nmos"
+  token 3 28:13 word "nhfet"
+  token 4 28:19 word "level"
+  token 5 28:24 equals "="
+  token 6 28:25 number "6" value=6e0
+  token 7 28:27 word "eta2"
+  token 8 28:31 equals "="
+  token 9 28:32 number "2" value=2e0
+  token 10 28:34 word "d2"
+  token 11 28:36 equals "="
+  token 12 28:37 number "0.3e-6" value=3e-7
+  token 13 28:44 word "rd"
+  token 14 28:46 equals "="
+  token 15 28:47 number "20" value=2e1
+  token 16 28:50 word "rs"
+  token 17 28:52 equals "="
+  token 18 28:53 number "30" value=3e1
+  token 19 28:56 word "rdi"
+  token 20 28:59 equals "="
+  token 21 28:60 number "5" value=5e0
+  token 22 28:62 word "rsi"
+  token 23 28:65 equals "="
+  token 24 28:66 number "7" value=7e0
+card 12 @netlists/sens_hfet2.cir:29:1 lines=29-29 continuations=0
+  raw: ".model pmos phfet level=6 eta2=2 d2=0.3e-6 rd=20 rs=30"
+  kind: dot(.model)
+  token 1 29:1 word ".model"
+  token 2 29:8 word "pmos"
+  token 3 29:13 word "phfet"
+  token 4 29:19 word "level"
+  token 5 29:24 equals "="
+  token 6 29:25 number "6" value=6e0
+  token 7 29:27 word "eta2"
+  token 8 29:31 equals "="
+  token 9 29:32 number "2" value=2e0
+  token 10 29:34 word "d2"
+  token 11 29:36 equals "="
+  token 12 29:37 number "0.3e-6" value=3e-7
+  token 13 29:44 word "rd"
+  token 14 29:46 equals "="
+  token 15 29:47 number "20" value=2e1
+  token 16 29:50 word "rs"
+  token 17 29:52 equals "="
+  token 18 29:53 number "30" value=3e1
+card 13 @netlists/sens_hfet2.cir:30:1 lines=30-30 continuations=0
+  raw: ".sens i(vids)"
+  kind: dot(.sens)
+  token 1 30:1 word ".sens"
+  token 2 30:7 word "i"
+  token 3 30:8 lparen "("
+  token 4 30:9 word "vids"
+  token 5 30:13 rparen ")"
+card 14 @netlists/sens_hfet2.cir:31:1 lines=31-31 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 31:1 word ".end"

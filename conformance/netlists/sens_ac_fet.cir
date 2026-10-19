@@ -1,0 +1,19 @@
+AC sensitivity of JFET level 1, the MESFET and HFET2 (#102)
+* gm, gds, ggs and ggd are the zero-gate-voltage values of cktsens.c's reset
+* load (the n-channel devices conduct there, vto < 0), the gate charges are
+* zero, and the series resistances, area and m follow the walk.
+vdd 1 0 dc 3 ac 1
+rd 1 2 1k
+j1 2 3 0 jm area=2 temp=40
+vg 3 0 dc -1 ac 1
+.model jm njf(vto=-2 beta=1e-4 lambda=0.02 rd=10 rs=20 cgs=2p cgd=1p pb=0.8
++ is=1e-14 n=1.2 fc=0.4 b=0.9 tnom=30)
+rz 1 4 1k
+z1 4 3 0 zn area=2
+.model zn nmf(vto=-1.8 beta=3m lambda=0.05 alpha=2.5 b=0.4 rd=5 rs=4
++ cgs=2p cgd=0.5p pb=0.8 is=1e-14 fc=0.4)
+rh 1 5 1k
+z2 5 3 0 zh l=1u w=10u
+.model zh nhfet(level=6 vt0=-0.5 rd=2 rs=3)
+.sens v(2) ac dec 1 1k 1meg
+.end

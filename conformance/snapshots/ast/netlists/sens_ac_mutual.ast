@@ -1,0 +1,57 @@
+# ngspice-rs ast-dump v1
+file: netlists/sens_ac_mutual.cir
+title: "AC sensitivity with K coupling (#102)" @netlists/sens_ac_mutual.cir:1:1
+scope root
+  cards (8):
+    [0] device[0] @netlists/sens_ac_mutual.cir:6:1 "v1 1 0 dc 0 ac 1"
+    [1] device[1] @netlists/sens_ac_mutual.cir:7:1 "r1 1 2 50"
+    [2] device[2] @netlists/sens_ac_mutual.cir:8:1 "l1 2 0 1u"
+    [3] device[3] @netlists/sens_ac_mutual.cir:9:1 "l2 3 0 2u"
+    [4] device[4] @netlists/sens_ac_mutual.cir:10:1 "k1 l1 l2 0.5"
+    [5] device[5] @netlists/sens_ac_mutual.cir:11:1 "r2 3 0 100"
+    [6] analysis[0] @netlists/sens_ac_mutual.cir:12:1 ".sens v(3) ac dec 1 1meg 100meg"
+    [7] end @netlists/sens_ac_mutual.cir:13:1 ".end"
+  devices (6):
+    device [0] name="v1" designator=v @netlists/sens_ac_mutual.cir:6:1
+      nodes: "1" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0" @netlists/sens_ac_mutual.cir:6:8
+        [1] name="acmag" kind=scalar value="1" @netlists/sens_ac_mutual.cir:6:16
+        [2] name="acphase" kind=scalar value="0" @netlists/sens_ac_mutual.cir:6:13
+    device [1] name="r1" designator=r @netlists/sens_ac_mutual.cir:7:1
+      nodes: "1" "2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="50" @netlists/sens_ac_mutual.cir:7:8
+    device [2] name="l1" designator=l @netlists/sens_ac_mutual.cir:8:1
+      nodes: "2" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="1u" @netlists/sens_ac_mutual.cir:8:8
+    device [3] name="l2" designator=l @netlists/sens_ac_mutual.cir:9:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="inductance" kind=scalar value="2u" @netlists/sens_ac_mutual.cir:9:8
+    device [4] name="k1" designator=k @netlists/sens_ac_mutual.cir:10:1
+      nodes:
+      model: none
+      parameters (3):
+        [0] name="inductor1" kind=instance value="l1" @netlists/sens_ac_mutual.cir:10:4
+        [1] name="inductor2" kind=instance value="l2" @netlists/sens_ac_mutual.cir:10:7
+        [2] name="coefficient" kind=scalar value="0.5" @netlists/sens_ac_mutual.cir:10:10
+    device [5] name="r2" designator=r @netlists/sens_ac_mutual.cir:11:1
+      nodes: "3" "0"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="100" @netlists/sens_ac_mutual.cir:11:8
+  models (0):
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=sens @netlists/sens_ac_mutual.cir:12:1
+      arguments: "v" "(" "3" ")" "ac" "dec" "1" "1meg" "100meg"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):
