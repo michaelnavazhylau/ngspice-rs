@@ -376,6 +376,13 @@ fn plot_names(
 
 /// The squared magnitude of `y[n1] - y[n2]`, ground being zero.
 fn gain(circuit: &Circuit, y: &[Complex], nodes: [NodeId; 2]) -> Real {
+    let difference = difference(circuit, y, nodes);
+    difference.re * difference.re + difference.im * difference.im
+}
+
+/// `y[n1] - y[n2]`, ground reading zero (C's `CKTrhs`/`CKTirhs`
+/// differences in `nevalsrc.c`).
+fn difference(circuit: &Circuit, y: &[Complex], nodes: [NodeId; 2]) -> Complex {
     let at = |node: NodeId| {
         circuit
             .unknowns()
@@ -383,8 +390,7 @@ fn gain(circuit: &Circuit, y: &[Complex], nodes: [NodeId; 2]) -> Real {
             .and_then(|row| y.get(row).copied())
             .unwrap_or(Complex::ZERO)
     };
-    let difference = at(nodes[0]) - at(nodes[1]);
-    difference.re * difference.re + difference.im * difference.im
+    at(nodes[0]) - at(nodes[1])
 }
 
 /// The unit forcing of the input source alone (C `MODEACNOISE`).
@@ -493,7 +499,10 @@ pub(crate) fn run(
                 lu.solve_transposed(&adjoint_rhs)?,
             ))
         })?;
-        if small.varies() {
+        // A device whose small-signal load depends on the frequency also
+        // describes its generators at that frequency (`b4noi.c` evaluates
+        // its flicker factor and correlated gate noise at `data->freq`).
+        if small.varies() || small.reassembles() {
             let local = model.with_frequency(freq);
             let fresh = circuit_noise(circuit, &local, small.bias(), Some(small.state()))?;
             if fresh.len() != generators.len() {
@@ -520,9 +529,7 @@ pub(crate) fn run(
             let mut densities = Vec::with_capacity(g.history.len());
             for source in &g.instance.sources {
                 densities.push(
-                    source
-                        .kind
-                        .output_density(gain(circuit, &adjoint, source.nodes), freq),
+                    source.output_density(|nodes| difference(circuit, &adjoint, nodes), freq),
                 );
             }
             let total: Real = densities.iter().sum();

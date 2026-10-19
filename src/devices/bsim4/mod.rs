@@ -37,6 +37,8 @@ mod check;
 #[allow(dead_code)]
 mod cvtest;
 #[allow(dead_code)]
+mod device;
+#[allow(dead_code)]
 mod elements;
 #[allow(dead_code)]
 mod fields;
@@ -46,6 +48,8 @@ mod geo;
 mod host;
 #[allow(dead_code)]
 mod load;
+#[allow(dead_code)]
+mod noise;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
 #[allow(dead_code)]
@@ -229,25 +233,14 @@ pub fn select_version(card: &ModelCard) -> SpiceResult<&str> {
     ))
 }
 
-/// Schema-only dispatch target. Never creates a dummy Device or a partial
-/// circuit: the missing setup and load are explicit factory errors, naming the
-/// C files the port still owes.
+/// The factory entry: [`device::Bsim4`] runs `b4set.c`/`b4temp.c` before
+/// interning any node, so every unported path fails before a partial
+/// circuit exists.
 pub(crate) fn instantiate(
     instance: &DeviceInstance,
-    _nodes: &mut crate::primitives::NodeTable,
+    nodes: &mut crate::primitives::NodeTable,
     model: &ResolvedModel<'_>,
-    _context: &crate::devices::ModelContext,
+    context: &crate::devices::ModelContext,
 ) -> SpiceResult<Box<dyn crate::devices::Device>> {
-    let params = model_parameters(model)?;
-    params.instance_parameters(instance, 1.)?;
-    Err(SpiceError::not_yet_ported(
-        format!(
-            "{}: BSIM4 model '{}' (level {})",
-            instance.name,
-            model.card().name,
-            model.levels().selector
-        ),
-        "src/spicelib/devices/bsim4/ (b4set.c defaults, b4temp.c temperature, \
-         b4check.c/b4soachk.c diagnostics, b4ld.c load)",
-    ))
+    device::Bsim4::instantiate(instance, nodes, model, context)
 }

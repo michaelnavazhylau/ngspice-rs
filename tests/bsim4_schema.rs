@@ -362,7 +362,7 @@ fn the_factory_validates_then_refuses_the_unported_backend() {
         assert!(error.is_not_yet_ported(), "level {level}: {error}");
         let text = error.to_string();
         assert!(
-            text.contains("bsim4/") && text.contains("b4ld.c"),
+            text.contains("bsim4/") && text.contains("b4temp.c"),
             "level {level}: {error}"
         );
         // The refusal happens before any device is created.

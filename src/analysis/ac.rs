@@ -271,6 +271,12 @@ impl SmallSignal {
         self.varies
     }
 
+    /// Whether some device's small-signal load is reassembled at every
+    /// frequency ([`crate::devices::Device::small_signal_depends_on_frequency`]).
+    pub(crate) const fn reassembles(&self) -> bool {
+        self.reassemble
+    }
+
     /// Calls `with` on the small-signal system valid at frequency `f`.
     pub(crate) fn at_frequency<R>(
         &mut self,

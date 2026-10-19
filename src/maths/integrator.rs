@@ -514,6 +514,13 @@ impl Coefficients {
         self.deltas[0]
     }
 
+    /// C `CKTdeltaOld[index]`: index 0 is the trial step (`CKTdelta`), 1 the
+    /// last accepted step, and so on; `None` beyond the recorded history.
+    #[must_use]
+    pub fn delta_old(&self, index: usize) -> Option<Real> {
+        self.deltas.get(index).copied()
+    }
+
     /// The corrector coefficients `ag[0..=order]` (C `CKTag`).
     #[must_use]
     pub fn ag(&self) -> &[Real] {

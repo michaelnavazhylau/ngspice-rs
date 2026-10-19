@@ -53,6 +53,8 @@ pub enum NoiseFamily {
     Bjt,
     /// `bsim3` (`b3noi.c`).
     Bsim3,
+    /// `bsim4` (`b4noi.c`).
+    Bsim4,
     /// `csw`, the W switch (`cswnoise.c`).
     CurrentSwitch,
     /// `dio` (`dionoise.c`).
@@ -97,6 +99,31 @@ pub enum NoiseKind {
         numerator: Real,
         /// How the device divides by frequency, in C's operation order.
         law: FlickerLaw,
+    },
+    /// `N_GAIN` times a factor the device computes at the analysis frequency
+    /// (`b4noi.c`'s flicker noise: `noizDens = gain; noizDens *= factor`).
+    /// Only devices that re-describe their noise at every frequency
+    /// ([`crate::devices::Device::small_signal_depends_on_frequency`]) may
+    /// use it.
+    Gain {
+        /// The factor C multiplies the gain by.
+        factor: Real,
+    },
+    /// Two fully correlated thermal generators, C's `NevalSrc2(...,
+    /// THERMNOISE, ...)` (`nevalsrc.c`, BSIM4 `tnoiMod=2`): the first between
+    /// the source's own nodes with `conductance`, the second between
+    /// `second` with `second_conductance`, shifted by `phase` radians.
+    CorrelatedThermal {
+        /// C's `param1`.
+        conductance: Real,
+        /// C's `node3`, `node4`.
+        second: [NodeId; 2],
+        /// C's `param2`.
+        second_conductance: Real,
+        /// C's `phi21`.
+        phase: Real,
+        /// Noise temperature in kelvin (C `CKTtemp`).
+        temperature: Real,
     },
 }
 
@@ -169,6 +196,11 @@ impl NoiseKind {
             Self::Shot { current } => gain * 2.0 * CHARGE * current.abs(),
             // C: `noizDens = gain; noizDens *= <numerator> / <denominator>`.
             Self::Flicker { numerator, law } => gain * law.apply(numerator, frequency),
+            Self::Gain { factor } => gain * factor,
+            // Needs both node pairs' transfer values: see
+            // `NoiseSource::output_density`. A plain squared gain cannot
+            // express it, so it never reaches here from that path.
+            Self::CorrelatedThermal { .. } => Real::NAN,
         }
     }
 
@@ -180,6 +212,20 @@ impl NoiseKind {
             } => conductance.is_finite() && temperature.is_finite() && temperature > 0.0,
             Self::Shot { current } => current.is_finite(),
             Self::Flicker { numerator, law } => numerator.is_finite() && law.validate(),
+            Self::Gain { factor } => factor.is_finite(),
+            Self::CorrelatedThermal {
+                conductance,
+                second_conductance,
+                phase,
+                temperature,
+                ..
+            } => {
+                conductance.is_finite()
+                    && second_conductance.is_finite()
+                    && phase.is_finite()
+                    && temperature.is_finite()
+                    && temperature > 0.0
+            }
         }
     }
 }
@@ -206,6 +252,41 @@ impl NoiseSource {
             nodes,
             kind,
         }
+    }
+
+    /// The output-referred density given the adjoint transfer value
+    /// `difference(nodes)` (C's `CKTrhs[n1] - CKTrhs[n2]` plus `j` times the
+    /// `CKTirhs` difference) of a node pair, in `nevalsrc.c`'s order.
+    #[must_use]
+    pub fn output_density(
+        &self,
+        difference: impl Fn([NodeId; 2]) -> crate::primitives::Complex,
+        frequency: Real,
+    ) -> Real {
+        if let NoiseKind::CorrelatedThermal {
+            conductance,
+            second,
+            second_conductance,
+            phase,
+            temperature,
+        } = self.kind
+        {
+            let first = difference(self.nodes);
+            let other = difference(second);
+            let (real_val1, imag_val1) = (first.re, first.im);
+            let (real_val2, imag_val2) = (other.re, other.im);
+            let t0 = conductance.sqrt();
+            let t1 = second_conductance.sqrt();
+            let t2 = t1 * phase.cos();
+            let t3 = t1 * phase.sin();
+            let real_out = t0 * real_val1 + t2 * real_val2 - t3 * imag_val2;
+            let imag_out = t0 * imag_val1 + t2 * imag_val2 + t3 * real_val2;
+            let param_gain = (real_out * real_out) + (imag_out * imag_out);
+            return 4.0 * BOLTZMANN * temperature * param_gain;
+        }
+        let d = difference(self.nodes);
+        self.kind
+            .output_density(d.re * d.re + d.im * d.im, frequency)
     }
 }
 
