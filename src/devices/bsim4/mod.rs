@@ -1,16 +1,17 @@
-//! BSIM4.8 input plumbing (B4-0 foundation, #90).
+//! BSIM4.8 (`bsim4/`, levels 14 and 54): the generated input schema and a
+//! statement-by-statement port of C's setup, temperature, check, load,
+//! small-signal, pole-zero, noise and convergence routines.
 //!
-//! This is deliberately **not a simulation backend**. The generated IFparm
-//! interface facts cover the complete model/instance tables (897 model and 98
-//! instance rows, plus C's `IF_UNINTERESTING` set), and the validated
-//! projection applies ordered explicit setters with C's ordering, aliases,
-//! given-bit precedence and unit conversions.
+//! The C-shaped modules keep C's struct members (`fields.rs`, generated from
+//! `bsim4def.h`) and see the circuit through `host.rs`; `device.rs` wires
+//! them into the solver. Every path is compared bit for bit with an FMA-free
+//! build of the reference ngspice (`tests/bsim4_device.rs`, the opt-in
+//! `c_bsim4_*` tests and `docs/port/BSIM.md`).
 //!
-//! `b4set.c`/`b4temp.c` defaults, `b4check.c`/`b4soachk.c` diagnostics, the
-//! effective geometry and the `b4ld.c` load are **not** ported, so the factory
-//! refuses every instance after validation, before interning nodes or
-//! allocating state. Refusing is the contract: a BSIM4 card must never be
-//! simulated by a substituted model.
+//! BSIM4 was developed by the UC Berkeley BSIM Research Group. The translated
+//! files follow the upstream notice: Copyright (c) 2025 University of
+//! California, licensed under the Educational Community License, Version 2.0
+//! (see `NOTICE` and `LICENSE-ECL-2.0`).
 use crate::devices::ifparam::Device;
 use crate::devices::models::{ModelFamily, ResolvedModel};
 use crate::devices::schema::temperature_kelvin;
@@ -27,43 +28,28 @@ mod defaults_data;
 
 // The C-shaped port. These modules follow their C files statement by
 // statement over C's own struct members (`fields.rs`), so C's mixed-case
-// member and local names are kept. Wired into the device stage by stage.
-#[allow(dead_code)]
+// member and local names are kept.
 mod acld;
-#[allow(dead_code)]
 mod apply;
-#[allow(dead_code)]
 mod check;
-#[allow(dead_code)]
 mod cvtest;
-#[allow(dead_code)]
 mod device;
-#[allow(dead_code)]
 mod elements;
-#[allow(dead_code)]
 mod fields;
-#[allow(dead_code)]
 mod geo;
-#[allow(dead_code)]
 mod host;
-#[allow(dead_code)]
 mod load;
-#[allow(dead_code)]
 mod noise;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
-#[allow(dead_code)]
 mod pzld;
-#[allow(dead_code)]
 mod set;
-#[allow(dead_code)]
 mod temp;
 
 /// The generated literal model defaults in C setup order (`b4set.c`).
 ///
-/// Exposed because the dependent-default and temperature stages
-/// (`b4set.c`/`b4temp.c`) that consume them are not ported yet; the facts are
-/// committed so that stage starts from reviewed data rather than a re-read of C.
+/// Generated from `b4set.c`'s given-guarded literal assignments, which
+/// `set.rs` reproduces in C order (a unit test there checks they agree).
 #[must_use]
 pub fn literal_defaults() -> &'static [(&'static str, f64)] {
     defaults_data::LITERALS

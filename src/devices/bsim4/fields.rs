@@ -1832,6 +1832,7 @@ pub(crate) struct Model {
     pub(crate) idovvdscGiven: bool,
 }
 
+#[rustfmt::skip]
 impl Model {
     /// The `f64` member named `c_name` in C, if there is one.
     #[allow(dead_code)]
@@ -3569,9 +3570,7 @@ impl Model {
             "BSIM4sheetResistanceGiven" => &mut self.sheetResistanceGiven,
             "BSIM4SjctSatCurDensityGiven" => &mut self.SjctSatCurDensityGiven,
             "BSIM4SjctSidewallSatCurDensityGiven" => &mut self.SjctSidewallSatCurDensityGiven,
-            "BSIM4SjctGateSidewallSatCurDensityGiven" => {
-                &mut self.SjctGateSidewallSatCurDensityGiven
-            }
+            "BSIM4SjctGateSidewallSatCurDensityGiven" => &mut self.SjctGateSidewallSatCurDensityGiven,
             "BSIM4SbulkJctPotentialGiven" => &mut self.SbulkJctPotentialGiven,
             "BSIM4SbulkJctBotGradingCoeffGiven" => &mut self.SbulkJctBotGradingCoeffGiven,
             "BSIM4SsidewallJctPotentialGiven" => &mut self.SsidewallJctPotentialGiven,
@@ -3580,16 +3579,12 @@ impl Model {
             "BSIM4SunitAreaJctCapGiven" => &mut self.SunitAreaJctCapGiven,
             "BSIM4SunitLengthSidewallJctCapGiven" => &mut self.SunitLengthSidewallJctCapGiven,
             "BSIM4SbulkJctGateSideGradingCoeffGiven" => &mut self.SbulkJctGateSideGradingCoeffGiven,
-            "BSIM4SunitLengthGateSidewallJctCapGiven" => {
-                &mut self.SunitLengthGateSidewallJctCapGiven
-            }
+            "BSIM4SunitLengthGateSidewallJctCapGiven" => &mut self.SunitLengthGateSidewallJctCapGiven,
             "BSIM4SjctEmissionCoeffGiven" => &mut self.SjctEmissionCoeffGiven,
             "BSIM4SjctTempExponentGiven" => &mut self.SjctTempExponentGiven,
             "BSIM4DjctSatCurDensityGiven" => &mut self.DjctSatCurDensityGiven,
             "BSIM4DjctSidewallSatCurDensityGiven" => &mut self.DjctSidewallSatCurDensityGiven,
-            "BSIM4DjctGateSidewallSatCurDensityGiven" => {
-                &mut self.DjctGateSidewallSatCurDensityGiven
-            }
+            "BSIM4DjctGateSidewallSatCurDensityGiven" => &mut self.DjctGateSidewallSatCurDensityGiven,
             "BSIM4DbulkJctPotentialGiven" => &mut self.DbulkJctPotentialGiven,
             "BSIM4DbulkJctBotGradingCoeffGiven" => &mut self.DbulkJctBotGradingCoeffGiven,
             "BSIM4DsidewallJctPotentialGiven" => &mut self.DsidewallJctPotentialGiven,
@@ -3598,9 +3593,7 @@ impl Model {
             "BSIM4DunitAreaJctCapGiven" => &mut self.DunitAreaJctCapGiven,
             "BSIM4DunitLengthSidewallJctCapGiven" => &mut self.DunitLengthSidewallJctCapGiven,
             "BSIM4DbulkJctGateSideGradingCoeffGiven" => &mut self.DbulkJctGateSideGradingCoeffGiven,
-            "BSIM4DunitLengthGateSidewallJctCapGiven" => {
-                &mut self.DunitLengthGateSidewallJctCapGiven
-            }
+            "BSIM4DunitLengthGateSidewallJctCapGiven" => &mut self.DunitLengthGateSidewallJctCapGiven,
             "BSIM4DjctEmissionCoeffGiven" => &mut self.DjctEmissionCoeffGiven,
             "BSIM4DjctTempExponentGiven" => &mut self.DjctTempExponentGiven,
             "BSIM4oxideTrapDensityAGiven" => &mut self.oxideTrapDensityAGiven,
@@ -3916,6 +3909,7 @@ pub(crate) struct SizeParam {
     pub(crate) dvtp2factor: f64,
 }
 
+#[rustfmt::skip]
 impl SizeParam {
     /// The `f64` member named `c_name` in C, if there is one.
     #[allow(dead_code)]
@@ -4525,6 +4519,7 @@ pub(crate) struct Instance {
     pub(crate) _103: f64,
 }
 
+#[rustfmt::skip]
 impl Instance {
     /// The `f64` member named `c_name` in C, if there is one.
     #[allow(dead_code)]

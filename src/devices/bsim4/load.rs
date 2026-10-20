@@ -52,7 +52,6 @@ const EPS0: f64 = 8.85418e-12;
 const EPSSI: f64 = 1.03594e-10;
 const Charge_q: f64 = 1.60219e-19;
 const DELTA_1: f64 = 0.02;
-const DELTA_2: f64 = 0.02;
 const DELTA_3: f64 = 0.02;
 const DELTA_4: f64 = 0.02;
 /// Smoothing coefficient.
@@ -71,19 +70,8 @@ fn log(x: f64) -> f64 {
 fn sqrt(x: f64) -> f64 {
     x.sqrt()
 }
-fn pow(x: f64, y: f64) -> f64 {
-    x.powf(y)
-}
 fn fabs(x: f64) -> f64 {
     x.abs()
-}
-/// `macros.h`: `((a) > (b) ? (a) : (b))`.
-fn MAX(a: f64, b: f64) -> f64 {
-    if a > b { a } else { b }
-}
-/// `macros.h`: `((a) < (b) ? (a) : (b))`.
-fn MIN(a: f64, b: f64) -> f64 {
-    if a < b { a } else { b }
 }
 /// `b4ld.c`'s `DEXP(A, B, C)` macro: returns `(B, C)`.
 fn DEXP(A: f64) -> (f64, f64) {

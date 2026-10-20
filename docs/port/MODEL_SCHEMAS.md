@@ -92,7 +92,7 @@ unsafe-cast cases instead of silently changing the input.
 | Family | Backend selection | Initial supported level policy |
 | --- | --- | --- |
 | BJT NPN/PNP | First explicit rounded level; default 1 | 0/1/2 (classic BJT); other selectors fail |
-| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1/2/3/6/9 simulation; BSIM3 (8/49, 3.3 family) simulation including `capMod=3` charges, AC/`.pz`/`.tf`/`.tran`/`.noise`; BSIM4 (14/54) explicit-input schema only, with every instance refused after validation; other selectors/older BSIM3/BSIM4 versions fail naming the C directory `inpdomod.c` selects |
+| MOS NMOS/PMOS | First explicit rounded level; default 1 | MOS1/2/3/6/9 simulation; BSIM3 (8/49, 3.3 family) simulation including `capMod=3` charges, AC/`.pz`/`.tf`/`.tran`/`.noise`; BSIM4 (14/54, 4.8) simulation of every selector and analysis but `.sens`; other selectors/older BSIM3/BSIM4 versions fail naming the C directory `inpdomod.c` selects |
 | JFET NJF/PJF | First explicit rounded level; default 1 | 0/1 (JFET level 1), 2 (Parker-Skellern `jfet2/`), see [JFET.md](JFET.md); others fail with `NotYetPorted` |
 | MESFET NMF/PMF | First explicit rounded level; default 1 | 0/1 (Statz MES, `mes/`), see [MESFET.md](MESFET.md); 2-4 (`mesa/`), 5 (`hfet1/`), 6 (`hfet2/`) and others fail with `NotYetPorted` |
 | `r` | First explicit rounded level; default 1 | Scalar resistor selector 0/1; advanced selectors fail |

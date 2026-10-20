@@ -40,6 +40,40 @@ and supporting documentation:
   software for any purpose.  It is provided `as is', without express
   or implied warranty.
 
+`src/devices/bsim4/` is a Rust translation of the BSIM4 4.8.3 model as
+distributed in ngspice's `src/spicelib/devices/bsim4/` (`b4set.c`, `b4temp.c`,
+`b4check.c`, `b4geo.c`, `b4ld.c`, `b4acld.c`, `b4pzld.c`, `b4noi.c`,
+`b4cvtest.c`, `b4getic.c`, `b4trunc.c`), followed statement by statement so
+that its results match C's bit for bit. BSIM4 was developed by the UC Berkeley
+BSIM Research Group, which this product acknowledges as its terms of use
+require. The upstream files carry this notice:
+
+  Copyright (c) 2025 University of California
+
+  Project Directors: Prof. Sayeef Salahuddin and Prof. Chenming Hu
+  Developers list: https://www.bsim.berkeley.edu/models/bsim4/auth_bsim4/
+
+  Licensed under Educational Community License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License. You may
+  obtain a copy of the license at http://opensource.org/licenses/ECL-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+  License for the specific language governing permissions and limitations
+  under the License.
+
+  BSIM4 model is supported by the members of Silicon Integration
+  Initiative's Compact Model Coalition. A link to the most recent version of
+  this standard can be found at: http://www.si2.org/cmc
+
+The ECL 2.0 text is in LICENSE-ECL-2.0. Those terms apply to the translated
+files under `src/devices/bsim4/`; the generated interface tables there
+(`parameters.rs`, `defaults_data.rs`, `fields.rs`) record names, identifiers
+and literal defaults only. The translation modifies the originals: C's
+pointers, `CKTcircuit` access and matrix pointers are replaced by the port's
+own interfaces (`src/devices/bsim4/host.rs`).
+
 The captured comparison data in `conformance/golden/` is rawfile output produced
 by running the upstream `ngspice` binary on the decks in `conformance/netlists/`.
 It is committed so that the test suite can run without a C toolchain, and it is

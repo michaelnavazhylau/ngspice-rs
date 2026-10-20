@@ -10,12 +10,15 @@ through `b3ld.c`/`b3acld.c`/`b3pzld.c` and `.noise` through `b3noi.c`.
 mode (`nqsMod`/`acnqsMod`), `.disto`, `.sens` and older BSIM3 versions. Each
 names its C file instead of substituting a law.
 
-**BSIM4 is at B4-0 only:** levels 14/54 select the generated BSIM4 input schema
-(897 model and 98 instance rows), validate ordered explicit setters with C's
-unit conversions, and then the factory refuses the instance, naming the unported
-`bsim4/` setup and load. No BSIM4 `.model` card is ever simulated by a
-substituted model. **B3-0/B4-0 are not complete:** the physical-unit audit is
-partial.
+**BSIM4 (4.8.3, `bsim4/`, levels 14/54) is ported and simulates every
+analysis C supports for it:** `.op`, `.dc` (sources, temperature, instance
+parameters), `.ac`, `.noise`, `.pz`, `.tf`, `.disto` (BSIM4 has no `DEVdisto`,
+so it is linear there, as in C) and `.tran`, in every `capMod`, `mobMod`,
+`rdsMod`, `rgateMod`, `rbodyMod`, `igcMod`/`igbMod`, `tempMod`, `mtrlMod`,
+`gidlMod`, `dioMod`, `tnoiMod`/`fnoiMod` and NQS (`trnqsMod`/`acnqsMod`)
+selection, bit-identical to an FMA-free build of the reference C (see
+[BSIM4](#bsim4) below). `.sens` is the remaining refusal. The B3-0/B4-0
+physical-unit audit of `Parameter::input_unit` is still partial.
 
 This guide is the implementation plan for **milestone M11**. #90 moved off M10 so
 that M10 closes on the device library defined in [M10.md](M10.md); the issue
@@ -268,8 +271,9 @@ the other BSIM families are unchanged.
 | B3-3 charges and transient | done for `capMod=3`/QS; `capMod` 0/1/2 and NQS refused |
 | B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf` and `.noise`; `.disto`/`.sens` refused |
 | B3-5 goldens and binning coverage | **not started**: no BSIM3 conformance fixture or committed golden exists yet; binning is covered only through the schema/setup tests |
-| B4-0 tables/schema | done for the generated interface facts, the ordered setter projection and the explicit factory refusal; no defaults/temperature/diagnostics/load |
-| B4-x BSIM4 | **B4-1..B4-5 not started** |
+| B4-0 tables/schema | done |
+| B4-1..B4-4 BSIM4 setup, temperature, checks, load, small signal, noise, pole-zero | done, bit-exact against the FMA-free C oracle ([BSIM4](#bsim4)) |
+| B4 `.sens` | refused explicitly (C perturbs BSIM4 generically; not ported yet) |
 
 ### Next: what remains
 
@@ -289,53 +293,106 @@ the other BSIM families are unchanged.
    rather than through the generic `NotYetPorted`.
 5. **`.sens`.** The `cktsgen.c` device tables for BSIM3 (a fifth family of
    tables); no `.sens` curve is C-differential yet.
-6. **B3-5 goldens**, then **BSIM4** (B4-x) against `bsim4/`.
+6. **B3-5 goldens** (BSIM3 and BSIM4 conformance decks).
 7. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
 
-#### BSIM4 (B4-0)
+## BSIM4
 
-`cargo xtask bsim4-schema --source /path/to/ngspice [--check]` reads six clean
-upstream files (`b4.c`, `bsim4def.h`, `b4mpar.c`, `b4par.c`, `b4set.c`,
-`b4temp.c`) with the same generator BSIM3 uses (`xtask/src/ifparm.rs`, which
-reproduces BSIM3's committed tables byte for byte) and writes:
+### How it is ported
 
-- `src/devices/bsim4/parameters.rs`: all **897 model** and **98 instance**
-  rows in C order (893 distinct model IDs, so four redundant aliases:
-  `vtho`/`lvtho`/`wvtho`/`pvtho`; instance alias `delvt0`), 44 settable
-  instance rows, and C's `IF_UNINTERESTING` set (`IOPU` does occur in BSIM4:
-  `dtemp`) recorded rather than dropped.
-- `src/devices/bsim4/defaults_data.rs`: the **777** literal model defaults in
-  `b4set.c` order. Dependent defaults are deliberately absent.
+Unlike BSIM3 (a free reimplementation), BSIM4 is **translated statement by
+statement** from `bsim4/` so that its arithmetic is C's: the BSIM4 sources
+are licensed under the Educational Community License 2.0 with Berkeley's
+terms of use, which allow modified redistribution with attribution (see
+`NOTICE` and `LICENSE-ECL-2.0`). The translation keeps C's struct members:
 
-`devices::bsim4::model_parameters` applies ordered explicit setters with C's
-precedence, including `b4mpar.c`'s `TNOM + CONSTCtoK` and the NDEP (>1e20) /
-NSD (>1e23) / NGATE (>1e23) cm^-3 to m^-3 conversions, and `b4par.c`'s
-left-to-right geometry scaling. A model-level `m` becomes an instance default;
-level 14/54 both work; `version=4.5`/`4.6`/`4.7` refuse naming
-`bsim4v5`/`bsim4v6`/`bsim4v7`, and quoted/expression versions are refused by the
-card grammar.
+- `cargo xtask bsim4-schema --source /path/to/ngspice [--check]` generates
+  `parameters.rs` (897 model / 98 instance IFparm rows), `defaults_data.rs`
+  (777 literal defaults) and `fields.rs`: every scalar member of
+  `sBSIM4model` (1,824), `bsim4SizeDependParam` (224) and `sBSIM4instance`
+  (370), named without the `BSIM4` prefix, with by-name accessors. No
+  formula is generated.
+- `set.rs` (`b4set.c`), `temp.rs` (`b4temp.c`), `check.rs` (`b4check.c`),
+  `geo.rs` (`b4geo.c`), `load.rs` (`b4ld.c`, with `BSIM4polyDepletion`),
+  `acld.rs`, `pzld.rs`, `noise.rs` (`b4noi.c`) and `cvtest.rs` follow their
+  C files over those structs. `elements.rs` is `b4set.c`'s `TSTALLOC` order.
+- `host.rs` is the slice of `CKTcircuit` the loads see: C's `CKTmode` bits,
+  `CKTrhsOld`, `CKTstate0..2`, `NIintegrate`, matrix and RHS additions, on
+  BSIM4-local node indices that alias exactly as C's node numbers do.
+- `device.rs` implements those traits over the solver and maps the port's
+  Newton phases to `CKTmode` (`MODEINITJCT/FIX/FLOAT/PRED/TRAN`, the `uic`
+  `MODETRANOP|MODEUIC` load, `MODEINITSMSIG` for small-signal work).
 
-Two facts the port now pins, both C's: `INP2M`'s `model_numnodes` returns 4 for
-BSIM4 (the fifth `BSIM4names` entry, "Charge", is C's internal node), so the
-card takes four terminals; and the M grammar recognises BSIM4's instance
-keyword syntax (`nf`, `sa`/`sb`/`sd`, `sc*`, `rb*`, `rgeomod`, `trnqsmod`,
-`xgw`, `ngcon`, `min`, `mult_*`, `wnflag`) as *syntax only*, so a level-1 MOS
-card that uses them is refused by the device rather than silently ignored.
+### C behaviour the device reproduces
 
-Verification: `tests/bsim4_schema.rs` (offline: full table/alias/ID coverage,
-every keyword as a typed setter, ask-only rejection, conversions, version
-selection, and the factory refusal happening after validation and before any
-device is created) and the opt-in
-`c_bsim4_schema_reference::explicit_bsim4_setters_match_c_fields_for_both_level_aliases`,
-which reads the same fields back from C's model and instance structs for both
-level aliases to 1e-12 relative. The C behaviour it already caught: `ngcon` is
-re-derived by `b4set.c`, so it is not an explicit-setter field.
+- **One struct per instance.** C's instance struct persists: each load reads
+  members the previous load wrote (`BSIM4von` feeds `DEVfetlim`), and the
+  convergence test (`b4cvtest.c`, run by `NIiter` in `MODEINITFIX` too, where
+  an `off` instance is skipped) reads the last load's members and C's
+  `CKTrhsOld`. The device keeps that struct and shares it with its
+  `.dc @inst[param]` stand-ins.
+- **Setup once, check once.** `BSIM4setup` runs once; later `BSIM4temp`
+  passes (another temperature, `.dc temp`, an instance-parameter point) work
+  on the structs as left and skip `BSIM4checkModel`, whose `static` model
+  name is already set. A deck whose model only fails the check at a later
+  temperature therefore simulates, as in C.
+- **`noiseAnalGiven`.** With `tnoiMod=1`, a deck that holds a `.noise`
+  analysis gets drain/source primes in every analysis (`ModelContext::
+  noise_analysis`).
+- **Small signal.** AC, noise, pole-zero and the asks run C's
+  `MODEINITSMSIG` load at the iterate the last DC load used
+  (`NewtonSolution::values`), which reproduces C's `CKTstate0`. The AC load
+  is reassembled at every frequency (its `x* = cap * omega` terms and the
+  NQS terms use C's `CKTomega`), and noise generators are described at the
+  analysis frequency (`b4noi.c`'s flicker law and `tnoiMod=2`'s correlated
+  gate noise, `NevalSrc2`).
+- **`NIintegrate` outside transient.** NQS integrates in every load and the
+  `uic` load integrates all charges, with the zero `CKTag` of a fresh
+  circuit.
+- **Pole-zero re-runs `BSIM4setup`.** `CKTpzSetup` calls `DEVpzSetup =
+  BSIM4setup` on a fresh matrix, and its `else` branches alias every
+  drain/source/gate/mid-gate prime it created back to the external node and
+  reset `qNode`; a second run (the zero search of `.pz ... pz`) creates a
+  node again where that alias is ground. The device declares and loads each
+  search's topology (`MatrixSetup::pole_zero_setups`), records `b4pzld.c`'s
+  conductance and `s` statements in order, and SPARSE leaves the dropped
+  rows out of the determinant as C does.
 
-Next for BSIM4 is B4-1: `b4set.c`'s dependent defaults and `b4temp.c`'s
-temperature/size pass (the 777 literals are the seed), then
-`b4check.c`/`b4soachk.c` diagnostics, then `b4ld.c`. `b4set.c` also owns the
-`rbodyMod`/`rgatemod`/`igcMod` mode checks and `b4geo.c`'s geometry, which are
-the parts that do not lift from BSIM3.
+### Deliberate differences
+
+- `BSIM4checkModel` runs for every instance at its first setup; C checks
+  only the first instance of each model name in its list (and any model
+  whose name is a prefix of an already-checked one is skipped). Warnings
+  are kept on the device (`Prepared::warnings`), not printed.
+- `DEVsoaCheck` (`b4soachk.c`) is not ported: it only prints warnings under
+  `.options warn`, which the port does not accept.
+- A swept `.dc @inst[param]` point re-runs `b4temp.c` from the first
+  (checked) structs, not from the previous point's; C's results agree
+  because `BSIM4temp` recomputes every member it writes.
+- After a `.tran` in the same deck, C's `CKTag` keeps the last step's
+  coefficients and a later NQS `.op`/`.ac` integrates with them; the port
+  uses zero.
+- `.sens` is refused.
+
+### Verification
+
+- Offline: `tests/bsim4_schema.rs` (tables, setters, factory, fatal check)
+  and `tests/bsim4_device.rs` (9 decks: OP with gate and body resistance,
+  PMOS `rdsMod` sweep, AC, noise with `tnoiMod` 0/2 and `fnoiMod` 0/1,
+  `.pz` with the setup re-run, an NQS CMOS inverter transient, a width
+  sweep and a check-once temperature sweep), bit-exact on macOS arm64 and to
+  1e-9 elsewhere.
+- Opt-in: `c_bsim4_schema_reference`, `c_bsim4_setup_reference` (every
+  numeric model member after `b4set.c`, 4,430 values over five cards),
+  `c_bsim4_temp_reference` (6,314 model/instance values after `b4temp.c`,
+  check messages) and `c_bsim4_device_reference` (a mode-by-analysis matrix
+  against `NGSPICE_BIN`).
+- During the port, ~250 decks (every selector above, both polarities,
+  binning, multi-instance, `off`, `ic=`/`uic`, Gear, `.tf`, `.disto`,
+  `.dc temp`, `.dc @m1[w|l|nf|m|sa|delvto]`) were compared with
+  `fidelity-tools/scripts/ulpcmp.py` against the FMA-free oracle: all
+  bit-exact, except decks C itself aborts (fatal checks), which fail with
+  C's messages. The conformance scoreboard is unchanged.
 
 ### Notes for the next slice (`capMod` 0/1/2)
 
@@ -408,15 +465,13 @@ untouched.
 
 ### B4-x · BSIM4
 
-Repeat B3-0..B3-5 against `bsim4/` (897 model entries, `rdsMod`/`rbodyMod`/
-`igcMod`/`cgeomod` modes, `b4geo.c`, `b4soachk.c`). BSIM4's extra bulk-resistance
-nodes and gate-current paths are the parts that do not lift from BSIM3.
+Done; see [BSIM4](#bsim4).
 
 ## Guardrails
 
-- C stays a read-only reference (`B3TERMS_OF_USE`/`B4TERMS_OF_USE` are in the C
-  tree; do not copy code or headers). Behaviour is reimplemented in Rust and
-  each function names the C file it follows, as everywhere else in the port.
+- C stays a read-only reference. BSIM3 is reimplemented; BSIM4 is translated
+  under its ECL-2.0/Berkeley terms with the attribution in `NOTICE`. Each
+  function names the C file it follows.
 - Unsupported modes, cards and `version=` strings fail with `NotYetPorted`
   naming the C file - never a substituted model, never a silently wider range.
 - Generated tables are reviewed artefacts, not build output: they are committed

@@ -42,7 +42,10 @@ struct Prepared {
     model: Model,
     instance: Instance,
     size: SizeParam,
-    /// `b4set.c`/`b4temp.c`/`b4check.c` messages, in C order.
+    /// `b4set.c`/`b4temp.c`/`b4check.c` messages, in C order. Kept for
+    /// inspection: the port has no channel that reports device warnings
+    /// yet (C prints them).
+    #[allow(dead_code)]
     warnings: Vec<String>,
 }
 

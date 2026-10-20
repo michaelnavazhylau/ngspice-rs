@@ -272,29 +272,32 @@ live-C** checks pass with absolute `NGSPICE_BIN`, including the new
 C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
 are unchanged. See [URC.md](URC.md).
 
-## BSIM4 B4-0 input foundation (#90)
+## BSIM4 (#90)
 
-The BSIM4 schema path mirrors B3-0 and shares the generator
-(`xtask/src/ifparm.rs`, which reproduces the committed BSIM3 tables byte for
-byte). `cargo xtask bsim4-schema --check` ties the committed facts to the
-recorded C revision: 897 model and 98 instance rows, 893 distinct model IDs,
-44 settable instance rows and C's one `IF_UNINTERESTING` row (`dtemp`), plus 777
-literal model defaults in `b4set.c` order.
+BSIM4 is translated statement by statement from `bsim4/` and judged
+bit for bit against the FMA-free oracle (`fidelity-tools`). See
+[BSIM.md](BSIM.md#bsim4) for what C behaviour the device reproduces.
 
-- `tests/bsim4_schema.rs` (12 tests) covers the full tables and aliases, every
-  model/instance keyword as a typed setter, ask-only rejection, `b4mpar.c`'s
-  TNOM/NDEP/NSD/NGATE conversions, `b4par.c`'s geometry scaling, the four
-  terminal card shape C's `INP2M` uses, version selection (4.5/4.6/4.7 refuse
-  by directory name; quoted versions fail in the grammar) and the factory
-  refusal happening after validation and before any device is created.
-- `c_bsim4_schema_reference` (opt-in) reads the same explicit setter fields back
-  from C's model and instance structs for levels 14 and 54 to 1e-12 relative. It
-  already caught that `b4set.c` re-derives `ngcon`, so that keyword is not an
-  explicit-setter field.
-
-The M-card grammar recognises BSIM4's instance keyword syntax as syntax only;
-`tests/transistor_parser.rs` pins that a level-1 NMOS card using `NF`/`SA`/`RBDB`
-is refused by the device rather than silently dropped.
+- `cargo xtask bsim4-schema --check` ties `parameters.rs` (897/98 IFparm
+  rows), `defaults_data.rs` (777 literal defaults) and `fields.rs` (the
+  scalar members of C's three structs) to the recorded C revision.
+- `tests/bsim4_schema.rs` (13 tests): tables, aliases, typed setters,
+  conversions, card shape, version routing, the factory's internal nodes in
+  `CKTmkVolt` order and a fatal `b4check.c` result creating nothing.
+- `tests/bsim4_device.rs` (9 tests, offline): C's values for an OP with gate
+  and body resistance, a PMOS `rdsMod` sweep, AC, noise (`tnoiMod` 0/2,
+  `fnoiMod` 0/1), `.pz` across C's setup re-run, an NQS CMOS transient, a
+  `.dc @m1[w]` sweep and a temperature sweep past a check C skips;
+  bit-exact on macOS arm64, 1e-9 relative elsewhere.
+- Unit tests in `set.rs` (all 777 literal defaults), `geo.rs`, `load.rs`
+  (`BSIM4polyDepletion`), `acld.rs`/`pzld.rs` (stamp positions per mode)
+  and `cvtest.rs`.
+- Opt-in, with `NGSPICE_BIN`: `c_bsim4_schema_reference`,
+  `c_bsim4_setup_reference` (every numeric model member after `b4set.c`),
+  `c_bsim4_temp_reference` (model and instance values after `b4temp.c`,
+  check messages) and `c_bsim4_device_reference` (18 selector families x
+  `.op`/`.dc`/`.ac`/`.noise`/`.pz`/`.tran`, 1e-6 relative against the
+  FMA-fusing reference build).
 
 ## BSIM3 B3-0 input foundation (#90)
 
@@ -1989,8 +1992,7 @@ transient with an `off` device.
 
 ## Model binning verification (#109)
 
-C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so
-binning has no rawfile goldens. It is verified at the selection level:
+C bins only BSIM3/BSIM4/HiSIM models, so binning has no rawfile goldens yet. It is verified at the selection level:
 
 - `src/devices/binning.rs` unit tests: `model_name_match` digit suffixes,
   binnable levels, inclusive 1e-9 m edges, last-declared-wins ordering,

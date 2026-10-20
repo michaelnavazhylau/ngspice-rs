@@ -16,7 +16,7 @@ MOS `.model` VERSION accepts one bare token such as `3.3.0`, preserving its
 spelling and source column (`Textual` for dotted nonnumeric tokens). Numeric
 versions such as `3.30` retain their original numeric spelling. This does not
 accept arbitrary string-valued model parameters, quoted/expression versions,
-extra terminals, BSIM4 inputs or a BSIM simulation backend. See [BSIM.md](BSIM.md).
+or extra terminals. See [BSIM.md](BSIM.md).
 
 ## C-backed flag inventory
 

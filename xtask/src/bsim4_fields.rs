@@ -107,7 +107,7 @@ fn emit_struct(
         .map_err(|e| e.to_string())?;
     }
     out.push_str("}\n");
-    writeln!(out, "\nimpl {name} {{").map_err(|e| e.to_string())?;
+    writeln!(out, "\n#[rustfmt::skip]\nimpl {name} {{").map_err(|e| e.to_string())?;
     for (kind, accessor) in [("f64", "real"), ("i32", "int"), ("bool", "flag")] {
         if !fields.iter().any(|f| f.kind == kind) {
             continue;
