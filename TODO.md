@@ -278,6 +278,42 @@ remain explicit, rather than implying complete ngspice output compatibility.
 - [x] `.disto` small-signal distortion (#104): `analysis::disto` (`distoan.c`/`cktdisto.c`/`dkerproc.c`/`dloadfns.c`) on the `.ac` operating point and complex assembly, C's own `dec`/`oct`/`lin` sweep (`lin` measures `pts + 2` frequencies), `distof1`/`distof2` V/I inputs (parser, factory, writer), the 2nd/3rd harmonic plots or, with `f2overf1`, the `f1+f2`/`f1-f2`/`2f1-f2` IM plots with `f2` fixed at `f2overf1 * fstart` as in C, `disto<n>` batch names (`ScheduledAnalysis::extra_plot_names`). Device hook `Device::distortion` (default `NotYetPorted`; explicit `Linear` for R/C/L/K/E/F/G/H/S/W and model passives, `Input` for V/I) with Taylor terms for D (`diodset.c`), Gummel-Poon Q (`bjtdset.c`, via the `Series3` port of `Dderivs`) and MOS1 (`mos1dset.c`), reproducing C's simplified distortion models and four C defects (current-input sign, BJT `vbe + vbc` B-C' kernel without RB, BJT unconjugated `f1-f2` vbb/substrate kernels, MOS1 `2f1-f2` H1-for-H2 kernel). B sources and POLY/TABLE code models are refused. C goldens `disto_diode`/`disto_bjt`/`disto_mos1`/`disto_multi` (114 verified, `compare::DISTORTION`), analytic `tests/distortion_analysis.rs` (diode exponential HD2/HD3/IM closed forms) and opt-in `c_disto_reference`. See [DISTORTION.md](docs/port/DISTORTION.md).
 - [x] `.sens` DC/AC sensitivity (#102): `analysis::sens` reproduces C's `sens_sens()` (`cktsens.c`; the reference build has no `WANT_SENSE2` adjoint `.sens2`): C's `sgen` parameter lists, order and names (`inst:kw`, `inst`, `inst_kw`, `v(...)`/`voltage`), `Sens_filter` patterns, `delta = 1e-6 p` forward differences on the operating-point Jacobian (`with_c_jacobian`) or the per-frequency AC matrix, C's `dec`/`oct`/`lin` stepping defects and batch order after `.noise`. Device hook `Device::sensitivity` (default `NotYetPorted`) replays C's records (`devices::sensitivity`: setters, `DEVsetup` defaults and setup-only values, `DEVtemperature`, given flags left by each restoration) for R/C/L (literal and model-backed), K (DC), V/I, E/F/G/H, B/S/W (DC) and D (DC, including C's NaN for an unset knee current). Ported for the `j`/`z`/`q` families (#164): JFET levels 1 and 2, the MESFET (`z` level 1), MESA levels 2-4, HFET1 (`z` level 5), HFET2 (`z` level 6) and the Gummel-Poon BJT (`q`), each with C's exact `sgen` parameter list, `*setup.c` defaults, `*temp.c` derivation and a perturbed-device load replayed from C's records, verified by the `sens_jfet`/`sens_jfet2`/`sens_mesfet`/`sens_mesa`/`sens_mesa3`/`sens_mesa4`/`sens_mesa4_ts`/`sens_hfet1`/`sens_hfet2`/`sens_bjt` goldens (HFET2 needs C's given-flag topology branch for `d2`/`eta2` and has no `m` column: `hfet2ask.c` cannot answer it; `DEVsetup` runs inside C's per-parameter loop, which the BJT's leakage rescaling and `RCO` hard-coded exclusion make visible). Classic MOS DC record replay now covers levels 1/2/3/6/9, verified by five `sens_mos*` goldens (146/164/176/155/170 vectors; shared NMOS process models and a PMOS). MOS6 preserves kelvin TNOM asks and M-scaled geometry asks; MOS3/9 preserve the scaled DELTA ask/raw setter mismatch and zero table-only setter columns; MOS9 omits the unanswerable DTEMP column. Invalid perturbations still fail explicitly: notably unset NSUB in MOS2/3/9 (C ignores the failed temperature callback and reuses stale derivations) and LD steps that collapse the effective channel. The BJT keeps each `ibe`/`ibc` setter separately, so a lone one activates the pair once the walk marks its partner given (the large C columns are reproduced; the earlier cancellation diagnosis was wrong). Refused: code models, RF ports, BJT `.sens` with `RC != 0` (C's Kull quasi-saturation), AC with nonlinear devices/switches/K (C linearizes them at a reset state), two `.sens` cards or `.sens` with `.sp`. A JFET with `M != 1` diverges from C by C's own admission - C's `.sens` disagrees with its own finite difference there; see [SENSITIVITY.md](docs/port/SENSITIVITY.md). C goldens `sens_divider`/`sens_hot`/`sens_diode`/`sens_ac`/`sens_multi` plus the family fixtures (200 verified, `compare::SENSITIVITY`/`SENSITIVITY_NONLINEAR`/`SENSITIVITY_CANCELLED`), analytic `tests/sensitivity_analysis.rs` and opt-in `c_sens_reference`. See [SENSITIVITY.md](docs/port/SENSITIVITY.md).
 
+## M11 — BSIM3 and BSIM4 (#90)
+
+- [x] B3-0 input foundation only: generated BSIM3v3.3 interface metadata
+  (429 model, 49 instance entries including 30 ask-only), explicit typed/ordered
+  setter validation, aliases/given fields, C setter conversions, literal VERSION
+  routing for levels 8/49, parser/writer round-trip and input-only binning probe.
+  The factory still refuses setup/load atomically. No BSIM simulation is enabled.
+- [x] B3-0 setup stage: generated literal defaults, dependent/polarity defaults,
+  `b3temp.c` model temperature pass, instance defaults and effective geometry,
+  83 size-dependent binning rows, derived Φ/Vbi/Xdep0/K1/K2/VFB/VTH0/VFBZB
+  parameters, junction/breakdown terms and `b3check.c` fatal/warning parity.
+  Factory validation still refuses loads.
+- [x] Shared-model reset ordering: `ModelSetup` persists `b3check.c`'s CALCACM
+  and CGDO/CGSO/CGBO resets across the instances of one model, verified against
+  C's single warning for a two-instance card.
+- [x] BSIM3 DC physics core (`dc.rs`): junctions, `Vth`/`Vgsteff`, mobility
+  modes, `Vdsat`/`Vdseff`, CLM/DIBL/SCBE, `Ids`/`gm`/`gds`/`gmbs` and substrate
+  current, differentially verified against C at 32 model/bias/polarity points.
+- [x] Wire the DC core into `Device`: start conditions and
+  `DEVfetlim`/`DEVlimvds`/`DEVpnjlim` limiting, `b3ld.c` RHS/matrix stamps in
+  both modes, RSH/NRD/NRS internal primes, 19 DC state slots, `b3ask.c` DC
+  asks, and factory dispatch. `.op` matches C on node voltages, source currents
+  and asks.
+- [ ] Charges: the `b3ld.c` CV preamble and `capMod == 3` (the default)
+  channel-charge block, bias-dependent overlap caps, junction `qbs`/`qbd` and
+  `capbs`/`capbd`, then the nine capacitance derivatives. `capMod` 0/1/2 and
+  NQS stay explicit refusals until ported. Exact C locations and the
+  verification plan are in [BSIM.md](docs/port/BSIM.md).
+- [ ] Small-signal/`.dc` (`b3acld.c` from those capacitances; the sweep setup
+  needs it), transient charge integration and `b3trunc.c`, `b3noi.c` noise,
+  `b3pzld.c` pole-zero, distortion, sensitivity and `.tf`.
+- [ ] Complete the physical-unit audit. These remain the #90 blocker.
+- [ ] B3-1..B3-5 and BSIM4: temperature/setup, DC, charges/transient, small
+  signal/noise/pole-zero and representative PDK C simulation goldens. #90 stays
+  open. See [BSIM.md](docs/port/BSIM.md) for the measured scope and current APIs.
+
 ## Suggested sequence
 
 #12/#13 scoped/source syntax → #14–16 expressions/evaluation/options/globals →

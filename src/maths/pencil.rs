@@ -401,7 +401,6 @@ type Loaded = (Sparse<Complex>, Vec<usize>, [Option<usize>; 2]);
 struct Search<'a> {
     load: &'a PencilLoad,
     sparse: Option<Loaded>,
-    structurally_singular: bool,
     trials: Vec<Trial>,
     head: Option<usize>,
     zero_trial: Option<usize>,
@@ -444,7 +443,6 @@ pub fn pencil_load_roots(load: &PencilLoad) -> SpiceResult<PencilRoots> {
     let mut search = Search {
         load,
         sparse: None,
-        structurally_singular: false,
         trials: Vec::new(),
         head: None,
         zero_trial: None,
@@ -761,9 +759,6 @@ impl Search<'_> {
     /// runs no `SMPpreOrder` for SPARSE), and keeps its pivot order between
     /// trials while the pivots pass the threshold test.
     fn determinant_at(&mut self, s: Cx) -> Option<(Cx, i32)> {
-        if self.structurally_singular {
-            return None;
-        }
         let load = self.load;
         if self.sparse.is_none() {
             let mut sparse = Sparse::new(load.order);
@@ -781,10 +776,10 @@ impl Search<'_> {
                     .map(|row| row.map(|row| sparse.get_element(row + 1, col + 1))),
                 None => [None, None],
             };
-            if !sparse.fully_translated() {
-                self.structurally_singular = true;
-                return None;
-            }
+            // An external row no element references has no internal row:
+            // SPARSE leaves it out of the matrix and its determinant, as a
+            // `DEVpzSetup` that drops an internal node (`b4set.c` re-run)
+            // leaves it in C.
             self.sparse = Some((sparse, handles, drive));
         }
         let (sparse, handles, drive) = self.sparse.as_mut()?;

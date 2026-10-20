@@ -158,6 +158,47 @@ fn the_noise_fixtures_match_c_batch_mode() {
 
 #[test]
 #[ignore = "requires absolute NGSPICE_BIN; runs C batch mode out of process"]
+fn bsim3_noise_sources_match_c_batch_mode() {
+    // One deck per `noiMod` pair, plus a series-resistance case whose `.rd`
+    // and `.rs` thermal sources are nonzero, and a PMOS instance.
+    for (tag, extra, instance) in [
+        ("noimod1", "", "l=0.25u w=2u"),
+        ("noimod2", "noimod=2", "l=0.25u w=2u"),
+        ("noimod3", "noimod=3", "l=0.25u w=2u"),
+        ("noimod4", "noimod=4", "l=0.25u w=2u"),
+        ("noimod5", "noimod=5", "l=0.25u w=2u"),
+        ("noimod6", "noimod=6", "l=0.25u w=2u"),
+        (
+            "rsh",
+            "rsh=10 noimod=2",
+            "l=0.5u w=5u nrd=2 nrs=3 ad=2p as=1p pd=4u ps=3u",
+        ),
+    ] {
+        compare(
+            &format!("bsim3-{tag}"),
+            &format!(
+                "bsim3 noise {tag}\n\
+                 vin g 0 dc 1.2 ac 1\nvdd d 0 1.8\nvs s 0 0\nrl d 0 10k\n\
+                 m1 d g s 0 nn {instance}\n\
+                 .model nn nmos level=8 cgdo=1e-10 cgso=1e-10 cj=1e-3 {extra}\n\
+                 .options reltol=1e-6\n\
+                 .noise v(d) vin dec 2 1k 10meg\n.end\n"
+            ),
+        );
+    }
+    compare(
+        "bsim3-pmos",
+        "bsim3 noise pmos\n\
+         vin g 0 dc -1.2 ac 1\nvdd d 0 -1.8\nvs s 0 0\nrl d 0 10k\n\
+         m1 d g s 0 nn l=0.25u w=2u\n\
+         .model nn pmos level=8 cgdo=1e-10 cgso=1e-10\n\
+         .options reltol=1e-6\n\
+         .noise v(d) vin dec 2 1k 10meg\n.end\n",
+    );
+}
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; runs C batch mode out of process"]
 fn mixed_devices_octave_sweeps_and_current_inputs_match_c() {
     compare(
         "mixed",

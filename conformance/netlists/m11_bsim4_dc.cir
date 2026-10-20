@@ -1,0 +1,17 @@
+BSIM4 output characteristics, NMOS and PMOS
+* #90: BSIM4's default parameter set (bsim4/b4set.c) with the selectors
+* below, a 0.1 um device that switches like a real process.
+* A drain sweep nested in a gate sweep; the PMOS has rdsmod=1.
+vdn dn 0 1.2
+vdp dp 0 -1.2
+vg g 0 0.8
+vgp gp 0 -0.8
+m1 dn g 0 0 nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u
+m2 dp gp 0 0 pch l=0.1u w=2u ad=2e-13 as=2e-13 pd=2.4u ps=2.4u
+.model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1
++ xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
+.model pch pmos level=54 version=4.8.3 rdsmod=1 rdsw=200
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
+.dc vdn 0 1.2 0.1 vg 0.4 1.2 0.4
+.end

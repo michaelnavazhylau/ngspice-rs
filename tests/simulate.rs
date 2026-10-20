@@ -341,18 +341,33 @@ fn a_refused_analysis_combination_fails_without_writing_a_rawfile() {
 
 #[test]
 fn an_unported_model_family_exits_three_and_writes_nothing() {
-    let dir = scratch("bsim");
+    let dir = scratch("hisim2");
     let deck = write_deck(
         &dir,
-        "bsim deck\nv1 d 0 dc 1\nr1 d 0 1k\nm1 d d 0 0 nm w=10u l=1u\n\
-         .model nm nmos level=49\n.op\n.end\n",
+        "hisim2 deck\nv1 d 0 dc 1\nr1 d 0 1k\nm1 d d 0 0 nm w=10u l=1u\n\
+         .model nm nmos level=68\n.op\n.end\n",
     );
-    let output = dir.join("bsim.raw");
+    let output = dir.join("hisim2.raw");
     let run = simulate(&output, &deck);
     assert_eq!(run.status.code(), Some(3), "{}", stderr(&run));
     assert!(stderr(&run).contains("not yet ported"), "{}", stderr(&run));
     assert!(!output.exists());
     assert_eq!(entries(&dir), ["deck.cir"]);
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_bsim3_operating_point_writes_its_rawfile() {
+    let dir = scratch("bsim3");
+    let deck = write_deck(
+        &dir,
+        "bsim3 deck\nv1 d 0 dc 1\nvg g 0 dc 2.5\n\
+         m1 d g 0 0 nm w=10u l=1u\n.model nm nmos level=49\n.op\n.end\n",
+    );
+    let output = dir.join("bsim3.raw");
+    let run = simulate(&output, &deck);
+    assert_eq!(run.status.code(), Some(0), "{}", stderr(&run));
+    assert!(output.exists(), "{}", stderr(&run));
     fs::remove_dir_all(&dir).unwrap();
 }
 

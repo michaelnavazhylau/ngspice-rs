@@ -44,6 +44,7 @@ include = [
     "/RUST_PORT.md",
     "/COPYING",
     "/NOTICE",
+    "/LICENSE-ECL-2.0",
     "/AUTHORS",
 ]
 

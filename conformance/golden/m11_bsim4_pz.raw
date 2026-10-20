@@ -1,0 +1,26 @@
+Title: bsim4 common-source amplifier: poles and zeros
+Date: Mon Oct 19 21:04:31  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 8
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(pole(3))	voltage
+	3	v(pole(4))	voltage
+	4	v(zero(1))	voltage
+	5	v(zero(2))	voltage
+	6	v(zero(3))	voltage
+	7	v(zero(4))	voltage
+Values:
+ 0	-2.429970061004072e+15,0.000000000000000e+00
+	-4.411753876503916e+14,0.000000000000000e+00
+	-3.028810275883628e+14,0.000000000000000e+00
+	-1.077628239543987e+11,0.000000000000000e+00
+	-2.525283436030997e+15,0.000000000000000e+00
+	-4.084764630697316e+14,0.000000000000000e+00
+	-2.880795649666485e+14,0.000000000000000e+00
+	1.541662014707794e+12,0.000000000000000e+00
+

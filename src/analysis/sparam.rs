@@ -328,8 +328,17 @@ fn noise_parameters(
     let mut cy = DenseComplex::zeros(count);
     for instance in generators {
         for source in &instance.sources {
-            if matches!(source.kind, NoiseKind::Flicker { .. }) {
+            if matches!(
+                source.kind,
+                NoiseKind::Flicker { .. } | NoiseKind::Gain { .. }
+            ) {
                 continue;
+            }
+            if matches!(source.kind, NoiseKind::CorrelatedThermal { .. }) {
+                return Err(SpiceError::not_yet_ported(
+                    "correlated (NevalSrc2) noise in S-parameter noise analysis",
+                    "src/spicelib/analysis/nevalsrc.c (NevalSrc2, RFSPICE branch)",
+                ));
             }
             let density = source.kind.output_density(1., 1.);
             let mut voltage = Vec::with_capacity(count);

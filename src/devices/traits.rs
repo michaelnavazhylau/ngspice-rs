@@ -300,6 +300,10 @@ pub struct ConvergenceContext<'a> {
     pub controls: &'a [usize],
     /// This device's slots of the last load's trial (C `CKTstate0`).
     pub states: &'a [Real],
+    /// The Newton phase of the last load (C's `MODEINITF` bits when
+    /// `NIconvTest` runs, which `NIiter` does in `MODEINITFIX` as well as
+    /// `MODEINITFLOAT`).
+    pub phase: crate::devices::IterationPhase,
     /// Temperatures, `gmin` and frequency of the solve.
     pub model_context: &'a crate::devices::ModelContext,
     /// The time of a transient solve, zero otherwise (C `CKTtime`).
@@ -541,6 +545,12 @@ pub trait Device: fmt::Debug {
     /// p-type variant (`jfetask.c`), `1` (the default) otherwise.
     fn observation_current_sign(&self) -> Real {
         1.
+    }
+
+    /// The `.model` card this instance uses, when the device is model-backed.
+    /// Diagnostics and model-binning tests read it; `None` otherwise.
+    fn model_name(&self) -> Option<&str> {
+        None
     }
 
     /// The instance name, e.g. `r1`.

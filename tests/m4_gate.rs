@@ -330,7 +330,6 @@ fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamp
         "q1 c b 0 qm\n.model qm npn(rco=10)",
         "q1 c b 0 qm\n.model qm npn(tf=1n ptf=30)",
         "m1 d g 0 0 mm\n.model mm nmos(nlev=7)",
-        "m1 d g 0 0 mm\n.model mm nmos(level=49)",
     ] {
         let n = Parser::new()
             .parse_deck(&parse_deck_text(
@@ -340,6 +339,15 @@ fn unsupported_physics_and_initialization_are_explicit_not_successful_zero_stamp
             .unwrap();
         assert!(Circuit::from_netlist(&n).is_err());
     }
+    // BSIM3 (level 49) now elaborates to a DC device; its charge/AC/noise
+    // analyses are the explicit gaps.
+    let bsim3 = Parser::new()
+        .parse_deck(&parse_deck_text(
+            Path::new("bsim3.cir"),
+            "bsim3\nm1 d g 0 0 mm\n.model mm nmos(level=49)\n.end\n",
+        ))
+        .unwrap();
+    assert!(Circuit::from_netlist(&bsim3).is_ok());
     let mut c = circuit("v1 a 0 0.3\nd1 a 0 dm\n.model dm d");
     let n = Parser::new()
         .parse_deck(&parse_deck_text(

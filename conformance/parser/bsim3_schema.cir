@@ -1,0 +1,27 @@
+BSIM3 input-schema and binning probe (B3-0 foundation, not a simulation golden)
+* Hand-authored PDK-shaped scalar cards, not a foundry model or calibrated PDK.
+* L/W bin resolution reaches the BSIM3 input schema, then still refuses setup/load.
+vd d 0 dc 1.2
+vg g 0 dc 1
+vp dp 0 dc -1.2
+vpg gp 0 dc -1
+m1 d g 0 0 nch l=180n w=1u m=2 ad=0.2p as=0.2p pd=1.4u ps=1.4u
++ nrd=1 nrs=1 nqsmod=0 acnqsmod=0 geo=0 delvto=5m mulu0=0.95
+m2 dp gp 0 0 pcore l=500n w=2u ic=(-0.1,-0.2,0) off
+.model nch.1 nmos level=49 version=3.3.0
++ lmin=100n lmax=250n wmin=500n wmax=10u
++ capmod=3 mobmod=1 noimod=1 paramchk=1 binunit=1
++ tnom=27 tox=4.1n toxm=4.1n xj=100n nch=2.3e17 nsub=6e16 ngate=1e20
++ vth0=0.4 k1=0.53 k2=-0.018 u0=450 ua=2.25e-9 ub=5.87e-19 uc=-4.65e-11
++ vsat=8e4 a0=1 a1=0 a2=1 nfactor=1.2 voff=-0.08 eta0=0.08 etab=-0.07
++ dvt0=2.2 dvt1=0.53 dvt2=-0.032 dsub=0.56 drout=0.56 pclm=1.3
++ pdiblc1=0.39 pdiblc2=0.0086 pdiblcb=0 rdsw=100 rsh=10 prwg=0 prwb=0
++ cgso=2e-10 cgdo=2e-10 cgbo=0 cj=1e-3 cjsw=1e-10 cjswg=1e-10
++ pb=0.8 pbsw=0.8 pbswg=0.8 mj=0.5 mjsw=0.33 mjswg=0.33
++ lint=0 wint=0 lvth0=0 wvth0=0 pvth0=0
+.model nch.2 nmos level=8 version=3.3 lmin=250n lmax=1u wmin=500n wmax=10u
++ tox=4.1n vth0=0.45 u0=450
+.model pcore pmos level=8 version=3.30 tox=4.1n vtho=-0.42 u0=180
++ nch=1.7e17 nsub=6e16 k1=0.55 k2=-0.018 rsh=10 cgso=2e-10 cgdo=2e-10
+.op
+.end

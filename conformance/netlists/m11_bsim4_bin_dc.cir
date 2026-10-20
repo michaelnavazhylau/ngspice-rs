@@ -1,0 +1,19 @@
+BSIM4 binned models end to end
+* #90: BSIM4's default parameter set (bsim4/b4set.c) with the selectors
+* below, a 0.1 um device that switches like a real process.
+* #109: the first instance selects nch.1, the others nch.2, whose threshold
+* carries L, W and P binning coefficients.
+vdd dd 0 1.2
+vg g 0 0.8
+m1 dd g 0 0 nch l=0.1u w=1u
+m2 dd g 0 0 nch l=0.5u w=2u
+m3 dd g 0 0 nch l=1u w=10u
+.model nch.1 nmos lmin=1e-8 lmax=2e-7 wmin=1e-7 wmax=1e-4 level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1
++ xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
+.model nch.2 nmos lmin=2e-7 lmax=1e-5 wmin=1e-7 wmax=1e-4 level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1
++ xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
++ vth0=0.42 lvth0=1e-9 wvth0=2e-9 pvth0=1e-16
+.dc vg 0 1.2 0.1
+.end

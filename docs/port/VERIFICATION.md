@@ -272,6 +272,142 @@ live-C** checks pass with absolute `NGSPICE_BIN`, including the new
 C's asks to 1e-15). Six new parser snapshots were blessed; existing snapshots
 are unchanged. See [URC.md](URC.md).
 
+## BSIM4 (#90)
+
+BSIM4 is translated statement by statement from `bsim4/` and judged
+bit for bit against the FMA-free oracle (`fidelity-tools`). See
+[BSIM.md](BSIM.md#bsim4) for what C behaviour the device reproduces.
+
+- `cargo xtask bsim4-schema --check` ties `parameters.rs` (897/98 IFparm
+  rows), `defaults_data.rs` (777 literal defaults) and `fields.rs` (the
+  scalar members of C's three structs) to the recorded C revision.
+- `tests/bsim4_schema.rs` (13 tests): tables, aliases, typed setters,
+  conversions, card shape, version routing, the factory's internal nodes in
+  `CKTmkVolt` order and a fatal `b4check.c` result creating nothing.
+- `tests/bsim4_device.rs` (9 tests, offline): C's values for an OP with gate
+  and body resistance, a PMOS `rdsMod` sweep, AC, noise (`tnoiMod` 0/2,
+  `fnoiMod` 0/1), `.pz` across C's setup re-run, an NQS CMOS transient, a
+  `.dc @m1[w]` sweep and a temperature sweep past a check C skips;
+  bit-exact on macOS arm64, 1e-9 relative elsewhere.
+- `tests/bsim4_sens.rs`: DC and AC `.sens` columns (941/949 of them on a
+  default card) against C, including C's NaN columns.
+- Unit tests in `set.rs` (all 777 literal defaults), `geo.rs`, `load.rs`
+  (`BSIM4polyDepletion`), `acld.rs`/`pzld.rs` (stamp positions per mode)
+  and `cvtest.rs`.
+- Opt-in, with `NGSPICE_BIN`: `c_bsim4_schema_reference`,
+  `c_bsim4_setup_reference` (every numeric model member after `b4set.c`),
+  `c_bsim4_temp_reference` (model and instance values after `b4temp.c`,
+  check messages) and `c_bsim4_device_reference` (18 selector families x
+  `.op`/`.dc`/`.ac`/`.noise`/`.pz`/`.tran`, 1e-6 relative against the
+  FMA-fusing reference build).
+
+## BSIM goldens (#90, B3-5)
+
+Eleven C goldens, each captured with `cargo xtask golden capture --netlist
+<name>` from the reference build (no existing golden recaptured, no tolerance
+changed), all under `compare::NONLINEAR`, `compare::TRAN`,
+`compare::POLE_ZERO` or the nonlinear noise stages:
+
+- BSIM4 on its default parameter set with selector variations:
+  `m11_bsim4_op` (gate resistance, both body networks, mid-gate node,
+  `rdsMod`, GIDL, gate tunnelling, both polarities), `m11_bsim4_dc`,
+  `m11_bsim4_ac`, `m11_bsim4_pz`, `m11_bsim4_noise`, `m11_bsim4_tran` (an
+  NQS inverter chain) and `m11_bsim4_bin_dc` (#109 binning end to end). The
+  port reproduces the FMA-free oracle on all seven bit for bit.
+- BSIM3v3.3 `capMod=3`: `m11_bsim3_{op,dc,ac,tran}`. They exposed three
+  BSIM3 gaps, now fixed: the missing `BSIM3convTest` and `BSIM3trunc`, and a
+  `MODEINITPRED` that limited the previous iterate instead of `DEVpred`'s
+  extrapolation (and treated `MODEINITTRAN` the same). The transient deck
+  runs at `reltol=1e-5` because BSIM3 is not bit-exact (see BSIM.md).
+
+`golden verify` now projects the port's plots onto C's default save set by
+`outitf.c`'s own rule (internal nodes named `#internal`, `#source`, `#drain`,
+`#collector`, `#collCX`, `#emitter`, `#base` are not saved) instead of a
+per-device list of exceptions; the existing corpus verifies unchanged.
+
+## BSIM3 B3-0 input foundation (#90)
+
+The schema-only BSIM3 path has generated IFparm metadata for all 429 model
+and 49 instance entries, with table order, aliases, C IDs, destination/given
+fields and input/read/write types. Generator `--check` reproduces the committed
+table from four clean inputs at upstream revision
+`059066b532f7073fccf4173ef269309eafdc7f0c`; ordinary tests do not read C.
+
+`tests/bsim3_schema.rs` exercises every model keyword, every instance input,
+ask-only rejection, ordered aliases/flags/defaults/IC, setter conversions,
+integer/scale errors, literal VERSION selection/round-trip, actual model-bin
+resolution and factory atomicity. A device-layer unit test injects exact
+binary64 doping thresholds: `INPevaluate` deliberately uses platform
+`pow(10, exponent)`, so a textual `1e23` is not a portable way to construct
+that exact threshold. The live C query checks the textual boundary on both
+platforms instead. No numeric-parser or comparison tolerance was changed.
+
+`conformance/parser/bsim3_schema.cir` is hand-authored PDK-shaped input,
+not a calibrated/foundry card or simulation golden. It adds two snapshots;
+none of the existing 496 snapshots changed. Opt-in
+`c_bsim3_schema_reference` checks explicit model/instance setter fields for
+levels 8/49 against C; the existing binning oracle still passes.
+
+Setup stage (`b3set.c`, `b3temp.c`, `b3check.c`) verification:
+
+- `tests/bsim3_defaults.rs` (10 tests) checks literal/dependent/polarity
+  defaults, given bits, MOBMOD selection, TOX/CF/overlap formulas, TNOM,
+  aliases and NQS resets offline.
+- `tests/bsim3_setup.rs` (11 tests) checks instance defaults, BINUNIT-scaled
+  binning, effective geometry, mobility/temperature terms, K1/K2 variants,
+  derived Φ/Vbi/Xdep0/VTH0/VFB/VBSC values, junction/breakdown currents,
+  every `b3check.c` reset and the fatal paths. ACM geometry is refused.
+- Opt-in `c_bsim3_setup_reference` compares C and Rust `b3check.c` output
+  exactly: 6 warning decks and 21 fatal/legal decks. Because those messages
+  embed `%g` values of the computed parameters, this also compares Leff/Weff,
+  Nch/Nsub/Ngate, Dvt0, Nfactor, Cdsc/Cdscd, Eta0, A2, Rdsw/Rds0, Vsat,
+  Pdibl1/2, Noff, Voffcv, Moin, Acde and the junction perimeters against C,
+  plus fatality agreement for every deck. C's batch mode exits 0 even after an
+  aborted analysis, so the comparison uses C's own messages, not its status.
+- Opt-in `c_bsim3_schema_reference` additionally compares all 422 numeric model
+  fields after defaults across six NMOS/PMOS/context cases.
+- Opt-in `c_bsim3_setup_reference::model_resets_persist_across_instances_like_c`
+  checks that one `ModelSetup` used for two instances of the same model reports
+  C's CALCACM/CGDO/CGSO/CGBO resets exactly once, as C's shared model struct
+  does.
+- Opt-in `c_bsim3_dc_reference` compares the DC physics core with C's
+  `b3ask.c` values at C's own converged bias, so it isolates load physics from
+  the solver wiring the port does not have yet. It covers 16 cases (default and
+  sub-micron geometry, `mobmod` 1/2/3, `k1`/`k2` given, `rds` terms, junction
+  areas/perimeters, `ijth=0`, temperature and `tnom` differences, CLM/DIBL/SCBE
+  parameters, inverse mode) in both polarities, comparing `vth`, `id`, `gm`,
+  `gds`, `gmbs`, `vdsat`, `ibs`, `ibd`, `gbs` and `gbd` to a 1e-9 relative
+  bound. `cbs`/`cbd` are deliberately not compared: they are capacitances in C,
+  not junction currents. `tests/bsim3_dc.rs` adds six offline invariants
+  (zero-bias offsets, gate/saturation trends, inverse-mode mirror symmetry,
+  mobility/RDS effects, junction scaling, ask mapping).
+
+The BSIM3 DC device adds two more opt-in suites:
+
+- `c_bsim3_device_reference` runs the port's own `.op` next to C for eight
+  decks (default and sub-micron geometry, PMOS, RSH-created internal nodes,
+  junction areas/perimeters, MOBMOD 2, 100 °C). Node voltages and the bias
+  source currents agree to 1e-6 relative, and C's `@m1[...]` values evaluated
+  at C's own solution agree to 1e-9. Its `.dc` test asserts that the port
+  refuses the sweep with `NotYetPorted` naming `b3acld.c` while C sweeps, i.e.
+  the missing small-signal load is reported rather than replaced by a DC-only
+  conductance.
+- `tests/bsim3_device.rs` covers the same behaviour offline: NMOS/PMOS `.op`
+  currents, state/ask wiring, the internal-prime layout, explicit AC/transient
+  refusals, `off`/`ic=` start settings and the ACM refusal.
+
+With setup and the DC device included: 1557 passed / 0 failed / 160 ignored on
+macOS stable and Rust 1.89, strict all-target Clippy on both toolchains,
+generator `--check`, 498 unchanged snapshots, 208/1/0 golden verify and 209 C
+golden checks. No tolerance was changed.
+
+Foundation validation: 1522 passed / 0 failed / 153 ignored on macOS stable,
+macOS Rust 1.89 and GNU Linux x86-64 Rust 1.89, with strict all-target Clippy.
+The new setter and existing binning live-C tests pass on both platforms.
+`golden verify` remains 208 verified / 1 unsupported / 0 failures; all 209
+C goldens reproduce. Documentation builds with 27 warnings. No BSIM load,
+setup defaults or effective-geometry diagnostics are claimed by these results.
+
 ## PR #183: platform-specific BJT sensitivity reference
 
 CI's Linux x86-64 failure was reproduced in a GNU/Linux container on Rust
@@ -1882,8 +2018,7 @@ transient with an `off` device.
 
 ## Model binning verification (#109)
 
-C bins only BSIM3/BSIM4/HiSIM models, which the port does not simulate, so
-binning has no rawfile goldens. It is verified at the selection level:
+C bins only BSIM3/BSIM4/HiSIM models, so binning has no rawfile goldens yet. It is verified at the selection level:
 
 - `src/devices/binning.rs` unit tests: `model_name_match` digit suffixes,
   binnable levels, inclusive 1e-9 m edges, last-declared-wins ordering,

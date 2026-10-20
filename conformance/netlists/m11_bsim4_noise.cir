@@ -1,0 +1,17 @@
+BSIM4 common-source amplifier: noise
+* #90: BSIM4's default parameter set (bsim4/b4set.c) with the selectors
+* below, a 0.1 um device that switches like a real process.
+* b4noi.c thermal (tnoimod=0) and unified flicker (fnoimod=1) noise, gate
+* shot noise and the gate and body resistance generators.
+vdd dd 0 1.2
+rl dd d 2k
+vg g 0 dc 0.6 ac 1
+vb b 0 dc -0.1
+m1 d g 0 b nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u nf=2 sa=0.3u sb=0.4u
+cl d 0 5f
+.model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1
++ xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.noise v(d) vg dec 4 1e3 1e10
+.end

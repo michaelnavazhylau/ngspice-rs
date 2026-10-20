@@ -1,0 +1,25 @@
+BSIM4 operating point: three selector families, both polarities
+* #90: BSIM4's default parameter set (bsim4/b4set.c) with the selectors
+* below, a 0.1 um device that switches like a real process.
+* Gate resistance and body network (rgatemod=1, rbodymod=1) with gate
+* tunnelling, the mid-gate node with the rbodymod=2 network, rdsmod=1, GIDL
+* and tempmod=1, and a PMOS with rdsmod=1.
+vdd dd 0 1.2
+vg g 0 0.7
+vb b 0 -0.1
+m1 dd g 0 b nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u nf=2 sa=0.3u sb=0.4u
+m2 d2 g 0 b nch3 l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u
+r2 dd d2 5k
+m3 d3 g dd dd pch l=0.1u w=2u ad=2e-13 as=2e-13 pd=2.4u ps=2.4u
+r3 d3 0 5k
+.model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1
++ xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
+.model nch3 nmos level=54 version=4.8.3 rgatemod=3 rbodymod=2 rdsmod=1 gidlmod=1
++ tempmod=1 xrcrg1=12 xrcrg2=5 rshg=0.4 rbps0=50 rbpd0=50 rbsbx0=100 rbsby0=100
++ rbdbx0=100 rbdby0=100 cgso=1.5e-10 cgdo=1.5e-10 jss=1e-4 cjs=1e-3
+.model pch pmos level=54 version=4.8.3 rdsmod=1 rdsw=200
++ cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10
+.options reltol=1e-9 vntol=1e-12 abstol=1e-15
+.op
+.end

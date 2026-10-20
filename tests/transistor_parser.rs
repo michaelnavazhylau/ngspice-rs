@@ -271,7 +271,6 @@ fn unsupported_variants_keep_device_specific_c_references() {
         ("M1 D G S B NM IC=1,{vgs},3\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B HEAT NM\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B NM W=\"width\"\n.model NM NMOS", "inp2m.c"),
-        ("M1 D G S B NM NF=2\n.model NM NMOS", "inp2m.c"),
         ("M1 D G S B NM W=4k7\n.model NM NMOS", "inp2m.c"),
     ] {
         match parse(body).expect_err("gap") {
@@ -358,4 +357,29 @@ fn declarations_do_not_leak_between_parser_calls() {
         parser.parse_deck(&second),
         Err(SpiceError::Parse { .. })
     ));
+}
+
+#[test]
+fn bsim4_instance_syntax_is_recognised_and_level_1_still_refuses_it() {
+    // `NF`/`SA`/`RBDB` are bsim4/b4.c instance setters. Recognising the syntax
+    // is a parser decision, not a backend claim: a level-1 MOS model must
+    // refuse the keyword rather than silently drop it.
+    for body in [
+        "M1 D G S B NM NF=2\n.model NM NMOS",
+        "M1 D G S B NM SA=1u\n.model NM NMOS",
+        "M1 D G S B NM RBDB=1\n.model NM NMOS",
+    ] {
+        let netlist = parse(body).unwrap();
+        let keyword = netlist.devices[0].parameters[0].name.clone();
+        let resolver = ngspice_rs::devices::ModelResolver::new(&netlist.models).unwrap();
+        let mut circuit = ngspice_rs::devices::Circuit::new();
+        let error = circuit
+            .add_instance(
+                &netlist.devices[0],
+                &resolver,
+                &ngspice_rs::devices::ModelContext::default(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains(&keyword), "{body}: {error}");
+    }
 }

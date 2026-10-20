@@ -1,0 +1,608 @@
+# ngspice-rs token-dump v1
+file: netlists/m11_bsim3_tran.cir
+title: "BSIM3v3.3 CMOS inverter: transient" @netlists/m11_bsim3_tran.cir:1:1
+card 1 @netlists/m11_bsim3_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "vdd dd 0 1.8"
+  kind: device(v)
+  token 1 5:1 word "vdd"
+  token 2 5:5 word "dd"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "1.8" value=1.8e0
+card 2 @netlists/m11_bsim3_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "vin in 0 pulse(0 1.8 0.2n 50p 50p 1n 2n)"
+  kind: device(v)
+  token 1 6:1 word "vin"
+  token 2 6:5 word "in"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 word "pulse"
+  token 5 6:15 lparen "("
+  token 6 6:16 number "0" value=0e0
+  token 7 6:18 number "1.8" value=1.8e0
+  token 8 6:22 number "0.2n" value=2e-10
+  token 9 6:27 number "50p" value=5e-11
+  token 10 6:31 number "50p" value=5e-11
+  token 11 6:35 number "1n" value=1e-9
+  token 12 6:38 number "2n" value=2e-9
+  token 13 6:40 rparen ")"
+card 3 @netlists/m11_bsim3_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "mp o in dd dd p3 l=0.18u w=4u ad=2e-12 as=2e-12 pd=6u ps=6u"
+  kind: device(m)
+  token 1 7:1 word "mp"
+  token 2 7:4 word "o"
+  token 3 7:6 word "in"
+  token 4 7:9 word "dd"
+  token 5 7:12 word "dd"
+  token 6 7:15 word "p3"
+  token 7 7:18 word "l"
+  token 8 7:19 equals "="
+  token 9 7:20 number "0.18u" value=1.8e-7
+  token 10 7:26 word "w"
+  token 11 7:27 equals "="
+  token 12 7:28 number "4u" value=4e-6
+  token 13 7:31 word "ad"
+  token 14 7:33 equals "="
+  token 15 7:34 number "2e-12" value=2e-12
+  token 16 7:40 word "as"
+  token 17 7:42 equals "="
+  token 18 7:43 number "2e-12" value=2e-12
+  token 19 7:49 word "pd"
+  token 20 7:51 equals "="
+  token 21 7:52 number "6u" value=6e-6
+  token 22 7:55 word "ps"
+  token 23 7:57 equals "="
+  token 24 7:58 number "6u" value=6e-6
+card 4 @netlists/m11_bsim3_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "mn o in 0 0 n3 l=0.18u w=2u ad=1e-12 as=1e-12 pd=4u ps=4u"
+  kind: device(m)
+  token 1 8:1 word "mn"
+  token 2 8:4 word "o"
+  token 3 8:6 word "in"
+  token 4 8:9 number "0" value=0e0
+  token 5 8:11 number "0" value=0e0
+  token 6 8:13 word "n3"
+  token 7 8:16 word "l"
+  token 8 8:17 equals "="
+  token 9 8:18 number "0.18u" value=1.8e-7
+  token 10 8:24 word "w"
+  token 11 8:25 equals "="
+  token 12 8:26 number "2u" value=2e-6
+  token 13 8:29 word "ad"
+  token 14 8:31 equals "="
+  token 15 8:32 number "1e-12" value=1e-12
+  token 16 8:38 word "as"
+  token 17 8:40 equals "="
+  token 18 8:41 number "1e-12" value=1e-12
+  token 19 8:47 word "pd"
+  token 20 8:49 equals "="
+  token 21 8:50 number "4u" value=4e-6
+  token 22 8:53 word "ps"
+  token 23 8:55 equals "="
+  token 24 8:56 number "4u" value=4e-6
+card 5 @netlists/m11_bsim3_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "c1 o 0 10f"
+  kind: device(c)
+  token 1 9:1 word "c1"
+  token 2 9:4 word "o"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 number "10f" value=1.0000000000000002e-14
+card 6 @netlists/m11_bsim3_tran.cir:10:1 lines=10-20 continuations=10
+  raw: ".model n3 nmos level=49 version=3.3.0 capmod=3 mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=0.3694 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=268.7 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 a2=0.69 rdsw=105 prwg=0.5 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+  kind: dot(.model)
+  token 1 10:1 word ".model"
+  token 2 10:8 word "n3"
+  token 3 10:11 word "nmos"
+  token 4 10:16 word "level"
+  token 5 10:21 equals "="
+  token 6 10:22 number "49" value=4.9e1
+  token 7 10:25 word "version"
+  token 8 10:32 equals "="
+  token 9 10:33 word "3.3.0"
+  token 10 10:39 word "capmod"
+  token 11 10:45 equals "="
+  token 12 10:46 number "3" value=3e0
+  token 13 10:48 word "mobmod"
+  token 14 10:54 equals "="
+  token 15 10:55 number "1" value=1e0
+  token 16 10:57 word "tox"
+  token 17 10:60 equals "="
+  token 18 10:61 number "4.1e-9" value=4.1e-9
+  token 19 10:68 word "xj"
+  token 20 10:70 equals "="
+  token 21 10:71 number "1e-7" value=1e-7
+  token 22 10:76 word "nch"
+  token 23 10:79 equals "="
+  token 24 10:80 number "2.3549e17" value=2.3549e17
+  token 25 10:90 word "vth0"
+  token 26 10:94 equals "="
+  token 27 10:95 number "0.3694" value=3.694e-1
+  token 28 10:102 word "k1"
+  token 29 10:104 equals "="
+  token 30 10:105 number "0.5789" value=5.789000000000001e-1
+  token 31 10:112 word "k2"
+  token 32 10:114 equals "="
+  token 33 10:115 number "1.10e-3" value=1.1e-3
+  token 34 10:123 word "k3"
+  token 35 10:125 equals "="
+  token 36 10:126 number "1e-3" value=1e-3
+  token 37 10:131 word "k3b"
+  token 38 10:134 equals "="
+  token 39 10:135 number "0.0295" value=2.9500000000000002e-2
+  token 40 10:142 word "w0"
+  token 41 10:144 equals "="
+  token 42 10:145 number "1e-7" value=1e-7
+  token 43 10:150 word "nlx"
+  token 44 10:153 equals "="
+  token 45 10:154 number "1.919e-7" value=1.9190000000000002e-7
+  token 46 10:163 word "dvt0w"
+  token 47 10:168 equals "="
+  token 48 10:169 number "0" value=0e0
+  token 49 10:171 word "dvt1w"
+  token 50 10:176 equals "="
+  token 51 10:177 number "0" value=0e0
+  token 52 10:179 word "dvt2w"
+  token 53 10:184 equals "="
+  token 54 10:185 number "0" value=0e0
+  token 55 10:187 word "dvt0"
+  token 56 10:191 equals "="
+  token 57 10:192 number "1.0471" value=1.0471000000000001e0
+  token 58 10:199 word "dvt1"
+  token 59 10:203 equals "="
+  token 60 10:204 number "0.3896" value=3.896e-1
+  token 61 10:211 word "dvt2"
+  token 62 10:215 equals "="
+  token 63 10:216 number "0.0367" value=3.67e-2
+  token 64 10:223 word "u0"
+  token 65 10:225 equals "="
+  token 66 10:226 number "268.7" value=2.687e2
+  token 67 10:232 word "ua"
+  token 68 10:234 equals "="
+  token 69 10:235 number "-1.39e-9" value=-1.39e-9
+  token 70 10:244 word "ub"
+  token 71 10:246 equals "="
+  token 72 10:247 number "2.34e-18" value=2.34e-18
+  token 73 10:256 word "uc"
+  token 74 10:258 equals "="
+  token 75 10:259 number "5.42e-11" value=5.4200000000000004e-11
+  token 76 10:268 word "vsat"
+  token 77 10:272 equals "="
+  token 78 10:273 number "1.07e5" value=1.07e5
+  token 79 10:280 word "a0"
+  token 80 10:282 equals "="
+  token 81 10:283 number "1.9" value=1.9000000000000001e0
+  token 82 10:287 word "ags"
+  token 83 10:290 equals "="
+  token 84 10:291 number "0.42" value=4.2e-1
+  token 85 10:296 word "b0"
+  token 86 10:298 equals "="
+  token 87 10:299 number "-1.3e-8" value=-1.3e-8
+  token 88 10:307 word "b1"
+  token 89 10:309 equals "="
+  token 90 10:310 number "-1e-7" value=-1e-7
+  token 91 10:316 word "keta"
+  token 92 10:320 equals "="
+  token 93 10:321 number "-8.6e-3" value=-8.6e-3
+  token 94 10:329 word "a1"
+  token 95 10:331 equals "="
+  token 96 10:332 number "1.4e-4" value=1.4000000000000001e-4
+  token 97 10:339 word "a2"
+  token 98 10:341 equals "="
+  token 99 10:342 number "0.69" value=6.900000000000001e-1
+  token 100 10:347 word "rdsw"
+  token 101 10:351 equals "="
+  token 102 10:352 number "105" value=1.05e2
+  token 103 10:356 word "prwg"
+  token 104 10:360 equals "="
+  token 105 10:361 number "0.5" value=5e-1
+  token 106 10:365 word "prwb"
+  token 107 10:369 equals "="
+  token 108 10:370 number "-0.2" value=-2e-1
+  token 109 10:375 word "wr"
+  token 110 10:377 equals "="
+  token 111 10:378 number "1" value=1e0
+  token 112 10:380 word "wint"
+  token 113 10:384 equals "="
+  token 114 10:385 number "0" value=0e0
+  token 115 10:387 word "lint"
+  token 116 10:391 equals "="
+  token 117 10:392 number "1.69e-8" value=1.69e-8
+  token 118 10:400 word "dwg"
+  token 119 10:403 equals "="
+  token 120 10:404 number "-5.6e-9" value=-5.6000000000000005e-9
+  token 121 10:412 word "dwb"
+  token 122 10:415 equals "="
+  token 123 10:416 number "6.1e-9" value=6.1e-9
+  token 124 10:423 word "voff"
+  token 125 10:427 equals "="
+  token 126 10:428 number "-0.0886" value=-8.86e-2
+  token 127 10:436 word "nfactor"
+  token 128 10:443 equals "="
+  token 129 10:444 number "2.2" value=2.2e0
+  token 130 10:448 word "cit"
+  token 131 10:451 equals "="
+  token 132 10:452 number "0" value=0e0
+  token 133 10:454 word "cdsc"
+  token 134 10:458 equals "="
+  token 135 10:459 number "2.4e-4" value=2.4000000000000003e-4
+  token 136 10:466 word "cdscd"
+  token 137 10:471 equals "="
+  token 138 10:472 number "0" value=0e0
+  token 139 10:474 word "cdscb"
+  token 140 10:479 equals "="
+  token 141 10:480 number "0" value=0e0
+  token 142 10:482 word "eta0"
+  token 143 10:486 equals "="
+  token 144 10:487 number "2.74e-3" value=2.7400000000000002e-3
+  token 145 10:495 word "etab"
+  token 146 10:499 equals "="
+  token 147 10:500 number "6.39e-5" value=6.39e-5
+  token 148 10:508 word "dsub"
+  token 149 10:512 equals "="
+  token 150 10:513 number "0.0156" value=1.5600000000000001e-2
+  token 151 10:520 word "pclm"
+  token 152 10:524 equals "="
+  token 153 10:525 number "0.739" value=7.39e-1
+  token 154 10:531 word "pdiblc1"
+  token 155 10:538 equals "="
+  token 156 10:539 number "0.209" value=2.09e-1
+  token 157 10:545 word "pdiblc2"
+  token 158 10:552 equals "="
+  token 159 10:553 number "2.62e-3" value=2.6200000000000004e-3
+  token 160 10:561 word "pdiblcb"
+  token 161 10:568 equals "="
+  token 162 10:569 number "-0.1" value=-1e-1
+  token 163 10:574 word "drout"
+  token 164 10:579 equals "="
+  token 165 10:580 number "0.79" value=7.9e-1
+  token 166 10:585 word "pscbe1"
+  token 167 10:591 equals "="
+  token 168 10:592 number "8.2e9" value=8.2e9
+  token 169 10:598 word "pscbe2"
+  token 170 10:604 equals "="
+  token 171 10:605 number "1.1e-8" value=1.1000000000000001e-8
+  token 172 10:612 word "pvag"
+  token 173 10:616 equals "="
+  token 174 10:617 number "2.4e-2" value=2.4e-2
+  token 175 10:624 word "delta"
+  token 176 10:629 equals "="
+  token 177 10:630 number "0.01" value=1e-2
+  token 178 10:635 word "rsh"
+  token 179 10:638 equals "="
+  token 180 10:639 number "6.8" value=6.800000000000001e0
+  token 181 10:643 word "prt"
+  token 182 10:646 equals "="
+  token 183 10:647 number "0" value=0e0
+  token 184 10:649 word "ute"
+  token 185 10:652 equals "="
+  token 186 10:653 number "-1.5" value=-1.5e0
+  token 187 10:658 word "kt1"
+  token 188 10:661 equals "="
+  token 189 10:662 number "-0.11" value=-1.1e-1
+  token 190 10:668 word "kt1l"
+  token 191 10:672 equals "="
+  token 192 10:673 number "0" value=0e0
+  token 193 10:675 word "kt2"
+  token 194 10:678 equals "="
+  token 195 10:679 number "0.022" value=2.2e-2
+  token 196 10:685 word "ua1"
+  token 197 10:688 equals "="
+  token 198 10:689 number "4.31e-9" value=4.309999999999999e-9
+  token 199 10:697 word "ub1"
+  token 200 10:700 equals "="
+  token 201 10:701 number "-7.61e-18" value=-7.61e-18
+  token 202 10:711 word "uc1"
+  token 203 10:714 equals "="
+  token 204 10:715 number "-5.6e-11" value=-5.6e-11
+  token 205 10:724 word "at"
+  token 206 10:726 equals "="
+  token 207 10:727 number "3.3e4" value=3.3e4
+  token 208 10:733 word "cgdo"
+  token 209 10:737 equals "="
+  token 210 10:738 number "7.9e-10" value=7.9e-10
+  token 211 10:746 word "cgso"
+  token 212 10:750 equals "="
+  token 213 10:751 number "7.9e-10" value=7.9e-10
+  token 214 10:759 word "cgbo"
+  token 215 10:763 equals "="
+  token 216 10:764 number "1e-12" value=1e-12
+  token 217 10:770 word "cj"
+  token 218 10:772 equals "="
+  token 219 10:773 number "9.7e-4" value=9.7e-4
+  token 220 10:780 word "pb"
+  token 221 10:782 equals "="
+  token 222 10:783 number "0.73" value=7.3e-1
+  token 223 10:788 word "mj"
+  token 224 10:790 equals "="
+  token 225 10:791 number "0.36" value=3.6e-1
+  token 226 10:796 word "cjsw"
+  token 227 10:800 equals "="
+  token 228 10:801 number "2.4e-10" value=2.4e-10
+  token 229 10:809 word "pbsw"
+  token 230 10:813 equals "="
+  token 231 10:814 number "0.4" value=4e-1
+  token 232 10:818 word "mjsw"
+  token 233 10:822 equals "="
+  token 234 10:823 number "0.1" value=1e-1
+  token 235 10:827 word "cjswg"
+  token 236 10:832 equals "="
+  token 237 10:833 number "3.3e-10" value=3.3e-10
+  token 238 10:841 word "pbswg"
+  token 239 10:846 equals "="
+  token 240 10:847 number "0.4" value=4e-1
+  token 241 10:851 word "mjswg"
+  token 242 10:856 equals "="
+  token 243 10:857 number "0.1" value=1e-1
+  token 244 10:861 word "cf"
+  token 245 10:863 equals "="
+  token 246 10:864 number "0" value=0e0
+  token 247 10:866 word "xpart"
+  token 248 10:871 equals "="
+  token 249 10:872 number "0.5" value=5e-1
+card 7 @netlists/m11_bsim3_tran.cir:21:1 lines=21-31 continuations=10
+  raw: ".model p3 pmos level=49 version=3.3.0 capmod=3 mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=-0.39 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=110 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 a2=0.69 rdsw=105 prwg=0.5 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+  kind: dot(.model)
+  token 1 21:1 word ".model"
+  token 2 21:8 word "p3"
+  token 3 21:11 word "pmos"
+  token 4 21:16 word "level"
+  token 5 21:21 equals "="
+  token 6 21:22 number "49" value=4.9e1
+  token 7 21:25 word "version"
+  token 8 21:32 equals "="
+  token 9 21:33 word "3.3.0"
+  token 10 21:39 word "capmod"
+  token 11 21:45 equals "="
+  token 12 21:46 number "3" value=3e0
+  token 13 21:48 word "mobmod"
+  token 14 21:54 equals "="
+  token 15 21:55 number "1" value=1e0
+  token 16 21:57 word "tox"
+  token 17 21:60 equals "="
+  token 18 21:61 number "4.1e-9" value=4.1e-9
+  token 19 21:68 word "xj"
+  token 20 21:70 equals "="
+  token 21 21:71 number "1e-7" value=1e-7
+  token 22 21:76 word "nch"
+  token 23 21:79 equals "="
+  token 24 21:80 number "2.3549e17" value=2.3549e17
+  token 25 21:90 word "vth0"
+  token 26 21:94 equals "="
+  token 27 21:95 number "-0.39" value=-3.9e-1
+  token 28 21:101 word "k1"
+  token 29 21:103 equals "="
+  token 30 21:104 number "0.5789" value=5.789000000000001e-1
+  token 31 21:111 word "k2"
+  token 32 21:113 equals "="
+  token 33 21:114 number "1.10e-3" value=1.1e-3
+  token 34 21:122 word "k3"
+  token 35 21:124 equals "="
+  token 36 21:125 number "1e-3" value=1e-3
+  token 37 21:130 word "k3b"
+  token 38 21:133 equals "="
+  token 39 21:134 number "0.0295" value=2.9500000000000002e-2
+  token 40 21:141 word "w0"
+  token 41 21:143 equals "="
+  token 42 21:144 number "1e-7" value=1e-7
+  token 43 21:149 word "nlx"
+  token 44 21:152 equals "="
+  token 45 21:153 number "1.919e-7" value=1.9190000000000002e-7
+  token 46 21:162 word "dvt0w"
+  token 47 21:167 equals "="
+  token 48 21:168 number "0" value=0e0
+  token 49 21:170 word "dvt1w"
+  token 50 21:175 equals "="
+  token 51 21:176 number "0" value=0e0
+  token 52 21:178 word "dvt2w"
+  token 53 21:183 equals "="
+  token 54 21:184 number "0" value=0e0
+  token 55 21:186 word "dvt0"
+  token 56 21:190 equals "="
+  token 57 21:191 number "1.0471" value=1.0471000000000001e0
+  token 58 21:198 word "dvt1"
+  token 59 21:202 equals "="
+  token 60 21:203 number "0.3896" value=3.896e-1
+  token 61 21:210 word "dvt2"
+  token 62 21:214 equals "="
+  token 63 21:215 number "0.0367" value=3.67e-2
+  token 64 21:222 word "u0"
+  token 65 21:224 equals "="
+  token 66 21:225 number "110" value=1.1e2
+  token 67 21:229 word "ua"
+  token 68 21:231 equals "="
+  token 69 21:232 number "-1.39e-9" value=-1.39e-9
+  token 70 21:241 word "ub"
+  token 71 21:243 equals "="
+  token 72 21:244 number "2.34e-18" value=2.34e-18
+  token 73 21:253 word "uc"
+  token 74 21:255 equals "="
+  token 75 21:256 number "5.42e-11" value=5.4200000000000004e-11
+  token 76 21:265 word "vsat"
+  token 77 21:269 equals "="
+  token 78 21:270 number "1.07e5" value=1.07e5
+  token 79 21:277 word "a0"
+  token 80 21:279 equals "="
+  token 81 21:280 number "1.9" value=1.9000000000000001e0
+  token 82 21:284 word "ags"
+  token 83 21:287 equals "="
+  token 84 21:288 number "0.42" value=4.2e-1
+  token 85 21:293 word "b0"
+  token 86 21:295 equals "="
+  token 87 21:296 number "-1.3e-8" value=-1.3e-8
+  token 88 21:304 word "b1"
+  token 89 21:306 equals "="
+  token 90 21:307 number "-1e-7" value=-1e-7
+  token 91 21:313 word "keta"
+  token 92 21:317 equals "="
+  token 93 21:318 number "-8.6e-3" value=-8.6e-3
+  token 94 21:326 word "a1"
+  token 95 21:328 equals "="
+  token 96 21:329 number "1.4e-4" value=1.4000000000000001e-4
+  token 97 21:336 word "a2"
+  token 98 21:338 equals "="
+  token 99 21:339 number "0.69" value=6.900000000000001e-1
+  token 100 21:344 word "rdsw"
+  token 101 21:348 equals "="
+  token 102 21:349 number "105" value=1.05e2
+  token 103 21:353 word "prwg"
+  token 104 21:357 equals "="
+  token 105 21:358 number "0.5" value=5e-1
+  token 106 21:362 word "prwb"
+  token 107 21:366 equals "="
+  token 108 21:367 number "-0.2" value=-2e-1
+  token 109 21:372 word "wr"
+  token 110 21:374 equals "="
+  token 111 21:375 number "1" value=1e0
+  token 112 21:377 word "wint"
+  token 113 21:381 equals "="
+  token 114 21:382 number "0" value=0e0
+  token 115 21:384 word "lint"
+  token 116 21:388 equals "="
+  token 117 21:389 number "1.69e-8" value=1.69e-8
+  token 118 21:397 word "dwg"
+  token 119 21:400 equals "="
+  token 120 21:401 number "-5.6e-9" value=-5.6000000000000005e-9
+  token 121 21:409 word "dwb"
+  token 122 21:412 equals "="
+  token 123 21:413 number "6.1e-9" value=6.1e-9
+  token 124 21:420 word "voff"
+  token 125 21:424 equals "="
+  token 126 21:425 number "-0.0886" value=-8.86e-2
+  token 127 21:433 word "nfactor"
+  token 128 21:440 equals "="
+  token 129 21:441 number "2.2" value=2.2e0
+  token 130 21:445 word "cit"
+  token 131 21:448 equals "="
+  token 132 21:449 number "0" value=0e0
+  token 133 21:451 word "cdsc"
+  token 134 21:455 equals "="
+  token 135 21:456 number "2.4e-4" value=2.4000000000000003e-4
+  token 136 21:463 word "cdscd"
+  token 137 21:468 equals "="
+  token 138 21:469 number "0" value=0e0
+  token 139 21:471 word "cdscb"
+  token 140 21:476 equals "="
+  token 141 21:477 number "0" value=0e0
+  token 142 21:479 word "eta0"
+  token 143 21:483 equals "="
+  token 144 21:484 number "2.74e-3" value=2.7400000000000002e-3
+  token 145 21:492 word "etab"
+  token 146 21:496 equals "="
+  token 147 21:497 number "6.39e-5" value=6.39e-5
+  token 148 21:505 word "dsub"
+  token 149 21:509 equals "="
+  token 150 21:510 number "0.0156" value=1.5600000000000001e-2
+  token 151 21:517 word "pclm"
+  token 152 21:521 equals "="
+  token 153 21:522 number "0.739" value=7.39e-1
+  token 154 21:528 word "pdiblc1"
+  token 155 21:535 equals "="
+  token 156 21:536 number "0.209" value=2.09e-1
+  token 157 21:542 word "pdiblc2"
+  token 158 21:549 equals "="
+  token 159 21:550 number "2.62e-3" value=2.6200000000000004e-3
+  token 160 21:558 word "pdiblcb"
+  token 161 21:565 equals "="
+  token 162 21:566 number "-0.1" value=-1e-1
+  token 163 21:571 word "drout"
+  token 164 21:576 equals "="
+  token 165 21:577 number "0.79" value=7.9e-1
+  token 166 21:582 word "pscbe1"
+  token 167 21:588 equals "="
+  token 168 21:589 number "8.2e9" value=8.2e9
+  token 169 21:595 word "pscbe2"
+  token 170 21:601 equals "="
+  token 171 21:602 number "1.1e-8" value=1.1000000000000001e-8
+  token 172 21:609 word "pvag"
+  token 173 21:613 equals "="
+  token 174 21:614 number "2.4e-2" value=2.4e-2
+  token 175 21:621 word "delta"
+  token 176 21:626 equals "="
+  token 177 21:627 number "0.01" value=1e-2
+  token 178 21:632 word "rsh"
+  token 179 21:635 equals "="
+  token 180 21:636 number "6.8" value=6.800000000000001e0
+  token 181 21:640 word "prt"
+  token 182 21:643 equals "="
+  token 183 21:644 number "0" value=0e0
+  token 184 21:646 word "ute"
+  token 185 21:649 equals "="
+  token 186 21:650 number "-1.5" value=-1.5e0
+  token 187 21:655 word "kt1"
+  token 188 21:658 equals "="
+  token 189 21:659 number "-0.11" value=-1.1e-1
+  token 190 21:665 word "kt1l"
+  token 191 21:669 equals "="
+  token 192 21:670 number "0" value=0e0
+  token 193 21:672 word "kt2"
+  token 194 21:675 equals "="
+  token 195 21:676 number "0.022" value=2.2e-2
+  token 196 21:682 word "ua1"
+  token 197 21:685 equals "="
+  token 198 21:686 number "4.31e-9" value=4.309999999999999e-9
+  token 199 21:694 word "ub1"
+  token 200 21:697 equals "="
+  token 201 21:698 number "-7.61e-18" value=-7.61e-18
+  token 202 21:708 word "uc1"
+  token 203 21:711 equals "="
+  token 204 21:712 number "-5.6e-11" value=-5.6e-11
+  token 205 21:721 word "at"
+  token 206 21:723 equals "="
+  token 207 21:724 number "3.3e4" value=3.3e4
+  token 208 21:730 word "cgdo"
+  token 209 21:734 equals "="
+  token 210 21:735 number "7.9e-10" value=7.9e-10
+  token 211 21:743 word "cgso"
+  token 212 21:747 equals "="
+  token 213 21:748 number "7.9e-10" value=7.9e-10
+  token 214 21:756 word "cgbo"
+  token 215 21:760 equals "="
+  token 216 21:761 number "1e-12" value=1e-12
+  token 217 21:767 word "cj"
+  token 218 21:769 equals "="
+  token 219 21:770 number "9.7e-4" value=9.7e-4
+  token 220 21:777 word "pb"
+  token 221 21:779 equals "="
+  token 222 21:780 number "0.73" value=7.3e-1
+  token 223 21:785 word "mj"
+  token 224 21:787 equals "="
+  token 225 21:788 number "0.36" value=3.6e-1
+  token 226 21:793 word "cjsw"
+  token 227 21:797 equals "="
+  token 228 21:798 number "2.4e-10" value=2.4e-10
+  token 229 21:806 word "pbsw"
+  token 230 21:810 equals "="
+  token 231 21:811 number "0.4" value=4e-1
+  token 232 21:815 word "mjsw"
+  token 233 21:819 equals "="
+  token 234 21:820 number "0.1" value=1e-1
+  token 235 21:824 word "cjswg"
+  token 236 21:829 equals "="
+  token 237 21:830 number "3.3e-10" value=3.3e-10
+  token 238 21:838 word "pbswg"
+  token 239 21:843 equals "="
+  token 240 21:844 number "0.4" value=4e-1
+  token 241 21:848 word "mjswg"
+  token 242 21:853 equals "="
+  token 243 21:854 number "0.1" value=1e-1
+  token 244 21:858 word "cf"
+  token 245 21:860 equals "="
+  token 246 21:861 number "0" value=0e0
+  token 247 21:863 word "xpart"
+  token 248 21:868 equals "="
+  token 249 21:869 number "0.5" value=5e-1
+card 8 @netlists/m11_bsim3_tran.cir:32:1 lines=32-32 continuations=0
+  raw: ".options reltol=1e-5"
+  kind: dot(.options)
+  token 1 32:1 word ".options"
+  token 2 32:10 word "reltol"
+  token 3 32:16 equals "="
+  token 4 32:17 number "1e-5" value=1e-5
+card 9 @netlists/m11_bsim3_tran.cir:33:1 lines=33-33 continuations=0
+  raw: ".tran 20p 4n"
+  kind: dot(.tran)
+  token 1 33:1 word ".tran"
+  token 2 33:7 number "20p" value=2e-11
+  token 3 33:11 number "4n" value=4e-9
+card 10 @netlists/m11_bsim3_tran.cir:34:1 lines=34-34 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 34:1 word ".end"

@@ -206,6 +206,12 @@ pub struct MatrixSetup<'a> {
     /// Allocating for pole-zero analysis (`DEVpzSetup`, run by
     /// `CKTpzSetup` on a fresh matrix) rather than `DEVsetup`.
     pub pole_zero: bool,
+    /// How many times `CKTpzSetup` has run `DEVpzSetup` on this circuit,
+    /// this run included (1 for the pole search of a `.pz pz` analysis, 2
+    /// for its zero search); zero for `DEVsetup`. Setups that are not
+    /// idempotent (`b4set.c` re-aliases internal nodes it created) differ
+    /// between runs.
+    pub pole_zero_setups: u32,
     pub(crate) elements: &'a mut Vec<(usize, usize)>,
 }
 

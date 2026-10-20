@@ -1,0 +1,91 @@
+# ngspice-rs ast-dump v1
+file: netlists/m11_bsim4_ac.cir
+title: "BSIM4 common-source amplifier: AC" @netlists/m11_bsim4_ac.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/m11_bsim4_ac.cir:6:1 "vdd dd 0 1.2"
+    [1] device[1] @netlists/m11_bsim4_ac.cir:7:1 "rl dd d 2k"
+    [2] device[2] @netlists/m11_bsim4_ac.cir:8:1 "vg g 0 dc 0.6 ac 1"
+    [3] device[3] @netlists/m11_bsim4_ac.cir:9:1 "vb b 0 dc -0.1"
+    [4] device[4] @netlists/m11_bsim4_ac.cir:10:1 "m1 d g 0 b nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u nf=2 sa=0.3u sb=0.4u"
+    [5] device[5] @netlists/m11_bsim4_ac.cir:11:1 "cl d 0 5f"
+    [6] model[0] @netlists/m11_bsim4_ac.cir:12:1 ".model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1 xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+    [7] options[0] @netlists/m11_bsim4_ac.cir:15:1 ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+    [8] analysis[0] @netlists/m11_bsim4_ac.cir:16:1 ".ac dec 4 1e3 1e11"
+    [9] end @netlists/m11_bsim4_ac.cir:17:1 ".end"
+  devices (6):
+    device [0] name="vdd" designator=v @netlists/m11_bsim4_ac.cir:6:1
+      nodes: "dd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.2" @netlists/m11_bsim4_ac.cir:6:10
+    device [1] name="rl" designator=r @netlists/m11_bsim4_ac.cir:7:1
+      nodes: "dd" "d"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim4_ac.cir:7:9
+    device [2] name="vg" designator=v @netlists/m11_bsim4_ac.cir:8:1
+      nodes: "g" "0"
+      model: none
+      parameters (3):
+        [0] name="dc" kind=scalar value="0.6" @netlists/m11_bsim4_ac.cir:8:8
+        [1] name="acmag" kind=scalar value="1" @netlists/m11_bsim4_ac.cir:8:18
+        [2] name="acphase" kind=scalar value="0" @netlists/m11_bsim4_ac.cir:8:15
+    device [3] name="vb" designator=v @netlists/m11_bsim4_ac.cir:9:1
+      nodes: "b" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.1" @netlists/m11_bsim4_ac.cir:9:8
+    device [4] name="m1" designator=m @netlists/m11_bsim4_ac.cir:10:1
+      nodes: "d" "g" "0" "b"
+      model: "nch"
+      parameters (9):
+        [0] name="l" kind=scalar value="0.1u" @netlists/m11_bsim4_ac.cir:10:16
+        [1] name="w" kind=scalar value="1u" @netlists/m11_bsim4_ac.cir:10:23
+        [2] name="ad" kind=scalar value="1e-13" @netlists/m11_bsim4_ac.cir:10:28
+        [3] name="as" kind=scalar value="1e-13" @netlists/m11_bsim4_ac.cir:10:37
+        [4] name="pd" kind=scalar value="1.4u" @netlists/m11_bsim4_ac.cir:10:46
+        [5] name="ps" kind=scalar value="1.4u" @netlists/m11_bsim4_ac.cir:10:54
+        [6] name="nf" kind=scalar value="2" @netlists/m11_bsim4_ac.cir:10:62
+        [7] name="sa" kind=scalar value="0.3u" @netlists/m11_bsim4_ac.cir:10:67
+        [8] name="sb" kind=scalar value="0.4u" @netlists/m11_bsim4_ac.cir:10:75
+    device [5] name="cl" designator=c @netlists/m11_bsim4_ac.cir:11:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="5f" @netlists/m11_bsim4_ac.cir:11:8
+  models (1):
+    model [0] name="nch" base="nmos" level=5.4e1 @netlists/m11_bsim4_ac.cir:12:1
+      parameters (20):
+        [0] name="level" kind=scalar value="54" @netlists/m11_bsim4_ac.cir:12:17
+        [1] name="version" kind=textual value="4.8.3" @netlists/m11_bsim4_ac.cir:12:26
+        [2] name="rgatemod" kind=scalar value="1" @netlists/m11_bsim4_ac.cir:12:40
+        [3] name="rbodymod" kind=scalar value="1" @netlists/m11_bsim4_ac.cir:12:51
+        [4] name="igcmod" kind=scalar value="1" @netlists/m11_bsim4_ac.cir:12:62
+        [5] name="igbmod" kind=scalar value="1" @netlists/m11_bsim4_ac.cir:12:71
+        [6] name="xrcrg1" kind=scalar value="12" @netlists/m11_bsim4_ac.cir:12:80
+        [7] name="xrcrg2" kind=scalar value="5" @netlists/m11_bsim4_ac.cir:12:90
+        [8] name="rshg" kind=scalar value="0.4" @netlists/m11_bsim4_ac.cir:12:99
+        [9] name="rbpb" kind=scalar value="5" @netlists/m11_bsim4_ac.cir:12:108
+        [10] name="rbpd" kind=scalar value="15" @netlists/m11_bsim4_ac.cir:12:115
+        [11] name="rbps" kind=scalar value="15" @netlists/m11_bsim4_ac.cir:12:123
+        [12] name="rbdb" kind=scalar value="15" @netlists/m11_bsim4_ac.cir:12:131
+        [13] name="rbsb" kind=scalar value="15" @netlists/m11_bsim4_ac.cir:12:139
+        [14] name="cgso" kind=scalar value="1.5e-10" @netlists/m11_bsim4_ac.cir:12:147
+        [15] name="cgdo" kind=scalar value="1.5e-10" @netlists/m11_bsim4_ac.cir:12:160
+        [16] name="cgbo" kind=scalar value="1e-11" @netlists/m11_bsim4_ac.cir:12:173
+        [17] name="jss" kind=scalar value="1e-4" @netlists/m11_bsim4_ac.cir:12:184
+        [18] name="cjs" kind=scalar value="1e-3" @netlists/m11_bsim4_ac.cir:12:193
+        [19] name="cjsws" kind=scalar value="2e-10" @netlists/m11_bsim4_ac.cir:12:202
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=ac @netlists/m11_bsim4_ac.cir:16:1
+      arguments: "dec" "4" "1e3" "1e11"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m11_bsim4_ac.cir:15:1
+      setting [0] name="reltol" value="1e-9"@netlists/m11_bsim4_ac.cir:15:17 @netlists/m11_bsim4_ac.cir:15:10
+      setting [1] name="vntol" value="1e-12"@netlists/m11_bsim4_ac.cir:15:28 @netlists/m11_bsim4_ac.cir:15:22
+      setting [2] name="abstol" value="1e-15"@netlists/m11_bsim4_ac.cir:15:41 @netlists/m11_bsim4_ac.cir:15:34
+  globals (0):

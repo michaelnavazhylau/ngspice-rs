@@ -261,6 +261,70 @@ const SUPPORTED: &[Supported] = &[
     },
     pole_zero("m10_hfet2_pz"),
     tran("m10_hfet2_tran"),
+    // BSIM4 (#90): `bsim4/` translated statement by statement. Gate and body
+    // resistance, the mid-gate/rbodymod=2/rdsmod=1 family, both polarities,
+    // AC and pole-zero at C's MODEINITSMSIG bias, an NQS inverter chain and
+    // binned models end to end (#109).
+    Supported {
+        name: "m11_bsim4_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim4_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim4_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    pole_zero("m11_bsim4_pz"),
+    tran("m11_bsim4_tran"),
+    Supported {
+        name: "m11_bsim4_bin_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    // BSIM3v3.3 (#90): capMod=3 charges, both polarities.
+    Supported {
+        name: "m11_bsim3_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    tran("m11_bsim3_tran"),
     tran("m10_hfet1_tran"),
     // MESA levels 3 and 4 (#168): `mesa2`'s two-population `nsa`/`nsb`
     // channel with the `vpou`/`vpod` threshold regions and `mesa3`'s
@@ -1473,6 +1537,10 @@ const BATCH: &[Batch] = &[
         name: "noise_mos1",
         stages: &NOISE_NONLINEAR_STAGES,
     },
+    Batch {
+        name: "m11_bsim4_noise",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
     // `.ac`, `.op` and two `.noise` cards with S/W switches: the later,
     // single-frequency card runs first and writes only its spectrum (`noise1`),
     // the decade card then writes `noise2` and `noise3`.
@@ -2049,20 +2117,24 @@ fn run_card_plots(
         .and_then(|driver| driver.run_plots(&mut circuit, &request, &config.context()))
         .map_err(|e| e.to_string())?;
     circuit.note_completed(request.kind);
-    // C's default save set omits simulator-created internal nodes (e.g. a
-    // diode's series-resistance anode). Project only those known internal rows;
-    // every externally visible variable still goes through exact set checks.
-    // An RF port's `#res` node is not on `outitf.c`'s exclusion list, so C
-    // saves it and it stays compared.
+    // C's default save set omits device internal nodes by name
+    // (`outitf.c`: `#internal`, `#source`, `#drain`, `#collector`,
+    // `#collCX`, `#emitter`, `#base`) and saves every other node, including
+    // an RF port's `#res`, a line's `#i1`/`#int1`, MESA's `#gate`/`#gs`/`#gd`
+    // and BSIM4's `#gate`/`#midgate`/`#body`/`#charge`. Project only those;
+    // every saved variable still goes through exact set checks.
     let internal: Vec<_> = circuit
         .nodes()
         .nodes()
         .iter()
         .filter(|node| {
             node.kind == ngspice_rs::primitives::NodeKind::Internal
-                && !node.name.ends_with("#res")
-                && !is_tline_node(&node.name)
-                && !is_mesa_node(&node.name)
+                && C_UNSAVED_SUFFIXES.iter().any(|suffix| {
+                    // The port folds node names to lowercase (`#collcx`).
+                    node.name
+                        .to_ascii_lowercase()
+                        .contains(&suffix.to_ascii_lowercase())
+                })
         })
         .map(|node| format!("v({})", node.name))
         .collect();
@@ -2073,28 +2145,17 @@ fn run_card_plots(
     Ok((request, plots, circuit))
 }
 
-/// A transmission line's internal node (`trasetup.c` `CKTmkVolt` names
-/// `#i1`, `#i2`, `#int1`, `#int2`): not on `outitf.c`'s list of internal
-/// names it omits, so C saves (and the comparison keeps) them.
-fn is_tline_node(name: &str) -> bool {
-    ngspice_rs::devices::tline::INTERNAL_SUFFIXES
-        .iter()
-        .any(|suffix| {
-            name.strip_suffix(suffix)
-                .is_some_and(|stem| stem.ends_with('#'))
-        })
-}
-
-/// The macspice MESA/HFET node names. `outitf.c`'s skip list was written for
-/// mainline devices (`#source`, `#drain`, ...), so it does not cover them: the
-/// reference binary saves `v(z2#gate)` for a MESA card with `rg=10`, and the
-/// `#gs`/`#gd` nodes `ri`/`rf` create. Keep them compared (`#source`/`#drain`
-/// stay out, on C's list).
-fn is_mesa_node(name: &str) -> bool {
-    ["#gate", "#gs", "#gd"]
-        .iter()
-        .any(|suffix| name.ends_with(suffix))
-}
+/// The internal-node name fragments `outitf.c` leaves out of C's default
+/// save set.
+const C_UNSAVED_SUFFIXES: [&str; 7] = [
+    "#internal",
+    "#source",
+    "#drain",
+    "#collector",
+    "#collCX",
+    "#emitter",
+    "#base",
+];
 
 /// Projects one Rust plot onto C's default save set (see
 /// [`run_card_plots`]). Vector names already follow C, including the DC

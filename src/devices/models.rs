@@ -52,9 +52,9 @@ pub enum ModelFamily {
     Npn,
     /// PNP classic BJT.
     Pnp,
-    /// NMOS (bounded selectors for levels 1, 2, 3, 6 and 9).
+    /// NMOS (classic backends, plus schema-only BSIM3 levels 8/49).
     Nmos,
-    /// PMOS (bounded selectors for levels 1, 2, 3, 6 and 9).
+    /// PMOS (classic backends, plus schema-only BSIM3 levels 8/49).
     Pmos,
     /// Voltage-controlled switch (`sw`, `sw/sw.c`).
     Switch,
@@ -485,6 +485,12 @@ pub struct ModelContext {
     /// C's `CKTsrcFact`: the source-stepping factor independent sources
     /// scale their loaded value by (1 outside source stepping).
     pub source_factor: Real,
+    /// Whether the deck's task holds a `.noise` analysis: C's
+    /// `noiseAnalGiven`, which `b4set.c` reads while it creates BSIM4's
+    /// internal nodes (`tnoiMod=1` adds the drain/source primes for every
+    /// analysis of such a deck). Set by
+    /// [`crate::devices::Circuit::from_netlist_with_context`].
+    pub noise_analysis: bool,
 }
 
 /// ngspice's default junction `gmin` (`cktntask.c`: `TSKgmin = 1e-12`).
@@ -509,6 +515,7 @@ impl ModelContext {
             spice3_noise: false,
             pivot: crate::maths::PivotTolerances::DEFAULT,
             source_factor: 1.,
+            noise_analysis: false,
         }
     }
 
@@ -785,11 +792,19 @@ fn levels(card: &ModelCard, family: ModelFamily) -> SpiceResult<LevelSelection> 
             reference,
         ));
     }
+    if matches!(family, ModelFamily::Nmos | ModelFamily::Pmos) && matches!(selector, 8 | 49) {
+        crate::devices::bsim3::select_version(card)?;
+    }
+    if matches!(family, ModelFamily::Nmos | ModelFamily::Pmos) && matches!(selector, 14 | 54) {
+        crate::devices::bsim4::select_version(card)?;
+    }
     let supported = match family {
         ModelFamily::Npn | ModelFamily::Pnp => selector <= 2,
-        // MOS1 (`mos1/`), MOS2 (`mos2/`), MOS3 (`mos3/`), MOS6 (`mos6/`) and MOS9
-        // (`mos9/`); `inpdomod.c` maps the others.
-        ModelFamily::Nmos | ModelFamily::Pmos => matches!(selector, 1..=3 | 6 | 9),
+        // Classic backends and the BSIM3/BSIM4 input schemas. Successful
+        // selection never implies a simulation load: BSIM4's factory refuses.
+        ModelFamily::Nmos | ModelFamily::Pmos => {
+            matches!(selector, 1..=3 | 6 | 8 | 9 | 14 | 49 | 54)
+        }
         ModelFamily::Njf | ModelFamily::Pjf => true,
         ModelFamily::Nmf | ModelFamily::Pmf => true,
         ModelFamily::Diode => applied == Some(1),

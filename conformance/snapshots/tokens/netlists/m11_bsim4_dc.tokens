@@ -1,0 +1,203 @@
+# ngspice-rs token-dump v1
+file: netlists/m11_bsim4_dc.cir
+title: "BSIM4 output characteristics, NMOS and PMOS" @netlists/m11_bsim4_dc.cir:1:1
+card 1 @netlists/m11_bsim4_dc.cir:5:1 lines=5-5 continuations=0
+  raw: "vdn dn 0 1.2"
+  kind: device(v)
+  token 1 5:1 word "vdn"
+  token 2 5:5 word "dn"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "1.2" value=1.2000000000000002e0
+card 2 @netlists/m11_bsim4_dc.cir:6:1 lines=6-6 continuations=0
+  raw: "vdp dp 0 -1.2"
+  kind: device(v)
+  token 1 6:1 word "vdp"
+  token 2 6:5 word "dp"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "-1.2" value=-1.2000000000000002e0
+card 3 @netlists/m11_bsim4_dc.cir:7:1 lines=7-7 continuations=0
+  raw: "vg g 0 0.8"
+  kind: device(v)
+  token 1 7:1 word "vg"
+  token 2 7:4 word "g"
+  token 3 7:6 number "0" value=0e0
+  token 4 7:8 number "0.8" value=8e-1
+card 4 @netlists/m11_bsim4_dc.cir:8:1 lines=8-8 continuations=0
+  raw: "vgp gp 0 -0.8"
+  kind: device(v)
+  token 1 8:1 word "vgp"
+  token 2 8:5 word "gp"
+  token 3 8:8 number "0" value=0e0
+  token 4 8:10 number "-0.8" value=-8e-1
+card 5 @netlists/m11_bsim4_dc.cir:9:1 lines=9-9 continuations=0
+  raw: "m1 dn g 0 0 nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u"
+  kind: device(m)
+  token 1 9:1 word "m1"
+  token 2 9:4 word "dn"
+  token 3 9:7 word "g"
+  token 4 9:9 number "0" value=0e0
+  token 5 9:11 number "0" value=0e0
+  token 6 9:13 word "nch"
+  token 7 9:17 word "l"
+  token 8 9:18 equals "="
+  token 9 9:19 number "0.1u" value=1e-7
+  token 10 9:24 word "w"
+  token 11 9:25 equals "="
+  token 12 9:26 number "1u" value=1e-6
+  token 13 9:29 word "ad"
+  token 14 9:31 equals "="
+  token 15 9:32 number "1e-13" value=1e-13
+  token 16 9:38 word "as"
+  token 17 9:40 equals "="
+  token 18 9:41 number "1e-13" value=1e-13
+  token 19 9:47 word "pd"
+  token 20 9:49 equals "="
+  token 21 9:50 number "1.4u" value=1.4e-6
+  token 22 9:55 word "ps"
+  token 23 9:57 equals "="
+  token 24 9:58 number "1.4u" value=1.4e-6
+card 6 @netlists/m11_bsim4_dc.cir:10:1 lines=10-10 continuations=0
+  raw: "m2 dp gp 0 0 pch l=0.1u w=2u ad=2e-13 as=2e-13 pd=2.4u ps=2.4u"
+  kind: device(m)
+  token 1 10:1 word "m2"
+  token 2 10:4 word "dp"
+  token 3 10:7 word "gp"
+  token 4 10:10 number "0" value=0e0
+  token 5 10:12 number "0" value=0e0
+  token 6 10:14 word "pch"
+  token 7 10:18 word "l"
+  token 8 10:19 equals "="
+  token 9 10:20 number "0.1u" value=1e-7
+  token 10 10:25 word "w"
+  token 11 10:26 equals "="
+  token 12 10:27 number "2u" value=2e-6
+  token 13 10:30 word "ad"
+  token 14 10:32 equals "="
+  token 15 10:33 number "2e-13" value=2e-13
+  token 16 10:39 word "as"
+  token 17 10:41 equals "="
+  token 18 10:42 number "2e-13" value=2e-13
+  token 19 10:48 word "pd"
+  token 20 10:50 equals "="
+  token 21 10:51 number "2.4u" value=2.4e-6
+  token 22 10:56 word "ps"
+  token 23 10:58 equals "="
+  token 24 10:59 number "2.4u" value=2.4e-6
+card 7 @netlists/m11_bsim4_dc.cir:11:1 lines=11-13 continuations=2
+  raw: ".model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1 xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+  kind: dot(.model)
+  token 1 11:1 word ".model"
+  token 2 11:8 word "nch"
+  token 3 11:12 word "nmos"
+  token 4 11:17 word "level"
+  token 5 11:22 equals "="
+  token 6 11:23 number "54" value=5.4e1
+  token 7 11:26 word "version"
+  token 8 11:33 equals "="
+  token 9 11:34 word "4.8.3"
+  token 10 11:40 word "rgatemod"
+  token 11 11:48 equals "="
+  token 12 11:49 number "1" value=1e0
+  token 13 11:51 word "rbodymod"
+  token 14 11:59 equals "="
+  token 15 11:60 number "1" value=1e0
+  token 16 11:62 word "igcmod"
+  token 17 11:68 equals "="
+  token 18 11:69 number "1" value=1e0
+  token 19 11:71 word "igbmod"
+  token 20 11:77 equals "="
+  token 21 11:78 number "1" value=1e0
+  token 22 11:80 word "xrcrg1"
+  token 23 11:86 equals "="
+  token 24 11:87 number "12" value=1.2e1
+  token 25 11:90 word "xrcrg2"
+  token 26 11:96 equals "="
+  token 27 11:97 number "5" value=5e0
+  token 28 11:99 word "rshg"
+  token 29 11:103 equals "="
+  token 30 11:104 number "0.4" value=4e-1
+  token 31 11:108 word "rbpb"
+  token 32 11:112 equals "="
+  token 33 11:113 number "5" value=5e0
+  token 34 11:115 word "rbpd"
+  token 35 11:119 equals "="
+  token 36 11:120 number "15" value=1.5e1
+  token 37 11:123 word "rbps"
+  token 38 11:127 equals "="
+  token 39 11:128 number "15" value=1.5e1
+  token 40 11:131 word "rbdb"
+  token 41 11:135 equals "="
+  token 42 11:136 number "15" value=1.5e1
+  token 43 11:139 word "rbsb"
+  token 44 11:143 equals "="
+  token 45 11:144 number "15" value=1.5e1
+  token 46 11:147 word "cgso"
+  token 47 11:151 equals "="
+  token 48 11:152 number "1.5e-10" value=1.5e-10
+  token 49 11:160 word "cgdo"
+  token 50 11:164 equals "="
+  token 51 11:165 number "1.5e-10" value=1.5e-10
+  token 52 11:173 word "cgbo"
+  token 53 11:177 equals "="
+  token 54 11:178 number "1e-11" value=1e-11
+  token 55 11:184 word "jss"
+  token 56 11:187 equals "="
+  token 57 11:188 number "1e-4" value=1e-4
+  token 58 11:193 word "cjs"
+  token 59 11:196 equals "="
+  token 60 11:197 number "1e-3" value=1e-3
+  token 61 11:202 word "cjsws"
+  token 62 11:207 equals "="
+  token 63 11:208 number "2e-10" value=2e-10
+card 8 @netlists/m11_bsim4_dc.cir:14:1 lines=14-15 continuations=1
+  raw: ".model pch pmos level=54 version=4.8.3 rdsmod=1 rdsw=200 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+  kind: dot(.model)
+  token 1 14:1 word ".model"
+  token 2 14:8 word "pch"
+  token 3 14:12 word "pmos"
+  token 4 14:17 word "level"
+  token 5 14:22 equals "="
+  token 6 14:23 number "54" value=5.4e1
+  token 7 14:26 word "version"
+  token 8 14:33 equals "="
+  token 9 14:34 word "4.8.3"
+  token 10 14:40 word "rdsmod"
+  token 11 14:46 equals "="
+  token 12 14:47 number "1" value=1e0
+  token 13 14:49 word "rdsw"
+  token 14 14:53 equals "="
+  token 15 14:54 number "200" value=2e2
+  token 16 14:58 word "cgso"
+  token 17 14:62 equals "="
+  token 18 14:63 number "1.5e-10" value=1.5e-10
+  token 19 14:71 word "cgdo"
+  token 20 14:75 equals "="
+  token 21 14:76 number "1.5e-10" value=1.5e-10
+  token 22 14:84 word "cgbo"
+  token 23 14:88 equals "="
+  token 24 14:89 number "1e-11" value=1e-11
+  token 25 14:95 word "jss"
+  token 26 14:98 equals "="
+  token 27 14:99 number "1e-4" value=1e-4
+  token 28 14:104 word "cjs"
+  token 29 14:107 equals "="
+  token 30 14:108 number "1e-3" value=1e-3
+  token 31 14:113 word "cjsws"
+  token 32 14:118 equals "="
+  token 33 14:119 number "2e-10" value=2e-10
+card 9 @netlists/m11_bsim4_dc.cir:16:1 lines=16-16 continuations=0
+  raw: ".dc vdn 0 1.2 0.1 vg 0.4 1.2 0.4"
+  kind: dot(.dc)
+  token 1 16:1 word ".dc"
+  token 2 16:5 word "vdn"
+  token 3 16:9 number "0" value=0e0
+  token 4 16:11 number "1.2" value=1.2000000000000002e0
+  token 5 16:15 number "0.1" value=1e-1
+  token 6 16:19 word "vg"
+  token 7 16:22 number "0.4" value=4e-1
+  token 8 16:26 number "1.2" value=1.2000000000000002e0
+  token 9 16:30 number "0.4" value=4e-1
+card 10 @netlists/m11_bsim4_dc.cir:17:1 lines=17-17 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 17:1 word ".end"

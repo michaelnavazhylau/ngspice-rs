@@ -1,0 +1,165 @@
+# ngspice-rs ast-dump v1
+file: parser/bsim3_schema.cir
+title: "BSIM3 input-schema and binning probe (B3-0 foundation, not a simulation golden)" @parser/bsim3_schema.cir:1:1
+scope root
+  cards (11):
+    [0] device[0] @parser/bsim3_schema.cir:4:1 "vd d 0 dc 1.2"
+    [1] device[1] @parser/bsim3_schema.cir:5:1 "vg g 0 dc 1"
+    [2] device[2] @parser/bsim3_schema.cir:6:1 "vp dp 0 dc -1.2"
+    [3] device[3] @parser/bsim3_schema.cir:7:1 "vpg gp 0 dc -1"
+    [4] device[4] @parser/bsim3_schema.cir:8:1 "m1 d g 0 0 nch l=180n w=1u m=2 ad=0.2p as=0.2p pd=1.4u ps=1.4u nrd=1 nrs=1 nqsmod=0 acnqsmod=0 geo=0 delvto=5m mulu0=0.95"
+    [5] device[5] @parser/bsim3_schema.cir:10:1 "m2 dp gp 0 0 pcore l=500n w=2u ic=(-0.1,-0.2,0) off"
+    [6] model[0] @parser/bsim3_schema.cir:11:1 ".model nch.1 nmos level=49 version=3.3.0 lmin=100n lmax=250n wmin=500n wmax=10u capmod=3 mobmod=1 noimod=1 paramchk=1 binunit=1 tnom=27 tox=4.1n toxm=4.1n xj=100n nch=2.3e17 nsub=6e16 ngate=1e20 vth0=0.4 k1=0.53 k2=-0.018 u0=450 ua=2.25e-9 ub=5.87e-19 uc=-4.65e-11 vsat=8e4 a0=1 a1=0 a2=1 nfactor=1.2 voff=-0.08 eta0=0.08 etab=-0.07 dvt0=2.2 dvt1=0.53 dvt2=-0.032 dsub=0.56 drout=0.56 pclm=1.3 pdiblc1=0.39 pdiblc2=0.0086 pdiblcb=0 rdsw=100 rsh=10 prwg=0 prwb=0 cgso=2e-10 cgdo=2e-10 cgbo=0 cj=1e-3 cjsw=1e-10 cjswg=1e-10 pb=0.8 pbsw=0.8 pbswg=0.8 mj=0.5 mjsw=0.33 mjswg=0.33 lint=0 wint=0 lvth0=0 wvth0=0 pvth0=0"
+    [7] model[1] @parser/bsim3_schema.cir:22:1 ".model nch.2 nmos level=8 version=3.3 lmin=250n lmax=1u wmin=500n wmax=10u tox=4.1n vth0=0.45 u0=450"
+    [8] model[2] @parser/bsim3_schema.cir:24:1 ".model pcore pmos level=8 version=3.30 tox=4.1n vtho=-0.42 u0=180 nch=1.7e17 nsub=6e16 k1=0.55 k2=-0.018 rsh=10 cgso=2e-10 cgdo=2e-10"
+    [9] analysis[0] @parser/bsim3_schema.cir:26:1 ".op"
+    [10] end @parser/bsim3_schema.cir:27:1 ".end"
+  devices (6):
+    device [0] name="vd" designator=v @parser/bsim3_schema.cir:4:1
+      nodes: "d" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.2" @parser/bsim3_schema.cir:4:8
+    device [1] name="vg" designator=v @parser/bsim3_schema.cir:5:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1" @parser/bsim3_schema.cir:5:8
+    device [2] name="vp" designator=v @parser/bsim3_schema.cir:6:1
+      nodes: "dp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1.2" @parser/bsim3_schema.cir:6:9
+    device [3] name="vpg" designator=v @parser/bsim3_schema.cir:7:1
+      nodes: "gp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1" @parser/bsim3_schema.cir:7:10
+    device [4] name="m1" designator=m @parser/bsim3_schema.cir:8:1
+      nodes: "d" "g" "0" "0"
+      model: "nch"
+      parameters (14):
+        [0] name="l" kind=scalar value="180n" @parser/bsim3_schema.cir:8:16
+        [1] name="w" kind=scalar value="1u" @parser/bsim3_schema.cir:8:23
+        [2] name="m" kind=scalar value="2" @parser/bsim3_schema.cir:8:28
+        [3] name="ad" kind=scalar value="0.2p" @parser/bsim3_schema.cir:8:32
+        [4] name="as" kind=scalar value="0.2p" @parser/bsim3_schema.cir:8:40
+        [5] name="pd" kind=scalar value="1.4u" @parser/bsim3_schema.cir:8:48
+        [6] name="ps" kind=scalar value="1.4u" @parser/bsim3_schema.cir:8:56
+        [7] name="nrd" kind=scalar value="1" @parser/bsim3_schema.cir:8:64
+        [8] name="nrs" kind=scalar value="1" @parser/bsim3_schema.cir:8:70
+        [9] name="nqsmod" kind=scalar value="0" @parser/bsim3_schema.cir:8:76
+        [10] name="acnqsmod" kind=scalar value="0" @parser/bsim3_schema.cir:8:85
+        [11] name="geo" kind=scalar value="0" @parser/bsim3_schema.cir:8:96
+        [12] name="delvto" kind=scalar value="5m" @parser/bsim3_schema.cir:8:102
+        [13] name="mulu0" kind=scalar value="0.95" @parser/bsim3_schema.cir:8:112
+    device [5] name="m2" designator=m @parser/bsim3_schema.cir:10:1
+      nodes: "dp" "gp" "0" "0"
+      model: "pcore"
+      parameters (4):
+        [0] name="l" kind=scalar value="500n" @parser/bsim3_schema.cir:10:20
+        [1] name="w" kind=scalar value="2u" @parser/bsim3_schema.cir:10:27
+        [2] name="ic" kind=initial-conditions value="(-0.1,-0.2,0)" @parser/bsim3_schema.cir:10:32
+          component "icvds" = "-0.1"@parser/bsim3_schema.cir:10:36
+          component "icvgs" = "-0.2"@parser/bsim3_schema.cir:10:41
+          component "icvbs" = "0"@parser/bsim3_schema.cir:10:46
+        [3] name="off" kind=flag value="" @parser/bsim3_schema.cir:10:49
+  models (3):
+    model [0] name="nch.1" base="nmos" level=4.9e1 @parser/bsim3_schema.cir:11:1
+      parameters (63):
+        [0] name="level" kind=scalar value="49" @parser/bsim3_schema.cir:11:19
+        [1] name="version" kind=textual value="3.3.0" @parser/bsim3_schema.cir:11:28
+        [2] name="lmin" kind=scalar value="100n" @parser/bsim3_schema.cir:11:42
+        [3] name="lmax" kind=scalar value="250n" @parser/bsim3_schema.cir:11:52
+        [4] name="wmin" kind=scalar value="500n" @parser/bsim3_schema.cir:11:62
+        [5] name="wmax" kind=scalar value="10u" @parser/bsim3_schema.cir:11:72
+        [6] name="capmod" kind=scalar value="3" @parser/bsim3_schema.cir:11:81
+        [7] name="mobmod" kind=scalar value="1" @parser/bsim3_schema.cir:11:90
+        [8] name="noimod" kind=scalar value="1" @parser/bsim3_schema.cir:11:99
+        [9] name="paramchk" kind=scalar value="1" @parser/bsim3_schema.cir:11:108
+        [10] name="binunit" kind=scalar value="1" @parser/bsim3_schema.cir:11:119
+        [11] name="tnom" kind=scalar value="27" @parser/bsim3_schema.cir:11:129
+        [12] name="tox" kind=scalar value="4.1n" @parser/bsim3_schema.cir:11:137
+        [13] name="toxm" kind=scalar value="4.1n" @parser/bsim3_schema.cir:11:146
+        [14] name="xj" kind=scalar value="100n" @parser/bsim3_schema.cir:11:156
+        [15] name="nch" kind=scalar value="2.3e17" @parser/bsim3_schema.cir:11:164
+        [16] name="nsub" kind=scalar value="6e16" @parser/bsim3_schema.cir:11:175
+        [17] name="ngate" kind=scalar value="1e20" @parser/bsim3_schema.cir:11:185
+        [18] name="vth0" kind=scalar value="0.4" @parser/bsim3_schema.cir:11:196
+        [19] name="k1" kind=scalar value="0.53" @parser/bsim3_schema.cir:11:205
+        [20] name="k2" kind=scalar value="-0.018" @parser/bsim3_schema.cir:11:213
+        [21] name="u0" kind=scalar value="450" @parser/bsim3_schema.cir:11:223
+        [22] name="ua" kind=scalar value="2.25e-9" @parser/bsim3_schema.cir:11:230
+        [23] name="ub" kind=scalar value="5.87e-19" @parser/bsim3_schema.cir:11:241
+        [24] name="uc" kind=scalar value="-4.65e-11" @parser/bsim3_schema.cir:11:253
+        [25] name="vsat" kind=scalar value="8e4" @parser/bsim3_schema.cir:11:266
+        [26] name="a0" kind=scalar value="1" @parser/bsim3_schema.cir:11:275
+        [27] name="a1" kind=scalar value="0" @parser/bsim3_schema.cir:11:280
+        [28] name="a2" kind=scalar value="1" @parser/bsim3_schema.cir:11:285
+        [29] name="nfactor" kind=scalar value="1.2" @parser/bsim3_schema.cir:11:290
+        [30] name="voff" kind=scalar value="-0.08" @parser/bsim3_schema.cir:11:302
+        [31] name="eta0" kind=scalar value="0.08" @parser/bsim3_schema.cir:11:313
+        [32] name="etab" kind=scalar value="-0.07" @parser/bsim3_schema.cir:11:323
+        [33] name="dvt0" kind=scalar value="2.2" @parser/bsim3_schema.cir:11:334
+        [34] name="dvt1" kind=scalar value="0.53" @parser/bsim3_schema.cir:11:343
+        [35] name="dvt2" kind=scalar value="-0.032" @parser/bsim3_schema.cir:11:353
+        [36] name="dsub" kind=scalar value="0.56" @parser/bsim3_schema.cir:11:365
+        [37] name="drout" kind=scalar value="0.56" @parser/bsim3_schema.cir:11:375
+        [38] name="pclm" kind=scalar value="1.3" @parser/bsim3_schema.cir:11:386
+        [39] name="pdiblc1" kind=scalar value="0.39" @parser/bsim3_schema.cir:11:395
+        [40] name="pdiblc2" kind=scalar value="0.0086" @parser/bsim3_schema.cir:11:408
+        [41] name="pdiblcb" kind=scalar value="0" @parser/bsim3_schema.cir:11:423
+        [42] name="rdsw" kind=scalar value="100" @parser/bsim3_schema.cir:11:433
+        [43] name="rsh" kind=scalar value="10" @parser/bsim3_schema.cir:11:442
+        [44] name="prwg" kind=scalar value="0" @parser/bsim3_schema.cir:11:449
+        [45] name="prwb" kind=scalar value="0" @parser/bsim3_schema.cir:11:456
+        [46] name="cgso" kind=scalar value="2e-10" @parser/bsim3_schema.cir:11:463
+        [47] name="cgdo" kind=scalar value="2e-10" @parser/bsim3_schema.cir:11:474
+        [48] name="cgbo" kind=scalar value="0" @parser/bsim3_schema.cir:11:485
+        [49] name="cj" kind=scalar value="1e-3" @parser/bsim3_schema.cir:11:492
+        [50] name="cjsw" kind=scalar value="1e-10" @parser/bsim3_schema.cir:11:500
+        [51] name="cjswg" kind=scalar value="1e-10" @parser/bsim3_schema.cir:11:511
+        [52] name="pb" kind=scalar value="0.8" @parser/bsim3_schema.cir:11:523
+        [53] name="pbsw" kind=scalar value="0.8" @parser/bsim3_schema.cir:11:530
+        [54] name="pbswg" kind=scalar value="0.8" @parser/bsim3_schema.cir:11:539
+        [55] name="mj" kind=scalar value="0.5" @parser/bsim3_schema.cir:11:549
+        [56] name="mjsw" kind=scalar value="0.33" @parser/bsim3_schema.cir:11:556
+        [57] name="mjswg" kind=scalar value="0.33" @parser/bsim3_schema.cir:11:566
+        [58] name="lint" kind=scalar value="0" @parser/bsim3_schema.cir:11:577
+        [59] name="wint" kind=scalar value="0" @parser/bsim3_schema.cir:11:584
+        [60] name="lvth0" kind=scalar value="0" @parser/bsim3_schema.cir:11:591
+        [61] name="wvth0" kind=scalar value="0" @parser/bsim3_schema.cir:11:599
+        [62] name="pvth0" kind=scalar value="0" @parser/bsim3_schema.cir:11:607
+    model [1] name="nch.2" base="nmos" level=8e0 @parser/bsim3_schema.cir:22:1
+      parameters (9):
+        [0] name="level" kind=scalar value="8" @parser/bsim3_schema.cir:22:19
+        [1] name="version" kind=scalar value="3.3" @parser/bsim3_schema.cir:22:27
+        [2] name="lmin" kind=scalar value="250n" @parser/bsim3_schema.cir:22:39
+        [3] name="lmax" kind=scalar value="1u" @parser/bsim3_schema.cir:22:49
+        [4] name="wmin" kind=scalar value="500n" @parser/bsim3_schema.cir:22:57
+        [5] name="wmax" kind=scalar value="10u" @parser/bsim3_schema.cir:22:67
+        [6] name="tox" kind=scalar value="4.1n" @parser/bsim3_schema.cir:22:76
+        [7] name="vth0" kind=scalar value="0.45" @parser/bsim3_schema.cir:22:85
+        [8] name="u0" kind=scalar value="450" @parser/bsim3_schema.cir:22:95
+    model [2] name="pcore" base="pmos" level=8e0 @parser/bsim3_schema.cir:24:1
+      parameters (12):
+        [0] name="level" kind=scalar value="8" @parser/bsim3_schema.cir:24:19
+        [1] name="version" kind=scalar value="3.30" @parser/bsim3_schema.cir:24:27
+        [2] name="tox" kind=scalar value="4.1n" @parser/bsim3_schema.cir:24:40
+        [3] name="vtho" kind=scalar value="-0.42" @parser/bsim3_schema.cir:24:49
+        [4] name="u0" kind=scalar value="180" @parser/bsim3_schema.cir:24:60
+        [5] name="nch" kind=scalar value="1.7e17" @parser/bsim3_schema.cir:24:67
+        [6] name="nsub" kind=scalar value="6e16" @parser/bsim3_schema.cir:24:78
+        [7] name="k1" kind=scalar value="0.55" @parser/bsim3_schema.cir:24:88
+        [8] name="k2" kind=scalar value="-0.018" @parser/bsim3_schema.cir:24:96
+        [9] name="rsh" kind=scalar value="10" @parser/bsim3_schema.cir:24:106
+        [10] name="cgso" kind=scalar value="2e-10" @parser/bsim3_schema.cir:24:113
+        [11] name="cgdo" kind=scalar value="2e-10" @parser/bsim3_schema.cir:24:124
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @parser/bsim3_schema.cir:26:1
+      arguments:
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

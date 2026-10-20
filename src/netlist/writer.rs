@@ -732,6 +732,23 @@ impl Writer {
                     }
                     items.push(parameter.name.clone());
                 }
+                ParameterKind::Textual
+                    if matches!(base, "nmos" | "pmos") && parameter.name == "version" =>
+                {
+                    if !matches!(
+                        single_token(&parameter.value, &parameter.location),
+                        Some(Token {
+                            kind: TokenKind::Word,
+                            ..
+                        })
+                    ) {
+                        return Err(refuse(
+                            "MOS version must be one bare literal token",
+                            Some(location),
+                        ));
+                    }
+                    items.push(named_value(parameter, true)?);
+                }
                 ParameterKind::Expression(_) if parameter.name == "level" => {
                     return Err(refuse("expression-valued model level", Some(location)));
                 }
@@ -1707,7 +1724,11 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
         ],
         _ => &[
             "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
-            "dtemp",
+            "dtemp", "nqsmod", "acnqsmod", "geo", "delvto", "mulu0",
+            // The BSIM4 instance keywords the M grammar accepts (bsim4/b4.c).
+            "delvt0", "geomod", "min", "nf", "ngcon", "rbdb", "rbsb", "rbpb", "rbps", "rbpd",
+            "rbodymod", "rgatemod", "rgeomod", "sa", "sb", "sc", "sd", "sca", "scb", "scc",
+            "trnqsmod", "wnflag", "xgw", "mult_fn", "mult_i", "mult_q",
         ],
     };
     for parameter in &device.parameters {

@@ -249,7 +249,6 @@ fn unsupported_model_shapes_preserve_specific_gaps() {
         ".model dm d(is=\"saturation\")",
         ".model dm d(is=\"1e-14\")",
         ".model dm d is=parameter",
-        ".model nm nmos version=3.3.0",
         ".model dm d(nchan)",
         ".model xm unknown foo=2",
         // `nhfet`/`phfet` are `inpdomod.c` bases now (HFET1/#83 H3), so an
