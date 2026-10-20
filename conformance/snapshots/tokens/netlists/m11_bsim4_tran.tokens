@@ -1,0 +1,263 @@
+# ngspice-rs token-dump v1
+file: netlists/m11_bsim4_tran.cir
+title: "BSIM4 CMOS inverter chain: transient" @netlists/m11_bsim4_tran.cir:1:1
+card 1 @netlists/m11_bsim4_tran.cir:5:1 lines=5-5 continuations=0
+  raw: "vdd dd 0 1.2"
+  kind: device(v)
+  token 1 5:1 word "vdd"
+  token 2 5:5 word "dd"
+  token 3 5:8 number "0" value=0e0
+  token 4 5:10 number "1.2" value=1.2000000000000002e0
+card 2 @netlists/m11_bsim4_tran.cir:6:1 lines=6-6 continuations=0
+  raw: "vin in 0 pulse(0 1.2 0.1n 20p 20p 0.4n 1n)"
+  kind: device(v)
+  token 1 6:1 word "vin"
+  token 2 6:5 word "in"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 word "pulse"
+  token 5 6:15 lparen "("
+  token 6 6:16 number "0" value=0e0
+  token 7 6:18 number "1.2" value=1.2000000000000002e0
+  token 8 6:22 number "0.1n" value=1e-10
+  token 9 6:27 number "20p" value=2e-11
+  token 10 6:31 number "20p" value=2e-11
+  token 11 6:35 number "0.4n" value=4e-10
+  token 12 6:40 number "1n" value=1e-9
+  token 13 6:42 rparen ")"
+card 3 @netlists/m11_bsim4_tran.cir:7:1 lines=7-7 continuations=0
+  raw: "mp1 o1 in dd dd pch l=0.1u w=2u ad=2e-13 as=2e-13 pd=2.4u ps=2.4u"
+  kind: device(m)
+  token 1 7:1 word "mp1"
+  token 2 7:5 word "o1"
+  token 3 7:8 word "in"
+  token 4 7:11 word "dd"
+  token 5 7:14 word "dd"
+  token 6 7:17 word "pch"
+  token 7 7:21 word "l"
+  token 8 7:22 equals "="
+  token 9 7:23 number "0.1u" value=1e-7
+  token 10 7:28 word "w"
+  token 11 7:29 equals "="
+  token 12 7:30 number "2u" value=2e-6
+  token 13 7:33 word "ad"
+  token 14 7:35 equals "="
+  token 15 7:36 number "2e-13" value=2e-13
+  token 16 7:42 word "as"
+  token 17 7:44 equals "="
+  token 18 7:45 number "2e-13" value=2e-13
+  token 19 7:51 word "pd"
+  token 20 7:53 equals "="
+  token 21 7:54 number "2.4u" value=2.4e-6
+  token 22 7:59 word "ps"
+  token 23 7:61 equals "="
+  token 24 7:62 number "2.4u" value=2.4e-6
+card 4 @netlists/m11_bsim4_tran.cir:8:1 lines=8-8 continuations=0
+  raw: "mn1 o1 in 0 0 nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u"
+  kind: device(m)
+  token 1 8:1 word "mn1"
+  token 2 8:5 word "o1"
+  token 3 8:8 word "in"
+  token 4 8:11 number "0" value=0e0
+  token 5 8:13 number "0" value=0e0
+  token 6 8:15 word "nch"
+  token 7 8:19 word "l"
+  token 8 8:20 equals "="
+  token 9 8:21 number "0.1u" value=1e-7
+  token 10 8:26 word "w"
+  token 11 8:27 equals "="
+  token 12 8:28 number "1u" value=1e-6
+  token 13 8:31 word "ad"
+  token 14 8:33 equals "="
+  token 15 8:34 number "1e-13" value=1e-13
+  token 16 8:40 word "as"
+  token 17 8:42 equals "="
+  token 18 8:43 number "1e-13" value=1e-13
+  token 19 8:49 word "pd"
+  token 20 8:51 equals "="
+  token 21 8:52 number "1.4u" value=1.4e-6
+  token 22 8:57 word "ps"
+  token 23 8:59 equals "="
+  token 24 8:60 number "1.4u" value=1.4e-6
+card 5 @netlists/m11_bsim4_tran.cir:9:1 lines=9-9 continuations=0
+  raw: "mp2 o2 o1 dd dd pch l=0.1u w=2u ad=2e-13 as=2e-13 pd=2.4u ps=2.4u"
+  kind: device(m)
+  token 1 9:1 word "mp2"
+  token 2 9:5 word "o2"
+  token 3 9:8 word "o1"
+  token 4 9:11 word "dd"
+  token 5 9:14 word "dd"
+  token 6 9:17 word "pch"
+  token 7 9:21 word "l"
+  token 8 9:22 equals "="
+  token 9 9:23 number "0.1u" value=1e-7
+  token 10 9:28 word "w"
+  token 11 9:29 equals "="
+  token 12 9:30 number "2u" value=2e-6
+  token 13 9:33 word "ad"
+  token 14 9:35 equals "="
+  token 15 9:36 number "2e-13" value=2e-13
+  token 16 9:42 word "as"
+  token 17 9:44 equals "="
+  token 18 9:45 number "2e-13" value=2e-13
+  token 19 9:51 word "pd"
+  token 20 9:53 equals "="
+  token 21 9:54 number "2.4u" value=2.4e-6
+  token 22 9:59 word "ps"
+  token 23 9:61 equals "="
+  token 24 9:62 number "2.4u" value=2.4e-6
+card 6 @netlists/m11_bsim4_tran.cir:10:1 lines=10-10 continuations=0
+  raw: "mn2 o2 o1 0 0 nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u"
+  kind: device(m)
+  token 1 10:1 word "mn2"
+  token 2 10:5 word "o2"
+  token 3 10:8 word "o1"
+  token 4 10:11 number "0" value=0e0
+  token 5 10:13 number "0" value=0e0
+  token 6 10:15 word "nch"
+  token 7 10:19 word "l"
+  token 8 10:20 equals "="
+  token 9 10:21 number "0.1u" value=1e-7
+  token 10 10:26 word "w"
+  token 11 10:27 equals "="
+  token 12 10:28 number "1u" value=1e-6
+  token 13 10:31 word "ad"
+  token 14 10:33 equals "="
+  token 15 10:34 number "1e-13" value=1e-13
+  token 16 10:40 word "as"
+  token 17 10:42 equals "="
+  token 18 10:43 number "1e-13" value=1e-13
+  token 19 10:49 word "pd"
+  token 20 10:51 equals "="
+  token 21 10:52 number "1.4u" value=1.4e-6
+  token 22 10:57 word "ps"
+  token 23 10:59 equals "="
+  token 24 10:60 number "1.4u" value=1.4e-6
+card 7 @netlists/m11_bsim4_tran.cir:11:1 lines=11-11 continuations=0
+  raw: "c1 o1 0 2f"
+  kind: device(c)
+  token 1 11:1 word "c1"
+  token 2 11:4 word "o1"
+  token 3 11:7 number "0" value=0e0
+  token 4 11:9 number "2f" value=2e-15
+card 8 @netlists/m11_bsim4_tran.cir:12:1 lines=12-12 continuations=0
+  raw: "c2 o2 0 5f"
+  kind: device(c)
+  token 1 12:1 word "c2"
+  token 2 12:4 word "o2"
+  token 3 12:7 number "0" value=0e0
+  token 4 12:9 number "5f" value=5.000000000000001e-15
+card 9 @netlists/m11_bsim4_tran.cir:13:1 lines=13-16 continuations=3
+  raw: ".model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1 xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10 trnqsmod=1"
+  kind: dot(.model)
+  token 1 13:1 word ".model"
+  token 2 13:8 word "nch"
+  token 3 13:12 word "nmos"
+  token 4 13:17 word "level"
+  token 5 13:22 equals "="
+  token 6 13:23 number "54" value=5.4e1
+  token 7 13:26 word "version"
+  token 8 13:33 equals "="
+  token 9 13:34 word "4.8.3"
+  token 10 13:40 word "rgatemod"
+  token 11 13:48 equals "="
+  token 12 13:49 number "1" value=1e0
+  token 13 13:51 word "rbodymod"
+  token 14 13:59 equals "="
+  token 15 13:60 number "1" value=1e0
+  token 16 13:62 word "igcmod"
+  token 17 13:68 equals "="
+  token 18 13:69 number "1" value=1e0
+  token 19 13:71 word "igbmod"
+  token 20 13:77 equals "="
+  token 21 13:78 number "1" value=1e0
+  token 22 13:80 word "xrcrg1"
+  token 23 13:86 equals "="
+  token 24 13:87 number "12" value=1.2e1
+  token 25 13:90 word "xrcrg2"
+  token 26 13:96 equals "="
+  token 27 13:97 number "5" value=5e0
+  token 28 13:99 word "rshg"
+  token 29 13:103 equals "="
+  token 30 13:104 number "0.4" value=4e-1
+  token 31 13:108 word "rbpb"
+  token 32 13:112 equals "="
+  token 33 13:113 number "5" value=5e0
+  token 34 13:115 word "rbpd"
+  token 35 13:119 equals "="
+  token 36 13:120 number "15" value=1.5e1
+  token 37 13:123 word "rbps"
+  token 38 13:127 equals "="
+  token 39 13:128 number "15" value=1.5e1
+  token 40 13:131 word "rbdb"
+  token 41 13:135 equals "="
+  token 42 13:136 number "15" value=1.5e1
+  token 43 13:139 word "rbsb"
+  token 44 13:143 equals "="
+  token 45 13:144 number "15" value=1.5e1
+  token 46 13:147 word "cgso"
+  token 47 13:151 equals "="
+  token 48 13:152 number "1.5e-10" value=1.5e-10
+  token 49 13:160 word "cgdo"
+  token 50 13:164 equals "="
+  token 51 13:165 number "1.5e-10" value=1.5e-10
+  token 52 13:173 word "cgbo"
+  token 53 13:177 equals "="
+  token 54 13:178 number "1e-11" value=1e-11
+  token 55 13:184 word "jss"
+  token 56 13:187 equals "="
+  token 57 13:188 number "1e-4" value=1e-4
+  token 58 13:193 word "cjs"
+  token 59 13:196 equals "="
+  token 60 13:197 number "1e-3" value=1e-3
+  token 61 13:202 word "cjsws"
+  token 62 13:207 equals "="
+  token 63 13:208 number "2e-10" value=2e-10
+  token 64 13:214 word "trnqsmod"
+  token 65 13:222 equals "="
+  token 66 13:223 number "1" value=1e0
+card 10 @netlists/m11_bsim4_tran.cir:17:1 lines=17-18 continuations=1
+  raw: ".model pch pmos level=54 version=4.8.3 rdsmod=1 rdsw=200 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+  kind: dot(.model)
+  token 1 17:1 word ".model"
+  token 2 17:8 word "pch"
+  token 3 17:12 word "pmos"
+  token 4 17:17 word "level"
+  token 5 17:22 equals "="
+  token 6 17:23 number "54" value=5.4e1
+  token 7 17:26 word "version"
+  token 8 17:33 equals "="
+  token 9 17:34 word "4.8.3"
+  token 10 17:40 word "rdsmod"
+  token 11 17:46 equals "="
+  token 12 17:47 number "1" value=1e0
+  token 13 17:49 word "rdsw"
+  token 14 17:53 equals "="
+  token 15 17:54 number "200" value=2e2
+  token 16 17:58 word "cgso"
+  token 17 17:62 equals "="
+  token 18 17:63 number "1.5e-10" value=1.5e-10
+  token 19 17:71 word "cgdo"
+  token 20 17:75 equals "="
+  token 21 17:76 number "1.5e-10" value=1.5e-10
+  token 22 17:84 word "cgbo"
+  token 23 17:88 equals "="
+  token 24 17:89 number "1e-11" value=1e-11
+  token 25 17:95 word "jss"
+  token 26 17:98 equals "="
+  token 27 17:99 number "1e-4" value=1e-4
+  token 28 17:104 word "cjs"
+  token 29 17:107 equals "="
+  token 30 17:108 number "1e-3" value=1e-3
+  token 31 17:113 word "cjsws"
+  token 32 17:118 equals "="
+  token 33 17:119 number "2e-10" value=2e-10
+card 11 @netlists/m11_bsim4_tran.cir:19:1 lines=19-19 continuations=0
+  raw: ".tran 10p 1.5n"
+  kind: dot(.tran)
+  token 1 19:1 word ".tran"
+  token 2 19:7 number "10p" value=1e-11
+  token 3 19:11 number "1.5n" value=1.5e-9
+card 12 @netlists/m11_bsim4_tran.cir:20:1 lines=20-20 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 20:1 word ".end"

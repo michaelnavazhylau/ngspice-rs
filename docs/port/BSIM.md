@@ -5,10 +5,13 @@ B3-3 (`capMod=3` charges and transient) and B3-4 (`b3acld.c` AC/`.dc`/`.pz` and
 `b3noi.c` noise) are implemented for BSIM3v3.3.** Levels 8/49 select the
 BSIM3v3.3 schema, validate explicit setters after model binning (#109) and
 build a real device: `.op`, `.dc`, `.ac`, `.pz`, `.tf` and `.tran` solve
-through `b3ld.c`/`b3acld.c`/`b3pzld.c` and `.noise` through `b3noi.c`.
-**Still refused:** `capMod` 0/1/2 (a different charge equation set), every NQS
-mode (`nqsMod`/`acnqsMod`), `.disto`, `.sens` and older BSIM3 versions. Each
-names its C file instead of substituting a law.
+through `b3ld.c`/`b3acld.c`/`b3pzld.c`, `.noise` through `b3noi.c`, and `.disto`
+treats the device as linear, as C does (no `DEVdisto`). The device runs C's
+`BSIM3convTest` and `BSIM3trunc`. **Still refused:** `capMod` 0/1/2 (a different
+charge equation set), every NQS mode (`nqsMod`/`acnqsMod`), `.sens` and older
+BSIM3 versions. Each names its C file instead of substituting a law. BSIM3 is
+a reimplementation, not a translation: it agrees with C to about 1e-9 at a
+converged point but is not bit-exact.
 
 **BSIM4 (4.8.3, `bsim4/`, levels 14/54) is ported and simulates every
 analysis C supports for it:** `.op`, `.dc` (sources, temperature, instance
@@ -270,8 +273,8 @@ the other BSIM families are unchanged.
 | B3-1 temperature/instance setup | done (`b3temp.c`, `b3set.c` defaults, `b3check.c` diagnostics) |
 | B3-2 DC load | done, differentially verified |
 | B3-3 charges and transient | done for `capMod=3`/QS; `capMod` 0/1/2 and NQS refused |
-| B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf` and `.noise`; `.disto`/`.sens` refused |
-| B3-5 goldens and binning coverage | **not started**: no BSIM3 conformance fixture or committed golden exists yet; binning is covered only through the schema/setup tests |
+| B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf`, `.noise` and `.disto` (linear, as C); `.sens` refused |
+| B3-5 goldens and binning coverage | done: `m11_bsim3_{op,dc,ac,tran}` and `m11_bsim4_{op,dc,ac,pz,noise,tran,bin_dc}` under `xtask golden verify` (binning end to end in `m11_bsim4_bin_dc`) |
 | B4-0 tables/schema | done |
 | B4-1..B4-4 BSIM4 setup, temperature, checks, load, small signal, noise, pole-zero | done, bit-exact against the FMA-free C oracle ([BSIM4](#bsim4)) |
 | B4 `.sens` | done (DC and AC), bit-exact on every deck C completes; see [SENSITIVITY.md](SENSITIVITY.md) |
@@ -284,18 +287,16 @@ the other BSIM families are unchanged.
    before it is wired.
 2. **NQS** (`nqsMod`, `acnqsMod`): the `qNode` unknown, `qcheq`/`qdef`/
    `qcdump` states, `gtau` and the `b3acld.c` NQS branch.
-3. **`b3trunc.c` LTE slots.** The transient driver runs `CKTterr` on the
-   charge history; BSIM3 declares no `DEVtrunc` in C (`BSIM3trunc` exists but
-   is only reachable through the state slots), so the port relies on the
-   driver's own truncation control. Adding device-specific LTE slots is the
-   remaining fidelity item for long transients.
-4. **`.disto`.** C's BSIM3 registers `DEVdisto = NULL`, so `.disto` on a
-   BSIM3 deck is unsupported in C too; the port should say so explicitly
-   rather than through the generic `NotYetPorted`.
-5. **`.sens`.** The `cktsgen.c` device tables for BSIM3 (a fifth family of
+3. **Bit-level fidelity.** BSIM3 is a reimplementation, so its arithmetic
+   is not C's operation order: the `m11_bsim3_tran` fixture needs
+   `reltol=1e-5` because at the default tolerance its step sequence drifts
+   from C's. Translating `b3ld.c` as BSIM4 was translated would close it.
+   (Done since the first draft of this list: `BSIM3convTest`, `BSIM3trunc`
+   on qb/qg/qd — C does register `DEVtrunc` — C's `MODEINITTRAN`/
+   `MODEINITPRED` voltage selection, and `.disto` as linear.)
+4. **`.sens`.** The `cktsgen.c` device tables for BSIM3 (a fifth family of
    tables); no `.sens` curve is C-differential yet.
-6. **B3-5 goldens** (BSIM3 and BSIM4 conformance decks).
-7. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
+5. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
 
 ## BSIM4
 

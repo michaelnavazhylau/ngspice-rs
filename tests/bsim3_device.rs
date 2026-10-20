@@ -151,26 +151,22 @@ fn series_resistance_creates_the_internal_primes() {
 fn unported_analyses_refuse_instead_of_loading_zero() {
     let body = "vd d 0 1 ac 1\nvg g 0 2.5\nvs s 0 0\nm1 d g s 0 nn l=1u w=10u\n\
                 .model nn nmos level=8";
-    // AC, `.dc`, `.pz` and `.tran` are ported; noise, distortion, sensitivity
-    // and transfer function are not, and must say so instead of loading zero.
-    for (analysis, reference) in [
-        (".disto dec 1 1k 10k", "disto.c"),
-        (".sens v(d)", "cktsgen.c"),
-    ] {
-        let netlist = deck(&format!("{body}\n{analysis}"));
-        let config = RunConfig::from_netlist(&netlist).unwrap();
-        let request = config.request_for(&netlist.analyses[0]).unwrap();
-        let mut circuit = config.circuit(&netlist).unwrap();
-        let error = runner(request.kind)
-            .unwrap()
-            .run(&mut circuit, &request, &config.context())
-            .unwrap_err();
-        assert!(
-            matches!(error, SpiceError::NotYetPorted { .. }),
-            "{analysis}: {error}"
-        );
-        assert!(error.to_string().contains(reference), "{analysis}: {error}");
-    }
+    // `.sens` is not ported and must say so instead of loading zero. (C's
+    // BSIM3 has no DEVdisto, so `.disto` runs with the device linear.)
+    let (analysis, reference) = (".sens v(d)", "cktsgen.c");
+    let netlist = deck(&format!("{body}\n{analysis}"));
+    let config = RunConfig::from_netlist(&netlist).unwrap();
+    let request = config.request_for(&netlist.analyses[0]).unwrap();
+    let mut circuit = config.circuit(&netlist).unwrap();
+    let error = runner(request.kind)
+        .unwrap()
+        .run(&mut circuit, &request, &config.context())
+        .unwrap_err();
+    assert!(
+        matches!(error, SpiceError::NotYetPorted { .. }),
+        "{analysis}: {error}"
+    );
+    assert!(error.to_string().contains(reference), "{analysis}: {error}");
     // A `capMod` other than 3 is a different equation set: AC and transient
     // refuse instead of substituting the charge-thickness model.
     for analysis in [".ac dec 1 1k 10k", ".tran 1u 2u"] {

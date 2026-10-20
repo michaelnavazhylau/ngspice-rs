@@ -1725,6 +1725,10 @@ fn transistor_parameters(device: &DeviceInstance, parts: &mut Vec<String>) -> Sp
         _ => &[
             "m", "l", "w", "ad", "as", "pd", "ps", "nrd", "nrs", "icvds", "icvgs", "icvbs", "temp",
             "dtemp", "nqsmod", "acnqsmod", "geo", "delvto", "mulu0",
+            // The BSIM4 instance keywords the M grammar accepts (bsim4/b4.c).
+            "delvt0", "geomod", "min", "nf", "ngcon", "rbdb", "rbsb", "rbpb", "rbps", "rbpd",
+            "rbodymod", "rgatemod", "rgeomod", "sa", "sb", "sc", "sd", "sca", "scb", "scc",
+            "trnqsmod", "wnflag", "xgw", "mult_fn", "mult_i", "mult_q",
         ],
     };
     for parameter in &device.parameters {

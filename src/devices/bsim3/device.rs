@@ -269,6 +269,7 @@ impl Bsim3 {
     }
 
     /// C `b3ld.c`'s start and limiting block.
+    #[allow(clippy::too_many_arguments)] // C's mode inputs.
     fn select(
         cached: &Cached,
         states: &DeviceState<'_>,
@@ -276,6 +277,7 @@ impl Bsim3 {
         ic: [Option<Real>; 3],
         off: bool,
         polarity: Real,
+        xfact: Real,
     ) -> ([Real; 3], Start, bool) {
         let scaled = [0, 1, 2].map(|k| polarity * ic[k].unwrap_or(0.));
         if states.initial_conditions() {
@@ -298,20 +300,34 @@ impl Bsim3 {
                 (v, Start::Junction, true)
             }
             IterationPhase::Fix if off => ([0.; 3], Start::HeldOff, true),
+            IterationPhase::Predict if states.initial_transient() => {
+                // b3ld.c MODEINITTRAN: CKTstate1's voltages, unlimited, and
+                // Check stays 1.
+                match (
+                    states.accepted(1, slot::VBS),
+                    states.accepted(1, slot::VGS),
+                    states.accepted(1, slot::VDS),
+                ) {
+                    (Some(vbs), Some(vgs), Some(vds)) => ([vbs, vgs, vds], Start::Junction, true),
+                    _ => (raw, Start::Exact, false),
+                }
+            }
             IterationPhase::Predict => {
+                // b3ld.c MODEINITPRED: DEVpred's extrapolation, limited against
+                // CKTstate1 (copied into CKTstate0).
                 let values = (
-                    states.predicted(slot::VBS, 1.),
-                    states.predicted(slot::VGS, 1.),
-                    states.predicted(slot::VDS, 1.),
+                    states.predicted(slot::VBS, xfact),
+                    states.predicted(slot::VGS, xfact),
+                    states.predicted(slot::VDS, xfact),
                     states.accepted(1, slot::VBS),
                     states.accepted(1, slot::VGS),
                     states.accepted(1, slot::VDS),
                     states.accepted(1, slot::VON),
                 );
                 let (
-                    Some(_vbs),
-                    Some(_vgs),
-                    Some(_vds),
+                    Some(vbs),
+                    Some(vgs),
+                    Some(vds),
                     Some(old_vbs),
                     Some(old_vgs),
                     Some(old_vds),
@@ -320,7 +336,7 @@ impl Bsim3 {
                 else {
                     return (raw, Start::Exact, false);
                 };
-                let (v, check) = limit(raw, [old_vbs, old_vgs, old_vds], von, cached);
+                let (v, check) = limit([vbs, vgs, vds], [old_vbs, old_vgs, old_vds], von, cached);
                 (v, Start::Limited, check)
             }
             IterationPhase::Fix | IterationPhase::Float => {
@@ -507,6 +523,98 @@ impl Device for Bsim3 {
         crate::devices::setup::CDeviceType::Bsim
     }
 
+    /// C's BSIM3 has no `DEVdisto` (`bsim3init.c`): `.disto` sees only its
+    /// AC load.
+    fn distortion(
+        &self,
+        _context: &crate::devices::distortion::DistortionContext<'_>,
+    ) -> SpiceResult<crate::devices::distortion::DeviceDistortion> {
+        Ok(crate::devices::distortion::DeviceDistortion::Linear)
+    }
+
+    /// `BSIM3trunc` (`b3trunc.c`): `CKTterr` on qb, qg and qd.
+    fn truncation_slots(&self) -> Vec<usize> {
+        vec![slot::QB, slot::QG, slot::QD]
+    }
+
+    /// `BSIM3convTest` (`b3cvtest.c`) on the last load's state, reading
+    /// `CKTrhsOld` (the iterate that load used) as C does. `NIiter` runs it
+    /// in `MODEINITFIX` too, where an `off` instance is not tested.
+    fn convergence_test(
+        &self,
+        context: &crate::devices::ConvergenceContext<'_>,
+    ) -> SpiceResult<bool> {
+        let at = |k: usize| context.states.get(k).copied().unwrap_or(0.);
+        let rhs_old = |node: NodeId| {
+            context
+                .unknowns
+                .node_row(node)
+                .and_then(|row| context.previous.get(row))
+                .unwrap_or(0.)
+        };
+        let [d, g, s, b] = [0, 1, 2, 3].map(|k| self.terminals[k]);
+        let dp = self.primes[0].unwrap_or(d);
+        let sp = self.primes[1].unwrap_or(s);
+        let pol = self.polarity;
+        let vbs = pol * (rhs_old(b) - rhs_old(sp));
+        let vgs = pol * (rhs_old(g) - rhs_old(sp));
+        let vds = pol * (rhs_old(dp) - rhs_old(sp));
+        let vbd = vbs - vds;
+        let vgd = vgs - vds;
+        let vgdo = at(slot::VGS) - at(slot::VDS);
+        let delvbs = vbs - at(slot::VBS);
+        let delvbd = vbd - at(slot::VBD);
+        let delvgs = vgs - at(slot::VGS);
+        let delvds = vds - at(slot::VDS);
+        let delvgd = vgd - vgdo;
+        let (gbd, gbs, gm, gds, gmbs) = (
+            at(slot::GBD),
+            at(slot::GBS),
+            at(slot::GM),
+            at(slot::GDS),
+            at(slot::GMBS),
+        );
+        let (gbbs, gbgs, gbds, csub) = (
+            at(slot::GBBS),
+            at(slot::GBGS),
+            at(slot::GBDS),
+            at(slot::CSUB),
+        );
+        let forward = at(slot::MODE) >= 0.;
+        let mut cd = at(slot::CD) - at(slot::CBD);
+        let cdhat = if forward {
+            cd += csub;
+            cd - gbd * delvbd
+                + (gmbs + gbbs) * delvbs
+                + (gm + gbgs) * delvgs
+                + (gds + gbds) * delvds
+        } else {
+            cd + (gmbs - gbd) * delvbd + gm * delvgd - gds * delvds
+        };
+        let fix = context.phase == crate::devices::IterationPhase::Fix;
+        if !self.off || !fix {
+            let max = |a: Real, b: Real| if a > b { a } else { b };
+            let tol = context.reltol * max(cdhat.abs(), cd.abs()) + context.abstol;
+            if (cdhat - cd).abs() >= tol {
+                return Ok(true);
+            }
+            let (cbs, cbd) = (at(slot::CBS), at(slot::CBD));
+            let cbhat = if forward {
+                cbs + cbd - csub + gbd * delvbd + (gbs - gbbs) * delvbs
+                    - gbgs * delvgs
+                    - gbds * delvds
+            } else {
+                cbs + cbd - csub + gbs * delvbs + (gbd - gbbs) * delvbd - gbgs * delvgd
+                    + gbds * delvds
+            };
+            let tol = context.reltol * max(cbhat.abs(), (cbs + cbd - csub).abs()) + context.abstol;
+            if (cbhat - (cbs + cbd - csub)).abs() > tol {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         if context.mode.is_ac() {
             return Err(SpiceError::not_yet_ported(
@@ -527,7 +635,12 @@ impl Device for Bsim3 {
         ];
         let ic = self.start_conditions(context.states.initial_conditions(), voltage);
         let ([vbs, vgs, vds], start, check) =
-            Self::select(&cached, &context.states, raw, ic, self.off, pol);
+            Self::select(&cached, &context.states, raw, ic, self.off, pol, {
+                // C `xfact = CKTdelta / CKTdeltaOld[1]`; one in a `.dc` sweep.
+                context
+                    .integration
+                    .map_or(1., crate::maths::integrator::Coefficients::predictor_ratio)
+            });
         let bias = dc::Bias { vbs, vgs, vds };
         let e = self.evaluate_at(&cached, bias, context.gmin)?;
         let report = match start {

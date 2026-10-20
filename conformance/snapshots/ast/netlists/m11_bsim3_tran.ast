@@ -1,0 +1,238 @@
+# ngspice-rs ast-dump v1
+file: netlists/m11_bsim3_tran.cir
+title: "BSIM3v3.3 CMOS inverter: transient" @netlists/m11_bsim3_tran.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/m11_bsim3_tran.cir:5:1 "vdd dd 0 1.8"
+    [1] device[1] @netlists/m11_bsim3_tran.cir:6:1 "vin in 0 pulse(0 1.8 0.2n 50p 50p 1n 2n)"
+    [2] device[2] @netlists/m11_bsim3_tran.cir:7:1 "mp o in dd dd p3 l=0.18u w=4u ad=2e-12 as=2e-12 pd=6u ps=6u"
+    [3] device[3] @netlists/m11_bsim3_tran.cir:8:1 "mn o in 0 0 n3 l=0.18u w=2u ad=1e-12 as=1e-12 pd=4u ps=4u"
+    [4] device[4] @netlists/m11_bsim3_tran.cir:9:1 "c1 o 0 10f"
+    [5] model[0] @netlists/m11_bsim3_tran.cir:10:1 ".model n3 nmos level=49 version=3.3.0 capmod=3 mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=0.3694 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=268.7 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 a2=0.69 rdsw=105 prwg=0.5 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+    [6] model[1] @netlists/m11_bsim3_tran.cir:21:1 ".model p3 pmos level=49 version=3.3.0 capmod=3 mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=-0.39 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=110 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 a2=0.69 rdsw=105 prwg=0.5 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+    [7] options[0] @netlists/m11_bsim3_tran.cir:32:1 ".options reltol=1e-5"
+    [8] analysis[0] @netlists/m11_bsim3_tran.cir:33:1 ".tran 20p 4n"
+    [9] end @netlists/m11_bsim3_tran.cir:34:1 ".end"
+  devices (5):
+    device [0] name="vdd" designator=v @netlists/m11_bsim3_tran.cir:5:1
+      nodes: "dd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.8" @netlists/m11_bsim3_tran.cir:5:10
+    device [1] name="vin" designator=v @netlists/m11_bsim3_tran.cir:6:1
+      nodes: "in" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1.8 0.2n 50p 50p 1n 2n)" @netlists/m11_bsim3_tran.cir:6:10
+          pulse
+            initial: "0"@netlists/m11_bsim3_tran.cir:6:16
+            pulsed: "1.8"@netlists/m11_bsim3_tran.cir:6:18
+            delay: "0.2n"@netlists/m11_bsim3_tran.cir:6:22
+            rise: "50p"@netlists/m11_bsim3_tran.cir:6:27
+            fall: "50p"@netlists/m11_bsim3_tran.cir:6:31
+            width: "1n"@netlists/m11_bsim3_tran.cir:6:35
+            period: "2n"@netlists/m11_bsim3_tran.cir:6:38
+    device [2] name="mp" designator=m @netlists/m11_bsim3_tran.cir:7:1
+      nodes: "o" "in" "dd" "dd"
+      model: "p3"
+      parameters (6):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_tran.cir:7:18
+        [1] name="w" kind=scalar value="4u" @netlists/m11_bsim3_tran.cir:7:26
+        [2] name="ad" kind=scalar value="2e-12" @netlists/m11_bsim3_tran.cir:7:31
+        [3] name="as" kind=scalar value="2e-12" @netlists/m11_bsim3_tran.cir:7:40
+        [4] name="pd" kind=scalar value="6u" @netlists/m11_bsim3_tran.cir:7:49
+        [5] name="ps" kind=scalar value="6u" @netlists/m11_bsim3_tran.cir:7:55
+    device [3] name="mn" designator=m @netlists/m11_bsim3_tran.cir:8:1
+      nodes: "o" "in" "0" "0"
+      model: "n3"
+      parameters (6):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_tran.cir:8:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_tran.cir:8:24
+        [2] name="ad" kind=scalar value="1e-12" @netlists/m11_bsim3_tran.cir:8:29
+        [3] name="as" kind=scalar value="1e-12" @netlists/m11_bsim3_tran.cir:8:38
+        [4] name="pd" kind=scalar value="4u" @netlists/m11_bsim3_tran.cir:8:47
+        [5] name="ps" kind=scalar value="4u" @netlists/m11_bsim3_tran.cir:8:53
+    device [4] name="c1" designator=c @netlists/m11_bsim3_tran.cir:9:1
+      nodes: "o" "0"
+      model: none
+      parameters (1):
+        [0] name="capacitance" kind=scalar value="10f" @netlists/m11_bsim3_tran.cir:9:8
+  models (2):
+    model [0] name="n3" base="nmos" level=4.9e1 @netlists/m11_bsim3_tran.cir:10:1
+      parameters (82):
+        [0] name="level" kind=scalar value="49" @netlists/m11_bsim3_tran.cir:10:16
+        [1] name="version" kind=textual value="3.3.0" @netlists/m11_bsim3_tran.cir:10:25
+        [2] name="capmod" kind=scalar value="3" @netlists/m11_bsim3_tran.cir:10:39
+        [3] name="mobmod" kind=scalar value="1" @netlists/m11_bsim3_tran.cir:10:48
+        [4] name="tox" kind=scalar value="4.1e-9" @netlists/m11_bsim3_tran.cir:10:57
+        [5] name="xj" kind=scalar value="1e-7" @netlists/m11_bsim3_tran.cir:10:68
+        [6] name="nch" kind=scalar value="2.3549e17" @netlists/m11_bsim3_tran.cir:10:76
+        [7] name="vth0" kind=scalar value="0.3694" @netlists/m11_bsim3_tran.cir:10:90
+        [8] name="k1" kind=scalar value="0.5789" @netlists/m11_bsim3_tran.cir:10:102
+        [9] name="k2" kind=scalar value="1.10e-3" @netlists/m11_bsim3_tran.cir:10:112
+        [10] name="k3" kind=scalar value="1e-3" @netlists/m11_bsim3_tran.cir:10:123
+        [11] name="k3b" kind=scalar value="0.0295" @netlists/m11_bsim3_tran.cir:10:131
+        [12] name="w0" kind=scalar value="1e-7" @netlists/m11_bsim3_tran.cir:10:142
+        [13] name="nlx" kind=scalar value="1.919e-7" @netlists/m11_bsim3_tran.cir:10:150
+        [14] name="dvt0w" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:163
+        [15] name="dvt1w" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:171
+        [16] name="dvt2w" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:179
+        [17] name="dvt0" kind=scalar value="1.0471" @netlists/m11_bsim3_tran.cir:10:187
+        [18] name="dvt1" kind=scalar value="0.3896" @netlists/m11_bsim3_tran.cir:10:199
+        [19] name="dvt2" kind=scalar value="0.0367" @netlists/m11_bsim3_tran.cir:10:211
+        [20] name="u0" kind=scalar value="268.7" @netlists/m11_bsim3_tran.cir:10:223
+        [21] name="ua" kind=scalar value="-1.39e-9" @netlists/m11_bsim3_tran.cir:10:232
+        [22] name="ub" kind=scalar value="2.34e-18" @netlists/m11_bsim3_tran.cir:10:244
+        [23] name="uc" kind=scalar value="5.42e-11" @netlists/m11_bsim3_tran.cir:10:256
+        [24] name="vsat" kind=scalar value="1.07e5" @netlists/m11_bsim3_tran.cir:10:268
+        [25] name="a0" kind=scalar value="1.9" @netlists/m11_bsim3_tran.cir:10:280
+        [26] name="ags" kind=scalar value="0.42" @netlists/m11_bsim3_tran.cir:10:287
+        [27] name="b0" kind=scalar value="-1.3e-8" @netlists/m11_bsim3_tran.cir:10:296
+        [28] name="b1" kind=scalar value="-1e-7" @netlists/m11_bsim3_tran.cir:10:307
+        [29] name="keta" kind=scalar value="-8.6e-3" @netlists/m11_bsim3_tran.cir:10:316
+        [30] name="a1" kind=scalar value="1.4e-4" @netlists/m11_bsim3_tran.cir:10:329
+        [31] name="a2" kind=scalar value="0.69" @netlists/m11_bsim3_tran.cir:10:339
+        [32] name="rdsw" kind=scalar value="105" @netlists/m11_bsim3_tran.cir:10:347
+        [33] name="prwg" kind=scalar value="0.5" @netlists/m11_bsim3_tran.cir:10:356
+        [34] name="prwb" kind=scalar value="-0.2" @netlists/m11_bsim3_tran.cir:10:365
+        [35] name="wr" kind=scalar value="1" @netlists/m11_bsim3_tran.cir:10:375
+        [36] name="wint" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:380
+        [37] name="lint" kind=scalar value="1.69e-8" @netlists/m11_bsim3_tran.cir:10:387
+        [38] name="dwg" kind=scalar value="-5.6e-9" @netlists/m11_bsim3_tran.cir:10:400
+        [39] name="dwb" kind=scalar value="6.1e-9" @netlists/m11_bsim3_tran.cir:10:412
+        [40] name="voff" kind=scalar value="-0.0886" @netlists/m11_bsim3_tran.cir:10:423
+        [41] name="nfactor" kind=scalar value="2.2" @netlists/m11_bsim3_tran.cir:10:436
+        [42] name="cit" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:448
+        [43] name="cdsc" kind=scalar value="2.4e-4" @netlists/m11_bsim3_tran.cir:10:454
+        [44] name="cdscd" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:466
+        [45] name="cdscb" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:474
+        [46] name="eta0" kind=scalar value="2.74e-3" @netlists/m11_bsim3_tran.cir:10:482
+        [47] name="etab" kind=scalar value="6.39e-5" @netlists/m11_bsim3_tran.cir:10:495
+        [48] name="dsub" kind=scalar value="0.0156" @netlists/m11_bsim3_tran.cir:10:508
+        [49] name="pclm" kind=scalar value="0.739" @netlists/m11_bsim3_tran.cir:10:520
+        [50] name="pdiblc1" kind=scalar value="0.209" @netlists/m11_bsim3_tran.cir:10:531
+        [51] name="pdiblc2" kind=scalar value="2.62e-3" @netlists/m11_bsim3_tran.cir:10:545
+        [52] name="pdiblcb" kind=scalar value="-0.1" @netlists/m11_bsim3_tran.cir:10:561
+        [53] name="drout" kind=scalar value="0.79" @netlists/m11_bsim3_tran.cir:10:574
+        [54] name="pscbe1" kind=scalar value="8.2e9" @netlists/m11_bsim3_tran.cir:10:585
+        [55] name="pscbe2" kind=scalar value="1.1e-8" @netlists/m11_bsim3_tran.cir:10:598
+        [56] name="pvag" kind=scalar value="2.4e-2" @netlists/m11_bsim3_tran.cir:10:612
+        [57] name="delta" kind=scalar value="0.01" @netlists/m11_bsim3_tran.cir:10:624
+        [58] name="rsh" kind=scalar value="6.8" @netlists/m11_bsim3_tran.cir:10:635
+        [59] name="prt" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:643
+        [60] name="ute" kind=scalar value="-1.5" @netlists/m11_bsim3_tran.cir:10:649
+        [61] name="kt1" kind=scalar value="-0.11" @netlists/m11_bsim3_tran.cir:10:658
+        [62] name="kt1l" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:668
+        [63] name="kt2" kind=scalar value="0.022" @netlists/m11_bsim3_tran.cir:10:675
+        [64] name="ua1" kind=scalar value="4.31e-9" @netlists/m11_bsim3_tran.cir:10:685
+        [65] name="ub1" kind=scalar value="-7.61e-18" @netlists/m11_bsim3_tran.cir:10:697
+        [66] name="uc1" kind=scalar value="-5.6e-11" @netlists/m11_bsim3_tran.cir:10:711
+        [67] name="at" kind=scalar value="3.3e4" @netlists/m11_bsim3_tran.cir:10:724
+        [68] name="cgdo" kind=scalar value="7.9e-10" @netlists/m11_bsim3_tran.cir:10:733
+        [69] name="cgso" kind=scalar value="7.9e-10" @netlists/m11_bsim3_tran.cir:10:746
+        [70] name="cgbo" kind=scalar value="1e-12" @netlists/m11_bsim3_tran.cir:10:759
+        [71] name="cj" kind=scalar value="9.7e-4" @netlists/m11_bsim3_tran.cir:10:770
+        [72] name="pb" kind=scalar value="0.73" @netlists/m11_bsim3_tran.cir:10:780
+        [73] name="mj" kind=scalar value="0.36" @netlists/m11_bsim3_tran.cir:10:788
+        [74] name="cjsw" kind=scalar value="2.4e-10" @netlists/m11_bsim3_tran.cir:10:796
+        [75] name="pbsw" kind=scalar value="0.4" @netlists/m11_bsim3_tran.cir:10:809
+        [76] name="mjsw" kind=scalar value="0.1" @netlists/m11_bsim3_tran.cir:10:818
+        [77] name="cjswg" kind=scalar value="3.3e-10" @netlists/m11_bsim3_tran.cir:10:827
+        [78] name="pbswg" kind=scalar value="0.4" @netlists/m11_bsim3_tran.cir:10:841
+        [79] name="mjswg" kind=scalar value="0.1" @netlists/m11_bsim3_tran.cir:10:851
+        [80] name="cf" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:10:861
+        [81] name="xpart" kind=scalar value="0.5" @netlists/m11_bsim3_tran.cir:10:866
+    model [1] name="p3" base="pmos" level=4.9e1 @netlists/m11_bsim3_tran.cir:21:1
+      parameters (82):
+        [0] name="level" kind=scalar value="49" @netlists/m11_bsim3_tran.cir:21:16
+        [1] name="version" kind=textual value="3.3.0" @netlists/m11_bsim3_tran.cir:21:25
+        [2] name="capmod" kind=scalar value="3" @netlists/m11_bsim3_tran.cir:21:39
+        [3] name="mobmod" kind=scalar value="1" @netlists/m11_bsim3_tran.cir:21:48
+        [4] name="tox" kind=scalar value="4.1e-9" @netlists/m11_bsim3_tran.cir:21:57
+        [5] name="xj" kind=scalar value="1e-7" @netlists/m11_bsim3_tran.cir:21:68
+        [6] name="nch" kind=scalar value="2.3549e17" @netlists/m11_bsim3_tran.cir:21:76
+        [7] name="vth0" kind=scalar value="-0.39" @netlists/m11_bsim3_tran.cir:21:90
+        [8] name="k1" kind=scalar value="0.5789" @netlists/m11_bsim3_tran.cir:21:101
+        [9] name="k2" kind=scalar value="1.10e-3" @netlists/m11_bsim3_tran.cir:21:111
+        [10] name="k3" kind=scalar value="1e-3" @netlists/m11_bsim3_tran.cir:21:122
+        [11] name="k3b" kind=scalar value="0.0295" @netlists/m11_bsim3_tran.cir:21:130
+        [12] name="w0" kind=scalar value="1e-7" @netlists/m11_bsim3_tran.cir:21:141
+        [13] name="nlx" kind=scalar value="1.919e-7" @netlists/m11_bsim3_tran.cir:21:149
+        [14] name="dvt0w" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:162
+        [15] name="dvt1w" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:170
+        [16] name="dvt2w" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:178
+        [17] name="dvt0" kind=scalar value="1.0471" @netlists/m11_bsim3_tran.cir:21:186
+        [18] name="dvt1" kind=scalar value="0.3896" @netlists/m11_bsim3_tran.cir:21:198
+        [19] name="dvt2" kind=scalar value="0.0367" @netlists/m11_bsim3_tran.cir:21:210
+        [20] name="u0" kind=scalar value="110" @netlists/m11_bsim3_tran.cir:21:222
+        [21] name="ua" kind=scalar value="-1.39e-9" @netlists/m11_bsim3_tran.cir:21:229
+        [22] name="ub" kind=scalar value="2.34e-18" @netlists/m11_bsim3_tran.cir:21:241
+        [23] name="uc" kind=scalar value="5.42e-11" @netlists/m11_bsim3_tran.cir:21:253
+        [24] name="vsat" kind=scalar value="1.07e5" @netlists/m11_bsim3_tran.cir:21:265
+        [25] name="a0" kind=scalar value="1.9" @netlists/m11_bsim3_tran.cir:21:277
+        [26] name="ags" kind=scalar value="0.42" @netlists/m11_bsim3_tran.cir:21:284
+        [27] name="b0" kind=scalar value="-1.3e-8" @netlists/m11_bsim3_tran.cir:21:293
+        [28] name="b1" kind=scalar value="-1e-7" @netlists/m11_bsim3_tran.cir:21:304
+        [29] name="keta" kind=scalar value="-8.6e-3" @netlists/m11_bsim3_tran.cir:21:313
+        [30] name="a1" kind=scalar value="1.4e-4" @netlists/m11_bsim3_tran.cir:21:326
+        [31] name="a2" kind=scalar value="0.69" @netlists/m11_bsim3_tran.cir:21:336
+        [32] name="rdsw" kind=scalar value="105" @netlists/m11_bsim3_tran.cir:21:344
+        [33] name="prwg" kind=scalar value="0.5" @netlists/m11_bsim3_tran.cir:21:353
+        [34] name="prwb" kind=scalar value="-0.2" @netlists/m11_bsim3_tran.cir:21:362
+        [35] name="wr" kind=scalar value="1" @netlists/m11_bsim3_tran.cir:21:372
+        [36] name="wint" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:377
+        [37] name="lint" kind=scalar value="1.69e-8" @netlists/m11_bsim3_tran.cir:21:384
+        [38] name="dwg" kind=scalar value="-5.6e-9" @netlists/m11_bsim3_tran.cir:21:397
+        [39] name="dwb" kind=scalar value="6.1e-9" @netlists/m11_bsim3_tran.cir:21:409
+        [40] name="voff" kind=scalar value="-0.0886" @netlists/m11_bsim3_tran.cir:21:420
+        [41] name="nfactor" kind=scalar value="2.2" @netlists/m11_bsim3_tran.cir:21:433
+        [42] name="cit" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:445
+        [43] name="cdsc" kind=scalar value="2.4e-4" @netlists/m11_bsim3_tran.cir:21:451
+        [44] name="cdscd" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:463
+        [45] name="cdscb" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:471
+        [46] name="eta0" kind=scalar value="2.74e-3" @netlists/m11_bsim3_tran.cir:21:479
+        [47] name="etab" kind=scalar value="6.39e-5" @netlists/m11_bsim3_tran.cir:21:492
+        [48] name="dsub" kind=scalar value="0.0156" @netlists/m11_bsim3_tran.cir:21:505
+        [49] name="pclm" kind=scalar value="0.739" @netlists/m11_bsim3_tran.cir:21:517
+        [50] name="pdiblc1" kind=scalar value="0.209" @netlists/m11_bsim3_tran.cir:21:528
+        [51] name="pdiblc2" kind=scalar value="2.62e-3" @netlists/m11_bsim3_tran.cir:21:542
+        [52] name="pdiblcb" kind=scalar value="-0.1" @netlists/m11_bsim3_tran.cir:21:558
+        [53] name="drout" kind=scalar value="0.79" @netlists/m11_bsim3_tran.cir:21:571
+        [54] name="pscbe1" kind=scalar value="8.2e9" @netlists/m11_bsim3_tran.cir:21:582
+        [55] name="pscbe2" kind=scalar value="1.1e-8" @netlists/m11_bsim3_tran.cir:21:595
+        [56] name="pvag" kind=scalar value="2.4e-2" @netlists/m11_bsim3_tran.cir:21:609
+        [57] name="delta" kind=scalar value="0.01" @netlists/m11_bsim3_tran.cir:21:621
+        [58] name="rsh" kind=scalar value="6.8" @netlists/m11_bsim3_tran.cir:21:632
+        [59] name="prt" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:640
+        [60] name="ute" kind=scalar value="-1.5" @netlists/m11_bsim3_tran.cir:21:646
+        [61] name="kt1" kind=scalar value="-0.11" @netlists/m11_bsim3_tran.cir:21:655
+        [62] name="kt1l" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:665
+        [63] name="kt2" kind=scalar value="0.022" @netlists/m11_bsim3_tran.cir:21:672
+        [64] name="ua1" kind=scalar value="4.31e-9" @netlists/m11_bsim3_tran.cir:21:682
+        [65] name="ub1" kind=scalar value="-7.61e-18" @netlists/m11_bsim3_tran.cir:21:694
+        [66] name="uc1" kind=scalar value="-5.6e-11" @netlists/m11_bsim3_tran.cir:21:708
+        [67] name="at" kind=scalar value="3.3e4" @netlists/m11_bsim3_tran.cir:21:721
+        [68] name="cgdo" kind=scalar value="7.9e-10" @netlists/m11_bsim3_tran.cir:21:730
+        [69] name="cgso" kind=scalar value="7.9e-10" @netlists/m11_bsim3_tran.cir:21:743
+        [70] name="cgbo" kind=scalar value="1e-12" @netlists/m11_bsim3_tran.cir:21:756
+        [71] name="cj" kind=scalar value="9.7e-4" @netlists/m11_bsim3_tran.cir:21:767
+        [72] name="pb" kind=scalar value="0.73" @netlists/m11_bsim3_tran.cir:21:777
+        [73] name="mj" kind=scalar value="0.36" @netlists/m11_bsim3_tran.cir:21:785
+        [74] name="cjsw" kind=scalar value="2.4e-10" @netlists/m11_bsim3_tran.cir:21:793
+        [75] name="pbsw" kind=scalar value="0.4" @netlists/m11_bsim3_tran.cir:21:806
+        [76] name="mjsw" kind=scalar value="0.1" @netlists/m11_bsim3_tran.cir:21:815
+        [77] name="cjswg" kind=scalar value="3.3e-10" @netlists/m11_bsim3_tran.cir:21:824
+        [78] name="pbswg" kind=scalar value="0.4" @netlists/m11_bsim3_tran.cir:21:838
+        [79] name="mjswg" kind=scalar value="0.1" @netlists/m11_bsim3_tran.cir:21:848
+        [80] name="cf" kind=scalar value="0" @netlists/m11_bsim3_tran.cir:21:858
+        [81] name="xpart" kind=scalar value="0.5" @netlists/m11_bsim3_tran.cir:21:863
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m11_bsim3_tran.cir:33:1
+      arguments: "20p" "4n"
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m11_bsim3_tran.cir:32:1
+      setting [0] name="reltol" value="1e-5"@netlists/m11_bsim3_tran.cir:32:17 @netlists/m11_bsim3_tran.cir:32:10
+  globals (0):

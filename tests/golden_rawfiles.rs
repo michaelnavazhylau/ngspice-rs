@@ -376,6 +376,262 @@ struct Expectation {
 /// change in the last digit fails rather than being lost to precision.
 #[allow(clippy::excessive_precision)]
 const EXPECTATIONS: &[Expectation] = &[
+    // BSIM3v3.3 (#90). No gate current flows, so i(vdd) is exactly the two
+    // resistor currents: (1.8 - v(d1))/2 kOhm + v(d2)/5 kOhm = 330.7 uA.
+    Expectation {
+        fixture: "m11_bsim3_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &["v(dd)", "v(d1)", "v(d2)", "v(g)", "i(vdd)", "i(vg)"],
+        values: &[
+            ("v(d1)", 0, 1.244487966482909e+00, 0.),
+            ("v(d2)", 0, 2.647606088927403e-01, 0.),
+            ("i(vdd)", 0, -3.307081385371027e-04, 0.),
+            ("i(vg)", 0, 0.000000000000000e+00, 0.),
+        ],
+    },
+    // BSIM3v3.3 (#90). No drain current at vd = 0 (-9.4e-24 A is rounding);
+    // 0.999 mA at vd = vg = 1.8 V for W/L = 2u/0.18u.
+    Expectation {
+        fixture: "m11_bsim3_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 95,
+        variables: &["v(v-sweep)", "v(d)", "v(g)", "i(vd)", "i(vg)"],
+        values: &[
+            ("i(vd)", 0, -9.402966279636485e-24, 0.),
+            ("i(vd)", 94, -9.986486631171747e-04, 0.),
+            ("v(v-sweep)", 94, 1.800000000000000e+00, 0.),
+        ],
+    },
+    // BSIM3v3.3 (#90). The common-source gain at 1 kHz is -1.31 (gm times
+    // 2 kOhm in parallel with the output resistance).
+    Expectation {
+        fixture: "m11_bsim3_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 33,
+        variables: &["frequency", "v(d)", "v(dd)", "v(g)", "i(vdd)", "i(vg)"],
+        values: &[
+            ("v(d)", 0, -1.312274010307743e+00, 2.366902681536048e-07),
+            ("v(d)", 32, 1.692970310646259e-01, 9.061249795633831e-02),
+        ],
+    },
+    // BSIM3v3.3 (#90). The inverter output starts high with the input low
+    // and is high again at 4 ns, after one full input period.
+    Expectation {
+        fixture: "m11_bsim3_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 374,
+        variables: &["time", "v(dd)", "v(in)", "v(o)", "i(vdd)", "i(vin)"],
+        values: &[
+            ("v(o)", 0, 1.799999997287171e+00, 0.),
+            ("time", 373, 4.000000000000000e-09, 0.),
+            ("v(o)", 373, 1.799996668289088e+00, 0.),
+        ],
+    },
+    // BSIM4 (#90). (1.2 - v(d2))/5 kOhm = 172.3 uA flows through m2 and
+    // v(d3)/5 kOhm = 83.0 uA through the PMOS, which m1 (drain on vdd) brings
+    // to the 529.6 uA i(vdd). The body nodes sit within 1e-11 V of vb, as
+    // only junction leakage (i(vb) = 1.9 pA) flows through the body
+    // resistors; i(vg) is the gate tunnelling current.
+    Expectation {
+        fixture: "m11_bsim4_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(dd)",
+            "v(b)",
+            "v(d2)",
+            "v(d3)",
+            "v(g)",
+            "v(m1#body)",
+            "v(m1#dbody)",
+            "v(m1#gate)",
+            "v(m1#sbody)",
+            "v(m2#body)",
+            "v(m2#dbody)",
+            "v(m2#gate)",
+            "v(m2#midgate)",
+            "v(m2#sbody)",
+            "i(vb)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d2)", 0, 3.385996892986918e-01, 0.),
+            ("v(d3)", 0, 4.150971487731606e-01, 0.),
+            ("i(vdd)", 0, -5.296478644160650e-04, 0.),
+            ("i(vg)", 0, -1.609823385706477e-16, 0.),
+            ("i(vb)", 0, 1.936307062612206e-12, 0.),
+            ("v(m2#midgate)", 0, 7.000000000000001e-01, 0.),
+        ],
+    },
+    // BSIM4 (#90). The PMOS bias never changes, so i(vdp) stays 438.9 uA;
+    // the NMOS draws nothing at vdn = 0 and 36.5 uA, 372.0 uA and 712.9 uA at
+    // vdn = 1.2 V for vg = 0.4, 0.8 and 1.2 V.
+    Expectation {
+        fixture: "m11_bsim4_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 39,
+        variables: &[
+            "v(v-sweep)",
+            "v(dn)",
+            "v(dp)",
+            "v(g)",
+            "v(gp)",
+            "v(m1#body)",
+            "v(m1#dbody)",
+            "v(m1#gate)",
+            "v(m1#sbody)",
+            "i(vdn)",
+            "i(vdp)",
+            "i(vg)",
+            "i(vgp)",
+        ],
+        values: &[
+            ("i(vdn)", 0, 2.947335422048529e-17, 0.),
+            ("i(vdp)", 0, 4.388566143618193e-04, 0.),
+            ("i(vdn)", 12, -3.654279440783970e-05, 0.),
+            ("i(vdn)", 25, -3.720130064512433e-04, 0.),
+            ("i(vdn)", 38, -7.129379058505165e-04, 0.),
+            ("i(vdp)", 38, 4.388566143618144e-04, 0.),
+        ],
+    },
+    // BSIM4 (#90). Gain -1.32 at 1 kHz; at 100 GHz the gate-drain
+    // capacitance feeds the input forward and the output turns positive.
+    Expectation {
+        fixture: "m11_bsim4_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 33,
+        variables: &[
+            "frequency",
+            "v(b)",
+            "v(d)",
+            "v(dd)",
+            "v(g)",
+            "v(m1#body)",
+            "v(m1#dbody)",
+            "v(m1#gate)",
+            "v(m1#sbody)",
+            "i(vb)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d)", 0, -1.323015862173838e+00, 8.253321221083552e-08),
+            ("v(d)", 32, 5.204592759577147e-02, 2.358280381908082e-01),
+        ],
+    },
+    // BSIM4 (#90). Four poles on the negative real axis and one
+    // right-half-plane zero (the gate-drain feedforward), after C re-runs
+    // BSIM4setup for each search.
+    Expectation {
+        fixture: "m11_bsim4_pz",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &[
+            "v(pole(1))",
+            "v(pole(2))",
+            "v(pole(3))",
+            "v(pole(4))",
+            "v(zero(1))",
+            "v(zero(2))",
+            "v(zero(3))",
+            "v(zero(4))",
+        ],
+        values: &[
+            (
+                "v(pole(1))",
+                0,
+                -2.429970061004072e+15,
+                0.000000000000000e+00,
+            ),
+            (
+                "v(pole(4))",
+                0,
+                -1.077628239543987e+11,
+                0.000000000000000e+00,
+            ),
+            (
+                "v(zero(4))",
+                0,
+                1.541662014707794e+12,
+                0.000000000000000e+00,
+            ),
+        ],
+    },
+    // BSIM4 (#90). With the input low o1 is high and o2 low; 74 ps after the
+    // rising input edge (point 30) o1 is down to -0.14 mV and o2 up to 1.1997 V.
+    Expectation {
+        fixture: "m11_bsim4_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 176,
+        variables: &[
+            "time",
+            "v(dd)",
+            "v(in)",
+            "v(mn1#body)",
+            "v(mn1#charge)",
+            "v(mn1#dbody)",
+            "v(mn1#gate)",
+            "v(mn1#sbody)",
+            "v(mn2#body)",
+            "v(mn2#charge)",
+            "v(mn2#dbody)",
+            "v(mn2#gate)",
+            "v(mn2#sbody)",
+            "v(o1)",
+            "v(o2)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(o1)", 0, 1.199999928115116e+00, 0.),
+            ("v(o2)", 0, 7.443925927152281e-08, 0.),
+            ("time", 30, 1.739374986612204e-10, 0.),
+            ("v(o1)", 30, -1.352756758419552e-04, 0.),
+            ("v(o2)", 30, 1.199667186770138e+00, 0.),
+        ],
+    },
+    // BSIM4 binned models (#90, #109). i(vdd) rises from 0.19 nA of
+    // subthreshold leakage at vg = 0 to 2.10 mA at vg = 1.2 V.
+    Expectation {
+        fixture: "m11_bsim4_bin_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 13,
+        variables: &[
+            "v(v-sweep)",
+            "v(dd)",
+            "v(g)",
+            "v(m1#body)",
+            "v(m1#dbody)",
+            "v(m1#gate)",
+            "v(m1#sbody)",
+            "v(m2#body)",
+            "v(m2#dbody)",
+            "v(m2#gate)",
+            "v(m2#sbody)",
+            "v(m3#body)",
+            "v(m3#dbody)",
+            "v(m3#gate)",
+            "v(m3#sbody)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("i(vdd)", 0, -1.859840145668442e-10, 0.),
+            ("i(vdd)", 12, -2.099875092531170e-03, 0.),
+        ],
+    },
     // The two scoped .ic values set capacitor voltages to .25 and .5 V.
     // At t=0 the sine source is zero, so its outward current is the sum
     // of the two resistor currents: (.25 + .5)/1k = .75 mA.
@@ -9790,6 +10046,33 @@ const EXPECTATIONS: &[Expectation] = &[
 /// the deck order.
 #[allow(clippy::excessive_precision)]
 const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
+    &[
+        // BSIM4 (#90): b4noi.c. At 1 kHz onoise/inoise is the stage gain
+        // magnitude, 3.767e-6 / 2.847e-6 = 1.323.
+        Expectation {
+            fixture: "m11_bsim4_noise",
+            plotname: "Noise Spectral Density Curves",
+            flags: PlotFlags::Real,
+            points: 29,
+            variables: &["frequency", "inoise_spectrum", "onoise_spectrum"],
+            values: &[
+                ("onoise_spectrum", 0, 3.767170873206951e-06, 0.),
+                ("inoise_spectrum", 0, 2.847411721139255e-06, 0.),
+            ],
+        },
+        // The integrated noise of the same deck.
+        Expectation {
+            fixture: "m11_bsim4_noise",
+            plotname: "Integrated Noise",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &["v(onoise_total)", "v(inoise_total)"],
+            values: &[
+                ("v(onoise_total)", 0, 8.499704453786909e-04, 0.),
+                ("v(inoise_total)", 0, 6.798621872612408e-04, 0.),
+            ],
+        },
+    ],
     &[
         // The bulk sine ends at -0.3 + 0.2 sin(0.2 pi), not the DC -0.3.
         // C runs .op, .tran, .sens in that order despite the card order.

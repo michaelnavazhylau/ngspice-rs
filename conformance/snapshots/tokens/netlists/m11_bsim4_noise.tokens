@@ -1,0 +1,174 @@
+# ngspice-rs token-dump v1
+file: netlists/m11_bsim4_noise.cir
+title: "BSIM4 common-source amplifier: noise" @netlists/m11_bsim4_noise.cir:1:1
+card 1 @netlists/m11_bsim4_noise.cir:6:1 lines=6-6 continuations=0
+  raw: "vdd dd 0 1.2"
+  kind: device(v)
+  token 1 6:1 word "vdd"
+  token 2 6:5 word "dd"
+  token 3 6:8 number "0" value=0e0
+  token 4 6:10 number "1.2" value=1.2000000000000002e0
+card 2 @netlists/m11_bsim4_noise.cir:7:1 lines=7-7 continuations=0
+  raw: "rl dd d 2k"
+  kind: device(r)
+  token 1 7:1 word "rl"
+  token 2 7:4 word "dd"
+  token 3 7:7 word "d"
+  token 4 7:9 number "2k" value=2e3
+card 3 @netlists/m11_bsim4_noise.cir:8:1 lines=8-8 continuations=0
+  raw: "vg g 0 dc 0.6 ac 1"
+  kind: device(v)
+  token 1 8:1 word "vg"
+  token 2 8:4 word "g"
+  token 3 8:6 number "0" value=0e0
+  token 4 8:8 word "dc"
+  token 5 8:11 number "0.6" value=6.000000000000001e-1
+  token 6 8:15 word "ac"
+  token 7 8:18 number "1" value=1e0
+card 4 @netlists/m11_bsim4_noise.cir:9:1 lines=9-9 continuations=0
+  raw: "vb b 0 dc -0.1"
+  kind: device(v)
+  token 1 9:1 word "vb"
+  token 2 9:4 word "b"
+  token 3 9:6 number "0" value=0e0
+  token 4 9:8 word "dc"
+  token 5 9:11 number "-0.1" value=-1e-1
+card 5 @netlists/m11_bsim4_noise.cir:10:1 lines=10-10 continuations=0
+  raw: "m1 d g 0 b nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u nf=2 sa=0.3u sb=0.4u"
+  kind: device(m)
+  token 1 10:1 word "m1"
+  token 2 10:4 word "d"
+  token 3 10:6 word "g"
+  token 4 10:8 number "0" value=0e0
+  token 5 10:10 word "b"
+  token 6 10:12 word "nch"
+  token 7 10:16 word "l"
+  token 8 10:17 equals "="
+  token 9 10:18 number "0.1u" value=1e-7
+  token 10 10:23 word "w"
+  token 11 10:24 equals "="
+  token 12 10:25 number "1u" value=1e-6
+  token 13 10:28 word "ad"
+  token 14 10:30 equals "="
+  token 15 10:31 number "1e-13" value=1e-13
+  token 16 10:37 word "as"
+  token 17 10:39 equals "="
+  token 18 10:40 number "1e-13" value=1e-13
+  token 19 10:46 word "pd"
+  token 20 10:48 equals "="
+  token 21 10:49 number "1.4u" value=1.4e-6
+  token 22 10:54 word "ps"
+  token 23 10:56 equals "="
+  token 24 10:57 number "1.4u" value=1.4e-6
+  token 25 10:62 word "nf"
+  token 26 10:64 equals "="
+  token 27 10:65 number "2" value=2e0
+  token 28 10:67 word "sa"
+  token 29 10:69 equals "="
+  token 30 10:70 number "0.3u" value=3e-7
+  token 31 10:75 word "sb"
+  token 32 10:77 equals "="
+  token 33 10:78 number "0.4u" value=4e-7
+card 6 @netlists/m11_bsim4_noise.cir:11:1 lines=11-11 continuations=0
+  raw: "cl d 0 5f"
+  kind: device(c)
+  token 1 11:1 word "cl"
+  token 2 11:4 word "d"
+  token 3 11:6 number "0" value=0e0
+  token 4 11:8 number "5f" value=5.000000000000001e-15
+card 7 @netlists/m11_bsim4_noise.cir:12:1 lines=12-14 continuations=2
+  raw: ".model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1 xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+  kind: dot(.model)
+  token 1 12:1 word ".model"
+  token 2 12:8 word "nch"
+  token 3 12:12 word "nmos"
+  token 4 12:17 word "level"
+  token 5 12:22 equals "="
+  token 6 12:23 number "54" value=5.4e1
+  token 7 12:26 word "version"
+  token 8 12:33 equals "="
+  token 9 12:34 word "4.8.3"
+  token 10 12:40 word "rgatemod"
+  token 11 12:48 equals "="
+  token 12 12:49 number "1" value=1e0
+  token 13 12:51 word "rbodymod"
+  token 14 12:59 equals "="
+  token 15 12:60 number "1" value=1e0
+  token 16 12:62 word "igcmod"
+  token 17 12:68 equals "="
+  token 18 12:69 number "1" value=1e0
+  token 19 12:71 word "igbmod"
+  token 20 12:77 equals "="
+  token 21 12:78 number "1" value=1e0
+  token 22 12:80 word "xrcrg1"
+  token 23 12:86 equals "="
+  token 24 12:87 number "12" value=1.2e1
+  token 25 12:90 word "xrcrg2"
+  token 26 12:96 equals "="
+  token 27 12:97 number "5" value=5e0
+  token 28 12:99 word "rshg"
+  token 29 12:103 equals "="
+  token 30 12:104 number "0.4" value=4e-1
+  token 31 12:108 word "rbpb"
+  token 32 12:112 equals "="
+  token 33 12:113 number "5" value=5e0
+  token 34 12:115 word "rbpd"
+  token 35 12:119 equals "="
+  token 36 12:120 number "15" value=1.5e1
+  token 37 12:123 word "rbps"
+  token 38 12:127 equals "="
+  token 39 12:128 number "15" value=1.5e1
+  token 40 12:131 word "rbdb"
+  token 41 12:135 equals "="
+  token 42 12:136 number "15" value=1.5e1
+  token 43 12:139 word "rbsb"
+  token 44 12:143 equals "="
+  token 45 12:144 number "15" value=1.5e1
+  token 46 12:147 word "cgso"
+  token 47 12:151 equals "="
+  token 48 12:152 number "1.5e-10" value=1.5e-10
+  token 49 12:160 word "cgdo"
+  token 50 12:164 equals "="
+  token 51 12:165 number "1.5e-10" value=1.5e-10
+  token 52 12:173 word "cgbo"
+  token 53 12:177 equals "="
+  token 54 12:178 number "1e-11" value=1e-11
+  token 55 12:184 word "jss"
+  token 56 12:187 equals "="
+  token 57 12:188 number "1e-4" value=1e-4
+  token 58 12:193 word "cjs"
+  token 59 12:196 equals "="
+  token 60 12:197 number "1e-3" value=1e-3
+  token 61 12:202 word "cjsws"
+  token 62 12:207 equals "="
+  token 63 12:208 number "2e-10" value=2e-10
+card 8 @netlists/m11_bsim4_noise.cir:15:1 lines=15-15 continuations=0
+  raw: ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+  kind: dot(.options)
+  token 1 15:1 word ".options"
+  token 2 15:10 word "reltol"
+  token 3 15:16 equals "="
+  token 4 15:17 number "1e-9" value=1e-9
+  token 5 15:22 word "vntol"
+  token 6 15:27 equals "="
+  token 7 15:28 number "1e-12" value=1e-12
+  token 8 15:34 word "abstol"
+  token 9 15:40 equals "="
+  token 10 15:41 number "1e-15" value=1e-15
+card 9 @netlists/m11_bsim4_noise.cir:16:1 lines=16-16 continuations=0
+  raw: ".noise v(d) vg dec 4 1e3 1e10"
+  kind: dot(.noise)
+  token 1 16:1 word ".noise"
+  token 2 16:8 word "v"
+  token 3 16:9 lparen "("
+  token 4 16:10 word "d"
+  token 5 16:11 rparen ")"
+  token 6 16:13 word "vg"
+  token 7 16:16 word "dec"
+  token 8 16:20 number "4" value=4e0
+  token 9 16:22 number "1e3" value=1e3
+  token 10 16:26 number "1e10" value=1e10
+card 10 @netlists/m11_bsim4_noise.cir:17:1 lines=17-17 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 17:1 word ".end"

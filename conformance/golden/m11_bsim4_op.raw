@@ -1,0 +1,44 @@
+Title: bsim4 operating point: three selector families, both polarities
+Date: Mon Oct 19 21:04:30  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 17
+No. Points: 1
+Variables:
+	0	v(dd)	voltage
+	1	v(b)	voltage
+	2	v(d2)	voltage
+	3	v(d3)	voltage
+	4	v(g)	voltage
+	5	v(m1#body)	voltage
+	6	v(m1#dbody)	voltage
+	7	v(m1#gate)	voltage
+	8	v(m1#sbody)	voltage
+	9	v(m2#body)	voltage
+	10	v(m2#dbody)	voltage
+	11	v(m2#gate)	voltage
+	12	v(m2#midgate)	voltage
+	13	v(m2#sbody)	voltage
+	14	i(vb)	current
+	15	i(vdd)	current
+	16	i(vg)	current
+Values:
+ 0	1.200000000000000e+00
+	-1.000000000000000e-01
+	3.385996892986918e-01
+	4.150971487731606e-01
+	7.000000000000001e-01
+	-9.999999999737498e-02
+	-9.999999998893741e-02
+	7.000000000000001e-01
+	-9.999999999793742e-02
+	-9.999999999329635e-02
+	-9.999999998599787e-02
+	7.000000000000001e-01
+	7.000000000000001e-01
+	-9.999999999389124e-02
+	1.936307062612206e-12
+	-5.296478644160650e-04
+	-1.609823385706477e-16
+

@@ -1,0 +1,99 @@
+# ngspice-rs ast-dump v1
+file: netlists/m11_bsim4_dc.cir
+title: "BSIM4 output characteristics, NMOS and PMOS" @netlists/m11_bsim4_dc.cir:1:1
+scope root
+  cards (10):
+    [0] device[0] @netlists/m11_bsim4_dc.cir:5:1 "vdn dn 0 1.2"
+    [1] device[1] @netlists/m11_bsim4_dc.cir:6:1 "vdp dp 0 -1.2"
+    [2] device[2] @netlists/m11_bsim4_dc.cir:7:1 "vg g 0 0.8"
+    [3] device[3] @netlists/m11_bsim4_dc.cir:8:1 "vgp gp 0 -0.8"
+    [4] device[4] @netlists/m11_bsim4_dc.cir:9:1 "m1 dn g 0 0 nch l=0.1u w=1u ad=1e-13 as=1e-13 pd=1.4u ps=1.4u"
+    [5] device[5] @netlists/m11_bsim4_dc.cir:10:1 "m2 dp gp 0 0 pch l=0.1u w=2u ad=2e-13 as=2e-13 pd=2.4u ps=2.4u"
+    [6] model[0] @netlists/m11_bsim4_dc.cir:11:1 ".model nch nmos level=54 version=4.8.3 rgatemod=1 rbodymod=1 igcmod=1 igbmod=1 xrcrg1=12 xrcrg2=5 rshg=0.4 rbpb=5 rbpd=15 rbps=15 rbdb=15 rbsb=15 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+    [7] model[1] @netlists/m11_bsim4_dc.cir:14:1 ".model pch pmos level=54 version=4.8.3 rdsmod=1 rdsw=200 cgso=1.5e-10 cgdo=1.5e-10 cgbo=1e-11 jss=1e-4 cjs=1e-3 cjsws=2e-10"
+    [8] analysis[0] @netlists/m11_bsim4_dc.cir:16:1 ".dc vdn 0 1.2 0.1 vg 0.4 1.2 0.4"
+    [9] end @netlists/m11_bsim4_dc.cir:17:1 ".end"
+  devices (6):
+    device [0] name="vdn" designator=v @netlists/m11_bsim4_dc.cir:5:1
+      nodes: "dn" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.2" @netlists/m11_bsim4_dc.cir:5:10
+    device [1] name="vdp" designator=v @netlists/m11_bsim4_dc.cir:6:1
+      nodes: "dp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-1.2" @netlists/m11_bsim4_dc.cir:6:10
+    device [2] name="vg" designator=v @netlists/m11_bsim4_dc.cir:7:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="0.8" @netlists/m11_bsim4_dc.cir:7:8
+    device [3] name="vgp" designator=v @netlists/m11_bsim4_dc.cir:8:1
+      nodes: "gp" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="-0.8" @netlists/m11_bsim4_dc.cir:8:10
+    device [4] name="m1" designator=m @netlists/m11_bsim4_dc.cir:9:1
+      nodes: "dn" "g" "0" "0"
+      model: "nch"
+      parameters (6):
+        [0] name="l" kind=scalar value="0.1u" @netlists/m11_bsim4_dc.cir:9:17
+        [1] name="w" kind=scalar value="1u" @netlists/m11_bsim4_dc.cir:9:24
+        [2] name="ad" kind=scalar value="1e-13" @netlists/m11_bsim4_dc.cir:9:29
+        [3] name="as" kind=scalar value="1e-13" @netlists/m11_bsim4_dc.cir:9:38
+        [4] name="pd" kind=scalar value="1.4u" @netlists/m11_bsim4_dc.cir:9:47
+        [5] name="ps" kind=scalar value="1.4u" @netlists/m11_bsim4_dc.cir:9:55
+    device [5] name="m2" designator=m @netlists/m11_bsim4_dc.cir:10:1
+      nodes: "dp" "gp" "0" "0"
+      model: "pch"
+      parameters (6):
+        [0] name="l" kind=scalar value="0.1u" @netlists/m11_bsim4_dc.cir:10:18
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim4_dc.cir:10:25
+        [2] name="ad" kind=scalar value="2e-13" @netlists/m11_bsim4_dc.cir:10:30
+        [3] name="as" kind=scalar value="2e-13" @netlists/m11_bsim4_dc.cir:10:39
+        [4] name="pd" kind=scalar value="2.4u" @netlists/m11_bsim4_dc.cir:10:48
+        [5] name="ps" kind=scalar value="2.4u" @netlists/m11_bsim4_dc.cir:10:56
+  models (2):
+    model [0] name="nch" base="nmos" level=5.4e1 @netlists/m11_bsim4_dc.cir:11:1
+      parameters (20):
+        [0] name="level" kind=scalar value="54" @netlists/m11_bsim4_dc.cir:11:17
+        [1] name="version" kind=textual value="4.8.3" @netlists/m11_bsim4_dc.cir:11:26
+        [2] name="rgatemod" kind=scalar value="1" @netlists/m11_bsim4_dc.cir:11:40
+        [3] name="rbodymod" kind=scalar value="1" @netlists/m11_bsim4_dc.cir:11:51
+        [4] name="igcmod" kind=scalar value="1" @netlists/m11_bsim4_dc.cir:11:62
+        [5] name="igbmod" kind=scalar value="1" @netlists/m11_bsim4_dc.cir:11:71
+        [6] name="xrcrg1" kind=scalar value="12" @netlists/m11_bsim4_dc.cir:11:80
+        [7] name="xrcrg2" kind=scalar value="5" @netlists/m11_bsim4_dc.cir:11:90
+        [8] name="rshg" kind=scalar value="0.4" @netlists/m11_bsim4_dc.cir:11:99
+        [9] name="rbpb" kind=scalar value="5" @netlists/m11_bsim4_dc.cir:11:108
+        [10] name="rbpd" kind=scalar value="15" @netlists/m11_bsim4_dc.cir:11:115
+        [11] name="rbps" kind=scalar value="15" @netlists/m11_bsim4_dc.cir:11:123
+        [12] name="rbdb" kind=scalar value="15" @netlists/m11_bsim4_dc.cir:11:131
+        [13] name="rbsb" kind=scalar value="15" @netlists/m11_bsim4_dc.cir:11:139
+        [14] name="cgso" kind=scalar value="1.5e-10" @netlists/m11_bsim4_dc.cir:11:147
+        [15] name="cgdo" kind=scalar value="1.5e-10" @netlists/m11_bsim4_dc.cir:11:160
+        [16] name="cgbo" kind=scalar value="1e-11" @netlists/m11_bsim4_dc.cir:11:173
+        [17] name="jss" kind=scalar value="1e-4" @netlists/m11_bsim4_dc.cir:11:184
+        [18] name="cjs" kind=scalar value="1e-3" @netlists/m11_bsim4_dc.cir:11:193
+        [19] name="cjsws" kind=scalar value="2e-10" @netlists/m11_bsim4_dc.cir:11:202
+    model [1] name="pch" base="pmos" level=5.4e1 @netlists/m11_bsim4_dc.cir:14:1
+      parameters (10):
+        [0] name="level" kind=scalar value="54" @netlists/m11_bsim4_dc.cir:14:17
+        [1] name="version" kind=textual value="4.8.3" @netlists/m11_bsim4_dc.cir:14:26
+        [2] name="rdsmod" kind=scalar value="1" @netlists/m11_bsim4_dc.cir:14:40
+        [3] name="rdsw" kind=scalar value="200" @netlists/m11_bsim4_dc.cir:14:49
+        [4] name="cgso" kind=scalar value="1.5e-10" @netlists/m11_bsim4_dc.cir:14:58
+        [5] name="cgdo" kind=scalar value="1.5e-10" @netlists/m11_bsim4_dc.cir:14:71
+        [6] name="cgbo" kind=scalar value="1e-11" @netlists/m11_bsim4_dc.cir:14:84
+        [7] name="jss" kind=scalar value="1e-4" @netlists/m11_bsim4_dc.cir:14:95
+        [8] name="cjs" kind=scalar value="1e-3" @netlists/m11_bsim4_dc.cir:14:104
+        [9] name="cjsws" kind=scalar value="2e-10" @netlists/m11_bsim4_dc.cir:14:113
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=dc @netlists/m11_bsim4_dc.cir:16:1
+      arguments: "vdn" "0" "1.2" "0.1" "vg" "0.4" "1.2" "0.4"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

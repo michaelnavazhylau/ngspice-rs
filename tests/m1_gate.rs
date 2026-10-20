@@ -329,6 +329,9 @@ fn the_gate_covers_exactly_the_eight_corpus_decks() {
     // The TXL decks (#170-#173) are gated by `xtask golden verify` and
     // `tests/txl.rs`.
     on_disk.retain(|name| !name.starts_with("m10_txl"));
+    // The BSIM3/BSIM4 decks (#90) are gated by `xtask golden verify` and
+    // `tests/bsim4_device.rs`.
+    on_disk.retain(|name| !name.starts_with("m11_bsim"));
     let mut expected: Vec<&str> = DECKS.iter().map(|d| d.deck).collect();
     expected.sort_unstable();
     assert_eq!(on_disk, expected, "a corpus deck was added or removed");

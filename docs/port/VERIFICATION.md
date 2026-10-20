@@ -301,6 +301,30 @@ bit for bit against the FMA-free oracle (`fidelity-tools`). See
   `.op`/`.dc`/`.ac`/`.noise`/`.pz`/`.tran`, 1e-6 relative against the
   FMA-fusing reference build).
 
+## BSIM goldens (#90, B3-5)
+
+Eleven C goldens, each captured with `cargo xtask golden capture --netlist
+<name>` from the reference build (no existing golden recaptured, no tolerance
+changed), all under `compare::NONLINEAR`, `compare::TRAN`,
+`compare::POLE_ZERO` or the nonlinear noise stages:
+
+- BSIM4 on its default parameter set with selector variations:
+  `m11_bsim4_op` (gate resistance, both body networks, mid-gate node,
+  `rdsMod`, GIDL, gate tunnelling, both polarities), `m11_bsim4_dc`,
+  `m11_bsim4_ac`, `m11_bsim4_pz`, `m11_bsim4_noise`, `m11_bsim4_tran` (an
+  NQS inverter chain) and `m11_bsim4_bin_dc` (#109 binning end to end). The
+  port reproduces the FMA-free oracle on all seven bit for bit.
+- BSIM3v3.3 `capMod=3`: `m11_bsim3_{op,dc,ac,tran}`. They exposed three
+  BSIM3 gaps, now fixed: the missing `BSIM3convTest` and `BSIM3trunc`, and a
+  `MODEINITPRED` that limited the previous iterate instead of `DEVpred`'s
+  extrapolation (and treated `MODEINITTRAN` the same). The transient deck
+  runs at `reltol=1e-5` because BSIM3 is not bit-exact (see BSIM.md).
+
+`golden verify` now projects the port's plots onto C's default save set by
+`outitf.c`'s own rule (internal nodes named `#internal`, `#source`, `#drain`,
+`#collector`, `#collCX`, `#emitter`, `#base` are not saved) instead of a
+per-device list of exceptions; the existing corpus verifies unchanged.
+
 ## BSIM3 B3-0 input foundation (#90)
 
 The schema-only BSIM3 path has generated IFparm metadata for all 429 model
