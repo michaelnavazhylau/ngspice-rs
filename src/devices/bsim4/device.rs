@@ -1177,15 +1177,16 @@ impl Device for Bsim4 {
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
         let prepared = self.ensure(context.temperature, context.nominal_temperature)?;
         let (mode, limiting) = load_mode(context)?;
-        let instance = self.live_copy(&prepared);
-        let mut shared = self.borrow_shared_mut()?;
-        if !shared
+        let current = self
+            .borrow_shared()?
             .live
             .as_ref()
-            .is_some_and(|(owner, _)| Rc::ptr_eq(owner, &prepared))
-        {
-            shared.live = Some((Rc::clone(&prepared), instance));
+            .is_some_and(|(owner, _)| Rc::ptr_eq(owner, &prepared));
+        if !current {
+            let instance = self.live_copy(&prepared);
+            self.borrow_shared_mut()?.live = Some((Rc::clone(&prepared), instance));
         }
+        let mut shared = self.borrow_shared_mut()?;
         let Some((_, h)) = shared.live.as_mut() else {
             return Err(SpiceError::circuit("BSIM4 live instance missing"));
         };
