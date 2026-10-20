@@ -281,20 +281,20 @@ the other BSIM families are unchanged.
 
 ### Next: what remains
 
-1. **`capMod` 0, 1 and 2.** `b3ld.c`'s three other charge branches, each with
+1. **`capMod` 0, 1 and 2** (#190). `b3ld.c`'s three other charge branches, each with
    its own `Vfb`/`AbulkCV`/`VdsatCV` handling; every one is a different
    equation set, so each is a separate slice with its own differential test
    before it is wired.
-2. **NQS** (`nqsMod`, `acnqsMod`): the `qNode` unknown, `qcheq`/`qdef`/
+2. **NQS** (`nqsMod`, `acnqsMod`, #191): the `qNode` unknown, `qcheq`/`qdef`/
    `qcdump` states, `gtau` and the `b3acld.c` NQS branch.
-3. **Bit-level fidelity.** BSIM3 is a reimplementation, so its arithmetic
+3. **Bit-level fidelity** (#193). BSIM3 is a reimplementation, so its arithmetic
    is not C's operation order: the `m11_bsim3_tran` fixture needs
    `reltol=1e-5` because at the default tolerance its step sequence drifts
    from C's. Translating `b3ld.c` as BSIM4 was translated would close it.
    (Done since the first draft of this list: `BSIM3convTest`, `BSIM3trunc`
    on qb/qg/qd — C does register `DEVtrunc` — C's `MODEINITTRAN`/
    `MODEINITPRED` voltage selection, and `.disto` as linear.)
-4. **`.sens`.** The `cktsgen.c` device tables for BSIM3 (a fifth family of
+4. **`.sens`** (#192). The `cktsgen.c` device tables for BSIM3 (a fifth family of
    tables); no `.sens` curve is C-differential yet.
 5. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
 
@@ -361,6 +361,10 @@ terms of use, which allow modified redistribution with attribution (see
   rows out of the determinant as C does.
 
 ### Deliberate differences
+
+Tracked in #189 (cross-instance and cross-analysis C state), #186
+(reporting warnings), #187 (SOA checks), #188 (speed) and #194 (versions
+4.5-4.7).
 
 - `BSIM4checkModel` runs for every instance at its first setup; C checks
   only the first instance of each model name in its list (and any model
