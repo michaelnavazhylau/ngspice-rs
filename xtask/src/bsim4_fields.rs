@@ -130,8 +130,112 @@ fn emit_struct(
         }
         out.push_str("            _ => return None,\n        })\n    }\n");
     }
+    // Positional access over the scalar (non-string) members, for records
+    // that hold the whole struct as numbers (`.sens`).
+    let scalars: Vec<&Field> = fields.iter().filter(|f| f.kind != "String").collect();
+    out.push_str("    /// C member names of the scalar members, in declaration order.\n    #[allow(dead_code)]\n    pub(crate) const MEMBERS: &[&str] = &[\n");
+    for field in &scalars {
+        writeln!(out, "        \"{}\",", field.c_name).map_err(|e| e.to_string())?;
+    }
+    out.push_str("    ];\n\n");
+    out.push_str("    /// The scalar members as numbers, in [`Self::MEMBERS`] order (`i32` exactly,\n    /// a given bit as 0 or 1).\n    #[allow(dead_code)]\n    pub(crate) fn to_values(&self) -> Vec<f64> {\n        vec![\n");
+    for field in &scalars {
+        let name = rust_name(&field.c_name);
+        let expression = match field.kind {
+            "f64" => format!("self.{name}"),
+            "i32" => format!("f64::from(self.{name})"),
+            _ => format!("f64::from(u8::from(self.{name}))"),
+        };
+        writeln!(out, "            {expression},").map_err(|e| e.to_string())?;
+    }
+    out.push_str("        ]\n    }\n\n");
+    out.push_str("    /// Stores numbers produced by [`Self::to_values`]; `values` must have\n    /// [`Self::MEMBERS`]`.len()` entries.\n    #[allow(dead_code, clippy::cast_possible_truncation)]\n    pub(crate) fn set_values(&mut self, values: &[f64]) {\n");
+    for (index, field) in scalars.iter().enumerate() {
+        let name = rust_name(&field.c_name);
+        let expression = match field.kind {
+            "f64" => format!("values[{index}]"),
+            "i32" => format!("values[{index}] as i32"),
+            _ => format!("values[{index}] != 0.0"),
+        };
+        writeln!(out, "        self.{name} = {expression};").map_err(|e| e.to_string())?;
+    }
+    out.push_str("    }\n");
     out.push_str("}\n");
     Ok(())
+}
+
+/// `(C parameter ID, member)` for every `case` of an ask routine that reads
+/// one real member (`value->rValue = <prefix>X;`), in source order.
+fn real_asks(source: &str, prefix: &str) -> Result<Vec<(String, String)>, String> {
+    let source = crate::ifparm::strip_comments(source)?;
+    let mut asks: Vec<(String, String)> = Vec::new();
+    let mut pending: Vec<String> = Vec::new();
+    // The asks recorded for the last case group, dropped again when C goes
+    // on to scale the value (`value->rValue *= ...`).
+    let mut last = 0..0;
+    for line in source.lines() {
+        let line = line.trim().trim_start_matches('{').trim();
+        if line.starts_with("value->rValue *=") {
+            asks.drain(last.clone());
+            last = 0..0;
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("case ") {
+            let id = rest.trim_end_matches(':').trim();
+            if !id.starts_with("BSIM4_") {
+                return Err(format!("ask: unexpected case `{line}`"));
+            }
+            pending.push(id.into());
+        } else if let Some(rest) = line.strip_prefix("value->rValue = ") {
+            if let Some(member) = rest
+                .strip_suffix(';')
+                .map(str::trim)
+                .and_then(|r| r.strip_prefix(prefix))
+                .filter(|m| m.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'))
+            {
+                let start = asks.len();
+                for id in pending.drain(..) {
+                    asks.push((id, member.into()));
+                }
+                last = start..asks.len();
+            }
+            pending.clear();
+        } else if line.starts_with("value->") || line.starts_with("return") {
+            pending.clear();
+        }
+    }
+    Ok(asks)
+}
+
+/// The generated `asks.rs` text: the real asks of `b4mask.c` and `b4ask.c`
+/// that read a member directly (`sens_getp()` succeeds only for these).
+pub(crate) fn asks(mask: &str, ask: &str, revision: &str) -> Result<String, String> {
+    let model = real_asks(mask, "model->")?;
+    let instance = real_asks(ask, "here->")?;
+    if model.len() != 869 || instance.len() != 40 {
+        return Err(format!(
+            "b4mask.c/b4ask.c: {} model and {} instance plain real asks; review them",
+            model.len(),
+            instance.len()
+        ));
+    }
+    let mut out = format!(
+        "// Generated ask facts (C parameter IDs and the member each real ask\n\
+         // reads), not C implementation code. Source: ngspice {revision},\n\
+         // bsim4/{{b4mask.c,b4ask.c}}.\n\
+         // Regenerate: cargo xtask bsim4-schema --source /path/to/ngspice\n\n\
+         /// `b4mask.c`: `(model parameter ID, member)` asks that read one real member.\n\
+         #[rustfmt::skip]\npub(crate) const MODEL: &[(&str, &str)] = &[\n"
+    );
+    for (id, member) in &model {
+        writeln!(out, "    (\"{id}\", \"{member}\"),").map_err(|e| e.to_string())?;
+    }
+    out.push_str("];\n\n/// `b4ask.c`: `(instance parameter ID, member)` asks that read one real member.\n#[rustfmt::skip]\npub(crate) const INSTANCE: &[(&str, &str)] = &[\n");
+    for (id, member) in &instance {
+        writeln!(out, "    (\"{id}\", \"{member}\"),").map_err(|e| e.to_string())?;
+    }
+    out.push_str("];\n");
+    Ok(out)
 }
 
 /// The generated `fields.rs` text.

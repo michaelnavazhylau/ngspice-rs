@@ -17,7 +17,8 @@ so it is linear there, as in C) and `.tran`, in every `capMod`, `mobMod`,
 `rdsMod`, `rgateMod`, `rbodyMod`, `igcMod`/`igbMod`, `tempMod`, `mtrlMod`,
 `gidlMod`, `dioMod`, `tnoiMod`/`fnoiMod` and NQS (`trnqsMod`/`acnqsMod`)
 selection, bit-identical to an FMA-free build of the reference C (see
-[BSIM4](#bsim4) below). `.sens` is the remaining refusal. The B3-0/B4-0
+[BSIM4](#bsim4) below), and DC/AC `.sens` (`sens.rs`, see
+[SENSITIVITY.md](SENSITIVITY.md)). The B3-0/B4-0
 physical-unit audit of `Parameter::input_unit` is still partial.
 
 This guide is the implementation plan for **milestone M11**. #90 moved off M10 so
@@ -273,7 +274,7 @@ the other BSIM families are unchanged.
 | B3-5 goldens and binning coverage | **not started**: no BSIM3 conformance fixture or committed golden exists yet; binning is covered only through the schema/setup tests |
 | B4-0 tables/schema | done |
 | B4-1..B4-4 BSIM4 setup, temperature, checks, load, small signal, noise, pole-zero | done, bit-exact against the FMA-free C oracle ([BSIM4](#bsim4)) |
-| B4 `.sens` | refused explicitly (C perturbs BSIM4 generically; not ported yet) |
+| B4 `.sens` | done (DC and AC), bit-exact on every deck C completes; see [SENSITIVITY.md](SENSITIVITY.md) |
 
 ### Next: what remains
 
@@ -372,7 +373,8 @@ terms of use, which allow modified redistribution with attribution (see
 - After a `.tran` in the same deck, C's `CKTag` keeps the last step's
   coefficients and a later NQS `.op`/`.ac` integrates with them; the port
   uses zero.
-- `.sens` is refused.
+- `.sens ac` after a `.tran` is refused: C's AC reset load reads the
+  `capbd`/`capbs` the final transient load left, which the port does not keep.
 
 ### Verification
 

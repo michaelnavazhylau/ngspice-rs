@@ -52,7 +52,7 @@ use crate::devices::{AnalysisMode, Circuit, Device, IterationPhase, LoadRequest,
 use crate::maths::complex::ComplexMatrix;
 use crate::maths::{SparseMatrix, Vector};
 use crate::primitives::{
-    Complex, NodeKind, NodeTable, Real, SpiceError, SpiceResult, parse_spice_number,
+    Complex, NodeId, NodeKind, NodeTable, Real, SpiceError, SpiceResult, parse_spice_number,
 };
 
 /// `Sens_Delta` of `cktsens.c`: the relative perturbation.
@@ -314,6 +314,14 @@ enum Probe {
 }
 
 impl Probe {
+    /// The unknowns the output reads.
+    fn rows(&self) -> Vec<usize> {
+        match *self {
+            Self::Voltage { pos, neg } => pos.into_iter().chain(neg).collect(),
+            Self::Current { row } => vec![row],
+        }
+    }
+
     fn read<T: Copy + std::ops::Sub<Output = T>>(&self, x: &[T], zero: T) -> T {
         let at = |row: Option<usize>| row.and_then(|row| x.get(row).copied()).unwrap_or(zero);
         match *self {
@@ -841,6 +849,78 @@ fn blocks(matrix: &SparseMatrix) -> Vec<usize> {
     (0..parent.len()).map(|x| root(&mut parent, x)).collect()
 }
 
+/// `NIacIter` at one frequency: the reset system factored from scratch and
+/// solved.
+fn ac_state<'a>(
+    circuit: &'a Circuit,
+    system: &LinearSystem,
+    omega: Real,
+    model: crate::devices::ModelContext,
+    zeros: &Vector,
+    state: &[Real],
+) -> SpiceResult<AcState<'a>> {
+    // CKTunsetup/CKTsetup make a new circuit matrix (elements in setup
+    // order) and NIacIter reorders it from scratch.
+    let matrix = match circuit.matrix_pattern() {
+        Some(pattern) => ComplexMatrix::from_operators_grouped_on(
+            &pattern,
+            &system.a,
+            &system.e,
+            &system.e_groups,
+            omega,
+        )?,
+        None => None,
+    };
+    let matrix = match matrix {
+        Some(matrix) => matrix,
+        None => {
+            ComplexMatrix::from_operators_grouped(&system.a, &system.e, &system.e_groups, omega)?
+        }
+    };
+    let factors = matrix.factorize_new_matrix()?;
+    let solution = factors.solve(&system.ac_rhs())?;
+    Ok(AcState {
+        omega,
+        factors,
+        solution,
+        model,
+        bias: zeros.clone(),
+        state: state.to_vec(),
+        circuit,
+    })
+}
+
+/// The unknowns in a coupling block of `system` (at `omega`) that holds a
+/// non-finite entry; empty when every entry is finite.
+fn poisoned_rows(system: &LinearSystem, omega: Real) -> std::collections::BTreeSet<usize> {
+    let n = system.a.rows();
+    let mut structure = SparseMatrix::new(n, n);
+    let mut bad = Vec::new();
+    let dynamic = crate::maths::complex::dynamic_terms(&system.e, &system.e_groups, omega);
+    let entries = system
+        .a
+        .triplets()
+        .iter()
+        .map(|t| (t.row, t.col, t.value))
+        .chain(dynamic);
+    for (row, col, value) in entries {
+        if structure.add(row, col, 1.).is_err() {
+            continue;
+        }
+        if !value.is_finite() {
+            bad.push(row);
+        }
+    }
+    if bad.is_empty() {
+        return std::collections::BTreeSet::new();
+    }
+    let blocks = blocks(&structure);
+    let tainted: std::collections::BTreeSet<usize> = bad.iter().map(|&row| blocks[row]).collect();
+    (0..n)
+        .filter(|&row| tainted.contains(&blocks[row]))
+        .collect()
+}
+
 /// The DC state of the analysis: C's operating-point factors and vectors.
 struct DcState<'a> {
     /// The circuit pattern whose last factors (`CKTop`'s final `NIiter`
@@ -1111,8 +1191,12 @@ pub(crate) fn run(
         let state = vec![0.; circuit.state_history().len()];
         for frequency in grid {
             let omega = 2. * std::f64::consts::PI * frequency;
-            // CKTsetup and CKTtemp of the whole circuit in its present
-            // (perturbed and restored) state.
+            // CKTunsetup, then CKTsetup and CKTtemp of the whole circuit in
+            // its present (perturbed and restored) state.
+            for (slot, member) in members.iter().enumerate() {
+                let (model_record, instance_record) = records.pair(member, slot);
+                member.sensitivity.unsetup(model_record, instance_record)?;
+            }
             for (slot, member) in members.iter().enumerate() {
                 let (model_record, instance_record) = records.pair(member, slot);
                 member.sensitivity.setup(model_record, instance_record)?;
@@ -1142,37 +1226,28 @@ pub(crate) fn run(
                     &mut system,
                 )?;
             }
-            // CKTunsetup/CKTsetup make a new circuit matrix (elements in
-            // setup order) and NIacIter reorders it from scratch.
-            let matrix = match circuit.matrix_pattern() {
-                Some(pattern) => ComplexMatrix::from_operators_grouped_on(
-                    &pattern,
-                    &system.a,
-                    &system.e,
-                    &system.e_groups,
-                    omega,
-                )?,
-                None => None,
-            };
-            let matrix = match matrix {
-                Some(matrix) => matrix,
-                None => ComplexMatrix::from_operators_grouped(
-                    &system.a,
-                    &system.e,
-                    &system.e_groups,
-                    omega,
-                )?,
-            };
-            let factors = matrix.factorize_new_matrix()?;
-            let solution = factors.solve(&system.ac_rhs())?;
-            let at = AcState {
-                omega,
-                factors,
-                solution,
-                model,
-                bias: zeros.clone(),
-                state: state.clone(),
-                circuit,
+            // A device whose present records C loads into a non-finite
+            // matrix (BSIM4's TNOM drifting by 273.15 K per frequency, see
+            // `cktsens.c` and `b4mask.c`) poisons NIacIter's solve: every
+            // unknown of a block holding such an entry is NaN, so is every
+            // column read from it, and the walk still perturbs and restores
+            // each parameter. A poisoned block the output does not read
+            // would leave C's other blocks finite; that is refused.
+            let poisoned = poisoned_rows(&system, omega);
+            let probe_poisoned = probe.rows().into_iter().any(|row| poisoned.contains(&row));
+            if !poisoned.is_empty() && !probe_poisoned {
+                return Err(SpiceError::not_yet_ported(
+                    format!(
+                        ".sens ac at {frequency:e} Hz: a non-finite device load in a block \
+                         the output does not read"
+                    ),
+                    "src/spicelib/analysis/cktsens.c (NIacIter on a partly non-finite matrix)",
+                ));
+            }
+            let at = if probe_poisoned {
+                None
+            } else {
+                Some(ac_state(circuit, &system, omega, model, &zeros, &state)?)
             };
             let mut point = vec![Complex::real(frequency)];
             sweep_parameters(
@@ -1194,8 +1269,12 @@ pub(crate) fn run(
                         current,
                     )
                 },
-                |index, base, perturbed, delta| {
-                    numbering.translate(circuit.setup_elements(index)?);
+                |index, elements, base, perturbed, delta| {
+                    numbering.translate(setup_elements(circuit, index, elements)?);
+                    let Some(at) = &at else {
+                        point.push(Complex::new(Real::NAN, Real::NAN));
+                        return Ok(());
+                    };
                     let dx = at.delta(&mut numbering, index, base, perturbed)?;
                     let value = probe.read(&dx, Complex::ZERO);
                     point.push(Complex::new(value.re / delta, value.im / delta));
@@ -1259,8 +1338,8 @@ pub(crate) fn run(
                     .sensitivity
                     .load(setup, current, SensitivityMode::Dc)
             },
-            |index, base, perturbed, delta| {
-                numbering.translate(circuit.setup_elements(index)?);
+            |index, elements, base, perturbed, delta| {
+                numbering.translate(setup_elements(circuit, index, elements)?);
                 let dx = at.delta(&mut numbering, index, base, perturbed)?;
                 point.push(Complex::real(probe.read(&dx, 0.) / delta));
                 Ok(())
@@ -1269,6 +1348,28 @@ pub(crate) fn run(
         plot.push_point(point)?;
     }
     Ok(plot)
+}
+
+/// The elements a member's `DEVsetup` makes on `delta_Y`: its own list for
+/// the present records ([`DeviceSensitivity::setup_elements`]) or the
+/// circuit's setup elements.
+fn setup_elements(
+    circuit: &Circuit,
+    index: usize,
+    elements: Option<Vec<(NodeId, NodeId)>>,
+) -> SpiceResult<Vec<(usize, usize)>> {
+    match elements {
+        Some(pairs) => Ok(pairs
+            .into_iter()
+            .filter_map(|(row, col)| {
+                Some((
+                    circuit.unknowns().node_row(row)?,
+                    circuit.unknowns().node_row(col)?,
+                ))
+            })
+            .collect()),
+        None => circuit.setup_elements(index),
+    }
 }
 
 /// The per-parameter loop of `sens_sens()`: setup, base load, perturbation,
@@ -1281,7 +1382,13 @@ fn sweep_parameters(
     entries: &[Entry],
     couplings: &[Option<Coupling>],
     load: impl Fn(usize, RecordPair<'_>, RecordPair<'_>) -> SpiceResult<SensitivityLoad>,
-    mut measure: impl FnMut(usize, &SensitivityLoad, &SensitivityLoad, Real) -> SpiceResult<()>,
+    mut measure: impl FnMut(
+        usize,
+        Option<Vec<(NodeId, NodeId)>>,
+        &SensitivityLoad,
+        &SensitivityLoad,
+        Real,
+    ) -> SpiceResult<()>,
 ) -> SpiceResult<()> {
     // A device that refuses `.sens` outright keeps its own error class; only a
     // numerical failure is labelled with the parameter that caused it.
@@ -1311,6 +1418,7 @@ fn sweep_parameters(
             model: &snapshot.0,
             instance: &snapshot.1,
         };
+        let elements = device.setup_elements(setup);
         let label = entry
             .name
             .clone()
@@ -1336,9 +1444,11 @@ fn sweep_parameters(
             },
         )
         .map_err(|error| labelled(error, &label, "the perturbed load failed"))?;
-        measure(member.index, &base, &perturbed, delta).map_err(|error| SpiceError::Numerical {
-            context: format!(".sens {label}: {error}"),
-            message: "the perturbed load could not be evaluated".to_owned(),
+        measure(member.index, elements, &base, &perturbed, delta).map_err(|error| {
+            SpiceError::Numerical {
+                context: format!(".sens {label}: {error}"),
+                message: "the perturbed load could not be evaluated".to_owned(),
+            }
         })?;
         device.set(entry.scope, entry.keyword, value, model, instance)?;
         device.temperature(model, instance)?;

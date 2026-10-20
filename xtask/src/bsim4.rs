@@ -28,6 +28,8 @@ pub(crate) fn main(args: &[String]) -> Result<(), String> {
         "b4par.c",
         "b4set.c",
         "b4temp.c",
+        "b4mask.c",
+        "b4ask.c",
     ]
     .map(|name| format!("src/spicelib/devices/bsim4/{name}"));
     let revision = ifparm::revision(&source, &files)?;
@@ -48,7 +50,9 @@ pub(crate) fn main(args: &[String]) -> Result<(), String> {
         &revision,
     )?;
     let fields = crate::bsim4_fields::fields(&read("bsim4def.h")?, &revision)?;
+    let asks = crate::bsim4_fields::asks(&read("b4mask.c")?, &read("b4ask.c")?, &revision)?;
     for (path, text) in [
+        ("src/devices/bsim4/asks.rs", asks),
         ("src/devices/bsim4/parameters.rs", text),
         ("src/devices/bsim4/defaults_data.rs", defaults),
         ("src/devices/bsim4/fields.rs", fields),

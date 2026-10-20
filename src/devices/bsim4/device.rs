@@ -34,19 +34,19 @@ use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError
 
 /// One temperature's setup: the model after `b4set.c` and `b4temp.c`, this
 /// instance after both, and its size-dependent parameters.
-struct Prepared {
-    temperature: Real,
-    nominal: Real,
+pub(super) struct Prepared {
+    pub(super) temperature: Real,
+    pub(super) nominal: Real,
     /// The `.dc @inst[param]` values applied (field, value).
-    swept: Vec<(&'static str, Real)>,
-    model: Model,
-    instance: Instance,
-    size: SizeParam,
+    pub(super) swept: Vec<(&'static str, Real)>,
+    pub(super) model: Model,
+    pub(super) instance: Instance,
+    pub(super) size: SizeParam,
     /// `b4set.c`/`b4temp.c`/`b4check.c` messages, in C order. Kept for
     /// inspection: the port has no channel that reports device warnings
     /// yet (C prints them).
     #[allow(dead_code)]
-    warnings: Vec<String>,
+    pub(super) warnings: Vec<String>,
 }
 
 /// `BSIM4setup`'s result: the model, the instance and the messages so far.
@@ -60,22 +60,22 @@ struct SetUp {
 
 /// One BSIM4 instance.
 pub(crate) struct Bsim4 {
-    name: String,
-    model_name: String,
+    pub(super) name: String,
+    pub(super) model_name: String,
     /// External drain, gate, source, bulk, then the internal nodes in
     /// `b4set.c`'s creation order.
-    terminals: Vec<NodeId>,
+    pub(super) terminals: Vec<NodeId>,
     /// Local node index ([`node`]) to circuit node. Uncreated internal
     /// indices are never looked up: the instance's node fields alias them
     /// to external indices, as in C.
-    nodes: [NodeId; node::COUNT],
+    pub(super) nodes: [NodeId; node::COUNT],
     params: ModelParameters,
     inputs: Inputs,
-    location: SourceLoc,
+    pub(super) location: SourceLoc,
     /// `b4set.c`'s created nodes, fixed at instantiation.
     created: Vec<(i32, &'static str)>,
     /// C's `noiseAnalGiven` at setup.
-    noise_analysis: bool,
+    pub(super) noise_analysis: bool,
     /// `.dc @inst[param]` values (C's `DCTsetInstParam`): `BSIM4param`
     /// stores them after `BSIM4setup`, and `BSIM4temp` follows. Each is the
     /// setter's C field and given bit with its value.
@@ -277,7 +277,7 @@ impl Bsim4 {
 
     /// The setup for these temperatures (and this device's swept values),
     /// rebuilt when C would re-run `BSIM4temp`.
-    fn ensure(&self, temperature: Real, nominal: Real) -> SpiceResult<Rc<Prepared>> {
+    pub(super) fn ensure(&self, temperature: Real, nominal: Real) -> SpiceResult<Rc<Prepared>> {
         let same = |p: &Prepared| {
             p.temperature == temperature
                 && p.nominal == nominal
@@ -323,7 +323,7 @@ impl Bsim4 {
     }
 
     /// The circuit node of a local node index; `None` for ground.
-    fn node_id(&self, local: i32) -> Option<NodeId> {
+    pub(super) fn node_id(&self, local: i32) -> Option<NodeId> {
         if local == node::GROUND {
             return None;
         }
@@ -369,7 +369,7 @@ impl Bsim4 {
     /// C's instance struct for `prepared`: the live one when it already
     /// belongs to it, else `prepared`'s with the members the last load wrote
     /// carried over (C re-runs `BSIM4temp` on its one struct).
-    fn live_copy(&self, prepared: &Rc<Prepared>) -> Instance {
+    pub(super) fn live_copy(&self, prepared: &Rc<Prepared>) -> Instance {
         let Ok(shared) = self.shared.try_borrow() else {
             return prepared.instance.clone();
         };
@@ -386,7 +386,7 @@ impl Bsim4 {
 
     /// C's `MODEINITSMSIG` load at `state0` (the operating point's state
     /// vector), leaving the small-signal values on the returned instance.
-    fn small_signal_point(
+    pub(super) fn small_signal_point(
         &self,
         prepared: &Rc<Prepared>,
         state0: [Real; state::COUNT],
@@ -409,7 +409,7 @@ impl Bsim4 {
 
     /// The `state0` C's last operating-point load leaves, reproduced at a
     /// solution: an unlimited `MODEINITFLOAT` load there.
-    fn state_at(
+    pub(super) fn state_at(
         &self,
         prepared: &Rc<Prepared>,
         voltage: &dyn Fn(NodeId) -> Real,
@@ -427,6 +427,99 @@ impl Bsim4 {
         };
         load::load(&prepared.model, &mut h, &prepared.size, &mut probe)?;
         Ok(probe.s0)
+    }
+}
+
+/// `cktsens.c`'s per-frequency reset load: `CKTsetup` zeroes the state
+/// vectors and the solution, so `BSIM4load` runs (`MODEDCOP |
+/// MODEINITFLOAT`, as `CKTop` left the mode) at all-zero node voltages and
+/// writes its instance members and `CKTstate0` from there. Returns that
+/// `CKTstate0`. Limiting is a no-op there (every voltage and its previous
+/// value are zero).
+pub(super) fn reset_load(
+    nodes: &[NodeId; node::COUNT],
+    model: &Model,
+    h: &mut Instance,
+    size: &SizeParam,
+    temperature: Real,
+    gmin: Real,
+) -> SpiceResult<[Real; state::COUNT]> {
+    let zero = |_: NodeId| 0.;
+    let mut probe = Probe {
+        nodes,
+        voltage: &zero,
+        mode: mode::MODEDCOP | mode::MODEINITFLOAT,
+        limiting: false,
+        gmin,
+        temperature,
+        s0: [0.; state::COUNT],
+    };
+    load::load(model, h, size, &mut probe)?;
+    Ok(probe.s0)
+}
+
+/// `b4acld.c` on explicit structs at `omega`, reading `s0` as `CKTstate0`.
+///
+/// # Errors
+/// As the AC load, or a matrix position out of range.
+#[allow(clippy::too_many_arguments)] // C's load inputs.
+pub(super) fn ac_stamp(
+    context: &mut LinearContext<'_>,
+    nodes: &[NodeId; node::COUNT],
+    omega: Real,
+    s0: [Real; state::COUNT],
+    model: &Model,
+    h: &Instance,
+    size: &SizeParam,
+) -> SpiceResult<()> {
+    let mut host = SmallSignalHost {
+        context,
+        nodes,
+        omega,
+        s0,
+        error: None,
+    };
+    acld::ac_load(model, h, size, &mut host)?;
+    host.error.map_or(Ok(()), Err)
+}
+
+impl Bsim4 {
+    /// A copy of this device whose only setup is `model`/`instance`/`size`
+    /// at `context`'s temperatures, with no load history: a `.sens`
+    /// stand-in that loads exactly those structs (`cktsens.c` loads C's
+    /// structs as its setter, setup and temperature calls left them).
+    pub(super) fn stand_in(
+        &self,
+        model: Model,
+        instance: Instance,
+        size: SizeParam,
+        context: &ModelContext,
+    ) -> Self {
+        let prepared = Prepared {
+            temperature: context.temperature,
+            nominal: context.nominal_temperature,
+            swept: Vec::new(),
+            model,
+            instance,
+            size,
+            warnings: Vec::new(),
+        };
+        Self {
+            name: self.name.clone(),
+            model_name: self.model_name.clone(),
+            terminals: self.terminals.clone(),
+            nodes: self.nodes,
+            params: self.params.clone(),
+            inputs: self.inputs.clone(),
+            location: self.location.clone(),
+            created: self.created.clone(),
+            noise_analysis: self.noise_analysis,
+            swept: Vec::new(),
+            shared: Rc::new(RefCell::new(Shared {
+                setups: vec![Rc::new(prepared)],
+                live: None,
+            })),
+        }
     }
 }
 
@@ -1364,6 +1457,15 @@ impl Device for Bsim4 {
         bias: &crate::maths::Vector,
     ) -> SpiceResult<()> {
         self.assemble(context, bias, true)
+    }
+
+    /// `.sens` (`cktsens.c`): C's generic perturbation of every askable real
+    /// parameter, replayed on C's structs (see [`super::sens`]).
+    fn sensitivity(
+        &self,
+        context: &ModelContext,
+    ) -> SpiceResult<Box<dyn crate::devices::sensitivity::DeviceSensitivity + '_>> {
+        Ok(Box::new(super::sens::Bsim4Sensitivity::new(self, context)?))
     }
 
     /// C's BSIM4 has no `DEVdisto` (`bsim4init.c`): `.disto` sees only its

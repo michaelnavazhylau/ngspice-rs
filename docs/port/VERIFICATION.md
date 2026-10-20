@@ -289,6 +289,8 @@ bit for bit against the FMA-free oracle (`fidelity-tools`). See
   `fnoiMod` 0/1), `.pz` across C's setup re-run, an NQS CMOS transient, a
   `.dc @m1[w]` sweep and a temperature sweep past a check C skips;
   bit-exact on macOS arm64, 1e-9 relative elsewhere.
+- `tests/bsim4_sens.rs`: DC and AC `.sens` columns (941/949 of them on a
+  default card) against C, including C's NaN columns.
 - Unit tests in `set.rs` (all 777 literal defaults), `geo.rs`, `load.rs`
   (`BSIM4polyDepletion`), `acld.rs`/`pzld.rs` (stamp positions per mode)
   and `cvtest.rs`.

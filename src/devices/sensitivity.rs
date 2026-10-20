@@ -52,6 +52,8 @@ pub enum SensitivityFamily {
     Asrc,
     /// `bjt`.
     Bjt,
+    /// `bsim4` (`m` levels 14/54).
+    Bsim4,
     /// `cap`: capacitors.
     Capacitor,
     /// `cccs`: F sources.
@@ -247,6 +249,31 @@ impl SensitivityRecord {
         Ok(())
     }
 
+    /// Every field's value, in record order.
+    #[must_use]
+    pub(crate) fn values(&self) -> Vec<Real> {
+        self.entries.iter().map(|entry| entry.value).collect()
+    }
+
+    /// Stores `values` positionally (record order) without touching the
+    /// *given* flags; `values` must have one entry per field.
+    ///
+    /// # Errors
+    /// A length mismatch.
+    pub(crate) fn store_values(&mut self, values: &[Real]) -> SpiceResult<()> {
+        if values.len() != self.entries.len() {
+            return Err(SpiceError::circuit(format!(
+                "sensitivity record has {} fields, got {} values",
+                self.entries.len(),
+                values.len()
+            )));
+        }
+        for (entry, &value) in self.entries.iter_mut().zip(values) {
+            entry.value = value;
+        }
+        Ok(())
+    }
+
     /// Changes only the *given* flag.
     ///
     /// # Errors
@@ -357,6 +384,27 @@ pub trait DeviceSensitivity: fmt::Debug {
         _instance: &mut SensitivityRecord,
     ) -> SpiceResult<()> {
         Ok(())
+    }
+
+    /// `DEVunsetup`, which `cktsens.c`'s `CKTunsetup` runs on every device
+    /// before each AC frequency's `CKTsetup`. The default does nothing.
+    ///
+    /// # Errors
+    /// An unknown field.
+    fn unsetup(
+        &self,
+        _model: &mut SensitivityRecord,
+        _instance: &mut SensitivityRecord,
+    ) -> SpiceResult<()> {
+        Ok(())
+    }
+
+    /// The `(row, column)` node pairs `DEVsetup` allocates on `delta_Y` for
+    /// the records `setup` left, in `TSTALLOC` order, when they differ from
+    /// the circuit's own setup elements (`b4set.c` re-aliases internal nodes
+    /// when it runs again). `None` (the default) uses the circuit's.
+    fn setup_elements(&self, _setup: RecordPair<'_>) -> Option<Vec<(NodeId, NodeId)>> {
+        None
     }
 
     /// `DEVtemperature`: recomputes the derived fields from the parameters.

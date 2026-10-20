@@ -31,6 +31,7 @@ mod defaults_data;
 // member and local names are kept.
 mod acld;
 mod apply;
+mod asks;
 mod check;
 mod cvtest;
 mod device;
@@ -43,6 +44,7 @@ mod noise;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
 mod pzld;
+mod sens;
 mod set;
 mod temp;
 
