@@ -2,7 +2,8 @@
 //! The five C goldens pin the complete parameter walk, including restoration
 //! side effects that are deliberately not physical central derivatives.
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceResult;
 use std::path::Path;
 

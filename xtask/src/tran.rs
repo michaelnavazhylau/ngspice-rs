@@ -538,7 +538,8 @@ fn collect(
 mod tests {
     use super::*;
     use ngspice_rs::analysis::Variable;
-    use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+    use ngspice_rs::netlist::Parser;
+    use ngspice_rs::netlist::source::parse_deck_text;
     use ngspice_rs::primitives::Complex;
     use std::path::Path;
 

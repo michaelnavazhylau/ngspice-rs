@@ -16,7 +16,9 @@ use ngspice_rs::analysis::{AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::limiting::{critical_voltage, fetlim, limvds, pnjlim};
 use ngspice_rs::devices::{Circuit, ModelContext};
 use ngspice_rs::maths::Vector;
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceResult};
 use std::path::Path;
 

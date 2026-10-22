@@ -238,7 +238,7 @@ fn resolve_input(circuit: &Circuit, name: &str) -> SpiceResult<Input> {
         'v' => {
             let branch = circuit
                 .branch_rows(index)
-                .and_then(|rows| rows.clone().next())
+                .and_then(|mut rows| rows.next())
                 .ok_or_else(|| not_found(format!("{name}: missing branch row")))?;
             Ok(Input::Voltage { branch })
         }

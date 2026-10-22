@@ -13,8 +13,11 @@
 //! legitimately differ by about the accuracy ngspice itself targets. The decks
 //! use `tmax = tau/100` so linear resampling adds far less than that.
 use ngspice_rs::analysis::{AnalysisContext, Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 /// A plot's `name` column at time `t`, linearly interpolated.
 fn at(plot: &Plot, name: &str, t: f64) -> f64 {

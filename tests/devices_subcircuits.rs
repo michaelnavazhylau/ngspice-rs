@@ -10,8 +10,10 @@ use std::sync::Arc;
 
 use ngspice_rs::devices::subckt::{SubcircuitLimits, expand_subcircuits};
 use ngspice_rs::devices::{Circuit, ModelContext, ModelResolver};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
 use ngspice_rs::netlist::eval::ParamScope;
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{Real, SpiceError};
 
 fn deck(body: &str) -> Netlist {

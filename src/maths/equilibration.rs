@@ -14,11 +14,9 @@
 //! Curtis-Reid selections here are independent policies, not a copied solver
 //! or C-option parity claim.
 
-use crate::maths::{
-    DenseLu, Matrix, SparseLu, SparseMatrix, SparseSymbolic, Vector,
-    complex::{ComplexLu, ComplexMatrix},
-    linear::{numerical, square},
-};
+use crate::maths::complex::{ComplexLu, ComplexMatrix};
+use crate::maths::linear::{numerical, square};
+use crate::maths::{DenseLu, Matrix, SparseLu, SparseMatrix, SparseSymbolic, Vector};
 use crate::primitives::{Complex, SpiceResult};
 
 /// Largest absolute exponent of any row or column factor (`2^±512`).
@@ -403,6 +401,7 @@ impl EquilibratedDenseLu {
     }
 
     /// Immutable scaling metadata belonging to this factor snapshot.
+    #[must_use]
     pub fn scaling(&self) -> &Equilibration {
         &self.scaling
     }
@@ -481,6 +480,7 @@ impl EquilibratedSparseLu {
     }
 
     /// Immutable scaling metadata belonging to this factor snapshot.
+    #[must_use]
     pub fn scaling(&self) -> &Equilibration {
         &self.scaling
     }
@@ -555,6 +555,7 @@ impl EquilibratedSparseLu {
     }
 
     /// Reusable symbolic factors for an identical assembled sparse pattern.
+    #[must_use]
     pub fn symbolic(&self) -> &SparseSymbolic {
         self.factor.symbolic()
     }
@@ -634,6 +635,7 @@ impl EquilibratedComplexLu {
     }
 
     /// Immutable scaling metadata belonging to this factor snapshot.
+    #[must_use]
     pub fn scaling(&self) -> &Equilibration {
         &self.scaling
     }

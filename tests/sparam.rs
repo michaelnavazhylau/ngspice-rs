@@ -11,7 +11,8 @@ use std::path::Path;
 
 use ngspice_rs::analysis::batch::schedule;
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex, Real, SpiceError, SpiceResult};
 
 /// Runs every analysis of `deck` in batch order, as `spice-rs simulate` does.

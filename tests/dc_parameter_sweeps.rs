@@ -5,7 +5,8 @@
 use ngspice_rs::analysis::sweep::{ParameterRoute, SweepTarget, resolve};
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
 use ngspice_rs::devices::{Circuit, MAX_INSTANCE_OVERRIDES, ModelContext};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceError, SpiceResult};
 use std::path::Path;
 

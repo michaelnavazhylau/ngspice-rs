@@ -6,8 +6,9 @@ use std::path::Path;
 
 use ngspice_rs::analysis::{Plot, RunConfig, runner};
 use ngspice_rs::devices::Circuit;
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::netlist::writer::write_netlist;
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
 use ngspice_rs::primitives::{Complex, SpiceError};
 
 fn netlist(body: &str) -> Result<ngspice_rs::netlist::ast::Netlist, SpiceError> {

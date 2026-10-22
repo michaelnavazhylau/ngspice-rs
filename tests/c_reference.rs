@@ -7,10 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ngspice_rs::netlist::{
-    Parser,
-    ast::{Netlist, ParameterAssignment, ParameterKind},
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::{Netlist, ParameterAssignment, ParameterKind};
 use ngspice_rs::primitives::{NodeTable, parse_spice_number};
 
 const LINEAR: &str = include_str!("../conformance/parser/linear_sources.cir");

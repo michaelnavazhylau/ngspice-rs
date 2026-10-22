@@ -1,10 +1,12 @@
 //! Scalar measurements: C's two-pass ordering, deck parameters, and atomic errors.
-use ngspice_rs::{
-    analysis::{Plot, PlotFlags, Variable, measure},
-    netlist::{Parser, eval::ParamScope, source::parse_deck_text},
-    primitives::{AnalysisKind, Complex},
-};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::analysis::{Plot, PlotFlags, Variable, measure};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::eval::ParamScope;
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::primitives::{AnalysisKind, Complex};
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn evaluate(body: &str) -> ngspice_rs::primitives::SpiceResult<Vec<measure::Measurement>> {
     let parsed =

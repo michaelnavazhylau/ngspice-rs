@@ -5,7 +5,8 @@
 use std::path::Path;
 
 use ngspice_rs::devices::Circuit;
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{Real, SpiceError, format_spice_number, parse_spice_number};
 
 fn circuit(body: &str) -> Result<Circuit, SpiceError> {

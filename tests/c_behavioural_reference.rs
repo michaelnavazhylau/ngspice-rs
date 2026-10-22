@@ -11,8 +11,11 @@
 //! bias points with `|Rust - C| <= 1e-12 |C| + 1e-15`, tight enough to
 //! resolve `inp_modify_exp()`'s 11-digit literal rounding (the last case).
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 /// The functions under test, as expressions of `v(in)` and `v(b)`.
 const EXPRESSIONS: &[&str] = &[

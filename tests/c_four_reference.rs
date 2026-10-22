@@ -28,7 +28,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use ngspice_rs::analysis::{RunConfig, fourier, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::Real;
 
 /// A 1 kHz square wave (0 -> 1 V) through a 1 kohm / 1 uF lowpass.

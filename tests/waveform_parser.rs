@@ -1,11 +1,9 @@
 //! GitHub #8: numeric source syntax only, not time evaluation/solver parity.
 use std::path::Path;
 
-use ngspice_rs::netlist::{
-    Parser,
-    ast::{Netlist, ParameterKind, SourceWaveform},
-    source::parse_deck_text,
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::{Netlist, ParameterKind, SourceWaveform};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceError};
 
 fn parse(body: &str) -> Result<Netlist, SpiceError> {

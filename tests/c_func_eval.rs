@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ngspice_rs::netlist::{Parser, eval::ParamScope, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::eval::ParamScope;
+use ngspice_rs::netlist::source::parse_deck_text;
 
 struct Scratch(PathBuf);
 impl Drop for Scratch {

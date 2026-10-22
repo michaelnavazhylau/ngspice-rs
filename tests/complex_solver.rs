@@ -1,5 +1,6 @@
 //! Complex assembly and solver guardrails of the SPARSE 1.3 complex LU.
-use ngspice_rs::maths::{SparseMatrix, complex::ComplexMatrix};
+use ngspice_rs::maths::SparseMatrix;
+use ngspice_rs::maths::complex::ComplexMatrix;
 use ngspice_rs::primitives::Complex;
 #[test]
 fn complex_pivoting_snapshot_and_repeated_rhs() {

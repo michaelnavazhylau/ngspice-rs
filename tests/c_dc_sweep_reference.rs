@@ -1,12 +1,11 @@
 //! Opt-in #35 live C checks; no committed oracle data is overwritten.
 use ngspice_rs::analysis::{RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::AnalysisKind;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 struct Cleanup(PathBuf);
 impl Drop for Cleanup {

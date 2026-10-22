@@ -161,7 +161,11 @@ impl ChargeModel<'_> {
     ///
     /// # Errors
     /// A `capMod` other than 3 or any NQS mode (`NotYetPorted` naming the C
-    /// file), missing parameters, or a nonfinite result.
+    /// file), or a nonfinite result.
+    ///
+    /// # Panics
+    /// If a field or parameter this port names is absent from the model or
+    /// instance setup: a schema bug in the port, not a deck error.
     pub fn evaluate(&self, dc: &DcEvaluation, bias: Bias) -> SpiceResult<ChargeEvaluation> {
         let cap_mod = self.cap_mod();
         if cap_mod != 3 {

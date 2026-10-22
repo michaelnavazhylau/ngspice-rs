@@ -2,7 +2,8 @@
 //! C keeps two mutable TXLine snapshots and advances one on the next load.
 //! Here each accepted sample carries the snapshot; trials are pure and a
 //! rejected trial cannot change convolutions, interpolation cursors or history.
-use super::{Txl, pade::Term};
+use super::Txl;
+use super::pade::Term;
 use crate::devices::delay::{DelayContext, DelayHistory, DelayLine, DelayUpdate};
 use crate::primitives::{Complex, Real, SpiceError, SpiceResult};
 #[cfg(test)]

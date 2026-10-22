@@ -7,10 +7,10 @@ use std::path::Path;
 use ngspice_rs::devices::{
     AnalysisMode, Circuit, LoadRequest, ModelContext, MutualInductance, Registry, StorageKind,
 };
-use ngspice_rs::maths::{
-    IntegrationMethod, SparseMatrix, StepHistory, Vector, integrator::DEFAULT_XMU,
-};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::maths::integrator::DEFAULT_XMU;
+use ngspice_rs::maths::{IntegrationMethod, SparseMatrix, StepHistory, Vector};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{SpiceError, SpiceResult};
 
 fn circuit(body: &str) -> SpiceResult<Circuit> {

@@ -8,7 +8,8 @@ use ngspice_rs::devices::{
     TruncationContext,
 };
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{SpiceError, SpiceResult};
 
 fn circuit(body: &str) -> SpiceResult<Circuit> {

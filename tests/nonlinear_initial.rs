@@ -8,7 +8,9 @@
 use ngspice_rs::analysis::bias::{DcOutcome, DcSettings, DcStrategy, NodeForcing, solve_dc_forced};
 use ngspice_rs::analysis::{AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::{Circuit, ModelContext};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceResult};
 use std::path::Path;
 

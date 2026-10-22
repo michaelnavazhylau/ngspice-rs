@@ -2,7 +2,8 @@
 //! Syntax and provenance only: nothing here initializes a circuit.
 use ngspice_rs::netlist::ast::{Netlist, NodeHintValue, ScopedCardKind};
 use ngspice_rs::netlist::elaborate::{SiteKind, literalize};
-use ngspice_rs::netlist::{Parser, semantic_eq, source::parse_deck_text, write_netlist};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, semantic_eq, write_netlist};
 use ngspice_rs::primitives::SpiceError;
 use std::path::Path;
 

@@ -1,5 +1,7 @@
 //! #13 production file API, bounded resolution and source provenance.
-use ngspice_rs::netlist::{Parser, SourceLimits, ast::ScopedCardKind, source::parse_deck_text};
+use ngspice_rs::netlist::ast::ScopedCardKind;
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, SourceLimits};
 use ngspice_rs::primitives::SpiceError;
 use std::fs;
 use std::path::{Path, PathBuf};

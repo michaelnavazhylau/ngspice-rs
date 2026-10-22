@@ -7,9 +7,13 @@ use ngspice_rs::devices::{
     AcceptContext, Capacitor, Circuit, Device, IndependentSource, LinearContext, Resistor,
     StampContext, Waveform,
 };
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex, NodeId, SpiceError, SpiceResult};
-use std::{cell::Cell, path::Path, rc::Rc};
+use std::cell::Cell;
+use std::path::Path;
+use std::rc::Rc;
 
 fn netlist(body: &str) -> Netlist {
     Parser::new()

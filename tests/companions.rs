@@ -3,9 +3,8 @@ use ngspice_rs::devices::{
     AnalysisMode, Capacitor, Circuit, Inductor, LoadRequest, ModelContext, Resistor, StateHistory,
     TrialState,
 };
-use ngspice_rs::maths::{
-    Coefficients, IntegrationMethod, SparseMatrix, StepHistory, Vector, integrator::DEFAULT_XMU,
-};
+use ngspice_rs::maths::integrator::DEFAULT_XMU;
+use ngspice_rs::maths::{Coefficients, IntegrationMethod, SparseMatrix, StepHistory, Vector};
 use ngspice_rs::primitives::{NodeId, SpiceResult};
 
 const TRAP: IntegrationMethod = IntegrationMethod::Trapezoidal;

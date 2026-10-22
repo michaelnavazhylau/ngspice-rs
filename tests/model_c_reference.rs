@@ -1,13 +1,12 @@
 //! Opt-in C setup/model queries; no Rust device simulation is implied.
 use ngspice_rs::devices::{ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const PROBE: &str = include_str!("../conformance/parser/model_schemas.cir");
 

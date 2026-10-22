@@ -974,6 +974,10 @@ impl RunConfig {
     /// # Errors
     /// [`SpiceError::Unsupported`] when the deck's `method`/`maxord` selection
     /// is not available at run time (`IntegrationMethod::validate_runtime`).
+    ///
+    /// # Panics
+    /// If the stored `method`/`maxord` pair no longer parses; deck parsing has
+    /// already validated it.
     pub fn request(&self, mut request: AnalysisRequest) -> SpiceResult<AnalysisRequest> {
         request.squared_noise |= self.squared_noise;
         request.spice3_noise |= self.spice3_noise;

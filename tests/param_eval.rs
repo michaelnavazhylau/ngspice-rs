@@ -1,8 +1,9 @@
 //! #15: ordered `.param` resolution, diagnostics and literalization.
+use ngspice_rs::netlist::Parser;
 use ngspice_rs::netlist::ast::{Netlist, ParameterKind};
 use ngspice_rs::netlist::elaborate::{SiteKind, literalize};
 use ngspice_rs::netlist::eval::{EvalBudget, EvalLimits, ParamBinding, ParamScope, ParamState};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::source::parse_deck_text;
 use std::path::Path;
 use std::sync::Arc;
 

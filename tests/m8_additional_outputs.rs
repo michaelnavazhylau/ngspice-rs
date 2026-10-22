@@ -1,7 +1,10 @@
 //! End-to-end remaining M8 front-end/output behavior.
 use ngspice_rs::analysis::{RawFile, RunConfig};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text, write_netlist};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, write_netlist};
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn simulate(tag: &str, deck: &str) -> (RawFile, String) {
     let dir = std::env::temp_dir().join(format!("m8-output-{}-{tag}", std::process::id()));

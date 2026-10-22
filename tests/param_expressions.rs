@@ -6,12 +6,10 @@
 
 use std::path::Path;
 
-use ngspice_rs::netlist::{
-    Parser,
-    ast::{Netlist, ParameterKind, ScopedCardKind},
-    expr::{BinaryOp, Expr, ExprKind, Function, ParameterExpression, UnaryOp},
-    source::parse_deck_text,
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::{Netlist, ParameterKind, ScopedCardKind};
+use ngspice_rs::netlist::expr::{BinaryOp, Expr, ExprKind, Function, ParameterExpression, UnaryOp};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{SourceLoc, SpiceError, parse_numparam_number};
 
 fn parse(body: &str) -> Result<Netlist, SpiceError> {

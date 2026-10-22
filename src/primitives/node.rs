@@ -142,6 +142,9 @@ impl NodeTable {
     ///
     /// The node starts out as a [`NodeKind::Terminal`]; use
     /// [`NodeTable::set_kind`] to mark simulator-internal nodes.
+    ///
+    /// # Panics
+    /// If the table already holds `u32::MAX` nodes.
     pub fn intern(&mut self, name: &str) -> NodeId {
         let canonical = Self::canonical_name(name, self.auto_gnd);
         if let Some(id) = self.index.get(&canonical) {

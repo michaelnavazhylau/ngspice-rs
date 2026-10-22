@@ -21,7 +21,8 @@ use std::process::Command;
 
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
 use ngspice_rs::devices::Circuit;
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::Real;
 
 struct Cleanup(PathBuf);

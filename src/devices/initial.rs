@@ -93,7 +93,8 @@ pub(crate) fn split(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::netlist::{Parser, source::parse_deck_text};
+    use crate::netlist::Parser;
+    use crate::netlist::source::parse_deck_text;
     use std::path::Path;
 
     fn instance(card: &str) -> Vec<ParameterAssignment> {

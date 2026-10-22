@@ -167,8 +167,12 @@ impl DcModel<'_> {
     /// `gmin` is C's `CKTgmin`, added to both junction conductances.
     ///
     /// # Errors
-    /// Missing internal parameters, or a nonfinite intermediate that C would
-    /// silently propagate into the matrix.
+    /// A nonfinite intermediate that C would silently propagate into the
+    /// matrix.
+    ///
+    /// # Panics
+    /// If a field or parameter this port names is absent from the model or
+    /// instance setup: a schema bug in the port, not a deck error.
     pub fn evaluate(&self, bias: Bias, gmin: Real) -> SpiceResult<DcEvaluation> {
         let p = self.setup;
         let m = self.model;

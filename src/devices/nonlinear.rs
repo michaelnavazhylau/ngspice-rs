@@ -1641,7 +1641,8 @@ impl Device for Diode {
 mod tests {
     use super::*;
     use crate::devices::models::ModelResolver;
-    use crate::netlist::{Parser, source::parse_deck_text};
+    use crate::netlist::Parser;
+    use crate::netlist::source::parse_deck_text;
     use std::path::Path;
 
     fn deck(model: &str, instance: &str) -> crate::netlist::ast::Netlist {

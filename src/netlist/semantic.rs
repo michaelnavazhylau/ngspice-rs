@@ -469,7 +469,7 @@ fn measurement(card: &crate::netlist::ast::MeasureCard) -> crate::netlist::ast::
             for token in &mut card.tokens {
                 token.location = blank();
             }
-            let mut inner = original.clone();
+            let mut inner = original;
             inner.request = *template.clone();
             **template = measurement(&inner).request;
         }

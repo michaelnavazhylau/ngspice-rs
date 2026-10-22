@@ -59,7 +59,11 @@ impl NoiseModel<'_> {
     /// temperature `circuit_kelvin` (C `ckt->CKTtemp`).
     ///
     /// # Errors
-    /// A `noiMod` outside 1..6, missing parameters, or a nonfinite result.
+    /// A `noiMod` outside 1..6, or a nonfinite result.
+    ///
+    /// # Panics
+    /// If a field or parameter this port names is absent from the model or
+    /// instance setup: a schema bug in the port, not a deck error.
     pub fn densities(
         &self,
         dc: &DcEvaluation,

@@ -9,9 +9,8 @@ use ngspice_rs::netlist::ast::{Netlist, NodeHintValue, ParameterKind, ScopedCard
 use ngspice_rs::netlist::elaborate::literalize;
 use ngspice_rs::netlist::eval::{EvalBudget, FunctionScope, ParamScope};
 use ngspice_rs::netlist::expr::ExprKind;
-use ngspice_rs::netlist::{
-    Parser, semantic_diff, semantic_eq, source::parse_deck_text, write_netlist,
-};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, semantic_diff, semantic_eq, write_netlist};
 use ngspice_rs::primitives::SpiceError;
 
 fn parse(body: &str) -> Result<Netlist, SpiceError> {

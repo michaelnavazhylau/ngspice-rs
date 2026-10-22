@@ -1,7 +1,8 @@
 //! Parsed syntax must not silently become runtime support (#8/#10); PULSE/PWL
 //! source waveforms are enabled by #9 and invalid ones fail atomically.
 use ngspice_rs::devices::{Circuit, ModelContext, ModelResolver, Registry};
-use ngspice_rs::netlist::{Parser, RawCard, source::parse_deck_text};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, RawCard};
 use ngspice_rs::primitives::NodeTable;
 use std::path::Path;
 

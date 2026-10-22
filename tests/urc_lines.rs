@@ -7,7 +7,8 @@ use std::path::Path;
 
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
 use ngspice_rs::devices::{Circuit, ModelContext};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Real, SpiceError, SpiceResult};
 
 fn parse(body: &str) -> SpiceResult<ngspice_rs::netlist::ast::Netlist> {

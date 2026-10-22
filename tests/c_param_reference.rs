@@ -14,10 +14,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ngspice_rs::netlist::{
-    Parser,
-    expr::{BinaryOp, Expr, ExprKind, Function, UnaryOp},
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::expr::{BinaryOp, Expr, ExprKind, Function, UnaryOp};
 use ngspice_rs::primitives::SourceLoc;
 
 struct Scratch(PathBuf);

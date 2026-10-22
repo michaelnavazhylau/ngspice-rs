@@ -7,13 +7,12 @@
 //! Run with `NGSPICE_BIN=/absolute/path/to/ngspice cargo test -p
 //! analysis --test c_mutual_inductance -- --ignored`.
 use ngspice_rs::analysis::{AnalysisRequest, Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 struct Scratch(PathBuf);
 impl Scratch {

@@ -1,9 +1,12 @@
 //! Opt-in live C validation. NGSPICE_BIN must name the external reference binary.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, RawFile, runner};
 use ngspice_rs::devices::{Circuit, IndependentSource, Waveform};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex};
-use std::{fs, path::Path, process::Command};
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 /// Runs `body` in C with `v1` replaced by `c_source`, and in Rust with the
 /// equivalent `rust_waveform`, then compares `vectors` on Rust's requested

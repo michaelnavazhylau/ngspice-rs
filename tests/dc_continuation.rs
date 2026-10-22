@@ -14,7 +14,9 @@ use ngspice_rs::devices::{
     AnalysisMode, Circuit, Forcing, Limit, LoadRequest, ModelContext, TransientTiming,
 };
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceError, SpiceResult};
 use std::cell::Cell;
 use std::path::Path;

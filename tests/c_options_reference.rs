@@ -9,8 +9,11 @@
 //! 1 pA, as `xtask::compare::TRAN`). Each test also shows that the option
 //! changes the C result beyond that bound, so agreement is not vacuous.
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 /// Run `cards` (title first, no analysis, no `.end`) in C with the control
 /// `command` and return the first plot of the written rawfile.

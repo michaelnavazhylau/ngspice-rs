@@ -11,7 +11,8 @@ use std::process::Command;
 
 use ngspice_rs::devices::bsim3::{self, charges, dc};
 use ngspice_rs::devices::{ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 
 struct Scratch(PathBuf);
 impl Drop for Scratch {

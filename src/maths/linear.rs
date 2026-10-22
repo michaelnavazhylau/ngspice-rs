@@ -819,6 +819,7 @@ impl SparseLu {
     }
 
     /// Pivot order for subsequent identical-pattern assemblies.
+    #[must_use]
     pub fn symbolic(&self) -> &SparseSymbolic {
         &self.symbolic
     }
@@ -840,6 +841,7 @@ impl SparseLu {
     }
 
     /// `spDeterminant`: `(mantissa, decimal exponent)`.
+    #[must_use]
     pub fn determinant(&self) -> (f64, i32) {
         self.symbolic.sparse.determinant()
     }

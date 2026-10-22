@@ -56,7 +56,10 @@ pub(crate) fn plot(
         // twice, in branch order (`raw_write` strips CKTmkCur's `#branchN`
         // suffix). The MNA rows keep `#branch1`/`#branch2`
         // (`Circuit::unknown_names`), which is what solver diagnostics use.
-        for row in circuit.branch_rows(index).unwrap() {
+        let rows = circuit
+            .branch_rows(index)
+            .expect("a finalized circuit has branch rows for every device ordinal");
+        for row in rows {
             names[row] = Some((format!("i({})", device.name()), "current"));
         }
     }

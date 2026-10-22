@@ -11,7 +11,9 @@ use ngspice_rs::analysis::{
     Plot, PlotFlags, PointSink, RawFile, RawFileWriter, RawFormat, RawPlot, RunConfig, Variable,
     runner,
 };
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{Complex, SpiceError, SpiceResult};
 
 fn deck(body: &str) -> Netlist {

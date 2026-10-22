@@ -1,7 +1,8 @@
 //! M9 front-end cards in subcircuits: preserve syntax, expand per instance.
 use ngspice_rs::analysis::RunConfig;
 use ngspice_rs::devices::subckt::{SubcircuitLimits, expand_with_output};
-use ngspice_rs::netlist::{Parser, elaborate, semantic_eq, source::parse_deck_text, write_netlist};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, elaborate, semantic_eq, write_netlist};
 use std::path::Path;
 
 const DECK: &str = "Scoped frontend

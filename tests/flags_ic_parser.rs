@@ -1,10 +1,8 @@
 //! Exhaustive initial-engine flag/IC grammar table from dio/bjt/mos1 setters.
 //! Accepted syntax does not enable initialization or nonlinear simulation.
-use ngspice_rs::netlist::{
-    Parser,
-    ast::{Netlist, ParameterKind},
-    source::parse_deck_text,
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::{Netlist, ParameterKind};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 use std::path::Path;
 

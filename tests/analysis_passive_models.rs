@@ -1,7 +1,8 @@
 //! Production analysis temperatures and literal/model-backed equivalence.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, runner};
 use ngspice_rs::devices::{Circuit, IndependentSource, Waveform};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex, NodeId, SpiceResult};
 use std::path::Path;
 

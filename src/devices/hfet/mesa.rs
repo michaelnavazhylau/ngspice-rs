@@ -30,9 +30,10 @@ use crate::devices::sensitivity::{
     AcReset, DeviceSensitivity, ParameterScope, RecordPair, SensitivityFamily, SensitivityLoad,
     SensitivityMode, SensitivityParameter, SensitivityRecord,
 };
+use crate::devices::sweep::check_swept;
 use crate::devices::{
     AnalysisMode, Device, DeviceState, IterationPhase, LinearContext, ModelContext, ResolvedModel,
-    StampContext, sweep::check_swept,
+    StampContext,
 };
 use crate::maths::Vector;
 use crate::netlist::ast::DeviceInstance;

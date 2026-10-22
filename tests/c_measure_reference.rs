@@ -19,7 +19,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use ngspice_rs::analysis::{RunConfig, measure, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Real};
 
 /// Removes the temporary directory even when the test fails.

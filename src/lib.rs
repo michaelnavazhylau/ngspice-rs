@@ -53,6 +53,9 @@
 //! [ngspice]: https://ngspice.sourceforge.io/
 
 #![warn(missing_docs)]
+// Production code says why a panic cannot happen (`expect`) or returns an
+// error; `#[cfg(test)]` code is exempt through `clippy.toml`.
+#![warn(clippy::unwrap_used)]
 
 pub mod analysis;
 pub mod cli;
