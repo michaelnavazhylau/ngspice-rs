@@ -7,7 +7,8 @@
 use std::path::Path;
 
 use ngspice_rs::devices::{Circuit, DeviceSupport, Registry};
-use ngspice_rs::netlist::{Parser, RawCard, source::parse_deck_text};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, RawCard};
 use ngspice_rs::primitives::{NodeTable, SpiceError};
 
 /// A deck whose first line is one instance of `designator`.

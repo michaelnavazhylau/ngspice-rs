@@ -5,7 +5,9 @@
 use std::path::Path;
 
 use ngspice_rs::analysis::{RunConfig, runner};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 
 fn run_op(n: &Netlist) -> Result<(RunConfig, String), SpiceError> {

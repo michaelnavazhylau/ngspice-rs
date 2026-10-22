@@ -7,10 +7,10 @@
 //! nodes, as C's default geometry does.
 use std::cell::RefCell;
 
-use super::{
-    ModelParameters, Value, charges, dc, defaults::ModelDefaults, setup::InstanceSetup,
-    temperature::TemperatureModel,
-};
+use super::defaults::ModelDefaults;
+use super::setup::InstanceSetup;
+use super::temperature::TemperatureModel;
+use super::{ModelParameters, Value, charges, dc};
 use crate::devices::models::{ModelContext, ResolvedModel};
 use crate::devices::nonlinear::{JunctionPoint, junction_companion};
 use crate::devices::state::{DeviceState, IterationPhase};

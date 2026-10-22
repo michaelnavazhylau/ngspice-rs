@@ -1,6 +1,8 @@
 //! #16 run configuration: precedence, validation and per-deck isolation.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, RunConfig, RunOverrides, runner};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceError};
 use std::path::Path;
 

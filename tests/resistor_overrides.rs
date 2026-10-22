@@ -6,7 +6,9 @@ use ngspice_rs::devices::{
     MAX_RESISTOR_OVERRIDES, ModelContext, Resistor, ResistorOrigin, Waveform,
 };
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{Complex, NodeId};
 use std::path::Path;
 

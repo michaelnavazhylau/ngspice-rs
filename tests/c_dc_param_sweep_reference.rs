@@ -11,8 +11,11 @@
 //! sweep point up to ~4e-4 from its root) and use the `xtask::compare::NONLINEAR`
 //! bound `1e-6 |C| + 1e-12`.
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn run_c(tag: &str, deck: &str) -> Plot {
     let binary = std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN");

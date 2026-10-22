@@ -406,7 +406,8 @@ impl Registry {
 mod tests {
     use super::{DeviceEntry, DeviceSupport, Registry};
     use crate::devices::traits::Device;
-    use crate::netlist::{RawCard, source::parse_deck_text};
+    use crate::netlist::RawCard;
+    use crate::netlist::source::parse_deck_text;
     use std::path::Path;
 
     fn card(text: &str) -> RawCard {

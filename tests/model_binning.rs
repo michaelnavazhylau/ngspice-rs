@@ -10,8 +10,9 @@ use std::path::Path;
 use ngspice_rs::analysis::RunConfig;
 use ngspice_rs::devices::binning::{BinOptions, model_name_match};
 use ngspice_rs::devices::{Circuit, ModelResolver};
+use ngspice_rs::netlist::Parser;
 use ngspice_rs::netlist::ast::Netlist;
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 
 const BINS: &str = "\

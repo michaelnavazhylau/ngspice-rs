@@ -214,6 +214,9 @@ impl RawFile {
     /// Trailing whitespace in header values is not reproduced, because parsing
     /// trims it. [`RawFile::write`] streams the same bytes to a file without
     /// building them in memory.
+    ///
+    /// # Panics
+    /// Never in practice: writing to a `Vec<u8>` cannot fail and the text is UTF-8.
     #[must_use]
     pub fn to_ascii(&self) -> String {
         let mut bytes = Vec::new();
@@ -263,6 +266,9 @@ impl RawFile {
     /// # Errors
     ///
     /// [`SpiceError::Numerical`] from [`RawFile::validate`].
+    ///
+    /// # Panics
+    /// Never in practice: writing to a `Vec<u8>` cannot fail.
     pub fn to_binary_with(&self, byte_order: BinaryByteOrder) -> SpiceResult<Vec<u8>> {
         self.validate()?;
         let mut bytes = Vec::new();

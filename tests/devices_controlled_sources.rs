@@ -11,7 +11,9 @@ use ngspice_rs::devices::{
     ModelContext, Registry,
 };
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, RawCard, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{Parser, RawCard};
 use ngspice_rs::primitives::{NodeId, Real, SpiceError};
 
 fn deck(body: &str) -> Netlist {

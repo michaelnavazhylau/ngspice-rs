@@ -1,15 +1,14 @@
 //! Opt-in C effective-value queries plus production DC/AC conformance.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RawFile, runner};
 use ngspice_rs::devices::{Circuit, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::AnalysisKind;
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const PROBE: &str = include_str!("../conformance/parser/passive_elaboration.cir");
 struct Scratch(PathBuf);

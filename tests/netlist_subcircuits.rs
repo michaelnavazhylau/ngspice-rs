@@ -1,9 +1,7 @@
 //! #12 syntax/scope tests, not subcircuit elaboration or simulation.
-use ngspice_rs::netlist::{
-    Parser,
-    ast::{Netlist, ParameterKind, ScopedCardKind},
-    source::parse_deck_text,
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::{Netlist, ParameterKind, ScopedCardKind};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 use std::path::Path;
 

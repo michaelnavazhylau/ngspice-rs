@@ -10,8 +10,11 @@
 //! `1e-3 |C| + 1 uV/1 pA`; `tmax` is small enough that resampling contributes
 //! far less than that.
 use ngspice_rs::analysis::{Plot, RawFile, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
-use std::{fs, path::Path, process::Command};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn run_c(tag: &str, deck: &str) -> Plot {
     let binary = std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN");

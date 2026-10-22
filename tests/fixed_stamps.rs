@@ -7,7 +7,8 @@ use std::path::Path;
 
 use ngspice_rs::devices::{AnalysisMode, Circuit, IterationPhase, LoadRequest, ModelContext};
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 
 const CHAIN: &str = "vdd vdd 0 5\nvin n0 0 2\n\
     mn1 n1 n0 0 0 nm w=10u l=1u\nmp1 n1 n0 vdd vdd pm w=20u l=1u\n\

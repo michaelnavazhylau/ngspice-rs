@@ -12,7 +12,8 @@
 //! `CKTmaxStep = 0.9*taul` clamp.
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::Circuit;
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, SpiceError, SpiceResult};
 use std::path::Path;
 

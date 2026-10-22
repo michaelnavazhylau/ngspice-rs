@@ -2,7 +2,8 @@
 //! independent closed forms rather than C. C-golden comparisons of the same
 //! physics (`m7_*` fixtures) live in `xtask golden verify`.
 use ngspice_rs::analysis::{Plot, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use std::path::Path;
 
 const K_OVER_Q: f64 = 1.38064852e-23 / 1.6021766208e-19;

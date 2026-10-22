@@ -10,7 +10,8 @@
 use std::path::Path;
 
 use ngspice_rs::analysis::{AnalysisRequest, Plot, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{Complex, SpiceResult};
 
 /// Runs the deck's only analysis as the CLI does, with `extra` request

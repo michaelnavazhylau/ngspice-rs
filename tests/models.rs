@@ -3,7 +3,9 @@ use ngspice_rs::devices::schema::{
     ScalarDomain, ScalarParameter, ScalarSchema, ScalarUnit, temperature_kelvin,
 };
 use ngspice_rs::devices::{Circuit, ModelContext, ModelFamily, ModelResolver, Registry};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{NodeTable, SourceLoc, SpiceError};
 use std::path::Path;
 

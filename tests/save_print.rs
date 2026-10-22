@@ -2,9 +2,8 @@
 //! frontend half). Nothing here selects vectors; that is
 //! `analysis`'s job (`docs/port/OUTPUT_SELECTION.md`).
 use ngspice_rs::netlist::ast::{OutputCards, RequestedVector, ScopedCardKind, VectorComponent};
-use ngspice_rs::netlist::{
-    ParsedDeck, Parser, semantic_eq, source::parse_deck_text, write_netlist,
-};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{ParsedDeck, Parser, semantic_eq, write_netlist};
 use ngspice_rs::primitives::{AnalysisKind, SpiceError};
 use std::path::Path;
 

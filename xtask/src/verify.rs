@@ -1,7 +1,8 @@
 //! Rust-engine verification against committed C data. Never executes C or
 //! writes a deck/rawfile. Extend the registry only with demonstrated coverage.
 
-use std::{fs, path::Path};
+use std::fs;
+use std::path::Path;
 
 use ngspice_rs::analysis::{AnalysisRequest, RawFile, RunConfig, runner};
 use ngspice_rs::netlist::Parser;

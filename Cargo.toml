@@ -112,6 +112,14 @@ all = "warn"
 dbg_macro = "warn"
 todo = "warn"
 unimplemented = "warn"
+# Google Rust style guide: no glob imports beyond `use super::*` in tests,
+# `# Panics` docs on public fns, `#[must_use]` on pure results. `unwrap_used`
+# is enabled at the library crate root (`src/lib.rs`) rather than here, so the
+# integration-test helpers under `tests/` may keep unwrapping.
+wildcard_imports = "warn"
+enum_glob_use = "warn"
+missing_panics_doc = "warn"
+must_use_candidate = "warn"
 
 [lints]
 workspace = true

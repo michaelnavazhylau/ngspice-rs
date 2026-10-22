@@ -2,7 +2,8 @@
 //! definitions deliberately. Decks that still need preprocessing (`.include`,
 //! `.lib`) stay explicitly unavailable.
 use ngspice_rs::devices::{Circuit, ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use std::path::Path;
 
 #[test]

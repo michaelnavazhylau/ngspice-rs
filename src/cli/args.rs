@@ -281,6 +281,9 @@ EXIT STATUS:
 /// [`crate::primitives::SpiceError::NotYetPorted`] for syntax outside the
 /// parser's current subset, mapped to [`exit_code::NOT_YET_PORTED`].
 /// `simulate` adds the run and rawfile failures of [`crate::cli::simulate::run`].
+///
+/// # Panics
+/// For `simulate` without a netlist, which [`Args::parse`] rules out.
 pub fn run(args: &Args) -> SpiceResult<()> {
     match args.command {
         Command::Help => {
@@ -577,7 +580,8 @@ pub(crate) fn kind_name(kind: Kind) -> &'static str {
 mod tests {
     use super::{Args, Command, analyses_text, cards_text, devices_text, summary_text};
     use crate::devices::Registry;
-    use crate::netlist::{classify_deck, source::parse_deck_text};
+    use crate::netlist::classify_deck;
+    use crate::netlist::source::parse_deck_text;
     use std::path::{Path, PathBuf};
 
     const DECK: &str = "\

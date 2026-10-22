@@ -248,6 +248,7 @@ impl Waveform {
 
     /// Value at time t; left limit is used at a segment's terminating jump.
     /// Returns NaN where [`Waveform::value_at`] would fail; prefer `value_at`.
+    #[must_use]
     pub fn value(&self, t: Real, left_limit: bool) -> Real {
         let limit = if left_limit {
             Limit::Left
@@ -387,6 +388,7 @@ pub struct LinearSystem {
 }
 impl LinearSystem {
     /// Empty assembly for n unknowns.
+    #[must_use]
     pub fn new(n: usize) -> Self {
         Self {
             a: SparseMatrix::new(n, n),

@@ -8,7 +8,8 @@
 //! fails explicitly instead; those cases only check the singular unknown.
 
 use ngspice_rs::analysis::{Plot, RunConfig, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 use std::path::Path;
 

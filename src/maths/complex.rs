@@ -6,11 +6,9 @@
 //! singular pivots and non-finite solutions are errors.
 use std::sync::Arc;
 
-use crate::maths::{
-    SparseMatrix,
-    linear::{PivotTolerances, check_status, numerical, order_fresh, square},
-    sparse13::{Sparse, Status},
-};
+use crate::maths::SparseMatrix;
+use crate::maths::linear::{PivotTolerances, check_status, numerical, order_fresh, square};
+use crate::maths::sparse13::{Sparse, Status};
 use crate::primitives::{Complex, SpiceResult};
 
 /// Contributions of `E` (a range of its unfolded triplets, all at one
@@ -402,6 +400,7 @@ impl ComplexLu {
 
     /// `spDeterminant`: `(mantissa, decimal exponent)`, with C's
     /// `1 <= max(|re|, |im|) < 10` normalization.
+    #[must_use]
     pub fn determinant(&self) -> (Complex, i32) {
         self.sparse.determinant()
     }

@@ -173,6 +173,10 @@ pub fn literalize(netlist: &Netlist) -> SpiceResult<ElaboratedNetlist> {
 ///
 /// # Errors
 /// As [`literalize`].
+///
+/// # Panics
+/// If a literalized analysis argument does not parse as a number, which
+/// literalization guarantees.
 pub fn literalize_with(
     netlist: &Netlist,
     scope: Arc<ParamScope>,

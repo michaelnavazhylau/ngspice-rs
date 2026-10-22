@@ -1,10 +1,11 @@
 //! `mos9` shares level 3's model replay, except for its noise selectors.
 use super::Level9;
+use crate::devices::ModelContext;
 use crate::devices::mos::sens::{INSTANCE, SensitivityLevel};
+use crate::devices::mos3::Level3;
 use crate::devices::sensitivity::{
     SensitivityFamily, SensitivityParameter as P, SensitivityRecord as Record,
 };
-use crate::devices::{ModelContext, mos3::Level3};
 use crate::primitives::{Real, SpiceResult};
 
 impl SensitivityLevel for Level9 {

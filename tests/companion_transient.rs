@@ -14,7 +14,8 @@ use ngspice_rs::devices::{
     AcceptContext, AnalysisMode, Circuit, Device, IndependentSource, LinearContext, StampContext,
     Waveform,
 };
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, NodeId, SpiceError, SpiceResult};
 
 fn circuit(body: &str) -> Circuit {

@@ -3,7 +3,9 @@
 
 use std::path::Path;
 
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 
 fn parse(card: &str) -> Result<Netlist, SpiceError> {

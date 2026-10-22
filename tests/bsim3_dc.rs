@@ -4,7 +4,8 @@ use std::path::Path;
 
 use ngspice_rs::devices::bsim3::{self, dc};
 use ngspice_rs::devices::{ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 
 fn evaluate(card: &str, instance: &str, bias: dc::Bias) -> dc::DcEvaluation {
     let text = format!("dc\nm1 d g 0 0 nn {instance}\n.model nn nmos level=8 {card}\n.end\n");

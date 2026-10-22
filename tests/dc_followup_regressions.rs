@@ -5,7 +5,8 @@ use ngspice_rs::analysis::bias::{
 use ngspice_rs::analysis::sweep::{SweepSpec, SweepTarget};
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, RunConfig, runner};
 use ngspice_rs::devices::{Circuit, ModelContext};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::AnalysisKind;
 use std::path::Path;
 

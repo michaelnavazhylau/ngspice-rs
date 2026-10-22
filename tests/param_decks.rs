@@ -1,7 +1,9 @@
 //! #15: top-level `.param` decks produce the same results as literal decks
 //! through the production RunConfig/Circuit/runner APIs.
 use ngspice_rs::analysis::{RunConfig, runner};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 use std::path::Path;
 

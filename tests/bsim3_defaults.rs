@@ -1,9 +1,11 @@
 //! Offline BSIM3 model-default behavior. Simulation and geometry checks remain pending.
 use std::path::Path;
 
-use ngspice_rs::devices::bsim3::{self, defaults::ModelDefaults};
+use ngspice_rs::devices::bsim3;
+use ngspice_rs::devices::bsim3::defaults::ModelDefaults;
 use ngspice_rs::devices::{ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 
 fn model(card: &str, family: &str) -> ModelDefaults {
     let text =

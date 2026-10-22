@@ -8,7 +8,8 @@ use std::path::Path;
 use ngspice_rs::analysis::{Plot, RunConfig, runner};
 use ngspice_rs::devices::noise::{BOLTZMANN, CHARGE};
 use ngspice_rs::devices::{Circuit, Device, LinearContext, StampContext};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{NodeId, SpiceResult};
 
 const KELVIN: f64 = 300.15;

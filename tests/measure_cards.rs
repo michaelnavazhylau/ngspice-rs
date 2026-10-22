@@ -5,9 +5,8 @@ use ngspice_rs::netlist::ast::{
     MeasureCard, MeasureEvent, MeasureRequest, MeasureStatistic, MeasureTransition,
     RequestedVector, ScopedCardKind,
 };
-use ngspice_rs::netlist::{
-    ParsedDeck, Parser, semantic_eq, source::parse_deck_text, write_netlist,
-};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{ParsedDeck, Parser, semantic_eq, write_netlist};
 use ngspice_rs::primitives::{AnalysisKind, SpiceError};
 use std::path::Path;
 

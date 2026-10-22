@@ -31,8 +31,9 @@
 //! phase itself (`PTF`) is rejected at instantiation, so the delayed `vbe`
 //! control equals `vbe`.
 
+use crate::devices::distortion::deriv::Dderivs;
 use crate::devices::distortion::{
-    Control, DeviceDistortion, DistortionContext, DistortionTerm, Response, Taylor, deriv::Dderivs,
+    Control, DeviceDistortion, DistortionContext, DistortionTerm, Response, Taylor,
 };
 use crate::primitives::{Real, SpiceError, SpiceResult};
 

@@ -560,7 +560,8 @@ pub fn add_products(
 
 #[cfg(test)]
 mod tests {
-    use super::{Taylor, deriv::Dderivs};
+    use super::Taylor;
+    use super::deriv::Dderivs;
 
     /// A variable at `value` (C's `d_p` with its value set).
     fn var(index: usize, value: f64) -> Dderivs {

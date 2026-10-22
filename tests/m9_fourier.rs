@@ -1,11 +1,12 @@
 //! Explicit Fourier settings on analytic traces and C's exact saved sample grid.
-use ngspice_rs::analysis::{
-    Plot, PlotFlags, Variable,
-    fourier::{self, FourierSettings},
-};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::analysis::fourier::FourierSettings;
+use ngspice_rs::analysis::{Plot, PlotFlags, Variable, fourier};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex};
-use std::{fs, path::Path, process::Command};
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn cards() -> Vec<ngspice_rs::netlist::ast::FourierCard> {
     Parser::new()

@@ -1,9 +1,7 @@
 //! #16 `.option`/`.global` syntax: positions, order, duplicates and failures.
-use ngspice_rs::netlist::{
-    Parser,
-    ast::{Netlist, ScopedCardKind},
-    source::parse_deck_text,
-};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::{Netlist, ScopedCardKind};
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 use std::path::Path;
 

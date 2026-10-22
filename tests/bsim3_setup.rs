@@ -2,9 +2,12 @@
 //! These validate setup formulas, not a simulated device.
 use std::path::Path;
 
-use ngspice_rs::devices::bsim3::{self, Diagnostic, setup::InstanceSetup};
+use ngspice_rs::devices::bsim3;
+use ngspice_rs::devices::bsim3::Diagnostic;
+use ngspice_rs::devices::bsim3::setup::InstanceSetup;
 use ngspice_rs::devices::{ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 
 fn setup(card: &str, instance: &str, temperature: f64) -> InstanceSetup {

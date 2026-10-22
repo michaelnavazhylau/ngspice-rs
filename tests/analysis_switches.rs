@@ -12,7 +12,8 @@ use ngspice_rs::analysis::newton::{NewtonOptions, PhasePolicy, solve_phased};
 use ngspice_rs::analysis::{AnalysisContext, AnalysisRequest, Plot, RunConfig, runner};
 use ngspice_rs::devices::{Circuit, IterationPhase, StateHistory};
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Real, SpiceResult};
 
 fn circuit(body: &str) -> SpiceResult<Circuit> {

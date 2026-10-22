@@ -1,7 +1,8 @@
 //! PULSE/PWL source binding, C defaults, left/right limits and lazy breakpoints
 //! through the production deck -> circuit -> linear-system path (#9).
 use ngspice_rs::devices::{Circuit, Limit, LinearSystem, TransientTiming, Waveform};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use std::f64::consts::PI;
 use std::path::Path;
 

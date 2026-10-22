@@ -1,13 +1,14 @@
 //! Scalar linear-device elaboration; unsupported parameters never disappear.
+use crate::devices::rlc::ResistorNoise;
 use crate::devices::{
     AmSpec, Capacitor, Device, ExpSpec, FunctionSpec, IndependentSource, Inductor, PulseSpec,
-    PwlSource, Resistor, SffmSpec, SineSpec, Waveform, rlc::ResistorNoise,
+    PwlSource, Resistor, SffmSpec, SineSpec, Waveform,
+};
+use crate::netlist::ast::{
+    DeviceInstance, ParameterKind, PositionedValue, SourceFunction, SourceWaveform,
 };
 use crate::netlist::source::{Deck, LogicalLine};
-use crate::netlist::{
-    Parser, RawCard,
-    ast::{DeviceInstance, ParameterKind, PositionedValue, SourceFunction, SourceWaveform},
-};
+use crate::netlist::{Parser, RawCard};
 use crate::primitives::{
     Complex, NodeKind, NodeTable, Real, SourceLoc, SpiceError, SpiceResult, parse_spice_number,
 };

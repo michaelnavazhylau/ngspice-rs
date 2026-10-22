@@ -8,7 +8,8 @@ use ngspice_rs::devices::{
 };
 use ngspice_rs::maths::integrator::{Coefficients, DEFAULT_XMU, IntegrationMethod, StepHistory};
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, NodeKind};
 use std::path::Path;
 

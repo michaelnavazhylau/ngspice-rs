@@ -91,7 +91,7 @@ fn body(input: &mut Input<'_>, instance: &Token) -> Result<ParsedCard> {
     };
     if parameters.len() < 2 {
         return Err(ErrMode::Cut(Failure(SpiceError::parse(
-            coupling.location.clone(),
+            coupling.location,
             "a K card couples at least two inductors before its coupling coefficient",
         ))));
     }

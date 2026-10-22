@@ -6,7 +6,8 @@ use ngspice_rs::devices::{
 };
 use ngspice_rs::maths::integrator::{DEFAULT_XMU, IntegrationMethod, StepHistory};
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::AnalysisKind;
 use std::path::Path;
 const VT: f64 = (1.38064852e-23 / 1.6021766208e-19) * 300.15;

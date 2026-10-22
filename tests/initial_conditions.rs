@@ -13,7 +13,8 @@ use ngspice_rs::devices::{
     AcceptContext, AnalysisMode, Circuit, Device, IndependentSource, LinearContext, StampContext,
     Waveform,
 };
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex, NodeId, SpiceError, SpiceResult};
 
 fn parse(deck: &str) -> ngspice_rs::netlist::ast::Netlist {

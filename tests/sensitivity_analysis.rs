@@ -8,7 +8,8 @@
 use std::path::Path;
 
 use ngspice_rs::analysis::{Plot, PlotFlags, RunConfig, batch, runner};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{AnalysisKind, Complex, SpiceResult};
 
 /// Every analysis of `body` in ngspice batch order, each on a fresh circuit.

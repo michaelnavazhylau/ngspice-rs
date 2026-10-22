@@ -28,7 +28,8 @@ use std::process::Command;
 
 use ngspice_rs::analysis::{AnalysisContext, Plot, RawFile, RunConfig, fourier, runner};
 use ngspice_rs::devices::{Circuit, Limit, SourceKind, TransientTiming};
-use ngspice_rs::netlist::{Parser, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::Real;
 
 /// Each source drives node `n<k>`; I sources (`n<k>` to ground) pull current

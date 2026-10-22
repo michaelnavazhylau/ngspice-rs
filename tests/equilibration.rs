@@ -1,7 +1,7 @@
 //! Opt-in equilibration: physical units, certified rank and failure policies.
+use ngspice_rs::maths::equilibration::MAX_SCALING_EXPONENT;
 use ngspice_rs::maths::{
     EquilibratedComplexLu, EquilibratedDenseLu, EquilibratedSparseLu, Matrix, SparseMatrix, Vector,
-    equilibration::MAX_SCALING_EXPONENT,
 };
 use ngspice_rs::primitives::Complex;
 

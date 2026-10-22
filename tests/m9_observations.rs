@@ -1,10 +1,10 @@
 //! Device observations at solver points, checked by C goldens and analytic KCL.
-use ngspice_rs::{analysis::RawFile, cli::simulate, primitives::Complex};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use ngspice_rs::analysis::RawFile;
+use ngspice_rs::cli::simulate;
+use ngspice_rs::primitives::Complex;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("conformance/observations")
 }

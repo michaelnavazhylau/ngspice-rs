@@ -4,7 +4,9 @@ use ngspice_rs::devices::{
     StampContext,
 };
 use ngspice_rs::maths::{SparseMatrix, Vector};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::{NodeId, SpiceError};
 use std::path::Path;
 
@@ -395,7 +397,8 @@ fn unused_models_and_unknown_setters_cannot_disappear_behind_supported_instances
 #[test]
 fn model_backed_capacitors_and_inductors_own_companion_state() {
     use ngspice_rs::devices::LoadRequest;
-    use ngspice_rs::maths::{IntegrationMethod, StepHistory, integrator::DEFAULT_XMU};
+    use ngspice_rs::maths::integrator::DEFAULT_XMU;
+    use ngspice_rs::maths::{IntegrationMethod, StepHistory};
     let n = deck("c1 a 0 cmod l=2 w=1\nl1 a 0 lmod\n.model cmod c(cj=1u)\n.model lmod l(ind=1m)");
     let circuit = Circuit::from_netlist(&n).unwrap();
     assert_eq!(circuit.state_rows(0), Some(0..2));

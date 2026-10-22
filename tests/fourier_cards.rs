@@ -4,9 +4,8 @@
 use ngspice_rs::netlist::ast::{
     DEFAULT_HARMONICS, FourierCard, MAX_HARMONICS, RequestedVector, ScopedCardKind, VectorComponent,
 };
-use ngspice_rs::netlist::{
-    ParsedDeck, Parser, semantic_eq, source::parse_deck_text, write_netlist,
-};
+use ngspice_rs::netlist::source::parse_deck_text;
+use ngspice_rs::netlist::{ParsedDeck, Parser, semantic_eq, write_netlist};
 use ngspice_rs::primitives::{AnalysisKind, SpiceError};
 use std::path::Path;
 
