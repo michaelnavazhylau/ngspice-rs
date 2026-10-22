@@ -317,8 +317,10 @@ changed), all under `compare::NONLINEAR`, `compare::TRAN`,
 - BSIM3v3.3 `capMod=3`: `m11_bsim3_{op,dc,ac,tran}`. They exposed three
   BSIM3 gaps, now fixed: the missing `BSIM3convTest` and `BSIM3trunc`, and a
   `MODEINITPRED` that limited the previous iterate instead of `DEVpred`'s
-  extrapolation (and treated `MODEINITTRAN` the same). The transient deck
-  runs at `reltol=1e-5` because BSIM3 is not bit-exact (see BSIM.md).
+  extrapolation (and treated `MODEINITTRAN` the same). Since #193 BSIM3 is
+  translated statement by statement and all four decks are bit-exact against
+  the FMA-free oracle; `m11_bsim3_tran` was recaptured at default tolerances
+  (234 points; it ran at `reltol=1e-5` before, see BSIM.md).
 
 `golden verify` now projects the port's plots onto C's default save set by
 `outitf.c`'s own rule (internal nodes named `#internal`, `#source`, `#drain`,

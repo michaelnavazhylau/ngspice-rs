@@ -418,18 +418,20 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(d)", 32, 1.692970310646259e-01, 9.061249795633831e-02),
         ],
     },
-    // BSIM3v3.3 (#90). The inverter output starts high with the input low
-    // and is high again at 4 ns, after one full input period.
+    // BSIM3v3.3 (#90, #193: default tolerances). The inverter output starts
+    // high with the input low and is high again at 4 ns, after one full input
+    // period (76 uV above vdd, still settling from the input's fall at
+    // 3.3 ns).
     Expectation {
         fixture: "m11_bsim3_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
-        points: 374,
+        points: 234,
         variables: &["time", "v(dd)", "v(in)", "v(o)", "i(vdd)", "i(vin)"],
         values: &[
             ("v(o)", 0, 1.799999997287171e+00, 0.),
-            ("time", 373, 4.000000000000000e-09, 0.),
-            ("v(o)", 373, 1.799996668289088e+00, 0.),
+            ("time", 233, 4.000000000000000e-09, 0.),
+            ("v(o)", 233, 1.800075541265139e+00, 0.),
         ],
     },
     // BSIM4 (#90). (1.2 - v(d2))/5 kOhm = 172.3 uA flows through m2 and

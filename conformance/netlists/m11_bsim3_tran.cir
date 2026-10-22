@@ -1,7 +1,6 @@
 BSIM3v3.3 CMOS inverter: transient
-* #90: capmod=3 charges through the companion driver. RELTOL 1e-5: the
-* BSIM3 port is not C's operation order, so at the default tolerance its
-* step sequence drifts from C's on the flat input (#193).
+* #90: capmod=3 charges through the companion driver, at default
+* tolerances (#193: the port follows b3ld.c's operation order).
 vdd dd 0 1.8
 vin in 0 pulse(0 1.8 0.2n 50p 50p 1n 2n)
 mp o in dd dd p3 l=0.18u w=4u ad=2e-12 as=2e-12 pd=6u ps=6u
@@ -29,6 +28,5 @@ c1 o 0 10f
 + kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10
 + cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1
 + cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5
-.options reltol=1e-5
 .tran 20p 4n
 .end
