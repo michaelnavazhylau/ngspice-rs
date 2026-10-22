@@ -68,9 +68,10 @@ fn device_state_and_observations_expose_the_c_quantities() {
     let device = circuit.device("m1").expect("m1");
     assert_eq!(device.designator(), 'm');
     assert_eq!(device.terminals().len(), 4);
-    // The DC block plus C's charge slots (`qg`/`cqg`, `qb`/`cqb`, `qd`/`cqd`,
-    // `qbs`, `qbd`, `qinv`).
-    assert_eq!(device.state_count(), 28);
+    // C's `BSIM3numStates` (`bsim3def.h`): the four voltages, the
+    // `qb`/`qg`/`qd` charges and their currents, `qbs`, `qbd`, the NQS
+    // `qcheq`/`qcdump` pairs and `qdef`.
+    assert_eq!(device.state_count(), 17);
     assert!(device.is_nonlinear());
     assert!(!device.has_start_settings());
 
@@ -103,9 +104,10 @@ fn device_state_and_observations_expose_the_c_quantities() {
         .unwrap();
     assert!(id > 0. && gm > 0.);
     assert!(vth > 1.0 && vth < 3.0, "{vth}");
-    // The charge block's asks are available at `capMod=3`; the derivative
-    // states (`cqg`/`cqb`/`cqd`) and the junction charges are not in C's
-    // instance parameter table, so they are not askable.
+    // The charge block's asks are available at `capMod=3`. The charge
+    // currents `cqg`/`cqb`/`cqd` are output rows of C's instance table (zero
+    // at an operating point, as C prints them); the junction charges are not
+    // in the table, so they are not askable.
     let ask = |name: &str| {
         device
             .observation_operating(name, &context, &voltage, false)
@@ -126,7 +128,10 @@ fn device_state_and_observations_expose_the_c_quantities() {
     }
     assert_eq!(ask("capbd"), Some(0.0));
     assert_eq!(ask("capbs"), Some(0.0));
-    for unavailable in ["cqg", "cqb", "cqd", "qbs", "qbd", "nonsense"] {
+    for current in ["cqg", "cqb", "cqd"] {
+        assert_eq!(ask(current), Some(0.0), "{current}");
+    }
+    for unavailable in ["qbs", "qbd", "nonsense"] {
         assert!(ask(unavailable).is_none(), "{unavailable}");
     }
 }

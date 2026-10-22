@@ -1,12 +1,17 @@
-//! BSIM3v3.3 input plumbing (B3-0 foundation, #90).
+//! BSIM3v3.3 (`bsim3/`, levels 8 and 49): the generated input schema and a
+//! statement-by-statement port of C's setup, temperature, check, load,
+//! small-signal, pole-zero, noise and convergence routines.
 //!
-//! This is deliberately **not a simulation backend**. The generated IFparm
-//! interface facts cover the complete model/instance tables; the validated
-//! projection applies ordered explicit setters and preserves provenance, and
-//! [`defaults`], [`temperature`] and [`setup`] reproduce `b3set.c`/`b3temp.c`
-//! defaults and `b3check.c` diagnostics, including effective geometry. Every
-//! factory call still returns `NotYetPorted` after validation, before interning
-//! nodes, allocating states or loading DC/AC/charge terms.
+//! The C-shaped modules keep C's struct members (`fields.rs`, generated from
+//! `bsim3def.h`) and see the circuit through `host.rs`; `device.rs` wires
+//! them into the solver. The `m11_bsim3_*` goldens are bit-exact against an
+//! FMA-free build of the reference ngspice (`docs/port/BSIM.md`).
+//!
+//! [`defaults`], [`temperature`], [`setup`], [`dc`] and [`charges`] expose
+//! the same C structs by keyword for inspection and differential tests.
+//!
+//! BSIM3 was developed by the UC Berkeley BSIM Research Group; the translated
+//! files follow the upstream Modified BSD notice (see `NOTICE` and `COPYING`).
 
 use crate::devices::ifparam::{Device, descriptor, version_text};
 use crate::devices::models::{ModelFamily, ResolvedModel};
@@ -17,6 +22,15 @@ use crate::primitives::{Real, SourceLoc, SpiceError, SpiceResult};
 pub use crate::devices::ifparam::{
     Access, AppliedParameter, Diagnostic, InputType, Inputs, Parameter, Value,
 };
+
+/// The generated literal model defaults in C setup order (`b3set.c`).
+///
+/// Generated from `b3set.c`'s given-guarded literal assignments, which
+/// `set.rs` reproduces in C order (a unit test there checks they agree).
+#[must_use]
+pub fn literal_defaults() -> &'static [(&'static str, f64)] {
+    defaults_data::LITERALS
+}
 
 /// The BSIM3v3.3 interface descriptor the shared input plumbing uses.
 pub(crate) const DEVICE: Device = Device {
@@ -54,21 +68,34 @@ fn bsim3_model_real(p: &Parameter, value: Real, location: &SourceLoc) -> SpiceRe
     }
 }
 
-/// DC channel and junction evaluation from `b3ld.c`.
+/// `b3ld.c`'s charge block at one bias.
 pub mod charges;
+/// `b3ld.c` evaluated at one bias.
 pub mod dc;
 /// Model-only setup defaults and diagnostics, before geometry/temperature setup.
 pub mod defaults;
 mod defaults_data;
-/// The device: `b3ld.c`'s DC load wired into the solver.
-pub mod device;
-/// BSIM3v3.3 noise generators from `b3noi.c`.
-pub mod noise;
+// The C-shaped port. These modules follow their C files statement by
+// statement over C's own struct members (`fields.rs`, generated from
+// `bsim3def.h`), so C's mixed-case member and local names are kept.
+mod acld;
+mod apply;
+mod check;
+mod cvtest;
+mod device;
+mod elements;
+mod fields;
+mod host;
+mod load;
+mod noi;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
+mod pzld;
+mod set;
 /// Effective geometry, size-dependent parameters and `b3check.c` diagnostics.
 pub mod setup;
 mod size_data;
+mod temp;
 /// Model-level temperature processing from `b3temp.c`.
 pub mod temperature;
 

@@ -40,6 +40,28 @@ and supporting documentation:
   software for any purpose.  It is provided `as is', without express
   or implied warranty.
 
+`src/devices/bsim3/` is a Rust translation of the BSIM3v3.3.0 model as
+distributed in ngspice's `src/spicelib/devices/bsim3/` (`b3set.c`, `b3temp.c`,
+`b3check.c`, `b3ld.c`, `b3acld.c`, `b3pzld.c`, `b3noi.c`, `b3cvtest.c`,
+`b3getic.c`, `b3trunc.c`), followed statement by statement so that its results
+match C's bit for bit, under the Modified BSD terms reproduced in COPYING. The
+upstream files carry this attribution:
+
+  Copyright 2004 Regents of the University of California. All rights reserved.
+  Author: 1991 JianHui Huang and Min-Chie Jeng.
+  Author: 1995 Min-Chie Jeng and Mansun Chan; Gary W. Ng (b3noi.c).
+  Modified by Mansun Chan (1995).
+  Author: 1997-1999 Weidong Liu.
+  Author: 2001 Xuemei Xi.
+  Modified by Xuemei Xi, 10/05, 12/14, 12/21, 2001 and 07/29/2005.
+  Modified by Dietmar Warning, 12/21/2020 (b3check.c).
+
+The translation modifies the originals: C's pointers, `CKTcircuit` access and
+matrix pointers are replaced by the port's own interfaces
+(`src/devices/bsim3/host.rs`). The generated interface tables
+(`parameters.rs`, `defaults_data.rs`, `size_data.rs`, `fields.rs`) record
+names, identifiers and literal defaults only.
+
 `src/devices/bsim4/` is a Rust translation of the BSIM4 4.8.3 model as
 distributed in ngspice's `src/spicelib/devices/bsim4/` (`b4set.c`, `b4temp.c`,
 `b4check.c`, `b4geo.c`, `b4ld.c`, `b4acld.c`, `b4pzld.c`, `b4noi.c`,

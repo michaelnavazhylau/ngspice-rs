@@ -1,6 +1,9 @@
 //! Opt-in differential test of the BSIM3 DC core against C's `b3ask.c`
 //! operating-point values. C supplies the converged internal bias, so this
-//! isolates the load physics from solver wiring that does not exist yet.
+//! separates DC/setup arithmetic from Newton iteration and stamping.
+//! The port is `b3ld.c` statement by statement, so against the FMA-free
+//! oracle (`fidelity-tools/README.md`) the ULP diagnostics are zero; an
+//! ordinary FMA build differs in the last bits.
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -42,12 +45,8 @@ struct Case {
     vds: f64,
 }
 
-#[test]
-#[ignore = "requires absolute NGSPICE_BIN; differential BSIM3 DC core comparison"]
-fn dc_core_matches_c_at_c_converged_bias() {
-    let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
-    assert!(binary.is_absolute());
-    let cases = [
+fn cases() -> [Case; 19] {
+    [
         Case {
             card: "",
             instance: "l=1u w=10u",
@@ -160,8 +159,37 @@ fn dc_core_matches_c_at_c_converged_bias() {
             vgs: 0.9,
             vds: -0.5,
         },
-    ];
-    for (index, case) in cases.iter().enumerate() {
+        // Measured Weff < 2e-8 continuation cases (T0 *= T0 * 4e-16).
+        Case {
+            card: "dwg=5.66336256480132049e-08 dwb=4.43519864619213457e-08 pvag=-5.68213123122809236e+01",
+            instance: "l=0.5u w=0.1u",
+            temp: 27.,
+            vgs: 3.436745739803129,
+            vds: 0.6881263962794837,
+        },
+        Case {
+            card: "dwg=1.20659197801292422e-07 dwb=7.47031727728139807e-08 pvag=-7.74709299330928047e+01",
+            instance: "l=0.5u w=0.1u",
+            temp: 27.,
+            vgs: 3.6179029802691343,
+            vds: 0.6768355065674198,
+        },
+        Case {
+            card: "dwg=1.59970859961868845e-07 dwb=3.86054572048661918e-08 pvag=-3.75168453234650912e+01",
+            instance: "l=0.5u w=0.1u",
+            temp: 27.,
+            vgs: 3.8839522040476044,
+            vds: 0.6349801391395405,
+        },
+    ]
+}
+
+#[test]
+#[ignore = "requires absolute NGSPICE_BIN; differential BSIM3 DC core comparison"]
+fn dc_core_matches_c_at_c_converged_bias() {
+    let binary = PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
+    assert!(binary.is_absolute());
+    for (index, case) in cases().iter().enumerate() {
         let polarity = 1.0;
         let vgs = case.vgs * polarity;
         let vds = case.vds * polarity;
@@ -236,6 +264,10 @@ fn run_case(binary: &Path, index: usize, case: &Case, vgs: f64, vds: f64, family
 
     let compare = |name: &str, rust: f64| {
         let c = asks[name];
+        eprintln!(
+            "DC_ULP case={index} family={family} ask={name} ulp={} rust={rust:.17e} c={c:.17e}",
+            rust.to_bits().abs_diff(c.to_bits())
+        );
         let tolerance = 1e-9 * c.abs().max(rust.abs()) + 1e-16;
         assert!(
             (rust - c).abs() <= tolerance,

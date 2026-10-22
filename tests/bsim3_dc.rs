@@ -8,7 +8,11 @@ use ngspice_rs::netlist::Parser;
 use ngspice_rs::netlist::source::parse_deck_text;
 
 fn evaluate(card: &str, instance: &str, bias: dc::Bias) -> dc::DcEvaluation {
-    let text = format!("dc\nm1 d g 0 0 nn {instance}\n.model nn nmos level=8 {card}\n.end\n");
+    evaluate_family("nmos", card, instance, bias)
+}
+
+fn evaluate_family(family: &str, card: &str, instance: &str, bias: dc::Bias) -> dc::DcEvaluation {
+    let text = format!("dc\nm1 d g 0 0 nn {instance}\n.model nn {family} level=8 {card}\n.end\n");
     let netlist = Parser::new()
         .parse_deck(&parse_deck_text(Path::new("dc.cir"), &text))
         .unwrap();
@@ -162,4 +166,58 @@ fn ask_keywords_read_the_evaluated_values() {
     // `cbs`/`cbd` are capacitances in C, so they are not DC asks.
     assert_eq!(d.ask("cbs"), None);
     assert_eq!(d.ask("cgg"), None);
+}
+
+#[test]
+fn narrow_weff_continuation_preserves_c_product_grouping() {
+    // Values from b3ld.c's DC statements at ngspice
+    // 059066b532f7073fccf4173ef269309eafdc7f0c (Apple clang 21.0.0, arm64
+    // macOS, -O2 -ffp-contract=off), at C's exact converged internal biases.
+    // They pin the narrow-Weff (`T0 *= T0 * 4e-16`) continuation, which the
+    // statement-by-statement load reproduces. On other libm platforms retain
+    // a tight numerical check.
+    let cases = [
+        (
+            "dwg=5.66336256480132049e-08 dwb=4.43519864619213457e-08 pvag=-5.68213123122809236e+01",
+            3.436745739803129,
+            0.6881263962794835,
+            [
+                [6.559413161624127e-7, 4.3301436301752303e-7],
+                [3.0732277991108097e-7, 1.9164899436315728e-7],
+            ],
+        ),
+        (
+            "dwg=1.20659197801292422e-07 dwb=7.47031727728139807e-08 pvag=-7.74709299330928047e+01",
+            3.6179029802691343,
+            0.6768355065674196,
+            [
+                [7.137588870935034e-7, 4.219884935651082e-7],
+                [3.2287837510213314e-7, 1.8618667976474388e-7],
+            ],
+        ),
+        (
+            "dwg=1.59970859961868845e-07 dwb=3.86054572048661918e-08 pvag=-3.75168453234650912e+01",
+            3.883952204047605,
+            0.6349801391395404,
+            [
+                [6.897670543785235e-7, 4.138294097972818e-7],
+                [2.96208528785934e-7, 1.8084942481066144e-7],
+            ],
+        ),
+    ];
+    for (card, vgs, vds, expected) in cases {
+        for (family, expected) in ["nmos", "pmos"].into_iter().zip(expected) {
+            let d = evaluate_family(family, card, "l=0.5u w=0.1u", at(vgs, vds));
+            for (name, rust, c) in [("gm", d.gm, expected[0]), ("gmbs", d.gmbs, expected[1])] {
+                if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+                    assert_eq!(rust, c, "{family} {name}: {card}");
+                } else {
+                    assert!(
+                        (rust - c).abs() <= 1e-12 * c.abs() + 1e-24,
+                        "{family} {name}: {rust:e} vs {c:e}"
+                    );
+                }
+            }
+        }
+    }
 }

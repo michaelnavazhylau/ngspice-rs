@@ -49,8 +49,8 @@ pub(crate) fn main(args: &[String]) -> Result<(), String> {
         &read("b4set.c")?,
         &revision,
     )?;
-    let fields = crate::bsim4_fields::fields(&read("bsim4def.h")?, &revision)?;
-    let asks = crate::bsim4_fields::asks(&read("b4mask.c")?, &read("b4ask.c")?, &revision)?;
+    let fields = crate::bsim_fields::fields(&read("bsim4def.h")?, &revision)?;
+    let asks = crate::bsim_fields::asks(&read("b4mask.c")?, &read("b4ask.c")?, &revision)?;
     for (path, text) in [
         ("src/devices/bsim4/asks.rs", asks),
         ("src/devices/bsim4/parameters.rs", text),
