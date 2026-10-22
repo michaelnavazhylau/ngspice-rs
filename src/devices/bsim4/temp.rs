@@ -518,6 +518,48 @@ pub(crate) fn temperature_model(
     }
 }
 
+/// Geometry knots and the function-local Lnew retained across C's instance loop.
+#[derive(Default)]
+pub(crate) struct SizeCache {
+    sizes: Vec<SizeParam>,
+    last_length: f64,
+}
+
+impl SizeCache {
+    pub(crate) fn find(&self, h: &Instance) -> Option<&SizeParam> {
+        self.sizes
+            .iter()
+            .find(|p| p.Length == h.l && p.Width == h.w && p.NFinger == h.nf)
+    }
+}
+
+/// [`temperature_instance_shared`] for an instance alone in its pass (no
+/// earlier geometry knot to reuse), as verification and sensitivity replay
+/// need.
+///
+/// # Errors
+/// As [`temperature_instance_shared`].
+pub(crate) fn temperature_instance(
+    m: &mut Model,
+    h: &mut Instance,
+    locals: &ModelTemp,
+    check: bool,
+    model_name: &str,
+    instance_name: &str,
+    warnings: &mut Vec<String>,
+) -> SpiceResult<SizeParam> {
+    temperature_instance_shared(
+        m,
+        h,
+        locals,
+        check,
+        model_name,
+        instance_name,
+        warnings,
+        &mut SizeCache::default(),
+    )
+}
+
 /// `BSIM4temp`'s instance loop body for `h`: its size-dependent parameters
 /// (returned), its temperature-dependent instance values (into `h`) and,
 /// when `check` is set, `BSIM4checkModel` (see [`check_model`] for which
@@ -529,15 +571,12 @@ pub(crate) fn temperature_model(
 /// its messages print. Messages C prints to stdout/stderr are appended to
 /// `warnings` in C order, followed by the check's nonfatal messages.
 ///
-/// C quirks the per-instance port reproduces or changes:
-/// - C ignores the instance `dtemp` here: everything uses `CKTtemp`.
-/// - `here->BSIM4grgeltd` uses `Lnew`, which C only assigns while it
-///   computes a new size-dependent parameter set; an instance that reuses
-///   an earlier instance's set sees the `Lnew` of the last set C computed
-///   in this `BSIM4temp` call (possibly another geometry). Here every
-///   instance computes its own set, so it always sees its own `Lnew`.
-/// - `Phi`/`phieot` "Fatal" messages set C's local `Fatal_Flag`, which
-///   `BSIM4temp` never reads: they are warnings, as in C.
+/// `cache` is the pass's `pSizeDependParamKnot` list and the function-local
+/// `Lnew`: an instance whose geometry already has a knot reuses it without
+/// running the size block, and `here->BSIM4grgeltd` then sees the `Lnew` of
+/// the last knot C computed in this pass (possibly another geometry's).
+/// C ignores instance `dtemp`. `Phi`/`phieot` "Fatal" messages are warnings:
+/// `BSIM4temp` never reads the local `Fatal_Flag` they set.
 ///
 /// # Errors
 /// C's fatal `BSIM4checkModel` result and nonpositive effective sizes
@@ -548,6 +587,7 @@ pub(crate) fn temperature_model(
     unused_mut,
     unused_variables,
     clippy::too_many_lines,
+    clippy::too_many_arguments,
     clippy::neg_multiply,
     clippy::assign_op_pattern,
     clippy::excessive_precision,
@@ -557,7 +597,7 @@ pub(crate) fn temperature_model(
     clippy::collapsible_if,
     clippy::collapsible_else_if
 )] // A statement-by-statement port of C.
-pub(crate) fn temperature_instance(
+pub(crate) fn temperature_instance_shared(
     m: &mut Model,
     h: &mut Instance,
     locals: &ModelTemp,
@@ -565,15 +605,17 @@ pub(crate) fn temperature_instance(
     model_name: &str,
     instance_name: &str,
     warnings: &mut Vec<String>,
+    cache: &mut SizeCache,
 ) -> SpiceResult<SizeParam> {
-    let mut p = SizeParam::default();
+    let cached = cache.find(h).cloned();
+    let mut p = cached.clone().unwrap_or_default();
     let (mut tmp, mut tmp1, mut tmp2, mut tmp3, mut Eg, mut Eg0, mut ni, mut epssub) = (
         0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64,
     );
     let (mut T0, mut T1, mut T2, mut T3, mut T4, mut T5, mut T6, mut T7, mut T8, mut T9) = (
         0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64,
     );
-    let (mut Lnew, mut Wnew) = (0.0_f64, 0.0_f64);
+    let (mut Lnew, mut Wnew) = (cache.last_length, 0.0_f64);
     let (mut delTemp, mut Temp, mut TRatio, mut Inv_L, mut Inv_W, mut Inv_LW, mut Vtm0, mut Tnom) = (
         0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64,
     );
@@ -618,12 +660,9 @@ pub(crate) fn temperature_instance(
         toxe,
         delTemp,
     } = *locals;
-    // The instance loop, for this instance. C searches the model's
-    // `pSizeDependParamKnot` list for an earlier instance with equal
-    // (l, w, nf) and shares its parameters; recomputing them per instance
-    // gives the same values, so the search always "fails" here.
+    // b4temp.c pSizeDependParamKnot lookup: only new knots run the size block.
     {
-        Size_Not_Found = 1;
+        Size_Not_Found = i32::from(cached.is_none());
         Ldrn = h.l;
         Wdrn = h.w / h.nf;
         if Size_Not_Found != 0 {
@@ -1883,6 +1922,16 @@ pub(crate) fn temperature_instance(
             return Err(bad_parameter(messages.join("\n")));
         }
         warnings.append(&mut messages);
+    }
+    if cached.is_none() {
+        cache.last_length = Lnew;
+        cache.sizes.push(p.clone());
+    } else if let Some(slot) = cache
+        .sizes
+        .iter_mut()
+        .find(|q| q.Length == p.Length && q.Width == p.Width && q.NFinger == p.NFinger)
+    {
+        *slot = p.clone();
     }
     Ok(p)
 }

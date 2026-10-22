@@ -40,6 +40,8 @@ mod fields;
 mod geo;
 mod host;
 mod load;
+mod model_state;
+pub(crate) use model_state::{Binding, bind_batch};
 mod noise;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
@@ -229,6 +231,7 @@ pub(crate) fn instantiate(
     nodes: &mut crate::primitives::NodeTable,
     model: &ResolvedModel<'_>,
     context: &crate::devices::ModelContext,
+    binding: Binding,
 ) -> SpiceResult<Box<dyn crate::devices::Device>> {
-    device::Bsim4::instantiate(instance, nodes, model, context)
+    device::Bsim4::instantiate(instance, nodes, model, context, binding)
 }
