@@ -23,11 +23,12 @@ use std::rc::Rc;
 
 use super::fields::{Instance, Model, SizeParam};
 use super::host::{LoadCkt, SmallSignalCkt, mode, node, state};
-use super::{Inputs, ModelParameters, acld, apply, cvtest, elements, load, noise, pzld, set, temp};
+use super::model_state::{Binding, Overrides, Swept, swept_entry};
+use super::{acld, cvtest, elements, load, noise, pzld};
 use crate::devices::linear::LinearContext;
 use crate::devices::models::{ModelContext, ResolvedModel};
-use crate::devices::schema::temperature_kelvin;
 use crate::devices::state::IterationPhase;
+use crate::devices::sweep::InstanceOverride;
 use crate::devices::traits::{AnalysisMode, ConvergenceContext, Device, StampContext};
 use crate::netlist::ast::DeviceInstance;
 use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError, SpiceResult};
@@ -37,8 +38,9 @@ use crate::primitives::{NodeId, NodeKind, NodeTable, Real, SourceLoc, SpiceError
 pub(super) struct Prepared {
     pub(super) temperature: Real,
     pub(super) nominal: Real,
-    /// The `.dc @inst[param]` values applied (field, value).
-    pub(super) swept: Vec<(&'static str, Real)>,
+    /// The `.dc @inst[param]` values of every instance sharing the model
+    /// state that this `BSIM4temp` pass applied.
+    pub(super) overrides: Overrides,
     pub(super) model: Model,
     pub(super) instance: Instance,
     pub(super) size: SizeParam,
@@ -47,15 +49,6 @@ pub(super) struct Prepared {
     /// yet (C prints them).
     #[allow(dead_code)]
     pub(super) warnings: Vec<String>,
-}
-
-/// `BSIM4setup`'s result: the model, the instance and the messages so far.
-struct SetUp {
-    model: Model,
-    instance: Instance,
-    warnings: Vec<String>,
-    /// Internal nodes C creates, `(local index, suffix)` in order.
-    created: Vec<(i32, &'static str)>,
 }
 
 /// One BSIM4 instance.
@@ -69,8 +62,8 @@ pub(crate) struct Bsim4 {
     /// indices are never looked up: the instance's node fields alias them
     /// to external indices, as in C.
     pub(super) nodes: [NodeId; node::COUNT],
-    params: ModelParameters,
-    inputs: Inputs,
+    binding: Option<Binding>,
+    inputs: super::Inputs,
     pub(super) location: SourceLoc,
     /// `b4set.c`'s created nodes, fixed at instantiation.
     created: Vec<(i32, &'static str)>,
@@ -79,7 +72,7 @@ pub(crate) struct Bsim4 {
     /// `.dc @inst[param]` values (C's `DCTsetInstParam`): `BSIM4param`
     /// stores them after `BSIM4setup`, and `BSIM4temp` follows. Each is the
     /// setter's C field and given bit with its value.
-    swept: Vec<(&'static str, Option<&'static str>, Real)>,
+    swept: Swept,
     /// C's structs, shared with this instance's `.dc @inst[param]`
     /// stand-ins (which C's `DCTsetInstParam` writes into the same struct).
     shared: Rc<RefCell<Shared>>,
@@ -117,6 +110,7 @@ impl Bsim4 {
         nodes: &mut NodeTable,
         model: &ResolvedModel<'_>,
         context: &ModelContext,
+        binding: Binding,
     ) -> SpiceResult<Box<dyn Device>> {
         if instance.nodes.len() != 4 {
             return Err(SpiceError::parse(
@@ -124,23 +118,24 @@ impl Bsim4 {
                 "BSIM4 needs four terminals: drain, gate, source, bulk",
             ));
         }
-        let params = super::model_parameters(model)?;
-        let inputs = params.instance_parameters(instance, 1.)?;
         let mut device = Self {
             name: instance.name.clone(),
             model_name: model.card().name.clone(),
             terminals: Vec::new(),
             nodes: [NodeId::GROUND; node::COUNT],
-            params,
-            inputs,
+            binding: Some(binding.clone()),
+            inputs: super::model_parameters(model)?.instance_parameters(instance, 1.)?,
             location: instance.location.clone(),
-            created: Vec::new(),
+            created: binding.created.clone(),
             noise_analysis: context.noise_analysis,
             swept: Vec::new(),
             shared: Rc::new(RefCell::new(Shared::default())),
         };
-        device.created = device.setup(context.nominal_temperature)?.created;
-        let prepared = device.prepare(context.temperature, context.nominal_temperature)?;
+        let prepared = binding.ensure(
+            context.temperature,
+            context.nominal_temperature,
+            binding.overrides(&device.swept, &context.instance_overrides)?,
+        )?;
         let mut staged = nodes.clone();
         let external: Vec<NodeId> = instance.nodes.iter().map(|n| staged.intern(n)).collect();
         device.terminals.clone_from(&external);
@@ -168,124 +163,35 @@ impl Bsim4 {
             device.terminals.push(id);
         }
         *nodes = staged;
-        device.shared.borrow_mut().setups.push(Rc::new(prepared));
+        device.shared.borrow_mut().setups.push(prepared);
         Ok(Box::new(device))
     }
 
-    /// `b4mpar.c`/`b4par.c` setters and `BSIM4setup` at this nominal
-    /// temperature (C's `CKTnomTemp`, the TNOM default).
-    fn setup(&self, nominal: Real) -> SpiceResult<SetUp> {
-        let mut warnings = Vec::new();
-        let mut m = apply::model(&self.params)?;
-        set::setup_model(
-            &mut m,
-            temperature_kelvin(nominal, &self.location)?,
-            &mut warnings,
-        )?;
-        let mut h = apply::instance(&self.inputs)?;
-        h.dNode = node::D;
-        h.gNodeExt = node::G_EXT;
-        h.sNode = node::S;
-        h.bNode = node::B;
-        let created = set::setup_instance(&m, &mut h, self.noise_analysis, &mut warnings)?;
-        Ok(SetUp {
-            model: m,
-            instance: h,
-            warnings,
-            created,
-        })
-    }
-
-    /// `BSIM4temp` at these temperatures (Celsius) on C's structs.
-    ///
-    /// The first call runs `BSIM4setup` and `BSIM4temp` with
-    /// `BSIM4checkModel`. C keeps one model and one instance struct and runs
-    /// `BSIM4setup` once, while each later `BSIM4temp` (a new analysis
-    /// temperature, `.dc temp`, a `.dc @inst[param]` point) works on those
-    /// structs as the previous pass left them, and skips the check: its
-    /// `static` model name is already set. So later calls start from the
-    /// first call's model and instance, apply the swept values, and run the
-    /// temperature pass unchecked. (The first call's nominal temperature is
-    /// the one setup used; C does not re-run setup either.)
-    fn prepare(&self, temperature: Real, nominal: Real) -> SpiceResult<Prepared> {
-        let first = self
-            .shared
-            .try_borrow()
-            .ok()
-            .and_then(|shared| shared.setups.first().cloned());
-        let (mut model, mut instance, mut warnings, check) = match first {
-            None => {
-                let SetUp {
-                    model,
-                    instance,
-                    warnings,
-                    created,
-                } = self.setup(nominal)?;
-                if created != self.created && !self.created.is_empty() {
-                    return Err(SpiceError::circuit(format!(
-                        "{}: BSIM4 internal nodes changed between setups",
-                        self.name
-                    )));
-                }
-                (model, instance, warnings, true)
-            }
-            Some(first) => (
-                first.model.clone(),
-                first.instance.clone(),
-                Vec::new(),
-                false,
-            ),
-        };
-        for &(field, given, value) in &self.swept {
-            let slot = instance.real_mut(field).ok_or_else(|| {
-                SpiceError::circuit(format!("BSIM4 swept field {field} has no member"))
-            })?;
-            *slot = value;
-            if let Some(flag) = given.and_then(|given| instance.flag_mut(given)) {
-                *flag = true;
-            }
-        }
-        let kelvin = temperature_kelvin(temperature, &self.location)?;
-        let locals = temp::temperature_model(&mut model, kelvin, &mut warnings);
-        let size = temp::temperature_instance(
-            &mut model,
-            &mut instance,
-            &locals,
-            check,
-            &self.model_name,
-            &self.name,
-            &mut warnings,
+    /// The setup for `context`'s temperatures and `.dc @inst[param]`
+    /// overrides (this device's own, and those of every instance sharing its
+    /// model state), rebuilt when C would re-run `BSIM4temp`.
+    pub(super) fn ensure(&self, context: &ModelContext) -> SpiceResult<Rc<Prepared>> {
+        self.ensure_at(
+            context.temperature,
+            context.nominal_temperature,
+            &context.instance_overrides,
         )
-        .map_err(|e| match e {
-            SpiceError::NotYetPorted { .. } => e,
-            other => SpiceError::circuit(format!("{}: {other}", self.name)),
-        })?;
-        Ok(Prepared {
-            temperature,
-            nominal,
-            swept: self
-                .swept
-                .iter()
-                .map(|&(field, _, value)| (field, value))
-                .collect(),
-            model,
-            instance,
-            size,
-            warnings,
-        })
     }
 
-    /// The setup for these temperatures (and this device's swept values),
-    /// rebuilt when C would re-run `BSIM4temp`.
-    pub(super) fn ensure(&self, temperature: Real, nominal: Real) -> SpiceResult<Rc<Prepared>> {
+    /// [`Self::ensure`] from a context's parts.
+    fn ensure_at(
+        &self,
+        temperature: Real,
+        nominal: Real,
+        context: &[Option<InstanceOverride>],
+    ) -> SpiceResult<Rc<Prepared>> {
+        // A sensitivity stand-in has no binding and only reuses setups.
+        let overrides = match &self.binding {
+            Some(binding) => binding.overrides(&self.swept, context)?,
+            None => Vec::new(),
+        };
         let same = |p: &Prepared| {
-            p.temperature == temperature
-                && p.nominal == nominal
-                && p.swept.len() == self.swept.len()
-                && p.swept
-                    .iter()
-                    .zip(&self.swept)
-                    .all(|(a, b)| a.0 == b.0 && a.1.to_bits() == b.2.to_bits())
+            p.temperature == temperature && p.nominal == nominal && p.overrides == overrides
         };
         {
             let shared = self.borrow_shared()?;
@@ -293,10 +199,14 @@ impl Bsim4 {
                 return Ok(Rc::clone(prepared));
             }
         }
-        let prepared = Rc::new(self.prepare(temperature, nominal)?);
+        let prepared = self
+            .binding
+            .as_ref()
+            .ok_or_else(|| SpiceError::circuit("BSIM4 sensitivity stand-in has no matching setup"))?
+            .ensure(temperature, nominal, overrides)?;
         let mut shared = self.borrow_shared_mut()?;
-        // The first setup is C's struct as `BSIM4setup` and the checked
-        // `BSIM4temp` left it; later passes start from it, so keep it.
+        // Keep the initial setup and the load-owned snapshots alive. The
+        // binding separately owns the full-model temperature-pass cache.
         if shared.setups.len() >= SETUPS_KEPT {
             shared.setups.remove(1);
         }
@@ -498,7 +408,7 @@ impl Bsim4 {
         let prepared = Prepared {
             temperature: context.temperature,
             nominal: context.nominal_temperature,
-            swept: Vec::new(),
+            overrides: Vec::new(),
             model,
             instance,
             size,
@@ -509,7 +419,7 @@ impl Bsim4 {
             model_name: self.model_name.clone(),
             terminals: self.terminals.clone(),
             nodes: self.nodes,
-            params: self.params.clone(),
+            binding: None,
             inputs: self.inputs.clone(),
             location: self.location.clone(),
             created: self.created.clone(),
@@ -1032,7 +942,7 @@ impl Bsim4 {
         pole_zero: bool,
     ) -> SpiceResult<()> {
         let model_context = *context.model_context;
-        let prepared = self.ensure(model_context.temperature, model_context.nominal_temperature)?;
+        let prepared = self.ensure(&model_context)?;
         let unknowns = context.unknowns;
         let voltage = |node: NodeId| {
             unknowns
@@ -1268,7 +1178,11 @@ impl Device for Bsim4 {
     }
 
     fn stamp(&self, context: &mut StampContext<'_>) -> SpiceResult<()> {
-        let prepared = self.ensure(context.temperature, context.nominal_temperature)?;
+        let prepared = self.ensure_at(
+            context.temperature,
+            context.nominal_temperature,
+            context.instance_overrides,
+        )?;
         let (mode, limiting) = load_mode(context)?;
         let current = self
             .borrow_shared()?
@@ -1367,15 +1281,16 @@ impl Device for Bsim4 {
     /// `BSIM4param` then `BSIM4temp` (`dctrcurv.c` `DCTsetInstParam`): the
     /// value is stored after `BSIM4setup`, so setup-derived quantities
     /// (instance defaults, the internal nodes) keep their setup values, as
-    /// in C. Unlike C, whose `static` model name skips `BSIM4checkModel` on
-    /// every later `BSIM4temp`, the port checks each swept point again.
+    /// in C. `BSIM4temp` then runs over every instance sharing the model
+    /// state, so the other instances load from the same pass: they read
+    /// this override from the context (see [`Bsim4::ensure`]).
     fn with_instance_parameter(
         &self,
         parameter: &str,
         value: Real,
         context: &ModelContext,
     ) -> SpiceResult<Box<dyn Device>> {
-        let p = super::descriptor(super::parameters::INSTANCE, parameter)
+        super::descriptor(super::parameters::INSTANCE, parameter)
             .filter(|p| self.instance_parameter(p.name).is_some())
             .ok_or_else(|| {
                 SpiceError::circuit(format!(
@@ -1384,15 +1299,14 @@ impl Device for Bsim4 {
                 ))
             })?;
         crate::devices::sweep::check_swept(&self.name, parameter, value, true, "finite")?;
-        let field = p.c_field.unwrap_or_default();
         let mut swept = self.swept.clone();
-        swept.push((field, p.c_given, value));
+        swept.push(swept_entry(parameter, value)?);
         let device = Self {
             name: self.name.clone(),
             model_name: self.model_name.clone(),
             terminals: self.terminals.clone(),
             nodes: self.nodes,
-            params: self.params.clone(),
+            binding: self.binding.clone(),
             inputs: self.inputs.clone(),
             location: self.location.clone(),
             created: self.created.clone(),
@@ -1400,7 +1314,7 @@ impl Device for Bsim4 {
             swept,
             shared: Rc::clone(&self.shared),
         };
-        device.ensure(context.temperature, context.nominal_temperature)?;
+        device.ensure(context)?;
         Ok(Box::new(device))
     }
 
@@ -1412,7 +1326,7 @@ impl Device for Bsim4 {
         let Some(p) = super::descriptor(super::parameters::INSTANCE, key) else {
             return Ok(None);
         };
-        let prepared = self.ensure(context.temperature, context.nominal_temperature)?;
+        let prepared = self.ensure(context)?;
         let h = &prepared.instance;
         let mi = h.mult_i * h.m;
         Ok(match p.c_id {
@@ -1431,7 +1345,7 @@ impl Device for Bsim4 {
         voltage: &dyn Fn(NodeId) -> Real,
         _transient: bool,
     ) -> SpiceResult<Option<Real>> {
-        let prepared = self.ensure(context.temperature, context.nominal_temperature)?;
+        let prepared = self.ensure(context)?;
         let s0 = self.state_at(&prepared, voltage, context.gmin)?;
         let (h, s0) = self.small_signal_point(&prepared, s0, voltage, context.gmin)?;
         Ok(self.ask(keyword, &prepared, &h, &s0))
@@ -1486,7 +1400,7 @@ impl Device for Bsim4 {
     ) -> SpiceResult<crate::devices::noise::DeviceNoise> {
         use crate::devices::noise::{DeviceNoise, NoiseFamily, NoiseKind, NoiseSource};
         let model_context = *context.model_context;
-        let prepared = self.ensure(model_context.temperature, model_context.nominal_temperature)?;
+        let prepared = self.ensure(&model_context)?;
         let m = &prepared.model;
         if !(0..=2).contains(&m.tnoiMod) || !(0..=1).contains(&m.fnoiMod) {
             return Err(SpiceError::not_yet_ported(

@@ -278,7 +278,7 @@ impl<'a> Bsim4Sensitivity<'a> {
     /// # Errors
     /// The device's setup failing.
     pub(crate) fn new(device: &'a Bsim4, context: &ModelContext) -> SpiceResult<Self> {
-        let prepared = device.ensure(context.temperature, context.nominal_temperature)?;
+        let prepared = device.ensure(context)?;
         Ok(Self {
             device,
             context: *context,
@@ -751,9 +751,7 @@ impl Device for ResetBsim4 {
                     .and_then(|row| bias.get(row))
                     .unwrap_or(0.)
             };
-            let prepared = self
-                .original
-                .ensure(model_context.temperature, model_context.nominal_temperature)?;
+            let prepared = self.original.ensure(&model_context)?;
             let s0 = self.original.state_at(&prepared, &voltage, self.gmin)?;
             let (h, _) = self
                 .original
@@ -769,9 +767,7 @@ impl Device for ResetBsim4 {
             self.temperature,
             self.gmin,
         )?;
-        let prepared = self
-            .device
-            .ensure(model_context.temperature, model_context.nominal_temperature)?;
+        let prepared = self.device.ensure(&model_context)?;
         let prepared: &Rc<_> = &prepared;
         let mut merged = prepared.instance.to_values();
         let from_reset = rh.to_values();
