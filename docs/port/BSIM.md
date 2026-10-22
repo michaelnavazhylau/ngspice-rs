@@ -338,6 +338,22 @@ terms of use, which allow modified redistribution with attribution (see
   on the structs as left and skip `BSIM4checkModel`, whose `static` model
   name is already set. A deck whose model only fails the check at a later
   temperature therefore simulates, as in C.
+- **One model state per circuit (#189).** The BSIM4 instances a circuit adds
+  in one batch share C's model structs (`devices::bsim4::model_state`):
+  models in first-reference order and instances last-parsed first
+  (`GENnewModel`/`GENnewInstance` prepend), every model's `BSIM4setup`
+  before any `BSIM4temp`, one size knot per geometry with C's function-local
+  `Lnew` carried between instances, and `b4check.c`'s `static modname`
+  (`strncmp` over the model name's length, so a name that prefixes the last
+  checked one is skipped). So only the last-parsed instance of a model is
+  checked, a fatal size-dependent check on another geometry does not fire,
+  and the check's `pParam` resets reach only the instances sharing the
+  checked knot. Every `BSIM4temp` pass rebuilds the knots, so later passes
+  lose those resets, as in C. A `.dc @inst[param]` point re-runs the pass
+  for every instance (`DCTsetInstParam` then `CKTtemp`), so the other
+  instances read the point's overrides too (`StampContext::
+  instance_overrides`). Each elaborated circuit is a fresh C process; a
+  second BSIM4 batch on a circuit that already has one is refused.
 - **`noiseAnalGiven`.** With `tnoiMod=1`, a deck that holds a `.noise`
   analysis gets drain/source primes in every analysis (`ModelContext::
   noise_analysis`).
@@ -366,18 +382,22 @@ Tracked in #189 (cross-instance and cross-analysis C state), #186
 (reporting warnings), #187 (SOA checks), #188 (speed) and #194 (versions
 4.5-4.7).
 
-- `BSIM4checkModel` runs for every instance at its first setup; C checks
-  only the first instance of each model name in its list (and any model
-  whose name is a prefix of an already-checked one is skipped). Warnings
-  are kept on the device (`Prepared::warnings`), not printed.
+- `BSIM4checkModel` warnings are kept on the device (`Prepared::warnings`),
+  not printed (#186).
 - `DEVsoaCheck` (`b4soachk.c`) is not ported: it only prints warnings under
   `.options warn`, which the port does not accept.
 - A swept `.dc @inst[param]` point re-runs `b4temp.c` from the first
   (checked) structs, not from the previous point's; C's results agree
   because `BSIM4temp` recomputes every member it writes.
 - After a `.tran` in the same deck, C's `CKTag` keeps the last step's
-  coefficients and a later NQS `.op`/`.ac` integrates with them; the port
-  uses zero.
+  coefficients, and the NQS charges of the analyses `analInfo` runs later
+  (`.pz`, `.tf`, `.disto`, `.noise`) integrate with them in their
+  charge-computing loads; the port uses zero. Only `state0`'s `ccap` slots
+  differ and no later output reads them: those analyses are EXACT against
+  the FMA-free oracle with and without the `.tran`
+  (`tests/bsim4_model_state.rs`). A plain operating point does not compute
+  charges (`ChargeComputationNeeded`), and `.op`/`.ac`/`.dc` run before
+  `.tran`.
 - `.sens ac` after a `.tran` is refused: C's AC reset load reads the
   `capbd`/`capbs` the final transient load left, which the port does not keep.
 

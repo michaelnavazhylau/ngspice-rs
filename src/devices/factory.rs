@@ -80,6 +80,7 @@ pub(crate) fn instantiate_with_models(
     nodes: &mut NodeTable,
     models: &crate::devices::models::ModelResolver<'_>,
     context: &crate::devices::models::ModelContext,
+    bsim4: Option<crate::devices::bsim4::Binding>,
 ) -> SpiceResult<Box<dyn Device>> {
     context.validate(&instance.location)?;
     if let Some(model) = models.resolve(instance)? {
@@ -106,7 +107,13 @@ pub(crate) fn instantiate_with_models(
                     return crate::devices::bsim3::instantiate(instance, nodes, &model, context);
                 }
                 if matches!(model.levels().selector, 14 | 54) {
-                    return crate::devices::bsim4::instantiate(instance, nodes, &model, context);
+                    return crate::devices::bsim4::instantiate(
+                        instance,
+                        nodes,
+                        &model,
+                        context,
+                        bsim4.ok_or_else(|| SpiceError::circuit("missing BSIM4 batch binding"))?,
+                    );
                 }
                 return if model.levels().selector == 3 {
                     crate::devices::mos3::Mos3::instantiate(instance, nodes, &model, context)

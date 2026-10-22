@@ -52,6 +52,8 @@ pub type CircuitGraph = UnGraph<CircuitVertex, usize, usize>;
 /// A circuit under construction, or ready to be simulated.
 #[derive(Default)]
 pub struct Circuit {
+    /// Whether an atomic BSIM4 setup batch has already been bound.
+    bsim4_bound: bool,
     pub(crate) observations: Vec<String>,
     nodes: NodeTable,
     unknowns: MnaUnknowns,
@@ -1281,7 +1283,8 @@ impl Circuit {
     /// `keyword` the value `value` (`.dc @name[keyword]`). Carry it in a
     /// [`ModelContext`] ([`ModelContext::with_instance_override`]); no device
     /// changes. The value is validated by building the replacement once at
-    /// `context`.
+    /// `context`. As in C, a BSIM4 override re-runs `BSIM4temp` for every
+    /// BSIM4 instance of the circuit, not only the swept one.
     ///
     /// # Errors
     /// As [`Self::instance_parameter`], or an invalid value.
@@ -1375,6 +1378,7 @@ impl Circuit {
             states,
             forcing: request.forcing,
             source_factor: request.model_context.source_factor,
+            instance_overrides: &request.model_context.instance_overrides,
             // An isolated load has no preceding voltage source.
             voltage_source_value: &mut 0.,
         })
@@ -1604,6 +1608,7 @@ impl Circuit {
                 states,
                 forcing: request.forcing,
                 source_factor: request.model_context.source_factor,
+                instance_overrides: &request.model_context.instance_overrides,
                 voltage_source_value: &mut *voltage_source_value,
             })?;
         }
@@ -2196,7 +2201,11 @@ impl Circuit {
     ///
     /// Every device is built against one staged copy of the node table, and the
     /// nodes and devices are committed together only once the whole batch has
-    /// succeeded. A failure at any point — a duplicate name, an unavailable
+    /// succeeded. BSIM4 uses this entire batch as a fresh ngspice-process
+    /// reference domain: models/geometry and b4check.c's last-name buffer are
+    /// shared within it, never between independent Circuits. A later BSIM4
+    /// batch on a Circuit already containing BSIM4 is explicitly refused;
+    /// unrelated additions remain supported. A failure at any point — a duplicate name, an unavailable
     /// factory, an invalid parameter — therefore leaves the caller's node table,
     /// devices and branch rows untouched, which is what subcircuit expansion
     /// (#18) needs when it hands over a flattened deck. As with
@@ -2212,6 +2221,9 @@ impl Circuit {
         models: &crate::devices::models::ModelResolver<'_>,
         context: &crate::devices::models::ModelContext,
     ) -> SpiceResult<()> {
+        let mut bsim4 =
+            crate::devices::bsim4::bind_batch(instances, models, context, self.bsim4_bound)?;
+        let binds_bsim4 = bsim4.iter().any(Option::is_some);
         let mut seen: BTreeSet<String> = self
             .devices
             .iter()
@@ -2229,7 +2241,7 @@ impl Circuit {
             .flat_map(|instance| instance.nodes.iter().map(String::as_str))
             .collect();
         let base = self.devices.len();
-        for instance in instances {
+        for (slot, instance) in instances.iter().enumerate() {
             if !seen.insert(instance.name.to_lowercase()) {
                 return Err(SpiceError::circuit(format!(
                     "duplicate instance name '{}'",
@@ -2323,8 +2335,15 @@ impl Circuit {
             }
             // Builtin factories bind terminals in this staged table. Nothing
             // fallible remains after committing the containers together.
+            if let Some(binding) = &bsim4[slot] {
+                binding.attach(base + staged.len())?;
+            }
             staged.push(crate::devices::factory::instantiate_with_models(
-                instance, &mut nodes, models, context,
+                instance,
+                &mut nodes,
+                models,
+                context,
+                bsim4[slot].take(),
             )?);
             internal.push(
                 nodes.nodes()[first..]
@@ -2336,6 +2355,7 @@ impl Circuit {
             model_names.push(instance.model.as_ref().map(|m| m.to_ascii_lowercase()));
             generated_by.push(None);
         }
+        self.bsim4_bound |= binds_bsim4;
         self.nodes = nodes;
         self.devices.extend(staged);
         self.internal_nodes.extend(internal);
@@ -2374,7 +2394,10 @@ impl Circuit {
     /// Elaborate with explicit validation temperatures; the immutable model recipe
     /// is retained and later assemblies use their own explicit context.
     /// `.option` cards are the caller's responsibility: the supplied context must
-    /// come from resolving them (`crate::analysis::RunConfig`). Top-level
+    /// come from resolving them (`crate::analysis::RunConfig`). Each returned
+    /// Circuit is a fresh BSIM4 check-name domain; process-static check state
+    /// from loading several decks into one C process is not inherited.
+    /// Top-level
     /// `.global` cards name nodes that stay global through subcircuit expansion
     /// (see [`crate::devices::subckt`]); everything else keeps the deck's names.
     /// # Errors
