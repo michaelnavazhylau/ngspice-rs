@@ -6,7 +6,9 @@ use std::path::Path;
 
 use ngspice_rs::analysis::{Plot, RunConfig, runner};
 use ngspice_rs::devices::{Circuit, ModelContext, ModelResolver};
-use ngspice_rs::netlist::{Parser, ast::Netlist, source::parse_deck_text};
+use ngspice_rs::netlist::Parser;
+use ngspice_rs::netlist::ast::Netlist;
+use ngspice_rs::netlist::source::parse_deck_text;
 use ngspice_rs::primitives::SpiceError;
 
 const SOURCES: &str = "v1 d1 0 1\nv2 d2 0 1\nv3 d3 0 1\nvg g 0 1\n";
@@ -298,7 +300,8 @@ fn shared_model_source_and_temperature_sweeps_still_run() {
 #[test]
 #[ignore = "requires absolute NGSPICE_BIN; BSIM4 shared-model check proofs"]
 fn c_bsim4_model_state_proofs() {
-    use std::{fs, process::Command};
+    use std::fs;
+    use std::process::Command;
     let binary =
         std::path::PathBuf::from(std::env::var_os("NGSPICE_BIN").expect("set NGSPICE_BIN"));
     assert!(binary.is_absolute());
