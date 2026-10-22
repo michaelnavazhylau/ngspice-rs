@@ -56,7 +56,9 @@ pub(crate) fn main(args: &[String]) -> Result<(), String> {
         &read("b3temp.c")?,
         &revision,
     )?;
+    let fields = crate::bsim_fields::bsim3_fields(&read("bsim3def.h")?, &revision)?;
     for (path, text) in [
+        ("src/devices/bsim3/fields.rs", fields),
         ("src/devices/bsim3/parameters.rs", text),
         ("src/devices/bsim3/defaults_data.rs", defaults),
         ("src/devices/bsim3/size_data.rs", size),

@@ -11,7 +11,7 @@
 
 mod bsim3;
 mod bsim4;
-mod bsim4_fields;
+mod bsim_fields;
 mod ci;
 mod compare;
 mod golden;

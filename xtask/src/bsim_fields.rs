@@ -1,9 +1,10 @@
-//! Extract the numeric field declarations of BSIM4's three C structs
-//! (`sBSIM4model`, `bsim4SizeDependParam`, `sBSIM4instance`) as Rust struct
-//! definitions: field names and scalar types only. The BSIM4 port keeps C's
-//! field names (without the `BSIM4` prefix) so that `b4set.c`, `b4temp.c` and
-//! `b4ld.c` can be followed statement by statement. No formula, default or
-//! comment text is copied; pointers, arrays and matrix bindings are skipped.
+//! Extract the numeric field declarations of a BSIM device's three C structs
+//! (`sBSIMnmodel`, `bsimnSizeDependParam`, `sBSIMninstance`) as Rust struct
+//! definitions: field names and scalar types only. The BSIM3 and BSIM4 ports
+//! keep C's field names (without the `BSIM3`/`BSIM4` prefix) so that the
+//! setup, temperature and load files can be followed statement by statement.
+//! No formula, default or comment text is copied; pointers, arrays and matrix
+//! bindings are skipped.
 use std::fmt::Write as _;
 
 /// One scalar field of a C struct.
@@ -16,14 +17,14 @@ struct Field {
 }
 
 /// Members of the struct whose body starts at `opening`, in declaration order.
-fn members(header: &str, opening: &str, closing: &str) -> Result<Vec<Field>, String> {
+fn members(file: &str, header: &str, opening: &str, closing: &str) -> Result<Vec<Field>, String> {
     let start = header
         .find(opening)
-        .ok_or_else(|| format!("bsim4def.h: missing `{opening}`"))?;
+        .ok_or_else(|| format!("{file}: missing `{opening}`"))?;
     let body = &header[start + opening.len()..];
     let end = body
         .find(closing)
-        .ok_or_else(|| format!("bsim4def.h: unterminated `{opening}`"))?;
+        .ok_or_else(|| format!("{file}: unterminated `{opening}`"))?;
     let mut fields = Vec::new();
     for line in body[..end].lines() {
         let line = line.trim();
@@ -50,24 +51,27 @@ fn members(header: &str, opening: &str, closing: &str) -> Result<Vec<Field>, Str
             },
             // Pointers, matrix bindings, noise arrays and OpenMP/KLU blocks.
             ["double" | "BindElement" | "char", ..] => continue,
-            _ => return Err(format!("bsim4def.h: unrecognised member `{line}`")),
+            _ => return Err(format!("{file}: unrecognised member `{line}`")),
         };
         if !field
             .c_name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_')
         {
-            return Err(format!("bsim4def.h: unexpected member name `{line}`"));
+            return Err(format!("{file}: unexpected member name `{line}`"));
         }
         fields.push(field);
     }
     Ok(fields)
 }
 
-/// The Rust spelling of a C member: the `BSIM4` prefix removed, a raw
-/// identifier for Rust keywords.
+/// The Rust spelling of a C member: the `BSIM3`/`BSIM4` prefix removed, a
+/// raw identifier for Rust keywords.
 fn rust_name(c_name: &str) -> String {
-    let name = c_name.strip_prefix("BSIM4").unwrap_or(c_name);
+    let name = c_name
+        .strip_prefix("BSIM4")
+        .or_else(|| c_name.strip_prefix("BSIM3"))
+        .unwrap_or(c_name);
     if matches!(
         name,
         "type" | "pub" | "mod" | "ref" | "in" | "fn" | "use" | "as"
@@ -238,36 +242,74 @@ pub(crate) fn asks(mask: &str, ask: &str, revision: &str) -> Result<String, Stri
     Ok(out)
 }
 
-/// The generated `fields.rs` text.
-pub(crate) fn fields(header: &str, revision: &str) -> Result<String, String> {
+/// The generated `fields.rs` text for one device: the model, size-dependent
+/// and instance structs of `header` (`file`), with the reviewed member counts.
+fn device_fields(
+    file: &str,
+    header: &str,
+    revision: &str,
+    device: &str,
+    counts: [usize; 3],
+) -> Result<String, String> {
     let header = crate::ifparm::strip_comments(header)?;
+    let upper = device.to_ascii_uppercase();
     let instance = members(
+        file,
         &header,
-        "typedef struct sBSIM4instance\n{",
-        "} BSIM4instance",
+        &format!("typedef struct s{upper}instance\n{{"),
+        &format!("}} {upper}instance"),
     )?;
-    let size = members(&header, "struct bsim4SizeDependParam\n{", "};")?;
-    let model = members(&header, "typedef struct sBSIM4model\n{", "} BSIM4model")?;
-    for (label, fields, expected) in [
-        ("instance", &instance, 370),
-        ("size", &size, 224),
-        ("model", &model, 1824),
-    ] {
+    let size = members(
+        file,
+        &header,
+        &format!("struct {device}SizeDependParam\n{{"),
+        "};",
+    )?;
+    let model = members(
+        file,
+        &header,
+        &format!("typedef struct s{upper}model\n{{"),
+        &format!("}} {upper}model"),
+    )?;
+    for ((label, fields), expected) in [("instance", &instance), ("size", &size), ("model", &model)]
+        .into_iter()
+        .zip(counts)
+    {
         if fields.len() != expected {
             return Err(format!(
-                "bsim4def.h: {} {label} members, reviewed {expected}; review the header",
+                "{file}: {} {label} members, reviewed {expected}; review the header",
                 fields.len()
             ));
         }
     }
     let mut out = format!(
         "// Generated field facts (C member names and scalar types), not C\n\
-         // implementation code. Source: ngspice {revision}, bsim4/bsim4def.h.\n\
-         // Regenerate: cargo xtask bsim4-schema --source /path/to/ngspice\n\
+         // implementation code. Source: ngspice {revision}, {device}/{file}.\n\
+         // Regenerate: cargo xtask {device}-schema --source /path/to/ngspice\n\
          #![allow(non_snake_case, clippy::struct_excessive_bools)]\n"
     );
-    emit_struct(&mut out, "Model", "struct sBSIM4model", &model)?;
-    emit_struct(&mut out, "SizeParam", "struct bsim4SizeDependParam", &size)?;
-    emit_struct(&mut out, "Instance", "struct sBSIM4instance", &instance)?;
+    emit_struct(&mut out, "Model", &format!("struct s{upper}model"), &model)?;
+    emit_struct(
+        &mut out,
+        "SizeParam",
+        &format!("struct {device}SizeDependParam"),
+        &size,
+    )?;
+    emit_struct(
+        &mut out,
+        "Instance",
+        &format!("struct s{upper}instance"),
+        &instance,
+    )?;
     Ok(out)
+}
+
+/// The generated BSIM4 `fields.rs` text.
+pub(crate) fn fields(header: &str, revision: &str) -> Result<String, String> {
+    device_fields("bsim4def.h", header, revision, "bsim4", [370, 224, 1824])
+}
+
+/// The generated BSIM3 `fields.rs` text.
+pub(crate) fn bsim3_fields(header: &str, revision: &str) -> Result<String, String> {
+    device_fields("bsim3def.h", header, revision, "bsim3", [140, 120, 868])
 }
