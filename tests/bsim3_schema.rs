@@ -388,8 +388,8 @@ fn validated_levels_build_a_real_device_with_charge_state() {
         assert_eq!(circuit.devices().len(), 1);
         // Ground plus the four external nodes.
         assert_eq!(circuit.nodes().len(), 5);
-        // The DC state block plus C's `capMod=3` charge slots.
-        assert_eq!(circuit.devices()[0].state_count(), 28);
+        // C's `BSIM3numStates` (`bsim3def.h`).
+        assert_eq!(circuit.devices()[0].state_count(), 17);
         // Unknowns are assigned when the circuit is finalized.
         assert_eq!(circuit.devices()[0].terminals().len(), 4);
     }

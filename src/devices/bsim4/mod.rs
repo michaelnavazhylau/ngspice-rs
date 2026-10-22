@@ -48,6 +48,12 @@ mod sens;
 mod set;
 mod temp;
 
+// The C host interface (`CKTcircuit` view, `CKTmode` bits), the noise
+// generator shape and C's `%g` spelling are shared with the BSIM3 port, which follows the same shape.
+pub(crate) use host::{LoadCkt, SmallSignalCkt, mode};
+pub(crate) use noise::Source as NoiseSource;
+pub(crate) use temp::c_g;
+
 /// The generated literal model defaults in C setup order (`b4set.c`).
 ///
 /// Generated from `b4set.c`'s given-guarded literal assignments, which
