@@ -40,6 +40,8 @@ mod fields;
 mod geo;
 mod host;
 mod load;
+mod model_state;
+pub(crate) use model_state::{Binding, bind_batch};
 mod noise;
 /// Generated IFparm order, identifiers and setter/given-field mappings.
 pub mod parameters;
@@ -47,6 +49,12 @@ mod pzld;
 mod sens;
 mod set;
 mod temp;
+
+// The C host interface (`CKTcircuit` view, `CKTmode` bits), the noise
+// generator shape and C's `%g` spelling are shared with the BSIM3 port, which follows the same shape.
+pub(crate) use host::{LoadCkt, SmallSignalCkt, mode};
+pub(crate) use noise::Source as NoiseSource;
+pub(crate) use temp::c_g;
 
 /// The generated literal model defaults in C setup order (`b4set.c`).
 ///
@@ -229,6 +237,7 @@ pub(crate) fn instantiate(
     nodes: &mut crate::primitives::NodeTable,
     model: &ResolvedModel<'_>,
     context: &crate::devices::ModelContext,
+    binding: Binding,
 ) -> SpiceResult<Box<dyn crate::devices::Device>> {
-    device::Bsim4::instantiate(instance, nodes, model, context)
+    device::Bsim4::instantiate(instance, nodes, model, context, binding)
 }

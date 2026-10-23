@@ -1,3 +1,24 @@
+# BSIM3 across instances (#189/#193)
+
+- 18 new C goldens, `m11_bsim3_multi_*`, each captured once with `cargo xtask
+  golden capture --netlist <name>` from the reference build. No existing
+  golden was recaptured and no tolerance changed.
+  - The decks cover models shared by several instances with `b3check.c`
+    resets, instance and temperature sweeps, two prefix-named models, a CMOS
+    chain, internal nodes with `uic`, and binning.
+  - Every deck is EXACT against the FMA-free C build (`ulpcmp.py`), out of 71
+    probe decks of which all others were also EXACT or fail exactly as C
+    does; see [BSIM.md](BSIM.md#instances-sharing-a-model).
+  - The transient decks run at default tolerances: at `reltol=1e-9`, C stops
+    with "Timestep too small", and the reference build also fails the stack
+    transient.
+- Fixed: binned instances now enter `CKTsetup`/`CKTload` order under the bin
+  model C creates at their first reference, not under the shared name they
+  are written with (`setup_model_name` in `src/devices/circuit.rs`).
+  `binned_instances_join_the_bin_c_created_at_first_reference` pins the order.
+- Full conformance scoreboard against the FMA-free build: 175 of 220 decks
+  EXACT. `main` has 171; the four that changed are the BSIM3 decks from #193.
+
 # M10 0.5h: card budget, long diode chains, 402-FET transient
 
 - `diode100_op`: one new C golden, captured once with `cargo xtask golden
@@ -317,8 +338,10 @@ changed), all under `compare::NONLINEAR`, `compare::TRAN`,
 - BSIM3v3.3 `capMod=3`: `m11_bsim3_{op,dc,ac,tran}`. They exposed three
   BSIM3 gaps, now fixed: the missing `BSIM3convTest` and `BSIM3trunc`, and a
   `MODEINITPRED` that limited the previous iterate instead of `DEVpred`'s
-  extrapolation (and treated `MODEINITTRAN` the same). The transient deck
-  runs at `reltol=1e-5` because BSIM3 is not bit-exact (see BSIM.md).
+  extrapolation (and treated `MODEINITTRAN` the same). Since #193 BSIM3 is
+  translated statement by statement and all four decks are bit-exact against
+  the FMA-free oracle; `m11_bsim3_tran` was recaptured at default tolerances
+  (234 points; it ran at `reltol=1e-5` before, see BSIM.md).
 
 `golden verify` now projects the port's plots onto C's default save set by
 `outitf.c`'s own rule (internal nodes named `#internal`, `#source`, `#drain`,

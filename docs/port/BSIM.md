@@ -9,9 +9,10 @@ through `b3ld.c`/`b3acld.c`/`b3pzld.c`, `.noise` through `b3noi.c`, and `.disto`
 treats the device as linear, as C does (no `DEVdisto`). The device runs C's
 `BSIM3convTest` and `BSIM3trunc`. **Still refused:** `capMod` 0/1/2 (a different
 charge equation set), every NQS mode (`nqsMod`/`acnqsMod`), `.sens` and older
-BSIM3 versions. Each names its C file instead of substituting a law. BSIM3 is
-a reimplementation, not a translation: it agrees with C to about 1e-9 at a
-converged point but is not bit-exact.
+BSIM3 versions. Each names its C file instead of substituting a law. Like
+BSIM4, BSIM3 is **translated statement by statement** over C's own struct
+members (#193): the `m11_bsim3_*` goldens are bit-exact against the FMA-free C
+oracle at default tolerances.
 
 **BSIM4 (4.8.3, `bsim4/`, levels 14/54) is ported and simulates every
 analysis C supports for it:** `.op`, `.dc` (sources, temperature, instance
@@ -173,97 +174,51 @@ C order and keeps them, so a model with two instances warns once and then uses
 the corrected values. `ModelParameters::setup_instance` is the single-instance
 convenience over a fresh `ModelSetup`.
 
-#### DC core (`b3ld.c`), validated but not yet wired
+#### The translation (#193)
 
-`devices::bsim3::dc` ports the bias-dependent physics of `b3ld.c` as a pure
-evaluation: `DcModel::evaluate(Bias, gmin)` returns the drain current and its
-`gm`/`gds`/`gmbs`, the substrate current and its derivatives, the source/drain
-junction currents and conductances, and C's observables (`von` for `@m1[vth]`,
-`Vdseff`, `Vdsat`, `Abulk`, `ueff`, `Rds`, `Vgsteff`). It reproduces:
+BSIM3 follows the BSIM4 shape (see [BSIM4](#bsim4)):
 
-- source/drain junction diodes with the `ijth`/`vjsm` breakdown branch and gmin,
-- `Vbseff`/`Phis`/`Xdep`, the short/narrow-channel `Vth` terms (`dvt0/1/2`,
-  `dvt0w/1w/2w`, `k1ox`/`k2ox`, `k3`/`k3b`, temperature terms, DIBL shift),
-- subthreshold `n`, poly-gate depletion, the three `Vgsteff` regimes,
-  `Weff`/`Rds` bias dependence, `Abulk`, all three `mobMod` mobility branches,
-  the `a1`/`a2` lambda split for `Vdsat`, `Vdseff`, `Vasat`, `VACLM`, `VADIBL`,
-  `VASCBE`, `Ids`/`gm`/`gds`/`gmbs` and the substrate current.
+- `cargo xtask bsim3-schema` also generates `fields.rs`: the scalar members of
+  `sBSIM3model` (868), `bsim3SizeDependParam` (120) and `sBSIM3instance` (140)
+  with C's names minus the `BSIM3` prefix. The same generator
+  (`xtask/src/bsim_fields.rs`) serves BSIM4.
+- `apply.rs` stores the ordered setters into those structs; `set.rs`
+  (`b3set.c`), `temp.rs` (`b3temp.c`, with the size-dependent knot list and the
+  `T0` the instance loop carries between instances), `check.rs` (`b3check.c`),
+  `load.rs` (`b3ld.c`), `acld.rs`, `pzld.rs`, `noi.rs`, `cvtest.rs` and
+  `elements.rs` (the `TSTALLOC` order) follow C statement by statement. C's
+  gotos in `b3ld.c` are a labelled block with flags; the bypass branch is not
+  compiled (C's default `bypass = 0`), and `NEWCONV` is defined as in C.
+- `host.rs` gives the BSIM3 node indices and C's 17 state offsets; the loads
+  reach the circuit through BSIM4's `LoadCkt`/`SmallSignalCkt` traits.
+- `device.rs` maps the port's phases to `CKTmode` exactly as BSIM4's does,
+  keeps C's live instance struct across loads, and serves `b3ask.c` (including
+  C's `cqg`/`cqb`/`cqd` output rows) from the `MODEINITSMSIG` load.
+- `defaults`, `temperature`, `setup`, `dc` and `charges` keep their public
+  keyword API for the offline and differential tests, now read from the C
+  structs; `dc::DcModel::evaluate` runs the real load at a bias. The string-
+  keyed maps and the `panic!` lookups they used are gone (#197).
 
-The core deliberately omits what belongs to the solver loop: voltage limiting
-(`DEVfetlim`, `DEVpnjlim`, `DEVlimvds`), bypass and convergence bookkeeping,
-matrix stamps, state slots and internal-node conductances. Charges (`capMod`),
-NQS, AC, noise and pole-zero are not evaluated, so `@m1[cbs]`/`@m1[cbd]`
-(capacitances in C) and every charge ask remain unavailable.
+`capMod` 0/1/2 and NQS are translated with the rest of `b3ld.c`/`b3acld.c`/
+`b3pzld.c` but not yet verified against C, so every analysis whose result
+depends on the charges (transient, `uic`, AC, pole-zero, noise and the charge
+asks) refuses them (#190, #191); DC results do not depend on them. The
+pole-zero load passes `m * x` as the coefficient of `s` where C computes
+`m * (x * s)`: identical for the default `m = 1`, possibly one rounding apart
+otherwise. ACM (`acmMod > 0`) is refused in `b3set.c`/`b3temp.c`/`b3ld.c`.
 
-#### The device (`device.rs`)
+Verification:
 
-`devices::bsim3::device::Bsim3` wires that core into the solver:
-
-- `b3set.c`/`b3temp.c` setup is cached per (temperature, nominal temperature),
-  as C re-runs `BSIM3temp` on changes; the effective geometry, junction
-  currents and diagnostics come from the setup stage.
-- `stamp` reproduces `b3ld.c`'s start conditions (`off`, `ic=`), its
-  `DEVfetlim`/`DEVlimvds`/`DEVpnjlim` limiting phases and its `line900` RHS and
-  matrix terms for the forward and inverse modes, including the substrate
-  current and both junction diodes. RSH/NRD/NRS create C's internal
-  `drain`/`source` prime nodes.
-- `observation_operating` serves C's `b3ask.c` DC keywords (`id`, `gm`, `gds`,
-  `gmbs`, `vth`, `vbs`, `vgs`, `vds`, `vdsat`, `ibs`, `ibd`, `gbs`, `gbd`) and
-  the charge asks (`qg`, `qb`, `qd`, `cgg`..`cbs`, `capbd`, `capbs`), times the
-  instance multiplicity. `cqg`/`cqb`/`cqd`, `qbs`/`qbd` and `qinv` are `b3ask.c`
-  cases without an instance-table row in `b3.c`, so they are not askable.
-- The device declares 28 state slots: the 19 DC slots plus C's charge slots
-  (`qg`/`cqg`, `qb`/`cqb`, `qd`/`cqd`, `qbs`, `qbd`, `qinv`), each integrated
-  charge immediately followed by its `NIintegrate` derivative slot.
-
-Verification is opt-in: `c_bsim3_dc_reference` compares the pure core with C at
-C's converged internal bias over 16 model/geometry/temperature/bias cases in
-both polarities to 1e-9 relative, and `c_bsim3_device_reference` compares the
-port's own `.op` solution with C's for eight decks (default and sub-micron
-geometry, PMOS, RSH internal nodes, junction areas, MOBMOD 2, 100 °C) to 1e-6
-on node voltages and source currents and 1e-9 on the asks.
-
-#### The charge model (`b3ld.c` C-V) and small signal (`b3acld.c`, `b3noi.c`)
-
-`charges::ChargeModel::evaluate` ports `b3ld.c`'s charge block at `capMod=3`:
-the C-V preamble (`VbseffCV`, `CoxWL`, the `noff`/`voffcv` `Vgsteff`), the
-charge-thickness block (`Vfbeff`, `Tcen`, `Coxeff`, `Qac0`/`Qsub0`,
-`DeltaPhi`, `VgDP`, `VdseffCV`, `qgate`/`qbulk`, all three `xpart` partitions
-and the nine `c*xb` derivatives), the bias-dependent `capMod >= 2` overlap
-capacitances and the source/drain junction C-V. It reuses the DC pass's
-intermediates (`DcEvaluation::cv`) rather than recomputing them. Two C quirks
-are reproduced deliberately: the junction gate-sidewall zero-bias capacitance
-reads `BSIM3unitLengthGateSidewallJctCap` (not the temperature-scaled field),
-and `VdseffCV`'s gate/body derivatives are zeroed at `Vds = 0` while the drain
-derivative is left alone.
-
-`Device::stamp` evaluates that block on every DC load where the model is
-`capMod=3` and QS (so `.op` state, asks and a later `.tran` start from C's
-values) and on every transient load, then follows `b3ld.c`: the `gc*`
-equivalent conductances from `ag0`, `NIintegrate` on `qb`/`qg`/`qd`, and the
-`ceqq` companion currents. `assemble_small_signal` ports `b3acld.c` (the DC
-conductances into `A`, the `j omega xc*` terms into `E`) and
-`assemble_pole_zero` is its `s`-domain twin (`b3pzld.c` is `b3acld.c` with `s`
-for `j omega`). `noise` ports `b3noi.c`.
-
-Verification is opt-in and differential:
-
-- `c_bsim3_charge_reference` compares `@m1[qg]`, `[qb]`, `[qd]` and
-  `[cgg]`..`[cbs]` with C at C's converged bias over 19 cases in both
-  polarities to 1e-9: all three `xpart` partitions, accumulation,
-  subthreshold, triode, saturation, inverse mode, overlap-only cards, junction
-  areas with and without temperature scaling and `mobmod=2`.
-- `c_bsim3_small_signal_reference` compares `.dc` sweeps and `.ac` sweeps with
-  C by variable name (1e-6 relative, 1e-12/1e-15 floors), and two `.tran`
-  waveforms on a common physical grid (1e-3 relative, 1 uV/1 pA) — a slow gate
-  charge through 1 MOhm and a drain step with the gate held high.
-- `c_noise_reference::bsim3_noise_sources_match_c_batch_mode` compares every
-  per-source noise column with C for `noiMod` 1..6, a series-resistance deck
-  and a PMOS instance.
-
-**Not available yet:** `capMod` 0/1/2, NQS, `.disto` and `.sens`. Those paths
-fail with `NotYetPorted` naming the C files rather than loading zero. BSIM4 and
-the other BSIM families are unchanged.
+- `m11_bsim3_{op,dc,ac,tran}` are bit-exact against the FMA-free oracle
+  (`fidelity-tools/scripts/ulpcmp.py`); `m11_bsim3_tran` runs at default
+  tolerances.
+- `set.rs` reproduces all 376 generated literal defaults bit for bit (unit
+  test).
+- Opt-in, with `NGSPICE_BIN`: `c_bsim3_dc_reference` and
+  `c_bsim3_charge_reference` (C's asks at C's converged bias, 1e-9),
+  `c_bsim3_device_reference` (eight `.op` decks), `c_bsim3_setup_reference`
+  (`b3check.c` messages and fatals), `c_bsim3_small_signal_reference` (`.dc`,
+  `.ac`, `.tran`) and `c_bsim3_schema_reference`.
 
 ### Slice status
 
@@ -271,13 +226,45 @@ the other BSIM families are unchanged.
 | --- | --- |
 | B3-0 tables/schema | done for the generated interface facts and explicit setters; the **physical-unit audit is partial** (`Parameter::input_unit` still returns `None` for unaudited keywords) |
 | B3-1 temperature/instance setup | done (`b3temp.c`, `b3set.c` defaults, `b3check.c` diagnostics) |
-| B3-2 DC load | done, differentially verified |
-| B3-3 charges and transient | done for `capMod=3`/QS; `capMod` 0/1/2 and NQS refused |
+| B3-2 DC load | done, translated from `b3ld.c` (#193), bit-exact |
+| B3-3 charges and transient | done for `capMod=3`/QS, bit-exact; `capMod` 0/1/2 and NQS translated but unverified, refused |
 | B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf`, `.noise` and `.disto` (linear, as C); `.sens` refused |
-| B3-5 goldens and binning coverage | done: `m11_bsim3_{op,dc,ac,tran}` and `m11_bsim4_{op,dc,ac,pz,noise,tran,bin_dc}` under `xtask golden verify` (binning end to end in `m11_bsim4_bin_dc`) |
+| B3-5 goldens and binning coverage | done: `m11_bsim3_{op,dc,ac,tran}`, the 18 `m11_bsim3_multi_*` decks (state across instances, BSIM3 binning) and `m11_bsim4_{op,dc,ac,pz,noise,tran,bin_dc}` under `xtask golden verify` |
 | B4-0 tables/schema | done |
 | B4-1..B4-4 BSIM4 setup, temperature, checks, load, small signal, noise, pole-zero | done, bit-exact against the FMA-free C oracle ([BSIM4](#bsim4)) |
 | B4 `.sens` | done (DC and AC), bit-exact on every deck C completes; see [SENSITIVITY.md](SENSITIVITY.md) |
+
+### Instances sharing a model
+
+C keeps one model struct per BSIM3 model and walks its instances
+last-parsed first in `BSIM3temp`. The port runs each instance's pass on its
+own copy, which gives C's numbers in every supported mode because the state
+C carries between instances cannot differ:
+
+- `b3check.c` has no `static` model name: it checks every new size knot, and
+  an instance that reuses a knot inherits a knot that was already checked
+  and reset. Its resets (`a2`, `rdsw`, `prwg` on the knot; `cgdo`, `cgso`,
+  `cgbo` on the model) set the same values each time, and `b3temp.c` checks
+  before it computes `pParam->BSIM3cgdo` from the model field.
+- The only function-local value an instance that reuses a knot reads from
+  the previous iteration is `T0` in `tconst`, which only NQS uses (refused,
+  #191). `calcacm` belongs to ACM (refused).
+
+The `m11_bsim3_multi_*` goldens cover this against the FMA-free oracle, all
+EXACT under `scripts/ulpcmp.py`:
+- shared geometries with knot and model-level resets under `.op`, `.dc`,
+  `.ac`, `.noise`, `.dc temp` and `.dc @inst[w|l|m]`;
+- `.tf`, `.pz`, `.disto` (zero: C's BSIM3 has no `DEVdisto`) and transient;
+- two prefix-named models, a CMOS chain, internal nodes with `m`, `off`,
+  `.ic` and `uic`, and binned models.
+
+The same sweep found decks C itself cannot finish: negative CGDO/CGSO/CGBO
+transients at `reltol=1e-9` ("Timestep too small" at the same time point)
+and a singular `m1#source`. The port fails them identically.
+Binned instances join the bin model C created at their first reference in
+`CKTsetup`/`CKTload` order (`Circuit::add_instances`). Before, three binned
+instances could load in a different order from C, and pivoting then moved the
+results by a few hundred ulp.
 
 ### Next: what remains
 
@@ -287,13 +274,8 @@ the other BSIM families are unchanged.
    before it is wired.
 2. **NQS** (`nqsMod`, `acnqsMod`, #191): the `qNode` unknown, `qcheq`/`qdef`/
    `qcdump` states, `gtau` and the `b3acld.c` NQS branch.
-3. **Bit-level fidelity** (#193). BSIM3 is a reimplementation, so its arithmetic
-   is not C's operation order: the `m11_bsim3_tran` fixture needs
-   `reltol=1e-5` because at the default tolerance its step sequence drifts
-   from C's. Translating `b3ld.c` as BSIM4 was translated would close it.
-   (Done since the first draft of this list: `BSIM3convTest`, `BSIM3trunc`
-   on qb/qg/qd — C does register `DEVtrunc` — C's `MODEINITTRAN`/
-   `MODEINITPRED` voltage selection, and `.disto` as linear.)
+3. ~~**Bit-level fidelity** (#193)~~: done; BSIM3 is translated statement by
+   statement (see above).
 4. **`.sens`** (#192). The `cktsgen.c` device tables for BSIM3 (a fifth family of
    tables); no `.sens` curve is C-differential yet.
 5. **Physical-unit audit** of the remaining `input_unit() == None` keywords.
@@ -302,7 +284,7 @@ the other BSIM families are unchanged.
 
 ### How it is ported
 
-Unlike BSIM3 (a free reimplementation), BSIM4 is **translated statement by
+Like BSIM3, BSIM4 is **translated statement by
 statement** from `bsim4/` so that its arithmetic is C's: the BSIM4 sources
 are licensed under the Educational Community License 2.0 with Berkeley's
 terms of use, which allow modified redistribution with attribution (see
@@ -338,6 +320,22 @@ terms of use, which allow modified redistribution with attribution (see
   on the structs as left and skip `BSIM4checkModel`, whose `static` model
   name is already set. A deck whose model only fails the check at a later
   temperature therefore simulates, as in C.
+- **One model state per circuit (#189).** The BSIM4 instances a circuit adds
+  in one batch share C's model structs (`devices::bsim4::model_state`):
+  models in first-reference order and instances last-parsed first
+  (`GENnewModel`/`GENnewInstance` prepend), every model's `BSIM4setup`
+  before any `BSIM4temp`, one size knot per geometry with C's function-local
+  `Lnew` carried between instances, and `b4check.c`'s `static modname`
+  (`strncmp` over the model name's length, so a name that prefixes the last
+  checked one is skipped). So only the last-parsed instance of a model is
+  checked, a fatal size-dependent check on another geometry does not fire,
+  and the check's `pParam` resets reach only the instances sharing the
+  checked knot. Every `BSIM4temp` pass rebuilds the knots, so later passes
+  lose those resets, as in C. A `.dc @inst[param]` point re-runs the pass
+  for every instance (`DCTsetInstParam` then `CKTtemp`), so the other
+  instances read the point's overrides too (`StampContext::
+  instance_overrides`). Each elaborated circuit is a fresh C process; a
+  second BSIM4 batch on a circuit that already has one is refused.
 - **`noiseAnalGiven`.** With `tnoiMod=1`, a deck that holds a `.noise`
   analysis gets drain/source primes in every analysis (`ModelContext::
   noise_analysis`).
@@ -366,18 +364,22 @@ Tracked in #189 (cross-instance and cross-analysis C state), #186
 (reporting warnings), #187 (SOA checks), #188 (speed) and #194 (versions
 4.5-4.7).
 
-- `BSIM4checkModel` runs for every instance at its first setup; C checks
-  only the first instance of each model name in its list (and any model
-  whose name is a prefix of an already-checked one is skipped). Warnings
-  are kept on the device (`Prepared::warnings`), not printed.
+- `BSIM4checkModel` warnings are kept on the device (`Prepared::warnings`),
+  not printed (#186).
 - `DEVsoaCheck` (`b4soachk.c`) is not ported: it only prints warnings under
   `.options warn`, which the port does not accept.
 - A swept `.dc @inst[param]` point re-runs `b4temp.c` from the first
   (checked) structs, not from the previous point's; C's results agree
   because `BSIM4temp` recomputes every member it writes.
 - After a `.tran` in the same deck, C's `CKTag` keeps the last step's
-  coefficients and a later NQS `.op`/`.ac` integrates with them; the port
-  uses zero.
+  coefficients, and the NQS charges of the analyses `analInfo` runs later
+  (`.pz`, `.tf`, `.disto`, `.noise`) integrate with them in their
+  charge-computing loads; the port uses zero. Only `state0`'s `ccap` slots
+  differ and no later output reads them: those analyses are EXACT against
+  the FMA-free oracle with and without the `.tran`
+  (`tests/bsim4_model_state.rs`). A plain operating point does not compute
+  charges (`ChargeComputationNeeded`), and `.op`/`.ac`/`.dc` run before
+  `.tran`.
 - `.sens ac` after a `.tran` is refused: C's AC reset load reads the
   `capbd`/`capbs` the final transient load left, which the port does not keep.
 
@@ -476,8 +478,9 @@ Done; see [BSIM4](#bsim4).
 
 ## Guardrails
 
-- C stays a read-only reference. BSIM3 is reimplemented; BSIM4 is translated
-  under its ECL-2.0/Berkeley terms with the attribution in `NOTICE`. Each
+- C stays a read-only reference. BSIM3 is translated under ngspice's Modified
+  BSD terms and BSIM4 under its ECL-2.0/Berkeley terms, both with the
+  attribution in `NOTICE`. Each
   function names the C file it follows.
 - Unsupported modes, cards and `version=` strings fail with `NotYetPorted`
   naming the C file - never a substituted model, never a silently wider range.

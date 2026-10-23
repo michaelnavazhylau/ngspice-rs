@@ -1,0 +1,32 @@
+Title: bsim3v3.3 multi-instance: plain pz
+Date: Thu Oct 22 23:03:17  2026
+Command: ngspice-47+, Build 
+Plotname: Pole-Zero Analysis
+Flags: complex
+No. Variables: 11
+No. Points: 1
+Variables:
+	0	v(pole(1))	voltage
+	1	v(pole(2))	voltage
+	2	v(pole(3))	voltage
+	3	v(pole(4))	voltage
+	4	v(pole(5))	voltage
+	5	v(pole(6))	voltage
+	6	v(pole(7))	voltage
+	7	v(pole(8))	voltage
+	8	v(pole(9))	voltage
+	9	v(pole(10))	voltage
+	10	v(pole(11))	voltage
+Values:
+ 0	-1.738036640326047e+14,0.000000000000000e+00
+	-5.862213323076158e+13,0.000000000000000e+00
+	-4.541372444739900e+13,0.000000000000000e+00
+	-3.131198831359179e+13,0.000000000000000e+00
+	-3.014616686344443e+13,0.000000000000000e+00
+	-7.466810767180732e+11,0.000000000000000e+00
+	-3.384525922673518e+11,0.000000000000000e+00
+	-3.300011274877166e+11,0.000000000000000e+00
+	-3.212631001879729e+11,0.000000000000000e+00
+	-2.160081354326609e+11,0.000000000000000e+00
+	-1.758305726143879e+10,0.000000000000000e+00
+

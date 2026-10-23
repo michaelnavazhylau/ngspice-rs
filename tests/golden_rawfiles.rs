@@ -418,18 +418,392 @@ const EXPECTATIONS: &[Expectation] = &[
             ("v(d)", 32, 1.692970310646259e-01, 9.061249795633831e-02),
         ],
     },
-    // BSIM3v3.3 (#90). The inverter output starts high with the input low
-    // and is high again at 4 ns, after one full input period.
+    // BSIM3v3.3 (#90, #193: default tolerances). The inverter output starts
+    // high with the input low and is high again at 4 ns, after one full input
+    // period (76 uV above vdd, still settling from the input's fall at
+    // 3.3 ns).
     Expectation {
         fixture: "m11_bsim3_tran",
         plotname: "Transient Analysis",
         flags: PlotFlags::Real,
-        points: 374,
+        points: 234,
         variables: &["time", "v(dd)", "v(in)", "v(o)", "i(vdd)", "i(vin)"],
         values: &[
             ("v(o)", 0, 1.799999997287171e+00, 0.),
-            ("time", 373, 4.000000000000000e-09, 0.),
-            ("v(o)", 373, 1.799996668289088e+00, 0.),
+            ("time", 233, 4.000000000000000e-09, 0.),
+            ("v(o)", 233, 1.800075541265139e+00, 0.),
+        ],
+    },
+    // BSIM3 across instances (#189/#193): five NMOS on one model with
+    // b3check.c's resets. m1 and m3 share a geometry, so v(d1) == v(d3) to the
+    // last digit; the widest, m4, pulls its drain lowest. KCL: i(vdd) is the five
+    // 2 kOhm currents, sum((1.8 - v(dk))/2k) = 1.4179 mA.
+    Expectation {
+        fixture: "m11_bsim3_multi_both_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(dd)", "v(d1)", "v(d2)", "v(d3)", "v(d4)", "v(d5)", "v(g)", "i(vdd)", "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.198660081243539e+00, 0.),
+            ("v(d3)", 0, 1.198660081243539e+00, 0.),
+            ("v(d2)", 0, 1.536289837525284e+00, 0.),
+            ("v(d4)", 0, 6.942724972651030e-01, 0.),
+            ("i(vdd)", 0, -1.417913832598610e-03, 0.),
+        ],
+    },
+    // Two prefix-named models (n, nch) whose repeated parameters resolve to the
+    // same DC card, so m1 (n) and m2 (nch) at one geometry match exactly.
+    Expectation {
+        fixture: "m11_bsim3_multi_two_models_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(dd)", "v(d1)", "v(d2)", "v(d3)", "v(g)", "i(vdd)", "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.244487966464375e+00, 0.),
+            ("v(d2)", 0, 1.244487966464375e+00, 0.),
+            ("v(d3)", 0, 1.543988720029419e+00, 0.),
+            ("i(vdd)", 0, -6.835176735209158e-04, 0.),
+        ],
+    },
+    // Binned nb.1/nb.2: m1 and m4 share a bin and a geometry (equal drains);
+    // m3 sits on the 0.3 um bin boundary between the m1 and m2 values. KCL
+    // again gives i(vdd) = 0.8713 mA.
+    Expectation {
+        fixture: "m11_bsim3_multi_bins_op",
+        plotname: "Operating Point",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(dd)", "v(d1)", "v(d2)", "v(d3)", "v(d4)", "v(g)", "i(vdd)", "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.244487977472499e+00, 0.),
+            ("v(d4)", 0, 1.244487977472499e+00, 0.),
+            ("v(d2)", 0, 1.543988718224970e+00, 0.),
+            ("v(d3)", 0, 1.424470892356672e+00, 0.),
+            ("i(vdd)", 0, -8.712822172366806e-04, 0.),
+        ],
+    },
+    // The shared stack under a gate sweep: off at vg = 0 (drains within 3e-8 V
+    // of vdd), and at vg = 1.8 V m1/m3 still equal, m4 lowest.
+    Expectation {
+        fixture: "m11_bsim3_multi_both_dc",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 5,
+        variables: &[
+            "v(v-sweep)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(d5)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.799999987435638e+00, 0.),
+            ("i(vdd)", 0, -3.723647012208314e-11, 0.),
+            ("v(d1)", 4, 2.826375367764593e-01, 0.),
+            ("v(d3)", 4, 2.826375367764593e-01, 0.),
+            ("v(d4)", 4, 1.354990091461829e-01, 0.),
+            ("i(vdd)", 4, -3.428613337994113e-03, 0.),
+        ],
+    },
+    // The stack under .dc temp: mobility falls with temperature, so the drains
+    // rise from -40 C to 125 C; m1/m3 stay equal at every pass.
+    Expectation {
+        fixture: "m11_bsim3_multi_both_temp",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 4,
+        variables: &[
+            "temp-sweep",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(d5)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("temp-sweep", 0, -4.000000000000000e+01, 0.),
+            ("v(d1)", 0, 1.020539457468716e+00, 0.),
+            ("v(d3)", 0, 1.020539457468716e+00, 0.),
+            ("temp-sweep", 3, 1.250000000000000e+02, 0.),
+            ("v(d1)", 3, 1.379587947876819e+00, 0.),
+            ("i(vdd)", 3, -9.868044313085390e-04, 0.),
+        ],
+    },
+    // .dc @m3[w]: at w = 4u m3 has m4's geometry and its drain meets v(d4)
+    // (to 2e-11 V); the other drains do not move.
+    Expectation {
+        fixture: "m11_bsim3_multi_both_sweep_m3w",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 2,
+        variables: &[
+            "v(param-sweep)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(d5)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d3)", 0, 1.198660081243539e+00, 0.),
+            ("v(d3)", 1, 6.942724972812525e-01, 0.),
+            ("v(d4)", 1, 6.942724972650984e-01, 0.),
+            ("v(d1)", 1, 1.198660081243538e+00, 0.),
+        ],
+    },
+    // .dc @m2[l]: at l = 0.18u m2 takes m1's geometry and drain voltage; at its
+    // own 0.5u it matches m5 again.
+    Expectation {
+        fixture: "m11_bsim3_multi_both_sweep_m2l",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 2,
+        variables: &[
+            "v(param-sweep)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(d5)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d2)", 0, 1.198660081243539e+00, 0.),
+            ("v(d1)", 0, 1.198660081243539e+00, 0.),
+            ("v(d2)", 1, 1.536289837554403e+00, 0.),
+            ("v(d5)", 1, 1.536289837525316e+00, 0.),
+        ],
+    },
+    // .dc @m1[m]: tripling m1's multiplier pulls only its drain down.
+    Expectation {
+        fixture: "m11_bsim3_multi_both_sweep_m1m",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 2,
+        variables: &[
+            "v(param-sweep)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(d5)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.198660081243539e+00, 0.),
+            ("v(d1)", 1, 3.130952908640351e-01, 0.),
+            ("v(d3)", 1, 1.198660081243538e+00, 0.),
+            ("i(vdd)", 1, -1.860696227788364e-03, 0.),
+        ],
+    },
+    // .dc @m1[l] across bins: at 0.5u m1 is in nb.2 with m2's geometry and
+    // meets v(d2) (to 4e-9 V).
+    Expectation {
+        fixture: "m11_bsim3_multi_bins_sweep_l",
+        plotname: "DC transfer characteristic",
+        flags: PlotFlags::Real,
+        points: 2,
+        variables: &[
+            "v(param-sweep)",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.244487977472499e+00, 0.),
+            ("v(d1)", 1, 1.543988721826826e+00, 0.),
+            ("v(d2)", 1, 1.543988718224970e+00, 0.),
+            ("i(vdd)", 1, -7.215318450595289e-04, 0.),
+        ],
+    },
+    // AC of the shared stack: at 1 kHz each drain's gain is -gm*(2k || ro);
+    // m1 and m3 equal, the widest m4 largest (-3.08).
+    Expectation {
+        fixture: "m11_bsim3_multi_both_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 15,
+        variables: &[
+            "frequency",
+            "v(d1)",
+            "v(d2)",
+            "v(d3)",
+            "v(d4)",
+            "v(d5)",
+            "v(dd)",
+            "v(g)",
+            "i(vdd)",
+            "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, -1.804349242829170e+00, -4.339299630266161e-08),
+            ("v(d3)", 0, -1.804349242829170e+00, -4.339299630266161e-08),
+            ("v(d4)", 0, -3.081626016447856e+00, -1.213585417421593e-07),
+            ("v(d1)", 14, -1.726650970843953e+00, -4.195329554332426e-01),
+        ],
+    },
+    // The inverter chain with its input at mid-supply: the first stage's gain
+    // is -23.8 at 1 MHz; the later stages sit off their switching points, so
+    // the gain collapses to 7e-5 at o3.
+    Expectation {
+        fixture: "m11_bsim3_multi_inv_ac",
+        plotname: "AC Analysis",
+        flags: PlotFlags::Complex,
+        points: 13,
+        variables: &[
+            "frequency",
+            "v(dd)",
+            "v(in)",
+            "v(o1)",
+            "v(o2)",
+            "v(o3)",
+            "i(vdd)",
+            "i(vin)",
+        ],
+        values: &[
+            ("v(o1)", 0, -2.381602227419039e+01, 7.100188717093056e-02),
+            ("v(o2)", 0, 5.256916023728953e+00, -1.695789182149994e-02),
+            ("v(o3)", 0, 7.318712751594618e-08, 6.901098400486819e-05),
+        ],
+    },
+    // .tf v(d2) vg: gain -0.81, output impedance just under the 2 kOhm load
+    // (in parallel with ro), and the open gate's 1e20 input impedance.
+    Expectation {
+        fixture: "m11_bsim3_multi_plain_tf",
+        plotname: "Transfer Function",
+        flags: PlotFlags::Real,
+        points: 1,
+        variables: &[
+            "v(transfer_function)",
+            "v(output_impedance_at_v(d2))",
+            "v(vg#input_impedance)",
+        ],
+        values: &[
+            ("v(transfer_function)", 0, -8.070886494260900e-01, 0.),
+            ("v(output_impedance_at_v(d2))", 0, 1.982566638712890e+03, 0.),
+            ("v(vg#input_impedance)", 0, 1.000000000000000e+20, 0.),
+        ],
+    },
+    // Poles through the 1 kOhm gate resistor: eleven, all real and negative.
+    Expectation {
+        fixture: "m11_bsim3_multi_plain_pz",
+        plotname: "Pole-Zero Analysis",
+        flags: PlotFlags::Complex,
+        points: 1,
+        variables: &[
+            "v(pole(1))",
+            "v(pole(2))",
+            "v(pole(3))",
+            "v(pole(4))",
+            "v(pole(5))",
+            "v(pole(6))",
+            "v(pole(7))",
+            "v(pole(8))",
+            "v(pole(9))",
+            "v(pole(10))",
+            "v(pole(11))",
+        ],
+        values: &[
+            (
+                "v(pole(1))",
+                0,
+                -1.738036640326047e+14,
+                0.000000000000000e+00,
+            ),
+            (
+                "v(pole(11))",
+                0,
+                -1.758305726143879e+10,
+                0.000000000000000e+00,
+            ),
+        ],
+    },
+    // Transient of the stack with pParam resets: t = 0 is the vg = 0 bias of
+    // m11_bsim3_multi_both_dc to the last digit, and with the gate high at
+    // 1.2 ns the drains approach that deck's vg = 1.8 V point.
+    Expectation {
+        fixture: "m11_bsim3_multi_resets_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 146,
+        variables: &[
+            "time", "v(d1)", "v(d2)", "v(d3)", "v(d4)", "v(d5)", "v(dd)", "v(g)", "i(vdd)", "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.799999987435638e+00, 0.),
+            ("time", 145, 1.200000000000000e-09, 0.),
+            ("v(d1)", 145, 2.826572398216232e-01, 0.),
+            ("v(d4)", 145, 1.354881881412727e-01, 0.),
+        ],
+    },
+    // The inverter chain with the input low at 0 and 2 ns: o1 high, o2 low, o3
+    // high.
+    Expectation {
+        fixture: "m11_bsim3_multi_inv_tran",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 232,
+        variables: &[
+            "time", "v(dd)", "v(in)", "v(o1)", "v(o2)", "v(o3)", "i(vdd)", "i(vin)",
+        ],
+        values: &[
+            ("v(o1)", 0, 1.799999997290221e+00, 0.),
+            ("v(o2)", 0, 1.356102925410546e-09, 0.),
+            ("v(o3)", 0, 1.799999997290209e+00, 0.),
+            ("time", 231, 2.000000000000000e-09, 0.),
+            ("v(o1)", 231, 1.799995437784756e+00, 0.),
+            ("v(o2)", 231, -2.989591098487812e-06, 0.),
+            ("v(o3)", 231, 1.799958000741744e+00, 0.),
+        ],
+    },
+    // uic with .ic v(d1)=1.8 v(d2)=0.5: the first point keeps those values
+    // (d2 moving off 0.5 V), and with the gate low at 1 ns every drain is back
+    // at vdd.
+    Expectation {
+        fixture: "m11_bsim3_multi_inner_tran_uic",
+        plotname: "Transient Analysis",
+        flags: PlotFlags::Real,
+        points: 1987,
+        variables: &[
+            "time", "v(d1)", "v(d2)", "v(d3)", "v(d4)", "v(d5)", "v(dd)", "v(g)", "i(vdd)", "i(vg)",
+        ],
+        values: &[
+            ("v(d1)", 0, 1.799999999773408e+00, 0.),
+            ("v(d2)", 0, 5.115717477848511e-01, 0.),
+            ("time", 1986, 1.000000000000000e-09, 0.),
+            ("v(d2)", 1986, 1.799999971606174e+00, 0.),
         ],
     },
     // BSIM4 (#90). (1.2 - v(d2))/5 kOhm = 172.3 uA flows through m2 and
@@ -10046,6 +10420,83 @@ const EXPECTATIONS: &[Expectation] = &[
 /// the deck order.
 #[allow(clippy::excessive_precision)]
 const MULTI_EXPECTATIONS: &[&[Expectation]] = &[
+    &[
+        // BSIM3 across instances (#189/#193): b3noi.c on the shared stack. At
+        // 1 kHz onoise/inoise is the v(d4) gain magnitude, 9.912e-9 / 3.217e-9 =
+        // 3.08, as in m11_bsim3_multi_both_ac.
+        Expectation {
+            fixture: "m11_bsim3_multi_both_noise",
+            plotname: "Noise Spectral Density Curves",
+            flags: PlotFlags::Real,
+            points: 15,
+            variables: &["frequency", "inoise_spectrum", "onoise_spectrum"],
+            values: &[
+                ("onoise_spectrum", 0, 9.912140212507938e-09, 0.),
+                ("inoise_spectrum", 0, 3.216529247742238e-09, 0.),
+            ],
+        },
+        // The integrated noise of the same deck.
+        Expectation {
+            fixture: "m11_bsim3_multi_both_noise",
+            plotname: "Integrated Noise",
+            flags: PlotFlags::Real,
+            points: 1,
+            variables: &["v(onoise_total)", "v(inoise_total)"],
+            values: &[
+                ("v(onoise_total)", 0, 9.681731900357481e-04, 0.),
+                ("v(inoise_total)", 0, 3.257288189529556e-04, 0.),
+            ],
+        },
+    ],
+    &[
+        // C's BSIM3 has no DEVdisto: the transistors are linear, so the 2nd and
+        // 3rd harmonics are zero everywhere.
+        Expectation {
+            fixture: "m11_bsim3_multi_plain_disto",
+            plotname: "DISTORTION - 2nd harmonic",
+            flags: PlotFlags::Complex,
+            points: 7,
+            variables: &[
+                "frequency",
+                "v(d1)",
+                "v(d2)",
+                "v(d3)",
+                "v(d4)",
+                "v(d5)",
+                "v(dd)",
+                "v(g)",
+                "i(vdd)",
+                "i(vg)",
+            ],
+            values: &[
+                ("v(d1)", 0, 0.000000000000000e+00, 0.000000000000000e+00),
+                ("v(d4)", 6, 0.000000000000000e+00, 0.000000000000000e+00),
+            ],
+        },
+        // The 3rd harmonic of the same deck, also zero.
+        Expectation {
+            fixture: "m11_bsim3_multi_plain_disto",
+            plotname: "DISTORTION - 3rd harmonic",
+            flags: PlotFlags::Complex,
+            points: 7,
+            variables: &[
+                "frequency",
+                "v(d1)",
+                "v(d2)",
+                "v(d3)",
+                "v(d4)",
+                "v(d5)",
+                "v(dd)",
+                "v(g)",
+                "i(vdd)",
+                "i(vg)",
+            ],
+            values: &[
+                ("v(d1)", 0, 0.000000000000000e+00, 0.000000000000000e+00),
+                ("v(d4)", 6, 0.000000000000000e+00, 0.000000000000000e+00),
+            ],
+        },
+    ],
     &[
         // BSIM4 (#90): b4noi.c. At 1 kHz onoise/inoise is the stage gain
         // magnitude, 3.767e-6 / 2.847e-6 = 1.323.

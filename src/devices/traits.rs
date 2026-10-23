@@ -367,6 +367,11 @@ pub struct StampContext<'a> {
     pub forcing: Option<Forcing>,
     /// C's `CKTsrcFact`, [`crate::devices::ModelContext::source_factor`].
     pub source_factor: Real,
+    /// This point's `.dc @inst[param]` overrides,
+    /// [`crate::devices::ModelContext::instance_overrides`]. The named
+    /// devices stamp a replacement; a device whose setup C shares with them
+    /// (BSIM4's `BSIM4temp` pass) reads them too.
+    pub instance_overrides: &'a [Option<crate::devices::sweep::InstanceOverride>],
     /// C's running `value` in `VSRCload`: the value the previous voltage
     /// source in load order loaded (0 before the first). Each independent
     /// voltage source writes its own; a PORT adds its cosine to it.

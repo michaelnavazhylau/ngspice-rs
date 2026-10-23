@@ -326,6 +326,109 @@ const SUPPORTED: &[Supported] = &[
         },
     },
     tran("m11_bsim3_tran"),
+    // BSIM3 across instances (#189/#193): shared models with b3check.c
+    // resets, shared geometries, instance and temperature sweeps, two
+    // prefix-named models, a CMOS chain, internal nodes and binning.
+    Supported {
+        name: "m11_bsim3_multi_both_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_two_models_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_bins_op",
+        kind: AnalysisKind::OperatingPoint,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_both_dc",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_both_temp",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_both_sweep_m3w",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_both_sweep_m2l",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_both_sweep_m1m",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_bins_sweep_l",
+        kind: AnalysisKind::DcSweep,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_both_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_inv_ac",
+        kind: AnalysisKind::Ac,
+        gate: Gate::Points {
+            axis: Some("frequency"),
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    Supported {
+        name: "m11_bsim3_multi_plain_tf",
+        kind: AnalysisKind::TransferFunction,
+        gate: Gate::Points {
+            axis: None,
+            tolerance: compare::NONLINEAR,
+        },
+    },
+    pole_zero("m11_bsim3_multi_plain_pz"),
+    tran("m11_bsim3_multi_resets_tran"),
+    tran("m11_bsim3_multi_inv_tran"),
+    tran("m11_bsim3_multi_inner_tran_uic"),
     tran("m10_hfet1_tran"),
     // MESA levels 3 and 4 (#168): `mesa2`'s two-population `nsa`/`nsb`
     // channel with the `vpou`/`vpod` threshold regions and `mesa3`'s
@@ -1541,6 +1644,14 @@ const BATCH: &[Batch] = &[
     Batch {
         name: "m11_bsim4_noise",
         stages: &NOISE_NONLINEAR_STAGES,
+    },
+    Batch {
+        name: "m11_bsim3_multi_both_noise",
+        stages: &NOISE_NONLINEAR_STAGES,
+    },
+    Batch {
+        name: "m11_bsim3_multi_plain_disto",
+        stages: &[DISTORTION_STAGE, DISTORTION_STAGE],
     },
     // `.ac`, `.op` and two `.noise` cards with S/W switches: the later,
     // single-frequency card runs first and writes only its spectrum (`noise1`),

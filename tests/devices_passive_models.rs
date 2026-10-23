@@ -351,6 +351,7 @@ fn real_stamp_uses_explicit_temperature_and_initial_conditions_remain_visible() 
         states: ngspice_rs::devices::DeviceState::none(),
         forcing: None,
         source_factor: 1.,
+        instance_overrides: &[],
         voltage_source_value: &mut 0.,
     };
     circuit.devices_mut()[0].stamp(&mut context).unwrap();
