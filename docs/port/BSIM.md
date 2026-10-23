@@ -229,10 +229,42 @@ Verification:
 | B3-2 DC load | done, translated from `b3ld.c` (#193), bit-exact |
 | B3-3 charges and transient | done for `capMod=3`/QS, bit-exact; `capMod` 0/1/2 and NQS translated but unverified, refused |
 | B3-4 small signal / noise | done for `.dc`, `.ac`, `.pz`, `.tf`, `.noise` and `.disto` (linear, as C); `.sens` refused |
-| B3-5 goldens and binning coverage | done: `m11_bsim3_{op,dc,ac,tran}` and `m11_bsim4_{op,dc,ac,pz,noise,tran,bin_dc}` under `xtask golden verify` (binning end to end in `m11_bsim4_bin_dc`) |
+| B3-5 goldens and binning coverage | done: `m11_bsim3_{op,dc,ac,tran}`, the 18 `m11_bsim3_multi_*` decks (state across instances, BSIM3 binning) and `m11_bsim4_{op,dc,ac,pz,noise,tran,bin_dc}` under `xtask golden verify` |
 | B4-0 tables/schema | done |
 | B4-1..B4-4 BSIM4 setup, temperature, checks, load, small signal, noise, pole-zero | done, bit-exact against the FMA-free C oracle ([BSIM4](#bsim4)) |
 | B4 `.sens` | done (DC and AC), bit-exact on every deck C completes; see [SENSITIVITY.md](SENSITIVITY.md) |
+
+### Instances sharing a model
+
+C keeps one model struct per BSIM3 model and walks its instances
+last-parsed first in `BSIM3temp`. The port runs each instance's pass on its
+own copy, which gives C's numbers in every supported mode because the state
+C carries between instances cannot differ:
+
+- `b3check.c` has no `static` model name: it checks every new size knot, and
+  an instance that reuses a knot inherits a knot that was already checked
+  and reset. Its resets (`a2`, `rdsw`, `prwg` on the knot; `cgdo`, `cgso`,
+  `cgbo` on the model) set the same values each time, and `b3temp.c` checks
+  before it computes `pParam->BSIM3cgdo` from the model field.
+- The only function-local value an instance that reuses a knot reads from
+  the previous iteration is `T0` in `tconst`, which only NQS uses (refused,
+  #191). `calcacm` belongs to ACM (refused).
+
+The `m11_bsim3_multi_*` goldens cover this against the FMA-free oracle, all
+EXACT under `scripts/ulpcmp.py`:
+- shared geometries with knot and model-level resets under `.op`, `.dc`,
+  `.ac`, `.noise`, `.dc temp` and `.dc @inst[w|l|m]`;
+- `.tf`, `.pz`, `.disto` (zero: C's BSIM3 has no `DEVdisto`) and transient;
+- two prefix-named models, a CMOS chain, internal nodes with `m`, `off`,
+  `.ic` and `uic`, and binned models.
+
+The same sweep found decks C itself cannot finish: negative CGDO/CGSO/CGBO
+transients at `reltol=1e-9` ("Timestep too small" at the same time point)
+and a singular `m1#source`. The port fails them identically.
+Binned instances join the bin model C created at their first reference in
+`CKTsetup`/`CKTload` order (`Circuit::add_instances`). Before, three binned
+instances could load in a different order from C, and pivoting then moved the
+results by a few hundred ulp.
 
 ### Next: what remains
 

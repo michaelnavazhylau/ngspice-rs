@@ -1,0 +1,268 @@
+# ngspice-rs ast-dump v1
+file: netlists/m11_bsim3_multi_bins_op.cir
+title: "BSIM3v3.3 multi-instance: bins op" @netlists/m11_bsim3_multi_bins_op.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m11_bsim3_multi_bins_op.cir:6:1 "vdd dd 0 1.8"
+    [1] device[1] @netlists/m11_bsim3_multi_bins_op.cir:7:1 "vg g 0 1.0 ac 1"
+    [2] device[2] @netlists/m11_bsim3_multi_bins_op.cir:8:1 "m1 d1 g 0 0 nb l=0.18u w=2u"
+    [3] device[3] @netlists/m11_bsim3_multi_bins_op.cir:9:1 "r1 dd d1 2k"
+    [4] device[4] @netlists/m11_bsim3_multi_bins_op.cir:10:1 "m2 d2 g 0 0 nb l=0.5u w=2u"
+    [5] device[5] @netlists/m11_bsim3_multi_bins_op.cir:11:1 "r2 dd d2 2k"
+    [6] device[6] @netlists/m11_bsim3_multi_bins_op.cir:12:1 "m3 d3 g 0 0 nb l=0.3u w=2u"
+    [7] device[7] @netlists/m11_bsim3_multi_bins_op.cir:13:1 "r3 dd d3 2k"
+    [8] device[8] @netlists/m11_bsim3_multi_bins_op.cir:14:1 "m4 d4 g 0 0 nb l=0.18u w=2u"
+    [9] device[9] @netlists/m11_bsim3_multi_bins_op.cir:15:1 "r4 dd d4 2k"
+    [10] model[0] @netlists/m11_bsim3_multi_bins_op.cir:16:1 ".model nb.1 nmos level=49 version=3.3.0 capmod=3 lmin=0.1u lmax=0.3u wmin=1u wmax=10u lvth0=1e-9 mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=0.3694 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=268.7 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 a2=0.69 rdsw=105 prwg=0.5 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+    [11] model[1] @netlists/m11_bsim3_multi_bins_op.cir:27:1 ".model nb.2 nmos level=49 version=3.3.0 capmod=3 lmin=0.3u lmax=1u wmin=1u wmax=10u lvth0=-1e-9 mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=0.3694 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=268.7 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 a2=0.69 rdsw=105 prwg=0.5 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+    [12] options[0] @netlists/m11_bsim3_multi_bins_op.cir:38:1 ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+    [13] analysis[0] @netlists/m11_bsim3_multi_bins_op.cir:39:1 ".op"
+    [14] end @netlists/m11_bsim3_multi_bins_op.cir:40:1 ".end"
+  devices (10):
+    device [0] name="vdd" designator=v @netlists/m11_bsim3_multi_bins_op.cir:6:1
+      nodes: "dd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.8" @netlists/m11_bsim3_multi_bins_op.cir:6:10
+    device [1] name="vg" designator=v @netlists/m11_bsim3_multi_bins_op.cir:7:1
+      nodes: "g" "0"
+      model: none
+      parameters (3):
+        [0] name="acmag" kind=scalar value="1" @netlists/m11_bsim3_multi_bins_op.cir:7:15
+        [1] name="acphase" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:7:12
+        [2] name="dc" kind=scalar value="1.0" @netlists/m11_bsim3_multi_bins_op.cir:7:8
+    device [2] name="m1" designator=m @netlists/m11_bsim3_multi_bins_op.cir:8:1
+      nodes: "d1" "g" "0" "0"
+      model: "nb"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_multi_bins_op.cir:8:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_bins_op.cir:8:24
+    device [3] name="r1" designator=r @netlists/m11_bsim3_multi_bins_op.cir:9:1
+      nodes: "dd" "d1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_bins_op.cir:9:10
+    device [4] name="m2" designator=m @netlists/m11_bsim3_multi_bins_op.cir:10:1
+      nodes: "d2" "g" "0" "0"
+      model: "nb"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.5u" @netlists/m11_bsim3_multi_bins_op.cir:10:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_bins_op.cir:10:23
+    device [5] name="r2" designator=r @netlists/m11_bsim3_multi_bins_op.cir:11:1
+      nodes: "dd" "d2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_bins_op.cir:11:10
+    device [6] name="m3" designator=m @netlists/m11_bsim3_multi_bins_op.cir:12:1
+      nodes: "d3" "g" "0" "0"
+      model: "nb"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.3u" @netlists/m11_bsim3_multi_bins_op.cir:12:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_bins_op.cir:12:23
+    device [7] name="r3" designator=r @netlists/m11_bsim3_multi_bins_op.cir:13:1
+      nodes: "dd" "d3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_bins_op.cir:13:10
+    device [8] name="m4" designator=m @netlists/m11_bsim3_multi_bins_op.cir:14:1
+      nodes: "d4" "g" "0" "0"
+      model: "nb"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_multi_bins_op.cir:14:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_bins_op.cir:14:24
+    device [9] name="r4" designator=r @netlists/m11_bsim3_multi_bins_op.cir:15:1
+      nodes: "dd" "d4"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_bins_op.cir:15:10
+  models (2):
+    model [0] name="nb.1" base="nmos" level=4.9e1 @netlists/m11_bsim3_multi_bins_op.cir:16:1
+      parameters (87):
+        [0] name="level" kind=scalar value="49" @netlists/m11_bsim3_multi_bins_op.cir:16:18
+        [1] name="version" kind=textual value="3.3.0" @netlists/m11_bsim3_multi_bins_op.cir:16:27
+        [2] name="capmod" kind=scalar value="3" @netlists/m11_bsim3_multi_bins_op.cir:16:41
+        [3] name="lmin" kind=scalar value="0.1u" @netlists/m11_bsim3_multi_bins_op.cir:16:50
+        [4] name="lmax" kind=scalar value="0.3u" @netlists/m11_bsim3_multi_bins_op.cir:16:60
+        [5] name="wmin" kind=scalar value="1u" @netlists/m11_bsim3_multi_bins_op.cir:16:70
+        [6] name="wmax" kind=scalar value="10u" @netlists/m11_bsim3_multi_bins_op.cir:16:78
+        [7] name="lvth0" kind=scalar value="1e-9" @netlists/m11_bsim3_multi_bins_op.cir:16:87
+        [8] name="mobmod" kind=scalar value="1" @netlists/m11_bsim3_multi_bins_op.cir:16:98
+        [9] name="tox" kind=scalar value="4.1e-9" @netlists/m11_bsim3_multi_bins_op.cir:16:107
+        [10] name="xj" kind=scalar value="1e-7" @netlists/m11_bsim3_multi_bins_op.cir:16:118
+        [11] name="nch" kind=scalar value="2.3549e17" @netlists/m11_bsim3_multi_bins_op.cir:16:126
+        [12] name="vth0" kind=scalar value="0.3694" @netlists/m11_bsim3_multi_bins_op.cir:16:140
+        [13] name="k1" kind=scalar value="0.5789" @netlists/m11_bsim3_multi_bins_op.cir:16:152
+        [14] name="k2" kind=scalar value="1.10e-3" @netlists/m11_bsim3_multi_bins_op.cir:16:162
+        [15] name="k3" kind=scalar value="1e-3" @netlists/m11_bsim3_multi_bins_op.cir:16:173
+        [16] name="k3b" kind=scalar value="0.0295" @netlists/m11_bsim3_multi_bins_op.cir:16:181
+        [17] name="w0" kind=scalar value="1e-7" @netlists/m11_bsim3_multi_bins_op.cir:16:192
+        [18] name="nlx" kind=scalar value="1.919e-7" @netlists/m11_bsim3_multi_bins_op.cir:16:200
+        [19] name="dvt0w" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:213
+        [20] name="dvt1w" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:221
+        [21] name="dvt2w" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:229
+        [22] name="dvt0" kind=scalar value="1.0471" @netlists/m11_bsim3_multi_bins_op.cir:16:237
+        [23] name="dvt1" kind=scalar value="0.3896" @netlists/m11_bsim3_multi_bins_op.cir:16:249
+        [24] name="dvt2" kind=scalar value="0.0367" @netlists/m11_bsim3_multi_bins_op.cir:16:261
+        [25] name="u0" kind=scalar value="268.7" @netlists/m11_bsim3_multi_bins_op.cir:16:273
+        [26] name="ua" kind=scalar value="-1.39e-9" @netlists/m11_bsim3_multi_bins_op.cir:16:282
+        [27] name="ub" kind=scalar value="2.34e-18" @netlists/m11_bsim3_multi_bins_op.cir:16:294
+        [28] name="uc" kind=scalar value="5.42e-11" @netlists/m11_bsim3_multi_bins_op.cir:16:306
+        [29] name="vsat" kind=scalar value="1.07e5" @netlists/m11_bsim3_multi_bins_op.cir:16:318
+        [30] name="a0" kind=scalar value="1.9" @netlists/m11_bsim3_multi_bins_op.cir:16:330
+        [31] name="ags" kind=scalar value="0.42" @netlists/m11_bsim3_multi_bins_op.cir:16:337
+        [32] name="b0" kind=scalar value="-1.3e-8" @netlists/m11_bsim3_multi_bins_op.cir:16:346
+        [33] name="b1" kind=scalar value="-1e-7" @netlists/m11_bsim3_multi_bins_op.cir:16:357
+        [34] name="keta" kind=scalar value="-8.6e-3" @netlists/m11_bsim3_multi_bins_op.cir:16:366
+        [35] name="a1" kind=scalar value="1.4e-4" @netlists/m11_bsim3_multi_bins_op.cir:16:379
+        [36] name="a2" kind=scalar value="0.69" @netlists/m11_bsim3_multi_bins_op.cir:16:389
+        [37] name="rdsw" kind=scalar value="105" @netlists/m11_bsim3_multi_bins_op.cir:16:397
+        [38] name="prwg" kind=scalar value="0.5" @netlists/m11_bsim3_multi_bins_op.cir:16:406
+        [39] name="prwb" kind=scalar value="-0.2" @netlists/m11_bsim3_multi_bins_op.cir:16:415
+        [40] name="wr" kind=scalar value="1" @netlists/m11_bsim3_multi_bins_op.cir:16:425
+        [41] name="wint" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:430
+        [42] name="lint" kind=scalar value="1.69e-8" @netlists/m11_bsim3_multi_bins_op.cir:16:437
+        [43] name="dwg" kind=scalar value="-5.6e-9" @netlists/m11_bsim3_multi_bins_op.cir:16:450
+        [44] name="dwb" kind=scalar value="6.1e-9" @netlists/m11_bsim3_multi_bins_op.cir:16:462
+        [45] name="voff" kind=scalar value="-0.0886" @netlists/m11_bsim3_multi_bins_op.cir:16:473
+        [46] name="nfactor" kind=scalar value="2.2" @netlists/m11_bsim3_multi_bins_op.cir:16:486
+        [47] name="cit" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:498
+        [48] name="cdsc" kind=scalar value="2.4e-4" @netlists/m11_bsim3_multi_bins_op.cir:16:504
+        [49] name="cdscd" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:516
+        [50] name="cdscb" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:524
+        [51] name="eta0" kind=scalar value="2.74e-3" @netlists/m11_bsim3_multi_bins_op.cir:16:532
+        [52] name="etab" kind=scalar value="6.39e-5" @netlists/m11_bsim3_multi_bins_op.cir:16:545
+        [53] name="dsub" kind=scalar value="0.0156" @netlists/m11_bsim3_multi_bins_op.cir:16:558
+        [54] name="pclm" kind=scalar value="0.739" @netlists/m11_bsim3_multi_bins_op.cir:16:570
+        [55] name="pdiblc1" kind=scalar value="0.209" @netlists/m11_bsim3_multi_bins_op.cir:16:581
+        [56] name="pdiblc2" kind=scalar value="2.62e-3" @netlists/m11_bsim3_multi_bins_op.cir:16:595
+        [57] name="pdiblcb" kind=scalar value="-0.1" @netlists/m11_bsim3_multi_bins_op.cir:16:611
+        [58] name="drout" kind=scalar value="0.79" @netlists/m11_bsim3_multi_bins_op.cir:16:624
+        [59] name="pscbe1" kind=scalar value="8.2e9" @netlists/m11_bsim3_multi_bins_op.cir:16:635
+        [60] name="pscbe2" kind=scalar value="1.1e-8" @netlists/m11_bsim3_multi_bins_op.cir:16:648
+        [61] name="pvag" kind=scalar value="2.4e-2" @netlists/m11_bsim3_multi_bins_op.cir:16:662
+        [62] name="delta" kind=scalar value="0.01" @netlists/m11_bsim3_multi_bins_op.cir:16:674
+        [63] name="rsh" kind=scalar value="6.8" @netlists/m11_bsim3_multi_bins_op.cir:16:685
+        [64] name="prt" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:693
+        [65] name="ute" kind=scalar value="-1.5" @netlists/m11_bsim3_multi_bins_op.cir:16:699
+        [66] name="kt1" kind=scalar value="-0.11" @netlists/m11_bsim3_multi_bins_op.cir:16:708
+        [67] name="kt1l" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:718
+        [68] name="kt2" kind=scalar value="0.022" @netlists/m11_bsim3_multi_bins_op.cir:16:725
+        [69] name="ua1" kind=scalar value="4.31e-9" @netlists/m11_bsim3_multi_bins_op.cir:16:735
+        [70] name="ub1" kind=scalar value="-7.61e-18" @netlists/m11_bsim3_multi_bins_op.cir:16:747
+        [71] name="uc1" kind=scalar value="-5.6e-11" @netlists/m11_bsim3_multi_bins_op.cir:16:761
+        [72] name="at" kind=scalar value="3.3e4" @netlists/m11_bsim3_multi_bins_op.cir:16:774
+        [73] name="cgdo" kind=scalar value="7.9e-10" @netlists/m11_bsim3_multi_bins_op.cir:16:783
+        [74] name="cgso" kind=scalar value="7.9e-10" @netlists/m11_bsim3_multi_bins_op.cir:16:796
+        [75] name="cgbo" kind=scalar value="1e-12" @netlists/m11_bsim3_multi_bins_op.cir:16:809
+        [76] name="cj" kind=scalar value="9.7e-4" @netlists/m11_bsim3_multi_bins_op.cir:16:820
+        [77] name="pb" kind=scalar value="0.73" @netlists/m11_bsim3_multi_bins_op.cir:16:830
+        [78] name="mj" kind=scalar value="0.36" @netlists/m11_bsim3_multi_bins_op.cir:16:838
+        [79] name="cjsw" kind=scalar value="2.4e-10" @netlists/m11_bsim3_multi_bins_op.cir:16:846
+        [80] name="pbsw" kind=scalar value="0.4" @netlists/m11_bsim3_multi_bins_op.cir:16:859
+        [81] name="mjsw" kind=scalar value="0.1" @netlists/m11_bsim3_multi_bins_op.cir:16:868
+        [82] name="cjswg" kind=scalar value="3.3e-10" @netlists/m11_bsim3_multi_bins_op.cir:16:877
+        [83] name="pbswg" kind=scalar value="0.4" @netlists/m11_bsim3_multi_bins_op.cir:16:891
+        [84] name="mjswg" kind=scalar value="0.1" @netlists/m11_bsim3_multi_bins_op.cir:16:901
+        [85] name="cf" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:16:911
+        [86] name="xpart" kind=scalar value="0.5" @netlists/m11_bsim3_multi_bins_op.cir:16:916
+    model [1] name="nb.2" base="nmos" level=4.9e1 @netlists/m11_bsim3_multi_bins_op.cir:27:1
+      parameters (87):
+        [0] name="level" kind=scalar value="49" @netlists/m11_bsim3_multi_bins_op.cir:27:18
+        [1] name="version" kind=textual value="3.3.0" @netlists/m11_bsim3_multi_bins_op.cir:27:27
+        [2] name="capmod" kind=scalar value="3" @netlists/m11_bsim3_multi_bins_op.cir:27:41
+        [3] name="lmin" kind=scalar value="0.3u" @netlists/m11_bsim3_multi_bins_op.cir:27:50
+        [4] name="lmax" kind=scalar value="1u" @netlists/m11_bsim3_multi_bins_op.cir:27:60
+        [5] name="wmin" kind=scalar value="1u" @netlists/m11_bsim3_multi_bins_op.cir:27:68
+        [6] name="wmax" kind=scalar value="10u" @netlists/m11_bsim3_multi_bins_op.cir:27:76
+        [7] name="lvth0" kind=scalar value="-1e-9" @netlists/m11_bsim3_multi_bins_op.cir:27:85
+        [8] name="mobmod" kind=scalar value="1" @netlists/m11_bsim3_multi_bins_op.cir:27:97
+        [9] name="tox" kind=scalar value="4.1e-9" @netlists/m11_bsim3_multi_bins_op.cir:27:106
+        [10] name="xj" kind=scalar value="1e-7" @netlists/m11_bsim3_multi_bins_op.cir:27:117
+        [11] name="nch" kind=scalar value="2.3549e17" @netlists/m11_bsim3_multi_bins_op.cir:27:125
+        [12] name="vth0" kind=scalar value="0.3694" @netlists/m11_bsim3_multi_bins_op.cir:27:139
+        [13] name="k1" kind=scalar value="0.5789" @netlists/m11_bsim3_multi_bins_op.cir:27:151
+        [14] name="k2" kind=scalar value="1.10e-3" @netlists/m11_bsim3_multi_bins_op.cir:27:161
+        [15] name="k3" kind=scalar value="1e-3" @netlists/m11_bsim3_multi_bins_op.cir:27:172
+        [16] name="k3b" kind=scalar value="0.0295" @netlists/m11_bsim3_multi_bins_op.cir:27:180
+        [17] name="w0" kind=scalar value="1e-7" @netlists/m11_bsim3_multi_bins_op.cir:27:191
+        [18] name="nlx" kind=scalar value="1.919e-7" @netlists/m11_bsim3_multi_bins_op.cir:27:199
+        [19] name="dvt0w" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:212
+        [20] name="dvt1w" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:220
+        [21] name="dvt2w" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:228
+        [22] name="dvt0" kind=scalar value="1.0471" @netlists/m11_bsim3_multi_bins_op.cir:27:236
+        [23] name="dvt1" kind=scalar value="0.3896" @netlists/m11_bsim3_multi_bins_op.cir:27:248
+        [24] name="dvt2" kind=scalar value="0.0367" @netlists/m11_bsim3_multi_bins_op.cir:27:260
+        [25] name="u0" kind=scalar value="268.7" @netlists/m11_bsim3_multi_bins_op.cir:27:272
+        [26] name="ua" kind=scalar value="-1.39e-9" @netlists/m11_bsim3_multi_bins_op.cir:27:281
+        [27] name="ub" kind=scalar value="2.34e-18" @netlists/m11_bsim3_multi_bins_op.cir:27:293
+        [28] name="uc" kind=scalar value="5.42e-11" @netlists/m11_bsim3_multi_bins_op.cir:27:305
+        [29] name="vsat" kind=scalar value="1.07e5" @netlists/m11_bsim3_multi_bins_op.cir:27:317
+        [30] name="a0" kind=scalar value="1.9" @netlists/m11_bsim3_multi_bins_op.cir:27:329
+        [31] name="ags" kind=scalar value="0.42" @netlists/m11_bsim3_multi_bins_op.cir:27:336
+        [32] name="b0" kind=scalar value="-1.3e-8" @netlists/m11_bsim3_multi_bins_op.cir:27:345
+        [33] name="b1" kind=scalar value="-1e-7" @netlists/m11_bsim3_multi_bins_op.cir:27:356
+        [34] name="keta" kind=scalar value="-8.6e-3" @netlists/m11_bsim3_multi_bins_op.cir:27:365
+        [35] name="a1" kind=scalar value="1.4e-4" @netlists/m11_bsim3_multi_bins_op.cir:27:378
+        [36] name="a2" kind=scalar value="0.69" @netlists/m11_bsim3_multi_bins_op.cir:27:388
+        [37] name="rdsw" kind=scalar value="105" @netlists/m11_bsim3_multi_bins_op.cir:27:396
+        [38] name="prwg" kind=scalar value="0.5" @netlists/m11_bsim3_multi_bins_op.cir:27:405
+        [39] name="prwb" kind=scalar value="-0.2" @netlists/m11_bsim3_multi_bins_op.cir:27:414
+        [40] name="wr" kind=scalar value="1" @netlists/m11_bsim3_multi_bins_op.cir:27:424
+        [41] name="wint" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:429
+        [42] name="lint" kind=scalar value="1.69e-8" @netlists/m11_bsim3_multi_bins_op.cir:27:436
+        [43] name="dwg" kind=scalar value="-5.6e-9" @netlists/m11_bsim3_multi_bins_op.cir:27:449
+        [44] name="dwb" kind=scalar value="6.1e-9" @netlists/m11_bsim3_multi_bins_op.cir:27:461
+        [45] name="voff" kind=scalar value="-0.0886" @netlists/m11_bsim3_multi_bins_op.cir:27:472
+        [46] name="nfactor" kind=scalar value="2.2" @netlists/m11_bsim3_multi_bins_op.cir:27:485
+        [47] name="cit" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:497
+        [48] name="cdsc" kind=scalar value="2.4e-4" @netlists/m11_bsim3_multi_bins_op.cir:27:503
+        [49] name="cdscd" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:515
+        [50] name="cdscb" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:523
+        [51] name="eta0" kind=scalar value="2.74e-3" @netlists/m11_bsim3_multi_bins_op.cir:27:531
+        [52] name="etab" kind=scalar value="6.39e-5" @netlists/m11_bsim3_multi_bins_op.cir:27:544
+        [53] name="dsub" kind=scalar value="0.0156" @netlists/m11_bsim3_multi_bins_op.cir:27:557
+        [54] name="pclm" kind=scalar value="0.739" @netlists/m11_bsim3_multi_bins_op.cir:27:569
+        [55] name="pdiblc1" kind=scalar value="0.209" @netlists/m11_bsim3_multi_bins_op.cir:27:580
+        [56] name="pdiblc2" kind=scalar value="2.62e-3" @netlists/m11_bsim3_multi_bins_op.cir:27:594
+        [57] name="pdiblcb" kind=scalar value="-0.1" @netlists/m11_bsim3_multi_bins_op.cir:27:610
+        [58] name="drout" kind=scalar value="0.79" @netlists/m11_bsim3_multi_bins_op.cir:27:623
+        [59] name="pscbe1" kind=scalar value="8.2e9" @netlists/m11_bsim3_multi_bins_op.cir:27:634
+        [60] name="pscbe2" kind=scalar value="1.1e-8" @netlists/m11_bsim3_multi_bins_op.cir:27:647
+        [61] name="pvag" kind=scalar value="2.4e-2" @netlists/m11_bsim3_multi_bins_op.cir:27:661
+        [62] name="delta" kind=scalar value="0.01" @netlists/m11_bsim3_multi_bins_op.cir:27:673
+        [63] name="rsh" kind=scalar value="6.8" @netlists/m11_bsim3_multi_bins_op.cir:27:684
+        [64] name="prt" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:692
+        [65] name="ute" kind=scalar value="-1.5" @netlists/m11_bsim3_multi_bins_op.cir:27:698
+        [66] name="kt1" kind=scalar value="-0.11" @netlists/m11_bsim3_multi_bins_op.cir:27:707
+        [67] name="kt1l" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:717
+        [68] name="kt2" kind=scalar value="0.022" @netlists/m11_bsim3_multi_bins_op.cir:27:724
+        [69] name="ua1" kind=scalar value="4.31e-9" @netlists/m11_bsim3_multi_bins_op.cir:27:734
+        [70] name="ub1" kind=scalar value="-7.61e-18" @netlists/m11_bsim3_multi_bins_op.cir:27:746
+        [71] name="uc1" kind=scalar value="-5.6e-11" @netlists/m11_bsim3_multi_bins_op.cir:27:760
+        [72] name="at" kind=scalar value="3.3e4" @netlists/m11_bsim3_multi_bins_op.cir:27:773
+        [73] name="cgdo" kind=scalar value="7.9e-10" @netlists/m11_bsim3_multi_bins_op.cir:27:782
+        [74] name="cgso" kind=scalar value="7.9e-10" @netlists/m11_bsim3_multi_bins_op.cir:27:795
+        [75] name="cgbo" kind=scalar value="1e-12" @netlists/m11_bsim3_multi_bins_op.cir:27:808
+        [76] name="cj" kind=scalar value="9.7e-4" @netlists/m11_bsim3_multi_bins_op.cir:27:819
+        [77] name="pb" kind=scalar value="0.73" @netlists/m11_bsim3_multi_bins_op.cir:27:829
+        [78] name="mj" kind=scalar value="0.36" @netlists/m11_bsim3_multi_bins_op.cir:27:837
+        [79] name="cjsw" kind=scalar value="2.4e-10" @netlists/m11_bsim3_multi_bins_op.cir:27:845
+        [80] name="pbsw" kind=scalar value="0.4" @netlists/m11_bsim3_multi_bins_op.cir:27:858
+        [81] name="mjsw" kind=scalar value="0.1" @netlists/m11_bsim3_multi_bins_op.cir:27:867
+        [82] name="cjswg" kind=scalar value="3.3e-10" @netlists/m11_bsim3_multi_bins_op.cir:27:876
+        [83] name="pbswg" kind=scalar value="0.4" @netlists/m11_bsim3_multi_bins_op.cir:27:890
+        [84] name="mjswg" kind=scalar value="0.1" @netlists/m11_bsim3_multi_bins_op.cir:27:900
+        [85] name="cf" kind=scalar value="0" @netlists/m11_bsim3_multi_bins_op.cir:27:910
+        [86] name="xpart" kind=scalar value="0.5" @netlists/m11_bsim3_multi_bins_op.cir:27:915
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=op @netlists/m11_bsim3_multi_bins_op.cir:39:1
+      arguments:
+  includes (0):
+  params (0):
+  options (1):
+    option-card [0] @netlists/m11_bsim3_multi_bins_op.cir:38:1
+      setting [0] name="reltol" value="1e-9"@netlists/m11_bsim3_multi_bins_op.cir:38:17 @netlists/m11_bsim3_multi_bins_op.cir:38:10
+      setting [1] name="vntol" value="1e-12"@netlists/m11_bsim3_multi_bins_op.cir:38:28 @netlists/m11_bsim3_multi_bins_op.cir:38:22
+      setting [2] name="abstol" value="1e-15"@netlists/m11_bsim3_multi_bins_op.cir:38:41 @netlists/m11_bsim3_multi_bins_op.cir:38:34
+  globals (0):

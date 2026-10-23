@@ -1,0 +1,187 @@
+# ngspice-rs ast-dump v1
+file: netlists/m11_bsim3_multi_resets_tran.cir
+title: "BSIM3v3.3 multi-instance: resets tran" @netlists/m11_bsim3_multi_resets_tran.cir:1:1
+scope root
+  cards (15):
+    [0] device[0] @netlists/m11_bsim3_multi_resets_tran.cir:4:1 "vdd dd 0 1.8"
+    [1] device[1] @netlists/m11_bsim3_multi_resets_tran.cir:5:1 "vg g 0 pulse(0 1.8 0.1n 50p 50p 0.4n 1n)"
+    [2] device[2] @netlists/m11_bsim3_multi_resets_tran.cir:6:1 "m1 d1 g 0 0 n3 l=0.18u w=2u"
+    [3] device[3] @netlists/m11_bsim3_multi_resets_tran.cir:7:1 "r1 dd d1 2k"
+    [4] device[4] @netlists/m11_bsim3_multi_resets_tran.cir:8:1 "m2 d2 g 0 0 n3 l=0.5u w=2u"
+    [5] device[5] @netlists/m11_bsim3_multi_resets_tran.cir:9:1 "r2 dd d2 2k"
+    [6] device[6] @netlists/m11_bsim3_multi_resets_tran.cir:10:1 "m3 d3 g 0 0 n3 l=0.18u w=2u"
+    [7] device[7] @netlists/m11_bsim3_multi_resets_tran.cir:11:1 "r3 dd d3 2k"
+    [8] device[8] @netlists/m11_bsim3_multi_resets_tran.cir:12:1 "m4 d4 g 0 0 n3 l=0.18u w=4u"
+    [9] device[9] @netlists/m11_bsim3_multi_resets_tran.cir:13:1 "r4 dd d4 2k"
+    [10] device[10] @netlists/m11_bsim3_multi_resets_tran.cir:14:1 "m5 d5 g 0 0 n3 l=0.5u w=2u"
+    [11] device[11] @netlists/m11_bsim3_multi_resets_tran.cir:15:1 "r5 dd d5 2k"
+    [12] model[0] @netlists/m11_bsim3_multi_resets_tran.cir:16:1 ".model n3 nmos level=49 version=3.3.0 capmod=3 a2=1.2 rdsw=-10 prwg=-1  mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=0.3694 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=268.7 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cgdo=7.9e-10 cgso=7.9e-10 cgbo=1e-12 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+    [13] analysis[0] @netlists/m11_bsim3_multi_resets_tran.cir:27:1 ".tran 10p 1.2n"
+    [14] end @netlists/m11_bsim3_multi_resets_tran.cir:28:1 ".end"
+  devices (12):
+    device [0] name="vdd" designator=v @netlists/m11_bsim3_multi_resets_tran.cir:4:1
+      nodes: "dd" "0"
+      model: none
+      parameters (1):
+        [0] name="dc" kind=scalar value="1.8" @netlists/m11_bsim3_multi_resets_tran.cir:4:10
+    device [1] name="vg" designator=v @netlists/m11_bsim3_multi_resets_tran.cir:5:1
+      nodes: "g" "0"
+      model: none
+      parameters (1):
+        [0] name="pulse" kind=waveform value="(0 1.8 0.1n 50p 50p 0.4n 1n)" @netlists/m11_bsim3_multi_resets_tran.cir:5:8
+          pulse
+            initial: "0"@netlists/m11_bsim3_multi_resets_tran.cir:5:14
+            pulsed: "1.8"@netlists/m11_bsim3_multi_resets_tran.cir:5:16
+            delay: "0.1n"@netlists/m11_bsim3_multi_resets_tran.cir:5:20
+            rise: "50p"@netlists/m11_bsim3_multi_resets_tran.cir:5:25
+            fall: "50p"@netlists/m11_bsim3_multi_resets_tran.cir:5:29
+            width: "0.4n"@netlists/m11_bsim3_multi_resets_tran.cir:5:33
+            period: "1n"@netlists/m11_bsim3_multi_resets_tran.cir:5:38
+    device [2] name="m1" designator=m @netlists/m11_bsim3_multi_resets_tran.cir:6:1
+      nodes: "d1" "g" "0" "0"
+      model: "n3"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_multi_resets_tran.cir:6:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_resets_tran.cir:6:24
+    device [3] name="r1" designator=r @netlists/m11_bsim3_multi_resets_tran.cir:7:1
+      nodes: "dd" "d1"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_resets_tran.cir:7:10
+    device [4] name="m2" designator=m @netlists/m11_bsim3_multi_resets_tran.cir:8:1
+      nodes: "d2" "g" "0" "0"
+      model: "n3"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.5u" @netlists/m11_bsim3_multi_resets_tran.cir:8:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_resets_tran.cir:8:23
+    device [5] name="r2" designator=r @netlists/m11_bsim3_multi_resets_tran.cir:9:1
+      nodes: "dd" "d2"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_resets_tran.cir:9:10
+    device [6] name="m3" designator=m @netlists/m11_bsim3_multi_resets_tran.cir:10:1
+      nodes: "d3" "g" "0" "0"
+      model: "n3"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_multi_resets_tran.cir:10:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_resets_tran.cir:10:24
+    device [7] name="r3" designator=r @netlists/m11_bsim3_multi_resets_tran.cir:11:1
+      nodes: "dd" "d3"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_resets_tran.cir:11:10
+    device [8] name="m4" designator=m @netlists/m11_bsim3_multi_resets_tran.cir:12:1
+      nodes: "d4" "g" "0" "0"
+      model: "n3"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.18u" @netlists/m11_bsim3_multi_resets_tran.cir:12:16
+        [1] name="w" kind=scalar value="4u" @netlists/m11_bsim3_multi_resets_tran.cir:12:24
+    device [9] name="r4" designator=r @netlists/m11_bsim3_multi_resets_tran.cir:13:1
+      nodes: "dd" "d4"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_resets_tran.cir:13:10
+    device [10] name="m5" designator=m @netlists/m11_bsim3_multi_resets_tran.cir:14:1
+      nodes: "d5" "g" "0" "0"
+      model: "n3"
+      parameters (2):
+        [0] name="l" kind=scalar value="0.5u" @netlists/m11_bsim3_multi_resets_tran.cir:14:16
+        [1] name="w" kind=scalar value="2u" @netlists/m11_bsim3_multi_resets_tran.cir:14:23
+    device [11] name="r5" designator=r @netlists/m11_bsim3_multi_resets_tran.cir:15:1
+      nodes: "dd" "d5"
+      model: none
+      parameters (1):
+        [0] name="resistance" kind=scalar value="2k" @netlists/m11_bsim3_multi_resets_tran.cir:15:10
+  models (1):
+    model [0] name="n3" base="nmos" level=4.9e1 @netlists/m11_bsim3_multi_resets_tran.cir:16:1
+      parameters (82):
+        [0] name="level" kind=scalar value="49" @netlists/m11_bsim3_multi_resets_tran.cir:16:16
+        [1] name="version" kind=textual value="3.3.0" @netlists/m11_bsim3_multi_resets_tran.cir:16:25
+        [2] name="capmod" kind=scalar value="3" @netlists/m11_bsim3_multi_resets_tran.cir:16:39
+        [3] name="a2" kind=scalar value="1.2" @netlists/m11_bsim3_multi_resets_tran.cir:16:48
+        [4] name="rdsw" kind=scalar value="-10" @netlists/m11_bsim3_multi_resets_tran.cir:16:55
+        [5] name="prwg" kind=scalar value="-1" @netlists/m11_bsim3_multi_resets_tran.cir:16:64
+        [6] name="mobmod" kind=scalar value="1" @netlists/m11_bsim3_multi_resets_tran.cir:16:73
+        [7] name="tox" kind=scalar value="4.1e-9" @netlists/m11_bsim3_multi_resets_tran.cir:16:82
+        [8] name="xj" kind=scalar value="1e-7" @netlists/m11_bsim3_multi_resets_tran.cir:16:93
+        [9] name="nch" kind=scalar value="2.3549e17" @netlists/m11_bsim3_multi_resets_tran.cir:16:101
+        [10] name="vth0" kind=scalar value="0.3694" @netlists/m11_bsim3_multi_resets_tran.cir:16:115
+        [11] name="k1" kind=scalar value="0.5789" @netlists/m11_bsim3_multi_resets_tran.cir:16:127
+        [12] name="k2" kind=scalar value="1.10e-3" @netlists/m11_bsim3_multi_resets_tran.cir:16:137
+        [13] name="k3" kind=scalar value="1e-3" @netlists/m11_bsim3_multi_resets_tran.cir:16:148
+        [14] name="k3b" kind=scalar value="0.0295" @netlists/m11_bsim3_multi_resets_tran.cir:16:156
+        [15] name="w0" kind=scalar value="1e-7" @netlists/m11_bsim3_multi_resets_tran.cir:16:167
+        [16] name="nlx" kind=scalar value="1.919e-7" @netlists/m11_bsim3_multi_resets_tran.cir:16:175
+        [17] name="dvt0w" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:188
+        [18] name="dvt1w" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:196
+        [19] name="dvt2w" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:204
+        [20] name="dvt0" kind=scalar value="1.0471" @netlists/m11_bsim3_multi_resets_tran.cir:16:212
+        [21] name="dvt1" kind=scalar value="0.3896" @netlists/m11_bsim3_multi_resets_tran.cir:16:224
+        [22] name="dvt2" kind=scalar value="0.0367" @netlists/m11_bsim3_multi_resets_tran.cir:16:236
+        [23] name="u0" kind=scalar value="268.7" @netlists/m11_bsim3_multi_resets_tran.cir:16:248
+        [24] name="ua" kind=scalar value="-1.39e-9" @netlists/m11_bsim3_multi_resets_tran.cir:16:257
+        [25] name="ub" kind=scalar value="2.34e-18" @netlists/m11_bsim3_multi_resets_tran.cir:16:269
+        [26] name="uc" kind=scalar value="5.42e-11" @netlists/m11_bsim3_multi_resets_tran.cir:16:281
+        [27] name="vsat" kind=scalar value="1.07e5" @netlists/m11_bsim3_multi_resets_tran.cir:16:293
+        [28] name="a0" kind=scalar value="1.9" @netlists/m11_bsim3_multi_resets_tran.cir:16:305
+        [29] name="ags" kind=scalar value="0.42" @netlists/m11_bsim3_multi_resets_tran.cir:16:312
+        [30] name="b0" kind=scalar value="-1.3e-8" @netlists/m11_bsim3_multi_resets_tran.cir:16:321
+        [31] name="b1" kind=scalar value="-1e-7" @netlists/m11_bsim3_multi_resets_tran.cir:16:332
+        [32] name="keta" kind=scalar value="-8.6e-3" @netlists/m11_bsim3_multi_resets_tran.cir:16:341
+        [33] name="a1" kind=scalar value="1.4e-4" @netlists/m11_bsim3_multi_resets_tran.cir:16:354
+        [34] name="prwb" kind=scalar value="-0.2" @netlists/m11_bsim3_multi_resets_tran.cir:16:364
+        [35] name="wr" kind=scalar value="1" @netlists/m11_bsim3_multi_resets_tran.cir:16:374
+        [36] name="wint" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:379
+        [37] name="lint" kind=scalar value="1.69e-8" @netlists/m11_bsim3_multi_resets_tran.cir:16:386
+        [38] name="dwg" kind=scalar value="-5.6e-9" @netlists/m11_bsim3_multi_resets_tran.cir:16:399
+        [39] name="dwb" kind=scalar value="6.1e-9" @netlists/m11_bsim3_multi_resets_tran.cir:16:411
+        [40] name="voff" kind=scalar value="-0.0886" @netlists/m11_bsim3_multi_resets_tran.cir:16:422
+        [41] name="nfactor" kind=scalar value="2.2" @netlists/m11_bsim3_multi_resets_tran.cir:16:435
+        [42] name="cit" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:447
+        [43] name="cdsc" kind=scalar value="2.4e-4" @netlists/m11_bsim3_multi_resets_tran.cir:16:453
+        [44] name="cdscd" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:465
+        [45] name="cdscb" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:473
+        [46] name="eta0" kind=scalar value="2.74e-3" @netlists/m11_bsim3_multi_resets_tran.cir:16:481
+        [47] name="etab" kind=scalar value="6.39e-5" @netlists/m11_bsim3_multi_resets_tran.cir:16:494
+        [48] name="dsub" kind=scalar value="0.0156" @netlists/m11_bsim3_multi_resets_tran.cir:16:507
+        [49] name="pclm" kind=scalar value="0.739" @netlists/m11_bsim3_multi_resets_tran.cir:16:519
+        [50] name="pdiblc1" kind=scalar value="0.209" @netlists/m11_bsim3_multi_resets_tran.cir:16:530
+        [51] name="pdiblc2" kind=scalar value="2.62e-3" @netlists/m11_bsim3_multi_resets_tran.cir:16:544
+        [52] name="pdiblcb" kind=scalar value="-0.1" @netlists/m11_bsim3_multi_resets_tran.cir:16:560
+        [53] name="drout" kind=scalar value="0.79" @netlists/m11_bsim3_multi_resets_tran.cir:16:573
+        [54] name="pscbe1" kind=scalar value="8.2e9" @netlists/m11_bsim3_multi_resets_tran.cir:16:584
+        [55] name="pscbe2" kind=scalar value="1.1e-8" @netlists/m11_bsim3_multi_resets_tran.cir:16:597
+        [56] name="pvag" kind=scalar value="2.4e-2" @netlists/m11_bsim3_multi_resets_tran.cir:16:611
+        [57] name="delta" kind=scalar value="0.01" @netlists/m11_bsim3_multi_resets_tran.cir:16:623
+        [58] name="rsh" kind=scalar value="6.8" @netlists/m11_bsim3_multi_resets_tran.cir:16:634
+        [59] name="prt" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:642
+        [60] name="ute" kind=scalar value="-1.5" @netlists/m11_bsim3_multi_resets_tran.cir:16:648
+        [61] name="kt1" kind=scalar value="-0.11" @netlists/m11_bsim3_multi_resets_tran.cir:16:657
+        [62] name="kt1l" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:667
+        [63] name="kt2" kind=scalar value="0.022" @netlists/m11_bsim3_multi_resets_tran.cir:16:674
+        [64] name="ua1" kind=scalar value="4.31e-9" @netlists/m11_bsim3_multi_resets_tran.cir:16:684
+        [65] name="ub1" kind=scalar value="-7.61e-18" @netlists/m11_bsim3_multi_resets_tran.cir:16:696
+        [66] name="uc1" kind=scalar value="-5.6e-11" @netlists/m11_bsim3_multi_resets_tran.cir:16:710
+        [67] name="at" kind=scalar value="3.3e4" @netlists/m11_bsim3_multi_resets_tran.cir:16:723
+        [68] name="cgdo" kind=scalar value="7.9e-10" @netlists/m11_bsim3_multi_resets_tran.cir:16:732
+        [69] name="cgso" kind=scalar value="7.9e-10" @netlists/m11_bsim3_multi_resets_tran.cir:16:745
+        [70] name="cgbo" kind=scalar value="1e-12" @netlists/m11_bsim3_multi_resets_tran.cir:16:758
+        [71] name="cj" kind=scalar value="9.7e-4" @netlists/m11_bsim3_multi_resets_tran.cir:16:769
+        [72] name="pb" kind=scalar value="0.73" @netlists/m11_bsim3_multi_resets_tran.cir:16:779
+        [73] name="mj" kind=scalar value="0.36" @netlists/m11_bsim3_multi_resets_tran.cir:16:787
+        [74] name="cjsw" kind=scalar value="2.4e-10" @netlists/m11_bsim3_multi_resets_tran.cir:16:795
+        [75] name="pbsw" kind=scalar value="0.4" @netlists/m11_bsim3_multi_resets_tran.cir:16:808
+        [76] name="mjsw" kind=scalar value="0.1" @netlists/m11_bsim3_multi_resets_tran.cir:16:817
+        [77] name="cjswg" kind=scalar value="3.3e-10" @netlists/m11_bsim3_multi_resets_tran.cir:16:826
+        [78] name="pbswg" kind=scalar value="0.4" @netlists/m11_bsim3_multi_resets_tran.cir:16:840
+        [79] name="mjswg" kind=scalar value="0.1" @netlists/m11_bsim3_multi_resets_tran.cir:16:850
+        [80] name="cf" kind=scalar value="0" @netlists/m11_bsim3_multi_resets_tran.cir:16:860
+        [81] name="xpart" kind=scalar value="0.5" @netlists/m11_bsim3_multi_resets_tran.cir:16:865
+  subcircuits (0):
+  analyses (1):
+    analysis [0] kind=tran @netlists/m11_bsim3_multi_resets_tran.cir:27:1
+      arguments: "10p" "1.2n"
+  includes (0):
+  params (0):
+  options (0):
+  globals (0):

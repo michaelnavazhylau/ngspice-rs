@@ -1,0 +1,411 @@
+# ngspice-rs token-dump v1
+file: netlists/m11_bsim3_multi_both_noise.cir
+title: "BSIM3v3.3 multi-instance: both noise" @netlists/m11_bsim3_multi_both_noise.cir:1:1
+card 1 @netlists/m11_bsim3_multi_both_noise.cir:4:1 lines=4-4 continuations=0
+  raw: "vdd dd 0 1.8"
+  kind: device(v)
+  token 1 4:1 word "vdd"
+  token 2 4:5 word "dd"
+  token 3 4:8 number "0" value=0e0
+  token 4 4:10 number "1.8" value=1.8e0
+card 2 @netlists/m11_bsim3_multi_both_noise.cir:5:1 lines=5-5 continuations=0
+  raw: "vg g 0 1.0 ac 1"
+  kind: device(v)
+  token 1 5:1 word "vg"
+  token 2 5:4 word "g"
+  token 3 5:6 number "0" value=0e0
+  token 4 5:8 number "1.0" value=1e0
+  token 5 5:12 word "ac"
+  token 6 5:15 number "1" value=1e0
+card 3 @netlists/m11_bsim3_multi_both_noise.cir:6:1 lines=6-6 continuations=0
+  raw: "m1 d1 g 0 0 n3 l=0.18u w=2u"
+  kind: device(m)
+  token 1 6:1 word "m1"
+  token 2 6:4 word "d1"
+  token 3 6:7 word "g"
+  token 4 6:9 number "0" value=0e0
+  token 5 6:11 number "0" value=0e0
+  token 6 6:13 word "n3"
+  token 7 6:16 word "l"
+  token 8 6:17 equals "="
+  token 9 6:18 number "0.18u" value=1.8e-7
+  token 10 6:24 word "w"
+  token 11 6:25 equals "="
+  token 12 6:26 number "2u" value=2e-6
+card 4 @netlists/m11_bsim3_multi_both_noise.cir:7:1 lines=7-7 continuations=0
+  raw: "r1 dd d1 2k"
+  kind: device(r)
+  token 1 7:1 word "r1"
+  token 2 7:4 word "dd"
+  token 3 7:7 word "d1"
+  token 4 7:10 number "2k" value=2e3
+card 5 @netlists/m11_bsim3_multi_both_noise.cir:8:1 lines=8-8 continuations=0
+  raw: "m2 d2 g 0 0 n3 l=0.5u w=2u"
+  kind: device(m)
+  token 1 8:1 word "m2"
+  token 2 8:4 word "d2"
+  token 3 8:7 word "g"
+  token 4 8:9 number "0" value=0e0
+  token 5 8:11 number "0" value=0e0
+  token 6 8:13 word "n3"
+  token 7 8:16 word "l"
+  token 8 8:17 equals "="
+  token 9 8:18 number "0.5u" value=5e-7
+  token 10 8:23 word "w"
+  token 11 8:24 equals "="
+  token 12 8:25 number "2u" value=2e-6
+card 6 @netlists/m11_bsim3_multi_both_noise.cir:9:1 lines=9-9 continuations=0
+  raw: "r2 dd d2 2k"
+  kind: device(r)
+  token 1 9:1 word "r2"
+  token 2 9:4 word "dd"
+  token 3 9:7 word "d2"
+  token 4 9:10 number "2k" value=2e3
+card 7 @netlists/m11_bsim3_multi_both_noise.cir:10:1 lines=10-10 continuations=0
+  raw: "m3 d3 g 0 0 n3 l=0.18u w=2u"
+  kind: device(m)
+  token 1 10:1 word "m3"
+  token 2 10:4 word "d3"
+  token 3 10:7 word "g"
+  token 4 10:9 number "0" value=0e0
+  token 5 10:11 number "0" value=0e0
+  token 6 10:13 word "n3"
+  token 7 10:16 word "l"
+  token 8 10:17 equals "="
+  token 9 10:18 number "0.18u" value=1.8e-7
+  token 10 10:24 word "w"
+  token 11 10:25 equals "="
+  token 12 10:26 number "2u" value=2e-6
+card 8 @netlists/m11_bsim3_multi_both_noise.cir:11:1 lines=11-11 continuations=0
+  raw: "r3 dd d3 2k"
+  kind: device(r)
+  token 1 11:1 word "r3"
+  token 2 11:4 word "dd"
+  token 3 11:7 word "d3"
+  token 4 11:10 number "2k" value=2e3
+card 9 @netlists/m11_bsim3_multi_both_noise.cir:12:1 lines=12-12 continuations=0
+  raw: "m4 d4 g 0 0 n3 l=0.18u w=4u"
+  kind: device(m)
+  token 1 12:1 word "m4"
+  token 2 12:4 word "d4"
+  token 3 12:7 word "g"
+  token 4 12:9 number "0" value=0e0
+  token 5 12:11 number "0" value=0e0
+  token 6 12:13 word "n3"
+  token 7 12:16 word "l"
+  token 8 12:17 equals "="
+  token 9 12:18 number "0.18u" value=1.8e-7
+  token 10 12:24 word "w"
+  token 11 12:25 equals "="
+  token 12 12:26 number "4u" value=4e-6
+card 10 @netlists/m11_bsim3_multi_both_noise.cir:13:1 lines=13-13 continuations=0
+  raw: "r4 dd d4 2k"
+  kind: device(r)
+  token 1 13:1 word "r4"
+  token 2 13:4 word "dd"
+  token 3 13:7 word "d4"
+  token 4 13:10 number "2k" value=2e3
+card 11 @netlists/m11_bsim3_multi_both_noise.cir:14:1 lines=14-14 continuations=0
+  raw: "m5 d5 g 0 0 n3 l=0.5u w=2u"
+  kind: device(m)
+  token 1 14:1 word "m5"
+  token 2 14:4 word "d5"
+  token 3 14:7 word "g"
+  token 4 14:9 number "0" value=0e0
+  token 5 14:11 number "0" value=0e0
+  token 6 14:13 word "n3"
+  token 7 14:16 word "l"
+  token 8 14:17 equals "="
+  token 9 14:18 number "0.5u" value=5e-7
+  token 10 14:23 word "w"
+  token 11 14:24 equals "="
+  token 12 14:25 number "2u" value=2e-6
+card 12 @netlists/m11_bsim3_multi_both_noise.cir:15:1 lines=15-15 continuations=0
+  raw: "r5 dd d5 2k"
+  kind: device(r)
+  token 1 15:1 word "r5"
+  token 2 15:4 word "dd"
+  token 3 15:7 word "d5"
+  token 4 15:10 number "2k" value=2e3
+card 13 @netlists/m11_bsim3_multi_both_noise.cir:16:1 lines=16-26 continuations=10
+  raw: ".model n3 nmos level=49 version=3.3.0 capmod=3 cgdo=-7.9e-10 cgso=-7.9e-10 cgbo=-1e-12 a2=1.2 rdsw=-10 prwg=-1  mobmod=1 tox=4.1e-9 xj=1e-7 nch=2.3549e17 vth0=0.3694 k1=0.5789 k2=1.10e-3 k3=1e-3 k3b=0.0295 w0=1e-7 nlx=1.919e-7 dvt0w=0 dvt1w=0 dvt2w=0 dvt0=1.0471 dvt1=0.3896 dvt2=0.0367 u0=268.7 ua=-1.39e-9 ub=2.34e-18 uc=5.42e-11 vsat=1.07e5 a0=1.9 ags=0.42 b0=-1.3e-8 b1=-1e-7 keta=-8.6e-3 a1=1.4e-4 prwb=-0.2 wr=1 wint=0 lint=1.69e-8 dwg=-5.6e-9 dwb=6.1e-9 voff=-0.0886 nfactor=2.2 cit=0 cdsc=2.4e-4 cdscd=0 cdscb=0 eta0=2.74e-3 etab=6.39e-5 dsub=0.0156 pclm=0.739 pdiblc1=0.209 pdiblc2=2.62e-3 pdiblcb=-0.1 drout=0.79 pscbe1=8.2e9 pscbe2=1.1e-8 pvag=2.4e-2 delta=0.01 rsh=6.8 prt=0 ute=-1.5 kt1=-0.11 kt1l=0 kt2=0.022 ua1=4.31e-9 ub1=-7.61e-18 uc1=-5.6e-11 at=3.3e4 cj=9.7e-4 pb=0.73 mj=0.36 cjsw=2.4e-10 pbsw=0.4 mjsw=0.1 cjswg=3.3e-10 pbswg=0.4 mjswg=0.1 cf=0 xpart=0.5"
+  kind: dot(.model)
+  token 1 16:1 word ".model"
+  token 2 16:8 word "n3"
+  token 3 16:11 word "nmos"
+  token 4 16:16 word "level"
+  token 5 16:21 equals "="
+  token 6 16:22 number "49" value=4.9e1
+  token 7 16:25 word "version"
+  token 8 16:32 equals "="
+  token 9 16:33 word "3.3.0"
+  token 10 16:39 word "capmod"
+  token 11 16:45 equals "="
+  token 12 16:46 number "3" value=3e0
+  token 13 16:48 word "cgdo"
+  token 14 16:52 equals "="
+  token 15 16:53 number "-7.9e-10" value=-7.9e-10
+  token 16 16:62 word "cgso"
+  token 17 16:66 equals "="
+  token 18 16:67 number "-7.9e-10" value=-7.9e-10
+  token 19 16:76 word "cgbo"
+  token 20 16:80 equals "="
+  token 21 16:81 number "-1e-12" value=-1e-12
+  token 22 16:88 word "a2"
+  token 23 16:90 equals "="
+  token 24 16:91 number "1.2" value=1.2000000000000002e0
+  token 25 16:95 word "rdsw"
+  token 26 16:99 equals "="
+  token 27 16:100 number "-10" value=-1e1
+  token 28 16:104 word "prwg"
+  token 29 16:108 equals "="
+  token 30 16:109 number "-1" value=-1e0
+  token 31 16:113 word "mobmod"
+  token 32 16:119 equals "="
+  token 33 16:120 number "1" value=1e0
+  token 34 16:122 word "tox"
+  token 35 16:125 equals "="
+  token 36 16:126 number "4.1e-9" value=4.1e-9
+  token 37 16:133 word "xj"
+  token 38 16:135 equals "="
+  token 39 16:136 number "1e-7" value=1e-7
+  token 40 16:141 word "nch"
+  token 41 16:144 equals "="
+  token 42 16:145 number "2.3549e17" value=2.3549e17
+  token 43 16:155 word "vth0"
+  token 44 16:159 equals "="
+  token 45 16:160 number "0.3694" value=3.694e-1
+  token 46 16:167 word "k1"
+  token 47 16:169 equals "="
+  token 48 16:170 number "0.5789" value=5.789000000000001e-1
+  token 49 16:177 word "k2"
+  token 50 16:179 equals "="
+  token 51 16:180 number "1.10e-3" value=1.1e-3
+  token 52 16:188 word "k3"
+  token 53 16:190 equals "="
+  token 54 16:191 number "1e-3" value=1e-3
+  token 55 16:196 word "k3b"
+  token 56 16:199 equals "="
+  token 57 16:200 number "0.0295" value=2.9500000000000002e-2
+  token 58 16:207 word "w0"
+  token 59 16:209 equals "="
+  token 60 16:210 number "1e-7" value=1e-7
+  token 61 16:215 word "nlx"
+  token 62 16:218 equals "="
+  token 63 16:219 number "1.919e-7" value=1.9190000000000002e-7
+  token 64 16:228 word "dvt0w"
+  token 65 16:233 equals "="
+  token 66 16:234 number "0" value=0e0
+  token 67 16:236 word "dvt1w"
+  token 68 16:241 equals "="
+  token 69 16:242 number "0" value=0e0
+  token 70 16:244 word "dvt2w"
+  token 71 16:249 equals "="
+  token 72 16:250 number "0" value=0e0
+  token 73 16:252 word "dvt0"
+  token 74 16:256 equals "="
+  token 75 16:257 number "1.0471" value=1.0471000000000001e0
+  token 76 16:264 word "dvt1"
+  token 77 16:268 equals "="
+  token 78 16:269 number "0.3896" value=3.896e-1
+  token 79 16:276 word "dvt2"
+  token 80 16:280 equals "="
+  token 81 16:281 number "0.0367" value=3.67e-2
+  token 82 16:288 word "u0"
+  token 83 16:290 equals "="
+  token 84 16:291 number "268.7" value=2.687e2
+  token 85 16:297 word "ua"
+  token 86 16:299 equals "="
+  token 87 16:300 number "-1.39e-9" value=-1.39e-9
+  token 88 16:309 word "ub"
+  token 89 16:311 equals "="
+  token 90 16:312 number "2.34e-18" value=2.34e-18
+  token 91 16:321 word "uc"
+  token 92 16:323 equals "="
+  token 93 16:324 number "5.42e-11" value=5.4200000000000004e-11
+  token 94 16:333 word "vsat"
+  token 95 16:337 equals "="
+  token 96 16:338 number "1.07e5" value=1.07e5
+  token 97 16:345 word "a0"
+  token 98 16:347 equals "="
+  token 99 16:348 number "1.9" value=1.9000000000000001e0
+  token 100 16:352 word "ags"
+  token 101 16:355 equals "="
+  token 102 16:356 number "0.42" value=4.2e-1
+  token 103 16:361 word "b0"
+  token 104 16:363 equals "="
+  token 105 16:364 number "-1.3e-8" value=-1.3e-8
+  token 106 16:372 word "b1"
+  token 107 16:374 equals "="
+  token 108 16:375 number "-1e-7" value=-1e-7
+  token 109 16:381 word "keta"
+  token 110 16:385 equals "="
+  token 111 16:386 number "-8.6e-3" value=-8.6e-3
+  token 112 16:394 word "a1"
+  token 113 16:396 equals "="
+  token 114 16:397 number "1.4e-4" value=1.4000000000000001e-4
+  token 115 16:404 word "prwb"
+  token 116 16:408 equals "="
+  token 117 16:409 number "-0.2" value=-2e-1
+  token 118 16:414 word "wr"
+  token 119 16:416 equals "="
+  token 120 16:417 number "1" value=1e0
+  token 121 16:419 word "wint"
+  token 122 16:423 equals "="
+  token 123 16:424 number "0" value=0e0
+  token 124 16:426 word "lint"
+  token 125 16:430 equals "="
+  token 126 16:431 number "1.69e-8" value=1.69e-8
+  token 127 16:439 word "dwg"
+  token 128 16:442 equals "="
+  token 129 16:443 number "-5.6e-9" value=-5.6000000000000005e-9
+  token 130 16:451 word "dwb"
+  token 131 16:454 equals "="
+  token 132 16:455 number "6.1e-9" value=6.1e-9
+  token 133 16:462 word "voff"
+  token 134 16:466 equals "="
+  token 135 16:467 number "-0.0886" value=-8.86e-2
+  token 136 16:475 word "nfactor"
+  token 137 16:482 equals "="
+  token 138 16:483 number "2.2" value=2.2e0
+  token 139 16:487 word "cit"
+  token 140 16:490 equals "="
+  token 141 16:491 number "0" value=0e0
+  token 142 16:493 word "cdsc"
+  token 143 16:497 equals "="
+  token 144 16:498 number "2.4e-4" value=2.4000000000000003e-4
+  token 145 16:505 word "cdscd"
+  token 146 16:510 equals "="
+  token 147 16:511 number "0" value=0e0
+  token 148 16:513 word "cdscb"
+  token 149 16:518 equals "="
+  token 150 16:519 number "0" value=0e0
+  token 151 16:521 word "eta0"
+  token 152 16:525 equals "="
+  token 153 16:526 number "2.74e-3" value=2.7400000000000002e-3
+  token 154 16:534 word "etab"
+  token 155 16:538 equals "="
+  token 156 16:539 number "6.39e-5" value=6.39e-5
+  token 157 16:547 word "dsub"
+  token 158 16:551 equals "="
+  token 159 16:552 number "0.0156" value=1.5600000000000001e-2
+  token 160 16:559 word "pclm"
+  token 161 16:563 equals "="
+  token 162 16:564 number "0.739" value=7.39e-1
+  token 163 16:570 word "pdiblc1"
+  token 164 16:577 equals "="
+  token 165 16:578 number "0.209" value=2.09e-1
+  token 166 16:584 word "pdiblc2"
+  token 167 16:591 equals "="
+  token 168 16:592 number "2.62e-3" value=2.6200000000000004e-3
+  token 169 16:600 word "pdiblcb"
+  token 170 16:607 equals "="
+  token 171 16:608 number "-0.1" value=-1e-1
+  token 172 16:613 word "drout"
+  token 173 16:618 equals "="
+  token 174 16:619 number "0.79" value=7.9e-1
+  token 175 16:624 word "pscbe1"
+  token 176 16:630 equals "="
+  token 177 16:631 number "8.2e9" value=8.2e9
+  token 178 16:637 word "pscbe2"
+  token 179 16:643 equals "="
+  token 180 16:644 number "1.1e-8" value=1.1000000000000001e-8
+  token 181 16:651 word "pvag"
+  token 182 16:655 equals "="
+  token 183 16:656 number "2.4e-2" value=2.4e-2
+  token 184 16:663 word "delta"
+  token 185 16:668 equals "="
+  token 186 16:669 number "0.01" value=1e-2
+  token 187 16:674 word "rsh"
+  token 188 16:677 equals "="
+  token 189 16:678 number "6.8" value=6.800000000000001e0
+  token 190 16:682 word "prt"
+  token 191 16:685 equals "="
+  token 192 16:686 number "0" value=0e0
+  token 193 16:688 word "ute"
+  token 194 16:691 equals "="
+  token 195 16:692 number "-1.5" value=-1.5e0
+  token 196 16:697 word "kt1"
+  token 197 16:700 equals "="
+  token 198 16:701 number "-0.11" value=-1.1e-1
+  token 199 16:707 word "kt1l"
+  token 200 16:711 equals "="
+  token 201 16:712 number "0" value=0e0
+  token 202 16:714 word "kt2"
+  token 203 16:717 equals "="
+  token 204 16:718 number "0.022" value=2.2e-2
+  token 205 16:724 word "ua1"
+  token 206 16:727 equals "="
+  token 207 16:728 number "4.31e-9" value=4.309999999999999e-9
+  token 208 16:736 word "ub1"
+  token 209 16:739 equals "="
+  token 210 16:740 number "-7.61e-18" value=-7.61e-18
+  token 211 16:750 word "uc1"
+  token 212 16:753 equals "="
+  token 213 16:754 number "-5.6e-11" value=-5.6e-11
+  token 214 16:763 word "at"
+  token 215 16:765 equals "="
+  token 216 16:766 number "3.3e4" value=3.3e4
+  token 217 16:772 word "cj"
+  token 218 16:774 equals "="
+  token 219 16:775 number "9.7e-4" value=9.7e-4
+  token 220 16:782 word "pb"
+  token 221 16:784 equals "="
+  token 222 16:785 number "0.73" value=7.3e-1
+  token 223 16:790 word "mj"
+  token 224 16:792 equals "="
+  token 225 16:793 number "0.36" value=3.6e-1
+  token 226 16:798 word "cjsw"
+  token 227 16:802 equals "="
+  token 228 16:803 number "2.4e-10" value=2.4e-10
+  token 229 16:811 word "pbsw"
+  token 230 16:815 equals "="
+  token 231 16:816 number "0.4" value=4e-1
+  token 232 16:820 word "mjsw"
+  token 233 16:824 equals "="
+  token 234 16:825 number "0.1" value=1e-1
+  token 235 16:829 word "cjswg"
+  token 236 16:834 equals "="
+  token 237 16:835 number "3.3e-10" value=3.3e-10
+  token 238 16:843 word "pbswg"
+  token 239 16:848 equals "="
+  token 240 16:849 number "0.4" value=4e-1
+  token 241 16:853 word "mjswg"
+  token 242 16:858 equals "="
+  token 243 16:859 number "0.1" value=1e-1
+  token 244 16:863 word "cf"
+  token 245 16:865 equals "="
+  token 246 16:866 number "0" value=0e0
+  token 247 16:868 word "xpart"
+  token 248 16:873 equals "="
+  token 249 16:874 number "0.5" value=5e-1
+card 14 @netlists/m11_bsim3_multi_both_noise.cir:27:1 lines=27-27 continuations=0
+  raw: ".options reltol=1e-9 vntol=1e-12 abstol=1e-15"
+  kind: dot(.options)
+  token 1 27:1 word ".options"
+  token 2 27:10 word "reltol"
+  token 3 27:16 equals "="
+  token 4 27:17 number "1e-9" value=1e-9
+  token 5 27:22 word "vntol"
+  token 6 27:27 equals "="
+  token 7 27:28 number "1e-12" value=1e-12
+  token 8 27:34 word "abstol"
+  token 9 27:40 equals "="
+  token 10 27:41 number "1e-15" value=1e-15
+card 15 @netlists/m11_bsim3_multi_both_noise.cir:28:1 lines=28-28 continuations=0
+  raw: ".noise v(d4) vg dec 2 1k 10g"
+  kind: dot(.noise)
+  token 1 28:1 word ".noise"
+  token 2 28:8 word "v"
+  token 3 28:9 lparen "("
+  token 4 28:10 word "d4"
+  token 5 28:12 rparen ")"
+  token 6 28:14 word "vg"
+  token 7 28:17 word "dec"
+  token 8 28:21 number "2" value=2e0
+  token 9 28:23 number "1k" value=1e3
+  token 10 28:26 number "10g" value=1e10
+card 16 @netlists/m11_bsim3_multi_both_noise.cir:29:1 lines=29-29 continuations=0
+  raw: ".end"
+  kind: dot(.end)
+  token 1 29:1 word ".end"

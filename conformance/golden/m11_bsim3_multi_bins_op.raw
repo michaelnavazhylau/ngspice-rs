@@ -1,0 +1,26 @@
+Title: bsim3v3.3 multi-instance: bins op
+Date: Thu Oct 22 23:03:13  2026
+Command: ngspice-47+, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 8
+No. Points: 1
+Variables:
+	0	v(dd)	voltage
+	1	v(d1)	voltage
+	2	v(d2)	voltage
+	3	v(d3)	voltage
+	4	v(d4)	voltage
+	5	v(g)	voltage
+	6	i(vdd)	current
+	7	i(vg)	current
+Values:
+ 0	1.800000000000000e+00
+	1.244487977472499e+00
+	1.543988718224970e+00
+	1.424470892356672e+00
+	1.244487977472499e+00
+	1.000000000000000e+00
+	-8.712822172366806e-04
+	0.000000000000000e+00
+

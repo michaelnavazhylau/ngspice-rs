@@ -1,3 +1,24 @@
+# BSIM3 across instances (#189/#193)
+
+- 18 new C goldens, `m11_bsim3_multi_*`, each captured once with `cargo xtask
+  golden capture --netlist <name>` from the reference build. No existing
+  golden was recaptured and no tolerance changed.
+  - The decks cover models shared by several instances with `b3check.c`
+    resets, instance and temperature sweeps, two prefix-named models, a CMOS
+    chain, internal nodes with `uic`, and binning.
+  - Every deck is EXACT against the FMA-free C build (`ulpcmp.py`), out of 71
+    probe decks of which all others were also EXACT or fail exactly as C
+    does; see [BSIM.md](BSIM.md#instances-sharing-a-model).
+  - The transient decks run at default tolerances: at `reltol=1e-9`, C stops
+    with "Timestep too small", and the reference build also fails the stack
+    transient.
+- Fixed: binned instances now enter `CKTsetup`/`CKTload` order under the bin
+  model C creates at their first reference, not under the shared name they
+  are written with (`setup_model_name` in `src/devices/circuit.rs`).
+  `binned_instances_join_the_bin_c_created_at_first_reference` pins the order.
+- Full conformance scoreboard against the FMA-free build: 175 of 220 decks
+  EXACT. `main` has 171; the four that changed are the BSIM3 decks from #193.
+
 # M10 0.5h: card budget, long diode chains, 402-FET transient
 
 - `diode100_op`: one new C golden, captured once with `cargo xtask golden
